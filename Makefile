@@ -907,6 +907,27 @@ test-compose-references-gate:
 # Gate: every apt install in the Dagger module refreshes its package index in the same exec
 # (`aptInstall`). An install layered on a separately cached `apt-get update` 404'd preflight
 # on every run once Ubuntu replaced a package the cached index still named (2026-10-10).
+# Gate: every pg_tviews version the repository names is the one docker/pg-tviews builds
+# (#1391). The pin lives in that Dockerfile; docs and compose follow it.
+.PHONY: lint-pg-tviews-pin
+lint-pg-tviews-pin:
+	@bash tools/check-pg-tviews-pin.sh
+
+# Unit tests for the gate above: another version fails, the pin passes, no pin fails.
+.PHONY: test-pg-tviews-pin-gate
+test-pg-tviews-pin-gate:
+	@bash tools/tests/pg_tviews_pin_test.sh
+
+# The pg_tviews suites (#1391), locally: builds the pinned image on first use (a pgrx
+# compile, ~2.5 min cold), starts it on 127.0.0.1:5441, and runs them against it. Their
+# runtime-absent case reads DATABASE_URL, a database without pg_tviews.
+.PHONY: test-pg-tviews
+test-pg-tviews:
+	docker compose -f docker/docker-compose.test.yml up -d --wait postgres-tviews-test
+	TVIEWS_DATABASE_URL=postgresql://fraiseql_test:fraiseql_test_password@localhost:5441/test_fraiseql \
+	DATABASE_URL=$${DATABASE_URL:-postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql} \
+	cargo test -p fraiseql-server --features metrics --test tviews_cascade_e2e_pg -- --test-threads=1
+
 .PHONY: lint-dagger-apt
 lint-dagger-apt:
 	@bash tools/check-dagger-apt.sh
@@ -1572,7 +1593,7 @@ lint-required-checks:
 # test suite or service-backed integration tests — those are `make test` and the
 # separate Dagger test/integration legs.
 .PHONY: preflight
-preflight: lint-fmt-toolchain fmt-check lint-sdk-dead-surface test-e2e-documents-gate test-e2e-documents lint-tests-layout lint-expect lint-async-trait lint-gate-db lint-gate-core lint-deadlines lint-audit-ledger lint-doc-claims lint-release-validation lint-rustc-wrapper lint-deploy-security lint-deploy-versions lint-compiled-schema-stamp lint-fuzz-targets lint-compose-references lint-dagger-apt lint-doc-image-refs lint-ci-install-pins lint-phases-citations lint-image-context lint-publish-parity lint-publish-secrets lint-routes lint-guard-parity lint-guard-test-lock test-guard-test-lock-gate lint-internal-flag lint-value-json lint-graphql-parse lint-mutation-dispatch lint-write-selections lint-principal-producers lint-rls-policy-construction lint-config-deny-unknown lint-gated-sections lint-docs-env-vars lint-docs-version lint-config-loaders lint-public-api-reexports lint-sdk-publication-claims lint-examples-postgres-only lint-examples-integrity lint-r-examples lint-suite-coverage lint-snapshot-pairing lint-empty-tests lint-test-subject lint-feature-chains lint-crate-sizes lint-sdk-workflows lint-workflow-reachability lint-already-passed-guard lint-image-mirror lint-trigger-rule-copies lint-fixture-collisions lint-preflight-parity lint-shard-parity lint-deny-flags lint-dockerfile-msrv lint-dockerfile-members lint-image-parity lint-delivery-coverage lint-sdk-lockfile-freshness lint-cargo-lock-path-versions test-release-tooling test-changelog-gate test-deadline-gate test-audit-ledger-gate test-docs-env-vars-gate test-doc-claims-gate test-release-validation-gate test-rustc-wrapper-gate test-write-selections-gate test-preflight-parity test-shard-parity test-imports-gate test-suite-coverage-workflows test-workflow-reachability-gate test-already-passed-guard-gate test-image-mirror-gate test-sdk-workflows-gate test-workflow-trigger-rule test-fixture-collisions-gate test-deny-flags-gate test-dockerfile-msrv-gate test-compiled-schema-stamp-gate test-dockerfile-members-gate test-image-parity-gate test-publish-secrets-gate test-delivery-coverage-gate test-sdk-lockfile-freshness-gate test-cargo-lock-path-versions-gate test-feature-matrix-gate test-test-subject-gate test-suite-coverage-inner-gates test-suite-coverage-gating test-suite-coverage-filters test-suite-marker-prelude test-conformance-selftest test-public-api-reexports-gate test-sdk-publication-claims-gate test-fuzz-compiles-gate test-compose-references-gate test-dagger-apt-gate test-doc-image-refs-gate test-ci-install-pins-gate test-ci-stale-artifacts-gate test-example-crates-gate test-r-examples-gate test-phases-citations-gate test-image-context-gate
+preflight: lint-fmt-toolchain fmt-check lint-sdk-dead-surface test-e2e-documents-gate test-e2e-documents lint-tests-layout lint-expect lint-async-trait lint-gate-db lint-gate-core lint-deadlines lint-audit-ledger lint-doc-claims lint-release-validation lint-rustc-wrapper lint-deploy-security lint-deploy-versions lint-compiled-schema-stamp lint-fuzz-targets lint-compose-references lint-dagger-apt lint-pg-tviews-pin lint-doc-image-refs lint-ci-install-pins lint-phases-citations lint-image-context lint-publish-parity lint-publish-secrets lint-routes lint-guard-parity lint-guard-test-lock test-guard-test-lock-gate lint-internal-flag lint-value-json lint-graphql-parse lint-mutation-dispatch lint-write-selections lint-principal-producers lint-rls-policy-construction lint-config-deny-unknown lint-gated-sections lint-docs-env-vars lint-docs-version lint-config-loaders lint-public-api-reexports lint-sdk-publication-claims lint-examples-postgres-only lint-examples-integrity lint-r-examples lint-suite-coverage lint-snapshot-pairing lint-empty-tests lint-test-subject lint-feature-chains lint-crate-sizes lint-sdk-workflows lint-workflow-reachability lint-already-passed-guard lint-image-mirror lint-trigger-rule-copies lint-fixture-collisions lint-preflight-parity lint-shard-parity lint-deny-flags lint-dockerfile-msrv lint-dockerfile-members lint-image-parity lint-delivery-coverage lint-sdk-lockfile-freshness lint-cargo-lock-path-versions test-release-tooling test-changelog-gate test-deadline-gate test-audit-ledger-gate test-docs-env-vars-gate test-doc-claims-gate test-release-validation-gate test-rustc-wrapper-gate test-write-selections-gate test-preflight-parity test-shard-parity test-imports-gate test-suite-coverage-workflows test-workflow-reachability-gate test-already-passed-guard-gate test-image-mirror-gate test-sdk-workflows-gate test-workflow-trigger-rule test-fixture-collisions-gate test-deny-flags-gate test-dockerfile-msrv-gate test-compiled-schema-stamp-gate test-dockerfile-members-gate test-image-parity-gate test-publish-secrets-gate test-delivery-coverage-gate test-sdk-lockfile-freshness-gate test-cargo-lock-path-versions-gate test-feature-matrix-gate test-test-subject-gate test-suite-coverage-inner-gates test-suite-coverage-gating test-suite-coverage-filters test-suite-marker-prelude test-conformance-selftest test-public-api-reexports-gate test-sdk-publication-claims-gate test-fuzz-compiles-gate test-compose-references-gate test-dagger-apt-gate test-pg-tviews-pin-gate test-doc-image-refs-gate test-ci-install-pins-gate test-ci-stale-artifacts-gate test-example-crates-gate test-r-examples-gate test-phases-citations-gate test-image-context-gate
 	@echo "=== preflight: lint-unwrap (UNWRAP_ALLOW_LIMIT=3) ==="
 	@$(MAKE) --no-print-directory lint-unwrap UNWRAP_ALLOW_LIMIT=3
 	@echo "=== preflight: check-test-imports ==="

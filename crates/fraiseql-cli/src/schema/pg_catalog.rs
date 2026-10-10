@@ -382,6 +382,26 @@ impl PgCatalog {
         Ok(row.get(0))
     }
 
+    /// Whether the database has `tviews.pg_tviews_flush_and_report(integer, boolean,
+    /// boolean)`, the function a `cascade_source = "pg_tviews"` mutation calls before its
+    /// commit (#1391).
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the catalog query fails.
+    pub async fn pg_tviews_flush_available(&self) -> Result<bool> {
+        let client = self.pool.get().await.context("failed to acquire DB connection")?;
+        let row = client
+            .query_one(
+                "SELECT to_regprocedure(\
+                 'tviews.pg_tviews_flush_and_report(integer,boolean,boolean)') IS NOT NULL",
+                &[],
+            )
+            .await
+            .context("failed to probe for pg_tviews_flush_and_report")?;
+        Ok(row.get(0))
+    }
+
     /// Run the PL/pgSQL body-resolution pass over `schemas` and return every
     /// unresolved internal call (#409).
     ///

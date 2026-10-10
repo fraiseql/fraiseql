@@ -17,6 +17,43 @@ pub enum WriteMode {
     DryRun,
 }
 
+/// The rows `pg_tviews` reports a write's transaction changed, asked for before the commit
+/// (#1391).
+///
+/// The adapter calls `tviews.pg_tviews_flush_and_report(max_entities, false, true)` after
+/// the function, then reads each reported row of a type in `views` from that type's view,
+/// on the write's own connection (so its session variables and row security apply), and
+/// attaches the result to the first row under [`DERIVED_CASCADE_KEY`]:
+///
+/// `{"updated": [{"__typename", "id", "operation", "entity"}], "deleted": [{"__typename",
+/// "id", "deletedAt"}], "truncated": bool, "invalidated_types": [...]}`
+///
+/// `entity` is `null` for a row the view did not return (not visible to this caller) or a
+/// type `views` does not name. Only on a row that succeeded.
+#[derive(Debug, Clone, Copy)]
+#[non_exhaustive]
+pub struct DerivedCascade<'a> {
+    /// The most rows `pg_tviews` reports before truncating.
+    pub max_entities: i32,
+    /// GraphQL type name → the relation its rows are read from (`id`, `data`).
+    pub views:        &'a [(&'a str, &'a str)],
+}
+
+impl<'a> DerivedCascade<'a> {
+    /// Report at most `max_entities` rows, reading each from the view `views` names for its
+    /// type.
+    #[must_use]
+    pub const fn new(max_entities: i32, views: &'a [(&'a str, &'a str)]) -> Self {
+        Self {
+            max_entities,
+            views,
+        }
+    }
+}
+
+/// The key a [`DerivedCascade`] report is attached under, on the first returned row.
+pub const DERIVED_CASCADE_KEY: &str = "__fraiseql_derived_cascade";
+
 /// One call of a write function.
 ///
 /// `#[non_exhaustive]`: build it with [`WriteRequest::new`] and the `with_*` builders, so a
@@ -25,15 +62,17 @@ pub enum WriteMode {
 #[non_exhaustive]
 pub struct WriteRequest<'a> {
     /// The function to call.
-    pub function:     &'a str,
+    pub function:        &'a str,
     /// Its arguments, positionally.
-    pub args:         &'a [serde_json::Value],
+    pub args:            &'a [serde_json::Value],
     /// Transaction-local settings applied before the call (`set_config(.., true)`).
-    pub session_vars: &'a [(&'a str, &'a str)],
+    pub session_vars:    &'a [(&'a str, &'a str)],
     /// The change-log outbox row to write in the same transaction, if any.
-    pub changelog:    Option<&'a ChangeLogWrite<'a>>,
+    pub changelog:       Option<&'a ChangeLogWrite<'a>>,
     /// Whether the write commits.
-    pub mode:         WriteMode,
+    pub mode:            WriteMode,
+    /// The `pg_tviews` report to attach before the gate, if any (#1391).
+    pub derived_cascade: Option<&'a DerivedCascade<'a>>,
 }
 
 impl<'a> WriteRequest<'a> {
@@ -46,7 +85,18 @@ impl<'a> WriteRequest<'a> {
             session_vars: &[],
             changelog: None,
             mode: WriteMode::Commit,
+            derived_cascade: None,
         }
+    }
+
+    /// With the `pg_tviews` report attached before the gate (#1391).
+    #[must_use]
+    pub const fn with_derived_cascade(
+        mut self,
+        derived_cascade: Option<&'a DerivedCascade<'a>>,
+    ) -> Self {
+        self.derived_cascade = derived_cascade;
+        self
     }
 
     /// With these transaction-local session variables.

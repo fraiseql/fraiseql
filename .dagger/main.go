@@ -510,6 +510,9 @@ func (m *FraiseqlCi) ShellGates(
 		// Ubuntu replaced a package the cached index still named (2026-10-10).
 		"bash tools/check-dagger-apt.sh",
 		"bash tools/tests/dagger_apt_test.sh",
+		// One pg_tviews pin (docker/pg-tviews/Dockerfile); the docs and compose name it (#1391).
+		"bash tools/check-pg-tviews-pin.sh",
+		"bash tools/tests/pg_tviews_pin_test.sh",
 		// A bare `image: fraiseql:...` in a fenced code block resolves to
 		// docker.io/library/fraiseql, which this project cannot publish to — #1129's
 		// defect, in the one place the file-level gates do not read (#1220).
@@ -1219,7 +1222,11 @@ const (
 	// `max_lag_ms` proven against it would be proven against a server that cannot
 	// be stale. Credentials are the replication role `postgres-replication-init.sh`
 	// creates on the primary.
-	pgStandbyBindHost     = "postgres-standby"
+	pgStandbyBindHost = "postgres-standby"
+
+	// pgTviewsBindHost — pgImage + pg_tviews (docker/pg-tviews, pinned there), for the
+	// suites that exercise pg_tviews only (#1391). Every other suite keeps pgService.
+	pgTviewsBindHost      = "postgres-tviews"
 	pgReplicationUser     = "fraiseql_repl"
 	pgReplicationPassword = "fraiseql_repl_password"
 
@@ -1807,6 +1814,7 @@ func (m *FraiseqlCi) integrationFederationCompose(ctx context.Context, source *d
 // (no #[ignore]), so they run plainly and execute once DATABASE_URL is injected.
 func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Directory) (string, error) {
 	dbURL := fmt.Sprintf("postgresql://%s:%s@%s:5432/%s", pgUser, pgPassword, pgBindHost, pgDatabase)
+	tviewsURL := fmt.Sprintf("postgresql://%s:%s@%s:5432/%s", pgUser, pgPassword, pgTviewsBindHost, pgDatabase)
 	standbyURL := fmt.Sprintf("postgresql://%s:%s@%s:5432/%s", pgUser, pgPassword, pgStandbyBindHost, pgDatabase)
 
 	script := strings.Join([]string{
@@ -2020,6 +2028,9 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		"cargo test -p fraiseql-server --test rich_scalar_serving_e2e_pg -- --test-threads=1",
 		"cargo test -p fraiseql-server --features rest,mcp --test constraint_violation_identifier_e2e_pg -- --test-threads=1",
 		"cargo test -p fraiseql-server --features rest,mcp --test mutation_success_fields_e2e_pg -- --test-threads=1",
+		// #1391: a cascade derived from pg_tviews' affected set, against a real pg_tviews
+		// (pgTviewsService); its runtime-absent case reads DATABASE_URL, which has none.
+		"cargo test -p fraiseql-server --features metrics --test tviews_cascade_e2e_pg -- --test-threads=1",
 		// #809: schema-per-tenant isolation was a single session `SET search_path` on
 		// one pooled connection. Every other connection resolved against `public`, so
 		// the leak is only visible under concurrency — a single-connection test passes
@@ -2128,8 +2139,10 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 	return m.integrationBase(source, rustMsrv).
 		WithServiceBinding(pgBindHost, primary).
 		WithServiceBinding(pgStandbyBindHost, m.pgStandbyService(source, primary, "fraiseql_standby")).
+		WithServiceBinding(pgTviewsBindHost, m.pgTviewsService(source)).
 		WithEnvVariable("DATABASE_URL", dbURL).
 		WithEnvVariable("STANDBY_DATABASE_URL", standbyURL).
+		WithEnvVariable("TVIEWS_DATABASE_URL", tviewsURL).
 		WithEnvVariable("FRAISEQL_PIPELINE_E2E", "1").
 		WithExec([]string{"bash", "-c", script}).
 		Stdout(ctx)
@@ -3082,7 +3095,7 @@ func (m *FraiseqlCi) kafkaService() *dagger.Service {
 		WithEnvVariable("KAFKA_TRANSACTION_STATE_LOG_MIN_ISR", "1").
 		WithEnvVariable("KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS", "0").
 		WithExposedPort(9092).
-		AsService(dagger.ContainerAsServiceOpts{UseEntrypoint: true})
+		AsService()
 }
 
 // localstackService returns a started LocalStack with only the Kinesis service
@@ -3096,7 +3109,7 @@ func (m *FraiseqlCi) localstackService() *dagger.Service {
 		// be resolvable; these match the dummy pair the leg exports to the tests.
 		WithEnvVariable("AWS_DEFAULT_REGION", "us-east-1").
 		WithExposedPort(4566).
-		AsService(dagger.ContainerAsServiceOpts{UseEntrypoint: true})
+		AsService()
 }
 
 // mailhogService is the MailHog SMTP sink: SMTP on 1025 (plaintext) and an HTTP
@@ -3106,7 +3119,7 @@ func (m *FraiseqlCi) mailhogService() *dagger.Service {
 		From(mailhogImage).
 		WithExposedPort(1025).
 		WithExposedPort(8025).
-		AsService(dagger.ContainerAsServiceOpts{UseEntrypoint: true})
+		AsService()
 }
 
 // redisService returns a started redis:7-alpine service (default redis-server CMD).
@@ -3153,6 +3166,27 @@ func (m *FraiseqlCi) pgService(source *dagger.Directory) *dagger.Service {
 		WithDirectory("/docker-entrypoint-initdb.d", initDir).
 		WithExposedPort(5432).
 		AsService()
+}
+
+// pgTviewsService returns pgImage with pg_tviews built in from source and preloaded
+// (docker/pg-tviews/Dockerfile, which holds the pin), for the pg_tviews suites (#1391).
+// pg_tviews ships no binaries; the build is a pgrx compile, cached on the build context
+// (that one directory) and the base image.
+func (m *FraiseqlCi) pgTviewsService(source *dagger.Directory) *dagger.Service {
+	return source.Directory("docker/pg-tviews").
+		DockerBuild(dagger.DirectoryDockerBuildOpts{
+			BuildArgs: []dagger.BuildArg{{Name: "PG_IMAGE", Value: pgImage}},
+		}).
+		WithEnvVariable("POSTGRES_USER", pgUser).
+		WithEnvVariable("POSTGRES_PASSWORD", pgPassword).
+		WithEnvVariable("POSTGRES_DB", pgDatabase).
+		WithExposedPort(5432).
+		// The Dockerfile's CMD (`postgres -c shared_preload_libraries=…`) becomes the default
+		// args, and Dagger runs default args without the base image's entrypoint unless told
+		// to: `postgres` then starts as root and refuses ("root" execution … is not
+		// permitted). `docker run` always prepends the entrypoint, which is why compose and
+		// a local `docker run` never showed it. pgService sets no CMD of its own.
+		AsService(dagger.ContainerAsServiceOpts{UseEntrypoint: true})
 }
 
 // pgStandbyService returns a REAL PostgreSQL streaming standby of `primary`,

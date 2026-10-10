@@ -248,6 +248,12 @@ export interface MutationConfig extends OperationConfig {
    * `cascade: true`.
    */
   successFields?: SuccessField[];
+  /**
+   * Where the cascade comes from (#1391): `"function"` (the default, the function's own
+   * `cascade`) or `"pg_tviews"`, which also merges the TVIEW rows pg_tviews reports the
+   * transaction changed. Requires `cascade: true`.
+   */
+  cascadeSource?: "function" | "pg_tviews";
 }
 
 /**

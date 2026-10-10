@@ -20,6 +20,17 @@ disagreed, and the promise was the part that was wrong.
 
 ### Added
 
+- **A cascade mutation can serve the rows pg_tviews refreshed (#1391).** With
+  `cascade_source = "pg_tviews"` (Python `cascade_source=`, TypeScript `cascadeSource`), the
+  executor calls `tviews.pg_tviews_flush_and_report()` before the commit and merges its
+  report into the function's `cascade`: each reported row read from its type's view on the
+  mutation's own connection (its row security applies; pg_tviews' raw `data` is never served)
+  and field-authorized like every cascade entity. The function's own entries win; a row the
+  caller cannot read, and a type pg_tviews truncated, become type-level invalidations. A
+  database without pg_tviews is refused by `compile --database` and fails the write at run
+  time. `fraiseql_cascade_derived_entries` on `/metrics`. Tested against a pinned pg_tviews
+  v0.1.0-beta.26 image (`docker/pg-tviews`, `make test-pg-tviews`).
+
 - **A cascade mutation's payload carries typed success fields (#1397).** A mutation declares
   facts about the operation itself (`success_fields={"recovered_items": int}` in Python,
   `successFields` in TypeScript), the compiler adds each to `<Mutation>Payload` next to
@@ -219,6 +230,9 @@ disagreed, and the promise was the part that was wrong.
   `fraiseql_cli`'s `ExpectedCall` gains `requires_result`, and `ContractViolation` gains
   `MissingResultColumn` and `ResultColumnWrongType` (the variants after them shift their
   discriminants). A struct literal or an exhaustive match over them adds the new items.
+- **A mutation can name its cascade source (#1391); embedders only.** `MutationDefinition`
+  and the CLI's `IntermediateMutation` gain `cascade_source` (absent from an artifact that
+  does not opt in): a struct literal that lists every field adds it.
 - **A violated constraint is named in the mutation's typed error by default (#1531).** The
   error member gains an `errors[]` entry whose `identifier` is the constraint's name (reversing
   #1424's "the constraint's name is not exposed"); set `mutation_constraint_metadata = "none"`

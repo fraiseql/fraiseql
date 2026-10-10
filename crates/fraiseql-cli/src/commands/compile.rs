@@ -526,6 +526,24 @@ pub async fn compile_to_schema(
             drift_errors.push(default_collision(&key, &mutations));
         }
 
+        // #1391: a pg_tviews cascade source calls pg_tviews before every commit; against a
+        // database that has none, each such mutation's first write would fail.
+        let tviews_sourced: Vec<&str> = schema
+            .mutations
+            .iter()
+            .filter(|m| m.cascade_source == fraiseql_core::schema::CascadeSource::PgTviews)
+            .map(|m| m.name.as_str())
+            .collect();
+        if !tviews_sourced.is_empty() && !catalog.pg_tviews_flush_available().await? {
+            for name in tviews_sourced {
+                drift_errors.push(format!(
+                    "mutation `{name}`: cascade_source = \"pg_tviews\", and the database has no \
+                     tviews.pg_tviews_flush_and_report(integer, boolean, boolean): install \
+                     pg_tviews (preloaded), or drop cascade_source"
+                ));
+            }
+        }
+
         // The linter must be able to FAIL (#384): a schema that names database
         // objects which do not exist — or cannot serve the declared shape —
         // does not compile. `--allow-drift` restores the advisory behaviour;

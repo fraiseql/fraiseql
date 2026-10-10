@@ -161,6 +161,26 @@ services:
       timeout: 3s
       retries: 5
 
+  postgres-tviews-test:
+    # PostgreSQL 18 + pgvector + pg_tviews, built from the pinned source tag in
+    # docker/pg-tviews/Dockerfile (pg_tviews ships no binaries). Only the pg_tviews suites
+    # (#1391, #1392) use it, through TVIEWS_DATABASE_URL; every other suite keeps
+    # postgres-test. The image's command preloads pg_tviews and pg_stat_statements.
+    build:
+      context: ./pg-tviews
+    image: fraiseql/pg-tviews-test:pg18-v0.1.0-beta.26
+    environment:
+      POSTGRES_DB: test_fraiseql
+      POSTGRES_USER: fraiseql_test
+      POSTGRES_PASSWORD: fraiseql_test_password
+    ports:
+      - "127.0.0.1:5441:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fraiseql_test -d test_fraiseql"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
   redis-test:
     image: redis:7-alpine
     ports:

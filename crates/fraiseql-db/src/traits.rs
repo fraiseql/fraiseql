@@ -18,7 +18,7 @@ pub use composed_read::{
     EmbedShape, EmbedSource, LevelKeys, composed_read_unsupported,
 };
 use fraiseql_error::{FraiseQLError, Result};
-pub use mutations::{WriteMode, WriteRequest, Writer};
+pub use mutations::{DERIVED_CASCADE_KEY, DerivedCascade, WriteMode, WriteRequest, Writer};
 pub use relay::RelayDatabaseAdapter;
 
 /// A violated constraint as the catalog describes it (#1531): see

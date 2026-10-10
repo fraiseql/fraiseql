@@ -44,6 +44,9 @@ name = "fed_sdl"
 required-features = ["federation"]
 
 [dependencies]
+# The `metrics` facade (no recorder): the server installs the recorder and renders it
+# on `/metrics` (#1391's derived-cascade fan-out).
+metrics = "0.24"
 fraiseql-guard = {workspace = true}
 fraiseql-jwks = {workspace = true}
 ahash = {workspace = true}

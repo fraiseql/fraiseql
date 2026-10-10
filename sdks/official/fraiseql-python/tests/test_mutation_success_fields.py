@@ -76,3 +76,26 @@ def test_success_fields_must_be_a_mapping_of_names_to_types() -> None:
             )
             def create_order(total: int) -> order:  # type: ignore[valid-type]
                 """Malformed."""
+
+
+def test_cascade_source_pg_tviews_exports() -> None:
+    """#1391: a cascade mutation can also take its cascade from pg_tviews' affected set."""
+    order = _order()
+
+    @fraiseql.mutation(
+        sql_source="fn_create_order", operation="insert", cascade=True, cascade_source="pg_tviews"
+    )
+    def create_order(total: int) -> order:  # type: ignore[valid-type]
+        """Create an order."""
+
+    assert SchemaRegistry.get_schema()["mutations"][0]["cascade_source"] == "pg_tviews"
+
+
+def test_cascade_source_is_refused_without_cascade_or_unknown() -> None:
+    order = _order()
+    for config in ({"cascade_source": "pg_tviews"}, {"cascade": True, "cascade_source": "x"}):
+        with pytest.raises(ValueError, match="cascade_source"):
+
+            @fraiseql.mutation(sql_source="fn_create_order", operation="insert", **config)
+            def create_order(total: int) -> order:  # type: ignore[valid-type]
+                """Refused."""

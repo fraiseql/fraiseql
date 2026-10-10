@@ -382,6 +382,32 @@ def _validate_subscribable(
         raise ValueError(msg)
 
 
+_CASCADE_SOURCES = ("function", "pg_tviews")
+
+
+def _validate_cascade_source(cfg: dict[str, Any], context: str) -> None:
+    """Validate ``cascade_source`` in *cfg* if present (#1391).
+
+    ``"pg_tviews"`` merges the TVIEW rows pg_tviews reports the transaction changed into the
+    mutation's cascade, so the mutation must be ``cascade=True``.
+
+    Raises:
+        ValueError: If the value is unknown, or the mutation has no cascade.
+    """
+    if "cascade_source" not in cfg:
+        return
+    source = cfg["cascade_source"]
+    if source not in _CASCADE_SOURCES:
+        msg = f"{context}: cascade_source= must be one of {_CASCADE_SOURCES} (got {source!r})."
+        raise ValueError(msg)
+    if source != "function" and not cfg.get("cascade"):
+        msg = (
+            f"{context}: cascade_source={source!r} merges into the mutation's cascade; "
+            "declare the mutation cascade=True."
+        )
+        raise ValueError(msg)
+
+
 def _convert_success_fields(cfg: dict[str, Any], context: str) -> None:
     """Convert ``success_fields`` in *cfg* to the fields the compiler adds to the payload.
 
@@ -1323,6 +1349,9 @@ def mutation(func: F | None = None, **config_kwargs: Any) -> F | Callable[[F], F
 
         # input_style= validation — fail fast at authoring time
         _validate_input_style(cfg, f"@fraiseql.mutation on {f.__name__!r}")
+
+        # cascade_source= validation — fail fast at authoring time (#1391)
+        _validate_cascade_source(cfg, f"@fraiseql.mutation on {f.__name__!r}")
 
         # success_fields= → the payload fields the compiler adds (#1397)
         _convert_success_fields(cfg, f"@fraiseql.mutation on {f.__name__!r}")

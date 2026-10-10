@@ -75,6 +75,17 @@ impl SchemaConverter {
             &intermediate.requires_actor,
         )?;
 
+        // #1391: pg_tviews' affected set is merged into a cascade; without one there is
+        // nothing to merge it into.
+        if !intermediate.cascade_source.is_function() && !intermediate.cascade {
+            anyhow::bail!(
+                "Mutation `{}`: cascade_source = \"pg_tviews\" merges pg_tviews' affected set \
+                 into the mutation's cascade, and this mutation has none; declare it `cascade = \
+                 true`, or drop cascade_source",
+                intermediate.name
+            );
+        }
+
         let success_fields = Self::convert_success_fields(
             &intermediate.name,
             intermediate.cascade,
@@ -103,6 +114,7 @@ impl SchemaConverter {
             changelog_pre_image: intermediate.changelog_pre_image,
             cascade: intermediate.cascade,
             success_fields,
+            cascade_source: intermediate.cascade_source,
         })
     }
 

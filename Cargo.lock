@@ -3778,6 +3778,7 @@ dependencies = [
  "insta",
  "jsonwebtoken",
  "lru",
+ "metrics",
  "moka",
  "mutants",
  "parking_lot",

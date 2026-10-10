@@ -208,8 +208,19 @@ async fn run_function_in_txn(
         )
     })?;
 
-    let results: Vec<std::collections::HashMap<String, serde_json::Value>> =
+    let mut results: Vec<std::collections::HashMap<String, serde_json::Value>> =
         rows.iter().map(row_to_map).collect();
+
+    // #1391: the rows pg_tviews reports this transaction changed, read on this connection,
+    // before the gate adjudicates the row they are attached to.
+    if let Some(derived) = request.derived_cascade {
+        if let Some(first) = results.first_mut() {
+            if first.get("succeeded").and_then(serde_json::Value::as_bool) == Some(true) {
+                let report = derived_cascade_report(&txn, derived).await?;
+                first.insert(crate::traits::DERIVED_CASCADE_KEY.to_string(), report);
+            }
+        }
+    }
 
     // The gate decides the commit. It sees the rows the function returned — the
     // only thing a per-row decision can be keyed on — while they are still
@@ -245,6 +256,74 @@ async fn run_function_in_txn(
     adapter.mark_write();
 
     Ok(results)
+}
+
+/// Flush `pg_tviews`' queue and report the rows this transaction changed, each reported
+/// updated row read from its type's view on this connection (see
+/// [`crate::traits::DerivedCascade`]).
+async fn derived_cascade_report(
+    txn: &tokio_postgres::Transaction<'_>,
+    derived: &crate::traits::DerivedCascade<'_>,
+) -> Result<serde_json::Value> {
+    let row = txn
+        .query_one(
+            "SELECT tviews.pg_tviews_flush_and_report($1, false, true) AS report, \
+             to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.US\"Z\"') AS at",
+            &[&derived.max_entities],
+        )
+        .await
+        .map_err(|e| {
+            crate::postgres::database_error(
+                format!(
+                    "cascade_source = \"pg_tviews\": tviews.pg_tviews_flush_and_report() \
+                     failed (is pg_tviews installed and preloaded?): {}",
+                    pg_detail(&e)
+                ),
+                &e,
+            )
+        })?;
+    let mut report: serde_json::Value = row.get("report");
+    let at: String = row.get("at");
+    let reported_id = |entry: &serde_json::Value| match &entry["id"] {
+        serde_json::Value::String(s) => s.clone(),
+        other => other.to_string(),
+    };
+    if let Some(updated) = report.get_mut("updated").and_then(serde_json::Value::as_array_mut) {
+        for entry in updated.iter_mut() {
+            let typename = entry["__typename"].as_str().unwrap_or_default().to_string();
+            let entity = match derived.views.iter().find(|(name, _)| *name == typename) {
+                Some((_, view)) => {
+                    let sql = format!(
+                        "SELECT data FROM {} WHERE id = $1",
+                        quote_postgres_identifier(view)
+                    );
+                    let id = FlexParam::Text(reported_id(entry));
+                    txn.query(sql.as_str(), &[&id])
+                        .await
+                        .map_err(|e| {
+                            crate::postgres::database_error(
+                                format!(
+                                    "cascade_source = \"pg_tviews\": reading {typename} from \
+                                     {view} failed: {}",
+                                    pg_detail(&e)
+                                ),
+                                &e,
+                            )
+                        })?
+                        .first()
+                        .map_or(serde_json::Value::Null, |r| r.get("data"))
+                },
+                None => serde_json::Value::Null,
+            };
+            entry["entity"] = entity;
+        }
+    }
+    if let Some(deleted) = report.get_mut("deleted").and_then(serde_json::Value::as_array_mut) {
+        for entry in deleted.iter_mut() {
+            entry["deletedAt"] = serde_json::Value::String(at.clone());
+        }
+    }
+    Ok(report)
 }
 
 /// PostgreSQL SQLSTATE 42703: undefined column.

@@ -216,6 +216,32 @@ pub struct MutationDefinition {
     /// leaf types; the compiler refuses anything else.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub success_fields: Vec<FieldDefinition>,
+
+    /// Where a cascade mutation's `cascade` comes from (#1391): the function's own row (the
+    /// default), or also the TVIEW rows `pg_tviews` reports the transaction changed.
+    #[serde(default, skip_serializing_if = "CascadeSource::is_function")]
+    pub cascade_source: CascadeSource,
+}
+
+/// Where a cascade mutation's `cascade` comes from (#1391).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[non_exhaustive]
+pub enum CascadeSource {
+    /// The `cascade` column of the function's `mutation_response` row.
+    #[default]
+    Function,
+    /// That, merged with the rows `tviews.pg_tviews_flush_and_report()` reports the
+    /// transaction changed, called before the commit. The function's own entries win.
+    PgTviews,
+}
+
+impl CascadeSource {
+    /// Whether this is the default, the function's own cascade.
+    #[must_use]
+    pub const fn is_function(&self) -> bool {
+        matches!(self, Self::Function)
+    }
 }
 
 /// Serde default for [`MutationDefinition::changelog`]: log by default (opt-out).
@@ -297,6 +323,7 @@ impl MutationDefinition {
             changelog_pre_image:     false,
             cascade:                 false,
             success_fields:          Vec::new(),
+            cascade_source:          CascadeSource::Function,
         }
     }
 

@@ -35,3 +35,23 @@ describe("mutation success fields", () => {
     ).toThrow(/successFields.*cascade: true/);
   });
 });
+
+// #1391: a cascade mutation can also take its cascade from pg_tviews' affected set.
+describe("mutation cascade source", () => {
+  beforeEach(() => SchemaRegistry.clear());
+
+  it("exports cascade_source", () => {
+    const config: MutationConfig = { cascade: true, cascadeSource: "pg_tviews" };
+    registerMutation("createOrder", "Order", false, false, [], undefined, { ...config });
+    expect(SchemaRegistry.getSchema().mutations[0]?.cascade_source).toBe("pg_tviews");
+  });
+
+  it("refuses a cascade source without cascade, or an unknown one", () => {
+    for (const config of [{ cascadeSource: "pg_tviews" }, { cascade: true, cascadeSource: "x" }]) {
+      SchemaRegistry.clear();
+      expect(() =>
+        registerMutation("createOrder", "Order", false, false, [], undefined, config)
+      ).toThrow(/cascadeSource/);
+    }
+  });
+});

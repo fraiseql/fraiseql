@@ -427,6 +427,44 @@ cascade is truncated with `metadata.truncated`, max response size → rejected).
 > (a value object cannot originate a cascade). Contrast the `internal` exemption above: that is
 > set by the framework on projections it synthesizes; `embedded` is the *author's* declaration.
 
+### Cascade from pg_tviews (#1391)
+
+A cascade mutation can also serve the read-model rows its transaction changed, as
+[pg_tviews](https://github.com/fraiseql/pg_tviews) reports them, instead of listing every
+one by hand:
+
+```python
+@fraiseql.mutation(sql_source="fn_update_post", operation="update",
+                   cascade=True, cascade_source="pg_tviews")
+def update_post(id: ID, title: str) -> Post: ...
+```
+
+(`cascadeSource: "pg_tviews"` in TypeScript.) After the function and before the commit,
+the executor calls `tviews.pg_tviews_flush_and_report(max, false, true)` on the mutation's
+connection and merges the report into the function's `cascade`:
+
+* **Authorization.** pg_tviews' row `data` is never served. Each reported row is read from
+  its type's view (`sql_source`) on the mutation's own connection, so its session variables
+  and row security apply, exactly as for the rows `cascade_entity` reads; then it is
+  field-authorized like every cascade entity. A row that read does not return is not listed:
+  its type is invalidated instead, one `INVALIDATE` / `PREFIX` hint per root query returning
+  it. (Row security on the TVIEW table itself makes pg_tviews' own report leave the row out,
+  type included.)
+* **Precedence.** The function's entry for a row wins over the report's.
+* **Truncation.** Past `max_updated_entities` rows (the cascade ceiling, default 500),
+  pg_tviews names the types it left out; each is invalidated, and none of its rows is
+  listed: no partial set.
+* **A function that calls the flush itself** (with `reset`, the default) owns that report:
+  the executor's call then reports only later changes, so nothing is listed twice.
+* **Refusals.** `cascade_source` needs `cascade = true`. `fraiseql compile --database`
+  refuses it against a database without `tviews.pg_tviews_flush_and_report(integer,
+  boolean, boolean)`; at run time (an artifact compiled without `--database`) such a write
+  fails naming pg_tviews, and commits nothing.
+* **Observed** as the histogram `fraiseql_cascade_derived_entries` on `/metrics`.
+
+The tests run against `docker/pg-tviews` (PostgreSQL 18 with pg_tviews v0.1.0-beta.26 built
+from source, preloaded): `make test-pg-tviews`.
+
 ### Success fields (#1397)
 
 A cascade mutation can also report facts about the operation itself, next to its entity:

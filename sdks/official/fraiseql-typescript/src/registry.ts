@@ -558,6 +558,7 @@ function normaliseConfig(
     inputStyle: "input_style",
     changelogPreImage: "changelog_pre_image",
     successFields: "success_fields",
+    cascadeSource: "cascade_source",
   };
 
   // REST annotation validation
@@ -630,6 +631,22 @@ function normaliseConfig(
     if (config.cascade !== true) {
       throw new Error(
         "successFields are served on the cascade payload; declare the mutation cascade: true"
+      );
+    }
+  }
+
+  // cascadeSource (#1391): "pg_tviews" merges the TVIEW rows pg_tviews reports the
+  // transaction changed into the mutation's cascade, so it needs one.
+  if ("cascadeSource" in config) {
+    const source = config.cascadeSource;
+    if (operation !== "mutation" || (source !== "function" && source !== "pg_tviews")) {
+      throw new Error(
+        `cascadeSource must be a mutation's "function" or "pg_tviews", got ${JSON.stringify(source)}`
+      );
+    }
+    if (source !== "function" && config.cascade !== true) {
+      throw new Error(
+        "cascadeSource \"pg_tviews\" merges into the mutation's cascade; declare it cascade: true"
       );
     }
   }

@@ -630,6 +630,15 @@ pub struct IntermediateMutation {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub success_fields: Vec<super::IntermediateField>,
 
+    /// Where the cascade comes from (#1391): `"function"` (the default) or `"pg_tviews"`,
+    /// which also merges the TVIEW rows `pg_tviews` reports the transaction changed. Only on a
+    /// `cascade` mutation.
+    #[serde(
+        default,
+        skip_serializing_if = "fraiseql_core::schema::CascadeSource::is_function"
+    )]
+    pub cascade_source: fraiseql_core::schema::CascadeSource,
+
     /// REST route override for this mutation. See [`IntermediateRest`].
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rest: Option<IntermediateRest>,
@@ -661,6 +670,7 @@ impl Default for IntermediateMutation {
             changelog_pre_image:     false,
             cascade:                 false,
             success_fields:          Vec::new(),
+            cascade_source:          fraiseql_core::schema::CascadeSource::Function,
             rest:                    None,
         }
     }

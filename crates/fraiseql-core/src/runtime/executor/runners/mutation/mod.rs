@@ -7,6 +7,7 @@
 //! [`MutationRunner`] path and the runtime-guarded `execute_mutation_query` path on
 //! [`Executor`](super::super::core::Executor).
 
+mod derived_cascade;
 mod invalidation;
 mod payload_gates;
 
@@ -1946,7 +1947,9 @@ pub(in super::super) async fn execute_mutation_impl(
                 message: format!("Mutation '{mutation_name}': function returned no rows"),
                 path:    None,
             })?;
-            let outcome = parse_mutation_row(row)?;
+            // #1391: pg_tviews' report, merged into the cascade it is served from.
+            let row = derived_cascade::merge(&ctx.schema, row);
+            let outcome = parse_mutation_row(&row)?;
             crate::runtime::mutation_result::check_error_shape(
                 ctx.config.mutation_error_shape_check,
                 &outcome,
@@ -2024,10 +2027,26 @@ pub(in super::super) async fn execute_mutation_impl(
         } else {
             crate::backend::WriteMode::Commit
         };
+        // #1391: a mutation whose cascade also comes from pg_tviews asks the adapter for the
+        // rows its transaction changed, read on its connection, before the gate.
+        let derived_views = (mutation_def.cascade_source == crate::schema::CascadeSource::PgTviews)
+            .then(|| derived_cascade::views(&ctx.schema));
+        let derived_pairs: Vec<(&str, &str)> = derived_views
+            .iter()
+            .flatten()
+            .map(|(name, view)| (name.as_str(), view.as_str()))
+            .collect();
+        let derived = derived_views.is_some().then(|| {
+            crate::backend::DerivedCascade::new(
+                i32::try_from(ctx.config.cascade_limits.max_updated_entities).unwrap_or(i32::MAX),
+                &derived_pairs,
+            )
+        });
         let request = crate::backend::WriteRequest::new(sql_source, &args)
             .with_session_vars(&session_pairs)
             .with_changelog(changelog.as_ref())
-            .with_mode(mode);
+            .with_mode(mode)
+            .with_derived_cascade(derived.as_ref());
         match writer.execute_write(&request, &gate).await {
             Ok(_) => built.into_inner().ok_or_else(|| FraiseQLError::Internal {
                 message: format!(
