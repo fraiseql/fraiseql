@@ -168,7 +168,8 @@ disagreed, and the promise was the part that was wrong.
   Option<Box<ConstraintViolation>>` field: an embedder constructing the variant adds it, one
   matching it without `..` adds it or `..`. The synthesized `MutationError` gains `errors`.
   `DatabaseAdapter` gains `describe_constraint` (a default is provided; a wrapping adapter
-  must forward it).
+  must forward it). `RuntimeConfig` gains `constraint_metadata` and `ServerConfig` gains
+  `mutation_constraint_metadata`: a struct literal that lists every field adds them.
 - **`native_columns` records nullability (#1533).** In the compiled schema each entry is
   `{"pg_type": …, "not_null": …}` (was the type string), and `QueryDefinition::native_columns`
   is a `HashMap<String, NativeColumn>`; `OrderByClause` gains `native_not_null`. Recompile;
