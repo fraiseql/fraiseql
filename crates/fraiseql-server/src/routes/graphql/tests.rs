@@ -1352,12 +1352,12 @@ mod tenant_registry_tests {
     fn test_upsert_with_quota_sets_concurrency_limit() {
         let registry = TenantExecutorRegistry::new(default_executor());
         let quota = TenantQuota {
-            max_concurrent:             Some(2),
-            max_requests_per_sec:       None,
-            max_storage_bytes_advisory: None,
-            cost_budget:                None,
-            cost_budget_per_minute:     None,
-            cost_budget_per_actor:      std::collections::HashMap::new(),
+            max_concurrent:         Some(2),
+            max_requests_per_sec:   None,
+            max_storage_bytes:      None,
+            cost_budget:            None,
+            cost_budget_per_minute: None,
+            cost_budget_per_actor:  std::collections::HashMap::new(),
         };
         let was_insert = registry.upsert_with_quota("tenant-abc", tenant_executor("abc"), quota);
         assert!(was_insert);
@@ -1380,12 +1380,12 @@ mod tenant_registry_tests {
     fn test_cost_budget_rejects_over_budget_and_admits_within() {
         let registry = TenantExecutorRegistry::new(default_executor());
         let quota = TenantQuota {
-            max_concurrent:             None,
-            max_requests_per_sec:       None,
-            max_storage_bytes_advisory: None,
-            cost_budget:                Some(100),
-            cost_budget_per_minute:     None,
-            cost_budget_per_actor:      std::collections::HashMap::new(),
+            max_concurrent:         None,
+            max_requests_per_sec:   None,
+            max_storage_bytes:      None,
+            cost_budget:            Some(100),
+            cost_budget_per_minute: None,
+            cost_budget_per_actor:  std::collections::HashMap::new(),
         };
         registry.upsert_with_quota("tenant-abc", tenant_executor("abc"), quota);
 
@@ -1464,12 +1464,12 @@ mod tenant_registry_tests {
     fn cost_window_accumulates_and_rejects_with_retry_hint() {
         let registry = TenantExecutorRegistry::new(default_executor());
         let quota = TenantQuota {
-            cost_budget_per_actor:      std::collections::HashMap::new(),
-            max_concurrent:             None,
-            max_requests_per_sec:       None,
-            max_storage_bytes_advisory: None,
-            cost_budget:                None,
-            cost_budget_per_minute:     Some(1_000),
+            cost_budget_per_actor:  std::collections::HashMap::new(),
+            max_concurrent:         None,
+            max_requests_per_sec:   None,
+            max_storage_bytes:      None,
+            cost_budget:            None,
+            cost_budget_per_minute: Some(1_000),
         };
         registry.upsert_with_quota("tenant-abc", tenant_executor("abc"), quota);
 
@@ -1555,12 +1555,12 @@ mod tenant_registry_tests {
 
         let registry = TenantExecutorRegistry::new(default);
         let quota = TenantQuota {
-            cost_budget_per_actor:      std::collections::HashMap::new(),
-            max_concurrent:             None,
-            max_requests_per_sec:       None,
-            max_storage_bytes_advisory: None,
-            cost_budget:                None,
-            cost_budget_per_minute:     Some(500),
+            cost_budget_per_actor:  std::collections::HashMap::new(),
+            max_concurrent:         None,
+            max_requests_per_sec:   None,
+            max_storage_bytes:      None,
+            cost_budget:            None,
+            cost_budget_per_minute: Some(500),
         };
         registry.upsert_with_quota("tenant-abc", tenant_executor("abc"), quota);
 
@@ -1594,12 +1594,12 @@ mod tenant_registry_tests {
     fn test_concurrency_permit_released_on_drop() {
         let registry = TenantExecutorRegistry::new(default_executor());
         let quota = TenantQuota {
-            max_concurrent:             Some(1),
-            max_requests_per_sec:       None,
-            max_storage_bytes_advisory: None,
-            cost_budget:                None,
-            cost_budget_per_minute:     None,
-            cost_budget_per_actor:      std::collections::HashMap::new(),
+            max_concurrent:         Some(1),
+            max_requests_per_sec:   None,
+            max_storage_bytes:      None,
+            cost_budget:            None,
+            cost_budget_per_minute: None,
+            cost_budget_per_actor:  std::collections::HashMap::new(),
         };
         registry.upsert_with_quota("tenant-abc", tenant_executor("abc"), quota);
 
@@ -1620,50 +1620,96 @@ mod tenant_registry_tests {
     // the flag or read it, so the tests passed identically whether tenant storage
     // quotas were enforced or entirely absent — and they were entirely absent (#633).
 
-    /// #633 / #612 item 13: `max_storage_bytes` never bounded anything. Renaming it
-    /// to `max_storage_bytes_advisory` is only honest if the old spelling *fails*.
-    /// A silently-ignored key would leave an operator believing they configured a
-    /// quota — the exact belief the rename exists to correct.
+    /// #633: `max_storage_bytes` is enforced now, and the advisory spelling it was renamed
+    /// to while nothing enforced it is refused: a silently-ignored key would leave an
+    /// operator believing a quota was configured.
     #[test]
-    fn the_unsuffixed_storage_quota_key_is_refused() {
+    fn the_advisory_storage_quota_key_is_refused() {
         use crate::routes::api::tenant_admin::TenantRegistrationRequest;
 
         let body = serde_json::json!({
             "schema": {},
             "connection": {"connection_string": "postgres://localhost/x"},
-            "max_storage_bytes": 1_000_000,
+            "max_storage_bytes_advisory": 1_000_000,
         });
         let err = serde_json::from_value::<TenantRegistrationRequest>(body)
-            .expect_err("the unsuffixed key must be refused, not ignored");
-        assert!(err.to_string().contains("max_storage_bytes"), "{err}");
+            .expect_err("the advisory key must be refused, not ignored");
+        assert!(err.to_string().contains("max_storage_bytes_advisory"), "{err}");
 
         let accepted = serde_json::json!({
             "schema": {},
             "connection": {"connection_string": "postgres://localhost/x"},
-            "max_storage_bytes_advisory": 1_000_000,
+            "max_storage_bytes": 1_000_000,
         });
         let parsed = serde_json::from_value::<TenantRegistrationRequest>(accepted)
-            .expect("the suffixed key is the supported spelling");
-        assert_eq!(parsed.max_storage_bytes_advisory, Some(1_000_000));
+            .expect("the enforced key is the supported spelling");
+        assert_eq!(parsed.max_storage_bytes, Some(1_000_000));
+    }
+
+    fn storage_quota(limit: u64) -> TenantQuota {
+        TenantQuota {
+            max_storage_bytes: Some(limit),
+            ..Default::default()
+        }
+    }
+
+    /// #633: a quota is the tenant executor's write gate, and a tenant without one has none.
+    #[test]
+    fn a_storage_quota_is_its_executors_write_gate() {
+        let registry = TenantExecutorRegistry::new(default_executor());
+        registry.upsert_with_quota("quota", tenant_executor("quota"), storage_quota(10));
+        registry.upsert_with_quota("free", tenant_executor("free"), TenantQuota::default());
+        let gate = registry.executor_for(Some("quota")).unwrap().config().write_gate.clone();
+        assert!(gate.expect("the quota gates writes").admit("m").is_ok(), "under it: admitted");
+        assert!(registry.executor_for(Some("free")).unwrap().config().write_gate.is_none());
+
+        registry.storage_quota("quota").unwrap().record("quota", 11);
+        let refused = registry.executor_for(Some("quota")).unwrap().config().write_gate.clone();
+        let error = refused.unwrap().admit("m").unwrap_err();
+        assert_eq!(error.status_code(), 507, "{error}");
+    }
+
+    /// #633: replacing a tenant's executor keeps its quota as the new executor's gate.
+    #[test]
+    fn a_replaced_executor_keeps_the_storage_quota_gate() {
+        let registry = TenantExecutorRegistry::new(default_executor());
+        registry.upsert_with_quota("quota", tenant_executor("quota"), storage_quota(10));
+        registry.upsert("quota", tenant_executor("quota-2"));
+        assert!(
+            registry.executor_for(Some("quota")).unwrap().config().write_gate.is_some(),
+            "a swapped executor would otherwise write past the quota"
+        );
+    }
+
+    /// #633: a tenant over its quota, registered again, stays refused until a measurement
+    /// finds it back under; it does not get a clean slate until the next sweep.
+    #[test]
+    fn a_re_registered_tenant_over_its_quota_stays_refused() {
+        let registry = TenantExecutorRegistry::new(default_executor());
+        registry.upsert_with_quota("quota", tenant_executor("quota"), storage_quota(10));
+        registry.storage_quota("quota").unwrap().record("quota", 11);
+        registry.upsert_with_quota("quota", tenant_executor("quota"), storage_quota(10));
+        let gate = registry.executor_for(Some("quota")).unwrap().config().write_gate.clone();
+        assert!(gate.unwrap().admit("m").is_err(), "still over its quota");
     }
 
     #[test]
     fn test_tenant_quota_retrieval() {
         let registry = TenantExecutorRegistry::new(default_executor());
         let quota = TenantQuota {
-            max_requests_per_sec:       Some(100),
-            max_concurrent:             Some(10),
-            max_storage_bytes_advisory: Some(1_000_000),
-            cost_budget:                None,
-            cost_budget_per_minute:     None,
-            cost_budget_per_actor:      std::collections::HashMap::new(),
+            max_requests_per_sec:   Some(100),
+            max_concurrent:         Some(10),
+            max_storage_bytes:      Some(1_000_000),
+            cost_budget:            None,
+            cost_budget_per_minute: None,
+            cost_budget_per_actor:  std::collections::HashMap::new(),
         };
         registry.upsert_with_quota("tenant-abc", tenant_executor("abc"), quota);
 
         let retrieved = registry.tenant_quota("tenant-abc").unwrap();
         assert_eq!(retrieved.max_requests_per_sec, Some(100));
         assert_eq!(retrieved.max_concurrent, Some(10));
-        assert_eq!(retrieved.max_storage_bytes_advisory, Some(1_000_000));
+        assert_eq!(retrieved.max_storage_bytes, Some(1_000_000));
     }
 
     #[test]

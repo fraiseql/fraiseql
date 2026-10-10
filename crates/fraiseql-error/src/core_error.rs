@@ -259,6 +259,23 @@ pub enum FraiseQLError {
         limit: u64,
     },
 
+    /// The tenant's storage is over its `max_storage_bytes` quota (#633): its writes are
+    /// refused until its usage falls back under it. Its reads are unaffected.
+    ///
+    /// `507 Insufficient Storage`, the status for "the server cannot store what this
+    /// request needs". Not retried by waiting alone: the tenant deletes data, or the
+    /// operator raises the quota, and the next measurement lifts the refusal.
+    #[error(
+        "Tenant storage is over its quota: {usage_bytes} bytes measured, max_storage_bytes is \
+         {limit_bytes}; writes are refused until usage falls back under it"
+    )]
+    StorageQuotaExceeded {
+        /// The usage the last measurement found.
+        usage_bytes: u64,
+        /// The tenant's `max_storage_bytes`.
+        limit_bytes: u64,
+    },
+
     // ========================================================================
     // Resource Errors
     // ========================================================================
@@ -565,6 +582,7 @@ impl FraiseQLError {
             // spells "what you asked for is too big": `sse_max_replay_events`
             // answers `413 RESUME_TOO_FAR_BEHIND` for the same shape of refusal.
             Self::ResponseTooLarge { .. } => 413,
+            Self::StorageQuotaExceeded { .. } => 507,
             Self::Timeout { .. } | Self::Cancelled { .. } => 408,
             Self::Database { .. }
             | Self::ConnectionPool { .. }
@@ -609,6 +627,7 @@ impl FraiseQLError {
             Self::Observer(_) => "OBSERVER_ERROR",
             Self::File(_) => "FILE_ERROR",
             Self::RateLimited { .. } => "RATE_LIMITED",
+            Self::StorageQuotaExceeded { .. } => "INSUFFICIENT_STORAGE",
             Self::NotFound { .. } => "NOT_FOUND",
             Self::Conflict { .. } => "CONFLICT",
             Self::Configuration { .. } => "CONFIGURATION_ERROR",

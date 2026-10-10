@@ -844,6 +844,9 @@ mod runtime_config_drift {
             before_mutation_gate,
             query_function_resolver,
             after_mutation_observer,
+            // Per tenant (#633): the registry installs the tenant's own storage quota as its
+            // write gate; the server's executor has none to inherit.
+            write_gate: _,
             root_error_renderer,
         } = server;
 

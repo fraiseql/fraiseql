@@ -521,6 +521,21 @@ mod error_tests {
     /// The per-request half is driven end to end in `engine_refusal_rendering_e2e_pg`;
     /// the window half is only reachable from a tenant's budget, which `/graphql` checks
     /// before the engine runs.
+    /// #633: a tenant over its storage quota is a 507 with its own code, and its message,
+    /// which names the quota and carries no database text, survives sanitization.
+    #[test]
+    fn test_from_fraiseql_error_storage_quota_is_507() {
+        let err = fraiseql_core::error::FraiseQLError::StorageQuotaExceeded {
+            usage_bytes: 11,
+            limit_bytes: 10,
+        };
+        let graphql_err = GraphQLError::from_fraiseql_error(&err);
+        assert_eq!(graphql_err.code, ErrorCode::InsufficientStorage);
+        assert_eq!(graphql_err.code.status_code(), axum::http::StatusCode::INSUFFICIENT_STORAGE);
+        assert!(!graphql_err.code.carries_database_text(), "the message is the quota's");
+        assert!(graphql_err.message.contains("max_storage_bytes"), "{}", graphql_err.message);
+    }
+
     #[test]
     fn test_from_fraiseql_error_cost_exceeded_keeps_its_codes() {
         use fraiseql_core::error::FraiseQLError;

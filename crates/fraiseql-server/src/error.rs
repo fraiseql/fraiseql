@@ -81,6 +81,10 @@ pub enum ErrorCode {
     /// Distinct from [`RateLimitExceeded`](Self::RateLimitExceeded) so a
     /// client can tell cost throttling from request-count throttling.
     CostBudgetExhausted,
+    /// The tenant's storage is over its `max_storage_bytes` quota (#633): its writes are
+    /// refused (507) until a measurement finds it back under. Not database text: the
+    /// message names the quota and is forwarded.
+    InsufficientStorage,
 }
 
 impl ErrorCode {
@@ -154,6 +158,7 @@ impl ErrorCode {
             // server-side execution timeout is a 504 (#731).
             Self::Timeout => StatusCode::GATEWAY_TIMEOUT,
             Self::PayloadTooLarge => StatusCode::PAYLOAD_TOO_LARGE,
+            Self::InsufficientStorage => StatusCode::INSUFFICIENT_STORAGE,
             Self::InternalServerError | Self::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
             Self::CircuitBreakerOpen | Self::ServiceUnavailable => StatusCode::SERVICE_UNAVAILABLE,
             // GraphQL-over-HTTP: a mutation sent over GET is rejected at the transport
@@ -461,6 +466,9 @@ impl GraphQLError {
                 None => Self::operation_cost_exceeded(err.to_string()),
             },
             E::ResponseTooLarge { .. } => Self::new(err.to_string(), ErrorCode::PayloadTooLarge),
+            E::StorageQuotaExceeded { .. } => {
+                Self::new(err.to_string(), ErrorCode::InsufficientStorage)
+            },
             // Cancelled, Configuration, Internal, and any future variants
             _ => Self::internal(err.to_string()),
         }

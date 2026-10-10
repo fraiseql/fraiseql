@@ -429,9 +429,7 @@ impl Server {
         // graceful shutdown aborts them (an aborted execution's row goes stale
         // and is reclaimed after the staleness threshold — the P19 recovery
         // path, exercised on every deploy).
-        self.spawn_async_operation_workers(&app_state);
-        #[cfg(feature = "inbound")]
-        self.spawn_inbound_dispatch_sweep(&app_state);
+        self.spawn_lifecycle_tasks(&app_state);
 
         // Start the poll-IMAP email workers.
         // Each configured `[mailbox.<name>.imap]` half runs a background poll loop
@@ -1018,9 +1016,7 @@ impl Server {
         // Same worker spawn as `serve_with_shutdown` — the two entry points must
         // not drift (#858's construction-path rule): a test harness that mounts
         // the routes but never executes submissions would green a dead surface.
-        self.spawn_async_operation_workers(&app_state);
-        #[cfg(feature = "inbound")]
-        self.spawn_inbound_dispatch_sweep(&app_state);
+        self.spawn_lifecycle_tasks(&app_state);
         // #571: drain live subscription connections here too, so the in-process
         // test harness exercises the same graceful teardown as production.
         let subscription_drain = std::sync::Arc::clone(&self.subscription_drain);

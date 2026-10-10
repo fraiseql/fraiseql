@@ -44,6 +44,8 @@ mod routing;
 mod after_mutation_wiring_tests;
 #[cfg(test)]
 mod parity_tests;
+#[cfg(test)]
+mod storage_quota_sweep_tests;
 
 #[cfg(test)]
 mod routing_tests;

@@ -80,37 +80,28 @@ impl TenantStatusSource for TenantExecutorRegistry {
 pub struct TenantQuota {
     /// Maximum requests per second (token bucket rate).
     #[serde(default)]
-    pub max_requests_per_sec:       Option<u32>,
+    pub max_requests_per_sec:   Option<u32>,
     /// Maximum concurrent in-flight requests (semaphore capacity).
     #[serde(default)]
-    pub max_concurrent:             Option<u32>,
-    /// Maximum storage in bytes — **advisory**, stored and reported, never
-    /// enforced.
-    ///
-    /// The name carries the `_advisory` suffix because the previous one did not,
-    /// and a field called `max_storage_bytes` reads as a boundary. There is no
-    /// usage-metering path in FraiseQL: nothing measures per-tenant storage, so no
-    /// request is ever refused on the basis of this value. It is retained as an
-    /// operator annotation — an intent an external metering system can read back
-    /// out of the admin API.
-    ///
-    /// Metering and enforcement are a subsystem, tracked at
-    /// <https://github.com/fraiseql/fraiseql/issues/633>. When it lands, this field
-    /// gets its unsuffixed name back.
+    pub max_concurrent:         Option<u32>,
+    /// Maximum storage in bytes, enforced (#633). Schema-mode tenancy only: the tenant's
+    /// schema is measured every `[tenancy.storage_quota] interval_secs`, and while it is
+    /// over this a tenant's writes are refused (`507`); its reads are not. `None` means
+    /// no quota.
     #[serde(default)]
-    pub max_storage_bytes_advisory: Option<u64>,
+    pub max_storage_bytes:      Option<u64>,
     /// Maximum estimated cost of a single GraphQL operation (#379). `None` means
     /// no cost budget. A request whose `estimate_query_cost` exceeds this is
     /// rejected at the same chokepoint as the rate/concurrency quotas with
     /// `OPERATION_COST_EXCEEDED` — permanent for the operation, not retryable.
     #[serde(default)]
-    pub cost_budget:                Option<usize>,
+    pub cost_budget:            Option<usize>,
     /// Rolling per-minute cost budget (#379): the sum of estimated operation
     /// costs a tenant may spend per fixed 60-second window. `None` means no
     /// window budget. An exhausted window rejects with `COST_BUDGET_EXHAUSTED`
     /// (429 + `Retry-After` until the window resets).
     #[serde(default)]
-    pub cost_budget_per_minute:     Option<usize>,
+    pub cost_budget_per_minute: Option<usize>,
     /// Per-actor-class overrides of the two budgets above (#966).
     ///
     /// A service account draining a report and a human clicking through a UI are
@@ -125,7 +116,7 @@ pub struct TenantQuota {
     /// a function of the traffic mix, which is exactly the coupling this exists
     /// to remove. A class absent here falls back to the tenant-wide budget.
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
-    pub cost_budget_per_actor:      HashMap<ActorType, ActorCostBudget>,
+    pub cost_budget_per_actor:  HashMap<ActorType, ActorCostBudget>,
 }
 
 /// One actor class's override of a tenant's cost budgets (#966).
@@ -255,6 +246,87 @@ struct TenantEntry {
     cost_windows_by_actor: HashMap<ActorType, CostWindow>,
     /// Quota configuration (cloned from registration request).
     quota:                 TenantQuota,
+    /// The storage quota (#633), installed on the executor as its write gate. `None` when
+    /// the tenant has no `max_storage_bytes`.
+    storage:               Option<Arc<StorageQuota>>,
+}
+
+/// A tenant's storage quota (#633): its limit, the last measured usage, and whether the
+/// tenant is over it.
+///
+/// It is the tenant executor's [`WriteGate`](fraiseql_core::runtime::WriteGate): while
+/// over, every write the executor runs is refused at the write chokepoint. The registry's
+/// sweep records each measurement; a measurement back under the limit lifts the refusal.
+pub struct StorageQuota {
+    limit: u64,
+    usage: std::sync::atomic::AtomicU64,
+    over:  std::sync::atomic::AtomicBool,
+}
+
+impl StorageQuota {
+    const fn new(limit: u64) -> Self {
+        Self {
+            limit,
+            usage: std::sync::atomic::AtomicU64::new(0),
+            over: std::sync::atomic::AtomicBool::new(false),
+        }
+    }
+
+    /// Record a measurement of `tenant`'s usage, logging a change of state.
+    pub(crate) fn record(&self, tenant: &str, usage: u64) {
+        self.usage.store(usage, Ordering::Release);
+        let over = usage > self.limit;
+        if self.over.swap(over, Ordering::AcqRel) != over {
+            if over {
+                tracing::warn!(
+                    tenant,
+                    usage,
+                    limit = self.limit,
+                    "tenant storage is over its quota; its writes are refused"
+                );
+            } else {
+                tracing::info!(
+                    tenant,
+                    usage,
+                    limit = self.limit,
+                    "tenant storage is back under its quota; its writes are admitted"
+                );
+            }
+        }
+        #[allow(clippy::cast_precision_loss)] // Reason: a gauge of bytes; f64 is the facade's type
+        {
+            metrics::gauge!("fraiseql_tenant_storage_bytes", "tenant" => tenant.to_string())
+                .set(usage as f64);
+            metrics::gauge!("fraiseql_tenant_storage_quota_bytes", "tenant" => tenant.to_string())
+                .set(self.limit as f64);
+        }
+    }
+}
+
+impl fraiseql_core::runtime::WriteGate for StorageQuota {
+    fn admit(&self, _mutation: &str) -> fraiseql_error::Result<()> {
+        if self.over.load(Ordering::Acquire) {
+            return Err(FraiseQLError::StorageQuotaExceeded {
+                usage_bytes: self.usage.load(Ordering::Acquire),
+                limit_bytes: self.limit,
+            });
+        }
+        Ok(())
+    }
+}
+
+/// `executor`, with `storage` as its write gate when there is one.
+fn gated(executor: Arc<Executor>, storage: Option<&Arc<StorageQuota>>) -> Arc<Executor> {
+    let Some(storage) = storage else {
+        return executor;
+    };
+    let gate: Arc<dyn fraiseql_core::runtime::WriteGate> = Arc::clone(storage) as _;
+    Arc::new(
+        executor.rebuild_with(
+            executor.schema().clone(),
+            executor.config().clone().with_write_gate(gate),
+        ),
+    )
 }
 
 impl TenantEntry {
@@ -268,6 +340,7 @@ impl TenantEntry {
             cost_window: None,
             cost_windows_by_actor: HashMap::new(),
             quota: TenantQuota::default(),
+            storage: None,
         }
     }
 
@@ -302,6 +375,11 @@ impl TenantEntry {
                 budget.per_minute.map(|b| (*actor, CostWindow::new(b as u64)))
             })
             .collect();
+        if let Some(limit) = quota.max_storage_bytes {
+            let storage = Arc::new(StorageQuota::new(limit));
+            self.executor.store(gated(self.executor.load_full(), Some(&storage)));
+            self.storage = Some(storage);
+        }
         self.quota = quota;
         self
     }
@@ -445,6 +523,8 @@ impl TenantExecutorRegistry {
     pub fn upsert(&self, key: impl Into<String>, executor: Arc<Executor>) -> bool {
         let key = key.into();
         if let Some(existing) = self.tenants.get(&key) {
+            // A storage quota stays the new executor's write gate (#633).
+            let executor = gated(executor, existing.value().storage.as_ref());
             existing.value().executor.store(executor);
             false
         } else {
@@ -470,14 +550,20 @@ impl TenantExecutorRegistry {
     ) -> bool {
         let key = key.into();
         if let Some(existing) = self.tenants.get(&key) {
-            // Preserve status across quota update
+            // Preserve status across quota update, and the last storage measurement, so a
+            // re-registered tenant over its quota stays refused until the next sweep (#633).
             let prev_status = existing.value().status();
+            let prev_usage =
+                existing.value().storage.as_ref().map(|s| s.usage.load(Ordering::Acquire));
             drop(existing);
             self.tenants.remove(&key);
             let entry = TenantEntry::new(executor)
                 .with_quota(quota)
                 .with_default_minute_budget(self.default_minute_budget);
             entry.set_status(prev_status);
+            if let (Some(usage), Some(storage)) = (prev_usage, entry.storage.as_ref()) {
+                storage.record(&key, usage);
+            }
             self.tenants.insert(key, entry);
             false
         } else {
@@ -488,6 +574,43 @@ impl TenantExecutorRegistry {
                     .with_default_minute_budget(self.default_minute_budget),
             );
             true
+        }
+    }
+
+    /// The storage quota of `key`, if it has one (test access to its measurement).
+    #[cfg(test)]
+    pub(crate) fn storage_quota(&self, key: &str) -> Option<Arc<StorageQuota>> {
+        self.tenants.get(key).and_then(|entry| entry.value().storage.clone())
+    }
+
+    /// Measure every tenant that has a storage quota, and refuse or admit its writes by the
+    /// result (#633).
+    ///
+    /// Each tenant is measured on its own executor (its pool, so its own database), in the
+    /// schema its `search_path` names: `tenant_schema_name`, the function that builds that
+    /// path. A tenant that cannot be measured keeps its last state, with a warning.
+    pub async fn sweep_storage(&self) {
+        let targets: Vec<(String, Arc<Executor>, Arc<StorageQuota>)> = self
+            .tenants
+            .iter()
+            .filter_map(|entry| {
+                entry.value().storage.as_ref().map(|storage| {
+                    (entry.key().clone(), entry.value().executor.load_full(), Arc::clone(storage))
+                })
+            })
+            .collect();
+        for (key, executor, storage) in targets {
+            let measured = match crate::tenancy::schema_isolation::tenant_schema_name(&key) {
+                Ok(schema) => executor.schema_storage_bytes(&schema).await,
+                Err(e) => Err(e),
+            };
+            match measured {
+                Ok(Some(usage)) => storage.record(&key, usage),
+                Ok(None) => tracing::warn!(tenant = %key,
+                    "tenant storage cannot be measured on this backend; its quota keeps its last state"),
+                Err(e) => tracing::warn!(tenant = %key, error = %e,
+                    "tenant storage measurement failed; its quota keeps its last state"),
+            }
         }
     }
 

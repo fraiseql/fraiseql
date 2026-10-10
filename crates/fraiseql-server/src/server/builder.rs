@@ -1194,6 +1194,38 @@ impl Server {
         }
     }
 
+    /// Start every lifecycle task a serving state needs: the async-operation workers, the
+    /// `after:ingest` dispatch sweep, and the tenant storage-quota sweep.
+    ///
+    /// The one call each serve entry point makes (#858's construction-path rule), so the
+    /// entry points cannot start different sets.
+    pub(crate) fn spawn_lifecycle_tasks(&mut self, state: &crate::routes::graphql::AppState) {
+        self.spawn_async_operation_workers(state);
+        #[cfg(feature = "inbound")]
+        self.spawn_inbound_dispatch_sweep(state);
+        self.spawn_storage_quota_sweep(state);
+    }
+
+    /// Start the tenant storage-quota sweep (#633) on the server's
+    /// [`JoinSet`](tokio::task::JoinSet): once now, then every
+    /// `[tenancy.storage_quota] interval_secs`. A no-op without the tenancy runtime.
+    fn spawn_storage_quota_sweep(&mut self, state: &crate::routes::graphql::AppState) {
+        let Some(registry) = state.tenant_registry().cloned() else {
+            return;
+        };
+        let interval =
+            std::time::Duration::from_secs(self.config.tenancy.storage_quota.interval_secs);
+        self.tasks.spawn(async move {
+            let mut tick = tokio::time::interval(interval);
+            tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+            loop {
+                tick.tick().await;
+                registry.sweep_storage().await;
+            }
+        });
+        tracing::info!(interval_secs = interval.as_secs(), "tenant storage-quota sweep started");
+    }
+
     /// Start the `after:ingest` dispatch-ledger sweep (#1175) on the server's
     /// [`JoinSet`](tokio::task::JoinSet): once now (the startup scan), then on its interval.
     /// It re-runs every recorded dispatch whose lease ran out before it settled, which is
@@ -1237,7 +1269,7 @@ impl Server {
 
     /// How many lifecycle tasks the server holds (test observability for what a serve
     /// entry point starts).
-    #[cfg(all(test, feature = "inbound"))]
+    #[cfg(test)]
     pub(crate) fn lifecycle_task_count(&self) -> usize {
         self.tasks.len()
     }
@@ -1802,6 +1834,9 @@ impl Server {
         // function is loaded, so an MCP client's mutation skips its before-mutation
         // chain and fires no after-mutation function.
         let app_state = self.provisioned_app_state().await?;
+        // An MCP write is tenant-dispatched like an HTTP one, so a tenant over its storage
+        // quota is refused here too, which needs the quota measured (#633).
+        self.spawn_storage_quota_sweep(&app_state);
 
         // Built from the same `AppState` the HTTP mount uses (#858): stdio carries
         // no headers, but the tenant registry, the suspended-tenant gate and the

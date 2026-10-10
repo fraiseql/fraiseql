@@ -902,6 +902,29 @@ impl DatabaseAdapter for PostgresAdapter {
         crate::postgres::introspector::query_tview_profiles(&client, sources).await
     }
 
+    async fn schema_storage_bytes(&self, schema: &str) -> Result<Option<u64>> {
+        let client = self.acquire_connection_with_retry().await?;
+        // Tables and materialized views only: `pg_total_relation_size` already counts a
+        // relation's indexes and TOAST, so listing those too would count them twice. The
+        // schema is a bound parameter, never interpolated.
+        let row = client
+            .query_one(
+                "SELECT COALESCE(sum(pg_total_relation_size(c.oid)), 0)::bigint FROM pg_class c \
+                 JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = $1 \
+                 AND c.relkind IN ('r', 'm')",
+                &[&schema],
+            )
+            .await
+            .map_err(|e| {
+                crate::postgres::database_error(
+                    format!("measuring schema {schema:?}: {}", pg_detail(&e)),
+                    &e,
+                )
+            })?;
+        let bytes: i64 = row.get(0);
+        Ok(Some(u64::try_from(bytes).unwrap_or(0)))
+    }
+
     async fn describe_constraint(
         &self,
         violation: &fraiseql_error::ConstraintViolation,

@@ -45,6 +45,11 @@ impl DatabaseAdapter for MockAdapter {
         true
     }
 
+    // A measurement the wrapper must pass through, not answer with the trait's `None` (#633).
+    async fn schema_storage_bytes(&self, schema: &str) -> Result<Option<u64>> {
+        Ok(Some(schema.len() as u64))
+    }
+
     async fn execute_with_projection(
         &self,
         _view: &str,
@@ -148,6 +153,15 @@ impl crate::backend::traits::Writer for MockAdapter {
             Ok(rows)
         }
     }
+}
+
+/// #633: the cache wrapper forwards a schema's storage measurement. The trait's default
+/// answers `None`, and a tenant whose quota cannot be measured is never refused.
+#[tokio::test]
+async fn schema_storage_bytes_is_forwarded_through_the_cache() {
+    let cache = QueryResultCache::new(CacheConfig::enabled());
+    let adapter = CachedDatabaseAdapter::new(MockAdapter::new(), cache, "1.0.0".to_string());
+    assert_eq!(adapter.schema_storage_bytes("tenant_a").await.unwrap(), Some(8));
 }
 
 #[tokio::test]

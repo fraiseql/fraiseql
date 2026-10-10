@@ -62,35 +62,28 @@ fn audit_actor(ctx: &OptionalSecurityContext) -> AuditActor {
 #[serde(deny_unknown_fields)]
 pub struct TenantRegistrationRequest {
     /// Compiled schema JSON (the full `schema.compiled.json` contents).
-    pub schema:                     serde_json::Value,
+    pub schema:                 serde_json::Value,
     /// Database connection configuration for this tenant.
-    pub connection:                 TenantPoolConfig,
+    pub connection:             TenantPoolConfig,
     /// Maximum requests per second (token bucket rate). `None` = unlimited.
     #[serde(default)]
-    pub max_requests_per_sec:       Option<u32>,
+    pub max_requests_per_sec:   Option<u32>,
     /// Maximum concurrent in-flight requests. `None` = unlimited.
     #[serde(default)]
-    pub max_concurrent:             Option<u32>,
-    /// Maximum storage in bytes — **advisory**, stored and reported, never
-    /// enforced. `None` = unset.
-    ///
-    /// The `_advisory` suffix is the point: FraiseQL has no usage-metering path, so
-    /// no request is ever rejected on the basis of this value, and a field called
-    /// `max_storage_bytes` reads as a boundary that does not exist. Sending the old
-    /// unsuffixed key is now a 400 rather than a silently-ignored setting —
-    /// `deny_unknown_fields` on this struct makes an operator's stale request fail
-    /// loudly instead of appearing to configure a quota. Metering and enforcement
-    /// are tracked at <https://github.com/fraiseql/fraiseql/issues/633>.
+    pub max_concurrent:         Option<u32>,
+    /// Maximum storage in bytes, enforced (#633). Schema-mode tenancy only; refused for a
+    /// tenant whose schema is not. `None` = no quota. The old `max_storage_bytes_advisory`
+    /// key is refused (`deny_unknown_fields`), and the refusal lists this one.
     #[serde(default)]
-    pub max_storage_bytes_advisory: Option<u64>,
+    pub max_storage_bytes:      Option<u64>,
     /// Maximum estimated cost of a single GraphQL operation (#379). `None` = no
     /// cost budget.
     #[serde(default)]
-    pub cost_budget:                Option<usize>,
+    pub cost_budget:            Option<usize>,
     /// Rolling per-minute cost budget (#379): total estimated cost the tenant
     /// may spend per fixed 60-second window. `None` = no window budget.
     #[serde(default)]
-    pub cost_budget_per_minute:     Option<usize>,
+    pub cost_budget_per_minute: Option<usize>,
     /// Per-actor-class budget overrides (#966), keyed by the `snake_case` actor
     /// token (`human_user`, `service_account`, `ai_agent`, `system_job`).
     ///
@@ -99,7 +92,7 @@ pub struct TenantRegistrationRequest {
     /// the allowance the humans are drawing on. An override that sets neither
     /// number is refused, not stored.
     #[serde(default)]
-    pub cost_budget_per_actor:      std::collections::HashMap<ActorType, ActorCostBudget>,
+    pub cost_budget_per_actor:  std::collections::HashMap<ActorType, ActorCostBudget>,
 }
 
 /// Response for tenant write operations.
@@ -286,14 +279,30 @@ pub async fn upsert_tenant_handler(
     // refusal. Checked ahead of the factory call so a rejected registration does
     // not leave a connection pool behind.
     let quota = TenantQuota {
-        max_requests_per_sec:       body.max_requests_per_sec,
-        max_concurrent:             body.max_concurrent,
-        max_storage_bytes_advisory: body.max_storage_bytes_advisory,
-        cost_budget:                body.cost_budget,
-        cost_budget_per_minute:     body.cost_budget_per_minute,
-        cost_budget_per_actor:      body.cost_budget_per_actor.clone(),
+        max_requests_per_sec:   body.max_requests_per_sec,
+        max_concurrent:         body.max_concurrent,
+        max_storage_bytes:      body.max_storage_bytes,
+        cost_budget:            body.cost_budget,
+        cost_budget_per_minute: body.cost_budget_per_minute,
+        cost_budget_per_actor:  body.cost_budget_per_actor.clone(),
     };
     quota.validate().map_err(ApiError::validation_error)?;
+
+    // #633: a storage quota is measured on the tenant's schema, which exists only in
+    // schema-mode tenancy. A row-mode tenant shares its tables, so nothing could be
+    // measured and the quota would never bind: refused, not stored.
+    if quota.max_storage_bytes.is_some() {
+        let mode = fraiseql_core::schema::CompiledSchema::from_json(&schema_json, false)
+            .map(|schema| schema.tenancy_mode())
+            .map_err(|e| ApiError::validation_error(format!("invalid schema: {e}")))?;
+        if mode != fraiseql_core::schema::TenancyMode::Schema {
+            return Err(ApiError::validation_error(
+                "`max_storage_bytes` needs schema-mode tenancy (`[security.tenancy] mode = \
+                 \"schema\"`): it is measured on the tenant's own schema, and this tenant's \
+                 schema is not in schema mode",
+            ));
+        }
+    }
 
     // #1333: the config a tenant runs under is read here, from the executor the server
     // is serving with *now* — not captured when the factory was built, which is before

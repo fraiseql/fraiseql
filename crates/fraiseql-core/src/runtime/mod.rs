@@ -81,6 +81,7 @@ mod variable_validation;
 pub mod window;
 mod window_parser;
 mod window_projector;
+pub mod write_gate;
 
 use std::sync::Arc;
 
@@ -169,6 +170,7 @@ pub use variable_validation::{
     collect_variable_references, validate_variable_types, validate_variable_uses,
     validate_variables_used,
 };
+pub use write_gate::WriteGate;
 
 /// Result of a bulk REST operation (collection-level PATCH/DELETE).
 #[derive(Debug, Clone)]
@@ -206,6 +208,7 @@ use crate::security::{
 /// | `before_mutation_gate` | `None` | No `before:mutation` enforcement |
 /// | `query_function_resolver` | `None` | A function-backed root field refuses, by name |
 /// | `after_mutation_observer` | `None` | No one is told a write committed |
+/// | `write_gate` | `None` | Every write is admitted (no tenant storage quota) |
 /// | `root_error_renderer` | `None` | A failing root's `errors` entry carries the error's text |
 ///
 /// # Example
@@ -446,6 +449,10 @@ pub struct RuntimeConfig {
     /// `after:mutation` work and a failed write never does. See [`AfterMutationObserver`].
     pub after_mutation_observer: Option<Arc<dyn AfterMutationObserver>>,
 
+    /// Optional gate every write passes before anything of it runs (#633): a tenant's
+    /// storage quota. See [`WriteGate`].
+    pub write_gate: Option<Arc<dyn WriteGate>>,
+
     /// Optional renderer for the `errors` entry of a failing root that the engine
     /// reports inside a response rather than as an `Err`.
     ///
@@ -519,6 +526,7 @@ impl std::fmt::Debug for RuntimeConfig {
             .field("before_mutation_gate", &self.before_mutation_gate.is_some())
             .field("query_function_resolver", &self.query_function_resolver.is_some())
             .field("after_mutation_observer", &self.after_mutation_observer.is_some())
+            .field("write_gate", &self.write_gate.is_some())
             .field("root_error_renderer", &self.root_error_renderer.is_some())
             .finish()
     }
@@ -552,6 +560,7 @@ impl Default for RuntimeConfig {
             before_mutation_gate:        None,
             query_function_resolver:     None,
             after_mutation_observer:     None,
+            write_gate:                  None,
             root_error_renderer:         None,
         }
     }
@@ -738,6 +747,13 @@ impl RuntimeConfig {
         self
     }
 
+    /// Install the gate every write passes before anything of it runs (#633).
+    #[must_use]
+    pub fn with_write_gate(mut self, gate: Arc<dyn WriteGate>) -> Self {
+        self.write_gate = Some(gate);
+        self
+    }
+
     /// Register the renderer for a failing root's in-response `errors` entry.
     ///
     /// Parallel to [`with_before_mutation_gate`](Self::with_before_mutation_gate). See
@@ -893,6 +909,7 @@ impl RuntimeConfig {
             before_mutation_gate,
             query_function_resolver,
             after_mutation_observer,
+            write_gate,
             root_error_renderer,
         } = self;
 
@@ -922,6 +939,7 @@ impl RuntimeConfig {
             before_mutation_gate,
             query_function_resolver,
             after_mutation_observer,
+            write_gate,
             root_error_renderer,
         })
     }

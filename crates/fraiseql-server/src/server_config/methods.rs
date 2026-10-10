@@ -258,6 +258,11 @@ impl ServerConfig {
             ao.validate()?;
         }
 
+        // #633: a zero interval would measure in a busy loop.
+        if self.tenancy.storage_quota.interval_secs == 0 {
+            return Err("[tenancy.storage_quota] interval_secs must be at least 1".to_string());
+        }
+
         // Enriched identity (#1324): `provision` is legal on one of the two
         // profiles that share `EnrichmentQueryConfig`.
         #[cfg(feature = "auth")]

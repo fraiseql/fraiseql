@@ -205,6 +205,8 @@ impl RestError {
             // client a server fault where the variant's own documentation says
             // "permanent for the request as issued ... the caller narrows `?select=`".
             StatusCode::PAYLOAD_TOO_LARGE => "RESPONSE_TOO_LARGE",
+            // A tenant over its storage quota (#633), the only variant carrying a 507.
+            StatusCode::INSUFFICIENT_STORAGE => "INSUFFICIENT_STORAGE",
             StatusCode::NOT_IMPLEMENTED => "NOT_IMPLEMENTED",
             StatusCode::SERVICE_UNAVAILABLE => "SERVICE_UNAVAILABLE",
             StatusCode::BAD_REQUEST => "BAD_REQUEST",

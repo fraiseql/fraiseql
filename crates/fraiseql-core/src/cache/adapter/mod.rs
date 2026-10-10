@@ -921,6 +921,10 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
         self.adapter.tview_profiles(sources).await
     }
 
+    async fn schema_storage_bytes(&self, schema: &str) -> Result<Option<u64>> {
+        self.adapter.schema_storage_bytes(schema).await
+    }
+
     async fn count_where_query(
         &self,
         view: &str,

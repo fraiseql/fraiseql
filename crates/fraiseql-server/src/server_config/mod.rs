@@ -1382,7 +1382,33 @@ pub struct FileSectionConfig {
 pub struct TenancyServerConfig {
     /// Per-tenant executor runtime settings (`[tenancy.runtime]`).
     #[serde(default)]
-    pub runtime: TenancyRuntimeConfig,
+    pub runtime:       TenancyRuntimeConfig,
+    /// How often tenant storage quotas are measured (`[tenancy.storage_quota]`, #633).
+    #[serde(default)]
+    pub storage_quota: TenancyStorageQuotaConfig,
+}
+
+/// Tenant storage-quota measurement (`[tenancy.storage_quota]`, #633).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct TenancyStorageQuotaConfig {
+    /// Seconds between two measurements of every tenant that has a `max_storage_bytes`.
+    /// A tenant over its quota is refused writes from one measurement until a later one
+    /// finds it back under. Default 300; `0` is refused.
+    #[serde(default = "default_storage_quota_interval_secs")]
+    pub interval_secs: u64,
+}
+
+const fn default_storage_quota_interval_secs() -> u64 {
+    300
+}
+
+impl Default for TenancyStorageQuotaConfig {
+    fn default() -> Self {
+        Self {
+            interval_secs: default_storage_quota_interval_secs(),
+        }
+    }
 }
 
 /// Per-tenant executor runtime settings (`[tenancy.runtime]`).

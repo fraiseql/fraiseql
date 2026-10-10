@@ -67,6 +67,7 @@ mod query {
         let config = RuntimeConfig {
             query_function_resolver: None,
             after_mutation_observer: None,
+            write_gate:              None,
             root_error_renderer:     None,
 
             cache_query_plans:           false,
@@ -1243,6 +1244,7 @@ mod config {
         let config = RuntimeConfig {
             query_function_resolver: None,
             after_mutation_observer: None,
+            write_gate:              None,
             root_error_renderer:     None,
 
             cache_query_plans:           false,
@@ -1284,6 +1286,7 @@ mod config {
         let config = RuntimeConfig {
             query_function_resolver: None,
             after_mutation_observer: None,
+            write_gate:              None,
             root_error_renderer:     None,
 
             cache_query_plans:           false,

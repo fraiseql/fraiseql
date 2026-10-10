@@ -838,6 +838,16 @@ impl Executor {
         self.ctx.adapter.tview_profiles(&self.ctx.schema.read_sources()).await
     }
 
+    /// The bytes `schema_name` occupies on this executor's database (#633), for a tenant's
+    /// storage quota. `None` when the backend cannot measure it.
+    ///
+    /// # Errors
+    ///
+    /// The database errors of the catalog read.
+    pub async fn schema_storage_bytes(&self, schema_name: &str) -> Result<Option<u64>> {
+        self.ctx.adapter.schema_storage_bytes(schema_name).await
+    }
+
     /// Execute a pre-resolved query match with related resources composed into it —
     /// the REST `?select=` embed.
     ///

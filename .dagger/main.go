@@ -2031,6 +2031,8 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		// #1550: a tenant's REST request and function write run on its own executor
 		// (schema mode, public decoys).
 		"cargo test -p fraiseql-server --features rest,functions-runtime --test tenant_rest_dispatch_e2e_pg -- --test-threads=1",
+		// #633: a schema-mode tenant over its storage quota is refused writes until it is back under.
+		"cargo test -p fraiseql-server --features rest --test tenant_storage_quota_e2e_pg -- --test-threads=1",
 		// #1391: a cascade derived from pg_tviews' affected set, against a real pg_tviews
 		// (pgTviewsService); its runtime-absent case reads DATABASE_URL, which has none.
 		"cargo test -p fraiseql-server --features metrics --test tviews_cascade_e2e_pg -- --test-threads=1",

@@ -1326,6 +1326,13 @@ pub(in super::super) async fn execute_mutation_impl(
     // later entry point forgets to make.
     let writer = ctx.writer(mutation_name)?;
 
+    // #633: a tenant over its storage quota writes nothing, whatever the transport. Asked
+    // before anything of the write runs, so a refused write executes no hook and no
+    // statement.
+    if let Some(gate) = ctx.config.write_gate.as_ref() {
+        gate.admit(mutation_name)?;
+    }
+
     // #1336 backstop: the same question the read path asks, at the write chokepoint
     // every transport converges on (#1327, #1330).
     crate::runtime::executor::support::security::enforce_enrichment_resolved(

@@ -916,6 +916,19 @@ pub trait DatabaseAdapter: Send + Sync + 'static {
         Ok(Vec::new())
     }
 
+    /// The bytes schema `schema` occupies (#633): every table and materialized view in it,
+    /// their indexes and TOAST included. `None` from an adapter that cannot measure it.
+    ///
+    /// The default measures nothing. **A wrapping adapter must forward this**, or a
+    /// tenant's storage quota is never measured, and so never enforced.
+    ///
+    /// # Errors
+    ///
+    /// The database errors of the catalog read.
+    async fn schema_storage_bytes(&self, _schema: &str) -> Result<Option<u64>> {
+        Ok(None)
+    }
+
     /// Invalidate cached query results for the specified views.
     ///
     /// Called by the executor after a mutation succeeds, so that stale cache

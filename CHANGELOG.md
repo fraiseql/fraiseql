@@ -20,6 +20,14 @@ disagreed, and the promise was the part that was wrong.
 
 ### Added
 
+- **Tenant storage quotas are enforced (#633).** A schema-mode tenant registered with
+  `max_storage_bytes` has its schema measured on its own connection every `[tenancy.storage_quota]
+  interval_secs` (default 300). While it is over the quota, every write it makes is refused at the
+  engine's write chokepoint, on every transport, with `507 INSUFFICIENT_STORAGE` and nothing
+  written; its reads are served. The first measurement back under lifts the refusal. Gauges
+  `fraiseql_tenant_storage_bytes` and `fraiseql_tenant_storage_quota_bytes`; see
+  `docs/operations/tenant-storage-quota.md`.
+
 - **`doctor` and `/metrics` report the health of the TVIEWs the schema reads (#1392).** From
   `tviews.pg_tviews_profile()`: `doctor --against-db` warns with each piece of advice
   (missing propagation index, unused GIN on `data`, low HOT ratio, UNLOGGED, …), and index
@@ -226,6 +234,14 @@ disagreed, and the promise was the part that was wrong.
   ids stay random v4.
 
 ### Breaking
+
+- **`max_storage_bytes_advisory` is `max_storage_bytes`, and enforced (#633).** The advisory key is
+  refused at registration. A row-mode tenant cannot have a storage quota (refused at
+  registration). `[tenancy.storage_quota] interval_secs = 0` is refused at boot. Embedders:
+  `RuntimeConfig` gains `write_gate`, `TenancyServerConfig` gains `storage_quota`, `TenantQuota` and `TenantRegistrationRequest` rename the
+  field, `FraiseQLError` gains `StorageQuotaExceeded`, the server's `ErrorCode` gains
+  `InsufficientStorage`, and `DatabaseAdapter` gains `schema_storage_bytes` (a wrapping adapter
+  must forward it).
 
 - **Under the tenancy runtime, REST and function writes dispatch the tenant (#1550).**
   - A REST request that names an unregistered tenant is refused (as on `/graphql`); before,
