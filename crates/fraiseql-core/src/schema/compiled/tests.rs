@@ -2743,3 +2743,74 @@ fn a_session_variable_in_the_servers_namespace_is_refused_at_load() {
     }
     load("app.region").expect("another namespace loads");
 }
+
+/// #1530: a field that names no declared object, interface or union is refused at load, for a
+/// hand-written artifact too. The compiler refuses one, so this is the second line: an
+/// artifact that reached a server with one was answered with no value for that field.
+#[allow(clippy::panic)] // Reason: test code, a panic carries the load error
+mod unresolved_field_types {
+    use crate::schema::{
+        CompiledSchema, FieldDefinition, FieldType, InterfaceDefinition, TypeDefinition,
+        UnionDefinition,
+    };
+
+    fn load(schema: &CompiledSchema) -> Result<CompiledSchema, String> {
+        CompiledSchema::from_json(&schema.to_json().unwrap(), false).map_err(|e| e.to_string())
+    }
+
+    fn with_field(ty: FieldType) -> CompiledSchema {
+        let mut host = TypeDefinition::new("Host", "v_host");
+        host.fields = vec![
+            FieldDefinition::new("id", FieldType::Int),
+            FieldDefinition::new("ref", ty),
+        ];
+        let mut owner = TypeDefinition::new("Owner", "v_owner");
+        owner.fields = vec![FieldDefinition::new("id", FieldType::Int)];
+        CompiledSchema {
+            types: vec![host, owner],
+            interfaces: vec![
+                InterfaceDefinition::new("Node")
+                    .with_field(FieldDefinition::new("id", FieldType::Int)),
+            ],
+            unions: vec![UnionDefinition::new("Party")],
+            ..CompiledSchema::new()
+        }
+    }
+
+    #[test]
+    fn a_field_naming_an_undeclared_object_is_refused_at_load() {
+        for ty in [
+            FieldType::Object("Nope".to_string()),
+            FieldType::List(Box::new(FieldType::Object("Nope".to_string()))),
+            FieldType::Interface("Nope".to_string()),
+            FieldType::Union("Nope".to_string()),
+        ] {
+            let err = load(&with_field(ty.clone())).expect_err(&format!("{ty:?} loaded"));
+            assert!(err.contains("Host.ref") && err.contains("`Nope`"), "{ty:?}: {err}");
+        }
+    }
+
+    #[test]
+    fn a_field_naming_a_declared_object_interface_or_union_loads() {
+        for ty in [
+            FieldType::Object("Owner".to_string()),
+            FieldType::List(Box::new(FieldType::Object("Owner".to_string()))),
+            FieldType::Interface("Node".to_string()),
+            FieldType::Union("Party".to_string()),
+            FieldType::Scalar("Hostname".to_string()),
+        ] {
+            load(&with_field(ty.clone())).unwrap_or_else(|e| panic!("{ty:?}: {e}"));
+        }
+    }
+
+    /// An interface's own fields are held to the same rule.
+    #[test]
+    fn an_interface_field_naming_an_undeclared_object_is_refused_at_load() {
+        let mut schema = with_field(FieldType::Int);
+        schema.interfaces[0]
+            .fields
+            .push(FieldDefinition::new("owner", FieldType::Object("Nope".to_string())));
+        let err = load(&schema).expect_err("loaded");
+        assert!(err.contains("Node.owner") && err.contains("`Nope`"), "{err}");
+    }
+}

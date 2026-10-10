@@ -32,6 +32,11 @@ final class TypeConverter
         'float' => 'Float',
         'double' => 'Float',
         'mixed' => 'String',
+        // PHP's date-time classes are the engine's DateTime (#1530): DateTimeImmutable and
+        // DateTimeInterface used to export as their class names.
+        'DateTime' => 'DateTime',
+        'DateTimeImmutable' => 'DateTime',
+        'DateTimeInterface' => 'DateTime',
     ];
 
     /**

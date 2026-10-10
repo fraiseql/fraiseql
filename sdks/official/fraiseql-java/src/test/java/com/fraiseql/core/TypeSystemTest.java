@@ -233,16 +233,33 @@ public class TypeSystemTest {
         assertEquals("Int", TypeConverter.javaToGraphQL(Long.class));
     }
 
+    // #1530: the java.time and JDBC temporal types export as the engine's Date, DateTime and
+    // Time, not as String (the scalar a field is typed with is what introspection reports)
+    // nor as their simple names, which the compiler does not know.
     @Test
-    @DisplayName("Convert LocalDate to GraphQL String")
-    void testConvertLocalDate() {
-        assertEquals("String", TypeConverter.javaToGraphQL(java.time.LocalDate.class));
+    @DisplayName("Convert calendar dates to GraphQL Date")
+    void testConvertCalendarDates() {
+        assertEquals("Date", TypeConverter.javaToGraphQL(java.time.LocalDate.class));
+        assertEquals("Date", TypeConverter.javaToGraphQL(java.sql.Date.class));
     }
 
     @Test
-    @DisplayName("Convert LocalDateTime to GraphQL String")
-    void testConvertLocalDateTime() {
-        assertEquals("String", TypeConverter.javaToGraphQL(java.time.LocalDateTime.class));
+    @DisplayName("Convert instants and date-times to GraphQL DateTime")
+    void testConvertDateTimes() {
+        for (Class<?> type : new Class<?>[] {
+            java.time.LocalDateTime.class, java.time.OffsetDateTime.class,
+            java.time.ZonedDateTime.class, java.time.Instant.class,
+            java.util.Date.class, java.sql.Timestamp.class}) {
+            assertEquals("DateTime", TypeConverter.javaToGraphQL(type), type.getName());
+        }
+    }
+
+    @Test
+    @DisplayName("Convert times of day to GraphQL Time")
+    void testConvertTimesOfDay() {
+        assertEquals("Time", TypeConverter.javaToGraphQL(java.time.LocalTime.class));
+        assertEquals("Time", TypeConverter.javaToGraphQL(java.time.OffsetTime.class));
+        assertEquals("Time", TypeConverter.javaToGraphQL(java.sql.Time.class));
     }
 
     @Test

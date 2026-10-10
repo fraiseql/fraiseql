@@ -1,9 +1,17 @@
 """Tests for type mapping and introspection."""
 
+import datetime as dt
+from typing import NewType
+
 import pytest
 
-from fraiseql.scalars import ID, UUID, Date, DateTime, Decimal, Json, Time, Vector
+import fraiseql
+from fraiseql.registry import SchemaRegistry
+from fraiseql.scalars import ID, UUID, Date, DateTime, Decimal, Email, Json, Time, Vector
 from fraiseql.types import extract_field_info, extract_function_signature, python_type_to_graphql
+
+#: A scalar name the engine does not know (#1530).
+Shade = NewType("Shade", str)
 
 
 def test_python_type_to_graphql_basic() -> None:
@@ -316,3 +324,72 @@ def test_missing_return_type() -> None:
 
     with pytest.raises(ValueError, match="missing return type annotation"):
         extract_function_signature(bad_function)
+
+
+def test_stdlib_date_and_time_types_map_to_the_engine_scalars() -> None:
+    """#1530: stdlib dates export as the engine's names, not their class names.
+
+    ``datetime.date`` used to export as ``"date"``, which the compiler did not know: the field
+    compiled to an object reference and was served without its value.
+    """
+    assert python_type_to_graphql(dt.datetime) == ("DateTime", False)
+    assert python_type_to_graphql(dt.date) == ("Date", False)
+    assert python_type_to_graphql(dt.time) == ("Time", False)
+    assert python_type_to_graphql(dt.date | None) == ("Date", True)
+    assert python_type_to_graphql(list[dt.datetime]) == ("[DateTime!]", False)
+
+
+def test_a_newtype_of_an_unknown_name_is_exported_as_a_custom_scalar() -> None:
+    """#1530: a NewType the engine does not know is declared in ``custom_scalars``.
+
+    The documented pattern (``NewType("MyCustomScalar", str)``) used to pass its name through
+    undeclared; the compiler now refuses a field type declared nowhere, so the SDK declares it.
+    One of the SDK's own scalars is the engine's already and is not redeclared.
+    """
+    SchemaRegistry.clear()
+
+    @fraiseql.type
+    class Paint:
+        id: ID
+        shade: Shade
+        other: Shade | None
+        contact: Email
+
+    schema = SchemaRegistry.get_schema()
+    declared = [s["name"] for s in schema.get("custom_scalars", [])]
+    assert declared == ["Shade"], declared
+    fields = {f["name"]: f["type"] for f in schema["types"][0]["fields"]}
+    assert fields == {"id": "ID", "shade": "Shade", "other": "Shade", "contact": "Email"}
+    SchemaRegistry.clear()
+
+
+class _Tint(fraiseql.CustomScalar):
+    """A colour tint."""
+
+    name = "Tint"
+
+    def serialize(self, value: str) -> str:
+        return value
+
+    def parse_value(self, value: str) -> str:
+        return value
+
+    def parse_literal(self, ast: object) -> str:
+        return str(ast)
+
+
+def test_a_scalar_class_replaces_a_newtype_declaration_of_its_name() -> None:
+    """#1530: a NewType may declare a name before the ``@scalar`` class of that name loads.
+
+    The class replaces the declaration rather than being refused as a duplicate, and the
+    export lists the name once, described by the class.
+    """
+    SchemaRegistry.clear()
+    Tint = NewType("Tint", str)
+    python_type_to_graphql(Tint)
+    fraiseql.scalar(_Tint)
+
+    assert SchemaRegistry.get_custom_scalars() == {"Tint": _Tint}
+    declared = SchemaRegistry.get_schema()["custom_scalars"]
+    assert declared == [{"name": "Tint", "description": "A colour tint."}], declared
+    SchemaRegistry.clear()

@@ -204,6 +204,49 @@ impl CompiledSchema {
     /// Every field whose `hierarchy` names no `[hierarchies.<name>]` entry, and every
     /// fact-table filter whose `hierarchy` names none or sits on a column that is not an
     /// ltree path.
+    /// Fields whose type names an object, interface or union declared nowhere (#1530).
+    ///
+    /// The compiler refuses one; a hand-written artifact is held to the same rule, because a
+    /// served field of such a type is answered with no value at all.
+    fn unresolved_field_type_violations(&self) -> Vec<String> {
+        use crate::schema::FieldType;
+        let declared: std::collections::HashSet<&str> = self
+            .types
+            .iter()
+            .map(|t| t.name.as_str())
+            .chain(self.interfaces.iter().map(|i| i.name.as_str()))
+            .chain(self.unions.iter().map(|u| u.name.as_str()))
+            .collect();
+        let owners = self
+            .types
+            .iter()
+            .map(|t| (t.name.as_str(), &t.fields))
+            .chain(self.interfaces.iter().map(|i| (i.name.as_str(), &i.fields)));
+        let mut violations = Vec::new();
+        for (owner, fields) in owners {
+            for field in fields {
+                let mut base = &field.field_type;
+                while let FieldType::List(inner) = base {
+                    base = inner;
+                }
+                let (kind, name) = match base {
+                    FieldType::Object(n) => ("object", n),
+                    FieldType::Interface(n) => ("interface", n),
+                    FieldType::Union(n) => ("union", n),
+                    _ => continue,
+                };
+                if !declared.contains(name.as_str()) {
+                    violations.push(format!(
+                        "field `{owner}.{}` is typed as the {kind} `{name}`, which is not \
+                         declared",
+                        field.name
+                    ));
+                }
+            }
+        }
+        violations
+    }
+
     fn hierarchy_link_violations(&self) -> Vec<String> {
         let declared = self.hierarchies_config.as_ref();
         let mut violations: Vec<String> = self
@@ -481,6 +524,17 @@ impl CompiledSchema {
                     violations.join("\n  - ")
                 ),
                 path:    Some("security.requires_role".to_string()),
+            });
+        }
+        // #1530: a field typed as an object no type declares would be served with no value.
+        let violations = self.unresolved_field_type_violations();
+        if !violations.is_empty() {
+            return Err(FraiseQLError::Validation {
+                message: format!(
+                    "a field's type is declared nowhere:\n  - {}",
+                    violations.join("\n  - ")
+                ),
+                path:    Some("types.fields".to_string()),
             });
         }
         // #1396: a field's `hierarchy` names the table `descendantOfId` / `ancestorOfId`

@@ -60,8 +60,8 @@ def test_field_name_shadows_imported_type() -> None:
 
     assert len(fields) == 3
     assert fields["name"] == {"type": "String", "nullable": False}
-    assert fields["year_end"] == {"type": "date", "nullable": True}
-    assert fields["date"] == {"type": "date", "nullable": True}
+    assert fields["year_end"] == {"type": "Date", "nullable": True}
+    assert fields["date"] == {"type": "Date", "nullable": True}
 
 
 def test_field_name_shadows_decimal_type() -> None:
@@ -77,7 +77,7 @@ def test_multiple_shadowed_fields() -> None:
     """Multiple fields shadowing types should all resolve correctly."""
     fields = extract_field_info(_MultiShadow)
 
-    assert fields["date"] == {"type": "date", "nullable": True}
+    assert fields["date"] == {"type": "Date", "nullable": True}
     assert fields["str"] == {"type": "String", "nullable": True}
 
 

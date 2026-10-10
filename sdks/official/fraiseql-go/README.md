@@ -138,8 +138,9 @@ FraiseQL supports the following Go types:
 | `*bool` | `Boolean` | Yes |
 | `[]T` | `[T]` | No |
 | `*[]T` | `[T]` | Yes |
-| `time.Time` | `String` | No |
-| `*time.Time` | `String` | Yes |
+| `time.Time` | `DateTime` | No |
+| `*time.Time` | `DateTime` | Yes |
+| `fraiseql.Email`, `fraiseql.Date`, … (any scalar in `scalars.go`) | that scalar (`Email`, `Date`, …) | No |
 | Custom struct | Custom Type | No |
 | `*CustomStruct` | Custom Type | Yes |
 

@@ -254,8 +254,8 @@ FraiseQL automatically converts Java types to GraphQL types:
 | `boolean`, `Boolean` | `Boolean` | True/false |
 | `String` | `String` | Text |
 | `UUID` | `ID` | Unique identifier |
-| `LocalDate` | `String` | ISO 8601 format |
-| `LocalDateTime` | `String` | ISO 8601 format |
+| `LocalDate` | `Date` | ISO 8601 format |
+| `LocalDateTime` | `DateTime` | ISO 8601 format |
 | `BigDecimal` | `Float` | Arbitrary precision |
 | `Type[]` | `[Type]` | Array/List |
 | Custom `@GraphQLType` | Type name | User-defined type |

@@ -52,11 +52,21 @@ public class TypeConverter {
             return "String";
         }
 
-        // Handle temporal types
-        if (javaType == LocalDate.class || javaType == LocalDateTime.class
-            || javaType == java.util.Date.class || javaType == java.sql.Date.class
-            || javaType == java.sql.Timestamp.class) {
-            return "String";  // Date types are represented as strings in GraphQL
+        // Handle temporal types: the engine's Date, DateTime and Time scalars (#1530). They
+        // used to export as String, or as their simple names (LocalTime, Instant), which the
+        // compiler does not know. java.sql.Date and java.sql.Time are checked before their
+        // supertype java.util.Date.
+        if (javaType == LocalDate.class || javaType == java.sql.Date.class) {
+            return "Date";
+        }
+        if (javaType == java.time.LocalTime.class || javaType == java.time.OffsetTime.class
+            || javaType == java.sql.Time.class) {
+            return "Time";
+        }
+        if (javaType == LocalDateTime.class || javaType == java.time.OffsetDateTime.class
+            || javaType == java.time.ZonedDateTime.class || javaType == java.time.Instant.class
+            || javaType == java.util.Date.class || javaType == java.sql.Timestamp.class) {
+            return "DateTime";
         }
 
         // Handle collections

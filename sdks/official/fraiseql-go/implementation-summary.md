@@ -65,8 +65,8 @@ The FraiseQL Go authoring layer is a complete implementation for defining GraphQ
 | `*string` | `String` | Yes |
 | `bool` | `Boolean` | No |
 | `*bool` | `Boolean` | Yes |
-| `time.Time` | `String` | No |
-| `*time.Time` | `String` | Yes |
+| `time.Time` | `DateTime` | No |
+| `*time.Time` | `DateTime` | Yes |
 | `[]T` | `[T]` | No |
 | `*[]T` | `[T]` | Yes |
 | Custom struct | Custom Type | No |

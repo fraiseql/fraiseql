@@ -33,7 +33,10 @@ Custom Scalars:
     MyCustomScalar = NewType("MyCustomScalar", str)
     ```
 
-    The scalar name will pass through to schema.json and be validated at runtime.
+    A name the engine does not know is declared in ``custom_scalars`` on export, so the
+    compiler serves the field as a scalar: its value passes through unvalidated. Validate it
+    in the database (a CHECK constraint or a domain type). Every NewType in this module is a
+    scalar the engine already knows.
 """
 
 from typing import Any, NewType

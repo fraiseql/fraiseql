@@ -11,6 +11,8 @@ __all__ = [
     "python_type_to_graphql",
 ]
 
+import datetime as _dt
+import functools
 import inspect
 import sys
 import typing
@@ -85,6 +87,49 @@ def _localized_flag(name: str, py_type: Any) -> bool:
     return True
 
 
+#: The stdlib date and time types, as the engine's scalar names (#1530). Matched by identity:
+#: ``datetime.datetime`` is a subclass of ``datetime.date``, and a user's own subclass is not a
+#: stdlib date. They used to export as their class names (``"date"``), which the compiler did
+#: not know.
+_STDLIB_SCALARS: tuple[tuple[type, str], ...] = (
+    (_dt.datetime, "DateTime"),
+    (_dt.date, "Date"),
+    (_dt.time, "Time"),
+)
+
+
+@functools.cache
+def _engine_scalar_names() -> frozenset[str]:
+    """The names of ``fraiseql.scalars``' own NewTypes: every one is a scalar the engine knows."""
+    from fraiseql import scalars  # noqa: PLC0415 — scalars imports nothing from here
+
+    return frozenset(
+        value.__name__ for value in vars(scalars).values() if hasattr(value, "__supertype__")
+    )
+
+
+def _scalar_name(py_type: Any) -> str | None:
+    """The scalar a NewType or a stdlib date type names, or ``None`` for anything else.
+
+    A NewType (``ID``, ``DateTime``, ``Email``, a custom ``NewType("Shade", str)``) is a
+    callable with ``__name__`` and ``__supertype__``, and its ``__name__`` is the GraphQL type
+    name. One the engine does not know is declared as a custom scalar (#1530): the compiler
+    refuses a field type declared nowhere.
+    """
+    if callable(py_type) and hasattr(py_type, "__supertype__"):
+        type_name = getattr(py_type, "__name__", None)
+        if type_name:
+            if type_name not in _engine_scalar_names():
+                from fraiseql.registry import SchemaRegistry  # noqa: PLC0415 — circular
+
+                SchemaRegistry.declare_newtype_scalar(type_name)
+            return type_name
+    for stdlib_type, name in _STDLIB_SCALARS:
+        if py_type is stdlib_type:
+            return name
+    return None
+
+
 def python_type_to_graphql(py_type: Any) -> tuple[str, bool]:  # noqa: PLR0911 — each return handles a distinct type branch
     """Convert Python type hint to GraphQL type string.
 
@@ -142,14 +187,9 @@ def python_type_to_graphql(py_type: Any) -> tuple[str, bool]:  # noqa: PLR0911 �
             return (f"[{element_type}]", False)
         return (f"[{element_type}!]", False)
 
-    # Handle NewType scalars (ID, DateTime, Email, custom scalars, etc.)
-    # NewType creates a callable with __name__ and __supertype__ attributes
-    # We use the __name__ directly as the GraphQL type name, allowing any
-    # user-defined NewType to become a custom scalar
-    if callable(py_type) and hasattr(py_type, "__supertype__"):
-        type_name = getattr(py_type, "__name__", None)
-        if type_name:
-            return (type_name, False)
+    scalar_name = _scalar_name(py_type)
+    if scalar_name is not None:
+        return (scalar_name, False)
 
     # Handle basic Python types
     type_map = {

@@ -112,7 +112,9 @@ fraiseql compile schema.json
 | `Guid` | `ID` |
 | `string` | `String` |
 | `string?` | `String` (nullable) |
-| `DateTime`, `DateTimeOffset` | `String` (ISO 8601) |
+| `DateTime`, `DateTimeOffset` | `DateTime` |
+| `DateOnly` | `Date` |
+| `TimeOnly` | `Time` |
 
 ---
 

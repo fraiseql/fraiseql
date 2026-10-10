@@ -73,6 +73,7 @@ pub struct SchemaConverter;
 /// because it must be built *before* the type arrays are consumed by conversion.
 #[derive(Debug, Default)]
 pub(crate) struct DeclaredTypeNames {
+    objects:    HashSet<String>,
     enums:      HashSet<String>,
     interfaces: HashSet<String>,
     unions:     HashSet<String>,
@@ -83,6 +84,7 @@ impl DeclaredTypeNames {
     /// Collect the names an intermediate schema declares.
     fn collect(schema: &IntermediateSchema) -> Self {
         Self {
+            objects:    schema.types.iter().map(|t| t.name.clone()).collect(),
             enums:      schema.enums.iter().map(|e| e.name.clone()).collect(),
             interfaces: schema.interfaces.iter().map(|i| i.name.clone()).collect(),
             unions:     schema.unions.iter().map(|u| u.name.clone()).collect(),
@@ -92,12 +94,9 @@ impl DeclaredTypeNames {
 
     /// Resolve a non-builtin type name to the variant the rest of the codebase branches on.
     ///
-    /// Falls back to `FieldType::Object` for a name declared nowhere. That fallback is
-    /// deliberate and is **not** the silent drop this fixes: `SchemaValidator` already
-    /// reports an undeclared field type by name, and #724 chose a warning there rather than
-    /// an error because a `--schema-dir` author can legitimately declare a custom scalar in
-    /// a file this pass cannot see. Reversing that decision belongs with #724's reasoning,
-    /// not here.
+    /// Falls back to `FieldType::Object` for a name declared nowhere. That never reaches an
+    /// artifact: `SchemaValidator` refuses an undeclared field type by name (#1530), and the
+    /// server refuses an artifact whose field names an undeclared object at load.
     ///
     /// A name declared in `custom_scalars` resolves to `FieldType::Scalar` (#1018). Without
     /// it that variant had no producer for an authored schema — the #923 defect, one variant
@@ -106,13 +105,20 @@ impl DeclaredTypeNames {
     /// TypeScript generator emitted a sub-selection for a scalar.
     fn resolve(&self, name: &str) -> FieldType {
         let owned = || name.to_string();
-        if self.enums.contains(name) {
+        if self.objects.contains(name) {
+            // A declared type keeps its name, even one the engine also knows as a rich
+            // scalar (`Money`, `Image`, `Color`, …): the author declared it.
+            FieldType::Object(owned())
+        } else if self.enums.contains(name) {
             FieldType::Enum(owned())
         } else if self.interfaces.contains(name) {
             FieldType::Interface(owned())
         } else if self.unions.contains(name) {
             FieldType::Union(owned())
-        } else if self.scalars.contains(name) {
+        } else if self.scalars.contains(name) || fraiseql_core::schema::is_known_scalar(name) {
+            // A declared custom scalar (#1018), or one of the engine's own rich scalars
+            // (#1530): `Email`, `Hostname`, … are scalars without anyone declaring them, and
+            // fell through to an object reference that was served without its value.
             FieldType::Scalar(owned())
         } else {
             FieldType::Object(owned())

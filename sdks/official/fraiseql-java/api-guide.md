@@ -443,7 +443,7 @@ public class Example {
     public float rating;              // → Float!
 
     @GraphQLField
-    public LocalDate createdDate;     // → String!
+    public LocalDate createdDate;     // → Date!
 
     @GraphQLField
     public UUID uuid;                 // → ID!

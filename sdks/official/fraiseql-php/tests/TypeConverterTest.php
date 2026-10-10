@@ -14,6 +14,29 @@ use ReflectionClass;
  */
 final class TypeConverterTest extends TestCase
 {
+    /**
+     * #1530: PHP's date-time classes export as the engine's DateTime, from a type string and
+     * from a property. DateTimeImmutable and DateTimeInterface used to export as their class
+     * names, which the compiler does not know.
+     */
+    public function testDateTimeClassesMapToDateTime(): void
+    {
+        foreach (['DateTime', 'DateTimeImmutable', 'DateTimeInterface', '\\DateTimeImmutable'] as $type) {
+            $this->assertSame('DateTime', TypeConverter::fromTypeString($type)->graphQLType, $type);
+        }
+
+        $holder = new class () {
+            public \DateTimeImmutable $at;
+            public ?\DateTimeInterface $seen = null;
+        };
+        $reflection = new ReflectionClass($holder);
+        $at = TypeConverter::fromReflectionProperty($reflection->getProperty('at'));
+        $this->assertSame('DateTime', $at->graphQLType);
+        $seen = TypeConverter::fromReflectionProperty($reflection->getProperty('seen'));
+        $this->assertSame('DateTime', $seen->graphQLType);
+        $this->assertTrue($seen->isNullable);
+    }
+
     public function testConvertFromTypeString(): void
     {
         $typeInfo = TypeConverter::fromTypeString('int');

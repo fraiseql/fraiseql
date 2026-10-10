@@ -93,8 +93,13 @@ public static class TypeMapper
             return "ID";
         if (baseType == typeof(string))
             return "String";
+        // The engine's temporal scalars (#1530); these used to export as String.
         if (baseType == typeof(DateTime) || baseType == typeof(DateTimeOffset))
-            return "String";
+            return "DateTime";
+        if (baseType == typeof(DateOnly))
+            return "Date";
+        if (baseType == typeof(TimeOnly))
+            return "Time";
 
         // Fallback for unknown types
         return "String";

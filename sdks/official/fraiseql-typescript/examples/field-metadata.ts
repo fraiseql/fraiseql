@@ -105,6 +105,13 @@ fraiseql.registerTypeFields("Product", [
 // EXAMPLE 3: Rich Field Documentation
 // ============================================================================
 
+// The type `Order.items` lists: every type a field names is declared.
+fraiseql.registerTypeFields("OrderItem", [
+  { name: "id", type: "ID", nullable: false },
+  { name: "productId", type: "ID", nullable: false },
+  { name: "quantity", type: "Int", nullable: false },
+]);
+
 fraiseql.registerTypeFields("Order", [
   {
     name: "id",
@@ -120,7 +127,7 @@ fraiseql.registerTypeFields("Order", [
   },
   {
     name: "items",
-    type: "OrderItem",
+    type: "[OrderItem!]",
     nullable: false,
     description: "Items in this order. Access requires order:read scope.",
   },

@@ -40,6 +40,26 @@ defmodule FraiseQL.TypeMapperTest do
     assert TypeMapper.to_graphql_type(:datetime) == "DateTime"
   end
 
+  # #1530: Ecto's temporal and identifier atoms are the engine's scalars. Their PascalCase
+  # spellings (NaiveDatetime, UtcDatetime, Uuid) are names the compiler does not know.
+  test "maps Ecto's date-time atoms to DateTime" do
+    for atom <- [:naive_datetime, :naive_datetime_usec, :utc_datetime, :utc_datetime_usec] do
+      assert TypeMapper.to_graphql_type(atom) == "DateTime", inspect(atom)
+    end
+  end
+
+  test "maps :date to Date and :time to Time" do
+    assert TypeMapper.to_graphql_type(:date) == "Date"
+    assert TypeMapper.to_graphql_type(:time) == "Time"
+    assert TypeMapper.to_graphql_type(:time_usec) == "Time"
+  end
+
+  test "maps :uuid to UUID and :decimal to Decimal" do
+    assert TypeMapper.to_graphql_type(:uuid) == "UUID"
+    assert TypeMapper.to_graphql_type(:binary_id) == "UUID"
+    assert TypeMapper.to_graphql_type(:decimal) == "Decimal"
+  end
+
   # ---------------------------------------------------------------------------
   # to_graphql_type/1 — unknown atoms → PascalCase
   # ---------------------------------------------------------------------------

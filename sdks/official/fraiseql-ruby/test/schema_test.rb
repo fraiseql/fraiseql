@@ -2,6 +2,7 @@
 
 require "test_helper"
 require "tmpdir"
+require "date"
 
 # The README's Quick Start has always opened with `require "fraiseql"` and
 # `FraiseQL::Schema.new`. Neither existed: there was no `lib/fraiseql.rb`, so the require
@@ -17,7 +18,33 @@ class MixinProduct
   fraiseql_field :description, :String, required: false
 end
 
+# #1530: the mixin with Ruby's own date-time classes.
+class MixinEvent
+  include FraiseQL::Type
+
+  fraiseql_field :id, :ID, required: true
+  fraiseql_field :on, Date, required: true
+  fraiseql_field :at, Time, required: true
+end
+
 class SchemaTest < Minitest::Test
+  # #1530: Ruby's date-time classes export as the engine's Date and DateTime. `Time` is an
+  # instant, so its class name ("Time", a time of day) was the wrong scalar, and the DSL
+  # could not take a class at all.
+  def test_date_time_classes_map_to_the_engine_scalars
+    schema = FraiseQL::Schema.new
+    schema.type "Event", sql_source: "v_event" do |t|
+      t.field :on, Date, nullable: false
+      t.field :stamp, DateTime, nullable: false
+      t.field :at, Time, nullable: false
+    end
+    types = schema.to_h["types"].first["fields"].to_h { |f| [f["name"], f["type"]] }
+    assert_equal({ "on" => "Date", "stamp" => "DateTime", "at" => "DateTime" }, types)
+
+    mixin = MixinEvent.to_fraiseql_schema[:fields].to_h { |f| [f[:name], f[:type]] }
+    assert_equal({ "id" => "ID", "on" => "Date", "at" => "DateTime" }, mixin)
+  end
+
   def test_require_fraiseql_resolves
     # The failure this pins is a LoadError on the documented first line, so the assertion
     # has to be that the entry point loads at all.

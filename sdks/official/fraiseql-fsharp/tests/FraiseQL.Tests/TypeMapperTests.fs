@@ -49,6 +49,18 @@ let ``DateTime maps to DateTime`` () =
 let ``DateTimeOffset maps to DateTime`` () =
     TypeMapper.toGraphQLType typeof<DateTimeOffset> |> should equal "DateTime"
 
+// #1530: DateOnly and TimeOnly used to export as their class names, which the compiler does
+// not know.
+[<Fact>]
+let ``DateOnly maps to Date`` () =
+    TypeMapper.toGraphQLType typeof<DateOnly> |> should equal "Date"
+    TypeMapper.toGraphQLScalar typeof<DateOnly> |> should equal (GqlCustom "Date")
+
+[<Fact>]
+let ``TimeOnly maps to Time`` () =
+    TypeMapper.toGraphQLType typeof<TimeOnly> |> should equal "Time"
+    TypeMapper.toGraphQLScalar typeof<TimeOnly> |> should equal (GqlCustom "Time")
+
 [<Fact>]
 let ``string option maps to String and is nullable`` () =
     TypeMapper.toGraphQLType typeof<string option> |> should equal "String"

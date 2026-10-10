@@ -396,7 +396,19 @@ pub async fn compile_to_schema(
 
     if !validation_report.is_valid() {
         validation_report.print();
-        anyhow::bail!("Schema validation failed with {} error(s)", validation_report.error_count());
+        // The errors themselves, not only their count: a caller of `compile_to_schema` that
+        // is not a terminal (an embedder, `fraiseql run`) has nothing else to read (#1530).
+        let errors: Vec<String> = validation_report
+            .errors
+            .iter()
+            .filter(|e| e.severity == crate::schema::validator::ErrorSeverity::Error)
+            .map(|e| format!("{} ({})", e.message, e.path))
+            .collect();
+        anyhow::bail!(
+            "Schema validation failed with {} error(s):\n  - {}",
+            validation_report.error_count(),
+            errors.join("\n  - ")
+        );
     }
 
     // Print warnings if any

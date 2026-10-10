@@ -149,6 +149,25 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **A field type declared nowhere fails the compile (#1530).** It was a warning (#724), and
+  the field compiled to an object reference the server answered with no value. A server also
+  refuses, at load, an artifact whose field names an undeclared object, interface or union.
+  `compile_to_schema`'s error now lists each validation error, not only their count.
+- **The engine's rich scalars introspect as `SCALAR` (#1530).** `Email`, `Hostname`,
+  `IPAddress` and the other names in `RICH_SCALARS` were reported `OBJECT`; a client
+  generated from introspection sees the change.
+- **SDK date and time types export as `Date`, `DateTime` and `Time` (#1530).** Python
+  `datetime.date`/`datetime`/`time` (were `"date"`, …); TypeScript `Date` → `DateTime` (was
+  `Date`); Go `time.Time` → `DateTime` (was `String`) and the Go SDK's own scalars
+  (`fraiseql.Email`, …) export as themselves (were `String`); Java `LocalDate`,
+  `LocalDateTime`, `Instant`, `LocalTime`, … (were `String` or the class name); C#
+  `DateTime`/`DateTimeOffset`/`DateOnly`/`TimeOnly` (were `String`); F# `DateOnly`/`TimeOnly`;
+  PHP `DateTimeImmutable`/`DateTimeInterface`; Ruby `Date`/`DateTime`/`Time` classes (`Time`
+  is an instant: `DateTime`); Elixir `:naive_datetime`, `:utc_datetime` (and `_usec`),
+  `:time_usec`, `:uuid`/`:binary_id`. A schema that relied on the old names changes type.
+- **A Python `NewType` of a name the engine does not know is declared in `custom_scalars`
+  (#1530)** on export, so it compiles as a scalar; a `@scalar` class of the same name
+  replaces that declaration.
 - **Aggregate and window paging is validated and bounded (#1532).** A `limit` or `offset`
   that is negative, fractional, a string, a boolean or above `2^32 - 1` is refused (it meant
   *no limit*, or saturated), and a `limit` above `[validation] max_page_size` is refused (it
@@ -312,6 +331,11 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **A field typed with one of the engine's rich scalars is served (#1530).** `Hostname`,
+  `IPAddress`, `Email` and every other name in `RICH_SCALARS` compiled to an object reference,
+  so the field came back `{}` (2.15.0) or `null` (2.16.0) under a `200`; the stdlib
+  `datetime.date` did the same through its exported name `date`. Each now compiles as its
+  scalar and is served as its value; a declared type of the same name still wins.
 - **A read selecting more than 50 fields is served (#1544).** Every projection built its
   object with one `jsonb_build_object(k1, v1, …)`, and PostgreSQL refuses a call with more
   than 100 arguments, so 51 fields (a wide type, a sub-selection, a REST embed's masked keys

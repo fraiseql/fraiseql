@@ -82,12 +82,18 @@ module FraiseQL
           name: @fraiseql_type_name,
           sql_source: fraiseql_sql_source,
           fields: @fraiseql_fields.map { |fname, fmeta|
-            { name: Naming.snake_to_camel(fname), type: fmeta[:type].to_s, nullable: !fmeta[:required] }.tap { |f|
+            { name: Naming.snake_to_camel(fname), type: fraiseql_field_type(fmeta[:type]), nullable: !fmeta[:required] }.tap { |f|
               f[:description] = fmeta[:description] if fmeta[:description]
               f[:deprecated] = deprecation_of(fmeta[:deprecated]) if fmeta[:deprecated]
             }
           }
         }
+      end
+
+      # A field's GraphQL type: a class through `Schema.class_type` (Ruby's date-time classes
+      # are the engine's Date and DateTime, #1530), anything else as written.
+      def fraiseql_field_type(type)
+        type.is_a?(Class) ? Schema.class_type(type) : type.to_s
       end
 
       # `true` -> no stated reason; a String -> that reason.

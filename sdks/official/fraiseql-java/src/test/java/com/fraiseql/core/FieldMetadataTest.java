@@ -218,10 +218,10 @@ public class FieldMetadataTest {
     }
 
     @Test
-    @DisplayName("Date field maps to String type")
+    @DisplayName("Date-time field maps to the DateTime scalar (#1530)")
     void testDateFieldType() {
         var fields = TypeConverter.extractFields(DateTypeEntity.class);
-        assertEquals("String!", fields.get("createdAt").getGraphQLType());
+        assertEquals("DateTime!", fields.get("createdAt").getGraphQLType());
     }
 
     // =========================================================================

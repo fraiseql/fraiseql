@@ -40,14 +40,26 @@ defmodule FraiseQL.TypeMapper do
     bool: "Boolean",
     string: "String",
     id: "ID",
-    datetime: "DateTime"
+    datetime: "DateTime",
+    # The engine's temporal and identifier scalars under Ecto's own atoms (#1530): their
+    # PascalCase spellings (NaiveDatetime, UtcDatetime, Uuid) are names it does not know.
+    naive_datetime: "DateTime",
+    naive_datetime_usec: "DateTime",
+    utc_datetime: "DateTime",
+    utc_datetime_usec: "DateTime",
+    time_usec: "Time",
+    uuid: "UUID",
+    binary_id: "UUID"
   }
 
   @doc """
   Maps an Elixir type atom to its GraphQL type string.
 
   Known atoms (`:integer`, `:int`, `:float`, `:boolean`, `:bool`, `:string`,
-  `:id`, `:datetime`) are mapped to their canonical GraphQL equivalents.
+  `:id`, `:datetime`, and Ecto's `:naive_datetime`, `:utc_datetime` (and their `_usec`
+  forms), `:time_usec`, `:uuid`, `:binary_id`) are mapped to their canonical GraphQL
+  equivalents. `:date`, `:time` and `:decimal` reach `Date`, `Time` and `Decimal` by the
+  PascalCase rule.
   All other atoms are converted to PascalCase.
 
   ## Examples

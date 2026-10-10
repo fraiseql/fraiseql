@@ -60,6 +60,9 @@ module TypeMapper =
                     | t when t = typeof<System.Guid> -> "ID"
                     | t when t = typeof<System.DateTime> -> "DateTime"
                     | t when t = typeof<System.DateTimeOffset> -> "DateTime"
+                    // The engine's Date and Time (#1530); they exported as their class names.
+                    | t when t = typeof<System.DateOnly> -> "Date"
+                    | t when t = typeof<System.TimeOnly> -> "Time"
                     | t when t = typeof<System.Object> -> "String"
                     | _ -> t.Name
 
@@ -84,6 +87,8 @@ module TypeMapper =
         | t when t = typeof<System.Guid> -> GqlId
         | t when t = typeof<System.DateTime> -> GqlDateTime
         | t when t = typeof<System.DateTimeOffset> -> GqlDateTime
+        | t when t = typeof<System.DateOnly> -> GqlCustom "Date"
+        | t when t = typeof<System.TimeOnly> -> GqlCustom "Time"
         | t -> GqlCustom t.Name
 
     /// Converts a PascalCase, camelCase or snake_case name to camelCase.

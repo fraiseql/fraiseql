@@ -91,9 +91,13 @@ impl SchemaValidator {
             .chain(schema.interfaces.iter().map(|i| i.name.clone()))
             .collect();
 
-        // Add built-in scalars
+        // Add built-in scalars, and the engine's rich scalars (#1530): the converter
+        // resolves both without a declaration, so both are known names here.
         for scalar in crate::schema::builtin_scalar_names() {
             type_names.insert(scalar.to_string());
+        }
+        for scalar in fraiseql_core::schema::RICH_SCALARS {
+            type_names.insert((*scalar).to_string());
         }
 
         // Add **declared** custom scalars.
@@ -107,12 +111,13 @@ impl SchemaValidator {
             type_names.insert(scalar.name.clone());
         }
 
-        // Report field types that resolve to nothing declared.
+        // Refuse field types that resolve to nothing declared (#1530).
         //
-        // A warning rather than an error: the implicit registration it replaces was there to
-        // keep custom-scalar authoring frictionless, and there is no way to distinguish a
-        // typo from a scalar the author has declared elsewhere in a workflow this validator
-        // cannot see. Naming it is what was missing — silence was the defect.
+        // #724 made this a warning, for a `--schema-dir` author whose custom scalar might be
+        // declared in a file this validator could not see. Every workflow merges its files
+        // before validating, so it sees them all; and compiled anyway, the name became an
+        // object reference the server answered with no value, under a `200`. A typo'd
+        // scalar lost data silently, one warning among dozens.
         for (type_idx, type_def) in schema.types.iter().enumerate() {
             for (field_idx, field) in type_def.fields.iter().enumerate() {
                 let base = extract_base_type(&field.field_type);
@@ -126,7 +131,7 @@ impl SchemaValidator {
                         type_def.name, field.name
                     ),
                     path:       format!("types[{type_idx}].fields[{field_idx}].type"),
-                    severity:   ErrorSeverity::Warning,
+                    severity:   ErrorSeverity::Error,
                     suggestion: Some(format!(
                         "{} If '{base}' is a custom scalar, declare it in `custom_scalars`.",
                         Self::suggest_similar_type(base, &type_names)

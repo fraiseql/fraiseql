@@ -96,6 +96,10 @@ func (v *VectorConfig) WithMetric(metric string) *VectorConfig {
 	return v
 }
 
+// scalarPkgPath is this package's import path: every named type declared in it is an SDK
+// scalar (scalars.go), and each one's name is a scalar the engine knows.
+var scalarPkgPath = reflect.TypeOf(ID("")).PkgPath()
+
 // goToGraphQLType converts a Go type to GraphQL type string and nullable flag
 // Examples:
 //
@@ -134,6 +138,12 @@ func goToGraphQLType(goType reflect.Type) (string, bool, error) {
 		return listType, false, nil // Lists themselves are not nullable
 	}
 
+	// An SDK scalar (fraiseql.Email, fraiseql.DateTime, …) is the engine scalar of its name
+	// (#1530). Each is a named string, so the Kind switch below exported it as "String".
+	if goType.PkgPath() == scalarPkgPath && goType.Name() != "" {
+		return goType.Name(), nullable, nil
+	}
+
 	// Handle basic types
 	switch goType.Kind() {
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
@@ -150,7 +160,8 @@ func goToGraphQLType(goType reflect.Type) (string, bool, error) {
 		// Handle special struct types
 		switch goType {
 		case reflect.TypeOf(time.Time{}):
-			return "String", nullable, nil
+			// An instant: the engine's DateTime (#1530).
+			return "DateTime", nullable, nil
 		case reflect.TypeOf(time.Duration(0)):
 			return "String", nullable, nil
 		default:

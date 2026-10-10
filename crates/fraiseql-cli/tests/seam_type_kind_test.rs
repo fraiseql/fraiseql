@@ -35,6 +35,27 @@ use tempfile::TempDir;
 
 /// Write `schema` as `schema.json`, compile it with the real binary, and return the
 /// emitted artifact as raw JSON.
+/// Run `fraiseql-cli compile` and return whether it succeeded, with its output.
+fn compile_outcome(schema: &Value) -> (bool, String) {
+    let dir = TempDir::new().unwrap();
+    fs::write(dir.path().join("schema.json"), serde_json::to_string_pretty(schema).unwrap())
+        .unwrap();
+    let out = dir.path().join("schema.compiled.json");
+    let result = Command::new(env!("CARGO_BIN_EXE_fraiseql-cli"))
+        .args(["compile", "schema.json", "--output", out.to_str().unwrap()])
+        .current_dir(dir.path())
+        .output()
+        .expect("run fraiseql-cli");
+    (
+        result.status.success(),
+        format!(
+            "{}{}",
+            String::from_utf8_lossy(&result.stdout),
+            String::from_utf8_lossy(&result.stderr)
+        ),
+    )
+}
+
 fn compile(schema: &Value) -> Value {
     let dir = TempDir::new().unwrap();
     fs::write(dir.path().join("schema.json"), serde_json::to_string_pretty(schema).unwrap())
@@ -206,18 +227,38 @@ fn an_object_typed_field_still_compiles_to_the_object_variant() {
     assert_eq!(order_field_type(&compiled, "customer"), json!({"Object": "Customer"}));
 }
 
-/// A name declared nowhere stays an object reference, deliberately. `SchemaValidator`
-/// already reports it by name, and #724 chose a warning there rather than an error
-/// because a `--schema-dir` author can declare a custom scalar in a file this pass cannot
-/// see. Pinned so that a future strictening is a deliberate change to this assertion.
+/// A name declared nowhere fails the compile (#1530). It was a warning (#724), and the field
+/// compiled to an object reference the server answered with no value; the directory merge
+/// runs before validation, so #724's "declared in a file this pass cannot see" does not occur.
 #[test]
-fn an_undeclared_type_name_still_compiles_to_an_object_reference() {
-    let compiled = compile(&schema_with(
+fn an_undeclared_type_name_fails_the_compile() {
+    let (ok, output) = compile_outcome(&schema_with(
         &json!([{"name": "note", "type": "Untyped", "nullable": true}]),
         &json!({}),
     ));
 
-    assert_eq!(order_field_type(&compiled, "note"), json!({"Object": "Untyped"}));
+    assert!(!ok && output.contains("'Untyped'"), "refused, naming the type: {output}");
+}
+
+/// The engine's rich scalars resolve without a declaration (#1530), but a declared type keeps
+/// its own name even where the engine knows that name as a scalar: `Money` here is the
+/// author's object.
+#[test]
+fn a_rich_scalar_is_a_scalar_unless_a_type_of_that_name_is_declared() {
+    let compiled = compile(&schema_with(
+        &json!([{"name": "contact", "type": "Email", "nullable": true}]),
+        &json!({}),
+    ));
+    assert_eq!(order_field_type(&compiled, "contact"), json!({"Scalar": "Email"}));
+
+    let mut schema =
+        schema_with(&json!([{"name": "price", "type": "Money", "nullable": true}]), &json!({}));
+    schema["types"].as_array_mut().unwrap().push(json!({
+        "name": "Money",
+        "sql_source": "v_money",
+        "fields": [{"name": "id", "type": "ID", "nullable": false}]
+    }));
+    assert_eq!(order_field_type(&compile(&schema), "price"), json!({"Object": "Money"}));
 }
 
 // ── The consumer that misreported ─────────────────────────────────────────────
@@ -385,17 +426,15 @@ fn a_custom_scalar_column_emits_text_not_jsonb() {
     );
 }
 
-/// The counterweight #923 needed, restated for scalars: an *undeclared* name must
-/// still compile to an object reference, so the fix cannot be "call everything a
-/// scalar". `an_undeclared_type_name_still_compiles_to_an_object_reference`
-/// covers the field position; this covers the case where a custom-scalar block
-/// exists but does not declare the name in question.
+/// The counterweight #923 needed, restated for scalars: an *undeclared* name is not made a
+/// scalar because a custom-scalar block exists, so the fix cannot be "call everything a
+/// scalar". It is refused, as it is with no block at all.
 #[test]
-fn an_undeclared_name_stays_an_object_even_when_other_scalars_are_declared() {
-    let compiled = compile(&schema_with(
+fn an_undeclared_name_is_refused_even_when_other_scalars_are_declared() {
+    let (ok, output) = compile_outcome(&schema_with(
         &json!([{"name": "note", "type": "Untyped", "nullable": true}]),
         &scalar_decls(),
     ));
 
-    assert_eq!(order_field_type(&compiled, "note"), json!({"Object": "Untyped"}));
+    assert!(!ok && output.contains("'Untyped'"), "refused, naming the type: {output}");
 }

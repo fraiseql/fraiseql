@@ -92,13 +92,15 @@ final readonly class TypeInfo
      */
     private static function phpTypeToGraphQL(string $phpType): string
     {
-        return match ($phpType) {
+        return match (ltrim($phpType, '\\')) {
             'int' => 'Int',
             'string' => 'String',
             'bool' => 'Boolean',
             'float' => 'Float',
             'mixed' => 'String',
             'array' => 'String', // Default for untyped arrays
+            // The engine's DateTime (#1530); these used to pass through as class names.
+            'DateTime', 'DateTimeImmutable', 'DateTimeInterface' => 'DateTime',
             default => $phpType, // Class names pass through (User -> User)
         };
     }

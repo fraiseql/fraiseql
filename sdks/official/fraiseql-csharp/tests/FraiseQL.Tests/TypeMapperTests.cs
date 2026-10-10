@@ -22,6 +22,8 @@ public sealed class TypeMapperTests
         [GraphQLField] public string StringProp { get; set; } = string.Empty;
         [GraphQLField] public DateTime DateTimeProp { get; set; }
         [GraphQLField] public DateTimeOffset DateTimeOffsetProp { get; set; }
+        [GraphQLField] public DateOnly DateOnlyProp { get; set; }
+        [GraphQLField] public TimeOnly TimeOnlyProp { get; set; }
         [GraphQLField] public int? NullableIntProp { get; set; }
         [GraphQLField] public long? NullableLongProp { get; set; }
         [GraphQLField] public float? NullableFloatProp { get; set; }
@@ -107,18 +109,34 @@ public sealed class TypeMapperTests
         Assert.Equal("String", type);
     }
 
+    // #1530: the stdlib temporal types export as the engine's DateTime, Date and Time
+    // scalars, not as String.
     [Fact]
-    public void TestDateTimeMapsToString()
+    public void TestDateTimeMapsToDateTime()
     {
         var (type, _) = Detect(nameof(AllTypesFixture.DateTimeProp));
-        Assert.Equal("String", type);
+        Assert.Equal("DateTime", type);
     }
 
     [Fact]
-    public void TestDateTimeOffsetMapsToString()
+    public void TestDateTimeOffsetMapsToDateTime()
     {
         var (type, _) = Detect(nameof(AllTypesFixture.DateTimeOffsetProp));
-        Assert.Equal("String", type);
+        Assert.Equal("DateTime", type);
+    }
+
+    [Fact]
+    public void TestDateOnlyMapsToDate()
+    {
+        var (type, _) = Detect(nameof(AllTypesFixture.DateOnlyProp));
+        Assert.Equal("Date", type);
+    }
+
+    [Fact]
+    public void TestTimeOnlyMapsToTime()
+    {
+        var (type, _) = Detect(nameof(AllTypesFixture.TimeOnlyProp));
+        Assert.Equal("Time", type);
     }
 
     [Fact]

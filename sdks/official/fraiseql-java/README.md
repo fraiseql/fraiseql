@@ -117,7 +117,9 @@ Java types map to GraphQL types:
 | `double`, `Double` | `Float` | No |
 | `String` | `String` | No |
 | `boolean`, `Boolean` | `Boolean` | No |
-| `LocalDate`, `LocalDateTime` | `String` | No |
+| `LocalDate`, `java.sql.Date` | `Date` | No |
+| `LocalDateTime`, `OffsetDateTime`, `ZonedDateTime`, `Instant`, `java.util.Date`, `java.sql.Timestamp` | `DateTime` | No |
+| `LocalTime`, `OffsetTime`, `java.sql.Time` | `Time` | No |
 | `List<T>`, `Set<T>` | `[T]` | No |
 | `Optional<T>` | `T` | Yes |
 

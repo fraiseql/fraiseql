@@ -43,6 +43,12 @@ export function typeToGraphQL(type: unknown): [graphqlType: string, nullable: bo
     return ["Boolean", false];
   }
 
+  // A JavaScript `Date` is an instant: the engine's `DateTime` (#1530). Its constructor's
+  // name, `Date`, is a calendar date, so the class-name rule below would mislabel it.
+  if (type === Date) {
+    return ["DateTime", false];
+  }
+
   // For class types, return the class name
   if (typeof type === "function") {
     return [type.name || "Object", false];

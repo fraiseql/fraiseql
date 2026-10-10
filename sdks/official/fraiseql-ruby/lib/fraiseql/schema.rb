@@ -398,11 +398,26 @@ module FraiseQL
       end
     end
 
-    # Resolves a Ruby type symbol to its GraphQL type name.
+    # Ruby's date-time classes, by name, as the engine's scalars (#1530). `Time` is an
+    # instant, so its own name (a time of day) is the wrong scalar. Matched by name so the
+    # `date` library need not be loaded.
+    CLASS_SCALARS = {
+      "Date" => "Date",
+      "DateTime" => "DateTime",
+      "Time" => "DateTime"
+    }.freeze
+
+    # Resolves a Ruby type symbol, String or class to its GraphQL type name.
     def self.graphql_type(type)
       return type.to_s if type.is_a?(String)
+      return class_type(type) if type.is_a?(Class)
 
       SCALARS.fetch(type.to_sym) { type.to_s.split("_").map(&:capitalize).join }
+    end
+
+    # A class's GraphQL type name: a date-time class's scalar, otherwise its own name.
+    def self.class_type(klass)
+      CLASS_SCALARS.fetch(klass.name, klass.name)
     end
 
     # Collects the fields declared inside a `type` block.

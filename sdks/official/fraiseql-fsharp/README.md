@@ -100,6 +100,8 @@ SchemaExporter.exportSchemaToFile "schema.json" schema
 | `System.Guid` | `ID` |
 | `System.DateTime` | `DateTime` |
 | `System.DateTimeOffset` | `DateTime` |
+| `System.DateOnly` | `Date` |
+| `System.TimeOnly` | `Time` |
 | `T option` | Nullable `T` |
 | `T list`, `T array` | `[T]` |
 | Any other type | Type name (e.g. `MyRecord`) |

@@ -107,7 +107,8 @@ class SchemaRegistry:
     # Serverless function definitions (#1325).
     _functions: ClassVar[dict[str, SchemaElement]] = {}
     # Maps scalar name -> (CustomScalar class, optional description)
-    _custom_scalars: ClassVar[dict[str, tuple[type, str | None]]] = {}
+    # A NewType declared as a custom scalar (#1530) has no CustomScalar class: ``None``.
+    _custom_scalars: ClassVar[dict[str, tuple[type | None, str | None]]] = {}
     # Inject defaults: base applies to all operations; queries/mutations are per-operation-type
     _inject_defaults: ClassVar[dict[str, dict[str, str]]] = {}
 
@@ -632,7 +633,10 @@ class SchemaRegistry:
         Raises:
             ValueError: If scalar name is not unique
         """
-        if name in cls._custom_scalars:
+        existing = cls._custom_scalars.get(name)
+        # A NewType of the same name may have declared it first (#1530): the class replaces
+        # that declaration. Two classes of one name are still refused.
+        if existing is not None and existing[0] is not None:
             raise ValueError(f"Scalar {name!r} is already registered")
 
         cls._custom_scalars[name] = (scalar_class, description)
@@ -658,13 +662,29 @@ class SchemaRegistry:
         }
 
     @classmethod
+    def declare_newtype_scalar(cls, name: str) -> None:
+        """Declare a ``NewType``'s name as a custom scalar, once however often it is used.
+
+        A ``NewType`` whose name the engine does not know (``NewType("Shade", str)``) used to
+        export its name undeclared, and the compiler compiled it as an object reference the
+        server answered with no value; it now refuses one (#1530). Declaring it here makes it
+        a scalar. A name already registered, by ``@scalar`` or an earlier field, is left as is.
+        """
+        cls._custom_scalars.setdefault(name, (None, None))
+
+    @classmethod
     def get_custom_scalars(cls) -> dict[str, type]:
-        """Get all registered custom scalars.
+        """Get all registered ``CustomScalar`` classes.
 
         Returns:
-            Dictionary mapping scalar names to CustomScalar classes
+            Dictionary mapping scalar names to CustomScalar classes (a ``NewType`` declared by
+            :meth:`declare_newtype_scalar` has none and is not listed)
         """
-        return {name: scalar_class for name, (scalar_class, _) in cls._custom_scalars.items()}
+        return {
+            name: scalar_class
+            for name, (scalar_class, _) in cls._custom_scalars.items()
+            if scalar_class is not None
+        }
 
     @classmethod
     def get_schema(cls) -> dict[str, Any]:
@@ -726,7 +746,8 @@ class SchemaRegistry:
             schema["custom_scalars"] = [
                 {
                     "name": name,
-                    "description": description or scalar_class.__doc__,
+                    "description": description
+                    or (scalar_class.__doc__ if scalar_class is not None else None),
                 }
                 for name, (scalar_class, description) in cls._custom_scalars.items()
             ]

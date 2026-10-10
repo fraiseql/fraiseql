@@ -75,9 +75,36 @@ func TestGoToGraphQLType(t *testing.T) {
 			expectedNull: true,
 		},
 		{
+			// #1530: an instant is the engine's DateTime, not a String.
 			name:         "time.Time",
 			goType:       reflect.TypeOf(time.Time{}),
-			expectedType: "String",
+			expectedType: "DateTime",
+			expectedNull: false,
+		},
+		{
+			// #1530: the SDK's own scalars export as themselves, not as their
+			// underlying string.
+			name:         "fraiseql.DateTime",
+			goType:       reflect.TypeOf(DateTime("")),
+			expectedType: "DateTime",
+			expectedNull: false,
+		},
+		{
+			name:         "fraiseql.Email",
+			goType:       reflect.TypeOf(Email("")),
+			expectedType: "Email",
+			expectedNull: false,
+		},
+		{
+			name:         "pointer to fraiseql.Date",
+			goType:       reflect.TypeOf((*Date)(nil)),
+			expectedType: "Date",
+			expectedNull: true,
+		},
+		{
+			name:         "slice of fraiseql.Hostname",
+			goType:       reflect.TypeOf([]Hostname{}),
+			expectedType: "[Hostname!]",
 			expectedNull: false,
 		},
 		{
@@ -162,8 +189,8 @@ func TestExtractFields(t *testing.T) {
 				if fields["Name"].Type != "String" {
 					t.Errorf("expected Name type String, got %s", fields["Name"].Type)
 				}
-				if fields["CreatedAt"].Type != "String" {
-					t.Errorf("expected CreatedAt type String, got %s", fields["CreatedAt"].Type)
+				if fields["CreatedAt"].Type != "DateTime" { // time.Time (#1530)
+					t.Errorf("expected CreatedAt type DateTime, got %s", fields["CreatedAt"].Type)
 				}
 			},
 		},

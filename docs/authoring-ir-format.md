@@ -164,17 +164,22 @@ and emitting a warning), the canonical format omits the non-null marker entirely
 
 ### Rich scalars
 
-The compiler recognizes 49+ built-in rich scalar types (case-insensitive matching):
+The engine knows these rich scalars by name (`RICH_SCALARS` in
+`fraiseql-core/src/schema/scalar_types.rs`), matched exactly as written:
 
-- **Contact**: `Email`, `PhoneNumber`, `URL`, `DomainName`, `Hostname`
-- **Location**: `PostalCode`, `Latitude`, `Longitude`, `Coordinates`, `Timezone`
-- **Financial**: `IBAN`, `CUSIP`, `CurrencyCode`, `Money`, `StockSymbol`
-- **Identifiers**: `Slug`, `SemanticVersion`, `APIKey`, `VIN`
-- **Networking**: `IPAddress`, `IPv4`, `IPv6`, `MACAddress`, `CIDR`
-- **Content**: `Markdown`, `HTML`, `Cron`, `Regex`, `Color`
+`Email`, `PhoneNumber`, `URL`, `DomainName`, `Hostname`, `PostalCode`, `Latitude`, `Longitude`, `Coordinates`, `Timezone`, `LocaleCode`, `LanguageCode`, `CountryCode`, `IBAN`, `CUSIP`, `ISIN`, `SEDOL`, `LEI`, `MIC`, `CurrencyCode`, `Money`, `ExchangeCode`, `ExchangeRate`, `StockSymbol`, `Slug`, `SemanticVersion`, `HashSHA256`, `APIKey`, `LicensePlate`, `VIN`, `TrackingNumber`, `ContainerNumber`, `IPAddress`, `IPv4`, `IPv6`, `MACAddress`, `CIDR`, `Port`, `AirportCode`, `PortCode`, `FlightNumber`, `Markdown`, `HTML`, `MimeType`, `Color`, `Image`, `File`, `LTree`, `DateRange`, `Duration`, `Percentage`.
 
-Rich scalar names are recognized as valid field types (they compile to string
-storage). They do **not** carry type-specific filter operators: the
+A field typed with one of them compiles as that scalar, is reported `SCALAR` by
+introspection and is served as its value, with no declaration (#1530). A type the schema
+declares under one of these names (an object type called `Money`, say) keeps its own
+meaning: the declaration wins.
+
+A field type that is none of these, not a built-in scalar and not declared (as a type,
+enum, interface, union or `custom_scalars` entry) **fails the compile**, naming the field
+and the type. A server also refuses, at load, an artifact whose field names an object,
+interface or union that is not declared.
+
+Rich scalars do **not** carry type-specific filter operators: the
 `<RichType>WhereInput` surface was removed in v2.15 because the runtime WHERE
 parser never served it (#869) — filtering uses the standard operator set.
 
