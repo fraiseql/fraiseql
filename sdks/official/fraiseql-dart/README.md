@@ -73,6 +73,10 @@ schema.type('User', sqlSource: 'users', fields: {
 });
 ```
 
+A String stored as a locale map (`[locale]` in `fraiseql.toml`) is
+`FieldType.string(localized: true)`, as a field, an input field or a mutation argument.
+Only a String can be localized; declaring any other localized type is refused.
+
 ## Compile and Serve
 
 ```bash

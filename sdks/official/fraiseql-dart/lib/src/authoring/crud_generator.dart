@@ -149,6 +149,7 @@ class CrudGenerator {
                   'name': snakeToCamel(f['name'] as String),
                   'type': f['type'],
                   'nullable': f['nullable'] ?? false,
+                  if (f['localized'] == true) 'localized': true,
                 })
             .toList(),
       });
@@ -185,6 +186,7 @@ class CrudGenerator {
                 'name': snakeToCamel(f['name'] as String),
                 'type': f['type'],
                 'nullable': true,
+                if (f['localized'] == true) 'localized': true,
               }),
         ],
       });

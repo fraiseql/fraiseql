@@ -578,6 +578,10 @@ class FieldType {
   /// in TypeScript and C#.
   final bool computed;
 
+  /// A String stored as a locale map (#1527): served in the request's locale, written per
+  /// locale. Only a String can be localized; exporting any other localized type is refused.
+  final bool localized;
+
   const FieldType.named(
     this.type, {
     this.nullable = true,
@@ -588,6 +592,7 @@ class FieldType {
     this.vectorDistance,
     this.deprecated,
     this.computed = false,
+    this.localized = false,
   }) : assert(
           vectorConfig == null || vectorDistance == null,
           'A field declares either vectorConfig or vectorDistance, not both: vectorConfig '
@@ -647,7 +652,7 @@ class FieldType {
           computed: computed,
         );
 
-  /// GraphQL `String`.
+  /// GraphQL `String`. `localized: true` stores it as a locale map (#1527).
   const FieldType.string({
     bool nullable = true,
     String? description,
@@ -655,6 +660,7 @@ class FieldType {
     String? onDeny,
     String? deprecated,
     bool computed = false,
+    bool localized = false,
   }) : this.named(
           'String',
           nullable: nullable,
@@ -663,6 +669,7 @@ class FieldType {
           onDeny: onDeny,
           deprecated: deprecated,
           computed: computed,
+          localized: localized,
         );
 
   /// GraphQL `Int`. Named `int_` because `int` is a Dart keyword-adjacent type name.
@@ -726,6 +733,7 @@ class FieldType {
         'type': type,
         'nullable': nullable,
         'computed': computed,
+        'localized': localized,
       };
 
   Map<String, Object?> _toJson(String name) {
@@ -748,6 +756,16 @@ class FieldType {
     if (deprecated != null) {
       json['deprecated'] =
           deprecated!.isEmpty ? <String, Object?>{} : {'reason': deprecated};
+    }
+    // Every field, input field and argument is emitted here, so this is where a
+    // localized non-String is refused (#1527): a locale map holds strings.
+    if (localized) {
+      if (type != 'String') {
+        throw ArgumentError(
+            '$name is localized but is a $type; only a String can be '
+            'localized (a localized field is a String stored as a locale map)');
+      }
+      json['localized'] = true;
     }
     return json;
   }

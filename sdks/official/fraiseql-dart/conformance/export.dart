@@ -61,6 +61,7 @@ FraiseQLSchema authorFull() {
       'name': const FieldType.string(
         description: 'The user\'s "display" name',
         deprecated: 'use displayName',
+        localized: true,
       ),
       'salary': const FieldType.float(requiresScope: 'read:User.salary'),
       // Two words and a digit segment (#1249). Dart's author writes the wire name,
@@ -242,7 +243,7 @@ FraiseQLSchema authorFull() {
     arguments: {
       'email': const FieldType.string(nullable: false),
       'name': const FieldType.string(),
-      'displayName': const FieldType.string(),
+      'displayName': const FieldType.string(localized: true),
     },
     invalidatesViews: ['v_user', 'v_user_summary'],
     invalidatesFactTables: ['tf_signup'],
