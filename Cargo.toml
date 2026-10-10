@@ -80,31 +80,31 @@ dashmap = "6.1"
 deadpool = "0.12"
 deadpool-postgres = "0.14"
 # Internal crates
-fraiseql-arrow = {path = "crates/fraiseql-arrow", version = "2.16.0"}
-fraiseql-auth = {path = "crates/fraiseql-auth", version = "2.16.0"}
+fraiseql-arrow = {path = "crates/fraiseql-arrow", version = "2.17.0"}
+fraiseql-auth = {path = "crates/fraiseql-auth", version = "2.17.0"}
 # Deliberately loose floor (2.3.0, not the current 2.7.0): fraiseql-server takes
 # fraiseql-cli as a dev-dependency while fraiseql-cli depends on fraiseql-server,
 # a publish cycle. A floor equal to the unpublished current version breaks the
 # first `cargo publish` of the cut (the sibling isn't on crates.io yet). Keep this
 # floor loose — see the v2.4.0 release lessons. Do NOT bump it to match the others.
 fraiseql-cli = {path = "crates/fraiseql-cli", version = "2.3.0"}
-fraiseql-codegen = {path = "crates/fraiseql-codegen", version = "2.16.0"}
-fraiseql-core = {path = "crates/fraiseql-core", version = "2.16.0", default-features = false}
-fraiseql-db = {path = "crates/fraiseql-db", version = "2.16.0", default-features = false}
-fraiseql-error = {path = "crates/fraiseql-error", version = "2.16.0", default-features = false}
-fraiseql-federation = {path = "crates/fraiseql-federation", version = "2.16.0"}
-fraiseql-saga = {path = "crates/fraiseql-saga", version = "2.16.0"}
-fraiseql-guard = {path = "crates/fraiseql-guard", version = "2.16.0"}
-fraiseql-jwks = {path = "crates/fraiseql-jwks", version = "2.16.0"}
-fraiseql-kafka = {path = "crates/fraiseql-kafka", version = "2.16.0"}
-fraiseql-functions = {path = "crates/fraiseql-functions", version = "2.16.0"}
-fraiseql-storage = {path = "crates/fraiseql-storage", version = "2.16.0"}
-fraiseql-observers = {path = "crates/fraiseql-observers", version = "2.16.0"}
-fraiseql-secrets = {path = "crates/fraiseql-secrets", version = "2.16.0"}
-fraiseql-server = {path = "crates/fraiseql-server", version = "2.16.0"}
-fraiseql-webhooks = {path = "crates/fraiseql-webhooks", version = "2.16.0"}
-fraiseql-cdc-sinks = {path = "crates/fraiseql-cdc-sinks", version = "2.16.0"}
-fraiseql-wire = {path = "crates/fraiseql-wire", version = "2.16.0"}
+fraiseql-codegen = {path = "crates/fraiseql-codegen", version = "2.17.0"}
+fraiseql-core = {path = "crates/fraiseql-core", version = "2.17.0", default-features = false}
+fraiseql-db = {path = "crates/fraiseql-db", version = "2.17.0", default-features = false}
+fraiseql-error = {path = "crates/fraiseql-error", version = "2.17.0", default-features = false}
+fraiseql-federation = {path = "crates/fraiseql-federation", version = "2.17.0"}
+fraiseql-saga = {path = "crates/fraiseql-saga", version = "2.17.0"}
+fraiseql-guard = {path = "crates/fraiseql-guard", version = "2.17.0"}
+fraiseql-jwks = {path = "crates/fraiseql-jwks", version = "2.17.0"}
+fraiseql-kafka = {path = "crates/fraiseql-kafka", version = "2.17.0"}
+fraiseql-functions = {path = "crates/fraiseql-functions", version = "2.17.0"}
+fraiseql-storage = {path = "crates/fraiseql-storage", version = "2.17.0"}
+fraiseql-observers = {path = "crates/fraiseql-observers", version = "2.17.0"}
+fraiseql-secrets = {path = "crates/fraiseql-secrets", version = "2.17.0"}
+fraiseql-server = {path = "crates/fraiseql-server", version = "2.17.0"}
+fraiseql-webhooks = {path = "crates/fraiseql-webhooks", version = "2.17.0"}
+fraiseql-cdc-sinks = {path = "crates/fraiseql-cdc-sinks", version = "2.17.0"}
+fraiseql-wire = {path = "crates/fraiseql-wire", version = "2.17.0"}
 futures = "0.3"
 graphql-parser = "0.4"
 hex = "0.4"
@@ -419,4 +419,4 @@ rust-version = "1.95.0"  # MSRV — wasmtime 48 (the release fixing RUSTSEC-2026
 # RUSTSEC-2026-0316) needs 1.95; it was 1.94.1 for wasmtime 46 (#933) and aws-sdk-kinesis
 # 1.112 (#975). The patch is pinned because CI runs exactly this version — Docker's
 # rust:1.95 tracks the newest patch, so a floating floor would be a claim no leg tested.
-version = "2.16.0"
+version = "2.17.0"

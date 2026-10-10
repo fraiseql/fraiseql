@@ -8,8 +8,8 @@ type: application
 # change — is defensible, but it was never written down, which is how these two drifted
 # apart to 2.1.1 / 2.1.0 while the product shipped 2.14.1 and nobody could tell whether
 # that was deliberate. tools/check-deploy-versions.sh enforces the lockstep.
-version: 2.16.0
-appVersion: "2.16.0"
+version: 2.17.0
+appVersion: "2.17.0"
 keywords:
   - graphql
   - database

@@ -83,7 +83,7 @@
 # 1. Pull latest image
 # Pin the version you are deploying — never :latest (the repo's own
 # deploy-security gate forbids it)
-IMAGE_TAG=2.16.0
+IMAGE_TAG=2.17.0
 docker pull ghcr.io/fraiseql/server:$IMAGE_TAG
 
 # 2. Stop current container gracefully (allows existing connections to finish)
@@ -182,7 +182,7 @@ docker rename fraiseql-server fraiseql-server-backup-$(date +%s) 2>/dev/null || 
 echo "5. Deploying..."
 # Pin the version you are deploying — never :latest (the repo's own
 # deploy-security gate forbids it)
-IMAGE_TAG=2.16.0
+IMAGE_TAG=2.17.0
 docker pull ghcr.io/fraiseql/server:$IMAGE_TAG
 docker run -d \
   --name fraiseql-server \
