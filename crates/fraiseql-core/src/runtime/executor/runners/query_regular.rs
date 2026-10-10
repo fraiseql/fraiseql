@@ -1050,10 +1050,14 @@ impl QueryRunner {
             });
         }
 
-        // Route relay queries to dedicated handler.
-        // No session vars: unauthenticated entrypoint (no SecurityContext). See #329.
+        // Route relay queries to dedicated handler. With no principal, the page still reads
+        // with the request's session variables: its `literal` and `header` ones and the
+        // request locale (#1520), as an anonymous list read does.
         if query_match.query_def.relay {
-            return self.execute_relay_query(&query_match, variables, None, &[]).await;
+            let resolved_session_vars = self.resolve_session_vars(None)?;
+            let session_pairs: Vec<(&str, &str)> =
+                resolved_session_vars.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
+            return self.execute_relay_query(&query_match, variables, None, &session_pairs).await;
         }
 
         // Count siblings (#938), after the three guards above — a count of rows an

@@ -285,6 +285,10 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **An anonymous relay page reads with its session variables.** The connection path passed
+  none when the request had no principal, so a view reading `current_setting()` saw neither
+  the `literal` and `header` variables #1520 gives an anonymous read nor the request locale;
+  a list over the same view did. It now resolves them as the list path does.
 - **A relay connection paged under an `orderBy` returns every row once, in order (#1521).** The
   keyset resumed past the cursor column alone, as if the connection were ordered by it, so a
   page after a cursor under any other ordering (or under the cursor column descending) skipped

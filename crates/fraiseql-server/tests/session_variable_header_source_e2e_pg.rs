@@ -95,6 +95,23 @@ fn schema() -> CompiledSchema {
                 .with_sql_source(VIEW)
                 .build(),
         )
+        // The same view as a relay connection, under a type of its own so REST's routing of
+        // `RegionProbe` stays on `regionProbes`.
+        .with_type(
+            TestTypeBuilder::new("RelayProbe", VIEW)
+                .with_field(TestFieldBuilder::new("id", FieldType::Int).build())
+                .with_field(TestFieldBuilder::nullable("region", FieldType::String).build())
+                .with_field(TestFieldBuilder::nullable("flavor", FieldType::String).build())
+                .with_field(TestFieldBuilder::nullable("subject", FieldType::String).build())
+                .build(),
+        )
+        .with_query(
+            TestQueryBuilder::new("regionProbeConnection", "RelayProbe")
+                .returns_list(true)
+                .with_sql_source(VIEW)
+                .relay_cursor_column("id")
+                .build(),
+        )
         .build();
     let mut note = TypeDefinition::new("RegionNote", format!("{WRITE_SCHEMA}.v_note"));
     note.fields = vec![
@@ -243,7 +260,8 @@ async fn serve_with(
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let port = listener.local_addr().unwrap().port();
     // REST writes are mounted only on request (#865).
-    let server = Box::pin(Server::new(config, schema(), adapter, pool))
+    // As the server binary builds it: relay-capable (main.rs).
+    let server = Box::pin(Server::with_relay_pagination(config, schema(), adapter, pool))
         .await
         .unwrap()
         .with_rest_write_surface();
@@ -335,6 +353,32 @@ async fn a_header_session_variable_reads_the_request_header() {
                 .is_some_and(|m| m.contains("more than once")),
         "a header sent twice is refused, not joined: {twice}"
     );
+}
+
+/// A relay connection reads with the same variables as a list, principal or not: an
+/// anonymous page gets its header and literal ones.
+#[tokio::test]
+async fn a_relay_connection_sees_the_header_and_literal_variables() {
+    const PAGE: &str =
+        "{ regionProbeConnection(first: 1) { edges { node { region flavor subject } } } }";
+    let Some(url) = try_database_url() else {
+        eprintln!("skipping: DATABASE_URL not set");
+        return;
+    };
+    let server = serve(&url, true).await;
+    let signed = graphql(&server, PAGE, Some(token(&json!({}))), &[("x-region", "eu")]).await;
+    drop(server);
+    let server = serve(&url, false).await;
+    let anonymous = graphql(&server, PAGE, None, &[("x-region", "eu")]).await;
+    drop(server);
+
+    for (who, response) in [("authenticated", &signed), ("anonymous", &anonymous)] {
+        let node = &response["data"]["regionProbeConnection"]["edges"][0]["node"];
+        assert!(
+            node["region"] == json!("eu") && node["flavor"] == json!("vanilla"),
+            "{who}: the page read with app.region and app.flavor set: {response}"
+        );
+    }
 }
 
 /// A GraphQL mutation runs its function with the header's value, principal or not.
