@@ -624,6 +624,12 @@ pub struct IntermediateMutation {
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub cascade: bool,
 
+    /// Typed facts about the operation, served on the cascade payload (#1397): the
+    /// function returns them in its response row's `result jsonb` column. Only on a `cascade`
+    /// mutation, only leaf types (a scalar or an enum).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub success_fields: Vec<super::IntermediateField>,
+
     /// REST route override for this mutation. See [`IntermediateRest`].
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rest: Option<IntermediateRest>,
@@ -654,6 +660,7 @@ impl Default for IntermediateMutation {
             input_style:             InputStyle::Flatten,
             changelog_pre_image:     false,
             cascade:                 false,
+            success_fields:          Vec::new(),
             rest:                    None,
         }
     }

@@ -53,7 +53,7 @@ async fn setup_installs_dollar_quoted_helpers() {
         .await
         .unwrap()
         .get("v");
-    assert_eq!(version, "2.3.0", "library_version() must report the installed version");
+    assert_eq!(version, "2.4.0", "library_version() must report the installed version");
 
     // mutation_ok / mutation_err return the 13-column response and are callable.
     let ok_succeeded: bool = client
@@ -339,4 +339,155 @@ async fn mutation_err_entries_wraps_its_entries_as_errors() {
         ]})
     );
     client.batch_execute("ROLLBACK").await.unwrap();
+}
+
+/// The helper library 2.3.0 shipped, byte for byte: 13-column builders.
+const HELPERS_2_3_0: &str = include_str!("fixtures/mutation_response_helpers_2_3_0.sql");
+
+/// A 2.3.0 install, in the caller's transaction: the shared `fraiseql` schema may already
+/// hold the current library (a sibling test installs it), whose 14-column forms 2.3.0 does not
+/// have, so every builder is dropped before 2.3.0 is installed.
+const INSTALL_2_3_0: &str = "DO $$ DECLARE f regprocedure; BEGIN FOR f IN SELECT p.oid::regprocedure \
+     FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'fraiseql' \
+     AND p.proname IN ('mutation_ok', 'mutation_err', 'mutation_err_entries', \
+     'mutation_ok_result', 'mutation_err_result', 'mutation_err_entries_result') LOOP \
+     EXECUTE format('DROP FUNCTION %s', f); END LOOP; END $$;";
+
+/// #1397: helpers 2.4.0 are additive over 2.3.0. A mutation function written against 2.3.0,
+/// returning its 13-column `mutation_response` through `mutation_ok`, runs unchanged after
+/// the upgrade, with no `ALTER TYPE`; each 13-column builder is still one function returning
+/// 13 columns, and the 14-column forms are new. Rolled back.
+#[tokio::test]
+async fn the_helpers_upgrade_a_2_3_0_install_without_touching_its_functions() {
+    let Some(url) = fraiseql_test_support::try_database_url() else {
+        eprintln!("skipping #1397 upgrade test: DATABASE_URL not set");
+        return;
+    };
+    let (mut client, connection) = tokio_postgres::connect(&url, NoTls).await.unwrap();
+    tokio::spawn(async move {
+        let _ = connection.await;
+    });
+    let tx = client.transaction().await.unwrap();
+    tx.batch_execute(INSTALL_2_3_0).await.unwrap();
+    tx.batch_execute(HELPERS_2_3_0).await.unwrap();
+    tx.batch_execute(
+        "CREATE SCHEMA p1397_up;
+         CREATE TYPE p1397_up.mutation_response AS (succeeded boolean, state_changed boolean, \
+         error_class text, status_detail text, http_status smallint, message text, entity_id \
+         uuid, entity_type text, entity jsonb, updated_fields text[], cascade jsonb, \
+         error_detail jsonb, metadata jsonb);
+         CREATE FUNCTION p1397_up.fn_create(p jsonb) RETURNS SETOF p1397_up.mutation_response \
+         LANGUAGE plpgsql AS $$ BEGIN RETURN QUERY SELECT * FROM fraiseql.mutation_ok(p, \
+         p_entity_type => 'Order'); END $$;
+         CREATE FUNCTION p1397_up.fn_fail(p jsonb) RETURNS SETOF p1397_up.mutation_response \
+         LANGUAGE plpgsql AS $$ BEGIN RETURN QUERY SELECT * FROM \
+         fraiseql.mutation_err_entries('validation', 'bad', \
+         fraiseql.error_entry(422::smallint, 'x', 'y')); END $$;",
+    )
+    .await
+    .unwrap();
+
+    tx.batch_execute(include_str!("../sql/helpers/mutation_response.sql"))
+        .await
+        .unwrap();
+
+    let row = tx
+        .query_one("SELECT succeeded, entity FROM p1397_up.fn_create('{\"id\": 7}'::jsonb)", &[])
+        .await
+        .expect("a 2.3.0 function runs on 2.4.0 with its type untouched");
+    assert!(row.get::<_, bool>(0));
+    assert_eq!(row.get::<_, serde_json::Value>(1), serde_json::json!({ "id": 7 }));
+    let failed: bool = tx
+        .query_one("SELECT succeeded FROM p1397_up.fn_fail('{}'::jsonb)", &[])
+        .await
+        .expect("the error builders too")
+        .get(0);
+    assert!(!failed);
+
+    // (builder, overloads, columns it returns)
+    let shapes: Vec<(String, i64, i32)> = tx
+        .query(
+            "SELECT p.proname::text, count(*), max(cardinality(p.proallargtypes) \
+             - p.pronargs)::int FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace \
+             WHERE n.nspname = 'fraiseql' AND p.proname LIKE 'mutation\\_%' GROUP BY 1 ORDER BY 1",
+            &[],
+        )
+        .await
+        .unwrap()
+        .iter()
+        .map(|r| (r.get(0), r.get(1), r.get(2)))
+        .collect();
+    assert_eq!(
+        shapes,
+        [
+            ("mutation_err", 1, 13),
+            ("mutation_err_entries", 1, 13),
+            ("mutation_err_entries_result", 1, 14),
+            ("mutation_err_result", 1, 14),
+            ("mutation_ok", 1, 13),
+            ("mutation_ok_result", 1, 14),
+        ]
+        .map(|(n, c, k)| (n.to_string(), c, k))
+        .to_vec(),
+        "the 13-column builders unchanged, one overload each; the 14-column forms added"
+    );
+    let version: String =
+        tx.query_one("SELECT fraiseql.library_version()", &[]).await.unwrap().get(0);
+    assert_eq!(version, "2.4.0");
+    tx.rollback().await.unwrap();
+}
+
+/// #1397: the 14-column forms build the same row as their 13-column builder, plus `result`:
+/// `p_result` on success, NULL on an error. A function that declares `result jsonb` in its
+/// own row returns them. Rolled back.
+#[tokio::test]
+async fn the_fourteen_column_forms_add_result_to_their_builders_row() {
+    let Some(url) = fraiseql_test_support::try_database_url() else {
+        return;
+    };
+    let (mut client, connection) = tokio_postgres::connect(&url, NoTls).await.unwrap();
+    tokio::spawn(async move {
+        let _ = connection.await;
+    });
+    let tx = client.transaction().await.unwrap();
+    tx.batch_execute(include_str!("../sql/helpers/mutation_response.sql"))
+        .await
+        .unwrap();
+    for (form, builder, result) in [
+        (
+            "fraiseql.mutation_ok_result('{\"recovered_items\": 3}'::jsonb, '{\"id\": 1}'::jsonb, \
+             NULL, 'Order', TRUE, ARRAY['total'], '{\"a\": 1}'::jsonb, '{\"t\": 1}'::jsonb)",
+            "fraiseql.mutation_ok('{\"id\": 1}'::jsonb, NULL, 'Order', TRUE, ARRAY['total'], \
+             '{\"a\": 1}'::jsonb, '{\"t\": 1}'::jsonb)",
+            Some(serde_json::json!({ "recovered_items": 3 })),
+        ),
+        (
+            "fraiseql.mutation_err_result('conflict', 'taken', '{\"f\": 1}'::jsonb, \
+             409::smallint, 'TakenError')",
+            "fraiseql.mutation_err('conflict', 'taken', '{\"f\": 1}'::jsonb, 409::smallint, \
+             'TakenError')",
+            None,
+        ),
+        (
+            "fraiseql.mutation_err_entries_result('validation', 'bad', \
+             fraiseql.error_entry(422::smallint, 'x', 'y'))",
+            "fraiseql.mutation_err_entries('validation', 'bad', \
+             fraiseql.error_entry(422::smallint, 'x', 'y'))",
+            None,
+        ),
+    ] {
+        let row = tx
+            .query_one(
+                &format!(
+                    "SELECT (SELECT to_jsonb(f) - 'result' FROM {form} f) = \
+                     (SELECT to_jsonb(b) FROM {builder} b), (SELECT f.result FROM {form} f)"
+                ),
+                &[],
+            )
+            .await
+            .unwrap();
+        assert!(row.get::<_, bool>(0), "{form}: its builder's 13 columns, unchanged");
+        assert_eq!(row.get::<_, Option<serde_json::Value>>(1), result, "{form}");
+    }
+    tx.rollback().await.unwrap();
 }

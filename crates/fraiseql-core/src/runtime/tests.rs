@@ -2451,15 +2451,48 @@ mod mutation_result_tests {
                 entity_id,
                 cascade,
                 updated_fields,
+                result,
             } => {
                 assert_eq!(e, entity);
                 assert_eq!(entity_type.as_deref(), Some("Machine"));
                 assert!(entity_id.is_none());
                 assert!(cascade.is_none());
                 assert!(updated_fields.is_empty(), "no updated_fields column set → empty");
+                assert!(result.is_none(), "a row with no `result` column decodes with none");
             },
             MutationOutcome::Error { .. } => panic!("expected Success"),
         }
+    }
+
+    /// #1397: the `result` column carries the declared success fields through the decoder.
+    #[test]
+    fn a_success_row_carries_its_result() {
+        let mut row = std::collections::HashMap::new();
+        row.insert("succeeded".to_string(), serde_json::json!(true));
+        row.insert("state_changed".to_string(), serde_json::json!(true));
+        row.insert("entity".to_string(), serde_json::json!({ "id": 1 }));
+        row.insert("result".to_string(), serde_json::json!({ "recovered_items": 3 }));
+        let outcome = crate::runtime::mutation_result::parse_mutation_row(&row).unwrap();
+        let MutationOutcome::Success { result, .. } = outcome else {
+            panic!("expected Success");
+        };
+        assert_eq!(result, Some(serde_json::json!({ "recovered_items": 3 })));
+    }
+
+    /// #1397: a `result` column that is SQL `NULL` is told apart from no `result` column, the
+    /// row of a function that cannot carry success fields at all.
+    #[test]
+    fn a_null_result_column_is_not_an_absent_one() {
+        let mut row = std::collections::HashMap::new();
+        row.insert("succeeded".to_string(), serde_json::json!(true));
+        row.insert("state_changed".to_string(), serde_json::json!(true));
+        row.insert("entity".to_string(), serde_json::json!({ "id": 1 }));
+        row.insert("result".to_string(), serde_json::Value::Null);
+        let outcome = crate::runtime::mutation_result::parse_mutation_row(&row).unwrap();
+        let MutationOutcome::Success { result, .. } = outcome else {
+            panic!("expected Success");
+        };
+        assert_eq!(result, Some(serde_json::Value::Null));
     }
 
     #[test]

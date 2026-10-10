@@ -12,13 +12,14 @@
 
 use fraiseql_cli::schema::{
     mutation_contract::{
-        CallShape, ContractViolation, ExpectedCall, check_mutation, validate_mutation_contract,
+        CallShape, ContractViolation, ExpectedCall, Severity, check_mutation,
+        validate_mutation_contract,
     },
     pg_catalog::PgCatalog,
 };
 use fraiseql_core::schema::{
-    ArgumentDefinition, CompiledSchema, FieldType, InputFieldDefinition, InputObjectDefinition,
-    InputStyle, MutationDefinition, MutationOperation,
+    ArgumentDefinition, CompiledSchema, FieldDefinition, FieldType, InputFieldDefinition,
+    InputObjectDefinition, InputStyle, MutationDefinition, MutationOperation,
 };
 use tokio_postgres::NoTls;
 
@@ -53,6 +54,23 @@ CREATE FUNCTION fql_397_test.fn_bad_payload(input text, tenant_id uuid)
 CREATE FUNCTION fql_397_test.fn_bad_response(input jsonb)
   RETURNS TABLE(status text, message text)
   LANGUAGE plpgsql AS $$ BEGIN RETURN; END $$;
+-- Response shapes (#1397): the two required columns alone; the 13 columns; the 13 plus
+-- `result jsonb` (what fraiseql.mutation_ok_result returns); `result` of the wrong type.
+CREATE FUNCTION fql_397_test.fn_two(p_input jsonb)
+  RETURNS TABLE(succeeded boolean, state_changed boolean)
+  LANGUAGE plpgsql AS $$ BEGIN RETURN; END $$;
+CREATE FUNCTION fql_397_test.fn_thirteen(p_input jsonb)
+  RETURNS SETOF fql_397_test.mutation_response LANGUAGE sql AS
+  $$ SELECT NULL::fql_397_test.mutation_response $$;
+CREATE FUNCTION fql_397_test.fn_fourteen(p_input jsonb)
+  RETURNS TABLE(succeeded boolean, state_changed boolean, error_class text,
+    status_detail text, http_status smallint, message text, entity_id uuid,
+    entity_type text, entity jsonb, updated_fields text[], cascade jsonb,
+    error_detail jsonb, metadata jsonb, result jsonb)
+  LANGUAGE plpgsql AS $$ BEGIN RETURN; END $$;
+CREATE FUNCTION fql_397_test.fn_text_result(p_input jsonb)
+  RETURNS TABLE(succeeded boolean, state_changed boolean, result text)
+  LANGUAGE plpgsql AS $$ BEGIN RETURN; END $$;
 -- Ambiguous: two overloads at arity 1.
 CREATE FUNCTION fql_397_test.fn_amb(a jsonb) RETURNS boolean LANGUAGE sql AS $$ SELECT true $$;
 CREATE FUNCTION fql_397_test.fn_amb(a text) RETURNS boolean LANGUAGE sql AS $$ SELECT true $$;
@@ -73,6 +91,7 @@ fn jsonb_update(sql_source: &str, inject: &[&str]) -> ExpectedCall {
         first_is_jsonb_payload: true,
         payload_keys:           vec![],
         stamps:                 None,
+        requires_result:        false,
     }
 }
 
@@ -85,6 +104,7 @@ fn flat(sql_source: &str, base_arity: usize) -> ExpectedCall {
         first_is_jsonb_payload: false,
         payload_keys: vec![],
         stamps: None,
+        requires_result: false,
     }
 }
 
@@ -316,4 +336,69 @@ async fn ambiguous_overloads_are_reported() {
     );
 
     teardown().await;
+}
+
+/// #1397: `result` is required only by a mutation that declares success fields. Every row
+/// shape the contract accepted before stays accepted for a mutation without them; a
+/// mutation with them is refused (an error, failing `compile --database`) when its row has
+/// no `result`, or one that is not `jsonb`. Driven through `validate_mutation_contract`, so
+/// the requirement is derived from the declared fields as `compile --database` derives it.
+#[tokio::test]
+async fn result_is_required_only_by_a_mutation_with_success_fields() {
+    let Some(catalog) = setup().await else { return };
+
+    // (function, declares success fields, the error its row earns, if any)
+    let cases: [(&str, bool, Option<ContractViolation>); 8] = [
+        ("fn_two", false, None),
+        ("fn_thirteen", false, None),
+        ("fn_fourteen", false, None),
+        ("fn_text_result", false, None),
+        ("fn_two", true, Some(ContractViolation::MissingResultColumn)),
+        ("fn_thirteen", true, Some(ContractViolation::MissingResultColumn)),
+        ("fn_fourteen", true, None),
+        (
+            "fn_text_result",
+            true,
+            Some(ContractViolation::ResultColumnWrongType {
+                actual: "text".to_string(),
+            }),
+        ),
+    ];
+    for (function, declares, earns) in cases {
+        let mut mutation = flat_mutation("placeOrder", &qualified(function));
+        if declares {
+            mutation.success_fields = vec![FieldDefinition::new("recovered_items", FieldType::Int)];
+        }
+        let schema = CompiledSchema {
+            mutations: vec![mutation],
+            ..Default::default()
+        };
+        let report = validate_mutation_contract(&schema, &catalog).await.unwrap();
+        let errors: Vec<ContractViolation> = report
+            .mutations
+            .iter()
+            .flat_map(|m| m.violations.iter())
+            .filter(|v| v.severity() == Severity::Error)
+            .cloned()
+            .collect();
+        assert_eq!(
+            errors,
+            earns.into_iter().collect::<Vec<_>>(),
+            "{function}, success fields declared: {declares}"
+        );
+    }
+
+    teardown().await;
+}
+
+/// The refusal says what to do: declare `result jsonb` in the function's own row and build
+/// it with the 14-column helpers, never `ALTER TYPE` a shared type.
+#[test]
+fn the_missing_result_message_names_the_fourteen_column_helpers() {
+    let message = ContractViolation::MissingResultColumn.to_string();
+    assert!(
+        message.contains("result jsonb") && message.contains("fraiseql.mutation_ok_result"),
+        "{message}"
+    );
+    assert!(!message.contains("ALTER TYPE"), "{message}");
 }

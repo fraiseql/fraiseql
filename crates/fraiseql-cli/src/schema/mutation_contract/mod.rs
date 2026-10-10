@@ -75,6 +75,9 @@ pub struct ExpectedCall {
     /// What the function may stamp in `entity_type`, per outcome — the runtime's own
     /// derivation (ruling AJ 1), read by the literal-stamp lint. `None` skips the lint.
     pub stamps:                 Option<StampContract>,
+    /// Whether the mutation declares success fields (#1397): its response row must then
+    /// carry them in a `result jsonb` column. Optional for every other mutation.
+    pub requires_result:        bool,
 }
 
 impl ExpectedCall {
@@ -138,6 +141,15 @@ pub enum ContractViolation {
     RequiredColumnWrongType {
         /// The column.
         column: &'static str,
+        /// Its actual type.
+        actual: String,
+    },
+    /// The mutation declares success fields (#1397) but its response row has no `result`
+    /// column, the one they are read from.
+    MissingResultColumn,
+    /// The mutation declares success fields but its response row's `result` column is not
+    /// `jsonb`.
+    ResultColumnWrongType {
         /// Its actual type.
         actual: String,
     },
@@ -207,6 +219,8 @@ impl ContractViolation {
             | Self::PayloadNotJsonb { .. }
             | Self::MissingRequiredColumn { .. }
             | Self::RequiredColumnWrongType { .. }
+            | Self::MissingResultColumn
+            | Self::ResultColumnWrongType { .. }
             | Self::OffContractStamp { .. } => Severity::Error,
             Self::InjectNameMismatch { .. }
             | Self::OptionalColumnWrongType { .. }
@@ -253,6 +267,19 @@ impl fmt::Display for ContractViolation {
                      never references {probed} — the value would be silently dropped (text scan)"
                 )
             },
+            Self::MissingResultColumn => write!(
+                f,
+                "the mutation declares success fields, but its response row has no `result \
+                 jsonb` column to carry them: declare `result jsonb` after the 13 \
+                 mutation_response columns in this function's own row type, and build the row \
+                 with `fraiseql.mutation_ok_result(…)` / `mutation_err_result(…)` (helpers \
+                 2.4.0, `fraiseql setup`)"
+            ),
+            Self::ResultColumnWrongType { actual } => write!(
+                f,
+                "the mutation declares success fields, so its response column `result` must \
+                 be jsonb, but is `{actual}`"
+            ),
             Self::MissingRequiredColumn { column } => write!(
                 f,
                 "response row is missing required column `{column}` (the server cannot decode MutationResponse)"
@@ -342,6 +369,7 @@ pub fn expected_call(
         first_is_jsonb_payload,
         payload_keys,
         stamps: Some(StampContract::of(schema, mutation)),
+        requires_result: !mutation.success_fields.is_empty(),
     })
 }
 
@@ -469,7 +497,7 @@ pub fn check_mutation(
         }
     }
 
-    check_response_shape(func, &mut violations);
+    check_response_shape(expected, func, &mut violations);
     check_literal_stamps(expected, func, &mut violations);
     violations
 }
@@ -802,7 +830,11 @@ const OPTIONAL_COLUMNS: &[(&str, &str)] = &[
 /// Validate the function's result row against the `MutationResponse` decoder:
 /// `succeeded` + `state_changed` are required booleans; present optional columns
 /// must have compatible types.
-fn check_response_shape(func: &PgFunction, violations: &mut Vec<ContractViolation>) {
+fn check_response_shape(
+    expected: &ExpectedCall,
+    func: &PgFunction,
+    violations: &mut Vec<ContractViolation>,
+) {
     if func.out_columns.is_empty() {
         violations.push(ContractViolation::ResponseShapeUnverifiable);
         return;
@@ -815,6 +847,19 @@ fn check_response_shape(func: &PgFunction, violations: &mut Vec<ContractViolatio
             Some(c) if !is_bool(&c.type_name) => {
                 violations.push(ContractViolation::RequiredColumnWrongType {
                     column,
+                    actual: c.type_name.clone(),
+                });
+            },
+            Some(_) => {},
+        }
+    }
+
+    // #1397: `result` carries declared success fields; a mutation without any never reads it.
+    if expected.requires_result {
+        match find("result") {
+            None => violations.push(ContractViolation::MissingResultColumn),
+            Some(c) if !is_jsonb(&c.type_name) => {
+                violations.push(ContractViolation::ResultColumnWrongType {
                     actual: c.type_name.clone(),
                 });
             },

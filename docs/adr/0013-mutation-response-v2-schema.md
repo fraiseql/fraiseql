@@ -52,7 +52,8 @@ CREATE TYPE app.mutation_response AS (
     updated_fields  TEXT[],
     cascade         JSONB,
     error_detail    JSONB,                       -- structured error payload only
-    metadata        JSONB                        -- observability only
+    metadata        JSONB,                       -- observability only
+    result          JSONB                        -- a mutation's declared success fields (#1397)
 );
 ```
 
@@ -181,3 +182,18 @@ The rollout ran in seven phases, all since executed:
 - graphql-cascade specification, `specification/04_mutation_responses.md`
 - [ADR-0001: Three-layer architecture](0001-three-layer-architecture.md) — Rust runtime is the authoritative consumer of compiled schema + PG output
 - `memory/project_graphql_cascade_spec.md` — FraiseQL's cascade implementation strategy
+
+## Amendment (2026-10-10, #1397): an optional `result` column
+
+A cascade mutation's payload can carry typed facts about the operation itself
+(`createOrder`'s `recoveredItems`). They needed a carrier: `metadata` stays observability
+only (this ADR's own rule), and a reserved key under it would have been a second meaning for
+one column. They travel in a `result jsonb` column after the 13, **declared only by the
+function of a mutation that has success fields**. The response row was already read by
+column name, with `succeeded` and `state_changed` the only required columns, so `result`
+joins the optional ones: required (by `compile --database`, `doctor` and the runtime) only
+where success fields are declared. Making it mandatory for every mutation was rejected: it
+would have changed the helpers' return type (a drop and recreate) and forced an
+`ALTER TYPE` on every deployment for a feature most mutations do not use. Helpers 2.4.0 add
+14-column forms of the three builders (`mutation_ok_result`, `mutation_err_result`,
+`mutation_err_entries_result`) that delegate to them; the 13-column builders are unchanged.

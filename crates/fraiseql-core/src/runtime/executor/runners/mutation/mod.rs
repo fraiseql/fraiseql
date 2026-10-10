@@ -181,9 +181,42 @@ fn build_cascade_payload(
     entity: &serde_json::Value,
     cascade: Option<&serde_json::Value>,
     updated_fields: &[String],
+    result: Option<&serde_json::Value>,
     selections: &[FieldSelection],
     variables: &std::collections::HashMap<String, serde_json::Value>,
 ) -> Result<serde_json::Value> {
+    let declared = ctx.schema.find_type(payload_type);
+    // A success field the function returned wrong refuses the write whatever the client
+    // selected (#1397): what commits must not depend on the selection set.
+    for field in declared.iter().flat_map(|t| &t.fields) {
+        let name = field.name.as_str();
+        if PAYLOAD_OWN_FIELDS.contains(&name) {
+            continue;
+        }
+        // A row with no `result` column cannot carry the field at all: refused as the
+        // function's contract error, never served as a run of nulls.
+        if result.is_none() {
+            return Err(payload_gates::contract_error_in(
+                "result",
+                format!(
+                    "the mutation declares success field `{name}`, but its function's response \
+                     row has no `result` column; the write was rolled back"
+                ),
+            ));
+        }
+        success_field_value_ok(&ctx.schema, field, &success_value(result, name)).map_err(
+            |held| {
+                payload_gates::contract_error_in(
+                    "result",
+                    format!(
+                        "the mutation function returned {held} for success field `{name}` ({}); \
+                         the write was rolled back",
+                        field.field_type
+                    ),
+                )
+            },
+        )?;
+    }
     let mut out = serde_json::Map::new();
     for sel in effective_selections(selections, payload_type, &ctx.schema) {
         match sel.name.as_str() {
@@ -225,10 +258,76 @@ fn build_cascade_payload(
                     ),
                 );
             },
-            _ => {},
+            // A declared success field (#1397), checked above, read from `result` under its
+            // stored name; a key `result` carries that no field declares is never read.
+            name => {
+                if declared.is_some_and(|t| t.fields.iter().any(|f| f.name.as_str() == name)) {
+                    out.insert(sel.response_key().to_string(), success_value(result, name));
+                }
+            },
         }
     }
     Ok(serde_json::Value::Object(out))
+}
+
+/// The fields a cascade payload has of its own (`cli::converter::cascade_types`); every
+/// other field of it is a declared success field.
+const PAYLOAD_OWN_FIELDS: [&str; 3] = ["entity", "cascade", "updatedFields"];
+
+/// The value `result` holds for success field `name`, under its stored (`snake_case`) key;
+/// `null` when it holds none.
+fn success_value(result: Option<&serde_json::Value>, name: &str) -> serde_json::Value {
+    result
+        .and_then(|r| r.get(crate::utils::casing::to_snake_case(name)))
+        .cloned()
+        .unwrap_or(serde_json::Value::Null)
+}
+
+/// Whether `value` is one `field` can hold, for a success field (#1397): `Err` names what
+/// it holds instead. A non-null field the function returned no value for is as much the
+/// function's error as a value of the wrong type: refused alike, on every transport, before
+/// the write commits (REST has no partial answer to carry a field error in). A scalar this
+/// does not know (a rich or custom one) is served as the function returned it.
+fn success_field_value_ok(
+    schema: &CompiledSchema,
+    field: &crate::schema::FieldDefinition,
+    value: &serde_json::Value,
+) -> std::result::Result<(), String> {
+    use serde_json::Value;
+
+    use crate::schema::FieldType;
+    let ok = match (&field.field_type, value) {
+        (_, Value::Null) => field.nullable,
+        (FieldType::Int, Value::Number(n)) => n.as_i64().is_some_and(|i| i32::try_from(i).is_ok()),
+        (FieldType::Float, Value::Number(_))
+        | (FieldType::String | FieldType::Id, Value::String(_))
+        | (FieldType::Boolean, Value::Bool(_)) => true,
+        (FieldType::Id, Value::Number(n)) => n.is_i64() || n.is_u64(),
+        (FieldType::Enum(name), Value::String(s)) => {
+            schema.find_enum(name).is_some_and(|e| e.values.iter().any(|v| v.name == *s))
+        },
+        (
+            FieldType::Int
+            | FieldType::Float
+            | FieldType::String
+            | FieldType::Boolean
+            | FieldType::Id
+            | FieldType::Enum(_),
+            _,
+        ) => false,
+        _ => true,
+    };
+    if ok {
+        return Ok(());
+    }
+    Err(match value {
+        Value::String(s) => format!("the string {s:?}"),
+        Value::Number(n) => format!("the number {n}"),
+        Value::Bool(b) => format!("the boolean {b}"),
+        Value::Array(_) => "a list".to_string(),
+        Value::Object(_) => "an object".to_string(),
+        Value::Null => "no value".to_string(),
+    })
 }
 
 /// Build the `CascadeUpdates` envelope (`updated` / `deleted` / `metadata`),
@@ -869,6 +968,7 @@ fn build_mutation_result(
             entity_type,
             cascade,
             updated_fields,
+            result,
             ..
         } if is_cascade => {
             // Cascade mutation: build the typed payload `{ entity, cascade,
@@ -900,6 +1000,7 @@ fn build_mutation_result(
                 &entity,
                 cascade.as_ref(),
                 &updated_fields,
+                result.as_ref(),
                 selections,
                 authz_variables,
             )

@@ -23,9 +23,13 @@ from enum import Enum as PythonEnum
 from types import FunctionType
 from typing import TYPE_CHECKING, Any, Generic, TypeVar
 
-from fraiseql.registry import SchemaRegistry, _pascal_to_snake
+from fraiseql.registry import SchemaRegistry, _pascal_to_snake, _snake_to_camel
 from fraiseql.scope import validate_scope
-from fraiseql.types import extract_field_info, extract_function_signature
+from fraiseql.types import (
+    extract_field_info,
+    extract_function_signature,
+    python_type_to_graphql,
+)
 
 _VALID_REST_METHODS = {"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"}
 _VALID_INPUT_STYLES = {"flatten", "jsonb"}
@@ -376,6 +380,44 @@ def _validate_subscribable(
     if subscribable_pre_image and not subscribable_tables:
         msg = f"{context}: subscribable_pre_image=True has no effect without subscribable_tables."
         raise ValueError(msg)
+
+
+def _convert_success_fields(cfg: dict[str, Any], context: str) -> None:
+    """Convert ``success_fields`` in *cfg* to the fields the compiler adds to the payload.
+
+    A cascade mutation's payload carries typed facts about the operation next to
+    ``entity`` (#1397); the function returns them in its row's ``result jsonb`` column, keyed
+    by each field's snake_case name. Authored as ``{"recovered_items": int}``; exported as
+    ``[{"name": "recoveredItems", "type": "Int", "nullable": false}]``.
+
+    Raises:
+        TypeError: If ``success_fields`` is not a mapping of names to types.
+        ValueError: If a name is empty, or the mutation is not ``cascade=True`` (only a
+            cascade mutation has a payload to carry them).
+    """
+    if "success_fields" not in cfg:
+        return
+    declared = cfg["success_fields"]
+    if not isinstance(declared, dict):
+        msg = (
+            f"{context}: success_fields= must be a dict of field names to types "
+            f"(got {declared.__class__.__name__!r})."
+        )
+        raise TypeError(msg)
+    if not cfg.get("cascade"):
+        msg = (
+            f"{context}: success_fields= are served on the cascade payload; "
+            "declare the mutation cascade=True."
+        )
+        raise ValueError(msg)
+    fields = []
+    for name, py_type in declared.items():
+        if not isinstance(name, str) or not name:
+            msg = f"{context}: success_fields= keys must be non-empty field names (got {name!r})."
+            raise ValueError(msg)
+        graphql_type, nullable = python_type_to_graphql(py_type)
+        fields.append({"name": _snake_to_camel(name), "type": graphql_type, "nullable": nullable})
+    cfg["success_fields"] = fields
 
 
 def _validate_input_style(cfg: dict[str, Any], context: str) -> None:
@@ -1281,6 +1323,9 @@ def mutation(func: F | None = None, **config_kwargs: Any) -> F | Callable[[F], F
 
         # input_style= validation — fail fast at authoring time
         _validate_input_style(cfg, f"@fraiseql.mutation on {f.__name__!r}")
+
+        # success_fields= → the payload fields the compiler adds (#1397)
+        _convert_success_fields(cfg, f"@fraiseql.mutation on {f.__name__!r}")
 
         # Register mutation with schema registry
         # description= in cfg overrides the docstring

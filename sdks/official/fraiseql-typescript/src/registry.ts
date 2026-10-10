@@ -222,6 +222,17 @@ export interface MutationDefinition {
 }
 
 /**
+ * A typed fact a cascade mutation's payload carries next to `entity` (#1397): the function
+ * returns it in its row's `result jsonb` column, keyed by the field's snake_case name. `type` is a
+ * scalar or an enum.
+ */
+export interface SuccessField {
+  name: string;
+  type: string;
+  nullable: boolean;
+}
+
+/**
  * How a semi-additive measure's values for one entity within one time bucket reduce to one
  * (#1459): `last` and `first` carry the last known value forward into a bucket the entity
  * has no row in; `avg`, `min` and `max` reduce the bucket's own values.
@@ -546,6 +557,7 @@ function normaliseConfig(
     excludeInjectDefaults: "exclude_inject_defaults",
     inputStyle: "input_style",
     changelogPreImage: "changelog_pre_image",
+    successFields: "success_fields",
   };
 
   // REST annotation validation
@@ -588,6 +600,36 @@ function normaliseConfig(
     if (!VALID_INPUT_STYLES.has(config.inputStyle)) {
       throw new Error(
         `inputStyle must be one of ${[...VALID_INPUT_STYLES].join(", ")} (got '${config.inputStyle}')`
+      );
+    }
+  }
+
+  // successFields (#1397): typed facts a cascade mutation's payload carries next to its
+  // entity, returned by the function in its row's `result jsonb` column. Only a cascade
+  // mutation has a payload to carry them; the compiler checks each type.
+  if ("successFields" in config) {
+    const fields = config.successFields;
+    if (
+      operation !== "mutation" ||
+      !Array.isArray(fields) ||
+      fields.some(
+        (f) =>
+          typeof f !== "object" ||
+          f === null ||
+          typeof (f as SuccessField).name !== "string" ||
+          (f as SuccessField).name === "" ||
+          typeof (f as SuccessField).type !== "string" ||
+          typeof (f as SuccessField).nullable !== "boolean"
+      )
+    ) {
+      throw new Error(
+        "successFields must be a mutation's array of { name, type, nullable } fields, " +
+          `got ${JSON.stringify(fields)}`
+      );
+    }
+    if (config.cascade !== true) {
+      throw new Error(
+        "successFields are served on the cascade payload; declare the mutation cascade: true"
       );
     }
   }

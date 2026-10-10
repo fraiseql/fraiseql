@@ -186,21 +186,33 @@ pub fn mutation_contract_errors() -> u64 {
 /// The `path` every contract error carries: the column the function got wrong.
 const CONTRACT_ERROR_PATH: &str = "entity_type";
 
+/// The columns a contract error can name: the stamp, and the success fields (#1397).
+const CONTRACT_ERROR_COLUMNS: [&str; 2] = [CONTRACT_ERROR_PATH, "result"];
+
 /// A contract error with `message`, counted (ruling AJ 3). Every contract error is built
 /// here, so the count and [`is_contract_error`] cannot miss one.
 pub(super) fn contract_error(message: String) -> crate::error::FraiseQLError {
+    contract_error_in(CONTRACT_ERROR_PATH, message)
+}
+
+/// A contract error about the function's `column`, counted like every other.
+pub(super) fn contract_error_in(
+    column: &'static str,
+    message: String,
+) -> crate::error::FraiseQLError {
     CONTRACT_ERRORS.fetch_add(1, Ordering::Relaxed);
     crate::error::FraiseQLError::Validation {
         message,
-        path: Some(CONTRACT_ERROR_PATH.to_string()),
+        path: Some(column.to_string()),
     }
 }
 
-/// Whether `error` is a contract error built by [`contract_error`].
+/// Whether `error` is a contract error built by [`contract_error_in`].
 pub(super) fn is_contract_error(error: &crate::error::FraiseQLError) -> bool {
     matches!(
         error,
-        crate::error::FraiseQLError::Validation { path: Some(path), .. } if path == CONTRACT_ERROR_PATH
+        crate::error::FraiseQLError::Validation { path: Some(path), .. }
+            if CONTRACT_ERROR_COLUMNS.contains(&path.as_str())
     )
 }
 

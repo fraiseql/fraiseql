@@ -154,6 +154,10 @@ pub enum MutationOutcome {
         /// column; empty on noop). Surfaced selection-gated as `updatedFields` on
         /// the success arm, symmetric with `cascade` (#433).
         updated_fields: Vec<String>,
+        /// The declared success fields the function returned, by name (#1397): the
+        /// `result` column. `None` when the row has no such column, `Some(Value::Null)` when
+        /// it is SQL `NULL`.
+        result:         Option<JsonValue>,
     },
     /// The mutation failed; error metadata is available.
     Error {
@@ -220,6 +224,20 @@ pub struct MutationResponse {
     /// Observability only (trace IDs, timings, audit extras).
     #[serde(default)]
     pub metadata:       JsonValue,
+    /// The mutation's declared success fields, by stored name (#1397). Optional: only a
+    /// mutation that declares success fields reads it. `None` when the row has no `result`
+    /// column, `Some(Value::Null)` when it is SQL `NULL`, so the two stay apart.
+    #[serde(default, deserialize_with = "present_column")]
+    pub result:         Option<JsonValue>,
+}
+
+/// Deserialize a column that is present, `null` included, as `Some`: with `#[serde(default)]`
+/// only an absent column is `None`.
+fn present_column<'de, D>(deserializer: D) -> std::result::Result<Option<JsonValue>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    JsonValue::deserialize(deserializer).map(Some)
 }
 
 /// Deserialize a possibly-`null` `TEXT[]` column as an empty `Vec`.
@@ -295,6 +313,7 @@ fn to_outcome(row: MutationResponse) -> Result<MutationOutcome> {
             entity_id:      row.entity_id.map(|u| u.to_string()),
             cascade:        filter_null(row.cascade),
             updated_fields: row.updated_fields,
+            result:         row.result,
         })
     } else {
         if row.state_changed {

@@ -13,6 +13,7 @@ import {
   FieldMetadata,
   Relationship,
   SubscriptionOptions,
+  SuccessField,
 } from "./registry";
 import { CustomScalar } from "./scalars";
 import { generateCrudOperations } from "./crud";
@@ -235,6 +236,18 @@ export interface MutationConfig extends OperationConfig {
    * JSON, and the compiler defaults it to `"flatten"`.
    */
   inputStyle?: "flatten" | "jsonb";
+  /**
+   * Whether the mutation returns the typed graphql-cascade payload
+   * (`<Mutation>Payload { entity, cascade, updatedFields }`).
+   */
+  cascade?: boolean;
+  /**
+   * Typed facts about the operation itself, served on the cascade payload next to
+   * `entity` (#1397): `createOrder`'s `recoveredItems`. The function returns them in
+   * its row's `result jsonb` column, keyed by each field's snake_case name. Requires
+   * `cascade: true`.
+   */
+  successFields?: SuccessField[];
 }
 
 /**

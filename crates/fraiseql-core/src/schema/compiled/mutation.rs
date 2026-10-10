@@ -2,7 +2,10 @@ use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 
 use super::argument::ArgumentDefinition;
-use crate::schema::{field_type::DeprecationInfo, security_config::InjectedParamSource};
+use crate::schema::{
+    field_type::{DeprecationInfo, FieldDefinition},
+    security_config::InjectedParamSource,
+};
 
 /// A mutation definition compiled from `@fraiseql.mutation`.
 ///
@@ -205,6 +208,14 @@ pub struct MutationDefinition {
     /// not churn the codegen schema hash).
     #[serde(default, skip_serializing_if = "core::ops::Not::not")]
     pub cascade: bool,
+
+    /// Typed facts about the operation itself, served on the cascade payload next to
+    /// `entity`, `cascade` and `updatedFields` (#1397): `createOrder`'s
+    /// `recoveredItems`. The function returns them in its row's `result jsonb` column, keyed
+    /// by each field's stored (`snake_case`) name. Only on a `cascade` mutation, only
+    /// leaf types; the compiler refuses anything else.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub success_fields: Vec<FieldDefinition>,
 }
 
 /// Serde default for [`MutationDefinition::changelog`]: log by default (opt-out).
@@ -285,6 +296,7 @@ impl MutationDefinition {
             input_style:             InputStyle::Flatten,
             changelog_pre_image:     false,
             cascade:                 false,
+            success_fields:          Vec::new(),
         }
     }
 

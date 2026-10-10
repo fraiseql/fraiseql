@@ -17,9 +17,13 @@ fn mask_password_without_credentials() {
     assert_eq!(masked, url);
 }
 
+/// `fraiseql setup` reports and verifies the version the SQL it installs returns.
 #[test]
-fn helpers_version_constant_exists() {
-    assert_eq!(HELPERS_VERSION, "2.3.0");
+fn helpers_version_is_the_installed_librarys() {
+    assert!(
+        MUTATION_RESPONSE_SQL.contains(&format!("RETURN '{HELPERS_VERSION}';")),
+        "library_version() in the embedded SQL must return {HELPERS_VERSION}"
+    );
 }
 
 #[test]

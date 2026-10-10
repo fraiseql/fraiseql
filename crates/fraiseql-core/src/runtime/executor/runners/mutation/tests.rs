@@ -7749,3 +7749,57 @@ mod dry_run {
         assert_eq!(rows.len(), 1);
     }
 }
+
+/// #1397: a success field's value is checked against its declared type, every leaf alike:
+/// what the type holds passes, what it does not is refused, naming what it held.
+#[test]
+fn a_success_field_value_is_checked_against_its_type() {
+    use serde_json::json;
+
+    use super::success_field_value_ok;
+    use crate::schema::{
+        CompiledSchema, EnumDefinition, EnumValueDefinition, FieldDefinition, FieldType,
+    };
+
+    let mut schema = CompiledSchema::new();
+    let mut recovery = EnumDefinition::new("Recovery");
+    recovery.values = vec![EnumValueDefinition::new("FULL")];
+    schema.enums.push(recovery);
+    let field = |field_type: FieldType, nullable: bool| {
+        let mut f = FieldDefinition::new("n", field_type);
+        f.nullable = nullable;
+        f
+    };
+    let enum_type = || FieldType::Enum("Recovery".to_string());
+    for (field_type, holds, refuses) in [
+        (FieldType::Int, json!(3), json!(3.5)),
+        (FieldType::Int, json!(-2_147_483_648_i64), json!(2_147_483_648_i64)),
+        (FieldType::Float, json!(0.5), json!("0.5")),
+        (FieldType::String, json!("x"), json!(1)),
+        (FieldType::Boolean, json!(true), json!("true")),
+        (FieldType::Id, json!("a1"), json!(true)),
+        (FieldType::Id, json!(7), json!(1.5)),
+        (enum_type(), json!("FULL"), json!("MOSTLY")),
+        (enum_type(), json!("FULL"), json!(1)),
+    ] {
+        let declared = field(field_type.clone(), false);
+        assert!(
+            success_field_value_ok(&schema, &declared, &holds).is_ok(),
+            "{field_type} {holds}"
+        );
+        assert!(
+            success_field_value_ok(&schema, &declared, &refuses).is_err(),
+            "{field_type} {refuses}"
+        );
+    }
+    // A non-null field with no value is refused; a nullable one is not.
+    assert_eq!(
+        success_field_value_ok(&schema, &field(FieldType::Int, false), &json!(null)),
+        Err("no value".to_string())
+    );
+    assert!(success_field_value_ok(&schema, &field(FieldType::Int, true), &json!(null)).is_ok());
+    // A scalar this does not know is served as returned.
+    assert!(
+        success_field_value_ok(&schema, &field(FieldType::Json, false), &json!({ "a": 1 })).is_ok()
+    );
+}

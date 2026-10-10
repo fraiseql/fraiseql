@@ -335,6 +335,7 @@ pub struct MutationResponse {
     pub cascade:        serde_json::Value,
     pub error_detail:   serde_json::Value,
     pub metadata:       serde_json::Value,
+    pub result:         Option<serde_json::Value>, // only a row that declares `result`
 }
 ```
 
@@ -425,6 +426,73 @@ cascade is truncated with `metadata.truncated`, max response size → rejected).
 > the fix, so `embedded=True` rejects an explicit `sql_source` (no backing view) and `cascade`
 > (a value object cannot originate a cascade). Contrast the `internal` exemption above: that is
 > set by the framework on projections it synthesizes; `embedded` is the *author's* declaration.
+
+### Success fields (#1397)
+
+A cascade mutation can also report facts about the operation itself, next to its entity:
+`createOrder` re-attaches orphaned lines and says how many. It declares them, and the
+compiler adds each to its `<Mutation>Payload`:
+
+```python
+@fraiseql.mutation(sql_source="fn_create_order", operation="insert", cascade=True,
+                   success_fields={"recovered_items": int, "recovery": Recovery | None})
+def create_order(total: int) -> Order: ...
+```
+
+```typescript
+registerMutation("createOrder", "Order", false, false, args, undefined, {
+  sqlSource: "fn_create_order", operation: "CREATE", cascade: true,
+  successFields: [{ name: "recoveredItems", type: "Int", nullable: false }],
+});
+```
+
+The function returns them in a 14th column, `result jsonb`, keyed by each field's snake_case
+name. Only a mutation with success fields needs that column: its function declares its own
+row (the 13 columns above, then `result jsonb`) and builds it with the 14-column form of each
+helper (helpers 2.4.0, `fraiseql setup`). Every other function keeps the 13-column row.
+
+```sql
+CREATE FUNCTION fn_create_order(p_total int)
+RETURNS TABLE(succeeded boolean, state_changed boolean, error_class text,
+    status_detail text, http_status smallint, message text, entity_id uuid,
+    entity_type text, entity jsonb, updated_fields text[], cascade jsonb,
+    error_detail jsonb, metadata jsonb, result jsonb)
+LANGUAGE plpgsql AS $$
+BEGIN
+    -- ...
+    IF v_total < 0 THEN
+        RETURN QUERY SELECT * FROM fraiseql.mutation_err_result('validation', 'negative total');
+        RETURN;
+    END IF;
+    RETURN QUERY SELECT * FROM fraiseql.mutation_ok_result(
+        jsonb_build_object('recovered_items', v_recovered),   -- result
+        v_entity, v_id, 'Order', p_cascade => v_cascade);    -- mutation_ok's arguments
+END $$;
+```
+
+`mutation_ok_result(p_result, …)`, `mutation_err_result(…)` and
+`mutation_err_entries_result(…)` take their 13-column builder's arguments (`p_result` first
+on success) and return its row with `result` appended (`NULL` on an error). Do not add
+`result` to a shared `app.mutation_response` that other functions fill with the 13-column
+builders: they would stop matching it.
+
+```graphql
+mutation { createOrder(total: 9) { entity { id } recoveredItems } }
+```
+
+* Only on a `cascade` mutation (the payload carries them), only leaf types (a scalar or an
+  enum), never under a name the payload already has (`entity`, `cascade`, `updatedFields`).
+  Each is a compile error otherwise.
+* A key `result` carries that no field declares is never served.
+* A mutation with success fields whose row has no `result jsonb` is reported by
+  `fraiseql compile --database` and `fraiseql doctor` as contract drift, and refused at
+  runtime as the function's contract error (never served as nulls).
+* A value its field's type cannot hold, or no value for a non-null field, is the function's
+  contract error: the write is rolled back and counted
+  (`fraiseql_mutation_contract_errors_total`), whatever the client selected.
+* Served wherever the payload is: GraphQL; REST (`POST /<payload resource>`, every leaf
+  field); MCP. gRPC answers a mutation with `success` / `id` / `error` and serves no payload
+  field.
 
 ### Row-visibility boundary (RLS)
 

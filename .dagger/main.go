@@ -2019,6 +2019,7 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		"cargo test -p fraiseql-server --test response_bytes_override_e2e_pg -- --test-threads=1",
 		"cargo test -p fraiseql-server --test rich_scalar_serving_e2e_pg -- --test-threads=1",
 		"cargo test -p fraiseql-server --features rest,mcp --test constraint_violation_identifier_e2e_pg -- --test-threads=1",
+		"cargo test -p fraiseql-server --features rest,mcp --test mutation_success_fields_e2e_pg -- --test-threads=1",
 		// #809: schema-per-tenant isolation was a single session `SET search_path` on
 		// one pooled connection. Every other connection resolved against `public`, so
 		// the leak is only visible under concurrency — a single-connection test passes

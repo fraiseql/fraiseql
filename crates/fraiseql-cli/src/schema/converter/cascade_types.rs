@@ -180,6 +180,15 @@ pub(super) fn synthesize_cascade_types(schema: &mut CompiledSchema) -> anyhow::R
         // A real type already owns this name — don't clobber it; leave the
         // mutation's return type as the bare entity.
         if existing_type_names.contains(&payload_name) {
+            // #1397: the payload is what serves the success fields; without it they would
+            // be declared and never served.
+            if !schema.mutations[idx].success_fields.is_empty() {
+                anyhow::bail!(
+                    "Mutation `{}`: success_fields are served on its payload \
+                     `{payload_name}`, and a type already has that name; rename the type",
+                    schema.mutations[idx].name
+                );
+            }
             warn!(
                 mutation = %schema.mutations[idx].name,
                 payload = %payload_name,
@@ -189,7 +198,10 @@ pub(super) fn synthesize_cascade_types(schema: &mut CompiledSchema) -> anyhow::R
             continue;
         }
         if !created.contains(&payload_name) {
-            schema.types.push(cascade_payload_type(&payload_name, &entity_type));
+            let success_fields = schema.mutations[idx].success_fields.clone();
+            schema
+                .types
+                .push(cascade_payload_type(&payload_name, &entity_type, success_fields));
             created.insert(payload_name.clone());
         }
         schema.mutations[idx].return_type = payload_name;
@@ -556,14 +568,19 @@ fn cascade_metadata_type() -> TypeDefinition {
     )
 }
 
-/// The per-mutation `<Name>Payload` wrapper (`entity`, `cascade`, `updatedFields`).
+/// The per-mutation `<Name>Payload` wrapper (`entity`, `cascade`, `updatedFields`), then the
+/// mutation's declared success fields (#1397).
 ///
 /// `updatedFields` (the #433 selection-gated surface) rehomes here from the entity,
 /// which is now nested under `entity:`.
-fn cascade_payload_type(payload_name: &str, entity_type: &str) -> TypeDefinition {
+fn cascade_payload_type(
+    payload_name: &str,
+    entity_type: &str,
+    success_fields: Vec<FieldDefinition>,
+) -> TypeDefinition {
     synth_type(
         payload_name,
-        vec![
+        [
             synth_field(
                 "entity",
                 FieldType::Object(entity_type.to_string()),
@@ -582,7 +599,10 @@ fn cascade_payload_type(payload_name: &str, entity_type: &str) -> TypeDefinition
                 false,
                 "GraphQL field names on the primary entity changed by this mutation (#433).",
             ),
-        ],
+        ]
+        .into_iter()
+        .chain(success_fields)
+        .collect(),
         &format!(
             "Payload of a cascade mutation returning {entity_type}: the entity plus its cascade."
         ),

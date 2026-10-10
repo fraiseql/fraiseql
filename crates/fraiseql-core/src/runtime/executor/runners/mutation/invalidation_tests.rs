@@ -43,6 +43,7 @@ fn success(entity_type: Option<&str>, entity_id: Option<&str>) -> MutationOutcom
         entity_id:      entity_id.map(ToString::to_string),
         cascade:        None,
         updated_fields: vec![],
+        result:         None,
     }
 }
 
@@ -162,6 +163,7 @@ fn cascade_side_effects_are_part_of_the_same_plan() {
         entity_id:      Some("u-1".to_string()),
         cascade:        Some(json!({"updated": [{"__typename": "Post", "id": "p-1"}]})),
         updated_fields: vec![],
+        result:         None,
     };
 
     let plan = plan_invalidation(&m, &outcome, &schema);
@@ -182,6 +184,7 @@ fn cascade_entries_are_ignored_when_the_mutation_is_not_declared_cascade() {
         entity_id:      Some("u-1".to_string()),
         cascade:        Some(json!({"updated": [{"__typename": "Post", "id": "p-1"}]})),
         updated_fields: vec![],
+        result:         None,
     };
 
     assert_eq!(view_names(&plan_invalidation(&m, &outcome, &schema)), ["v_user"]);

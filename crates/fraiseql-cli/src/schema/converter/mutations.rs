@@ -4,6 +4,9 @@ use anyhow::{Context, Result};
 use fraiseql_core::schema::{MutationDefinition, MutationOperation};
 
 use super::{DeclaredTypeNames, SchemaConverter};
+
+/// The fields a cascade payload has of its own (`cascade_types::cascade_payload_type`).
+const PAYLOAD_OWN_FIELDS: [&str; 3] = ["entity", "cascade", "updatedFields"];
 use crate::schema::intermediate::IntermediateMutation;
 
 impl SchemaConverter {
@@ -72,6 +75,13 @@ impl SchemaConverter {
             &intermediate.requires_actor,
         )?;
 
+        let success_fields = Self::convert_success_fields(
+            &intermediate.name,
+            intermediate.cascade,
+            intermediate.success_fields,
+            declared,
+        )?;
+
         Ok(MutationDefinition {
             name: intermediate.name,
             return_type: intermediate.return_type,
@@ -92,7 +102,55 @@ impl SchemaConverter {
             input_style: intermediate.input_style,
             changelog_pre_image: intermediate.changelog_pre_image,
             cascade: intermediate.cascade,
+            success_fields,
         })
+    }
+
+    /// Convert a mutation's `success_fields` (#1397), refusing any the cascade payload
+    /// could not carry: on a mutation with no payload (not `cascade`), under a name the
+    /// payload already has or that is declared twice, or of a type that is not a leaf.
+    fn convert_success_fields(
+        mutation: &str,
+        cascade: bool,
+        fields: Vec<crate::schema::intermediate::IntermediateField>,
+        declared: &DeclaredTypeNames,
+    ) -> Result<Vec<fraiseql_core::schema::FieldDefinition>> {
+        if fields.is_empty() {
+            return Ok(Vec::new());
+        }
+        if !cascade {
+            anyhow::bail!(
+                "Mutation `{mutation}`: success_fields are served on the cascade payload, and \
+                 this mutation has none; declare it `cascade = true`, or drop success_fields"
+            );
+        }
+        let mut seen: HashSet<String> = HashSet::new();
+        let mut converted = Vec::with_capacity(fields.len());
+        for field in fields {
+            let name = field.name.clone();
+            if PAYLOAD_OWN_FIELDS.contains(&name.as_str()) || name.starts_with("__") {
+                anyhow::bail!(
+                    "Mutation `{mutation}`: success_fields `{name}` is a name the payload \
+                     already has (`entity`, `cascade`, `updatedFields`, `__typename`)"
+                );
+            }
+            if !seen.insert(name.clone()) {
+                anyhow::bail!("Mutation `{mutation}`: success_fields declares `{name}` twice");
+            }
+            let definition = Self::convert_field(field, declared)
+                .context(format!("Mutation `{mutation}`: success_fields `{name}`"))?;
+            let leaf = definition.field_type.is_scalar()
+                || matches!(definition.field_type, fraiseql_core::schema::FieldType::Enum(_));
+            if !leaf {
+                anyhow::bail!(
+                    "Mutation `{mutation}`: success_fields `{name}` is a {}, not a scalar or \
+                     an enum: a success field is one value the function computes",
+                    definition.field_type
+                );
+            }
+            converted.push(definition);
+        }
+        Ok(converted)
     }
 
     /// Parse mutation operation from string

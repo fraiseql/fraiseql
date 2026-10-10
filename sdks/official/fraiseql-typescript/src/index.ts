@@ -76,6 +76,7 @@ export type {
   SourceRunAs,
   Schema,
   Additivity,
+  SuccessField,
   SemiAdditiveReduction,
   Measure,
 } from "./registry";

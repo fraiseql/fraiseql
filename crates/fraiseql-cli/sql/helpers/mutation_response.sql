@@ -35,7 +35,7 @@ COMMENT ON SCHEMA fraiseql IS
 CREATE OR REPLACE FUNCTION fraiseql.library_version()
 RETURNS TEXT AS $$
 BEGIN
-    RETURN '2.3.0';
+    RETURN '2.4.0';
 END;
 $$ LANGUAGE plpgsql IMMUTABLE;
 
@@ -309,6 +309,128 @@ COMMENT ON FUNCTION fraiseql.mutation_err_entries(TEXT, TEXT, JSONB[]) IS
 with fraiseql.error_entry().';
 
 -- ============================================================================
+-- The 14-column forms: mutation_ok_result() / mutation_err_result() /
+-- mutation_err_entries_result()
+-- ============================================================================
+-- A mutation that declares success fields (#1397) returns them in a `result jsonb`
+-- column after the 13 above. Only such a mutation's function declares that column
+-- (its own RETURNS TABLE or composite type); every other function keeps the 13-column
+-- row and the builders above. Do not add `result` to a shared `mutation_response`
+-- type that functions fill with the 13-column builders: they would stop matching it.
+--
+-- Each form delegates to its 13-column builder, so a success or an error row means the
+-- same thing in both shapes:
+--   mutation_ok_result(p_result, <mutation_ok's arguments>)  -- result = p_result
+--   mutation_err_result(<mutation_err's arguments>)          -- result = NULL
+--   mutation_err_entries_result(<mutation_err_entries' arguments>)
+-- ============================================================================
+
+CREATE OR REPLACE FUNCTION fraiseql.mutation_ok_result(
+    p_result JSONB,
+    p_entity JSONB,
+    p_entity_id UUID DEFAULT NULL,
+    p_entity_type TEXT DEFAULT NULL,
+    p_state_changed BOOLEAN DEFAULT TRUE,
+    p_updated_fields TEXT[] DEFAULT NULL,
+    p_cascade JSONB DEFAULT NULL,
+    p_metadata JSONB DEFAULT NULL
+)
+RETURNS TABLE(
+    succeeded BOOLEAN,
+    state_changed BOOLEAN,
+    error_class TEXT,
+    status_detail TEXT,
+    http_status SMALLINT,
+    message TEXT,
+    entity_id UUID,
+    entity_type TEXT,
+    entity JSONB,
+    updated_fields TEXT[],
+    cascade JSONB,
+    error_detail JSONB,
+    metadata JSONB,
+    result JSONB
+) AS $$
+BEGIN
+    RETURN QUERY SELECT ok.*, p_result
+    FROM fraiseql.mutation_ok(
+        p_entity, p_entity_id, p_entity_type, p_state_changed,
+        p_updated_fields, p_cascade, p_metadata
+    ) AS ok;
+END;
+$$ LANGUAGE plpgsql IMMUTABLE;
+
+COMMENT ON FUNCTION fraiseql.mutation_ok_result(JSONB, JSONB, UUID, TEXT, BOOLEAN, TEXT[], JSONB, JSONB) IS
+'fraiseql.mutation_ok() with a 14th column, result = p_result: the success fields of a
+mutation that declares them.';
+
+CREATE OR REPLACE FUNCTION fraiseql.mutation_err_result(
+    p_error_class TEXT,
+    p_message TEXT DEFAULT '',
+    p_error_detail JSONB DEFAULT NULL,
+    p_http_status SMALLINT DEFAULT NULL,
+    p_entity_type TEXT DEFAULT NULL
+)
+RETURNS TABLE(
+    succeeded BOOLEAN,
+    state_changed BOOLEAN,
+    error_class TEXT,
+    status_detail TEXT,
+    http_status SMALLINT,
+    message TEXT,
+    entity_id UUID,
+    entity_type TEXT,
+    entity JSONB,
+    updated_fields TEXT[],
+    cascade JSONB,
+    error_detail JSONB,
+    metadata JSONB,
+    result JSONB
+) AS $$
+BEGIN
+    RETURN QUERY SELECT err.*, NULL::JSONB
+    FROM fraiseql.mutation_err(
+        p_error_class, p_message, p_error_detail, p_http_status, p_entity_type
+    ) AS err;
+END;
+$$ LANGUAGE plpgsql IMMUTABLE;
+
+COMMENT ON FUNCTION fraiseql.mutation_err_result(TEXT, TEXT, JSONB, SMALLINT, TEXT) IS
+'fraiseql.mutation_err() with a 14th column, result = NULL, for a function whose row
+declares result.';
+
+CREATE OR REPLACE FUNCTION fraiseql.mutation_err_entries_result(
+    p_error_class TEXT,
+    p_message TEXT,
+    VARIADIC p_entries JSONB[]
+)
+RETURNS TABLE(
+    succeeded BOOLEAN,
+    state_changed BOOLEAN,
+    error_class TEXT,
+    status_detail TEXT,
+    http_status SMALLINT,
+    message TEXT,
+    entity_id UUID,
+    entity_type TEXT,
+    entity JSONB,
+    updated_fields TEXT[],
+    cascade JSONB,
+    error_detail JSONB,
+    metadata JSONB,
+    result JSONB
+) AS $$
+BEGIN
+    RETURN QUERY SELECT err.*, NULL::JSONB
+    FROM fraiseql.mutation_err_entries(p_error_class, p_message, VARIADIC p_entries) AS err;
+END;
+$$ LANGUAGE plpgsql IMMUTABLE;
+
+COMMENT ON FUNCTION fraiseql.mutation_err_entries_result(TEXT, TEXT, JSONB[]) IS
+'fraiseql.mutation_err_entries() with a 14th column, result = NULL, for a function whose
+row declares result.';
+
+-- ============================================================================
 -- Permissions
 -- ============================================================================
 -- Grant EXECUTE per function (not `ON ALL FUNCTIONS`, which is a one-time snapshot
@@ -323,6 +445,9 @@ GRANT EXECUTE ON FUNCTION fraiseql.mutation_err(TEXT, TEXT, JSONB, SMALLINT, TEX
 GRANT EXECUTE ON FUNCTION fraiseql.error_identifier(TEXT) TO PUBLIC;
 GRANT EXECUTE ON FUNCTION fraiseql.error_entry(SMALLINT, TEXT, TEXT, JSONB) TO PUBLIC;
 GRANT EXECUTE ON FUNCTION fraiseql.mutation_err_entries(TEXT, TEXT, JSONB[]) TO PUBLIC;
+GRANT EXECUTE ON FUNCTION fraiseql.mutation_ok_result(JSONB, JSONB, UUID, TEXT, BOOLEAN, TEXT[], JSONB, JSONB) TO PUBLIC;
+GRANT EXECUTE ON FUNCTION fraiseql.mutation_err_result(TEXT, TEXT, JSONB, SMALLINT, TEXT) TO PUBLIC;
+GRANT EXECUTE ON FUNCTION fraiseql.mutation_err_entries_result(TEXT, TEXT, JSONB[]) TO PUBLIC;
 
 -- ============================================================================
 -- Tests (run as: \i sql/helpers/mutation_response.sql)
@@ -331,8 +456,8 @@ GRANT EXECUTE ON FUNCTION fraiseql.mutation_err_entries(TEXT, TEXT, JSONB[]) TO 
 DO $$
 BEGIN
     -- Test library_version
-    ASSERT (SELECT fraiseql.library_version()) = '2.3.0',
-        'library_version should return 2.3.0';
+    ASSERT (SELECT fraiseql.library_version()) = '2.4.0',
+        'library_version should return 2.4.0';
 
     -- Test mutation_ok with all parameters
     DECLARE
@@ -427,6 +552,22 @@ BEGIN
         ASSERT v_row.entity_type = 'DuplicateEmailError',
             'mutation_err should stamp p_entity_type onto entity_type';
         ASSERT v_row.entity IS NULL, 'a stamped mutation_err still has entity=NULL';
+    END;
+
+    -- Test the 14-column forms: same row as their 13-column builder, plus result
+    DECLARE
+        v_row RECORD;
+    BEGIN
+        SELECT * INTO v_row FROM fraiseql.mutation_ok_result(
+            '{"recovered_items": 3}'::JSONB, '{"id": "abc"}'::JSONB, p_entity_type => 'Order');
+        ASSERT v_row.succeeded = TRUE, 'mutation_ok_result should return succeeded=TRUE';
+        ASSERT v_row.entity_type = 'Order', 'mutation_ok_result should pass its arguments on';
+        ASSERT v_row.result ->> 'recovered_items' = '3', 'mutation_ok_result should carry p_result';
+
+        SELECT * INTO v_row FROM fraiseql.mutation_err_result('not_found', 'gone');
+        ASSERT v_row.succeeded = FALSE, 'mutation_err_result should return succeeded=FALSE';
+        ASSERT v_row.message = 'gone', 'mutation_err_result should pass its arguments on';
+        ASSERT v_row.result IS NULL, 'mutation_err_result should leave result NULL';
     END;
 
     -- Test error_entry normalising its identifier into a translation key

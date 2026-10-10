@@ -442,9 +442,9 @@ pub fn any_write_selections() -> WriteSelections<'static> {
 }
 
 /// The selection set a transport with **no selection set of its own** projects a write
-/// through: every scalar field the mutation's declared return type names.
+/// through: every leaf field (a scalar or an enum) the mutation's declared return type names.
 ///
-/// ⚠ **Never empty, and scalars only.** Both are load-bearing, not stylistic.
+/// ⚠ **Never empty, and leaves only.** Both are load-bearing, not stylistic.
 ///
 /// An empty selection set is the *permissive* shape rather than a neutral one:
 /// [`project_entity`](crate::runtime::project_entity) returns the whole entity
@@ -453,7 +453,7 @@ pub fn any_write_selections() -> WriteSelections<'static> {
 /// passed `&[]`, and so served policy-gated fields to unauthenticated callers that an
 /// authenticated caller is refused (#1352).
 ///
-/// Scalars only for the same reason one layer down: `project_field_value` returns a
+/// Leaves only for the same reason one layer down: `project_field_value` returns a
 /// *sub-selection-less object* verbatim, and `selection_field_has_gated_descendant` is
 /// false when `nested_fields` is empty — so naming an object field without expanding it
 /// would hand back whatever gated field is nested inside it.
@@ -485,7 +485,12 @@ pub fn mutation_return_selections(
         .map(|t| {
             t.fields
                 .iter()
-                .filter(|f| f.field_type.is_scalar())
+                // Every leaf: a scalar or an enum (#1397: an enum success field, or an
+                // entity's enum field, was left out).
+                .filter(|f| {
+                    f.field_type.is_scalar()
+                        || matches!(f.field_type, crate::schema::FieldType::Enum(_))
+                })
                 .map(|f| named(f.output_name()))
                 .collect::<Vec<_>>()
         })

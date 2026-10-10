@@ -435,6 +435,7 @@ fn jsonb_update_call() -> ExpectedCall {
         first_is_jsonb_payload: true,
         payload_keys:           vec![],
         stamps:                 None,
+        requires_result:        false,
     }
 }
 
@@ -540,6 +541,7 @@ fn flat_call() -> ExpectedCall {
         first_is_jsonb_payload: false,
         payload_keys:           vec![],
         stamps:                 None,
+        requires_result:        false,
     }
 }
 
@@ -671,6 +673,7 @@ fn payload_call(keys: &[&str]) -> ExpectedCall {
         first_is_jsonb_payload: true,
         payload_keys:           keys.iter().map(ToString::to_string).collect(),
         stamps:                 None,
+        requires_result:        false,
     }
 }
 

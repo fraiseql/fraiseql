@@ -20,6 +20,22 @@ disagreed, and the promise was the part that was wrong.
 
 ### Added
 
+- **A cascade mutation's payload carries typed success fields (#1397).** A mutation declares
+  facts about the operation itself (`success_fields={"recovered_items": int}` in Python,
+  `successFields` in TypeScript), the compiler adds each to `<Mutation>Payload` next to
+  `entity`, `cascade` and `updatedFields`, and the function returns them in a `result jsonb`
+  column after the 13 of `mutation_response`, keyed by snake_case name. Only that function
+  declares the column (its own row type): helpers 2.4.0 add `fraiseql.mutation_ok_result(…)`,
+  `mutation_err_result(…)` and `mutation_err_entries_result(…)`, the 14-column forms of the
+  three builders. Additive: the 13-column builders, `app.mutation_response` and every
+  existing function are unchanged, and nothing needs migrating. Only on a `cascade`
+  mutation, only scalar or enum types, never under a name the payload already has (each a
+  compile error). A value of the wrong type, no value for a non-null field, or a row with no
+  `result` column at all, is the function's contract error: the write is rolled back,
+  whatever the client selected; `compile --database` and `doctor` report the missing column
+  as drift. Served on GraphQL, REST and MCP; a key `result` carries that no field declares
+  is never served.
+
 - **A fact-table measure declares how it aggregates over time (#1459).** A balance or a stock
   level is `semi_additive`: reduced per entity (`entity`) and per bucket of a time column
   (`over`) first, by `last` or `first` (the value known by the bucket's end, carried forward
@@ -162,6 +178,11 @@ disagreed, and the promise was the part that was wrong.
 
 ### Changed
 
+- **A REST mutation answers every leaf field of its return type, enums included (#1397).**
+  The selection a transport without a selection set of its own projects a write through
+  took scalars only, so an entity's enum fields (and a payload's enum success fields) were
+  left out of the REST response.
+
 - **An ordered relay page seeks its index when its keys allow (#1533).** When every sort key
   is a native column PostgreSQL proves `NOT NULL` (a table's, recorded by `compile
   --database`) and every key is ascending, the page resumes with one row comparison, which
@@ -191,6 +212,13 @@ disagreed, and the promise was the part that was wrong.
   field adds them. A server configuration's `[validation]
   max_semi_additive_cells` is refused at boot, as `max_offset` is: the bound belongs to the
   compiled schema.
+- **Success fields change public Rust types (#1397); embedders only.** No deployment
+  action: the helpers move to 2.4.0 additively. `MutationOutcome::Success` gains `result`
+  (`None` when the row has no `result` column), `MutationResponse` gains `result`,
+  `MutationDefinition` and the CLI's `IntermediateMutation` gain `success_fields`,
+  `fraiseql_cli`'s `ExpectedCall` gains `requires_result`, and `ContractViolation` gains
+  `MissingResultColumn` and `ResultColumnWrongType` (the variants after them shift their
+  discriminants). A struct literal or an exhaustive match over them adds the new items.
 - **A violated constraint is named in the mutation's typed error by default (#1531).** The
   error member gains an `errors[]` entry whose `identifier` is the constraint's name (reversing
   #1424's "the constraint's name is not exposed"); set `mutation_constraint_metadata = "none"`
