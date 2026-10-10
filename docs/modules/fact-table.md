@@ -235,6 +235,96 @@ This can yield 10–20× faster temporal aggregations on large tables.
 
 ---
 
+## Measures that are not additive over time
+
+A balance, a stock level or a headcount is **semi-additive**: summed across accounts it
+means something, summed across days it does not. Such a measure declares how it aggregates
+over time, and an aggregate over it is planned in two steps: the measure is first reduced
+per entity and per bucket of the request's time grouping, then the requested function runs
+across entities.
+
+| `additivity` | Per entity, per bucket | Across entities |
+|---|---|---|
+| `additive` (the default) | the requested function, over the rows | the requested function |
+| `semi_additive`, `using = last` | the last value known by the bucket's end | the requested function |
+| `semi_additive`, `using = first` | the bucket's first value, else the value carried in | the requested function |
+| `semi_additive`, `using = avg \| min \| max` | over the bucket's own rows | the requested function |
+| `delta` | the bucket's last row minus its first | the requested function |
+| `non_additive` | refused | refused |
+
+`semi_additive` and `delta` name `over`, the denormalized `date` or `timestamp` column they
+reduce over, and `entity`, the denormalized columns that identify what a value belongs to.
+A declaration naming a column that is not there, or an `over` that is not a time column,
+does not compile.
+
+```typescript
+SchemaRegistry.registerFactTable("tf_account_day", [
+  { name: "closing_balance", sql_type: "numeric", nullable: false,
+    additivity: { kind: "semi_additive", over: "day", using: "last", entity: ["account_id"] } },
+  { name: "deposits", sql_type: "numeric", nullable: false },
+], { name: "data", paths: [] }, [
+  { name: "account_id", sql_type: "bigint", indexed: true },
+  { name: "day", sql_type: "date", indexed: true },
+]);
+```
+
+```go
+fraiseql.NewFactTable("data").TableName("tf_account_day").
+    SemiAdditiveMeasure("closing_balance", "numeric", false, "day", fraiseql.ReduceLast, "account_id").
+    Measure("deposits", "numeric", false). /* filters … */ Register()
+```
+
+### Carried forward: `last` and `first`
+
+A table that records a balance only on the days it changed has no row for most
+(account, day) pairs. `last` carries each entity's last known value into every later
+bucket, up to the end of the requested range: an account with a row in November holds
+that value through March. So `closing_balance_sum` grouped by `day_month` sums each
+account's balance as it stood at the end of each month, whether or not the account moved.
+
+- **Closure is data.** A closed account carries its last value forward like any other.
+  Record its closing row (a balance of 0) to end it; absence of rows is not read as closure.
+- **The range** is the request's bounds on `over` (`eq`, `gt`, `gte`, `lt`, `lte`, joined
+  by and), or the data's first and last `over` when unbounded. The lower bound limits the
+  buckets, not the lookup: the value carried into the first bucket was recorded before it.
+  `over` filtered any other way (`neq`, or under `or` / `not` in a row policy) is refused.
+- **Other groupings** are read from the row each (entity, bucket) carries.
+- **Bounded work.** Each (bucket, entity) cell is one index seek. Before running, the
+  planner counts the cells (buckets in range by entities under the request's other
+  filters, reading no measure) and refuses a request over `[validation]
+  max_semi_additive_cells` (default 250,000: about 3 µs a cell on PostgreSQL 18, so near
+  one second). It never truncates. 0 is refused.
+- **The index** that makes each seek cheap is `(entity…, over)`:
+
+  ```sql
+  CREATE INDEX ON tf_account_day (account_id, day);
+  ```
+
+  `fraiseql doctor --against-db` warns for each fact table whose carried-forward measures no
+  index leading with those keys serves, with this statement as the remedy.
+
+### Within the bucket: `avg`, `min`, `max`, `delta`
+
+These reduce the bucket's own rows. An entity with no row in a bucket contributes nothing
+to it; a value is not carried in. `delta` is the bucket's last row minus its first (a
+cumulative counter's change).
+
+### What is refused
+
+Each at request time, naming the measure:
+
+- any aggregate over a `non_additive` measure;
+- a reduced measure without exactly one time bucket of its `over` in `groupBy` (a calendar
+  dimension is not one);
+- a reduced measure alongside `count`, an additive measure, a measure reduced differently,
+  or as a list (`array_agg`, `json_agg`, `jsonb_agg`, `string_agg`);
+- a window aggregate (`running_sum`, `running_avg`, `running_min`, `running_max`,
+  `running_stddev`, `running_variance`) over a measure that is not additive: a window runs
+  over fact rows, so a running sum of a balance adds it once per day. A value function
+  (`lag`, `lead`, `first_value`, `last_value`, `nth_value`) reads one row and runs.
+
+---
+
 ## Database Requirements
 
 Fact tables require JSONB (PostgreSQL-native binary JSON): dimension extraction uses

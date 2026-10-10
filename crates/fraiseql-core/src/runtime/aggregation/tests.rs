@@ -1069,6 +1069,7 @@ fn test_native_dimension_mapping_sql_output() {
             alias: "count".to_string(),
         }],
         having_conditions: vec![],
+        time_reduction: None,
     };
 
     let generator = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);

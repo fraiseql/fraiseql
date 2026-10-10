@@ -425,6 +425,48 @@ impl AggregateRunner {
         let session_pairs: Vec<(&str, &str)> =
             resolved_session_vars.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
         let routing = self.aggregate_read_routing(query_name);
+
+        // 4a. #1459: a carried-forward measure reads one row per (bucket, entity) cell. Count
+        //     the cells first, reading no measure, and refuse past the bound rather than run.
+        let bound = self.ctx.config.max_semi_additive_cells;
+        if let Some(count) = sql_generator.generate_cell_count(&plan, bound)? {
+            let counted = self
+                .ctx
+                .adapter
+                .execute_parameterized_aggregate_with_session(
+                    &count.sql,
+                    &count.params,
+                    &session_pairs,
+                    routing,
+                )
+                .await?;
+            let read = |key: &str| {
+                counted
+                    .first()
+                    .and_then(|row| row.get(key))
+                    .and_then(serde_json::Value::as_u64)
+                    .unwrap_or(0)
+            };
+            let (buckets, entities) = (read("buckets"), read("entities"));
+            if buckets.saturating_mul(entities) > bound {
+                let measures = plan
+                    .time_reduction
+                    .as_ref()
+                    .map(|r| r.measures.join("`, `"))
+                    .unwrap_or_default();
+                return Err(FraiseQLError::Validation {
+                    message: format!(
+                        "`{measures}` is carried forward per entity and bucket: this request \
+                         spans more than {bound} cells ({buckets} buckets by {entities} \
+                         entities, each counted to {}). Narrow the range or the entities, or \
+                         coarsen the time grouping ([validation] max_semi_additive_cells)",
+                        bound.saturating_add(1)
+                    ),
+                    path:    None,
+                });
+            }
+        }
+
         let rows = self
             .ctx
             .adapter
@@ -502,6 +544,9 @@ impl AggregateRunner {
 
         // 1. Parse JSON query into WindowRequest
         let mut request = crate::runtime::WindowQueryParser::parse(query_json, metadata)?;
+        // #1459: a window aggregate runs over fact rows; over a measure not additive over time
+        // it would combine one entity's value across them.
+        crate::compiler::time_reduction::refuse_window_over_non_additive(&request, metadata)?;
         // #1532: as an aggregate's.
         request.limit = super::query_params::enforce_max_page_size(
             request.limit,

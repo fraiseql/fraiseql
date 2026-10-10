@@ -72,6 +72,7 @@ mod query {
             cache_query_plans:           false,
             max_page_size:               Some(1000),
             max_offset:                  None,
+            max_semi_additive_cells:     crate::runtime::DEFAULT_MAX_SEMI_ADDITIVE_CELLS,
             nearest_short_result:        crate::runtime::notices::ShortResultPolicy::Signal,
             enable_tracing:              true,
             field_filter:                None,
@@ -1247,6 +1248,7 @@ mod config {
             cache_query_plans:           false,
             max_page_size:               Some(1000),
             max_offset:                  None,
+            max_semi_additive_cells:     crate::runtime::DEFAULT_MAX_SEMI_ADDITIVE_CELLS,
             nearest_short_result:        crate::runtime::notices::ShortResultPolicy::Signal,
             enable_tracing:              true,
             field_filter:                None,
@@ -1287,6 +1289,7 @@ mod config {
             cache_query_plans:           false,
             max_page_size:               Some(1000),
             max_offset:                  None,
+            max_semi_additive_cells:     crate::runtime::DEFAULT_MAX_SEMI_ADDITIVE_CELLS,
             nearest_short_result:        crate::runtime::notices::ShortResultPolicy::Signal,
             enable_tracing:              true,
             field_filter:                None,
@@ -1767,11 +1770,12 @@ mod gate1_schema_derived {
     fn schema_with_limits(depth: Option<u32>, complexity: Option<u32>) -> CompiledSchema {
         let mut schema = test_schema();
         schema.validation_config = Some(ValidationConfig {
-            max_query_depth:      depth,
-            max_query_complexity: complexity,
-            max_page_size:        None,
-            max_offset:           None,
-            max_response_bytes:   None,
+            max_query_depth:         depth,
+            max_query_complexity:    complexity,
+            max_page_size:           None,
+            max_offset:              None,
+            max_semi_additive_cells: None,
+            max_response_bytes:      None,
         });
         schema
     }

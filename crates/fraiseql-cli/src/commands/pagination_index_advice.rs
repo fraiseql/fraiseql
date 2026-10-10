@@ -72,7 +72,7 @@ pub fn tie_break_key(query: &QueryDefinition) -> Option<String> {
 /// whitespace and the redundant `::text` cast are removed; matching on the raw
 /// strings would report every expression index as absent and advise creating one
 /// that already exists.
-fn keys_match(a: &str, b: &str) -> bool {
+pub(crate) fn keys_match(a: &str, b: &str) -> bool {
     fn normalize(key: &str) -> String {
         key.to_lowercase()
             .replace("::text", "")

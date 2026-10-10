@@ -248,6 +248,12 @@ pub struct RuntimeConfig {
     /// statement. `None` (the default) refuses none.
     pub max_offset: Option<u32>,
 
+    /// The most (bucket, entity) cells an aggregate carrying a semi-additive measure forward
+    /// may read (#1459): one index seek each. A request over more is refused before the
+    /// measure is read. Schema-derived from the compiled `[validation]
+    /// max_semi_additive_cells`, [`DEFAULT_MAX_SEMI_ADDITIVE_CELLS`] when unset.
+    pub max_semi_additive_cells: u64,
+
     /// What a `nearest` search that returned fewer than `k` rows does (#1314):
     /// a notice (the default), a verified notice, or a refusal of a verified truncation.
     /// Operator-owned (the server's `vector_on_short_result`), like the vector scan settings.
@@ -491,6 +497,7 @@ impl std::fmt::Debug for RuntimeConfig {
             .field("cache_query_plans", &self.cache_query_plans)
             .field("max_page_size", &self.max_page_size)
             .field("max_offset", &self.max_offset)
+            .field("max_semi_additive_cells", &self.max_semi_additive_cells)
             .field("nearest_short_result", &self.nearest_short_result)
             .field("enable_tracing", &self.enable_tracing)
             .field("field_filter", &self.field_filter.is_some())
@@ -523,6 +530,7 @@ impl Default for RuntimeConfig {
             cache_query_plans:           true,
             max_page_size:               Some(1000),
             max_offset:                  None,
+            max_semi_additive_cells:     DEFAULT_MAX_SEMI_ADDITIVE_CELLS,
             nearest_short_result:        notices::ShortResultPolicy::Signal,
             enable_tracing:              false,
             field_filter:                None,
@@ -811,6 +819,13 @@ impl RuntimeConfig {
             schema.validation_config.as_ref().and_then(|v| v.max_offset),
         );
 
+        // #1459: the compiled [validation] max_semi_additive_cells > default.
+        let max_semi_additive_cells = schema
+            .validation_config
+            .as_ref()
+            .and_then(|v| v.max_semi_additive_cells)
+            .unwrap_or(DEFAULT_MAX_SEMI_ADDITIVE_CELLS);
+
         // Change-Spine outbox write toggle (default on): FRAISEQL_CHANGELOG_ENABLED
         // overrides the compiled [changelog] write_enabled.
         let changelog_enabled = std::env::var("FRAISEQL_CHANGELOG_ENABLED")
@@ -854,8 +869,9 @@ impl RuntimeConfig {
 
         let Self {
             cache_query_plans,
-            max_page_size: _, // schema-derived
-            max_offset: _,    // schema-derived
+            max_page_size: _,           // schema-derived
+            max_offset: _,              // schema-derived
+            max_semi_additive_cells: _, // schema-derived
             nearest_short_result,
             enable_tracing,
             field_filter,
@@ -884,6 +900,7 @@ impl RuntimeConfig {
             cache_query_plans,
             max_page_size,
             max_offset,
+            max_semi_additive_cells,
             nearest_short_result,
             enable_tracing,
             field_filter,
@@ -909,6 +926,13 @@ impl RuntimeConfig {
         })
     }
 }
+
+/// The cells a semi-additive aggregate may carry forward by default (#1459).
+///
+/// Applies when the compiled `[validation]` sets none. Measured on PostgreSQL 18: about 3 µs
+/// a cell (2,000 entities by 731 days, 1.46 M cells, in 4.5 s), so the default bounds such a
+/// request near one second.
+pub const DEFAULT_MAX_SEMI_ADDITIVE_CELLS: u64 = 250_000;
 
 /// Resolve the offset ceiling (#1306) by precedence.
 ///

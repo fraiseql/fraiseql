@@ -609,6 +609,7 @@ mod aggregate_projector_tests {
                 },
             ],
             having_conditions: vec![],
+            time_reduction: None,
         }
     }
 

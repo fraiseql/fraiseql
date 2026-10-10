@@ -238,6 +238,10 @@ pub struct AggregationPlan {
     pub aggregate_expressions: Vec<AggregateExpression>,
     /// Validated HAVING conditions
     pub having_conditions:     Vec<ValidatedHavingCondition>,
+    /// The per-entity, per-bucket reduction run before the requested functions, when the
+    /// request reads a measure not additive over time (#1459).
+    #[serde(default)]
+    pub time_reduction:        Option<super::time_reduction::TimeReduction>,
 }
 
 /// Validated GROUP BY expression
@@ -433,12 +437,17 @@ impl AggregationPlanner {
         // Validate HAVING conditions
         let having_conditions = Self::validate_having(&request.having, &aggregate_expressions)?;
 
+        // #1459: a measure not additive over time is reduced per entity and bucket first, or
+        // the request is refused.
+        let time_reduction = super::time_reduction::plan_time_reduction(&request, &metadata)?;
+
         Ok(AggregationPlan {
             metadata,
             request,
             group_by_expressions,
             aggregate_expressions,
             having_conditions,
+            time_reduction,
         })
     }
 

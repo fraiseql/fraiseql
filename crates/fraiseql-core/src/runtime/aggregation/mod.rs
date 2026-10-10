@@ -71,7 +71,10 @@ use crate::{
 };
 
 mod expressions;
+mod time_reduction;
 mod where_clause;
+
+pub use time_reduction::CellCountSql;
 
 #[cfg(test)]
 mod tests;
@@ -273,6 +276,10 @@ impl AggregationSqlGenerator {
         &self,
         plan: &AggregationPlan,
     ) -> Result<ParameterizedAggregationSql> {
+        // #1459: a measure not additive over time is reduced per entity and bucket first.
+        if let Some(reduction) = &plan.time_reduction {
+            return self.generate_time_reduced(plan, reduction);
+        }
         let mut params: Vec<serde_json::Value> = Vec::new();
 
         let select_sql =

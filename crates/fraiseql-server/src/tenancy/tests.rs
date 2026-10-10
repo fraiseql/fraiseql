@@ -822,6 +822,7 @@ mod runtime_config_drift {
             cache_query_plans,
             max_page_size,
             max_offset,
+            max_semi_additive_cells,
             nearest_short_result,
             enable_tracing,
             field_filter,
@@ -922,6 +923,9 @@ mod runtime_config_drift {
         }
         if *max_offset != tenant.max_offset {
             out.push("max_offset");
+        }
+        if *max_semi_additive_cells != tenant.max_semi_additive_cells {
+            out.push("max_semi_additive_cells");
         }
         if *max_operation_cost != tenant.max_operation_cost {
             out.push("max_operation_cost");

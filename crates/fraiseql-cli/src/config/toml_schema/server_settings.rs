@@ -89,20 +89,33 @@ pub struct ValidationConfig {
     /// none; the server also honours `FRAISEQL_MAX_OFFSET` as an override.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_offset: Option<u32>,
+
+    /// The most (bucket, entity) cells an aggregate carrying a semi-additive measure forward
+    /// may read (#1459): each is one index seek, and a larger request is refused before the
+    /// measure is read. `None` uses the runtime default (250,000).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_semi_additive_cells: Option<u64>,
 }
 
 impl ValidationConfig {
     /// Refuse a `max_offset` of 0: it would refuse every offset page, which is not a
-    /// ceiling. Leave the key unset for none.
+    /// ceiling. Leave the key unset for none. Likewise `max_semi_additive_cells` (#1459).
     ///
     /// # Errors
     ///
-    /// When `max_offset` is 0.
+    /// When `max_offset` or `max_semi_additive_cells` is 0.
     pub fn validate(&self) -> anyhow::Result<()> {
         if self.max_offset == Some(0) {
             anyhow::bail!(
                 "[validation] max_offset = 0 would refuse every offset page. Set the deepest \
                  offset clients may page to, or leave the key unset for no ceiling."
+            );
+        }
+        if self.max_semi_additive_cells == Some(0) {
+            anyhow::bail!(
+                "[validation] max_semi_additive_cells = 0 would refuse every aggregate over a \
+                 semi-additive measure. Set the most cells such an aggregate may read, or leave \
+                 the key unset for the default."
             );
         }
         Ok(())

@@ -17,6 +17,7 @@ pub mod enum_validator;
 pub mod fact_table;
 pub mod ir;
 pub mod parser;
+pub mod time_reduction;
 pub mod validator;
 pub mod window_allowlist;
 pub mod window_functions;

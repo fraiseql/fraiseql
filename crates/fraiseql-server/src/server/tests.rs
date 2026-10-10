@@ -65,11 +65,12 @@ mod executor_gate_config_tests {
     fn compiled_with(depth: Option<u32>, complexity: Option<u32>) -> CompiledSchema {
         CompiledSchema {
             validation_config: Some(ValidationConfig {
-                max_query_depth:      depth,
-                max_query_complexity: complexity,
-                max_page_size:        None,
-                max_offset:           None,
-                max_response_bytes:   None,
+                max_query_depth:         depth,
+                max_query_complexity:    complexity,
+                max_page_size:           None,
+                max_offset:              None,
+                max_semi_additive_cells: None,
+                max_response_bytes:      None,
             }),
             ..CompiledSchema::default()
         }
@@ -99,11 +100,12 @@ mod executor_gate_config_tests {
         let schema = compiled_with(Some(8), Some(100));
         let config = ServerConfig {
             validation: Some(ValidationConfig {
-                max_query_depth:      None,
-                max_query_complexity: Some(500),
-                max_page_size:        None,
-                max_offset:           None,
-                max_response_bytes:   None,
+                max_query_depth:         None,
+                max_query_complexity:    Some(500),
+                max_page_size:           None,
+                max_offset:              None,
+                max_semi_additive_cells: None,
+                max_response_bytes:      None,
             }),
             ..ServerConfig::default()
         };
@@ -126,11 +128,12 @@ mod executor_gate_config_tests {
         let schema = compiled_with(Some(3), Some(100));
         let config = ServerConfig {
             validation: Some(ValidationConfig {
-                max_query_depth:      None,
-                max_query_complexity: Some(500),
-                max_page_size:        None,
-                max_offset:           None,
-                max_response_bytes:   None,
+                max_query_depth:         None,
+                max_query_complexity:    Some(500),
+                max_page_size:           None,
+                max_offset:              None,
+                max_semi_additive_cells: None,
+                max_response_bytes:      None,
             }),
             ..ServerConfig::default()
         };
@@ -171,11 +174,12 @@ mod executor_gate_config_tests {
         let schema = compiled_with(None, Some(100));
         let config = ServerConfig {
             validation: Some(ValidationConfig {
-                max_query_depth:      None,
-                max_query_complexity: Some(500),
-                max_page_size:        None,
-                max_offset:           None,
-                max_response_bytes:   None,
+                max_query_depth:         None,
+                max_query_complexity:    Some(500),
+                max_page_size:           None,
+                max_offset:              None,
+                max_semi_additive_cells: None,
+                max_response_bytes:      None,
             }),
             ..ServerConfig::default()
         };
@@ -250,6 +254,45 @@ mod runtime_ceiling_tests {
         let rt = executor_runtime_config(&CompiledSchema::default(), &ServerConfig::default())
             .expect("valid schema");
         assert_eq!(rt.max_offset, None, "unset by default");
+    }
+
+    /// #1459: the semi-additive cell bound is the compiled schema's; a server configuration's
+    /// `[validation]` value would be parsed and never read, so it is refused at boot.
+    #[test]
+    fn a_runtime_semi_additive_cell_bound_is_refused_naming_where_it_belongs() {
+        let config = ServerConfig {
+            validation: Some(ValidationConfig {
+                max_semi_additive_cells: Some(10),
+                ..ValidationConfig::default()
+            }),
+            ..ServerConfig::default()
+        };
+        let err = executor_runtime_config(&CompiledSchema::default(), &config)
+            .expect_err("refused at boot");
+        assert!(
+            err.contains("max_semi_additive_cells") && err.contains("fraiseql.toml"),
+            "{err}"
+        );
+    }
+
+    /// #1459: the compiled cell bound is the one in force, the default when unset.
+    #[test]
+    fn the_compiled_semi_additive_cell_bound_reaches_the_executor() {
+        let schema = CompiledSchema {
+            validation_config: Some(ValidationConfig {
+                max_semi_additive_cells: Some(7),
+                ..ValidationConfig::default()
+            }),
+            ..CompiledSchema::default()
+        };
+        let rt = executor_runtime_config(&schema, &ServerConfig::default()).expect("valid schema");
+        assert_eq!(rt.max_semi_additive_cells, 7);
+        let rt = executor_runtime_config(&CompiledSchema::default(), &ServerConfig::default())
+            .expect("valid schema");
+        assert_eq!(
+            rt.max_semi_additive_cells,
+            fraiseql_core::runtime::DEFAULT_MAX_SEMI_ADDITIVE_CELLS
+        );
     }
 }
 

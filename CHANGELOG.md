@@ -20,6 +20,21 @@ disagreed, and the promise was the part that was wrong.
 
 ### Added
 
+- **A fact-table measure declares how it aggregates over time (#1459).** A balance or a stock
+  level is `semi_additive`: reduced per entity (`entity`) and per bucket of a time column
+  (`over`) first, by `last` or `first` (the value known by the bucket's end, carried forward
+  through buckets with no row) or by `avg`, `min` or `max` over the bucket's own rows; then the
+  requested function runs across entities. `delta` is a bucket's last row minus its first;
+  `non_additive` refuses every aggregate. Undeclared measures are `additive`, as before.
+  Authored in TypeScript (`Measure.additivity`) and Go (`SemiAdditiveMeasure`,
+  `DeltaMeasure`, `NonAdditiveMeasure`). A carried-forward request counts its (bucket,
+  entity) cells first and is refused past `[validation] max_semi_additive_cells` (default
+  250,000, about one second on PostgreSQL 18). Refused, naming the measure: a reduced measure
+  without exactly one time bucket of its `over`, alongside another aggregate or a list
+  aggregate, with `over` filtered other than by bounds; and a window aggregate over a measure
+  that is not additive. `fraiseql doctor --against-db` recommends the `(entity…, over)` index
+  each carried-forward cell seeks. See `docs/modules/fact-table.md`.
+
 - **`mutation_constraint_metadata` (#1531).** A server key, `"identifier"` (default),
   `"full"` (adds the table and the constraint's columns, resolved from `pg_constraint` or
   `pg_index`) or `"none"`. It holds across a hot reload and binds every tenant. Never the
@@ -167,6 +182,13 @@ disagreed, and the promise was the part that was wrong.
   execute on PostgreSQL, and its branches would not have recombined into one answer. A compiled
   artifact whose fact table still carries `partial_period` is refused at load, by name; an
   embedder constructing `FactTableMetadata` drops the field.
+- **Fact-table measures carry `additivity`; the aggregate plan a `time_reduction` (#1459).**
+  `MeasureColumn` gains `additivity` (`Additive` by default, omitted from the artifact),
+  `AggregationPlan` gains `time_reduction`, and `RuntimeConfig` and
+  `fraiseql_core::schema::ValidationConfig` gain `max_semi_additive_cells`: a struct literal
+  that lists every field adds them. A server configuration's `[validation]
+  max_semi_additive_cells` is refused at boot, as `max_offset` is: the bound belongs to the
+  compiled schema.
 - **A violated constraint is named in the mutation's typed error by default (#1531).** The
   error member gains an `errors[]` entry whose `identifier` is the constraint's name (reversing
   #1424's "the constraint's name is not exposed"); set `mutation_constraint_metadata = "none"`

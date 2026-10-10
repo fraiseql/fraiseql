@@ -181,7 +181,7 @@ impl AggregationSqlGenerator {
     /// A placeholder for `value`, cast to `pg_cast` through text on PostgreSQL. The value is
     /// bound as its text form (a JSON number or boolean as its literal), which is what the
     /// cast reads; an empty `pg_cast`, or another dialect, binds it unchanged.
-    fn emit_cast_param(
+    pub(super) fn emit_cast_param(
         &self,
         value: &serde_json::Value,
         pg_cast: &str,

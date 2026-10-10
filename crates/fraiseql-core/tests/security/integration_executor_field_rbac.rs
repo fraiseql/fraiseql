@@ -330,6 +330,7 @@ fn test_executor_runtime_config_with_field_filter() {
         cache_query_plans:           true,
         max_page_size:               Some(1000),
         max_offset:                  None,
+        max_semi_additive_cells:     fraiseql_core::runtime::DEFAULT_MAX_SEMI_ADDITIVE_CELLS,
         nearest_short_result:        fraiseql_core::runtime::notices::ShortResultPolicy::Signal,
         enable_tracing:              false,
         field_filter:                None,

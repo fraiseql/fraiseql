@@ -513,6 +513,15 @@ impl CompiledSchema {
                 path:    Some("validation_config.max_offset".to_string()),
             });
         }
+        // #1459: as `max_offset`, a cell bound of 0 refuses every semi-additive aggregate.
+        if self.validation_config.as_ref().and_then(|v| v.max_semi_additive_cells) == Some(0) {
+            return Err(FraiseQLError::Validation {
+                message: "`max_semi_additive_cells` of 0 would refuse every aggregate over a \
+                          semi-additive measure; leave it unset for the default"
+                    .to_string(),
+                path:    Some("validation_config.max_semi_additive_cells".to_string()),
+            });
+        }
         // #1512: a tag reaches SQL text, so the compiled `[locale]` is checked again here,
         // where a hand-written artifact passes too, and its chains are derived (never read).
         self.validate_locale()?;

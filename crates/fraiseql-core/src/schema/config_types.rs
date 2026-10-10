@@ -387,10 +387,10 @@ pub const DEFAULT_MAX_QUERY_DEPTH: u32 = 11;
 pub struct ValidationConfig {
     /// Maximum allowed query nesting depth; [`DEFAULT_MAX_QUERY_DEPTH`] when unset.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub max_query_depth:      Option<u32>,
+    pub max_query_depth:         Option<u32>,
     /// Maximum allowed query complexity score.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub max_query_complexity: Option<u32>,
+    pub max_query_complexity:    Option<u32>,
     /// Maximum bytes a single read may deliver, measured on the rows that come
     /// back.
     ///
@@ -413,20 +413,25 @@ pub struct ValidationConfig {
     ///
     /// `None` leaves reads unbounded by size, which is the previous behaviour.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub max_response_bytes:   Option<u64>,
+    pub max_response_bytes:      Option<u64>,
     /// Maximum number of rows a top-level `first`/`last`/`limit` argument may
     /// request, guarding against unbounded-pagination denial of service (#421).
     /// When unset, the runtime default (1000) applies; set to a large value to
     /// raise the ceiling. The server also honours the `FRAISEQL_MAX_PAGE_SIZE`
     /// environment variable as an override.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub max_page_size:        Option<u32>,
+    pub max_page_size:           Option<u32>,
     /// The deepest offset a client may page to (#1306). `OFFSET n` reads `n` rows to
     /// discard them, so a deep offset page costs its depth however it is ordered; a
     /// relay connection pages by cursor at any depth. Unset (the default), no offset is
     /// refused; the server also honours `FRAISEQL_MAX_OFFSET` as an override.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub max_offset:           Option<u32>,
+    pub max_offset:              Option<u32>,
+    /// The most (bucket, entity) cells an aggregate carrying a semi-additive measure forward
+    /// may read (#1459); a larger request is refused before the measure is read. Unset, the
+    /// runtime default applies. 0 is refused: it would refuse every such aggregate.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_semi_additive_cells: Option<u64>,
 }
 
 /// MCP (Model Context Protocol) server configuration (compiled from `[mcp]` in `fraiseql.toml`).

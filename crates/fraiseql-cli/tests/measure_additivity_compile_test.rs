@@ -40,7 +40,7 @@ fn schema_with(additivity: Option<Value>) -> Value {
 
 /// `fraiseql compile schema.json`: the conversion, then the load checks it runs on its own
 /// artifact.
-fn compile(schema: Value) -> Result<fraiseql_core::schema::CompiledSchema, String> {
+fn compile(schema: &Value) -> Result<fraiseql_core::schema::CompiledSchema, String> {
     let dir = tempfile::TempDir::new().unwrap();
     let path = dir.path().join("schema.json");
     std::fs::write(&path, schema.to_string()).unwrap();
@@ -66,7 +66,7 @@ fn additivity_of(schema: &fraiseql_core::schema::CompiledSchema, measure: &str) 
 
 #[test]
 fn a_declared_semi_additive_measure_reaches_the_artifact() {
-    let schema = compile(schema_with(Some(json!({
+    let schema = compile(&schema_with(Some(json!({
         "kind": "semi_additive", "over": "day", "using": "last", "entity": ["account_id"]
     }))))
     .unwrap();
@@ -84,7 +84,7 @@ fn a_declared_semi_additive_measure_reaches_the_artifact() {
 
 #[test]
 fn delta_and_non_additive_reach_the_artifact() {
-    let schema = compile(schema_with(Some(json!({
+    let schema = compile(&schema_with(Some(json!({
         "kind": "delta", "over": "day", "entity": ["account_id"]
     }))))
     .unwrap();
@@ -95,7 +95,7 @@ fn delta_and_non_additive_reach_the_artifact() {
             entity: vec!["account_id".to_string()],
         }
     );
-    let schema = compile(schema_with(Some(json!({ "kind": "non_additive" })))).unwrap();
+    let schema = compile(&schema_with(Some(json!({ "kind": "non_additive" })))).unwrap();
     assert_eq!(additivity_of(&schema, "closing_balance"), Additivity::NonAdditive);
 }
 
@@ -120,9 +120,8 @@ fn a_declaration_that_cannot_be_planned_fails_the_compile() {
         ),
         (json!({ "kind": "delta", "over": "day", "entity": ["nope"] }), "nope"),
     ] {
-        let err = match compile(schema_with(Some(additivity.clone()))) {
-            Ok(_) => panic!("{additivity} compiled"),
-            Err(e) => e,
+        let Err(err) = compile(&schema_with(Some(additivity.clone()))) else {
+            panic!("{additivity} compiled")
         };
         assert!(
             err.contains("closing_balance") && err.contains(names),
@@ -131,7 +130,68 @@ fn a_declaration_that_cannot_be_planned_fails_the_compile() {
     }
     // A missing `over` or `using` is a malformed declaration.
     let err =
-        compile(schema_with(Some(json!({ "kind": "semi_additive", "entity": ["account_id"] }))))
+        compile(&schema_with(Some(json!({ "kind": "semi_additive", "entity": ["account_id"] }))))
             .expect_err("a semi-additive measure without `over` must not compile");
     assert!(err.contains("over"), "{err}");
+}
+
+/// A `fraiseql.toml` whose `[validation]` is `validation`.
+fn toml_with_validation(validation: &str) -> String {
+    format!(
+        r#"
+[schema]
+name = "additivity-1459"
+version = "1.0.0"
+database_target = "postgresql"
+
+[validation]
+{validation}
+
+[types.Account]
+sql_source = "v_account"
+fields.id = {{ type = "Int" }}
+
+[queries.accounts]
+return_type = "Account"
+return_array = true
+sql_source = "v_account"
+"#
+    )
+}
+
+fn compile_toml(document: &str) -> Result<fraiseql_core::schema::CompiledSchema, String> {
+    let dir = tempfile::TempDir::new().unwrap();
+    let path = dir.path().join("fraiseql.toml");
+    std::fs::write(&path, document).unwrap();
+    tokio::runtime::Runtime::new()
+        .unwrap()
+        .block_on(compile_to_schema(CompileOptions {
+            skip_hash: true,
+            ..CompileOptions::new(path.to_str().unwrap())
+        }))
+        .map(|(compiled, _)| compiled.schema)
+        .map_err(|e| format!("{e:#}"))
+}
+
+/// The cell bound a carried-forward aggregate may read reaches the artifact; 0, which would
+/// refuse every such aggregate, is refused at compile and, in a hand-written artifact, at
+/// load.
+#[test]
+fn the_semi_additive_cell_bound_is_carried_and_zero_is_refused() {
+    let schema = compile_toml(&toml_with_validation("max_semi_additive_cells = 5")).unwrap();
+    assert_eq!(
+        schema.validation_config.as_ref().and_then(|v| v.max_semi_additive_cells),
+        Some(5)
+    );
+
+    let err = compile_toml(&toml_with_validation("max_semi_additive_cells = 0"))
+        .expect_err("a bound of 0 must not compile");
+    assert!(err.contains("max_semi_additive_cells = 0"), "{err}");
+
+    let mut artifact: Value = serde_json::from_str(&schema.to_json().unwrap()).unwrap();
+    artifact["validation_config"]["max_semi_additive_cells"] = json!(0);
+    let err = fraiseql_core::schema::CompiledSchema::from_json(&artifact.to_string(), false)
+        .expect_err("a bound of 0 must not load")
+        .to_string();
+    assert!(err.contains("max_semi_additive_cells"), "{err}");
 }

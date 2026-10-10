@@ -25,6 +25,7 @@ pub mod query;
 pub mod run;
 pub mod sbom;
 pub mod schema;
+pub mod semi_additive_index_advice;
 pub mod setup;
 pub mod sources;
 pub mod validate;

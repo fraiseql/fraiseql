@@ -522,3 +522,103 @@ fn header_doctor_schema() -> fraiseql_core::schema::CompiledSchema {
     )
     .unwrap()
 }
+
+/// #1459: `doctor --against-db` names a fact table whose carried-forward measure no index
+/// serves, with the `(entity…, over)` index as the remedy. Applying the remedy clears it; a
+/// measure reduced within the bucket needs no seek and is not reported.
+#[tokio::test]
+async fn doctor_names_a_carried_forward_measure_no_index_serves() {
+    use fraiseql_cli::commands::doctor::semi_additive_index_checks;
+    use fraiseql_core::compiler::fact_table::{
+        Additivity, DimensionColumn, FactTableMetadata, FilterColumn, MeasureColumn,
+        SemiAdditiveReduction, SqlType,
+    };
+
+    const TABLE: &str = "tf_doctor_account_day";
+    let Some(url) = fraiseql_test_support::try_database_url() else {
+        eprintln!("skipping #1459 doctor test: no DATABASE_URL");
+        return;
+    };
+    let (client, connection) = tokio_postgres::connect(&url, tokio_postgres::NoTls).await.unwrap();
+    tokio::spawn(connection);
+    client
+        .batch_execute(&format!(
+            "DROP TABLE IF EXISTS {TABLE}; CREATE TABLE {TABLE} (account_id bigint, day date, \
+             closing_balance bigint, average_balance bigint, data jsonb); \
+             CREATE INDEX ON {TABLE} (day, account_id);"
+        ))
+        .await
+        .unwrap();
+
+    let semi = |using| Additivity::SemiAdditive {
+        over: "day".to_string(),
+        using,
+        entity: vec!["account_id".to_string()],
+    };
+    let measure = |name: &str, additivity| MeasureColumn {
+        name: name.to_string(),
+        sql_type: SqlType::BigInt,
+        nullable: false,
+        additivity,
+    };
+    let filter = |name: &str, sql_type| FilterColumn {
+        name: name.to_string(),
+        sql_type,
+        indexed: true,
+        hierarchy: None,
+    };
+    let mut schema = fraiseql_core::schema::CompiledSchema::new();
+    schema.add_fact_table(
+        TABLE.to_string(),
+        FactTableMetadata {
+            table_name:               TABLE.to_string(),
+            type_name:                None,
+            measures:                 vec![
+                measure("closing_balance", semi(SemiAdditiveReduction::Last)),
+                measure("average_balance", semi(SemiAdditiveReduction::Avg)),
+            ],
+            dimensions:               DimensionColumn {
+                name:  "data".to_string(),
+                paths: vec![],
+            },
+            denormalized_filters:     vec![
+                filter("account_id", SqlType::BigInt),
+                filter("day", SqlType::Date),
+            ],
+            calendar_dimensions:      vec![],
+            native_measures:          std::collections::HashMap::new(),
+            native_dimension_mapping: std::collections::HashMap::new(),
+        },
+    );
+    let tls = fraiseql_db::postgres::PostgresTlsConfig::default();
+
+    // `(day, account_id)` leads with the wrong key: the seek is per account.
+    let warned: Vec<_> = semi_additive_index_checks(&url, &tls, &schema)
+        .await
+        .into_iter()
+        .filter(|c| c.status == CheckStatus::Warn)
+        .collect();
+    assert_eq!(warned.len(), 1, "{warned:?}");
+    assert!(warned[0].detail.contains("closing_balance"), "{warned:?}");
+    assert!(
+        !warned[0].detail.contains("average_balance"),
+        "no seek within a bucket: {warned:?}"
+    );
+
+    // `doctor --against-db` runs the check, from the compiled schema file.
+    let mut file = Builder::new().suffix(".json").tempfile().unwrap();
+    file.write_all(serde_json::to_string(&schema).unwrap().as_bytes()).unwrap();
+    file.flush().unwrap();
+    let from_doctor: Vec<String> =
+        fraiseql_cli::commands::doctor::against_db_checks(&url, &tls, file.path(), &[])
+            .await
+            .into_iter()
+            .filter(|c| c.name == "Semi-additive index" && c.status == CheckStatus::Warn)
+            .map(|c| c.detail)
+            .collect();
+    assert_eq!(from_doctor, vec![warned[0].detail.clone()], "doctor --against-db reports it");
+
+    client.batch_execute(warned[0].hint.as_deref().unwrap()).await.unwrap();
+    let after = semi_additive_index_checks(&url, &tls, &schema).await;
+    assert!(after.iter().all(|c| c.status == CheckStatus::Pass), "{after:?}");
+}

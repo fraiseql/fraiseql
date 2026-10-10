@@ -264,6 +264,7 @@ fn test_result_projection() {
             alias: "count".to_string(),
         }],
         having_conditions: vec![],
+        time_reduction: None,
     };
 
     // Mock SQL results

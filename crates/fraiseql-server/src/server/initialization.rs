@@ -82,19 +82,22 @@ pub(super) fn executor_runtime_config(
         }
     }
 
-    // The page-size (#421) and offset (#1306) ceilings are owned by the compiled schema and
-    // their environment overrides, and re-derived from those on every hot reload. A runtime
-    // `[validation]` value for either would hold until the first reload and then vanish, so
-    // it is refused here rather than parsed and ignored, which `max_page_size` used to be.
+    // The page-size (#421), offset (#1306) and semi-additive cell (#1459) ceilings are owned
+    // by the compiled schema (and, for the first two, their environment overrides), and
+    // re-derived from those on every hot reload. A runtime `[validation]` value for any would
+    // be parsed and never read, so it is refused here, which `max_page_size` used not to be.
     if let Some(runtime) = config.validation.as_ref() {
         for (key, set, env) in [
-            ("max_page_size", runtime.max_page_size.is_some(), "FRAISEQL_MAX_PAGE_SIZE"),
-            ("max_offset", runtime.max_offset.is_some(), "FRAISEQL_MAX_OFFSET"),
+            ("max_page_size", runtime.max_page_size.is_some(), Some("FRAISEQL_MAX_PAGE_SIZE")),
+            ("max_offset", runtime.max_offset.is_some(), Some("FRAISEQL_MAX_OFFSET")),
+            ("max_semi_additive_cells", runtime.max_semi_additive_cells.is_some(), None),
         ] {
             if set {
+                let or_override = env.map(|env| format!(", or override it with {env}"));
                 return Err(format!(
                     "the server configuration's [validation] {key} is not applied: set it in \
-                     fraiseql.toml before compiling, or override it with {env}"
+                     fraiseql.toml before compiling{}",
+                    or_override.unwrap_or_default()
                 ));
             }
         }

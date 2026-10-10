@@ -777,6 +777,7 @@ pub async fn against_db_checks(
         .and_then(|c| serde_json::from_str::<CompiledSchema>(&c).map_err(|e| e.to_string()))
     {
         checks.extend(localized_index_checks(url, tls, &compiled).await);
+        checks.extend(semi_additive_index_checks(url, tls, &compiled).await);
         checks.extend(header_variable_policy_checks(url, tls, &compiled).await);
     }
     checks
@@ -905,6 +906,104 @@ pub async fn localized_index_checks(
         checks.push(DoctorCheck::pass(
             LOCALIZED_INDEX_NAME,
             format!("{indexed} localized (field, locale) pairs are indexed"),
+        ));
+    }
+    checks
+}
+
+// ─── Semi-additive seek index (#1459) ────────────────────────────────────────────
+
+const SEMI_ADDITIVE_INDEX_NAME: &str = "Semi-additive index";
+
+/// Warn for each fact table whose carried-forward measures no index serves.
+///
+/// An aggregate over a measure reduced by `last` or `first` reads one row per (bucket,
+/// entity) cell by a seek on `(entity…, over)`; without an index leading with that key each
+/// cell scans the entity's rows. Warnings, never failures: the answer is correct either way.
+///
+/// Indexes are read from the fact table's base relation when it is a view, else from the
+/// table itself.
+pub async fn semi_additive_index_checks(
+    db_url: &str,
+    tls: &PostgresTlsConfig,
+    schema: &CompiledSchema,
+) -> Vec<DoctorCheck> {
+    use crate::commands::semi_additive_index_advice::{advise, has_carried_forward_measure};
+
+    let mut facts: Vec<_> =
+        schema.fact_tables.values().filter(|f| has_carried_forward_measure(f)).collect();
+    if facts.is_empty() {
+        return Vec::new();
+    }
+    facts.sort_by(|a, b| a.table_name.cmp(&b.table_name));
+    let introspector =
+        match crate::commands::compile::build_postgres_introspector(db_url, tls).await {
+            Ok(i) => i,
+            Err(e) => {
+                return vec![DoctorCheck::fail(
+                    SEMI_ADDITIVE_INDEX_NAME,
+                    format!("cannot connect: {e}"),
+                    "Pass a reachable postgres:// URL to --against-db",
+                )];
+            },
+        };
+
+    let mut checks = Vec::new();
+    for fact in &facts {
+        let table = &fact.table_name;
+        let relation = match introspector.resolve_base_relations(table).await {
+            Ok(bases) => match bases.as_slice() {
+                [] => table.clone(),
+                [base] => base.clone(),
+                _ => {
+                    checks.push(DoctorCheck::warn(
+                        SEMI_ADDITIVE_INDEX_NAME,
+                        format!(
+                            "{table}: reads {} relations — cannot attribute its rows to one",
+                            bases.len()
+                        ),
+                        "Index (entity…, over) on the relation holding the rows, by hand",
+                    ));
+                    continue;
+                },
+            },
+            Err(e) => {
+                checks.push(DoctorCheck::warn(
+                    SEMI_ADDITIVE_INDEX_NAME,
+                    format!("{table}: could not resolve — {e}"),
+                    "Check that the relation exists and the role can read the catalog",
+                ));
+                continue;
+            },
+        };
+        let indexes = match introspector.get_index_definitions(&relation).await {
+            Ok(i) => i,
+            Err(e) => {
+                checks.push(DoctorCheck::warn(
+                    SEMI_ADDITIVE_INDEX_NAME,
+                    format!("{table}: could not read indexes on '{relation}' — {e}"),
+                    "Check that the role can read the catalog",
+                ));
+                continue;
+            },
+        };
+        for found in advise(fact, &relation, &indexes) {
+            checks.push(DoctorCheck::warn(
+                SEMI_ADDITIVE_INDEX_NAME,
+                format!(
+                    "{table}: {} carried forward per ({}) — nothing on '{relation}' leads with \
+                     those keys, so every cell scans its entity's rows",
+                    found.measures.join(", "),
+                    found.key.join(", ")
+                ),
+                found.ddl,
+            ));
+        }
+    }
+    if checks.is_empty() {
+        checks.push(DoctorCheck::pass(
+            SEMI_ADDITIVE_INDEX_NAME,
+            format!("{} fact table(s) with carried-forward measures are indexed", facts.len()),
         ));
     }
     checks
