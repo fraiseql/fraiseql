@@ -148,6 +148,13 @@ disagreed, and the promise was the part that was wrong.
   ids stay random v4.
 
 ### Breaking
+- **Every `--emit-ddl` file opens with two header lines (#965):** `-- fraiseql emit-ddl format 1`
+  and the compiler that wrote it. They are SQL comments, so a reader that parses the SQL is
+  unaffected (Confiture's generated migration is byte-identical); a consumer that compares the
+  files byte for byte, Confiture's checked-in contract fixture included, sees them change.
+- **New public fields for the short-search signal (#1314):** `ProjectionRequest.matched_up_to`
+  and `RuntimeConfig.nearest_short_result`. Both have a default; a struct literal that lists
+  every field must add them.
 - **A session variable in the `fraiseql.` namespace is refused.** That namespace is the
   server's own (`fraiseql.locale` on reads, `fraiseql.started_at` before a mutation). Only
   `fraiseql.locale` was refused, and only in that exact case, while PostgreSQL resolves a
