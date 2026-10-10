@@ -44,6 +44,13 @@ public sealed class GraphQLFieldAttribute : Attribute
     /// </summary>
     public string? Deprecated { get; set; }
 
+    /// <summary>
+    /// Gets or sets whether this String field is stored as a locale map (#1527): served in
+    /// the request's locale, written per locale. Only a String can be localized; exporting
+    /// any other localized field is refused.
+    /// </summary>
+    public bool Localized { get; set; }
+
     /// <summary>Gets or sets a single required OAuth scope for field access.</summary>
     public string? Scope { get; set; }
 

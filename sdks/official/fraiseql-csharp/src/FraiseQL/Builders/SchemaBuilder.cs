@@ -228,15 +228,18 @@ public sealed class TypeConfigurator
     /// <param name="nullable">Whether the field is nullable.</param>
     /// <param name="description">Optional field description.</param>
     /// <param name="scope">Optional required OAuth scope.</param>
+    /// <param name="localized">Whether this String is stored as a locale map (#1527).</param>
     /// <returns>This configurator for chaining.</returns>
     public TypeConfigurator Field(
         string name,
         string type,
         bool nullable = false,
         string? description = null,
-        string? scope = null)
+        string? scope = null,
+        bool localized = false)
     {
-        _fields.Add(new IntermediateField(name, type, nullable, description, scope));
+        _fields.Add(new IntermediateField(name, type, nullable, description, scope,
+            Localized: localized ? true : null));
         return this;
     }
 

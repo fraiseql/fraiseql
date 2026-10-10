@@ -142,9 +142,15 @@ MutationBuilder.Mutation("createAuthor")
     .SqlSource("fn_create_author") // required
     .Operation("insert")           // required: insert|update|delete|upsert
     .Argument("name", "String")    // optional, repeatable
+    .LocalizedArgument("bio", nullable: true) // a String received as a locale map
     .Description("Create author")  // optional
     .Register();                   // adds to SchemaRegistry
 ```
+
+A String stored as a locale map (`[locale]` in `fraiseql.toml`) is declared localized:
+`[GraphQLField(Localized = true)]` on a field, `LocalizedArgument(...)` on a mutation
+argument. Only a String can be localized; exporting any other localized field, input field
+or argument is refused.
 
 ---
 

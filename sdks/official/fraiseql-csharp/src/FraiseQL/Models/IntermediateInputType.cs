@@ -20,7 +20,11 @@ public record IntermediateInputType(
 /// <param name="Name">The field name.</param>
 /// <param name="Type">The GraphQL type name.</param>
 /// <param name="Nullable">Whether the field accepts <c>null</c>.</param>
+/// <param name="Localized">
+/// <see langword="true"/> on a String written as a locale map (#1527); omitted otherwise.
+/// </param>
 public record IntermediateInputField(
-    [property: JsonPropertyName("name")]     string Name,
-    [property: JsonPropertyName("type")]     string Type,
-    [property: JsonPropertyName("nullable")] bool Nullable);
+    [property: JsonPropertyName("name")]      string Name,
+    [property: JsonPropertyName("type")]      string Type,
+    [property: JsonPropertyName("nullable")]  bool Nullable,
+    [property: JsonPropertyName("localized")] bool? Localized = null);

@@ -36,6 +36,9 @@ namespace FraiseQL.Models;
 /// Optional deprecation. When present the field surfaces as <c>isDeprecated</c> /
 /// <c>deprecationReason</c> through introspection.
 /// </param>
+/// <param name="Localized">
+/// <see langword="true"/> on a String stored as a locale map (#1527); omitted otherwise.
+/// </param>
 public record IntermediateField(
     [property: JsonPropertyName("name")]        string Name,
     [property: JsonPropertyName("type")]        string Type,
@@ -55,4 +58,6 @@ public record IntermediateField(
     [property: JsonPropertyName("vector_distance")] string? VectorDistance = null,
     // `IntermediateField.deprecated` has been readable since #1025. There was no
     // attribute to put a reason in, so a C# author could not deprecate a field at all.
-    [property: JsonPropertyName("deprecated")]      DeprecationInfo? Deprecated = null);
+    [property: JsonPropertyName("deprecated")]      DeprecationInfo? Deprecated = null,
+    // #1527: a String stored as a locale map. Null (omitted) unless localized.
+    [property: JsonPropertyName("localized")]       bool? Localized = null);

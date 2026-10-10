@@ -136,7 +136,7 @@ public class ConformanceExportTest
             .Operation("insert")
             .Argument("email", "String")
             .Argument("name", "String", nullable: true)
-            .Argument("displayName", "String", nullable: true)
+            .LocalizedArgument("displayName", nullable: true)
             .InvalidatesViews("v_user", "v_user_summary")
             .InvalidatesFactTables("tf_signup")
             // #1253: the role gate on the write side, implemented in all eleven mutation
@@ -206,7 +206,7 @@ public class ConformanceExportTest
         public string Email { get; set; } = string.Empty;
 
         [GraphQLField(Type = "String", Nullable = true, Description = "The user's \"display\" name",
-            Deprecated = "use displayName")]
+            Deprecated = "use displayName", Localized = true)]
         public string? Name { get; set; }
 
         [GraphQLField(Type = "Float", Nullable = true, Scope = "read:User.salary")]

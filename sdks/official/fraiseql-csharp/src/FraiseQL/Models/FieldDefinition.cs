@@ -22,6 +22,7 @@ namespace FraiseQL.Models;
 /// Optional deprecation. When present the field surfaces as <c>isDeprecated</c> /
 /// <c>deprecationReason</c> through introspection.
 /// </param>
+/// <param name="Localized">Whether this String is stored as a locale map (#1527).</param>
 public record FieldDefinition(
     string Name,
     string Type,
@@ -32,4 +33,5 @@ public record FieldDefinition(
     bool Computed = false,
     VectorConfig? Vector = null,
     string? VectorDistance = null,
-    DeprecationInfo? Deprecated = null);
+    DeprecationInfo? Deprecated = null,
+    bool Localized = false);

@@ -86,6 +86,19 @@ public sealed class MutationBuilder
     }
 
     /// <summary>
+    /// Adds a String argument the function receives as a locale map (#1527). A localized
+    /// argument is always a String, so it takes no type.
+    /// </summary>
+    /// <param name="name">The argument name.</param>
+    /// <param name="nullable">Whether the argument accepts <c>null</c>.</param>
+    /// <returns>This builder for chaining.</returns>
+    public MutationBuilder LocalizedArgument(string name, bool nullable = false)
+    {
+        _arguments.Add(new IntermediateArgument(name, "String", nullable, Localized: true));
+        return this;
+    }
+
+    /// <summary>
     /// Declares a server-injected parameter, not exposed as a GraphQL argument.
     /// </summary>
     /// <param name="parameter">The SQL parameter name (e.g. <c>user_id</c>).</param>

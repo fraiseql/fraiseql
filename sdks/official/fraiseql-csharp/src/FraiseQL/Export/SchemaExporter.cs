@@ -61,9 +61,36 @@ public static class SchemaExporter
     /// <param name="schema">The schema to serialize.</param>
     /// <param name="pretty">When <see langword="true"/>, output is indented.</param>
     /// <returns>The JSON string.</returns>
+    /// <exception cref="InvalidOperationException">
+    /// A field, input field or argument is localized but is not a String.
+    /// </exception>
     public static string Serialize(IntermediateSchema schema, bool pretty = true)
     {
+        RefuseLocalizedNonStrings(schema);
         return JsonSerializer.Serialize(schema, BuildJsonSerializerOptions(pretty));
+    }
+
+    /// <summary>
+    /// Refuses <c>localized</c> on anything but a String (#1527): a locale map holds
+    /// strings. Every export path serializes through here, whichever builder declared it.
+    /// </summary>
+    private static void RefuseLocalizedNonStrings(IntermediateSchema schema)
+    {
+        var declared =
+            schema.Types.SelectMany(t => t.Fields.Select(f => (Owner: t.Name, f.Name, f.Type, f.Localized)))
+            .Concat((schema.InputTypes ?? []).SelectMany(t =>
+                t.Fields.Select(f => (Owner: t.Name, f.Name, f.Type, f.Localized))))
+            .Concat(schema.Mutations.SelectMany(m =>
+                m.Arguments.Select(a => (Owner: m.Name, a.Name, a.Type, a.Localized))));
+        foreach (var (owner, name, type, localized) in declared)
+        {
+            if (localized == true && type != "String")
+            {
+                throw new InvalidOperationException(
+                    $"{owner}.{name} is localized but is a {type}; only a String can be localized "
+                    + "(a localized field is a String stored as a locale map)");
+            }
+        }
     }
 
     /// <summary>
@@ -120,7 +147,8 @@ public static class SchemaExporter
                 Computed: f.Computed ? true : null,
                 Vector: f.Vector,
                 VectorDistance: f.VectorDistance,
-                Deprecated: f.Deprecated))
+                Deprecated: f.Deprecated,
+                Localized: f.Localized ? true : null))
             .ToList()
             .AsReadOnly();
 
@@ -151,7 +179,8 @@ public static class SchemaExporter
             .Select(f => new IntermediateInputField(
                 Name: f.Name,
                 Type: f.Type,
-                Nullable: f.Nullable))
+                Nullable: f.Nullable,
+                Localized: f.Localized ? true : null))
             .ToList()
             .AsReadOnly();
 

@@ -9,7 +9,11 @@ namespace FraiseQL.Models;
 /// <param name="Name">The argument name.</param>
 /// <param name="Type">The GraphQL type name (e.g. <c>"ID"</c>, <c>"String"</c>).</param>
 /// <param name="Nullable">Whether the argument accepts <c>null</c>.</param>
+/// <param name="Localized">
+/// <see langword="true"/> on a String received as a locale map (#1527); omitted otherwise.
+/// </param>
 public record IntermediateArgument(
-    [property: JsonPropertyName("name")]     string Name,
-    [property: JsonPropertyName("type")]     string Type,
-    [property: JsonPropertyName("nullable")] bool Nullable);
+    [property: JsonPropertyName("name")]      string Name,
+    [property: JsonPropertyName("type")]      string Type,
+    [property: JsonPropertyName("nullable")]  bool Nullable,
+    [property: JsonPropertyName("localized")] bool? Localized = null);
