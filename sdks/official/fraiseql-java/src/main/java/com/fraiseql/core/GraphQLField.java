@@ -78,6 +78,13 @@ public @interface GraphQLField {
     String deprecated() default "";
 
     /**
+     * Whether this String field is stored as a locale map (#1527): served in the request's
+     * locale, written per locale. Only a String can be localized; exporting any other
+     * field marked localized is refused.
+     */
+    boolean localized() default false;
+
+    /**
      * Optional JWT scope required to access this field.
      * Supports single scope as a string.
      *

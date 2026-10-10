@@ -257,6 +257,7 @@ public class TypeConverter {
                 fieldInfo.isDeprecated = true;
                 fieldInfo.deprecationReason = annotation.deprecated();
             }
+            fieldInfo.localized = annotation.localized();
 
             fields.put(fieldName, fieldInfo);
         }
@@ -348,6 +349,8 @@ public class TypeConverter {
          * nothing at all.
          */
         public String deprecationReason;
+        /** Whether this String field is stored as a locale map (#1527). */
+        public boolean localized;
 
         public GraphQLFieldInfo(String name, String type, boolean nullable, String description) {
             this(name, type, nullable, description, null, null, false);

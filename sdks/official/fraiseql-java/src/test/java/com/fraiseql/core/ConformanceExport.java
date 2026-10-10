@@ -133,7 +133,7 @@ public class ConformanceExport {
             .operation("insert")
             .arg("email", "String!")
             .arg("name", "String")
-            .arg("displayName", "String")
+            .localizedArg("displayName", true)
             .invalidatesViews(List.of("v_user", "v_user_summary"))
             .invalidatesFactTables(List.of("tf_signup"))
             // #1253: the role gate on the write side, implemented in all eleven mutation
@@ -222,7 +222,8 @@ public class ConformanceExport {
         public String email;
 
         @GraphQLField(type = "String", nullable = true,
-            description = "The user's \"display\" name", deprecated = "use displayName")
+            description = "The user's \"display\" name", deprecated = "use displayName",
+            localized = true)
         public String name;
 
         @GraphQLField(type = "Float", nullable = true, requiresScope = "read:User.salary")

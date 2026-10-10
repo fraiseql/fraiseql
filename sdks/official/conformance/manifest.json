@@ -89,9 +89,7 @@
         "-DfailIfNoTests=false"
       ],
       "unsupported": {
-        "fact_tables": "the SDK authors no fact table: `@GraphQLFactTable` registers the annotated class as an ordinary type and emits no `fact_tables` entry, so there is no table to link to its type (AF 1). Fact-table authoring is a feature, not a key rename.",
-        "field_localized": "the SDK has no `localized` field authoring yet (#1513 shipped it in the Python and TypeScript SDKs first); tracked in #1527.",
-        "mutation_argument_localized": "the SDK has no `localized` argument authoring yet (#1513 shipped it in the Python and TypeScript SDKs first); tracked in #1527."
+        "fact_tables": "the SDK authors no fact table: `@GraphQLFactTable` registers the annotated class as an ordinary type and emits no `fact_tables` entry, so there is no table to link to its type (AF 1). Fact-table authoring is a feature, not a key rename."
       },
       "container": "maven:3.9-eclipse-temurin-21",
       "container_env": [

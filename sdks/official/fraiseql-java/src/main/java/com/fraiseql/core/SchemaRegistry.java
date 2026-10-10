@@ -536,6 +536,20 @@ public class SchemaRegistry {
     }
 
     /**
+     * Mark a registered mutation's arguments as localized (#1527).
+     *
+     * @param mutationName the mutation name
+     * @param arguments the String arguments received as a locale map
+     */
+    public void setMutationLocalizedArguments(String mutationName, java.util.Set<String> arguments) {
+        MutationInfo info = mutations.get(mutationName);
+        if (info == null) {
+            throw new IllegalStateException("Mutation '" + mutationName + "' is not registered.");
+        }
+        info.localizedArguments = java.util.Set.copyOf(arguments);
+    }
+
+    /**
      * Get a registered type by name.
      *
      * @param typeName the type name
@@ -972,6 +986,8 @@ public class SchemaRegistry {
         public java.util.List<String> requiresActor = java.util.List.of();
         /** Role required to execute this mutation. Mirrors {@code IntermediateMutation.requires_role}. */
         public String requiresRole = null;
+        /** The String arguments received as a locale map (#1527). */
+        public java.util.Set<String> localizedArguments = java.util.Set.of();
         public final String sqlSource;
         public final String operation;
         public final Map<String, String> injectParams;

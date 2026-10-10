@@ -487,6 +487,7 @@ public class FraiseQL {
         private String requiresRole = null;
         private java.util.List<String> requiresActor = java.util.List.of();
         private final Map<String, String> arguments = new LinkedHashMap<>();
+        private final java.util.Set<String> localizedArguments = new java.util.LinkedHashSet<>();
         private String description = "";
         private String sqlSource = null;
         private String operation = null;
@@ -594,6 +595,20 @@ public class FraiseQL {
          */
         public MutationBuilder arg(String argName, String argType, Object defaultValue) {
             arguments.put(argName, argType);
+            return this;
+        }
+
+        /**
+         * Add a String argument the function receives as a locale map (#1527). A localized
+         * argument is always a String, so it takes no type.
+         *
+         * @param argName the argument name
+         * @param nullable whether the argument may be omitted or null
+         * @return this builder for chaining
+         */
+        public MutationBuilder localizedArg(String argName, boolean nullable) {
+            arguments.put(argName, nullable ? "String" : "String!");
+            localizedArguments.add(argName);
             return this;
         }
 
@@ -716,6 +731,7 @@ public class FraiseQL {
                 registry.registerMutation(name, finalReturnType, arguments, description);
             }
             registry.setMutationMetadata(name, nullable, requiresRole, requiresActor);
+            registry.setMutationLocalizedArguments(name, localizedArguments);
         }
     }
 

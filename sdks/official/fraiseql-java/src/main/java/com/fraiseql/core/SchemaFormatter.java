@@ -252,11 +252,32 @@ public class SchemaFormatter {
             deprecatedNode.put("reason", fieldInfo.deprecationReason);
             fieldNode.set("deprecated", deprecatedNode);
         }
+        // Every type, input type and interface field is emitted here, so this is where a
+        // localized non-String is refused: a locale map holds strings.
+        if (fieldInfo.localized) {
+            String type = stripOuterNonNull(fieldInfo.getGraphQLType());
+            if (!"String".equals(type)) {
+                throw new IllegalStateException(String.format(
+                    "Field %s is localized but is a %s; only a String can be localized "
+                        + "(a localized field is a String stored as a locale map)",
+                    fieldInfo.name, type));
+            }
+            fieldNode.put("localized", true);
+        }
         return fieldNode;
     }
 
     /** Emit {@code arguments} as a list of {@code {name, type, nullable}} objects. */
     private static ArrayNode formatArguments(Map<String, String> arguments) {
+        return formatArguments(arguments, java.util.Set.of());
+    }
+
+    /**
+     * As above, marking the arguments named in {@code localized} with {@code "localized":
+     * true} (#1527).
+     */
+    private static ArrayNode formatArguments(Map<String, String> arguments,
+                                             java.util.Set<String> localized) {
         ArrayNode argsArray = mapper.createArrayNode();
         if (arguments == null) {
             return argsArray;
@@ -266,6 +287,9 @@ public class SchemaFormatter {
             argNode.put("name", arg.getKey());
             argNode.put("type", bareType(arg.getValue()));
             argNode.put("nullable", !isNonNull(arg.getValue()));
+            if (localized.contains(arg.getKey())) {
+                argNode.put("localized", true);
+            }
             argsArray.add(argNode);
         }
         return argsArray;
@@ -403,7 +427,8 @@ public class SchemaFormatter {
             mutationNode.put("return_type", bareType(mutationInfo.returnType));
             mutationNode.put("returns_list", isListType(mutationInfo.returnType));
             mutationNode.put("nullable", mutationInfo.nullable);
-            mutationNode.set("arguments", formatArguments(mutationInfo.arguments));
+            mutationNode.set("arguments",
+                formatArguments(mutationInfo.arguments, mutationInfo.localizedArguments));
 
             if (!mutationInfo.description.isEmpty()) {
                 mutationNode.put("description", mutationInfo.description);

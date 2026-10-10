@@ -95,6 +95,11 @@ MutationBuilder createUser = FraiseQL.mutation("createUser")
     .description("Create a new user");
 ```
 
+A String stored as a locale map (`[locale]` in `fraiseql.toml`) is declared localized:
+`@GraphQLField(localized = true)` on a field, `.localizedArg("displayName", true)` on a
+mutation argument. Only a String can be localized; exporting any other localized field is
+refused.
+
 ### 4. Export Schema
 
 ```java
