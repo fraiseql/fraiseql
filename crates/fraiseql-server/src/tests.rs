@@ -540,8 +540,9 @@ mod error_tests {
     fn test_from_fraiseql_error_database_maps_to_database_code() {
         use fraiseql_core::error::FraiseQLError;
         let err = FraiseQLError::Database {
-            message:   "relation \"users\" does not exist".into(),
-            sql_state: None,
+            message:    "relation \"users\" does not exist".into(),
+            sql_state:  None,
+            constraint: None,
         };
         let graphql_err = GraphQLError::from_fraiseql_error(&err);
         assert_eq!(graphql_err.code, ErrorCode::DatabaseError);
@@ -553,8 +554,9 @@ mod error_tests {
         use axum::http::StatusCode;
         use fraiseql_core::error::FraiseQLError;
         let err = FraiseQLError::Database {
-            message:   "invalid input syntax for type uuid: \"not-a-uuid\"".into(),
-            sql_state: Some("22P02".into()),
+            message:    "invalid input syntax for type uuid: \"not-a-uuid\"".into(),
+            sql_state:  Some("22P02".into()),
+            constraint: None,
         };
         let graphql_err = GraphQLError::from_fraiseql_error(&err);
         assert_eq!(graphql_err.code, ErrorCode::BadUserInput);
@@ -569,8 +571,9 @@ mod error_tests {
         use fraiseql_core::error::FraiseQLError;
         for code in ["23502", "23503", "23505", "23514"] {
             let err = FraiseQLError::Database {
-                message:   "violates constraint".into(),
-                sql_state: Some(code.into()),
+                message:    "violates constraint".into(),
+                sql_state:  Some(code.into()),
+                constraint: None,
             };
             let graphql_err = GraphQLError::from_fraiseql_error(&err);
             assert_eq!(
@@ -591,6 +594,7 @@ mod error_tests {
             let err = FraiseQLError::Database {
                 message: "connection failure".into(),
                 sql_state,
+                constraint: None,
             };
             let graphql_err = GraphQLError::from_fraiseql_error(&err);
             assert_eq!(graphql_err.code, ErrorCode::DatabaseError);

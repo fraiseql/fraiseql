@@ -46,7 +46,9 @@ pub mod graphql_error;
 mod http;
 
 pub use config::ConfigError;
-pub use core_error::{ErrorContext, FraiseQLError, Result, ValidationFieldError};
+pub use core_error::{
+    ConstraintViolation, ErrorContext, FraiseQLError, Result, ValidationFieldError,
+};
 pub use file::FileError;
 pub use graphql_error::{GraphQLError, GraphQLErrorLocation};
 // Re-export for convenience — only available with the `axum-compat` feature

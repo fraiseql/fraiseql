@@ -147,10 +147,43 @@ need a pre-check in the function to reach the typed error:
 | `23502` not-null, `23514` check | `validation` | 422 | `The request contains an invalid value` |
 | any other `23xxx` (unique, exclusion, foreign key, …) | `conflict` | 409 | `The request conflicts with the current state of the data` |
 
-The message is always that generic text, and the constraint's name is not exposed; the
-server log records the database's error. A mutation with no error member, or with several,
-keeps the top-level `CONSTRAINT_VIOLATION` error, since nothing says which member a
-violation is.
+The message is always that generic text; the server log records the database's error. The
+member names the constraint in one `errors[]` entry, the shape a function's own
+`mutation_err_entries` gives (#1531), so a client can act on it without the function
+pre-checking:
+
+```json
+{ "__typename": "MutationError", "status": "conflict", "httpStatus": 409,
+  "errors": [{ "code": 409, "identifier": "tb_user_email_live_key",
+               "message": "The request conflicts with the current state of the data",
+               "details": { "sqlstate": "23505" } }] }
+```
+
+`identifier` is the constraint's name: a unique **index**'s name for a partial unique index
+(it has no `pg_constraint` row), and for a not-null violation, which names only its column,
+the not-null constraint PostgreSQL 18 catalogues for that column (`<table>_<column>_not_null`
+unless named). Name constraints in `snake_case` and the identifier is a translation key too.
+The server key `mutation_constraint_metadata` sets how much is said:
+
+| Value | Entry |
+|---|---|
+| `"identifier"` (default) | `identifier`, `code`, `message`, `details.sqlstate` |
+| `"full"` | also `details.table` and `details.columns` (the constraint's key columns, from `pg_constraint` or `pg_index`; omitted for an expression index rather than guessed) |
+| `"none"` | no entry; `status`, `httpStatus` and `message` only |
+
+Never the database's `DETAIL` and never a value, at any setting: they carry the row. A
+foreign-key violation (`23503`) is `conflict` / 409 in both directions: PostgreSQL 18 names the
+**referencing** table and no column whether the parent is missing or still referenced, so the
+direction is not recoverable from anything structured (its localized message is the only
+difference, and `lc_messages` is superuser-only).
+
+The member must declare a field to carry the entry: the synthesized `MutationError` has
+`errors` (JSON). A declared error type adds `errors` the same way. REST does not reach this path
+(it mounts no route for a union-returning mutation), MCP cannot call one (#1546), and gRPC's
+`MutationResponse` carries `success`, `id` and `error` only.
+
+A mutation with no error member, or with several, keeps the top-level
+`CONSTRAINT_VIOLATION` error, since nothing says which member a violation is.
 
 A literal stamp outside the set is caught before it ships: `fraiseql compile --database`,
 `fraiseql validate --against-db` and `fraiseql doctor --against-db` read the function body

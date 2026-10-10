@@ -20,6 +20,12 @@ disagreed, and the promise was the part that was wrong.
 
 ### Added
 
+- **`mutation_constraint_metadata` (#1531).** A server key, `"identifier"` (default),
+  `"full"` (adds the table and the constraint's columns, resolved from `pg_constraint` or
+  `pg_index`) or `"none"`. It holds across a hot reload and binds every tenant. Never the
+  database's `DETAIL` or a row value. A foreign-key violation stays `conflict` / 409 in both
+  directions: PostgreSQL 18 names the referencing table and no column either way.
+
 - **The `--emit-ddl` directory is a versioned contract (#965).** Every file opens with
   `-- fraiseql emit-ddl format 1` and the compiler that wrote it, and the bytes are a function
   of the schema alone (the same files whatever the type order). Confiture's `migrate diff
@@ -155,6 +161,14 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **A violated constraint is named in the mutation's typed error by default (#1531).** The
+  error member gains an `errors[]` entry whose `identifier` is the constraint's name (reversing
+  #1424's "the constraint's name is not exposed"); set `mutation_constraint_metadata = "none"`
+  to keep the old response. `FraiseQLError::Database` gains a `constraint:
+  Option<Box<ConstraintViolation>>` field: an embedder constructing the variant adds it, one
+  matching it without `..` adds it or `..`. The synthesized `MutationError` gains `errors`.
+  `DatabaseAdapter` gains `describe_constraint` (a default is provided; a wrapping adapter
+  must forward it).
 - **`native_columns` records nullability (#1533).** In the compiled schema each entry is
   `{"pg_type": …, "not_null": …}` (was the type string), and `QueryDefinition::native_columns`
   is a `HashMap<String, NativeColumn>`; `OrderByClause` gains `native_not_null`. Recompile;
@@ -341,6 +355,13 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **A constraint violation served as the typed error names the constraint (#1531).** A
+  class-23 SQLSTATE answered by the mutation's error member (#1424) said only "conflict" or
+  "validation", so a function that had to report which rule failed still pre-checked it. The
+  database error now carries the constraint's name, schema, table and column (one conversion
+  for every site, including a deferred violation at `COMMIT`), and the member carries it as an
+  `errors[]` entry. The synthesized `MutationError` had no field for any `errors[]` entry, a
+  function's own included: it now has `errors`.
 - **`fraiseql doctor`'s pagination index advice names columns (#1533).** It read the values
   of `native_columns`, which are column *types*, as column names, so it could advise
   `CREATE INDEX ON t (uuid, …)`; it now reads the keys.

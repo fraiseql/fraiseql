@@ -137,7 +137,9 @@ pub(crate) use locale_argument::{
 };
 pub(crate) use localized_input::coerce_localized_arguments;
 pub use matcher::{QueryMatch, QueryMatcher, suggest_similar};
-pub use mutation_result::{MutationErrorShapeCheck, mutation_error_shape_violations};
+pub use mutation_result::{
+    ConstraintMetadata, MutationErrorShapeCheck, mutation_error_shape_violations,
+};
 pub use planner::{ExecutionPlan, QueryPlanner};
 pub(crate) use projection::stored_key_candidates;
 pub use projection::{
@@ -392,6 +394,11 @@ pub struct RuntimeConfig {
     /// Sourced from the server's `mutation_error_shape_check` key.
     pub mutation_error_shape_check: mutation_result::MutationErrorShapeCheck,
 
+    /// What a mutation's typed error says about a violated constraint (#1531): the
+    /// server's `mutation_constraint_metadata`. Operator-owned, so it survives a hot reload
+    /// and binds every tenant.
+    pub constraint_metadata: mutation_result::ConstraintMetadata,
+
     /// Response-size guards for the typed cascade surface (graphql-cascade
     /// `16_security`). A cascade mutation returning more affected entities than
     /// [`CascadeLimits::max_updated_entities`] is truncated with `truncated`
@@ -501,6 +508,7 @@ impl std::fmt::Debug for RuntimeConfig {
             .field("changelog_enabled", &self.changelog_enabled)
             .field("dry_run_mutations", &self.dry_run_mutations)
             .field("mutation_error_shape_check", &self.mutation_error_shape_check)
+            .field("constraint_metadata", &self.constraint_metadata)
             .field("cascade_limits", &self.cascade_limits)
             .field("before_mutation_gate", &self.before_mutation_gate.is_some())
             .field("query_function_resolver", &self.query_function_resolver.is_some())
@@ -532,6 +540,7 @@ impl Default for RuntimeConfig {
             changelog_enabled:           true,
             dry_run_mutations:           false,
             mutation_error_shape_check:  mutation_result::MutationErrorShapeCheck::Off,
+            constraint_metadata:         mutation_result::ConstraintMetadata::Identifier,
             cascade_limits:              CascadeLimits::default(),
             before_mutation_gate:        None,
             query_function_resolver:     None,
@@ -864,6 +873,7 @@ impl RuntimeConfig {
             changelog_enabled: _, // schema-derived
             dry_run_mutations,
             mutation_error_shape_check,
+            constraint_metadata,
             cascade_limits,
             before_mutation_gate,
             query_function_resolver,
@@ -891,6 +901,7 @@ impl RuntimeConfig {
             changelog_enabled,
             dry_run_mutations,
             mutation_error_shape_check,
+            constraint_metadata,
             cascade_limits,
             before_mutation_gate,
             query_function_resolver,

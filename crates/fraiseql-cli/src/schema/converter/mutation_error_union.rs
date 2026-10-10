@@ -109,7 +109,8 @@ fn result_union_name(mutation_name: &str) -> String {
 
 /// Build the shared `MutationError` type. Its fields are populated by the runtime
 /// from the `app.mutation_response` composite: `status`/`errorClass` from
-/// `error_class`, `message` and `httpStatus` from the corresponding columns.
+/// `error_class`, `message` and `httpStatus` from the corresponding columns, `errors`
+/// from `error_detail.errors` (or a violated constraint's entry, #1531).
 fn mutation_error_type() -> TypeDefinition {
     let field = |name: &str, field_type: FieldType, nullable: bool, desc: &str| FieldDefinition {
         name: name.into(),
@@ -147,6 +148,14 @@ fn mutation_error_type() -> TypeDefinition {
                 FieldType::String,
                 true,
                 "Error classification (the same value surfaced as `status`).",
+            ),
+            field(
+                "errors",
+                FieldType::Json,
+                true,
+                "The failure's reasons, `[{code, identifier, message, details}]`: the \
+                 function's `error_detail.errors`, or the constraint a violation names \
+                 (#1531).",
             ),
         ],
         description:         Some(

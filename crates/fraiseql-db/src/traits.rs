@@ -21,6 +21,16 @@ use fraiseql_error::{FraiseQLError, Result};
 pub use mutations::{WriteMode, WriteRequest, Writer};
 pub use relay::RelayDatabaseAdapter;
 
+/// A violated constraint as the catalog describes it (#1531): see
+/// [`DatabaseAdapter::describe_constraint`].
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct ConstraintDescription {
+    /// The constraint's (or unique index's) name; `None` when nothing names it.
+    pub name:    Option<String>,
+    /// Its key columns in order; `None` when they cannot be read without guessing.
+    pub columns: Option<Vec<String>>,
+}
+
 use crate::{
     types::{
         DatabaseType, JsonbValue, PoolMetrics, ReadRouting,
@@ -865,6 +875,32 @@ pub trait DatabaseAdapter: Send + Sync + 'static {
     /// something a backend should acquire by omission.
     fn supports_composed_reads(&self) -> bool {
         false
+    }
+
+    /// What a constraint violation's typed error reports about its constraint (#1531),
+    /// resolved from the catalog where the error itself does not say.
+    ///
+    /// A not-null violation names its column only; its catalogued not-null constraint is
+    /// found from that column. `columns` is the constraint's (or unique index's) key columns,
+    /// in order, and `None` when they cannot be read off the catalog without guessing (an
+    /// expression index). Read on the failure path, on a connection of its own: the
+    /// mutation's transaction has already rolled back.
+    ///
+    /// The default reports the violation as the error gave it: its name, no columns. **A
+    /// wrapping adapter must forward this**, or a deployment configured for full metadata
+    /// loses the columns in silence.
+    ///
+    /// # Errors
+    ///
+    /// The database errors of the catalog read.
+    async fn describe_constraint(
+        &self,
+        violation: &fraiseql_error::ConstraintViolation,
+    ) -> Result<ConstraintDescription> {
+        Ok(ConstraintDescription {
+            name:    violation.name.clone(),
+            columns: None,
+        })
     }
 
     /// Invalidate cached query results for the specified views.

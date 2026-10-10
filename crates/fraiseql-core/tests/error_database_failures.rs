@@ -115,8 +115,9 @@ async fn test_custom_error_propagation() {
 #[tokio::test]
 async fn test_error_classification_database_is_server_error() {
     let err = FraiseQLError::Database {
-        message:   "connection refused".to_string(),
-        sql_state: None,
+        message:    "connection refused".to_string(),
+        sql_state:  None,
+        constraint: None,
     };
     assert!(err.is_server_error());
     assert!(!err.is_client_error());

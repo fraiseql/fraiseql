@@ -485,8 +485,9 @@ mod grpc_error_classification {
     fn a_database_failure_is_still_internal() {
         assert_eq!(
             grpc_code_for(&FraiseQLError::Database {
-                message:   "connection reset".to_string(),
-                sql_state: None,
+                message:    "connection reset".to_string(),
+                sql_state:  None,
+                constraint: None,
             }),
             Code::Internal
         );

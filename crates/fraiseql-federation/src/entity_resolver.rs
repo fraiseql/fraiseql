@@ -288,8 +288,12 @@ fn propagate_batch_errors(result: EntityResolutionMetrics) -> Result<Vec<Option<
         Ok(result.entities)
     } else {
         Err(FraiseQLError::Database {
-            message:   format!("federation entity resolution failed: {}", result.errors.join("; ")),
-            sql_state: None,
+            message:    format!(
+                "federation entity resolution failed: {}",
+                result.errors.join("; ")
+            ),
+            sql_state:  None,
+            constraint: None,
         })
     }
 }

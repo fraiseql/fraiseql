@@ -80,7 +80,11 @@ pub enum FailError {
 impl FailError {
     fn into_error(self) -> FraiseQLError {
         match self {
-            Self::Database { message, sql_state } => FraiseQLError::Database { message, sql_state },
+            Self::Database { message, sql_state } => FraiseQLError::Database {
+                message,
+                sql_state,
+                constraint: None,
+            },
             Self::ConnectionPool { message } => FraiseQLError::ConnectionPool { message },
             Self::Timeout { timeout_ms } => FraiseQLError::Timeout {
                 timeout_ms,
@@ -309,8 +313,9 @@ impl FailingAdapter {
                     });
                 }
                 return Err(FraiseQLError::Database {
-                    message:   format!("injected failure on query {current}"),
-                    sql_state: None,
+                    message:    format!("injected failure on query {current}"),
+                    sql_state:  None,
+                    constraint: None,
                 });
             }
             return Ok(());
@@ -385,8 +390,9 @@ impl DatabaseAdapter for FailingAdapter {
     async fn health_check(&self) -> Result<()> {
         if self.fail_config.lock().unwrap().fail_health_check {
             return Err(FraiseQLError::Database {
-                message:   "health check failed (injected)".to_string(),
-                sql_state: None,
+                message:    "health check failed (injected)".to_string(),
+                sql_state:  None,
+                constraint: None,
             });
         }
         Ok(())

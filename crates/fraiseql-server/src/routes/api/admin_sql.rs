@@ -334,6 +334,7 @@ fn classify_database_error(e: fraiseql_core::error::FraiseQLError) -> ApiError {
         fraiseql_core::error::FraiseQLError::Database {
             ref message,
             sql_state: Some(ref state),
+            constraint: None,
         } if state == PG_READ_ONLY_SQL_TRANSACTION => ApiError::new(
             format!(
                 "Refused by the database: this statement writes, and a read-only admin token \
@@ -344,6 +345,7 @@ fn classify_database_error(e: fraiseql_core::error::FraiseQLError) -> ApiError {
         fraiseql_core::error::FraiseQLError::Database {
             ref message,
             sql_state: Some(ref state),
+            constraint: None,
         } if state == PG_QUERY_CANCELED => ApiError::new(
             format!("Statement cancelled by statement_timeout ({message})"),
             "TIMEOUT",

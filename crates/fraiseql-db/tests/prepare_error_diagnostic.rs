@@ -34,7 +34,9 @@ async fn prepare_failure_surfaces_postgres_diagnostic() {
         .expect_err("calling a non-existent function must fail");
 
     match err {
-        FraiseQLError::Database { message, sql_state } => {
+        FraiseQLError::Database {
+            message, sql_state, ..
+        } => {
             // The real PostgreSQL diagnostic must be present...
             assert!(
                 message.contains("does not exist"),

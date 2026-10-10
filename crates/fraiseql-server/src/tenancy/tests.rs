@@ -838,6 +838,7 @@ mod runtime_config_drift {
             changelog_enabled,
             dry_run_mutations,
             mutation_error_shape_check,
+            constraint_metadata,
             cascade_limits,
             before_mutation_gate,
             query_function_resolver,
@@ -902,6 +903,10 @@ mod runtime_config_drift {
         if *mutation_error_shape_check != tenant.mutation_error_shape_check {
             out.push("mutation_error_shape_check");
         }
+        // #1531: what a typed constraint error says is the operator's choice.
+        if *constraint_metadata != tenant.constraint_metadata {
+            out.push("constraint_metadata");
+        }
         if format!("{jsonb_optimization:?}") != format!("{:?}", tenant.jsonb_optimization) {
             out.push("jsonb_optimization");
         }
@@ -955,6 +960,7 @@ mod runtime_config_drift {
             changelog_enabled: false,
             dry_run_mutations: true,
             mutation_error_shape_check: fraiseql_core::runtime::MutationErrorShapeCheck::Warn,
+            constraint_metadata: fraiseql_core::runtime::ConstraintMetadata::None,
             ..RuntimeConfig::default()
         };
 
@@ -966,6 +972,7 @@ mod runtime_config_drift {
             "query_timeout_ms",
             "dry_run_mutations",
             "mutation_error_shape_check",
+            "constraint_metadata",
             "max_page_size",
             "max_offset",
             "max_operation_cost",
@@ -1039,6 +1046,8 @@ mod runtime_config_drift {
             // schema declares none; it must still run under this one.
             operator_max_response_bytes: Some(2048),
             max_response_bytes: Some(2048),
+            // #1531: a non-default answer, so a tenant that dropped it would show.
+            constraint_metadata: fraiseql_core::runtime::ConstraintMetadata::Full,
             ..RuntimeConfig::default()
         }
     }

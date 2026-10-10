@@ -88,6 +88,7 @@ mod query {
             changelog_enabled:           true,
             dry_run_mutations:           false,
             mutation_error_shape_check:  crate::runtime::MutationErrorShapeCheck::Off,
+            constraint_metadata:         crate::runtime::ConstraintMetadata::Identifier,
             cascade_limits:              crate::runtime::CascadeLimits::default(),
             before_mutation_gate:        None,
         };
@@ -1262,6 +1263,7 @@ mod config {
             changelog_enabled:           true,
             dry_run_mutations:           false,
             mutation_error_shape_check:  crate::runtime::MutationErrorShapeCheck::Off,
+            constraint_metadata:         crate::runtime::ConstraintMetadata::Identifier,
             cascade_limits:              crate::runtime::CascadeLimits::default(),
             before_mutation_gate:        None,
         };
@@ -1301,6 +1303,7 @@ mod config {
             changelog_enabled:           true,
             dry_run_mutations:           false,
             mutation_error_shape_check:  crate::runtime::MutationErrorShapeCheck::Off,
+            constraint_metadata:         crate::runtime::ConstraintMetadata::Identifier,
             cascade_limits:              crate::runtime::CascadeLimits::default(),
             before_mutation_gate:        None,
         };

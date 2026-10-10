@@ -1061,11 +1061,12 @@ fn decode_cursor(
 /// A page row's sort-key values, as the adapter added them to its document.
 fn sort_key_values(values: Option<serde_json::Value>, query: &str) -> Result<Vec<Option<String>>> {
     let missing = || FraiseQLError::Database {
-        message:   format!(
+        message:    format!(
             "Relay query '{query}': the page row carries no sort-key values to build its cursor \
              from"
         ),
-        sql_state: None,
+        sql_state:  None,
+        constraint: None,
     };
     let serde_json::Value::Array(values) = values.ok_or_else(missing)? else {
         return Err(missing());

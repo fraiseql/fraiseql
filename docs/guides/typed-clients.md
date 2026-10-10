@@ -277,7 +277,8 @@ auto_error_union = true
 ```
 
 The synthesized `MutationError` exposes `status` (the error-class discriminator),
-`message`, `httpStatus`, and `errorClass`, all populated from the
+`message`, `httpStatus`, `errorClass` and `errors` (the failure's
+`[{code, identifier, message, details}]` entries), all populated from the
 `app.mutation_response` composite at runtime. A constraint the function violates is
 served as this `MutationError` too (`conflict` or `validation`, see
 [the mutation response](../architecture/mutation-response.md#a-constraint-the-function-violates)).

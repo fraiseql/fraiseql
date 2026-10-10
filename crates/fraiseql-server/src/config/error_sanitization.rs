@@ -78,7 +78,15 @@ impl ErrorSanitizer {
         }
         let message = self.replacement_message(code);
         match error {
-            E::Database { sql_state, .. } => E::Database { message, sql_state },
+            E::Database {
+                sql_state,
+                constraint,
+                ..
+            } => E::Database {
+                message,
+                sql_state,
+                constraint,
+            },
             E::ConnectionPool { .. } => E::ConnectionPool { message },
             E::Internal { .. } => E::Internal {
                 message,

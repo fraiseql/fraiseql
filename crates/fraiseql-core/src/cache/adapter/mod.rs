@@ -910,6 +910,13 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
         self.adapter.supports_composed_reads()
     }
 
+    async fn describe_constraint(
+        &self,
+        violation: &fraiseql_error::ConstraintViolation,
+    ) -> Result<fraiseql_db::ConstraintDescription> {
+        self.adapter.describe_constraint(violation).await
+    }
+
     async fn count_where_query(
         &self,
         view: &str,

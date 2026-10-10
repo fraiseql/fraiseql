@@ -49,3 +49,32 @@ pub use where_generator::PostgresWhereGenerator;
 pub(crate) fn pg_detail(e: &tokio_postgres::Error) -> String {
     e.as_db_error().map_or_else(|| e.to_string(), |d| d.message().to_string())
 }
+
+/// The [`FraiseQLError::Database`] a driver error becomes: `message`, the error's SQLSTATE,
+/// and the constraint it names (#1531).
+///
+/// One conversion for every site, so none can drop the constraint again. PostgreSQL reports
+/// `CONSTRAINT NAME`, `SCHEMA NAME`, `TABLE NAME` and `COLUMN NAME` with an integrity-constraint
+/// violation (a unique index under its index name; a not-null violation names its column
+/// only); they are schema identifiers, never row values.
+/// The `DETAIL` (which carries the row's values) is not read.
+pub(crate) fn database_error(
+    message: String,
+    e: &tokio_postgres::Error,
+) -> fraiseql_error::FraiseQLError {
+    let constraint = e.as_db_error().and_then(|d| {
+        (d.constraint().is_some() || d.column().is_some()).then(|| {
+            Box::new(fraiseql_error::ConstraintViolation {
+                name:   d.constraint().map(str::to_string),
+                schema: d.schema().map(str::to_string),
+                table:  d.table().map(str::to_string),
+                column: d.column().map(str::to_string),
+            })
+        })
+    });
+    fraiseql_error::FraiseQLError::Database {
+        message,
+        sql_state: e.code().map(|c| c.code().to_string()),
+        constraint,
+    }
+}

@@ -115,13 +115,10 @@ where
             Ok(txn) => txn,
             Err(e) => {
                 let _ = tx
-                    .send(Err(FraiseQLError::Database {
-                        message:   format!(
-                            "Failed to start streaming read transaction: {}",
-                            pg_detail(&e)
-                        ),
-                        sql_state: e.code().map(|c| c.code().to_string()),
-                    }))
+                    .send(Err(crate::postgres::database_error(
+                        format!("Failed to start streaming read transaction: {}", pg_detail(&e)),
+                        &e,
+                    )))
                     .await;
                 return;
             },
@@ -139,10 +136,10 @@ where
             Ok(rows) => rows,
             Err(e) => {
                 let _ = tx
-                    .send(Err(FraiseQLError::Database {
-                        message:   format!("Streaming query failed: {}", pg_detail(&e)),
-                        sql_state: e.code().map(|c| c.code().to_string()),
-                    }))
+                    .send(Err(crate::postgres::database_error(
+                        format!("Streaming query failed: {}", pg_detail(&e)),
+                        &e,
+                    )))
                     .await;
                 return;
             },
@@ -153,10 +150,10 @@ where
             let item = match rows.try_next().await {
                 Ok(Some(row)) => decode(&row, &sql),
                 Ok(None) => break,
-                Err(e) => Err(FraiseQLError::Database {
-                    message:   format!("Streaming query failed mid-read: {}", pg_detail(&e)),
-                    sql_state: e.code().map(|c| c.code().to_string()),
-                }),
+                Err(e) => Err(crate::postgres::database_error(
+                    format!("Streaming query failed mid-read: {}", pg_detail(&e)),
+                    &e,
+                )),
             };
             let failed = item.is_err();
             // A send failure means the consumer dropped the stream: stop pumping,

@@ -67,11 +67,12 @@ impl DatabaseIntrospector for PostgresIntrospector {
             ORDER BY table_name
         ";
 
-        let rows: Vec<Row> =
-            client.query(query, &[]).await.map_err(|e| FraiseQLError::Database {
-                message:   format!("Failed to list fact tables: {}", pg_detail(&e)),
-                sql_state: e.code().map(|c| c.code().to_string()),
-            })?;
+        let rows: Vec<Row> = client.query(query, &[]).await.map_err(|e| {
+            crate::postgres::database_error(
+                format!("Failed to list fact tables: {}", pg_detail(&e)),
+                &e,
+            )
+        })?;
 
         let tables = rows
             .into_iter()
@@ -123,9 +124,11 @@ impl DatabaseIntrospector for PostgresIntrospector {
                 )
                 .await
         }
-        .map_err(|e| FraiseQLError::Database {
-            message:   format!("Failed to query column information: {}", pg_detail(&e)),
-            sql_state: e.code().map(|c| c.code().to_string()),
+        .map_err(|e| {
+            crate::postgres::database_error(
+                format!("Failed to query column information: {}", pg_detail(&e)),
+                &e,
+            )
         })?;
 
         let columns = rows
@@ -179,9 +182,11 @@ impl DatabaseIntrospector for PostgresIntrospector {
                 )
                 .await
         }
-        .map_err(|e| FraiseQLError::Database {
-            message:   format!("Failed to query index information: {}", pg_detail(&e)),
-            sql_state: e.code().map(|c| c.code().to_string()),
+        .map_err(|e| {
+            crate::postgres::database_error(
+                format!("Failed to query index information: {}", pg_detail(&e)),
+                &e,
+            )
         })?;
 
         let indexed_columns = rows
@@ -218,9 +223,11 @@ impl DatabaseIntrospector for PostgresIntrospector {
                 &[],
             )
             .await
-            .map_err(|e| FraiseQLError::Database {
-                message:   format!("Failed to list relations: {}", pg_detail(&e)),
-                sql_state: e.code().map(|c| c.code().to_string()),
+            .map_err(|e| {
+                crate::postgres::database_error(
+                    format!("Failed to list relations: {}", pg_detail(&e)),
+                    &e,
+                )
             })?;
 
         let relations = rows
@@ -263,11 +270,12 @@ impl DatabaseIntrospector for PostgresIntrospector {
             column = column_name
         );
 
-        let rows: Vec<Row> =
-            client.query(&query, &[]).await.map_err(|e| FraiseQLError::Database {
-                message:   format!("Failed to query sample JSONB: {}", pg_detail(&e)),
-                sql_state: e.code().map(|c| c.code().to_string()),
-            })?;
+        let rows: Vec<Row> = client.query(&query, &[]).await.map_err(|e| {
+            crate::postgres::database_error(
+                format!("Failed to query sample JSONB: {}", pg_detail(&e)),
+                &e,
+            )
+        })?;
 
         if rows.is_empty() {
             return Ok(None);
@@ -308,11 +316,12 @@ impl DatabaseIntrospector for PostgresIntrospector {
         let query =
             format!("SELECT {column}::text FROM {table} WHERE {column} IS NOT NULL LIMIT {limit}");
 
-        let rows: Vec<Row> =
-            client.query(&query, &[]).await.map_err(|e| FraiseQLError::Database {
-                message:   format!("Failed to query sample JSON rows: {}", pg_detail(&e)),
-                sql_state: e.code().map(|c| c.code().to_string()),
-            })?;
+        let rows: Vec<Row> = client.query(&query, &[]).await.map_err(|e| {
+            crate::postgres::database_error(
+                format!("Failed to query sample JSON rows: {}", pg_detail(&e)),
+                &e,
+            )
+        })?;
 
         rows.iter()
             .filter_map(|row| row.get::<_, Option<String>>(0))
@@ -355,9 +364,11 @@ impl DatabaseIntrospector for PostgresIntrospector {
                 )
                 .await
         }
-        .map_err(|e| FraiseQLError::Database {
-            message:   format!("Failed to probe function existence: {}", pg_detail(&e)),
-            sql_state: e.code().map(|c| c.code().to_string()),
+        .map_err(|e| {
+            crate::postgres::database_error(
+                format!("Failed to probe function existence: {}", pg_detail(&e)),
+                &e,
+            )
         })?;
 
         Ok(Some(row.get(0)))
@@ -381,9 +392,11 @@ impl DatabaseIntrospector for PostgresIntrospector {
         let row = client
             .query_one("SELECT to_regclass($1) IS NOT NULL", &[&quoted])
             .await
-            .map_err(|e| FraiseQLError::Database {
-                message:   format!("Failed to probe relation existence: {}", pg_detail(&e)),
-                sql_state: e.code().map(|c| c.code().to_string()),
+            .map_err(|e| {
+                crate::postgres::database_error(
+                    format!("Failed to probe relation existence: {}", pg_detail(&e)),
+                    &e,
+                )
             })?;
 
         Ok(Some(row.get(0)))
@@ -402,9 +415,11 @@ impl DatabaseIntrospector for PostgresIntrospector {
         let row = client
             .query_one("SELECT pg_get_viewdef(to_regclass($1), true)", &[&relation])
             .await
-            .map_err(|e| FraiseQLError::Database {
-                message:   format!("Failed to read view definition: {}", pg_detail(&e)),
-                sql_state: e.code().map(|c| c.code().to_string()),
+            .map_err(|e| {
+                crate::postgres::database_error(
+                    format!("Failed to read view definition: {}", pg_detail(&e)),
+                    &e,
+                )
             })?;
 
         Ok(row.get(0))
@@ -449,14 +464,12 @@ impl PostgresIntrospector {
             ORDER BY i.relname
         ";
 
-        let rows: Vec<Row> =
-            client
-                .query(query, &[&name, &schema])
-                .await
-                .map_err(|e| FraiseQLError::Database {
-                    message:   format!("Failed to query index definitions: {}", pg_detail(&e)),
-                    sql_state: e.code().map(|c| c.code().to_string()),
-                })?;
+        let rows: Vec<Row> = client.query(query, &[&name, &schema]).await.map_err(|e| {
+            crate::postgres::database_error(
+                format!("Failed to query index definitions: {}", pg_detail(&e)),
+                &e,
+            )
+        })?;
 
         Ok(rows
             .into_iter()
@@ -504,14 +517,12 @@ impl PostgresIntrospector {
             ORDER BY base.relname
         ";
 
-        let rows: Vec<Row> =
-            client
-                .query(query, &[&name, &schema])
-                .await
-                .map_err(|e| FraiseQLError::Database {
-                    message:   format!("Failed to resolve view base relations: {}", pg_detail(&e)),
-                    sql_state: e.code().map(|c| c.code().to_string()),
-                })?;
+        let rows: Vec<Row> = client.query(query, &[&name, &schema]).await.map_err(|e| {
+            crate::postgres::database_error(
+                format!("Failed to resolve view base relations: {}", pg_detail(&e)),
+                &e,
+            )
+        })?;
 
         Ok(rows.into_iter().map(|row| row.get(0)).collect())
     }
@@ -543,11 +554,12 @@ impl PostgresIntrospector {
             ORDER BY ordinal_position
         ";
 
-        let rows: Vec<Row> =
-            client.query(query, &[&view_name]).await.map_err(|e| FraiseQLError::Database {
-                message:   format!("Failed to query view columns: {}", pg_detail(&e)),
-                sql_state: e.code().map(|c| c.code().to_string()),
-            })?;
+        let rows: Vec<Row> = client.query(query, &[&view_name]).await.map_err(|e| {
+            crate::postgres::database_error(
+                format!("Failed to query view columns: {}", pg_detail(&e)),
+                &e,
+            )
+        })?;
 
         let columns = rows
             .into_iter()

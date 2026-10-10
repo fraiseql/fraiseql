@@ -141,6 +141,13 @@ pub struct ServerConfig {
     #[serde(default)]
     pub mutation_error_shape_check: fraiseql_core::runtime::MutationErrorShapeCheck,
 
+    /// What a mutation's typed error says about the constraint its function violated
+    /// (#1531): `"identifier"` (default: the constraint's name and the SQLSTATE in one
+    /// `errors[]` entry), `"full"` (also the table and the constraint's columns) or `"none"`.
+    /// Never the database's `DETAIL` or a row value. An unknown value is refused at boot.
+    #[serde(default)]
+    pub mutation_constraint_metadata: fraiseql_core::runtime::ConstraintMetadata,
+
     /// Database connection URL (PostgreSQL — the only supported backend since
     /// v2.15.0).
     #[serde(default = "defaults::default_database_url")]
@@ -1394,6 +1401,7 @@ impl Default for ServerConfig {
             schema_path: default_schema_path(),
             validate_sql_sources: false,
             mutation_error_shape_check: fraiseql_core::runtime::MutationErrorShapeCheck::Off,
+            mutation_constraint_metadata: fraiseql_core::runtime::ConstraintMetadata::default(),
             database_url: default_database_url(),
             bind_addr: default_bind_addr(),
             #[cfg(feature = "arrow")]

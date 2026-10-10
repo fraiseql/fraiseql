@@ -51,9 +51,11 @@ pub async fn require_supported_server(client: &tokio_postgres::Client) -> Result
             &[],
         )
         .await
-        .map_err(|e| FraiseQLError::Database {
-            message:   format!("Failed to read the PostgreSQL server version: {}", pg_detail(&e)),
-            sql_state: e.code().map(|c| c.code().to_string()),
+        .map_err(|e| {
+            crate::postgres::database_error(
+                format!("Failed to read the PostgreSQL server version: {}", pg_detail(&e)),
+                &e,
+            )
         })?;
     check_server_version(row.get(0), row.get(1))
 }

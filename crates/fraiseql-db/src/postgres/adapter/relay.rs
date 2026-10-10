@@ -116,14 +116,12 @@ impl RelayDatabaseAdapter for PostgresAdapter {
         // transaction on one connection so RLS sees the session variables.
         // Read-only and standby-safe: replica-eligible (#407).
         let mut client = self.acquire_read_connection_with_retry(routing).await?;
-        let txn =
-            client.build_transaction().start().await.map_err(|e| FraiseQLError::Database {
-                message:   format!(
-                    "Failed to start relay session-var transaction: {}",
-                    pg_detail(&e)
-                ),
-                sql_state: e.code().map(|c| c.code().to_string()),
-            })?;
+        let txn = client.build_transaction().start().await.map_err(|e| {
+            crate::postgres::database_error(
+                format!("Failed to start relay session-var transaction: {}", pg_detail(&e)),
+                &e,
+            )
+        })?;
         super::database::apply_session_vars(&txn, session_vars).await?;
         let active = if forward {
             after.clone()
@@ -153,9 +151,11 @@ impl RelayDatabaseAdapter for PostgresAdapter {
                 .await;
         }
         let result = page?;
-        txn.commit().await.map_err(|e| FraiseQLError::Database {
-            message:   format!("Failed to commit relay session-var transaction: {}", pg_detail(&e)),
-            sql_state: e.code().map(|c| c.code().to_string()),
+        txn.commit().await.map_err(|e| {
+            crate::postgres::database_error(
+                format!("Failed to commit relay session-var transaction: {}", pg_detail(&e)),
+                &e,
+            )
         })?;
         Ok(result)
     }
@@ -331,12 +331,10 @@ impl PostgresAdapter {
         // ── Execute page query (on the caller-provided client / transaction) ────
         let page_param_refs = crate::types::as_sql_param_refs(&page_typed_params);
 
-        let page_rows = client.query(&page_sql, &page_param_refs).await.map_err(|e| {
-            FraiseQLError::Database {
-                message:   pg_detail(&e),
-                sql_state: e.code().map(|c| c.code().to_string()),
-            }
-        })?;
+        let page_rows = client
+            .query(&page_sql, &page_param_refs)
+            .await
+            .map_err(|e| crate::postgres::database_error(pg_detail(&e), &e))?;
 
         let rows: Vec<crate::types::JsonbValue> = page_rows
             .iter()
@@ -361,12 +359,10 @@ impl PostgresAdapter {
 
             let count_param_refs = crate::types::as_sql_param_refs(&count_typed_params);
 
-            let count_row = client.query_one(&count_sql, &count_param_refs).await.map_err(|e| {
-                FraiseQLError::Database {
-                    message:   pg_detail(&e),
-                    sql_state: e.code().map(|c| c.code().to_string()),
-                }
-            })?;
+            let count_row = client
+                .query_one(&count_sql, &count_param_refs)
+                .await
+                .map_err(|e| crate::postgres::database_error(pg_detail(&e), &e))?;
 
             let total: i64 = count_row.get(0);
             // cast_unsigned() is the clippy-recommended alternative to `as u64` for i64;

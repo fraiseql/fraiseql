@@ -64,6 +64,7 @@ pub(super) fn executor_runtime_config(
     }
     .with_compiled_schema(schema)?;
     rt.mutation_error_shape_check = config.mutation_error_shape_check;
+    rt.constraint_metadata = config.mutation_constraint_metadata;
     // #1314: operator-owned, so it survives a hot reload and reaches every tenant.
     rt.nearest_short_result = config.vector_on_short_result;
     if config.validation.is_some() {

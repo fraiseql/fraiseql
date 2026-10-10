@@ -153,9 +153,10 @@ mod sanitization_tests {
     /// which the `From<FraiseQLError>` mapper routes to a 500.
     fn raw_db_error() -> FraiseQLError {
         FraiseQLError::Database {
-            message:   "function app.fn_secret(integer) does not exist in SELECT app.fn_secret($1)"
-                .into(),
-            sql_state: Some("42883".into()),
+            message:
+                "function app.fn_secret(integer) does not exist in SELECT app.fn_secret($1)".into(),
+            sql_state:  Some("42883".into()),
+            constraint: None,
         }
     }
 
@@ -214,8 +215,9 @@ mod sanitization_tests {
         // means deciding per SQLSTATE class which Postgres message text is safe to forward,
         // and that taxonomy is exactly what #1153 removed.
         let err = RestError::from(FraiseQLError::Database {
-            message:   "invalid input syntax for type uuid: \"not-a-uuid\"".into(),
-            sql_state: Some("22P02".into()),
+            message:    "invalid input syntax for type uuid: \"not-a-uuid\"".into(),
+            sql_state:  Some("22P02".into()),
+            constraint: None,
         });
         assert_eq!(err.status, axum::http::StatusCode::BAD_REQUEST);
 

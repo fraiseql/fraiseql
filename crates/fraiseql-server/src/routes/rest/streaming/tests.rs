@@ -163,8 +163,9 @@ fn ndjson_chunk_emits_preceding_rows_then_the_error() {
     let (bytes, failed) = ndjson_chunk(vec![
         Ok(json!({"id": 1})),
         Err(fraiseql_core::error::FraiseQLError::Database {
-            message:   "connection reset".to_string(),
-            sql_state: None,
+            message:    "connection reset".to_string(),
+            sql_state:  None,
+            constraint: None,
         }),
         Ok(json!({"id": 3})),
     ]);

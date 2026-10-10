@@ -190,8 +190,9 @@ impl FraiseWireAdapter {
         }
 
         let mut stream = builder.execute().await.map_err(|e| FraiseQLError::Database {
-            message:   format!("fraiseql-wire query failed: {e}"),
-            sql_state: None,
+            message:    format!("fraiseql-wire query failed: {e}"),
+            sql_state:  None,
+            constraint: None,
         })?;
 
         // Collect all results
@@ -202,8 +203,9 @@ impl FraiseWireAdapter {
         let mut count = 0;
         while let Some(item) = stream.next().await {
             let json = item.map_err(|e| FraiseQLError::Database {
-                message:   format!("Stream error: {e}"),
-                sql_state: None,
+                message:    format!("Stream error: {e}"),
+                sql_state:  None,
+                constraint: None,
             })?;
 
             // Apply offset and limit manually
@@ -288,16 +290,18 @@ impl DatabaseAdapter for FraiseWireAdapter {
 
         // Execute streaming query
         let mut stream = builder.execute().await.map_err(|e| FraiseQLError::Database {
-            message:   format!("fraiseql-wire query failed: {e}"),
-            sql_state: None,
+            message:    format!("fraiseql-wire query failed: {e}"),
+            sql_state:  None,
+            constraint: None,
         })?;
 
         // Collect results
         let mut results = Vec::new();
         while let Some(item) = stream.next().await {
             let json = item.map_err(|e| FraiseQLError::Database {
-                message:   format!("Stream error: {e}"),
-                sql_state: None,
+                message:    format!("Stream error: {e}"),
+                sql_state:  None,
+                constraint: None,
             })?;
             results.push(JsonbValue::new(json));
         }
@@ -335,14 +339,16 @@ impl DatabaseAdapter for FraiseWireAdapter {
             builder = builder.order_by(columns);
         }
         let stream = builder.execute().await.map_err(|e| FraiseQLError::Database {
-            message:   format!("fraiseql-wire query failed: {e}"),
-            sql_state: None,
+            message:    format!("fraiseql-wire query failed: {e}"),
+            sql_state:  None,
+            constraint: None,
         })?;
         let rows = stream
             .map(|item| {
                 item.map(JsonbValue::new).map_err(|e| FraiseQLError::Database {
-                    message:   format!("Stream error: {e}"),
-                    sql_state: None,
+                    message:    format!("Stream error: {e}"),
+                    sql_state:  None,
+                    constraint: None,
                 })
             })
             .skip(request.offset.unwrap_or(0) as usize);
@@ -367,8 +373,9 @@ impl DatabaseAdapter for FraiseWireAdapter {
         // Actual connectivity is verified when queries are executed.
         if self.factory.connection_string().is_empty() {
             return Err(FraiseQLError::Database {
-                message:   "Connection string is empty".to_string(),
-                sql_state: None,
+                message:    "Connection string is empty".to_string(),
+                sql_state:  None,
+                constraint: None,
             });
         }
         Ok(())
@@ -398,6 +405,7 @@ impl DatabaseAdapter for FraiseWireAdapter {
         Err(FraiseQLError::Database {
             message: "fraiseql-wire does not support arbitrary SQL queries. Use execute_where_query instead.".to_string(),
             sql_state: None,
+            constraint: None,
         })
     }
 
@@ -412,8 +420,9 @@ impl DatabaseAdapter for FraiseWireAdapter {
     ) -> Result<Vec<HashMap<String, serde_json::Value>>> {
         // fraiseql-wire does not support aggregate queries with arbitrary SQL.
         Err(FraiseQLError::Database {
-            message:   "fraiseql-wire does not support aggregate SQL queries.".to_string(),
-            sql_state: None,
+            message:    "fraiseql-wire does not support aggregate SQL queries.".to_string(),
+            sql_state:  None,
+            constraint: None,
         })
     }
 

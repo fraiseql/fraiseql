@@ -346,6 +346,7 @@ fn test_executor_runtime_config_with_field_filter() {
         changelog_enabled:           true,
         dry_run_mutations:           false,
         mutation_error_shape_check:  fraiseql_core::runtime::MutationErrorShapeCheck::Off,
+        constraint_metadata:         fraiseql_core::runtime::ConstraintMetadata::Identifier,
         cascade_limits:              fraiseql_core::runtime::CascadeLimits::default(),
         before_mutation_gate:        None,
     };

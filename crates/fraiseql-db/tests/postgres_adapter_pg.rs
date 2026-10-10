@@ -671,7 +671,9 @@ async fn execute_raw_query_names_the_missing_relation() {
     let adapter = create_test_adapter().await;
     let result = adapter.execute_raw_query("SELECT data FROM v_p09_no_such_relation").await;
     match result {
-        Err(FraiseQLError::Database { message, sql_state }) => {
+        Err(FraiseQLError::Database {
+            message, sql_state, ..
+        }) => {
             assert_eq!(sql_state.as_deref(), Some("42P01"), "expected undefined_table SQLSTATE");
             assert!(
                 message.contains("v_p09_no_such_relation"),
@@ -693,7 +695,9 @@ async fn parameterized_aggregate_names_the_missing_relation() {
         )
         .await;
     match result {
-        Err(FraiseQLError::Database { message, sql_state }) => {
+        Err(FraiseQLError::Database {
+            message, sql_state, ..
+        }) => {
             assert_eq!(sql_state.as_deref(), Some("42P01"), "expected undefined_table SQLSTATE");
             assert!(
                 message.contains("tb_p09_no_such_relation"),

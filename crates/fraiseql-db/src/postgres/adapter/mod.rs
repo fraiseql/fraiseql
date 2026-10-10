@@ -83,21 +83,23 @@ where
     match row.try_get::<_, Option<serde_json::Value>>(column) {
         Ok(Some(value)) => Ok(JsonbValue::new(value)),
         Ok(None) => Err(FraiseQLError::Database {
-            message:   format!(
+            message:    format!(
                 "Query returned a NULL `data` column; the backing view must project a \
                  non-NULL JSONB `data` value (a view yielding NULL `data`, e.g. via a \
                  LEFT JOIN, is unsupported). Query: {}",
                 query_preview()
             ),
-            sql_state: None,
+            sql_state:  None,
+            constraint: None,
         }),
         Err(e) => Err(FraiseQLError::Database {
-            message:   format!(
+            message:    format!(
                 "Failed to read the `data` column as JSONB ({e}); the backing view must \
                  project a JSONB `data` column. Query: {}",
                 query_preview()
             ),
-            sql_state: None,
+            sql_state:  None,
+            constraint: None,
         }),
     }
 }
@@ -770,13 +772,10 @@ async fn build_read_replica_set(
             ),
         })?;
         let row = client.query_one("SELECT pg_is_in_recovery()", &[]).await.map_err(|e| {
-            FraiseQLError::Database {
-                message:   format!(
-                    "Read replica {index} failed its boot health check: {}",
-                    pg_detail(&e)
-                ),
-                sql_state: e.code().map(|c| c.code().to_string()),
-            }
+            crate::postgres::database_error(
+                format!("Read replica {index} failed its boot health check: {}", pg_detail(&e)),
+                &e,
+            )
         })?;
         let in_recovery: bool = row.get(0);
         // A standby replays the primary's WAL, so it is the same major version in a
@@ -1346,11 +1345,12 @@ impl PostgresAdapter {
         // Read-only by construction (`SELECT data FROM <view>`): replica-eligible.
         let client = self.acquire_read_connection_with_retry(routing).await?;
 
-        let rows: Vec<Row> =
-            client.query(sql, params).await.map_err(|e| FraiseQLError::Database {
-                message:   format!("Query execution failed: {}", pg_detail(&e)),
-                sql_state: e.code().map(|c| c.code().to_string()),
-            })?;
+        let rows: Vec<Row> = client.query(sql, params).await.map_err(|e| {
+            crate::postgres::database_error(
+                format!("Query execution failed: {}", pg_detail(&e)),
+                &e,
+            )
+        })?;
 
         let results = rows
             .into_iter()
@@ -1382,22 +1382,27 @@ impl PostgresAdapter {
         // Read-only by construction; `set_config` + SELECT run fine inside a
         // hot-standby read-only transaction, so this stays replica-eligible.
         let mut client = self.acquire_read_connection_with_retry(routing).await?;
-        let txn =
-            client.build_transaction().start().await.map_err(|e| FraiseQLError::Database {
-                message:   format!("Failed to start session-var transaction: {}", pg_detail(&e)),
-                sql_state: e.code().map(|c| c.code().to_string()),
-            })?;
+        let txn = client.build_transaction().start().await.map_err(|e| {
+            crate::postgres::database_error(
+                format!("Failed to start session-var transaction: {}", pg_detail(&e)),
+                &e,
+            )
+        })?;
 
         database::apply_session_vars(&txn, session_vars).await?;
 
-        let rows: Vec<Row> = txn.query(sql, params).await.map_err(|e| FraiseQLError::Database {
-            message:   format!("Query execution failed: {}", pg_detail(&e)),
-            sql_state: e.code().map(|c| c.code().to_string()),
+        let rows: Vec<Row> = txn.query(sql, params).await.map_err(|e| {
+            crate::postgres::database_error(
+                format!("Query execution failed: {}", pg_detail(&e)),
+                &e,
+            )
         })?;
 
-        txn.commit().await.map_err(|e| FraiseQLError::Database {
-            message:   format!("Failed to commit session-var transaction: {}", pg_detail(&e)),
-            sql_state: e.code().map(|c| c.code().to_string()),
+        txn.commit().await.map_err(|e| {
+            crate::postgres::database_error(
+                format!("Failed to commit session-var transaction: {}", pg_detail(&e)),
+                &e,
+            )
         })?;
 
         rows.into_iter().map(|row| jsonb_cell(&row, 0, sql)).collect()

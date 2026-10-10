@@ -1078,13 +1078,18 @@ fn build_mutation_result(
 /// Only a mutation whose result union or interface has exactly one error member has a
 /// typed failure to give: that member answers, as it does for an unstamped failure
 /// the function returns. The message is the same generic text error sanitization uses,
-/// whatever the configuration: the constraint's name and the database's text never
-/// reach the response.
+/// whatever the configuration: the database's text never reaches the response.
+///
+/// What it says about the constraint is `entry` (#1531, reversing #1424's "the
+/// constraint's name is not exposed"): one `errors[]` entry, the shape a function's
+/// own `mutation_err_entries` gives, built by [`constraint_entry`] under the server's
+/// `mutation_constraint_metadata`. Its `code` is the status decided here.
 fn constraint_violation_outcome(
     error: &FraiseQLError,
     schema: &crate::schema::CompiledSchema,
     return_type: &str,
     contract: &payload_gates::StampContract,
+    entry: Option<serde_json::Map<String, serde_json::Value>>,
 ) -> Option<MutationOutcome> {
     let FraiseQLError::Database {
         sql_state: Some(sql_state),
@@ -1113,13 +1118,83 @@ fn constraint_violation_outcome(
         ),
         _ => return None,
     };
+    let metadata = entry.map_or(serde_json::Value::Null, |mut entry| {
+        entry.insert("code".to_string(), serde_json::json!(http_status));
+        entry.insert("message".to_string(), serde_json::json!(message));
+        serde_json::json!({ "errors": [entry] })
+    });
     Some(MutationOutcome::Error {
         error_class,
         message: message.to_string(),
         http_status: Some(http_status),
         entity_type: None,
-        metadata: serde_json::Value::Null,
+        metadata,
     })
+}
+
+/// The `errors[]` entry a constraint violation's typed error carries (#1531), without its
+/// `code` and `message` (the classification's): `identifier` is the constraint's name and
+/// `details` its SQLSTATE, plus its table and columns under `full`. `None` under `none`,
+/// for an error that is not a class-23 violation, and when nothing names the constraint.
+///
+/// Schema identifiers only: the database's `DETAIL`, which carries the row's values, is
+/// never read. What the error does not say (a not-null constraint's name, the columns) is
+/// asked of the catalog, on the failure path only; a failed lookup is logged and the entry
+/// keeps what the error itself gave.
+async fn constraint_entry(
+    ctx: &ExecutorContext,
+    error: &FraiseQLError,
+) -> Option<serde_json::Map<String, serde_json::Value>> {
+    use crate::runtime::ConstraintMetadata;
+    let full = match ctx.config.constraint_metadata {
+        ConstraintMetadata::Identifier => false,
+        ConstraintMetadata::Full => true,
+        // `ConstraintMetadata` is `#[non_exhaustive]`: an unknown setting says nothing.
+        _ => return None,
+    };
+    let FraiseQLError::Database {
+        sql_state: Some(sql_state),
+        constraint: Some(violation),
+        ..
+    } = error
+    else {
+        return None;
+    };
+    if !sql_state.starts_with("23") {
+        return None;
+    }
+    let described = if full || violation.name.is_none() {
+        match ctx.adapter.describe_constraint(violation).await {
+            Ok(described) => described,
+            Err(lookup) => {
+                tracing::warn!(error = %lookup, "could not describe a violated constraint");
+                crate::backend::ConstraintDescription {
+                    name:    violation.name.clone(),
+                    columns: None,
+                }
+            },
+        }
+    } else {
+        crate::backend::ConstraintDescription {
+            name:    violation.name.clone(),
+            columns: None,
+        }
+    };
+    let identifier = described.name?;
+    let mut details = serde_json::Map::new();
+    details.insert("sqlstate".to_string(), serde_json::json!(sql_state));
+    if full {
+        if let Some(table) = &violation.table {
+            details.insert("table".to_string(), serde_json::json!(table));
+        }
+        if let Some(columns) = described.columns {
+            details.insert("columns".to_string(), serde_json::json!(columns));
+        }
+    }
+    let mut entry = serde_json::Map::new();
+    entry.insert("identifier".to_string(), serde_json::json!(identifier));
+    entry.insert("details".to_string(), serde_json::Value::Object(details));
+    Some(entry)
 }
 
 pub(in super::super) async fn execute_mutation_impl(
@@ -1865,11 +1940,13 @@ pub(in super::super) async fn execute_mutation_impl(
             // transaction rolled back with the error; the client gets the typed failure
             // the function would have returned had it pre-checked the constraint.
             Err(error) => {
+                let entry = constraint_entry(ctx, &error).await;
                 let Some(outcome) = constraint_violation_outcome(
                     &error,
                     &ctx.schema,
                     &mutation_return_type,
                     payload_gates.contract(),
+                    entry,
                 ) else {
                     return Err(error);
                 };

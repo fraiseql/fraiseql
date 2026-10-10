@@ -214,8 +214,9 @@ impl RecordingAdapter {
         self.function_calls.lock().unwrap().push(function_name.to_string());
         if self.failing_fn.as_deref() == Some(function_name) {
             return Err(fraiseql_core::error::FraiseQLError::Database {
-                message:   format!("{function_name} exploded"),
-                sql_state: None,
+                message:    format!("{function_name} exploded"),
+                sql_state:  None,
+                constraint: None,
             });
         }
         Ok(vec![mutation_success_row()])

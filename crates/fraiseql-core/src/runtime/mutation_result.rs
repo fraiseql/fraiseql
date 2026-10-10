@@ -40,6 +40,28 @@ pub enum MutationErrorShapeCheck {
     Warn,
 }
 
+/// What a mutation's typed error says about the constraint its function violated (#1531).
+///
+/// A class-23 SQLSTATE served as the mutation's error member (#1424) carries one
+/// `errors[]` entry, the same shape a function's own `mutation_err_entries` gives:
+/// `identifier` is the constraint's name (a unique index's for a partial unique index),
+/// `code` its HTTP status, and `details.sqlstate` the SQLSTATE. Never the database's
+/// `DETAIL`, never a row value.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+#[non_exhaustive]
+pub enum ConstraintMetadata {
+    /// The constraint's name and the SQLSTATE (the default): a client needs the name to
+    /// act on the error.
+    #[default]
+    Identifier,
+    /// Also `details.table` and `details.columns`, the constraint's columns resolved from
+    /// the catalog (none for an expression index: never guessed).
+    Full,
+    /// No entry: the typed error carries its status and generic message only.
+    None,
+}
+
 /// Failed mutation responses whose `errors[]` was malformed, since startup.
 static ERROR_SHAPE_VIOLATIONS: AtomicU64 = AtomicU64::new(0);
 

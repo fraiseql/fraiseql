@@ -551,8 +551,9 @@ mod response {
     #[test]
     fn rest_error_from_sqlstate_22_is_bad_user_input_400() {
         let err = RestError::from(fraiseql_error::FraiseQLError::Database {
-            message:   "invalid input syntax for type uuid: \"not-a-uuid\"".into(),
-            sql_state: Some("22P02".into()),
+            message:    "invalid input syntax for type uuid: \"not-a-uuid\"".into(),
+            sql_state:  Some("22P02".into()),
+            constraint: None,
         });
         assert_eq!(err.status, StatusCode::BAD_REQUEST);
         assert_eq!(err.code, "BAD_USER_INPUT");
@@ -563,8 +564,9 @@ mod response {
     fn rest_error_from_sqlstate_23_is_constraint_violation_400() {
         for code in ["23502", "23503", "23505", "23514"] {
             let err = RestError::from(fraiseql_error::FraiseQLError::Database {
-                message:   "violates constraint".into(),
-                sql_state: Some(code.into()),
+                message:    "violates constraint".into(),
+                sql_state:  Some(code.into()),
+                constraint: None,
             });
             assert_eq!(err.status, StatusCode::BAD_REQUEST, "SQLSTATE {code}");
             assert_eq!(err.code, "CONSTRAINT_VIOLATION", "SQLSTATE {code}");
@@ -577,6 +579,7 @@ mod response {
             let err = RestError::from(fraiseql_error::FraiseQLError::Database {
                 message: "connection failure".into(),
                 sql_state,
+                constraint: None,
             });
             assert_eq!(err.status, StatusCode::INTERNAL_SERVER_ERROR);
             assert_eq!(err.code, "INTERNAL_SERVER_ERROR");
@@ -844,14 +847,16 @@ mod error_status {
     #[test]
     fn rest_database_client_input_is_400_server_fault_is_500() {
         let client = FraiseQLError::Database {
-            message:   "bad input".into(),
-            sql_state: Some("22001".into()),
+            message:    "bad input".into(),
+            sql_state:  Some("22001".into()),
+            constraint: None,
         };
         assert_eq!(RestError::from(client).status, StatusCode::BAD_REQUEST);
 
         let server = FraiseQLError::Database {
-            message:   "boom".into(),
-            sql_state: None,
+            message:    "boom".into(),
+            sql_state:  None,
+            constraint: None,
         };
         assert_eq!(RestError::from(server).status, StatusCode::INTERNAL_SERVER_ERROR);
     }

@@ -1,7 +1,7 @@
 //! `query_stats` / `query_stats_by_id` / `reset_query_stats` implementations
 //! for `PostgresAdapter`, backed by the `pg_stat_statements` extension (PG13+).
 
-use fraiseql_error::{FraiseQLError, Result};
+use fraiseql_error::Result;
 use tokio_postgres::Row;
 
 use super::PostgresAdapter;
@@ -82,9 +82,11 @@ impl PostgresAdapter {
                 &[&i64::from(limit)],
             )
             .await
-            .map_err(|e| FraiseQLError::Database {
-                message:   format!("Failed to query pg_stat_statements: {}", pg_detail(&e)),
-                sql_state: e.code().map(|c| c.code().to_string()),
+            .map_err(|e| {
+                crate::postgres::database_error(
+                    format!("Failed to query pg_stat_statements: {}", pg_detail(&e)),
+                    &e,
+                )
             })?;
 
         rows.iter().map(Self::map_pg_stat_row).collect()
@@ -119,9 +121,11 @@ impl PostgresAdapter {
                 &[&id],
             )
             .await
-            .map_err(|e| FraiseQLError::Database {
-                message:   format!("Failed to query pg_stat_statements by id: {}", pg_detail(&e)),
-                sql_state: e.code().map(|c| c.code().to_string()),
+            .map_err(|e| {
+                crate::postgres::database_error(
+                    format!("Failed to query pg_stat_statements by id: {}", pg_detail(&e)),
+                    &e,
+                )
             })?;
 
         rows.first().map(Self::map_pg_stat_row).transpose()
@@ -140,10 +144,10 @@ impl PostgresAdapter {
 
         let client = self.acquire_connection_with_retry().await?;
         client.execute("SELECT pg_stat_statements_reset()", &[]).await.map_err(|e| {
-            FraiseQLError::Database {
-                message:   format!("Failed to reset pg_stat_statements: {}", pg_detail(&e)),
-                sql_state: e.code().map(|c| c.code().to_string()),
-            }
+            crate::postgres::database_error(
+                format!("Failed to reset pg_stat_statements: {}", pg_detail(&e)),
+                &e,
+            )
         })?;
         Ok(())
     }

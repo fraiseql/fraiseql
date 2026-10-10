@@ -141,9 +141,11 @@ async fn run_function_in_txn(
     } else {
         ""
     };
-    let txn = client.build_transaction().start().await.map_err(|e| FraiseQLError::Database {
-        message:   format!("Failed to start mutation{mechanism} transaction: {}", pg_detail(&e)),
-        sql_state: e.code().map(|c| c.code().to_string()),
+    let txn = client.build_transaction().start().await.map_err(|e| {
+        crate::postgres::database_error(
+            format!("Failed to start mutation{mechanism} transaction: {}", pg_detail(&e)),
+            &e,
+        )
     })?;
 
     // Apply session variables FIRST so the function body sees them (and so
@@ -163,9 +165,11 @@ async fn run_function_in_txn(
             &[&adapter.timing_variable_name],
         )
         .await
-        .map_err(|e| FraiseQLError::Database {
-            message:   format!("Failed to set mutation timing variable: {}", pg_detail(&e)),
-            sql_state: e.code().map(|c| c.code().to_string()),
+        .map_err(|e| {
+            crate::postgres::database_error(
+                format!("Failed to set mutation timing variable: {}", pg_detail(&e)),
+                &e,
+            )
         })?;
     }
 
@@ -188,21 +192,21 @@ async fn run_function_in_txn(
                 &[&crate::changelog::STARTED_AT_VAR],
             )
             .await
-            .map_err(|e| FraiseQLError::Database {
-                message:   format!("Failed to stamp change-log started_at: {}", pg_detail(&e)),
-                sql_state: e.code().map(|c| c.code().to_string()),
+            .map_err(|e| {
+                crate::postgres::database_error(
+                    format!("Failed to stamp change-log started_at: {}", pg_detail(&e)),
+                    &e,
+                )
             })?;
         }
     }
 
-    let rows: Vec<Row> =
-        txn.query(&stmt, params.as_slice()).await.map_err(|e| FraiseQLError::Database {
-            message:   format!(
-                "Function call {function_name}{mechanism} failed: {}",
-                pg_detail(&e)
-            ),
-            sql_state: e.code().map(|c| c.code().to_string()),
-        })?;
+    let rows: Vec<Row> = txn.query(&stmt, params.as_slice()).await.map_err(|e| {
+        crate::postgres::database_error(
+            format!("Function call {function_name}{mechanism} failed: {}", pg_detail(&e)),
+            &e,
+        )
+    })?;
 
     let results: Vec<std::collections::HashMap<String, serde_json::Value>> =
         rows.iter().map(row_to_map).collect();
@@ -212,28 +216,31 @@ async fn run_function_in_txn(
     // uncommitted, so a refusal takes the write with it rather than leaving the
     // caller refused and the side effect standing (#1353).
     if let Err(refusal) = gate(&results) {
-        txn.rollback().await.map_err(|e| FraiseQLError::Database {
-            message:   format!(
-                "Failed to roll back refused mutation transaction: {}",
-                pg_detail(&e)
-            ),
-            sql_state: e.code().map(|c| c.code().to_string()),
+        txn.rollback().await.map_err(|e| {
+            crate::postgres::database_error(
+                format!("Failed to roll back refused mutation transaction: {}", pg_detail(&e)),
+                &e,
+            )
         })?;
         return Err(refusal);
     }
 
     if !commit {
         // The whole point of a dry run: discard every write, the outbox row included.
-        txn.rollback().await.map_err(|e| FraiseQLError::Database {
-            message:   format!("Failed to roll back dry-run transaction: {}", pg_detail(&e)),
-            sql_state: e.code().map(|c| c.code().to_string()),
+        txn.rollback().await.map_err(|e| {
+            crate::postgres::database_error(
+                format!("Failed to roll back dry-run transaction: {}", pg_detail(&e)),
+                &e,
+            )
         })?;
         return Ok(results);
     }
 
-    txn.commit().await.map_err(|e| FraiseQLError::Database {
-        message:   format!("Failed to commit mutation{mechanism} transaction: {}", pg_detail(&e)),
-        sql_state: e.code().map(|c| c.code().to_string()),
+    txn.commit().await.map_err(|e| {
+        crate::postgres::database_error(
+            format!("Failed to commit mutation{mechanism} transaction: {}", pg_detail(&e)),
+            &e,
+        )
     })?;
     adapter.mark_write();
 
@@ -345,14 +352,15 @@ fn enrich_undefined_column_error(
         return err;
     }
     FraiseQLError::Database {
-        message:   format!(
+        message:    format!(
             "Column(s) {:?} referenced as native column(s) on `{view}` do not exist. \
              These columns were auto-inferred from ID/UUID-typed query arguments. \
              Either add the column(s) to the table/view, or set \
              `native_columns = {{}}` explicitly in your schema to disable inference.",
             native_cols,
         ),
-        sql_state: Some(PG_UNDEFINED_COLUMN.to_string()),
+        sql_state:  Some(PG_UNDEFINED_COLUMN.to_string()),
+        constraint: None,
     }
 }
 
@@ -512,19 +520,23 @@ pub(super) async fn apply_session_vars(
         if *value == crate::changelog::CLOCK_TIMESTAMP_DIRECTIVE {
             txn.execute("SELECT set_config($1, clock_timestamp()::text, true)", &[name])
                 .await
-                .map_err(|e| FraiseQLError::Database {
-                    message:   format!(
-                        "set_config({name:?}, clock_timestamp()) failed: {}",
-                        pg_detail(&e)
-                    ),
-                    sql_state: e.code().map(|c| c.code().to_string()),
+                .map_err(|e| {
+                    crate::postgres::database_error(
+                        format!(
+                            "set_config({name:?}, clock_timestamp()) failed: {}",
+                            pg_detail(&e)
+                        ),
+                        &e,
+                    )
                 })?;
         } else {
             txn.execute("SELECT set_config($1, $2, true)", &[name, value])
                 .await
-                .map_err(|e| FraiseQLError::Database {
-                    message:   format!("set_config({name:?}) failed: {}", pg_detail(&e)),
-                    sql_state: e.code().map(|c| c.code().to_string()),
+                .map_err(|e| {
+                    crate::postgres::database_error(
+                        format!("set_config({name:?}) failed: {}", pg_detail(&e)),
+                        &e,
+                    )
                 })?;
         }
     }
@@ -551,13 +563,15 @@ pub(super) async fn mark_cdc_mediated(txn: &tokio_postgres::Transaction<'_>) -> 
         ],
     )
     .await
-    .map_err(|e| FraiseQLError::Database {
-        message:   format!(
-            "Failed to set {} marker: {}",
-            crate::changelog::CDC_MEDIATED_VAR,
-            pg_detail(&e)
-        ),
-        sql_state: e.code().map(|c| c.code().to_string()),
+    .map_err(|e| {
+        crate::postgres::database_error(
+            format!(
+                "Failed to set {} marker: {}",
+                crate::changelog::CDC_MEDIATED_VAR,
+                pg_detail(&e)
+            ),
+            &e,
+        )
     })?;
     Ok(())
 }
@@ -679,10 +693,7 @@ async fn prepare_cached_stmt(
         // top-level `Display` renders (#451, generalised to every query path by #888).
         let detail = pg_detail(&e);
         let hint = changelog_prepare_hint(&detail);
-        FraiseQLError::Database {
-            message:   format!("Failed to prepare statement: {detail}{hint}"),
-            sql_state: e.code().map(|c| c.code().to_string()),
-        }
+        crate::postgres::database_error(format!("Failed to prepare statement: {detail}{hint}"), &e)
     })
 }
 
@@ -780,16 +791,17 @@ impl DatabaseAdapter for PostgresAdapter {
         // it runs where the reads it describes run — the replica route (#407).
         let client = self.acquire_read_connection_with_retry(ReadRouting::Any).await?;
         let rows = client.query(explain_sql.as_str(), &param_refs).await.map_err(|e| {
-            FraiseQLError::Database {
-                message:   format!("EXPLAIN ANALYZE failed: {}", pg_detail(&e)),
-                sql_state: e.code().map(|c| c.code().to_string()),
-            }
+            crate::postgres::database_error(
+                format!("EXPLAIN ANALYZE failed: {}", pg_detail(&e)),
+                &e,
+            )
         })?;
 
         if let Some(row) = rows.first() {
             let plan: serde_json::Value = row.try_get(0).map_err(|e| FraiseQLError::Database {
-                message:   format!("Failed to parse EXPLAIN output: {e}"),
-                sql_state: None,
+                message:    format!("Failed to parse EXPLAIN output: {e}"),
+                sql_state:  None,
+                constraint: None,
             })?;
             Ok(plan)
         } else {
@@ -806,13 +818,90 @@ impl DatabaseAdapter for PostgresAdapter {
         true
     }
 
+    async fn describe_constraint(
+        &self,
+        violation: &fraiseql_error::ConstraintViolation,
+    ) -> Result<crate::traits::ConstraintDescription> {
+        // The catalog is keyed by the relation the error names; without it there is nothing
+        // to read, and the violation is reported as given.
+        let (Some(schema), Some(table)) = (&violation.schema, &violation.table) else {
+            return Ok(crate::traits::ConstraintDescription {
+                name:    violation.name.clone(),
+                columns: None,
+            });
+        };
+        let client = self.acquire_connection_with_retry().await?;
+        // A not-null violation names its column, not its constraint: PostgreSQL 18
+        // catalogues the not-null constraint (`contype = 'n'`), so it is found from it.
+        let name = match (&violation.name, &violation.column) {
+            (Some(name), _) => Some(name.clone()),
+            (None, Some(column)) => client
+                .query_opt(
+                    "SELECT c.conname::text FROM pg_constraint c JOIN pg_attribute a ON \
+                     a.attrelid = c.conrelid WHERE c.conrelid = to_regclass(format('%I.%I', \
+                     $1::text, $2::text)) AND c.contype = 'n' AND a.attname = $3 AND c.conkey = \
+                     ARRAY[a.attnum]",
+                    &[schema, table, column],
+                )
+                .await
+                .map_err(|e| {
+                    crate::postgres::database_error(
+                        format!("Failed to resolve a not-null constraint: {}", pg_detail(&e)),
+                        &e,
+                    )
+                })?
+                .map(|row| row.get(0)),
+            (None, None) => None,
+        };
+        let Some(name) = name else {
+            return Ok(crate::traits::ConstraintDescription::default());
+        };
+        // The key columns of the constraint, or of the unique index of that name (a partial
+        // unique index has no `pg_constraint` row), in order. An expression column
+        // (`attnum = 0`) makes the answer `NULL`: never guessed. `INCLUDE` columns are not
+        // key columns.
+        let columns: Option<Vec<String>> = client
+            .query_one(
+                "WITH k AS ( \
+                   SELECT u.attnum, u.ord FROM pg_constraint c, \
+                          unnest(c.conkey) WITH ORDINALITY u(attnum, ord) \
+                    WHERE c.conrelid = to_regclass(format('%I.%I', $1::text, $2::text)) \
+                      AND c.conname = $3 \
+                   UNION ALL \
+                   SELECT u.attnum, u.ord FROM pg_index i, \
+                          unnest(i.indkey) WITH ORDINALITY u(attnum, ord) \
+                    WHERE i.indexrelid = to_regclass(format('%I.%I', $1::text, $3::text)) \
+                      AND i.indrelid = to_regclass(format('%I.%I', $1::text, $2::text)) \
+                      AND u.ord <= i.indnkeyatts \
+                      AND NOT EXISTS (SELECT 1 FROM pg_constraint c2 \
+                                       WHERE c2.conrelid = i.indrelid AND c2.conname = $3)) \
+                 SELECT CASE WHEN count(*) = 0 OR bool_or(k.attnum = 0) THEN NULL \
+                             ELSE array_agg(a.attname::text ORDER BY k.ord) END \
+                   FROM k LEFT JOIN pg_attribute a \
+                     ON a.attrelid = to_regclass(format('%I.%I', $1::text, $2::text)) \
+                    AND a.attnum = k.attnum",
+                &[schema, table, &name],
+            )
+            .await
+            .map_err(|e| {
+                crate::postgres::database_error(
+                    format!("Failed to resolve a constraint's columns: {}", pg_detail(&e)),
+                    &e,
+                )
+            })?
+            .get(0);
+        Ok(crate::traits::ConstraintDescription {
+            name: Some(name),
+            columns,
+        })
+    }
+
     async fn health_check(&self) -> Result<()> {
         // Use retry logic for health check to avoid false negatives during pool exhaustion
         let client = self.acquire_connection_with_retry().await?;
 
-        client.query("SELECT 1", &[]).await.map_err(|e| FraiseQLError::Database {
-            message:   format!("Health check failed: {}", pg_detail(&e)),
-            sql_state: e.code().map(|c| c.code().to_string()),
+        client.query("SELECT 1", &[]).await.map_err(|e| {
+            crate::postgres::database_error(format!("Health check failed: {}", pg_detail(&e)), &e)
         })?;
 
         Ok(())
@@ -841,9 +930,11 @@ impl DatabaseAdapter for PostgresAdapter {
         // Use retry logic for connection acquisition
         let client = self.acquire_connection_with_retry().await?;
 
-        let rows: Vec<Row> = client.query(sql, &[]).await.map_err(|e| FraiseQLError::Database {
-            message:   format!("Query execution failed: {}", pg_detail(&e)),
-            sql_state: e.code().map(|c| c.code().to_string()),
+        let rows: Vec<Row> = client.query(sql, &[]).await.map_err(|e| {
+            crate::postgres::database_error(
+                format!("Query execution failed: {}", pg_detail(&e)),
+                &e,
+            )
         })?;
 
         // Convert each row to HashMap<String, Value>
@@ -866,11 +957,12 @@ impl DatabaseAdapter for PostgresAdapter {
 
         // Compiled aggregate SELECT: read-only, replica-eligible (#407).
         let client = self.acquire_read_connection_with_retry(ReadRouting::Any).await?;
-        let rows: Vec<Row> =
-            client.query(sql, &param_refs).await.map_err(|e| FraiseQLError::Database {
-                message:   format!("Parameterized aggregate query failed: {}", pg_detail(&e)),
-                sql_state: e.code().map(|c| c.code().to_string()),
-            })?;
+        let rows: Vec<Row> = client.query(sql, &param_refs).await.map_err(|e| {
+            crate::postgres::database_error(
+                format!("Parameterized aggregate query failed: {}", pg_detail(&e)),
+                &e,
+            )
+        })?;
 
         let results: Vec<std::collections::HashMap<String, serde_json::Value>> =
             rows.iter().map(row_to_map).collect();
@@ -894,20 +986,24 @@ impl DatabaseAdapter for PostgresAdapter {
 
         // Read-only aggregate with session vars; standby-safe → replica-eligible.
         let mut client = self.acquire_read_connection_with_retry(routing).await?;
-        let txn =
-            client.build_transaction().start().await.map_err(|e| FraiseQLError::Database {
-                message:   format!("Failed to start session-var transaction: {}", pg_detail(&e)),
-                sql_state: e.code().map(|c| c.code().to_string()),
-            })?;
+        let txn = client.build_transaction().start().await.map_err(|e| {
+            crate::postgres::database_error(
+                format!("Failed to start session-var transaction: {}", pg_detail(&e)),
+                &e,
+            )
+        })?;
         apply_session_vars(&txn, session_vars).await?;
-        let rows: Vec<Row> =
-            txn.query(sql, &param_refs).await.map_err(|e| FraiseQLError::Database {
-                message:   format!("Parameterized aggregate query failed: {}", pg_detail(&e)),
-                sql_state: e.code().map(|c| c.code().to_string()),
-            })?;
-        txn.commit().await.map_err(|e| FraiseQLError::Database {
-            message:   format!("Failed to commit session-var transaction: {}", pg_detail(&e)),
-            sql_state: e.code().map(|c| c.code().to_string()),
+        let rows: Vec<Row> = txn.query(sql, &param_refs).await.map_err(|e| {
+            crate::postgres::database_error(
+                format!("Parameterized aggregate query failed: {}", pg_detail(&e)),
+                &e,
+            )
+        })?;
+        txn.commit().await.map_err(|e| {
+            crate::postgres::database_error(
+                format!("Failed to commit session-var transaction: {}", pg_detail(&e)),
+                &e,
+            )
         })?;
 
         Ok(rows.iter().map(row_to_map).collect())
@@ -970,34 +1066,34 @@ impl DatabaseAdapter for PostgresAdapter {
         // both fine inside a hot-standby read-only transaction (#407).
         let row = if session_vars.is_empty() {
             let client = self.acquire_read_connection_with_retry(routing).await?;
-            client.query_one(&sql, &param_refs).await.map_err(|e| FraiseQLError::Database {
-                message:   format!("Count query failed: {}", pg_detail(&e)),
-                sql_state: e.code().map(|c| c.code().to_string()),
+            client.query_one(&sql, &param_refs).await.map_err(|e| {
+                crate::postgres::database_error(
+                    format!("Count query failed: {}", pg_detail(&e)),
+                    &e,
+                )
             })?
         } else {
             // Session variables must land on the *same* connection as the count,
             // or an RLS-filtered page gets an unfiltered total beside it (#329).
             let mut client = self.acquire_read_connection_with_retry(routing).await?;
-            let txn =
-                client.build_transaction().start().await.map_err(|e| FraiseQLError::Database {
-                    message:   format!(
-                        "Failed to start count session-var transaction: {}",
-                        pg_detail(&e)
-                    ),
-                    sql_state: e.code().map(|c| c.code().to_string()),
-                })?;
+            let txn = client.build_transaction().start().await.map_err(|e| {
+                crate::postgres::database_error(
+                    format!("Failed to start count session-var transaction: {}", pg_detail(&e)),
+                    &e,
+                )
+            })?;
             super::database::apply_session_vars(&txn, session_vars).await?;
-            let row =
-                txn.query_one(&sql, &param_refs).await.map_err(|e| FraiseQLError::Database {
-                    message:   format!("Count query failed: {}", pg_detail(&e)),
-                    sql_state: e.code().map(|c| c.code().to_string()),
-                })?;
-            txn.commit().await.map_err(|e| FraiseQLError::Database {
-                message:   format!(
-                    "Failed to commit count session-var transaction: {}",
-                    pg_detail(&e)
-                ),
-                sql_state: e.code().map(|c| c.code().to_string()),
+            let row = txn.query_one(&sql, &param_refs).await.map_err(|e| {
+                crate::postgres::database_error(
+                    format!("Count query failed: {}", pg_detail(&e)),
+                    &e,
+                )
+            })?;
+            txn.commit().await.map_err(|e| {
+                crate::postgres::database_error(
+                    format!("Failed to commit count session-var transaction: {}", pg_detail(&e)),
+                    &e,
+                )
             })?;
             row
         };
@@ -1199,26 +1295,24 @@ impl DatabaseAdapter for PostgresAdapter {
         let sql = crate::traits::build_row_query_sql(view_name, where_sql, order_by, limit, offset);
 
         let mut client = self.acquire_connection_with_retry().await?;
-        let txn =
-            client.build_transaction().start().await.map_err(|e| FraiseQLError::Database {
-                message:   format!(
-                    "Failed to start row-read session-var transaction: {}",
-                    pg_detail(&e)
-                ),
-                sql_state: e.code().map(|c| c.code().to_string()),
-            })?;
+        let txn = client.build_transaction().start().await.map_err(|e| {
+            crate::postgres::database_error(
+                format!("Failed to start row-read session-var transaction: {}", pg_detail(&e)),
+                &e,
+            )
+        })?;
         apply_session_vars(&txn, session_vars).await?;
-        let rows: Vec<Row> =
-            txn.query(sql.as_str(), &[]).await.map_err(|e| FraiseQLError::Database {
-                message:   format!("Row query execution failed: {}", pg_detail(&e)),
-                sql_state: e.code().map(|c| c.code().to_string()),
-            })?;
-        txn.commit().await.map_err(|e| FraiseQLError::Database {
-            message:   format!(
-                "Failed to commit row-read session-var transaction: {}",
-                pg_detail(&e)
-            ),
-            sql_state: e.code().map(|c| c.code().to_string()),
+        let rows: Vec<Row> = txn.query(sql.as_str(), &[]).await.map_err(|e| {
+            crate::postgres::database_error(
+                format!("Row query execution failed: {}", pg_detail(&e)),
+                &e,
+            )
+        })?;
+        txn.commit().await.map_err(|e| {
+            crate::postgres::database_error(
+                format!("Failed to commit row-read session-var transaction: {}", pg_detail(&e)),
+                &e,
+            )
         })?;
 
         Ok(rows
@@ -1272,19 +1366,15 @@ impl DatabaseAdapter for PostgresAdapter {
         let explain_sql = format!("EXPLAIN (ANALYZE false, FORMAT JSON) {sql}");
         // Read-only (plan only, ANALYZE false): replica-eligible (#407).
         let client = self.acquire_read_connection_with_retry(ReadRouting::Any).await?;
-        let rows: Vec<Row> =
-            client
-                .query(explain_sql.as_str(), &[])
-                .await
-                .map_err(|e| FraiseQLError::Database {
-                    message:   format!("EXPLAIN failed: {}", pg_detail(&e)),
-                    sql_state: e.code().map(|c| c.code().to_string()),
-                })?;
+        let rows: Vec<Row> = client.query(explain_sql.as_str(), &[]).await.map_err(|e| {
+            crate::postgres::database_error(format!("EXPLAIN failed: {}", pg_detail(&e)), &e)
+        })?;
 
         if let Some(row) = rows.first() {
             let plan: serde_json::Value = row.try_get(0).map_err(|e| FraiseQLError::Database {
-                message:   format!("Failed to parse EXPLAIN output: {e}"),
-                sql_state: None,
+                message:    format!("Failed to parse EXPLAIN output: {e}"),
+                sql_state:  None,
+                constraint: None,
             })?;
             Ok(plan)
         } else {

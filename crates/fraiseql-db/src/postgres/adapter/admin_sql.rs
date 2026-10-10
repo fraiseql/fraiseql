@@ -7,7 +7,7 @@
 //! [`execute_admin_sql_impl`] for the two properties that come from the protocol
 //! rather than from anything written here.
 
-use fraiseql_error::{FraiseQLError, Result};
+use fraiseql_error::Result;
 use futures::TryStreamExt as _;
 use tokio_postgres::types::ToSql;
 
@@ -62,9 +62,11 @@ pub(super) async fn execute_admin_sql_impl(
             .read_only(request.read_only)
             .start()
             .await
-            .map_err(|e| FraiseQLError::Database {
-                message:   format!("Failed to start admin SQL transaction: {}", pg_detail(&e)),
-                sql_state: e.code().map(|c| c.code().to_string()),
+            .map_err(|e| {
+                crate::postgres::database_error(
+                    format!("Failed to start admin SQL transaction: {}", pg_detail(&e)),
+                    &e,
+                )
             })?;
 
     // `set_config(…, true)` is `SET LOCAL`: scoped to this transaction, parameter-
@@ -74,9 +76,11 @@ pub(super) async fn execute_admin_sql_impl(
     let timeout = format!("{}ms", request.statement_timeout_ms);
     txn.execute("SELECT set_config('statement_timeout', $1, true)", &[&timeout])
         .await
-        .map_err(|e| FraiseQLError::Database {
-            message:   format!("Failed to set admin SQL statement timeout: {}", pg_detail(&e)),
-            sql_state: e.code().map(|c| c.code().to_string()),
+        .map_err(|e| {
+            crate::postgres::database_error(
+                format!("Failed to set admin SQL statement timeout: {}", pg_detail(&e)),
+                &e,
+            )
         })?;
 
     let pairs: Vec<(&str, &str)> =
@@ -90,9 +94,11 @@ pub(super) async fn execute_admin_sql_impl(
     // whatever ran before it, which on a single-statement transaction is nothing,
     // but the intent should not depend on that.
     let committed = if request.commit && outcome.is_ok() {
-        txn.commit().await.map_err(|e| FraiseQLError::Database {
-            message:   format!("Failed to commit admin SQL transaction: {}", pg_detail(&e)),
-            sql_state: e.code().map(|c| c.code().to_string()),
+        txn.commit().await.map_err(|e| {
+            crate::postgres::database_error(
+                format!("Failed to commit admin SQL transaction: {}", pg_detail(&e)),
+                &e,
+            )
         })?;
         true
     } else {
@@ -129,10 +135,10 @@ async fn read_statement(
 ) -> Result<StatementRead> {
     let no_params: [&(dyn ToSql + Sync); 0] = [];
     let stream = txn.query_raw(request.sql.as_str(), no_params).await.map_err(|e| {
-        FraiseQLError::Database {
-            message:   format!("Admin SQL statement failed: {}", pg_detail(&e)),
-            sql_state: e.code().map(|c| c.code().to_string()),
-        }
+        crate::postgres::database_error(
+            format!("Admin SQL statement failed: {}", pg_detail(&e)),
+            &e,
+        )
     })?;
     let mut stream = std::pin::pin!(stream);
 
@@ -140,9 +146,11 @@ async fn read_statement(
     let mut rows: Vec<Vec<serde_json::Value>> = Vec::new();
     let mut truncated = false;
 
-    while let Some(row) = stream.try_next().await.map_err(|e| FraiseQLError::Database {
-        message:   format!("Admin SQL statement failed mid-read: {}", pg_detail(&e)),
-        sql_state: e.code().map(|c| c.code().to_string()),
+    while let Some(row) = stream.try_next().await.map_err(|e| {
+        crate::postgres::database_error(
+            format!("Admin SQL statement failed mid-read: {}", pg_detail(&e)),
+            &e,
+        )
     })? {
         if columns.is_empty() {
             columns = row.columns().iter().map(|c| c.name().to_string()).collect();

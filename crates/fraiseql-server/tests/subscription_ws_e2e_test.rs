@@ -510,8 +510,9 @@ struct Raising;
 impl Authorizer for Raising {
     fn authorize(&self, _req: &AuthzRequest<'_>) -> FqlResult<AuthzDecision> {
         Err(fraiseql_core::error::FraiseQLError::Database {
-            message:   "policy store down".into(),
-            sql_state: None,
+            message:    "policy store down".into(),
+            sql_state:  None,
+            constraint: None,
         })
     }
 }

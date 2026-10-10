@@ -9,6 +9,25 @@ use thiserror::Error;
 /// Result type alias for FraiseQL operations.
 pub type Result<T> = std::result::Result<T, FraiseQLError>;
 
+/// The constraint a database error names (#1531), as PostgreSQL reports it.
+///
+/// A unique **index** is reported under its index name (it has no `pg_constraint` row). The
+/// table is the one PostgreSQL names: for a foreign-key violation that is the referencing
+/// table in both directions, so the direction is not recoverable from it. A not-null
+/// violation names no constraint, only its column; PostgreSQL 18 catalogues the not-null
+/// constraint itself, so its name is resolvable from the column.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConstraintViolation {
+    /// The constraint's (or unique index's) name, when the error names one.
+    pub name:   Option<String>,
+    /// The schema of the table the error names.
+    pub schema: Option<String>,
+    /// The table the error names.
+    pub table:  Option<String>,
+    /// The column the error names (a not-null violation's).
+    pub column: Option<String>,
+}
+
 /// Main error type for FraiseQL operations.
 ///
 /// All errors in the core library are converted to this type.
@@ -132,9 +151,13 @@ pub enum FraiseQLError {
     #[error("Database error: {message}")]
     Database {
         /// Error message from the database.
-        message:   String,
+        message:    String,
         /// SQL state code if available (e.g., "23505" for unique violation).
-        sql_state: Option<String>,
+        sql_state:  Option<String>,
+        /// The constraint a violation names (#1531): the database's own `CONSTRAINT NAME`,
+        /// `SCHEMA NAME` and `TABLE NAME` fields. Schema identifiers, never row values.
+        /// `None` for an error that names no constraint.
+        constraint: Option<Box<ConstraintViolation>>,
     },
 
     /// Connection pool error.
@@ -402,8 +425,9 @@ impl FraiseQLError {
     #[must_use]
     pub fn database(message: impl Into<String>) -> Self {
         Self::Database {
-            message:   message.into(),
-            sql_state: None,
+            message:    message.into(),
+            sql_state:  None,
+            constraint: None,
         }
     }
 
@@ -678,12 +702,14 @@ impl FraiseQLError {
                           Check that the schema is compiled and the database is initialized."
                     .to_string(),
                 sql_state: Some(code.to_string()),
+                constraint: None,
             },
             "42703" => Self::Database {
                 message: "A column referenced in the query doesn't exist in the table. \
                           This may indicate the database schema is out of sync with the compiled schema."
                     .to_string(),
                 sql_state: Some(code.to_string()),
+                constraint: None,
             },
             "23505" => Self::Conflict {
                 message: "A unique constraint was violated. This value already exists in the database.".to_string(),
@@ -702,6 +728,7 @@ impl FraiseQLError {
             _ => Self::Database {
                 message,
                 sql_state: Some(code.to_string()),
+                constraint: None,
             },
         }
     }

@@ -88,8 +88,8 @@ pub use tokio_postgres;
 pub use traits::{
     AdminSqlOutcome, AdminSqlRequest, ArcDatabaseAdapter, BoxDatabaseAdapter,
     COMPOSED_DOCUMENT_KEY, COMPOSED_EMBEDS_KEY, ChangeLogWrite, ColumnRowStream, ComposedEmbed,
-    ComposedKeyset, ComposedLevel, CursorValue, DatabaseAdapter, EmbedShape, EmbedSource,
-    JsonbRowStream, LevelKeys, MutationRowGate, ProjectionRequest, RelayCursor,
+    ComposedKeyset, ComposedLevel, ConstraintDescription, CursorValue, DatabaseAdapter, EmbedShape,
+    EmbedSource, JsonbRowStream, LevelKeys, MutationRowGate, ProjectionRequest, RelayCursor,
     RelayDatabaseAdapter, RelayPageResult, ResultCacheStats, WriteMode, WriteRequest, Writer,
     composed_read_unsupported,
 };

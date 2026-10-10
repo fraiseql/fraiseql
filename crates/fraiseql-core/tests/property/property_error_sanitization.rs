@@ -104,6 +104,7 @@ fn user_message(err: &FraiseQLError) -> String {
         FraiseQLError::Database {
             message: _,
             sql_state: _,
+            constraint: None,
         } => "Database operation failed".to_string(),
         FraiseQLError::ConnectionPool { message: _ } => {
             "Service temporarily unavailable".to_string()
@@ -186,8 +187,9 @@ fn test_parse_error_deterministic_hash() {
 fn test_database_error_no_connection_leak() {
     let connection_string = "postgresql://admin:secret_password@db.internal:5432/prod_database";
     let err = FraiseQLError::Database {
-        message:   format!("Failed to connect: {}", connection_string),
-        sql_state: Some("08001".to_string()),
+        message:    format!("Failed to connect: {}", connection_string),
+        sql_state:  Some("08001".to_string()),
+        constraint: None,
     };
 
     let safe_msg = user_message(&err);
@@ -203,8 +205,9 @@ fn test_database_error_no_schema_leak() {
     let internal_error =
         "Column 'password_hash' not found. Available columns: id, email, password_hash, api_key";
     let err = FraiseQLError::Database {
-        message:   internal_error.to_string(),
-        sql_state: Some("42703".to_string()),
+        message:    internal_error.to_string(),
+        sql_state:  Some("42703".to_string()),
+        constraint: None,
     };
 
     let safe_msg = user_message(&err);
@@ -223,8 +226,9 @@ fn test_database_error_no_sql_keywords() {
 
     for sql_keyword in error_variants {
         let err = FraiseQLError::Database {
-            message:   format!("Query failed: {}", sql_keyword),
-            sql_state: None,
+            message:    format!("Query failed: {}", sql_keyword),
+            sql_state:  None,
+            constraint: None,
         };
 
         let safe_msg = user_message(&err);
@@ -331,8 +335,9 @@ fn test_all_error_variants_have_safe_user_messages() {
         FraiseQLError::parse("syntax error at position 42"),
         FraiseQLError::validation("invalid type"),
         FraiseQLError::Database {
-            message:   "connection refused".to_string(),
-            sql_state: Some("08001".to_string()),
+            message:    "connection refused".to_string(),
+            sql_state:  Some("08001".to_string()),
+            constraint: None,
         },
         FraiseQLError::ConnectionPool {
             message: "pool exhausted".to_string(),
@@ -385,8 +390,9 @@ fn test_all_error_variants_have_safe_user_messages() {
 fn test_error_messages_do_not_contain_internal_marker() {
     let errors: Vec<FraiseQLError> = vec![
         FraiseQLError::Database {
-            message:   "internal error occurred".to_string(),
-            sql_state: None,
+            message:    "internal error occurred".to_string(),
+            sql_state:  None,
+            constraint: None,
         },
         FraiseQLError::Internal {
             message: "internal state corrupted".to_string(),
@@ -413,8 +419,9 @@ fn test_error_message_size_bounded() {
         FraiseQLError::parse(huge_message.clone()),
         FraiseQLError::validation(huge_message.clone()),
         FraiseQLError::Database {
-            message:   huge_message.clone(),
-            sql_state: None,
+            message:    huge_message.clone(),
+            sql_state:  None,
+            constraint: None,
         },
         FraiseQLError::Configuration {
             message: huge_message,
@@ -523,8 +530,9 @@ fn test_no_database_connection_strings_leaked() {
 
     for conn_str in connection_strings {
         let err = FraiseQLError::Database {
-            message:   format!("Connection failed: {}", conn_str),
-            sql_state: None,
+            message:    format!("Connection failed: {}", conn_str),
+            sql_state:  None,
+            constraint: None,
         };
 
         let safe_msg = user_message(&err);
@@ -548,8 +556,9 @@ fn test_no_hostnames_or_ips_leaked() {
 
     for endpoint in endpoints {
         let err = FraiseQLError::Database {
-            message:   format!("Cannot reach {}", endpoint),
-            sql_state: None,
+            message:    format!("Cannot reach {}", endpoint),
+            sql_state:  None,
+            constraint: None,
         };
 
         let safe_msg = user_message(&err);
@@ -691,6 +700,7 @@ mod property_tests {
             let err = FraiseQLError::Database {
                 message: msg,
                 sql_state: None,
+                constraint: None,
             };
             let safe_msg = user_message(&err);
 
@@ -729,6 +739,7 @@ mod property_tests {
                 FraiseQLError::Database {
                     message: msg.clone(),
                     sql_state: None,
+                    constraint: None,
                 },
                 FraiseQLError::Configuration {
                     message: msg.clone(),
@@ -779,6 +790,7 @@ mod property_tests {
                 FraiseQLError::Database {
                     message: msg.clone(),
                     sql_state: None,
+                    constraint: None,
                 },
                 FraiseQLError::Configuration {
                     message: msg,
@@ -820,6 +832,7 @@ mod property_tests {
             let err = FraiseQLError::Database {
                 message: msg,
                 sql_state: None,
+                constraint: None,
             };
 
             let safe_msg = user_message(&err);
@@ -866,6 +879,7 @@ mod property_tests {
                 FraiseQLError::Database {
                     message: msg.clone(),
                     sql_state: None,
+                    constraint: None,
                 },
                 FraiseQLError::Configuration {
                     message: msg,

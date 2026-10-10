@@ -61,6 +61,10 @@ const MANIFEST: &[(&str, &str)] = &[
         "mutation_error_shape_check",
         "executor_runtime_config → RuntimeConfig.mutation_error_shape_check (#1425 errors[] check)",
     ),
+    (
+        "mutation_constraint_metadata",
+        "executor_runtime_config → RuntimeConfig.constraint_metadata (#1531 constraint entry)",
+    ),
     // ── Metrics / tracing ────────────────────────────────────────────────────
     ("metrics*", "server metrics (metrics-exporter-prometheus; enabled/path/token)"),
     ("tracing_enabled", "OTLP tracing toggle"),
