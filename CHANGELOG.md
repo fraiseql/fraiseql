@@ -227,6 +227,18 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **Under the tenancy runtime, REST and function writes dispatch the tenant (#1550).**
+  - A REST request that names an unregistered tenant is refused (as on `/graphql`); before,
+    it was answered `200` with the default database's data.
+  - A suspended tenant gets `503` on REST.
+  - A tenant's REST routes are its own schema's: a tenant whose schema serves no REST gets
+    `404`.
+  - `flight_upload_tables` combined with `[tenancy.runtime] enabled` refuses to boot: an
+    Upload writes through the server-wide pool, never a tenant's.
+  - Embedders: `RunAsQueryExecutor::new`, `make_query_executor_factory`,
+    `build_cron_pollers` and `build_source_pollers` take a `query_bridge::ExecutorSource`
+    (built with `ExecutorSource::of(&app_state)`) instead of the executor handle.
+
 - **SDK field and argument shapes gain `localized` (#1527).** A positional or exhaustive
   construction adds it: Rust's `Field` (published on crates.io) in a struct literal, F#'s
   `FieldDefinition` and `ArgumentDefinition` in every record literal, Go's `FieldInfo` and
@@ -452,6 +464,16 @@ disagreed, and the promise was the part that was wrong.
   `path: vec!["category".into()]`.
 
 ### Fixed
+
+- **A tenant's REST request and its functions' writes run on the tenant's executor (#1550).**
+  With `[tenancy.runtime]` on, REST built every handler from the default executor, and the
+  function bridge (after:mutation, after:ingest, after:capture, cron, scheduled sources)
+  wrote through it whatever tenant its identity carried. So a tenant's REST read was answered
+  from the default `search_path` (schema mode) or database (a tenant with its own
+  `connection`), its writes landed there, and suspension, concurrency, RPS and cost limits
+  were bypassed, all without an error. Both now resolve the tenant and dispatch through the
+  same seam `/graphql` uses. `build_grpc_service` (which the server binary does not mount)
+  documents that it serves only the executor it is given.
 
 - **The TypeScript SDK's `localized: true` option is refused on a non-String (#1527).** The
   type-string API refused `Localized<number>`, but the option was exported on any type and

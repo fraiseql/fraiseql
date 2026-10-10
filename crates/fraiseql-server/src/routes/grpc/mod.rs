@@ -625,6 +625,11 @@ impl tower::Service<http::Request<TonicBody>> for DynamicGrpcService {
 
 /// Build a [`DynamicGrpcService`] from a compiled schema and descriptor file.
 ///
+/// The service serves the one `executor` it is given, for every caller: it does not
+/// dispatch tenants (#1550). The server binary mounts no gRPC service; an embedder that
+/// runs the tenancy runtime must not mount this over the default executor for tenant
+/// traffic, since a tenant's request would be answered from the default database.
+///
 /// Returns `None` if gRPC is not configured or not enabled.
 /// Returns `Some(GrpcServices)` on success, containing the dynamic service,
 /// an optional reflection service, and the service name.

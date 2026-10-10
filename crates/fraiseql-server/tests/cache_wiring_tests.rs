@@ -380,6 +380,47 @@ async fn cache_plus_flight_upload_is_refused_at_boot() {
     );
 }
 
+/// #1550: a Flight Upload writes through the server-wide pool, never a tenant's, so under
+/// the tenancy runtime a tenant's upload would land in the default database. Refused at boot.
+#[cfg(feature = "arrow")]
+#[tokio::test]
+async fn tenancy_runtime_plus_flight_upload_is_refused_at_boot() {
+    let (adapter, _counter) = CountingAdapter::new();
+    let mut config = ServerConfig {
+        flight_upload_tables: vec!["ta_measurements".to_string()],
+        cache_enabled: false,
+        ..caching_config()
+    };
+    config.tenancy.runtime.enabled = true;
+
+    let err =
+        Server::with_flight_service(config, cacheable_schema(), Arc::new(adapter), None, None)
+            .await
+            .err()
+            .expect("the tenancy runtime + a non-empty Upload allow-list must refuse to boot");
+    let msg = err.to_string();
+    assert!(
+        msg.contains("flight_upload_tables") && msg.contains("[tenancy.runtime]"),
+        "the refusal must name both knobs; got: {msg}"
+    );
+}
+
+/// Guard against over-refusal: the tenancy runtime with Upload disabled still boots.
+#[cfg(feature = "arrow")]
+#[tokio::test]
+async fn tenancy_runtime_with_upload_disabled_still_boots() {
+    let (adapter, _counter) = CountingAdapter::new();
+    let mut config = ServerConfig {
+        cache_enabled: false,
+        ..caching_config()
+    };
+    config.tenancy.runtime.enabled = true;
+    let result =
+        Server::with_flight_service(config, cacheable_schema(), Arc::new(adapter), None, None)
+            .await;
+    assert!(result.is_ok(), "Upload disabled: nothing writes outside a tenant's executor");
+}
+
 /// Guard against over-refusal: the default (Upload disabled) still boots with caching.
 #[cfg(feature = "arrow")]
 #[tokio::test]

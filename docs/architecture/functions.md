@@ -136,12 +136,11 @@ than only waited out. An overrun **refuses the write**, with a diagnosis naming 
 budget and the mutation rather than the generic hook-failure message — the one cause
 an operator can act on by raising a limit.
 
-**One deployment mode where the contract does not hold yet.** A per-tenant executor is
-built by `create_tenant_executor` with `RuntimeConfig::default()`, so a tenant-keyed
-request in a `[tenancy.runtime] enabled = true` deployment carries no gate — along with
-no operation `Authorizer`, RLS policy or field filter, which is the same defect and is
-why it is tracked on its own: **#1333**. Single-tenant deployments dispatch to the
-server's own executor and are unaffected.
+**Under the tenancy runtime.** A per-tenant executor is built from the server's
+`RuntimeConfig` (#1333), so a tenant-keyed request carries the same gate. A dispatched
+function's `fraiseql_query` writes run on the executor of the tenant its identity carries
+(its `run_as` tenant, or a source message's tenant), and an unregistered or suspended
+tenant's write is refused (#1550).
 
 
 ### Durable After-Mutation Dispatch

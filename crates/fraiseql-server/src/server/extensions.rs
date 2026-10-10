@@ -163,6 +163,20 @@ impl Server {
             ));
         }
 
+        // #1550: an Upload writes through the server-wide pool, never a tenant's executor,
+        // so under the tenancy runtime a tenant's rows would land in the default database
+        // (schema mode: the default `search_path`). Refused until uploads dispatch tenants.
+        if config.tenancy.runtime.enabled && !config.flight_upload_tables.is_empty() {
+            return Err(super::ServerError::ConfigError(
+                "`[tenancy.runtime] enabled = true` cannot be combined with a non-empty \
+                 `flight_upload_tables`: a Flight Upload writes through the server-wide pool, \
+                 not the tenant's executor, so a tenant's rows would land in the default \
+                 database (#1550). Leave `flight_upload_tables` empty to keep Upload disabled, \
+                 or disable the tenancy runtime."
+                    .to_string(),
+            ));
+        }
+
         // Build the runtime config from the compiled schema (validates format version,
         // reads the audit flag, applies the #421 page-size ceiling + change-log toggle).
         let executor_config = crate::server::initialization::executor_runtime_config(
