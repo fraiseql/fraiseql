@@ -2234,7 +2234,6 @@ mod introspect_facts_tests {
                 hierarchy: None,
             }],
             calendar_dimensions:      vec![],
-            partial_period:           None,
             native_measures:          std::collections::HashMap::new(),
             native_dimension_mapping: std::collections::HashMap::new(),
         };
@@ -3673,7 +3672,6 @@ mod validate_facts_tests {
             },
             denormalized_filters: filters,
             calendar_dimensions: vec![],
-            partial_period: None,
             native_measures: std::collections::HashMap::new(),
             native_dimension_mapping: std::collections::HashMap::new(),
         }

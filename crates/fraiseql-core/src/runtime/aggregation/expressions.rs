@@ -381,9 +381,7 @@ impl AggregationSqlGenerator {
                     Some(collation) => {
                         let expr = group_by_expressions
                             .iter()
-                            .find(|e| {
-                                super::partial_period_builder::group_by_alias(e) == clause.field
-                            })
+                            .find(|e| group_by_alias(e) == clause.field)
                             .ok_or_else(|| {
                                 crate::error::FraiseQLError::validation(format!(
                                     "orderBy `{}` names no group-by output",
@@ -402,5 +400,16 @@ impl AggregationSqlGenerator {
             .collect::<Result<_>>()?;
 
         Ok(format!("ORDER BY {}", clauses.join(", ")))
+    }
+}
+
+/// The output alias a group-by expression is selected under.
+pub(super) fn group_by_alias(expr: &GroupByExpression) -> &str {
+    match expr {
+        GroupByExpression::JsonbPath { alias, .. }
+        | GroupByExpression::TemporalBucket { alias, .. }
+        | GroupByExpression::CalendarPath { alias, .. }
+        | GroupByExpression::TreeLevel { alias, .. }
+        | GroupByExpression::NativeColumn { alias, .. } => alias,
     }
 }

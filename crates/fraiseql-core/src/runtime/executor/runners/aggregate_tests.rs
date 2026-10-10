@@ -8,11 +8,9 @@ use chrono::Utc;
 
 use crate::{
     compiler::fact_table::{
-        DimensionColumn, FactTableMetadata, FilterColumn, MeasureColumn, PartialPeriodConfig,
-        SqlType, TemporalGrain,
+        DimensionColumn, FactTableMetadata, FilterColumn, MeasureColumn, SqlType,
     },
     runtime::{Executor, RuntimeConfig, executor::test_support::CapturingMockAdapter},
-    schema::{SessionVariableMapping, SessionVariableSource, SessionVariablesConfig},
     security::{DefaultRLSPolicy, SecurityContext},
 };
 
@@ -88,7 +86,6 @@ fn schema_with_fact_table() -> crate::schema::CompiledSchema {
                 },
             ],
             calendar_dimensions:      vec![],
-            partial_period:           None,
             native_measures:          std::collections::HashMap::new(),
             native_dimension_mapping: std::collections::HashMap::new(),
         },
@@ -251,217 +248,6 @@ async fn window_query_admin_bypasses_rls() {
     assert!(
         !sql.contains("tenant_id"),
         "admin should bypass RLS in window queries, but SQL contains tenant_id: {sql}"
-    );
-}
-
-// ── Partial-period dispatch tests ──────────────────────────────────────────
-
-/// Build a schema with a fact table that has partial-period config.
-fn schema_with_partial_period() -> crate::schema::CompiledSchema {
-    let mut schema = crate::schema::CompiledSchema::new();
-    schema.add_fact_table(
-        "tf_events".to_string(),
-        FactTableMetadata {
-            table_name:               "tf_events".to_string(),
-            type_name:                None,
-            measures:                 vec![MeasureColumn {
-                name:     "volume".to_string(),
-                sql_type: SqlType::BigInt,
-                nullable: false,
-            }],
-            dimensions:               DimensionColumn {
-                name:  "data".to_string(),
-                paths: vec![],
-            },
-            denormalized_filters:     vec![
-                FilterColumn {
-                    name:      "tenant_id".to_string(),
-                    sql_type:  SqlType::Text,
-                    indexed:   true,
-                    hierarchy: None,
-                },
-                FilterColumn {
-                    name:      "period_start".to_string(),
-                    sql_type:  SqlType::Date,
-                    indexed:   true,
-                    hierarchy: None,
-                },
-            ],
-            calendar_dimensions:      vec![],
-            partial_period:           Some(PartialPeriodConfig {
-                fine_grain_view:   "v_events_day".to_string(),
-                time_grain_column: "period_start".to_string(),
-                time_grain_trunc:  TemporalGrain::Month,
-            }),
-            native_measures:          std::collections::HashMap::new(),
-            native_dimension_mapping: std::collections::HashMap::new(),
-        },
-    );
-    schema
-}
-
-#[tokio::test]
-async fn partial_period_dispatch_generates_union_all() {
-    let schema = schema_with_partial_period();
-    let adapter = Arc::new(CapturingMockAdapter::new(vec![]));
-    let executor = Executor::new(schema, adapter.clone());
-
-    // Lower bound mid-month in the past → triggers partial-period UNION ALL
-    let vars = serde_json::json!({
-        "table": "tf_events",
-        "aggregates": [{"count": {}}],
-        "where": {"period_start_gte": "2020-01-15"}
-    });
-    let _result = executor.execute("{ events_aggregate }", Some(&vars)).await.unwrap();
-
-    let sql = adapter.captured_aggregate_sql().expect("SQL should be captured");
-    assert!(
-        sql.contains("UNION ALL"),
-        "partial-period dispatch should generate UNION ALL, got: {sql}"
-    );
-    assert!(sql.contains("v_events_day"), "fine-grain view should appear in SQL: {sql}");
-}
-
-#[tokio::test]
-async fn partial_period_not_triggered_without_date_filter() {
-    let schema = schema_with_partial_period();
-    let adapter = Arc::new(CapturingMockAdapter::new(vec![]));
-    let executor = Executor::new(schema, adapter.clone());
-
-    // No date filter → standard aggregation path
-    let vars = serde_json::json!({
-        "table": "tf_events",
-        "aggregates": [{"count": {}}],
-    });
-    let _result = executor.execute("{ events_aggregate }", Some(&vars)).await.unwrap();
-
-    let sql = adapter.captured_aggregate_sql().expect("SQL should be captured");
-    assert!(
-        !sql.contains("UNION ALL"),
-        "without date filter, should use standard path, got: {sql}"
-    );
-    assert!(
-        !sql.contains("v_events_day"),
-        "fine-grain view should NOT appear without date filter: {sql}"
-    );
-}
-
-#[tokio::test]
-async fn partial_period_with_rls_includes_tenant_in_all_branches() {
-    let schema = schema_with_partial_period();
-    let adapter = Arc::new(CapturingMockAdapter::new(vec![]));
-    let config = RuntimeConfig::default().with_rls_policy(Arc::new(DefaultRLSPolicy::new()));
-    let executor = Executor::with_config(schema, adapter.clone(), config);
-
-    let ctx = tenant_security_context("tenant-abc");
-    let vars = serde_json::json!({
-        "table": "tf_events",
-        "aggregates": [{"count": {}}],
-        "where": {"period_start_gte": "2020-01-15"}
-    });
-    let _result = executor
-        .execute_with_security("{ events_aggregate }", Some(&vars), &ctx)
-        .await
-        .unwrap();
-
-    let sql = adapter.captured_aggregate_sql().expect("SQL should be captured");
-    assert!(sql.contains("UNION ALL"), "should use partial-period path: {sql}");
-
-    // RLS tenant filter should appear in EVERY branch
-    let branches: Vec<&str> = sql.split("UNION ALL").collect();
-    assert!(
-        branches.len() >= 2,
-        "expected at least 2 branches, got {}: {sql}",
-        branches.len()
-    );
-    for (i, branch) in branches.iter().enumerate() {
-        assert!(
-            branch.contains("tenant_id"),
-            "branch {} missing tenant_id RLS filter: {branch}",
-            i + 1
-        );
-    }
-}
-
-/// A partial-period schema with session variables configured, so
-/// `resolve_session_vars` produces `app.tenant_id` from the security context.
-fn schema_with_partial_period_and_session_vars() -> crate::schema::CompiledSchema {
-    let mut schema = schema_with_partial_period();
-    schema.session_variables = SessionVariablesConfig {
-        variables:         vec![SessionVariableMapping {
-            name:   "app.tenant_id".to_string(),
-            source: SessionVariableSource::Jwt {
-                claim: "tenant_id".to_string(),
-            },
-        }],
-        inject_started_at: false,
-    };
-    schema
-}
-
-// the partial-period aggregate branch must resolve session variables so a
-// PostgreSQL current_setting()-backed RLS policy constrains it — the same way the
-// standard aggregate path and the window path already do. Before the fix this branch
-// called the non-session aggregate method, so no session variables reached the
-// connection (cross-tenant read on any aggregate taking the partial-period branch).
-#[tokio::test]
-async fn partial_period_aggregate_resolves_session_variables() {
-    let schema = schema_with_partial_period_and_session_vars();
-    let adapter = Arc::new(CapturingMockAdapter::new(vec![]));
-    let executor = Executor::new(schema, adapter.clone());
-
-    let ctx = tenant_security_context("tenant-abc");
-    let vars = serde_json::json!({
-        "table": "tf_events",
-        "aggregates": [{"count": {}}],
-        "where": {"period_start_gte": "2020-01-15"}
-    });
-    executor
-        .execute_with_security("{ events_aggregate }", Some(&vars), &ctx)
-        .await
-        .unwrap();
-
-    // Confirm the partial-period branch was actually exercised.
-    let sql = adapter.captured_aggregate_sql().expect("SQL should be captured");
-    assert!(sql.contains("UNION ALL"), "test must exercise the partial-period path: {sql}");
-
-    let session_vars = adapter
-        .captured_aggregate_session_vars()
-        .expect("partial-period branch must call the session-aware aggregate method");
-    let tenant = session_vars.iter().find(|(k, _)| k == "app.tenant_id").map(|(_, v)| v.as_str());
-    assert_eq!(
-        tenant,
-        Some("tenant-abc"),
-        "partial-period aggregate must resolve the caller's tenant into session variables for \
-         current_setting()-backed RLS; got: {session_vars:?}"
-    );
-}
-
-#[tokio::test]
-async fn partial_period_gt_operator_triggers_dispatch() {
-    let schema = schema_with_partial_period();
-    let adapter = Arc::new(CapturingMockAdapter::new(vec![]));
-    let executor = Executor::new(schema, adapter.clone());
-
-    // Use gt (exclusive) instead of gte — should be converted to next-day inclusive
-    let vars = serde_json::json!({
-        "table": "tf_events",
-        "aggregates": [{"count": {}}],
-        "where": {"period_start_gt": "2020-01-14"}
-    });
-    let _result = executor.execute("{ events_aggregate }", Some(&vars)).await.unwrap();
-
-    let sql = adapter.captured_aggregate_sql().expect("SQL should be captured");
-    assert!(
-        sql.contains("UNION ALL"),
-        "gt operator should trigger partial-period dispatch: {sql}"
-    );
-    // The params should contain "2020-01-15" (gt 14th → gte 15th)
-    let params = adapter.captured_aggregate_params().expect("params should be captured");
-    assert!(
-        params.iter().any(|p| p == &serde_json::json!("2020-01-15")),
-        "gt 2020-01-14 should produce gte 2020-01-15 in params: {:?}",
-        params
     );
 }
 

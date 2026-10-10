@@ -843,7 +843,6 @@ fn fact_table_add_and_get() {
         },
         denormalized_filters:     vec![],
         calendar_dimensions:      vec![],
-        partial_period:           None,
         native_measures:          std::collections::HashMap::new(),
         native_dimension_mapping: std::collections::HashMap::new(),
     };
@@ -868,7 +867,6 @@ fn list_fact_tables_returns_all_names() {
         },
         denormalized_filters:     vec![],
         calendar_dimensions:      vec![],
-        partial_period:           None,
         native_measures:          std::collections::HashMap::new(),
         native_dimension_mapping: std::collections::HashMap::new(),
     };
@@ -2601,7 +2599,6 @@ mod fact_table_hierarchy {
                     hierarchy: Some(hierarchy.to_string()),
                 }],
                 calendar_dimensions:      vec![],
-                partial_period:           None,
                 native_measures:          HashMap::new(),
                 native_dimension_mapping: HashMap::new(),
             },
@@ -2812,5 +2809,46 @@ mod unresolved_field_types {
             .push(FieldDefinition::new("owner", FieldType::Object("Nope".to_string())));
         let err = load(&schema).expect_err("loaded");
         assert!(err.contains("Node.owner") && err.contains("`Nope`"), "{err}");
+    }
+}
+
+/// #1519: `partial_period` is removed (it had no producer, could not execute on PostgreSQL
+/// and would not recombine its branches). An artifact still carrying it is refused at load,
+/// by name, rather than the key being ignored and the query silently run on the coarse table.
+mod removed_partial_period {
+    use crate::schema::CompiledSchema;
+
+    fn artifact(fact_table: &serde_json::Value) -> String {
+        serde_json::json!({ "fact_tables": { "tf_sales": fact_table } }).to_string()
+    }
+
+    fn fact_table() -> serde_json::Value {
+        serde_json::json!({
+            "table_name": "tf_sales",
+            "measures": [{ "name": "revenue", "sql_type": "Decimal", "nullable": false }],
+            "dimensions": { "name": "data", "paths": [] },
+            "denormalized_filters": []
+        })
+    }
+
+    #[test]
+    fn an_artifact_carrying_partial_period_is_refused_by_name() {
+        let mut table = fact_table();
+        // The shape 2.16.0 loaded (and then could not execute).
+        table["partial_period"] = serde_json::json!({
+            "fine_grain_view": "tf_sales_daily", "time_grain_column": "day",
+            "time_grain_trunc": "month"
+        });
+        let err = CompiledSchema::from_json(&artifact(&table), false)
+            .expect_err("a removed key must not load")
+            .to_string();
+        assert!(err.contains("partial_period") && err.contains("#1519"), "{err}");
+    }
+
+    /// The refusal is of the one key: the same fact table without it loads.
+    #[test]
+    fn the_same_fact_table_without_it_loads() {
+        CompiledSchema::from_json(&artifact(&fact_table()), false)
+            .expect("a fact table without partial_period loads");
     }
 }

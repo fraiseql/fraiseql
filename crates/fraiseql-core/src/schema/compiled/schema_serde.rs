@@ -113,6 +113,7 @@ impl CompiledSchema {
         };
 
         let mut value: serde_json::Value = serde_json::from_str(json).map_err(serde_err)?;
+        refuse_removed_keys(&value)?;
 
         let obj = value.as_object_mut().ok_or_else(|| FraiseQLError::Validation {
             message: "Schema JSON must be an object".to_string(),
@@ -839,4 +840,35 @@ impl CompiledSchema {
             serde_json::from_str(&json).expect("just serialised — always valid JSON");
         content_hash_of(&value)
     }
+}
+
+/// Refuse, by name, a key a compiled artifact may still carry but no build reads any more.
+///
+/// The structs do not deny unknown fields (a hand-written fixture with an extra key must keep
+/// loading), so a removed field would otherwise be ignored in silence, and what it configured
+/// would quietly not happen.
+fn refuse_removed_keys(value: &serde_json::Value) -> std::result::Result<(), FraiseQLError> {
+    // #1519: a fact table's `partial_period` had no producer, could not execute on
+    // PostgreSQL and would not recombine its branches. Ignored, the query would run on the
+    // coarse table alone.
+    let carrying: Vec<&str> = value
+        .get("fact_tables")
+        .and_then(serde_json::Value::as_object)
+        .into_iter()
+        .flatten()
+        .filter(|(_, table)| table.get("partial_period").is_some())
+        .map(|(name, _)| name.as_str())
+        .collect();
+    if carrying.is_empty() {
+        return Ok(());
+    }
+    Err(FraiseQLError::Validation {
+        message: format!(
+            "fact table(s) {} declare `partial_period`, which was removed (#1519): it had no \
+             producer and could not run on PostgreSQL. Remove the key; the table is read as \
+             declared.",
+            carrying.join(", ")
+        ),
+        path:    Some("fact_tables.partial_period".to_string()),
+    })
 }

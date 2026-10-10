@@ -66,7 +66,6 @@ mod matcher;
 pub mod mutation_result;
 pub(crate) mod native_columns;
 pub mod notices;
-pub mod partial_period;
 mod planner;
 pub(crate) mod projection;
 pub mod query_function;

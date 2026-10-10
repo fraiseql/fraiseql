@@ -76,7 +76,6 @@ fn metadata(mapping: &[(&str, &str)]) -> FactTableMetadata {
             hierarchy: None,
         }],
         calendar_dimensions:      vec![],
-        partial_period:           None,
         native_measures:          HashMap::new(),
         native_dimension_mapping: mapping
             .iter()

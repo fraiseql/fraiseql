@@ -7,8 +7,7 @@
 //! pattern-matches on `WhereClause` has to recognise it. `WhereClause` is
 //! `#[non_exhaustive]`, so a cross-crate `match` compiles with a `_` arm and a
 //! consumer can silently take the wrong branch: the subscription filter would
-//! refuse every filtered subscription, the partial-period optimiser would stop
-//! firing, the aggregation planner would error.
+//! refuse every filtered subscription, the aggregation planner would error.
 //!
 //! The compiler cannot catch that. This suite drives each consumer with the same
 //! clause twice — bare and annotated — and asserts the answers match.
@@ -87,36 +86,6 @@ fn the_subscription_filter_accepts_an_annotated_clause() {
         "annotating a row-visibility clause must not change which conditions are enforceable"
     );
     assert!(bare.is_ok(), "the bare clause must be enforceable to begin with: {bare:?}");
-}
-
-/// The partial-period optimiser sees the same lower bound through the annotation.
-#[test]
-fn the_partial_period_optimiser_looks_through_the_annotation() {
-    use fraiseql_core::runtime::partial_period::{extract_lower_date_bound, split_where_clause};
-
-    let clause = WhereClause::And(vec![
-        field("period_start", WhereOperator::Gte, json!("2024-06-01")),
-        field("tenant_id", WhereOperator::Eq, json!("acme")),
-    ]);
-
-    assert_eq!(
-        extract_lower_date_bound(&clause, "period_start"),
-        extract_lower_date_bound(&clause.clone().typed(types()), "period_start"),
-        "annotating must not hide the lower bound"
-    );
-    assert!(
-        extract_lower_date_bound(&clause, "period_start").is_some(),
-        "the bare clause must expose a lower bound to begin with"
-    );
-
-    let bare = split_where_clause(&clause, "period_start").expect("bare split");
-    let annotated =
-        split_where_clause(&clause.typed(types()), "period_start").expect("annotated split");
-    assert_eq!(bare.lower_bound, annotated.lower_bound);
-    assert!(
-        annotated.remaining.is_some(),
-        "the remaining conditions must survive the split, annotated or not"
-    );
 }
 
 /// The cache key is stable and distinguishes structurally different clauses.

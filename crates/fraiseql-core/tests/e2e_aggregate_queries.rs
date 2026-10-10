@@ -945,7 +945,6 @@ fn create_native_metadata() -> fraiseql_core::compiler::fact_table::FactTableMet
             hierarchy: None,
         }],
         calendar_dimensions:      vec![],
-        partial_period:           None,
         native_measures:          std::collections::HashMap::from([
             ("measures.volume".to_string(), "volume".to_string()),
             ("measures.latency".to_string(), "latency_ms".to_string()),

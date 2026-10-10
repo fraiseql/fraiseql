@@ -26,16 +26,16 @@ use crate::{
 /// Capturing mock that records the WHERE clause and limit/offset it receives.
 /// Used to verify parameter threading from executor to adapter.
 pub struct CapturingMockAdapter {
-    pub mock_results:                    Vec<JsonbValue>,
+    pub mock_results:              Vec<JsonbValue>,
     /// Rows the parameterized-aggregate path returns — the shape the federation
     /// `_entities` resolver reads. Empty by default, which is what every caller
     /// asserting only *whether* the resolver ran wants; set it with
     /// [`with_aggregate_rows`](Self::with_aggregate_rows) to assert on the values
     /// that come back (field masking, projection).
-    pub mock_aggregate_rows:             Vec<std::collections::HashMap<String, serde_json::Value>>,
-    pub captured_where:                  std::sync::Mutex<Option<WhereClause>>,
-    pub captured_limit:                  std::sync::Mutex<Option<u32>>,
-    pub captured_offset:                 std::sync::Mutex<Option<u32>>,
+    pub mock_aggregate_rows:       Vec<std::collections::HashMap<String, serde_json::Value>>,
+    pub captured_where:            std::sync::Mutex<Option<WhereClause>>,
+    pub captured_limit:            std::sync::Mutex<Option<u32>>,
+    pub captured_offset:           std::sync::Mutex<Option<u32>>,
     /// The ORDER BY the last read resolved to.
     ///
     /// `execute_with_projection` used to drop its `order_by` on the floor and
@@ -43,20 +43,19 @@ pub struct CapturingMockAdapter {
     /// witnessed an ordering even if something had recorded it — a test
     /// asserting on the sort would have been green against an engine that
     /// emitted none (#1284).
-    pub captured_order_by:               std::sync::Mutex<Option<Vec<OrderByClause>>>,
-    pub captured_aggregate_sql:          std::sync::Mutex<Option<String>>,
-    pub captured_aggregate_params:       std::sync::Mutex<Option<Vec<serde_json::Value>>>,
-    pub captured_aggregate_session_vars: std::sync::Mutex<Option<Vec<(String, String)>>>,
+    pub captured_order_by:         std::sync::Mutex<Option<Vec<OrderByClause>>>,
+    pub captured_aggregate_sql:    std::sync::Mutex<Option<String>>,
+    pub captured_aggregate_params: std::sync::Mutex<Option<Vec<serde_json::Value>>>,
     /// Rows the row-shaped read returns (#1351).
-    pub mock_row_results:                Vec<Vec<crate::backend::types::ColumnValue>>,
+    pub mock_row_results:          Vec<Vec<crate::backend::types::ColumnValue>>,
     /// What the last row-shaped read asked the adapter for.
-    pub captured_row_read:               std::sync::Mutex<Option<CapturedRowRead>>,
+    pub captured_row_read:         std::sync::Mutex<Option<CapturedRowRead>>,
     /// The composed read (`?select=` embedding) handed to the adapter, answered with
     /// `mock_results` — which a composed-read test therefore fills with composed rows.
-    pub captured_composed:               std::sync::Mutex<Option<crate::backend::ComposedLevel>>,
+    pub captured_composed:         std::sync::Mutex<Option<crate::backend::ComposedLevel>>,
     /// What `supports_composed_reads` answers; `true` unless built
     /// [`without_composed_reads`](Self::without_composed_reads).
-    pub composes_reads:                  bool,
+    pub composes_reads:            bool,
 }
 
 /// The arguments a row-shaped read reached the adapter with (#1351).
@@ -88,7 +87,6 @@ impl CapturingMockAdapter {
             captured_order_by: std::sync::Mutex::new(None),
             captured_aggregate_sql: std::sync::Mutex::new(None),
             captured_aggregate_params: std::sync::Mutex::new(None),
-            captured_aggregate_session_vars: std::sync::Mutex::new(None),
             mock_row_results: Vec::new(),
             captured_row_read: std::sync::Mutex::new(None),
             captured_composed: std::sync::Mutex::new(None),
@@ -148,13 +146,6 @@ impl CapturingMockAdapter {
     #[allow(dead_code)] // Reason: available for future aggregate RLS param verification tests
     pub fn captured_aggregate_params(&self) -> Option<Vec<serde_json::Value>> {
         self.captured_aggregate_params.lock().unwrap().clone()
-    }
-
-    /// The session variables the last `_with_session` aggregate call received.
-    /// `None` means the non-session `execute_parameterized_aggregate` was called
-    /// (no session variables reached the connection) — the #610 partial-period gap.
-    pub fn captured_aggregate_session_vars(&self) -> Option<Vec<(String, String)>> {
-        self.captured_aggregate_session_vars.lock().unwrap().clone()
     }
 
     /// Rows for the row-shaped read (#1351).
@@ -315,11 +306,9 @@ impl DatabaseAdapter for CapturingMockAdapter {
         &self,
         sql: &str,
         params: &[serde_json::Value],
-        session_vars: &[(&str, &str)],
+        _session_vars: &[(&str, &str)],
         _routing: crate::backend::types::ReadRouting,
     ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
-        *self.captured_aggregate_session_vars.lock().unwrap() =
-            Some(session_vars.iter().map(|(k, v)| ((*k).to_string(), (*v).to_string())).collect());
         // Delegate so SQL/params capture stays identical to the non-session path.
         self.execute_parameterized_aggregate(sql, params).await
     }

@@ -10,9 +10,7 @@
 //!
 //! One case per path that emits an output alias and can run: a plain JSONB dimension, a
 //! dimension mapped to a native column, the same ordered by its alias, and the window
-//! planner's select and window aliases. The partial-period UNION quotes its aliases the same
-//! way, but cannot execute on PostgreSQL at all (#1519), so it has no case here. Driven
-//! through the real executor against PostgreSQL.
+//! planner's select and window aliases. Driven through the real executor against PostgreSQL.
 //!
 //! **Execution engine:** `PostgreSQL` · **Infrastructure:** `DATABASE_URL` ·
 //! **Parallelism:** creates and drops its own `tf_issue_1516` table.
@@ -79,7 +77,6 @@ fn metadata(mapping: &[(&str, &str)]) -> FactTableMetadata {
             },
         ],
         calendar_dimensions:      vec![],
-        partial_period:           None,
         native_measures:          HashMap::new(),
         native_dimension_mapping: mapping
             .iter()

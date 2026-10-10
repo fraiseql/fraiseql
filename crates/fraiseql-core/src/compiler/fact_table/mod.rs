@@ -70,14 +70,6 @@ pub struct FactTableMetadata {
     /// Calendar dimensions for optimized temporal aggregations
     #[serde(default)]
     pub calendar_dimensions:      Vec<CalendarDimension>,
-    /// Optional partial-period awareness configuration.
-    ///
-    /// When a coarse-grain fact table (e.g. monthly pre-aggregated) is queried with
-    /// a date filter that falls mid-period, the runtime generates a UNION ALL query
-    /// combining fine-grain source data for boundary periods with pre-aggregated data
-    /// for complete intermediate periods.
-    #[serde(default)]
-    pub partial_period:           Option<PartialPeriodConfig>,
     /// Maps JSONB measure paths to flat SQL column names for pre-aggregated views.
     ///
     /// When a materialized view stores measures as native columns (e.g. `volume BIGINT`)
@@ -330,78 +322,6 @@ pub struct FilterColumn {
     /// (#1498). `None`: the column takes the path operators only.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hierarchy: Option<String>,
-}
-
-/// Configuration for partial-period awareness (UNION ALL optimization).
-///
-/// When a coarse-grain fact table (e.g. monthly pre-aggregated) is queried with
-/// a date filter that falls mid-period, the runtime generates a UNION ALL query
-/// combining fine-grain source data for boundary periods with pre-aggregated data
-/// for complete intermediate periods.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct PartialPeriodConfig {
-    /// Fine-grain source view (e.g., "`v_events_day`").
-    pub fine_grain_view:   String,
-    /// Column holding the period date (e.g., "`date`").
-    pub time_grain_column: String,
-    /// Truncation granularity for period boundaries.
-    pub time_grain_trunc:  TemporalGrain,
-}
-
-/// Temporal granularity for period boundary calculations.
-///
-/// Unlike `TemporalBucket` which
-/// includes sub-day granularities (`Second`, `Minute`, `Hour`) for GROUP BY bucketing,
-/// `TemporalGrain` is restricted to date-level granularities that define meaningful
-/// period boundaries for partial-period UNION ALL queries.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum TemporalGrain {
-    /// Day-level periods.
-    Day,
-    /// ISO week (Monday-start) periods.
-    Week,
-    /// Calendar month periods.
-    Month,
-    /// Calendar quarter periods (Q1=Jan, Q2=Apr, Q3=Jul, Q4=Oct).
-    Quarter,
-    /// Calendar year periods.
-    Year,
-}
-
-impl TemporalGrain {
-    /// Returns the PostgreSQL `DATE_TRUNC` argument string.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use fraiseql_core::compiler::fact_table::TemporalGrain;
-    ///
-    /// assert_eq!(TemporalGrain::Month.postgres_trunc_arg(), "month");
-    /// assert_eq!(TemporalGrain::Quarter.postgres_trunc_arg(), "quarter");
-    /// ```
-    #[must_use]
-    pub const fn postgres_trunc_arg(self) -> &'static str {
-        match self {
-            Self::Day => "day",
-            Self::Week => "week",
-            Self::Month => "month",
-            Self::Quarter => "quarter",
-            Self::Year => "year",
-        }
-    }
-
-    /// Converts to the corresponding `TemporalBucket` for use with SQL generators.
-    #[must_use]
-    pub const fn to_temporal_bucket(self) -> super::aggregate_types::TemporalBucket {
-        match self {
-            Self::Day => super::aggregate_types::TemporalBucket::Day,
-            Self::Week => super::aggregate_types::TemporalBucket::Week,
-            Self::Month => super::aggregate_types::TemporalBucket::Month,
-            Self::Quarter => super::aggregate_types::TemporalBucket::Quarter,
-            Self::Year => super::aggregate_types::TemporalBucket::Year,
-        }
-    }
 }
 
 /// Aggregation strategy for fact tables

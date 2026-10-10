@@ -161,6 +161,12 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **Partial-period aggregation is removed (#1519).** `FactTableMetadata::partial_period`,
+  `PartialPeriodConfig`, `TemporalGrain` and `fraiseql_core::runtime::partial_period` are gone:
+  nothing produced the config (no SDK or compile path wrote it), its `UNION ALL` could not
+  execute on PostgreSQL, and its branches would not have recombined into one answer. A compiled
+  artifact whose fact table still carries `partial_period` is refused at load, by name; an
+  embedder constructing `FactTableMetadata` drops the field.
 - **A violated constraint is named in the mutation's typed error by default (#1531).** The
   error member gains an `errors[]` entry whose `identifier` is the constraint's name (reversing
   #1424's "the constraint's name is not exposed"); set `mutation_constraint_metadata = "none"`

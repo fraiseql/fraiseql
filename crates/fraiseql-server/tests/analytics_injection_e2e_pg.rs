@@ -70,7 +70,6 @@ fn sales_metadata() -> FactTableMetadata {
         },
         denormalized_filters:     vec![],
         calendar_dimensions:      vec![],
-        partial_period:           None,
         native_measures:          std::collections::HashMap::new(),
         native_dimension_mapping: std::collections::HashMap::new(),
     }

@@ -71,7 +71,6 @@ use crate::{
 };
 
 mod expressions;
-pub(crate) mod partial_period_builder;
 mod where_clause;
 
 #[cfg(test)]

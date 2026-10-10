@@ -58,7 +58,6 @@ mod aggregate_parser_tests {
                 hierarchy: None,
             }],
             calendar_dimensions:      vec![],
-            partial_period:           None,
             native_measures:          std::collections::HashMap::new(),
             native_dimension_mapping: std::collections::HashMap::new(),
         }
@@ -402,7 +401,6 @@ mod aggregate_parser_tests {
             },
             denormalized_filters:     vec![],
             calendar_dimensions:      vec![],
-            partial_period:           None,
             native_measures:          std::collections::HashMap::from([(
                 "measures.volume".to_string(),
                 "volume".to_string(),
@@ -449,7 +447,6 @@ mod aggregate_parser_tests {
             },
             denormalized_filters:     vec![],
             calendar_dimensions:      vec![],
-            partial_period:           None,
             native_measures:          std::collections::HashMap::new(),
             native_dimension_mapping: std::collections::HashMap::from([(
                 "dimensions.category.id".to_string(),
@@ -492,7 +489,6 @@ mod aggregate_parser_tests {
             },
             denormalized_filters:     vec![],
             calendar_dimensions:      vec![],
-            partial_period:           None,
             native_measures:          std::collections::HashMap::new(),
             native_dimension_mapping: std::collections::HashMap::from([(
                 "dimensions.category.id".to_string(),
@@ -561,7 +557,6 @@ mod aggregate_projector_tests {
                 hierarchy: None,
             }],
             calendar_dimensions:      vec![],
-            partial_period:           None,
             native_measures:          std::collections::HashMap::new(),
             native_dimension_mapping: std::collections::HashMap::new(),
         };
@@ -4615,7 +4610,6 @@ mod window_parser_tests {
                 },
             ],
             calendar_dimensions:      vec![],
-            partial_period:           None,
             native_measures:          std::collections::HashMap::new(),
             native_dimension_mapping: std::collections::HashMap::new(),
         }
