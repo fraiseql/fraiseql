@@ -366,6 +366,104 @@ async fn a_cursor_is_refused_under_an_ordering_it_was_not_issued_under() {
     assert!(err.to_string().contains("not one this server reads"), "{err}");
 }
 
+/// A cursor is client data: one whose values are not of its keys' types, or whose position
+/// is not a UUID on a UUID connection, is refused as a cursor, saying how to recover, rather
+/// than answered with PostgreSQL's cast error.
+#[tokio::test]
+async fn a_forged_cursor_is_refused_as_a_cursor_not_a_database_error() {
+    let Some((_, executor)) = setup().await else {
+        return;
+    };
+    let by_rank = json!([{ "field": "rank", "direction": "ASC" }]);
+    let forge = |cursor: &Value,
+                 edit: &dyn Fn(&mut fraiseql_core::runtime::relay::KeysetCursor)| {
+        let mut cursor =
+            fraiseql_core::runtime::relay::decode_keyset_cursor(cursor.as_str().unwrap()).unwrap();
+        edit(&mut cursor);
+        fraiseql_core::runtime::relay::encode_keyset_cursor(&cursor)
+    };
+
+    let (_, ordered) = page(&executor, &json!({ "first": 1, "order": by_rank })).await;
+    let (_, by_uid) =
+        page_of(&executor, "itemsByUid", &json!({ "first": 1, "order": by_rank })).await;
+    let forged = [
+        (
+            "itemsConnection",
+            forge(&ordered["endCursor"], &|c| c.sort_keys = vec![Some("abc".to_string())]),
+            by_rank.clone(),
+        ),
+        (
+            "itemsByUid",
+            forge(&by_uid["endCursor"], &|c| c.position = json!("not-a-uuid")),
+            by_rank.clone(),
+        ),
+        (
+            "itemsByUid",
+            fraiseql_core::runtime::relay::encode_uuid_cursor("not-a-uuid"),
+            Value::Null,
+        ),
+    ];
+    // With a session variable the page runs in a transaction of its own, which the failed
+    // statement aborts: the other path to the same refusal.
+    let mut with_session = schema();
+    with_session
+        .session_variables
+        .variables
+        .push(fraiseql_core::schema::SessionVariableMapping {
+            name:   "app.kw".to_string(),
+            source: fraiseql_core::schema::SessionVariableSource::Literal {
+                value: "1".to_string(),
+            },
+        });
+    let url = fraiseql_test_support::try_database_url().unwrap();
+    let in_session =
+        Executor::new_with_relay(with_session, Arc::new(PostgresAdapter::new(&url).await.unwrap()));
+    for executor in [&executor, &in_session] {
+        for (connection, cursor, order) in &forged {
+            for (window, arg) in [("first", "after"), ("last", "before")] {
+                let refusal = try_page(
+                    executor,
+                    connection,
+                    &json!({ window: 1, arg: cursor, "order": order }),
+                )
+                .await
+                .expect_err("a forged cursor is refused");
+                assert!(
+                    matches!(refusal, fraiseql_core::error::FraiseQLError::Validation { .. }),
+                    "{connection} {arg}: a cursor refusal, not {refusal:?}"
+                );
+                assert!(
+                    refusal.to_string().contains("request the first page again"),
+                    "{connection} {arg}: says how to recover: {refusal}"
+                );
+            }
+        }
+    }
+}
+
+/// The refusal is the cursor's only: a data exception a valid cursor did not cause is the
+/// error PostgreSQL raised, unchanged.
+#[tokio::test]
+async fn a_data_exception_beside_a_valid_cursor_is_not_blamed_on_it() {
+    let Some((_, executor)) = setup().await else {
+        return;
+    };
+    let by_rank = json!([{ "field": "rank", "direction": "ASC" }]);
+    let (_, ordered) = page(&executor, &json!({ "first": 1, "order": by_rank })).await;
+    let error = executor
+        .execute(
+            "query($after: String, $order: JSON) { itemsConnection(first: 1, after: $after, \
+             orderBy: $order, where: { rank: { eq: \"abc\" } }) { edges { node { pk } } } }",
+            Some(&json!({ "after": ordered["endCursor"], "order": by_rank })),
+        )
+        .await
+        .expect_err("the filter's own value fails its cast");
+    assert!(
+        matches!(&error, fraiseql_core::error::FraiseQLError::Database { sql_state: Some(s), .. } if s.starts_with("22")),
+        "PostgreSQL's data exception, not a cursor refusal: {error:?}"
+    );
+}
+
 /// The suite's schema loads with no database.
 #[test]
 fn the_document_loads_without_a_database() {

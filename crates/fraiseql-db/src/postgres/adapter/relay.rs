@@ -56,19 +56,28 @@ impl RelayDatabaseAdapter for PostgresAdapter {
     ) -> Result<RelayPageResult> {
         // Relay pagination is a compiled SELECT pair: replica-eligible (#407).
         let client = self.acquire_read_connection_with_retry(ReadRouting::Any).await?;
-        self.run_relay_page(
-            &**client,
-            view,
-            cursor_column,
-            after,
-            before,
-            limit,
-            forward,
-            where_clause,
-            order_by,
-            include_total_count,
-        )
-        .await
+        let active = if forward {
+            after.clone()
+        } else {
+            before.clone()
+        };
+        let page = self
+            .run_relay_page(
+                &**client,
+                view,
+                cursor_column,
+                after,
+                before,
+                limit,
+                forward,
+                where_clause,
+                order_by,
+                include_total_count,
+            )
+            .await;
+        drop(client);
+        self.refuse_a_cursor_the_page_could_not_read(page, active.as_ref(), order_by)
+            .await
     }
 
     #[allow(clippy::too_many_arguments)] // Reason: relay pagination requires all cursor/filter/sort/count arguments plus session vars; no natural grouping
@@ -116,7 +125,12 @@ impl RelayDatabaseAdapter for PostgresAdapter {
                 sql_state: e.code().map(|c| c.code().to_string()),
             })?;
         super::database::apply_session_vars(&txn, session_vars).await?;
-        let result = self
+        let active = if forward {
+            after.clone()
+        } else {
+            before.clone()
+        };
+        let page = self
             .run_relay_page(
                 &*txn,
                 view,
@@ -129,7 +143,16 @@ impl RelayDatabaseAdapter for PostgresAdapter {
                 order_by,
                 include_total_count,
             )
-            .await?;
+            .await;
+        if page.is_err() {
+            // The transaction is aborted; the probe runs on a connection of its own.
+            drop(txn);
+            drop(client);
+            return self
+                .refuse_a_cursor_the_page_could_not_read(page, active.as_ref(), order_by)
+                .await;
+        }
+        let result = page?;
         txn.commit().await.map_err(|e| FraiseQLError::Database {
             message:   format!("Failed to commit relay session-var transaction: {}", pg_detail(&e)),
             sql_state: e.code().map(|c| c.code().to_string()),
@@ -139,6 +162,62 @@ impl RelayDatabaseAdapter for PostgresAdapter {
 }
 
 impl PostgresAdapter {
+    /// `page`, unless it failed on a data exception that the cursor it resumed from caused
+    /// (#1521): then a refusal of the cursor, saying how to recover.
+    ///
+    /// A cursor is client data, and a forged value reaches PostgreSQL as a bound parameter
+    /// cast to its key's type, where it fails as `22P02` and the like. Only on that failure
+    /// path, PostgreSQL's own input parser is asked about each of the cursor's typed values
+    /// ([`cursor_values_probe`](crate::keyset::cursor_values_probe)), on a fresh connection.
+    /// When every value is valid the data raised the exception, and it is returned as it
+    /// was; so is the original error if the probe itself cannot run.
+    async fn refuse_a_cursor_the_page_could_not_read(
+        &self,
+        page: Result<RelayPageResult>,
+        cursor: Option<&RelayCursor>,
+        order_by: Option<&[OrderByClause]>,
+    ) -> Result<RelayPageResult> {
+        let error = match page {
+            Err(error @ FraiseQLError::Database { .. }) => error,
+            other => return other,
+        };
+        let data_exception = matches!(
+            &error,
+            FraiseQLError::Database { sql_state: Some(state), .. } if state.starts_with("22")
+        );
+        let (Some(cursor), true) = (cursor, data_exception) else {
+            return Err(error);
+        };
+        let Ok(keys) = crate::keyset::keyset_keys(order_by) else {
+            return Err(error);
+        };
+        let uuid_position = match &cursor.position {
+            crate::traits::CursorValue::Uuid(uuid) => Some(uuid.as_str()),
+            crate::traits::CursorValue::Int64(_) => None,
+        };
+        let Some((sql, params)) =
+            crate::keyset::cursor_values_probe(&keys, &cursor.sort_keys, uuid_position)
+        else {
+            return Err(error);
+        };
+        let Ok(client) = self.acquire_read_connection_with_retry(ReadRouting::Any).await else {
+            return Err(error);
+        };
+        let params: Vec<QueryParam> = params.into_iter().map(QueryParam::Text).collect();
+        let refs = crate::types::as_sql_param_refs(&params);
+        let Ok(row) = client.query_one(&sql, &refs).await else {
+            return Err(error);
+        };
+        let valid: Vec<bool> = row.get("valid");
+        if valid.iter().all(|v| *v) {
+            return Err(error);
+        }
+        Err(FraiseQLError::validation(
+            "the `after`/`before` cursor is not one of this connection: a value it carries is \
+             not of its key's type; request the first page again, without `after`/`before`",
+        ))
+    }
+
     /// Build and run the relay page (and optional total-count) queries against
     /// an arbitrary client — a pooled connection for the plain path, or a
     /// transaction for the connection-affine `*_with_session` path.

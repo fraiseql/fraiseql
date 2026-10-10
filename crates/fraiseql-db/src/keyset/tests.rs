@@ -74,8 +74,39 @@ fn every_bound_value_is_resolved_as_text_before_its_cast() {
     assert_eq!(cast(Cast::Scalar(ScalarFieldType::Uuid)).param("$1"), "$1::text");
     assert_eq!(cast(Cast::Native("bool".to_string())).param("$1"), "($1::text)::boolean");
     assert_eq!(cast(Cast::Native("varchar".to_string())).param("$1"), "$1::text");
-    assert_eq!(cast(Cast::Native("integer".to_string())).param("$1"), "$1::text::integer");
+    assert_eq!(cast(Cast::Native("integer".to_string())).param("$1"), "($1::text)::integer");
     assert_eq!(cast(Cast::Float).param("$1"), "($1::text)::float8");
+}
+
+/// The probe asks about exactly the values a page casts: a text key's value and a NULL are
+/// never cast, so never asked about; a UUID position is. Each type travels as a parameter.
+#[test]
+fn the_cursor_probe_asks_about_each_cast_value_with_its_bound_type() {
+    let key = |cast| KeysetKey {
+        expr: "k".to_string(),
+        direction: OrderDirection::Asc,
+        cast,
+    };
+    let keys = [
+        key(Cast::Native("integer".to_string())),
+        key(Cast::Text),
+        key(Cast::Float),
+        key(Cast::Native("integer".to_string())),
+    ];
+    let values = [
+        Some("7".to_string()),
+        Some("x".to_string()),
+        Some("abc".to_string()),
+        None,
+    ];
+    let (sql, params) = cursor_values_probe(&keys, &values, Some("u")).unwrap();
+    assert_eq!(
+        sql,
+        "SELECT ARRAY[pg_input_is_valid($1::text, $2::text), pg_input_is_valid($3::text, \
+         $4::text), pg_input_is_valid($5::text, $6::text)] AS valid"
+    );
+    assert_eq!(params, ["7", "integer", "abc", "float8", "u", "uuid"]);
+    assert_eq!(cursor_values_probe(&keys[1..2], &values[1..2], None), None, "nothing is cast");
 }
 
 /// The signature tells orderings apart by key and by direction.

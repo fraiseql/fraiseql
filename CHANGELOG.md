@@ -289,6 +289,13 @@ disagreed, and the promise was the part that was wrong.
   none when the request had no principal, so a view reading `current_setting()` saw neither
   the `literal` and `header` variables #1520 gives an anonymous read nor the request locale;
   a list over the same view did. It now resolves them as the list path does.
+- **A forged relay cursor is refused as a cursor.** A cursor is client data: one whose
+  sort-key value is not of its key's type, or whose position is not a UUID on a UUID
+  connection, reached PostgreSQL as a bound value and came back as its cast error (with its
+  message, as `BAD_USER_INPUT`). When a page fails on a data exception while resuming from a
+  cursor, PostgreSQL's own input parser is now asked about the cursor's values, and an invalid
+  one is refused, saying to request the first page again; any other data exception is
+  returned as raised. Nothing changes for a page that succeeds.
 - **A relay connection paged under an `orderBy` returns every row once, in order (#1521).** The
   keyset resumed past the cursor column alone, as if the connection were ordered by it, so a
   page after a cursor under any other ordering (or under the cursor column descending) skipped

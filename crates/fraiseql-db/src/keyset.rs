@@ -84,23 +84,65 @@ impl KeysetKey {
     /// from there, booleans included (the filter path binds those natively, and its casts
     /// leave them bare).
     fn param(&self, placeholder: &str) -> String {
-        let dialect = PostgresDialect;
-        match &self.cast {
-            Cast::Text => format!("{placeholder}::text"),
-            Cast::Scalar(ty) => match dialect.cast_type_name(*ty) {
-                Some(name) => format!("({placeholder}::text)::{name}"),
-                None => format!("{placeholder}::text"),
-            },
-            Cast::Native(native) => match native.to_lowercase().as_str() {
-                "boolean" | "bool" => format!("({placeholder}::text)::boolean"),
-                "text" | "varchar" | "character varying" | "char" | "bpchar" | "name" => {
-                    format!("{placeholder}::text")
-                },
-                _ => dialect.cast_native_param(placeholder, native),
-            },
-            Cast::Float => format!("({placeholder}::text)::float8"),
+        match self.value_type() {
+            Some(ty) => format!("({placeholder}::text)::{ty}"),
+            None => format!("{placeholder}::text"),
         }
     }
+
+    /// The PostgreSQL type a value bound for this key is cast to from text, `None` when it
+    /// is compared as text. The one answer [`param`](Self::param) casts to and
+    /// [`cursor_values_probe`] checks a cursor's values against.
+    fn value_type(&self) -> Option<String> {
+        match &self.cast {
+            Cast::Text => None,
+            Cast::Scalar(ty) => PostgresDialect.cast_type_name(*ty).map(str::to_string),
+            Cast::Native(native) => match native.to_lowercase().as_str() {
+                "boolean" | "bool" => Some("boolean".to_string()),
+                "text" | "varchar" | "character varying" | "char" | "bpchar" | "name" => None,
+                _ => Some(native.clone()),
+            },
+            Cast::Float => Some("float8".to_string()),
+        }
+    }
+}
+
+/// A statement asking PostgreSQL whether a cursor's values are values of their types, for a
+/// page that failed on a data exception while resuming from that cursor (#1521).
+///
+/// A cursor is client data: a forged one carries a sort-key value that is not of its key's
+/// type, or a position that is not a UUID, and PostgreSQL refuses the cast with a data
+/// exception. This asks the same parser (`pg_input_is_valid`) about each typed value, so the
+/// failure can be told apart from one the data itself raised. Each value and its type are
+/// bound parameters; the statement returns one boolean per check, in order.
+///
+/// `uuid_position` is the cursor's position on a UUID connection. `None` when nothing is cast.
+#[must_use]
+pub fn cursor_values_probe(
+    keys: &[KeysetKey],
+    values: &[Option<String>],
+    uuid_position: Option<&str>,
+) -> Option<(String, Vec<String>)> {
+    let typed = keys
+        .iter()
+        .zip(values)
+        .filter_map(|(key, value)| Some((value.clone()?, key.value_type()?)))
+        .chain(uuid_position.map(|p| (p.to_string(), "uuid".to_string())));
+    let mut checks = Vec::new();
+    let mut params = Vec::new();
+    for (value, ty) in typed {
+        params.push(value);
+        params.push(ty);
+        checks.push(format!(
+            "pg_input_is_valid(${}::text, ${}::text)",
+            params.len() - 1,
+            params.len()
+        ));
+    }
+    if checks.is_empty() {
+        return None;
+    }
+    Some((format!("SELECT ARRAY[{}] AS valid", checks.join(", ")), params))
 }
 
 /// The keyset keys of `order_by`, in order: one per clause, as the `ORDER BY` sorts them.
