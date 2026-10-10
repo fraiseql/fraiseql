@@ -151,6 +151,8 @@ fn derive_rest_context(
     let rest_state = RestState {
         executor: state.executor.load_full(),
         route_table: route_table.clone(),
+        app: state.clone(),
+        tenant_routes: Arc::default(),
         idempotency_store,
         error_sanitizer: Arc::clone(&state.error_sanitizer),
         #[cfg(feature = "auth")]
@@ -415,11 +417,96 @@ fn serve_openapi(
 // State
 // ---------------------------------------------------------------------------
 
+/// A tenant's route table and the executor it was derived from.
+type TenantRouteCache =
+    std::collections::HashMap<String, (std::sync::Weak<Executor>, Arc<RestRouteTable>)>;
+
+/// The executor and route table one REST request runs on (#1550).
+///
+/// Holds the tenant dispatch, and with it the tenant's concurrency permit, for the whole
+/// request, exactly as `/graphql` does.
+struct RestScope {
+    executor:    Arc<Executor>,
+    route_table: Arc<RestRouteTable>,
+    _dispatch:   Option<crate::routes::graphql::tenant_dispatch::TenantDispatch>,
+}
+
+impl RestState {
+    /// Resolve the request's tenant and the executor and routes it runs on.
+    ///
+    /// No tenant → the default executor and the routes mounted from it. A registered,
+    /// active tenant → its own executor (its pool and `search_path`) and the routes of its
+    /// own compiled schema. An unregistered or suspended tenant, or an exhausted quota, is
+    /// refused by the same `dispatch_to_tenant` `/graphql` uses: never answered from the
+    /// default executor.
+    fn scope(
+        &self,
+        security_ctx: Option<&SecurityContext>,
+        headers: &axum::http::HeaderMap,
+    ) -> Result<RestScope, Box<Response>> {
+        use crate::routes::graphql::tenant_dispatch::{dispatch_to_tenant, resolve_tenant_key};
+
+        let refuse = |error: super::handler::RestError| {
+            Box::new(rest_result_to_response(Err(error), &self.error_sanitizer))
+        };
+        let key =
+            resolve_tenant_key(&self.app, security_ctx, headers).map_err(|e| refuse(e.into()))?;
+        let Some(key) = key else {
+            return Ok(RestScope {
+                executor:    Arc::clone(&self.executor),
+                route_table: Arc::clone(&self.route_table),
+                _dispatch:   None,
+            });
+        };
+        let dispatch = dispatch_to_tenant(&self.app, Some(&key)).map_err(|e| refuse(e.into()))?;
+        let executor = Arc::clone(&dispatch.executor);
+        let route_table = self.tenant_route_table(&key, &executor).map_err(refuse)?;
+        Ok(RestScope {
+            executor,
+            route_table,
+            _dispatch: Some(dispatch),
+        })
+    }
+
+    /// The route table of `key`'s compiled schema, derived once per executor.
+    fn tenant_route_table(
+        &self,
+        key: &str,
+        executor: &Arc<Executor>,
+    ) -> Result<Arc<RestRouteTable>, super::handler::RestError> {
+        let mut cache = self.tenant_routes.lock();
+        if let Some((derived_from, table)) = cache.get(key) {
+            if derived_from.upgrade().is_some_and(|e| Arc::ptr_eq(&e, executor)) {
+                return Ok(Arc::clone(table));
+            }
+        }
+        let schema = executor.schema();
+        if !schema.rest_config.as_ref().is_some_and(|c| c.enabled) {
+            return Err(super::handler::RestError::not_found(
+                "REST is not enabled in this tenant's schema",
+            ));
+        }
+        let table = Arc::new(RestRouteTable::from_compiled_schema(schema).map_err(|e| {
+            super::handler::RestError::internal(format!(
+                "REST routes could not be derived from this tenant's schema: {e}"
+            ))
+        })?);
+        cache.insert(key.to_string(), (Arc::downgrade(executor), Arc::clone(&table)));
+        Ok(table)
+    }
+}
+
 /// Shared state for REST handlers.
 #[derive(Clone)]
 struct RestState {
     executor:          Arc<Executor>,
     route_table:       Arc<RestRouteTable>,
+    /// The server state, for the per-request tenant dispatch (#1550): a request that
+    /// resolves to a tenant runs on that tenant's executor, as on `/graphql`.
+    app:               AppState,
+    /// Each tenant's route table, derived from its own compiled schema. Keyed by tenant;
+    /// an entry whose executor was replaced (re-registration) is derived again.
+    tenant_routes:     Arc<parking_lot::Mutex<TenantRouteCache>>,
     idempotency_store: Arc<dyn super::idempotency::IdempotencyStore>,
     /// Error sanitizer (from `compiled.security.error_sanitization`). Strips raw DB/SQL
     /// detail from 5xx response bodies before they reach the client (H7).
@@ -599,6 +686,10 @@ async fn rest_get_handler_in_scope(
     request: Request<Body>,
 ) -> Response {
     let (parts, _body) = request.into_parts();
+    let scope = match rest.scope(security_ctx.as_ref(), &parts.headers) {
+        Ok(scope) => scope,
+        Err(refusal) => return *refusal,
+    };
     let relative_path = strip_base_path(&rest.route_table.base_path, parts.uri.path());
     let query_string = parts.uri.query().unwrap_or("");
     let query_pairs = parse_query_pairs(query_string);
@@ -607,9 +698,9 @@ async fn rest_get_handler_in_scope(
 
     // NDJSON content negotiation
     if super::streaming::accepts_ndjson(&parts.headers) {
-        let schema = rest.executor.schema();
+        let schema = scope.executor.schema();
         let config = schema.rest_config.as_ref().expect("REST config must exist: handler is only reached via a matched REST route, which requires rest_config to be present in the schema");
-        let handler = RestHandler::new(&rest.executor, schema, config, &rest.route_table);
+        let handler = RestHandler::new(&scope.executor, schema, config, &scope.route_table);
         let result = super::streaming::handle_ndjson_get(
             &handler,
             &relative_path,
@@ -665,9 +756,9 @@ async fn rest_get_handler_in_scope(
                 });
         };
 
-        let schema = rest.executor.schema();
+        let schema = scope.executor.schema();
         let config = schema.rest_config.as_ref().expect("REST config must exist: handler is only reached via a matched REST route, which requires rest_config to be present in the schema");
-        let handler = RestHandler::new(&rest.executor, schema, config, &rest.route_table);
+        let handler = RestHandler::new(&scope.executor, schema, config, &scope.route_table);
         let export_config = rest.export.as_ref();
         let result = super::streaming::xlsx::handle_xlsx_get(
             &handler,
@@ -704,9 +795,9 @@ async fn rest_get_handler_in_scope(
         {
             return refusal;
         }
-        let schema = rest.executor.schema();
+        let schema = scope.executor.schema();
         let config = schema.rest_config.as_ref().expect("REST config must exist: handler is only reached via a matched REST route, which requires rest_config to be present in the schema");
-        let handler = RestHandler::new(&rest.executor, schema, config, &rest.route_table);
+        let handler = RestHandler::new(&scope.executor, schema, config, &scope.route_table);
         // #917: the operator's `[export]` table, not a fresh default. The comment that
         // stood here conceded that "TOML-driven `ExportConfig` loading is a later phase".
         let export_config = rest.export.as_ref();
@@ -737,9 +828,9 @@ async fn rest_get_handler_in_scope(
         };
     }
 
-    let schema = rest.executor.schema();
+    let schema = scope.executor.schema();
     let config = schema.rest_config.as_ref().expect("REST config must exist: handler is only reached via a matched REST route, which requires rest_config to be present in the schema");
-    let handler = RestHandler::new(&rest.executor, schema, config, &rest.route_table);
+    let handler = RestHandler::new(&scope.executor, schema, config, &scope.route_table);
 
     let result = handler
         .handle_get(&relative_path, &query_refs, &parts.headers, security_ctx.as_ref())
@@ -768,6 +859,10 @@ async fn rest_post_handler_in_scope(
     request: Request<Body>,
 ) -> Response {
     let (parts, body) = request.into_parts();
+    let scope = match rest.scope(security_ctx.as_ref(), &parts.headers) {
+        Ok(scope) => scope,
+        Err(refusal) => return *refusal,
+    };
     let relative_path = strip_base_path(&rest.route_table.base_path, parts.uri.path());
 
     let body_value = match read_json_body(body).await {
@@ -775,9 +870,9 @@ async fn rest_post_handler_in_scope(
         Err(resp) => return resp,
     };
 
-    let schema = rest.executor.schema();
+    let schema = scope.executor.schema();
     let config = schema.rest_config.as_ref().expect("REST config must exist: handler is only reached via a matched REST route, which requires rest_config to be present in the schema");
-    let handler = RestHandler::new(&rest.executor, schema, config, &rest.route_table)
+    let handler = RestHandler::new(&scope.executor, schema, config, &scope.route_table)
         .with_idempotency_store(&rest.idempotency_store);
 
     let result = handler
@@ -807,6 +902,10 @@ async fn rest_put_handler_in_scope(
     request: Request<Body>,
 ) -> Response {
     let (parts, body) = request.into_parts();
+    let scope = match rest.scope(security_ctx.as_ref(), &parts.headers) {
+        Ok(scope) => scope,
+        Err(refusal) => return *refusal,
+    };
     let relative_path = strip_base_path(&rest.route_table.base_path, parts.uri.path());
 
     let body_value = match read_json_body(body).await {
@@ -814,9 +913,9 @@ async fn rest_put_handler_in_scope(
         Err(resp) => return resp,
     };
 
-    let schema = rest.executor.schema();
+    let schema = scope.executor.schema();
     let config = schema.rest_config.as_ref().expect("REST config must exist: handler is only reached via a matched REST route, which requires rest_config to be present in the schema");
-    let handler = RestHandler::new(&rest.executor, schema, config, &rest.route_table);
+    let handler = RestHandler::new(&scope.executor, schema, config, &scope.route_table);
 
     let result = handler
         .handle_put(&relative_path, &body_value, &parts.headers, security_ctx.as_ref())
@@ -845,6 +944,10 @@ async fn rest_patch_handler_in_scope(
     request: Request<Body>,
 ) -> Response {
     let (parts, body) = request.into_parts();
+    let scope = match rest.scope(security_ctx.as_ref(), &parts.headers) {
+        Ok(scope) => scope,
+        Err(refusal) => return *refusal,
+    };
     let relative_path = strip_base_path(&rest.route_table.base_path, parts.uri.path());
     let query_string = parts.uri.query().unwrap_or("");
     let query_pairs = parse_query_pairs(query_string);
@@ -856,9 +959,9 @@ async fn rest_patch_handler_in_scope(
         Err(resp) => return resp,
     };
 
-    let schema = rest.executor.schema();
+    let schema = scope.executor.schema();
     let config = schema.rest_config.as_ref().expect("REST config must exist: handler is only reached via a matched REST route, which requires rest_config to be present in the schema");
-    let handler = RestHandler::new(&rest.executor, schema, config, &rest.route_table);
+    let handler = RestHandler::new(&scope.executor, schema, config, &scope.route_table);
 
     let result = handler
         .handle_patch(
@@ -893,15 +996,19 @@ async fn rest_delete_handler_in_scope(
     request: Request<Body>,
 ) -> Response {
     let (parts, _body) = request.into_parts();
+    let scope = match rest.scope(security_ctx.as_ref(), &parts.headers) {
+        Ok(scope) => scope,
+        Err(refusal) => return *refusal,
+    };
     let relative_path = strip_base_path(&rest.route_table.base_path, parts.uri.path());
     let query_string = parts.uri.query().unwrap_or("");
     let query_pairs = parse_query_pairs(query_string);
     let query_refs: Vec<(&str, &str)> =
         query_pairs.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
 
-    let schema = rest.executor.schema();
+    let schema = scope.executor.schema();
     let config = schema.rest_config.as_ref().expect("REST config must exist: handler is only reached via a matched REST route, which requires rest_config to be present in the schema");
-    let handler = RestHandler::new(&rest.executor, schema, config, &rest.route_table);
+    let handler = RestHandler::new(&scope.executor, schema, config, &scope.route_table);
 
     let result = handler
         .handle_delete(&relative_path, &query_refs, &parts.headers, security_ctx.as_ref())
@@ -1027,6 +1134,10 @@ async fn rest_sse_handler_in_scope(
     request: Request<Body>,
 ) -> Response {
     let (parts, _body) = request.into_parts();
+    let scope = match rest.scope(security_ctx.as_ref(), &parts.headers) {
+        Ok(scope) => scope,
+        Err(refusal) => return *refusal,
+    };
     let relative_path = strip_base_path(&rest.route_table.base_path, parts.uri.path());
 
     // Extract resource name from /{resource}/stream path
@@ -1041,8 +1152,8 @@ async fn rest_sse_handler_in_scope(
     };
 
     // Verify the resource exists
-    let schema = rest.executor.schema();
-    let has_resource = rest.route_table.resources.iter().any(|r| r.name == resource_name);
+    let schema = scope.executor.schema();
+    let has_resource = scope.route_table.resources.iter().any(|r| r.name == resource_name);
 
     if !has_resource {
         return rest_result_to_response(
@@ -1145,7 +1256,7 @@ async fn rest_sse_handler_in_scope(
             // reader's principal, as a `GET` of the resource with no `?select=`; every
             // frame, live or replayed, is served through the plan. A refusal is the
             // request's, before the stream opens.
-            let plan = match rest.executor.plan_type_stream(&entity_type, security_ctx.as_ref()) {
+            let plan = match scope.executor.plan_type_stream(&entity_type, security_ctx.as_ref()) {
                 Ok(plan) => std::sync::Arc::new(plan),
                 Err(refusal) => {
                     return rest_result_to_response(
