@@ -148,6 +148,7 @@ disagreed, and the promise was the part that was wrong.
   ids stay random v4.
 
 ### Breaking
+
 - **Every `--emit-ddl` file opens with two header lines (#965):** `-- fraiseql emit-ddl format 1`
   and the compiler that wrote it. They are SQL comments, so a reader that parses the SQL is
   unaffected (Confiture's generated migration is byte-identical); a consumer that compares the
