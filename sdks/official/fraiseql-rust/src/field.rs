@@ -158,6 +158,11 @@ pub struct Field {
     /// author could not deprecate a field at all.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub deprecated: Option<Deprecation>,
+    /// A `String` stored as a locale map (#1527): served in the request's locale, written
+    /// per locale. Emitted only when true; [`Field::normalized`] refuses it on any other
+    /// type.
+    #[serde(skip_serializing_if = "core::ops::Not::not")]
+    pub localized: bool,
 }
 
 /// Field deprecation, emitted as the `deprecated` object the compiler reads.
@@ -194,6 +199,7 @@ impl Field {
             vector_config: None,
             vector_distance: None,
             deprecated: None,
+            localized: false,
         }
     }
 
@@ -297,6 +303,19 @@ impl Field {
         self
     }
 
+    /// Marks this `String` field as stored as a locale map (fluent API).
+    ///
+    /// # Example
+    /// ```
+    /// # use fraiseql_rust::Field;
+    /// let field = Field::new("name", "String").with_localized();
+    /// ```
+    #[must_use]
+    pub const fn with_localized(mut self) -> Self {
+        self.localized = true;
+        self
+    }
+
     /// Names, on a `Float` field, the vector field whose search distance it carries.
     ///
     /// # Example
@@ -325,8 +344,18 @@ impl Field {
     /// one or the other: `vector_config` declares an embedding, `vector_distance`
     /// declares the `Float` reporting how far a search's result was from the query
     /// vector.
+    ///
+    /// Also panics when a field that is not a `String` is localized (#1527): a locale map
+    /// holds strings.
     #[must_use]
     pub fn normalized(&self) -> Self {
+        assert!(
+            !self.localized || self.field_type == "String",
+            "field `{}` is localized but is a {}; only a String can be localized (a \
+             localized field is a String stored as a locale map)",
+            self.name,
+            self.field_type
+        );
         assert!(
             !(self.vector_config.is_some() && self.vector_distance.is_some()),
             "field `{}` declares both a vector config and a vector distance; a field is \
@@ -381,6 +410,25 @@ impl Field {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// #1527: a localized String is exported as such; an unlocalized one carries no key.
+    #[test]
+    fn a_localized_field_is_exported_as_localized() {
+        let name: serde_json::Value =
+            serde_json::from_str(&Field::new("name", "String").with_localized().to_json()).unwrap();
+        assert_eq!(name["localized"], serde_json::json!(true));
+        let sku: serde_json::Value =
+            serde_json::from_str(&Field::new("sku", "String").to_json()).unwrap();
+        assert!(sku.get("localized").is_none(), "{sku}");
+    }
+
+    /// #1527: a locale map holds strings, so `localized` on anything else is refused at
+    /// export, as the Python SDK refuses `Localized[int]`.
+    #[test]
+    #[should_panic(expected = "only a String can be localized")]
+    fn localized_is_refused_on_a_field_that_is_not_a_string() {
+        let _ = Field::new("price", "Float").with_localized().to_json();
+    }
 
     #[test]
     fn test_field_new() {

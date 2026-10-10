@@ -32,7 +32,7 @@ reason shown here, and the suite fails if a declared gap is no longer true.
 | `fraiseql-elixir/` | Elixir | — (source-only) | 28/30 | subscriptions: the SDK ships no subscription authoring surface at all (#1024); fact_tables: no fact-table authoring |
 | `fraiseql-ruby/` | Ruby 3.2+ | — (source-only) | 28/30 | subscriptions: the SDK ships no subscription authoring surface at all (#1024); fact_tables: no fact-table authoring |
 | `fraiseql-dart/` | Dart / Flutter | — (source-only) | 28/30 | subscriptions: the SDK ships no subscription authoring surface at all (#1024); fact_tables: no fact-table authoring |
-| `fraiseql-rust/` | Rust | crates.io | 5/30 | queries, mutations, subscriptions, enums, input types, CRUD, relationships, Relay and error-type flags, serverless functions, fact tables, localized fields and arguments (#1527): the Rust SDK is field-level-RBAC focused and ships no builder for them |
+| `fraiseql-rust/` | Rust | crates.io | 6/30 | queries, mutations, subscriptions, enums, input types, CRUD, relationships, Relay and error-type flags, serverless functions, fact tables, localized mutation arguments: the Rust SDK is field-level-RBAC focused and ships no builder for them |
 
 The scores and gap counts above are checked against `conformance/manifest.json` by
 `selftest.py`, because they had already drifted: the table read `19/19` when the fixture

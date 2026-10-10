@@ -40,7 +40,8 @@ fn full() -> SchemaRegistry {
             Field::new("name", "String")
                 .with_nullable(true)
                 .with_description(Some("The user's \"display\" name".to_string()))
-                .with_deprecated(Some("use displayName".to_string())),
+                .with_deprecated(Some("use displayName".to_string()))
+                .with_localized(),
             Field::new("salary", "Float")
                 .with_nullable(true)
                 .with_requires_scope(Some("read:User.salary".to_string())),
