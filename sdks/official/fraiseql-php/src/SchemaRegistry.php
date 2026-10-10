@@ -47,7 +47,7 @@ final class SchemaRegistry
     /** @var array<string, MutationBuilder> Registered mutations */
     private array $mutations = [];
 
-    /** @var array<string, array{name: string, fields: list<array{name: string, type: string, nullable: bool}>, description: string|null}> Registered input types */
+    /** @var array<string, array{name: string, fields: list<array{name: string, type: string, nullable: bool, localized?: bool}>, description: string|null}> Registered input types */
     private array $inputTypes = [];
 
     /**
@@ -325,7 +325,7 @@ final class SchemaRegistry
      * Register a GraphQL input object type.
      *
      * @param string $name Input type name (e.g. "CreateUserInput")
-     * @param list<array{name: string, type: string, nullable: bool}> $fields Field definitions
+     * @param list<array{name: string, type: string, nullable: bool, localized?: bool}> $fields Field definitions
      * @param string|null $description Optional input type description
      * @return self Fluent interface
      *
@@ -351,7 +351,7 @@ final class SchemaRegistry
     /**
      * Get all registered input types.
      *
-     * @return array<string, array{name: string, fields: list<array{name: string, type: string, nullable: bool}>, description: string|null}>
+     * @return array<string, array{name: string, fields: list<array{name: string, type: string, nullable: bool, localized?: bool}>, description: string|null}>
      */
     public function getAllInputTypes(): array
     {
@@ -496,6 +496,7 @@ final class SchemaRegistry
             vectorConfig: $fieldAttr?->vectorConfig,
             vectorDistance: $fieldAttr?->vectorDistance,
             deprecated: $fieldAttr?->deprecated,
+            localized: $fieldAttr?->localized ?? false,
         );
     }
 }

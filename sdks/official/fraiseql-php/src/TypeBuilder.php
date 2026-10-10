@@ -63,6 +63,7 @@ final class TypeBuilder
      * @param bool $isList Whether the field is a list
      * @param string|null $description Optional field description
      * @param bool $computed When true, excluded from CRUD input types (Create/Update)
+     * @param bool $localized A String stored as a locale map (#1527)
      * @return self Fluent interface
      */
     public function field(
@@ -72,6 +73,7 @@ final class TypeBuilder
         bool $isList = false,
         ?string $description = null,
         bool $computed = false,
+        bool $localized = false,
     ): self {
         $this->fields[$name] = new FieldDefinition(
             name: $name,
@@ -82,6 +84,7 @@ final class TypeBuilder
             phpType: 'mixed',
             parentType: $this->name,
             computed: $computed,
+            localized: $localized,
         );
 
         return $this;

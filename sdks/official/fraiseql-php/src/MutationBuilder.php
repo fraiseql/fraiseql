@@ -30,7 +30,7 @@ final class MutationBuilder
     private ?string $operationValue = null;
     private ?string $descriptionValue = null;
 
-    /** @var array<string, array{type: string, nullable: bool, default: mixed}> */
+    /** @var array<string, array{type: string, nullable: bool, default: mixed, localized: bool}> */
     private array $arguments = [];
 
     /** @var array<string, string> */
@@ -129,9 +129,19 @@ final class MutationBuilder
         return $this;
     }
 
-    public function argument(string $argName, string $type, bool $nullable = true, mixed $default = null): self
-    {
-        $this->arguments[$argName] = ['type' => $type, 'nullable' => $nullable, 'default' => $default];
+    /**
+     * @param bool $localized A String the function receives as a locale map (#1527)
+     */
+    public function argument(
+        string $argName,
+        string $type,
+        bool $nullable = true,
+        mixed $default = null,
+        bool $localized = false,
+    ): self {
+        $this->arguments[$argName] = [
+            'type' => $type, 'nullable' => $nullable, 'default' => $default, 'localized' => $localized,
+        ];
         return $this;
     }
 
@@ -343,17 +353,21 @@ final class MutationBuilder
     /**
      * Build arguments array in IntermediateSchema format (list of {name, type, nullable}).
      *
-     * @return array<int, array{name: string, type: string, nullable: bool}>
+     * @return array<int, array{name: string, type: string, nullable: bool, localized?: true}>
      */
     private function buildIntermediateArguments(): array
     {
         $result = [];
         foreach ($this->arguments as $name => $arg) {
-            $result[] = [
+            $argument = [
                 'name'     => $name,
                 'type'     => $arg['type'],
                 'nullable' => $arg['nullable'],
             ];
+            if ($arg['localized']) {
+                $argument['localized'] = true;
+            }
+            $result[] = $argument;
         }
         return $result;
     }

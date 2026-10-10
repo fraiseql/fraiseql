@@ -48,6 +48,8 @@ final readonly class GraphQLField
      *   refused, not answered with null.
      * @param string|null $deprecated Deprecation reason. Surfaces as `isDeprecated` /
      *   `deprecationReason` through introspection so generated clients can warn.
+     * @param bool $localized A String stored as a locale map (#1527). Only a String can be
+     *   localized; exporting any other localized field is refused.
      */
     public function __construct(
         public ?string $type = null,
@@ -59,6 +61,7 @@ final readonly class GraphQLField
         public ?\FraiseQL\VectorConfig $vectorConfig = null,
         public ?string $vectorDistance = null,
         public ?string $deprecated = null,
+        public bool $localized = false,
     ) {
         if ($vectorConfig !== null && $vectorDistance !== null) {
             throw new \InvalidArgumentException(

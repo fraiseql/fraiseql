@@ -115,11 +115,7 @@ final class CrudGenerator
         // Create mutation with input object type — exclude computed fields
         $createInputName = "Create{$typeName}Input";
         $createInputFields = array_map(
-            static fn (FieldDefinition $f) => [
-                'name' => $f->name,
-                'type' => $f->type,
-                'nullable' => $f->nullable,
-            ],
+            static fn (FieldDefinition $f) => self::inputField($f, $f->nullable),
             array_values(array_filter($fieldList, static fn (FieldDefinition $f) => !$f->computed)),
         );
         SchemaRegistry::getInstance()->registerInputType(
@@ -144,11 +140,7 @@ final class CrudGenerator
         $updateInputFields = [
             ['name' => $pkField->name, 'type' => $pkField->type, 'nullable' => false],
             ...array_map(
-                static fn (FieldDefinition $f) => [
-                    'name' => $f->name,
-                    'type' => $f->type,
-                    'nullable' => true,
-                ],
+                static fn (FieldDefinition $f) => self::inputField($f, true),
                 array_values(array_filter(array_slice($fieldList, 1), static fn (FieldDefinition $f) => !$f->computed)),
             ),
         ];
@@ -182,5 +174,20 @@ final class CrudGenerator
         $mutations[] = $delete;
 
         return ['queries' => $queries, 'mutations' => $mutations];
+    }
+
+    /**
+     * An input field for `$f`, localized as `$f` is (#1527).
+     *
+     * @return array{name: string, type: string, nullable: bool, localized?: bool}
+     */
+    private static function inputField(FieldDefinition $f, bool $nullable): array
+    {
+        $field = ['name' => $f->name, 'type' => $f->type, 'nullable' => $nullable];
+        if ($f->localized) {
+            $field['localized'] = true;
+        }
+
+        return $field;
     }
 }

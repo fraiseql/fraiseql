@@ -43,6 +43,7 @@ final class ConformanceUser
         nullable: true,
         description: 'The user\'s "display" name',
         deprecated: 'use displayName',
+        localized: true,
     )]
     public ?string $name;
 
@@ -264,7 +265,7 @@ function authorFull(): void
         ->operation('insert')
         ->argument('email', 'String', nullable: false)
         ->argument('name', 'String', nullable: true)
-        ->argument('displayName', 'String', nullable: true)
+        ->argument('displayName', 'String', nullable: true, localized: true)
         ->invalidatesViews(['v_user', 'v_user_summary'])
         ->invalidatesFactTables(['tf_signup'])
         // #1253: the role gate on the write side, implemented in all eleven mutation

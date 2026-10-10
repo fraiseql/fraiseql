@@ -25,7 +25,7 @@ reason shown here, and the suite fails if a declared gap is no longer true.
 | `fraiseql-python/` | Python 3.11+ | PyPI | 29/30 | fact_tables: the SDK has no fact-table authoring |
 | `fraiseql-typescript/` | TypeScript / Node.js | npm | 30/30 | — |
 | `fraiseql-go/` | Go 1.23+ | — (source-only) | 29/30 | type_crud: the SDK ships no CRUD generator |
-| `fraiseql-php/` | PHP 8.2+ | — (source-only) | 27/30 | fact_tables: the SDK has no fact-table authoring; field_localized, mutation_argument_localized: no `localized` authoring yet (#1527) |
+| `fraiseql-php/` | PHP 8.2+ | — (source-only) | 29/30 | fact_tables: the SDK has no fact-table authoring |
 | `fraiseql-java/` | Java 21+ | — (source-only) | 29/30 | fact_tables: `@GraphQLFactTable` registers an ordinary type and emits no fact table |
 | `fraiseql-csharp/` | C# / .NET 8+ | — (source-only) | 28/30 | subscriptions: the SDK ships no subscription authoring surface at all (#1024); fact_tables: no fact-table authoring |
 | `fraiseql-fsharp/` | F# / .NET 8+ | — (source-only) | 28/30 | subscriptions: the SDK ships no subscription authoring surface at all (#1024); fact_tables: no fact-table authoring |

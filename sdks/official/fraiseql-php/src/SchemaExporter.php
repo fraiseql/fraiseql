@@ -107,6 +107,8 @@ final class SchemaExporter
             );
         }
 
+        self::refuseLocalizedNonStrings($schema);
+
         // #1325: serverless function definitions. Emitted only when present, so a
         // schema that declares none serialises exactly as it did before.
         $functions = $registry->getAllFunctions();
@@ -118,6 +120,44 @@ final class SchemaExporter
         }
 
         return $schema;
+    }
+
+    /**
+     * Refuse `localized` on anything but a String (#1527): a locale map holds strings.
+     * Every field, input field and mutation argument of the document is checked here,
+     * whichever builder declared it.
+     *
+     * @param array<string, mixed> $schema
+     */
+    private static function refuseLocalizedNonStrings(array $schema): void
+    {
+        $declared = [];
+        foreach ($schema['types'] as $type) {
+            foreach ($type['fields'] as $field) {
+                $declared[] = [$type['name'], $field];
+            }
+        }
+        foreach ($schema['input_types'] ?? [] as $input) {
+            foreach ($input['fields'] as $field) {
+                $declared[] = [$input['name'], $field];
+            }
+        }
+        foreach ($schema['mutations'] as $mutation) {
+            foreach ($mutation['arguments'] ?? [] as $argument) {
+                $declared[] = [$mutation['name'], $argument];
+            }
+        }
+        foreach ($declared as [$owner, $field]) {
+            if (($field['localized'] ?? false) === true && $field['type'] !== 'String') {
+                throw new \InvalidArgumentException(sprintf(
+                    '%s.%s is localized but is a %s; only a String can be localized '
+                    . '(a localized field is a String stored as a locale map)',
+                    $owner,
+                    $field['name'],
+                    $field['type'],
+                ));
+            }
+        }
     }
 
     /**
@@ -188,6 +228,10 @@ final class SchemaExporter
                         // could not deprecate a field at all.
                         if ($f->deprecated !== null) {
                             $field['deprecated'] = ['reason' => $f->deprecated];
+                        }
+
+                        if ($f->localized) {
+                            $field['localized'] = true;
                         }
 
                         return $field;

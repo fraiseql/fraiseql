@@ -125,6 +125,11 @@ Marks a property as a GraphQL field.
 | `nullable` | `bool` | Whether the field is nullable (default: `false`) |
 | `scope` | `?string` | JWT scope required to access this field |
 | `scopes` | `?array` | Multiple JWT scopes required |
+| `localized` | `bool` | A String stored as a locale map (`[locale]` in `fraiseql.toml`) |
+
+A mutation argument takes `localized: true` too (`->argument('displayName', 'String',
+nullable: true, localized: true)`), and an input field `'localized' => true`. Only a String
+can be localized; exporting any other localized field, input field or argument is refused.
 
 ## Static API
 

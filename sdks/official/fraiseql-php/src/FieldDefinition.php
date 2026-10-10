@@ -40,6 +40,8 @@ final readonly class FieldDefinition
         public ?VectorConfig $vectorConfig = null,
         public ?string $vectorDistance = null,
         public ?string $deprecated = null,
+        /** A String stored as a locale map (#1527). */
+        public bool $localized = false,
     ) {
     }
 

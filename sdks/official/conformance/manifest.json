@@ -67,9 +67,7 @@
         "{ [ -d vendor ] || composer install --prefer-dist --no-progress --no-interaction --quiet; } && php conformance/export.php"
       ],
       "unsupported": {
-        "fact_tables": "the SDK has no fact-table authoring surface \u2014 its only `fact_table` matches are the mutation key `invalidates_fact_tables` (AF 1). Fact-table authoring is a feature, not a key rename.",
-        "field_localized": "the SDK has no `localized` field authoring yet (#1513 shipped it in the Python and TypeScript SDKs first); tracked in #1527.",
-        "mutation_argument_localized": "the SDK has no `localized` argument authoring yet (#1513 shipped it in the Python and TypeScript SDKs first); tracked in #1527."
+        "fact_tables": "the SDK has no fact-table authoring surface \u2014 its only `fact_table` matches are the mutation key `invalidates_fact_tables` (AF 1). Fact-table authoring is a feature, not a key rename."
       },
       "container": "composer:2",
       "container_env": [
