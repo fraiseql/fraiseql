@@ -111,7 +111,7 @@ fn due_now() -> LedgerSettings {
     }
 }
 
-/// Cycle 1: the ledger rows commit or roll back with the spine row.
+/// The ledger rows commit or roll back with the spine row.
 #[tokio::test]
 async fn the_ledger_is_written_in_the_receivers_transaction() {
     let Some((pool, _svc)) = pool().await else {
@@ -147,7 +147,7 @@ async fn the_ledger_is_written_in_the_receivers_transaction() {
     );
 }
 
-/// Cycle 2: a dispatch lost after the commit is dispatched by the sweep once its lease runs
+/// A dispatch lost after the commit is dispatched by the sweep once its lease runs
 /// out, and not before; once settled it is not dispatched again.
 #[tokio::test]
 async fn a_dispatch_lost_after_commit_is_replayed_once_its_lease_runs_out() {
@@ -167,7 +167,7 @@ async fn a_dispatch_lost_after_commit_is_replayed_once_its_lease_runs_out() {
     assert!(lost.contains(&("classify".into(), "dispatched".into(), 2)), "{lost:?}");
 }
 
-/// Cycle 3: two sweepers racing for one due row dispatch it once.
+/// Two sweepers racing for one due row dispatch it once.
 #[tokio::test]
 async fn two_sweepers_dispatch_a_due_row_once() {
     let Some((pool, _svc)) = pool().await else {
@@ -186,7 +186,7 @@ async fn two_sweepers_dispatch_a_due_row_once() {
     assert_eq!(dispatcher.calls().len(), 1);
 }
 
-/// Cycle 4: `dead_lettered` is terminal like `dispatched`; an unsettled dispatch stays
+/// `dead_lettered` is terminal like `dispatched`; an unsettled dispatch stays
 /// `pending` and is swept again when its lease runs out.
 #[tokio::test]
 async fn terminal_dispatches_are_never_swept_and_unsettled_ones_are() {
