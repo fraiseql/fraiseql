@@ -30,6 +30,14 @@ impl<'a> RestHandler<'a> {
         self.idempotency_store = Some(store);
         self
     }
+
+    /// Set the tenant the request resolved to and runs on, which scopes its idempotency
+    /// keys. Unset, they are scoped by the token's tenant alone.
+    #[must_use]
+    pub const fn with_tenant(mut self, tenant: Option<&'a str>) -> Self {
+        self.tenant = tenant;
+        self
+    }
 }
 
 impl RestHandler<'_> {
@@ -96,10 +104,16 @@ impl RestHandler<'_> {
         // each other's stored response, and two tenants retrying an identical request
         // under a natural key such as `order-42` received each other's results. Scoped by
         // principal too: a stored response was produced under its caller's gates.
+        //
+        // The tenant is the one the request resolved to and ran on (#1550), not only the
+        // token's: two anonymous callers addressed to different tenants by `X-Tenant-ID`
+        // otherwise shared one scope and replayed each other's responses.
         let idempotency_scope = super::super::idempotency::IdempotencyScope {
-            tenant:    security_context
-                .and_then(|c| c.tenant_id.as_ref())
-                .map(|t| t.as_str().to_string()),
+            tenant:    self.tenant.map(str::to_string).or_else(|| {
+                security_context
+                    .and_then(|c| c.tenant_id.as_ref())
+                    .map(|t| t.as_str().to_string())
+            }),
             principal: security_context.map(|c| c.user_id.to_string()),
             method:    "POST".to_string(),
             path:      resolved.route.path.clone(),

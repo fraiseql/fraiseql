@@ -410,7 +410,7 @@ fn build_openapi_spec(
 fn serve_openapi(
     spec: Arc<serde_json::Value>,
 ) -> impl Fn(RestSecurityContext) -> std::future::Ready<axum::Json<serde_json::Value>> + Clone {
-    move |RestSecurityContext(_, _)| std::future::ready(axum::Json((*spec).clone()))
+    move |RestSecurityContext(..)| std::future::ready(axum::Json((*spec).clone()))
 }
 
 // ---------------------------------------------------------------------------
@@ -428,6 +428,9 @@ type TenantRouteCache =
 struct RestScope {
     executor:    Arc<Executor>,
     route_table: Arc<RestRouteTable>,
+    /// The tenant key the request resolved to, which scopes its idempotency keys: two
+    /// callers addressed to different tenants never replay each other's responses.
+    tenant:      Option<String>,
     _dispatch:   Option<crate::routes::graphql::tenant_dispatch::TenantDispatch>,
 }
 
@@ -451,19 +454,24 @@ impl RestState {
         };
         let key =
             resolve_tenant_key(&self.app, security_ctx, headers).map_err(|e| refuse(e.into()))?;
-        let Some(key) = key else {
+        // No registry: every request runs on the default executor, whatever tenant it
+        // names. Deriving a route table per named tenant would grow without bound under
+        // anonymous callers choosing `X-Tenant-ID` values.
+        let (Some(key), Some(_)) = (key.as_deref(), self.app.tenant_registry()) else {
             return Ok(RestScope {
                 executor:    Arc::clone(&self.executor),
                 route_table: Arc::clone(&self.route_table),
+                tenant:      key,
                 _dispatch:   None,
             });
         };
-        let dispatch = dispatch_to_tenant(&self.app, Some(&key)).map_err(|e| refuse(e.into()))?;
+        let dispatch = dispatch_to_tenant(&self.app, Some(key)).map_err(|e| refuse(e.into()))?;
         let executor = Arc::clone(&dispatch.executor);
-        let route_table = self.tenant_route_table(&key, &executor).map_err(refuse)?;
+        let route_table = self.tenant_route_table(key, &executor).map_err(refuse)?;
         Ok(RestScope {
             executor,
             route_table,
+            tenant: Some(key.to_string()),
             _dispatch: Some(dispatch),
         })
     }
@@ -491,6 +499,8 @@ impl RestState {
                 "REST routes could not be derived from this tenant's schema: {e}"
             ))
         })?);
+        // A deregistered tenant's entry outlives its executor; drop those as new ones arrive.
+        cache.retain(|_, (derived_from, _)| derived_from.strong_count() > 0);
         cache.insert(key.to_string(), (Arc::downgrade(executor), Arc::clone(&table)));
         Ok(table)
     }
@@ -586,7 +596,12 @@ struct RestState {
 /// It also resolves the request's scope — its locale (#1512), from `?locale=`, the headers
 /// and the identity it has just resolved, and the headers its session variables name
 /// (#1520) — which the handlers run their work in.
-struct RestSecurityContext(Option<SecurityContext>, crate::request_scope::RequestScope);
+///
+/// And the tenant the request runs on (#1550), first: `require_auth`, the locale and the
+/// session variables are then read from **that tenant's** compiled schema, as `/graphql`
+/// reads them. Read from the default schema, a tenant whose schema requires
+/// authentication was served to anonymous callers whenever the default's did not.
+struct RestSecurityContext(Option<SecurityContext>, crate::request_scope::RequestScope, RestScope);
 
 impl FromRequestParts<RestState> for RestSecurityContext {
     type Rejection = Response;
@@ -596,22 +611,16 @@ impl FromRequestParts<RestState> for RestSecurityContext {
         parts: &mut Parts,
         state: &RestState,
     ) -> impl Future<Output = Result<Self, Self::Rejection>> + Send {
-        let require_auth =
-            state.executor.schema().rest_config.as_ref().is_some_and(|c| c.require_auth);
         let sanitizer = Arc::clone(&state.error_sanitizer);
         #[cfg(feature = "auth")]
         let resolver = state.identity_resolver.clone();
-        let executor = Arc::clone(&state.executor);
+        let state = state.clone();
 
         async move {
             let OptionalSecurityContext(security_ctx) =
                 OptionalSecurityContext::from_request_parts(parts, &())
                     .await
                     .map_err(IntoResponse::into_response)?;
-
-            if require_auth && security_ctx.is_none() {
-                return Err(rest_result_to_response(Err(RestError::unauthenticated()), &sanitizer));
-            }
 
             #[cfg(feature = "auth")]
             let security_ctx = {
@@ -640,6 +649,16 @@ impl FromRequestParts<RestState> for RestSecurityContext {
                 }
             };
 
+            // The tenant after the identity is complete, as `/graphql` orders them: the
+            // token's tenant decides the key for an authenticated caller.
+            let rest_scope = state.scope(security_ctx.as_ref(), &parts.headers).map_err(|r| *r)?;
+            let executor = Arc::clone(&rest_scope.executor);
+            let require_auth =
+                executor.schema().rest_config.as_ref().is_some_and(|c| c.require_auth);
+            if require_auth && security_ctx.is_none() {
+                return Err(rest_result_to_response(Err(RestError::unauthenticated()), &sanitizer));
+            }
+
             let query_pairs = parse_query_pairs(parts.uri.query().unwrap_or(""));
             let argument =
                 |name: &str| query_pairs.iter().find(|(k, _)| k == name).map(|(_, v)| v.clone());
@@ -650,7 +669,7 @@ impl FromRequestParts<RestState> for RestSecurityContext {
                 security_ctx.as_ref(),
             )
             .map_err(|e| rest_result_to_response(Err(RestError::from(e)), &sanitizer))?;
-            Ok(Self(security_ctx, scope))
+            Ok(Self(security_ctx, scope, rest_scope))
         }
     }
 }
@@ -662,12 +681,12 @@ impl FromRequestParts<RestState> for RestSecurityContext {
 /// [`rest_get_handler_in_scope`], run in the request's scope (#1512, #1520).
 async fn rest_get_handler(
     State(rest): State<RestState>,
-    RestSecurityContext(security_ctx, scope): RestSecurityContext,
+    RestSecurityContext(security_ctx, scope, rest_scope): RestSecurityContext,
     request: Request<Body>,
 ) -> Response {
     crate::request_scope::scoped(
         scope,
-        Box::pin(rest_get_handler_in_scope(State(rest), security_ctx, request)),
+        Box::pin(rest_get_handler_in_scope(State(rest), security_ctx, rest_scope, request)),
     )
     .await
 }
@@ -683,13 +702,10 @@ async fn rest_get_handler(
 async fn rest_get_handler_in_scope(
     State(rest): State<RestState>,
     security_ctx: Option<SecurityContext>,
+    scope: RestScope,
     request: Request<Body>,
 ) -> Response {
     let (parts, _body) = request.into_parts();
-    let scope = match rest.scope(security_ctx.as_ref(), &parts.headers) {
-        Ok(scope) => scope,
-        Err(refusal) => return *refusal,
-    };
     let relative_path = strip_base_path(&rest.route_table.base_path, parts.uri.path());
     let query_string = parts.uri.query().unwrap_or("");
     let query_pairs = parse_query_pairs(query_string);
@@ -842,12 +858,12 @@ async fn rest_get_handler_in_scope(
 /// [`rest_post_handler_in_scope`], run in the request's scope (#1512, #1520).
 async fn rest_post_handler(
     State(rest): State<RestState>,
-    RestSecurityContext(security_ctx, scope): RestSecurityContext,
+    RestSecurityContext(security_ctx, scope, rest_scope): RestSecurityContext,
     request: Request<Body>,
 ) -> Response {
     crate::request_scope::scoped(
         scope,
-        Box::pin(rest_post_handler_in_scope(State(rest), security_ctx, request)),
+        Box::pin(rest_post_handler_in_scope(State(rest), security_ctx, rest_scope, request)),
     )
     .await
 }
@@ -856,13 +872,10 @@ async fn rest_post_handler(
 async fn rest_post_handler_in_scope(
     State(rest): State<RestState>,
     security_ctx: Option<SecurityContext>,
+    scope: RestScope,
     request: Request<Body>,
 ) -> Response {
     let (parts, body) = request.into_parts();
-    let scope = match rest.scope(security_ctx.as_ref(), &parts.headers) {
-        Ok(scope) => scope,
-        Err(refusal) => return *refusal,
-    };
     let relative_path = strip_base_path(&rest.route_table.base_path, parts.uri.path());
 
     let body_value = match read_json_body(body).await {
@@ -873,7 +886,8 @@ async fn rest_post_handler_in_scope(
     let schema = scope.executor.schema();
     let config = schema.rest_config.as_ref().expect("REST config must exist: handler is only reached via a matched REST route, which requires rest_config to be present in the schema");
     let handler = RestHandler::new(&scope.executor, schema, config, &scope.route_table)
-        .with_idempotency_store(&rest.idempotency_store);
+        .with_idempotency_store(&rest.idempotency_store)
+        .with_tenant(scope.tenant.as_deref());
 
     let result = handler
         .handle_post(&relative_path, &body_value, &parts.headers, security_ctx.as_ref())
@@ -885,12 +899,12 @@ async fn rest_post_handler_in_scope(
 /// [`rest_put_handler_in_scope`], run in the request's scope (#1512, #1520).
 async fn rest_put_handler(
     State(rest): State<RestState>,
-    RestSecurityContext(security_ctx, scope): RestSecurityContext,
+    RestSecurityContext(security_ctx, scope, rest_scope): RestSecurityContext,
     request: Request<Body>,
 ) -> Response {
     crate::request_scope::scoped(
         scope,
-        Box::pin(rest_put_handler_in_scope(State(rest), security_ctx, request)),
+        Box::pin(rest_put_handler_in_scope(State(rest), security_ctx, rest_scope, request)),
     )
     .await
 }
@@ -899,13 +913,10 @@ async fn rest_put_handler(
 async fn rest_put_handler_in_scope(
     State(rest): State<RestState>,
     security_ctx: Option<SecurityContext>,
+    scope: RestScope,
     request: Request<Body>,
 ) -> Response {
     let (parts, body) = request.into_parts();
-    let scope = match rest.scope(security_ctx.as_ref(), &parts.headers) {
-        Ok(scope) => scope,
-        Err(refusal) => return *refusal,
-    };
     let relative_path = strip_base_path(&rest.route_table.base_path, parts.uri.path());
 
     let body_value = match read_json_body(body).await {
@@ -927,12 +938,12 @@ async fn rest_put_handler_in_scope(
 /// [`rest_patch_handler_in_scope`], run in the request's scope (#1512, #1520).
 async fn rest_patch_handler(
     State(rest): State<RestState>,
-    RestSecurityContext(security_ctx, scope): RestSecurityContext,
+    RestSecurityContext(security_ctx, scope, rest_scope): RestSecurityContext,
     request: Request<Body>,
 ) -> Response {
     crate::request_scope::scoped(
         scope,
-        Box::pin(rest_patch_handler_in_scope(State(rest), security_ctx, request)),
+        Box::pin(rest_patch_handler_in_scope(State(rest), security_ctx, rest_scope, request)),
     )
     .await
 }
@@ -941,13 +952,10 @@ async fn rest_patch_handler(
 async fn rest_patch_handler_in_scope(
     State(rest): State<RestState>,
     security_ctx: Option<SecurityContext>,
+    scope: RestScope,
     request: Request<Body>,
 ) -> Response {
     let (parts, body) = request.into_parts();
-    let scope = match rest.scope(security_ctx.as_ref(), &parts.headers) {
-        Ok(scope) => scope,
-        Err(refusal) => return *refusal,
-    };
     let relative_path = strip_base_path(&rest.route_table.base_path, parts.uri.path());
     let query_string = parts.uri.query().unwrap_or("");
     let query_pairs = parse_query_pairs(query_string);
@@ -979,12 +987,12 @@ async fn rest_patch_handler_in_scope(
 /// [`rest_delete_handler_in_scope`], run in the request's scope (#1512, #1520).
 async fn rest_delete_handler(
     State(rest): State<RestState>,
-    RestSecurityContext(security_ctx, scope): RestSecurityContext,
+    RestSecurityContext(security_ctx, scope, rest_scope): RestSecurityContext,
     request: Request<Body>,
 ) -> Response {
     crate::request_scope::scoped(
         scope,
-        Box::pin(rest_delete_handler_in_scope(State(rest), security_ctx, request)),
+        Box::pin(rest_delete_handler_in_scope(State(rest), security_ctx, rest_scope, request)),
     )
     .await
 }
@@ -993,13 +1001,10 @@ async fn rest_delete_handler(
 async fn rest_delete_handler_in_scope(
     State(rest): State<RestState>,
     security_ctx: Option<SecurityContext>,
+    scope: RestScope,
     request: Request<Body>,
 ) -> Response {
     let (parts, _body) = request.into_parts();
-    let scope = match rest.scope(security_ctx.as_ref(), &parts.headers) {
-        Ok(scope) => scope,
-        Err(refusal) => return *refusal,
-    };
     let relative_path = strip_base_path(&rest.route_table.base_path, parts.uri.path());
     let query_string = parts.uri.query().unwrap_or("");
     let query_pairs = parse_query_pairs(query_string);
@@ -1095,12 +1100,12 @@ async fn resume_state(
 /// [`rest_sse_handler_in_scope`], run in the request's scope (#1512, #1520).
 async fn rest_sse_handler(
     State(rest): State<RestState>,
-    RestSecurityContext(security_ctx, scope): RestSecurityContext,
+    RestSecurityContext(security_ctx, scope, rest_scope): RestSecurityContext,
     request: Request<Body>,
 ) -> Response {
     crate::request_scope::scoped(
         scope,
-        Box::pin(rest_sse_handler_in_scope(State(rest), security_ctx, request)),
+        Box::pin(rest_sse_handler_in_scope(State(rest), security_ctx, rest_scope, request)),
     )
     .await
 }
@@ -1131,13 +1136,10 @@ async fn rest_sse_handler_in_scope(
     #[cfg_attr(not(feature = "observers"), allow(unused_variables))] security_ctx: Option<
         SecurityContext,
     >,
+    scope: RestScope,
     request: Request<Body>,
 ) -> Response {
     let (parts, _body) = request.into_parts();
-    let scope = match rest.scope(security_ctx.as_ref(), &parts.headers) {
-        Ok(scope) => scope,
-        Err(refusal) => return *refusal,
-    };
     let relative_path = strip_base_path(&rest.route_table.base_path, parts.uri.path());
 
     // Extract resource name from /{resource}/stream path

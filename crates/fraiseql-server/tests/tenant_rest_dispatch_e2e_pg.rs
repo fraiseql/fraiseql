@@ -433,6 +433,121 @@ async fn a_re_registered_tenant_is_served_its_new_routes() {
     assert_eq!(status, StatusCode::NOT_FOUND, "{body}");
 }
 
+/// An idempotency key is scoped by the tenant the request ran on, not only the token's: two
+/// anonymous callers, one addressed to the tenant and one to no tenant, sending the same key
+/// and body each have their write performed, never the other's response replayed.
+#[tokio::test]
+async fn an_idempotency_key_is_scoped_by_the_resolved_tenant() {
+    let Some((admin, state)) = setup().await else {
+        return;
+    };
+    let router = router(&state);
+    let post = |tenant: Option<&str>| {
+        let mut request = Request::post("/rest/v1/probes")
+            .header("content-type", "application/json")
+            .header("idempotency-key", "order-42");
+        if let Some(tenant) = tenant {
+            request = request.header("x-tenant-id", tenant);
+        }
+        request.body(Body::from(json!({ "label": "ONCE-EACH" }).to_string())).unwrap()
+    };
+    for tenant in [Some(TENANT), None] {
+        let (status, body) = send(router.clone(), post(tenant)).await;
+        assert!(status.is_success(), "{tenant:?}: {status} {body}");
+    }
+    assert_eq!(
+        labels_in(&admin, &format!("tenant_{TENANT}")).await,
+        ["ONCE-EACH", TENANT_ROW],
+        "the tenant's write"
+    );
+    assert_eq!(
+        labels_in(&admin, "public").await,
+        ["ONCE-EACH", PUBLIC_DECOY],
+        "the default's write, performed rather than replayed"
+    );
+}
+
+/// `require_auth` is the tenant schema's: a tenant whose REST requires authentication
+/// refuses an anonymous caller, though the default schema's REST does not require it.
+#[tokio::test]
+async fn a_tenant_requiring_auth_refuses_an_anonymous_caller() {
+    let Some((_admin, state)) = setup().await else {
+        return;
+    };
+    let url = try_database_url().unwrap();
+    let mut requiring_auth = schema();
+    requiring_auth.rest_config.as_mut().unwrap().require_auth = true;
+    let _ = upsert_tenant_handler(
+        State(state.clone()),
+        Path(TENANT.to_string()),
+        OptionalSecurityContext(None),
+        axum::Json(TenantRegistrationRequest {
+            schema: serde_json::to_value(requiring_auth).unwrap(),
+            ..registration(&url)
+        }),
+    )
+    .await
+    .expect("tenant re-registration");
+    let get = |tenant: Option<&str>| {
+        let mut request = Request::get("/rest/v1/probes");
+        if let Some(tenant) = tenant {
+            request = request.header("x-tenant-id", tenant);
+        }
+        request.body(Body::empty()).unwrap()
+    };
+    let (status, body) = send(router(&state), get(Some(TENANT))).await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED, "{body}");
+    assert!(!body.to_string().contains(TENANT_ROW), "{body}");
+    let (status, body) = send(router(&state), get(None)).await;
+    assert_eq!(status, StatusCode::OK, "the default's REST stays open: {body}");
+}
+
+/// The request scope is resolved under the tenant's schema, as `/graphql` resolves it: a
+/// header session variable only the tenant declares reaches the tenant's query.
+#[tokio::test]
+async fn a_tenants_header_session_variable_reaches_its_query() {
+    let Some((admin, state)) = setup().await else {
+        return;
+    };
+    let url = try_database_url().unwrap();
+    let mut with_variable = schema();
+    with_variable.session_variables.variables =
+        vec![fraiseql_core::schema::SessionVariableMapping {
+            name:   "app.p1550_label".to_string(),
+            source: fraiseql_core::schema::SessionVariableSource::Header {
+                header: "x-probe-label".to_string(),
+            },
+        }];
+    let _ = upsert_tenant_handler(
+        State(state.clone()),
+        Path(TENANT.to_string()),
+        OptionalSecurityContext(None),
+        axum::Json(TenantRegistrationRequest {
+            schema: serde_json::to_value(with_variable).unwrap(),
+            ..registration(&url)
+        }),
+    )
+    .await
+    .expect("tenant re-registration");
+    exec(
+        &admin,
+        &format!(
+            "CREATE OR REPLACE VIEW tenant_{TENANT}.v_p1550_probe AS SELECT id, \
+             jsonb_build_object('id', id, 'label', coalesce(nullif(current_setting(\
+             'app.p1550_label', true), ''), label)) AS data FROM tenant_{TENANT}.tb_p1550_probe"
+        ),
+    )
+    .await;
+    let request = Request::get("/rest/v1/probes")
+        .header("x-tenant-id", TENANT)
+        .header("x-probe-label", "FROM-HEADER")
+        .body(Body::empty())
+        .unwrap();
+    let (status, body) = send(router(&state), request).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert!(body.to_string().contains("FROM-HEADER"), "{body}");
+}
+
 /// A dispatched function's `fraiseql_query` write runs on its tenant's executor (#1550): the
 /// bridge (after:mutation, after:ingest, cron, after:capture) took the default executor
 /// whatever tenant its `run_as` identity carried.

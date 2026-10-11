@@ -251,6 +251,9 @@ disagreed, and the promise was the part that was wrong.
   - A suspended tenant gets `503` on REST.
   - A tenant's REST routes are its own schema's: a tenant whose schema serves no REST gets
     `404`.
+  - A tenant's REST `require_auth`, `[locale]` and header session variables are its own
+    schema's: an anonymous request to a tenant whose schema requires authentication gets
+    `401`, whatever the default schema says.
   - `flight_upload_tables` combined with `[tenancy.runtime] enabled` refuses to boot: an
     Upload writes through the server-wide pool, never a tenant's.
   - Embedders: `RunAsQueryExecutor::new`, `make_query_executor_factory`,
@@ -491,8 +494,12 @@ disagreed, and the promise was the part that was wrong.
   `connection`), its writes landed there, and suspension, concurrency, RPS and cost limits
   were bypassed, all without an error. Both now resolve the tenant and dispatch through the
   same seam `/graphql` uses. A function whose `run_as` names no tenant writes within the
-  tenant whose write triggered it, and only a scheduled source honours `__source_tenant`. `build_grpc_service` (which the server binary does not mount)
-  documents that it serves only the executor it is given.
+  tenant whose write triggered it, and only a scheduled source honours `__source_tenant`.
+  A REST `Idempotency-Key` is scoped by the tenant the request ran on, so two anonymous
+  callers addressed to different tenants no longer replay each other's responses. Without
+  a tenant registry, an `X-Tenant-ID` value derives and caches nothing.
+  `build_grpc_service` (which the server binary does not mount) documents that it serves
+  only the executor it is given.
 
 - **The TypeScript SDK's `localized: true` option is refused on a non-String (#1527).** The
   type-string API refused `Localized<number>`, but the option was exported on any type and

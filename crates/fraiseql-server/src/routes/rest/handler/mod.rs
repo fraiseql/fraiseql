@@ -48,6 +48,7 @@ pub struct RestHandler<'a> {
     pub(super) config:            &'a RestConfig,
     pub(super) route_table:       &'a RestRouteTable,
     pub(super) idempotency_store: Option<&'a Arc<dyn IdempotencyStore>>,
+    pub(super) tenant:            Option<&'a str>,
 }
 
 impl<'a> RestHandler<'a> {
@@ -65,6 +66,7 @@ impl<'a> RestHandler<'a> {
             config,
             route_table,
             idempotency_store: None,
+            tenant: None,
         }
     }
 

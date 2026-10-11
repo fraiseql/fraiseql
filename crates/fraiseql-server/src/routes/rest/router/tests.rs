@@ -410,3 +410,69 @@ fn mounting_over_an_adapter_that_cannot_compose_warns() {
     let log = String::from_utf8(captured.0.lock().unwrap().clone()).unwrap();
     assert!(log.contains("WARN") && log.contains("501 Not Implemented"), "{log}");
 }
+
+// -----------------------------------------------------------------------
+// tenant scope (#1550)
+// -----------------------------------------------------------------------
+
+fn rest_state(state: &AppState) -> RestState {
+    let mount = RestMountConfig {
+        compression_enabled: false,
+        auth_layer_attached: false,
+        export:              Arc::default(),
+    };
+    derive_rest_context(state, &mount).expect("REST is enabled").2
+}
+
+fn naming(tenant: &str) -> axum::http::HeaderMap {
+    let mut headers = axum::http::HeaderMap::new();
+    headers.insert("x-tenant-id", tenant.parse().unwrap());
+    headers
+}
+
+fn scope_of(rest: &RestState, tenant: &str) -> RestScope {
+    let scope = rest.scope(None, &naming(tenant));
+    assert!(scope.is_ok(), "{tenant} refused");
+    scope.ok().unwrap()
+}
+
+/// With no tenant registry every request runs on the default executor, so a tenant it
+/// names derives nothing: caching a route table per `X-Tenant-ID` value let anonymous
+/// callers grow the cache without bound.
+#[test]
+fn with_no_registry_a_named_tenant_derives_no_route_table() {
+    let rest = rest_state(&make_app_state(schema_with_rest()));
+    for tenant in ["t1", "t2", "t3"] {
+        let scope = scope_of(&rest, tenant);
+        assert!(Arc::ptr_eq(&scope.executor, &rest.executor), "{tenant}: the default executor");
+        assert_eq!(scope.tenant.as_deref(), Some(tenant), "the key still scopes idempotency");
+    }
+    assert!(rest.tenant_routes.lock().is_empty(), "no route table was derived");
+}
+
+/// A deregistered tenant's route table is dropped once another tenant's is derived: the
+/// cache holds the live tenants, not every tenant ever served.
+#[test]
+fn a_deregistered_tenants_route_table_is_dropped() {
+    let state = make_app_state(schema_with_rest());
+    let registry = Arc::new(crate::routes::graphql::TenantExecutorRegistry::new(Arc::new(
+        arc_swap::ArcSwap::from(state.executor.load_full()),
+    )));
+    let state = state.with_tenant_registry(Arc::clone(&registry));
+    let tenant_executor = || {
+        Arc::new(fraiseql_core::runtime::Executor::new(
+            schema_with_rest(),
+            Arc::new(fraiseql_test_utils::failing_adapter::FailingAdapter::default()),
+        ))
+    };
+    let rest = rest_state(&state);
+
+    registry.upsert("gone", tenant_executor());
+    drop(scope_of(&rest, "gone"));
+    registry.remove("gone").unwrap();
+    registry.upsert("live", tenant_executor());
+    drop(scope_of(&rest, "live"));
+
+    let keys: Vec<String> = rest.tenant_routes.lock().keys().cloned().collect();
+    assert_eq!(keys, ["live"]);
+}
