@@ -2,8 +2,16 @@ defmodule FraiseQL.ExportTypesTest do
   @moduledoc false
   use ExUnit.Case
 
+  # Started under the test supervisor, which stops it before the next test starts. A bare
+  # `start_link` linked it to the test process: it died asynchronously after each test, and
+  # the next test's `start_link` could find the name still held by the dying process
+  # (`already_started`), then call a process that was gone (`no process`).
   setup do
-    FraiseQL.Schema.Legacy.start_link([])
+    start_supervised!(%{
+      id: FraiseQL.Schema.Legacy,
+      start: {FraiseQL.Schema.Legacy, :start_link, [[]]}
+    })
+
     :ok
   end
 
