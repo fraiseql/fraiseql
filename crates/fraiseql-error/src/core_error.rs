@@ -263,8 +263,9 @@ pub enum FraiseQLError {
     /// refused until its usage falls back under it. Its reads are unaffected.
     ///
     /// `507 Insufficient Storage`, the status for "the server cannot store what this
-    /// request needs". Not retried by waiting alone: the tenant deletes data, or the
-    /// operator raises the quota, and the next measurement lifts the refusal.
+    /// request needs". Not retried by waiting alone: the tenant's deletes are refused too,
+    /// so the operator frees space in its schema or raises the quota, and the next
+    /// measurement lifts the refusal.
     #[error(
         "Tenant storage is over its quota: {usage_bytes} bytes measured, max_storage_bytes is \
          {limit_bytes}; writes are refused until usage falls back under it"

@@ -23,10 +23,11 @@ disagreed, and the promise was the part that was wrong.
 - **Tenant storage quotas are enforced (#633).** A schema-mode tenant registered with
   `max_storage_bytes` has its schema measured on its own connection when it is registered and
   every `[tenancy.storage_quota] interval_secs` (default 300), each measurement abandoned after
-  30 seconds. While it is over the quota, every write it makes is refused at the
-  engine's write chokepoint, on every transport, with `507 INSUFFICIENT_STORAGE` and nothing
-  written (deletes included, so the operator frees space or raises the quota); its reads are
-  served. The first measurement back under lifts the refusal. Gauges
+  30 seconds. While it is over the quota, every write it makes is refused at the engine's
+  write chokepoint, on every transport, with `507 INSUFFICIENT_STORAGE` (gRPC:
+  `RESOURCE_EXHAUSTED`) and nothing written. Deletes are refused too, so the operator frees
+  space or raises the quota; its reads are served. The first measurement back under lifts
+  the refusal. Gauges
   `fraiseql_tenant_storage_bytes` and `fraiseql_tenant_storage_quota_bytes`; see
   `docs/operations/tenant-storage-quota.md`.
 

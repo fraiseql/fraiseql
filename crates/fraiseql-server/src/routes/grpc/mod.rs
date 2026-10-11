@@ -556,10 +556,11 @@ pub(crate) const fn grpc_code_for(error: &FraiseQLError) -> tonic::Code {
         // A policy backend that could not decide (#1374): retryable, and not a refusal.
         FraiseQLError::ServiceUnavailable { .. } => tonic::Code::Unavailable,
         // A read over `max_response_bytes` or `per_request_max` asked for more than the
-        // operator allows (#1543): gRPC's code for an exceeded quota or size.
-        FraiseQLError::CostExceeded { .. } | FraiseQLError::ResponseTooLarge { .. } => {
-            tonic::Code::ResourceExhausted
-        },
+        // operator allows (#1543), or a write by a tenant over its storage quota (#633):
+        // gRPC's code for an exceeded quota or size.
+        FraiseQLError::CostExceeded { .. }
+        | FraiseQLError::ResponseTooLarge { .. }
+        | FraiseQLError::StorageQuotaExceeded { .. } => tonic::Code::ResourceExhausted,
         _ => tonic::Code::Internal,
     }
 }

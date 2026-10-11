@@ -1046,4 +1046,17 @@ mod status_mapping {
             tonic::Code::Unavailable
         );
     }
+
+    /// A tenant over its storage quota (#633) is refused for a quota, as a cost or size
+    /// limit is: `ResourceExhausted`, never `Internal`.
+    #[test]
+    fn a_storage_quota_refusal_is_resource_exhausted() {
+        assert_eq!(
+            grpc_code_for(&FraiseQLError::StorageQuotaExceeded {
+                usage_bytes: 11,
+                limit_bytes: 10,
+            }),
+            tonic::Code::ResourceExhausted
+        );
+    }
 }
