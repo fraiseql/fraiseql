@@ -74,8 +74,8 @@ disagreed, and the promise was the part that was wrong.
   `non_additive` refuses every aggregate. Undeclared measures are `additive`, as before.
   Authored in TypeScript (`Measure.additivity`) and Go (`SemiAdditiveMeasure`,
   `DeltaMeasure`, `NonAdditiveMeasure`). A carried-forward request counts its (bucket,
-  entity) cells first and is refused past `[validation] max_semi_additive_cells` (default
-  250,000, about one second on PostgreSQL 18). Refused, naming the measure: a reduced measure
+  entity) cells first, at least one entity per bucket, and is refused past `[validation]
+  max_semi_additive_cells` (default 250,000, about one second on PostgreSQL 18). Refused, naming the measure: a reduced measure
   without exactly one time bucket of its `over`, alongside another aggregate or a list
   aggregate, with `over` filtered other than by bounds; and a window aggregate over a measure
   that is not additive. `fraiseql doctor --against-db` recommends the `(entity…, over)` index

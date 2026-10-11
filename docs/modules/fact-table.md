@@ -291,7 +291,7 @@ account's balance as it stood at the end of each month, whether or not the accou
 - **Other groupings** are read from the row each (entity, bucket) carries.
 - **Bounded work.** Each (bucket, entity) cell is one index seek. Before running, the
   planner counts the cells (buckets in range by entities under the request's other
-  filters, reading no measure) and refuses a request over `[validation]
+  filters, at least one, reading no measure) and refuses a request over `[validation]
   max_semi_additive_cells` (default 250,000: about 3 µs a cell on PostgreSQL 18, so near
   one second). It never truncates. 0 is refused.
 - **The index** that makes each seek cheap is `(entity…, over)`:

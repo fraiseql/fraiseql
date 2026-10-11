@@ -528,6 +528,20 @@ async fn a_request_over_more_cells_than_the_bound_is_refused_before_any_measure_
     assert!(err.contains("3 buckets by 3 entities"), "{err}");
 }
 
+/// The buckets alone are bounded: a range no entity falls in counts zero entities, and a
+/// product of zero cells let any number of buckets through to the carried-forward series.
+#[tokio::test]
+async fn a_range_with_no_entity_is_bounded_by_its_buckets() {
+    let Some(executor) = executor(2).await else {
+        return;
+    };
+    let mut request = quarter(BOOM, &["closing_balance_sum"]);
+    request["where"]["account_id_eq"] = json!(999);
+    let result = aggregate(&executor, &request).await;
+    let err = result.as_ref().expect_err("three buckets over a bound of two").clone();
+    assert!(err.contains("3 buckets by 0 entities"), "{err}");
+}
+
 /// A window aggregate over a measure not additive over time is refused, naming it; a value
 /// function over it, which combines nothing, runs.
 #[tokio::test]

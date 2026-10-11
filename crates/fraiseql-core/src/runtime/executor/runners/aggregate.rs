@@ -448,7 +448,9 @@ impl AggregateRunner {
                     .unwrap_or(0)
             };
             let (buckets, entities) = (read("buckets"), read("entities"));
-            if buckets.saturating_mul(entities) > bound {
+            // At least one entity: a range no entity falls in still generates its buckets,
+            // and a product of zero would let any number of them through.
+            if buckets.saturating_mul(entities.max(1)) > bound {
                 let measures = plan
                     .time_reduction
                     .as_ref()
