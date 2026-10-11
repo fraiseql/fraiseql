@@ -207,6 +207,15 @@ disagreed, and the promise was the part that was wrong.
   `ArgumentDefinition`, `InputFieldDefinition` and `fraiseql_db::where_clause::WhereFieldInfo`
   gain `localized: bool`, and `WhereClause` gains `Localized { chain, collation, inner }`: struct
   literals add `localized: false`, and exhaustive matches add the arm (the leaf is in `inner`).
+- **More public fields for the request locale, localized fields and the request scope (#1512,
+  #1513, #1520); embedders only.** `CompiledSchema` and the CLI's `IntermediateSchema`,
+  `TomlSchema` and `TomlProjectConfig` gain `locale: Option<LocaleConfig>`. `FieldDefinition`
+  and the CLI's `IntermediateField`, `IntermediateInputField` and `IntermediateArgument` gain
+  `localized: bool`. `fraiseql_core::runtime::projection::FieldMapping` gains `localized`, and
+  `fraiseql_db::projection_generator::ProjectionField` gains `localized: Option<LocalizedRead>`.
+  `fraiseql_server::async_operations::AsyncOperation` gains `locale` and `session_headers`, and
+  `AsyncOperationStore::submit` takes the submitting request's `RequestScope`. A struct literal
+  adds the fields (`None`, `false` or the default); a caller of `submit` passes the scope.
 
 - **`_fraiseql_inbound_message` is referenced by the dispatch ledger (#1175).** A `TRUNCATE`
   of the spine needs `CASCADE` (deleting rows cascades on its own). Embedders:
