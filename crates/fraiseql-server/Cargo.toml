@@ -49,7 +49,7 @@ tempfile = {workspace = true, optional = true}
 # Date/time handling
 chrono = {workspace = true}
 dashmap = {workspace = true}
-dirs = "6"
+dirs = "7"
 fraiseql-arrow = {workspace = true, optional = true}
 # Authentication
 fraiseql-auth = {workspace = true, optional = true}
