@@ -56,14 +56,15 @@ disagreed, and the promise was the part that was wrong.
   facts about the operation itself (`success_fields={"recovered_items": int}` in Python,
   `successFields` in TypeScript), the compiler adds each to `<Mutation>Payload` next to
   `entity`, `cascade` and `updatedFields`, and the function returns them in a `result jsonb`
-  column after the 13 of `mutation_response`, keyed by snake_case name. Only that function
+  column after the 13 of `mutation_response`, keyed by snake_case name (`step2` → `step_2`). Only that function
   declares the column (its own row type): helpers 2.4.0 add `fraiseql.mutation_ok_result(…)`,
   `mutation_err_result(…)` and `mutation_err_entries_result(…)`, the 14-column forms of the
   three builders. Additive: the 13-column builders, `app.mutation_response` and every
   existing function are unchanged, and nothing needs migrating. Only on a `cascade`
   mutation, only scalar or enum types, never under a name the payload already has (each a
-  compile error). A value of the wrong type, no value for a non-null field, or a row with no
-  `result` column at all, is the function's contract error: the write is rolled back,
+  compile error). A value of the wrong type (a date or a rich scalar returned as an object or
+  a list included), no value for a non-null field, or a row with no `result` column at all,
+  is the function's contract error: the write is rolled back,
   whatever the client selected; `compile --database` and `doctor` report the missing column
   as drift. Served on GraphQL, REST and MCP; a key `result` carries that no field declares
   is never served.

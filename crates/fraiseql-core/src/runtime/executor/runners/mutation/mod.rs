@@ -287,8 +287,12 @@ fn success_value(result: Option<&serde_json::Value>, name: &str) -> serde_json::
 /// Whether `value` is one `field` can hold, for a success field (#1397): `Err` names what
 /// it holds instead. A non-null field the function returned no value for is as much the
 /// function's error as a value of the wrong type: refused alike, on every transport, before
-/// the write commits (REST has no partial answer to carry a field error in). A scalar this
-/// does not know (a rich or custom one) is served as the function returned it.
+/// the write commits (REST has no partial answer to carry a field error in).
+///
+/// Each type is held to the JSON shape it is served as. A rich scalar is a leaf (stored as
+/// text); `Json` and a custom scalar are served as the function returned them. A list or a
+/// composite type is not a success field type (the compiler refuses it), so it holds nothing.
+/// The refusal names the kind of value, never the value: it reaches the client and the logs.
 fn success_field_value_ok(
     schema: &CompiledSchema,
     field: &crate::schema::FieldDefinition,
@@ -300,12 +304,31 @@ fn success_field_value_ok(
     let ok = match (&field.field_type, value) {
         (_, Value::Null) => field.nullable,
         (FieldType::Int, Value::Number(n)) => n.as_i64().is_some_and(|i| i32::try_from(i).is_ok()),
-        (FieldType::Float, Value::Number(_))
-        | (FieldType::String | FieldType::Id, Value::String(_))
-        | (FieldType::Boolean, Value::Bool(_)) => true,
+        (FieldType::Float | FieldType::Decimal, Value::Number(_))
+        | (
+            FieldType::String
+            | FieldType::Id
+            | FieldType::DateTime
+            | FieldType::Date
+            | FieldType::Time
+            | FieldType::Uuid
+            | FieldType::Decimal
+            | FieldType::BitVector
+            | FieldType::SparseVector,
+            Value::String(_),
+        )
+        | (FieldType::Boolean, Value::Bool(_))
+        | (FieldType::Json, _) => true,
         (FieldType::Id, Value::Number(n)) => n.is_i64() || n.is_u64(),
+        (FieldType::Vector | FieldType::HalfVector, Value::Array(items)) => {
+            items.iter().all(Value::is_number)
+        },
         (FieldType::Enum(name), Value::String(s)) => {
             schema.find_enum(name).is_some_and(|e| e.values.iter().any(|v| v.name == *s))
+        },
+        (FieldType::Scalar(name), _) => {
+            !crate::schema::RICH_SCALARS.contains(&name.as_str())
+                || !matches!(value, Value::Array(_) | Value::Object(_))
         },
         (
             FieldType::Int
@@ -313,22 +336,36 @@ fn success_field_value_ok(
             | FieldType::String
             | FieldType::Boolean
             | FieldType::Id
-            | FieldType::Enum(_),
+            | FieldType::DateTime
+            | FieldType::Date
+            | FieldType::Time
+            | FieldType::Uuid
+            | FieldType::Decimal
+            | FieldType::Vector
+            | FieldType::BitVector
+            | FieldType::HalfVector
+            | FieldType::SparseVector
+            | FieldType::Enum(_)
+            | FieldType::List(_)
+            | FieldType::Object(_)
+            | FieldType::Input(_)
+            | FieldType::Interface(_)
+            | FieldType::Union(_),
             _,
         ) => false,
-        _ => true,
     };
     if ok {
         return Ok(());
     }
     Err(match value {
-        Value::String(s) => format!("the string {s:?}"),
-        Value::Number(n) => format!("the number {n}"),
-        Value::Bool(b) => format!("the boolean {b}"),
-        Value::Array(_) => "a list".to_string(),
-        Value::Object(_) => "an object".to_string(),
-        Value::Null => "no value".to_string(),
-    })
+        Value::String(_) => "a string",
+        Value::Number(_) => "a number",
+        Value::Bool(_) => "a boolean",
+        Value::Array(_) => "a list",
+        Value::Object(_) => "an object",
+        Value::Null => "no value",
+    }
+    .to_string())
 }
 
 /// Build the `CascadeUpdates` envelope (`updated` / `deleted` / `metadata`),

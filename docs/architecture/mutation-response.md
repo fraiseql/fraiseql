@@ -490,7 +490,8 @@ registerMutation("createOrder", "Order", false, false, args, undefined, {
 ```
 
 The function returns them in a 14th column, `result jsonb`, keyed by each field's snake_case
-name. Only a mutation with success fields needs that column: its function declares its own
+name as the engine spells it: `recoveredItems` → `recovered_items`, and a digit is a word of
+its own, `step2` → `step_2` (except a registered acronym such as `s3` or `oauth2`). Only a mutation with success fields needs that column: its function declares its own
 row (the 13 columns above, then `result jsonb`) and builds it with the 14-column form of each
 helper (helpers 2.4.0, `fraiseql setup`). Every other function keeps the 13-column row.
 
@@ -532,7 +533,10 @@ mutation { createOrder(total: 9) { entity { id } recoveredItems } }
   runtime as the function's contract error (never served as nulls).
 * A value its field's type cannot hold, or no value for a non-null field, is the function's
   contract error: the write is rolled back and counted
-  (`fraiseql_mutation_contract_errors_total`), whatever the client selected.
+  (`fraiseql_mutation_contract_errors_total`), whatever the client selected. Each type is
+  held to the JSON it is served as: a date, a UUID or a rich scalar (`Email`, `URL`, …) is a
+  string, never an object or a list; `Json` and a custom scalar are served as returned. The
+  refusal names the kind of value returned, never the value.
 * Served wherever the payload is: GraphQL; REST (`POST /<payload resource>`, every leaf
   field); MCP. gRPC answers a mutation with `success` / `id` / `error` and serves no payload
   field.

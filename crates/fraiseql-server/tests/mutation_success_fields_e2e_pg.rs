@@ -107,6 +107,17 @@ async fn provision(url: &str) {
             "jsonb_build_object('recovered_items', 1, 'recovery', 'MOSTLY')",
         ),
         thirteen_column_function("create_order_no_column"),
+        // Each shape a declared type holds, and one it cannot, per kind of type.
+        function(
+            "create_order_shapes",
+            "jsonb_build_object('contact', 'a@example.com', 'due', '2026-10-11T00:00:00Z', \
+             'detail', jsonb_build_object('k', 1))",
+        ),
+        function(
+            "create_order_wrong_rich",
+            "jsonb_build_object('contact', jsonb_build_object('k', 1))",
+        ),
+        function("create_order_wrong_date", "jsonb_build_object('due', jsonb_build_array(1))"),
     ];
     stmts.extend(fraiseql_test_support::changelog::entity_change_log_provision_statements());
     for stmt in stmts {
@@ -129,6 +140,11 @@ fn schema() -> CompiledSchema {
     };
     let mutation =
         |name: &str, function: &str| declaring(name, function, json!([recovered_items, recovery]));
+    let shapes = [
+        json!({ "name": "contact", "type": "Email", "nullable": true }),
+        json!({ "name": "due", "type": "DateTime", "nullable": true }),
+        json!({ "name": "detail", "type": "Json", "nullable": true }),
+    ];
     let intermediate: IntermediateSchema = serde_json::from_value(json!({
         "types": [{
             "name": "Order", "sql_source": format!("{SCHEMA}.v_order"), "is_input": false,
@@ -145,7 +161,10 @@ fn schema() -> CompiledSchema {
             mutation("createOrderMissing", "create_order_missing"),
             mutation("createOrderWrongType", "create_order_wrong_type"),
             mutation("createOrderWrongEnum", "create_order_wrong_enum"),
-            declaring("createOrderNoColumn", "create_order_no_column", json!([recovery]))
+            declaring("createOrderNoColumn", "create_order_no_column", json!([recovery])),
+            declaring("createOrderShapes", "create_order_shapes", json!(shapes)),
+            declaring("createOrderWrongRich", "create_order_wrong_rich", json!(shapes)),
+            declaring("createOrderWrongDate", "create_order_wrong_date", json!(shapes))
         ]
     }))
     .unwrap();
@@ -229,7 +248,10 @@ const PAYLOAD: &str = "{ ... on CreateOrderPayload { entity { id total } recover
                        ... on CreateOrderMissingPayload { recoveredItems recovery } \
                        ... on CreateOrderWrongTypePayload { recoveredItems } \
                        ... on CreateOrderWrongEnumPayload { recoveredItems recovery } \
-                       ... on CreateOrderNoColumnPayload { recovery } }";
+                       ... on CreateOrderNoColumnPayload { recovery } \
+                       ... on CreateOrderShapesPayload { contact due detail } \
+                       ... on CreateOrderWrongRichPayload { contact } \
+                       ... on CreateOrderWrongDatePayload { due } }";
 
 /// The issue's mutation: the success fields next to `entity`, read from `result`.
 #[tokio::test]
@@ -285,6 +307,35 @@ async fn a_success_field_of_the_wrong_type_refuses_the_write() {
     .await;
     assert!(body["errors"].to_string().contains("recovery"), "{body}");
     assert_eq!(orders(&server).await, before, "unselected, and still rolled back");
+}
+
+/// Each declared type is held to its shape: a rich scalar and a date are strings, `Json`
+/// holds anything. Each holding its shape is served; each holding another is refused, and
+/// the refusal never quotes the value the function returned.
+#[tokio::test]
+async fn a_success_field_is_held_to_its_types_shape() {
+    let Some(server) = serve().await else {
+        return;
+    };
+    let body = graphql(&server, "createOrderShapes", PAYLOAD).await;
+    assert!(body.get("errors").is_none(), "{body}");
+    let payload = &body["data"]["createOrderShapes"];
+    assert_eq!(payload["contact"], "a@example.com", "{body}");
+    assert_eq!(payload["due"], "2026-10-11T00:00:00Z", "{body}");
+    assert_eq!(payload["detail"], json!({ "k": 1 }), "Json holds an object: {body}");
+    for (mutation, field) in [
+        ("createOrderWrongRich", "contact"),
+        ("createOrderWrongDate", "due"),
+    ] {
+        let before = orders(&server).await;
+        let body = graphql(&server, mutation, PAYLOAD).await;
+        assert!(body["errors"].to_string().contains(field), "{mutation}: {body}");
+        assert_eq!(orders(&server).await, before, "{mutation}: rolled back");
+    }
+    let body = graphql(&server, "createOrderWrongType", PAYLOAD).await;
+    let errors = body["errors"].to_string();
+    assert!(errors.contains("recoveredItems"), "{body}");
+    assert!(!errors.contains("three"), "the returned value is not quoted: {body}");
 }
 
 /// The suite's document compiles with no database.
