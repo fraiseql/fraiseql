@@ -16,228 +16,7 @@ disagreed, and the promise was the part that was wrong.
 
 ## [Unreleased]
 
-## [2.17.0] - 2026-10-10
-
-### Added
-
-- **Tenant storage quotas are enforced (#633).** A schema-mode tenant registered with
-  `max_storage_bytes` has its schema measured on its own connection when it is registered and
-  every `[tenancy.storage_quota] interval_secs` (default 300), each measurement abandoned after
-  30 seconds. While it is over the quota, every write it makes is refused at the engine's
-  write chokepoint, on every transport, with `507 INSUFFICIENT_STORAGE` (gRPC:
-  `RESOURCE_EXHAUSTED`) and nothing written. Deletes are refused too, so the operator frees
-  space or raises the quota; its reads are served. The first measurement back under lifts
-  the refusal. Gauges
-  `fraiseql_tenant_storage_bytes` and `fraiseql_tenant_storage_quota_bytes`; see
-  `docs/operations/tenant-storage-quota.md`.
-
-- **`doctor` and `/metrics` report the health of the TVIEWs the schema reads (#1392).** From
-  `tviews.pg_tviews_profile()`: `doctor --against-db` warns with each piece of advice
-  (missing propagation index, unused GIN on `data`, low HOT ratio, UNLOGGED, …), and index
-  advice on a TVIEW's `data` states that it disables HOT updates and names the structural
-  column alternative. `/metrics` exports `fraiseql_tview_hot_ratio`, `_dead_tuples`,
-  `_updates`, `_hot_updates` and `_warnings` per TVIEW. TVIEWs are recognised from pg_tviews'
-  catalog through the views the schema reads. `DatabaseAdapter` gains `tview_profiles`
-  (default: none; a wrapping adapter forwards it).
-
-- **A cascade mutation can serve the rows pg_tviews refreshed (#1391).** With
-  `cascade_source = "pg_tviews"` (Python `cascade_source=`, TypeScript `cascadeSource`), the
-  executor calls `tviews.pg_tviews_flush_and_report()` before the commit and merges its
-  report into the function's `cascade`: each reported row read from its type's view on the
-  mutation's own connection (its row security applies; pg_tviews' raw `data` is never served)
-  and field-authorized like every cascade entity. A type whose reads the engine filters (an
-  RLS policy, or a query injecting parameters) lists none of its derived rows, updated or
-  deleted: its type is invalidated instead. The function's own entries win; a row the
-  caller cannot read, and a type pg_tviews truncated, become type-level invalidations. A
-  database without pg_tviews is refused by `compile --database` and fails the write at run
-  time. `fraiseql_cascade_derived_entries` on `/metrics`. Tested against a pinned pg_tviews
-  v0.1.0-beta.26 image (`docker/pg-tviews`, `make test-pg-tviews`).
-
-- **A cascade mutation's payload carries typed success fields (#1397).** A mutation declares
-  facts about the operation itself (`success_fields={"recovered_items": int}` in Python,
-  `successFields` in TypeScript), the compiler adds each to `<Mutation>Payload` next to
-  `entity`, `cascade` and `updatedFields`, and the function returns them in a `result jsonb`
-  column after the 13 of `mutation_response`, keyed by snake_case name (`step2` → `step_2`). Only that function
-  declares the column (its own row type): helpers 2.4.0 add `fraiseql.mutation_ok_result(…)`,
-  `mutation_err_result(…)` and `mutation_err_entries_result(…)`, the 14-column forms of the
-  three builders. Additive: the 13-column builders, `app.mutation_response` and every
-  existing function are unchanged, and nothing needs migrating. Only on a `cascade`
-  mutation, only scalar or enum types, never under a name the payload already has (each a
-  compile error). A value of the wrong type (a date or a rich scalar returned as an object or
-  a list included), no value for a non-null field, or a row with no `result` column at all,
-  is the function's contract error: the write is rolled back,
-  whatever the client selected; `compile --database` and `doctor` report the missing column
-  as drift. Served on GraphQL, REST and MCP; a key `result` carries that no field declares
-  is never served.
-
-- **A fact-table measure declares how it aggregates over time (#1459).** A balance or a stock
-  level is `semi_additive`: reduced per entity (`entity`) and per bucket of a time column
-  (`over`) first, by `last` or `first` (the value known by the bucket's end, carried forward
-  through buckets with no row) or by `avg`, `min` or `max` over the bucket's own rows; then the
-  requested function runs across entities. `delta` is a bucket's last row minus its first;
-  `non_additive` refuses every aggregate. Undeclared measures are `additive`, as before.
-  Authored in TypeScript (`Measure.additivity`) and Go (`SemiAdditiveMeasure`,
-  `DeltaMeasure`, `NonAdditiveMeasure`). A carried-forward request counts its (bucket,
-  entity) cells first, at least one entity per bucket, and is refused past `[validation]
-  max_semi_additive_cells` (default 250,000, about one second on PostgreSQL 18). Refused, naming the measure: a reduced measure
-  without exactly one time bucket of its `over`, alongside another aggregate or a list
-  aggregate, with `over` filtered other than by bounds; and a window aggregate over a measure
-  that is not additive. `fraiseql doctor --against-db` recommends the `(entity…, over)` index
-  each carried-forward cell seeks. See `docs/modules/fact-table.md`.
-
-- **`mutation_constraint_metadata` (#1531).** A server key, `"identifier"` (default),
-  `"full"` (adds the table and the constraint's columns, resolved from `pg_constraint` or
-  `pg_index`) or `"none"`. It holds across a hot reload and binds every tenant. Never the
-  database's `DETAIL` or a row value. A foreign-key violation stays `conflict` / 409 in both
-  directions: PostgreSQL 18 names the referencing table and no column either way.
-
-- **The `--emit-ddl` directory is a versioned contract (#965).** Every file opens with
-  `-- fraiseql emit-ddl format 1` and the compiler that wrote it, and the bytes are a function
-  of the schema alone (the same files whatever the type order). Confiture's `migrate diff
-  --to <dir>` reads it; the format, its guarantees and its version policy are in
-  `docs/operations/emit-ddl.md`. The localized-field index fragment is not emitted yet:
-  Confiture drops an index whose table its desired state does not declare (confiture#679,
-  #1541).
-- **A short similarity search says so: `vector_on_short_result` (#1314).** pgvector's HNSW
-  search keeps `ef_search` candidates; a selective filter can leave fewer than `k` matches
-  among them, and with `iterative_scan` off a `k` above `ef_search` is cut to it even
-  unfiltered. The search succeeded with what it found, and nothing told "only three matched"
-  from "stopped at three". A `nearest` search that returns fewer than `k` rows now carries a
-  `nearest_possibly_truncated` notice under the GraphQL response's `extensions.notices`
-  (`path`, `requested`, `returned`, `verified`). The server setting
-  `vector_on_short_result` chooses: `signal` (default; unverified), `verify` (counts the
-  matches up to `k` in the same statement and notices only a real truncation) or `refuse`
-  (refuses a verified truncation). A cache hit keeps the notice. See
-  `docs/operations/vector-search.md`.
-- **`after:ingest` dispatch is at-least-once: the dispatch ledger (#1175).** A message is
-  persisted with one `pending` row per `after:ingest` function it triggers
-  (`_fraiseql_inbound_dispatch`, created with the spine at boot), in the receiver's
-  transaction, on the webhook and poll-IMAP paths alike. A dispatch that succeeds or is
-  dead-lettered settles its row; one a crash or a shutdown left `pending` is run again, once
-  its lease runs out, by a sweep the server runs at startup and on an interval (`FOR UPDATE
-  SKIP LOCKED`, so replicas share it). A replay hands the function the same idempotency
-  token as the first run; handlers must be idempotent, since a lease that expires during a
-  slow first run dispatches twice. `[inbound_dispatch]` sets `lease_secs` (300),
-  `sweep_interval_secs` (30) and `batch_size` (100). Before this, a crash between the commit
-  and the dispatch lost the dispatch, and the provider's redelivery was answered `duplicate`.
-- **`orderBy.field` is an enum of the keys the query accepts (#1159).** Clients get
-  completion and validation on sort keys, and the schema lists exactly what the engine
-  accepts: one set feeds both (`derived_inputs::sortable_keys`). Entity-wide
-  `{Entity}OrderByField` when every query on the entity agrees; per-query
-  `{Query}OrderByField` / `{Query}OrderByInput` when their native columns differ. Relay
-  connections now advertise their `orderBy` (accepted before, never published). Introspection,
-  SDL and `federation sdl` agree. See `docs/features/pagination.md#sort-keys`.
-- **Relay connections publish their `where` (#1535).** A connection whose query enables
-  `where` was filtered by it but published no such argument, so a client validating against
-  introspection refused a filter the server serves. It now publishes `where:
-  {Entity}WhereInput` (or `JSON` for a type the schema cannot adjudicate), exactly as a list
-  does, in introspection, the SDL and `federation sdl`; the entity's `{Entity}WhereInput` is
-  derived for a connection too.
-- **`[validation] max_offset`: an opt-in ceiling on offset depth (#1306).** `OFFSET n` reads
-  `n` rows to discard them, however the read is ordered, so a deep offset page costs its depth.
-  Set, an offset beyond the ceiling is refused before any statement, with a message naming the
-  path that pages at any depth: a relay connection (`first`/`after`, which a query gets with
-  `relay = true`). It holds every offset a client chooses: GraphQL `offset:` (anonymous and
-  authenticated), REST `?offset=`, gRPC and MCP (through the same runner), aggregate and window
-  `offset`, and `@stream`, whose batches page at increasing offsets: one bounded by its own
-  `limit` past the ceiling is refused before it opens, and an unbounded one that reaches the
-  ceiling ends with the refusal as its last payload. Unset by default: nothing is refused.
-  `FRAISEQL_MAX_OFFSET` overrides the compiled value (`0`/`none` lifts it). A value of 0 is
-  refused at compile and at load. See `docs/features/pagination.md`.
-- **Request locale as first-class context: `[locale]` (#1512).** Declare the locales a
-  deployment serves (`default`, `allowed`, optional `fallback` and `resolve`) in
-  `fraiseql.toml`. Every request resolves to one allowed tag, from the explicit `locale`
-  argument, `Accept-Language` (q-values honoured) or an enriched-identity field, through an
-  exact match, the explicit fallback, then RFC 4647 truncation, else `default`. Read
-  transactions carry it as `fraiseql.locale` for user SQL. Tags are checked as BCP 47 at
-  compile and again at load. Every transport resolves it: GraphQL (POST, GET, `QUERY`, SSE
-  including `@stream` continuations), REST (`?locale=`, reads, exports, writes), MCP, gRPC
-  (metadata), Arrow Flight (identity only), federation `_entities`, and async operations
-  (resolved at submission, stored in a new nullable `_system.async_operations.locale` column,
-  added in place). See `docs/features/request-locale.md`.
-- **Localized fields (#1513).** A `String` field marked `localized` is stored as a locale map
-  (`{"fr-FR": "Pomme", "en-US": "Apple"}`) and returned as the request locale's label, read
-  through the `[locale]` fallback chain (the locale, its explicit fallbacks, its allowed
-  truncations, then `default`); a value that is not a JSON string counts as absent. The compiler
-  and the loader refuse `localized` on another type, and in a schema without `[locale]`. A
-  stored plain string reads as itself in every locale, so rows written before a field became
-  localized keep their value. Every read path reads the label: lists, relay, nested objects
-  and lists, gated reads, REST, MCP, gRPC, federation `_entities` and `/ws` subscriptions.
-- **A localized field selection can read another locale, or all of them (#1513).**
-  `name(locale: "de-DE")` reads one field in another allowed locale (refused before any
-  statement when the locale is not allowed), and `nameTranslations { locale value }` lists every
-  allowed label in `allowed`'s order. Introspection and SDL show both.
-- **A gated localized field's translations sibling is served under its field's gate
-  (#1523).** `<field>Translations` was refused when `<field>` carried `requires_scope` or
-  `authorize`. It is now gated as its field, on every read path (queries, relay,
-  `_entities`, subscriptions, mutation payloads): a mask reads `[]`, a `reject` refuses, and
-  the field authorizer is asked about the base field.
-
-- **A subscription filter on a localized field compares its label (#1525).** `filter_fields`,
-  `argument_paths` and static filters on a localized field were refused at compile and
-  load. They now compare the event's label in the subscriber's locale (the locale its
-  subscription was planned in; the default locale for an unplanned one).
-
-- **Aggregates and windows over a localized dimension read its label (#1524).** A fact-table
-  dimension that is a localized field was refused at compile and load. It now groups,
-  partitions, sorts (under the request locale's collation) and filters by its label through
-  the request locale's chain, so two rows sharing a French label are one group in `fr-FR`.
-  A measure over a localized field stays refused, now saying why (a label is text).
-  Embedders: `GroupByExpression::JsonbPath` gains `localized`, and
-  `WindowPlanner::plan_in_locale` takes a `WindowLocale`.
-
-- **`where` and `orderBy` on a localized field read the label (#1513).** Comparisons and sorts
-  use the request locale's label under its collation. `fraiseql compile` prints the expression
-  index each allowed locale's filter or sort reads, and `fraiseql doctor --against-db` names
-  every (field, locale) no index serves, judged by plan.
-- **Localized writes (#1513).** A mutation argument or input field marked `localized` takes
-  `LocalizedInput` (`{value}` for the request locale, `{translations: [{locale, value}]}`), or a
-  string or a map over REST and MCP; every locale is validated against `allowed` before any
-  statement, and the SQL function receives a locale map (a `null` label removes a key). Write
-  transactions never carry `fraiseql.locale`.
-- **`Localized` in the Python and TypeScript SDKs (#1513).** `fraiseql.Localized[str]`
-  (Python) and `localized: true` / `"Localized<string>"` (TypeScript); observed by the
-  conformance suite.
-- **`localized` in the nine other SDKs (#1527).** Go (`FieldInfo.Localized`, the tag
-  `localized=true`, `MutationBuilder.LocalizedArg`), Java (`@GraphQLField(localized = true)`,
-  `localizedArg`), C# (`[GraphQLField(Localized = true)]`, `LocalizedArgument`), F#
-  (`Localized = true`, the DSL's `localized` / `localizedArg`, `withLocalizedArgument`), Ruby,
-  PHP, Elixir (`localized: true` on a field or argument), Dart
-  (`FieldType.string(localized: true)`) and Rust (`Field::with_localized`, fields only: the
-  Rust SDK has no mutation builder). Every SDK refuses `localized` on anything but a
-  `String`, where it is declared or at export, and CRUD-generated input fields carry their
-  field's `localized`. The conformance suite observes both constructs in all eleven SDKs
-  but Rust's arguments.
-- **`examples/localized-catalog` and `docs/guides/localization.md` (#1513).** A Python-authored
-  catalog served end to end, with a write-session guard and a copyable catalog check that no
-  view, index or trigger reads `fraiseql.locale`.
-- **The wire backend's streaming read streams (#1115).** `FraiseWireAdapter`'s
-  `stream_with_projection` returns the wire `QueryStream` (offset and limit as skip and take)
-  instead of materialising every row first; the adapter now runs against PostgreSQL in CI.
-- **Text sorts follow the request locale's collation (#1512).** With `[locale]`, an ordering on a
-  text field runs `COLLATE "<tag>-x-icu"` on every sort site (lists, relay first pages, REST
-  `?sort=`, exports, gRPC, aggregate and window `ORDER BY`); numbers, dates and IDs are
-  unaffected. The server refuses to boot when an allowed locale has no collation in
-  `pg_collation`, naming it.
-
-### Changed
-
-- **A REST mutation answers every leaf field of its return type, enums included (#1397).**
-  The selection a transport without a selection set of its own projects a write through
-  took scalars only, so an entity's enum fields (and a payload's enum success fields) were
-  left out of the REST response.
-
-- **An ordered relay page seeks its index when its keys allow (#1533).** When every sort key
-  is a native column PostgreSQL proves `NOT NULL` (a table's, recorded by `compile
-  --database`) and every key is ascending, the page resumes with one row comparison, which
-  PostgreSQL seeks with (55 364 buffers to 13, measured 55 000 rows deep). Any other ordering
-  keeps the expanded predicate. A view never proves `NOT NULL` on PostgreSQL 18.
-
-- **Change-log ids are time-ordered (`uuidv7()`) (#1469).** Migration 08 defaults
-  `core.tb_entity_change_log.id` to `uuidv7()` and switches an existing table's default; rows
-  already stored keep their ids. Measured on PostgreSQL 18 at 10M rows: 2.2–2.5× the insert rate,
-  a third less WAL, a fifth smaller index (`docs/benchmarks/pg18-evaluations.md`). Other shipped
-  ids stay random v4.
+## [2.17.0] - 2026-10-11
 
 ### Breaking
 
@@ -491,6 +270,227 @@ disagreed, and the promise was the part that was wrong.
   `Vec<String>` of JSON keys (#1517).** It was one key, so a declared nested dimension path
   could not be expressed. Embedders building the expression by hand wrap the key:
   `path: vec!["category".into()]`.
+
+### Added
+
+- **Tenant storage quotas are enforced (#633).** A schema-mode tenant registered with
+  `max_storage_bytes` has its schema measured on its own connection when it is registered and
+  every `[tenancy.storage_quota] interval_secs` (default 300), each measurement abandoned after
+  30 seconds. While it is over the quota, every write it makes is refused at the engine's
+  write chokepoint, on every transport, with `507 INSUFFICIENT_STORAGE` (gRPC:
+  `RESOURCE_EXHAUSTED`) and nothing written. Deletes are refused too, so the operator frees
+  space or raises the quota; its reads are served. The first measurement back under lifts
+  the refusal. Gauges
+  `fraiseql_tenant_storage_bytes` and `fraiseql_tenant_storage_quota_bytes`; see
+  `docs/operations/tenant-storage-quota.md`.
+
+- **`doctor` and `/metrics` report the health of the TVIEWs the schema reads (#1392).** From
+  `tviews.pg_tviews_profile()`: `doctor --against-db` warns with each piece of advice
+  (missing propagation index, unused GIN on `data`, low HOT ratio, UNLOGGED, …), and index
+  advice on a TVIEW's `data` states that it disables HOT updates and names the structural
+  column alternative. `/metrics` exports `fraiseql_tview_hot_ratio`, `_dead_tuples`,
+  `_updates`, `_hot_updates` and `_warnings` per TVIEW. TVIEWs are recognised from pg_tviews'
+  catalog through the views the schema reads. `DatabaseAdapter` gains `tview_profiles`
+  (default: none; a wrapping adapter forwards it).
+
+- **A cascade mutation can serve the rows pg_tviews refreshed (#1391).** With
+  `cascade_source = "pg_tviews"` (Python `cascade_source=`, TypeScript `cascadeSource`), the
+  executor calls `tviews.pg_tviews_flush_and_report()` before the commit and merges its
+  report into the function's `cascade`: each reported row read from its type's view on the
+  mutation's own connection (its row security applies; pg_tviews' raw `data` is never served)
+  and field-authorized like every cascade entity. A type whose reads the engine filters (an
+  RLS policy, or a query injecting parameters) lists none of its derived rows, updated or
+  deleted: its type is invalidated instead. The function's own entries win; a row the
+  caller cannot read, and a type pg_tviews truncated, become type-level invalidations. A
+  database without pg_tviews is refused by `compile --database` and fails the write at run
+  time. `fraiseql_cascade_derived_entries` on `/metrics`. Tested against a pinned pg_tviews
+  v0.1.0-beta.26 image (`docker/pg-tviews`, `make test-pg-tviews`).
+
+- **A cascade mutation's payload carries typed success fields (#1397).** A mutation declares
+  facts about the operation itself (`success_fields={"recovered_items": int}` in Python,
+  `successFields` in TypeScript), the compiler adds each to `<Mutation>Payload` next to
+  `entity`, `cascade` and `updatedFields`, and the function returns them in a `result jsonb`
+  column after the 13 of `mutation_response`, keyed by snake_case name (`step2` → `step_2`). Only that function
+  declares the column (its own row type): helpers 2.4.0 add `fraiseql.mutation_ok_result(…)`,
+  `mutation_err_result(…)` and `mutation_err_entries_result(…)`, the 14-column forms of the
+  three builders. Additive: the 13-column builders, `app.mutation_response` and every
+  existing function are unchanged, and nothing needs migrating. Only on a `cascade`
+  mutation, only scalar or enum types, never under a name the payload already has (each a
+  compile error). A value of the wrong type (a date or a rich scalar returned as an object or
+  a list included), no value for a non-null field, or a row with no `result` column at all,
+  is the function's contract error: the write is rolled back,
+  whatever the client selected; `compile --database` and `doctor` report the missing column
+  as drift. Served on GraphQL, REST and MCP; a key `result` carries that no field declares
+  is never served.
+
+- **A fact-table measure declares how it aggregates over time (#1459).** A balance or a stock
+  level is `semi_additive`: reduced per entity (`entity`) and per bucket of a time column
+  (`over`) first, by `last` or `first` (the value known by the bucket's end, carried forward
+  through buckets with no row) or by `avg`, `min` or `max` over the bucket's own rows; then the
+  requested function runs across entities. `delta` is a bucket's last row minus its first;
+  `non_additive` refuses every aggregate. Undeclared measures are `additive`, as before.
+  Authored in TypeScript (`Measure.additivity`) and Go (`SemiAdditiveMeasure`,
+  `DeltaMeasure`, `NonAdditiveMeasure`). A carried-forward request counts its (bucket,
+  entity) cells first, at least one entity per bucket, and is refused past `[validation]
+  max_semi_additive_cells` (default 250,000, about one second on PostgreSQL 18). Refused, naming the measure: a reduced measure
+  without exactly one time bucket of its `over`, alongside another aggregate or a list
+  aggregate, with `over` filtered other than by bounds; and a window aggregate over a measure
+  that is not additive. `fraiseql doctor --against-db` recommends the `(entity…, over)` index
+  each carried-forward cell seeks. See `docs/modules/fact-table.md`.
+
+- **`mutation_constraint_metadata` (#1531).** A server key, `"identifier"` (default),
+  `"full"` (adds the table and the constraint's columns, resolved from `pg_constraint` or
+  `pg_index`) or `"none"`. It holds across a hot reload and binds every tenant. Never the
+  database's `DETAIL` or a row value. A foreign-key violation stays `conflict` / 409 in both
+  directions: PostgreSQL 18 names the referencing table and no column either way.
+
+- **The `--emit-ddl` directory is a versioned contract (#965).** Every file opens with
+  `-- fraiseql emit-ddl format 1` and the compiler that wrote it, and the bytes are a function
+  of the schema alone (the same files whatever the type order). Confiture's `migrate diff
+  --to <dir>` reads it; the format, its guarantees and its version policy are in
+  `docs/operations/emit-ddl.md`. The localized-field index fragment is not emitted yet:
+  Confiture drops an index whose table its desired state does not declare (confiture#679,
+  #1541).
+- **A short similarity search says so: `vector_on_short_result` (#1314).** pgvector's HNSW
+  search keeps `ef_search` candidates; a selective filter can leave fewer than `k` matches
+  among them, and with `iterative_scan` off a `k` above `ef_search` is cut to it even
+  unfiltered. The search succeeded with what it found, and nothing told "only three matched"
+  from "stopped at three". A `nearest` search that returns fewer than `k` rows now carries a
+  `nearest_possibly_truncated` notice under the GraphQL response's `extensions.notices`
+  (`path`, `requested`, `returned`, `verified`). The server setting
+  `vector_on_short_result` chooses: `signal` (default; unverified), `verify` (counts the
+  matches up to `k` in the same statement and notices only a real truncation) or `refuse`
+  (refuses a verified truncation). A cache hit keeps the notice. See
+  `docs/operations/vector-search.md`.
+- **`after:ingest` dispatch is at-least-once: the dispatch ledger (#1175).** A message is
+  persisted with one `pending` row per `after:ingest` function it triggers
+  (`_fraiseql_inbound_dispatch`, created with the spine at boot), in the receiver's
+  transaction, on the webhook and poll-IMAP paths alike. A dispatch that succeeds or is
+  dead-lettered settles its row; one a crash or a shutdown left `pending` is run again, once
+  its lease runs out, by a sweep the server runs at startup and on an interval (`FOR UPDATE
+  SKIP LOCKED`, so replicas share it). A replay hands the function the same idempotency
+  token as the first run; handlers must be idempotent, since a lease that expires during a
+  slow first run dispatches twice. `[inbound_dispatch]` sets `lease_secs` (300),
+  `sweep_interval_secs` (30) and `batch_size` (100). Before this, a crash between the commit
+  and the dispatch lost the dispatch, and the provider's redelivery was answered `duplicate`.
+- **`orderBy.field` is an enum of the keys the query accepts (#1159).** Clients get
+  completion and validation on sort keys, and the schema lists exactly what the engine
+  accepts: one set feeds both (`derived_inputs::sortable_keys`). Entity-wide
+  `{Entity}OrderByField` when every query on the entity agrees; per-query
+  `{Query}OrderByField` / `{Query}OrderByInput` when their native columns differ. Relay
+  connections now advertise their `orderBy` (accepted before, never published). Introspection,
+  SDL and `federation sdl` agree. See `docs/features/pagination.md#sort-keys`.
+- **Relay connections publish their `where` (#1535).** A connection whose query enables
+  `where` was filtered by it but published no such argument, so a client validating against
+  introspection refused a filter the server serves. It now publishes `where:
+  {Entity}WhereInput` (or `JSON` for a type the schema cannot adjudicate), exactly as a list
+  does, in introspection, the SDL and `federation sdl`; the entity's `{Entity}WhereInput` is
+  derived for a connection too.
+- **`[validation] max_offset`: an opt-in ceiling on offset depth (#1306).** `OFFSET n` reads
+  `n` rows to discard them, however the read is ordered, so a deep offset page costs its depth.
+  Set, an offset beyond the ceiling is refused before any statement, with a message naming the
+  path that pages at any depth: a relay connection (`first`/`after`, which a query gets with
+  `relay = true`). It holds every offset a client chooses: GraphQL `offset:` (anonymous and
+  authenticated), REST `?offset=`, gRPC and MCP (through the same runner), aggregate and window
+  `offset`, and `@stream`, whose batches page at increasing offsets: one bounded by its own
+  `limit` past the ceiling is refused before it opens, and an unbounded one that reaches the
+  ceiling ends with the refusal as its last payload. Unset by default: nothing is refused.
+  `FRAISEQL_MAX_OFFSET` overrides the compiled value (`0`/`none` lifts it). A value of 0 is
+  refused at compile and at load. See `docs/features/pagination.md`.
+- **Request locale as first-class context: `[locale]` (#1512).** Declare the locales a
+  deployment serves (`default`, `allowed`, optional `fallback` and `resolve`) in
+  `fraiseql.toml`. Every request resolves to one allowed tag, from the explicit `locale`
+  argument, `Accept-Language` (q-values honoured) or an enriched-identity field, through an
+  exact match, the explicit fallback, then RFC 4647 truncation, else `default`. Read
+  transactions carry it as `fraiseql.locale` for user SQL. Tags are checked as BCP 47 at
+  compile and again at load. Every transport resolves it: GraphQL (POST, GET, `QUERY`, SSE
+  including `@stream` continuations), REST (`?locale=`, reads, exports, writes), MCP, gRPC
+  (metadata), Arrow Flight (identity only), federation `_entities`, and async operations
+  (resolved at submission, stored in a new nullable `_system.async_operations.locale` column,
+  added in place). See `docs/features/request-locale.md`.
+- **Localized fields (#1513).** A `String` field marked `localized` is stored as a locale map
+  (`{"fr-FR": "Pomme", "en-US": "Apple"}`) and returned as the request locale's label, read
+  through the `[locale]` fallback chain (the locale, its explicit fallbacks, its allowed
+  truncations, then `default`); a value that is not a JSON string counts as absent. The compiler
+  and the loader refuse `localized` on another type, and in a schema without `[locale]`. A
+  stored plain string reads as itself in every locale, so rows written before a field became
+  localized keep their value. Every read path reads the label: lists, relay, nested objects
+  and lists, gated reads, REST, MCP, gRPC, federation `_entities` and `/ws` subscriptions.
+- **A localized field selection can read another locale, or all of them (#1513).**
+  `name(locale: "de-DE")` reads one field in another allowed locale (refused before any
+  statement when the locale is not allowed), and `nameTranslations { locale value }` lists every
+  allowed label in `allowed`'s order. Introspection and SDL show both.
+- **A gated localized field's translations sibling is served under its field's gate
+  (#1523).** `<field>Translations` was refused when `<field>` carried `requires_scope` or
+  `authorize`. It is now gated as its field, on every read path (queries, relay,
+  `_entities`, subscriptions, mutation payloads): a mask reads `[]`, a `reject` refuses, and
+  the field authorizer is asked about the base field.
+
+- **A subscription filter on a localized field compares its label (#1525).** `filter_fields`,
+  `argument_paths` and static filters on a localized field were refused at compile and
+  load. They now compare the event's label in the subscriber's locale (the locale its
+  subscription was planned in; the default locale for an unplanned one).
+
+- **Aggregates and windows over a localized dimension read its label (#1524).** A fact-table
+  dimension that is a localized field was refused at compile and load. It now groups,
+  partitions, sorts (under the request locale's collation) and filters by its label through
+  the request locale's chain, so two rows sharing a French label are one group in `fr-FR`.
+  A measure over a localized field stays refused, now saying why (a label is text).
+  Embedders: `GroupByExpression::JsonbPath` gains `localized`, and
+  `WindowPlanner::plan_in_locale` takes a `WindowLocale`.
+
+- **`where` and `orderBy` on a localized field read the label (#1513).** Comparisons and sorts
+  use the request locale's label under its collation. `fraiseql compile` prints the expression
+  index each allowed locale's filter or sort reads, and `fraiseql doctor --against-db` names
+  every (field, locale) no index serves, judged by plan.
+- **Localized writes (#1513).** A mutation argument or input field marked `localized` takes
+  `LocalizedInput` (`{value}` for the request locale, `{translations: [{locale, value}]}`), or a
+  string or a map over REST and MCP; every locale is validated against `allowed` before any
+  statement, and the SQL function receives a locale map (a `null` label removes a key). Write
+  transactions never carry `fraiseql.locale`.
+- **`Localized` in the Python and TypeScript SDKs (#1513).** `fraiseql.Localized[str]`
+  (Python) and `localized: true` / `"Localized<string>"` (TypeScript); observed by the
+  conformance suite.
+- **`localized` in the nine other SDKs (#1527).** Go (`FieldInfo.Localized`, the tag
+  `localized=true`, `MutationBuilder.LocalizedArg`), Java (`@GraphQLField(localized = true)`,
+  `localizedArg`), C# (`[GraphQLField(Localized = true)]`, `LocalizedArgument`), F#
+  (`Localized = true`, the DSL's `localized` / `localizedArg`, `withLocalizedArgument`), Ruby,
+  PHP, Elixir (`localized: true` on a field or argument), Dart
+  (`FieldType.string(localized: true)`) and Rust (`Field::with_localized`, fields only: the
+  Rust SDK has no mutation builder). Every SDK refuses `localized` on anything but a
+  `String`, where it is declared or at export, and CRUD-generated input fields carry their
+  field's `localized`. The conformance suite observes both constructs in all eleven SDKs
+  but Rust's arguments.
+- **`examples/localized-catalog` and `docs/guides/localization.md` (#1513).** A Python-authored
+  catalog served end to end, with a write-session guard and a copyable catalog check that no
+  view, index or trigger reads `fraiseql.locale`.
+- **The wire backend's streaming read streams (#1115).** `FraiseWireAdapter`'s
+  `stream_with_projection` returns the wire `QueryStream` (offset and limit as skip and take)
+  instead of materialising every row first; the adapter now runs against PostgreSQL in CI.
+- **Text sorts follow the request locale's collation (#1512).** With `[locale]`, an ordering on a
+  text field runs `COLLATE "<tag>-x-icu"` on every sort site (lists, relay first pages, REST
+  `?sort=`, exports, gRPC, aggregate and window `ORDER BY`); numbers, dates and IDs are
+  unaffected. The server refuses to boot when an allowed locale has no collation in
+  `pg_collation`, naming it.
+
+### Changed
+
+- **A REST mutation answers every leaf field of its return type, enums included (#1397).**
+  The selection a transport without a selection set of its own projects a write through
+  took scalars only, so an entity's enum fields (and a payload's enum success fields) were
+  left out of the REST response.
+
+- **An ordered relay page seeks its index when its keys allow (#1533).** When every sort key
+  is a native column PostgreSQL proves `NOT NULL` (a table's, recorded by `compile
+  --database`) and every key is ascending, the page resumes with one row comparison, which
+  PostgreSQL seeks with (55 364 buffers to 13, measured 55 000 rows deep). Any other ordering
+  keeps the expanded predicate. A view never proves `NOT NULL` on PostgreSQL 18.
+
+- **Change-log ids are time-ordered (`uuidv7()`) (#1469).** Migration 08 defaults
+  `core.tb_entity_change_log.id` to `uuidv7()` and switches an existing table's default; rows
+  already stored keep their ids. Measured on PostgreSQL 18 at 10M rows: 2.2–2.5× the insert rate,
+  a third less WAL, a fifth smaller index (`docs/benchmarks/pg18-evaluations.md`). Other shipped
+  ids stay random v4.
 
 ### Fixed
 
