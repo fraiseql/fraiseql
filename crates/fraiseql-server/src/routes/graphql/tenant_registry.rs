@@ -406,6 +406,30 @@ impl TenantEntry {
 /// Default retry hint (seconds) when a suspended tenant is accessed.
 const SUSPENDED_RETRY_AFTER_SECS: u64 = 60;
 
+/// How long one tenant's storage measurement may take before it is abandoned, keeping the
+/// tenant's last state (#633).
+pub const STORAGE_MEASURE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
+
+/// Measure `key`'s schema on `executor` and record the result on `storage`.
+async fn measure_storage(key: &str, executor: &Executor, storage: &StorageQuota) {
+    let measured = match crate::tenancy::schema_isolation::tenant_schema_name(key) {
+        Ok(schema) => {
+            tokio::time::timeout(STORAGE_MEASURE_TIMEOUT, executor.schema_storage_bytes(&schema))
+                .await
+        },
+        Err(e) => Ok(Err(e)),
+    };
+    match measured {
+        Ok(Ok(Some(usage))) => storage.record(key, usage),
+        Ok(Ok(None)) => tracing::warn!(tenant = %key,
+            "tenant storage cannot be measured on this backend; its quota keeps its last state"),
+        Ok(Err(e)) => tracing::warn!(tenant = %key, error = %e,
+            "tenant storage measurement failed; its quota keeps its last state"),
+        Err(_) => tracing::warn!(tenant = %key, timeout_secs = STORAGE_MEASURE_TIMEOUT.as_secs(),
+            "tenant storage measurement timed out; its quota keeps its last state"),
+    }
+}
+
 /// Registry mapping tenant keys to executors.
 ///
 /// Each tenant gets its own `TenantEntry` holding an `ArcSwap<Executor>` and
@@ -588,7 +612,9 @@ impl TenantExecutorRegistry {
     ///
     /// Each tenant is measured on its own executor (its pool, so its own database), in the
     /// schema its `search_path` names: `tenant_schema_name`, the function that builds that
-    /// path. A tenant that cannot be measured keeps its last state, with a warning.
+    /// path. A tenant that cannot be measured keeps its last state, with a warning; one
+    /// whose measurement outlasts [`STORAGE_MEASURE_TIMEOUT`] too, so a hung database
+    /// never stalls the others.
     pub async fn sweep_storage(&self) {
         let targets: Vec<(String, Arc<Executor>, Arc<StorageQuota>)> = self
             .tenants
@@ -600,17 +626,23 @@ impl TenantExecutorRegistry {
             })
             .collect();
         for (key, executor, storage) in targets {
-            let measured = match crate::tenancy::schema_isolation::tenant_schema_name(&key) {
-                Ok(schema) => executor.schema_storage_bytes(&schema).await,
-                Err(e) => Err(e),
-            };
-            match measured {
-                Ok(Some(usage)) => storage.record(&key, usage),
-                Ok(None) => tracing::warn!(tenant = %key,
-                    "tenant storage cannot be measured on this backend; its quota keeps its last state"),
-                Err(e) => tracing::warn!(tenant = %key, error = %e,
-                    "tenant storage measurement failed; its quota keeps its last state"),
-            }
+            measure_storage(&key, &executor, &storage).await;
+        }
+    }
+
+    /// Measure `key` now, if it has a storage quota: what registration runs, so a tenant
+    /// registered over its quota is refused its first write rather than served until the
+    /// next sweep.
+    pub async fn measure_storage(&self, key: &str) {
+        let target = self.tenants.get(key).and_then(|entry| {
+            entry
+                .value()
+                .storage
+                .as_ref()
+                .map(|storage| (entry.value().executor.load_full(), Arc::clone(storage)))
+        });
+        if let Some((executor, storage)) = target {
+            measure_storage(key, &executor, &storage).await;
         }
     }
 

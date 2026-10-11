@@ -323,6 +323,8 @@ pub async fn upsert_tenant_handler(
         })?;
 
     let was_insert = registry.upsert_with_quota(&key, executor, quota);
+    // #633: measured now, so a tenant registered over its quota is refused its first write.
+    registry.measure_storage(&key).await;
     let status = if was_insert { "created" } else { "updated" };
 
     info!(tenant_key = %key, status, "tenant executor registered");

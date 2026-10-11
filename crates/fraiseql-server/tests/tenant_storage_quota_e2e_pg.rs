@@ -290,6 +290,22 @@ async fn an_over_quota_tenant_is_refused_writes_until_it_is_back_under() {
         .expect("back under its quota, it writes again");
 }
 
+/// A tenant is measured when it is registered: one registered over its quota is refused
+/// its first write, not served until the next sweep.
+#[tokio::test]
+async fn a_tenant_registered_over_its_quota_is_refused_its_first_write() {
+    let Some((url, admin, state)) = setup().await else {
+        return;
+    };
+    fill(&admin).await;
+    let quota = schema_bytes(&admin, FREE).await + HEADROOM;
+    register(&state, QUOTA, registration(&url, "schema", Some(quota))).await;
+    let before = rows_in(&admin, QUOTA).await;
+    let refused = graphql_write(&state, QUOTA).await.expect_err("registered over its quota");
+    assert_eq!(refused.status_code(), 507, "{refused}");
+    assert_eq!(rows_in(&admin, QUOTA).await, before, "nothing was written");
+}
+
 /// A quota on a row-mode tenant has no schema to measure: refused at registration.
 #[tokio::test]
 async fn a_row_mode_tenant_cannot_have_a_storage_quota() {

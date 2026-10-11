@@ -1030,13 +1030,14 @@ mod tenant_registry_tests {
     /// Minimal no-op database adapter for unit tests.
     #[derive(Debug, Clone)]
     struct StubAdapter {
-        /// Label to distinguish adapters in tests.
-        _label: &'static str,
+        /// Label to distinguish adapters in tests. It also decides the storage measurement:
+        /// `hung` never answers, `full` reports more than any test quota, others none.
+        label: &'static str,
     }
 
     impl StubAdapter {
         fn new(label: &'static str) -> Self {
-            Self { _label: label }
+            Self { label }
         }
     }
 
@@ -1046,6 +1047,14 @@ mod tenant_registry_tests {
         // A test double: the session variables a read carries are accepted (#1115).
         fn applies_session_variables(&self) -> bool {
             true
+        }
+
+        async fn schema_storage_bytes(&self, _schema: &str) -> FraiseQLResult<Option<u64>> {
+            match self.label {
+                "hung" => std::future::pending().await,
+                "full" => Ok(Some(1_000_000)),
+                _ => Ok(None),
+            }
         }
 
         async fn execute_where_query(
@@ -1691,6 +1700,21 @@ mod tenant_registry_tests {
         registry.upsert_with_quota("quota", tenant_executor("quota"), storage_quota(10));
         let gate = registry.executor_for(Some("quota")).unwrap().config().write_gate.clone();
         assert!(gate.unwrap().admit("m").is_err(), "still over its quota");
+    }
+
+    /// #633: a tenant whose measurement never answers does not stall the sweep: the others
+    /// are still measured, and the sweep returns for its next tick.
+    #[tokio::test(start_paused = true)]
+    async fn a_hung_measurement_does_not_stall_the_sweep() {
+        let registry = TenantExecutorRegistry::new(default_executor());
+        registry.upsert_with_quota("hung", tenant_executor("hung"), storage_quota(10));
+        registry.upsert_with_quota("full", tenant_executor("full"), storage_quota(10));
+        let swept =
+            tokio::time::timeout(std::time::Duration::from_hours(1), registry.sweep_storage())
+                .await;
+        assert!(swept.is_ok(), "the sweep returned");
+        let gate = registry.executor_for(Some("full")).unwrap().config().write_gate.clone();
+        assert!(gate.unwrap().admit("m").is_err(), "the other tenant was measured");
     }
 
     #[test]
