@@ -148,7 +148,7 @@ pub fn build_source_pollers(
             // request-id correlates the source in the audit envelope.
             let identity = source.identity(source.name.as_str());
             let query_executor: Arc<dyn QueryExecutor> =
-                Arc::new(SourceQueryExecutor::new(executor.clone(), identity.clone()));
+                Arc::new(SourceQueryExecutor::for_source(executor.clone(), identity.clone()));
             SourcePoller::new(
                 source.name.clone(),
                 // The declared `cursor` override, falling back to the source name. Keeps the

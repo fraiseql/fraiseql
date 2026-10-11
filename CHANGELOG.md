@@ -490,7 +490,8 @@ disagreed, and the promise was the part that was wrong.
   from the default `search_path` (schema mode) or database (a tenant with its own
   `connection`), its writes landed there, and suspension, concurrency, RPS and cost limits
   were bypassed, all without an error. Both now resolve the tenant and dispatch through the
-  same seam `/graphql` uses. `build_grpc_service` (which the server binary does not mount)
+  same seam `/graphql` uses. A function whose `run_as` names no tenant writes within the
+  tenant whose write triggered it, and only a scheduled source honours `__source_tenant`. `build_grpc_service` (which the server binary does not mount)
   documents that it serves only the executor it is given.
 
 - **The TypeScript SDK's `localized: true` option is refused on a non-String (#1527).** The

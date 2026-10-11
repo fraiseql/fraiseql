@@ -682,6 +682,40 @@ mod query_bridge_wiring {
         assert_eq!(auth["roles"][0], "order_writer");
     }
 
+    /// The 2.17.0 review (#1550): a function with no `run_as` tenant writes within the
+    /// tenant whose write triggered it, so its writes reach that tenant's executor (its
+    /// schema, its quota) rather than the default one. A function pinned to a tenant keeps
+    /// its own: the caller's tenant narrows an unscoped ceiling, never replaces a scoped one.
+    #[tokio::test]
+    async fn the_bridge_writes_within_the_triggering_callers_tenant() {
+        let caller = || {
+            SecurityContext::system_job(
+                "caller",
+                "req",
+                Vec::new(),
+                Vec::new(),
+                Some("tenant-7".into()),
+            )
+        };
+        let tenant_of = |run_as: Option<RunAs>| async move {
+            let (factory, captured) = recording_factory();
+            let mut dispatcher = dispatcher(Some(factory), run_as);
+            dispatcher.caller = Some(caller());
+            let host = dispatcher.build_host("recordApproval", payload(), "tok-6");
+            let _ = host.query("mutation { x }", serde_json::json!({})).await;
+            let identity = captured.lock().unwrap().clone().expect("identity captured");
+            identity.tenant_id.map(|t| t.0)
+        };
+
+        assert_eq!(tenant_of(None).await.as_deref(), Some("tenant-7"), "unscoped: the caller's");
+        let pinned = RunAs {
+            roles:  Vec::new(),
+            scopes: Vec::new(),
+            tenant: Some("acme".to_string()),
+        };
+        assert_eq!(tenant_of(Some(pinned)).await.as_deref(), Some("acme"), "pinned: its own");
+    }
+
     /// #803: an after:mutation dispatch triggered by an authenticated request
     /// surfaces THAT caller in `auth_context` (docs/architecture/functions.md:
     /// "the caller's authenticated context") — while the query bridge keeps the

@@ -504,10 +504,24 @@ mod function_writes {
         let Some((admin, state)) = setup().await else {
             return;
         };
-        let bridge = RunAsQueryExecutor::new(ExecutorSource::of(&state), run_as(None));
+        let bridge = RunAsQueryExecutor::for_source(ExecutorSource::of(&state), run_as(None));
         let variables = json!({ fraiseql_server::query_bridge::SOURCE_TENANT_VAR: TENANT });
         bridge.execute_query(WRITE, Some(&variables)).await.expect("the write runs");
         assert_eq!(labels_in(&admin, &format!("tenant_{TENANT}")).await, ["BRIDGED", TENANT_ROW]);
+    }
+
+    /// An event-dispatched function cannot steer its write with the source variable: it is
+    /// stripped and ignored, and the write runs as its own identity (no tenant: default).
+    #[tokio::test]
+    async fn an_event_functions_source_variable_does_not_steer_its_write() {
+        let Some((admin, state)) = setup().await else {
+            return;
+        };
+        let bridge = RunAsQueryExecutor::new(ExecutorSource::of(&state), run_as(None));
+        let variables = json!({ fraiseql_server::query_bridge::SOURCE_TENANT_VAR: TENANT });
+        bridge.execute_query(WRITE, Some(&variables)).await.expect("the write runs");
+        assert_eq!(labels_in(&admin, &format!("tenant_{TENANT}")).await, [TENANT_ROW]);
+        assert_eq!(labels_in(&admin, "public").await, ["BRIDGED", PUBLIC_DECOY]);
     }
 }
 

@@ -138,9 +138,11 @@ an operator can act on by raising a limit.
 
 **Under the tenancy runtime.** A per-tenant executor is built from the server's
 `RuntimeConfig` (#1333), so a tenant-keyed request carries the same gate. A dispatched
-function's `fraiseql_query` writes run on the executor of the tenant its identity carries
-(its `run_as` tenant, or a source message's tenant), and an unregistered or suspended
-tenant's write is refused (#1550).
+function's `fraiseql_query` writes run on the executor of the tenant its identity carries,
+and an unregistered or suspended tenant's write is refused (#1550). That tenant is its
+`run_as` tenant; for a `run_as` scoped to no tenant, the tenant of the caller whose write
+triggered it (a narrowing, never a widening); for a scheduled source, a record's tenant
+(`__source_tenant`). An event-dispatched function's `__source_tenant` is ignored.
 
 
 ### Durable After-Mutation Dispatch

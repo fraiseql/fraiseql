@@ -670,8 +670,17 @@ impl DurableDispatcher {
         // #594: wire the `fraiseql_query` bridge under this function's `run_as`
         // ceiling — NOT the caller. Function writes stay audited as
         // `system_job:<function>` and can never exceed the declared ceiling.
+        // A ceiling scoped to no tenant writes within the tenant whose write triggered the
+        // function (#1550 review), so the write reaches that tenant's executor (its schema,
+        // its storage quota). This narrows the ceiling, never widens it: a ceiling pinned to
+        // a tenant keeps its own.
         if let Some(factory) = self.query_executor_factory.as_ref() {
-            live = live.with_executor(factory(run_as_identity));
+            let caller_tenant = self.caller.as_ref().and_then(|c| c.tenant_id.clone());
+            let bridge_identity = match (run_as_identity.tenant_id.is_none(), caller_tenant) {
+                (true, Some(tenant)) => run_as_identity.with_tenant(tenant),
+                _ => run_as_identity,
+            };
+            live = live.with_executor(factory(bridge_identity));
         }
         live
     }

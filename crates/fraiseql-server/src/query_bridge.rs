@@ -29,8 +29,10 @@
 //!   [`SOURCE_TENANT_VAR`](crate::query_bridge::SOURCE_TENANT_VAR) variable — the runtime half of
 //!   the multi-tenant source path (only the connector knows which tenant a fetched record belongs
 //!   to). An identity already pinned to a tenant by `run_as` ignores the override and cannot forge
-//!   writes for another tenant. (Event-dispatched functions never set the variable, so the override
-//!   is inert for them — their identity is exactly their `run_as`.)
+//!   writes for another tenant. Only a scheduled source's bridge
+//!   ([`RunAsQueryExecutor::for_source`](crate::query_bridge::RunAsQueryExecutor::for_source))
+//!   honours it; an event-dispatched function's variable is stripped and ignored, so it cannot
+//!   steer its writes to another tenant.
 
 use std::{future::Future, pin::Pin, sync::Arc};
 
@@ -159,10 +161,14 @@ pub struct RunAsQueryExecutor {
     /// Where each write finds its executor: the hot-reloadable serving executor, or the
     /// tenant's (#1550). Resolved per call, so a schema swap or a tenant's registration
     /// is reflected on the next firing.
-    source:   ExecutorSource,
+    source:             ExecutorSource,
     /// The base `run_as` identity (a `SystemJob` context). A per-message tenant may
     /// re-scope it, but never widen its roles/scopes.
-    identity: SecurityContext,
+    identity:           SecurityContext,
+    /// Whether [`SOURCE_TENANT_VAR`] re-scopes a write: a scheduled source's only, where the
+    /// connector knows each record's tenant. An event-dispatched function's variable is
+    /// stripped and ignored, so it cannot steer its writes to another tenant (#1550 review).
+    per_message_tenant: bool,
 }
 
 impl RunAsQueryExecutor {
@@ -173,7 +179,22 @@ impl RunAsQueryExecutor {
     /// [`FunctionDefinition::identity`](fraiseql_functions::FunctionDefinition::identity)).
     #[must_use]
     pub const fn new(source: ExecutorSource, identity: SecurityContext) -> Self {
-        Self { source, identity }
+        Self {
+            source,
+            identity,
+            per_message_tenant: false,
+        }
+    }
+
+    /// [`new`](Self::new) for a scheduled source: its connector scopes each write to a
+    /// record's tenant through [`SOURCE_TENANT_VAR`].
+    #[must_use]
+    pub const fn for_source(source: ExecutorSource, identity: SecurityContext) -> Self {
+        Self {
+            source,
+            identity,
+            per_message_tenant: true,
+        }
     }
 }
 
@@ -220,6 +241,7 @@ impl QueryExecutor for RunAsQueryExecutor {
         // Snapshot the current executor (hot-reload-safe) and resolve the identity
         // for this call, then own everything so the future borrows nothing.
         let (variables, tenant) = split_tenant_override(variables);
+        let tenant = tenant.filter(|_| self.per_message_tenant);
         let identity = resolve_identity(&self.identity, tenant.as_deref());
         let executor = self.source.executor_for(identity.tenant_id.as_ref().map(|t| t.0.as_str()));
         let query = query.to_owned();
