@@ -142,7 +142,10 @@ function's `fraiseql_query` writes run on the executor of the tenant its identit
 and an unregistered or suspended tenant's write is refused (#1550). That tenant is its
 `run_as` tenant; for a `run_as` scoped to no tenant, the tenant of the caller whose write
 triggered it (a narrowing, never a widening); for a scheduled source, a record's tenant
-(`__source_tenant`). An event-dispatched function's `__source_tenant` is ignored.
+(`__source_tenant`). An event-dispatched function's `__source_tenant` is ignored. The
+bridge takes no request quota: a tenant's `max_concurrent`, `max_requests_per_sec` and cost
+budgets bound its clients' requests, not the writes its functions make (its storage quota
+does, at the write chokepoint).
 
 
 ### Durable After-Mutation Dispatch

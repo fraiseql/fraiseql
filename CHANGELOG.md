@@ -253,8 +253,11 @@ disagreed, and the promise was the part that was wrong.
   - A REST request that names an unregistered tenant is refused (as on `/graphql`); before,
     it was answered `200` with the default database's data.
   - A suspended tenant gets `503` on REST.
-  - A tenant's REST routes are its own schema's: a tenant whose schema serves no REST gets
-    `404`.
+  - A tenant's REST routes are its own schema's, among the paths the default schema mounts
+    (the router and `openapi.json` are the default's): a tenant whose schema serves no REST
+    gets `404`, as does a resource only the tenant's schema has. With the default schema's
+    REST disabled, no tenant is served REST. REST charges a tenant's concurrency and
+    request-rate quotas, not its cost budgets, which are `/graphql`'s.
   - A tenant's REST `require_auth`, `[locale]` and header session variables are its own
     schema's: an anonymous request to a tenant whose schema requires authentication gets
     `401`, whatever the default schema says.
@@ -296,7 +299,8 @@ disagreed, and the promise was the part that was wrong.
   and the CLI's `IntermediateMutation` gain `cascade_source` (absent from an artifact that
   does not opt in): a struct literal that lists every field adds it.
 - **A violated constraint is named in the mutation's typed error by default (#1531).** The
-  error member gains an `errors[]` entry whose `identifier` is the constraint's name (reversing
+  error member gains an `errors[]` entry whose `identifier` is the constraint name the error
+  carries, as the function raised it if it raised one itself (reversing
   #1424's "the constraint's name is not exposed"); set `mutation_constraint_metadata = "none"`
   to keep the old response. `FraiseQLError::Database` gains a `constraint:
   Option<Box<ConstraintViolation>>` field: an embedder constructing the variant adds it, one

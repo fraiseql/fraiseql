@@ -159,10 +159,12 @@ pre-checking:
                "details": { "sqlstate": "23505" } }] }
 ```
 
-`identifier` is the constraint's name: a unique **index**'s name for a partial unique index
-(it has no `pg_constraint` row), and for a not-null violation, which names only its column,
-the not-null constraint PostgreSQL 18 catalogues for that column (`<table>_<column>_not_null`
-unless named). Name constraints in `snake_case` and the identifier is a translation key too.
+`identifier` is the constraint name the error carries: a unique **index**'s name for a
+partial unique index (it has no `pg_constraint` row), and for a not-null violation, which
+names only its column, the not-null constraint PostgreSQL 18 catalogues for that column
+(`<table>_<column>_not_null` unless named). A violation the function raises itself
+(`RAISE unique_violation USING CONSTRAINT = …`) carries whatever name it gave, which nothing
+checks against the catalogue. Name constraints in `snake_case` and the identifier is a translation key too.
 The server key `mutation_constraint_metadata` sets how much is said:
 
 | Value | Entry |
