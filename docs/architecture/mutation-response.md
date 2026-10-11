@@ -450,6 +450,11 @@ connection and merges the report into the function's `cascade`:
   its type is invalidated instead, one `INVALIDATE` / `PREFIX` hint per root query returning
   it. (Row security on the TVIEW table itself makes pg_tviews' own report leave the row out,
   type included.)
+* **Engine filters.** A type whose reads the engine filters, through an RLS policy (row-mode
+  tenancy, for instance) or a root query returning it that injects parameters (a `jwt:sub`
+  owner filter), lists none of its derived rows, updated or deleted: the re-read applies
+  only the database's visibility, so it cannot tell whether this caller may read the row.
+  The type is invalidated instead.
 * **Precedence.** The function's entry for a row wins over the report's.
 * **Truncation.** Past `max_updated_entities` rows (the cascade ceiling, default 500),
   pg_tviews names the types it left out; each is invalidated, and none of its rows is

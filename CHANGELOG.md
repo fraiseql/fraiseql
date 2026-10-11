@@ -42,7 +42,9 @@ disagreed, and the promise was the part that was wrong.
   executor calls `tviews.pg_tviews_flush_and_report()` before the commit and merges its
   report into the function's `cascade`: each reported row read from its type's view on the
   mutation's own connection (its row security applies; pg_tviews' raw `data` is never served)
-  and field-authorized like every cascade entity. The function's own entries win; a row the
+  and field-authorized like every cascade entity. A type whose reads the engine filters (an
+  RLS policy, or a query injecting parameters) lists none of its derived rows, updated or
+  deleted: its type is invalidated instead. The function's own entries win; a row the
   caller cannot read, and a type pg_tviews truncated, become type-level invalidations. A
   database without pg_tviews is refused by `compile --database` and fails the write at run
   time. `fraiseql_cascade_derived_entries` on `/metrics`. Tested against a pinned pg_tviews

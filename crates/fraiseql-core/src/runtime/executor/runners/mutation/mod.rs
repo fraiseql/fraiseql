@@ -1955,7 +1955,13 @@ pub(in super::super) async fn execute_mutation_impl(
                 path:    None,
             })?;
             // #1391: pg_tviews' report, merged into the cascade it is served from.
-            let row = derived_cascade::merge(&ctx.schema, row);
+            let row = derived_cascade::merge(&ctx.schema, row, |type_name| {
+                derived_cascade::engine_filtered(
+                    &ctx.schema,
+                    ctx.config.rls_policy.is_some(),
+                    type_name,
+                )
+            });
             let outcome = parse_mutation_row(&row)?;
             crate::runtime::mutation_result::check_error_shape(
                 ctx.config.mutation_error_shape_check,

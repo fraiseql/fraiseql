@@ -7803,3 +7803,26 @@ fn a_success_field_value_is_checked_against_its_type() {
         success_field_value_ok(&schema, &field(FieldType::Json, false), &json!({ "a": 1 })).is_ok()
     );
 }
+
+/// #1391 review: a derived row is served only when no engine filter applies to its type's
+/// reads. An RLS policy filters every type; an inject parameter filters the type its query
+/// returns.
+#[test]
+fn a_type_is_engine_filtered_by_an_rls_policy_or_an_injecting_query() {
+    use crate::schema::{CompiledSchema, InjectedParamSource, QueryDefinition};
+
+    let mut schema = CompiledSchema::new();
+    let mut users = QueryDefinition::new("users", "User");
+    users
+        .inject_params
+        .insert("owner".to_string(), InjectedParamSource::Jwt("sub".to_string()));
+    schema.queries.push(users);
+    schema.queries.push(QueryDefinition::new("posts", "Post"));
+
+    assert!(super::derived_cascade::engine_filtered(&schema, false, "User"));
+    assert!(!super::derived_cascade::engine_filtered(&schema, false, "Post"));
+    assert!(
+        super::derived_cascade::engine_filtered(&schema, true, "Post"),
+        "a policy filters all"
+    );
+}

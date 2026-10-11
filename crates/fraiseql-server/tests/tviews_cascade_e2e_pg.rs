@@ -168,6 +168,20 @@ fn as_reader(url: &str) -> String {
 /// The schema an SDK authors, compiled: `Post` and `User` read from their views, and
 /// `updatePost`, a cascade mutation whose cascade also comes from `pg_tviews`.
 fn schema() -> CompiledSchema {
+    schema_with_inject("", &json!({}))
+}
+
+/// [`schema`], its `query` (`posts` or `users`) reading through an engine row filter
+/// (`inject`, e.g. `{"owner": "jwt:sub"}`): a read of its type is then filtered by the
+/// engine, not only by the database.
+fn schema_with_inject(query: &str, inject: &Value) -> CompiledSchema {
+    let inject_for = |name: &str| {
+        if name == query {
+            inject.clone()
+        } else {
+            json!({})
+        }
+    };
     let mutations: Vec<Value> = [
         "updatePost",
         "updatePostOwn",
@@ -218,9 +232,11 @@ fn schema() -> CompiledSchema {
         ],
         "queries": [
             { "name": "posts", "return_type": "Post", "returns_list": true, "nullable": false,
-              "sql_source": format!("{SCHEMA}.v_post"), "arguments": [] },
+              "sql_source": format!("{SCHEMA}.v_post"), "arguments": [],
+              "inject_params": inject_for("posts") },
             { "name": "users", "return_type": "User", "returns_list": true, "nullable": false,
-              "sql_source": format!("{SCHEMA}.v_user"), "arguments": [] }
+              "sql_source": format!("{SCHEMA}.v_user"), "arguments": [],
+              "inject_params": inject_for("users") }
         ],
         "mutations": mutations
     }))
@@ -364,6 +380,32 @@ async fn a_derived_row_the_caller_cannot_read_is_invalidated_not_served() {
         body["data"]["updatePost"]["cascade"]["invalidations"],
         json!([{ "queryName": "users", "scope": "PREFIX" }]),
         "{body}"
+    );
+}
+
+/// A derived row of a type whose reads the engine filters (an inject parameter here, an
+/// RLS policy alike) is not served: the database showed it to the write's connection, but
+/// a read of it by this caller would pass a filter the derived re-read does not apply. Its
+/// type is invalidated instead.
+#[tokio::test]
+async fn a_derived_row_of_an_engine_filtered_type_is_invalidated_not_served() {
+    let Some(url) = tviews_database_url() else {
+        return;
+    };
+    provision(&url).await;
+    let server =
+        serve_schema(url, schema_with_inject("users", &json!({ "owner": "jwt:sub" }))).await;
+    let body = update_post(&server, "filtered").await;
+    assert!(body.get("errors").is_none(), "{body}");
+    assert_eq!(
+        updated(&body),
+        [("Post".to_string(), json!({ "title": "filtered" }))],
+        "the author is not served: {body}"
+    );
+    let (_, payload) = body["data"].as_object().unwrap().iter().next().unwrap();
+    assert!(
+        payload["cascade"]["invalidations"].to_string().contains("users"),
+        "its type is invalidated: {body}"
     );
 }
 
@@ -572,6 +614,34 @@ async fn a_deleted_row_is_served_as_deleted() {
         json!([{ "entity": { "__typename": "User", "name": "bob", "titles": [] } }]),
         "{body}"
     );
+}
+
+/// A derived deletion of an engine-filtered type is not served, not even its id: the type
+/// is invalidated instead.
+#[tokio::test]
+async fn a_derived_deletion_of_an_engine_filtered_type_is_invalidated_not_served() {
+    let Some(url) = tviews_database_url() else {
+        return;
+    };
+    provision(&url).await;
+    let server =
+        serve_schema(url, schema_with_inject("posts", &json!({ "owner": "jwt:sub" }))).await;
+    let query = format!(
+        "mutation {{ deletePost(id: \"{OTHER_POST}\", title: \"other\") {{ ... on \
+         DeletePostPayload {{ cascade {{ deleted {{ id }} invalidations {{ queryName }} }} }} }} }}"
+    );
+    let body: Value = reqwest::Client::new()
+        .post(format!("{}/graphql", server.base))
+        .json(&json!({ "query": query }))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let cascade = &body["data"]["deletePost"]["cascade"];
+    assert!(!cascade.to_string().contains(OTHER_POST), "the id is not served: {body}");
+    assert!(cascade["invalidations"].to_string().contains("posts"), "{body}");
 }
 
 /// A deletion the function lists itself is served once, as the function listed it.

@@ -12,6 +12,10 @@
 //! - A reported row the caller's view did not return, a type no view serves, and a type `pg_tviews`
 //!   truncated are not listed: the type is invalidated instead, one hint per root query returning
 //!   it. A truncated type lists none of its rows, never a partial set.
+//! - A type whose reads the engine filters (an RLS policy, or a query returning it that injects
+//!   parameters) lists none of its rows either, updated or deleted: the re-read applies only the
+//!   database's visibility, so it cannot answer whether this caller may read the row. The type is
+//!   invalidated instead (fail closed).
 
 use std::{
     borrow::Cow,
@@ -36,6 +40,16 @@ pub(super) fn views(schema: &CompiledSchema) -> Vec<(String, String)> {
         .collect()
 }
 
+/// Whether a read of `type_name` passes an engine row filter the derived re-read does not
+/// apply: an RLS policy (any type), or a root query returning it that injects parameters.
+pub(super) fn engine_filtered(schema: &CompiledSchema, rls_policy: bool, type_name: &str) -> bool {
+    rls_policy
+        || schema
+            .queries
+            .iter()
+            .any(|q| q.return_type == type_name && !q.inject_params.is_empty())
+}
+
 fn key(entry: &Value) -> (String, String) {
     let id = match &entry["id"] {
         Value::String(s) => s.clone(),
@@ -53,6 +67,7 @@ fn entries<'a>(cascade: &'a Map<String, Value>, arm: &str) -> &'a [Value] {
 pub(super) fn merge<'r>(
     schema: &CompiledSchema,
     row: &'r HashMap<String, Value>,
+    engine_filtered: impl Fn(&str) -> bool,
 ) -> Cow<'r, HashMap<String, Value>> {
     let Some(report) = row.get(crate::backend::DERIVED_CASCADE_KEY) else {
         return Cow::Borrowed(row);
@@ -81,7 +96,7 @@ pub(super) fn merge<'r>(
         if own.contains(&entry_key) || truncated.contains(&entry_key.0) {
             continue;
         }
-        if entry["entity"].is_null() {
+        if entry["entity"].is_null() || engine_filtered(&entry_key.0) {
             invalidated.insert(entry_key.0);
             continue;
         }
@@ -99,6 +114,16 @@ pub(super) fn merge<'r>(
         .filter(|entry| {
             let entry_key = key(entry);
             !own.contains(&entry_key) && !truncated.contains(&entry_key.0)
+        })
+        .filter(|entry| {
+            let type_name = key(entry).0;
+            if engine_filtered(&type_name) {
+                // Not even the id of a row this caller may not read.
+                invalidated.insert(type_name);
+                false
+            } else {
+                true
+            }
         })
         .cloned()
         .collect();
