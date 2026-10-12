@@ -76,9 +76,11 @@ EOF
 
 ```bash
 # Pool sizing lives in the server TOML file passed via --config, as top-level keys
-# (there are no pool environment variables and the compiled schema carries no pool
-# section):
+# (the compiled schema carries no pool section):
 grep -E "pool_(min|max)_size|pool_timeout_secs" /etc/fraiseql/server.toml
+
+# The maximum can also be set without editing the TOML; this overrides pool_max_size:
+echo "$FRAISEQL_POOL_MAX_SIZE"   # or --pool-max-size on the command line
 
 # Defaults when unset:
 # pool_min_size = 5
@@ -89,6 +91,14 @@ grep -E "pool_(min|max)_size|pool_timeout_secs" /etc/fraiseql/server.toml
 grep -E "pool_max_streaming_reads" /etc/fraiseql/server.toml
 # Default when unset: a quarter of pool_max_size, at least 1.
 ```
+
+A bigger pool helps only while requests are waiting for a connection. Once the
+server's own CPU is the limit, more connections add nothing: on a 2-core server at
+128 concurrent clients, pools of 20, 32 and 64 served the same throughput within 3%,
+and 64 was the slowest. Every replica opens its own pool, so replicas × `pool_max_size`
+plus every other client must stay under PostgreSQL's `max_connections` (100 by default).
+Raise the pool when `pg_stat_activity` shows the database idle while requests queue on
+the pool, not by default.
 
 A **streaming read** holds its connection for as long as the client is reading, not
 for as long as a query takes: a REST export (`Accept: application/x-ndjson`,
