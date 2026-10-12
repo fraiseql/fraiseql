@@ -1,6 +1,6 @@
 //! `DatabaseAdapter` and `Writer` implementations for `PostgresAdapter`.
 
-use std::sync::Arc;
+use std::{fmt::Write as _, sync::Arc};
 
 use async_trait::async_trait;
 use bytes::BufMut as _;
@@ -584,42 +584,61 @@ pub(super) fn decode_cell(row: &Row, idx: usize) -> serde_json::Value {
 
 /// Apply transaction-local session variables on an in-progress transaction.
 ///
-/// Each `(name, value)` pair is set with `SELECT set_config($1, $2, true)`, so
-/// the values are scoped to `txn` and visible to every statement run on it
-/// (fixes #329). The caller is responsible for committing or rolling back.
+/// Every `(name, value)` pair is set with `set_config(name, value, true)`, all of them in one
+/// `SELECT`, so the values are scoped to `txn` and visible to every statement run on it (fixes
+/// #329), for one round trip whatever their number. The caller is responsible for committing or
+/// rolling back.
 pub(super) async fn apply_session_vars(
-    txn: &tokio_postgres::Transaction<'_>,
+    txn: &deadpool_postgres::Transaction<'_>,
     session_vars: &[(&str, &str)],
 ) -> Result<()> {
-    for (name, value) in session_vars {
-        // A var carrying the clock-timestamp directive (e.g. fraiseql.started_at)
-        // is stamped with the DB clock at apply time, on this very transaction, so
-        // the start timestamp and the close-of-interval at the outbox write share
-        // one clock (no app↔DB skew). All other vars bind their literal value.
+    if session_vars.is_empty() {
+        return Ok(());
+    }
+    let (sql, params) = set_config_batch(session_vars);
+    // Prepared once per connection. Names and values are parameters, so the text depends only
+    // on how many variables are set and which carry the clock directive: a handful of texts per
+    // schema, none a client can mint, so unlike a read's it needs no cap.
+    let applied = match txn.prepare_cached(&sql).await {
+        Ok(statement) => txn.execute(&statement, &params).await,
+        Err(e) => Err(e),
+    };
+    applied.map_err(|e| {
+        let names: Vec<&str> = session_vars.iter().map(|(name, _)| *name).collect();
+        crate::postgres::database_error(
+            format!("set_config({names:?}) failed: {}", pg_detail(&e)),
+            &e,
+        )
+    })?;
+    Ok(())
+}
+
+/// One `SELECT set_config(…), set_config(…), …` setting every pair transaction-locally, and its
+/// parameters. Names and values are always parameters, never SQL text.
+///
+/// A var carrying the clock-timestamp directive (e.g. `fraiseql.started_at`) is stamped with the
+/// DB clock at apply time, on this very transaction, so the start timestamp and the
+/// close-of-interval at the outbox write share one clock (no app↔DB skew).
+fn set_config_batch<'a>(
+    session_vars: &'a [(&'a str, &'a str)],
+) -> (String, Vec<&'a (dyn tokio_postgres::types::ToSql + Sync)>) {
+    let mut sql = String::from("SELECT ");
+    let mut params: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> =
+        Vec::with_capacity(session_vars.len() * 2);
+    for (index, (name, value)) in session_vars.iter().enumerate() {
+        if index > 0 {
+            sql.push_str(", ");
+        }
+        params.push(name);
+        let name_param = params.len();
         if *value == crate::changelog::CLOCK_TIMESTAMP_DIRECTIVE {
-            txn.execute("SELECT set_config($1, clock_timestamp()::text, true)", &[name])
-                .await
-                .map_err(|e| {
-                    crate::postgres::database_error(
-                        format!(
-                            "set_config({name:?}, clock_timestamp()) failed: {}",
-                            pg_detail(&e)
-                        ),
-                        &e,
-                    )
-                })?;
+            let _ = write!(sql, "set_config(${name_param}, clock_timestamp()::text, true)");
         } else {
-            txn.execute("SELECT set_config($1, $2, true)", &[name, value])
-                .await
-                .map_err(|e| {
-                    crate::postgres::database_error(
-                        format!("set_config({name:?}) failed: {}", pg_detail(&e)),
-                        &e,
-                    )
-                })?;
+            params.push(value);
+            let _ = write!(sql, "set_config(${name_param}, ${}, true)", name_param + 1);
         }
     }
-    Ok(())
+    (sql, params)
 }
 
 /// Mark the in-progress mutation transaction as **FraiseQL-mediated** (#366).

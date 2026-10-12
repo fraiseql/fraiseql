@@ -33,6 +33,11 @@ disagreed, and the promise was the part that was wrong.
   cache past that. A statement whose relation changed row type under it (SQLSTATE 0A000) is
   dropped and the read re-run once. Server CPU per request: 173.7 → 164.7 µs on a 20-row list
   with two nested objects (+8% rps), 107.5 → 99.8 µs on a flat one (+12%).
+- **Session variables are set by one prepared statement per request, not two round trips each
+  (#1570).** Every transaction that applies session variables (reads, relay pages, streaming
+  reads, mutations, the admin SQL console) sets all of them in one `SELECT set_config(…), …`,
+  prepared once per connection. With three variables: 209.9 → 184.5 µs of server CPU per request
+  on a 20-row list (+23% rps). A failure names every variable of the batch.
 
 ### Fixed
 

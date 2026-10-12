@@ -2745,3 +2745,72 @@ async fn a_read_with_session_variables_survives_its_relation_changing_type() {
     let rows = read().await.expect("the read after the change");
     assert_eq!(rows.len(), 3);
 }
+
+/// Five reads with three session variables on `adapter`, returning the last read's rows.
+async fn read_five_times_with_three_session_variables(
+    adapter: &PostgresAdapter,
+    view: &str,
+) -> std::sync::Arc<Vec<fraiseql_db::types::JsonbValue>> {
+    let mut rows = None;
+    for _ in 0..5 {
+        rows = Some(
+            adapter
+                .execute_where_query_arc_with_session(
+                    view,
+                    None,
+                    Some(10),
+                    None,
+                    None,
+                    &[("app.a", "1"), ("app.b", "2"), ("app.c", "3")],
+                    ReadRouting::Any,
+                )
+                .await
+                .unwrap(),
+        );
+    }
+    rows.unwrap()
+}
+
+#[tokio::test]
+async fn session_variables_are_set_by_one_prepared_statement_per_request() {
+    let adapter = statement_cache_fixture().await;
+    read_five_times_with_three_session_variables(&adapter, "rsc_doc").await;
+    let executions: Vec<i64> = adapter
+        .pool()
+        .get()
+        .await
+        .unwrap()
+        .query(
+            "SELECT generic_plans + custom_plans FROM pg_prepared_statements \
+             WHERE generic_plans + custom_plans > 1 ORDER BY 1",
+            &[],
+        )
+        .await
+        .unwrap()
+        .iter()
+        .map(|row| row.get(0))
+        .collect();
+    // The read, and the one statement that set all three variables: each ran once a request
+    // (this probe, planned once, is filtered out).
+    assert_eq!(executions, [5, 5]);
+}
+
+#[tokio::test]
+async fn every_session_variable_of_a_request_is_visible_to_its_read() {
+    let adapter = statement_cache_fixture().await;
+    adapter
+        .pool()
+        .get()
+        .await
+        .unwrap()
+        .batch_execute(
+            "CREATE TEMP VIEW rsc_settings AS SELECT jsonb_build_object( \
+               'a', current_setting('app.a', true), \
+               'b', current_setting('app.b', true), \
+               'c', current_setting('app.c', true)) AS data",
+        )
+        .await
+        .unwrap();
+    let rows = read_five_times_with_three_session_variables(&adapter, "rsc_settings").await;
+    assert_eq!(rows[0].as_value(), &json!({"a": "1", "b": "2", "c": "3"}));
+}
