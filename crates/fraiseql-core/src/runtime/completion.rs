@@ -28,8 +28,12 @@
 //! subscription events — produces a value of the published type, so one walk over that
 //! value is the one place the rule can be applied to all of them alike.
 
-use std::collections::{HashMap, HashSet};
+use std::{
+    cell::OnceCell,
+    collections::{HashMap, HashSet},
+};
 
+use ahash::AHashMap;
 use serde_json::{Map, Value};
 
 use crate::{
@@ -66,12 +70,16 @@ impl TypeRef {
 
 /// The output types of a schema, as introspection publishes them: every object and
 /// interface's fields with their wrapped types, and every abstract type's possible types.
+///
+/// Every response is completed against these, a lookup per object and per field, so the
+/// maps hash with `ahash`. They hold the schema's own names and are built once, so no
+/// request can grow them.
 #[derive(Debug, Clone, Default)]
 pub struct OutputTypes {
     /// Object and interface type name → field name → published type.
-    fields:   HashMap<String, HashMap<String, TypeRef>>,
+    fields:   AHashMap<String, AHashMap<String, TypeRef>>,
     /// Interface and union type name → the object types it may resolve to.
-    possible: HashMap<String, HashSet<String>>,
+    possible: AHashMap<String, HashSet<String>>,
 }
 
 impl OutputTypes {
@@ -121,8 +129,11 @@ impl OutputTypes {
             .insert("_Entity".to_string(), metadata.types.iter().map(|t| t.name.clone()).collect());
     }
 
-    fn field(&self, type_name: &str, field: &str) -> Option<&TypeRef> {
-        self.fields.get(type_name)?.get(field)
+    /// The published fields of `type_name`, and the name as the schema spells it.
+    fn type_fields(&self, type_name: &str) -> Option<(&str, &AHashMap<String, TypeRef>)> {
+        self.fields
+            .get_key_value(type_name)
+            .map(|(name, fields)| (name.as_str(), fields))
     }
 
     /// Complete `response["data"]` (§ 6.4.4): each root field of `selections` on
@@ -130,39 +141,38 @@ impl OutputTypes {
     /// and adds an entry to `response["errors"]`.
     ///
     /// `selections` is the operation's root selection set with fragment spreads expanded
-    /// and directives not yet evaluated; `variables` evaluates them.
+    /// and directives not yet evaluated; `variables` (the request's, an object) evaluates
+    /// them.
     pub fn complete(
         &self,
         response: &mut Value,
         root_type: &str,
         selections: &[FieldSelection],
-        variables: &HashMap<String, Value>,
+        variables: Option<&Value>,
     ) {
-        let walk = Walk {
-            types: self,
-            variables,
-        };
+        let walk = Walk::new(self, variables);
         let mut errors = Vec::new();
         let Some(data) = response.get_mut("data").and_then(Value::as_object_mut) else {
             return;
         };
         let mut null_data = false;
         let mut path = Vec::new();
-        for sel in walk.flatten(selections, root_type) {
-            let Some(field_ref) = self.field(root_type, &sel.name) else {
-                continue;
-            };
-            let key = sel.response_key();
-            let Some(value) = data.get_mut(key) else {
-                continue;
-            };
-            path.push(Value::String(key.to_string()));
-            let label = format!("{root_type}.{}", sel.name);
-            match walk.position(value.take(), field_ref, sel, &label, &mut path, &mut errors, 0) {
-                Ok(v) => *value = v,
-                Err(Propagate) => null_data = true,
-            }
-            path.pop();
+        if let Some((root_type, fields)) = self.type_fields(root_type) {
+            walk.for_each_field(selections, root_type, &mut |sel| {
+                let Some(field_ref) = fields.get(&sel.name) else {
+                    return;
+                };
+                let key = sel.response_key();
+                let Some(value) = data.get_mut(key) else {
+                    return;
+                };
+                path.push(Step::Key(key));
+                let label = Label::Field(root_type, &sel.name);
+                if walk.position(value, field_ref, sel, label, &mut path, &mut errors, 0).is_err() {
+                    null_data = true;
+                }
+                path.pop();
+            });
         }
         if null_data {
             response["data"] = Value::Null;
@@ -189,16 +199,12 @@ impl OutputTypes {
     #[must_use]
     pub fn complete_value(
         &self,
-        value: Value,
+        mut value: Value,
         type_name: &str,
         selections: &[FieldSelection],
         root_key: &str,
     ) -> (Value, Vec<Value>) {
-        let variables = HashMap::new();
-        let walk = Walk {
-            types:     self,
-            variables: &variables,
-        };
+        let walk = Walk::new(self, None);
         let sel = FieldSelection {
             name:          root_key.to_string(),
             alias:         None,
@@ -207,11 +213,22 @@ impl OutputTypes {
             directives:    Vec::new(),
         };
         let mut errors = Vec::new();
-        let mut path = vec![Value::String(root_key.to_string())];
+        let mut path = vec![Step::Key(root_key)];
         let field_ref = TypeRef::Named(type_name.to_string());
-        let value = walk
-            .position(value, &field_ref, &sel, root_key, &mut path, &mut errors, 0)
-            .unwrap_or(Value::Null);
+        if walk
+            .position(
+                &mut value,
+                &field_ref,
+                &sel,
+                Label::Root(root_key),
+                &mut path,
+                &mut errors,
+                0,
+            )
+            .is_err()
+        {
+            value = Value::Null;
+        }
         (value, errors)
     }
 }
@@ -219,40 +236,106 @@ impl OutputTypes {
 /// A non-null violation below, to be absorbed by the nearest nullable position.
 struct Propagate;
 
-/// One completion: the types and the request's variables.
-struct Walk<'a> {
-    types:     &'a OutputTypes,
-    variables: &'a HashMap<String, Value>,
+/// One step of a response path, borrowed from the walk. Rendered only into an error.
+#[derive(Clone, Copy)]
+enum Step<'a> {
+    Key(&'a str),
+    Index(usize),
 }
 
-impl Walk<'_> {
-    /// The fields `selections` selects on an object of type `type_name`: inline fragments
-    /// whose condition the type satisfies are lifted, fields excluded by `@skip`/`@include`
-    /// and meta-fields are dropped.
-    fn flatten<'s>(
+/// The field an error names: `Type.field`, or a root key on its own. Rendered only into an
+/// error.
+#[derive(Clone, Copy)]
+enum Label<'a> {
+    Field(&'a str, &'a str),
+    Root(&'a str),
+}
+
+impl std::fmt::Display for Label<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Field(owner, field) => write!(f, "{owner}.{field}"),
+            Self::Root(key) => f.write_str(key),
+        }
+    }
+}
+
+/// The § 6.4.4 field error for a `null` at a non-null position.
+fn violation(label: Label<'_>, path: &[Step<'_>]) -> Value {
+    let path: Vec<Value> = path
+        .iter()
+        .map(|step| match *step {
+            Step::Key(key) => Value::String(key.to_string()),
+            Step::Index(index) => Value::from(index),
+        })
+        .collect();
+    serde_json::json!({
+        "message": format!("Cannot return null for non-nullable field {label}."),
+        "path": path,
+    })
+}
+
+/// One completion: the types and the request's variables.
+///
+/// Completion runs on every response, so the walk allocates nothing unless it records an
+/// error: values are completed in place, the path and the field label are borrowed and
+/// rendered only into an error, and the variables become the map directives are evaluated
+/// against only when a selection carries a directive.
+struct Walk<'a> {
+    types:               &'a OutputTypes,
+    variables:           Option<&'a Value>,
+    directive_variables: OnceCell<HashMap<String, Value>>,
+}
+
+impl<'a> Walk<'a> {
+    const fn new(types: &'a OutputTypes, variables: Option<&'a Value>) -> Self {
+        Self {
+            types,
+            variables,
+            directive_variables: OnceCell::new(),
+        }
+    }
+
+    /// Whether `@skip`/`@include` keep `sel`.
+    fn included(&self, sel: &FieldSelection) -> bool {
+        if sel.directives.is_empty() {
+            return true;
+        }
+        let variables = self.directive_variables.get_or_init(|| {
+            self.variables
+                .and_then(Value::as_object)
+                .map(|map| map.iter().map(|(k, v)| (k.clone(), v.clone())).collect())
+                .unwrap_or_default()
+        });
+        // A directive that cannot be evaluated was refused before execution; included is
+        // the reading that adjudicates the most.
+        DirectiveEvaluator::evaluate_directives(sel, variables).unwrap_or(true)
+    }
+
+    /// Visit the fields `selections` selects on an object of type `type_name`: inline
+    /// fragments whose condition the type satisfies are lifted, fields excluded by
+    /// `@skip`/`@include` and meta-fields are skipped.
+    fn for_each_field<'s>(
         &self,
         selections: &'s [FieldSelection],
         type_name: &str,
-    ) -> Vec<&'s FieldSelection> {
-        let mut out = Vec::new();
+        visit: &mut impl FnMut(&'s FieldSelection),
+    ) {
         for sel in selections {
-            // A directive that cannot be evaluated was refused before execution; included is
-            // the reading that adjudicates the most.
-            if !DirectiveEvaluator::evaluate_directives(sel, self.variables).unwrap_or(true) {
+            if !self.included(sel) {
                 continue;
             }
             if let Some(condition) = sel.name.strip_prefix("...on ") {
                 if self.satisfies(type_name, condition.trim()) {
-                    out.extend(self.flatten(&sel.nested_fields, type_name));
+                    self.for_each_field(&sel.nested_fields, type_name, visit);
                 }
                 continue;
             }
             if sel.name.starts_with("...") || sel.name.starts_with("__") {
                 continue;
             }
-            out.push(sel);
+            visit(sel);
         }
-        out
     }
 
     /// Whether an object of type `type_name` matches a fragment on `condition`.
@@ -261,137 +344,148 @@ impl Walk<'_> {
             || self.types.possible.get(condition).is_some_and(|p| p.contains(type_name))
     }
 
-    /// Complete `value` at a position of type `field_ref`.
+    /// Complete `value`, in place, at a position of type `field_ref`.
     ///
     /// `Err(Propagate)` when the position is non-null and its value is `null`, whether it
     /// arrived so (an error is recorded here, at `path`) or became so by a violation below
-    /// (already recorded there).
+    /// (already recorded there). A nullable position absorbs a violation below by becoming
+    /// `null`.
     #[allow(clippy::too_many_arguments)] // Reason: one recursive step of one walk; a struct would hold the same state
-    fn position(
+    fn position<'s>(
         &self,
-        value: Value,
+        value: &mut Value,
         field_ref: &TypeRef,
-        sel: &FieldSelection,
-        label: &str,
-        path: &mut Vec<Value>,
+        sel: &'s FieldSelection,
+        label: Label<'s>,
+        path: &mut Vec<Step<'s>>,
         errors: &mut Vec<Value>,
         depth: usize,
-    ) -> Result<Value, Propagate> {
+    ) -> Result<(), Propagate>
+    where
+        'a: 's,
+    {
         match field_ref {
             TypeRef::NonNull(inner) => {
-                match self.nullable(value, inner, sel, label, path, errors, depth) {
-                    None => Err(Propagate),
-                    Some(Value::Null) => {
-                        errors.push(serde_json::json!({
-                            "message": format!("Cannot return null for non-nullable field {label}."),
-                            "path": path.clone(),
-                        }));
-                        Err(Propagate)
-                    },
-                    Some(v) => Ok(v),
+                self.nullable(value, inner, sel, label, path, errors, depth)?;
+                if value.is_null() {
+                    errors.push(violation(label, path));
+                    return Err(Propagate);
                 }
+                Ok(())
             },
-            other => Ok(self
-                .nullable(value, other, sel, label, path, errors, depth)
-                .unwrap_or(Value::Null)),
+            other => {
+                if self.nullable(value, other, sel, label, path, errors, depth).is_err() {
+                    *value = Value::Null;
+                }
+                Ok(())
+            },
         }
     }
 
-    /// Complete a value at a nullable position: `None` when a non-null violation below
-    /// made it `null`.
+    /// Complete a value, in place, at a nullable position: `Err(Propagate)` when a
+    /// non-null violation below makes it `null`.
     #[allow(clippy::too_many_arguments)] // Reason: as `position`
-    fn nullable(
+    fn nullable<'s>(
         &self,
-        value: Value,
+        value: &mut Value,
         field_ref: &TypeRef,
-        sel: &FieldSelection,
-        label: &str,
-        path: &mut Vec<Value>,
+        sel: &'s FieldSelection,
+        label: Label<'s>,
+        path: &mut Vec<Step<'s>>,
         errors: &mut Vec<Value>,
         depth: usize,
-    ) -> Option<Value> {
+    ) -> Result<(), Propagate>
+    where
+        'a: 's,
+    {
         if value.is_null() || depth > MAX_COMPLETION_DEPTH {
-            return Some(value);
+            return Ok(());
         }
         match field_ref {
-            TypeRef::NonNull(_) => {
-                self.position(value, field_ref, sel, label, path, errors, depth).ok()
-            },
+            TypeRef::NonNull(_) => self.position(value, field_ref, sel, label, path, errors, depth),
             TypeRef::List(inner) => {
                 let Value::Array(items) = value else {
-                    return Some(value);
+                    return Ok(());
                 };
                 // Every item is completed, so every violation is reported, before one
                 // that propagated nulls the list.
-                let mut out = Vec::with_capacity(items.len());
                 let mut propagated = false;
-                for (index, item) in items.into_iter().enumerate() {
-                    path.push(Value::from(index));
-                    let item = self.position(item, inner, sel, label, path, errors, depth + 1);
-                    path.pop();
-                    match item {
-                        Ok(v) => out.push(v),
-                        Err(Propagate) => propagated = true,
+                for (index, item) in items.iter_mut().enumerate() {
+                    path.push(Step::Index(index));
+                    if self.position(item, inner, sel, label, path, errors, depth + 1).is_err() {
+                        propagated = true;
                     }
+                    path.pop();
                 }
-                (!propagated).then_some(Value::Array(out))
+                if propagated { Err(Propagate) } else { Ok(()) }
             },
             TypeRef::Named(name) => match value {
                 Value::Object(map) => self.object(map, name, sel, path, errors, depth),
-                leaf => Some(leaf),
+                _ => Ok(()),
             },
         }
     }
 
-    /// Complete an object value of declared type `declared` against `sel`'s sub-selection.
-    fn object(
+    /// Complete an object value of declared type `declared`, in place, against `sel`'s
+    /// sub-selection.
+    fn object<'s>(
         &self,
-        mut map: Map<String, Value>,
+        map: &mut Map<String, Value>,
         declared: &str,
-        sel: &FieldSelection,
-        path: &mut Vec<Value>,
+        sel: &'s FieldSelection,
+        path: &mut Vec<Step<'s>>,
         errors: &mut Vec<Value>,
         depth: usize,
-    ) -> Option<Value> {
+    ) -> Result<(), Propagate>
+    where
+        'a: 's,
+    {
         // The object is of the type its `__typename` names, when that is a type the schema
         // publishes: an abstract type's variant, or the error type a failed mutation
         // resolves to under a bare success return type. Without one, the declared type's
         // own fields (an interface's) are all that can be adjudicated.
-        let concrete = map
+        let types = self.types;
+        let Some((concrete, fields)) = map
             .get("__typename")
             .and_then(Value::as_str)
-            .filter(|t| self.types.fields.contains_key(*t))
-            .unwrap_or(declared)
-            .to_string();
-        if !self.types.fields.contains_key(&concrete) {
-            return Some(Value::Object(map));
-        }
+            .and_then(|t| types.type_fields(t))
+            .or_else(|| types.type_fields(declared))
+        else {
+            return Ok(());
+        };
         // Every field is completed, so every violation is reported, before one that
         // propagated nulls the object.
         let mut propagated = false;
-        for child in self.flatten(&sel.nested_fields, &concrete) {
-            let Some(field_ref) = self.types.field(&concrete, &child.name) else {
-                continue;
+        self.for_each_field(&sel.nested_fields, concrete, &mut |child| {
+            let Some(field_ref) = fields.get(&child.name) else {
+                return;
             };
             let key = child.response_key();
-            let present = map.contains_key(key);
-            // Taken in place, never removed and re-inserted: the response keeps the
-            // document's field order (§ 6.3).
-            let value = map.get_mut(key).map_or(Value::Null, Value::take);
-            path.push(Value::String(key.to_string()));
-            let label = format!("{concrete}.{}", child.name);
-            let completed = self.position(value, field_ref, child, &label, path, errors, depth + 1);
-            path.pop();
-            match completed {
-                Ok(v) => {
-                    if let (true, Some(slot)) = (present, map.get_mut(key)) {
-                        *slot = v;
-                    }
+            path.push(Step::Key(key));
+            let label = Label::Field(concrete, &child.name);
+            // Completed in place, never removed and re-inserted: the response keeps the
+            // document's field order (§ 6.3). An absent field is completed as `null` and
+            // stays absent.
+            let completed = match map.get_mut(key) {
+                Some(value) => {
+                    self.position(value, field_ref, child, label, path, errors, depth + 1)
                 },
-                Err(Propagate) => propagated = true,
+                None => self.position(
+                    &mut Value::Null,
+                    field_ref,
+                    child,
+                    label,
+                    path,
+                    errors,
+                    depth + 1,
+                ),
+            };
+            path.pop();
+            if completed.is_err() {
+                propagated = true;
             }
-        }
-        (!propagated).then_some(Value::Object(map))
+        });
+        if propagated { Err(Propagate) } else { Ok(()) }
     }
 }
 

@@ -16,6 +16,15 @@ disagreed, and the promise was the part that was wrong.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Non-null completion no longer costs an eighth of a read's server time (#1568).** Completing a
+  response against its published types (#1522) allocated a label, a path step and three map
+  lookups per field per row, and rebuilt every list. It now completes in place and allocates only
+  when it records an error. Server CPU per request on a 20-row list with two nested objects:
+  204.7 µs before, 184.6 µs after (178.2 µs with no completion at all). No change to any
+  response.
+
 ## [2.17.0] - 2026-10-11
 
 ### Breaking

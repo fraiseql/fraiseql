@@ -38,7 +38,7 @@ fn a_missing_non_null_key_in_a_non_null_list_nulls_data() {
         "products",
         vec![sel("id", vec![]), sel("name", vec![])],
     )];
-    types.complete(&mut response, "Query", &selections, &HashMap::new());
+    types.complete(&mut response, "Query", &selections, None);
     assert_eq!(response["data"], Value::Null, "`[Product!]!` under the root");
     assert_eq!(response["errors"][0]["path"], json!(["products", 1, "name"]));
 }
@@ -48,7 +48,7 @@ fn every_violation_is_reported_before_the_list_is_nulled() {
     let types = OutputTypes::from_schema(&schema());
     let mut response = json!({"data": {"products": [{"id": "1"}, {"id": "2"}]}});
     let selections = [sel("products", vec![sel("name", vec![])])];
-    types.complete(&mut response, "Query", &selections, &HashMap::new());
+    types.complete(&mut response, "Query", &selections, None);
     assert_eq!(response["errors"].as_array().map(Vec::len), Some(2), "{response}");
 }
 
@@ -60,7 +60,7 @@ fn an_absent_nullable_field_is_left_absent() {
         "products",
         vec![sel("name", vec![]), sel("note", vec![])],
     )];
-    types.complete(&mut response, "Query", &selections, &HashMap::new());
+    types.complete(&mut response, "Query", &selections, None);
     assert_eq!(response, json!({"data": {"products": [{"id": "1", "name": "a"}]}}));
 }
 
@@ -69,7 +69,7 @@ fn a_type_introspection_does_not_publish_is_passed_through() {
     let types = OutputTypes::from_schema(&schema());
     let mut response = json!({"data": {"unknown": [{"name": null}]}});
     let selections = [sel("unknown", vec![sel("name", vec![])])];
-    types.complete(&mut response, "Query", &selections, &HashMap::new());
+    types.complete(&mut response, "Query", &selections, None);
     assert_eq!(response, json!({"data": {"unknown": [{"name": null}]}}));
 }
 
@@ -81,7 +81,22 @@ fn completion_keeps_the_documents_field_order() {
         "products",
         vec![sel("name", vec![]), sel("id", vec![]), sel("note", vec![])],
     )];
-    types.complete(&mut response, "Query", &selections, &HashMap::new());
+    types.complete(&mut response, "Query", &selections, None);
     let keys: Vec<&String> = response["data"]["products"][0].as_object().unwrap().keys().collect();
     assert_eq!(keys, ["name", "id", "note"], "{response}");
+}
+
+#[test]
+fn a_violation_inside_a_matching_inline_fragment_is_reported() {
+    let types = OutputTypes::from_schema(&schema());
+    let mut response = json!({"data": {"products": [{"id": "1"}]}});
+    let selections = [sel(
+        "products",
+        vec![
+            sel("id", vec![]),
+            sel("...on Product", vec![sel("name", vec![])]),
+        ],
+    )];
+    types.complete(&mut response, "Query", &selections, None);
+    assert_eq!(response["errors"][0]["path"], json!(["products", 0, "name"]), "{response}");
 }

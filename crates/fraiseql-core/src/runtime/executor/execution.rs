@@ -602,15 +602,11 @@ impl Executor {
         // 3. § 6.4.4 (#1522): a `null` in a non-null position is a field error that nulls the
         //    nearest nullable ancestor, on every operation that reaches this dispatch.
         if let (true, Some(target)) = (completes, completion.as_deref()) {
-            let variables: std::collections::HashMap<String, serde_json::Value> = variables
-                .and_then(serde_json::Value::as_object)
-                .map(|map| map.iter().map(|(k, v)| (k.clone(), v.clone())).collect())
-                .unwrap_or_default();
             self.ctx.output_types.complete(
                 &mut response,
                 target.root_type,
                 &target.selections,
-                &variables,
+                variables,
             );
         }
         Ok(response)
