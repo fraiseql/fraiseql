@@ -637,11 +637,17 @@ mod pagination_tiebreak {
     }
 
     #[test]
-    fn a_declared_json_identity_renders_the_same_term_the_tiebreaker_would() {
-        // The fallback and the declared JSONB identity must be the same SQL, or a
-        // schema that declares what the renderer would have chosen anyway changes
-        // the query plan by saying so.
-        let declared = cols(&[OrderByClause::identity("id".to_string(), None)], Tiebreak::Identity);
+    fn the_derived_identity_reads_the_column_and_the_fallback_the_document() {
+        // #1569: what a compile derives is the native `id` column. The fallback serves
+        // reads that declared nothing about their relation, which may have no `id`
+        // column, so it stays on the document.
+        let declared = cols(
+            &[OrderByClause::identity(
+                "id".to_string(),
+                Some("id".to_string()),
+            )],
+            Tiebreak::Identity,
+        );
         let inferred = cols(
             &[OrderByClause::new(
                 "status".to_string(),
@@ -649,8 +655,8 @@ mod pagination_tiebreak {
             )],
             Tiebreak::Identity,
         );
-        assert_eq!(declared, "data->>'id' ASC");
-        assert!(inferred.ends_with("data->>'id' ASC"), "{inferred}");
+        assert_eq!(declared, "id ASC");
+        assert_eq!(inferred, "data->>'status' ASC, data->>'id' ASC");
     }
 
     #[test]

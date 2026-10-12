@@ -425,7 +425,7 @@ mod compile_tests {
 
         let mut schema = CompiledSchema {
             queries: vec![QueryDefinition {
-                pagination_order: Some(PaginationOrder::JsonIdentity),
+                pagination_order: Some(PaginationOrder::Identity),
                 ..make_query("users", Some("v_user"), "data", vec![], HashMap::new())
             }],
             ..Default::default()
@@ -454,7 +454,7 @@ mod compile_tests {
 
         let mut schema = CompiledSchema {
             queries: vec![QueryDefinition {
-                pagination_order: Some(PaginationOrder::JsonIdentity),
+                pagination_order: Some(PaginationOrder::Identity),
                 ..make_query("users", Some("v_user"), "data", vec![], HashMap::new())
             }],
             ..Default::default()
@@ -468,7 +468,7 @@ mod compile_tests {
         apply_database_report(&mut schema, &report);
         assert_eq!(
             schema.queries[0].pagination_order,
-            Some(PaginationOrder::JsonIdentity),
+            Some(PaginationOrder::Identity),
             "the offline answer is correct; an empty report is not a reason to drop it"
         );
     }

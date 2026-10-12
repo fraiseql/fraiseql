@@ -4039,7 +4039,7 @@ fn auto_param_warnings_state_each_rule_on_the_configuration_that_earns_it() {
 
     // The ordering a paginating query resolves to under the default posture — so
     // these cases read the same configuration the compiler produces for them.
-    let ordered = PaginationOrder::JsonIdentity;
+    let ordered = PaginationOrder::Identity;
     let warn = |params| SchemaConverter::auto_param_warnings("things", &params, Some(&ordered));
 
     // Everything on: nothing to say.
@@ -4269,7 +4269,7 @@ mod auto_params_parity_tests {
         };
 
         // The shape that has one, and the two that must not.
-        assert_eq!(fixture(true, false), Some(PaginationOrder::JsonIdentity));
+        assert_eq!(fixture(true, false), Some(PaginationOrder::Identity));
         assert_eq!(fixture(true, false), compiled(true, false));
         assert_eq!(fixture(false, false), None);
         assert_eq!(fixture(false, false), compiled(false, false));
@@ -4343,7 +4343,7 @@ mod posture {
     fn identity_derives_the_default_and_permits_the_opt_out() {
         assert_eq!(
             resolve(None, PaginationPosture::Identity).unwrap(),
-            Some(PaginationOrder::JsonIdentity)
+            Some(PaginationOrder::Identity)
         );
         assert_eq!(resolve(Some("none"), PaginationPosture::Identity).unwrap(), None);
     }
@@ -4352,7 +4352,7 @@ mod posture {
     fn refuse_derives_the_same_ordering_but_forbids_the_opt_out() {
         assert_eq!(
             resolve(None, PaginationPosture::Refuse).unwrap(),
-            Some(PaginationOrder::JsonIdentity),
+            Some(PaginationOrder::Identity),
             "refuse is stricter than identity, not different from it"
         );
         let err = resolve(Some("none"), PaginationPosture::Refuse)
@@ -4413,11 +4413,11 @@ mod posture {
 }
 
 #[test]
-fn a_paginating_query_with_no_authored_order_gets_the_json_identity() {
+fn a_paginating_query_with_no_authored_order_gets_the_identity() {
     // The answer a compile with no `--database` can always give: `id` is an
     // enforced invariant (ADR-0017), so the extraction is valid for every type.
     let q = convert_one(paginating_query(|_| {})).expect("a plain list query compiles");
-    assert_eq!(q.pagination_order, Some(PaginationOrder::JsonIdentity));
+    assert_eq!(q.pagination_order, Some(PaginationOrder::Identity));
 }
 
 #[test]
@@ -4484,7 +4484,7 @@ fn only_one_of_limit_and_offset_still_paginates() {
         .expect("compiles");
         assert_eq!(
             q.pagination_order,
-            Some(PaginationOrder::JsonIdentity),
+            Some(PaginationOrder::Identity),
             "limit={limit} offset={offset}"
         );
     }
@@ -4538,7 +4538,7 @@ fn the_count_sibling_carries_no_pagination_order() {
     // A `SELECT COUNT(*)` has no rows to order, and inheriting the parent's
     // ordering would add a sort to a scalar read.
     let parent = convert_one(paginating_query(|q| q.count = true)).expect("compiles");
-    assert_eq!(parent.pagination_order, Some(PaginationOrder::JsonIdentity));
+    assert_eq!(parent.pagination_order, Some(PaginationOrder::Identity));
     assert_eq!(parent.count_sibling().pagination_order, None);
 }
 

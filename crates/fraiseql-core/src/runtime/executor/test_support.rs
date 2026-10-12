@@ -594,7 +594,7 @@ pub fn test_schema() -> CompiledSchema {
         // the compiler cannot emit, and, worse, the *pre-fix* route: every test built
         // on it would go on asserting the unordered behaviour after the defect was
         // fixed, and the suite would not move when the bug did.
-        pagination_order:    Some(crate::schema::PaginationOrder::JsonIdentity),
+        pagination_order:    Some(crate::schema::PaginationOrder::Identity),
     });
     schema
 }

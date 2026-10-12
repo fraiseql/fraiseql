@@ -160,7 +160,7 @@ func authorFull() error {
 	}
 
 	// "none" keeps a self-ordering view's own ORDER BY, and compiles to no key at all.
-	// The sharp case: an SDK that drops it emits the derived "json_identity" instead and
+	// The sharp case: an SDK that drops it emits the derived "identity" instead and
 	// the view's own ordering is silently replaced.
 	if err := fraiseql.NewQuery("pagedSelfOrdered").
 		ReturnType("User").ReturnsArray(true).Nullable(false).
@@ -170,7 +170,7 @@ func authorFull() error {
 		return err
 	}
 
-	// Authors nothing, so the compiler derives "json_identity". This is the state that
+	// Authors nothing, so the compiler derives "identity". This is the state that
 	// catches a builder inventing a value where the author declared none.
 	if err := fraiseql.NewQuery("pagedDerived").
 		ReturnType("User").ReturnsArray(true).Nullable(false).

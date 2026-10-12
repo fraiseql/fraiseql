@@ -113,7 +113,7 @@ public class ConformanceExportTest
             .Register();
 
         // "none" keeps a self-ordering view's own ORDER BY, and compiles to no key at
-        // all. The sharp case: an SDK that drops it emits the derived "json_identity"
+        // all. The sharp case: an SDK that drops it emits the derived "identity"
         // instead and the view's own ordering is silently replaced.
         QueryBuilder.Query("pagedSelfOrdered")
             .ReturnType("User")
@@ -122,7 +122,7 @@ public class ConformanceExportTest
             .PaginationOrder("none")
             .Register();
 
-        // Authors nothing, so the compiler derives "json_identity". This is the state
+        // Authors nothing, so the compiler derives "identity". This is the state
         // that catches a builder inventing a value where the author declared none.
         QueryBuilder.Query("pagedDerived")
             .ReturnType("User")

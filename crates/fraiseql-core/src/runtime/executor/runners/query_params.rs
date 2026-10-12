@@ -804,8 +804,8 @@ pub fn apply_pagination_order(
         return Some(clauses);
     }
     clauses.push(match order {
-        PaginationOrder::JsonIdentity => {
-            crate::backend::OrderByClause::identity("id".to_string(), None)
+        PaginationOrder::Identity => {
+            crate::backend::OrderByClause::identity("id".to_string(), Some("id".to_string()))
         },
         PaginationOrder::Column(col) => {
             crate::backend::OrderByClause::identity(col.clone(), Some(col.clone()))

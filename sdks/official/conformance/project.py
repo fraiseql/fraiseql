@@ -491,9 +491,9 @@ def project(compiled: dict[str, Any]) -> dict[str, Any]:
     #
     #   authored a column  → {"column": "created_at"}
     #   authored "none"    → key absent, so `.get` yields None
-    #   authored nothing   → "json_identity", the identity the compiler derives
+    #   authored nothing   → "identity", the identity the compiler derives
     #
-    # `"json_identity"` is neither empty nor falsey, so a truthiness filter would show a
+    # `"identity"` is neither empty nor falsey, so a truthiness filter would show a
     # present, non-empty value for a query whose override was dropped — the one defect
     # this construct exists to see.
     #

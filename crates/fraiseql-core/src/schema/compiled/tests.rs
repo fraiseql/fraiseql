@@ -2307,14 +2307,14 @@ fn a_to_many_on_the_same_non_unique_key_still_loads() {
 fn pagination_order_round_trips_with_a_legible_spelling() {
     use super::query::PaginationOrder;
 
-    let json_identity = serde_json::to_value(PaginationOrder::JsonIdentity).unwrap();
-    assert_eq!(json_identity, serde_json::json!("json_identity"));
+    let identity = serde_json::to_value(PaginationOrder::Identity).unwrap();
+    assert_eq!(identity, serde_json::json!("identity"));
 
     let column = serde_json::to_value(PaginationOrder::Column("pk_user".into())).unwrap();
     assert_eq!(column, serde_json::json!({ "column": "pk_user" }));
 
     for order in [
-        PaginationOrder::JsonIdentity,
+        PaginationOrder::Identity,
         PaginationOrder::Column("pk_user".into()),
     ] {
         let mut q = QueryDefinition::new("users", "User").returning_list();

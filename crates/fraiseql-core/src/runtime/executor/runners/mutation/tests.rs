@@ -6542,7 +6542,7 @@ mod before_mutation_read_bridge {
             rest_method:         None,
             rest_stream:         false,
             native_columns:      HashMap::new(),
-            pagination_order:    Some(crate::schema::PaginationOrder::JsonIdentity),
+            pagination_order:    Some(crate::schema::PaginationOrder::Identity),
         });
         schema.build_indexes();
         schema

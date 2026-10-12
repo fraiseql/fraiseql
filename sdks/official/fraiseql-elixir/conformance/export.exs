@@ -184,7 +184,7 @@ defmodule Conformance.FullSchema do
     pagination_order: "created_at"
 
   # "none" keeps a self-ordering view's own ORDER BY, and compiles to no key at all. The
-  # sharp case: an SDK that drops it emits the derived "json_identity" instead and the
+  # sharp case: an SDK that drops it emits the derived "identity" instead and the
   # view's own ordering is silently replaced.
   fraiseql_query :paged_self_ordered,
     return_type: "User",
@@ -193,7 +193,7 @@ defmodule Conformance.FullSchema do
     sql_source: "v_user",
     pagination_order: "none"
 
-  # Authors nothing, so the compiler derives "json_identity". This is the state that
+  # Authors nothing, so the compiler derives "identity". This is the state that
   # catches a builder inventing a value where the author declared none.
   fraiseql_query :paged_derived,
     return_type: "User",

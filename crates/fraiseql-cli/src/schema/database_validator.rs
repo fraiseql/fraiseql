@@ -129,14 +129,13 @@ pub enum DatabaseWarning {
         /// The missing column name.
         column_name: String,
     },
-    /// L2: no cheaper unique column was found, so pages stay ordered by
-    /// `data->>'id'` (#1303).
+    /// L2: the query's pages are ordered by the type's identity, and its relation
+    /// exposes neither `pk_<type>` nor an `id` column to order them by (#1569).
     ///
-    /// Advisory: the ordering is *correct*, and correct is the point — `id` is an
-    /// enforced invariant (ADR-0017), so the extraction orders every type. It is
-    /// simply the most expensive of the three known spellings, and the relation is
-    /// the only place a cheaper one could have come from.
-    PaginationIdentityFallback {
+    /// An error: ADR-0017 makes `id` a base column of every read table and view, and
+    /// the identity is never read out of the document, so the compiled `ORDER BY`
+    /// would fail at the first paged read.
+    MissingIdentityColumn {
         /// Name of the query.
         query_name: String,
         /// The `sql_source` relation.
@@ -296,6 +295,7 @@ impl DatabaseWarning {
             | Self::WrongJsonColumnType { .. }
             | Self::MissingCursorColumn { .. }
             | Self::MissingPaginationColumn { .. }
+            | Self::MissingIdentityColumn { .. }
             | Self::TypeConvertibility { .. } => Severity::Error,
             // Evidence of absence fails the compile; an empty relation proves nothing.
             Self::UnresolvableFilter { reason, .. } => match reason {
@@ -311,7 +311,6 @@ impl DatabaseWarning {
             },
             Self::MissingTypeSource { .. }
             | Self::NativeColumnFallback { .. }
-            | Self::PaginationIdentityFallback { .. }
             | Self::SelfOrderingView { .. } => Severity::Warn,
         }
     }
@@ -402,18 +401,17 @@ impl fmt::Display for DatabaseWarning {
                      request time"
                 )
             },
-            Self::PaginationIdentityFallback {
+            Self::MissingIdentityColumn {
                 query_name,
                 sql_source,
                 pk_column,
             } => {
                 write!(
                     f,
-                    "query `{query_name}`: offset pages are ordered by `data->>'id'` because \
-                     `{sql_source}` exposes neither `{pk_column}` nor a native `id` column. \
-                     Correct, but the most expensive of the three orderings (measured 7.7x the \
-                     unordered plan at 200k rows and a deep offset, against 1.7x for \
-                     `{pk_column}`). Expose one of them, or declare pagination_order"
+                    "query `{query_name}`: offset pages are ordered by the type's identity, and \
+                     `{sql_source}` exposes neither `{pk_column}` nor an `id` column (ADR-0017 \
+                     makes `id` a base column of every read relation). Expose one of them, or \
+                     declare pagination_order"
                 )
             },
             Self::SelfOrderingView {
@@ -744,8 +742,9 @@ pub async fn validate_schema_against_database(
 
             // L2: pagination_order (#1303). Three questions, in the order the
             // compiled value answers them: a declared column must exist; a derived
-            // JSONB identity may be sharpened to a cheaper native one; and either
-            // way, a view that orders itself is about to have that order replaced.
+            // identity is sharpened to `pk_<type>` (1.7x the unordered plan at a deep
+            // offset, against 4.2x for `id`) and needs one of the two (#1569); and
+            // either way, a view that orders itself is about to have that order replaced.
             match &query.pagination_order {
                 Some(PaginationOrder::Column(col)) if !column_map.contains_key(col) => {
                     warnings.push(DatabaseWarning::MissingPaginationColumn {
@@ -755,12 +754,12 @@ pub async fn validate_schema_against_database(
                     });
                 },
                 Some(PaginationOrder::Column(_)) => {},
-                Some(PaginationOrder::JsonIdentity) => {
+                Some(PaginationOrder::Identity) => {
                     let pk = pk_column_name(&query.return_type);
-                    if let Some(col) = cheapest_identity_column(&pk, &column_map) {
-                        pagination_orders.insert(query.name.clone(), PaginationOrder::Column(col));
-                    } else {
-                        warnings.push(DatabaseWarning::PaginationIdentityFallback {
+                    if column_map.contains_key(&pk) {
+                        pagination_orders.insert(query.name.clone(), PaginationOrder::Column(pk));
+                    } else if !column_map.contains_key("id") {
+                        warnings.push(DatabaseWarning::MissingIdentityColumn {
                             query_name: query.name.clone(),
                             sql_source: source.clone(),
                             pk_column:  pk,
@@ -941,24 +940,6 @@ pub async fn validate_schema_against_database(
 /// uniformly, not re-derived per subsystem".
 fn pk_column_name(return_type: &str) -> String {
     format!("pk_{}", fraiseql_core::utils::to_snake_case(return_type))
-}
-
-/// The cheapest native column that totally orders this relation, if it has one.
-///
-/// `pk_<type>` before `id`, which is the opposite of the order the two are
-/// usually reached in and is what the measurements say: against PostgreSQL 16
-/// over 200 000 rows at a deep offset, the `pk` BIGINT index scan costs 1.7x the
-/// unordered plan and the `id` UUID one 4.2x. Both beat the JSONB extraction's
-/// 7.7x, so either is worth taking.
-///
-/// Only the *name* is checked, never the type: a column that orders the rows is
-/// all a total order needs, and a `pk_`/`id` column that is not unique is a
-/// broken view rather than a case to code around.
-fn cheapest_identity_column(pk: &str, columns: &HashMap<String, String>) -> Option<String> {
-    if columns.contains_key(pk) {
-        return Some(pk.to_string());
-    }
-    columns.contains_key("id").then(|| "id".to_string())
 }
 
 /// Does this view body carry its own `ORDER BY`?

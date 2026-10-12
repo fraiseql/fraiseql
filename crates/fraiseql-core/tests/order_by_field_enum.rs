@@ -330,7 +330,9 @@ async fn a_sort_by_an_enum_value_is_served() {
     let adapter = PostgresAdapter::new(&url).await.unwrap();
     for ddl in [
         format!("DROP TABLE IF EXISTS {ITEM}"),
-        format!("CREATE TABLE {ITEM} (pk bigint, data jsonb)"),
+        format!(
+            "CREATE TABLE {ITEM} (pk bigint, data jsonb, id text GENERATED ALWAYS AS (data->>'id') STORED)"
+        ),
         format!(
             "INSERT INTO {ITEM} SELECT k, jsonb_build_object('id', k::text, 'pk', k, 'name', \
              'n' || (4 - k), 'rank', k) FROM generate_series(1, 3) k"

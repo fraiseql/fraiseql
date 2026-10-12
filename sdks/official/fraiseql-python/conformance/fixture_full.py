@@ -224,14 +224,14 @@ def paged_by_column() -> list[User]:
 
 
 # `"none"` keeps a self-ordering view's own ORDER BY. It compiles to *no* key at all,
-# which is the sharp case: an SDK that drops it emits the derived `"json_identity"`
+# which is the sharp case: an SDK that drops it emits the derived `"identity"`
 # instead, and the view's own ordering is silently replaced.
 @fraiseql.query(sql_source="v_user", pagination_order="none")
 def paged_self_ordered() -> list[User]:
     pass
 
 
-# Authors nothing, so the compiler derives `"json_identity"`. This is the state that
+# Authors nothing, so the compiler derives `"identity"`. This is the state that
 # catches a builder inventing a value where the author declared none — defaulting the
 # field to `""` or `"id"` — which no query that authors something can see.
 @fraiseql.query(sql_source="v_user")

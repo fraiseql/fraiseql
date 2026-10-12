@@ -44,7 +44,7 @@ const VIEW: &str = "v_argument_value_types_thing";
 /// dropped `LIMIT` produces (3).
 const FIXTURE: &str = r#"
 DROP TABLE IF EXISTS v_argument_value_types_thing;
-CREATE TABLE v_argument_value_types_thing (pk_thing bigint, data jsonb);
+CREATE TABLE v_argument_value_types_thing (pk_thing bigint, data jsonb, id text GENERATED ALWAYS AS (data->>'id') STORED);
 INSERT INTO v_argument_value_types_thing (pk_thing, data) VALUES
   (1, '{"id":"11110000-0000-0000-0000-000000000001","name":"first"}'::jsonb),
   (2, '{"id":"22220000-0000-0000-0000-000000000002","name":"second"}'::jsonb),

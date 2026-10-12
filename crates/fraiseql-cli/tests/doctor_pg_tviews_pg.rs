@@ -126,13 +126,13 @@ async fn a_schema_reading_no_tview_gets_no_check() {
     assert!(pg_tviews_health_checks(&url, &tls, &schema).await.is_empty());
 }
 
-/// A query paged by `data ->> 'id'` with nothing indexing it, over `view`.
+/// A query paged by its derived identity with nothing indexing it, over `view`.
 fn paged_over(view: &str) -> CompiledSchema {
     let mut schema = CompiledSchema::new();
     let mut query = fraiseql_core::schema::QueryDefinition::new("books", "Book");
     query.sql_source = Some(view.to_string());
     query.returns_list = true;
-    query.pagination_order = Some(fraiseql_core::schema::PaginationOrder::JsonIdentity);
+    query.pagination_order = Some(fraiseql_core::schema::PaginationOrder::Identity);
     schema.queries.push(query);
     schema
 }
@@ -151,32 +151,20 @@ async fn pagination_hints(url: &str, schema: &CompiledSchema) -> Vec<String> {
         .collect()
 }
 
-/// An index advised on `data` of a TVIEW states its write cost: every refresh rewrites
-/// `data`, so such an index disables HOT updates, and the promoted column is the
-/// alternative. The same advice on a plain table does not.
+/// Pagination advice over a TVIEW proposes an index on its `id` column, never one on `data`:
+/// the derived identity is the native column (#1569), so the advice no longer costs a TVIEW
+/// its HOT updates (#1392).
 #[tokio::test]
-async fn index_advice_on_a_tviews_data_states_the_hot_cost() {
+async fn index_advice_on_a_tview_proposes_the_id_column_not_data() {
     let Some(url) = tviews_database_url() else {
         return;
     };
     provision(&url).await;
-    let (client, connection) = tokio_postgres::connect(&url, tokio_postgres::NoTls).await.unwrap();
-    tokio::spawn(connection);
-    client
-        .batch_execute(&format!(
-            "CREATE TABLE {SCHEMA}.tb_plain (id uuid, data jsonb);
-             CREATE VIEW {SCHEMA}.v_plain AS SELECT id, data FROM {SCHEMA}.tb_plain;"
-        ))
-        .await
-        .unwrap();
 
     let on_tview = pagination_hints(&url, &paged_over(&format!("{SCHEMA}.v_book"))).await;
     assert!(!on_tview.is_empty(), "advice on the TVIEW");
     assert!(
-        on_tview.iter().all(|h| h.contains("HOT") && h.contains("structural column")),
+        on_tview.iter().all(|h| h.ends_with("(id);") && !h.contains("data")),
         "{on_tview:?}"
     );
-    let on_table = pagination_hints(&url, &paged_over(&format!("{SCHEMA}.v_plain"))).await;
-    assert!(!on_table.is_empty(), "advice on the table");
-    assert!(on_table.iter().all(|h| !h.contains("HOT")), "{on_table:?}");
 }

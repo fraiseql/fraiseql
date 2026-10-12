@@ -905,7 +905,7 @@ async fn a_rest_sort_follows_the_request_locale() {
         .collect();
     for ddl in [
         "DROP TABLE IF EXISTS v_locale_rest_word".to_string(),
-        "CREATE TABLE v_locale_rest_word (pk bigint, data jsonb)".to_string(),
+        "CREATE TABLE v_locale_rest_word (pk bigint, data jsonb, id text GENERATED ALWAYS AS (data->>'id') STORED)".to_string(),
         format!("INSERT INTO v_locale_rest_word VALUES {}", values.join(", ")),
     ] {
         adapter.execute_raw_query(&ddl).await.unwrap();
@@ -1018,7 +1018,7 @@ async fn localized_schema(url: &str) -> CompiledSchema {
     let adapter = PostgresAdapter::new(url).await.unwrap();
     for ddl in [
         "DROP TABLE IF EXISTS tv_locale_rest_product",
-        "CREATE TABLE tv_locale_rest_product (pk bigint, data jsonb)",
+        "CREATE TABLE tv_locale_rest_product (pk bigint, data jsonb, id text GENERATED ALWAYS AS (data->>'id') STORED)",
         "INSERT INTO tv_locale_rest_product VALUES \
          (1, '{\"id\": \"1\", \"name\": {\"fr-FR\": \"Pomme\", \"en-US\": \"Apple\"}}'), \
          (2, '{\"id\": \"2\", \"name\": {\"en-US\": \"Pear\"}}')",

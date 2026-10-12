@@ -435,7 +435,7 @@ impl TestQueryBuilder {
         q.pagination_order = self.pagination_order.or_else(|| {
             let paginates =
                 q.returns_list && !q.relay && (q.auto_params.has_limit || q.auto_params.has_offset);
-            paginates.then_some(PaginationOrder::JsonIdentity)
+            paginates.then_some(PaginationOrder::Identity)
         });
 
         q

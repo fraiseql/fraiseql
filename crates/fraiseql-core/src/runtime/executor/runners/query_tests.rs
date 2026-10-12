@@ -1722,7 +1722,8 @@ mod pagination_order {
         assert_eq!(captured.len(), 1, "{captured:?}");
         assert!(captured[0].identity, "the clause must be marked, or the renderer adds a second");
         assert_eq!(captured[0].field, "id");
-        assert_eq!(captured[0].native_column, None, "the JSONB identity reads no column");
+        // #1569: the derived identity is the `id` column, never the document's `data->>'id'`.
+        assert_eq!(captured[0].native_column.as_deref(), Some("id"));
         assert_eq!(captured[0].direction, crate::backend::OrderDirection::Asc);
     }
 

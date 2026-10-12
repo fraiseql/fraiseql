@@ -61,14 +61,14 @@ pub struct QueryAdvice {
 pub fn tie_break_key(query: &QueryDefinition) -> Option<String> {
     match query.pagination_order.as_ref()? {
         PaginationOrder::Column(column) => Some(column.clone()),
-        PaginationOrder::JsonIdentity => Some(format!("({} ->> 'id')", query.jsonb_column)),
+        PaginationOrder::Identity => Some("id".to_string()),
     }
 }
 
 /// Compare two index keys as Postgres renders them.
 ///
-/// `pg_get_indexdef` prints an expression key as `(data ->> 'id'::text)` while the
-/// compiled schema knows it as `data->>'id'`. Both reduce to the same token once
+/// `pg_get_indexdef` prints an expression key as `(data ->> 'region'::text)` while a
+/// compiled schema spells it `data->>'region'`. Both reduce to the same token once
 /// whitespace and the redundant `::text` cast are removed; matching on the raw
 /// strings would report every expression index as absent and advise creating one
 /// that already exists.
@@ -98,18 +98,6 @@ fn leads_with_pair(indexes: &[IndexInfo], first: &str, second: &str) -> bool {
     })
 }
 
-/// A key as it must appear inside `CREATE INDEX (...)`.
-///
-/// A bare column goes in as-is; an expression needs its own parentheses, which
-/// `tie_break_key` already supplies.
-fn as_ddl_key(key: &str) -> String {
-    if key.contains("->>") {
-        format!("({key})")
-    } else {
-        key.to_string()
-    }
-}
-
 /// What `query` is missing on `relation`, given that relation's indexes.
 ///
 /// Returns at most two findings: the tie-break being unindexed outright, and the
@@ -135,10 +123,7 @@ pub fn advise(query: &QueryDefinition, relation: &str, indexes: &[IndexInfo]) ->
             advice:   Advice::TieBreakUnindexed {
                 tie_break: tie_break.clone(),
             },
-            ddl:      vec![format!(
-                "CREATE INDEX ON {relation} ({});",
-                as_ddl_key(&tie_break)
-            )],
+            ddl:      vec![format!("CREATE INDEX ON {relation} ({});", tie_break)],
         });
     }
 
@@ -161,7 +146,7 @@ pub fn advise(query: &QueryDefinition, relation: &str, indexes: &[IndexInfo]) ->
         if !sort_keys.is_empty() {
             let ddl = sort_keys
                 .iter()
-                .map(|k| format!("CREATE INDEX ON {relation} ({k}, {});", as_ddl_key(&tie_break)))
+                .map(|k| format!("CREATE INDEX ON {relation} ({k}, {});", tie_break))
                 .collect();
             findings.push(QueryAdvice {
                 query: query.name.clone(),

@@ -68,6 +68,10 @@ use crate::common::server_harness::TestServer;
 const TABLE: &str = "tf_p18_page";
 const VIEW: &str = "v_p18_page";
 const ORDERED_VIEW: &str = "v_p18_ordered";
+/// A relation whose `id` is an integer column, where column order and text order differ
+/// (`9` < `10`, `"10"` < `"9"`): the shape that tells the identity's column from its text.
+const INT_TABLE: &str = "tf_p18_int";
+const INT_VIEW: &str = "v_p18_int";
 
 /// Rows in the fixture, and the walk that must return each exactly once.
 const ROWS: usize = 300;
@@ -103,6 +107,15 @@ async fn seed(adapter: &PostgresAdapter) {
         .collect();
 
     let stmts = vec![
+        format!("DROP VIEW IF EXISTS {INT_VIEW}"),
+        format!("DROP TABLE IF EXISTS {INT_TABLE}"),
+        format!("CREATE TABLE {INT_TABLE} (id int NOT NULL UNIQUE, data jsonb NOT NULL)"),
+        // Inserted in the same permutation, so heap order is neither id order nor text order.
+        format!(
+            "INSERT INTO {INT_TABLE} (id, data) SELECT n, jsonb_build_object('id', n) \
+             FROM (SELECT (i * 97) % {ROWS} + 1 AS n FROM generate_series(0, {ROWS} - 1) i) s"
+        ),
+        format!("CREATE VIEW {INT_VIEW} AS SELECT id, data FROM {INT_TABLE}"),
         format!("DROP VIEW IF EXISTS {ORDERED_VIEW}"),
         format!("DROP VIEW IF EXISTS {VIEW}"),
         format!("DROP TABLE IF EXISTS {TABLE}"),
@@ -163,7 +176,19 @@ fn build_schema() -> CompiledSchema {
         .build();
     view_identity.rest_path = Some("/viewidentity".to_string());
 
+    // The derived default over an integer `id` column.
+    let mut int_paged = TestQueryBuilder::new("intPagedDocs", "P18IntDoc")
+        .returns_list(true)
+        .with_sql_source(INT_VIEW)
+        .build();
+    int_paged.rest_path = Some("/intpaged".to_string());
+
     let mut schema = TestSchemaBuilder::new()
+        .with_type(
+            TestTypeBuilder::new("P18IntDoc", INT_VIEW)
+                .with_field(TestFieldBuilder::new("id", FieldType::Int).build())
+                .build(),
+        )
         .with_type(
             TestTypeBuilder::new("P18Doc", VIEW)
                 .with_field(TestFieldBuilder::new("id", FieldType::String).build())
@@ -175,6 +200,7 @@ fn build_schema() -> CompiledSchema {
         .with_query(pk_paged)
         .with_query(view_ordered)
         .with_query(view_identity)
+        .with_query(int_paged)
         .build();
 
     schema.rest_config = Some(RestConfig {
@@ -281,6 +307,30 @@ async fn an_unsorted_walk_returns_every_row_once_in_identity_order() {
         "the walk must be in identity order; insertion order starts {:?}",
         (0..5).map(identity_of).collect::<Vec<_>>()
     );
+}
+
+/// The derived identity orders by the relation's `id` **column** (#1569), never by the
+/// document's `id` as text: over integer ids the walk is `1, 2, …, 300`, where the text order
+/// would answer `1, 10, 100, 101, …`.
+#[tokio::test]
+async fn a_derived_identity_orders_pages_by_the_id_column_not_its_text() {
+    let Some(server) = start().await else {
+        eprintln!("skipping: DATABASE_URL not set");
+        return;
+    };
+
+    let mut walked = Vec::new();
+    for offset in (0..ROWS).step_by(PAGE) {
+        let (status, body) =
+            get(&server.url, "intpaged", &format!("?limit={PAGE}&offset={offset}")).await;
+        assert_eq!(status, reqwest::StatusCode::OK, "page at {offset}: {body}");
+        let parsed: Value = serde_json::from_str(&body).unwrap();
+        walked.extend(
+            parsed["data"].as_array().unwrap().iter().map(|row| row["id"].as_i64().unwrap()),
+        );
+    }
+    let expected: Vec<i64> = (1..=i64::try_from(ROWS).unwrap()).collect();
+    assert_eq!(walked, expected);
 }
 
 /// The same walk over a non-unique client sort — #1287's shape, now tie-broken by

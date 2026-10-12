@@ -86,7 +86,9 @@ async fn adapter() -> Option<PostgresAdapter> {
         .collect();
     for ddl in [
         format!("DROP TABLE IF EXISTS {VIEW}"),
-        format!("CREATE TABLE {VIEW} (pk_word bigint, data jsonb)"),
+        format!(
+            "CREATE TABLE {VIEW} (pk_word bigint, data jsonb, id text GENERATED ALWAYS AS (data->>'id') STORED)"
+        ),
         format!("INSERT INTO {VIEW} (pk_word, data) VALUES {}", values.join(", ")),
     ] {
         adapter.execute_raw_query(&ddl).await.unwrap();

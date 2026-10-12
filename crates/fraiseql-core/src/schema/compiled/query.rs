@@ -51,10 +51,10 @@ pub(super) fn is_default_cursor_type(ct: &CursorType) -> bool {
 /// the client chose — so the SQL layer may pick one unaided. A default ordering
 /// decides what "page 2" **means** when nobody said, which is the schema
 /// author's call, and choosing well needs the schema: measured against
-/// PostgreSQL 16 over 200 000 rows at a deep offset, `data->>'id'` costs 7.7×
-/// the unordered plan, a native `id` column 4.2×, and `pk_<type>` 1.7×. The
-/// only one of the three a request-time rule can reach without help is the
-/// worst.
+/// PostgreSQL 16 over 200 000 rows at a deep offset, a native `id` column costs
+/// 4.2× the unordered plan and `pk_<type>` 1.7×. The page identity is never the
+/// document's `data->>'id'` (#1569): no index applies to it, and its sort
+/// detoasts every row of the relation, 7.7× there and 10× end to end on 2.17.0.
 ///
 /// This is why the field is derived at compile time and sits beside
 /// [`relay_cursor_column`](QueryDefinition::relay_cursor_column): the other
@@ -69,16 +69,16 @@ pub(super) fn is_default_cursor_type(ct: &CursorType) -> bool {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum PaginationOrder {
-    /// `ORDER BY data->>'id' ASC` — the entity identity extracted from the JSONB
-    /// document as text.
+    /// `ORDER BY "id" ASC` — the entity identity, as the relation's native `id` column.
     ///
-    /// Correct for every type under ADR-0017, which is why it is the answer a
-    /// compile with no `--database` can always give: `id` is an enforced
-    /// invariant, and comparing it as text serves uuid, integer and text keys
-    /// alike without knowing which one a type declares. It is also the most
-    /// expensive of the three — no index applies — so a compile that *can*
-    /// introspect the relation replaces it with [`Column`](Self::Column).
-    JsonIdentity,
+    /// The ordering the compiler **derives** when the author declared none, and the
+    /// answer a compile with no `--database` can always give: under ADR-0017 every
+    /// read table and view carries `id` as a base column (Trinity: `id UUID NOT NULL
+    /// UNIQUE`). Kept apart from [`Column`](Self::Column) because it is derived, not
+    /// authored: a compile that introspects the relation replaces it with
+    /// `Column("pk_<type>")` when the relation has that cheaper column, and refuses a
+    /// relation with neither; an authored column is never replaced.
+    Identity,
     /// `ORDER BY <column> ASC` — a native column on the relation.
     ///
     /// Either declared by the author or discovered by introspection

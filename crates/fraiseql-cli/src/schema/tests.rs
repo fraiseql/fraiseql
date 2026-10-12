@@ -740,7 +740,7 @@ mod database_validator_tests {
             .with_json_samples("v_user", "data", vec![serde_json::json!({"name": "Alice"})]);
 
         let report = validate_schema_against_database(
-            &paginating_schema(Some(PaginationOrder::JsonIdentity)),
+            &paginating_schema(Some(PaginationOrder::Identity)),
             &introspector,
         )
         .await
@@ -752,38 +752,45 @@ mod database_validator_tests {
         );
     }
 
-    /// No `pk_user`, but a native `id`: still 4.2x against the extraction's 7.7x.
+    /// No `pk_user`, but the `id` column the derived identity reads (4.2x the unordered plan
+    /// at a deep offset, against `pk_user`'s 1.7x).
     #[tokio::test]
-    async fn a_relation_with_only_a_native_id_is_sharpened_to_it() {
+    async fn a_relation_with_only_an_id_column_keeps_the_identity() {
         let introspector = MockIntrospector::new(DatabaseType::PostgreSQL)
             .with_relation("public", "v_user", fraiseql_core::db::RelationKind::View)
             .with_columns("v_user", vec![("data", "jsonb", false), ("id", "uuid", false)])
             .with_json_samples("v_user", "data", vec![serde_json::json!({"name": "Alice"})]);
 
         let report = validate_schema_against_database(
-            &paginating_schema(Some(PaginationOrder::JsonIdentity)),
+            &paginating_schema(Some(PaginationOrder::Identity)),
             &introspector,
         )
         .await
         .unwrap();
 
-        assert_eq!(
-            report.pagination_orders.get("users"),
-            Some(&PaginationOrder::Column("id".into()))
+        // The derived identity already reads `id` (#1569): nothing to sharpen, nothing to say.
+        assert!(report.pagination_orders.is_empty(), "{:?}", report.pagination_orders);
+        assert!(
+            !report
+                .warnings
+                .iter()
+                .any(|w| matches!(w, DatabaseWarning::MissingIdentityColumn { .. })),
+            "{:?}",
+            report.warnings
         );
     }
 
-    /// Neither column: the offline answer stands, and the compile says why. The
-    /// JSONB extraction is *correct* — this is a cost report, not a defect report.
+    /// Neither column: the identity is never read out of the document (#1569), so the
+    /// compiled `ORDER BY` would fail at the first paged read. A drift error.
     #[tokio::test]
-    async fn a_relation_with_neither_keeps_the_json_identity_and_says_so() {
+    async fn a_relation_with_neither_identity_column_is_refused() {
         let introspector = MockIntrospector::new(DatabaseType::PostgreSQL)
             .with_relation("public", "v_user", fraiseql_core::db::RelationKind::View)
             .with_columns("v_user", vec![("data", "jsonb", false)])
             .with_json_samples("v_user", "data", vec![serde_json::json!({"name": "Alice"})]);
 
         let report = validate_schema_against_database(
-            &paginating_schema(Some(PaginationOrder::JsonIdentity)),
+            &paginating_schema(Some(PaginationOrder::Identity)),
             &introspector,
         )
         .await
@@ -793,9 +800,11 @@ mod database_validator_tests {
         let finding = report
             .warnings
             .iter()
-            .find(|w| matches!(w, DatabaseWarning::PaginationIdentityFallback { .. }))
-            .unwrap_or_else(|| panic!("expected a fallback finding, got {:?}", report.warnings));
-        assert_eq!(finding.severity(), Severity::Warn, "a correct ordering is not a drift error");
+            .find(|w| matches!(w, DatabaseWarning::MissingIdentityColumn { .. }))
+            .unwrap_or_else(|| {
+                panic!("expected a missing-identity finding, got {:?}", report.warnings)
+            });
+        assert_eq!(finding.severity(), Severity::Error, "an ORDER BY that cannot run is drift");
         assert!(finding.to_string().contains("pk_user"), "{finding}");
     }
 
@@ -891,7 +900,7 @@ mod database_validator_tests {
             .with_json_samples("v_user", "data", vec![serde_json::json!({"name": "Alice"})]);
 
         let report = validate_schema_against_database(
-            &paginating_schema(Some(PaginationOrder::JsonIdentity)),
+            &paginating_schema(Some(PaginationOrder::Identity)),
             &introspector,
         )
         .await
@@ -972,7 +981,7 @@ mod database_validator_tests {
             .with_json_samples("v_user", "data", vec![serde_json::json!({"name": "Alice"})]);
 
         let report = validate_schema_against_database(
-            &paginating_schema(Some(PaginationOrder::JsonIdentity)),
+            &paginating_schema(Some(PaginationOrder::Identity)),
             &introspector,
         )
         .await

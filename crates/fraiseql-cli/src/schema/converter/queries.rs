@@ -477,19 +477,18 @@ impl SchemaConverter {
 
     /// Resolve the order this query's `LIMIT`/`OFFSET` pages are cut in (#1303).
     ///
-    /// Offline — no database is required and none is consulted. A compile with
-    /// `--database` sharpens the derived answer afterwards (`pk_<type>`, then a
-    /// native `id` column, both cheaper than the JSONB extraction); a compile
-    /// without one still produces a **correct** answer, because `compile` takes
-    /// the database URL optionally and a derivation that needed introspection
-    /// would be a derivation that breaks offline compiles.
+    /// Offline — no database is required and none is consulted. The derived answer
+    /// is the relation's native `id` column ([`PaginationOrder::Identity`]), which
+    /// ADR-0017 makes a base column of every read table and view (#1569); a compile
+    /// with `--database` sharpens it afterwards to `pk_<type>` where the relation
+    /// has that cheaper column, and refuses a relation with neither.
     ///
     /// | authored | paginates | posture | result |
     /// |---|---|---|---|
     /// | `"none"` | yes | `identity`/`allow` | `None` — the author owns the order |
     /// | `"none"` | yes | `refuse` | a compile error |
     /// | a column | yes | any | [`PaginationOrder::Column`] |
-    /// | absent | yes | `identity`/`refuse` | [`PaginationOrder::JsonIdentity`] |
+    /// | absent | yes | `identity`/`refuse` | [`PaginationOrder::Identity`] |
     /// | absent | yes | `allow` | `None` — the pre-#1303 behaviour |
     /// | anything | no | any | `None`, or an error if the author declared one |
     ///
@@ -521,7 +520,7 @@ impl SchemaConverter {
             // differ only on whether the opt-out below is permitted.
             return Ok(match posture {
                 PaginationPosture::Identity | PaginationPosture::Refuse => {
-                    paginates.then_some(PaginationOrder::JsonIdentity)
+                    paginates.then_some(PaginationOrder::Identity)
                 },
                 PaginationPosture::Allow => None,
             });

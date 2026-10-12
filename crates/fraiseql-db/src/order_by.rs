@@ -49,6 +49,12 @@ pub enum Tiebreak {
     /// appends nothing. `data->>'id'` is what a read whose schema declared nothing
     /// falls back to. One identity per read, chosen where the schema is visible;
     /// this keeps the guarantee for callers that did not choose.
+    ///
+    /// The identity a compile *derives* is the native `id` column (#1569); this
+    /// fallback stays on the document because the reads that reach it declared
+    /// nothing about their relation, and some relations have no `id` column at all
+    /// (the shipped `core.v_entity_change_log` among them), where the extraction is
+    /// NULL and harmless and a column reference would fail the read.
     Identity,
     /// Render exactly the clauses given.
     ///

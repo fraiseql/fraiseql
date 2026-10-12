@@ -129,54 +129,47 @@ fn a_query_without_order_by_gets_no_composite_advice() {
     );
 }
 
-// ── The JSONB identity: an expression key, not a column ──────────────────────
+// ── The derived identity: the `id` column (#1569), never the document ─────────
 
-fn json_identity_query() -> QueryDefinition {
+fn identity_query() -> QueryDefinition {
     let mut q = invoices();
-    q.pagination_order = Some(PaginationOrder::JsonIdentity);
+    q.pagination_order = Some(PaginationOrder::Identity);
     q
 }
 
 #[test]
-fn the_json_identity_tie_break_is_rendered_as_an_expression() {
-    assert_eq!(tie_break_key(&json_identity_query()), Some("(data ->> 'id')".to_string()));
+fn the_derived_identity_is_the_id_column() {
+    assert_eq!(tie_break_key(&identity_query()), Some("id".to_string()));
 }
 
-/// `pg_get_indexdef` prints the key as `(data ->> 'id'::text)` while the schema
-/// knows it as `data->>'id'`. Matching the raw strings would report every
-/// expression index as absent and advise creating one that already exists.
 #[test]
-fn an_existing_expression_index_is_recognised_across_postgres_rendering() {
-    let indexes = [index("ix_expr", &["(data ->> 'id'::text)"])];
-    let found = advise(&json_identity_query(), "tb_invoice", &indexes);
+fn an_index_on_the_id_column_serves_the_derived_identity() {
+    let found = advise(&identity_query(), "tb_invoice", &[index("ix_id", &["id"])]);
     assert!(
         !found.iter().any(|a| matches!(a.advice, Advice::TieBreakUnindexed { .. })),
-        "the expression index already orders by the identity: {found:?}"
+        "the id index already orders by the identity: {found:?}"
     );
 }
 
 #[test]
-fn a_missing_expression_index_is_advised_with_parenthesised_ddl() {
-    let found = advise(&json_identity_query(), "tb_invoice", &[]);
+fn a_missing_id_index_is_advised() {
+    let found = advise(&identity_query(), "tb_invoice", &[]);
     let first = found.first().expect("advice");
-    assert_eq!(first.ddl, vec!["CREATE INDEX ON tb_invoice (((data ->> 'id')));"]);
+    assert_eq!(first.ddl, vec!["CREATE INDEX ON tb_invoice (id);"]);
 }
 
 #[test]
-fn a_composite_over_the_json_identity_names_the_expression_second() {
+fn a_composite_over_the_identity_names_the_id_column_second() {
     let found = advise(
-        &json_identity_query(),
+        &identity_query(),
         "tb_invoice",
-        &[
-            index("ix_id", &["(data ->> 'id'::text)"]),
-            index("ix_status", &["status"]),
-        ],
+        &[index("ix_id", &["id"]), index("ix_status", &["status"])],
     );
     let composite = found
         .iter()
         .find(|a| matches!(a.advice, Advice::MissingComposite { .. }))
         .expect("advice");
-    assert_eq!(composite.ddl, vec!["CREATE INDEX ON tb_invoice (status, ((data ->> 'id')));"]);
+    assert_eq!(composite.ddl, vec!["CREATE INDEX ON tb_invoice (status, id);"]);
 }
 
 /// `native_columns` is a `HashMap`, so an unsorted report would differ between

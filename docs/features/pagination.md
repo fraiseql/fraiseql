@@ -29,10 +29,16 @@ A list query whose `auto_params` enable `limit` or `offset` is ordered by the
 **entity identity** — `id`, the invariant every FraiseQL type carries
 ([ADR-0017](../adr/0017-entity-identity-contract.md)).
 
-* Compiled **without** `--database`, the order is `data->>'id'` — correct for every
-  type, and the most expensive of the available spellings.
-* Compiled **with** `--database`, the compiler introspects the relation and uses a
-  native column instead: `pk_<type>` when the relation exposes it, else `id`.
+* Compiled **without** `--database`, the order is the relation's `id` column, which
+  ADR-0017 makes a base column of every read table and view.
+* Compiled **with** `--database`, the compiler introspects the relation and uses
+  `pk_<type>` when the relation exposes it, else `id`. A relation exposing neither
+  fails the compile: its pages could not be ordered.
+
+The identity is never read out of the document (`data->>'id'`): no index serves it,
+and sorting by it detoasts every row of the relation, whatever the page. On 2.17.0 it
+measured 10× slower than `pk_<type>` on a lean offset page end to end, and fat pages
+timed out under load.
 
 The cost is worth stating plainly. Measured against PostgreSQL 16, 200 000 rows,
 a deep-offset page, relative to the same read with no ordering at all:
@@ -40,13 +46,10 @@ a deep-offset page, relative to the same read with no ordering at all:
 | ordering | planner cost | plan | vs unordered |
 |---|---|---|---|
 | none | 4 079 | Seq Scan | — |
-| `data->>'id'` | 31 241 | parallel sort | **7.7×** |
 | native `id` | 16 959 | Index Scan | **4.2×** |
 | `pk_<type>` | 6 780 | Index Scan | **1.7×** |
 
-That 4.6× spread between the three is why the decision is made where the schema
-is visible: the only column a request-time rule can reach unaided is the worst
-one. Compiling with `--database` is what turns 7.7× into 1.7×.
+Compiling with `--database` is what turns 4.2× into 1.7×.
 
 A client's own `sort` is never replaced. The identity is *appended*, so it breaks
 only the ties the client's keys left — which is also what makes a non-unique sort

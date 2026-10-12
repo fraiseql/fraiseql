@@ -125,7 +125,9 @@ async fn executor() -> Option<Executor> {
         ROWS.iter().map(|(pk, data)| format!("({pk}, '{data}'::jsonb)")).collect();
     for ddl in [
         format!("DROP TABLE IF EXISTS {TABLE}"),
-        format!("CREATE TABLE {TABLE} (pk bigint, data jsonb)"),
+        format!(
+            "CREATE TABLE {TABLE} (pk bigint, data jsonb, id text GENERATED ALWAYS AS (data->>'id') STORED)"
+        ),
         format!("INSERT INTO {TABLE} VALUES {}", values.join(", ")),
     ] {
         adapter.execute_raw_query(&ddl).await.unwrap();

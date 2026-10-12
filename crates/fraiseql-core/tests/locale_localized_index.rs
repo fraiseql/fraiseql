@@ -121,7 +121,9 @@ async fn seeded() -> Option<(PostgresAdapter, CompiledSchema)> {
     let adapter = PostgresAdapter::new(pg.url()).await.unwrap();
     for ddl in [
         format!("DROP TABLE IF EXISTS {TABLE}"),
-        format!("CREATE TABLE {TABLE} (pk bigint, data jsonb)"),
+        format!(
+            "CREATE TABLE {TABLE} (pk bigint, data jsonb, id text GENERATED ALWAYS AS (data->>'id') STORED)"
+        ),
         format!(
             "INSERT INTO {TABLE} SELECT i, jsonb_build_object('id', i::text, 'name', \
              jsonb_build_object('fr-FR', 'Nom ' || i, 'en-US', 'Name ' || i, 'sv-SE', 'Namn ' \

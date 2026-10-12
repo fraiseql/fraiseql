@@ -23,6 +23,18 @@ disagreed, and the promise was the part that was wrong.
   needed for reads as well as mutations; without it a read fails with `prepared statement "s…"
   does not exist`. `pool_mode = session` (PgBouncer's default) and direct connections are
   unaffected.
+- **Offset pages are ordered by the `id` column, never by `data->>'id'` (#1569).** The identity a
+  compile derives for a paged query without an authored `pagination_order` is the relation's
+  native `id` column (`"identity"` in the compiled schema, replacing `"json_identity"`;
+  recompile), sharpened to `pk_<type>` by `compile --database` as before, and it is also what
+  breaks ties behind a client `orderBy`. Pages without an `orderBy` now come in the `id` column's
+  order: unchanged for
+  `uuid` ids, whose text sorts like their bytes; for integer ids `9` now comes before `10`. A
+  relation exposing neither `pk_<type>` nor `id` (ADR-0017 requires `id`) fails
+  `compile --database` instead of compiling with a warning. The offline compile no longer warns
+  about the ordering it derives. Embedders: `PaginationOrder::JsonIdentity` is now
+  `PaginationOrder::Identity`, and the CLI's `DatabaseWarning::PaginationIdentityFallback` is
+  `DatabaseWarning::MissingIdentityColumn` (error severity).
 
 ### Changed
 

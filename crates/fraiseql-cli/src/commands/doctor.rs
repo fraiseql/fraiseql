@@ -1072,11 +1072,6 @@ pub async fn semi_additive_index_checks(
 
 const PAGINATION_INDEX_NAME: &str = "Pagination index";
 
-/// What an index on a TVIEW's `data` costs (#1392), appended to advice that proposes one.
-const TVIEW_DATA_INDEX_COST: &str = " (a TVIEW: every refresh rewrites `data`, so an index on \
-     it disables HOT updates for the table; promote the key to a structural column of the \
-     TVIEW and index that instead)";
-
 /// Report the indexes that would remove a sort from every paginated read.
 ///
 /// Since #1287 a client sort over a non-unique key is tie-broken by the entity
@@ -1177,12 +1172,6 @@ async fn pagination_index_checks(
         };
 
         examined += 1;
-        // #1392: on a TVIEW every refresh rewrites `data`, so an index on it costs every
-        // write its HOT update. Recognised through the view, from pg_tviews' catalog.
-        let tview_backed = introspector
-            .tview_profiles(&[view.to_string()])
-            .await
-            .is_ok_and(|profiles| !profiles.is_empty());
         for found in advise(query, base, &indexes) {
             let detail = match &found.advice {
                 Advice::TieBreakUnindexed { tie_break } => format!(
@@ -1198,11 +1187,10 @@ async fn pagination_index_checks(
                     sort_keys.join(", ")
                 ),
             };
-            let mut remedy = found.ddl.join(" ");
-            if tview_backed && found.ddl.iter().any(|ddl| ddl.contains("data")) {
-                remedy.push_str(TVIEW_DATA_INDEX_COST);
-            }
-            checks.push(DoctorCheck::warn(PAGINATION_INDEX_NAME, detail, remedy));
+            // Every key advised here is a column (the identity is `pk_<type>` or `id`, a sort
+            // key a native column, #1569), never `data`: the TVIEW HOT-update cost of an index
+            // on `data` (#1392) cannot arise from it.
+            checks.push(DoctorCheck::warn(PAGINATION_INDEX_NAME, detail, found.ddl.join(" ")));
         }
     }
 

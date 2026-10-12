@@ -589,23 +589,6 @@ pub async fn compile_to_schema(
                     query.sql_source.as_deref().unwrap_or("?"),
                 );
             }
-
-            // #1303: the same trade, for the page ordering. The offline answer is
-            // correct — `data->>'id'` orders every type under ADR-0017 — and it is
-            // the most expensive of the three, which is exactly the shape of every
-            // other `--database` sharpening in this pipeline.
-            if query.pagination_order == Some(fraiseql_core::schema::PaginationOrder::JsonIdentity)
-            {
-                warn!(
-                    "query `{}`: offset pages will be ordered by `data->>'id'` — no --database \
-                     URL provided, so a cheaper unique column on `{}` could not be found. \
-                     Provide --database to use `pk_{}` or a native `id` column instead, or \
-                     declare pagination_order.",
-                    query.name,
-                    query.sql_source.as_deref().unwrap_or("?"),
-                    fraiseql_core::utils::to_snake_case(&query.return_type),
-                );
-            }
         }
     }
 
