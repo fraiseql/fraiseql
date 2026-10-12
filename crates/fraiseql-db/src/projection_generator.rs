@@ -10,7 +10,8 @@
 //!
 //! # Supported Databases
 //!
-//! - PostgreSQL: Uses `jsonb_build_object()` for efficient field selection
+//! - PostgreSQL: builds the selected fields as SQL/JSON `JSON_OBJECT(… RETURNING json)`, keys in
+//!   selection order
 //! - MySQL, SQLite, SQL Server: Multi-database support
 //!
 //! # Example
@@ -22,7 +23,7 @@
 //! let generator = PostgresProjectionGenerator::new();
 //! let fields = vec!["id".to_string(), "name".to_string(), "email".to_string()];
 //! let sql = generator.generate_projection_sql(&fields)?;
-//! assert!(sql.contains("jsonb_build_object"));
+//! assert!(sql.starts_with("JSON_OBJECT("));
 //! # Ok(())
 //! # }
 //! ```
@@ -51,21 +52,58 @@ pub enum FieldKind {
 /// SQLSTATE 54023), and each pair is two (#1544).
 const MAX_PAIRS_PER_CALL: usize = 50;
 
-/// A JSONB object built from `pairs` (each `'key', <expr>`), however many there are.
-///
-/// One `jsonb_build_object` call up to [`MAX_PAIRS_PER_CALL`]; past it, one call per chunk,
-/// concatenated with `||`. The keys are distinct, so the concatenation is the object a single
-/// call would have built (verified on PostgreSQL 18). Every site that builds an object from
-/// a variable number of pairs goes through here: a selection of 51 fields used to fail.
-pub(crate) fn jsonb_object_sql(pairs: &[String]) -> String {
-    if pairs.len() <= MAX_PAIRS_PER_CALL {
-        return format!("jsonb_build_object({})", pairs.join(","));
+/// One key/value pair of an object a SQL projection builds: the key as a complete SQL string
+/// literal (`'name'`, already escaped) and the value expression.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct ObjectPair {
+    key:   String,
+    value: String,
+}
+
+impl ObjectPair {
+    /// A pair whose key is `key_literal`, a complete, escaped SQL string literal.
+    pub(crate) fn new(key_literal: impl Into<String>, value: impl Into<String>) -> Self {
+        Self {
+            key:   key_literal.into(),
+            value: value.into(),
+        }
     }
-    let calls: Vec<String> = pairs
-        .chunks(MAX_PAIRS_PER_CALL)
-        .map(|chunk| format!("jsonb_build_object({})", chunk.join(",")))
-        .collect();
+}
+
+/// A JSONB object built from `pairs`, however many there are.
+///
+/// For an object that `jsonb` operators read afterwards (`||`, `jsonb_each`): jsonb stores
+/// keys shortest first, so this is never the object a response serializes in selection order
+/// — that is [`json_object_sql`]. One `jsonb_build_object` call up to [`MAX_PAIRS_PER_CALL`];
+/// past it, one call per chunk, concatenated with `||`. The keys are distinct, so the
+/// concatenation is the object a single call would have built (verified on PostgreSQL 18):
+/// a selection of 51 fields used to fail (#1544).
+pub(crate) fn jsonb_object_sql(pairs: &[ObjectPair]) -> String {
+    let render = |chunk: &[ObjectPair]| {
+        let args: Vec<String> = chunk.iter().map(|p| format!("{}, {}", p.key, p.value)).collect();
+        format!("jsonb_build_object({})", args.join(","))
+    };
+    if pairs.len() <= MAX_PAIRS_PER_CALL {
+        return render(pairs);
+    }
+    let calls: Vec<String> = pairs.chunks(MAX_PAIRS_PER_CALL).map(render).collect();
     format!("({})", calls.join(" || "))
+}
+
+/// A `json` object built from `pairs`, its keys in the order given (#1563).
+///
+/// The object a response is serialized from: GraphQL answers fields in selection order
+/// (§ 6.3), and `json` keeps the order it is built in where `jsonb` sorts it. SQL/JSON
+/// `JSON_OBJECT` is a grammar construct, not a function call, so it is not bound by the 100
+/// arguments `FUNC_MAX_ARGS` allows a `json_build_object` call: verified on PostgreSQL 18 with
+/// 1,000 pairs. It renders values as `json_build_object` does (`NULL`, booleans, numerics such
+/// as `1.50` and 20-digit decimals, escapes; `NULL ON NULL` is its default).
+pub(crate) fn json_object_sql(pairs: &[ObjectPair]) -> String {
+    if pairs.is_empty() {
+        return "JSON_OBJECT(RETURNING json)".to_string();
+    }
+    let args: Vec<String> = pairs.iter().map(|p| format!("{} VALUE {}", p.key, p.value)).collect();
+    format!("JSON_OBJECT({} RETURNING json)", args.join(", "))
 }
 
 /// A SQL expression a projection may emit verbatim, in place of reading a key
@@ -102,13 +140,13 @@ impl ComputedExpr {
 /// native scalars, `->>` (text) for text scalars (String, ID).
 ///
 /// When `sub_fields` is populated on a composite field, `generate_typed_projection_sql`
-/// will recurse and emit a nested `jsonb_build_object(...)` instead of returning the full
+/// will recurse and emit a nested `JSON_OBJECT(...)` instead of returning the full
 /// composite blob.  Leave `sub_fields` as `None` to get the existing `data->'field'`
 /// behaviour (full blob, no sub-selection).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProjectionField {
     /// Output (response) key — the GraphQL alias if present, otherwise the field
-    /// name. Used verbatim as the key in the generated `jsonb_build_object`.
+    /// name. Used verbatim as the key in the generated object.
     pub name: String,
 
     /// Source GraphQL field name (camelCase) used to derive the JSONB column via
@@ -124,7 +162,7 @@ pub struct ProjectionField {
     /// Sub-fields to project for composite (Object) types.
     ///
     /// When `Some` and non-empty, the generator recurses and produces a nested
-    /// `jsonb_build_object` instead of returning the entire composite blob.
+    /// `JSON_OBJECT` instead of returning the entire composite blob.
     /// Set to `None` (or `Some([])`) to fall back to `data->'field'`.
     /// List fields should always use `None` — sub-projection inside aggregated
     /// JSONB arrays is out of scope for this first iteration.
@@ -165,7 +203,7 @@ impl ProjectionField {
     ///
     /// Use for Int, Float, Boolean, DateTime, Date, Time, Decimal, Vector, and
     /// other non-text scalars. `->>` would coerce these to strings inside
-    /// `jsonb_build_object`, losing type information.
+    /// the built object, losing type information.
     #[must_use]
     pub fn native(name: impl Into<String>) -> Self {
         let name = name.into();
@@ -196,7 +234,7 @@ impl ProjectionField {
     /// Create a composite projection field with known sub-fields.
     ///
     /// The generator will recurse into `sub_fields` and emit a nested
-    /// `jsonb_build_object(...)` rather than returning the full composite blob.
+    /// `JSON_OBJECT(...)` rather than returning the full composite blob.
     #[must_use]
     pub fn composite_with_sub_fields(name: impl Into<String>, sub_fields: Vec<Self>) -> Self {
         let name = name.into();
@@ -460,7 +498,7 @@ pub fn localized_translations_expr(
     if tags.is_empty() {
         return Ok("'[]'::jsonb".to_string());
     }
-    let pairs: Vec<String> = keys
+    let pairs: Vec<ObjectPair> = keys
         .iter()
         .map(|(key, part)| {
             let value = match part {
@@ -468,19 +506,19 @@ pub fn localized_translations_expr(
                 TranslationPart::Value => format!("{field_path}->>fraiseql_l.tag"),
                 TranslationPart::Typename => "'LocalizedString'".to_string(),
             };
-            format!("'{}', {value}", key.replace('\'', "''"))
+            ObjectPair::new(format!("'{}'", key.replace('\'', "''")), value)
         })
         .collect();
     Ok(format!(
-        "COALESCE((SELECT jsonb_agg(jsonb_build_object({}) ORDER BY fraiseql_l.ord) FROM \
+        "COALESCE((SELECT jsonb_agg({} ORDER BY fraiseql_l.ord) FROM \
          unnest(ARRAY[{}]::text[]) WITH ORDINALITY AS fraiseql_l(tag, ord) WHERE \
          jsonb_typeof({field_path}->fraiseql_l.tag) = 'string'), '[]'::jsonb)",
-        pairs.join(", "),
+        jsonb_object_sql(&pairs),
         tags.join(", ")
     ))
 }
 
-/// PostgreSQL SQL projection generator using jsonb_build_object.
+/// PostgreSQL SQL projection generator, building `json` objects in selection order.
 ///
 /// Generates efficient PostgreSQL SQL that projects only requested JSONB fields,
 /// reducing payload size and JSON deserialization time.
@@ -512,7 +550,7 @@ impl PostgresProjectionGenerator {
 
     /// Generate PostgreSQL projection SQL for specified fields.
     ///
-    /// Generates a `jsonb_build_object()` call that selects only the requested fields
+    /// Generates a `JSON_OBJECT(…)` that selects only the requested fields
     /// from the JSONB column, drastically reducing payload size.
     ///
     /// # Arguments
@@ -522,7 +560,7 @@ impl PostgresProjectionGenerator {
     /// # Returns
     ///
     /// SQL fragment that can be used in a SELECT clause, e.g.:
-    /// `jsonb_build_object('id', data->>'id', 'email', data->>'email')`
+    /// `JSON_OBJECT('id' VALUE data->>'id', 'email' VALUE data->>'email' RETURNING json)`
     ///
     /// # Example
     ///
@@ -534,8 +572,8 @@ impl PostgresProjectionGenerator {
     /// let fields = vec!["id".to_string(), "email".to_string()];
     /// let sql = generator.generate_projection_sql(&fields)?;
     /// // Returns:
-    /// // jsonb_build_object('id', data->>'id', 'email', data->>'email')
-    /// assert!(sql.contains("jsonb_build_object"));
+    /// // JSON_OBJECT('id' VALUE "data"->>'id', 'email' VALUE "data"->>'email' RETURNING json)
+    /// assert!(sql.starts_with("JSON_OBJECT("));
     /// # Ok(())
     /// # }
     /// ```
@@ -555,8 +593,8 @@ impl PostgresProjectionGenerator {
             validate_field_name(field)?;
         }
 
-        // Build the jsonb_build_object() call with all requested fields
-        let field_pairs: Vec<String> = fields
+        // One pair per requested field
+        let field_pairs: Vec<ObjectPair> = fields
             .iter()
             .map(|field| {
                 // Response key uses the GraphQL field name (camelCase).
@@ -565,12 +603,15 @@ impl PostgresProjectionGenerator {
                 // JSONB key uses the original schema field name (snake_case).
                 let jsonb_key = to_snake_case(field);
                 let safe_jsonb_key = Self::escape_sql_string(&jsonb_key);
-                format!("'{}', \"{}\"->>'{}' ", safe_field, self.jsonb_column, safe_jsonb_key)
+                ObjectPair::new(
+                    format!("'{safe_field}'"),
+                    format!("\"{}\"->>'{}'", self.jsonb_column, safe_jsonb_key),
+                )
             })
             .collect();
 
-        // Format: jsonb_build_object('field1', data->>'field1', 'field2', data->>'field2', ...)
-        Ok(jsonb_object_sql(&field_pairs))
+        // In selection order (#1563).
+        Ok(json_object_sql(&field_pairs))
     }
 
     /// Generate type-aware PostgreSQL projection SQL.
@@ -580,14 +621,13 @@ impl PostgresProjectionGenerator {
     /// text→JSON round-trip that occurs when `->>` is used for nested objects.
     ///
     /// When a composite field carries `sub_fields`, the generator recurses and
-    /// emits a nested `jsonb_build_object(...)` that selects only the requested
+    /// emits a nested `JSON_OBJECT(...)` that selects only the requested
     /// sub-fields rather than returning the entire blob, at every depth. `sub_fields` of
-    /// `Some(vec![])` selects nothing of the object and renders `jsonb_build_object()`.
+    /// `Some(vec![])` selects nothing of the object and renders an empty object.
     /// There is no depth cap: the fields follow a selection, which the caller bounds
     /// (`max_query_depth`), and a cap that fell back to `data->'field'` served every
-    /// stored key of the object below it. PostgreSQL 16's parser refuses a nest of 2 044
-    /// `jsonb_build_object` levels (`memory exhausted`), two orders of magnitude above
-    /// any bound a caller sets.
+    /// stored key of the object below it. PostgreSQL 18 parses 2 000 nested `JSON_OBJECT`
+    /// levels, two orders of magnitude above any bound a caller sets.
     ///
     /// # Arguments
     ///
@@ -614,7 +654,8 @@ impl PostgresProjectionGenerator {
             .map(|field| Self::render_field(field, &path))
             .collect::<Result<Vec<_>>>()?;
 
-        Ok(jsonb_object_sql(&field_pairs))
+        // In selection order (#1563).
+        Ok(json_object_sql(&field_pairs))
     }
 
     /// Project the whole JSONB column **plus** a set of computed fields (#959).
@@ -642,13 +683,13 @@ impl PostgresProjectionGenerator {
         Ok(format!("{path} || {}", jsonb_object_sql(&pairs)))
     }
 
-    /// Recursively render one projection field as a `'key', <expr>` pair for
-    /// `jsonb_build_object`.
+    /// Recursively render one projection field as a key/value pair of the object its parent
+    /// builds.
     ///
     /// * `field` — field to render
     /// * `path`  — JSONB path prefix built so far (e.g. `"data"` at depth 0, `"data"->'author'` at
     ///   depth 1)
-    fn render_field(field: &ProjectionField, path: &str) -> Result<String> {
+    fn render_field(field: &ProjectionField, path: &str) -> Result<ObjectPair> {
         // Output key is the (possibly aliased) response key; the JSONB column is
         // derived from the *source* field name. For unaliased fields these are
         // the same, but an aliased field (`myName: fullName`) must read
@@ -657,7 +698,7 @@ impl PostgresProjectionGenerator {
         // A computed field has no stored key: the expression is the value, at
         // whatever depth the field appears (#959).
         if let Some(expr) = &field.computed {
-            return Ok(format!("'{}', ({})", resp_key, expr.as_sql()));
+            return Ok(ObjectPair::new(format!("'{resp_key}'"), format!("({})", expr.as_sql())));
         }
         let jsonb_key = to_snake_case(&field.source);
         let safe_jsonb_key = Self::escape_sql_string(&jsonb_key);
@@ -672,7 +713,7 @@ impl PostgresProjectionGenerator {
                     localized_translations_expr(&field_path, allowed, keys)?
                 },
             };
-            return Ok(format!("'{resp_key}', {expr}"));
+            return Ok(ObjectPair::new(format!("'{resp_key}'"), expr));
         }
 
         // An object's sub-fields, at any depth — never the stored object in their place.
@@ -688,11 +729,13 @@ impl PostgresProjectionGenerator {
                 .iter()
                 .map(|sf| Self::render_field(sf, &nested_path))
                 .collect::<Result<Vec<_>>>()?;
-            return Ok(format!(
-                "'{}', CASE WHEN jsonb_typeof({}) = 'object' THEN {} END",
-                resp_key,
-                nested_path,
-                jsonb_object_sql(&inner)
+            // In selection order at every depth (#1563).
+            return Ok(ObjectPair::new(
+                format!("'{resp_key}'"),
+                format!(
+                    "CASE WHEN jsonb_typeof({nested_path}) = 'object' THEN {} END",
+                    json_object_sql(&inner)
+                ),
             ));
         }
 
@@ -703,7 +746,10 @@ impl PostgresProjectionGenerator {
         } else {
             "->"
         };
-        Ok(format!("'{}', {}{}'{}'", resp_key, path, op, safe_jsonb_key))
+        Ok(ObjectPair::new(
+            format!("'{resp_key}'"),
+            format!("{path}{op}'{safe_jsonb_key}'"),
+        ))
     }
 
     /// Generate complete SELECT clause with projection for a table.
@@ -715,7 +761,7 @@ impl PostgresProjectionGenerator {
     ///
     /// # Returns
     ///
-    /// Complete SELECT clause, e.g.: `SELECT jsonb_build_object(...) as data`
+    /// Complete SELECT clause, e.g.: `SELECT JSON_OBJECT(...) as data`
     ///
     /// # Example
     ///
@@ -743,7 +789,7 @@ impl PostgresProjectionGenerator {
     ///
     /// Doubles any embedded single-quote (`'` → `''`) to prevent SQL injection
     /// when the field name is embedded as a string literal key, e.g. in
-    /// `jsonb_build_object('key', ...)` or `data->>'key'`.
+    /// `JSON_OBJECT('key' VALUE ...)` or `data->>'key'`.
     fn escape_sql_string(s: &str) -> String {
         s.replace('\'', "''")
     }

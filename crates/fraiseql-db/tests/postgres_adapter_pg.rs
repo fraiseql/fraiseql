@@ -3047,3 +3047,109 @@ async fn each_returned_row_is_detoasted_once() {
         );
     }
 }
+
+// ========================================================================
+// Objects built as `json`, in selection order (#1563)
+// ========================================================================
+
+/// A projection built as `json` (`JSON_OBJECT`) carries the same values as the `jsonb` one it
+/// replaced: only key order may differ, so the two are compared as parsed values.
+#[tokio::test]
+async fn a_projection_built_as_json_carries_the_values_the_jsonb_one_did() {
+    use fraiseql_db::projection_generator::{PostgresProjectionGenerator, ProjectionField};
+    let adapter = PostgresAdapter::with_pool_size(&test_db_url(), 1)
+        .await
+        .expect("one-connection adapter");
+    let client = adapter.pool().get().await.unwrap();
+    client
+        .batch_execute(
+            r#"CREATE TEMP TABLE json_values (n int, data jsonb);
+               INSERT INTO json_values VALUES
+                 (1, '{"s": "q\"\\\n é", "nul": null, "b": true, "d": 1.50, "e": 1e3,
+                       "big": 12345678901234567890.123, "i": 7, "arr": [1, "x", null],
+                       "obj": {"zed": 1, "ab": {"k": [true]}}}'),
+                 (2, '{}'),
+                 (3, '{"obj": null, "s": ""}');"#,
+        )
+        .await
+        .unwrap();
+    let fields = vec![
+        ProjectionField::scalar("s"),
+        ProjectionField::native("nul"),
+        ProjectionField::native("b"),
+        ProjectionField::native("d"),
+        ProjectionField::native("e"),
+        ProjectionField::native("big"),
+        ProjectionField::native("i"),
+        ProjectionField::composite("arr"),
+        ProjectionField::composite_with_sub_fields(
+            "obj",
+            vec![
+                ProjectionField::native("zed"),
+                ProjectionField::composite("ab"),
+            ],
+        ),
+    ];
+    let built = PostgresProjectionGenerator::new()
+        .generate_typed_projection_sql(&fields)
+        .unwrap();
+    let reference = "jsonb_build_object('s', \"data\"->>'s', 'nul', \"data\"->'nul', \
+                     'b', \"data\"->'b', 'd', \"data\"->'d', 'e', \"data\"->'e', \
+                     'big', \"data\"->'big', 'i', \"data\"->'i', 'arr', \"data\"->'arr', \
+                     'obj', CASE WHEN jsonb_typeof(\"data\"->'obj') = 'object' THEN \
+                     jsonb_build_object('zed', \"data\"->'obj'->'zed', 'ab', \"data\"->'obj'->'ab') END)";
+    let rows = |sql: String| {
+        let client = &client;
+        async move {
+            client
+                .query(&sql, &[])
+                .await
+                .unwrap()
+                .iter()
+                .map(|r| r.get::<_, serde_json::Value>(0))
+                .collect::<Vec<_>>()
+        }
+    };
+    let as_json = rows(format!("SELECT {built} FROM json_values ORDER BY n")).await;
+    let as_jsonb = rows(format!("SELECT {reference} FROM json_values ORDER BY n")).await;
+    assert_eq!(as_json.len(), 3);
+    assert_eq!(as_json, as_jsonb, "{built}");
+}
+
+/// A page counted against its bound (#1314) keeps the document in the order its projection
+/// built it, at every depth: the count is appended without a jsonb `||`, which would sort the
+/// keys (#1563).
+#[tokio::test]
+async fn a_counted_page_keeps_its_documents_key_order() {
+    use fraiseql_db::traits::{MATCHED_KEY, ProjectionRequest};
+    let adapter = page_first_fixture().await;
+    // `zz` before `a`, `yy` before `b`: the reverse of jsonb's order at both depths.
+    let hint = fraiseql_db::types::SqlProjectionHint::new(
+        DatabaseType::PostgreSQL,
+        "JSON_OBJECT('zz' VALUE \"data\"->'id', 'a' VALUE JSON_OBJECT('yy' VALUE 1, 'b' VALUE 2 \
+         RETURNING json) RETURNING json)"
+            .to_string(),
+        0,
+    );
+    let order = [identity_order()];
+    let rows = adapter
+        .execute_with_projection_arc_with_session(
+            &ProjectionRequest {
+                view:          "pf_doc",
+                projection:    Some(&hint),
+                where_clause:  None,
+                order_by:      Some(&order),
+                limit:         Some(3),
+                offset:        None,
+                matched_up_to: Some(100),
+            },
+            &[],
+            ReadRouting::Any,
+        )
+        .await
+        .unwrap();
+    let first = rows[0].as_value().as_object().unwrap();
+    assert_eq!(first.keys().collect::<Vec<_>>(), ["zz", "a", MATCHED_KEY]);
+    assert_eq!(first["a"].as_object().unwrap().keys().collect::<Vec<_>>(), ["yy", "b"]);
+    assert_eq!(first[MATCHED_KEY], json!(30));
+}

@@ -453,17 +453,17 @@ mod query_optimization_tests {
     // ============================================================================
     // Tests PostgreSQL projection SQL generation features.
     // Why this matters: PostgreSQL is primary database with most features.
-    // Target: Correct jsonb_build_object SQL generation.
+    // Target: Correct JSON_OBJECT SQL generation, keys in selection order (#1563).
 
     #[test]
     fn test_postgres_projection_sql_structure() {
-        // Verify PostgreSQL projection generates correct jsonb_build_object syntax
+        // Verify PostgreSQL projection generates correct JSON_OBJECT syntax
         let generator = PostgresProjectionGenerator::new();
         let fields = vec!["id".to_string(), "name".to_string()];
 
         let sql = generator.generate_projection_sql(&fields).expect("Should generate SQL");
 
-        assert!(sql.contains("jsonb_build_object("), "Should use jsonb_build_object");
+        assert!(sql.starts_with("JSON_OBJECT("), "Should use JSON_OBJECT");
         assert!(sql.contains("'id'"), "Should include id field");
         assert!(sql.contains("'name'"), "Should include name field");
         assert!(sql.contains("\"data\""), "Should reference data column");
@@ -480,8 +480,8 @@ mod query_optimization_tests {
             .expect("Should generate SELECT");
 
         assert!(
-            select.starts_with("SELECT jsonb_build_object("),
-            "Should start with SELECT jsonb_build_object"
+            select.starts_with("SELECT JSON_OBJECT("),
+            "Should start with SELECT JSON_OBJECT"
         );
         assert!(select.contains("FROM"), "Should include FROM clause");
         assert!(

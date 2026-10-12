@@ -8,7 +8,7 @@ fn test_postgres_projection_single_field() {
     let fields = vec!["id".to_string()];
 
     let sql = generator.generate_projection_sql(&fields).unwrap();
-    assert_eq!(sql, "jsonb_build_object('id', \"data\"->>'id' )");
+    assert_eq!(sql, "JSON_OBJECT('id' VALUE \"data\"->>'id' RETURNING json)");
 }
 
 #[test]
@@ -17,10 +17,8 @@ fn test_postgres_projection_multiple_fields() {
     let fields = vec!["id".to_string(), "name".to_string(), "email".to_string()];
 
     let sql = generator.generate_projection_sql(&fields).unwrap();
-    assert!(sql.contains("jsonb_build_object("));
-    assert!(sql.contains("'id', \"data\"->>'id'"));
-    assert!(sql.contains("'name', \"data\"->>'name'"));
-    assert!(sql.contains("'email', \"data\"->>'email'"));
+    assert!(sql.starts_with("JSON_OBJECT("));
+    assert!(sql.contains("'id' VALUE \"data\"->>'id', 'name' VALUE \"data\"->>'name', 'email'"));
 }
 
 #[test]
@@ -31,8 +29,8 @@ fn test_postgres_projection_digit_field_maps_to_snake_key() {
     let fields = vec!["phone1".to_string(), "userId".to_string()];
 
     let sql = generator.generate_projection_sql(&fields).unwrap();
-    assert!(sql.contains("'phone1', \"data\"->>'phone_1'"), "got: {sql}");
-    assert!(sql.contains("'userId', \"data\"->>'user_id'"), "got: {sql}");
+    assert!(sql.contains("'phone1' VALUE \"data\"->>'phone_1'"), "got: {sql}");
+    assert!(sql.contains("'userId' VALUE \"data\"->>'user_id'"), "got: {sql}");
 }
 
 #[test]
@@ -51,7 +49,7 @@ fn test_postgres_projection_custom_column() {
     let fields = vec!["id".to_string()];
 
     let sql = generator.generate_projection_sql(&fields).unwrap();
-    assert_eq!(sql, "jsonb_build_object('id', \"metadata\"->>'id' )");
+    assert_eq!(sql, "JSON_OBJECT('id' VALUE \"metadata\"->>'id' RETURNING json)");
 }
 
 #[test]
@@ -60,7 +58,7 @@ fn test_postgres_select_clause() {
     let fields = vec!["id".to_string(), "name".to_string()];
 
     let sql = generator.generate_select_clause("users", &fields).unwrap();
-    assert!(sql.starts_with("SELECT jsonb_build_object("));
+    assert!(sql.starts_with("SELECT JSON_OBJECT("));
     assert!(sql.contains("as \"data\""));
     assert!(sql.contains("FROM \"users\""));
 }
@@ -236,11 +234,8 @@ fn test_typed_projection_mixed_text_native_and_composite() {
     assert!(sql.contains("->'address'"), "address (composite) must use ->, got: {sql}");
     assert!(sql.contains("->'tags'"), "tags (composite) must use ->, got: {sql}");
 
-    // Must be wrapped in jsonb_build_object
-    assert!(
-        sql.starts_with("jsonb_build_object("),
-        "must wrap in jsonb_build_object, got: {sql}"
-    );
+    // Built as a `json` object, in selection order (#1563).
+    assert!(sql.starts_with("JSON_OBJECT("), "must wrap in JSON_OBJECT, got: {sql}");
 }
 
 #[test]
@@ -322,7 +317,7 @@ fn test_native_int_and_float_use_jsonb_extraction() {
 // ── Deep nested projection tests (issue #189) ─────────────────────────────
 
 #[test]
-fn test_typed_projection_nested_sub_fields_generate_nested_jsonb_build_object() {
+fn test_typed_projection_nested_sub_fields_generate_a_nested_object() {
     let generator = PostgresProjectionGenerator::new();
     // Simulate: comments { id content author { id username fullName } }
     let fields = vec![
@@ -338,10 +333,10 @@ fn test_typed_projection_nested_sub_fields_generate_nested_jsonb_build_object() 
         ),
     ];
     let sql = generator.generate_typed_projection_sql(&fields).unwrap();
-    // author must use a nested jsonb_build_object instead of the full blob
+    // author must be built from its sub-fields instead of returned as the full blob
     assert!(
-        sql.contains("'author', CASE WHEN jsonb_typeof("),
-        "author must produce nested jsonb_build_object, got: {sql}"
+        sql.contains("'author' VALUE CASE WHEN jsonb_typeof("),
+        "author must produce a nested object, got: {sql}"
     );
     // Nested scalars must use path operator with full path prefix
     assert!(
@@ -374,11 +369,11 @@ fn test_typed_projection_composite_without_sub_fields_returns_full_blob() {
         sql.contains("\"data\"->'author'"),
         "composite without sub_fields must return full blob, got: {sql}"
     );
-    // The outer jsonb_build_object wraps all fields — that's expected.
-    // What must NOT appear is a *nested* jsonb_build_object as the value for 'author'.
+    // The outer object wraps all fields — that's expected.
+    // What must NOT appear is a *nested* object built as the value for 'author'.
     assert!(
-        !sql.contains("'author', CASE WHEN jsonb_typeof("),
-        "must NOT produce nested jsonb_build_object for author when sub_fields is None, got: {sql}"
+        !sql.contains("'author' VALUE CASE WHEN jsonb_typeof("),
+        "must NOT build a nested object for author when sub_fields is None, got: {sql}"
     );
 }
 
@@ -401,11 +396,11 @@ fn test_typed_projection_depth_2_recursion() {
     ];
     let sql = generator.generate_typed_projection_sql(&fields).unwrap();
     assert!(
-        sql.contains("'author', CASE WHEN jsonb_typeof("),
+        sql.contains("'author' VALUE CASE WHEN jsonb_typeof("),
         "author must be nested, got: {sql}"
     );
     assert!(
-        sql.contains("'profile', CASE WHEN jsonb_typeof("),
+        sql.contains("'profile' VALUE CASE WHEN jsonb_typeof("),
         "profile must be nested inside author, got: {sql}"
     );
     assert!(sql.contains("'profile'->>'bio'"), "bio must use depth-2 path, got: {sql}");
@@ -427,7 +422,7 @@ fn test_typed_projection_recurses_at_every_depth() {
         let sql = PostgresProjectionGenerator::new()
             .generate_typed_projection_sql(&[field])
             .unwrap();
-        assert_eq!(sql.matches("jsonb_build_object(").count(), depth + 1, "{sql}");
+        assert_eq!(sql.matches("JSON_OBJECT(").count(), depth + 1, "{sql}");
         let leaf = format!("\"data\"{}->>'id'", "->'parent'".repeat(depth));
         assert!(sql.contains(&leaf), "{sql}");
     }
@@ -442,7 +437,7 @@ fn test_typed_projection_of_an_object_with_no_sub_fields_is_empty() {
         .unwrap();
     assert_eq!(
         sql,
-        "jsonb_build_object('author', CASE WHEN jsonb_typeof(\"data\"->'author') = 'object' \
-         THEN jsonb_build_object() END)"
+        "JSON_OBJECT('author' VALUE CASE WHEN jsonb_typeof(\"data\"->'author') = 'object' \
+         THEN JSON_OBJECT(RETURNING json) END RETURNING json)"
     );
 }

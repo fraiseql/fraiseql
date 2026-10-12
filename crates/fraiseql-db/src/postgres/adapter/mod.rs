@@ -1844,9 +1844,18 @@ pub(super) fn with_matched_count(
     let bound_index = params.len();
     let matched = crate::traits::MATCHED_KEY;
     let empty = crate::traits::EMPTY_PAGE_KEY;
+    // The count is appended as the document's last key without leaving `json`: a projection
+    // builds its document as `json` so its keys stay in selection order at every depth
+    // (#1563), and a jsonb `||` would sort them. `json_each … WITH ORDINALITY` reads the
+    // document's entries in order, whether the page returned `json` or `jsonb`.
     let sql = format!(
-        "SELECT COALESCE(_p.data, jsonb_build_object('{empty}', true)) \
-         || jsonb_build_object('{matched}', _m.matched) \
+        "SELECT CASE WHEN _p._o IS NULL \
+           THEN json_build_object('{empty}', true, '{matched}', _m.matched) \
+           ELSE (SELECT json_object_agg(_e.key, _e.value ORDER BY _e.n) FROM \
+                 (SELECT key, value, n FROM json_each(_p.data::json) WITH ORDINALITY \
+                    AS _d(key, value, n) \
+                  UNION ALL SELECT '{matched}', to_json(_m.matched), 9223372036854775807) _e) \
+         END \
          FROM (SELECT count(*) AS matched FROM (SELECT 1 FROM {view}{where_sql} \
          LIMIT ${bound_index}) _s) _m \
          LEFT JOIN LATERAL (SELECT _q.data, row_number() OVER () AS _o FROM ({page}) AS _q(data)) \

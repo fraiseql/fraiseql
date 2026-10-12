@@ -348,7 +348,10 @@ impl Renderer {
             // Reason (expect below): fmt::Write for String is infallible.
             write!(joins, " LEFT JOIN LATERAL ({sql}) AS {embed_alias} ON true")
                 .expect("write to String");
-            embeds.push(format!("{}, {embed_alias}.v", literal(&embed.output_key)));
+            embeds.push(crate::projection_generator::ObjectPair::new(
+                literal(&embed.output_key),
+                format!("{embed_alias}.v"),
+            ));
         }
 
         Ok(format!(
@@ -480,8 +483,10 @@ fn document_sql(alias: &str, keys: &LevelKeys) -> String {
             }
             // A masked key is written as SQL NULL, so the value it names is never read out
             // of the database for this caller.
-            let masked_sql =
-                masked.iter().map(|k| format!("{}, NULL", literal(k))).collect::<Vec<_>>();
+            let masked_sql = masked
+                .iter()
+                .map(|k| crate::projection_generator::ObjectPair::new(literal(k), "NULL"))
+                .collect::<Vec<_>>();
             format!(
                 "({kept_sql} || {})",
                 crate::projection_generator::jsonb_object_sql(&masked_sql)

@@ -35,6 +35,12 @@ disagreed, and the promise was the part that was wrong.
   about the ordering it derives. Embedders: `PaginationOrder::JsonIdentity` is now
   `PaginationOrder::Identity`, and the CLI's `DatabaseWarning::PaginationIdentityFallback` is
   `DatabaseWarning::MissingIdentityColumn` (error severity).
+- **Nested objects come back in selection order (#1563).** A nested object the SQL projection
+  builds (`author { username fullName }`) was built as `jsonb`, which stores keys shortest first,
+  so it came back `fullName, username`. GraphQL answers fields in the order they are selected
+  (§ 6.3); projections are now built as SQL/JSON `JSON_OBJECT(… RETURNING json)`, at every depth.
+  Snapshots, ETags and clients that compare response text see the nested key order change. A
+  stored object returned whole, with no sub-selection, keeps the order it is stored in.
 
 ### Changed
 

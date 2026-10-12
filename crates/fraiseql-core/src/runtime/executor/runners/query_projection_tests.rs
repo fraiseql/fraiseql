@@ -50,7 +50,7 @@ fn aliased_scalar_field_projects_source_column() {
     let sql = projection_sql(&[field("fullName", Some("myName"), vec![])], &schema, "User");
 
     // The output key is the alias…
-    assert!(sql.contains("'myName',"), "output key must be the alias `myName`: {sql}");
+    assert!(sql.contains("'myName' VALUE "), "output key must be the alias `myName`: {sql}");
     // …but the JSONB column read is the SOURCE field, snake_cased.
     assert!(
         sql.contains("->>'full_name'"),
@@ -88,7 +88,7 @@ fn aliased_nested_subfield_projects_source_column() {
         "User",
     );
 
-    assert!(sql.contains("'myName',"), "nested output key must be the alias: {sql}");
+    assert!(sql.contains("'myName' VALUE "), "nested output key must be the alias: {sql}");
     assert!(
         sql.contains("->>'full_name'"),
         "nested aliased field must read source column `full_name`: {sql}"
@@ -110,7 +110,7 @@ fn non_aliased_field_projects_its_own_column() {
 
     let sql = projection_sql(&[field("fullName", None, vec![])], &schema, "User");
 
-    assert!(sql.contains("'fullName',"), "output key is the field name: {sql}");
+    assert!(sql.contains("'fullName' VALUE "), "output key is the field name: {sql}");
     assert!(sql.contains("->>'full_name'"), "reads its own snake_case column: {sql}");
 }
 
@@ -165,6 +165,6 @@ fn an_enum_field_projects_its_stored_value() {
     let sql =
         projection_sql(&[field("id", None, vec![]), field("kind", None, vec![])], &schema, "Zone");
 
-    assert!(sql.contains("'kind', \"data\"->'kind'"), "{sql}");
-    assert!(!sql.contains("jsonb_build_object()"), "{sql}");
+    assert!(sql.contains("'kind' VALUE \"data\"->'kind'"), "{sql}");
+    assert!(!sql.contains("JSON_OBJECT(RETURNING json)"), "{sql}");
 }

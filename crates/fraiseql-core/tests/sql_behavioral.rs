@@ -252,7 +252,7 @@ fn keyset_pagination_where_clause() {
 
 /// Behavioral counterpart for `snapshot_postgres_with_field_projection`.
 ///
-/// Verifies that projecting named fields generates a `jsonb_build_object()`
+/// Verifies that projecting named fields generates a `JSON_OBJECT()`
 /// expression that enumerates each requested field exactly once.
 #[test]
 fn field_projection_sql() {
@@ -262,7 +262,7 @@ fn field_projection_sql() {
     let fields = vec!["id".to_string(), "name".to_string(), "email".to_string()];
     let sql = gen.generate_projection_sql(&fields).expect("generate");
 
-    assert!(sql.contains("jsonb_build_object"), "Expected jsonb_build_object in: {sql}");
+    assert!(sql.starts_with("JSON_OBJECT("), "Expected JSON_OBJECT in: {sql}");
     assert!(sql.contains("'id'"), "Expected 'id' key in: {sql}");
     assert!(sql.contains("'name'"), "Expected 'name' key in: {sql}");
     assert!(sql.contains("'email'"), "Expected 'email' key in: {sql}");

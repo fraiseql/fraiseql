@@ -47,11 +47,21 @@ CREATE TABLE v_selection_conformance_user (pk_user bigint, data jsonb);
 INSERT INTO v_selection_conformance_user (pk_user, data) VALUES
   (1, '{"id":"aaaa0000-0000-0000-0000-000000000001","name":"Alice","pk_user":1,
      "email":"alice@example.com","secret":"SECRET-VALUE",
-     "profile":{"tier":"gold"}}'::jsonb),
+     "profile":{"tier":"gold","zone":"eu","address":{"city":"Paris","zip":"75001"}}}'::jsonb),
   (2, '{"id":"bbbb0000-0000-0000-0000-000000000002","name":"Bob","pk_user":2,
      "email":"bob@example.com","secret":"SECRET-VALUE",
-     "profile":{"tier":"silver"}}'::jsonb);
+     "profile":{"tier":"silver","zone":"us","address":{"city":"Austin","zip":"73301"}}}'::jsonb);
 "#;
+
+/// A document of 120 keys, past the 50 pairs one `jsonb_build_object` call could carry (#1544).
+const WIDE_VIEW: &str = "v_selection_conformance_wide";
+const WIDE_FIELDS: usize = 120;
+
+/// The `i`-th wide field: letters only (`kaa`, `kab`, …), so its stored key is its own name.
+fn wide_field(i: usize) -> String {
+    let letter = |n: usize| char::from(b'a' + u8::try_from(n % 26).unwrap());
+    format!("k{}{}", letter(i / 26), letter(i))
+}
 
 fn schema() -> CompiledSchema {
     let user_type = TestTypeBuilder::new("User", VIEW)
@@ -67,6 +77,20 @@ fn schema() -> CompiledSchema {
 
     let profile_type = TestTypeBuilder::new("Profile", "v_selection_conformance_profile")
         .with_simple_field("tier", FieldType::String)
+        .with_simple_field("zone", FieldType::String)
+        .with_simple_field("address", FieldType::Object("Address".to_string()))
+        .build();
+    let address_type = TestTypeBuilder::new("Address", "v_selection_conformance_address")
+        .with_simple_field("city", FieldType::String)
+        .with_simple_field("zip", FieldType::String)
+        .build();
+    let mut wide_type = TestTypeBuilder::new("Wide", WIDE_VIEW);
+    for i in 0..WIDE_FIELDS {
+        wide_type = wide_type.with_simple_field(&wide_field(i), FieldType::Int);
+    }
+    let wides_query = TestQueryBuilder::new("wides", "Wide")
+        .returns_list(true)
+        .with_sql_source(WIDE_VIEW)
         .build();
 
     let users_query = TestQueryBuilder::new("users", "User")
@@ -87,7 +111,10 @@ fn schema() -> CompiledSchema {
     let mut schema = TestSchemaBuilder::new()
         .with_type(user_type)
         .with_type(profile_type)
+        .with_type(address_type)
+        .with_type(wide_type.build())
         .with_query(users_query)
+        .with_query(wides_query)
         .with_query(connection_query)
         .build();
     schema.interfaces.push(
@@ -107,6 +134,21 @@ async fn executor() -> Option<Executor> {
             .execute_raw_query(stmt)
             .await
             .expect("provision the conformance fixture");
+    }
+    let wide_document = (0..WIDE_FIELDS)
+        .map(|i| format!("'{}', {i}", wide_field(i)))
+        .collect::<Vec<_>>();
+    let wide_document = wide_document
+        .chunks(50)
+        .map(|chunk| format!("jsonb_build_object({})", chunk.join(", ")))
+        .collect::<Vec<_>>()
+        .join(" || ");
+    for stmt in [
+        format!("DROP TABLE IF EXISTS {WIDE_VIEW}"),
+        format!("CREATE TABLE {WIDE_VIEW} (data jsonb)"),
+        format!("INSERT INTO {WIDE_VIEW} (data) SELECT {wide_document}"),
+    ] {
+        adapter.execute_raw_query(&stmt).await.expect("provision the wide fixture");
     }
     Some(Executor::new_with_relay(schema(), Arc::new(adapter)))
 }
@@ -531,4 +573,48 @@ async fn relay_inline_arguments_narrow_the_page() {
         vec!["Alice"],
         "an inline `first: 1` must bound the page to one edge: {first_one}"
     );
+}
+
+/// The keys of an object, in response order.
+fn keys_of(value: &Value) -> Vec<String> {
+    value
+        .as_object()
+        .unwrap_or_else(|| panic!("expected an object, got: {value}"))
+        .keys()
+        .cloned()
+        .collect()
+}
+
+/// GraphQL § 6.3: a nested object's fields come back in the order the selection asks for them,
+/// at every depth (#1563). jsonb stores keys shortest first, so a projection built as jsonb
+/// answered `tier, zone, address` and `zip, city`.
+#[tokio::test]
+async fn nested_objects_follow_the_selection_order() {
+    let Some(executor) = executor().await else {
+        eprintln!("skipping: no PostgreSQL bound");
+        return;
+    };
+    let response = executor
+        .execute("{ users { profile { zone address { city zip } tier } } }", None)
+        .await
+        .unwrap();
+    let profile = &response["data"]["users"][0]["profile"];
+    assert_eq!(keys_of(profile), ["zone", "address", "tier"], "{response}");
+    assert_eq!(keys_of(&profile["address"]), ["city", "zip"], "{response}");
+}
+
+/// 120 fields selected in reverse: all of them come back, in that order (#1544, #1563).
+#[tokio::test]
+async fn a_wide_selection_comes_back_whole_and_in_order() {
+    let Some(executor) = executor().await else {
+        eprintln!("skipping: no PostgreSQL bound");
+        return;
+    };
+    let selected: Vec<String> = (0..WIDE_FIELDS).rev().map(wide_field).collect();
+    let response = executor
+        .execute(&format!("{{ wides {{ {} }} }}", selected.join(" ")), None)
+        .await
+        .unwrap();
+    assert!(response.get("errors").is_none(), "{response}");
+    assert_eq!(keys_of(&response["data"]["wides"][0]), selected, "{response}");
 }

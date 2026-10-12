@@ -40,7 +40,7 @@ fn test_postgres_projection_complete_flow() {
     let sql = generator.generate_projection_sql(&fields).unwrap();
 
     // Verify structure
-    assert!(sql.contains("jsonb_build_object("));
+    assert!(sql.starts_with("JSON_OBJECT("));
     assert!(sql.contains("'id'"));
     assert!(sql.contains("'name'"));
     assert!(sql.contains("'email'"));
@@ -48,7 +48,7 @@ fn test_postgres_projection_complete_flow() {
 
     // Verify it can be used in a SELECT clause
     let select = generator.generate_select_clause("users", &fields).unwrap();
-    assert!(select.starts_with("SELECT jsonb_build_object("));
+    assert!(select.starts_with("SELECT JSON_OBJECT("));
     assert!(select.contains("FROM \"users\""));
 }
 
@@ -271,7 +271,7 @@ fn test_complete_projection_pipeline() {
     let fields = vec!["id".to_string(), "name".to_string()];
     let generator = PostgresProjectionGenerator::new();
     let sql = generator.generate_projection_sql(&fields).unwrap();
-    assert!(sql.contains("jsonb_build_object"));
+    assert!(sql.starts_with("JSON_OBJECT("));
 
     // Step 3: Simulate database result
     let result_data = json!({
@@ -307,7 +307,7 @@ fn test_projection_with_many_fields() {
     let sql = generator.generate_projection_sql(&fields).unwrap();
 
     // Verify all fields are included
-    assert!(sql.contains("jsonb_build_object("));
+    assert!(sql.starts_with("JSON_OBJECT("));
     for field in &fields {
         assert!(sql.contains(&format!("'{}'", field)));
     }
