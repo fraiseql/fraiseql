@@ -4102,3 +4102,50 @@ mod gated_filters {
         assert!(adapter.captured_where().is_none(), "the filter must not reach the database");
     }
 }
+
+// ── mod projection_moves: a read's rows are moved into the response (#1556) ──────
+
+mod projection_moves {
+    use super::*;
+
+    /// The response's `users[0].name` sits where the adapter's rows held it: moved, not cloned.
+    fn assert_name_moved(adapter: &MockAdapter, response: &serde_json::Value) {
+        let served = adapter.served_name_buffers.lock().unwrap()[0];
+        let answered = response["data"]["users"][0]["name"].as_str().unwrap().as_ptr() as usize;
+        assert_eq!(answered, served, "the row's value was cloned into the response: {response}");
+    }
+
+    #[tokio::test]
+    async fn an_anonymous_read_moves_its_rows_into_the_response() {
+        let adapter = Arc::new(MockAdapter::new(mock_user_results()));
+        let executor = Executor::new(test_schema(), adapter.clone());
+        let response = executor.execute("{ users { id name } }", None).await.unwrap();
+        assert_name_moved(&adapter, &response);
+    }
+
+    #[tokio::test]
+    async fn an_authenticated_read_moves_its_rows_into_the_response() {
+        let adapter = Arc::new(MockAdapter::new(mock_user_results()));
+        let executor = Executor::new(test_schema(), adapter.clone());
+        let ctx = SecurityContext {
+            user_id:          "user-1".into(),
+            roles:            vec![],
+            tenant_id:        None,
+            scopes:           vec![],
+            attributes:       HashMap::new(),
+            request_id:       "req-1".to_string(),
+            ip_address:       None,
+            expires_at:       Utc::now() + chrono::Duration::hours(1),
+            authenticated_at: Utc::now(),
+            issuer:           None,
+            audience:         None,
+            email:            None,
+            display_name:     None,
+        };
+        let response = executor
+            .execute_with_security("{ users { id name } }", None, &ctx)
+            .await
+            .unwrap();
+        assert_name_moved(&adapter, &response);
+    }
+}

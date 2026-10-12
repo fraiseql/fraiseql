@@ -1,5 +1,7 @@
 //! Result projection - transforms JSONB database results to GraphQL responses.
 
+use std::{borrow::Cow, collections::HashMap};
+
 use serde_json::{Map, Value as JsonValue};
 
 use crate::{
@@ -209,6 +211,61 @@ impl FieldMapping {
         map.get(&self.source)
             .or_else(|| self.source_fallback.as_ref().and_then(|fb| map.get(fb)))
     }
+
+    /// [`lookup_in`](Self::lookup_in), taking the entry, key included, out of `map`.
+    fn take_from(&self, map: &mut Map<String, JsonValue>) -> Option<(String, JsonValue)> {
+        map.remove_entry(&self.source)
+            .or_else(|| self.source_fallback.as_ref().and_then(|fb| map.remove_entry(fb)))
+    }
+
+    /// The stored keys this field may read.
+    fn stored_keys(&self) -> impl Iterator<Item = &str> {
+        std::iter::once(self.source.as_str()).chain(self.source_fallback.as_deref())
+    }
+}
+
+/// For each of `fields`, whether a later one reads one of its stored keys. An owned row's value
+/// for such a field is cloned rather than taken, so the later field still finds it: `fooBar`
+/// and `foo_bar` both read `foo_bar`, and so do an alias and the field it renames.
+fn later_readers(fields: &[FieldMapping]) -> Vec<bool> {
+    let mut last_reader: HashMap<&str, usize> = HashMap::with_capacity(fields.len() * 2);
+    for (index, field) in fields.iter().enumerate() {
+        for key in field.stored_keys() {
+            last_reader.insert(key, index);
+        }
+    }
+    fields
+        .iter()
+        .enumerate()
+        .map(|(index, field)| field.stored_keys().any(|key| last_reader[key] > index))
+        .collect()
+}
+
+/// A value by its JSON kind, borrowed or owned as it came.
+enum Shape<'a> {
+    Object(Cow<'a, Map<String, JsonValue>>),
+    Array(Cow<'a, [JsonValue]>),
+    Other(Cow<'a, JsonValue>),
+}
+
+impl<'a> Shape<'a> {
+    fn of(value: Cow<'a, JsonValue>) -> Self {
+        match value {
+            Cow::Borrowed(JsonValue::Object(map)) => Self::Object(Cow::Borrowed(map)),
+            Cow::Owned(JsonValue::Object(map)) => Self::Object(Cow::Owned(map)),
+            Cow::Borrowed(JsonValue::Array(items)) => Self::Array(Cow::Borrowed(items.as_slice())),
+            Cow::Owned(JsonValue::Array(items)) => Self::Array(Cow::Owned(items)),
+            other => Self::Other(other),
+        }
+    }
+}
+
+/// The items of an array, each borrowed or owned as the array came.
+fn items_of(items: Cow<'_, [JsonValue]>) -> Box<dyn Iterator<Item = Cow<'_, JsonValue>> + '_> {
+    match items {
+        Cow::Borrowed(items) => Box::new(items.iter().map(Cow::Borrowed)),
+        Cow::Owned(items) => Box::new(items.into_iter().map(Cow::Owned)),
+    }
 }
 
 /// Projection mapper - maps JSONB fields to GraphQL selection set.
@@ -330,13 +387,34 @@ impl ProjectionMapper {
     ///
     /// Returns error if projection fails.
     pub fn project(&self, jsonb: &JsonbValue) -> Result<JsonValue> {
-        // Extract the inner serde_json::Value
-        let value = jsonb.as_value();
+        self.project_row(Cow::Borrowed(jsonb.as_value()), &[])
+    }
 
-        match value {
-            JsonValue::Object(map) => self.project_json_object(map),
-            JsonValue::Array(arr) => self.project_json_array(arr),
-            v => Ok(v.clone()),
+    /// Project one row, borrowed or owned (#1556): an owned row gives up its values instead of
+    /// having them cloned. `later_readers` is [`later_readers`] of `self.fields`, read only for
+    /// an owned row; a field it does not cover is cloned.
+    fn project_row(&self, row: Cow<'_, JsonValue>, later_readers: &[bool]) -> Result<JsonValue> {
+        match Shape::of(row) {
+            Shape::Object(map) => {
+                self.project_object(map, self.typename.as_deref(), &self.fields, later_readers)
+            },
+            // A row that is an array is projected element-wise. A row that fails projection
+            // propagates as an error rather than being silently dropped from the result set
+            // (#736).
+            Shape::Array(items) => items_of(items)
+                .map(|item| match Shape::of(item) {
+                    Shape::Object(obj) => self.project_object(
+                        obj,
+                        self.typename.as_deref(),
+                        &self.fields,
+                        later_readers,
+                    ),
+                    Shape::Array(items) => Ok(JsonValue::Array(items.into_owned())),
+                    Shape::Other(other) => Ok(other.into_owned()),
+                })
+                .collect::<Result<Vec<_>>>()
+                .map(JsonValue::Array),
+            Shape::Other(other) => Ok(other.into_owned()),
         }
     }
 
@@ -353,73 +431,96 @@ impl ProjectionMapper {
         &self,
         map: &serde_json::Map<String, JsonValue>,
     ) -> Result<JsonValue> {
+        self.project_object(Cow::Borrowed(map), self.typename.as_deref(), &self.fields, &[])
+    }
+
+    /// Project `fields` out of an object, `__typename` first when there is one (GraphQL
+    /// convention), each stored key resolved by the rule every consumer of a declared field name
+    /// shares (#1271). An owned object's values are taken, unless `later_readers` says a later
+    /// field reads the same key.
+    fn project_object(
+        &self,
+        source: Cow<'_, Map<String, JsonValue>>,
+        typename: Option<&str>,
+        fields: &[FieldMapping],
+        later_readers: &[bool],
+    ) -> Result<JsonValue> {
         let mut result = Map::new();
-
-        // Add __typename first if configured (GraphQL convention)
-        if let Some(ref typename) = self.typename {
-            result.insert("__typename".to_string(), JsonValue::String(typename.clone()));
+        if let Some(typename) = typename {
+            result.insert("__typename".to_string(), JsonValue::String(typename.to_string()));
         }
-
-        // Project fields with alias support, resolving each stored key by the
-        // rule every consumer of a declared field name shares (#1271).
-        for field in &self.fields {
-            if let Some(value) = field.lookup_in(map) {
-                let projected_value = self.project_nested_value(value, field)?;
-                result.insert(field.output.clone(), projected_value);
-            }
+        let mut source = source;
+        for (index, field) in fields.iter().enumerate() {
+            let (key, value) = match &mut source {
+                Cow::Borrowed(map) => {
+                    let map: &Map<String, JsonValue> = map;
+                    match field.lookup_in(map) {
+                        Some(value) => (None, Cow::Borrowed(value)),
+                        None => continue,
+                    }
+                },
+                Cow::Owned(map) => {
+                    let taken = if later_readers.get(index).copied().unwrap_or(true) {
+                        field.lookup_in(map).map(|value| (None, value.clone()))
+                    } else {
+                        field.take_from(map).map(|(key, value)| (Some(key), value))
+                    };
+                    match taken {
+                        Some((key, value)) => (key, Cow::Owned(value)),
+                        None => continue,
+                    }
+                },
+            };
+            let output =
+                key.filter(|key| *key == field.output).unwrap_or_else(|| field.output.clone());
+            result.insert(output, self.project_nested_value(value, field)?);
         }
-
         Ok(JsonValue::Object(result))
     }
 
     /// Project a nested value, adding typename if configured.
     #[allow(clippy::self_only_used_in_recursion)] // Reason: &self required for method dispatch; recursive structure is intentional
-    fn project_nested_value(&self, value: &JsonValue, field: &FieldMapping) -> Result<JsonValue> {
+    fn project_nested_value(
+        &self,
+        value: Cow<'_, JsonValue>,
+        field: &FieldMapping,
+    ) -> Result<JsonValue> {
         if let Some(chain) = &field.localized {
-            return Ok(crate::runtime::localize(value, chain));
+            return Ok(crate::runtime::localize(&value, chain));
         }
-        match value {
-            JsonValue::Object(obj) => {
-                // If this field has nested typename, add it
-                if let Some(ref typename) = field.nested_typename {
-                    let mut result = Map::new();
-                    result.insert("__typename".to_string(), JsonValue::String(typename.clone()));
-
-                    // If we have nested field mappings, use them; otherwise copy all fields
-                    if let Some(ref nested_fields) = field.nested_fields {
-                        for nested_field in nested_fields {
-                            // #1271: the nested branch reads its own sub-map and
-                            // had its own verbatim lookup, so it needs the rule
-                            // explicitly rather than inheriting it from above.
-                            if let Some(nested_value) = nested_field.lookup_in(obj) {
-                                let projected =
-                                    self.project_nested_value(nested_value, nested_field)?;
-                                result.insert(nested_field.output.clone(), projected);
-                            }
-                        }
-                    } else {
-                        // No specific field mappings - copy all fields from source
-                        for (k, v) in obj {
-                            result.insert(k.clone(), v.clone());
-                        }
-                    }
-                    Ok(JsonValue::Object(result))
-                } else {
+        match Shape::of(value) {
+            Shape::Object(obj) => {
+                let Some(typename) = field.nested_typename.as_deref() else {
                     // No typename for this nested object - return as-is
-                    Ok(value.clone())
+                    return Ok(JsonValue::Object(obj.into_owned()));
+                };
+                // #1271: the nested branch reads its own sub-map, so it needs the rule
+                // explicitly rather than inheriting it from above.
+                if let Some(nested_fields) = &field.nested_fields {
+                    let later = match obj {
+                        Cow::Owned(_) => later_readers(nested_fields),
+                        Cow::Borrowed(_) => Vec::new(),
+                    };
+                    return self.project_object(obj, Some(typename), nested_fields, &later);
                 }
+                // No specific field mappings - copy all fields from source
+                let mut result = Map::new();
+                result.insert("__typename".to_string(), JsonValue::String(typename.to_string()));
+                result.extend(obj.into_owned());
+                Ok(JsonValue::Object(result))
             },
-            JsonValue::Array(arr) => {
+            Shape::Array(items) => {
                 // For arrays of objects, add typename to each element
                 if field.nested_typename.is_some() {
-                    let projected: Result<Vec<JsonValue>> =
-                        arr.iter().map(|item| self.project_nested_value(item, field)).collect();
-                    Ok(JsonValue::Array(projected?))
+                    items_of(items)
+                        .map(|item| self.project_nested_value(item, field))
+                        .collect::<Result<Vec<_>>>()
+                        .map(JsonValue::Array)
                 } else {
-                    Ok(value.clone())
+                    Ok(JsonValue::Array(items.into_owned()))
                 }
             },
-            _ => {
+            Shape::Other(value) => {
                 // If the value is a JSON string that encodes an object or array
                 // (which happens when the database uses ->>'field' text extraction
                 // instead of ->'field' JSONB extraction), attempt to re-parse it.
@@ -431,39 +532,18 @@ impl ProjectionMapper {
                 // response then carried an object where the published schema
                 // promised a string.
                 if field.declared_scalar {
-                    return Ok(value.clone());
+                    return Ok(value.into_owned());
                 }
                 if let JsonValue::String(ref s) = *value {
                     if let Ok(parsed @ (JsonValue::Object(_) | JsonValue::Array(_))) =
                         serde_json::from_str::<JsonValue>(s)
                     {
-                        return self.project_nested_value(&parsed, field);
+                        return self.project_nested_value(Cow::Owned(parsed), field);
                     }
                 }
-                Ok(value.clone())
+                Ok(value.into_owned())
             },
         }
-    }
-
-    /// Project array elements from JSON array.
-    ///
-    /// A row that fails projection propagates as an error rather than being
-    /// silently dropped from the result set (#736): `project_json_object` is
-    /// currently infallible, but if it ever gains an error path, an array with
-    /// a bad element must not shrink without a trace.
-    fn project_json_array(&self, arr: &[JsonValue]) -> Result<JsonValue> {
-        let projected: Result<Vec<JsonValue>> = arr
-            .iter()
-            .map(|item| {
-                if let JsonValue::Object(obj) = item {
-                    self.project_json_object(obj)
-                } else {
-                    Ok(item.clone())
-                }
-            })
-            .collect();
-
-        Ok(JsonValue::Array(projected?))
     }
 }
 
@@ -569,6 +649,33 @@ impl ResultProjector {
             } else {
                 Ok(JsonValue::Null)
             }
+        }
+    }
+
+    /// [`project_results`](Self::project_results), taking the rows: a row no one else holds
+    /// gives up its values instead of having them cloned (#1556).
+    ///
+    /// # Errors
+    ///
+    /// As [`project_results`](Self::project_results).
+    pub fn project_results_owned(
+        &self,
+        results: std::sync::Arc<Vec<JsonbValue>>,
+        is_list: bool,
+    ) -> Result<JsonValue> {
+        // Rows the row cache (or anyone else) still holds are projected as borrowed.
+        let rows = match std::sync::Arc::try_unwrap(results) {
+            Ok(rows) => rows,
+            Err(shared) => return self.project_results(&shared, is_list),
+        };
+        let later_readers = later_readers(&self.mapper.fields);
+        let mut rows = rows
+            .into_iter()
+            .map(|row| self.mapper.project_row(Cow::Owned(row.into_value()), &later_readers));
+        if is_list {
+            rows.collect::<Result<Vec<_>>>().map(JsonValue::Array)
+        } else {
+            rows.next().unwrap_or(Ok(JsonValue::Null))
         }
     }
 
@@ -1086,3 +1193,7 @@ pub fn effective_selections<'a>(
     }
     out
 }
+
+#[cfg(test)]
+#[path = "projection_tests.rs"]
+mod tests;

@@ -336,16 +336,20 @@ impl Writer for CapturingMockAdapter {
 /// (`with_view()` builder) so tests can verify correct query routing.
 pub struct MockAdapter {
     /// Default results returned for any view that has no specific override.
-    pub mock_results:     Vec<JsonbValue>,
+    pub mock_results:        Vec<JsonbValue>,
     /// Per-view result overrides. When present, `execute_where_query` returns
     /// these instead of `mock_results`, enabling routing-correctness tests.
-    pub view_responses:   std::collections::HashMap<String, Vec<JsonbValue>>,
+    pub view_responses:      std::collections::HashMap<String, Vec<JsonbValue>>,
     /// Every statement that reached `execute_raw_query`, in order.
     ///
     /// Recorded so a test asserting that something was *refused* can witness that
     /// nothing ran, rather than inferring it from the returned error — an error and
     /// an executed statement are not mutually exclusive.
-    pub captured_raw_sql: std::sync::Mutex<Vec<String>>,
+    pub captured_raw_sql:    std::sync::Mutex<Vec<String>>,
+    /// For every read served, the heap address of the first row's `name` string in the rows
+    /// handed over. A test compares it with the response's to tell a value moved into the
+    /// response from one cloned into it (#1556).
+    pub served_name_buffers: std::sync::Mutex<Vec<usize>>,
 }
 
 impl MockAdapter {
@@ -355,6 +359,7 @@ impl MockAdapter {
             mock_results,
             view_responses: std::collections::HashMap::new(),
             captured_raw_sql: std::sync::Mutex::new(Vec::new()),
+            served_name_buffers: std::sync::Mutex::new(Vec::new()),
         }
     }
 
@@ -402,10 +407,11 @@ impl DatabaseAdapter for MockAdapter {
         _order_by: Option<&[OrderByClause]>,
     ) -> Result<Vec<JsonbValue>> {
         // Return per-view override if registered, otherwise fall back to uniform results.
-        if let Some(results) = self.view_responses.get(view) {
-            return Ok(results.clone());
+        let rows = self.view_responses.get(view).unwrap_or(&self.mock_results).clone();
+        if let Some(name) = rows.first().and_then(|row| row.as_value()["name"].as_str()) {
+            self.served_name_buffers.lock().unwrap().push(name.as_ptr() as usize);
         }
-        Ok(self.mock_results.clone())
+        Ok(rows)
     }
 
     async fn health_check(&self) -> Result<()> {

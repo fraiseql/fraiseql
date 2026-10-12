@@ -801,6 +801,9 @@ impl QueryRunner {
         // 11. Project results. Masked fields stay in the projection, in their requested position,
         //     and are nulled below — GraphQL requires the response's field order to follow the
         //     query's.
+        // The rows the dynamic field authorizer (11c) reads: kept only on the branch that needs
+        // them, so the other can give its rows up to the projector instead of cloning them.
+        let mut authorizer_rows = None;
         let mut projected = if composed || gated_present {
             // Stored documents with their gated levels merged in, or read whole because a
             // policy-gated field bypassed the SQL projection: projected the way a nested
@@ -809,13 +812,15 @@ impl QueryRunner {
             // included. The mapper below reads stored keys by name, so it dropped a
             // sibling and read a localized field in the request locale whatever its
             // `locale:` argument asked.
-            super::query_nested::project_documents(
+            let projected = super::query_nested::project_documents(
                 &results,
                 &query_match.query_def.return_type,
                 root_fields,
                 &self.ctx.schema,
                 query_match.query_def.returns_list,
-            )
+            );
+            authorizer_rows = Some(results);
+            projected
         } else {
             let projector = ResultProjector::new(access.projected.clone())
                 // #1192: a `String` field whose text parses as JSON must stay a string.
@@ -824,8 +829,10 @@ impl QueryRunner {
                     &query_match.selections,
                     &query_match.query_def.return_type,
                 );
+            // #1556: the rows are this request's alone unless the row cache holds them too, so
+            //       their values are moved into the response rather than cloned.
             let mut projected =
-                projector.project_results(&results, query_match.query_def.returns_list)?;
+                projector.project_results_owned(results, query_match.query_def.returns_list)?;
 
             // 11a. #489: recase + project nested list-of-object fields the SQL projection
             //      left as the raw stored sub-blob (snake_case keys, unselected keys). The
@@ -862,11 +869,17 @@ impl QueryRunner {
         //      10) ran first — AND-composition: a field shown only if both allow. Fail-closed:
         //      a Reject decision or any policy error returns 403; the value is never served.
         if gated_present {
+            let rows = authorizer_rows.ok_or_else(|| FraiseQLError::Internal {
+                message: "a gated read reached the field authorizer without its rows — this is a \
+                          bug"
+                .to_string(),
+                source:  None,
+            })?;
             self.apply_dynamic_field_authorizer(
                 &query_match,
                 security_context,
                 access,
-                &results,
+                &rows,
                 &mut projected,
             )?;
         }
@@ -1272,8 +1285,9 @@ impl QueryRunner {
                 &query_match.selections,
                 &query_match.query_def.return_type,
             );
+        // #1556: moved, not cloned, unless the row cache holds the rows too.
         let mut projected =
-            projector.project_results(&results, query_match.query_def.returns_list)?;
+            projector.project_results_owned(results, query_match.query_def.returns_list)?;
         // #489: recase + project nested list-of-object fields left raw by SQL projection.
         crate::runtime::project_nested_lists(
             &mut projected,

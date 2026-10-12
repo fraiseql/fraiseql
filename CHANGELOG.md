@@ -38,6 +38,10 @@ disagreed, and the promise was the part that was wrong.
   reads, mutations, the admin SQL console) sets all of them in one `SELECT set_config(…), …`,
   prepared once per connection. With three variables: 209.9 → 184.5 µs of server CPU per request
   on a 20-row list (+23% rps). A failure names every variable of the batch.
+- **A read's rows are moved into the response, not copied (#1556).** The projector took every
+  value of every row by deep clone. Rows no one else holds (anything but a row-cache hit) now
+  give up their values, nested objects included, through the same projection rule, so the
+  response is unchanged byte for byte.
 
 ### Fixed
 
