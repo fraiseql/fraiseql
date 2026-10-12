@@ -74,6 +74,89 @@ const fn streaming_read_slots(configured: Option<usize>, max_size: usize) -> usi
 /// Both the NULL and the type-mismatch cases now map to
 /// [`FraiseQLError::Database`], including a bounded, char-safe slice of the
 /// query so an operator can identify the offending view.
+/// The most statements one pooled connection keeps prepared for reads (#1557).
+///
+/// A read's SQL text follows the client's document: the fields it selects, the shape of its
+/// `where`, the length of an `in` list. The set of distinct texts is therefore the client's to
+/// grow, and each one held is memory in this process and in the database backend. Past the cap
+/// the connection's cache is emptied, which closes its statements on the server, and refills
+/// with what is in use: a client cycling shapes costs what an uncached read costs, never memory.
+pub const READ_STATEMENT_CACHE_CAP: usize = 256;
+
+/// Run a read on `client`'s connection as a statement prepared once per connection and reused,
+/// so a repeated read costs one round trip instead of two (Parse/Describe, then Bind/Execute)
+/// (#1557).
+async fn query_read(
+    client: &deadpool_postgres::Client,
+    sql: &str,
+    params: &[&(dyn tokio_postgres::types::ToSql + Sync)],
+) -> std::result::Result<Vec<Row>, tokio_postgres::Error> {
+    hold_under_cap(&client.statement_cache);
+    let statement = client.prepare_cached(sql).await?;
+    client.query(&statement, params).await
+}
+
+/// [`query_read`], after `session_vars` are applied in a transaction on the same connection,
+/// committed when the read succeeds.
+///
+/// The outer error is the transaction's or a variable's; the inner one is the read's, kept
+/// apart so the caller can tell a [stale statement](is_stale_cached_statement) from the rest.
+async fn query_read_in_session(
+    client: &mut deadpool_postgres::Client,
+    sql: &str,
+    params: &[&(dyn tokio_postgres::types::ToSql + Sync)],
+    session_vars: &[(&str, &str)],
+) -> Result<std::result::Result<Vec<Row>, tokio_postgres::Error>> {
+    let txn = client.build_transaction().start().await.map_err(|e| {
+        crate::postgres::database_error(
+            format!("Failed to start session-var transaction: {}", pg_detail(&e)),
+            &e,
+        )
+    })?;
+
+    database::apply_session_vars(&txn, session_vars).await?;
+
+    hold_under_cap(&txn.statement_cache);
+    let rows = match txn.prepare_cached(sql).await {
+        Ok(statement) => txn.query(&statement, params).await,
+        Err(e) => Err(e),
+    };
+    let rows = match rows {
+        Ok(rows) => rows,
+        // Dropping the transaction rolls it back.
+        Err(e) => return Ok(Err(e)),
+    };
+
+    txn.commit().await.map_err(|e| {
+        crate::postgres::database_error(
+            format!("Failed to commit session-var transaction: {}", pg_detail(&e)),
+            &e,
+        )
+    })?;
+    Ok(Ok(rows))
+}
+
+/// Whether a read failed because the statement its connection cached returns another row type
+/// since a DDL change (`cached plan must not change result type`, SQLSTATE 0A000). The caller
+/// drops that statement and runs the read once more, prepared afresh. Keyed on the SQLSTATE,
+/// not the message, which the server may translate.
+fn is_stale_cached_statement(e: &tokio_postgres::Error) -> bool {
+    e.code() == Some(&tokio_postgres::error::SqlState::FEATURE_NOT_SUPPORTED)
+}
+
+/// Empty a connection's statement cache once it holds [`READ_STATEMENT_CACHE_CAP`] statements,
+/// before it would grow past it.
+fn hold_under_cap(cache: &deadpool_postgres::StatementCache) {
+    if cache.size() >= READ_STATEMENT_CACHE_CAP {
+        cache.clear();
+    }
+}
+
+/// The error a failed read is reported as.
+fn read_failed(e: &tokio_postgres::Error) -> FraiseQLError {
+    crate::postgres::database_error(format!("Query execution failed: {}", pg_detail(e)), e)
+}
+
 fn jsonb_cell<I>(row: &Row, column: I, sql: &str) -> Result<JsonbValue>
 where
     I: tokio_postgres::row::RowIndex + std::fmt::Display,
@@ -1345,12 +1428,14 @@ impl PostgresAdapter {
         // Read-only by construction (`SELECT data FROM <view>`): replica-eligible.
         let client = self.acquire_read_connection_with_retry(routing).await?;
 
-        let rows: Vec<Row> = client.query(sql, params).await.map_err(|e| {
-            crate::postgres::database_error(
-                format!("Query execution failed: {}", pg_detail(&e)),
-                &e,
-            )
-        })?;
+        let rows: Vec<Row> = match query_read(&client, sql, params).await {
+            Err(e) if is_stale_cached_statement(&e) => {
+                client.statement_cache.remove(sql, &[]);
+                query_read(&client, sql, params).await
+            },
+            rows => rows,
+        }
+        .map_err(|e| read_failed(&e))?;
 
         let results = rows
             .into_iter()
@@ -1382,28 +1467,16 @@ impl PostgresAdapter {
         // Read-only by construction; `set_config` + SELECT run fine inside a
         // hot-standby read-only transaction, so this stays replica-eligible.
         let mut client = self.acquire_read_connection_with_retry(routing).await?;
-        let txn = client.build_transaction().start().await.map_err(|e| {
-            crate::postgres::database_error(
-                format!("Failed to start session-var transaction: {}", pg_detail(&e)),
-                &e,
-            )
-        })?;
 
-        database::apply_session_vars(&txn, session_vars).await?;
-
-        let rows: Vec<Row> = txn.query(sql, params).await.map_err(|e| {
-            crate::postgres::database_error(
-                format!("Query execution failed: {}", pg_detail(&e)),
-                &e,
-            )
-        })?;
-
-        txn.commit().await.map_err(|e| {
-            crate::postgres::database_error(
-                format!("Failed to commit session-var transaction: {}", pg_detail(&e)),
-                &e,
-            )
-        })?;
+        let rows: Vec<Row> =
+            match query_read_in_session(&mut client, sql, params, session_vars).await? {
+                Err(e) if is_stale_cached_statement(&e) => {
+                    client.statement_cache.remove(sql, &[]);
+                    query_read_in_session(&mut client, sql, params, session_vars).await?
+                },
+                rows => rows,
+            }
+            .map_err(|e| read_failed(&e))?;
 
         rows.into_iter().map(|row| jsonb_cell(&row, 0, sql)).collect()
     }

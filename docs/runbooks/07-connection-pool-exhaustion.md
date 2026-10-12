@@ -281,6 +281,12 @@ done
    docker restart fraiseql-server
    ```
 
+   FraiseQL runs reads and mutations as prepared statements, cached per connection (at most
+   `READ_STATEMENT_CACHE_CAP`, 256, for reads). PgBouncer's default `pool_mode = session`
+   supports that. In `pool_mode = transaction`, use PgBouncer 1.21 or later with
+   `max_prepared_statements` above 0, or statements fail with
+   `prepared statement "s…" does not exist`.
+
 ## Resolution
 
 ### Diagnose Root Cause

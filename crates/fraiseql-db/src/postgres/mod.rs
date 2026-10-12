@@ -12,8 +12,8 @@ mod where_generator;
 #[doc(hidden)]
 pub use adapter::test_hooks;
 pub use adapter::{
-    HnswIterativeScan, IvfflatIterativeScan, PoolPrewarmConfig, PostgresAdapter, ReadReplicaConfig,
-    ReadReplicaPolicy, SearchPath, VectorScanConfig,
+    HnswIterativeScan, IvfflatIterativeScan, PoolPrewarmConfig, PostgresAdapter,
+    READ_STATEMENT_CACHE_CAP, ReadReplicaConfig, ReadReplicaPolicy, SearchPath, VectorScanConfig,
 };
 pub use introspector::{IndexInfo, PostgresIntrospector};
 pub use server_version::{

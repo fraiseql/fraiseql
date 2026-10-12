@@ -16,6 +16,24 @@ disagreed, and the promise was the part that was wrong.
 
 ## [Unreleased]
 
+### Breaking
+
+- **Reads run as prepared statements, cached per connection (#1557).** Behind PgBouncer in
+  `pool_mode = transaction`, PgBouncer 1.21 or later with `max_prepared_statements` above 0 is now
+  needed for reads as well as mutations; without it a read fails with `prepared statement "s…"
+  does not exist`. `pool_mode = session` (PgBouncer's default) and direct connections are
+  unaffected.
+
+### Changed
+
+- **A repeated read costs one round trip, not two (#1557).** Regular, `where` and row reads, with
+  or without session variables, are prepared once per pooled connection and reused instead of
+  being parsed and described on every call. Read SQL varies with the client's document, so each
+  connection holds at most `READ_STATEMENT_CACHE_CAP` (256) read statements and empties its
+  cache past that. A statement whose relation changed row type under it (SQLSTATE 0A000) is
+  dropped and the read re-run once. Server CPU per request: 173.7 → 164.7 µs on a 20-row list
+  with two nested objects (+8% rps), 107.5 → 99.8 µs on a flat one (+12%).
+
 ### Fixed
 
 - **Non-null completion no longer costs an eighth of a read's server time (#1568).** Completing a

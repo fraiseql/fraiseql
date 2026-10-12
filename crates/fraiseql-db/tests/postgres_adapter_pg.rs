@@ -2564,3 +2564,184 @@ async fn streaming_row_query_decodes_typed_columns() {
 
     let _ = adapter.execute_raw_query(&format!("DROP VIEW IF EXISTS {view}")).await;
 }
+
+// ========================================================================
+// Read statement cache (#1557)
+// ========================================================================
+//
+// Each test owns a one-connection adapter and a TEMP relation on that connection's session,
+// so the backend it inspects (`pg_prepared_statements` is per session) is the one its reads
+// ran on, and no other test can touch either.
+
+/// A one-connection adapter with a TEMP `rsc_doc (id int, data jsonb)` of three rows.
+async fn statement_cache_fixture() -> PostgresAdapter {
+    let adapter = PostgresAdapter::with_pool_size(&test_db_url(), 1)
+        .await
+        .expect("one-connection adapter");
+    adapter
+        .pool()
+        .get()
+        .await
+        .unwrap()
+        .batch_execute(
+            "CREATE TEMP TABLE rsc_doc (id int, data jsonb); \
+             INSERT INTO rsc_doc SELECT i, jsonb_build_object('id', i) \
+             FROM generate_series(1, 3) i",
+        )
+        .await
+        .unwrap();
+    adapter
+}
+
+/// The most times any one prepared statement on the adapter's connection has executed.
+async fn most_executions_of_one_statement(adapter: &PostgresAdapter) -> i64 {
+    adapter
+        .pool()
+        .get()
+        .await
+        .unwrap()
+        .query_one(
+            "SELECT coalesce(max(generic_plans + custom_plans), 0) FROM pg_prepared_statements",
+            &[],
+        )
+        .await
+        .unwrap()
+        .get(0)
+}
+
+#[tokio::test]
+async fn a_repeated_read_runs_one_prepared_statement() {
+    let adapter = statement_cache_fixture().await;
+    for _ in 0..5 {
+        let rows = adapter
+            .execute_where_query("rsc_doc", None, Some(10), None, None)
+            .await
+            .unwrap();
+        assert_eq!(rows.len(), 3);
+    }
+    assert_eq!(most_executions_of_one_statement(&adapter).await, 5);
+}
+
+#[tokio::test]
+async fn a_repeated_read_with_session_variables_runs_one_prepared_statement() {
+    let adapter = statement_cache_fixture().await;
+    for _ in 0..5 {
+        let rows = adapter
+            .execute_where_query_arc_with_session(
+                "rsc_doc",
+                None,
+                Some(10),
+                None,
+                None,
+                &[("app.tenant", "t1")],
+                ReadRouting::Any,
+            )
+            .await
+            .unwrap();
+        assert_eq!(rows.len(), 3);
+    }
+    assert_eq!(most_executions_of_one_statement(&adapter).await, 5);
+}
+
+/// `id IN (1, …, n)`: a distinct statement for each n.
+fn ids_up_to(n: usize) -> WhereClause {
+    WhereClause::Field {
+        path:     vec!["id".to_string()],
+        operator: WhereOperator::In,
+        value:    serde_json::Value::Array((1..=n).map(|i| json!(i)).collect()),
+    }
+}
+
+/// Assert the adapter's connection holds no more prepared statements than the cap.
+async fn assert_statements_held_under_cap(adapter: &PostgresAdapter) {
+    let client = adapter.pool().get().await.unwrap();
+    let held: i64 = client
+        .query_one("SELECT count(*) FROM pg_prepared_statements", &[])
+        .await
+        .unwrap()
+        .get(0);
+    // The probe itself is prepared while it runs.
+    let cap = i64::try_from(READ_STATEMENT_CACHE_CAP).unwrap();
+    assert!(held <= cap + 1, "{held} statements prepared on one connection, cap {cap}");
+}
+
+#[tokio::test]
+async fn a_client_minting_read_shapes_cannot_grow_the_statement_cache_past_its_cap() {
+    let adapter = statement_cache_fixture().await;
+    // Exactly one past the cap: the read that must empty the cache rather than grow it is the
+    // last one, so the count below sees the boundary, not a later refill.
+    for n in 1..=READ_STATEMENT_CACHE_CAP + 1 {
+        let rows = adapter
+            .execute_where_query("rsc_doc", Some(&ids_up_to(n)), None, None, None)
+            .await
+            .unwrap();
+        assert_eq!(rows.len(), n.min(3));
+    }
+    assert_statements_held_under_cap(&adapter).await;
+}
+
+#[tokio::test]
+async fn read_shapes_with_session_variables_cannot_grow_the_statement_cache_past_its_cap() {
+    let adapter = statement_cache_fixture().await;
+    // Exactly one past the cap: the read that must empty the cache rather than grow it is the
+    // last one, so the count below sees the boundary, not a later refill.
+    for n in 1..=READ_STATEMENT_CACHE_CAP + 1 {
+        let rows = adapter
+            .execute_where_query_arc_with_session(
+                "rsc_doc",
+                Some(&ids_up_to(n)),
+                None,
+                None,
+                None,
+                &[("app.tenant", "t1")],
+                ReadRouting::Any,
+            )
+            .await
+            .unwrap();
+        assert_eq!(rows.len(), n.min(3));
+    }
+    assert_statements_held_under_cap(&adapter).await;
+}
+
+/// Change `rsc_doc.data` from `jsonb` to `json` under the adapter's cached read statement: the
+/// rows read the same, but a statement prepared before the change returns another type.
+async fn change_the_data_column_type(adapter: &PostgresAdapter) {
+    adapter
+        .pool()
+        .get()
+        .await
+        .unwrap()
+        .batch_execute("ALTER TABLE rsc_doc ALTER COLUMN data TYPE json USING data::json")
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
+async fn a_read_survives_its_relation_changing_type_under_the_cached_statement() {
+    let adapter = statement_cache_fixture().await;
+    let read = || adapter.execute_where_query("rsc_doc", None, Some(10), None, None);
+    assert_eq!(read().await.unwrap().len(), 3);
+    change_the_data_column_type(&adapter).await;
+    let rows = read().await.expect("the read after the change");
+    assert_eq!(rows.len(), 3);
+}
+
+#[tokio::test]
+async fn a_read_with_session_variables_survives_its_relation_changing_type() {
+    let adapter = statement_cache_fixture().await;
+    let read = || {
+        adapter.execute_where_query_arc_with_session(
+            "rsc_doc",
+            None,
+            Some(10),
+            None,
+            None,
+            &[("app.tenant", "t1")],
+            ReadRouting::Any,
+        )
+    };
+    assert_eq!(read().await.unwrap().len(), 3);
+    change_the_data_column_type(&adapter).await;
+    let rows = read().await.expect("the read after the change");
+    assert_eq!(rows.len(), 3);
+}
