@@ -37,7 +37,7 @@ use super::{
 use crate::{
     dialect::PostgresDialect,
     identifier::quote_postgres_identifier,
-    order_by::{Tiebreak, append_order_by},
+    order_by::{Tiebreak, append_order_by, render_order_by_columns},
     postgres::pg_detail,
     traits::DatabaseAdapter,
     types::{
@@ -1915,6 +1915,98 @@ pub(super) fn build_where_select_sql_ordered(
     Ok((sql, typed_params))
 }
 
+/// [`build_projection_select_sql`] for a template that reads only the document: the page is
+/// cut first, each returned row's document is detoasted once, and only then projected (#1554).
+///
+/// ```text
+/// SELECT <projection over data>
+/// FROM (SELECT CASE WHEN pg_column_compression(data) IS NOT NULL
+///                     OR pg_column_toast_chunk_id(data) IS NOT NULL
+///                   THEN data || '{}'::jsonb ELSE data END AS data, "_o"
+///       FROM (SELECT data, row_number() OVER (ORDER BY <keys>) AS "_o"
+///             FROM <view> [WHERE …] ORDER BY <keys> LIMIT $n OFFSET $m) AS _fq_page
+///       OFFSET 0) AS _fq_doc
+/// ORDER BY "_o"
+/// ```
+///
+/// - The innermost `SELECT` is the single-`SELECT` read's `WHERE`, `ORDER BY`, `LIMIT` and
+///   `OFFSET`, unchanged, so the rows a page holds cannot differ; a skipped row is never projected.
+/// - The ordinal carries the page's order out of the subquery, so the outer `ORDER BY` never
+///   re-evaluates a key expression (a collation, a locale chain, a bound relevance operand) in
+///   another scope. The keys are rendered once and written twice, so a bound operand keeps one
+///   placeholder.
+/// - A document is copied (`|| '{}'`, which yields it detoasted) only when it is compressed or
+///   stored out of line, so every extraction in the projection reads memory instead of the toast
+///   relation; an inline uncompressed one is used as it is. The template only extracts keys from
+///   the document, which the copy leaves unchanged. `OFFSET 0` keeps the planner from folding the
+///   copy back into each reference to `data`.
+fn build_page_first_select_sql(
+    projection: &SqlProjectionHint,
+    view: &str,
+    where_clause: Option<&WhereClause>,
+    limit: Option<u32>,
+    offset: Option<u32>,
+    order_by: Option<&[OrderByClause]>,
+) -> Result<(String, Vec<QueryParam>)> {
+    let mut typed_params: Vec<QueryParam> = Vec::new();
+    let where_sql = if let Some(clause) = where_clause {
+        let generator = PostgresWhereGenerator::new(PostgresDialect);
+        let (where_sql, where_params) = generator.generate(clause)?;
+        typed_params.extend(where_params.into_iter().map(QueryParam::from));
+        format!(" WHERE {where_sql}")
+    } else {
+        String::new()
+    };
+    let mut param_count = typed_params.len();
+
+    // `Tiebreak::Identity`, as the single-`SELECT` read: a paged order must be total (#1287).
+    let rendered = render_order_by_columns(
+        order_by,
+        DatabaseType::PostgreSQL,
+        param_count + 1,
+        Tiebreak::Identity,
+    )?;
+    let (ordinal, inner_order, outer_order) = match &rendered {
+        Some(rendered) => {
+            for bound in &rendered.params {
+                param_count += 1;
+                typed_params.push(QueryParam::Text(bound.clone()));
+            }
+            (
+                format!(", row_number() OVER (ORDER BY {}) AS \"_o\"", rendered.columns),
+                format!(" ORDER BY {}", rendered.columns),
+                " ORDER BY \"_o\"",
+            )
+        },
+        None => (String::new(), String::new(), ""),
+    };
+
+    let mut page = format!(
+        "SELECT data{ordinal} FROM {}{where_sql}{inner_order}",
+        quote_postgres_identifier(view)
+    );
+    // Reason (expect below): fmt::Write for String is infallible.
+    if let Some(lim) = limit {
+        param_count += 1;
+        write!(page, " LIMIT ${param_count}").expect("write to String");
+        typed_params.push(QueryParam::BigInt(i64::from(lim)));
+    }
+    if let Some(off) = offset {
+        param_count += 1;
+        write!(page, " OFFSET ${param_count}").expect("write to String");
+        typed_params.push(QueryParam::BigInt(i64::from(off)));
+    }
+
+    let carried = if rendered.is_some() { ", \"_o\"" } else { "" };
+    let sql = format!(
+        "SELECT {} FROM (SELECT CASE WHEN pg_column_compression(data) IS NOT NULL \
+         OR pg_column_toast_chunk_id(data) IS NOT NULL THEN data || '{{}}'::jsonb ELSE data END \
+         AS data{carried} FROM ({page}) AS _fq_page OFFSET 0) AS _fq_doc{outer_order}",
+        projection.projection_template
+    );
+    Ok((sql, typed_params))
+}
+
 /// Build a parameterized projection `SELECT` SQL string.
 ///
 /// Mirrors the SQL produced inline by [`PostgresAdapter::execute_with_projection_impl`],
@@ -1936,6 +2028,16 @@ pub(super) fn build_projection_select_sql(
     offset: Option<u32>,
     order_by: Option<&[OrderByClause]>,
 ) -> Result<(String, Vec<QueryParam>)> {
+    if projection.reads_only_document {
+        return build_page_first_select_sql(
+            projection,
+            view,
+            where_clause,
+            limit,
+            offset,
+            order_by,
+        );
+    }
     // The projection_template is the SELECT clause with projection SQL,
     // e.g. "jsonb_build_object('id', data->>'id', 'email', data->>'email')".
     let mut sql = format!(

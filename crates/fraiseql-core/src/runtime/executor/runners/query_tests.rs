@@ -138,7 +138,7 @@ mod routing {
 mod auto_params {
     use super::*;
 
-    fn schema_with_auto_params(auto_params: AutoParams) -> CompiledSchema {
+    pub(super) fn schema_with_auto_params(auto_params: AutoParams) -> CompiledSchema {
         let mut schema = CompiledSchema::new();
         schema.queries.push(QueryDefinition {
             function: None,
@@ -3422,5 +3422,31 @@ mod enum_membership {
             .await
             .expect("a declared member must be served, not refused");
         assert!(result.get("data").is_some(), "a declared member must produce data: {result}");
+    }
+}
+
+// ── mod page_first: a projection of stored keys opts into page-first (#1554) ─────
+
+mod page_first {
+    use super::*;
+
+    #[tokio::test]
+    async fn a_projection_of_stored_keys_reads_only_the_document() {
+        let mut schema = auto_params::schema_with_auto_params(AutoParams::all());
+        schema.types.push({
+            let mut t = TypeDefinition::new("User", "v_user");
+            t.fields = vec![
+                FieldDefinition::new("id", FieldType::Int),
+                FieldDefinition::new("name", FieldType::String),
+            ];
+            t
+        });
+        let adapter = Arc::new(CapturingMockAdapter::new(mock_user_results()));
+        let executor = Executor::new(schema, adapter.clone());
+
+        executor.execute("{ users(limit: 2) { id name } }", None).await.unwrap();
+
+        let hint = adapter.captured_projection.lock().unwrap().clone().expect("a projected read");
+        assert!(hint.reads_only_document, "{hint:?}");
     }
 }

@@ -54,6 +54,13 @@ disagreed, and the promise was the part that was wrong.
   value of every row by deep clone. Rows no one else holds (anything but a row-cache hit) now
   give up their values, nested objects included, through the same projection rule, so the
   response is unchanged byte for byte.
+- **A paged read projects only the rows it returns, and detoasts each one once (#1554).** A
+  projected read was one `SELECT`: PostgreSQL projected every row up to `OFFSET + LIMIT` and threw
+  the skipped ones away, and every field the projection extracted detoasted the whole document
+  again. The page is now cut first (the same `WHERE`, `ORDER BY`, `LIMIT` and `OFFSET`, with an
+  ordinal carrying the order out), each returned document is copied once when it is compressed or
+  stored out of line, and only then projected. Rows and their order are unchanged. Reads that
+  project a computed field (a vector distance) keep the single `SELECT`.
 
 ### Fixed
 

@@ -2814,3 +2814,236 @@ async fn every_session_variable_of_a_request_is_visible_to_its_read() {
     let rows = read_five_times_with_three_session_variables(&adapter, "rsc_settings").await;
     assert_eq!(rows[0].as_value(), &json!({"a": "1", "b": "2", "c": "3"}));
 }
+
+// ========================================================================
+// Page first, then detoast each returned row once (#1554)
+// ========================================================================
+//
+// A one-connection adapter over a TEMP `pf_doc` of 30 rows inserted in an order that is not
+// their `id` order. Each document carries a ~12 KB `body` of hex text, compressed and stored out
+// of line, so detoasting it reads toast blocks.
+
+async fn page_first_fixture() -> PostgresAdapter {
+    let adapter = PostgresAdapter::with_pool_size(&test_db_url(), 1)
+        .await
+        .expect("one-connection adapter");
+    adapter
+        .pool()
+        .get()
+        .await
+        .unwrap()
+        .batch_execute(
+            "CREATE TEMP TABLE pf_doc (id int NOT NULL UNIQUE, data jsonb NOT NULL); \
+             INSERT INTO pf_doc \
+               SELECT n, jsonb_build_object( \
+                 'id', n, 'grp', n % 3, \
+                 'rank', CASE WHEN n % 5 = 0 THEN NULL ELSE n % 7 END, \
+                 'body', (SELECT string_agg(md5(n::text || '-' || g::text), '') \
+                          FROM generate_series(1, 400) g)) \
+               FROM (SELECT (i * 7) % 30 + 1 AS n FROM generate_series(0, 29) i) s; \
+             CREATE TEMP TABLE pf_doc_ext (id int NOT NULL UNIQUE, data jsonb NOT NULL); \
+             ALTER TABLE pf_doc_ext ALTER COLUMN data SET STORAGE EXTERNAL; \
+             INSERT INTO pf_doc_ext SELECT id, data FROM pf_doc; \
+             CREATE TEMP SEQUENCE pf_ticks; \
+             CREATE FUNCTION pg_temp.pf_tick() RETURNS bigint VOLATILE LANGUAGE sql \
+               AS 'SELECT nextval(''pf_ticks'')'; \
+             ANALYZE pf_doc; ANALYZE pf_doc_ext",
+        )
+        .await
+        .unwrap();
+    adapter
+}
+
+/// The template the differential reads, and the reference single `SELECT` it must equal.
+const PF_TEMPLATE: &str =
+    "jsonb_build_object('id', data->'id', 'grp', data->'grp', 'rank', data->'rank')";
+
+fn page_first_hint(template: &str) -> fraiseql_db::types::SqlProjectionHint {
+    fraiseql_db::types::SqlProjectionHint::new(DatabaseType::PostgreSQL, template.to_string(), 0)
+        .reading_only_the_document()
+}
+
+fn identity_order() -> fraiseql_db::OrderByClause {
+    fraiseql_db::OrderByClause::identity("id".to_string(), Some("id".to_string()))
+}
+
+#[tokio::test]
+async fn a_paged_read_returns_what_the_single_select_returns() {
+    use fraiseql_db::{OrderByClause, OrderDirection};
+    let adapter = page_first_fixture().await;
+    let hint = page_first_hint(PF_TEMPLATE);
+    let orders: [(Vec<OrderByClause>, &str); 3] = [
+        (vec![identity_order()], "id ASC"),
+        (
+            vec![
+                OrderByClause::new("grp".to_string(), OrderDirection::Asc),
+                identity_order(),
+            ],
+            "data->>'grp' ASC, id ASC",
+        ),
+        (
+            vec![
+                OrderByClause::new("rank".to_string(), OrderDirection::Desc),
+                identity_order(),
+            ],
+            "data->>'rank' DESC, id ASC",
+        ),
+    ];
+    let filters = [
+        (None, ""),
+        (
+            Some(WhereClause::Field {
+                path:     vec!["grp".to_string()],
+                operator: WhereOperator::Eq,
+                value:    json!(1),
+            }),
+            " WHERE (data->>'grp')::numeric = 1",
+        ),
+    ];
+    let pages = [
+        (Some(5), None),
+        (Some(5), Some(0)),
+        (Some(5), Some(10)),
+        (Some(5), Some(8)),
+        (Some(5), Some(40)),
+        (None, Some(7)),
+    ];
+    for (order, order_sql) in &orders {
+        for (filter, where_sql) in &filters {
+            for (limit, offset) in pages {
+                let served = DatabaseAdapter::execute_with_projection(
+                    &adapter,
+                    "pf_doc",
+                    Some(&hint),
+                    filter.as_ref(),
+                    limit,
+                    offset,
+                    Some(order),
+                )
+                .await
+                .unwrap();
+                let reference = format!(
+                    "SELECT {PF_TEMPLATE} FROM pf_doc{where_sql} ORDER BY {order_sql}{}{}",
+                    limit.map_or(String::new(), |l| format!(" LIMIT {l}")),
+                    offset.map_or(String::new(), |o| format!(" OFFSET {o}")),
+                );
+                // The adapter's one connection, taken only for the reference query.
+                let expected: Vec<serde_json::Value> = adapter
+                    .pool()
+                    .get()
+                    .await
+                    .unwrap()
+                    .query(&reference, &[])
+                    .await
+                    .unwrap()
+                    .iter()
+                    .map(|r| r.get(0))
+                    .collect();
+                let served: Vec<&serde_json::Value> = served.iter().map(|r| r.as_value()).collect();
+                let expected: Vec<&serde_json::Value> = expected.iter().collect();
+                assert_eq!(served, expected, "{reference}");
+            }
+        }
+    }
+}
+
+#[tokio::test]
+async fn a_page_projects_only_the_rows_it_returns() {
+    let adapter = page_first_fixture().await;
+    let hint = page_first_hint("jsonb_build_object('id', data->'id', 'tick', pg_temp.pf_tick())");
+    let rows = DatabaseAdapter::execute_with_projection(
+        &adapter,
+        "pf_doc",
+        Some(&hint),
+        None,
+        Some(5),
+        Some(10),
+        Some(&[identity_order()]),
+    )
+    .await
+    .unwrap();
+    let ids: Vec<i64> = rows.iter().map(|r| r.as_value()["id"].as_i64().unwrap()).collect();
+    assert_eq!(ids, [11, 12, 13, 14, 15]);
+    let ticks: i64 = adapter
+        .pool()
+        .get()
+        .await
+        .unwrap()
+        .query_one("SELECT pg_sequence_last_value('pf_ticks')", &[])
+        .await
+        .unwrap()
+        .get(0);
+    assert_eq!(ticks, 5, "the ten skipped rows were projected too");
+}
+
+/// Toast blocks `relation` has read so far, as this connection's flushed statistics report them.
+async fn toast_blocks_read(adapter: &PostgresAdapter, relation: &str) -> i64 {
+    let client = adapter.pool().get().await.unwrap();
+    // The pending counts of the previous statements reach shared memory when the backend next
+    // goes idle; the snapshot is cleared so this read sees them.
+    client.query("SELECT pg_stat_force_next_flush()", &[]).await.unwrap();
+    client.query("SELECT pg_stat_clear_snapshot()", &[]).await.unwrap();
+    client
+        .query_one(
+            "SELECT coalesce(toast_blks_hit, 0) + coalesce(toast_blks_read, 0) \
+             FROM pg_statio_all_tables WHERE relid = $1::text::regclass",
+            &[&relation],
+        )
+        .await
+        .unwrap()
+        .get(0)
+}
+
+/// The toast blocks a five-row page of `relation` reads, and the cost of reading each of those
+/// five documents exactly once.
+async fn page_and_single_read_toast_blocks(relation: &str) -> (i64, i64) {
+    let adapter = page_first_fixture().await;
+    // Three extractions from the toasted document: without a detoasted copy, each one reads
+    // the whole value from the toast relation again.
+    let hint = page_first_hint(
+        "jsonb_build_object('id', data->'id', 'grp', data->'grp', 'rank', data->'rank')",
+    );
+
+    let before = toast_blocks_read(&adapter, relation).await;
+    DatabaseAdapter::execute_with_projection(
+        &adapter,
+        relation,
+        Some(&hint),
+        None,
+        Some(5),
+        Some(10),
+        Some(&[identity_order()]),
+    )
+    .await
+    .unwrap();
+    let page = toast_blocks_read(&adapter, relation).await - before;
+
+    let before = toast_blocks_read(&adapter, relation).await;
+    adapter
+        .pool()
+        .get()
+        .await
+        .unwrap()
+        .query(
+            &format!("SELECT length(data::text) FROM {relation} WHERE id BETWEEN 11 AND 15"),
+            &[],
+        )
+        .await
+        .unwrap();
+    let once = toast_blocks_read(&adapter, relation).await - before;
+    assert!(once > 0, "{relation}'s documents must be stored out of line");
+    (page, once)
+}
+
+#[tokio::test]
+async fn each_returned_row_is_detoasted_once() {
+    // Compressed and out of line (the default storage for this document), and out of line
+    // uncompressed (`EXTERNAL`): each arm of the copy predicate has a relation of its own.
+    for relation in ["pf_doc", "pf_doc_ext"] {
+        let (page, once) = page_and_single_read_toast_blocks(relation).await;
+        assert_eq!(
+            page, once,
+            "{relation}: toast blocks read by the page, against one read per row"
+        );
+    }
+}

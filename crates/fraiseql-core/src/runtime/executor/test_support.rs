@@ -53,6 +53,8 @@ pub struct CapturingMockAdapter {
     /// The composed read (`?select=` embedding) handed to the adapter, answered with
     /// `mock_results` — which a composed-read test therefore fills with composed rows.
     pub captured_composed:         std::sync::Mutex<Option<crate::backend::ComposedLevel>>,
+    /// The projection hint the last projected read carried.
+    pub captured_projection:       std::sync::Mutex<Option<crate::schema::SqlProjectionHint>>,
     /// What `supports_composed_reads` answers; `true` unless built
     /// [`without_composed_reads`](Self::without_composed_reads).
     pub composes_reads:            bool,
@@ -90,6 +92,7 @@ impl CapturingMockAdapter {
             mock_row_results: Vec::new(),
             captured_row_read: std::sync::Mutex::new(None),
             captured_composed: std::sync::Mutex::new(None),
+            captured_projection: std::sync::Mutex::new(None),
             composes_reads: true,
         }
     }
@@ -178,12 +181,13 @@ impl DatabaseAdapter for CapturingMockAdapter {
     async fn execute_with_projection(
         &self,
         view: &str,
-        _projection: Option<&crate::schema::SqlProjectionHint>,
+        projection: Option<&crate::schema::SqlProjectionHint>,
         where_clause: Option<&WhereClause>,
         limit: Option<u32>,
         offset: Option<u32>,
         order_by: Option<&[OrderByClause]>,
     ) -> Result<Vec<JsonbValue>> {
+        *self.captured_projection.lock().unwrap() = projection.cloned();
         self.execute_where_query(view, where_clause, limit, offset, order_by).await
     }
 

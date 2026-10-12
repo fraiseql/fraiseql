@@ -411,6 +411,10 @@ impl QueryRunner {
             &self.ctx.schema,
             &query_match.query_def.return_type,
         );
+        // #1554: a projection of stored keys alone can be cut to its page and detoasted before
+        // it is projected. A computed field (a vector distance) reads native columns the paged
+        // subquery does not expose, so that read keeps the single-`SELECT` shape.
+        let reads_only_document = distance_fields.is_empty();
         merge_computed_fields(&mut typed_fields, distance_fields);
         // A projection that cannot be built is an error, not a licence to
         // select every column: the Rust projector subsets top-level keys but
@@ -418,11 +422,16 @@ impl QueryRunner {
         // client never asked for (#827's family).
         let projection_sql =
             generator.generate_typed_projection_sql(&typed_fields).map_err(internal)?;
-        Ok(Some(SqlProjectionHint::new(
+        let hint = SqlProjectionHint::new(
             self.ctx.adapter.database_type(),
             projection_sql,
             compute_projection_reduction(plan.projection_fields.len()),
-        )))
+        );
+        Ok(Some(if reads_only_document {
+            hint.reading_only_the_document()
+        } else {
+            hint
+        }))
     }
 
     /// Execute a regular query with row-level security (RLS) filtering.

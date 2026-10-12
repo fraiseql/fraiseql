@@ -582,11 +582,11 @@ fn build_where_select_sql_ordered_appends_the_identity() {
 
 #[test]
 fn build_projection_select_sql_appends_the_identity() {
-    let hint = SqlProjectionHint {
-        database:                    DatabaseType::PostgreSQL,
-        projection_template:         "jsonb_build_object('id', data->>'id')".to_string(),
-        estimated_reduction_percent: 50,
-    };
+    let hint = SqlProjectionHint::new(
+        DatabaseType::PostgreSQL,
+        "jsonb_build_object('id', data->>'id')".to_string(),
+        50,
+    );
     let clauses = [OrderByClause::new(
         "status".to_string(),
         OrderDirection::Asc,

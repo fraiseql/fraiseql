@@ -479,6 +479,16 @@ pub struct SqlProjectionHint {
 
     /// Estimated reduction in payload size (percentage 0-100).
     pub estimated_reduction_percent: u32,
+
+    /// The template reads nothing but the row's JSONB document (`data`), so the read may be
+    /// paged before it is projected and each returned row's document detoasted once (#1554).
+    ///
+    /// `false`, the default, when the template also reads a native column or a computed
+    /// expression (a vector distance): the paged subquery exposes only the document, so such
+    /// a read keeps the single-`SELECT` shape. Set by the projection generator, which is the
+    /// only thing that knows what it emitted; never inferred from the SQL text.
+    #[serde(default)]
+    pub reads_only_document: bool,
 }
 
 impl SqlProjectionHint {
@@ -493,7 +503,16 @@ impl SqlProjectionHint {
             database,
             projection_template,
             estimated_reduction_percent,
+            reads_only_document: false,
         }
+    }
+
+    /// The same hint, declaring that its template reads only the row's JSONB document
+    /// ([`reads_only_document`](Self::reads_only_document)).
+    #[must_use]
+    pub const fn reading_only_the_document(mut self) -> Self {
+        self.reads_only_document = true;
+        self
     }
 }
 
