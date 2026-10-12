@@ -94,8 +94,9 @@ pub(super) struct ExecutorContext {
     /// every transport that reaches the executor, not just the `/graphql` stage.
     pub(super) gate1: crate::security::QueryValidator,
 
-    /// Parsed GraphQL AST cache, keyed by xxHash64 of the query string.
-    pub(super) parse_cache: MokaCache<u64, Arc<super::support::classify::Classification>>,
+    /// Classified documents, keyed by an xxh3 hash of the document and the selected
+    /// operation; each entry carries both, and a hit is confirmed against them.
+    pub(super) parse_cache: MokaCache<u64, Arc<super::support::classify::CachedClassification>>,
 
     /// Projected introspection responses, keyed by a hash of the normalised
     /// selection set (#F7).

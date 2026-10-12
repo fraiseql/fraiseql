@@ -55,38 +55,42 @@ pub async fn graphql_handler(
     token_claims: Option<axum::Extension<crate::middleware::oidc_auth::SessionTokenClaims>>,
     Json(request): Json<GraphQLRequest>,
 ) -> Result<axum::response::Response, ErrorResponse> {
-    // Extract trace context from W3C headers
-    let trace_context = tracing_utils::extract_trace_context(&headers);
-    if trace_context.is_some() {
-        debug!("Extracted W3C trace context from incoming request");
-    }
+    // #1562: every stage below reads this request's one parse of its document.
+    fraiseql_core::graphql::document_scope(async move {
+        // Extract trace context from W3C headers
+        let trace_context = tracing_utils::extract_trace_context(&headers);
+        if trace_context.is_some() {
+            debug!("Extracted W3C trace context from incoming request");
+        }
 
-    if security_context.is_some() {
-        debug!("Authenticated request with security context");
-    }
+        if security_context.is_some() {
+            debug!("Authenticated request with security context");
+        }
 
-    // GraphQL-over-SSE (#387): opt-in, negotiated by Accept. This branch runs
-    // INSIDE the authenticated route, so it inherits the full middleware stack.
-    if let Some(wire) = state
-        .graphql_incremental_enabled
-        .then(|| incremental::negotiate(&headers))
-        .flatten()
-    {
-        return Box::pin(sse::handle_sse(
-            state,
-            wire,
-            headers,
-            peer_ip,
-            security_context,
-            token_claims.map(|axum::Extension(claims)| claims),
-            request,
-        ))
-        .await;
-    }
+        // GraphQL-over-SSE (#387): opt-in, negotiated by Accept. This branch runs
+        // INSIDE the authenticated route, so it inherits the full middleware stack.
+        if let Some(wire) = state
+            .graphql_incremental_enabled
+            .then(|| incremental::negotiate(&headers))
+            .flatten()
+        {
+            return Box::pin(sse::handle_sse(
+                state,
+                wire,
+                headers,
+                peer_ip,
+                security_context,
+                token_claims.map(|axum::Extension(claims)| claims),
+                request,
+            ))
+            .await;
+        }
 
-    execute_graphql_request(state, request, trace_context, security_context, &headers, &peer_ip)
-        .await
-        .map(axum::response::IntoResponse::into_response)
+        execute_graphql_request(state, request, trace_context, security_context, &headers, &peer_ip)
+            .await
+            .map(axum::response::IntoResponse::into_response)
+    })
+    .await
 }
 
 /// GraphQL HTTP handler for GET requests.
@@ -127,99 +131,103 @@ pub async fn graphql_get_handler(
     token_claims: Option<axum::Extension<crate::middleware::oidc_auth::SessionTokenClaims>>,
     Query(params): Query<GraphQLGetParams>,
 ) -> Result<axum::response::Response, ErrorResponse> {
-    // Reject oversized GET queries early to prevent DoS via query parsing.
-    let max_get_bytes = state.max_get_query_bytes;
-    if params.query.len() > max_get_bytes {
-        return Err(ErrorResponse::from_error(GraphQLError::payload_too_large(format!(
-            "GET query string exceeds maximum allowed length ({max_get_bytes} bytes)"
-        ))));
-    }
-
-    // Parse variables from JSON string.
-    // Apply the same size cap as the query string — the URL-length limit imposed
-    // by reverse proxies/OS is real but not enforced by axum itself, so we guard
-    // explicitly to prevent parser DoS from a very large variables value.
-    let variables = if let Some(vars_str) = params.variables {
-        if vars_str.len() > max_get_bytes {
+    // #1562: every stage below reads this request's one parse of its document.
+    fraiseql_core::graphql::document_scope(async move {
+        // Reject oversized GET queries early to prevent DoS via query parsing.
+        let max_get_bytes = state.max_get_query_bytes;
+        if params.query.len() > max_get_bytes {
             return Err(ErrorResponse::from_error(GraphQLError::payload_too_large(format!(
-                "GET variables string exceeds maximum allowed length ({max_get_bytes} bytes)"
+                "GET query string exceeds maximum allowed length ({max_get_bytes} bytes)"
             ))));
         }
-        match serde_json::from_str::<serde_json::Value>(&vars_str) {
-            Ok(v) => Some(v),
-            Err(e) => {
-                // Log the fault, never the payload. `variables` is client-supplied
-                // and may hold PII or bearer tokens; emitting up to
-                // `max_get_query_bytes` of it at `warn!` put that into every log
-                // sink the deployment ships to (#730). The serde error already
-                // carries the line/column, which is what a diagnosis needs.
-                warn!(
-                    error = %e,
-                    variables_bytes = vars_str.len(),
-                    "Failed to parse variables JSON in GET request"
-                );
-                return Err(ErrorResponse::from_error(GraphQLError::request(format!(
-                    "Invalid variables JSON: {e}"
+
+        // Parse variables from JSON string.
+        // Apply the same size cap as the query string — the URL-length limit imposed
+        // by reverse proxies/OS is real but not enforced by axum itself, so we guard
+        // explicitly to prevent parser DoS from a very large variables value.
+        let variables = if let Some(vars_str) = params.variables {
+            if vars_str.len() > max_get_bytes {
+                return Err(ErrorResponse::from_error(GraphQLError::payload_too_large(format!(
+                    "GET variables string exceeds maximum allowed length ({max_get_bytes} bytes)"
                 ))));
-            },
+            }
+            match serde_json::from_str::<serde_json::Value>(&vars_str) {
+                Ok(v) => Some(v),
+                Err(e) => {
+                    // Log the fault, never the payload. `variables` is client-supplied
+                    // and may hold PII or bearer tokens; emitting up to
+                    // `max_get_query_bytes` of it at `warn!` put that into every log
+                    // sink the deployment ships to (#730). The serde error already
+                    // carries the line/column, which is what a diagnosis needs.
+                    warn!(
+                        error = %e,
+                        variables_bytes = vars_str.len(),
+                        "Failed to parse variables JSON in GET request"
+                    );
+                    return Err(ErrorResponse::from_error(GraphQLError::request(format!(
+                        "Invalid variables JSON: {e}"
+                    ))));
+                },
+            }
+        } else {
+            None
+        };
+
+        // Reject mutations over GET with 405 per the GraphQL-over-HTTP spec: GET is for
+        // queries only, and allowing mutations sidesteps the POST-only CSRF posture
+        // (M-get-mutations). Detection parses the operation (reliable) rather than matching a
+        // `mutation` string prefix (which a leading comment or named query defeats).
+        if detect_mutation_name(&params.query).is_some() {
+            warn!(
+                operation_name = ?params.operation_name,
+                "Mutation sent via GET request — rejected (use POST)"
+            );
+            return Err(ErrorResponse::from_error(GraphQLError::method_not_allowed(
+                "Mutations must be sent over POST, not GET",
+            )));
         }
-    } else {
-        None
-    };
 
-    // Reject mutations over GET with 405 per the GraphQL-over-HTTP spec: GET is for
-    // queries only, and allowing mutations sidesteps the POST-only CSRF posture
-    // (M-get-mutations). Detection parses the operation (reliable) rather than matching a
-    // `mutation` string prefix (which a leading comment or named query defeats).
-    if detect_mutation_name(&params.query).is_some() {
-        warn!(
-            operation_name = ?params.operation_name,
-            "Mutation sent via GET request — rejected (use POST)"
-        );
-        return Err(ErrorResponse::from_error(GraphQLError::method_not_allowed(
-            "Mutations must be sent over POST, not GET",
-        )));
-    }
+        let trace_context = tracing_utils::extract_trace_context(&headers);
+        if trace_context.is_some() {
+            debug!("Extracted W3C trace context from incoming request");
+        }
 
-    let trace_context = tracing_utils::extract_trace_context(&headers);
-    if trace_context.is_some() {
-        debug!("Extracted W3C trace context from incoming request");
-    }
+        let request = GraphQLRequest {
+            query: Some(params.query),
+            variables,
+            operation_name: params.operation_name,
+            extensions: None,
+            document_id: None,
+        };
 
-    let request = GraphQLRequest {
-        query: Some(params.query),
-        variables,
-        operation_name: params.operation_name,
-        extensions: None,
-        document_id: None,
-    };
+        if security_context.is_some() {
+            debug!("Authenticated GET request with security context");
+        }
 
-    if security_context.is_some() {
-        debug!("Authenticated GET request with security context");
-    }
+        // GraphQL-over-SSE (#387): the GET arm is what an `EventSource` client can
+        // reach (it cannot POST). Mutations were already rejected above.
+        if let Some(wire) = state
+            .graphql_incremental_enabled
+            .then(|| incremental::negotiate(&headers))
+            .flatten()
+        {
+            return Box::pin(sse::handle_sse(
+                state,
+                wire,
+                headers,
+                peer_ip,
+                security_context,
+                token_claims.map(|axum::Extension(claims)| claims),
+                request,
+            ))
+            .await;
+        }
 
-    // GraphQL-over-SSE (#387): the GET arm is what an `EventSource` client can
-    // reach (it cannot POST). Mutations were already rejected above.
-    if let Some(wire) = state
-        .graphql_incremental_enabled
-        .then(|| incremental::negotiate(&headers))
-        .flatten()
-    {
-        return Box::pin(sse::handle_sse(
-            state,
-            wire,
-            headers,
-            peer_ip,
-            security_context,
-            token_claims.map(|axum::Extension(claims)| claims),
-            request,
-        ))
-        .await;
-    }
-
-    execute_graphql_request(state, request, trace_context, security_context, &headers, &peer_ip)
-        .await
-        .map(axum::response::IntoResponse::into_response)
+        execute_graphql_request(state, request, trace_context, security_context, &headers, &peer_ip)
+            .await
+            .map(axum::response::IntoResponse::into_response)
+    })
+    .await
 }
 
 /// The HTTP `QUERY` method (RFC 10008), as a byte string.
@@ -257,33 +265,37 @@ pub async fn graphql_query_method_handler(
     OptionalSecurityContext(security_context): OptionalSecurityContext,
     body: axum::body::Bytes,
 ) -> Result<GraphQLResponse, ErrorResponse> {
-    // This handler is a method-router fallback, so it also catches PUT/DELETE/…
-    // Anything that is not QUERY gets the same 405 the router would have produced.
-    if method.as_str() != HTTP_QUERY_METHOD {
-        return Err(ErrorResponse::from_error(GraphQLError::method_not_allowed(
-            "Method not allowed on the GraphQL endpoint",
-        )));
-    }
+    // #1562: every stage below reads this request's one parse of its document.
+    fraiseql_core::graphql::document_scope(async move {
+        // This handler is a method-router fallback, so it also catches PUT/DELETE/…
+        // Anything that is not QUERY gets the same 405 the router would have produced.
+        if method.as_str() != HTTP_QUERY_METHOD {
+            return Err(ErrorResponse::from_error(GraphQLError::method_not_allowed(
+                "Method not allowed on the GraphQL endpoint",
+            )));
+        }
 
-    let request: GraphQLRequest = serde_json::from_slice(&body).map_err(|e| {
-        ErrorResponse::from_error(GraphQLError::request(format!("Invalid QUERY body: {e}")))
-    })?;
+        let request: GraphQLRequest = serde_json::from_slice(&body).map_err(|e| {
+            ErrorResponse::from_error(GraphQLError::request(format!("Invalid QUERY body: {e}")))
+        })?;
 
-    // Queries-only. `detect_operation_type` uses the same parser the executor uses,
-    // so the gate cannot disagree with what would actually execute. A document that
-    // does not parse falls through (like the GET path) and surfaces a GraphQL parse
-    // error from the executor — it executes nothing, so no state can change.
-    if let Some(op) = non_query_operation(request.query.as_deref().unwrap_or_default()) {
-        warn!(operation = op, "Non-query operation sent via QUERY — rejected (use POST)");
-        return Err(ErrorResponse::from_error(GraphQLError::method_not_allowed(
-            "Only query operations may be sent over the QUERY method; use POST",
-        )));
-    }
+        // Queries-only. `detect_operation_type` uses the same parser the executor uses,
+        // so the gate cannot disagree with what would actually execute. A document that
+        // does not parse falls through (like the GET path) and surfaces a GraphQL parse
+        // error from the executor — it executes nothing, so no state can change.
+        if let Some(op) = non_query_operation(request.query.as_deref().unwrap_or_default()) {
+            warn!(operation = op, "Non-query operation sent via QUERY — rejected (use POST)");
+            return Err(ErrorResponse::from_error(GraphQLError::method_not_allowed(
+                "Only query operations may be sent over the QUERY method; use POST",
+            )));
+        }
 
-    let trace_context = tracing_utils::extract_trace_context(&headers);
+        let trace_context = tracing_utils::extract_trace_context(&headers);
 
-    execute_graphql_request(state, request, trace_context, security_context, &headers, &peer_ip)
-        .await
+        execute_graphql_request(state, request, trace_context, security_context, &headers, &peer_ip)
+            .await
+    })
+    .await
 }
 
 /// Returns the operation type when `query` is **not** a plain query — i.e.

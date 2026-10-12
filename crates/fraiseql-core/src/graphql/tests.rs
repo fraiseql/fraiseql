@@ -1401,3 +1401,60 @@ mod parser_panic_containment {
         parse_graphql_document(doc).expect("NBSP in block-string content is valid input");
     }
 }
+
+/// #1562: inside a request's scope a document is parsed once, and only a call with
+/// the same source shares it.
+mod document_scope {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
+    use std::sync::Arc;
+
+    use super::super::complexity::{
+        document_parses_on_this_thread, document_scope, parse_graphql_document,
+    };
+
+    #[tokio::test]
+    async fn the_same_source_shares_one_parse() {
+        document_scope(async {
+            let before = document_parses_on_this_thread();
+            let first = parse_graphql_document("{ users { id } }").unwrap();
+            let again = parse_graphql_document("{ users { id } }").unwrap();
+            assert!(Arc::ptr_eq(&first, &again), "the second call reads the first parse");
+            assert_eq!(document_parses_on_this_thread() - before, 1, "one parse");
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn another_source_gets_its_own_document() {
+        document_scope(async {
+            let users = parse_graphql_document("{ users { id } }").unwrap();
+            let posts = parse_graphql_document("{ posts { id } }").unwrap();
+            let fresh = crate::graphql::complexity::parse_graphql_document("{ posts { id } }");
+            assert_ne!(users, posts, "a different source is not answered with the kept document");
+            assert_eq!(posts, fresh.unwrap(), "it is answered with its own");
+            let users_again = parse_graphql_document("{ users { id } }").unwrap();
+            assert!(Arc::ptr_eq(&users, &users_again), "and does not displace the request's");
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn a_nested_scope_joins_the_open_one() {
+        document_scope(async {
+            let before = document_parses_on_this_thread();
+            parse_graphql_document("{ users { id } }").unwrap();
+            document_scope(async { parse_graphql_document("{ users { id } }").unwrap() }).await;
+            assert_eq!(document_parses_on_this_thread() - before, 1, "the inner scope reuses it");
+        })
+        .await;
+    }
+
+    #[test]
+    fn outside_a_scope_every_call_parses() {
+        let before = document_parses_on_this_thread();
+        parse_graphql_document("{ users { id } }").unwrap();
+        parse_graphql_document("{ users { id } }").unwrap();
+        assert_eq!(document_parses_on_this_thread() - before, 2, "nothing is kept");
+    }
+}

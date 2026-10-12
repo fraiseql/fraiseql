@@ -89,27 +89,31 @@ impl Executor {
 
         // #1314: what the served response says about itself (a similarity search that may
         // have stopped short) rides in `extensions.notices`, collected while it executes.
+        // #1562: GATE-1, the cost cap, classification and matching read one parse of the
+        // document, inside the transport's scope when it opened one.
         // Boxed: the scope holds the whole dispatch, and every caller awaits this future.
-        let (response, notices) = crate::runtime::notices::collect_notices(Box::pin(async {
-            if self.ctx.config.query_timeout_ms > 0 {
-                let timeout_duration = Duration::from_millis(self.ctx.config.query_timeout_ms);
-                tokio::time::timeout(
-                    timeout_duration,
-                    self.execute_dispatch(query, variables, security_context, operation_name),
-                )
-                .await
-                .map_err(|_| {
-                    // Truncate query (char-boundary-safe) for error reporting.
-                    let query_snippet = crate::utils::text::truncate_for_display(query, 100);
-                    FraiseQLError::Timeout {
-                        timeout_ms: self.ctx.config.query_timeout_ms,
-                        query:      Some(query_snippet),
-                    }
-                })?
-            } else {
-                self.execute_dispatch(query, variables, security_context, operation_name).await
-            }
-        }))
+        let (response, notices) = crate::graphql::document_scope(
+            crate::runtime::notices::collect_notices(Box::pin(async {
+                if self.ctx.config.query_timeout_ms > 0 {
+                    let timeout_duration = Duration::from_millis(self.ctx.config.query_timeout_ms);
+                    tokio::time::timeout(
+                        timeout_duration,
+                        self.execute_dispatch(query, variables, security_context, operation_name),
+                    )
+                    .await
+                    .map_err(|_| {
+                        // Truncate query (char-boundary-safe) for error reporting.
+                        let query_snippet = crate::utils::text::truncate_for_display(query, 100);
+                        FraiseQLError::Timeout {
+                            timeout_ms: self.ctx.config.query_timeout_ms,
+                            query:      Some(query_snippet),
+                        }
+                    })?
+                } else {
+                    self.execute_dispatch(query, variables, security_context, operation_name).await
+                }
+            })),
+        )
         .await;
         Ok(crate::runtime::notices::with_notices(response?, &notices))
     }
@@ -283,18 +287,28 @@ impl Executor {
     /// re-checked rather than serving a cached verdict; and because validity of a
     /// *definition* is a property of the document alone — never of this request's
     /// variable *values* — caching the accepted verdict is sound.
+    ///
+    /// The verdict is shared by `Arc`, not copied out per request (#1562), and a hit
+    /// is used only when the entry was computed for this very document and operation
+    /// (see [`CachedClassification`](support::classify::CachedClassification)).
     fn classify_cached(
         &self,
         query: &str,
         operation_name: Option<&str>,
-    ) -> Result<support::classify::Classification> {
+    ) -> Result<Arc<support::classify::CachedClassification>> {
         let cache_key = parse_cache_key(query, operation_name);
-        if let Some(arc) = self.ctx.parse_cache.get(&cache_key) {
-            return Ok(arc.as_ref().clone());
+        if let Some(entry) = self.ctx.parse_cache.get(&cache_key) {
+            if entry.answers(query, operation_name) {
+                return Ok(entry);
+            }
         }
-        let pair = self.classify_query_with_parse(query, operation_name)?;
-        self.ctx.parse_cache.insert(cache_key, Arc::new(pair.clone()));
-        Ok(pair)
+        let entry = Arc::new(support::classify::CachedClassification::new(
+            query,
+            operation_name,
+            self.classify_query_with_parse(query, operation_name)?,
+        ));
+        self.ctx.parse_cache.insert(cache_key, Arc::clone(&entry));
+        Ok(entry)
     }
 
     /// Execute a document that the engine would **not** execute as a write, as
@@ -346,7 +360,8 @@ impl Executor {
         variables: Option<&serde_json::Value>,
         security_context: Option<&SecurityContext>,
     ) -> Result<serde_json::Value> {
-        let (query_type, parsed, _, _) = self.classify_cached(query, None)?;
+        let entry = self.classify_cached(query, None)?;
+        let (query_type, parsed, _, _) = &entry.classification;
         if matches!(query_type, QueryType::Mutation { .. }) {
             return Err(FraiseQLError::Authorization {
                 message:  "the before:mutation read bridge is read-only: this document is a \
@@ -434,8 +449,8 @@ impl Executor {
         // GATE-1 itself parses with (`validate_with_variables`, and
         // `parse_graphql_document` again for `max_operation_cost`), so the
         // parser sees nothing it was not already going to see.
-        let (query_type, maybe_parsed, variable_defaults, completion) =
-            self.classify_cached(query, operation_name)?;
+        let entry = self.classify_cached(query, operation_name)?;
+        let (query_type, maybe_parsed, variable_defaults, completion) = &entry.classification;
 
         // GraphQL § 6.4.1 (#1504): a variable the request omits takes its declared
         // default, before anything reads the variables — GATE-1, the authorizer and
@@ -443,7 +458,7 @@ impl Executor {
         // filters it. The defaults belong to the document, so they are cached with
         // its classification and merged here, per request.
         let defaulted =
-            crate::graphql::value_json::with_variable_defaults(&variable_defaults, variables);
+            crate::graphql::value_json::with_variable_defaults(variable_defaults, variables);
         let variables = defaulted.as_ref().or(variables);
 
         // GATE 1: query-structure validation (DoS protection for direct embedders).
@@ -456,7 +471,7 @@ impl Executor {
         //     Fail-closed: a `Deny` or any policy error → 403.
         if let Some(authorizer) = self.ctx.config.authorizer.as_ref() {
             let ops = support::authz::collect_authz_ops(
-                &query_type,
+                query_type,
                 maybe_parsed.as_ref(),
                 &self.ctx.schema,
             );
@@ -478,12 +493,12 @@ impl Executor {
                 // Detect multi-root queries and dispatch them in parallel.
                 // `maybe_parsed` is always Some for Regular queries (see
                 // classify_query_with_parse).
-                let parsed = maybe_parsed.ok_or_else(|| FraiseQLError::Internal {
+                let parsed = maybe_parsed.as_ref().ok_or_else(|| FraiseQLError::Internal {
                     message: "classifier returned Regular without a parsed query — this is a bug"
                         .to_string(),
                     source:  None,
                 })?;
-                if pipeline::is_multi_root(&parsed) {
+                if pipeline::is_multi_root(parsed) {
                     // § 6.1.2 for the one shape `QueryMatcher` structurally
                     // cannot check: `field_selection_to_query` re-serialises
                     // each root into a synthetic single-root document that
@@ -510,7 +525,7 @@ impl Executor {
                         &parsed.variables,
                         variables,
                     )?;
-                    let pr = self.execute_parallel(&parsed, variables, security_context).await?;
+                    let pr = self.execute_parallel(parsed, variables, security_context).await?;
                     let data = pr.merge_into_data_map();
                     Ok(serde_json::json!({ "data": data }))
                 } else {
@@ -526,19 +541,19 @@ impl Executor {
             },
             QueryType::Aggregate(query_name) => {
                 self.aggregate_runner()
-                    .execute_aggregate_dispatch(&query_name, variables, security_context)
+                    .execute_aggregate_dispatch(query_name, variables, security_context)
                     .await
             },
             QueryType::Window(query_name) => {
                 self.aggregate_runner()
-                    .execute_window_dispatch(&query_name, variables, security_context)
+                    .execute_window_dispatch(query_name, variables, security_context)
                     .await
             },
             #[cfg(feature = "federation")]
             QueryType::Federation(query_name) => {
                 // The `_entities` path fails closed for RLS-/inject-/role-gated
                 // types when `security_context` is `None` (C1b).
-                self.execute_federation_query(&query_name, query, variables, security_context)
+                self.execute_federation_query(query_name, query, variables, security_context)
                     .await
             },
             #[cfg(not(feature = "federation"))]
@@ -550,22 +565,22 @@ impl Executor {
                 })
             },
             QueryType::Introspection => {
-                let parsed = maybe_parsed.ok_or_else(|| FraiseQLError::Internal {
+                let parsed = maybe_parsed.as_ref().ok_or_else(|| FraiseQLError::Internal {
                     message: "classifier returned Introspection without a parsed query — this \
                               is a bug"
                         .to_string(),
                     source:  None,
                 })?;
-                self.execute_introspection(&parsed, variables)
+                self.execute_introspection(parsed, variables)
             },
             QueryType::Mutation { roots } => {
-                self.execute_mutation_roots(&roots, variables, security_context).await
+                self.execute_mutation_roots(roots, variables, security_context).await
             },
             QueryType::NodeQuery { selections } => {
                 // The node runner fails closed for any RLS/inject/role-gated type
                 // when `security_context` is `None` (H2 IDOR fix).
                 self.query_runner()
-                    .execute_node_query(query, variables, &selections, security_context)
+                    .execute_node_query(query, variables, selections, security_context)
                     .await
             },
             QueryType::TypeName {
@@ -583,7 +598,7 @@ impl Executor {
                     _ => std::collections::HashMap::new(),
                 };
                 let included =
-                    crate::graphql::DirectiveEvaluator::evaluate_directives(&selection, &vars)
+                    crate::graphql::DirectiveEvaluator::evaluate_directives(selection, &vars)
                         .map_err(|e| FraiseQLError::Validation {
                             message: e.to_string(),
                             path:    Some("directives".to_string()),
@@ -592,7 +607,7 @@ impl Executor {
                 if included {
                     data.insert(
                         selection.response_key().to_string(),
-                        serde_json::Value::String(root_type_name(&operation_type).to_string()),
+                        serde_json::Value::String(root_type_name(operation_type).to_string()),
                     );
                 }
                 Ok(serde_json::json!({ "data": data }))
@@ -792,7 +807,7 @@ pub(super) fn normalize_operation_name(operation_name: Option<&str>) -> Option<&
 /// so keying on the document alone would serve the first request's operation to
 /// every later request naming a different one — the § 6.1 defect, made
 /// permanent by the cache and invisible to the request that triggers it.
-fn parse_cache_key(query: &str, operation_name: Option<&str>) -> u64 {
+pub(super) fn parse_cache_key(query: &str, operation_name: Option<&str>) -> u64 {
     let document = xxhash_rust::xxh3::xxh3_64(query.as_bytes());
     match operation_name {
         None => document,

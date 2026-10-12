@@ -112,7 +112,7 @@ pub fn parse_query_with_operation_name(
 ) -> Result<ParsedQuery, GraphQLParseError> {
     // Through the guarded seam, not `query::parse_query` directly: the parser can
     // panic on a client-controlled document (#976), and this entry point is public.
-    let doc: Document<String> = crate::graphql::complexity::parse_graphql_document(source)
+    let doc = crate::graphql::complexity::parse_graphql_document(source)
         .map_err(|e| GraphQLParseError::Syntax(e.to_string()))?;
 
     let operation = select_operation(&doc, operation_name)?;
@@ -121,9 +121,9 @@ pub fn parse_query_with_operation_name(
 
 /// Choose the operation to execute from a parsed document (GraphQL § 6.1).
 fn select_operation<'d>(
-    doc: &'d Document<'d, String>,
+    doc: &'d Document<'static, String>,
     operation_name: Option<&str>,
-) -> Result<&'d OperationDefinition<'d, String>, GraphQLParseError> {
+) -> Result<&'d OperationDefinition<'static, String>, GraphQLParseError> {
     let mut operations = doc.definitions.iter().filter_map(|def| match def {
         query::Definition::Operation(op) => Some(op),
         query::Definition::Fragment(_) => None,
@@ -159,7 +159,7 @@ fn select_operation<'d>(
 /// A bare selection set (`{ users { id } }`) is anonymous by construction and
 /// can never be selected by name.
 fn operation_definition_name<'a>(
-    operation: &'a OperationDefinition<'a, String>,
+    operation: &'a OperationDefinition<'static, String>,
 ) -> Option<&'a str> {
     match operation {
         OperationDefinition::Query(q) => q.name.as_deref(),

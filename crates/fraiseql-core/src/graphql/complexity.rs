@@ -10,6 +10,12 @@ use graphql_parser::query::{
     Definition, Document, Field, FragmentDefinition, OperationDefinition, Selection, SelectionSet,
 };
 
+/// A parsed GraphQL document, shared by every stage that reads one request.
+pub type SharedDocument = std::sync::Arc<Document<'static, String>>;
+
+/// The outcome of parsing one source, as [`parse_graphql_document`] returns it.
+pub type DocumentParse = Result<SharedDocument, ComplexityValidationError>;
+
 /// Parse a GraphQL query source into a [`graphql_parser`] document.
 ///
 /// This is the **only** place in the workspace that calls
@@ -20,20 +26,67 @@ use graphql_parser::query::{
 /// `tools/check-graphql-parse-sites.sh` fails the build if a second call site
 /// appears.
 ///
-/// Exposed so the server's HTTP handler can parse the request exactly once
-/// and reuse the AST for both complexity validation (via
-/// [`RequestValidator::validate_query_doc`]) and the downstream execution path
-/// — replacing the previous "validate then re-parse" pattern. See F001 in
-/// `docs/history/IMPROVEMENTS.md`.
+/// # Parsed once per request (#1562)
+///
+/// Inside [`document_scope`], the first source parsed is kept, and a later call
+/// with the **same bytes** returns that document instead of parsing again. A
+/// request's stages — operation detection, the introspection policy, the
+/// structural validator, the cost estimate, GATE-1, classification and matching —
+/// each ask for the document by its source, so they share one parse without any
+/// of them having to be handed it. Parsing is a function of the source alone, so
+/// sharing it cannot change an answer, and a different source (a synthetic
+/// single-root document, say) is simply parsed. Outside a scope every call parses.
 ///
 /// # Errors
 ///
 /// Returns [`ComplexityValidationError::MalformedQuery`] when the source fails
 /// to parse as a GraphQL query document, when it carries block-string
 /// indentation `graphql-parser` cannot handle (#976), or when the parser panics.
-pub fn parse_graphql_document(
-    query: &str,
-) -> Result<Document<'_, String>, ComplexityValidationError> {
+pub fn parse_graphql_document(query: &str) -> DocumentParse {
+    let remembered = REQUEST_DOCUMENT.try_with(|slot| {
+        slot.borrow()
+            .as_ref()
+            .filter(|(source, _)| **source == *query)
+            .map(|(_, parse)| parse.clone())
+    });
+    if let Ok(Some(parse)) = remembered {
+        return parse;
+    }
+    let parse = parse_uncached(query).map(|document| SharedDocument::new(document.into_static()));
+    let _ = REQUEST_DOCUMENT.try_with(|slot| {
+        let mut slot = slot.borrow_mut();
+        if slot.is_none() {
+            *slot = Some((query.into(), parse.clone()));
+        }
+    });
+    parse
+}
+
+tokio::task_local! {
+    /// The first document parsed in the current [`document_scope`], by its source.
+    static REQUEST_DOCUMENT: std::cell::RefCell<Option<(Box<str>, DocumentParse)>>;
+}
+
+/// Run `future` as one request: the first document it parses is parsed once and
+/// shared by every later [`parse_graphql_document`] call on the same source.
+///
+/// A transport opens this around everything it does with one request's document,
+/// and the executor opens it around each execution, so the engine's own stages
+/// share a parse on every transport. Inside an open scope this joins it rather
+/// than starting an empty one, which would parse the document a second time.
+/// Nothing outlives the outermost future: the document is dropped with it.
+pub async fn document_scope<F: std::future::Future>(future: F) -> F::Output {
+    if REQUEST_DOCUMENT.try_with(|_| ()).is_ok() {
+        future.await
+    } else {
+        REQUEST_DOCUMENT.scope(std::cell::RefCell::new(None), future).await
+    }
+}
+
+/// The parse itself, behind the guards [`parse_graphql_document`] documents.
+fn parse_uncached(query: &str) -> Result<Document<'_, String>, ComplexityValidationError> {
+    #[cfg(any(test, feature = "test-utils"))]
+    PARSES_ON_THIS_THREAD.with(|n| n.set(n.get() + 1));
     if query.trim().is_empty() {
         return Err(ComplexityValidationError::MalformedQuery("Empty query".to_string()));
     }
@@ -60,6 +113,23 @@ pub fn parse_graphql_document(
             "the GraphQL parser failed on this document".to_string(),
         )),
     }
+}
+
+#[cfg(any(test, feature = "test-utils"))]
+thread_local! {
+    static PARSES_ON_THIS_THREAD: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+/// How many documents the parser has actually parsed on the calling thread.
+///
+/// Test-only (#1562): every parse in the workspace goes through
+/// [`parse_graphql_document`], and a document shared from [`document_scope`] is
+/// not counted, so a request driven on a current-thread runtime can assert how
+/// many times its document was parsed by reading this before and after.
+#[cfg(any(test, feature = "test-utils"))]
+#[must_use]
+pub fn document_parses_on_this_thread() -> usize {
+    PARSES_ON_THIS_THREAD.with(std::cell::Cell::get)
 }
 
 /// Whether every line's indentation is ASCII, which is what makes
@@ -290,7 +360,7 @@ impl RequestValidator {
     /// (audit H4).
     fn document_metrics<'a>(
         &self,
-        document: &'a Document<'a, String>,
+        document: &'a Document<'static, String>,
         variables: Option<&'a serde_json::Value>,
     ) -> QueryMetrics {
         let fragments = collect_fragments(document);
@@ -347,7 +417,7 @@ impl RequestValidator {
     /// complexity, or alias-amplification limits.
     pub fn validate_query_doc<'a>(
         &self,
-        document: &'a Document<'a, String>,
+        document: &'a Document<'static, String>,
         variables: Option<&'a serde_json::Value>,
     ) -> Result<(), ComplexityValidationError> {
         if self.is_no_op() {
@@ -445,7 +515,7 @@ struct SelectionMetrics {
 /// and aliases hidden inside spread fragments were never counted, bypassing the
 /// alias-amplification limit (audit H4, alias counter).
 struct DocumentAnalyzer<'a> {
-    by_name:        HashMap<&'a str, &'a FragmentDefinition<'a, String>>,
+    by_name:        HashMap<&'a str, &'a FragmentDefinition<'static, String>>,
     memo:           HashMap<&'a str, SelectionMetrics>,
     visiting:       HashSet<&'a str>,
     max_depth:      usize,
@@ -462,8 +532,8 @@ struct DocumentAnalyzer<'a> {
 
 impl<'a> DocumentAnalyzer<'a> {
     fn new(
-        document: &'a Document<'a, String>,
-        fragments: &[&'a FragmentDefinition<'a, String>],
+        document: &'a Document<'static, String>,
+        fragments: &[&'a FragmentDefinition<'static, String>],
         max_depth: usize,
         max_complexity: usize,
         variables: Option<&'a serde_json::Value>,
@@ -515,7 +585,7 @@ impl<'a> DocumentAnalyzer<'a> {
     /// only; the alias total sums operations only, where each fragment spread
     /// contributes the fragment's own alias count *per occurrence* — that is
     /// the alias-amplification fix (the old counter scored spreads as 0).
-    fn analyze_document(&mut self, document: &'a Document<'a, String>) -> QueryMetrics {
+    fn analyze_document(&mut self, document: &'a Document<'static, String>) -> QueryMetrics {
         let mut depth = 0usize;
         let mut complexity = 0usize;
         let mut aliases = 0usize;
@@ -578,7 +648,7 @@ impl<'a> DocumentAnalyzer<'a> {
 
     fn selection_metrics(
         &mut self,
-        selection_set: &'a SelectionSet<'a, String>,
+        selection_set: &'a SelectionSet<'static, String>,
         budget: usize,
     ) -> SelectionMetrics {
         let mut max_child_depth = 0usize;
@@ -641,7 +711,7 @@ impl<'a> DocumentAnalyzer<'a> {
     /// `1 + nested_complexity * pagination_multiplier`. This is exactly the
     /// per-field score [`selection_metrics`](Self::selection_metrics) assigns, so
     /// a cost walk with no `@cost` overrides equals the complexity score.
-    fn field_complexity(&mut self, field: &'a Field<'a, String>, budget: usize) -> usize {
+    fn field_complexity(&mut self, field: &'a Field<'static, String>, budget: usize) -> usize {
         if field.selection_set.items.is_empty() {
             1
         } else {
@@ -660,7 +730,7 @@ impl<'a> DocumentAnalyzer<'a> {
     /// normal complexity contribution.
     fn document_cost<S: std::hash::BuildHasher>(
         &mut self,
-        document: &'a Document<'a, String>,
+        document: &'a Document<'static, String>,
         root_weights: &HashMap<String, usize, S>,
     ) -> usize {
         let mut cost = 0usize;
@@ -675,7 +745,7 @@ impl<'a> DocumentAnalyzer<'a> {
 
     fn root_cost<S: std::hash::BuildHasher>(
         &mut self,
-        selection_set: &'a SelectionSet<'a, String>,
+        selection_set: &'a SelectionSet<'static, String>,
         root_weights: &HashMap<String, usize, S>,
     ) -> usize {
         let mut cost = 0usize;
@@ -711,7 +781,7 @@ impl<'a> DocumentAnalyzer<'a> {
 /// [`RequestValidator::analyze`]'s `complexity`.
 #[must_use]
 pub fn estimate_query_cost<'a, S: std::hash::BuildHasher>(
-    document: &'a Document<'a, String>,
+    document: &'a Document<'static, String>,
     root_cost_weights: &HashMap<String, usize, S>,
     variables: Option<&'a serde_json::Value>,
 ) -> usize {
@@ -844,8 +914,8 @@ pub fn estimate_direct_read_cost<S: std::hash::BuildHasher>(
 
 /// The top-level selection set of any operation kind.
 fn operation_variable_definitions<'a>(
-    op: &'a graphql_parser::query::OperationDefinition<'a, String>,
-) -> &'a [graphql_parser::query::VariableDefinition<'a, String>] {
+    op: &'a graphql_parser::query::OperationDefinition<'static, String>,
+) -> &'a [graphql_parser::query::VariableDefinition<'static, String>] {
     use graphql_parser::query::OperationDefinition as Op;
     match op {
         Op::SelectionSet(_) => &[],
@@ -856,8 +926,8 @@ fn operation_variable_definitions<'a>(
 }
 
 const fn operation_selection_set<'a>(
-    op: &'a OperationDefinition<'a, String>,
-) -> &'a SelectionSet<'a, String> {
+    op: &'a OperationDefinition<'static, String>,
+) -> &'a SelectionSet<'static, String> {
     match op {
         OperationDefinition::Query(q) => &q.selection_set,
         OperationDefinition::Mutation(m) => &m.selection_set,
@@ -880,8 +950,8 @@ impl Default for RequestValidator {
 
 /// Collect all fragment definitions from a parsed document.
 fn collect_fragments<'a>(
-    document: &'a Document<'a, String>,
-) -> Vec<&'a FragmentDefinition<'a, String>> {
+    document: &'a Document<'static, String>,
+) -> Vec<&'a FragmentDefinition<'static, String>> {
     document
         .definitions
         .iter()

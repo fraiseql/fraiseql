@@ -109,10 +109,12 @@ pub mod stream_split;
 // Re-exports for convenient access
 // ============================================================================
 
+#[cfg(any(test, feature = "test-utils"))]
+pub use complexity::document_parses_on_this_thread;
 pub use complexity::{
     ComplexityConfig, ComplexityValidationError, DEFAULT_MAX_ALIASES, DirectReadProjection,
-    MAX_VARIABLES_COUNT, QueryMetrics, RequestValidator, estimate_direct_read_cost,
-    estimate_query_cost, parse_graphql_document,
+    DocumentParse, MAX_VARIABLES_COUNT, QueryMetrics, RequestValidator, SharedDocument,
+    document_scope, estimate_direct_read_cost, estimate_query_cost, parse_graphql_document,
 };
 pub use defer::DeferredPayload;
 pub use directive_evaluator::{

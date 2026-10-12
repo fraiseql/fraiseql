@@ -2585,6 +2585,75 @@ mod parse_cache {
             "two distinct query strings must produce two cache entries"
         );
     }
+
+    /// GATE-1, classification and matching each read the document; on any
+    /// transport, executing it parses it once (#1562).
+    #[tokio::test]
+    async fn executing_a_document_parses_it_once() {
+        let schema = test_schema();
+        let adapter = Arc::new(MockAdapter::new(mock_user_results()));
+        let executor = Executor::new(schema, adapter);
+
+        let before = crate::graphql::document_parses_on_this_thread();
+        let response = executor.execute("{ users { id name } }", None).await.unwrap();
+        let parses = crate::graphql::document_parses_on_this_thread() - before;
+        assert!(response["data"]["users"].is_array(), "the query executes: {response}");
+        assert_eq!(parses, 1, "one execution, one parse");
+    }
+
+    /// The cache key is a 64-bit hash, so two documents can share one. An entry
+    /// planted under a document's key, but computed for a different document, must
+    /// not answer for it: the request is classified afresh (#1562).
+    #[tokio::test]
+    async fn an_entry_answers_only_for_the_document_it_was_computed_from() {
+        let schema = test_schema();
+        let adapter = Arc::new(MockAdapter::new(mock_user_results()));
+        let executor = Executor::new(schema, adapter);
+
+        let query = "{ users { id name } }";
+        let other = "{ __typename }";
+        let planted = super::super::support::classify::CachedClassification::new(
+            other,
+            None,
+            executor.classify_query_with_parse(other, None).unwrap(),
+        );
+        executor
+            .ctx
+            .parse_cache
+            .insert(super::super::execution::parse_cache_key(query, None), Arc::new(planted));
+
+        let response = executor.execute(query, None).await.unwrap();
+        assert!(
+            response["data"]["users"].is_array(),
+            "the request is answered for its own document, not the colliding entry's: {response}"
+        );
+    }
+
+    /// The same, for one document and two of its operations: the entry for one
+    /// operation does not answer for the other.
+    #[tokio::test]
+    async fn an_entry_answers_only_for_the_operation_it_was_computed_for() {
+        let schema = test_schema();
+        let adapter = Arc::new(MockAdapter::new(mock_user_results()));
+        let executor = Executor::new(schema, adapter);
+
+        let document = "query A { users { id name } } query B { __typename }";
+        let planted = super::super::support::classify::CachedClassification::new(
+            document,
+            Some("B"),
+            executor.classify_query_with_parse(document, Some("B")).unwrap(),
+        );
+        executor.ctx.parse_cache.insert(
+            super::super::execution::parse_cache_key(document, Some("A")),
+            Arc::new(planted),
+        );
+
+        let response = executor.execute_operation(document, None, Some("A")).await.unwrap();
+        assert!(
+            response["data"]["users"].is_array(),
+            "operation A is answered, not the entry computed for B: {response}"
+        );
+    }
 }
 
 // ── mod field_authz: #423 dynamic field-level authorization ──────────────

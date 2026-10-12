@@ -44,6 +44,11 @@ disagreed, and the promise was the part that was wrong.
   (§ 6.3); projections are now built as SQL/JSON `JSON_OBJECT(… RETURNING json)`, at every depth.
   Snapshots, ETags and clients that compare response text see the nested key order change. A
   stored object returned whole, with no sub-selection, keeps the order it is stored in.
+- **`parse_graphql_document` returns a shared document (#1562).** Embedders: it returns
+  `SharedDocument` (`Arc<Document<'static, String>>`) instead of an owned `Document<'_, String>`,
+  and `RequestValidator::validate_query_doc`, `estimate_query_cost` and
+  `parse_selected_operation` take a `Document<'static, String>`. A document parsed with
+  `graphql_parser` directly is passed with `.into_static()`.
 
 ### Added
 
@@ -83,6 +88,14 @@ disagreed, and the promise was the part that was wrong.
   ordinal carrying the order out), each returned document is copied once when it is compressed or
   stored out of line, and only then projected. Rows and their order are unchanged. Reads that
   project a computed field (a vector distance) keep the single `SELECT`.
+- **A GraphQL request parses its document once, not seven times (#1562).** Operation detection,
+  the introspection policy, the structural validator, the cost estimate, GATE-1, classification
+  and matching each parsed the document again. They now read one parse, kept for the request
+  (`document_scope`) on POST, GET and QUERY, and inside the executor on every transport. The
+  classification cache hands its entry out by reference instead of copying it per request, and
+  uses an entry only for the document and operation it was computed from. Parse errors are
+  reported unchanged. Server CPU per request: 91.7 → 79.1 µs on a flat 20-row list (+15% rps),
+  149.0 → 133.5 µs on one with two nested objects (+10%).
 
 ### Fixed
 

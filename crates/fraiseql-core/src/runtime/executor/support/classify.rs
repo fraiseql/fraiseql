@@ -19,6 +19,45 @@ pub(in crate::runtime::executor) type Classification = (
     Option<std::sync::Arc<CompletionTarget>>,
 );
 
+/// A [`Classification`] as the parse cache holds it: with the document and the
+/// operation name it was computed from.
+///
+/// The cache is keyed by a 64-bit hash, so a hit is a claim that the document is
+/// the same, not a proof. The entry carries what it answers for, and a hit whose
+/// source or operation name differs is treated as a miss: a key collision costs a
+/// re-classification, never another document's verdict.
+#[derive(Debug)]
+pub(in crate::runtime::executor) struct CachedClassification {
+    source: Box<str>,
+    operation_name: Option<Box<str>>,
+    /// The verdict, shared by every request for this document (#1562).
+    pub(in crate::runtime::executor) classification: Classification,
+}
+
+impl CachedClassification {
+    /// `classification`, as computed for `source` with `operation_name` selected.
+    pub(in crate::runtime::executor) fn new(
+        source: &str,
+        operation_name: Option<&str>,
+        classification: Classification,
+    ) -> Self {
+        Self {
+            source: source.into(),
+            operation_name: operation_name.map(Into::into),
+            classification,
+        }
+    }
+
+    /// Whether this entry was computed for `source` with `operation_name` selected.
+    pub(in crate::runtime::executor) fn answers(
+        &self,
+        source: &str,
+        operation_name: Option<&str>,
+    ) -> bool {
+        *self.source == *source && self.operation_name.as_deref() == operation_name
+    }
+}
+
 /// What a response is completed against (§ 6.4.4, #1522): the operation's root type and
 /// its root selection set, fragment spreads expanded. Computed once per document, with its
 /// classification, for every operation type; `None` when the spreads cannot be expanded
