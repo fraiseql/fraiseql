@@ -18,8 +18,21 @@ use crate::types::sql_hints::ScalarFieldType;
 ///
 /// A path that is absent from the map has no declared type; the generator then
 /// falls back to the shape of the supplied JSON value.
+///
+/// # Native columns (#1561)
+///
+/// A top-level field can also name a column of the filtered relation that holds
+/// the same value as the document. A comparison on that field then reads the
+/// column — which an index on it serves — instead of extracting the key from
+/// every row's document. Only the caller that knows the relation can say a
+/// column exists and agrees with the field, so the map carries no column unless
+/// it was given one ([`with_columns`](Self::with_columns)).
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub struct FieldTypeMap(HashMap<String, ScalarFieldType>);
+pub struct FieldTypeMap {
+    types:   HashMap<String, ScalarFieldType>,
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    columns: HashMap<String, String>,
+}
 
 impl FieldTypeMap {
     /// Build a map from `(dotted snake_case path, type)` pairs.
@@ -29,7 +42,7 @@ impl FieldTypeMap {
         I: IntoIterator<Item = (S, ScalarFieldType)>,
         S: Into<String>,
     {
-        Self(pairs.into_iter().map(|(k, v)| (k.into(), v)).collect())
+        pairs.into_iter().map(|(k, v)| (k.into(), v)).collect()
     }
 
     /// Declared type of `path`, or `None` when the field is not declared.
@@ -37,9 +50,35 @@ impl FieldTypeMap {
     pub fn get(&self, path: &[String]) -> Option<ScalarFieldType> {
         if path.len() == 1 {
             // Reason: length checked on the line above.
-            return self.0.get(path.first()?).copied();
+            return self.types.get(path.first()?).copied();
         }
-        self.0.get(&path.join(".")).copied()
+        self.types.get(&path.join(".")).copied()
+    }
+
+    /// This map, with the relation's native columns: `(top-level snake_case key,
+    /// column name)` pairs, each a column that holds that field's value.
+    #[must_use]
+    pub fn with_columns<I>(mut self, columns: I) -> Self
+    where
+        I: IntoIterator<Item = (String, String)>,
+    {
+        self.columns.extend(columns);
+        self
+    }
+
+    /// The native column holding the top-level field `path`, if the relation has one.
+    #[must_use]
+    pub fn column(&self, path: &[String]) -> Option<&str> {
+        match path {
+            [key] => self.columns.get(key).map(String::as_str),
+            _ => None,
+        }
+    }
+
+    /// `true` when some field is read from a native column.
+    #[must_use]
+    pub fn has_columns(&self) -> bool {
+        !self.columns.is_empty()
     }
 
     /// This map, plus the casts discovered while parsing a nested predicate.
@@ -55,7 +94,7 @@ impl FieldTypeMap {
         I: IntoIterator<Item = (String, ScalarFieldType)>,
     {
         for (path, cast) in paths {
-            self.0.entry(path).or_insert(cast);
+            self.types.entry(path).or_insert(cast);
         }
         self
     }
@@ -63,19 +102,22 @@ impl FieldTypeMap {
     /// `true` when no field carries a declared type.
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.0.is_empty()
+        self.types.is_empty()
     }
 
     /// Number of declared fields.
     #[must_use]
     pub fn len(&self) -> usize {
-        self.0.len()
+        self.types.len()
     }
 }
 
 impl FromIterator<(String, ScalarFieldType)> for FieldTypeMap {
     fn from_iter<I: IntoIterator<Item = (String, ScalarFieldType)>>(iter: I) -> Self {
-        Self(iter.into_iter().collect())
+        Self {
+            types:   iter.into_iter().collect(),
+            columns: HashMap::new(),
+        }
     }
 }
 

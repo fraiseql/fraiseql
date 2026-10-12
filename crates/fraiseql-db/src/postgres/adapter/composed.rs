@@ -439,16 +439,27 @@ enum LevelFrom<'a> {
 /// Whether `clause` reads a column rather than the document — which a materialised
 /// level, whose rows are documents and nothing else, cannot evaluate.
 fn reads_a_column(clause: &crate::WhereClause) -> bool {
+    reads_a_column_under(clause, None)
+}
+
+/// [`reads_a_column`], under the field types of the nearest enclosing `Typed` node: a
+/// leaf on a field they map to a native column reads that column (#1561).
+fn reads_a_column_under(
+    clause: &crate::WhereClause,
+    types: Option<&crate::where_clause::FieldTypeMap>,
+) -> bool {
     use crate::WhereClause as W;
     match clause {
-        W::Field { .. } => false,
+        W::Field { path, .. } => types.is_some_and(|t| t.column(path).is_some()),
         W::NativeField { .. } => true,
-        W::And(all) | W::Or(all) => all.iter().any(reads_a_column),
-        W::Not(inner)
-        | W::Typed { inner, .. }
-        | W::InHierarchy { inner, .. }
-        | W::Localized { inner, .. } => reads_a_column(inner),
-        W::Guarded { guard, inner, .. } => reads_a_column(guard) || reads_a_column(inner),
+        W::And(all) | W::Or(all) => all.iter().any(|c| reads_a_column_under(c, types)),
+        W::Typed { types, inner } => reads_a_column_under(inner, Some(types)),
+        W::Not(inner) | W::InHierarchy { inner, .. } | W::Localized { inner, .. } => {
+            reads_a_column_under(inner, types)
+        },
+        W::Guarded { guard, inner, .. } => {
+            reads_a_column_under(guard, types) || reads_a_column_under(inner, types)
+        },
         // Its key is a document path; its predicate reads the related view inside its own
         // subquery (ruling AL).
         W::KeyIn { .. } => false,

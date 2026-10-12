@@ -359,6 +359,25 @@ fn a_materialised_level_refuses_a_predicate_on_a_column() {
     assert!(error.contains("may only read the document"), "{error}");
 }
 
+/// The same for a document field its types map to a native column (#1561): the
+/// comparison would read the column, which the document does not have.
+#[test]
+fn a_materialised_level_refuses_a_field_its_types_read_from_a_column() {
+    let types = crate::where_clause::FieldTypeMap::from_pairs([(
+        "owner",
+        crate::types::sql_hints::ScalarFieldType::Text,
+    )])
+    .with_columns([("owner".to_string(), "owner".to_string())]);
+    let mut orders = level("v_order");
+    orders.where_clause =
+        Some(field_eq("owner", json!("u-alice")).typed(std::sync::Arc::new(types)));
+    let mut root = level("v_user");
+    root.embeds.push(materialised("orders", EmbedShape::Many, &["orders"], orders));
+
+    let error = build_composed_select_sql(&root).unwrap_err().to_string();
+    assert!(error.contains("may only read the document"), "{error}");
+}
+
 #[test]
 fn a_materialised_level_cannot_be_counted_ordered_or_projected() {
     let refused = |embed: ComposedEmbed| {

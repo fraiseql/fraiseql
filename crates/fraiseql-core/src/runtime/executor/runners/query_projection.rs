@@ -143,6 +143,21 @@ pub fn build_typed_projection_fields(
 /// closed on every schema without field metadata.
 #[must_use]
 pub fn where_field_types(schema: &CompiledSchema, return_type: &str) -> WhereFieldSchema {
+    where_field_types_reading(schema, return_type, &std::collections::HashMap::new())
+}
+
+/// [`where_field_types`], for a query whose relation carries `native_columns` (#1561).
+///
+/// A top-level field the query maps to a native column of a matching type is
+/// compared on that column rather than on its document key, so an index on the
+/// column serves the filter — the routing `orderBy` already does for the same map.
+/// See [`where_native_column`] for which pairs qualify.
+#[must_use]
+pub fn where_field_types_reading(
+    schema: &CompiledSchema,
+    return_type: &str,
+    native_columns: &std::collections::HashMap<String, crate::schema::NativeColumn>,
+) -> WhereFieldSchema {
     let Some(type_def) = schema.find_type(return_type) else {
         return WhereFieldSchema::default();
     };
@@ -150,6 +165,14 @@ pub fn where_field_types(schema: &CompiledSchema, return_type: &str) -> WhereFie
         return WhereFieldSchema::default();
     }
 
+    let columns = type_def
+        .fields
+        .iter()
+        .filter_map(|f| {
+            where_native_column(f, native_columns)
+                .map(|column| (crate::utils::to_snake_case(f.name.as_str()), column))
+        })
+        .collect::<Vec<_>>();
     let casts: SharedFieldTypes = Arc::new(
         type_def
             .fields
@@ -160,7 +183,8 @@ pub fn where_field_types(schema: &CompiledSchema, return_type: &str) -> WhereFie
                     field_type_to_where_type(&f.field_type),
                 )
             })
-            .collect(),
+            .collect::<fraiseql_db::where_clause::FieldTypeMap>()
+            .with_columns(columns),
     );
 
     // Whether `{field: {sub: …}}` is a legitimate nested predicate is decided by
@@ -185,6 +209,60 @@ pub fn where_field_types(schema: &CompiledSchema, return_type: &str) -> WhereFie
         },
         _ => fields,
     }
+}
+
+/// The native column a `where` comparison on `field` reads, when the query maps the
+/// field to one whose type compares the way the field's document value does (#1561).
+///
+/// The column is the one an argument of the same name resolved to at compile time
+/// (`native_columns` is keyed by argument name, the column by its `snake_case` form).
+/// The pairs are the ones where a comparison on the column selects the same rows as
+/// the document key compared under the field's declared cast:
+///
+/// | Field | Column |
+/// |---|---|
+/// | `String`, enum | `text`, `varchar` (compared under the default collation) |
+/// | `Int` | `smallint`, `integer`, `bigint` |
+/// | `Decimal` | `numeric` |
+/// | `Boolean` | `boolean` |
+/// | `DateTime` | `timestamptz` |
+/// | `Date`, `Time` | `date`, `time` |
+/// | `ID`, `UUID` | `uuid` |
+///
+/// Anything else keeps the document: a `Float` compared as `numeric` against a
+/// `float8` column rounds differently, a `timestamp` column has no zone to compare
+/// in, a `citext` or `char(n)` column compares text differently, and a localized
+/// field compares the request locale's label, which no column holds.
+fn where_native_column(
+    field: &crate::schema::FieldDefinition,
+    native_columns: &std::collections::HashMap<String, crate::schema::NativeColumn>,
+) -> Option<String> {
+    use crate::schema::FieldType as FT;
+    if field.localized {
+        return None;
+    }
+    let key = crate::utils::to_snake_case(field.name.as_str());
+    let native = native_columns
+        .iter()
+        .find_map(|(name, native)| (crate::utils::to_snake_case(name) == key).then_some(native))?;
+    let pg_type = native.pg_type.to_ascii_lowercase();
+    let fits = match &field.field_type {
+        FT::String | FT::Enum(_) => {
+            matches!(pg_type.as_str(), "text" | "varchar" | "character varying")
+        },
+        FT::Int => matches!(
+            pg_type.as_str(),
+            "smallint" | "integer" | "int" | "bigint" | "int2" | "int4" | "int8"
+        ),
+        FT::Decimal => matches!(pg_type.as_str(), "numeric" | "decimal"),
+        FT::Boolean => matches!(pg_type.as_str(), "boolean" | "bool"),
+        FT::DateTime => matches!(pg_type.as_str(), "timestamptz" | "timestamp with time zone"),
+        FT::Date => pg_type == "date",
+        FT::Time => matches!(pg_type.as_str(), "time" | "time without time zone"),
+        FT::Id | FT::Uuid => pg_type == "uuid",
+        _ => false,
+    };
+    fits.then_some(key)
 }
 
 /// Map a schema [`FieldType`] to the ORDER BY cast hint.

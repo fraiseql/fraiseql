@@ -535,7 +535,11 @@ pub fn client_where_argument(
         });
     }
 
-    let types = super::query_projection::where_field_types(schema, &query_def.return_type);
+    let types = super::query_projection::where_field_types_reading(
+        schema,
+        &query_def.return_type,
+        &query_def.native_columns,
+    );
     let clause = WhereClause::from_graphql_json(raw, &types)?;
     // A field the caller may not read may not decide which rows come back (ruling AA 3).
     // Here, where every read path's client filter is parsed, so no path can skip it.

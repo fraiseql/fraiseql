@@ -30,6 +30,52 @@ fn uuid_case_variants(value: &serde_json::Value) -> Option<(String, String)> {
     Some((raw.to_string(), canonical))
 }
 
+/// The native column a `where` leaf compares on instead of its document key (#1561), or
+/// `None` to read the document.
+///
+/// Only when the caller mapped the field to a column, the field has a declared type,
+/// and the operator is a comparison, membership or null test — the ones that read the
+/// same rows on a column of the field's own type. A `uuid` field also needs every
+/// operand to be a UUID: the document path compares text, where a malformed literal
+/// matches nothing, and casting it to the column's `uuid` would raise instead.
+fn native_comparison_column<'t>(
+    types: Option<&'t FieldTypeMap>,
+    path: &[String],
+    operator: &WhereOperator,
+    value: &serde_json::Value,
+) -> Option<&'t str> {
+    let types = types?;
+    let column = types.column(path)?;
+    let ty = types.get(path)?;
+    let comparable = matches!(
+        operator,
+        WhereOperator::Eq
+            | WhereOperator::Neq
+            | WhereOperator::Gt
+            | WhereOperator::Gte
+            | WhereOperator::Lt
+            | WhereOperator::Lte
+            | WhereOperator::In
+            | WhereOperator::Nin
+            | WhereOperator::IsNull
+            | WhereOperator::IsNotNull
+    );
+    let is_uuid =
+        |v: &serde_json::Value| v.as_str().is_some_and(|s| uuid::Uuid::parse_str(s).is_ok());
+    let operands_fit = match ty {
+        ScalarFieldType::Vector => false,
+        ScalarFieldType::Uuid => match operator {
+            WhereOperator::IsNull | WhereOperator::IsNotNull => true,
+            WhereOperator::In | WhereOperator::Nin => {
+                value.as_array().is_some_and(|items| items.iter().all(is_uuid))
+            },
+            _ => is_uuid(value),
+        },
+        _ => true,
+    };
+    (comparable && operands_fit).then_some(column)
+}
+
 /// The left-hand side of a pgvector distance predicate, and whether it already
 /// carries a pgvector type (#1117).
 ///
@@ -285,6 +331,10 @@ impl<D: SqlDialect> GenericWhereGenerator<D> {
                 operator,
                 value,
             } => {
+                if let Some(column) = native_comparison_column(types, path, operator, value) {
+                    return self
+                        .visit_column_comparison(column, path, operator, value, params, types);
+                }
                 let field_expr = self.resolve_field_expr(path);
                 self.visit_field(
                     path,
@@ -445,6 +495,103 @@ impl<D: SqlDialect> GenericWhereGenerator<D> {
             return Ok(expr);
         }
         Ok(format!("(CASE WHEN {} THEN {expr} END)", conditions.join(" AND ")))
+    }
+
+    /// A comparison on a field read from its native column (#1561).
+    ///
+    /// The same comparison [`visit_field`](Self::visit_field) renders, on the column
+    /// instead of the document key: the operand is cast to the field's declared type
+    /// exactly as it is there, so the two select the same rows whenever the column
+    /// holds the field's value. The column itself is left bare, so an index on it
+    /// serves the comparison; PostgreSQL compares across the integer widths without a
+    /// cast. Text compares under the default collation, which is the one a document
+    /// key's text carries. [`native_comparison_column`] decides which comparisons
+    /// come here.
+    fn visit_column_comparison(
+        &self,
+        column: &str,
+        path: &[String],
+        operator: &WhereOperator,
+        value: &serde_json::Value,
+        params: &mut Vec<serde_json::Value>,
+        types: Option<&FieldTypeMap>,
+    ) -> Result<String> {
+        let ty = operand_type(types, path, value);
+        let column = self.dialect.quote_identifier(column);
+        let lhs = if matches!(ty, ScalarFieldType::Text) {
+            format!("{column} COLLATE \"default\"")
+        } else {
+            column
+        };
+        let mut operand = |v: &serde_json::Value| {
+            let p = self.push_param(params, v.clone());
+            if matches!(ty, ScalarFieldType::Uuid) {
+                // The document path compares text, so it binds the literal uncast; the
+                // column is a `uuid`, so the literal is read as one.
+                self.dialect.cast_native_param(&p, "uuid")
+            } else {
+                self.dialect.cast_param_as(&p, ty).into_owned()
+            }
+        };
+        match operator {
+            WhereOperator::Eq
+            | WhereOperator::Neq
+            | WhereOperator::Gt
+            | WhereOperator::Gte
+            | WhereOperator::Lt
+            | WhereOperator::Lte => {
+                let op = match operator {
+                    WhereOperator::Eq => "=",
+                    WhereOperator::Neq => self.dialect.neq_operator(),
+                    WhereOperator::Gt => ">",
+                    WhereOperator::Gte => ">=",
+                    WhereOperator::Lt => "<",
+                    _ => "<=",
+                };
+                let rhs = operand(value);
+                Ok(format!("{lhs} {op} {rhs}"))
+            },
+            WhereOperator::In | WhereOperator::Nin => {
+                let arr = value.as_array().ok_or_else(|| {
+                    FraiseQLError::validation("IN operator requires an array value".to_string())
+                })?;
+                if arr.is_empty() {
+                    return Ok(if matches!(operator, WhereOperator::In) {
+                        self.dialect.always_false().to_string()
+                    } else {
+                        self.dialect.always_true().to_string()
+                    });
+                }
+                let in_list = arr.iter().map(&mut operand).collect::<Vec<_>>().join(", ");
+                let sql = format!("{lhs} IN ({in_list})");
+                Ok(if matches!(operator, WhereOperator::Nin) {
+                    format!("NOT ({sql})")
+                } else {
+                    sql
+                })
+            },
+            WhereOperator::IsNull | WhereOperator::IsNotNull => {
+                let negated = matches!(operator, WhereOperator::IsNotNull);
+                let asserted = match value {
+                    serde_json::Value::Bool(b) => *b,
+                    serde_json::Value::Null => true,
+                    other => {
+                        return Err(FraiseQLError::validation(format!(
+                            "{operator:?} requires a boolean operand, got {other}"
+                        )));
+                    },
+                };
+                let null_op = if asserted != negated {
+                    "IS NULL"
+                } else {
+                    "IS NOT NULL"
+                };
+                Ok(format!("{lhs} {null_op}"))
+            },
+            other => {
+                Err(FraiseQLError::internal(format!("{other:?} is not a native-column comparison")))
+            },
+        }
     }
 
     fn resolve_field_expr(&self, path: &[String]) -> String {

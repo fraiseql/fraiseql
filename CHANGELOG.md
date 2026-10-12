@@ -96,6 +96,19 @@ disagreed, and the promise was the part that was wrong.
   uses an entry only for the document and operation it was computed from. Parse errors are
   reported unchanged. Server CPU per request: 91.7 → 79.1 µs on a flat 20-row list (+15% rps),
   149.0 → 133.5 µs on one with two nested objects (+10%).
+- **A `where:` comparison on a field the query maps to a native column reads the column
+  (#1561).** `orderBy` already did. `eq`, `neq`, `gt`, `gte`, `lt`, `lte`, `in`, `nin` and the
+  null tests on such a field now compare the column, which an index on it serves, instead of
+  extracting the key from every row's document. On 7.5 KB documents filtered by an indexed
+  `status` column, 20 rows at offset 2000 went from 15.7 to 2,024 requests per second, and
+  the first page from 1,347 to 5,977: under a prepared statement's generic plan the document
+  filter walked the primary key and detoasted every row it rejected. The mapping is the one `compile
+  --database` records for an argument of the same name, and only where the column's type
+  compares like the field (`text`/`varchar` for strings, compared under the default
+  collation; the integer widths for `Int`; `numeric` for `Decimal`; `boolean`, `timestamptz`,
+  `date`, `time`; `uuid` for IDs). The rows are those the document selects whenever the
+  column holds the field's value, as pg_tviews keeps it. Other operators, localized fields
+  and a malformed UUID keep reading the document.
 
 ### Fixed
 
