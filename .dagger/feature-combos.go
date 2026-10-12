@@ -69,10 +69,9 @@ type featureCombo struct {
 }
 
 // featureCombos is the whole matrix, ported verbatim from feature-flags.yml:
-//   - server  (18): the `feature-matrix` job — `cargo check -p fraiseql-server`,
-//     crate defaults ON, except the explicit `--no-default-features` case. 17 are
-//     ported from feature-flags.yml; `server-default-nonwire` guards the non-wire
-//     dispatch arm (see below).
+//   - server: the `feature-matrix` job — `cargo check -p fraiseql-server`, crate
+//     defaults ON, except the explicit `--no-default-features` case: the entries of
+//     feature-flags.yml, plus the combos added since, each with its reason.
 //   - core    (7):  the `database-matrix` job — `cargo check -p fraiseql-core
 //     --no-default-features --features …`.
 //   - storage (3):  the `storage-matrix` job — `cargo check -p fraiseql-storage
@@ -95,10 +94,9 @@ var featureCombos = []featureCombo{
 	{name: "server-auth-no-email", crate: "fraiseql-server", features: []string{"auth"}, noDefaultFeatures: true},
 	{name: "server-observers-rate-limiting", crate: "fraiseql-server", features: []string{"observers", "redis-rate-limiting"}},
 	{name: "server-observers-enterprise-otel", crate: "fraiseql-server", features: []string{"observers-enterprise", "redis-rate-limiting", "tracing-opentelemetry"}},
-	{name: "server-arrow-wire", crate: "fraiseql-server", features: []string{"arrow", "wire-backend"}},
-	// Arrow WITHOUT wire-backend and without the crate defaults: the only shape in
-	// which `run_postgres`'s `#[cfg(feature = "arrow")]` branch is the compiled one.
-	// Nothing built it, so a signature change to `make_executor_factory` (#801)
+	// Arrow without the crate defaults: `run_postgres`'s `#[cfg(feature = "arrow")]`
+	// branch with `auth` off. Nothing built it, so a signature change to
+	// `make_executor_factory` (#801)
 	// updated the non-arrow call site and left this one uncompilable, and
 	// `with_flight_service`'s `cfg(not(auth))` OIDC drift (#783) had no build that
 	// would have shown it.
@@ -107,7 +105,6 @@ var featureCombos = []featureCombo{
 	{name: "server-observers-enterprise-redis", crate: "fraiseql-server", features: []string{"observers-enterprise", "redis-apq", "redis-pkce"}},
 	{name: "server-federation", crate: "fraiseql-server", features: []string{"federation"}},
 	{name: "server-secrets", crate: "fraiseql-server", features: []string{"secrets"}},
-	{name: "server-wire-backend", crate: "fraiseql-server", features: []string{"wire-backend"}},
 	{name: "server-azure-blob", crate: "fraiseql-server", features: []string{"azure-blob"}},
 	{name: "server-gcs", crate: "fraiseql-server", features: []string{"gcs"}},
 	{name: "server-metrics-observers", crate: "fraiseql-server", features: []string{"metrics", "observers"}},
@@ -128,20 +125,17 @@ var featureCombos = []featureCombo{
 	// build where the feature is ON and its siblings are OFF.
 	{name: "server-functions-runtime-rest-testing", crate: "fraiseql-server", features: []string{"functions-runtime", "rest", "testing"}},
 	{name: "server-kitchen-sink", crate: "fraiseql-server", features: []string{"auth", "observers", "secrets", "federation"}},
-	// server-default-nonwire covers the runtime URL-scheme dispatch (the real
-	// `dispatch_server` arm), which is gated `not(wire-backend)` and compiled by NO
-	// other leg: preflight clippy is `--all-features` (wire ON ⇒ the dispatch is
-	// cfg'd out). Defaults stay ON (auth,cli) and wire stays OFF, so the non-wire arm
-	// actually compiles. This replaced `server-multidb` when the non-PostgreSQL
-	// backends were removed (G2, #374) — the combo it guarded is still the only one
-	// that builds that arm, so it is renamed rather than deleted. check-only on
-	// purpose — clippy would drag in the pre-existing bare-`arrow` lint debt.
+	// server-default-nonwire is the default build (auth,cli). It was added because
+	// the runtime URL-scheme dispatch was gated `not(wire-backend)`, which the
+	// `--all-features` legs cfg'd out; since the `wire-backend` server build was
+	// removed (#1566) every leg compiles that dispatch, and this combo stays as the
+	// one build of the crate's defaults alone. check-only on purpose — clippy would
+	// drag in the pre-existing bare-`arrow` lint debt.
 	{name: "server-default-nonwire", crate: "fraiseql-server", features: []string{}},
-	// server-rest-arrow is the ONE binary feature combo no other leg builds: preflight
-	// clippy is `--all-features` (wire-backend ON ⇒ run_postgres is cfg'd out, so the
-	// arrow path never compiles), server-arrow-wire pairs arrow WITH wire-backend (same
-	// cfg-out), and server-functions-runtime-rest-testing has rest but not arrow. The
-	// fraiseql-server-full Docker image is the only artifact that builds rest+arrow, and
+	// server-rest-arrow builds the binary with rest+arrow and nothing else. Until
+	// #1566 no other leg did (`--all-features` enabled `wire-backend`, which cfg'd
+	// out `run_postgres` and its arrow path); the fraiseql-server-full Docker image
+	// is the artifact that ships rest+arrow, and
 	// it broke on the #330 tenancy wiring (the arrow path keeps a raw PostgresAdapter
 	// while the tenant factory was typed for the cached adapter). check-only on purpose:
 	// arrow stays out of the clippy combos (see the server-multidb note above).

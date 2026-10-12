@@ -58,7 +58,6 @@ To opt out of all defaults: `--no-default-features`.
 | Feature | Depends on | Description |
 |---------|-----------|-------------|
 | `arrow` | — | Apache Arrow Flight gRPC server for analytics workloads |
-| `wire-backend` | — | PostgreSQL wire protocol adapter (streaming JSON) |
 | `aws-s3` | — | AWS S3 storage backend |
 
 ### Observability
@@ -106,7 +105,6 @@ To opt out of all defaults: `--no-default-features`.
 | Production (single-instance) | `auth,secrets,metrics` (default + `metrics`) |
 | Production (multi-instance, HA) | `auth,secrets,metrics,observers,observers-enterprise` |
 | Analytics workload | `arrow,metrics` |
-| Wire protocol clients | `wire-backend` |
 | Full feature build (CI) | `--all-features` |
 
 ## Adding a New Feature

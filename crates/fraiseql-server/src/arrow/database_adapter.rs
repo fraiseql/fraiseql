@@ -2,51 +2,27 @@
 //!
 //! This module provides a wrapper that adapts fraiseql-core's database adapters
 //! to fraiseql-arrow's `DatabaseAdapter` trait, enabling the Arrow Flight service
-//! to execute queries against real databases.
-//!
-//! Supports multiple backends:
-//! - PostgreSQL (default, via `PostgresAdapter`)
-//! - FraiseQL Wire (optional, via `wire-backend` feature, uses `FraiseWireAdapter`)
+//! to execute queries against real databases, through `PostgresAdapter`.
 
 use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
 #[cfg(feature = "arrow")]
 use fraiseql_arrow::db::{ArrowDatabaseAdapter, DatabaseError};
-#[cfg(feature = "wire-backend")]
-use fraiseql_core::db::FraiseWireAdapter;
-#[cfg(not(feature = "wire-backend"))]
-use fraiseql_core::db::postgres::PostgresAdapter;
-use fraiseql_core::db::traits::DatabaseAdapter as CoreDatabaseAdapter;
+use fraiseql_core::db::{
+    postgres::PostgresAdapter, traits::DatabaseAdapter as CoreDatabaseAdapter,
+};
 
 /// Wrapper that adapts fraiseql-core's database adapters to fraiseql-arrow's `DatabaseAdapter`
 /// trait.
 ///
-/// This enables the Arrow Flight service to execute queries against different database backends
-/// without requiring direct knowledge of fraiseql-core's `DatabaseAdapter` interface.
-///
-/// # Feature-Gated Backends
-///
-/// - Default (PostgreSQL): Uses `PostgresAdapter` for traditional PostgreSQL connections
-/// - `wire-backend` feature: Uses `FraiseWireAdapter` for streaming JSON queries with low memory
-///   overhead
-#[cfg(not(feature = "wire-backend"))]
+/// This enables the Arrow Flight service to execute queries against the database without
+/// requiring direct knowledge of fraiseql-core's `DatabaseAdapter` interface.
 pub struct FlightDatabaseAdapter {
     /// Inner PostgreSQL adapter from fraiseql-core
     inner: Arc<PostgresAdapter>,
 }
 
-/// Arrow Flight database adapter backed by the fraiseql-wire streaming protocol.
-///
-/// Wraps a [`FraiseWireAdapter`] so it can be used as an Arrow Flight `DatabaseAdapter`.
-/// Requires the `wire-backend` feature.
-#[cfg(feature = "wire-backend")]
-pub struct FlightDatabaseAdapter {
-    /// Inner FraiseQL Wire adapter from fraiseql-core (with lower memory usage)
-    inner: Arc<FraiseWireAdapter>,
-}
-
-#[cfg(not(feature = "wire-backend"))]
 impl FlightDatabaseAdapter {
     /// Create a new Arrow Flight database adapter with PostgreSQL backend.
     ///
@@ -77,38 +53,7 @@ impl FlightDatabaseAdapter {
     }
 }
 
-#[cfg(feature = "wire-backend")]
-impl FlightDatabaseAdapter {
-    /// Create a new Arrow Flight database adapter with FraiseQL Wire backend.
-    ///
-    /// # Arguments
-    ///
-    /// * `adapter` - FraiseQL Wire adapter from fraiseql-core
-    #[must_use]
-    pub fn new(adapter: FraiseWireAdapter) -> Self {
-        Self {
-            inner: Arc::new(adapter),
-        }
-    }
-
-    /// Create a new Arrow Flight database adapter from an Arc (FraiseQL Wire).
-    ///
-    /// # Arguments
-    ///
-    /// * `adapter` - FraiseQL Wire adapter wrapped in Arc
-    #[must_use]
-    pub const fn from_arc(adapter: Arc<FraiseWireAdapter>) -> Self {
-        Self { inner: adapter }
-    }
-
-    /// Get a reference to the inner FraiseQL Wire adapter.
-    #[must_use]
-    pub const fn inner(&self) -> &Arc<FraiseWireAdapter> {
-        &self.inner
-    }
-}
-
-#[cfg(all(feature = "arrow", not(feature = "wire-backend")))]
+#[cfg(feature = "arrow")]
 // Reason: ArrowDatabaseAdapter is defined with #[async_trait]; all implementations must match
 // its transformed method signatures to satisfy the trait contract
 // async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
@@ -188,7 +133,7 @@ impl ArrowDatabaseAdapter for FlightDatabaseAdapter {
 /// `object_id` is the row's `id` **only when it is a UUID** — an Upload target need
 /// not have one, and a `TEXT` key must not fail the whole write. The full row is in
 /// `object_data` either way, so nothing is lost by a NULL here.
-#[cfg(all(feature = "arrow", not(feature = "wire-backend")))]
+#[cfg(feature = "arrow")]
 fn build_upload_outbox_cte(insert_sql: &str) -> String {
     format!(
         "WITH r AS ({insert_sql} RETURNING *), \
@@ -209,25 +154,4 @@ fn build_upload_outbox_cte(insert_sql: &str) -> String {
          ) \
          SELECT count(*)::bigint AS n FROM r"
     )
-}
-
-#[cfg(all(feature = "arrow", feature = "wire-backend"))]
-// Reason: ArrowDatabaseAdapter is defined with #[async_trait]; all implementations must match
-// its transformed method signatures to satisfy the trait contract
-// async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
-#[async_trait]
-impl ArrowDatabaseAdapter for FlightDatabaseAdapter {
-    /// # Errors
-    ///
-    /// Returns [`DatabaseError`] if the underlying wire query fails.
-    async fn execute_raw_query(
-        &self,
-        sql: &str,
-    ) -> Result<Vec<HashMap<String, serde_json::Value>>, DatabaseError> {
-        // Delegate to FraiseQL Wire adapter
-        self.inner
-            .execute_raw_query(sql)
-            .await
-            .map_err(|e: fraiseql_core::error::FraiseQLError| DatabaseError::new(e.to_string()))
-    }
 }

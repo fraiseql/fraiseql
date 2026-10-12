@@ -4,11 +4,7 @@
 use std::{path::Path, sync::Arc};
 
 use clap::Parser;
-#[cfg(feature = "wire-backend")]
-use fraiseql_core::db::FraiseWireAdapter;
-#[cfg(not(feature = "wire-backend"))]
-use fraiseql_core::db::postgres::PostgresAdapter;
-use fraiseql_core::schema::CompiledSchema;
+use fraiseql_core::{db::postgres::PostgresAdapter, schema::CompiledSchema};
 use fraiseql_server::{
     Cli, CompiledSchemaLoader, Server, ServerConfig,
     usage::{aggregator::global_aggregator, layer::MutationAuditLayer},
@@ -289,27 +285,10 @@ fn init_security(_schema: &CompiledSchema) -> anyhow::Result<()> {
 }
 
 /// Create the PostgreSQL adapter.
-#[cfg(not(feature = "wire-backend"))]
 async fn build_postgres_adapter(config: &ServerConfig) -> anyhow::Result<Arc<PostgresAdapter>> {
     fraiseql_server::server_config::build_postgres_adapter(config)
         .await
         .map(Arc::new)
-}
-
-/// Create the FraiseQL Wire adapter (when the `wire-backend` feature is enabled).
-#[cfg(feature = "wire-backend")]
-async fn build_wire_adapter(config: &ServerConfig) -> anyhow::Result<Arc<FraiseWireAdapter>> {
-    // The wire backend has no replica routing; silently ignoring configured
-    // replicas would serve every read from the primary while the operator
-    // believes reads are offloaded (#407).
-    config.wire_backend_rejects_read_replicas().map_err(|e| anyhow::anyhow!(e))?;
-    tracing::info!(
-        database_url = %config.database_url,
-        "Initializing FraiseQL Wire database adapter (low-memory streaming)"
-    );
-    let adapter = FraiseWireAdapter::new(&config.database_url);
-    tracing::info!("FraiseQL Wire adapter initialized successfully");
-    Ok(Arc::new(adapter))
 }
 
 /// Create a dedicated PostgreSQL pool for the observer runtime.
@@ -321,11 +300,7 @@ async fn build_wire_adapter(config: &ServerConfig) -> anyhow::Result<Arc<FraiseW
 /// The observer pool is configured independently via `[observers.runtime.pool]`
 /// in `fraiseql.toml`. When absent, observer-specific defaults are used (smaller
 /// than the application pool — observers need far fewer connections).
-// Gated on `not(wire-backend)` to match its sole caller `run_postgres`: with
-// `wire-backend` the wire dispatch path is compiled instead and never builds an
-// observer pool, so an unconditional `observers` gate would leave this dead
-// under `--all-features` (which enables both).
-#[cfg(all(not(feature = "wire-backend"), feature = "observers"))]
+#[cfg(feature = "observers")]
 async fn build_observer_pool(config: &ServerConfig) -> anyhow::Result<Option<sqlx::PgPool>> {
     use std::time::Duration;
 
@@ -350,7 +325,7 @@ async fn build_observer_pool(config: &ServerConfig) -> anyhow::Result<Option<sql
     Ok(Some(pool))
 }
 
-#[cfg(all(not(feature = "wire-backend"), not(feature = "observers")))]
+#[cfg(not(feature = "observers"))]
 async fn build_observer_pool(_config: &ServerConfig) -> anyhow::Result<Option<sqlx::PgPool>> {
     Ok(None)
 }
@@ -474,53 +449,6 @@ fn warn_files_not_wired(config: &ServerConfig) {
 // the config at parse time and `ServerConfig::from_file` names the missing build
 // feature in the error.
 
-/// Warn at startup when `[storage.<name>]` is configured for a database the
-/// binary cannot mount storage on. Object storage is PostgreSQL-only because the
-/// object-metadata repository requires a `sqlx::PgPool`.
-#[cfg(feature = "wire-backend")]
-fn warn_storage_requires_postgres(config: &ServerConfig, database: &str) {
-    if config.storage.is_empty() {
-        return;
-    }
-    tracing::warn!(
-        database,
-        "[storage.<name>] is configured but object storage via the binary is PostgreSQL-only \
-         (the metadata repository requires PostgreSQL); storage routes will NOT be mounted."
-    );
-}
-
-/// Warn at startup when `[security.token_revocation] backend = "postgres"` is set on
-/// a database the binary cannot back it with. The Postgres revocation store requires
-/// a `sqlx::PgPool`, so on non-PostgreSQL deployments the backend is unavailable and
-/// token revocation will not be active (#357). Use `memory`/`redis`, or run on PostgreSQL.
-#[cfg(feature = "wire-backend")]
-fn warn_revocation_requires_postgres(schema: &CompiledSchema, database: &str) {
-    if fraiseql_server::token_revocation::revocation_backend_is_postgres(schema) {
-        tracing::warn!(
-            database,
-            "[security.token_revocation] backend = \"postgres\" but this binary is not running on \
-             PostgreSQL; token revocation will NOT be active. Set backend = \"memory\" or \
-             \"redis\", or deploy on PostgreSQL."
-        );
-    }
-}
-
-/// Warn at startup when the multi-tenant runtime is enabled on a database where
-/// runtime tenant *provisioning* is unavailable. The registry and `X-Tenant-ID`
-/// dispatch still work for pre-registered tenants, but `PUT /api/v1/admin/tenants`
-/// needs a `FromPoolConfig` adapter, which only PostgreSQL provides today.
-#[cfg(feature = "wire-backend")]
-fn warn_tenant_provisioning_requires_postgres(config: &ServerConfig, database: &str) {
-    if config.tenancy.runtime.enabled {
-        tracing::warn!(
-            database,
-            "[tenancy.runtime] is enabled but runtime tenant provisioning \
-             (PUT /api/v1/admin/tenants) is PostgreSQL-only; dispatch to \
-             pre-registered tenants still works, but registration will fail."
-        );
-    }
-}
-
 // ── Entry point ───────────────────────────────────────────────────────────
 
 /// Entry point.
@@ -559,7 +487,7 @@ async fn main() -> anyhow::Result<()> {
     );
 
     // Install the global `metrics`-facade recorder so transitive crates
-    // (e.g. fraiseql-wire) have their facade emissions captured and exported via
+    // (e.g. fraiseql-core) have their facade emissions captured and exported via
     // the `/metrics` endpoint (audit H45). No-op unless the `metrics` feature is
     // built and metrics are enabled in config.
     #[cfg(feature = "metrics")]
@@ -587,39 +515,6 @@ async fn main() -> anyhow::Result<()> {
 
 /// Dispatch on the configured database URL scheme and run the matching
 /// adapter-specific server entry point.
-///
-/// The `wire-backend` feature short-circuits the URL-scheme dispatch entirely
-/// because `FraiseWireAdapter` accepts its own URL formats.
-#[cfg(feature = "wire-backend")]
-async fn dispatch_server(
-    config: ServerConfig,
-    loaded: LoadedSchema,
-    cli: &Cli,
-) -> anyhow::Result<()> {
-    let LoadedSchema {
-        schema,
-        #[cfg(feature = "functions-runtime")]
-        functions,
-    } = loaded;
-    warn_storage_requires_postgres(&config, "wire-backend");
-    warn_tenant_provisioning_requires_postgres(&config, "wire-backend");
-    warn_revocation_requires_postgres(&schema, "wire-backend");
-    let adapter = build_wire_adapter(&config).await?;
-    // `FraiseWireAdapter` is read-only — it implements `DatabaseAdapter` and
-    // deliberately not `Writer` — so this server is built through the
-    // constructor that says so rather than the one bounded on write capability.
-    let server = Server::new_read_only(config, schema, adapter, None).await?;
-    // #896: the functions section comes from the artifact we loaded, not from a
-    // second read of `schema_path` inside the serve path.
-    #[cfg(feature = "functions-runtime")]
-    let server = server.with_functions_config(functions);
-    // Box::pin: with the wire backend enabled the combined server/serve future
-    // exceeds clippy's `large_futures` 16-KiB threshold. Heap-allocating once at
-    // startup is fine.
-    Box::pin(finish_server(server, cli, /* with_arrow = */ false)).await
-}
-
-#[cfg(not(feature = "wire-backend"))]
 async fn dispatch_server(
     config: ServerConfig,
     loaded: LoadedSchema,
@@ -637,7 +532,6 @@ async fn dispatch_server(
 
 /// PostgreSQL entry point — preserves the existing observer-pool, Arrow
 /// Flight, and relay-detection behaviour.
-#[cfg(not(feature = "wire-backend"))]
 async fn run_postgres(config: ServerConfig, loaded: LoadedSchema, cli: &Cli) -> anyhow::Result<()> {
     let LoadedSchema {
         schema,
@@ -817,21 +711,14 @@ async fn run_postgres(config: ServerConfig, loaded: LoadedSchema, cli: &Cli) -> 
 /// writes" is precisely the question that drifted out of existence in #865: `rest_router`
 /// lost its only production caller while the served `OpenAPI` document went on
 /// advertising every write path, so following the published contract earned a 405.
-///
-/// The read-only backend needs no entry here: this helper is reached only from the
-/// non-`wire-backend` boot paths. It used to be bounded on the write capability as well,
-/// described as the type system keeping writes off `FraiseWireAdapter` — a claim that
-/// retired with the type parameter. The executor a wire-backend boot builds is
-/// constructed read-only, so mounting the write routes over it would mount routes that
-/// refuse, not routes that write.
-#[cfg(all(not(feature = "wire-backend"), feature = "rest"))]
+#[cfg(feature = "rest")]
 fn enable_rest_writes(server: Server) -> Server {
     server.with_rest_write_surface()
 }
 
 /// No-op counterpart for builds without the `rest` feature, where there is no REST
 /// transport to mount at all.
-#[cfg(all(not(feature = "wire-backend"), not(feature = "rest")))]
+#[cfg(not(feature = "rest"))]
 const fn enable_rest_writes(server: Server) -> Server {
     server
 }

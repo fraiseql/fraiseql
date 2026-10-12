@@ -56,7 +56,7 @@ const (
 	// redis-pkce + redis-rate-limiting are compiled in so the #770/#777 boot-guard
 	// lib tests run here (they need no live Redis — closed ports and URL parsing);
 	// the Redis-requiring tests stay #[ignore]d and run in the redis integration leg.
-	serverTestFeatures = "arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,wire-backend"
+	serverTestFeatures = "arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks"
 	// testWorkspaceSkip: the skip patterns the `Test` shard's workspace sweep
 	// carries — the testcontainers lib tests (storage + functions); wire's
 	// container tests live in tests/*, so only its lib unit tests run.
@@ -2130,7 +2130,6 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		"cargo test -p fraiseql-server --test tenant_provisioning_test -- --test-threads=1",
 		"cargo test -p fraiseql-server --test test_helpers -- --test-threads=1",
 		"cargo test -p fraiseql-server --test observer_test_helpers -- --test-threads=1",
-		"cargo test -p fraiseql-server --test wire_backend_feature_test -- --test-threads=1",
 		// #936: the seed-fixture integrity gate runs LAST (pipeline_e2e ran above).
 		"echo '### cargo test -p fraiseql-db --test seed_fixture_integrity (#936 gate, runs last)'",
 		"cargo test -p fraiseql-db --features postgres,wire-backend,test-postgres --test seed_fixture_integrity -- --test-threads=1",
@@ -2960,10 +2959,9 @@ func (m *FraiseqlCi) integrationObservers(ctx context.Context, source *dagger.Di
 		// reachable in the shipped binary, so both drive the mounted path.
 		"echo '### #953: Flight Upload gate + Change Spine outbox (against the bound Postgres)'",
 		"cargo test -p fraiseql-arrow --all-features --test flight_upload_gate_pg -- --ignored --test-threads=1",
-		// `--features arrow` deliberately, NOT serverTestFeatures: that set includes
-		// `wire-backend`, under which this suite is `cfg`'d out entirely (the wire
-		// adapter has no atomic-upload seam) and would run zero tests while reading
-		// green — the #940-class trap.
+		// `--features arrow` named on the line: the suite is `#![cfg(feature = "arrow")]`,
+		// so a leg built without it would run zero tests while reading green — the
+		// #940-class trap.
 		"cargo test -p fraiseql-server --features arrow --test flight_upload_outbox_pg -- --ignored --test-threads=1",
 		// #1355: the SECOND upload verb. #953 reached DoExchange only, so every DoPut
 		// upload committed unrecorded and the Change Spine saw the same rows in the same
@@ -2975,8 +2973,8 @@ func (m *FraiseqlCi) integrationObservers(ctx context.Context, source *dagger.Di
 		// `--features arrow` for the same #940-class reason as the line above.
 		"cargo test -p fraiseql-server --features arrow --test flight_do_put_outbox_pg -- --ignored --test-threads=1",
 		// Flight `OptimizedView` serves exactly the operator's `flight_views` (the registry the
-		// library pre-fills is emptied by the server). PostgreSQL build: `--features arrow`,
-		// not serverTestFeatures, for the same #940-class reason as the two lines above.
+		// library pre-fills is emptied by the server). `--features arrow` named on the line
+		// for the same #940-class reason as the two lines above.
 		"cargo test -p fraiseql-server --features arrow --test flight_views_pg -- --ignored --test-threads=1",
 		// #908/#1001: the three DB-backed Flight suites. They self-skipped on a
 		// missing DATABASE_URL and the test leg has none, so all 31 tests read as

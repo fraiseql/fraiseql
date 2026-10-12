@@ -37,13 +37,7 @@
 //! `cargo test -p fraiseql-server --features arrow --test flight_do_put_outbox_pg --
 //! --ignored --test-threads=1`.
 
-// PostgreSQL build only, for the same reason as `flight_upload_outbox_pg`: under
-// `wire-backend`, `FlightDatabaseAdapter` wraps a `FraiseWireAdapter`, which does not
-// implement `execute_gated_upload`, so an allow-listed upload is refused for want of an
-// atomic write path and there is no outbox behaviour to assert. ⚠ The leg that runs this
-// suite must **not** pass `wire-backend`, or the binary compiles to zero tests and reads
-// green; the Dagger line uses `--features arrow` for exactly that reason.
-#![cfg(all(feature = "arrow", not(feature = "wire-backend")))]
+#![cfg(feature = "arrow")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)] // Reason: test code, panics acceptable
 
 use std::sync::Arc;

@@ -11,10 +11,7 @@
 //! with: `cargo test -p fraiseql-server --features arrow --test flight_views_pg --
 //! --ignored --test-threads=1`.
 
-// PostgreSQL build only: under `wire-backend` the adapter reads no arbitrary SQL, so no view
-// can be typed and none is served (pinned database-free in the lib's `arrow::tests`). The
-// leg that runs this suite must not pass `wire-backend`, or the binary holds no test.
-#![cfg(all(feature = "arrow", not(feature = "wire-backend")))]
+#![cfg(feature = "arrow")]
 #![allow(clippy::unwrap_used, clippy::expect_used)] // Reason: test code, panics acceptable
 
 use std::sync::Arc;

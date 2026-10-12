@@ -80,23 +80,6 @@ mod upload_allow_list_config {
 mod view_registry {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
-    /// The wire-backend service the server builds. Database-free: the wire adapter does not
-    /// connect until it reads, and the registry is decided at construction. The PostgreSQL
-    /// build is pinned against a real database in `tests/flight_views_pg.rs`.
-    #[cfg(feature = "wire-backend")]
-    #[test]
-    fn the_wire_backend_flight_service_serves_no_view_its_operator_did_not_declare() {
-        let adapter =
-            std::sync::Arc::new(fraiseql_core::db::FraiseWireAdapter::new("postgres://unused"));
-        let service = super::super::create_flight_service(adapter, &[]);
-        for view in ["va_orders", "va_users", "ta_orders", "ta_users"] {
-            assert!(
-                !service.schema_registry().contains(view),
-                "`{view}` is served though no operator declared it"
-            );
-        }
-    }
-
     /// A view name reaches SQL: only a plain identifier is accepted, at config validation.
     #[test]
     fn a_flight_view_must_be_named_by_a_plain_identifier() {

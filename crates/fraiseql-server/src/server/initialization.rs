@@ -1669,7 +1669,6 @@ pub fn enrichment_consumer_without_resolver_check(
     ))
 }
 
-// The only adapter that does not apply session variables is the wire backend's.
-#[cfg(all(test, feature = "wire-backend"))]
+#[cfg(test)]
 #[path = "initialization_tests.rs"]
 mod tests;

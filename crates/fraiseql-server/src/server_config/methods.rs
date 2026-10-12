@@ -204,28 +204,6 @@ impl ServerConfig {
         self.graphql_incremental_batch_size.unwrap_or(100)
     }
 
-    /// Refuse a read-replica configuration on a wire-backend build (#407).
-    ///
-    /// The wire backend has no replica routing, so accepting the config would
-    /// serve every read from the primary while the operator believes reads are
-    /// offloaded. Called by the binary's wire adapter construction; a
-    /// wire-backend server with replicas configured must refuse to boot.
-    ///
-    /// # Errors
-    ///
-    /// Returns a human-readable refusal when `read_replica_urls` is non-empty.
-    #[cfg(feature = "wire-backend")]
-    pub fn wire_backend_rejects_read_replicas(&self) -> Result<(), String> {
-        if self.read_replica_urls.is_empty() {
-            Ok(())
-        } else {
-            Err("read_replica_urls is configured, but this binary was built with the \
-                 `wire-backend` feature, which does not support read replicas. Remove the \
-                 replica configuration or use the standard PostgreSQL backend."
-                .to_string())
-        }
-    }
-
     /// Validate configuration.
     ///
     /// # Errors
@@ -351,8 +329,7 @@ impl ServerConfig {
         }
         // The adapter refuses these too, at pool construction. Refusing here as
         // well is what makes it a *configuration* error the operator sees from
-        // `validate()` — including on the wire-backend build, which never reaches
-        // `PostgresAdapter::with_pool_config` at all.
+        // `validate()`, before any pool is built.
         if self.read_replica_health_probe_interval_ms == Some(0) {
             return Err("read_replica_health_probe_interval_ms is 0 — probing every replica \
                  in a tight loop is never intended. Set a positive interval or remove it."

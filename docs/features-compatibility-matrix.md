@@ -67,7 +67,6 @@ fraiseql (umbrella)
 | `redis-rate-limiting` | no | Redis-backed rate limiting | `dep:redis` |
 | `secrets` | no | Secrets management | `dep:fraiseql-secrets` |
 | `webhooks` | no | Webhook processing | `dep:fraiseql-webhooks` |
-| `wire-backend` | no | Wire protocol backend | `fraiseql-core/wire-backend` |
 | `aws-s3` | no | S3 storage | `dep:aws-sdk-s3`, `dep:aws-config` |
 | `cors` | no | CORS support | (empty) |
 | `database` | no | Database utilities | (empty) |

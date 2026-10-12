@@ -72,9 +72,8 @@ fn existence_sql(probe: &SourceProbe) -> String {
 ///
 /// # Errors
 ///
-/// Returns a [`fraiseql_core::FraiseQLError`] if a probe query fails — including on
-/// adapters with no raw-SQL path (the wire backend), where this check is never
-/// enabled.
+/// Returns a [`fraiseql_core::FraiseQLError`] if a probe query fails, including on an
+/// adapter with no raw-SQL path.
 pub async fn find_unbacked_sources<A: DatabaseAdapter>(
     schema: &CompiledSchema,
     adapter: &A,

@@ -511,7 +511,6 @@
     redis-pkce        Redis PKCE state store
     redis-rate-limiting Redis token bucket
     tracing-opentelemetry OTLP export
-    wire-backend      fraiseql-wire streaming adapter
     testing           Test helpers exposed publicly
 
   fraiseql-db:

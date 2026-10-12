@@ -88,7 +88,7 @@ jsonwebtoken = {version = "10", features = ["rust_crypto"]}
 # Metrics (optional). The server emits its own metrics via hand-rolled atomics
 # (see metrics_server.rs). The `metrics` *facade* crate is a direct dep so the
 # server can emit its own facade metrics (the scheduled-source metrics, #573 Phase
-# 08) alongside transitive crates' (e.g. fraiseql-wire) emissions; all are captured
+# 08) alongside transitive crates' (e.g. fraiseql-core's) emissions; all are captured
 # by the recorder installed via metrics-exporter-prometheus (which pulls a matching
 # `metrics` 0.24) and appended to `/metrics` under the `metrics` feature (audit H45).
 metrics = "0.24"
@@ -175,6 +175,10 @@ fraiseql-cli = {workspace = true}
 fraiseql-federation = {workspace = true, features = ["test-utils"]}
 fraiseql-test-utils = {path = "../fraiseql-test-utils"}
 fraiseql-test-support = {path = "../fraiseql-test-support"}
+# Test-only: the boot refusal for an adapter that cannot apply session variables (#1115) is
+# pinned against the one that cannot, `FraiseWireAdapter`, a library the server binary no
+# longer boots on (#1566).
+fraiseql-core = {workspace = true, features = ["wire-backend"]}
 futures = "0.3"
 # Raw Redis client for the #985 cache-mount e2e: seed a key, then assert the
 # server-booted observer actually removed it. Dev-only; the production Redis
@@ -355,8 +359,9 @@ secrets = ["dep:fraiseql-secrets"]
 testing = []
 tracing-opentelemetry = ["opentelemetry", "opentelemetry_sdk", "opentelemetry-otlp", "dep:tracing-opentelemetry"]
 webhooks = ["dep:fraiseql-webhooks"]
-# Wire backend for streaming JSON queries with low memory overhead
-wire-backend = ["fraiseql-core/wire-backend"]
+# `wire-backend` was removed (#1566). It booted the server on `FraiseWireAdapter`, which pages
+# in memory, counts by fetching every row, has no pool, TLS or cancellation, and measured no
+# faster than `PostgresAdapter`. The adapter stays a library (`fraiseql-core`'s `wire-backend`).
 prost = ["dep:prost"]
 prost-reflect = ["dep:prost-reflect"]
 http-body = ["dep:http-body"]

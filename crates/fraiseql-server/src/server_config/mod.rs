@@ -201,8 +201,7 @@ pub struct ServerConfig {
     /// (#716): every Flight-authenticated principal can read every row and column of a
     /// view named here. Name only views whose entire contents every such principal may
     /// read. Plain identifiers (resolved through the connection's `search_path`); each is
-    /// typed from one of its rows at boot, so a view empty at boot is not served. A
-    /// `wire-backend` build reads no arbitrary SQL, and serves none.
+    /// typed from one of its rows at boot, so a view empty at boot is not served.
     ///
     /// ```toml
     /// flight_views = ["va_public_metrics"]

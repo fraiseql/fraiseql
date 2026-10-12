@@ -213,10 +213,10 @@ impl Server {
 impl Server {
     /// Create a new server that cannot write.
     ///
-    /// The entry for a backend that is not a [`Writer`] — today `FraiseWireAdapter`,
-    /// which the `wire-backend` feature dispatches to. That deployment has always been
-    /// read-only; its construction states it, and mutations are refused with a diagnostic
-    /// instead of failing somewhere further in.
+    /// The entry for a backend that is not a [`Writer`] — today `FraiseWireAdapter`, a
+    /// library adapter an embedder may serve (the binary boots on `PostgresAdapter` only,
+    /// #1566). Such a server is read-only; its construction states it, and mutations are
+    /// refused with a diagnostic instead of failing somewhere further in.
     ///
     /// # Errors
     ///

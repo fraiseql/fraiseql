@@ -53,6 +53,17 @@ disagreed, and the promise was the part that was wrong.
   (#1564).** Embedders that build `GraphQLGetParams` wrap `query` in `Some` and set the new
   `extensions` field; `graphql_query_method_handler` returns `Result<Response,
   ErrorResponse>`, so it can carry `Cache-Control`.
+- **The `wire-backend` feature of `fraiseql-server` is removed (#1566).** It built a server
+  that booted on `FraiseWireAdapter`, which pages in memory, counts by fetching every row,
+  holds no connection pool, and has no TLS, no query cancellation and a health check that
+  reads only the URL; measured, it was no faster than the default build and used more
+  memory. Build without the flag: the server runs on PostgreSQL through `PostgresAdapter`.
+  `FraiseWireAdapter` and `fraiseql-wire` stay as libraries (`fraiseql-core`'s and
+  `fraiseql-db`'s `wire-backend`, the `fraiseql` crate's `wire`), and an embedder can still
+  serve one through `Server::new_read_only`. `ServerConfig::wire_backend_rejects_read_replicas`,
+  which only that build called, is gone, and `arrow::FlightDatabaseAdapter` always wraps a
+  `PostgresAdapter` (its `new`/`from_arc`/`inner` took the wire adapter under that flag; it is
+  no longer `UnwindSafe`/`RefUnwindSafe`, as `PostgresAdapter` is not).
 
 ### Added
 

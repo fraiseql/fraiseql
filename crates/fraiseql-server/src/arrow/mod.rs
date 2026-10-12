@@ -54,9 +54,7 @@ pub use database_adapter::FlightDatabaseAdapter;
 pub use executor_wrapper::ExecutorQueryAdapter;
 #[cfg(feature = "arrow")]
 use fraiseql_arrow::FraiseQLFlightService;
-#[cfg(all(feature = "arrow", feature = "wire-backend"))]
-use fraiseql_core::db::FraiseWireAdapter;
-#[cfg(all(feature = "arrow", not(feature = "wire-backend")))]
+#[cfg(feature = "arrow")]
 use fraiseql_core::db::postgres::PostgresAdapter;
 #[cfg(feature = "arrow")]
 pub use policy_seam::PolicyGatedExecutor;
@@ -73,11 +71,6 @@ pub use policy_seam::PolicyGatedExecutor;
 /// [`ExecutorQueryAdapter`] instead: that is precisely the shape that makes
 /// Flight the one transport skipping all of the above.
 ///
-/// Supports both PostgreSQL and FraiseQL Wire adapters depending on feature flags:
-/// - Default: PostgreSQL adapter for traditional database connections
-/// - `wire-backend` feature: FraiseQL Wire adapter for streaming JSON queries with low memory
-///   overhead
-///
 /// `upload_tables` is the operator's `flight_upload_tables` allow-list (#953). An
 /// empty slice leaves `Upload` **disabled**, which is the default and the only safe
 /// one: the target table is named by the client and the write skips the mutation
@@ -86,7 +79,7 @@ pub use policy_seam::PolicyGatedExecutor;
 ///
 /// # Arguments
 ///
-/// * `adapter` - Database adapter from fraiseql-core (PostgreSQL or Wire depending on features)
+/// * `adapter` - The PostgreSQL adapter from fraiseql-core
 /// * `upload_tables` - Tables an authenticated client may `Upload` into; empty disables Upload
 ///
 /// # Returns
@@ -96,15 +89,10 @@ pub use policy_seam::PolicyGatedExecutor;
 /// # Example
 ///
 /// ```text
-/// // PostgreSQL (default)
 /// let pg_adapter = PostgresAdapter::new(&db_url).await?;
 /// let flight_service = create_flight_service(Arc::new(pg_adapter), &config.flight_upload_tables);
-///
-/// // FraiseQL Wire (with the `wire-backend` feature)
-/// let wire_adapter = FraiseWireAdapter::new(&db_url);
-/// let flight_service = create_flight_service(Arc::new(wire_adapter), &[]);
 /// ```
-#[cfg(all(feature = "arrow", not(feature = "wire-backend")))]
+#[cfg(feature = "arrow")]
 #[must_use]
 pub fn create_flight_service(
     adapter: Arc<PostgresAdapter>,
@@ -172,24 +160,4 @@ fn apply_upload_allow_list(
     } else {
         service.with_upload_tables(upload_tables.iter().cloned())
     }
-}
-
-/// Create an Arrow Flight service backed by the fraiseql-wire streaming adapter.
-///
-/// Requires both the `arrow` and `wire-backend` features.
-#[cfg(all(feature = "arrow", feature = "wire-backend"))]
-#[must_use]
-pub fn create_flight_service(
-    adapter: Arc<FraiseWireAdapter>,
-    upload_tables: &[String],
-) -> FraiseQLFlightService {
-    let flight_adapter = FlightDatabaseAdapter::from_arc(adapter);
-
-    // Create Flight service with FraiseQL Wire adapter. Note that the wire adapter
-    // does not implement `execute_gated_upload`, so an allow-listed Upload is still
-    // refused for want of an atomic write path — allow-listing it here cannot open
-    // the surface (#953).
-    let service = FraiseQLFlightService::new_with_db(Arc::new(flight_adapter));
-    serve_no_undeclared_view(&service);
-    apply_upload_allow_list(service, upload_tables)
 }

@@ -1,9 +1,14 @@
 #!/usr/bin/env bash
-# check-feature-chains.sh — Detect ghost features in workspace Cargo.toml files.
+# check-feature-chains.sh — Detect ghost features in workspace Cargo.toml files, and
+# features removed on purpose that came back.
 #
 # A "ghost feature" is declared as `name = []` (empty deps) in a crate's
 # [features] section but has zero `#[cfg(feature = "name")]` usage in any
 # Rust source file across the workspace.
+#
+# A removed feature is listed in REMOVED below with the reason it went. Declaring it
+# again in that crate fails the check: the build it selected was taken out of the
+# product, and bringing the flag back brings the build back.
 #
 # Some empty features are intentional markers (e.g. `postgres = []` gates code
 # in downstream crates). These are listed in the ALLOWLIST below.
@@ -48,6 +53,16 @@ ALLOWLIST=(
     "cors"
     # Database — marker for DB dependency inclusion
     "database"
+)
+
+# ---------------------------------------------------------------------------
+# Features removed on purpose, as `crate:feature`.
+# ---------------------------------------------------------------------------
+REMOVED=(
+    # #1566: booted the server on FraiseWireAdapter, which pages in memory, counts by
+    # fetching every row, has no pool, TLS or cancellation, and measured no faster than
+    # PostgresAdapter. The adapter stays a library (fraiseql-core's `wire-backend`).
+    "fraiseql-server:wire-backend"
 )
 
 is_allowlisted() {
@@ -108,7 +123,37 @@ for toml in "$REPO_ROOT"/crates/*/Cargo.toml; do
     done < <(extract_empty_features "$toml")
 done
 
+# Every feature a crate declares, empty or not.
+declared_features() {
+    awk '
+        /^\[features\]/ { in_section=1; next }
+        in_section && /^\[/ { in_section=0 }
+        in_section && /^[A-Za-z0-9_-]+[ \t]*=/ { sub(/[ \t]*=.*/, "", $0); print $0 }
+    ' "$1"
+}
+
+revived=0
+for entry in "${REMOVED[@]}"; do
+    crate="${entry%%:*}"
+    feature="${entry#*:}"
+    toml="$REPO_ROOT/crates/$crate/Cargo.toml"
+    if [[ ! -f "$toml" ]]; then
+        echo "ERROR: REMOVED names $crate, which has no $toml"
+        revived=$((revived + 1))
+        continue
+    fi
+    if declared_features "$toml" | grep -qx -- "$feature"; then
+        echo "REVIVED: $crate declares '$feature', which was removed (see REMOVED in this script)"
+        revived=$((revived + 1))
+    fi
+done
+
 echo ""
+if [[ "$revived" -gt 0 ]]; then
+    echo "ERROR: $revived removed feature(s) declared again."
+    exit 1
+fi
+
 if [[ "$checked" -eq 0 ]]; then
     echo "No empty features found in workspace."
     exit 0

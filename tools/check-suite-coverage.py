@@ -154,7 +154,7 @@ FEATURE_GRAPH: dict[str, dict[str, list[str]]] = {}
 # A file-level inner attribute gating the WHOLE test binary, e.g.
 #   #![cfg(feature = "functions-runtime")]
 #   #![cfg(all(feature = "auth", feature = "rest"))]
-#   #![cfg(all(feature = "arrow", not(feature = "wire-backend")))]
+#   #![cfg(all(feature = "arrow", not(feature = "some-feature")))]
 # Anchored to the start of a line so an attribute inside a string or a nested item
 # cannot match. `#![cfg(test)]` and other non-feature predicates yield nothing.
 FILE_CFG = re.compile(r"^#!\[cfg\((.*)\)\]\s*$", re.M)
@@ -230,7 +230,7 @@ class TestBinary:
         self.path = path
         self.required_features: set[str] = set()
         # Features that must be OFF for this binary to hold any tests. A file-level
-        # `#![cfg(all(feature = "arrow", not(feature = "wire-backend")))]` compiles to
+        # `#![cfg(all(feature = "arrow", not(feature = "some-feature")))]` compiles to
         # an EMPTY binary under `--all-features`, so a leg enabling the forbidden
         # feature does not cover it however many other boxes it ticks (#1082).
         self.forbidden_features: set[str] = set()
