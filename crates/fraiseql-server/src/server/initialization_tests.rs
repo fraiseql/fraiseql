@@ -52,3 +52,59 @@ async fn the_wire_backend_server_refuses_to_boot_with_locale() {
         .expect("a wire-backend server with [locale] must not boot");
     assert!(err.to_string().contains("cannot apply session variables"), "{err}");
 }
+
+// ── #1555: the row cache is opt-in, and a deployment that turned it on is told so ──
+
+/// The JSON log events `warn_when_nothing_is_cacheable` emits for `schema`.
+fn cache_opt_in_events(schema: &CompiledSchema, cache_enabled: bool) -> Vec<serde_json::Value> {
+    use std::sync::{Arc, Mutex};
+
+    #[derive(Clone, Default)]
+    struct Captured(Arc<Mutex<Vec<u8>>>);
+    impl std::io::Write for Captured {
+        fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+            self.0.lock().unwrap().extend_from_slice(buf);
+            Ok(buf.len())
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    let captured = Captured::default();
+    let writer = captured.clone();
+    let subscriber = tracing_subscriber::fmt().json().with_writer(move || writer.clone()).finish();
+    tracing::subscriber::with_default(subscriber, || {
+        super::warn_when_nothing_is_cacheable(schema, cache_enabled);
+    });
+    let log = String::from_utf8(captured.0.lock().unwrap().clone()).unwrap();
+    log.lines().map(|line| serde_json::from_str(line).unwrap()).collect()
+}
+
+fn schema_with_users(cache_ttl_seconds: Option<u64>) -> CompiledSchema {
+    let mut schema = CompiledSchema::new();
+    let mut users = fraiseql_core::schema::QueryDefinition::new("users", "User").returning_list();
+    users.sql_source = Some("v_user".to_string());
+    users.cache_ttl_seconds = cache_ttl_seconds;
+    schema.queries.push(users);
+    schema
+}
+
+#[test]
+fn a_cache_no_query_opts_into_is_reported_at_boot() {
+    let events = cache_opt_in_events(&schema_with_users(None), true);
+    assert_eq!(events.len(), 1, "{events:?}");
+    assert_eq!(events[0]["level"], "WARN");
+    assert_eq!(events[0]["fields"]["cacheable_queries"], 0);
+}
+
+#[test]
+fn a_cache_a_query_opts_into_says_nothing() {
+    assert!(cache_opt_in_events(&schema_with_users(Some(60)), true).is_empty());
+}
+
+#[test]
+fn a_disabled_cache_says_nothing_here() {
+    assert!(cache_opt_in_events(&schema_with_users(None), false).is_empty());
+}

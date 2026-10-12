@@ -19,8 +19,17 @@ cargo nextest run -p fraiseql-core --lib cache
 ## Overview
 
 The cache module wraps `DatabaseAdapter` in a `CachedDatabaseAdapter` that stores query
-results in an in-process `moka::sync::Cache` (W-TinyLFU). The design has three critical
-properties:
+results in an in-process `moka::sync::Cache` (W-TinyLFU).
+
+**It is opt-in per query.** `cache_enabled = true` (the server default) turns the cache
+on, but a read is cached only when its query declares `cache_ttl_seconds`, authored in
+the SDK or lowered from `[[caching.rules]]`; every other read bypasses it. A schema that
+declares no TTL caches nothing, and the server warns at boot when that is so. There is
+deliberately no server-wide default TTL: it would serve bounded-stale reads to every
+query, including ones whose author never chose that trade (#1555). Reads that carry
+session variables are cached too, keyed by those variables (#1373).
+
+The design has three critical properties:
 
 1. **RLS isolation** — the cache key includes the user's Row-Level Security WHERE clause,
    ensuring that two users with different RLS policies never share cached data.
@@ -101,7 +110,7 @@ the TTL onto the query, and the query's view into each trigger mutation's
 the SDK, `enabled = false` with rules, and a `backend`/`redis_url` (no Redis
 result cache exists) are all compile errors. Runtime enablement remains the
 server's `cache_enabled`; the server warns at boot when TTLs are declared but
-the cache is off.
+the cache is off, and when the cache is on but no query declares a TTL.
 
 ---
 

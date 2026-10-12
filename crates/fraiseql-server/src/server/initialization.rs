@@ -1306,6 +1306,8 @@ pub(super) async fn build_cached_adapter<A: DatabaseAdapter + Clone + Send + Syn
     unattributable_mutation_check(schema, cache_enabled)?;
     // #623: declared cache TTLs with the cache off are silently inert — say so.
     warn_on_inert_cache_ttls(schema, cache_enabled);
+    // #1555: and the converse: the cache is on and no query opted into it.
+    warn_when_nothing_is_cacheable(schema, cache_enabled);
 
     let cache_config = CacheConfig::from(cache_enabled);
     if cache_config.enabled {
@@ -1427,6 +1429,26 @@ pub(super) fn warn_on_inert_cache_ttls(schema: &CompiledSchema, cache_enabled: b
             declared.len()
         );
     }
+}
+
+/// Warn when the server's result cache is on but no query can use it (#1555).
+///
+/// The cache is opt-in per query: a read is cached only when its query declares
+/// `cache_ttl_seconds` (SDK-authored or lowered from `[[caching.rules]]`), and every other
+/// read bypasses it. A deployment that sets `cache_enabled = true` (the default) over a schema
+/// that declares none caches nothing, and nothing said so. The converse of
+/// [`warn_on_inert_cache_ttls`]; "opted in" is the cache adapter's own definition
+/// ([`declares_cacheable_views`](fraiseql_core::cache::declares_cacheable_views)).
+pub(super) fn warn_when_nothing_is_cacheable(schema: &CompiledSchema, cache_enabled: bool) {
+    if !cache_enabled || fraiseql_core::cache::declares_cacheable_views(schema) {
+        return;
+    }
+    warn!(
+        cacheable_queries = 0_usize,
+        "The server's result cache is enabled, but no query declares `cache_ttl_seconds`, so \
+         nothing is cached: the cache is opt-in per query. Declare a TTL on the queries to \
+         cache (or `[[caching.rules]]`), or set `cache_enabled = false`."
+    );
 }
 
 /// Refuse to boot when the compiled schema marks any field for at-rest encryption.

@@ -52,6 +52,11 @@ disagreed, and the promise was the part that was wrong.
   its TOML. An unparseable value refuses to boot, naming the variable. The default stays 20:
   every replica opens its own pool, and replicas × pool size plus every other client must stay
   under PostgreSQL's `max_connections` (100 by default).
+- **The server warns at boot when its result cache is on and no query opts into it (#1555).**
+  The cache is opt-in per query (`cache_ttl_seconds`, or `[[caching.rules]]`); with
+  `cache_enabled = true` (the default) over a schema that declares no TTL, nothing was cached
+  and nothing said so. `docs/modules/cache.md` states the opt-in. A server-wide default TTL is
+  deliberately not added: it would serve bounded-stale reads to queries that never chose that.
 
 ### Changed
 

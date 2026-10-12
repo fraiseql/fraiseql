@@ -742,3 +742,44 @@ async fn postgres_api_keys_without_a_pool_refuse_to_boot() {
     let msg = result.err().map(|e| e.to_string()).unwrap_or_default();
     assert!(msg.contains("api_keys"), "the refusal must name the config section, got: {msg}");
 }
+
+/// #1555: building a server whose result cache is on over a schema no query of which declares
+/// `cache_ttl_seconds` reports it, at boot.
+#[tokio::test]
+async fn server_new_reports_a_cache_no_query_opts_into() {
+    use std::sync::Mutex;
+
+    #[derive(Clone, Default)]
+    struct Captured(Arc<Mutex<Vec<u8>>>);
+    impl std::io::Write for Captured {
+        fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+            self.0.lock().expect("log buffer").extend_from_slice(buf);
+            Ok(buf.len())
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    let captured = Captured::default();
+    let writer = captured.clone();
+    let subscriber = tracing_subscriber::fmt().json().with_writer(move || writer.clone()).finish();
+    let guard = tracing::subscriber::set_default(subscriber);
+    let config = ServerConfig {
+        cache_enabled: true,
+        cors_enabled: false,
+        ..ServerConfig::default()
+    };
+    Server::new(config, CompiledSchema::default(), Arc::new(NoopRelayAdapter), None)
+        .await
+        .expect("the server boots");
+    drop(guard);
+
+    let log = String::from_utf8(captured.0.lock().expect("log buffer").clone()).expect("utf-8 log");
+    let reported = log
+        .lines()
+        .filter_map(|line| serde_json::from_str::<serde_json::Value>(line).ok())
+        .any(|event| event["level"] == "WARN" && event["fields"]["cacheable_queries"] == 0);
+    assert!(reported, "{log}");
+}
