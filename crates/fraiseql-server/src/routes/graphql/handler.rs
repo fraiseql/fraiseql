@@ -74,21 +74,33 @@ pub async fn graphql_handler(
             .then(|| incremental::negotiate(&headers))
             .flatten()
         {
-            return Box::pin(sse::handle_sse(
-                state,
-                wire,
-                headers,
-                peer_ip,
-                security_context,
-                token_claims.map(|axum::Extension(claims)| claims),
-                request,
-            ))
-            .await;
+            return Ok(with_caching(
+                Box::pin(sse::handle_sse(
+                    state,
+                    wire,
+                    headers,
+                    peer_ip,
+                    security_context,
+                    token_claims.map(|axum::Extension(claims)| claims),
+                    request,
+                    Method::Post,
+                ))
+                .await,
+            ));
         }
 
-        execute_graphql_request(state, request, trace_context, security_context, &headers, &peer_ip)
-            .await
-            .map(axum::response::IntoResponse::into_response)
+        Ok(answer(
+            execute_graphql_request(
+                state,
+                request,
+                Method::Post,
+                trace_context,
+                security_context,
+                &headers,
+                &peer_ip,
+            )
+            .await,
+        ))
     })
     .await
 }
@@ -135,7 +147,7 @@ pub async fn graphql_get_handler(
     fraiseql_core::graphql::document_scope(async move {
         // Reject oversized GET queries early to prevent DoS via query parsing.
         let max_get_bytes = state.max_get_query_bytes;
-        if params.query.len() > max_get_bytes {
+        if params.query.as_ref().is_some_and(|q| q.len() > max_get_bytes) {
             return Err(ErrorResponse::from_error(GraphQLError::payload_too_large(format!(
                 "GET query string exceeds maximum allowed length ({max_get_bytes} bytes)"
             ))));
@@ -173,19 +185,34 @@ pub async fn graphql_get_handler(
             None
         };
 
-        // Reject mutations over GET with 405 per the GraphQL-over-HTTP spec: GET is for
-        // queries only, and allowing mutations sidesteps the POST-only CSRF posture
-        // (M-get-mutations). Detection parses the operation (reliable) rather than matching a
-        // `mutation` string prefix (which a leading comment or named query defeats).
-        if detect_mutation_name(&params.query).is_some() {
-            warn!(
-                operation_name = ?params.operation_name,
-                "Mutation sent via GET request — rejected (use POST)"
-            );
-            return Err(ErrorResponse::from_error(GraphQLError::method_not_allowed(
-                "Mutations must be sent over POST, not GET",
-            )));
-        }
+        // #1564: an APQ hash travels as JSON-encoded `extensions`, which is what lets a CDN
+        // key the request by its URL. Same cap and same handling as `variables`.
+        let extensions = if let Some(ext_str) = params.extensions {
+            if ext_str.len() > max_get_bytes {
+                return Err(ErrorResponse::from_error(GraphQLError::payload_too_large(format!(
+                    "GET extensions string exceeds maximum allowed length ({max_get_bytes} bytes)"
+                ))));
+            }
+            match serde_json::from_str::<serde_json::Value>(&ext_str) {
+                Ok(v) => Some(v),
+                Err(e) => {
+                    warn!(
+                        error = %e,
+                        extensions_bytes = ext_str.len(),
+                        "Failed to parse extensions JSON in GET request"
+                    );
+                    return Err(ErrorResponse::from_error(GraphQLError::request(format!(
+                        "Invalid extensions JSON: {e}"
+                    ))));
+                },
+            }
+        } else {
+            None
+        };
+
+        // A mutation over GET is refused with 405 once the document is resolved
+        // (`stages::resolve_query_body`): with an APQ hash the document is not in the URL,
+        // so it cannot be judged before.
 
         let trace_context = tracing_utils::extract_trace_context(&headers);
         if trace_context.is_some() {
@@ -193,10 +220,10 @@ pub async fn graphql_get_handler(
         }
 
         let request = GraphQLRequest {
-            query: Some(params.query),
+            query: params.query,
             variables,
             operation_name: params.operation_name,
-            extensions: None,
+            extensions,
             document_id: None,
         };
 
@@ -205,27 +232,39 @@ pub async fn graphql_get_handler(
         }
 
         // GraphQL-over-SSE (#387): the GET arm is what an `EventSource` client can
-        // reach (it cannot POST). Mutations were already rejected above.
+        // reach (it cannot POST). A mutation is refused once its document is resolved.
         if let Some(wire) = state
             .graphql_incremental_enabled
             .then(|| incremental::negotiate(&headers))
             .flatten()
         {
-            return Box::pin(sse::handle_sse(
-                state,
-                wire,
-                headers,
-                peer_ip,
-                security_context,
-                token_claims.map(|axum::Extension(claims)| claims),
-                request,
-            ))
-            .await;
+            return Ok(with_caching(
+                Box::pin(sse::handle_sse(
+                    state,
+                    wire,
+                    headers,
+                    peer_ip,
+                    security_context,
+                    token_claims.map(|axum::Extension(claims)| claims),
+                    request,
+                    Method::Get,
+                ))
+                .await,
+            ));
         }
 
-        execute_graphql_request(state, request, trace_context, security_context, &headers, &peer_ip)
-            .await
-            .map(axum::response::IntoResponse::into_response)
+        Ok(answer(
+            execute_graphql_request(
+                state,
+                request,
+                Method::Get,
+                trace_context,
+                security_context,
+                &headers,
+                &peer_ip,
+            )
+            .await,
+        ))
     })
     .await
 }
@@ -264,7 +303,7 @@ pub async fn graphql_query_method_handler(
     PeerIp(peer_ip): PeerIp,
     OptionalSecurityContext(security_context): OptionalSecurityContext,
     body: axum::body::Bytes,
-) -> Result<GraphQLResponse, ErrorResponse> {
+) -> Result<axum::response::Response, ErrorResponse> {
     // #1562: every stage below reads this request's one parse of its document.
     fraiseql_core::graphql::document_scope(async move {
         // This handler is a method-router fallback, so it also catches PUT/DELETE/…
@@ -279,23 +318,71 @@ pub async fn graphql_query_method_handler(
             ErrorResponse::from_error(GraphQLError::request(format!("Invalid QUERY body: {e}")))
         })?;
 
-        // Queries-only. `detect_operation_type` uses the same parser the executor uses,
-        // so the gate cannot disagree with what would actually execute. A document that
-        // does not parse falls through (like the GET path) and surfaces a GraphQL parse
-        // error from the executor — it executes nothing, so no state can change.
-        if let Some(op) = non_query_operation(request.query.as_deref().unwrap_or_default()) {
-            warn!(operation = op, "Non-query operation sent via QUERY — rejected (use POST)");
-            return Err(ErrorResponse::from_error(GraphQLError::method_not_allowed(
-                "Only query operations may be sent over the QUERY method; use POST",
-            )));
-        }
-
+        // Queries-only, judged on the resolved document (`stages::resolve_query_body`), with
+        // the parser the executor uses, so the gate cannot disagree with what would
+        // actually execute. A document that does not parse surfaces the executor's parse
+        // error — it executes nothing, so no state can change.
         let trace_context = tracing_utils::extract_trace_context(&headers);
 
-        execute_graphql_request(state, request, trace_context, security_context, &headers, &peer_ip)
-            .await
+        Ok(answer(
+            execute_graphql_request(
+                state,
+                request,
+                Method::Query,
+                trace_context,
+                security_context,
+                &headers,
+                &peer_ip,
+            )
+            .await,
+        ))
     })
     .await
+}
+
+/// The method a GraphQL request arrived on, which decides what it may run, whether it
+/// may register a persisted query, and whether its response may be stored (#1564).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum Method {
+    /// `POST`: any operation.
+    Post,
+    /// `GET`: no mutation, no persisted-query registration; a response may be cached.
+    Get,
+    /// `QUERY` (RFC 10008): queries only, no persisted-query registration.
+    Query,
+}
+
+/// An executed request's response, with the caching headers it may carry.
+pub(super) struct Answer {
+    /// The GraphQL response.
+    pub(super) response: GraphQLResponse,
+    /// `Cache-Control` and, on a reusable response, `Vary`.
+    pub(super) headers:  HeaderMap,
+}
+
+/// The HTTP response for an executed request: its body with its caching headers, or the
+/// error with `no-store`.
+fn answer(result: Result<Answer, ErrorResponse>) -> axum::response::Response {
+    match result {
+        Ok(Answer { response, headers }) => {
+            let mut http = axum::response::IntoResponse::into_response(response);
+            http.headers_mut().extend(headers);
+            http
+        },
+        Err(error) => with_caching(Err(error)),
+    }
+}
+
+/// A response no cache may store: an error, or an SSE stream.
+fn with_caching(
+    result: Result<axum::response::Response, ErrorResponse>,
+) -> axum::response::Response {
+    let mut http = match result {
+        Ok(http) => http,
+        Err(error) => axum::response::IntoResponse::into_response(error),
+    };
+    http_cache::apply(http.headers_mut(), http_cache::Caching::NoStore, None);
+    http
 }
 
 /// Returns the operation type when `query` is **not** a plain query — i.e.
@@ -379,7 +466,9 @@ fn extract_document_id(request: &GraphQLRequest) -> Option<String> {
 /// Resolve an APQ request: look up or register a persisted query.
 ///
 /// Returns the resolved query body, or an error if the query is not found and no body was
-/// provided (the client should resend with the full body).
+/// provided (the client should resend with the full body). A hash sent with its body is
+/// verified, and stored only when `register` (a `POST`): on a method that may not write it
+/// is executed as sent.
 ///
 /// # Errors
 ///
@@ -390,12 +479,16 @@ pub(crate) async fn resolve_apq(
     apq_metrics: &ApqMetrics,
     hash: &str,
     query_body: Option<&str>,
+    register: bool,
 ) -> Result<String, ErrorResponse> {
     if let Some(body) = query_body {
-        // Hash + body present: verify and register.
+        // Hash + body present: verify, and register where the method may write.
         if !fraiseql_core::apq::verify_hash(body, hash) {
             apq_metrics.record_error();
             return Err(ErrorResponse::from_error(GraphQLError::persisted_query_mismatch()));
+        }
+        if !register {
+            return Ok(body.to_owned());
         }
         // Store the query (best-effort; log on failure).
         if let Err(e) = apq_store.set(hash.to_owned(), body.to_owned()).await {
@@ -430,6 +523,7 @@ pub(crate) async fn resolve_apq(
 async fn execute_graphql_request(
     state: AppState,
     mut request: GraphQLRequest,
+    method: Method,
     #[cfg(feature = "federation")] _trace_context: Option<
         fraiseql_core::federation::FederationTraceContext,
     >,
@@ -437,7 +531,7 @@ async fn execute_graphql_request(
     security_context: Option<SecurityContext>,
     headers: &HeaderMap,
     peer_ip: &str,
-) -> Result<GraphQLResponse, ErrorResponse> {
+) -> Result<Answer, ErrorResponse> {
     // ── Who is asking ────────────────────────────────────────────────────────
     //
     // Every `await` on a stage is `Box::pin`ned. An awaited `async fn` embeds its
@@ -454,7 +548,7 @@ async fn execute_graphql_request(
     Box::pin(stages::enrich_identity(&state, &mut security_context)).await?;
 
     // ── What they are asking ─────────────────────────────────────────────────
-    let query = Box::pin(stages::resolve_query_body(&state, &mut request)).await?;
+    let query = Box::pin(stages::resolve_query_body(&state, &mut request, method)).await?;
 
     let start_time = Instant::now();
     let metrics = &state.metrics;
@@ -519,8 +613,13 @@ async fn execute_graphql_request(
         match state.idempotency_store.check(key, body_hash).await {
             crate::routes::idempotency::IdempotencyCheck::Replay(stored) => {
                 debug!("Replaying stored response for repeated Idempotency-Key mutation");
-                return Ok(GraphQLResponse {
-                    body: stored.body.unwrap_or(serde_json::Value::Null),
+                let mut headers = HeaderMap::new();
+                http_cache::apply(&mut headers, http_cache::Caching::NoStore, None);
+                return Ok(Answer {
+                    response: GraphQLResponse {
+                        body: stored.body.unwrap_or(serde_json::Value::Null),
+                    },
+                    headers,
                 });
             },
             crate::routes::idempotency::IdempotencyCheck::Conflict => {
@@ -560,6 +659,9 @@ async fn execute_graphql_request(
     )
     .map_err(|e| ErrorResponse::from_error(tenant_dispatch_error(&e)))?;
 
+    // #1564: whether the response was produced for a principal, read before
+    // `security_context` is consumed.
+    let principal = security_context.is_some();
     // Preserve subject for audit logging before security_context is consumed.
     #[cfg(feature = "auth")]
     let audit_subject = security_context.as_ref().map(|ctx| ctx.user_id.to_string());
@@ -726,8 +828,29 @@ async fn execute_graphql_request(
             .await;
     }
 
-    Ok(GraphQLResponse {
-        body: response_json,
+    // #1564: only a GET response may be stored, and only as `http_cache` decides.
+    let caching = if method == Method::Get {
+        http_cache::decide(
+            &http_cache::Answered {
+                body: &response_json,
+                ttl: executor.response_cache_ttl(&query, operation_name),
+                principal,
+                tenant: tenant_key.is_some(),
+            },
+            headers,
+            executor.schema(),
+        )
+    } else {
+        http_cache::Caching::NoStore
+    };
+    let mut cache_headers = HeaderMap::new();
+    http_cache::apply(&mut cache_headers, caching, Some(executor.schema()));
+
+    Ok(Answer {
+        response: GraphQLResponse {
+            body: response_json,
+        },
+        headers:  cache_headers,
     })
 }
 
@@ -760,6 +883,7 @@ pub(super) fn tenant_dispatch_error(error: &FraiseQLError) -> GraphQLError {
     }
 }
 
+mod http_cache;
 mod incremental;
 mod sse;
 mod stages;

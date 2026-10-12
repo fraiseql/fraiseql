@@ -311,6 +311,32 @@ impl Executor {
         Ok(entry)
     }
 
+    /// How long a client or a shared cache may reuse this document's response, in
+    /// seconds (#1564): the smallest `cache_ttl_seconds` among its root fields.
+    ///
+    /// `None` — reuse nothing — unless the document parses, selects a plain query
+    /// operation, and **every** root is a query that declares a positive TTL: one root
+    /// without one makes the whole response as fresh as that root, which is not at all.
+    /// Introspection, mutations, aggregates and the rest answer `None`. Whether a
+    /// response may be shared at all is the transport's decision (it knows who asked);
+    /// this says only how long the data may be reused.
+    #[must_use]
+    pub fn response_cache_ttl(&self, query: &str, operation_name: Option<&str>) -> Option<u64> {
+        let entry = self.classify_cached(query, normalize_operation_name(operation_name)).ok()?;
+        let (QueryType::Regular, Some(parsed), ..) = &entry.classification else {
+            return None;
+        };
+        parsed
+            .selections
+            .iter()
+            .map(|root| {
+                self.ctx.schema.find_query(&root.name)?.cache_ttl_seconds.filter(|ttl| *ttl > 0)
+            })
+            .collect::<Option<Vec<u64>>>()?
+            .into_iter()
+            .min()
+    }
+
     /// Execute a document that the engine would **not** execute as a write, as
     /// `security_context` (#1328).
     ///

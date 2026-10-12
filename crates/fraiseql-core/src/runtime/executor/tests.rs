@@ -4218,3 +4218,62 @@ mod projection_moves {
         assert_name_moved(&adapter, &response);
     }
 }
+
+// ── mod response_cache_ttl: #1564, how long a response may be reused ──────
+
+mod response_cache_ttl {
+    use super::*;
+
+    /// `users` (TTL 60), `posts` (TTL 30), `drafts` (TTL 0, i.e. never cached) and
+    /// `comments` (no TTL).
+    fn executor() -> Executor {
+        let mut schema = test_schema();
+        let users = schema.queries[0].clone();
+        schema.queries[0].cache_ttl_seconds = Some(60);
+        for (name, ttl) in [("posts", Some(30)), ("drafts", Some(0)), ("comments", None)] {
+            let mut query = users.clone();
+            query.name = name.to_string();
+            query.cache_ttl_seconds = ttl;
+            schema.queries.push(query);
+        }
+        schema.build_indexes();
+        Executor::new(schema, Arc::new(MockAdapter::new(mock_user_results())))
+    }
+
+    #[test]
+    fn a_root_with_a_ttl_is_reusable_for_it() {
+        assert_eq!(executor().response_cache_ttl("{ users { id } }", None), Some(60));
+    }
+
+    #[test]
+    fn several_roots_are_reusable_for_the_shortest() {
+        let ttl = executor().response_cache_ttl("{ users { id } posts { id } }", None);
+        assert_eq!(ttl, Some(30));
+    }
+
+    #[test]
+    fn one_root_without_a_ttl_makes_the_response_unreusable() {
+        let ttl = executor().response_cache_ttl("{ users { id } comments { id } }", None);
+        assert_eq!(ttl, None);
+    }
+
+    #[test]
+    fn a_zero_ttl_is_not_a_ttl() {
+        assert_eq!(executor().response_cache_ttl("{ drafts { id } }", None), None);
+    }
+
+    #[test]
+    fn the_named_operation_is_the_one_measured() {
+        let document = "query A { users { id } } query B { comments { id } }";
+        let executor = executor();
+        assert_eq!(executor.response_cache_ttl(document, Some("A")), Some(60));
+        assert_eq!(executor.response_cache_ttl(document, Some("B")), None);
+    }
+
+    #[test]
+    fn introspection_and_malformed_documents_are_not_reusable() {
+        let executor = executor();
+        assert_eq!(executor.response_cache_ttl("{ __schema { types { name } } }", None), None);
+        assert_eq!(executor.response_cache_ttl("{ users { id }", None), None);
+    }
+}

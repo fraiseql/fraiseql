@@ -23,11 +23,12 @@ use fraiseql_core::{
     graphql::parse_graphql_document,
     security::{IntrospectionEnforcer, SecurityContext, SecurityError},
 };
-#[cfg(feature = "federation")]
-use tracing::warn;
-use tracing::{debug, error};
+use tracing::{debug, error, warn};
 
-use super::{extract_apq_hash, extract_document_id, resolve_apq};
+use super::{
+    Method, detect_mutation_name, extract_apq_hash, extract_document_id, non_query_operation,
+    resolve_apq,
+};
 use crate::{
     error::{ErrorResponse, GraphQLError},
     routes::graphql::{app_state::AppState, request::GraphQLRequest},
@@ -160,7 +161,8 @@ pub(super) async fn enrich_identity(
     }
 }
 
-/// Determine the GraphQL document this request executes.
+/// Determine the GraphQL document this request executes, and refuse one its method
+/// may not run.
 ///
 /// Trusted documents take priority over APQ: when a trusted-document store is
 /// configured it resolves the document ID first and *replaces* `request.query`,
@@ -168,13 +170,60 @@ pub(super) async fn enrich_identity(
 /// client sent. A raw query against a store that forbids them is rejected here
 /// and never reaches the parser.
 ///
+/// # What the method allows
+///
+/// Judged on the **resolved** document. A persisted query or a trusted document
+/// is not in the request, so a check on `request.query` alone let a hash name a
+/// mutation and run it over a method that may not write (#1564):
+///
+/// - `GET` runs no mutation (GraphQL over HTTP; it would sidestep the POST-only CSRF posture), and
+///   registers no persisted query: a hash and its body sent over `GET` are verified and executed,
+///   never stored — registration is a write, and `POST`'s.
+/// - `QUERY` runs queries only (it is safe and idempotent, so an intermediary may replay it), and
+///   registers nothing either.
+///
 /// # Errors
 ///
-/// Returns the trusted-document rejection, the APQ mismatch/not-found error, or
-/// a request error when no query was supplied at all.
+/// Returns the trusted-document rejection, the APQ mismatch/not-found error, a
+/// request error when no query was supplied at all, or a 405 when the method may
+/// not run the document's operation.
 pub(super) async fn resolve_query_body(
     state: &AppState,
     request: &mut GraphQLRequest,
+    method: Method,
+) -> Result<String, ErrorResponse> {
+    let query = resolve_document(state, request, method == Method::Post).await?;
+    match method {
+        Method::Post => {},
+        Method::Get => {
+            if detect_mutation_name(&query).is_some() {
+                warn!(
+                    operation_name = ?request.operation_name,
+                    "Mutation sent via GET request — rejected (use POST)"
+                );
+                return Err(ErrorResponse::from_error(GraphQLError::method_not_allowed(
+                    "Mutations must be sent over POST, not GET",
+                )));
+            }
+        },
+        Method::Query => {
+            if let Some(op) = non_query_operation(&query) {
+                warn!(operation = op, "Non-query operation sent via QUERY — rejected (use POST)");
+                return Err(ErrorResponse::from_error(GraphQLError::method_not_allowed(
+                    "Only query operations may be sent over the QUERY method; use POST",
+                )));
+            }
+        },
+    }
+    Ok(query)
+}
+
+/// The document `request` names: its trusted document, its persisted query, or its
+/// body. `register` lets a persisted query with its body be stored.
+async fn resolve_document(
+    state: &AppState,
+    request: &mut GraphQLRequest,
+    register: bool,
 ) -> Result<String, ErrorResponse> {
     if let Some(ref td_store) = state.trusted_docs {
         let doc_id = extract_document_id(request);
@@ -206,8 +255,14 @@ pub(super) async fn resolve_query_body(
 
     if let Some(hash) = extract_apq_hash(request.extensions.as_ref()) {
         if let Some(ref store) = state.apq_store {
-            return resolve_apq(store.as_ref(), &state.apq_metrics, hash, request.query.as_deref())
-                .await;
+            return resolve_apq(
+                store.as_ref(),
+                &state.apq_metrics,
+                hash,
+                request.query.as_deref(),
+                register,
+            )
+            .await;
         }
         // APQ extension present but no store configured — use the body if available.
         return request.query.clone().ok_or_else(|| {

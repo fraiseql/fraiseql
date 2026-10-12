@@ -34,14 +34,18 @@ pub struct GraphQLRequest {
 /// GraphQL GET request parameters.
 ///
 /// Per GraphQL over HTTP spec, GET requests encode parameters in the query string:
-/// - `query`: Required, the GraphQL query string
+/// - `query`: the GraphQL query string; optional when `extensions` names a persisted query
 /// - `variables`: Optional, JSON-encoded object
 /// - `operationName`: Optional, name of the operation to execute
+/// - `extensions`: Optional, JSON-encoded object — an APQ hash
+///   (`{"persistedQuery":{"version":1,"sha256Hash":"…"}}`) lets a CDN cache the request by its URL
+///   (#1564)
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GraphQLGetParams {
-    /// GraphQL query string (required).
-    pub query: String,
+    /// GraphQL query string; absent when `extensions` names a persisted query.
+    #[serde(default)]
+    pub query: Option<String>,
 
     /// Query variables as JSON-encoded string (optional).
     #[serde(default)]
@@ -50,6 +54,10 @@ pub struct GraphQLGetParams {
     /// Operation name (optional).
     #[serde(default)]
     pub operation_name: Option<String>,
+
+    /// Protocol extensions as a JSON-encoded string (optional).
+    #[serde(default)]
+    pub extensions: Option<String>,
 }
 
 /// GraphQL response payload.

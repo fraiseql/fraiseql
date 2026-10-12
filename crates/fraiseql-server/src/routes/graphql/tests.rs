@@ -49,7 +49,7 @@ fn test_graphql_get_params_deserialize() {
     }))
     .unwrap();
 
-    assert_eq!(params.query, "{ users { id } }");
+    assert_eq!(params.query.as_deref(), Some("{ users { id } }"));
     assert_eq!(params.operation_name, Some("GetUsers".to_string()));
     assert!(params.variables.is_none());
 }
@@ -285,7 +285,7 @@ async fn test_apq_miss_returns_not_found() {
     let store = fraiseql_core::apq::InMemoryApqStorage::default();
     let metrics = ApqMetrics::default();
 
-    let result = resolve_apq(&store, &metrics, "nonexistent_hash", None).await;
+    let result = resolve_apq(&store, &metrics, "nonexistent_hash", None, true).await;
     assert!(result.is_err(), "expected Err for APQ miss, got: {result:?}");
     assert_eq!(metrics.get_misses(), 1);
 }
@@ -299,12 +299,12 @@ async fn test_apq_register_and_hit() {
     let hash = fraiseql_core::apq::hash_query(query);
 
     // Register: hash + body
-    let result = resolve_apq(&store, &metrics, &hash, Some(query)).await;
+    let result = resolve_apq(&store, &metrics, &hash, Some(query), true).await;
     assert_eq!(result.unwrap(), query);
     assert_eq!(metrics.get_stored(), 1);
 
     // Hit: hash only
-    let result = resolve_apq(&store, &metrics, &hash, None).await;
+    let result = resolve_apq(&store, &metrics, &hash, None, true).await;
     assert_eq!(result.unwrap(), query);
     assert_eq!(metrics.get_hits(), 1);
 }
@@ -314,7 +314,7 @@ async fn test_apq_hash_mismatch() {
     let store = fraiseql_core::apq::InMemoryApqStorage::default();
     let metrics = ApqMetrics::default();
 
-    let result = resolve_apq(&store, &metrics, "wrong_hash", Some("{ users { id } }")).await;
+    let result = resolve_apq(&store, &metrics, "wrong_hash", Some("{ users { id } }"), true).await;
     assert!(result.is_err(), "expected Err for APQ hash mismatch, got: {result:?}");
     assert_eq!(metrics.get_errors(), 1);
 }
@@ -463,10 +463,11 @@ mod app_state_tests {
 
         let state = make_state();
         let params = crate::routes::graphql::GraphQLGetParams {
-            query:          "{ __typename }".to_string(),
+            query:          Some("{ __typename }".to_string()),
             // Unbalanced brace: serde_json rejects it, taking the warn! path.
             variables:      Some(format!(r#"{{"token": "{SECRET}""#)),
             operation_name: None,
+            extensions:     None,
         };
         let result = crate::routes::graphql::handler::graphql_get_handler(
             axum::extract::State(state),

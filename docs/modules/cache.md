@@ -112,6 +112,43 @@ result cache exists) are all compile errors. Runtime enablement remains the
 server's `cache_enabled`; the server warns at boot when TTLs are declared but
 the cache is off, and when the cache is on but no query declares a TTL.
 
+### HTTP caching of `/graphql` responses (#1564)
+
+The same `cache_ttl_seconds` sets how long a browser or a CDN may reuse a `GET /graphql`
+response (`Cache-Control: max-age`). A client can name a persisted query by its hash in the
+URL, so the URL is a stable cache key:
+
+```text
+GET /graphql?extensions={"persistedQuery":{"version":1,"sha256Hash":"<sha256 of the query>"}}
+```
+
+The hash must already be registered, by a `POST` carrying the query and its hash (the
+standard APQ handshake). A `GET` with the hash and the query runs it but stores nothing:
+registering is a write, and `GET` does not write. Nor does `GET` (or `QUERY`) run a
+mutation, whether it arrives as text or by hash: the operation is judged on the resolved
+document.
+
+| The response | `Cache-Control` |
+|---|---|
+| to a `POST` or `QUERY`, or an SSE stream | `no-store` |
+| carrying `errors`, even with `data` | `no-store` |
+| to an operation one of whose root fields has no `cache_ttl_seconds`, or `0` | `no-store` |
+| to a caller with a principal, an `Authorization` header, a cookie or an `X-API-Key`; to a tenant (by `X-Tenant-ID` or `Host`); under a schema reading a session variable from a header | `private, max-age=<ttl>` |
+| otherwise | `public, max-age=<ttl>` |
+
+`<ttl>` is the smallest TTL among the operation's root fields. `Vary` lists `Authorization`,
+`Cookie`, `X-API-Key`, `X-Tenant-ID`, and every header the schema reads a locale or a
+session variable from.
+
+Two differences from the server's result cache:
+
+- **A mutation does not reach an HTTP cache.** The server evicts its own entries when a
+  mutation touches their views; a browser or a CDN keeps a response for its full `max-age`.
+  Declare a TTL the data can be that stale for.
+- **A TTL of `0` caches nothing over HTTP.** In the result cache it means "no time-based
+  expiry, evicted by mutations"; an HTTP cache has no such eviction, so the response is
+  `no-store`.
+
 ---
 
 ## Cascade Invalidation

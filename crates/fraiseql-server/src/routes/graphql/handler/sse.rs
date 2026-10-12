@@ -67,6 +67,7 @@ struct StreamPlan {
 
 /// Serve a negotiated SSE request. Returns the streaming response, or the
 /// ordinary HTTP error when the request fails before any event is emitted.
+#[allow(clippy::too_many_arguments)] // Reason: the buffered handler's inputs plus the wire; a struct would only rename them
 pub(in super::super) async fn handle_sse(
     state: AppState,
     wire: Wire,
@@ -75,13 +76,14 @@ pub(in super::super) async fn handle_sse(
     security_context: Option<SecurityContext>,
     token_claims: Option<crate::middleware::oidc_auth::SessionTokenClaims>,
     mut request: GraphQLRequest,
+    method: super::Method,
 ) -> Result<Response, ErrorResponse> {
     // Resolve who is asking and what they are asking, through the same stages
     // the buffered pipeline starts with (APQ / trusted-document resolution must
     // happen before the document can be inspected for @stream).
     let security_context =
         Box::pin(stages::authenticate(&state, &headers, security_context)).await?;
-    let query = Box::pin(stages::resolve_query_body(&state, &mut request)).await?;
+    let query = Box::pin(stages::resolve_query_body(&state, &mut request, method)).await?;
 
     // § 6.1 — the streaming surface must plan the same operation the buffered
     // one would execute. Planning the document's first operation while the
@@ -129,12 +131,14 @@ pub(in super::super) async fn handle_sse(
         let response = Box::pin(execute_graphql_request(
             state,
             request,
+            method,
             None,
             security_context,
             &headers,
             &peer_ip,
         ))
-        .await?;
+        .await?
+        .response;
         let chunks = match (defer_plan, nested_stream_plan) {
             (Some(selections), _) => {
                 deferred_chunks(response.body, &selections, variables.as_ref())

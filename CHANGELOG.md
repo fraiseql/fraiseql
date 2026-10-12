@@ -49,6 +49,10 @@ disagreed, and the promise was the part that was wrong.
   and `RequestValidator::validate_query_doc`, `estimate_query_cost` and
   `parse_selected_operation` take a `Document<'static, String>`. A document parsed with
   `graphql_parser` directly is passed with `.into_static()`.
+- **`GraphQLGetParams.query` is optional, and the `QUERY` handler returns a `Response`
+  (#1564).** Embedders that build `GraphQLGetParams` wrap `query` in `Some` and set the new
+  `extensions` field; `graphql_query_method_handler` returns `Result<Response,
+  ErrorResponse>`, so it can carry `Cache-Control`.
 
 ### Added
 
@@ -57,6 +61,16 @@ disagreed, and the promise was the part that was wrong.
   its TOML. An unparseable value refuses to boot, naming the variable. The default stays 20:
   every replica opens its own pool, and replicas × pool size plus every other client must stay
   under PostgreSQL's `max_connections` (100 by default).
+- **APQ over `GET`, and `Cache-Control` on `/graphql` (#1564).** A `GET` can name a persisted
+  query by its hash (`?extensions={"persistedQuery":…}`, `query` optional), so a CDN can key
+  the request by its URL. A response carries `Cache-Control`: `public, max-age=<ttl>` only for
+  an anonymous `GET` whose every root field declares a positive `cache_ttl_seconds` (the
+  smallest wins) and whose answer has no `errors`; `private` when the request bears a
+  principal, a credential header or cookie, a tenant, or the schema reads a session variable
+  from a header; `no-store` for everything else, `POST` and `QUERY` included. `Vary` names
+  the credential, tenant, locale and session-variable headers. A `GET` never registers a
+  persisted query: registration stays a `POST`. `docs/modules/cache.md` has the table, and
+  the caveat that a mutation evicts the server's cache, not a browser's or a CDN's.
 - **The server warns at boot when its result cache is on and no query opts into it (#1555).**
   The cache is opt-in per query (`cache_ttl_seconds`, or `[[caching.rules]]`); with
   `cache_enabled = true` (the default) over a schema that declares no TTL, nothing was cached
@@ -125,6 +139,12 @@ disagreed, and the promise was the part that was wrong.
   on each reload). Server CPU per request on the same read: 183.9 µs → 173.3 µs. `@stream`
   planning uses the executor's matcher (`Executor::matcher`) instead of cloning the schema into a
   new one per request.
+
+- **`QUERY` and `GET` judge the operation of the document they resolve (#1564).** A `QUERY`
+  request naming a persisted query or a trusted document by its hash was checked against its
+  `query` field, which it did not have, so its queries-only rule did not apply to the stored
+  document. Both methods now judge the resolved document: `GET` refuses a mutation, `QUERY`
+  anything but a query, with `405`, however the document was named.
 
 ### Security
 
