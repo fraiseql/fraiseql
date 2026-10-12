@@ -24,6 +24,13 @@ disagreed, and the promise was the part that was wrong.
   when it records an error. Server CPU per request on a 20-row list with two nested objects:
   204.7 µs before, 184.6 µs after (178.2 µs with no completion at all). No change to any
   response.
+- **A query's arguments are derived once per schema, not three times per request (#1568).** The
+  matcher validated each document against the query's published arguments by deriving them from
+  the schema on every request, three times, and since #1159 each derivation compared the sort
+  keys of every query on the entity. They are now derived when the matcher is built (at boot and
+  on each reload). Server CPU per request on the same read: 183.9 µs → 173.3 µs. `@stream`
+  planning uses the executor's matcher (`Executor::matcher`) instead of cloning the schema into a
+  new one per request.
 
 ## [2.17.0] - 2026-10-11
 

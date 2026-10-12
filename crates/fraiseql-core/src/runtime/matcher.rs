@@ -2,11 +2,13 @@
 
 use std::collections::HashMap;
 
+use ahash::AHashMap;
+
 use crate::{
     error::{FraiseQLError, Result},
     graphql::{FieldSelection, ParsedQuery, parse_query_with_operation_name, selection_set},
     runtime::{argument_validation, argument_value_validation},
-    schema::{CompiledSchema, QueryDefinition},
+    schema::{ArgumentDefinition, CompiledSchema, QueryDefinition},
 };
 
 /// A matched query with extracted information.
@@ -183,6 +185,28 @@ pub struct QueryMatcher {
     /// [`DEFAULT_MAX_QUERY_DEPTH`](crate::schema::DEFAULT_MAX_QUERY_DEPTH). The executor
     /// replaces it with its effective one.
     max_depth: u32,
+    /// Each query's arguments, by query name: derived from the schema once, here, because
+    /// every request validates against them and the derivation is not cheap (a typed
+    /// `orderBy` compares the sort keys of every query on its entity, #1159, #1568).
+    arguments: AHashMap<String, QueryArguments>,
+}
+
+/// The arguments a query's field takes, as the matcher validates a document against them.
+struct QueryArguments {
+    /// What introspection publishes, typed: [`QueryDefinition::graphql_arguments`].
+    published: Vec<ArgumentDefinition>,
+    /// What the runtime reads, wider and untyped:
+    /// [`QueryDefinition::accepted_argument_names`].
+    accepted:  Vec<String>,
+}
+
+impl QueryArguments {
+    fn derive(query: &QueryDefinition, schema: &CompiledSchema) -> Self {
+        Self {
+            published: query.graphql_arguments(schema),
+            accepted:  query.accepted_argument_names(schema),
+        }
+    }
 }
 
 impl QueryMatcher {
@@ -199,7 +223,16 @@ impl QueryMatcher {
             .as_ref()
             .and_then(|v| v.max_query_depth)
             .unwrap_or(crate::schema::DEFAULT_MAX_QUERY_DEPTH);
-        Self { schema, max_depth }
+        let arguments = schema
+            .queries
+            .iter()
+            .map(|query| (query.name.clone(), QueryArguments::derive(query, &schema)))
+            .collect();
+        Self {
+            schema,
+            max_depth,
+            arguments,
+        }
     }
 
     /// The same matcher, refusing a selection nested deeper than `max_depth`.
@@ -385,14 +418,21 @@ impl QueryMatcher {
         //     above is deliberately wider and carries no types.
         if let Some(root) = final_selections.first() {
             let field_label = format!("Query.{}", self.schema.display_name(&query_def.name));
+            let derived;
+            let arguments = if let Some(arguments) = self.arguments.get(&query_def.name) {
+                arguments
+            } else {
+                derived = QueryArguments::derive(&query_def, &self.schema);
+                &derived
+            };
             argument_validation::validate_argument_names(
                 &field_label,
-                &query_def.accepted_argument_names(&self.schema),
+                &arguments.accepted,
                 &root.arguments,
             )?;
             argument_value_validation::validate_argument_values(
                 &field_label,
-                &query_def.graphql_arguments(&self.schema),
+                &arguments.published,
                 &root.arguments,
                 &parsed.variables,
             )?;
@@ -405,7 +445,7 @@ impl QueryMatcher {
             argument_value_validation::validate_enum_argument_literals(
                 &self.schema,
                 &field_label,
-                &query_def.graphql_arguments(&self.schema),
+                &arguments.published,
                 &root.arguments,
             )?;
         }

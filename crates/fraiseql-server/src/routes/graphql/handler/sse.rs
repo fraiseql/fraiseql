@@ -35,7 +35,7 @@ use fraiseql_core::{
         defer, parse_query_with_operation_name, selection_set, selection_set::variables_map,
         stream_split, types::FieldSelection, value_json,
     },
-    runtime::{QueryMatcher, coerce_pagination_arg},
+    runtime::coerce_pagination_arg,
     security::SecurityContext,
 };
 use futures::{StreamExt as _, stream};
@@ -772,12 +772,12 @@ fn plan_stream(
         fraiseql_core::graphql::value_json::with_variable_defaults(&defaults, variables);
     let variables = defaulted.as_ref().or(variables);
 
-    // The matcher resolves fragments, @skip/@include and variables exactly as
-    // the executor will, so the plan is built against the same effective
-    // document the batches will execute.
+    // The executor's own matcher resolves fragments, @skip/@include and variables,
+    // so the plan is built against the same effective document the batches will
+    // execute.
     let executor = state.executor.load();
-    let matcher = QueryMatcher::new(executor.schema().clone());
-    let matched = matcher
+    let matched = executor
+        .matcher()
         .match_query(query, variables)
         .map_err(|e| bad_request(&format!("@stream planning failed: {e}")))?;
 

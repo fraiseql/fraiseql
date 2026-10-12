@@ -433,6 +433,13 @@ impl Executor {
         &self.ctx.schema
     }
 
+    /// The matcher this executor resolves documents with: its schema, its effective depth
+    /// limit, and the per-query arguments derived from them once.
+    #[must_use]
+    pub fn matcher(&self) -> &QueryMatcher {
+        &self.ctx.matcher
+    }
+
     /// Get runtime configuration.
     #[must_use]
     pub fn config(&self) -> &RuntimeConfig {
