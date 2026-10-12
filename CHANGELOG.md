@@ -100,6 +100,11 @@ disagreed, and the promise was the part that was wrong.
   planning uses the executor's matcher (`Executor::matcher`) instead of cloning the schema into a
   new one per request.
 
+### Security
+
+- **`quinn-proto` 0.11.19**, a transitive dependency, for RUSTSEC-2026-0338, -0339, -0340, -0341
+  and -0342 (remote panics and memory exhaustion in its QUIC stream handling).
+
 ## [2.17.0] - 2026-10-11
 
 ### Breaking
