@@ -15,6 +15,7 @@ pub(crate) mod defaults;
 pub mod hs256;
 mod methods;
 pub mod observers;
+mod postgres_pool;
 #[cfg(feature = "auth-saml")]
 pub mod saml;
 pub mod scim;
@@ -101,6 +102,7 @@ pub use observers::{
     ObserverConfig, ObserverPoolConfig, ObserverRedisConfig, ObserverRuntimeSettings,
     ObserverTransportConfig,
 };
+pub use postgres_pool::build_postgres_adapter;
 #[cfg(feature = "auth-saml")]
 pub use saml::{SamlIdpEntry, SamlServerConfig};
 pub use scim::ScimServerConfig;

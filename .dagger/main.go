@@ -2124,6 +2124,8 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		"echo '### cargo test -p fraiseql-server DB-backed strays (#992)'",
 		"cargo test -p fraiseql-server --test revocation_pg_test -- --test-threads=1",
 		"cargo test -p fraiseql-server --test sql_source_boot_check -- --test-threads=1",
+		// #1558: FRAISEQL_POOL_MAX_SIZE sizes the pool the server opens.
+		"cargo test -p fraiseql-server --test pool_size_pg -- --test-threads=1",
 		"cargo test -p fraiseql-server --test storage_wiring_test -- --test-threads=1",
 		"cargo test -p fraiseql-server --test tenant_provisioning_test -- --test-threads=1",
 		"cargo test -p fraiseql-server --test test_helpers -- --test-threads=1",

@@ -35,12 +35,23 @@ disagreed, and the promise was the part that was wrong.
   about the ordering it derives. Embedders: `PaginationOrder::JsonIdentity` is now
   `PaginationOrder::Identity`, and the CLI's `DatabaseWarning::PaginationIdentityFallback` is
   `DatabaseWarning::MissingIdentityColumn` (error severity).
+- **`ServerArgs` gains `pool_max_size` (#1558).** Embedders that build `ServerArgs` with a struct
+  literal add the field (`None` keeps the configured pool size); `..Default::default()` needs
+  no change.
 - **Nested objects come back in selection order (#1563).** A nested object the SQL projection
   builds (`author { username fullName }`) was built as `jsonb`, which stores keys shortest first,
   so it came back `fullName, username`. GraphQL answers fields in the order they are selected
   (§ 6.3); projections are now built as SQL/JSON `JSON_OBJECT(… RETURNING json)`, at every depth.
   Snapshots, ETags and clients that compare response text see the nested key order change. A
   stored object returned whole, with no sub-selection, keeps the order it is stored in.
+
+### Added
+
+- **`FRAISEQL_POOL_MAX_SIZE` (and `--pool-max-size`) sizes the PostgreSQL pool (#1558).** It
+  overrides the `pool_max_size` config key, so a deployment can size the pool without editing
+  its TOML. An unparseable value refuses to boot, naming the variable. The default stays 20:
+  every replica opens its own pool, and replicas × pool size plus every other client must stay
+  under PostgreSQL's `max_connections` (100 by default).
 
 ### Changed
 

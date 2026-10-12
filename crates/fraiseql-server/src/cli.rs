@@ -104,6 +104,12 @@ pub struct ServerArgs {
     #[arg(long, env = "FRAISEQL_SCHEMA_PATH")]
     pub schema_path: Option<String>,
 
+    /// Most connections the PostgreSQL pool opens. Overrides the `pool_max_size` config key
+    /// (default 20). Every replica opens its own pool, so replicas × this, plus every other
+    /// client, must stay under the database's `max_connections` (#1558).
+    #[arg(long, env = "FRAISEQL_POOL_MAX_SIZE")]
+    pub pool_max_size: Option<usize>,
+
     /// Arrow Flight gRPC bind address (`host:port`).
     #[cfg(feature = "arrow")]
     #[arg(long, env = "FRAISEQL_FLIGHT_BIND_ADDR")]
@@ -219,6 +225,7 @@ impl ServerArgs {
             database_url: std::env::var("DATABASE_URL").ok(),
             bind_addr: parse_env_opt("FRAISEQL_BIND_ADDR")?,
             schema_path: std::env::var("FRAISEQL_SCHEMA_PATH").ok(),
+            pool_max_size: parse_env_opt("FRAISEQL_POOL_MAX_SIZE")?,
             #[cfg(feature = "arrow")]
             flight_bind_addr: parse_env_opt("FRAISEQL_FLIGHT_BIND_ADDR")?,
             validate_sql_sources: parse_bool_env_opt("FRAISEQL_VALIDATE_SQL_SOURCES")?,
@@ -257,6 +264,9 @@ impl ServerArgs {
         }
         if let Some(ref path) = self.schema_path {
             config.schema_path = path.into();
+        }
+        if let Some(max) = self.pool_max_size {
+            config.pool_max_size = max;
         }
         #[cfg(feature = "arrow")]
         if let Some(addr) = self.flight_bind_addr {

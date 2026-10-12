@@ -207,13 +207,23 @@ done
 
 ### Short-term (5-30 minutes)
 
-1. **Increase pool size temporarily** (config-file keys — there are no pool env vars)
+1. **Increase pool size temporarily** (the config-file keys, or `FRAISEQL_POOL_MAX_SIZE`,
+   which overrides `pool_max_size` without editing the file)
 
    ```toml
    # server.toml
    pool_max_size = 50   # from default 20
    pool_min_size = 10
    ```
+
+   ```bash
+   # or, for the max only:
+   export FRAISEQL_POOL_MAX_SIZE=50
+   ```
+
+   Every replica opens a pool of its own, so check the database's ceiling first:
+   replicas × `pool_max_size` + every other client must stay below PostgreSQL's
+   `max_connections` (default 100). Four replicas at 32 already need 128.
 
    ```bash
    docker restart fraiseql-server
