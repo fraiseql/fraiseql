@@ -7826,3 +7826,21 @@ fn a_type_is_engine_filtered_by_an_rls_policy_or_an_injecting_query() {
         "a policy filters all"
     );
 }
+
+/// #1575: every type a derived report names is stale, from each of its three arms: rows it
+/// updated, rows it deleted, and types it truncated out of the report.
+#[test]
+fn every_type_a_derived_report_names_is_reported() {
+    let row: std::collections::HashMap<String, serde_json::Value> = [(
+        crate::backend::DERIVED_CASCADE_KEY.to_string(),
+        serde_json::json!({
+            "updated": [{ "__typename": "Post", "id": "p1" }],
+            "deleted": [{ "__typename": "Comment", "id": "c1" }],
+            "invalidated_types": ["Tag"],
+        }),
+    )]
+    .into();
+    let types: Vec<String> = super::derived_cascade::reported_types(&row).into_iter().collect();
+    assert_eq!(types, ["Comment", "Post", "Tag"]);
+    assert!(super::derived_cascade::reported_types(&std::collections::HashMap::new()).is_empty());
+}

@@ -13,14 +13,13 @@ use fraiseql_core::cache::CascadeInvalidator;
 use proptest::prelude::*;
 
 /// Generate a list of (dependent, dependency) string pairs.
-/// Using short names to keep the graph small and cycles manageable.
+/// Using short names to keep the graph small and dense, cycles included.
 fn arb_dependency_pairs() -> impl Strategy<Value = Vec<(String, String)>> {
     prop::collection::vec(("[a-e]{1,3}", "[a-e]{1,3}"), 0..8)
 }
 
 /// Build a `CascadeInvalidator` from dependency pairs, silently skipping
-/// self-edges and edges that would create cycles (both are detected by the
-/// `add_dependency` method).
+/// self-edges (rejected by `add_dependency`). Cycles are kept.
 fn build_invalidator(pairs: &[(String, String)]) -> (CascadeInvalidator, HashSet<String>) {
     let mut inv = CascadeInvalidator::new();
     let mut all_views = HashSet::new();
@@ -28,7 +27,7 @@ fn build_invalidator(pairs: &[(String, String)]) -> (CascadeInvalidator, HashSet
     for (dependent, dependency) in pairs {
         all_views.insert(dependent.clone());
         all_views.insert(dependency.clone());
-        // Cycles and self-edges are rejected — that's fine; we skip them.
+        // Self-edges are rejected — that's fine; we skip them.
         let _ = inv.add_dependency(dependent, dependency);
     }
 

@@ -71,6 +71,21 @@ fn split_source(sql_source: &str) -> (Option<String>, String) {
     }
 }
 
+/// A `sql_source` relation name as the body of a SQL string literal for `to_regclass`:
+/// each part quoted verbatim (no case-folding, as the runtime resolves it), then the
+/// literal's own quotes doubled. `to_regclass('{literal}')` resolves it against the
+/// connection's `search_path` when it is unqualified.
+#[must_use]
+pub fn regclass_literal(sql_source: &str) -> String {
+    let ident = match split_source(sql_source) {
+        (Some(schema), name) => {
+            format!("{}.{}", quote_postgres_identifier(&schema), quote_postgres_identifier(&name))
+        },
+        (None, name) => quote_postgres_identifier(&name),
+    };
+    ident.replace('\'', "''")
+}
+
 /// Resolve a mutation's backing function name: its explicit `sql_source`, else the
 /// operation's non-empty table. `None` ⇒ not SQL-backed (federation / `Custom`
 /// without a table) and therefore not probed. Mirrors the `#397` mutation-contract
@@ -184,15 +199,7 @@ pub async fn standby_unreadable_sources<A: DatabaseAdapter + ?Sized>(
         if probe.kind != SourceKind::Relation {
             continue;
         }
-        let ident = match &probe.schema {
-            Some(s) => format!(
-                "{}.{}",
-                quote_postgres_identifier(s),
-                quote_postgres_identifier(&probe.name)
-            ),
-            None => quote_postgres_identifier(&probe.name),
-        };
-        let literal = ident.replace('\'', "''");
+        let literal = regclass_literal(&probe.display_name());
         let sql = format!(
             "WITH RECURSIVE rel(oid, kind) AS ( \
                SELECT c.oid, c.relkind FROM pg_class c WHERE c.oid = to_regclass('{literal}') \

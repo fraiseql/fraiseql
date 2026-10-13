@@ -51,6 +51,24 @@ pub(super) struct InvalidationPlan {
     pub entity: Option<(String, String)>,
 }
 
+impl InvalidationPlan {
+    /// Also sweep the view of every type a derived cascade's report named (#1575).
+    ///
+    /// The merged cascade lists only the reported rows the caller may be served; a type
+    /// `pg_tviews` truncated, or whose rows were not listed, appears in it as query hints at
+    /// most, and not at all when no root query returns it. Its rows changed all the same.
+    pub(super) fn with_reported_types(
+        mut self,
+        types: &std::collections::BTreeSet<String>,
+        schema: &CompiledSchema,
+    ) -> Self {
+        for view in types.iter().filter_map(|t| view_of_type(schema, t)) {
+            push_view(&mut self.views, view);
+        }
+        self
+    }
+}
+
 /// Append `view` unless an equal name is already planned.
 fn push_view(views: &mut Vec<ViewName>, view: ViewName) {
     if !views.iter().any(|v| v.as_str() == view.as_str()) {

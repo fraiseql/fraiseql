@@ -2027,33 +2027,26 @@ mod cascade_invalidator_tests {
     }
 
     #[test]
-    fn test_indirect_cycle_detection() {
-        let mut invalidator = CascadeInvalidator::new();
-        // Build chain: A depends on B, B depends on C
-        invalidator.add_dependency("B", "A").unwrap();
-        invalidator.add_dependency("C", "B").unwrap();
-
-        // Adding C → A would create the cycle C→B→A→...→C — must be rejected.
-        // (C depends on B which depends on A; adding A→C would close the loop)
-        let result = invalidator.add_dependency("A", "C");
-        assert!(
-            matches!(result, Err(crate::error::FraiseQLError::Validation { .. })),
-            "expected Validation error for indirect cycle A→C→B→A, got: {result:?}"
-        );
-        let msg = result.unwrap_err().to_string();
-        assert!(msg.contains("cycle"), "error message should mention cycle, got: {msg}");
-    }
-
-    #[test]
-    fn test_three_node_cycle_rejected() {
+    fn a_cycle_is_accepted_and_invalidates_each_member_once() {
         let mut invalidator = CascadeInvalidator::new();
         invalidator.add_dependency("B", "A").unwrap(); // B depends on A
         invalidator.add_dependency("C", "B").unwrap(); // C depends on B
-        // A depends on C would close: A→C→B→A
-        let result = invalidator.add_dependency("A", "C");
+        // A depends on C closes A→C→B→A: views that read each other's rows.
+        invalidator.add_dependency("A", "C").unwrap();
+
+        for start in ["A", "B", "C"] {
+            let invalidated = invalidator.cascade_invalidate(start).unwrap();
+            assert_eq!(invalidated.len(), 3, "{start}: {invalidated:?}");
+        }
+    }
+
+    #[test]
+    fn a_self_dependency_is_rejected() {
+        let mut invalidator = CascadeInvalidator::new();
+        let result = invalidator.add_dependency("A", "A");
         assert!(
             matches!(result, Err(crate::error::FraiseQLError::Validation { .. })),
-            "expected Validation error for three-node cycle A→C→B→A, got: {result:?}"
+            "{result:?}"
         );
     }
 

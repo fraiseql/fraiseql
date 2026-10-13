@@ -50,6 +50,24 @@ pub(super) fn engine_filtered(schema: &CompiledSchema, rls_policy: bool, type_na
             .any(|q| q.return_type == type_name && !q.inject_params.is_empty())
 }
 
+/// Every type `pg_tviews` reports the transaction changed, whether or not the merged cascade
+/// lists it: updated, deleted, or truncated out of the report. Each type's cached reads are
+/// stale (#1575), including the types the cascade only hints and those no root query returns.
+pub(super) fn reported_types(row: &HashMap<String, Value>) -> BTreeSet<String> {
+    let Some(report) = row.get(crate::backend::DERIVED_CASCADE_KEY) else {
+        return BTreeSet::new();
+    };
+    let listed = ["updated", "deleted"].into_iter().flat_map(|arm| {
+        report[arm]
+            .as_array()
+            .map_or(&[][..], Vec::as_slice)
+            .iter()
+            .map(|e| &e["__typename"])
+    });
+    let truncated = report["invalidated_types"].as_array().map_or(&[][..], Vec::as_slice).iter();
+    listed.chain(truncated).filter_map(Value::as_str).map(str::to_string).collect()
+}
+
 fn key(entry: &Value) -> (String, String) {
     let id = match &entry["id"] {
         Value::String(s) => s.clone(),

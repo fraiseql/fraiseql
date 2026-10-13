@@ -98,22 +98,41 @@ fn resolve_payload_type(return_type: &str, schema: &CompiledSchema) -> String {
 /// invalidation uses, so `tv_*` / multi-word / custom view names resolve correctly
 /// instead of being guessed as `v_<lowercase>`. Types with no `sql_source`, and
 /// unknown types, are skipped.
+///
+/// An `invalidations` hint names a query whose cached reads are stale (#1575): it resolves
+/// to the views that query's entries are cached under, its `sql_source` and its
+/// `additional_views`. Unknown query names are skipped.
 fn resolve_cascade_views(cascade: &serde_json::Value, schema: &CompiledSchema) -> Vec<ViewName> {
     let mut seen = std::collections::HashSet::new();
     let mut views = Vec::new();
+    let mut push = |src: &str| {
+        if !src.is_empty() && seen.insert(src.to_string()) {
+            views.push(ViewName::from(src));
+        }
+    };
+    let entries = |arm: &str| {
+        cascade
+            .get(arm)
+            .and_then(serde_json::Value::as_array)
+            .map_or(&[][..], Vec::as_slice)
+    };
     for arm in ["updated", "deleted"] {
-        let Some(entries) = cascade.get(arm).and_then(serde_json::Value::as_array) else {
-            continue;
-        };
-        for entry in entries {
+        for entry in entries(arm) {
             let Some(typename) = entry.get("__typename").and_then(serde_json::Value::as_str) else {
                 continue;
             };
             if let Some(td) = schema.types.iter().find(|t| t.name.as_str() == typename) {
-                let src = td.sql_source.as_str();
-                if !src.is_empty() && seen.insert(src.to_string()) {
-                    views.push(ViewName::from(src));
-                }
+                push(td.sql_source.as_str());
+            }
+        }
+    }
+    for hint in entries("invalidations") {
+        let Some(name) = hint.get("queryName").and_then(serde_json::Value::as_str) else {
+            continue;
+        };
+        if let Some(query) = schema.queries.iter().find(|q| q.name == name) {
+            for view in query.sql_source.iter().chain(&query.additional_views) {
+                push(view);
             }
         }
     }
@@ -1890,7 +1909,7 @@ pub(in super::super) async fn execute_mutation_impl(
         selections,
     )?;
 
-    let (envelope, result_json) = {
+    let (envelope, result_json, reported) = {
         // 3b. Resolve session variables once and pass them to the adapter call so
         //     they are applied on the same connection / transaction as the function
         //     (fixes #329 — set_config(..., true) is transaction-local, so applying
@@ -1991,6 +2010,9 @@ pub(in super::super) async fn execute_mutation_impl(
                 message: format!("Mutation '{mutation_name}': function returned no rows"),
                 path:    None,
             })?;
+            // #1575: what the report says changed, before the merge drops what it may not
+            // serve; every such type's cached reads are stale.
+            let reported = derived_cascade::reported_types(row);
             // #1391: pg_tviews' report, merged into the cascade it is served from.
             let row = derived_cascade::merge(&ctx.schema, row, |type_name| {
                 derived_cascade::engine_filtered(
@@ -2031,7 +2053,7 @@ pub(in super::super) async fn execute_mutation_impl(
                     );
                 }
             })?;
-            Ok::<_, FraiseQLError>((envelope, result_json))
+            Ok::<_, FraiseQLError>((envelope, result_json, reported))
         };
 
         // Every write commits only once it has been adjudicated (ruling Z 1): the
@@ -2137,7 +2159,7 @@ pub(in super::super) async fn execute_mutation_impl(
                     selections,
                     &authz_variables,
                 )?;
-                (envelope, result_json)
+                (envelope, result_json, std::collections::BTreeSet::new())
             },
         }
     };
@@ -2174,6 +2196,7 @@ pub(in super::super) async fn execute_mutation_impl(
     // resolve in the same place, so no caller can reach a different answer.
     let plan = if committed {
         invalidation::plan_invalidation(mutation_def, &envelope, &ctx.schema)
+            .with_reported_types(&reported, &ctx.schema)
     } else {
         invalidation::InvalidationPlan::default()
     };

@@ -1337,7 +1337,43 @@ pub(super) async fn build_cached_adapter<A: DatabaseAdapter + Clone + Send + Syn
         .await
         .map_err(|e| crate::ServerError::ConfigError(e.to_string()))?;
 
+    // #1575: a write also evicts the cached reads of views that embed what it wrote.
+    let cached = if cache_config.enabled {
+        install_embedding_graph(cached, schema).await
+    } else {
+        cached
+    };
+
     Ok((cached, cache_config))
+}
+
+/// Install the cache's view-embedding graph, read from the database's catalog (#1575).
+///
+/// Unreadable, the cache keeps the sweep of the views a mutation names, and the log says
+/// that cached reads of views embedding them are then evicted only by their TTL.
+async fn install_embedding_graph<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
+    cached: fraiseql_core::cache::CachedDatabaseAdapter<A>,
+    schema: &CompiledSchema,
+) -> fraiseql_core::cache::CachedDatabaseAdapter<A> {
+    match fraiseql_core::cache::read_embedding_graph(&cached, schema).await {
+        Ok(graph) => {
+            info!(
+                views = graph.view_count(),
+                edges = graph.dependency_count(),
+                "Query result cache: view-embedding graph installed"
+            );
+            cached.with_cascade_invalidator(graph)
+        },
+        Err(error) => {
+            warn!(
+                %error,
+                "Query result cache: the view-embedding graph could not be read from the \
+                 catalog; a write evicts only the views it names, and cached reads of views \
+                 embedding them are evicted by their TTL alone"
+            );
+            cached
+        },
+    }
 }
 
 /// Refuse to boot when a mutation could invalidate nothing and something is cached (#910).

@@ -134,6 +134,10 @@ disagreed, and the promise was the part that was wrong.
   `date`, `time`; `uuid` for IDs). The rows are those the document selects whenever the
   column holds the field's value, as pg_tviews keeps it. Other operators, localized fields
   and a malformed UUID keep reading the document.
+- **`CascadeInvalidator::add_dependency` accepts a cycle (#1575).** Two views that read each
+  other's rows (a user embedding their posts, each post embedding its author) are invalidated
+  together; `cascade_invalidate` visits each view once. A self-dependency is still refused.
+  Embedders that relied on the refusal to detect cycles no longer get it.
 
 ### Fixed
 
@@ -156,6 +160,21 @@ disagreed, and the promise was the part that was wrong.
   `query` field, which it did not have, so its queries-only rule did not apply to the stored
   document. Both methods now judge the resolved document: `GET` refuses a mutation, `QUERY`
   anything but a query, with `405`, however the document was named.
+- **A write evicts the cached reads of views that embed what it wrote (#1575).** `updateUser`
+  swept `tv_user` only, so a cached `posts { author { bio } }` over `tv_post`, which embeds the
+  author, kept serving the old bio for its TTL (forever at `cache_ttl_seconds = 0`). The server
+  now reads, at boot, which views read which from the database's catalog (`pg_rewrite` /
+  `pg_depend`, transitively, and `pg_tviews`' `tviews.registry` for what each TVIEW embeds) and
+  installs it as the cache's dependency graph: a sweep of a view also sweeps every view reading
+  what it owns (a TVIEW owns its own base table, a plain view everything it reads). Two names
+  for one relation sweep together. A catalog the server cannot read leaves the sweep as it was,
+  with a warning. The graph is read at boot: a view redefined while the server runs is seen at
+  its next start.
+- **A cascade derived from `pg_tviews` evicts every type its report names (#1575).** A type the
+  report truncated (`max_updated_entities`), an engine-filtered type and a type whose rows the
+  caller's view did not return were turned into `invalidations` hints for the client and never
+  swept from the server's own cache. Every type the report names now has its view swept, and an
+  `invalidations` hint, the function's own or derived, sweeps the views of the query it names.
 
 ### Security
 

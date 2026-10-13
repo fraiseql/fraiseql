@@ -151,36 +151,46 @@ Two differences from the server's result cache:
 
 ---
 
-## Cascade Invalidation
+## What a write evicts
 
-```
-mutation executes
-      ↓ returns affected_view_names = ["v_user"]
-InvalidationContext::for_mutation("createUser", affected_views)
-      ↓ (if CascadeInvalidator is configured)
-CascadeInvalidator::cascade_invalidate("v_user")
-      ↓ BFS over dependency graph
-      → expands to ["v_user", "v_user_stats", "v_dashboard"]
-cache.invalidate_views(["v_user", "v_user_stats", "v_dashboard"])
-      ↓ scans all entries
-      → removes any entry where accessed_views ∩ expanded_views ≠ ∅
-```
+A successful mutation evicts every cached entry of every view it reaches. It reaches:
 
-**Dependency graph declaration:**
+1. The views it names: its `invalidates_views`, its return type's view (and the view of the
+   entity a payload type wraps), the type its function stamped as `entity_type`.
+2. Its cascade: the view of every type in `updated` and `deleted`, and the views of every
+   query an `invalidations` hint names (the query's `sql_source` and `additional_views`). A
+   cascade derived from `pg_tviews` (`cascade_source = "pg_tviews"`) also reaches the view of
+   every type the report says changed, including the types it truncated or could not list.
+3. **The views that embed those** (#1575), read from the database at boot:
 
-```rust
-let mut cascade = CascadeInvalidator::new();
-cascade.add_dependency("v_user_stats", "v_user")?;   // v_user_stats reads v_user
-cascade.add_dependency("v_dashboard", "v_user_stats")?;
+```text
+updateUser sweeps tv_user
+      ↓ the embedding graph (read from the catalog at boot)
+tv_post embeds tb_user (pg_tviews: cascade_kinds tb_user = mapped)
+v_post_full reads tv_post (pg_depend)
+      → evicts tv_user, tv_post, v_post_full
 ```
 
-The dependency graph is built at server startup and is read-only during request handling.
-Only the `InvalidationStats` counter is mutable (protected by its own `Mutex`).
+A view **reads** itself, every relation it reaches through view definitions (transitively,
+including views the schema never names), and the base tables of every `pg_tviews` TVIEW among
+them. A sweep of a view says its **owned** rows changed: a plain or materialized view owns
+everything it reads; a TVIEW owns itself and its own base table (`local` in
+`tviews.registry.cascade_kinds`), not the tables it embeds. Sweeping a view also sweeps every
+view that reads something it owns. So a user's write reaches `tv_post` (which embeds the
+user), and a post's write does not reach `tv_user`. Two names for one relation (`tv_user` and
+`public.tv_user`) sweep together.
 
-**Tradeoff**: View-level invalidation is coarser than row-level. Writing a single user
-invalidates all cached queries that read `v_user`, even if those queries don't involve
-the modified user. On write-heavy workloads, cache effectiveness drops. Design
-your view dependency graph conservatively.
+The graph is read once, when the server starts, like the rest of the cache's schema-derived
+state: a TVIEW or view redefined while the server runs is seen at its next start (no
+recompile is needed). If the catalog cannot be read, the server logs a warning and a write
+evicts only the views it names; cached reads of views embedding them then expire by their TTL
+alone. Embedding through a TVIEW is read from `tviews.registry.cascade_kinds`; a `pg_tviews`
+whose registry has no such column is read as plain tables (views over them still link).
+
+**Tradeoff**: eviction is per view, not per row. Writing one user evicts every cached read of
+`tv_user` and of every view embedding users, including reads that never returned that user.
+Over-eviction costs a re-read; under-eviction would serve a stale row for the entry's TTL,
+forever at TTL 0.
 
 ---
 

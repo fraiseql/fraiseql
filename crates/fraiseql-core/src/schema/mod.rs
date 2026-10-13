@@ -114,6 +114,7 @@ pub use security_config::{
     ServiceAccountConfig, StateEncryptionConfig, StaticApiKeyEntry, TenancyConfig, TenancyMode,
     TokenRevocationSecurityConfig, TrustedDocumentMode, TrustedDocumentsConfig,
 };
+pub(crate) use source_probe::regclass_literal;
 pub use source_probe::{
     SourceKind, SourceProbe, refuse_standby_unreadable_sources, sql_source_probes,
     standby_unreadable_sources,

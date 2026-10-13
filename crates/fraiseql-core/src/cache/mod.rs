@@ -212,6 +212,7 @@ pub mod cascade_invalidator;
 // Entity-level caching modules
 pub mod cascade_metadata;
 pub mod cascade_response_parser;
+pub mod embedding_graph;
 pub mod entity_key;
 pub mod query_analyzer;
 pub mod uuid_extractor;
@@ -234,6 +235,7 @@ pub use cascade_response_parser::CascadeResponseParser;
 pub use config::{CacheConfig, RlsEnforcement};
 // Export dependency tracker (used in doctests and advanced use cases)
 pub use dependency_tracker::DependencyTracker;
+pub use embedding_graph::{read_embedding_graph, swept_view_names};
 pub use entity_key::EntityKey;
 pub use fact_table_version::{
     FactTableCacheConfig, FactTableVersionProvider, FactTableVersionStrategy, VERSION_TABLE_SCHEMA,
