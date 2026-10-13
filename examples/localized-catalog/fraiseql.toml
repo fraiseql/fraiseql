@@ -11,14 +11,14 @@ types = ["catalog.json"]
 [locale]
 allowed = ["en-US", "fr", "fr-CA", "fr-FR", "de-DE"]
 default = "en-US"
-fallback = {"fr-CA" = "fr-FR"}
+fallback = { "fr-CA" = "fr-FR" }
 # An explicit `locale` (GraphQL `extensions.locale`, REST `?locale=`) wins, then the
 # browser's `Accept-Language`, then the locale stored for the caller's tenant (read by the
 # server's `[identity.enrichment]`, see README.md).
 resolve = [
-  {argument = "locale"},
-  {header = "accept-language"},
-  {enrichment = "tenant_locale"}
+  { argument = "locale" },
+  { header = "accept-language" },
+  { enrichment = "tenant_locale" }
 ]
 
 [schema]
