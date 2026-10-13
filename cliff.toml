@@ -28,16 +28,16 @@ trim = true
 
 [git]
 commit_parsers = [
-  {message = "^feat", group = "Added"},
-  {message = "^fix", group = "Fixed"},
-  {message = "^refactor", group = "Changed"},
-  {message = "^perf", group = "Performance"},
-  {message = "^docs", group = "Documentation"},
-  {message = "^test", group = "Testing"},
-  {message = "^chore\\(release\\)", skip = true},
-  {message = "^chore\\(deps\\)", group = "Dependencies"},
-  {message = "^chore", group = "Miscellaneous"},
-  {message = "^quality", group = "Quality"}
+  { message = "^feat", group = "Added" },
+  { message = "^fix", group = "Fixed" },
+  { message = "^refactor", group = "Changed" },
+  { message = "^perf", group = "Performance" },
+  { message = "^docs", group = "Documentation" },
+  { message = "^test", group = "Testing" },
+  { message = "^chore\\(release\\)", skip = true },
+  { message = "^chore\\(deps\\)", group = "Dependencies" },
+  { message = "^chore", group = "Miscellaneous" },
+  { message = "^quality", group = "Quality" }
 ]
 conventional_commits = true
 filter_commits = false
