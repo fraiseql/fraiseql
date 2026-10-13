@@ -738,6 +738,40 @@ async fn test_cascade_invalidator_expands_transitive_views() {
     );
 }
 
+/// #1584: a write fences the fills of every view its sweep reaches, the expansion
+/// included, and no other. A read of `v_dashboard` straddling a write to `v_user` would be
+/// evicted by that write had it been stored a moment earlier, so it must not be stored.
+#[test]
+fn the_cascade_expansion_fences_the_fills_it_would_evict() {
+    let mut cascade = CascadeInvalidator::new();
+    cascade.add_dependency("v_dashboard", "v_user").unwrap();
+    let adapter = CachedDatabaseAdapter::new(
+        MockAdapter::new(),
+        QueryResultCache::new(CacheConfig::enabled()),
+        "1.0.0".to_string(),
+    )
+    .with_cascade_invalidator(cascade);
+    let rows = || vec![JsonbValue::new(json!({"id": "x"}))];
+
+    let fence = adapter.cache().invalidation_generation();
+    adapter.invalidate_views(&[ViewName::from("v_user")]).unwrap();
+    for (key, view) in [(1_u64, "v_dashboard"), (2, "v_tag")] {
+        adapter
+            .cache()
+            .put(key, rows(), vec![view.to_string()], None, None, Some(fence))
+            .unwrap();
+    }
+
+    assert!(
+        adapter.cache().get(1).unwrap().is_none(),
+        "a fill of a view the write's expanded sweep reaches must be refused"
+    );
+    assert!(
+        adapter.cache().get(2).unwrap().is_some(),
+        "a fill of a view the sweep does not reach must be stored (#1584)"
+    );
+}
+
 #[tokio::test]
 async fn test_no_cascade_invalidator_only_direct_views() {
     let mock = MockAdapter::new();

@@ -192,6 +192,23 @@ whose registry has no such column is read as plain tables (views over them still
 Over-eviction costs a re-read; under-eviction would serve a stale row for the entry's TTL,
 forever at TTL 0.
 
+### A read in flight across a write
+
+A cached read is: look up, miss, query the database, store. A write that commits and evicts
+while the query is in flight evicts nothing (the entry is not stored yet), and storing the
+rows afterwards would cache what the database held before the write. So the cache refuses to
+store a read when, while it was in flight, a write evicted something that entry would have
+been evicted by: one of the views it is cached under (its own and its declared secondary
+views), its entity type (a write's eviction by id), or a cache clear (#1079).
+
+A write that cannot reach the entry does not refuse it (#1584). A write to `tv_post` (with no
+view embedding posts read) does not stop a `tv_user` read from being cached, however many
+writes are in flight. Which views a write reaches is decided after the embedding graph above
+expands its sweep: a write to `tv_user` refuses an in-flight `tv_post` read.
+
+A write landing during the store itself is caught after the entry is stored: the read
+withdraws its own entry.
+
 ---
 
 ## Operational Notes

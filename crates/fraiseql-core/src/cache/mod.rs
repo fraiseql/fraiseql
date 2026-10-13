@@ -200,6 +200,7 @@ mod adapter;
 mod config;
 mod dependency_tracker;
 mod fact_table_cache;
+mod fence;
 mod invalidation;
 mod invalidation_api;
 mod key;

@@ -175,6 +175,16 @@ disagreed, and the promise was the part that was wrong.
   caller's view did not return were turned into `invalidations` hints for the client and never
   swept from the server's own cache. Every type the report names now has its view swept, and an
   `invalidations` hint, the function's own or derived, sweeps the views of the query it names.
+- **Under steady writes the result cache caches again (#1584).** A read in flight across any
+  write was refused its cache fill (#1079), whatever the write touched, and a mutation that
+  stamps an entity id refused every fill of every type. Under a steady stream of writes some
+  write is always in flight, so nothing was cached. A fill is now refused only when the write
+  evicted one of the views it is cached under (after the embedding graph's expansion), its
+  entity type, or cleared the cache.
+- **A write landing while a read stores its result no longer leaves the old rows cached
+  (#1585).** An eviction landing between the fence check and the store evicted nothing, and the
+  rows read before the write were then stored (at `cache_ttl_seconds = 0`, for good). The
+  check is made again once the entry is stored, and the entry withdraws itself.
 
 ### Security
 

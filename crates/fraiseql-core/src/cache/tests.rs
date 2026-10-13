@@ -3298,27 +3298,143 @@ mod invalidation_fence_tests {
         );
     }
 
-    /// `invalidate_by_entity` and `clear` move the generation too — an entity-level
-    /// invalidation races a read exactly as a view-level one does.
-    #[test]
-    fn entity_invalidation_and_clear_both_move_the_generation() {
+    /// The straddle, generalised: snapshot, run `during`, then put a read of `views` holding
+    /// `entity_type`. Returns whether the fill was stored.
+    fn straddled_fill_is_stored(
+        views: &[&str],
+        entity_type: Option<&str>,
+        during: impl FnOnce(&QueryResultCache),
+    ) -> bool {
         let cache = row_cache();
+        let fence = cache.invalidation_generation();
+        during(&cache);
+        let views = views.iter().map(|v| (*v).to_string()).collect();
+        cache.put(1_u64, rows(), views, None, entity_type, Some(fence)).unwrap();
+        cache.get(1_u64).unwrap().is_some()
+    }
 
-        let before = cache.invalidation_generation();
-        cache.invalidate_by_entity("User", "u-1").unwrap();
-        assert_ne!(
-            cache.invalidation_generation(),
-            before,
-            "invalidate_by_entity must move the fence generation"
+    /// #1584: the fence is per view. A write to a view this read cannot see is no reason
+    /// to refuse its fill: under steady writes some invalidation is always in flight, and a
+    /// global fence then caches nothing at all.
+    #[test]
+    fn a_read_straddling_an_unrelated_invalidation_still_caches() {
+        assert!(
+            straddled_fill_is_stored(&["v_user"], None, |c| {
+                c.invalidate_views(&[ViewName::from("v_post")]).unwrap();
+            }),
+            "a write to v_post must not refuse the fill of a read of v_user (#1584)"
         );
+    }
 
-        let before = cache.invalidation_generation();
-        cache.clear().unwrap();
-        assert_ne!(
-            cache.invalidation_generation(),
-            before,
-            "clear must move the fence generation — a read in flight across a clear must \
-             not repopulate it"
+    /// The read is fenced over every view it is registered under, not only its source: a
+    /// write to a secondary view (#761) evicts the entry, so it must refuse the fill too.
+    #[test]
+    fn a_read_straddling_an_invalidation_of_a_secondary_view_does_not_cache() {
+        assert!(
+            straddled_fill_is_stored(&["v_user", "v_post"], None, |_| {}),
+            "precondition: the two-view fill is stored when nothing races it"
         );
+        assert!(
+            !straddled_fill_is_stored(&["v_user", "v_post"], None, |c| {
+                c.invalidate_views(&[ViewName::from("v_post")]).unwrap();
+            }),
+            "a write to a secondary view of the read must refuse its fill"
+        );
+    }
+
+    /// An entity eviction reaches only fills that index that entity type.
+    #[test]
+    fn an_entity_eviction_fences_only_fills_of_its_type() {
+        assert!(
+            !straddled_fill_is_stored(&["v_user"], Some("User"), |c| {
+                c.invalidate_by_entity("User", "u-1").unwrap();
+            }),
+            "a read holding Users must not cache across an eviction of a User"
+        );
+        assert!(
+            straddled_fill_is_stored(&["v_user"], Some("User"), |c| {
+                c.invalidate_by_entity("Post", "p-1").unwrap();
+            }),
+            "an eviction of a Post must not refuse the fill of a read holding Users (#1584)"
+        );
+    }
+
+    /// `clear` reaches every fill.
+    #[test]
+    fn a_read_straddling_a_clear_does_not_cache() {
+        assert!(
+            !straddled_fill_is_stored(&["v_user"], Some("User"), |c| c.clear().unwrap()),
+            "a read in flight across a clear must not repopulate it"
+        );
+    }
+
+    /// A fill whose read straddled an invalidation reaching it is never visible, not even
+    /// for the instant between its insert and the authoritative check: a concurrent reader
+    /// there would be served the pre-write rows. The pre-check refuses it before the store.
+    #[test]
+    fn a_straddled_fill_is_never_visible_in_the_store() {
+        let cache = row_cache();
+        let fence = cache.invalidation_generation();
+        cache.invalidate_views(&[ViewName::from("v_post")]).unwrap();
+        cache
+            .put_arc_with(
+                1_u64,
+                std::sync::Arc::new(rows()),
+                vec!["v_user".to_string(), "v_post".to_string()],
+                None,
+                None,
+                Some(fence),
+                || {},
+                || {
+                    assert!(
+                        cache.get(1_u64).unwrap().is_none(),
+                        "a reader concurrent with the put must not be served a fill whose read \
+                         straddled a write to one of its views"
+                    );
+                },
+            )
+            .unwrap();
+    }
+
+    /// An invalidation that lands inside `put` itself, after the pre-check and before the
+    /// entry is in the store, collects a key that is not stored yet: it evicts nothing. The
+    /// fill must notice and withdraw, or the pre-write rows stay cached (at TTL 0, forever).
+    /// Each way an invalidation reaches a fill is raced there: its source view, a secondary
+    /// view, its entity type, a clear.
+    #[test]
+    fn an_invalidation_landing_inside_the_put_does_not_leave_the_fill_cached() {
+        let racers: [(&str, fn(&QueryResultCache)); 4] = [
+            ("its source view", |c| {
+                c.invalidate_views(&[ViewName::from("v_user")]).unwrap();
+            }),
+            ("a secondary view", |c| {
+                c.invalidate_views(&[ViewName::from("v_post")]).unwrap();
+            }),
+            ("its entity type", |c| {
+                c.invalidate_by_entity("User", "u-1").unwrap();
+            }),
+            ("a clear", |c| c.clear().unwrap()),
+        ];
+        for (what, racer) in racers {
+            let cache = row_cache();
+            let fence = cache.invalidation_generation();
+            cache
+                .put_arc_with(
+                    1_u64,
+                    std::sync::Arc::new(rows()),
+                    vec!["v_user".to_string(), "v_post".to_string()],
+                    None,
+                    Some("User"),
+                    Some(fence),
+                    || racer(&cache),
+                    || {},
+                )
+                .unwrap();
+            assert!(
+                cache.get(1_u64).unwrap().is_none(),
+                "an invalidation of {what} landing between the pre-check and the insert must \
+                 not leave the pre-write rows cached"
+            );
+        }
     }
 }
