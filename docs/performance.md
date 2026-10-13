@@ -101,3 +101,37 @@ merge on them. Use `critcmp` locally to investigate before pushing.
 - **Single-lock LRU cache**: `QueryResultCache` uses one `Mutex<LruCache>` with atomic metric
   counters to avoid double-lock contention in the read path.
 - **Arc result sharing**: Cache hits return `Arc<Vec<JsonbValue>>` — zero-copy clones.
+
+## Filtering Large Documents: Use a Native Column
+
+Reads run as prepared statements (#1557), and PostgreSQL may run a prepared statement with a
+*generic plan*, one planned without the parameter values. Under that plan, an expression
+index on a JSON key (`CREATE INDEX … ((data->>'status'), pk_…)`) is not used for a `where:`
+on that key. The plan walks the primary key in page order and reads `data->>'status'` from
+every row it rejects. When documents are large and stored out of line, every rejected row is
+detoasted.
+
+The fix is to expose the key as a column of the relation and let the query read it:
+
+1. Add the column to the table or view (`status text NOT NULL`, kept equal to
+   `data->>'status'`), with an index that ends in the page identity (`(status, pk_…)`).
+2. Give the query an argument named after the column (`status`, or `customerId` for
+   `customer_id`), and compile with `--database`. The compiler finds the column on the
+   relation and records it in the query's `native_columns`. Without `--database` nothing is
+   recorded, and the filter reads the document.
+
+A `where:` comparison (`eq`, `neq`, `gt`, `gte`, `lt`, `lte`, `in`, `nin`, null tests) on a
+field mapped this way reads the column, if the column's type compares like the field's
+(#1561). `orderBy` on that field reads the column too. Localized fields always read the
+document.
+
+Measured on PostgreSQL 18 with 7.5 KB documents stored out of line, 20 rows filtered on an
+indexed `status`. Both an index on the column and an expression index on the key were
+present:
+
+| Page | Expression index on `data->>'status'` | Native `status` column |
+|------|---------------------------------------|------------------------|
+| offset 0 | 1,347 req/s | 5,977 req/s (4.4×) |
+| offset 2000 | 15.7 req/s | 2,024 req/s (129×) |
+
+With the column, the read is an index-only scan.
