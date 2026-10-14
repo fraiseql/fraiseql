@@ -151,7 +151,8 @@ fn list_query_uses_filter_machinery_and_bypasses_cache() {
     assert!(q.auto_params.has_where);
     assert!(q.auto_params.has_order_by);
     assert!(q.auto_params.has_limit);
-    assert_eq!(q.cache_ttl_seconds, Some(0), "real-time data must not be cached");
+    // `Some(0)` would cache it with no expiry (#1590).
+    assert_eq!(q.cache_ttl_seconds, None, "real-time data must not be cached");
     assert_eq!(q.sql_source.as_deref(), Some("core.v_entity_change_log"));
 }
 
@@ -351,4 +352,14 @@ fn an_exposed_changelog_with_the_default_roles_loads() {
     let json = schema.to_json().unwrap();
     let loaded = CompiledSchema::from_json(&json, false);
     assert!(loaded.is_ok(), "the server refuses it: {:?}", loaded.err());
+}
+
+#[test]
+fn exposing_the_changelog_declares_no_cacheable_view() {
+    // A schema that caches nothing must not have its mutations gated as if it did (#1590).
+    let schema = exposed_schema(ChangelogConfig {
+        expose: true,
+        ..Default::default()
+    });
+    assert!(!crate::cache::declares_cacheable_views(&schema));
 }

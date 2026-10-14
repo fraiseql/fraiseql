@@ -18,6 +18,7 @@ use std::sync::Arc;
 
 use chrono::Utc;
 use fraiseql_core::{
+    cache::{CacheConfig, CachedDatabaseAdapter, QueryResultCache},
     db::{DatabaseAdapter, postgres::PostgresAdapter},
     runtime::Executor,
     schema::{ChangelogConfig, CompiledSchema, inject_changelog},
@@ -52,7 +53,7 @@ fn ctx(roles: &[&str]) -> SecurityContext {
 }
 
 /// Provision the isolated schema: prerequisites + the real migration SQL.
-async fn provision(adapter: &PostgresAdapter) {
+async fn provision(adapter: &PostgresAdapter, schema: &str) {
     // app.mutation_response contract (shared, idempotent).
     adapter.execute_raw_query("CREATE SCHEMA IF NOT EXISTS app").await.unwrap();
     adapter
@@ -82,13 +83,13 @@ async fn provision(adapter: &PostgresAdapter) {
 
     // Fresh isolated schema with the source tables (observer/install convention).
     adapter
-        .execute_raw_query(&format!("DROP SCHEMA IF EXISTS {SCHEMA} CASCADE"))
+        .execute_raw_query(&format!("DROP SCHEMA IF EXISTS {schema} CASCADE"))
         .await
         .unwrap();
-    adapter.execute_raw_query(&format!("CREATE SCHEMA {SCHEMA}")).await.unwrap();
+    adapter.execute_raw_query(&format!("CREATE SCHEMA {schema}")).await.unwrap();
     adapter
         .execute_raw_query(&format!(
-            "CREATE TABLE {SCHEMA}.tb_entity_change_log (\
+            "CREATE TABLE {schema}.tb_entity_change_log (\
              pk_entity_change_log BIGSERIAL PRIMARY KEY, id UUID NOT NULL DEFAULT gen_random_uuid(), \
              fk_customer_org TEXT, fk_contact TEXT, object_type TEXT NOT NULL, object_id TEXT NOT NULL, \
              modification_type TEXT NOT NULL, change_status TEXT, object_data JSONB NOT NULL, \
@@ -98,7 +99,7 @@ async fn provision(adapter: &PostgresAdapter) {
         .unwrap();
     adapter
         .execute_raw_query(&format!(
-            "CREATE TABLE {SCHEMA}.tb_transport_checkpoint (transport_name TEXT PRIMARY KEY, \
+            "CREATE TABLE {schema}.tb_transport_checkpoint (transport_name TEXT PRIMARY KEY, \
              last_pk BIGINT NOT NULL, updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())"
         ))
         .await
@@ -108,36 +109,36 @@ async fn provision(adapter: &PostgresAdapter) {
     // verbatim by the observers crate's `changelog_views` test (which applies it
     // via sqlx multi-statement); here the adapter's `execute_raw_query` runs one
     // statement per call, so each object is applied separately (schema-substituted).
-    for stmt in migration_statements() {
+    for stmt in migration_statements(schema) {
         adapter.execute_raw_query(&stmt).await.unwrap();
     }
 }
 
 /// The migration's three objects, re-targeted to the isolated schema, one
 /// statement per entry (single-statement constraint of `execute_raw_query`).
-fn migration_statements() -> Vec<String> {
+fn migration_statements(schema: &str) -> Vec<String> {
     vec![
         format!(
-            "CREATE OR REPLACE VIEW {SCHEMA}.v_entity_change_log AS SELECT \
+            "CREATE OR REPLACE VIEW {schema}.v_entity_change_log AS SELECT \
              pk_entity_change_log, object_type, modification_type, created_at, \
              jsonb_build_object('id', id, 'pk_entity_change_log', pk_entity_change_log, \
              'fk_customer_org', fk_customer_org, 'fk_contact', fk_contact, 'object_type', object_type, \
              'object_id', object_id, 'modification_type', modification_type, 'change_status', change_status, \
              'object_data', object_data, 'extra_metadata', extra_metadata, 'created_at', created_at) AS data \
-             FROM {SCHEMA}.tb_entity_change_log"
+             FROM {schema}.tb_entity_change_log"
         ),
         format!(
-            "CREATE OR REPLACE VIEW {SCHEMA}.v_transport_checkpoint AS SELECT \
+            "CREATE OR REPLACE VIEW {schema}.v_transport_checkpoint AS SELECT \
              transport_name, last_pk, updated_at, jsonb_build_object('transport_name', transport_name, \
-             'last_pk', last_pk, 'updated_at', updated_at) AS data FROM {SCHEMA}.tb_transport_checkpoint"
+             'last_pk', last_pk, 'updated_at', updated_at) AS data FROM {schema}.tb_transport_checkpoint"
         ),
         format!(
-            "CREATE OR REPLACE FUNCTION {SCHEMA}.fn_upsert_transport_checkpoint(p_transport_name text, \
+            "CREATE OR REPLACE FUNCTION {schema}.fn_upsert_transport_checkpoint(p_transport_name text, \
              p_last_pk bigint) RETURNS app.mutation_response LANGUAGE plpgsql AS $$ \
-             DECLARE v_row {SCHEMA}.tb_transport_checkpoint%ROWTYPE; v_existing bigint; \
+             DECLARE v_row {schema}.tb_transport_checkpoint%ROWTYPE; v_existing bigint; \
              v_response app.mutation_response; BEGIN \
-             SELECT last_pk INTO v_existing FROM {SCHEMA}.tb_transport_checkpoint WHERE transport_name = p_transport_name; \
-             INSERT INTO {SCHEMA}.tb_transport_checkpoint (transport_name, last_pk, updated_at) \
+             SELECT last_pk INTO v_existing FROM {schema}.tb_transport_checkpoint WHERE transport_name = p_transport_name; \
+             INSERT INTO {schema}.tb_transport_checkpoint (transport_name, last_pk, updated_at) \
              VALUES (p_transport_name, p_last_pk, NOW()) \
              ON CONFLICT (transport_name) DO UPDATE SET last_pk = EXCLUDED.last_pk, updated_at = NOW() \
              RETURNING * INTO v_row; \
@@ -154,11 +155,11 @@ fn migration_statements() -> Vec<String> {
 }
 
 /// Insert `count` change-log rows of `object_type`, returning nothing.
-async fn insert_rows(adapter: &PostgresAdapter, object_type: &str, count: usize) {
+async fn insert_rows(adapter: &PostgresAdapter, schema: &str, object_type: &str, count: usize) {
     for _ in 0..count {
         adapter
             .execute_raw_query(&format!(
-                "INSERT INTO {SCHEMA}.tb_entity_change_log \
+                "INSERT INTO {schema}.tb_entity_change_log \
                  (object_type, object_id, modification_type, object_data) \
                  VALUES ('{object_type}', gen_random_uuid()::text, 'INSERT', '{{}}'::jsonb)"
             ))
@@ -167,18 +168,18 @@ async fn insert_rows(adapter: &PostgresAdapter, object_type: &str, count: usize)
     }
 }
 
-fn changelog_schema() -> CompiledSchema {
-    let mut schema = CompiledSchema::new();
-    schema.changelog = Some(ChangelogConfig {
+fn changelog_schema(schema: &str) -> CompiledSchema {
+    let mut compiled = CompiledSchema::new();
+    compiled.changelog = Some(ChangelogConfig {
         expose:        true,
-        schema:        SCHEMA.to_string(),
+        schema:        schema.to_string(),
         read_role:     Some(READ_ROLE.to_string()),
         write_role:    Some(WRITE_ROLE.to_string()),
         max_limit:     1_000,
         write_enabled: true,
     });
-    inject_changelog(&mut schema);
-    schema
+    inject_changelog(&mut compiled);
+    compiled
 }
 
 /// Extract the `entity_change_logs` pk list from an executor result envelope.
@@ -205,11 +206,11 @@ fn page_query(cursor: i64, limit: i64) -> String {
 async fn changelog_e2e_full_stack() {
     let container = common::testcontainer::get_test_container().await;
     let adapter = Arc::new(PostgresAdapter::new(&container.connection_string()).await.unwrap());
-    provision(&adapter).await;
+    provision(&adapter, SCHEMA).await;
 
-    insert_rows(&adapter, "User", 50).await; // pk 1..50
+    insert_rows(&adapter, SCHEMA, "User", 50).await; // pk 1..50
 
-    let executor = Executor::new(changelog_schema(), Arc::clone(&adapter));
+    let executor = Executor::new(changelog_schema(SCHEMA), Arc::clone(&adapter));
     let reader = ctx(&[READ_ROLE]);
     let writer = ctx(&[READ_ROLE, WRITE_ROLE]);
 
@@ -224,7 +225,7 @@ async fn changelog_e2e_full_stack() {
     assert_eq!(pks(&page2), (21..=40).collect::<Vec<_>>(), "page 2");
 
     // Concurrent insert mid-pagination — the cursor must still advance gap-free.
-    insert_rows(&adapter, "Order", 10).await; // pk 51..60
+    insert_rows(&adapter, SCHEMA, "Order", 10).await; // pk 51..60
 
     let page3 = executor
         .execute_with_security(&page_query(40, 20), None, &reader)
@@ -303,5 +304,72 @@ async fn changelog_e2e_full_stack() {
     assert!(
         werr.contains("not found in schema"),
         "upsert denied without write role, got: {werr}"
+    );
+}
+
+/// A poller must see rows written after its last poll, through the cache the server runs
+/// (#1590). Nothing a server does evicts the change-log's view: its rows come from triggers,
+/// other servers and the outbox, never from a mutation that names the view. So a cached page
+/// at a caught-up cursor stays empty for the process's lifetime.
+#[tokio::test]
+async fn changelog_polls_see_new_rows_through_the_result_cache() {
+    const CACHED: &str = "changelog_e2e_cached";
+    let container = common::testcontainer::get_test_container().await;
+    // Another writer (a capture trigger, another server), on its own connection.
+    let elsewhere = PostgresAdapter::new(&container.connection_string()).await.unwrap();
+    provision(&elsewhere, CACHED).await;
+    insert_rows(&elsewhere, CACHED, "User", 3).await; // pk 1..3
+
+    // Built as the server builds it: the cache enabled, the schema's cache declarations read.
+    let schema = changelog_schema(CACHED);
+    let cached = CachedDatabaseAdapter::new(
+        PostgresAdapter::new(&container.connection_string()).await.unwrap(),
+        QueryResultCache::new(CacheConfig::enabled()),
+        "test-v1".to_string(),
+    )
+    .with_cache_metadata_from_schema(&schema);
+    let executor = Executor::new(schema, Arc::new(cached));
+    let reader = ctx(&[READ_ROLE]);
+    let writer = ctx(&[READ_ROLE, WRITE_ROLE]);
+
+    let caught_up =
+        executor.execute_with_security(&page_query(3, 20), None, &reader).await.unwrap();
+    assert_eq!(pks(&caught_up), Vec::<i64>::new(), "nothing after pk 3 yet");
+
+    elsewhere
+        .execute_raw_query(&format!(
+            "INSERT INTO {CACHED}.tb_entity_change_log \
+             (object_type, object_id, modification_type, object_data) \
+             VALUES ('User', gen_random_uuid()::text, 'INSERT', '{{}}'::jsonb)"
+        ))
+        .await
+        .unwrap();
+    let next = executor.execute_with_security(&page_query(3, 20), None, &reader).await.unwrap();
+    assert_eq!(pks(&next), vec![4], "the same cursor sees the row written after the last poll");
+
+    // A checkpoint another server advanced is read as it is now, not as this one cached it.
+    let checkpoint = "{ transport_checkpoint(transport_name: \"sidecar-1\") { last_pk } }";
+    executor
+        .execute_with_security(
+            UPSERT_DOC,
+            Some(&json!({ "transport_name": "sidecar-1", "last_pk": 3 })),
+            &writer,
+        )
+        .await
+        .unwrap();
+    let before = executor.execute_with_security(checkpoint, None, &reader).await.unwrap();
+    assert_eq!(before["data"]["transport_checkpoint"]["last_pk"].as_i64(), Some(3));
+    elsewhere
+        .execute_raw_query(&format!(
+            "UPDATE {CACHED}.tb_transport_checkpoint SET last_pk = 4 \
+             WHERE transport_name = 'sidecar-1'"
+        ))
+        .await
+        .unwrap();
+    let after = executor.execute_with_security(checkpoint, None, &reader).await.unwrap();
+    assert_eq!(
+        after["data"]["transport_checkpoint"]["last_pk"].as_i64(),
+        Some(4),
+        "a checkpoint advanced elsewhere is read fresh"
     );
 }

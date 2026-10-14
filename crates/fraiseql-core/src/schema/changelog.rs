@@ -157,8 +157,10 @@ fn entity_change_logs_query(cfg: &ChangelogConfig, nc: NamingConvention) -> Quer
         has_limit:    true,
         has_offset:   false,
     };
-    // The change-log is append-only and polled in real time — never serve cached pages.
-    q.cache_ttl_seconds = Some(0);
+    // No `cache_ttl_seconds`: the result cache is opt-in per query, and this one must stay
+    // out. Its rows come from capture triggers, other servers and the outbox, which no
+    // mutation's sweep names, so a cached page would be served for the process's lifetime
+    // (TTL 0 means "no expiry", not "no cache"; #1590).
     q.requires_role.clone_from(&cfg.read_role);
     q
 }
@@ -173,7 +175,7 @@ fn transport_checkpoint_query(cfg: &ChangelogConfig, nc: NamingConvention) -> Qu
     // Named scalar arg → `WHERE data->>'transport_name' = $1` equality lookup; the
     // runtime recases the (possibly camelCase) argument name to the JSONB key.
     q.arguments = vec![ArgumentDefinition::new(key, FieldType::String)];
-    q.cache_ttl_seconds = Some(0);
+    // Not cached either: another server advances a checkpoint (#1590).
     q.requires_role.clone_from(&cfg.read_role);
     q
 }

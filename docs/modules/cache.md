@@ -83,8 +83,9 @@ CachedResult { data, views_depended_on, cached_at, ttl_seconds }
 ```
 
 **TTL = 0 means: no time-based expiry.** The entry is stored and lives until a
-mutation evicts it — this is how mutation-invalidated-only queries are declared
-(the injected changelog queries use it). It does **not** mean "never cache". Only a
+mutation evicts it — this is how mutation-invalidated-only queries are declared.
+It does **not** mean "never cache": a query stays out of the cache by having no
+`cache_ttl_seconds` at all, as the injected change-log queries do (#1590). Only a
 mutation run by the same server evicts it: with several servers, see
 [Several servers](#several-servers-1577).
 

@@ -245,6 +245,15 @@ disagreed, and the promise was the part that was wrong.
   rows read before the write were then stored (at `cache_ttl_seconds = 0`, for good). The
   check is made again once the entry is stored, and the entry withdraws itself.
 
+- **A change-log poll sees the rows written since the last poll (#1590).** The injected
+  `entity_change_logs` and `transport_checkpoint` queries declared `cache_ttl_seconds = 0`, meant
+  as "never cache". In the result cache it means "cache with no expiry". A poller that had caught
+  up was served its empty page for the life of the process, because no mutation's sweep names the
+  change-log's view, not even a mutation whose own outbox writes it. Both queries now have no TTL,
+  so they are never cached. A schema compiled by an earlier CLI keeps the old value until it is
+  recompiled. An exposed change-log also stops counting as a cacheable view, so it no longer arms
+  the compile-time check on mutations whose invalidation cannot be resolved.
+
 ### Security
 
 - **`rustls` 0.23.46**, for RUSTSEC-2026-0346, -0347, -0348 and -0349 (TLS secrets in `Debug`
