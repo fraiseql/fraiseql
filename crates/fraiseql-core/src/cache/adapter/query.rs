@@ -133,6 +133,20 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
         Ok(arc)
     }
 
+    /// Whether a composed read may be cached, and for how long: `None` when it may not,
+    /// else its TTL override (`None`: the global TTL).
+    ///
+    /// Every level is part of the entry, so every view the tree reads must opt in (in
+    /// opt-in mode), and the entry lives as long as its shortest-lived view allows.
+    pub(super) fn composed_policy(&self, read: &ComposedLevel) -> Option<Option<u64>> {
+        let mut views = Vec::new();
+        collect_views(read, &mut views);
+        if self.opt_in_mode && !views.iter().all(|v| self.cacheable_views.contains(*v)) {
+            return None;
+        }
+        Some(views.iter().filter_map(|v| self.view_ttl_overrides.get(*v).copied()).min())
+    }
+
     /// Cache-aware implementation of `execute_composed_with_session` (#1589).
     ///
     /// The entry is indexed under every view the tree reads ([`composed_tags`]): a write to
@@ -147,11 +161,14 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
         session_vars: &[(&str, &str)],
         routing: ReadRouting,
     ) -> Result<Arc<Vec<JsonbValue>>> {
-        if !self.cache.is_enabled()
-            || (self.opt_in_mode && !self.cacheable_views.contains(&read.view))
-        {
+        let policy = if self.cache.is_enabled() {
+            self.composed_policy(read)
+        } else {
+            None
+        };
+        let Some(ttl) = policy else {
             return self.adapter.execute_composed_with_session(read, session_vars, routing).await;
-        }
+        };
         let cache_key = generate_composed_query_key(
             read,
             session_vars,
@@ -172,7 +189,6 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
 
         let (views, tags) =
             composed_tags(read, &rows, map.as_deref(), |view| self.accessed_views_for(view));
-        let ttl = self.view_ttl_overrides.get(&read.view).copied();
         self.cache.put_composed(
             cache_key,
             Arc::clone(&rows),
@@ -280,5 +296,13 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
         )?;
 
         Ok(arc)
+    }
+}
+
+/// The view of `level` and of every level embedded beneath it.
+fn collect_views<'a>(level: &'a ComposedLevel, views: &mut Vec<&'a str>) {
+    views.push(&level.view);
+    for embed in &level.embeds {
+        collect_views(&embed.level, views);
     }
 }
