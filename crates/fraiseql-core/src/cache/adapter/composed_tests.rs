@@ -207,3 +207,34 @@ async fn an_opted_out_root_view_is_not_cached() {
     assert_eq!(read(&adapter, ReadRouting::Any).await, 1);
     assert_eq!(read(&adapter, ReadRouting::Any).await, 2);
 }
+
+#[tokio::test]
+async fn in_opt_in_mode_a_level_whose_view_is_not_cacheable_keeps_the_read_uncached() {
+    // tv_post opts in; tv_comment, read by the embedded level, does not.
+    let adapter = adapter().with_view_ttl_overrides(HashMap::from([("tv_post".to_string(), 60)]));
+    assert_eq!(read(&adapter, ReadRouting::Any).await, 1);
+    assert_eq!(read(&adapter, ReadRouting::Any).await, 2, "its comments must not be cached");
+}
+
+#[test]
+fn a_composed_read_lives_as_long_as_its_shortest_lived_level() {
+    let adapter = adapter().with_view_ttl_overrides(HashMap::from([
+        ("tv_post".to_string(), 600),
+        ("tv_comment".to_string(), 5),
+    ]));
+    assert_eq!(adapter.composed_policy(&posts_with_comments()), Some(Some(5)));
+}
+
+#[test]
+fn every_level_opting_in_caches_the_read() {
+    let adapter = adapter().with_view_ttl_overrides(HashMap::from([
+        ("tv_post".to_string(), 600),
+        ("tv_comment".to_string(), 600),
+    ]));
+    assert_eq!(adapter.composed_policy(&posts_with_comments()), Some(Some(600)));
+    assert_eq!(adapter_without_opt_in().composed_policy(&posts_with_comments()), Some(None));
+}
+
+fn adapter_without_opt_in() -> CachedDatabaseAdapter<ComposedAdapter> {
+    adapter()
+}
