@@ -15,10 +15,17 @@
 //! read evicts more, never less: an id it cannot read evicts its type, a message of another
 //! version or of another shape evicts everything.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::{
+    collections::{BTreeMap, BTreeSet, HashMap},
+    sync::Arc,
+};
 
+use fraiseql_db::ViewName;
 use serde::Deserialize;
 use serde_json::Value;
+
+use super::QueryResultCache;
+use crate::error::Result;
 
 /// The `NOTIFY` channel pg_tviews publishes on.
 pub const CHANNEL: &str = "tviews_changes";
@@ -132,6 +139,57 @@ fn ids_of(values: &[Value]) -> Option<Vec<String>> {
 fn collection_of(key: &str) -> Option<Collection> {
     let (child_type, column) = key.split_once('.')?;
     (!child_type.is_empty() && !column.is_empty()).then(|| Collection::new(child_type, column))
+}
+
+/// Applies pg_tviews' change feed to this server's cache.
+pub struct TviewsEvictor {
+    cache:      Arc<QueryResultCache>,
+    type_views: HashMap<String, Vec<ViewName>>,
+}
+
+impl TviewsEvictor {
+    /// An evictor for `cache`, sweeping for each type the views `type_views` say read it.
+    #[must_use]
+    pub const fn new(
+        cache: Arc<QueryResultCache>,
+        type_views: HashMap<String, Vec<ViewName>>,
+    ) -> Self {
+        Self { cache, type_views }
+    }
+
+    /// Evict what `message` says changed.
+    ///
+    /// # Errors
+    ///
+    /// Infallible today; the cache's eviction methods keep a `Result` for API compatibility.
+    pub fn apply(&self, message: &TviewsMessage) -> Result<()> {
+        let TviewsMessage::Change(change) = message else {
+            return self.cache.clear();
+        };
+        // Rows of a type: every view reading the type, as a write FraiseQL ran would sweep
+        // it, but not the levels indexed by collection: `c` names those precisely.
+        let views: BTreeSet<&ViewName> = change
+            .rows
+            .keys()
+            .chain(&change.types)
+            .filter_map(|type_name| self.type_views.get(type_name))
+            .flatten()
+            .collect();
+        if !views.is_empty() {
+            let views: Vec<ViewName> = views.into_iter().cloned().collect();
+            self.cache.invalidate_views_except_collections(&views)?;
+        }
+        for (collection, parents) in &change.collections {
+            for parent in parents {
+                self.cache.invalidate_collection(collection, parent)?;
+            }
+        }
+        // A type whose rows are not listed may have joined or left any collection of it.
+        for type_name in &change.types {
+            self.cache.invalidate_collections_of(type_name)?;
+        }
+        Ok(())
+    }
 }
 
 #[cfg(test)]

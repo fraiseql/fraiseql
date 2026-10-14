@@ -1,8 +1,18 @@
 #![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code, panics are acceptable
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::{
+    collections::{BTreeMap, BTreeSet, HashMap},
+    sync::Arc,
+};
+
+use fraiseql_db::ViewName;
+use serde_json::json;
 
 use super::*;
+use crate::{
+    cache::{CacheConfig, ComposedTags, QueryResultCache},
+    db::types::JsonbValue,
+};
 
 fn set(items: &[&str]) -> BTreeSet<String> {
     items.iter().map(ToString::to_string).collect()
@@ -100,4 +110,106 @@ fn an_unreadable_message_evicts_everything() {
     ] {
         assert_eq!(decode(payload), TviewsMessage::Everything, "{payload:?}");
     }
+}
+
+fn cache() -> Arc<QueryResultCache> {
+    Arc::new(QueryResultCache::new(CacheConfig::enabled()))
+}
+
+fn rows() -> Arc<Vec<JsonbValue>> {
+    Arc::new(vec![JsonbValue::new(json!({"id": "x"}))])
+}
+
+fn cached(cache: &QueryResultCache, key: u64) -> bool {
+    cache.get(key).unwrap().is_some()
+}
+
+/// `Comment` rows are read by `tv_comment` and `v_comment_stats`, `Post` rows by `tv_post`.
+fn evictor(cache: &Arc<QueryResultCache>) -> TviewsEvictor {
+    TviewsEvictor::new(
+        Arc::clone(cache),
+        HashMap::from([
+            (
+                "Comment".to_string(),
+                vec![
+                    ViewName::from("tv_comment"),
+                    ViewName::from("v_comment_stats"),
+                ],
+            ),
+            ("Post".to_string(), vec![ViewName::from("tv_post")]),
+        ]),
+    )
+}
+
+/// Entry 1: a list of comments. Entry 2: posts composing the comments of p1 by collection.
+/// Entry 3: comment statistics. Entry 4: a list of tags.
+fn fill(cache: &QueryResultCache) {
+    cache.put(1, vec![], vec!["tv_comment".to_string()], None, None, None).unwrap();
+    let tags = ComposedTags {
+        collected_views: vec!["tv_comment".to_string()],
+        collections:     vec![(Collection::new("Comment", "fk_post"), "p1".to_string())],
+    };
+    cache
+        .put_composed(2, rows(), vec!["tv_post".to_string()], None, None, tags, None)
+        .unwrap();
+    cache
+        .put(3, vec![], vec!["v_comment_stats".to_string()], None, None, None)
+        .unwrap();
+    cache.put(4, vec![], vec!["tv_tag".to_string()], None, None, None).unwrap();
+}
+
+#[test]
+fn rows_of_a_type_sweep_its_views_but_not_the_levels_indexed_by_collection() {
+    let cache = cache();
+    fill(&cache);
+    evictor(&cache).apply(&decode(r#"{"v":2,"u":{"Comment":["c9"]}}"#)).unwrap();
+    assert!(!cached(&cache, 1) && !cached(&cache, 3), "lists and statistics of comments");
+    assert!(cached(&cache, 2), "c9 is in no collection of p1");
+    assert!(cached(&cache, 4));
+}
+
+#[test]
+fn a_collection_evicts_the_entries_composing_it() {
+    let cache = cache();
+    fill(&cache);
+    evictor(&cache)
+        .apply(&decode(r#"{"v":2,"u":{"Comment":["c1"]},"c":{"Comment.fk_post":["p1"]}}"#))
+        .unwrap();
+    assert!(!cached(&cache, 2), "c1 joined, left or changed in p1's comments");
+}
+
+#[test]
+fn deleted_rows_sweep_their_type_too() {
+    let cache = cache();
+    fill(&cache);
+    evictor(&cache).apply(&decode(r#"{"v":2,"d":{"Post":["p1"]}}"#)).unwrap();
+    assert!(!cached(&cache, 2), "the composed read lists p1");
+    assert!(cached(&cache, 1));
+}
+
+#[test]
+fn a_whole_type_evicts_its_views_and_every_collection_of_it() {
+    let cache = cache();
+    fill(&cache);
+    evictor(&cache).apply(&decode(r#"{"v":2,"t":["Comment"]}"#)).unwrap();
+    assert!(!cached(&cache, 1) && !cached(&cache, 2) && !cached(&cache, 3));
+    assert!(cached(&cache, 4));
+}
+
+#[test]
+fn a_type_no_view_reads_evicts_nothing() {
+    let cache = cache();
+    fill(&cache);
+    evictor(&cache)
+        .apply(&decode(r#"{"v":2,"u":{"Audit":["a1"]},"t":["Audit"]}"#))
+        .unwrap();
+    assert!((1..=4).all(|key| cached(&cache, key)));
+}
+
+#[test]
+fn an_unreadable_message_clears_the_cache() {
+    let cache = cache();
+    fill(&cache);
+    evictor(&cache).apply(&decode(r#"{"v":1}"#)).unwrap();
+    assert!((1..=4).all(|key| !cached(&cache, key)));
 }
