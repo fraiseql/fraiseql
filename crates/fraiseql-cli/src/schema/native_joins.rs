@@ -2,7 +2,7 @@
 //!
 //! A composed read correlates an embedded level to its parent by stored document keys unless
 //! the compiled schema says which SQL columns join them. `fraiseql compile --database` reads
-//! that from pg_tviews' registry: a relationship whose child and parent types read TVIEWs,
+//! that from `pg_tviews`' registry: a relationship whose child and parent types read TVIEWs,
 //! where the child TVIEW's reference column holds the parent TVIEW's identity, proven by a
 //! `FOREIGN KEY` (`tviews.registry.references`). Nothing is guessed from a name: a type that
 //! reads a plain view, or a pair the registry does not link, keeps its stored keys.
