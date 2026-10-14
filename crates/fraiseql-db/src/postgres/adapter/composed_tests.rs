@@ -134,7 +134,7 @@ fn an_embeds_page_is_taken_inside_its_lateral_and_the_parents_outside_it() {
         "the parent is paged before anything is joined to it: {sql}"
     );
     assert!(
-        inner.contains(r#"COALESCE(jsonb_agg(_c.data ORDER BY _c."_o"), '[]'::jsonb)"#),
+        inner.contains(r#"COALESCE(json_agg(_c.data ORDER BY _c."_o"), '[]'::json)"#),
         "an empty collection is [], in the embed's own order: {inner}"
     );
 }
@@ -218,7 +218,9 @@ fn a_to_one_embed_is_one_row_and_a_count_is_a_count() {
         "the count's page is not bound"
     );
     assert!(
-        sql.contains("jsonb_build_object('author', _l0_e0.v,'comments_count', _l0_e1.v)"),
+        sql.contains(
+            "JSON_OBJECT('author' VALUE _l0_e0.v, 'comments_count' VALUE _l0_e1.v RETURNING json)"
+        ),
         "{sql}"
     );
 }
@@ -245,7 +247,7 @@ fn an_embedded_level_returns_only_its_kept_keys_and_nulls_its_masked_ones() {
         "a masked value never leaves the database: {inner}"
     );
     assert!(
-        sql.contains("jsonb_build_object('d', _l0.data, 'e',"),
+        sql.contains("JSON_OBJECT('d' VALUE _l0.data, 'e' VALUE"),
         "the root reads whole: {sql}"
     );
 }
@@ -276,7 +278,7 @@ fn keys_and_output_names_are_quoted_as_literals() {
     let (sql, _) = build_composed_select_sql(&root).unwrap();
 
     assert!(sql.contains("IN ('o''k')"), "{sql}");
-    assert!(sql.contains("jsonb_build_object('it''s', _l0_e0.v)"), "{sql}");
+    assert!(sql.contains("JSON_OBJECT('it''s' VALUE _l0_e0.v RETURNING json)"), "{sql}");
 }
 
 // ---------------------------------------------------------------------------
@@ -414,7 +416,9 @@ fn a_root_can_return_its_document_less_the_keys_embedded_in_their_place() {
     let (sql, _) = build_composed_select_sql(&root).unwrap();
 
     assert!(
-        sql.contains("jsonb_build_object('d', (_l0.data - ARRAY['orders', 'it''s']::text[]), 'e',"),
+        sql.contains(
+            "JSON_OBJECT('d' VALUE (_l0.data - ARRAY['orders', 'it''s']::text[]), 'e' VALUE"
+        ),
         "{sql}"
     );
 }
@@ -650,4 +654,25 @@ fn a_backward_keyset_root_carries_its_key_column_through_its_reversed_read() {
     );
     assert!(sql.contains(r#""pk_post" AS "_j0" FROM "tv_post""#), "{sql}");
     assert!(lateral(&sql, "_l0_e0").contains(r#"WHERE "fk_post" = _l0."_j0""#), "{sql}");
+}
+
+/// #1588: the tree is assembled as `json`, which concatenates the stored documents' text,
+/// rather than rebuilt as `jsonb` at every level (1.8 µs per composed element against 0.46).
+#[test]
+fn levels_are_assembled_as_json_not_rebuilt_as_jsonb() {
+    let mut comments = level("tv_comment");
+    comments.embeds.push(embed("author", EmbedShape::One, level("tv_user")));
+    let mut root = level("tv_post");
+    root.embeds.push(embed("comments", EmbedShape::Many, comments));
+
+    let (sql, _) = build_composed_select_sql(&root).unwrap();
+
+    assert!(!sql.contains("jsonb_build_object"), "{sql}");
+    assert!(!sql.contains("jsonb_agg"), "{sql}");
+    assert!(sql.contains("JSON_OBJECT('d' VALUE _l0.data, 'e' VALUE JSON_OBJECT("), "{sql}");
+    assert!(
+        lateral(&sql, "_l0_e0")
+            .contains(r#"COALESCE(json_agg(_c.data ORDER BY _c."_o"), '[]'::json)"#),
+        "{sql}"
+    );
 }
