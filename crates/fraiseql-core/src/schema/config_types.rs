@@ -788,9 +788,38 @@ pub struct Relationship {
     /// Referenced key column on the parent table (e.g., `id`).
     #[serde(default)]
     pub referenced_key: String,
+    /// The SQL columns the database proved this relationship joins on (#1587), filled by
+    /// `fraiseql compile --database` from `tviews.registry.references`. With it, a composed
+    /// read correlates on those columns (an index serves them) instead of the stored keys.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub native_join:    Option<NativeJoin>,
+}
+
+/// The SQL columns of a relationship, proven by a foreign key (#1587): `foreign_key` on the
+/// child's view, `referenced_key` on the parent's, both of one type.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct NativeJoin {
+    /// The child view's column holding the parent's key (`fk_post`).
+    pub foreign_key:    String,
+    /// The parent view's column it references (`pk_post`).
+    pub referenced_key: String,
 }
 
 impl Relationship {
+    /// The native columns an embed of this relationship correlates on, as `(target view's
+    /// column, declaring view's column)`: the mirror of
+    /// [`target_join_column`](Self::target_join_column) and
+    /// [`parent_join_column`](Self::parent_join_column) for [`native_join`](Self::native_join).
+    #[must_use]
+    pub fn native_correlation(&self) -> Option<(&str, &str)> {
+        let join = self.native_join.as_ref()?;
+        let (foreign, referenced) = (join.foreign_key.as_str(), join.referenced_key.as_str());
+        Some(match self.cardinality {
+            Cardinality::ManyToOne | Cardinality::OneToOne => (referenced, foreign),
+            Cardinality::OneToMany => (foreign, referenced),
+        })
+    }
+
     /// The column an embed of this relationship reads off the **declaring** type's row.
     ///
     /// `OneToMany` hangs the foreign key on the child, so the declaring side is its
@@ -996,5 +1025,51 @@ mod changelog_config_tests {
         let json = serde_json::to_string(&cfg).unwrap();
         let back: ChangelogConfig = serde_json::from_str(&json).unwrap();
         assert_eq!(cfg, back);
+    }
+}
+
+#[cfg(test)]
+mod native_join_tests {
+    use super::*;
+
+    fn relationship(cardinality: Cardinality) -> Relationship {
+        Relationship {
+            name: "r".to_string(),
+            target_type: "T".to_string(),
+            cardinality,
+            foreign_key: "post_id".to_string(),
+            referenced_key: "id".to_string(),
+            native_join: Some(NativeJoin {
+                foreign_key:    "fk_post".to_string(),
+                referenced_key: "pk_post".to_string(),
+            }),
+        }
+    }
+
+    #[test]
+    fn a_list_of_children_correlates_their_foreign_key_to_the_parents_key() {
+        assert_eq!(
+            relationship(Cardinality::OneToMany).native_correlation(),
+            Some(("fk_post", "pk_post"))
+        );
+    }
+
+    #[test]
+    fn a_parent_embedded_in_its_child_correlates_its_key_to_the_childs_foreign_key() {
+        for cardinality in [Cardinality::ManyToOne, Cardinality::OneToOne] {
+            assert_eq!(
+                relationship(cardinality).native_correlation(),
+                Some(("pk_post", "fk_post"))
+            );
+        }
+    }
+
+    #[test]
+    fn without_a_proof_there_is_none_and_the_schema_does_not_say_so() {
+        let mut unproven = relationship(Cardinality::OneToMany);
+        unproven.native_join = None;
+        assert_eq!(unproven.native_correlation(), None);
+        let json = serde_json::to_value(&unproven).unwrap_or_default();
+        assert!(json.get("native_join").is_none(), "{json}");
     }
 }

@@ -55,7 +55,7 @@ use super::{
 use crate::{
     backend::{
         COMPOSED_DOCUMENT_KEY, COMPOSED_EMBEDS_KEY, ComposedEmbed, ComposedLevel, EmbedShape,
-        EmbedSource, JsonbValue, LevelKeys, ScalarFieldType,
+        EmbedSource, JsonbValue, LevelKeys, NativeCorrelation, ScalarFieldType,
     },
     error::{FraiseQLError, Result},
     graphql::DirectReadProjection,
@@ -524,6 +524,10 @@ pub(super) fn correlated_source(
         target_key,
         parent_key,
         key_type,
+        native: rel.native_correlation().map(|(target, parent)| NativeCorrelation {
+            target_column: target.to_string(),
+            parent_column: parent.to_string(),
+        }),
     }
 }
 

@@ -400,6 +400,7 @@ fn joinable(mut schema: CompiledSchema) -> CompiledSchema {
             cardinality:    Cardinality::OneToMany,
             foreign_key:    "fk_user".to_string(),
             referenced_key: "id".to_string(),
+            native_join:    None,
         },
     );
     declare(
@@ -411,6 +412,7 @@ fn joinable(mut schema: CompiledSchema) -> CompiledSchema {
             cardinality:    Cardinality::ManyToOne,
             foreign_key:    "fk_team".to_string(),
             referenced_key: "id".to_string(),
+            native_join:    None,
         },
     );
     schema.build_indexes();
@@ -2356,6 +2358,7 @@ fn chained() -> CompiledSchema {
                 cardinality:    Cardinality::ManyToOne,
                 foreign_key:    foreign_key.to_string(),
                 referenced_key: "id".to_string(),
+                native_join:    None,
             });
     }
     schema.build_indexes();

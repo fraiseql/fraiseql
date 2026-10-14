@@ -15,7 +15,7 @@ pub use adapter_types::*;
 use async_trait::async_trait;
 pub use composed_read::{
     COMPOSED_DOCUMENT_KEY, COMPOSED_EMBEDS_KEY, ComposedEmbed, ComposedKeyset, ComposedLevel,
-    EmbedShape, EmbedSource, LevelKeys, composed_read_unsupported,
+    EmbedShape, EmbedSource, LevelKeys, NativeCorrelation, composed_read_unsupported,
 };
 use fraiseql_error::{FraiseQLError, Result};
 pub use mutations::{DERIVED_CASCADE_KEY, DerivedCascade, WriteMode, WriteRequest, Writer};

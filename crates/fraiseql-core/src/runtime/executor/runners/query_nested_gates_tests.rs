@@ -478,6 +478,7 @@ fn joinable_schema() -> CompiledSchema {
         cardinality:    Cardinality::OneToMany,
         foreign_key:    "fk_user".to_string(),
         referenced_key: "id".to_string(),
+        native_join:    None,
     });
     schema.build_indexes();
     schema

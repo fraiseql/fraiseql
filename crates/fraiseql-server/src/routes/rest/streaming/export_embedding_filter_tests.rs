@@ -90,6 +90,7 @@ fn export_schema() -> CompiledSchema {
         cardinality:    Cardinality::ManyToOne,
         foreign_key:    "fk_author".to_string(),
         referenced_key: "id".to_string(),
+        native_join:    None,
     });
     // A second **declared** relationship, for `every_dotted_filter_parameter_is_named_in_a_
     // stable_order`. It used to reach two keys of the outer map with one declared name and one
@@ -102,6 +103,7 @@ fn export_schema() -> CompiledSchema {
         cardinality:    Cardinality::OneToMany,
         foreign_key:    "fk_post".to_string(),
         referenced_key: "id".to_string(),
+        native_join:    None,
     });
 
     let mut schema = CompiledSchema::new();

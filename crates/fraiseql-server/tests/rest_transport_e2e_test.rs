@@ -1144,6 +1144,7 @@ mod export_embedding_refusal {
             cardinality:    Cardinality::ManyToOne,
             foreign_key:    "fk_user".to_string(),
             referenced_key: "pk_user_id".to_string(),
+            native_join:    None,
         }];
 
         // `User` and its list query come from the shared fixture — an embed sources its
