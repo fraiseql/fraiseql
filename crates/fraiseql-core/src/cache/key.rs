@@ -49,7 +49,8 @@ use serde_json::Value as JsonValue;
 
 use crate::{
     backend::{
-        ComposedLevel, OrderByClause, ProjectionRequest, WhereOperator, where_clause::WhereClause,
+        ComposedEmbed, ComposedKeyset, ComposedLevel, EmbedShape, EmbedSource, LevelKeys,
+        OrderByClause, ProjectionRequest, RelayCursor, WhereOperator, where_clause::WhereClause,
     },
     schema::QueryDefinition,
     security::SecurityContext,
@@ -306,12 +307,6 @@ pub fn generate_projection_query_key(
 
 /// Generate the cache key of a composed read (#1589): every level of `read`, the session
 /// variables and the locale it runs under, and the schema version.
-///
-/// The tree is hashed through its `Debug` rendering, streamed into the hasher. Unlike a
-/// structural hash it cannot leave out a field added to a level, an embed or a predicate
-/// later: every field the read carries is in its `Debug` output, strings quoted and
-/// escaped. Two equal reads render alike; two JSON values equal up to key order may not,
-/// which costs a cache miss, never a wrong hit.
 #[must_use]
 pub fn generate_composed_query_key(
     read: &ComposedLevel,
@@ -319,27 +314,152 @@ pub fn generate_composed_query_key(
     locale: Option<&str>,
     schema_version: &str,
 ) -> u64 {
-    /// Feeds formatted text to a hasher, so the rendering is never held in memory.
-    struct HashWriter<'a, H: Hasher>(&'a mut H);
-    impl<H: Hasher> std::fmt::Write for HashWriter<'_, H> {
-        fn write_str(&mut self, s: &str) -> std::fmt::Result {
-            self.0.write(s.as_bytes());
-            Ok(())
-        }
-    }
-
     let mut h = new_hasher();
     h.write(b"c:");
-    // Reason (expect below): writing to a hasher cannot fail, and a `Debug` impl only
-    // fails when its writer does.
-    std::fmt::Write::write_fmt(&mut HashWriter(&mut h), format_args!("{read:?}"))
-        .expect("hashing a composed read");
+    hash_composed_level(&mut h, read);
     h.write(b"\0sv:");
     hash_session_vars(&mut h, session_vars);
     hash_locale(&mut h, locale);
     h.write(b"\0s:");
     h.write(schema_version.as_bytes());
     h.finish()
+}
+
+/// Hash a composed level and every level beneath it, structurally. Each struct is
+/// destructured, so a field added to one fails to compile here until it is hashed.
+fn hash_composed_level(h: &mut impl Hasher, level: &ComposedLevel) {
+    let ComposedLevel {
+        view,
+        projection,
+        where_clause,
+        order_by,
+        limit,
+        offset,
+        keyset,
+        keys,
+        embeds,
+    } = level;
+    h.write(view.as_bytes());
+    h.write(b"\0j:");
+    hash_optional_str(h, projection.as_deref());
+    h.write(b"\0w:");
+    match where_clause {
+        Some(clause) => {
+            h.write_u8(1);
+            hash_where_clause(h, clause);
+        },
+        None => h.write_u8(0),
+    }
+    h.write(b"\0b:");
+    hash_order_by(h, order_by.as_deref());
+    h.write(b"\0lo:");
+    for bound in [limit, offset] {
+        match bound {
+            Some(n) => {
+                h.write_u8(1);
+                h.write_u32(*n);
+            },
+            None => h.write_u8(0),
+        }
+    }
+    h.write(b"\0k:");
+    match keyset {
+        Some(ComposedKeyset {
+            cursor_column,
+            cursor,
+            forward,
+        }) => {
+            h.write_u8(1);
+            h.write(cursor_column.as_bytes());
+            h.write_u8(0);
+            h.write_u8(u8::from(*forward));
+            match cursor {
+                Some(RelayCursor {
+                    position,
+                    sort_keys,
+                }) => {
+                    h.write_u8(1);
+                    // A non-exhaustive enum of scalars: its `Debug` text holds no map.
+                    h.write(format!("{position:?}").as_bytes());
+                    h.write_u8(0);
+                    h.write_usize(sort_keys.len());
+                    for key in sort_keys {
+                        hash_optional_str(h, key.as_deref());
+                    }
+                },
+                None => h.write_u8(0),
+            }
+        },
+        None => h.write_u8(0),
+    }
+    h.write(b"\0d:");
+    match keys {
+        LevelKeys::Whole => h.write_u8(b'W'),
+        LevelKeys::Without(dropped) => {
+            h.write_u8(b'X');
+            hash_strings(h, dropped);
+        },
+        LevelKeys::Only { kept, masked } => {
+            h.write_u8(b'O');
+            hash_strings(h, kept);
+            hash_strings(h, masked);
+        },
+    }
+    h.write(b"\0e:");
+    h.write_usize(embeds.len());
+    for ComposedEmbed {
+        output_key,
+        shape,
+        source,
+        level,
+    } in embeds
+    {
+        h.write(output_key.as_bytes());
+        h.write_u8(0);
+        h.write_u8(match shape {
+            EmbedShape::Many => b'M',
+            EmbedShape::One => b'1',
+            EmbedShape::Count => b'C',
+        });
+        match source {
+            EmbedSource::Correlated {
+                target_key,
+                parent_key,
+                key_type,
+            } => {
+                h.write_u8(b'R');
+                hash_strings(h, target_key);
+                hash_strings(h, parent_key);
+                // A fieldless enum: its `Debug` name is stable and holds no map.
+                h.write(format!("{key_type:?}").as_bytes());
+                h.write_u8(0);
+            },
+            EmbedSource::Materialised { keys } => {
+                h.write_u8(b'P');
+                hash_strings(h, keys);
+            },
+        }
+        hash_composed_level(h, level);
+    }
+}
+
+fn hash_optional_str(h: &mut impl Hasher, value: Option<&str>) {
+    match value {
+        Some(v) => {
+            h.write_u8(1);
+            h.write(v.as_bytes());
+            h.write_u8(0);
+        },
+        None => h.write_u8(0),
+    }
+}
+
+fn hash_strings(h: &mut impl Hasher, values: &[String]) {
+    h.write_usize(values.len());
+    for value in values {
+        h.write(value.as_bytes());
+        h.write_u8(0);
+    }
 }
 
 /// Hash of the principal a cached result belongs to.

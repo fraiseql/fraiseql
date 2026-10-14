@@ -94,3 +94,25 @@ fn the_locale_and_the_schema_version_split_the_key() {
     assert_ne!(base, key(&read, &[], Some("fr"), "v1"));
     assert_ne!(base, key(&read, &[], None, "v2"));
 }
+
+/// A level whose predicate carries its field types, built afresh: a map whose iteration
+/// order differs from one instance to the next.
+fn typed_read() -> ComposedLevel {
+    let mut read = posts_with_comments_by("a");
+    let types = crate::db::where_clause::FieldTypeMap::from_pairs(
+        (0..32).map(|i| (format!("field_{i}"), ScalarFieldType::Text)),
+    );
+    read.embeds[0].level.where_clause = Some(WhereClause::Typed {
+        types: std::sync::Arc::new(types),
+        inner: Box::new(read.embeds[0].level.where_clause.take().unwrap()),
+    });
+    read
+}
+
+#[test]
+fn equal_reads_share_a_key_whatever_order_their_maps_iterate_in() {
+    let first = key(&typed_read(), &[], None, "v1");
+    for _ in 0..20 {
+        assert_eq!(key(&typed_read(), &[], None, "v1"), first);
+    }
+}
