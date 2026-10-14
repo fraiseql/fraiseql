@@ -173,7 +173,8 @@ impl Server {
             let tls = self.config.postgres_tls().map_err(ServerError::ConfigError)?;
             let connector =
                 fraiseql_core::db::postgres::NotifyConnector::new(&self.config.database_url, tls)
-                    .map_err(|e| ServerError::ConfigError(e.to_string()))?;
+                    .map_err(|e| ServerError::ConfigError(e.to_string()))?
+                    .serving(fraiseql_core::cache::tviews_feed::CHANNEL);
             let instance = uuid::Uuid::new_v4().to_string();
             info!(%instance, "Query result cache: starting the listener on pg_tviews' changes");
             self.tasks.spawn(super::tviews_feed::run(connector, listener, instance));

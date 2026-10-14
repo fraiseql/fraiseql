@@ -21,6 +21,9 @@ use super::{PostgresConnector, PostgresSslMode, PostgresTlsConfig, pg_detail};
 /// `pg_stat_activity`) can tell the feed's connection from the pool's.
 pub const NOTIFY_APPLICATION_NAME: &str = "fraiseql-notify";
 
+/// The longest `application_name` PostgreSQL keeps (`NAMEDATALEN - 1`).
+const MAX_APPLICATION_NAME_BYTES: usize = 63;
+
 /// One notification received on a channel the session listens to.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Notification {
@@ -70,6 +73,21 @@ impl NotifyConnector {
             config.application_name(NOTIFY_APPLICATION_NAME);
         }
         Ok(Self { config, tls })
+    }
+
+    /// The same settings, for sessions serving `purpose`: they report
+    /// `<application_name>/<purpose>`, the URL's name or [`NOTIFY_APPLICATION_NAME`] first,
+    /// so a server's sessions for different feeds can be told apart in `pg_stat_activity`.
+    /// Cut to PostgreSQL's 63 bytes, at a character boundary.
+    #[must_use]
+    pub fn serving(mut self, purpose: &str) -> Self {
+        let base = self.config.get_application_name().unwrap_or(NOTIFY_APPLICATION_NAME);
+        let mut name = format!("{base}/{purpose}");
+        while name.len() > MAX_APPLICATION_NAME_BYTES {
+            name.pop();
+        }
+        self.config.application_name(&name);
+        self
     }
 
     /// Open a session.
@@ -183,4 +201,44 @@ impl NotifySession {
 /// `name` as a quoted SQL identifier.
 fn quote_identifier(name: &str) -> String {
     format!("\"{}\"", name.replace('"', "\"\""))
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
+    use super::*;
+
+    fn connector(url: &str) -> NotifyConnector {
+        NotifyConnector::new(url, PostgresTlsConfig::default()).unwrap()
+    }
+
+    fn name_of(connector: &NotifyConnector) -> Option<&str> {
+        connector.config.get_application_name()
+    }
+
+    #[test]
+    fn a_session_for_a_purpose_says_so_after_the_default_name() {
+        let connector = connector("postgres://localhost/app");
+        assert_eq!(name_of(&connector), Some(NOTIFY_APPLICATION_NAME));
+        assert_eq!(
+            name_of(&connector.serving("tviews_changes")),
+            Some("fraiseql-notify/tviews_changes")
+        );
+    }
+
+    #[test]
+    fn a_session_for_a_purpose_keeps_the_url_s_name_first() {
+        let connector = connector("postgres://localhost/app?application_name=ops");
+        assert_eq!(name_of(&connector.serving("tviews_changes")), Some("ops/tviews_changes"));
+    }
+
+    #[test]
+    fn a_long_name_is_cut_to_what_postgresql_keeps() {
+        let connector =
+            connector(&format!("postgres://localhost/app?application_name={}", "é".repeat(40)));
+        let name = name_of(&connector.serving("tviews_changes")).unwrap().to_string();
+        assert!(name.len() <= 63, "{} bytes", name.len());
+        assert!(name.starts_with('é'));
+    }
 }
