@@ -73,7 +73,7 @@ impl Server {
         let subsystems = Self::schema_subsystems(&schema, &config).await?;
 
         // The one shared cache seam — see `build_cached_adapter` (#889).
-        let (cached, cache_config, cache_feed) =
+        let (cached, cache_config, cache_feed, tviews_feed) =
             crate::server::initialization::build_cached_adapter(
                 &schema,
                 config.cache_enabled,
@@ -105,6 +105,7 @@ impl Server {
 
         server.adapter_cache_enabled = cache_config.enabled;
         server.cache_feed = cache_feed;
+        server.tviews_feed = tviews_feed;
 
         server.apply_compiled_config()
     }
@@ -194,7 +195,7 @@ impl Server {
 
         // The one shared cache seam — see `build_cached_adapter` (#889). This path
         // used to skip it entirely, which is what made `cache_enabled` inert here.
-        let (cached, cache_config, cache_feed) =
+        let (cached, cache_config, cache_feed, tviews_feed) =
             crate::server::initialization::build_cached_adapter(
                 &schema,
                 config.cache_enabled,
@@ -223,6 +224,7 @@ impl Server {
 
         server.adapter_cache_enabled = cache_config.enabled;
         server.cache_feed = cache_feed;
+        server.tviews_feed = tviews_feed;
 
         server.apply_compiled_config()
     }

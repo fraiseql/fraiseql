@@ -40,6 +40,7 @@ mod functions_setup;
 pub(crate) mod initialization;
 mod lifecycle;
 mod routing;
+pub(crate) mod tviews_feed;
 
 #[cfg(all(test, feature = "functions-runtime"))]
 mod after_mutation_wiring_tests;
@@ -329,6 +330,10 @@ pub struct Server {
     /// The result cache's feed to every other server, started when the server serves
     /// (#1577). `None` unless `cache_cross_instance = "notify"` and the cache is on.
     pub(super) cache_feed: Option<cache_feed::CacheFeedParts>,
+
+    /// The result cache's listener on pg_tviews' change feed, started when the server
+    /// serves (#1589). `None` unless the cache is on and the database publishes rows.
+    pub(super) tviews_feed: Option<fraiseql_core::cache::tviews_feed::TviewsListener>,
 
     /// Object storage backend for the `/storage/v1/` routes.
     ///

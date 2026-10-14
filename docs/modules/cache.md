@@ -222,7 +222,9 @@ it**, and nowhere else:
   stale, until the entry's TTL runs out. At `cache_ttl_seconds = 0` it never runs out: B
   serves the stale entry until B restarts, or until a write through B evicts it.
 - **Writes FraiseQL does not run** (`psql`, a migration, another application, a cron job)
-  evict nothing on any server. Only the TTL bounds them.
+  evict nothing on any server, unless pg_tviews' change feed is heard
+  ([below](#writes-fraiseql-does-not-run-pg_tviews-change-feed-1589)). Otherwise only the TTL
+  bounds them.
 
 So with several servers, a query's `cache_ttl_seconds` is the staleness it accepts after a
 write through another server. Give every cached query a TTL above `0` that the data can be
@@ -268,6 +270,56 @@ transaction cost 13% of the write throughput and 16% of its median latency.
 Metrics: `fraiseql_cache_feed_connected` (0 or 1), `fraiseql_cache_feed_sent_total`,
 `fraiseql_cache_feed_received_total`, `fraiseql_cache_feed_reconnects_total`,
 `fraiseql_cache_feed_lost_total`.
+
+### Writes FraiseQL does not run: pg_tviews' change feed (#1589)
+
+When the database publishes pg_tviews' changes, every server hears **every** committed write
+to a TVIEW, whoever ran it: FraiseQL, `psql`, a migration, another application.
+
+```sql
+ALTER DATABASE app SET pg_tviews.publish_changes = 'rows';  -- pg_tviews 0.1.0-beta.30 or later
+```
+
+Nothing to configure on FraiseQL's side. At boot each server reads the setting and
+`tviews.registry`; when the database publishes rows, it opens one more connection, `LISTEN`s on
+`tviews_changes`, and evicts what each message names:
+
+| Message | Evicts |
+|---|---|
+| rows of a type (`u`, `d`) | every cached read of a view that reads the type's TVIEW, directly or through views |
+| a collection (`c`: `Comment.fk_post: [P]`) | the composed reads listing P's comments (below) |
+| a whole type (`t`) | the type's views, and every composed list of it |
+| a message it cannot read (another payload version) | everything |
+
+pg_tviews already cascades a write to every TVIEW embedding the written row, and lists each
+type it touched, so the feed's types are swept as they are, without the embedding graph.
+
+The feed follows pg_tviews' reconnect rule: a connection `LISTEN`s, checks that it receives
+notifications (a `LISTEN` through a pooler in transaction mode receives nothing), clears the
+cache, then applies messages. When it is lost, the cache is cleared again and the server
+reconnects with backoff. In between, writes FraiseQL runs keep evicting as above.
+
+Metrics: `fraiseql_tviews_feed_connected` (0 or 1), `fraiseql_tviews_feed_received_total`.
+
+### Composed reads
+
+A composed read (a REST `?select=` embed, or a GraphQL list whose nested level is
+row-gated) is one statement over several views: the posts, and each post's comments. It is
+cached under a key over the whole tree, and indexed under every view it reads, so a write to
+any of them evicts it.
+
+While pg_tviews' change feed is heard, a level listing the children of each parent row is
+indexed more precisely, by its parents' **collections**: the posts' comments by
+`Comment.fk_post:<post id>` for each post the result holds. A comment added to, moved out of
+or edited in post P evicts the composed reads listing P's comments, and no other. Which
+levels qualify comes from the database, never from a name: the level's view is a TVIEW with
+exactly one `tviews.registry.references` entry to its parent level's TVIEW, and every parent
+row carries its `id`. Any other level (a to-one embed, a plain view, two references to the
+same parent, a parent without an `id`) keeps the rule above.
+
+A write FraiseQL runs still sweeps the views it reaches at once, collection-tagged levels
+included: a client reading after its own write never waits for the feed. Only writes
+FraiseQL does not run rely on the collections.
 
 ---
 
