@@ -1,4 +1,4 @@
-//! #1589: a server hears pg_tviews' change feed, so a write it did not run evicts what it
+//! #1589: a server hears `pg_tviews`' change feed, so a write it did not run evicts what it
 //! made stale, and a composed list is evicted by the collections its rows belong to.
 //!
 //! `tv_p1589` (posts) and `tv_c1589` (comments, `fk_p1589 REFERENCES tb_p1589`) are TVIEWs
@@ -7,14 +7,14 @@
 //! feed can tell the server about it.
 //!
 //! Every test first proves its read is served from the cache: it edits the TVIEW row
-//! directly (which pg_tviews does not publish) and reads the old value again. Only then
+//! directly (which `pg_tviews` does not publish) and reads the old value again. Only then
 //! does it write a base table and wait for the new value, so a test cannot pass because
 //! nothing was cached.
 //!
 //! Publishing is a per-database setting, and it makes every server over that database hear
 //! writes made behind its back: the suite runs in a database of its own ([`DATABASE`]),
 //! created on the `TVIEWS_DATABASE_URL` cluster, so no other suite sharing that database
-//! sees it. Needs pg_tviews 0.1.0-beta.30 (`tviews.registry.typename`) and a role that can
+//! sees it. Needs `pg_tviews` 0.1.0-beta.30 (`tviews.registry.typename`) and a role that can
 //! create a database and set the superuser setting. Without them the suite skips.
 //!
 //! **Execution engine:** `PostgreSQL` + `pg_tviews` · **Infrastructure:** `TVIEWS_DATABASE_URL`
@@ -70,7 +70,7 @@ async fn own_database(url: &str) -> String {
     own.to_string()
 }
 
-/// Whether the database's pg_tviews publishes collections (0.1.0-beta.30).
+/// Whether the database's `pg_tviews` publishes collections (0.1.0-beta.30).
 async fn publishes_collections(url: &str) -> bool {
     let client = client(url).await;
     client.batch_execute("CREATE EXTENSION IF NOT EXISTS pg_tviews;").await.unwrap();

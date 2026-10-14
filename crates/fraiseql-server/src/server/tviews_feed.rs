@@ -1,4 +1,4 @@
-//! The server's listener on pg_tviews' change feed (#1589).
+//! The server's listener on `pg_tviews`' change feed (#1589).
 //!
 //! When the database publishes rows (`pg_tviews.publish_changes = 'rows'`), every committed
 //! transaction that changed TVIEW rows says which on [`CHANNEL`], whoever ran it: this
@@ -7,7 +7,7 @@
 //! ([`fraiseql_core::cache::tviews_feed`]).
 //!
 //! Messages sent while no connection listens are lost. So every connection, the first and
-//! each one after a loss, follows pg_tviews' reconnect rule: `LISTEN`, check the session
+//! each one after a loss, follows `pg_tviews`' reconnect rule: `LISTEN`, check the session
 //! receives notifications (a `LISTEN` through a pooler in transaction mode receives
 //! nothing), clear the cache, then apply messages as they arrive. While no connection
 //! listens, composed reads are indexed by their views only, and nothing cached relies on

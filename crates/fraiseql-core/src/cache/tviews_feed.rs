@@ -1,4 +1,4 @@
-//! pg_tviews' change feed, as the result cache reads it (#1589).
+//! `pg_tviews`' change feed, as the result cache reads it (#1589).
 //!
 //! With `pg_tviews.publish_changes = 'rows'`, every committed transaction that changed TVIEW
 //! rows says which on the PostgreSQL channel [`CHANNEL`], whoever ran the write: FraiseQL, a
@@ -30,7 +30,7 @@ use super::{
 };
 use crate::{db::DatabaseAdapter, error::Result, schema::CompiledSchema};
 
-/// The `NOTIFY` channel pg_tviews publishes on.
+/// The `NOTIFY` channel `pg_tviews` publishes on.
 pub const CHANNEL: &str = "tviews_changes";
 
 /// The payload version this reader knows.
@@ -196,7 +196,7 @@ impl FeedCatalog {
 }
 
 /// Whether the database publishes rows on [`CHANNEL`], and has a registry that names
-/// types and references (pg_tviews 0.1.0-beta.30).
+/// types and references (`pg_tviews` 0.1.0-beta.30).
 const PUBLISHING_PROBE: &str = "SELECT current_setting('pg_tviews.publish_changes', true) \
      = 'rows' AND EXISTS (SELECT 1 FROM pg_attribute \
      WHERE attrelid = to_regclass('tviews.registry') AND attname = 'typename' \
@@ -277,7 +277,7 @@ pub async fn read_feed_catalog<A: DatabaseAdapter + ?Sized>(
     )))
 }
 
-/// Applies pg_tviews' change feed to this server's cache.
+/// Applies `pg_tviews`' change feed to this server's cache.
 pub struct TviewsEvictor {
     cache:      Arc<QueryResultCache>,
     type_views: HashMap<String, Vec<ViewName>>,

@@ -136,7 +136,7 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
     /// Cache-aware implementation of `execute_composed_with_session` (#1589).
     ///
     /// The entry is indexed under every view the tree reads ([`composed_tags`]): a write to
-    /// any of them evicts it. While pg_tviews' change feed is heard, a level listing the
+    /// any of them evicts it. While `pg_tviews`' change feed is heard, a level listing the
     /// children of each parent is indexed by those parents' collections instead, which the
     /// feed names on every change to a child, whoever wrote it.
     ///

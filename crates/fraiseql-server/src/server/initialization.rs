@@ -1361,7 +1361,7 @@ pub(super) async fn build_cached_adapter<A: DatabaseAdapter + Clone + Send + Syn
     Ok((cached, cache_config, feed, tviews_feed))
 }
 
-/// The cache's listener on pg_tviews' change feed, when the database publishes rows (#1589).
+/// The cache's listener on `pg_tviews`' change feed, when the database publishes rows (#1589).
 ///
 /// Unreadable, the cache keeps hearing only this server's writes, and the log says so.
 async fn tviews_listener<A: DatabaseAdapter + Clone + Send + Sync + 'static>(

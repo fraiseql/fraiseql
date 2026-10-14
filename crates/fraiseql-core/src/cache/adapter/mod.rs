@@ -256,7 +256,7 @@ pub struct CachedDatabaseAdapter<A: DatabaseAdapter> {
     pub(super) feed: Option<FeedOutbox>,
 
     /// The collections composed reads may be indexed by, while this server hears
-    /// pg_tviews' change feed (#1589).
+    /// `pg_tviews`' change feed (#1589).
     pub(super) collections: CollectionTagging,
 }
 
@@ -404,14 +404,14 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
         }
     }
 
-    /// The handle that lets composed reads be indexed by collection while pg_tviews' change
+    /// The handle that lets composed reads be indexed by collection while `pg_tviews`' change
     /// feed is heard (#1589): the server's listener sets and clears it.
     #[must_use]
     pub fn collection_tagging(&self) -> CollectionTagging {
         self.collections.clone()
     }
 
-    /// What applies pg_tviews' change feed, read against `catalog`, to this cache and its
+    /// What applies `pg_tviews`' change feed, read against `catalog`, to this cache and its
     /// composed reads (#1589).
     #[must_use]
     pub fn tviews_listener(&self, catalog: super::tviews_feed::FeedCatalog) -> TviewsListener {
@@ -1082,9 +1082,9 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
         self.adapter.stream_with_projection(request, session_vars, routing).await
     }
 
-    /// Cached under every view the tree reads, or by collection while pg_tviews' change
+    /// Cached under every view the tree reads, or by collection while `pg_tviews`' change
     /// feed is heard (#1589), unless the query refused staleness — see
-    /// execute_where_query_arc_with_session.
+    /// `execute_where_query_arc_with_session`.
     async fn execute_composed_with_session(
         &self,
         read: &fraiseql_db::ComposedLevel,
