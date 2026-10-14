@@ -2042,6 +2042,9 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		// #1589: pg_tviews' change feed evicts what a write this server did not run made
 		// stale, and composed lists by collection. Skips on a pg_tviews without tviews.registry.typename.
 		"cargo test -p fraiseql-server --features rest --test cache_tviews_feed_e2e_pg -- --test-threads=1",
+		// #1587: compile --database proves a relationship's native join from pg_tviews'
+		// registry, and the REST composed read correlates on it.
+		"cargo test -p fraiseql-server --features rest --test rest_embedding_native_join_e2e_pg -- --test-threads=1",
 		// #1577: with `cache_cross_instance = "notify"`, a write through one server evicts on
 		// another over the same database, and a server that cannot hear the others (feed
 		// unreachable, severed, or receiving nothing) caches nothing. DATABASE_URL only.

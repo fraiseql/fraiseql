@@ -163,6 +163,7 @@ async fn a_composed_level_carries_more_than_fifty_embeds() {
                 target_key: vec!["parent_id".to_string()],
                 parent_key: vec!["id".to_string()],
                 key_type:   ScalarFieldType::Integer,
+                native:     None,
             },
             level:      level("v_child"),
         })

@@ -150,6 +150,7 @@ fn schema() -> CompiledSchema {
         cardinality:    Cardinality::OneToMany,
         foreign_key:    "id".to_string(),
         referenced_key: "id".to_string(),
+        native_join:    None,
     }];
     schema.types.push(secret);
 

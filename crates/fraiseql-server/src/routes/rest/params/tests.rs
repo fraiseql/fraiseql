@@ -980,6 +980,7 @@ fn user_type_with_relationships() -> TypeDefinition {
         foreign_key:    "fk_user".to_string(),
         referenced_key: "pk_user".to_string(),
         cardinality:    Cardinality::OneToMany,
+        native_join:    None,
     }];
     td
 }

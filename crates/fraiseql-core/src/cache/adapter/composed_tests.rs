@@ -127,6 +127,7 @@ fn posts_with_comments() -> ComposedLevel {
             target_key: vec!["post_id".to_string()],
             parent_key: vec!["id".to_string()],
             key_type:   ScalarFieldType::Text,
+            native:     None,
         },
         level:      level("tv_comment"),
     });

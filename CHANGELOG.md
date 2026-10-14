@@ -18,6 +18,8 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **`fraiseql-cli`'s `DatabaseWarning` gains `TemporalKeyInDocument` (#1571).** An exhaustive
+  `match` on it needs the arm.
 - **`ServerConfig` gains `cache_cross_instance` (#1577).** A struct literal listing every field
   adds it (`CacheCrossInstance::Off` keeps today's behaviour), or ends in `..Default::default()`.
 - **Reads run as prepared statements, cached per connection (#1557).** Behind PgBouncer in
@@ -104,6 +106,13 @@ disagreed, and the promise was the part that was wrong.
   the credential, tenant, locale and session-variable headers. A `GET` never registers a
   persisted query: registration stays a `POST`. `docs/modules/cache.md` has the table, and
   the caveat that a mutation evicts the server's cache, not a browser's or a CDN's.
+- **`compile --database` names the dates a TVIEW query sorts or filters out of its document
+  (#1571).** A `DateTime`, `Date` or `Time` field of a `tv_*` query exposing `orderBy` or `where`,
+  with no native column mapped for it, gets a warning: the runtime's `::timestamptz` cast cannot
+  be indexed, so every sort or filter reads every row (100 000 rows: 18 ms against 0.02 ms by an
+  indexed native column). It says whether the column already exists or must be added to the
+  TVIEW. `docs/performance.md` has the recipe. Sorting these keys as text was considered and not
+  adopted: values pg_tviews did not render would misorder silently.
 - **A write through one server evicts the entries it made stale on every server (#1577).**
   The result cache lives in one process, and a write evicted only on the server that ran it:
   another replica served the old answer until the entry's TTL ran out, and forever at
@@ -131,6 +140,12 @@ disagreed, and the promise was the part that was wrong.
   read through a query with `cache_ttl_seconds`, is cached under a key over the whole tree and
   evicted by a write to any view it reads; with pg_tviews' change feed heard, a list of each
   parent's children is evicted by those parents' collections only. They were never cached.
+- **Composed reads correlate on the foreign key pg_tviews proves (#1587).** Compiled with
+  `--database`, a relationship between two pg_tviews TVIEWs records the columns
+  `tviews.registry.references` proves it joins on (`native_join`), and a composed read compares
+  `"fk_post" = parent."pk_post"` instead of document keys: an index serves it (~180 ms → 0.24 ms
+  per page of 20 posts over 100k comments). Schemas compiled before, or without `--database`,
+  keep the document keys.
 - **A repeated read costs one round trip, not two (#1557).** Regular, `where` and row reads, with
   or without session variables, are prepared once per pooled connection and reused instead of
   being parsed and described on every call. Read SQL varies with the client's document, so each

@@ -46,6 +46,7 @@ fn correlated(target_key: &str, parent_key: &str, key_type: ScalarFieldType) -> 
         target_key: vec![target_key.to_string()],
         parent_key: vec![parent_key.to_string()],
         key_type,
+        native: None,
     }
 }
 
@@ -515,4 +516,138 @@ fn a_keyset_roots_order_is_its_sort_key_then_the_cursor_column() {
     .unwrap();
     let window = format!(r#"row_number() OVER (ORDER BY {}, "pk_user" ASC)"#, rendered.columns);
     assert!(sql.contains(&window), "expected {window} in: {sql}");
+}
+
+/// `correlated`, joined on the columns the database proved (#1587).
+fn native(target_column: &str, parent_column: &str) -> EmbedSource {
+    EmbedSource::Correlated {
+        target_key: vec!["post_id".to_string()],
+        parent_key: vec!["id".to_string()],
+        key_type:   ScalarFieldType::Uuid,
+        native:     Some(crate::traits::NativeCorrelation {
+            target_column: target_column.to_string(),
+            parent_column: parent_column.to_string(),
+        }),
+    }
+}
+
+#[test]
+fn a_native_join_compares_the_columns_through_the_parents_page() {
+    let mut root = level("tv_post");
+    root.limit = Some(20);
+    root.embeds.push(ComposedEmbed {
+        source: native("fk_post", "pk_post"),
+        ..embed("comments", EmbedShape::Many, level("tv_comment"))
+    });
+
+    let (sql, _) = build_composed_select_sql(&root).unwrap();
+    let inner = lateral(&sql, "_l0_e0");
+
+    assert!(
+        sql.contains(r#"SELECT data AS data, "pk_post" AS "_j0", row_number()"#),
+        "the parent's page carries its key column: {sql}"
+    );
+    assert!(inner.contains(r#"WHERE "fk_post" = _l0."_j0""#), "{inner}");
+    assert!(!inner.contains("->>"), "no stored key is read to correlate: {inner}");
+}
+
+#[test]
+fn a_native_count_compares_the_columns_too() {
+    let mut root = level("tv_post");
+    root.embeds.push(ComposedEmbed {
+        source: native("fk_post", "pk_post"),
+        ..embed("comments_count", EmbedShape::Count, level("tv_comment"))
+    });
+
+    let (sql, _) = build_composed_select_sql(&root).unwrap();
+    let inner = lateral(&sql, "_l0_e0");
+
+    assert!(
+        inner.contains(r#"SELECT COUNT(*) AS v FROM "tv_comment" WHERE "fk_post" = _l0."_j0""#),
+        "{inner}"
+    );
+}
+
+#[test]
+fn each_embed_carries_its_own_parent_column() {
+    let mut root = level("tv_comment");
+    root.embeds.push(ComposedEmbed {
+        source: native("pk_user", "fk_author"),
+        ..embed("author", EmbedShape::One, level("tv_user"))
+    });
+    root.embeds.push(ComposedEmbed {
+        source: native("pk_post", "fk_post"),
+        ..embed("post", EmbedShape::One, level("tv_post"))
+    });
+
+    let (sql, _) = build_composed_select_sql(&root).unwrap();
+
+    assert!(sql.contains(r#""fk_author" AS "_j0", "fk_post" AS "_j1""#), "{sql}");
+    assert!(lateral(&sql, "_l0_e0").contains(r#"WHERE "pk_user" = _l0."_j0""#), "{sql}");
+    assert!(lateral(&sql, "_l0_e1").contains(r#"WHERE "pk_post" = _l0."_j1""#), "{sql}");
+}
+
+#[test]
+fn a_keyset_root_carries_its_key_column_too() {
+    let mut root = level("tv_post");
+    root.limit = Some(20);
+    root.keyset = Some(ComposedKeyset {
+        cursor_column: "pk_post".to_string(),
+        cursor:        None,
+        forward:       true,
+    });
+    root.embeds.push(ComposedEmbed {
+        source: native("fk_post", "pk_post"),
+        ..embed("comments", EmbedShape::Many, level("tv_comment"))
+    });
+
+    let (sql, _) = build_composed_select_sql(&root).unwrap();
+
+    assert!(sql.contains(r#""pk_post" AS "_j0""#), "{sql}");
+    assert!(lateral(&sql, "_l0_e0").contains(r#"WHERE "fk_post" = _l0."_j0""#), "{sql}");
+}
+
+#[test]
+fn under_a_level_read_from_its_parents_document_the_stored_keys_correlate() {
+    // A materialised level's rows are documents: it has no column to carry.
+    let mut tags = level("v_tag");
+    tags.keys = LevelKeys::Only {
+        kept:   vec!["id".to_string()],
+        masked: Vec::new(),
+    };
+    tags.embeds.push(ComposedEmbed {
+        source: native("fk_tag", "pk_tag"),
+        ..embed("uses", EmbedShape::Many, level("tv_use"))
+    });
+    let mut root = level("tv_post");
+    root.embeds.push(materialised("tags", EmbedShape::Many, &["tags"], tags));
+
+    let (sql, _) = build_composed_select_sql(&root).unwrap();
+
+    assert!(sql.contains("data->>'post_id' = _l1.data->>'id'"), "{sql}");
+    assert!(!sql.contains("_j0"), "{sql}");
+}
+
+#[test]
+fn a_backward_keyset_root_carries_its_key_column_through_its_reversed_read() {
+    let mut root = level("tv_post");
+    root.limit = Some(20);
+    root.keyset = Some(ComposedKeyset {
+        cursor_column: "pk_post".to_string(),
+        cursor:        None,
+        forward:       false,
+    });
+    root.embeds.push(ComposedEmbed {
+        source: native("fk_post", "pk_post"),
+        ..embed("comments", EmbedShape::Many, level("tv_comment"))
+    });
+
+    let (sql, _) = build_composed_select_sql(&root).unwrap();
+
+    assert!(
+        sql.contains(r#"SELECT _k.data AS data, _k."_j0" AS "_j0", row_number()"#),
+        "{sql}"
+    );
+    assert!(sql.contains(r#""pk_post" AS "_j0" FROM "tv_post""#), "{sql}");
+    assert!(lateral(&sql, "_l0_e0").contains(r#"WHERE "fk_post" = _l0."_j0""#), "{sql}");
 }

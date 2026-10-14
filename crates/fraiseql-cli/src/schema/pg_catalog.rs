@@ -382,8 +382,63 @@ impl PgCatalog {
         Ok(row.get(0))
     }
 
+    /// The references between TVIEWs that `sql_sources` name (#1587), from `pg_tviews`'
+    /// registry: each child TVIEW's column holding a parent TVIEW's identity, proven by a
+    /// `FOREIGN KEY`. Both ends are matched by relation, so a plain view over a TVIEW, or a
+    /// source naming none, takes part in none. Empty when the registry has no `references`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the catalog query fails.
+    pub async fn tview_references(
+        &self,
+        sql_sources: &[String],
+    ) -> Result<Vec<crate::schema::native_joins::TviewReference>> {
+        let client = self.pool.get().await.context("failed to acquire DB connection")?;
+        let has_references: bool = client
+            .query_one(
+                "SELECT EXISTS (SELECT 1 FROM pg_attribute \
+                 WHERE attrelid = to_regclass('tviews.registry') AND attname = 'references' \
+                 AND NOT attisdropped)",
+                &[],
+            )
+            .await
+            .context("failed to probe for tviews.registry.references")?
+            .get(0);
+        if !has_references || sql_sources.is_empty() {
+            return Ok(Vec::new());
+        }
+        let rows = client
+            .query(
+                "WITH s AS (SELECT name, to_regclass(name)::oid AS rel \
+                            FROM unnest($1::text[]) AS name), \
+                      tv AS (SELECT to_regclass(quote_ident(g.schema) || '.' || \
+                                    quote_ident(g.name))::oid AS rel, \
+                                    g.entity, g.\"references\" AS refs \
+                             FROM tviews.registry g) \
+                 SELECT c.name AS child, p.name AS parent, ref.key AS foreign_key, \
+                        ref.value ->> 'column' AS referenced_key \
+                 FROM s c JOIN tv ct ON ct.rel = c.rel \
+                 CROSS JOIN LATERAL jsonb_each(ct.refs) ref \
+                 JOIN tv pt ON pt.entity = ref.value ->> 'entity' \
+                 JOIN s p ON p.rel = pt.rel",
+                &[&sql_sources],
+            )
+            .await
+            .context("failed to read tviews.registry.references")?;
+        Ok(rows
+            .iter()
+            .map(|row| crate::schema::native_joins::TviewReference {
+                child:          row.get("child"),
+                parent:         row.get("parent"),
+                foreign_key:    row.get("foreign_key"),
+                referenced_key: row.get("referenced_key"),
+            })
+            .collect())
+    }
+
     /// Whether the database has `tviews.pg_tviews_flush_and_report(integer, boolean,
-    /// boolean)`, the function a `cascade_source = "pg_tviews"` mutation calls before its
+    /// boolean)`, the function a `cascade_source = "`pg_tviews`"` mutation calls before its
     /// commit (#1391).
     ///
     /// # Errors

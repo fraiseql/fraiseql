@@ -134,4 +134,43 @@ present:
 | offset 0 | 1,347 req/s | 5,977 req/s (4.4×) |
 | offset 2000 | 15.7 req/s | 2,024 req/s (129×) |
 
+## Composed Reads: Correlate on the Foreign Key
+
+A REST `?select=` embed, or a nested list read in one statement, attaches each related row
+to its parent. By default it compares stored document keys, `(data->>'post_id')::uuid =
+(parent.data->>'id')::uuid`, which no index serves: every parent row reads the whole child
+view. On pg_tviews TVIEWs, `fraiseql compile --database` replaces that with the SQL columns
+the database proves join the two: `tviews.registry.references` lists each TVIEW column a
+`FOREIGN KEY` of its root table proves to hold another TVIEW's identity (`tv_comment.fk_post`
+→ `tv_post.pk_post`), and pg_tviews indexes it as `(fk_post, pk_comment)`. The compiled
+relationship records the pair (`native_join`), and the statement compares the columns:
+
+```sql
+WHERE "fk_post" = _l0."_j0"   -- _l0's page carries "pk_post" AS "_j0"
+```
+
+Of several references from the child to the parent (`fk_author`, `reviewed_by`), the one the
+relationship's `foreign_key` names is taken; two and none named, or a type that reads a plain
+view, keep the document keys. Measured with pg_tviews' read-path harness (PostgreSQL 18.4, 20
+posts of 100,000 comments): about 180 ms per page on the document keys, 0.24 ms on the
+column.
+
 With the column, the read is an index-only scan.
+
+### Dates and times on a TVIEW (#1571)
+
+A `DateTime`, `Date` or `Time` key is compared as `(data->>'key')::timestamptz` (or `::date`,
+`::time`). PostgreSQL refuses to index that cast, because its result depends on the session's
+`TimeZone`, so a sort or a filter on the key reads every row. On a 100 000-row TVIEW, the 20
+newest rows by a document `DateTime`: a parallel sequential scan and a sort, 18 ms. By a native
+`timestamptz` column with an index: an index scan, 0.02 ms, same rows.
+
+The fix is the native column above: add it to the TVIEW's definition (pg_tviews keeps it equal
+to the document's value; it adds its own `created_at` and `updated_at`, so pick another name),
+index it, and map it with an argument of the field's name. `compile --database` names every
+sorted or filtered temporal key a `tv_*` query reads out of its document, and says whether the
+column already exists.
+
+FraiseQL does not sort these keys as text instead. pg_tviews renders them in UTC ISO 8601
+(a documented contract since beta.26), but a value it did not render (text copied through, a
+row from before an upgrade) or `-infinity` would then sort silently out of order.

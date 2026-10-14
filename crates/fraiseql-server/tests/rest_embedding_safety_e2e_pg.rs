@@ -130,6 +130,7 @@ fn schema_with(embedded_client_where: bool) -> CompiledSchema {
         cardinality:    Cardinality::OneToMany,
         foreign_key:    "fk_author".to_string(),
         referenced_key: "id".to_string(),
+        native_join:    None,
     }];
     schema.types.push(author);
 
@@ -146,6 +147,7 @@ fn schema_with(embedded_client_where: bool) -> CompiledSchema {
             cardinality:    Cardinality::OneToMany,
             foreign_key:    "fk_post".to_string(),
             referenced_key: "id".to_string(),
+            native_join:    None,
         },
         // The ManyToOne direction, so `embed_into_single`'s *object* branch has a
         // subject: it takes the first row of the target query's result, so an
@@ -157,6 +159,7 @@ fn schema_with(embedded_client_where: bool) -> CompiledSchema {
             cardinality:    Cardinality::ManyToOne,
             foreign_key:    "fk_author".to_string(),
             referenced_key: "id".to_string(),
+            native_join:    None,
         },
     ];
     schema.types.push(post);

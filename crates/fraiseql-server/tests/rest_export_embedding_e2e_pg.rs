@@ -144,6 +144,7 @@ fn author_relationship() -> Relationship {
         cardinality:    Cardinality::ManyToOne,
         foreign_key:    "fk_author".to_string(),
         referenced_key: "id".to_string(),
+        native_join:    None,
     }
 }
 
@@ -170,6 +171,7 @@ fn schema_fixture() -> CompiledSchema {
         cardinality:    Cardinality::OneToMany,
         foreign_key:    "fk_author".to_string(),
         referenced_key: "id".to_string(),
+        native_join:    None,
     }];
     schema.types.push(author);
 

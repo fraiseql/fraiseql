@@ -76,6 +76,7 @@ impl SchemaConverter {
                 cardinality:    r.cardinality,
                 foreign_key:    r.foreign_key,
                 referenced_key: r.referenced_key,
+                native_join:    None,
             })
             .collect();
 
