@@ -498,6 +498,21 @@ pub async fn compile_to_schema(
         // libpq `key=value` included (#1403).
         info!("Validating mutation contract against the database...");
         let catalog = PgCatalog::from_pool(pool);
+
+        // #1587: the SQL columns each relationship joins on, where pg_tviews' registry
+        // proves them, so a composed read correlates on an indexed column.
+        let sources: Vec<String> = schema
+            .types
+            .iter()
+            .map(|t| t.sql_source.to_string())
+            .filter(|s| !s.is_empty())
+            .collect();
+        let references = catalog.tview_references(&sources).await?;
+        let proven = crate::schema::native_joins::apply_native_joins(&mut schema, &references);
+        if proven > 0 {
+            info!("{proven} relationship(s) correlate on native columns (pg_tviews references)");
+        }
+
         let contract = validate_mutation_contract(&schema, &catalog).await?;
         let mut caused_by_default: std::collections::BTreeMap<String, Vec<String>> =
             std::collections::BTreeMap::new();
