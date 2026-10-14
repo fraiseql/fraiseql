@@ -147,6 +147,10 @@ Which side each is read from swaps with the cardinality — `OneToMany` reads
 the column `fk_user` is published as the field `fkUser`, and the compiler resolves one to
 the other.
 
+Compiled with `--database` over pg_tviews TVIEWs, a relationship also records the SQL columns
+the database proves it joins on (`tviews.registry.references`), and composed reads correlate
+on them: see [Composed reads](performance.md#composed-reads-correlate-on-the-foreign-key).
+
 A relationship no embed could follow is a **compile error**, not a silent empty result: an
 undeclared `target_type`, a join column no field of that side publishes, a `target_type`
 returned by no list query, an empty key, or one name declared twice. The compiled schema is
