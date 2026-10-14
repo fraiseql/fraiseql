@@ -122,6 +122,7 @@ fn schema() -> CompiledSchema {
         cardinality:    Cardinality::OneToMany,
         foreign_key:    "fk_user".to_string(),
         referenced_key: "id".to_string(),
+        native_join:    None,
     }];
     schema.types.push(user);
 
@@ -139,6 +140,7 @@ fn schema() -> CompiledSchema {
         cardinality:    Cardinality::ManyToOne,
         foreign_key:    "fk_user".to_string(),
         referenced_key: "id".to_string(),
+        native_join:    None,
     }];
     schema.types.push(order);
 

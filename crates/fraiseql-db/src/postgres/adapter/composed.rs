@@ -47,7 +47,7 @@ use crate::{
     path_escape::escape_postgres_jsonb_segment,
     traits::{
         COMPOSED_DOCUMENT_KEY, COMPOSED_EMBEDS_KEY, ComposedEmbed, ComposedKeyset, ComposedLevel,
-        EmbedShape, EmbedSource, LevelKeys,
+        EmbedShape, EmbedSource, LevelKeys, NativeCorrelation,
     },
     types::{DatabaseType, QueryParam},
 };
@@ -149,9 +149,10 @@ impl Renderer {
         // Reason (expect below): fmt::Write for String is infallible.
         write!(
             sql,
-            "SELECT {document} AS data, row_number() OVER ({window}) AS {ORDINAL} FROM {}{where_sql} \
-             ORDER BY {ORDINAL}",
+            "SELECT {document} AS data{carried}, row_number() OVER ({window}) AS {ORDINAL} FROM \
+             {}{where_sql} ORDER BY {ORDINAL}",
             quote_postgres_identifier(&level.view),
+            carried = carried_columns(level, None),
         )
         .expect("write to String");
         if let Some(limit) = level.limit {
@@ -227,19 +228,21 @@ impl Renderer {
         };
         let view = quote_postgres_identifier(&level.view);
 
+        let carried = carried_columns(level, None);
         Ok(if keyset.forward {
             format!(
-                "SELECT {document} AS data, row_number() OVER (ORDER BY {order}) AS {ORDINAL} \
-                 FROM {view}{where_sql} ORDER BY {ORDINAL}{limit}"
+                "SELECT {document} AS data{carried}, row_number() OVER (ORDER BY {order}) AS \
+                 {ORDINAL} FROM {view}{where_sql} ORDER BY {ORDINAL}{limit}"
             )
         } else {
             // Read reversed from the cursor, then numbered in the requested order.
             let (key_columns, outer_keys) = crate::keyset::carried_keys(&keys, "_k", "_k");
             let outer_order = crate::keyset::keyset_order(&outer_keys, "_k._cursor", true);
             format!(
-                "SELECT _k.data AS data, row_number() OVER (ORDER BY {outer_order}) AS {ORDINAL} \
-                 FROM (SELECT {document} AS data, {column} AS _cursor{key_columns} FROM \
-                 {view}{where_sql} ORDER BY {order}{limit}) AS _k"
+                "SELECT _k.data AS data{outer}, row_number() OVER (ORDER BY {outer_order}) AS \
+                 {ORDINAL} FROM (SELECT {document} AS data, {column} AS _cursor{key_columns}\
+                 {carried} FROM {view}{where_sql} ORDER BY {order}{limit}) AS _k",
+                outer = carried_columns(level, Some("_k")),
             )
         })
     }
@@ -330,6 +333,9 @@ impl Renderer {
     /// A level: its page, its document, and its embeds joined `LATERAL`.
     fn level(&mut self, level: &ComposedLevel, from: LevelFrom<'_>) -> Result<String> {
         let alias = self.alias();
+        // A view's page carries the columns its embeds correlate on; a parent's document
+        // has none to carry.
+        let carries = matches!(from, LevelFrom::View(_));
         let page = match from {
             LevelFrom::View(correlation) => self.page(level, correlation)?,
             LevelFrom::Parent {
@@ -344,7 +350,8 @@ impl Renderer {
         let mut embeds = Vec::with_capacity(level.embeds.len());
         for (i, embed) in level.embeds.iter().enumerate() {
             let embed_alias = format!("{alias}_e{i}");
-            let sql = self.embed(embed, &alias)?;
+            let carried = carries.then(|| carried_alias(i));
+            let sql = self.embed(embed, &alias, carried.as_deref())?;
             // Reason (expect below): fmt::Write for String is infallible.
             write!(joins, " LEFT JOIN LATERAL ({sql}) AS {embed_alias} ON true")
                 .expect("write to String");
@@ -364,20 +371,28 @@ impl Renderer {
     }
 
     /// One embedded level, as the subquery its parent joins `LATERAL`. Returns one row
-    /// with one column, `v`.
-    fn embed(&mut self, embed: &ComposedEmbed, parent_alias: &str) -> Result<String> {
+    /// with one column, `v`. `carried`: the column of the parent's page holding this
+    /// embed's native parent column, when the page carries one.
+    fn embed(
+        &mut self,
+        embed: &ComposedEmbed,
+        parent_alias: &str,
+        carried: Option<&str>,
+    ) -> Result<String> {
         let correlation;
         let from = match &embed.source {
             EmbedSource::Correlated {
                 target_key,
                 parent_key,
                 key_type,
+                native,
             } => {
                 correlation = Correlation {
                     target_key,
                     parent_alias,
                     parent_key,
                     key_type: *key_type,
+                    native: native.as_ref().zip(carried),
                 };
                 LevelFrom::View(Some(&correlation))
             },
@@ -466,6 +481,36 @@ fn reads_a_column_under(
     }
 }
 
+/// The page column carrying embed `index`'s native parent column.
+fn carried_alias(index: usize) -> String {
+    format!("_j{index}")
+}
+
+/// `, "<parent column>" AS "_j<i>"` for each embed of `level` joined on native columns: the
+/// columns its page carries for them. Read off `from` (an inner page's alias) when given.
+fn carried_columns(level: &ComposedLevel, from: Option<&str>) -> String {
+    level
+        .embeds
+        .iter()
+        .enumerate()
+        .filter_map(|(i, embed)| match &embed.source {
+            EmbedSource::Correlated {
+                native: Some(native),
+                ..
+            } => {
+                let alias = quote_postgres_identifier(&carried_alias(i));
+                Some(match from {
+                    None => {
+                        format!(", {} AS {alias}", quote_postgres_identifier(&native.parent_column))
+                    },
+                    Some(inner) => format!(", {inner}.{alias} AS {alias}"),
+                })
+            },
+            _ => None,
+        })
+        .collect()
+}
+
 /// A level's document, read off its page alias.
 fn document_sql(alias: &str, keys: &LevelKeys) -> String {
     match keys {
@@ -517,6 +562,8 @@ struct Correlation<'a> {
     parent_alias: &'a str,
     parent_key:   &'a [String],
     key_type:     crate::types::sql_hints::ScalarFieldType,
+    /// The proven columns, and the parent page's column carrying the parent's (#1587).
+    native:       Option<(&'a NativeCorrelation, &'a str)>,
 }
 
 impl Correlation<'_> {
@@ -527,7 +574,19 @@ impl Correlation<'_> {
     /// field's declared type (`(data->>'fk')::bigint = …`) and compared text for an
     /// identity. Casting both sides by the same rule keeps the same rows matching. A
     /// `NULL` parent key matches nothing — "no related row", as it was.
+    ///
+    /// With a native join, the embedded view's column and the parent page's carried column
+    /// instead: one type (a foreign key), no cast, and an index on the embedded column serves
+    /// it (#1587).
     fn sql(&self) -> String {
+        if let Some((native, carried)) = self.native {
+            return format!(
+                "{} = {}.{}",
+                quote_postgres_identifier(&native.target_column),
+                self.parent_alias,
+                quote_postgres_identifier(carried),
+            );
+        }
         let dialect = PostgresDialect;
         let target = dialect.json_extract_scalar("data", self.target_key);
         let parent =

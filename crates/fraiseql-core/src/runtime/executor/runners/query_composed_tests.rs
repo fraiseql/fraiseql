@@ -96,6 +96,7 @@ fn schema() -> CompiledSchema {
             cardinality:    Cardinality::OneToMany,
             foreign_key:    "fk_user".to_string(),
             referenced_key: "id".to_string(),
+            native_join:    None,
         }],
         ..TypeDefinition::new("User", "v_user")
     });
@@ -113,6 +114,7 @@ fn schema() -> CompiledSchema {
             cardinality:    Cardinality::ManyToOne,
             foreign_key:    "fk_user".to_string(),
             referenced_key: "id".to_string(),
+            native_join:    None,
         }],
         ..TypeDefinition::new("Order", "v_order")
     });
@@ -418,12 +420,38 @@ async fn the_correlation_joins_the_declared_keys_as_their_declared_type() {
             target_key: vec!["fk_user".to_string()],
             parent_key: vec!["id".to_string()],
             key_type:   ScalarFieldType::Integer,
+            native:     None,
         },
         "Order.fk_user is an Int"
     );
     assert_eq!(embed.shape, EmbedShape::Many);
     assert_eq!(embed.level.limit, Some(100), "the embed's own page");
     assert!(read.where_clause.is_none(), "no correlation leaks into the root");
+}
+
+/// #1587: a relationship the database proved joins on native columns correlates on them.
+#[tokio::test]
+async fn a_proven_relationship_correlates_on_its_native_columns() {
+    let mut schema = schema();
+    let user = schema.types.iter_mut().find(|t| t.name == "User").unwrap();
+    let orders_rel = user.relationships.iter_mut().find(|r| r.name == "orders").unwrap();
+    orders_rel.native_join = Some(crate::schema::NativeJoin {
+        foreign_key:    "fk_user".to_string(),
+        referenced_key: "pk_user".to_string(),
+    });
+    let qm = users(&schema, &["id"], None);
+
+    let run = run(schema, RuntimeConfig::default(), &qm, &[orders(&["id"])], &[], vec![]).await;
+    run.result.unwrap();
+
+    let read = run.adapter.captured_composed().unwrap();
+    let crate::backend::EmbedSource::Correlated { native, .. } = &only_embed(&read).source else {
+        panic!("not correlated: {read:?}");
+    };
+    assert_eq!(
+        native.as_ref().map(|n| (n.target_column.as_str(), n.parent_column.as_str())),
+        Some(("fk_user", "pk_user"))
+    );
 }
 
 /// #1329: a function-backed list query has no relation to embed from. The relationship

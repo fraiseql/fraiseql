@@ -157,6 +157,16 @@ pub struct ComposedEmbed {
     pub level:      ComposedLevel,
 }
 
+/// The SQL columns that attach an embedded row to its parent's (#1587): a foreign key the
+/// database proved, so both have one type and the embedded column is indexed.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NativeCorrelation {
+    /// The column of the **embedded** level's view.
+    pub target_column: String,
+    /// The column of the **parent** level's view it equals.
+    pub parent_column: String,
+}
+
 /// Where an embedded level's rows come from.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum EmbedSource {
@@ -170,6 +180,10 @@ pub enum EmbedSource {
         /// embedded key would take, so the correlation matches the rows a predicate
         /// `target_key = <the parent's value>` matched when it was a flat sub-read.
         key_type:   ScalarFieldType,
+        /// The two SQL columns the database proved join these rows (#1587), compared in
+        /// place of the stored keys: an index on the embedded column then serves the
+        /// correlation. `None`: the stored keys.
+        native:     Option<NativeCorrelation>,
     },
     /// The value the parent row's own document holds under the first of `keys` it has:
     /// each object element of it for [`EmbedShape::Many`], the object itself for

@@ -225,6 +225,7 @@ fn schema(rest: RestConfig) -> CompiledSchema {
         cardinality:    Cardinality::OneToMany,
         foreign_key:    "fk_item".to_string(),
         referenced_key: "id".to_string(),
+        native_join:    None,
     }];
     schema.types.push(item);
 
