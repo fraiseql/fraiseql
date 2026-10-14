@@ -238,6 +238,9 @@ disagreed, and the promise was the part that was wrong.
 
 ### Security
 
+- **`rustls` 0.23.46**, for RUSTSEC-2026-0346, -0347, -0348 and -0349 (TLS secrets in `Debug`
+  output, data sent after an ECH rejection, unbounded certificate decompression, and a
+  key-exchange downgrade of later connections).
 - **`quinn-proto` 0.11.19**, a transitive dependency, for RUSTSEC-2026-0338, -0339, -0340, -0341
   and -0342 (remote panics and memory exhaustion in its QUIC stream handling).
 
