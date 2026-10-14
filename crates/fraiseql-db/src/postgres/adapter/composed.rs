@@ -5,7 +5,7 @@
 //! A level is read as
 //!
 //! ```text
-//! SELECT jsonb_build_object('d', <document>, 'e', jsonb_build_object(<embeds>)) AS data,
+//! SELECT JSON_OBJECT('d' VALUE <document>, 'e' VALUE JSON_OBJECT(<embeds>)) AS data,
 //!        _lN."_o" AS "_o"
 //! FROM (SELECT data, row_number() OVER (ORDER BY <order>) AS "_o"
 //!       FROM <view> WHERE <predicate> [AND <correlation>]
@@ -20,9 +20,9 @@
 //! * **An embed's `ORDER BY` and `LIMIT` are inside its own `LATERAL`,** so each parent row gets
 //!   its own page of related rows — which is what a sub-read per parent row returned, and what the
 //!   cost estimate charges (`DirectReadProjection`).
-//! * **Order travels as a number, `"_o"`.** `jsonb_agg(… ORDER BY "_o")` and the root's outer
-//!   `ORDER BY "_o"` preserve the level's ordering through the joins; the order of rows out of a
-//!   derived table is otherwise not something SQL promises.
+//! * **Order travels as a number, `"_o"`.** `json_agg(… ORDER BY "_o")` and the root's outer `ORDER
+//!   BY "_o"` preserve the level's ordering through the joins; the order of rows out of a derived
+//!   table is otherwise not something SQL promises.
 //! * **The correlation is the only reference across levels**, and the only qualified column
 //!   reference in the statement. Everything the where generator renders is unqualified `data`,
 //!   which resolves to the innermost relation — the level's own view — so a level's security
@@ -354,12 +354,19 @@ impl Renderer {
             ));
         }
 
+        // Assembled as `json` (#1588): the stored documents' text is concatenated, not
+        // rebuilt as `jsonb` at every level. Each level's own document stays `jsonb`, read
+        // off the view; only the tree around it is `json`.
+        let data = crate::projection_generator::json_object_sql(&[
+            crate::projection_generator::ObjectPair::new(literal(COMPOSED_DOCUMENT_KEY), document),
+            crate::projection_generator::ObjectPair::new(
+                literal(COMPOSED_EMBEDS_KEY),
+                crate::projection_generator::json_object_sql(&embeds),
+            ),
+        ]);
         Ok(format!(
-            "SELECT jsonb_build_object({}, {document}, {}, {}) AS data, \
-             {alias}.{ORDINAL} AS {ORDINAL} FROM ({page}) AS {alias}{joins}",
-            literal(COMPOSED_DOCUMENT_KEY),
-            literal(COMPOSED_EMBEDS_KEY),
-            crate::projection_generator::jsonb_object_sql(&embeds),
+            "SELECT {data} AS data, {alias}.{ORDINAL} AS {ORDINAL} FROM ({page}) AS \
+             {alias}{joins}"
         ))
     }
 
@@ -391,13 +398,13 @@ impl Renderer {
             EmbedShape::Many => {
                 let level = self.level(&embed.level, from)?;
                 Ok(format!(
-                    "SELECT COALESCE(jsonb_agg(_c.data ORDER BY _c.{ORDINAL}), '[]'::jsonb) AS v \
+                    "SELECT COALESCE(json_agg(_c.data ORDER BY _c.{ORDINAL}), '[]'::json) AS v \
                      FROM ({level}) AS _c"
                 ))
             },
             EmbedShape::One => {
-                // No row joins as NULL (`LEFT JOIN … ON true`), which `jsonb_build_object`
-                // writes as JSON `null` — the to-one absent value.
+                // No row joins as NULL (`LEFT JOIN … ON true`), which `JSON_OBJECT` writes
+                // as JSON `null` (`NULL ON NULL`) — the to-one absent value.
                 let level = self.level(&embed.level, from)?;
                 Ok(format!(
                     "SELECT _c.data AS v FROM ({level}) AS _c ORDER BY _c.{ORDINAL} LIMIT 1"
