@@ -1337,6 +1337,9 @@ impl QueryRunner {
     /// Used by the REST transport for embedded sub-queries and NDJSON streaming
     /// where the query parameters are already resolved from HTTP request parameters.
     ///
+    /// `row_bound` is a row count the server sets (#1581): it bounds the read on top of
+    /// the page a `limit` argument asked for, without being held to `max_page_size`.
+    ///
     /// # Errors
     ///
     /// Returns `FraiseQLError::Validation` if the query has no SQL source.
@@ -1347,11 +1350,12 @@ impl QueryRunner {
         variables: Option<&serde_json::Value>,
         security_context: Option<&SecurityContext>,
         request_budget: Option<&crate::security::RequestBudget>,
+        row_bound: Option<u32>,
     ) -> Result<serde_json::Value> {
         // A leaf selection of an object field is the whole object, read as its type.
         let expanded = super::query_nested::expand_leaf_objects(&self.ctx.schema, query_match)?;
         let query_match = &*expanded;
-        let resolved = self.resolve_direct_read(
+        let mut resolved = self.resolve_direct_read(
             query_match,
             variables,
             security_context,
@@ -1359,6 +1363,9 @@ impl QueryRunner {
             DirectReadCost::Flat(request_budget),
             None,
         )?;
+        if let Some(bound) = row_bound {
+            resolved.limit = Some(resolved.limit.map_or(bound, |page| page.min(bound)));
+        }
         let session_pairs = resolved.session_pairs();
 
         // A nested level its type scopes is read with that type's predicate, as for

@@ -245,6 +245,16 @@ disagreed, and the promise was the part that was wrong.
   rows read before the write were then stored (at `cache_ttl_seconds = 0`, for good). The
   check is made again once the entry is stored, and the entry withdraws itself.
 
+- **A filtered REST bulk `PATCH`/`DELETE` runs on the default configuration (#1581).** The
+  bulk handler selects the rows it will write with a bound of `max_bulk_affected + 1` (10 001
+  by default). That bound went through the page-size check like a client's `?limit=`, and the
+  default `max_page_size` is 1 000, so every filtered bulk write was refused with `400` unless
+  the client lowered the bound with `Prefer: max-affected=999` or less. The bound is a row
+  count the server sets, not a page: the selection now applies it directly, through the new
+  `Executor::execute_query_direct_bounded`, with every other gate of the read unchanged. A
+  match larger than one page is written in full, and one over the cap is still refused with
+  `413`.
+
 - **A change-log poll sees the rows written since the last poll (#1590).** The injected
   `entity_change_logs` and `transport_checkpoint` queries declared `cache_ttl_seconds = 0`, meant
   as "never cache". In the result cache it means "cache with no expiry". A poller that had caught

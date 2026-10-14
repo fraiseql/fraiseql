@@ -47,7 +47,7 @@ use axum::body::Body;
 use fraiseql_core::{
     db::postgres::PostgresAdapter,
     prelude::DatabaseAdapter as _,
-    runtime::Executor,
+    runtime::{Executor, RuntimeConfig},
     schema::{
         ArgumentDefinition, Cardinality, CompiledSchema, FieldDefinition, FieldType,
         MutationDefinition, MutationOperation, QueryDefinition, Relationship, RestConfig,
@@ -206,7 +206,7 @@ const fn without_changelog(mut m: MutationDefinition) -> MutationDefinition {
     m
 }
 
-fn schema() -> CompiledSchema {
+fn schema(rest: RestConfig) -> CompiledSchema {
     let mut schema = CompiledSchema::new();
 
     let mut item = TypeDefinition::new("P13Item", format!("{SCHEMA}.v_item"));
@@ -276,11 +276,7 @@ fn schema() -> CompiledSchema {
     delete.arguments = vec![ArgumentDefinition::new("id", FieldType::String)];
     schema.mutations.push(without_changelog(delete));
 
-    schema.rest_config = Some(RestConfig {
-        enabled: true,
-        max_bulk_affected: MAX_BULK_AFFECTED,
-        ..RestConfig::default()
-    });
+    schema.rest_config = Some(rest);
     schema.build_indexes();
     schema
 }
@@ -350,12 +346,25 @@ impl Rig {
     }
 }
 
+/// The rig most cases use: the operator's cap lowered to [`MAX_BULK_AFFECTED`].
 async fn rig() -> Option<Rig> {
+    rig_with(
+        RestConfig {
+            enabled: true,
+            max_bulk_affected: MAX_BULK_AFFECTED,
+            ..RestConfig::default()
+        },
+        RuntimeConfig::default(),
+    )
+    .await
+}
+
+async fn rig_with(rest: RestConfig, config: RuntimeConfig) -> Option<Rig> {
     let url = try_database_url()?;
     let adapter = Arc::new(PostgresAdapter::new(&url).await.expect("connect"));
     seed(&adapter).await;
 
-    let executor = Arc::new(Executor::new(schema(), Arc::clone(&adapter)));
+    let executor = Arc::new(Executor::with_config(schema(rest), Arc::clone(&adapter), config));
     let state = AppState::new(executor);
     let router = rest_router(&state, &RestMountConfig::default()).expect("REST router");
 
@@ -521,6 +530,122 @@ async fn a_bulk_update_within_the_cap_mutates_and_reports_truthfully() {
 }
 
 // ---------------------------------------------------------------------------
+// #1581 — the selection is a count the server sets, not a page
+// ---------------------------------------------------------------------------
+
+/// REST switched on and nothing else configured: a filtered bulk update runs. Its row
+/// selection is bounded by the bulk cap (10 000 by default), which the page-size cap
+/// (1 000 by default) refused, so no filtered bulk write ran on a default configuration.
+#[tokio::test]
+async fn a_bulk_update_runs_on_the_default_configuration() {
+    let Some(rig) = rig_with(
+        RestConfig {
+            enabled: true,
+            ..RestConfig::default()
+        },
+        RuntimeConfig::default(),
+    )
+    .await
+    else {
+        eprintln!("skipping: DATABASE_URL not set");
+        return;
+    };
+
+    let (status, body) = rig
+        .send("PATCH", "/rest/v1/items?status[eq]=active", None, json!({"status": "retired"}))
+        .await;
+
+    assert!(
+        status.is_success(),
+        "a bulk update on the default configuration, got {status} {body}"
+    );
+    assert_eq!(
+        rig.labels_with_status("retired").await.len(),
+        ACTIVE,
+        "every active row updated"
+    );
+}
+
+/// More matched rows than one page: every one is updated. A selection clamped to the page
+/// size would update a page of them, or refuse the request as over the cap.
+#[tokio::test]
+async fn a_bulk_update_matching_more_rows_than_a_page_updates_all_of_them() {
+    let Some(rig) = rig_with(
+        RestConfig {
+            enabled: true,
+            ..RestConfig::default()
+        },
+        RuntimeConfig {
+            max_page_size: Some(2),
+            ..RuntimeConfig::default()
+        },
+    )
+    .await
+    else {
+        eprintln!("skipping: DATABASE_URL not set");
+        return;
+    };
+
+    let (status, body) = rig
+        .send("PATCH", "/rest/v1/items?status[eq]=active", None, json!({"status": "retired"}))
+        .await;
+
+    assert!(status.is_success(), "3 rows over a page of 2, got {status} {body}");
+    assert_eq!(
+        rig.labels_with_status("retired").await.len(),
+        ACTIVE,
+        "every active row updated"
+    );
+}
+
+/// The selection reads at most cap + 1 rows, however many the filter matches (#862): the
+/// bound no longer travels as a `limit` argument, so it is pinned by what PostgreSQL read.
+/// The view counts each row it yields; it is unsorted here, so a bounded read stops early.
+#[tokio::test]
+async fn the_selection_reads_at_most_one_row_past_the_cap() {
+    let Some(rig) = rig().await else {
+        eprintln!("skipping: DATABASE_URL not set");
+        return;
+    };
+    for stmt in [
+        format!("CREATE SEQUENCE {SCHEMA}.rows_read"),
+        format!(
+            "CREATE FUNCTION {SCHEMA}.count_read() RETURNS boolean VOLATILE LANGUAGE sql \
+             AS $$ SELECT nextval('{SCHEMA}.rows_read') > 0 $$"
+        ),
+        format!(
+            "INSERT INTO {SCHEMA}.tb_item SELECT gen_random_uuid(), 'active', 'more-' || n \
+             FROM generate_series(1, 50) n"
+        ),
+        format!(
+            "CREATE OR REPLACE VIEW {SCHEMA}.v_item AS SELECT id, jsonb_build_object('id', id, \
+             'status', status, 'label', label) AS data FROM {SCHEMA}.tb_item \
+             WHERE {SCHEMA}.count_read()"
+        ),
+    ] {
+        let _: Vec<std::collections::HashMap<String, Value>> =
+            rig.adapter.execute_raw_query(&stmt).await.expect("counting view");
+    }
+
+    let (status, body) = rig
+        .send("PATCH", "/rest/v1/items?status[eq]=active", None, json!({"status": "retired"}))
+        .await;
+    assert_eq!(status, StatusCode::PAYLOAD_TOO_LARGE, "53 matches over a cap of 2: {body}");
+
+    let read: Vec<std::collections::HashMap<String, Value>> = rig
+        .adapter
+        .execute_raw_query(&format!("SELECT last_value, is_called FROM {SCHEMA}.rows_read"))
+        .await
+        .expect("rows read");
+    assert_eq!(read[0]["is_called"], json!(true), "the selection read the counting view");
+    let read = read[0]["last_value"].as_i64().expect("a count");
+    assert!(
+        read <= i64::try_from(MAX_BULK_AFFECTED + 1).unwrap(),
+        "the selection read {read} rows for a cap of {MAX_BULK_AFFECTED}"
+    );
+}
+
+// ---------------------------------------------------------------------------
 // #916 — a client may lower the cap, never raise it
 // ---------------------------------------------------------------------------
 
@@ -645,7 +770,10 @@ async fn a_tx_rollback_bulk_delete_does_not_delete() {
 /// Needs no database: it is a property of the schema document alone.
 #[test]
 fn the_fixture_declares_a_relationship_the_loader_would_accept() {
-    let schema = schema();
+    let schema = schema(RestConfig {
+        enabled: true,
+        ..RestConfig::default()
+    });
 
     let item = schema.find_type("P13Item").expect("P13Item must be declared");
     assert!(

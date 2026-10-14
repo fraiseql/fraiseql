@@ -790,7 +790,38 @@ impl Executor {
 
         let response = self
             .query_runner()
-            .execute_query_direct(query_match, variables, security_context, request_budget)
+            .execute_query_direct(query_match, variables, security_context, request_budget, None)
+            .await?;
+        self.complete_direct(response, query_match)
+    }
+
+    /// The same read as [`execute_query_direct`](Self::execute_query_direct), bounded at
+    /// `row_bound` rows instead of a page (#1581).
+    ///
+    /// For a count of rows the server itself sets, such as the rows a filtered bulk write
+    /// selects (its affected-rows cap, plus one to see an overflow). `max_page_size` bounds
+    /// a page a client asks for. Held to it, the default bulk cap of 10 000 was refused by
+    /// the default page size of 1 000, so no filtered bulk write ran on a default
+    /// configuration. Every other gate of the read applies. A `limit` argument still
+    /// passes the page guard, and the smaller of the two applies.
+    ///
+    /// # Errors
+    ///
+    /// As [`execute_query_direct`](Self::execute_query_direct).
+    pub async fn execute_query_direct_bounded(
+        &self,
+        query_match: &QueryMatch,
+        security_context: Option<&SecurityContext>,
+        row_bound: u32,
+    ) -> Result<serde_json::Value> {
+        crate::runtime::executor::support::security::enforce_enrichment_resolved(
+            &self.ctx.schema,
+            security_context,
+        )?;
+
+        let response = self
+            .query_runner()
+            .execute_query_direct(query_match, None, security_context, None, Some(row_bound))
             .await?;
         self.complete_direct(response, query_match)
     }

@@ -280,15 +280,16 @@ impl<'a> BulkHandler<'a> {
             query_params,
             &resource.type_name,
             op.missing_filter_msg,
-            max_affected,
         )?;
 
-        // Select the rows the filter matched. `build_filter_query_match` bounded this
-        // query at `max_affected + 1`, so an over-cap request is detectable without
-        // scanning the whole view (#862).
+        // Select the rows the filter matched, bounded at `max_affected + 1` so an over-cap
+        // request is detectable without scanning the whole view (#862). The bound is a
+        // count this server sets, not a page: held to `max_page_size`, the default cap
+        // was refused by the default page size (#1581).
+        let row_bound = u32::try_from(max_affected.saturating_add(1)).unwrap_or(u32::MAX);
         let filter_result = self
             .executor
-            .execute_query_direct(&query_match, None, security_context, None)
+            .execute_query_direct_bounded(&query_match, security_context, row_bound)
             .await
             .map_err(RestError::from)?;
 
@@ -404,7 +405,6 @@ impl<'a> BulkHandler<'a> {
         query_params: &[(&str, &str)],
         type_name: &str,
         missing_filter_msg: &str,
-        max_affected: u64,
     ) -> Result<QueryMatch, RestError> {
         let query_def = self
             .schema
@@ -480,13 +480,9 @@ impl<'a> BulkHandler<'a> {
             ));
         }
 
+        // No `limit`: the caller bounds the selection with its cap (#862, #1581).
         let mut arguments = std::collections::HashMap::new();
         arguments.insert("where".to_string(), where_clause);
-        // Always bound the selection. `enforce_max_page_size(None, max)` returns
-        // `Ok(None)`, so an absent limit meant an unbounded scan of the whole view
-        // materialised into JSON (#862). `+ 1` makes "more than the cap" detectable
-        // without fetching every row.
-        arguments.insert("limit".to_string(), serde_json::json!(max_affected.saturating_add(1)));
 
         QueryMatch::from_operation(query_def, fields, arguments, type_def).map_err(RestError::from)
     }

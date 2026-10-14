@@ -3450,3 +3450,60 @@ mod page_first {
         assert!(hint.reads_only_document, "{hint:?}");
     }
 }
+
+// ── mod bounded_direct_read: #1581, a row count the server sets is not a page ──
+//
+// A REST bulk write selects its rows bounded at its cap + 1. That bound went through the
+// page-size guard as a `limit` argument, which refused the default cap (10 001 > 1 000).
+// It now reaches the adapter as the read's bound, and still bounds the read (#862).
+mod bounded_direct_read {
+    use super::{auto_params::schema_with_auto_params, *};
+
+    fn users_match() -> crate::runtime::matcher::QueryMatch {
+        let schema = schema_with_auto_params(AutoParams {
+            has_limit:    true,
+            has_offset:   false,
+            has_where:    false,
+            has_order_by: false,
+        });
+        crate::runtime::QueryMatcher::new(schema)
+            .match_query("{ users { id name } }", None)
+            .unwrap()
+    }
+
+    fn executor(adapter: &Arc<CapturingMockAdapter>) -> Executor {
+        let schema = schema_with_auto_params(AutoParams {
+            has_limit:    true,
+            has_offset:   false,
+            has_where:    false,
+            has_order_by: false,
+        });
+        Executor::new(schema, Arc::clone(adapter))
+    }
+
+    #[tokio::test]
+    async fn the_bound_reaches_the_read_past_the_page_size() {
+        let adapter = Arc::new(CapturingMockAdapter::new(mock_user_results()));
+
+        executor(&adapter)
+            .execute_query_direct_bounded(&users_match(), None, 10_001)
+            .await
+            .unwrap();
+
+        assert_eq!(adapter.captured_limit(), Some(10_001), "bounded at the caller's count");
+    }
+
+    #[tokio::test]
+    async fn a_smaller_page_still_applies_under_the_bound() {
+        let adapter = Arc::new(CapturingMockAdapter::new(mock_user_results()));
+        let mut qm = users_match();
+        qm.arguments.insert("limit".to_string(), serde_json::json!(5));
+
+        executor(&adapter)
+            .execute_query_direct_bounded(&qm, None, 10_001)
+            .await
+            .unwrap();
+
+        assert_eq!(adapter.captured_limit(), Some(5));
+    }
+}
