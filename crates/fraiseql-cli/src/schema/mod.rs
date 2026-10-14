@@ -11,6 +11,7 @@ pub mod intermediate;
 pub mod merger;
 pub mod multi_file_loader;
 pub mod mutation_contract;
+pub mod native_joins;
 pub mod optimizer;
 pub mod pg_catalog;
 pub mod seam;
