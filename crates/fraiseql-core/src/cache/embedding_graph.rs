@@ -70,9 +70,13 @@ const REGISTRY_TVIEWS: &str = "SELECT to_regclass(quote_ident(g.schema) || '.' |
 const NO_TVIEWS: &str = "SELECT NULL::oid AS tview, NULL::oid AS base, NULL::text AS kind \
      WHERE false";
 
-/// `(dependency, dependent)` name pairs over `names`: a sweep of `dependency` must also
-/// sweep `dependent`. `tviews` is [`REGISTRY_TVIEWS`] or [`NO_TVIEWS`].
-fn edges_sql(names: &BTreeSet<String>, tviews: &str) -> String {
+/// The opening of a `WITH RECURSIVE` over `names` (non-empty), for a caller to continue
+/// with `, <more CTEs> SELECT …`:
+///
+/// - `roots(name, rel)`: each name that resolves to a relation, and its oid;
+/// - `reads(root, rel)`: every relation each root reads through view definitions (`pg_rewrite` →
+///   `pg_depend`, transitively), itself included.
+pub(super) fn reads_cte(names: &BTreeSet<String>) -> String {
     let src: Vec<String> = names
         .iter()
         .map(|name| {
@@ -90,7 +94,16 @@ fn edges_sql(names: &BTreeSet<String>, tviews: &str) -> String {
            JOIN pg_rewrite rw ON rw.ev_class = r.rel \
            JOIN pg_depend d ON d.classid = 'pg_rewrite'::regclass AND d.objid = rw.oid \
                             AND d.refclassid = 'pg_class'::regclass AND d.refobjid <> r.rel \
-         ), \
+         )",
+        src = src.join(", "),
+    )
+}
+
+/// `(dependency, dependent)` name pairs over `names`: a sweep of `dependency` must also
+/// sweep `dependent`. `tviews` is [`REGISTRY_TVIEWS`] or [`NO_TVIEWS`].
+fn edges_sql(names: &BTreeSet<String>, tviews: &str) -> String {
+    format!(
+        "{reads}, \
          tv AS ({tviews}), \
          reads_all(root, rel) AS ( \
            SELECT root, rel FROM reads \
@@ -111,7 +124,7 @@ fn edges_sql(names: &BTreeSet<String>, tviews: &str) -> String {
          JOIN roots w ON w.rel = a.root \
          WHERE w.name <> v.name \
          ORDER BY 1, 2",
-        src = src.join(", "),
+        reads = reads_cte(names),
     )
 }
 
