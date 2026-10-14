@@ -148,6 +148,15 @@ disagreed, and the promise was the part that was wrong.
   started_at" messages are gone. On a plain `updateUser` with the outbox: 6 → 3 round trips,
   5 → 4 statements, server CPU 103.6 → 93.9 µs per mutation. Throughput under row contention
   is unchanged: the row lock is held from the call to `COMMIT`, which this does not shorten.
+- **A cascade derived from `pg_tviews` costs the same round trips whatever its fan-out (#1573).**
+  Each reported row was read from its type's view by its own unprepared statement: two round
+  trips and a plan per row, inside the write's transaction. The rows of a type are now read by
+  one prepared `WHERE id = ANY(…)`, the reads of every type are sent together, and the report
+  call is prepared. A type whose reads the engine filters (an RLS policy, inject parameters) is
+  not read at all: none of its rows was ever listed. The response is unchanged. `updateUserC`
+  on a user with 100 posts: 210 → 5 round trips and 103 → 0 parses per mutation, p50 19.3 →
+  16.2 ms at concurrency 1. Under contention the cost is `pg_tviews`' report, which scans each
+  reported TVIEW (pg_tviews#240): throughput there is unchanged.
 
 ### Fixed
 

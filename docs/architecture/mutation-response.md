@@ -456,7 +456,12 @@ connection and merges the report into the function's `cascade`:
   tenancy, for instance) or a root query returning it that injects parameters (a `jwt:sub`
   owner filter), lists none of its derived rows, updated or deleted: the re-read applies
   only the database's visibility, so it cannot tell whether this caller may read the row.
-  The type is invalidated instead.
+  The type is invalidated instead, and its rows are not read at all.
+* **Cost.** The reported rows of a type are read by one prepared statement
+  (`WHERE id = ANY(…)`), and the reads of every type are sent together: a derived cascade
+  costs the same round trips (`BEGIN`, the function, the report, the reads, `COMMIT`)
+  whether pg_tviews reports one row or a hundred (#1573). The report itself is pg_tviews'
+  cost, and grows with the TVIEWs it reports (pg_tviews#240).
 * **Precedence.** The function's entry for a row wins over the report's.
 * **Truncation.** Past `max_updated_entities` rows (the cascade ceiling, default 500),
   pg_tviews names the types it left out; each is invalidated, and none of its rows is

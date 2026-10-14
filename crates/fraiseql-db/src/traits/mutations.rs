@@ -21,9 +21,10 @@ pub enum WriteMode {
 /// (#1391).
 ///
 /// The adapter calls `tviews.pg_tviews_flush_and_report(max_entities, false, true)` after
-/// the function, then reads each reported row of a type in `views` from that type's view,
-/// on the write's own connection (so its session variables and row security apply), and
-/// attaches the result to the first row under [`DERIVED_CASCADE_KEY`]:
+/// the function, then reads the reported rows of each type in `views` from that type's view,
+/// one statement per type (`WHERE id = ANY(…)`), on the write's own connection (so its session
+/// variables and row security apply), and attaches the result to the first row under
+/// [`DERIVED_CASCADE_KEY`]:
 ///
 /// `{"updated": [{"__typename", "id", "operation", "entity"}], "deleted": [{"__typename",
 /// "id", "deletedAt"}], "truncated": bool, "invalidated_types": [...]}`
@@ -35,7 +36,8 @@ pub enum WriteMode {
 pub struct DerivedCascade<'a> {
     /// The most rows `pg_tviews` reports before truncating.
     pub max_entities: i32,
-    /// GraphQL type name → the relation its rows are read from (`id`, `data`).
+    /// GraphQL type name → the relation its rows are read from (`id`, `data`). A type left
+    /// out is not read: its rows come back with `entity: null`.
     pub views:        &'a [(&'a str, &'a str)],
 }
 

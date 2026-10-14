@@ -258,60 +258,91 @@ async fn run_function_in_txn(
 /// Flush `pg_tviews`' queue and report the rows this transaction changed, each reported
 /// updated row read from its type's view on this connection (see
 /// [`crate::traits::DerivedCascade`]).
+///
+/// The rows of a type are read by one prepared statement, `WHERE id = ANY($1)`, and every
+/// type's read is sent in one flight (#1573): the cost does not grow with the fan-out.
 async fn derived_cascade_report(
-    txn: &tokio_postgres::Transaction<'_>,
+    txn: &deadpool_postgres::Transaction<'_>,
     derived: &crate::traits::DerivedCascade<'_>,
 ) -> Result<serde_json::Value> {
-    let row = txn
-        .query_one(
+    let report_failed = |e: &tokio_postgres::Error| {
+        crate::postgres::database_error(
+            format!(
+                "cascade_source = \"pg_tviews\": tviews.pg_tviews_flush_and_report() \
+                 failed (is pg_tviews installed and preloaded?): {}",
+                pg_detail(e)
+            ),
+            e,
+        )
+    };
+    let flush = txn
+        .prepare_cached(
             "SELECT tviews.pg_tviews_flush_and_report($1, false, true) AS report, \
              to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.US\"Z\"') AS at",
-            &[&derived.max_entities],
         )
         .await
-        .map_err(|e| {
-            crate::postgres::database_error(
-                format!(
-                    "cascade_source = \"pg_tviews\": tviews.pg_tviews_flush_and_report() \
-                     failed (is pg_tviews installed and preloaded?): {}",
-                    pg_detail(&e)
-                ),
-                &e,
-            )
-        })?;
+        .map_err(|e| report_failed(&e))?;
+    let row = txn
+        .query_one(&flush, &[&derived.max_entities])
+        .await
+        .map_err(|e| report_failed(&e))?;
     let mut report: serde_json::Value = row.get("report");
     let at: String = row.get("at");
     let reported_id = |entry: &serde_json::Value| match &entry["id"] {
         serde_json::Value::String(s) => s.clone(),
         other => other.to_string(),
     };
+
     if let Some(updated) = report.get_mut("updated").and_then(serde_json::Value::as_array_mut) {
-        for entry in updated.iter_mut() {
-            let typename = entry["__typename"].as_str().unwrap_or_default().to_string();
-            let entity = match derived.views.iter().find(|(name, _)| *name == typename) {
-                Some((_, view)) => {
-                    let sql = format!(
-                        "SELECT data FROM {} WHERE id = $1",
-                        quote_postgres_identifier(view)
-                    );
-                    let id = FlexParam::Text(reported_id(entry));
-                    txn.query(sql.as_str(), &[&id])
-                        .await
-                        .map_err(|e| {
-                            crate::postgres::database_error(
-                                format!(
-                                    "cascade_source = \"pg_tviews\": reading {typename} from \
-                                     {view} failed: {}",
-                                    pg_detail(&e)
-                                ),
-                                &e,
-                            )
-                        })?
-                        .first()
-                        .map_or(serde_json::Value::Null, |r| r.get("data"))
-                },
-                None => serde_json::Value::Null,
+        // The reported ids of each type a view serves, in report order.
+        let mut ids_by_view: Vec<(&str, &str, Vec<FlexParam>)> = Vec::new();
+        for entry in updated.iter() {
+            let typename = entry["__typename"].as_str().unwrap_or_default();
+            let Some((name, view)) = derived.views.iter().find(|(name, _)| *name == typename)
+            else {
+                continue;
             };
+            let id = FlexParam::Text(reported_id(entry));
+            match ids_by_view.iter_mut().find(|(n, ..)| n == name) {
+                Some((.., ids)) => ids.push(id),
+                None => ids_by_view.push((name, view, vec![id])),
+            }
+        }
+        let reads = ids_by_view.iter().map(|(typename, view, ids)| async move {
+            let read_failed = |e: &tokio_postgres::Error| {
+                crate::postgres::database_error(
+                    format!(
+                        "cascade_source = \"pg_tviews\": reading {typename} from {view} \
+                         failed: {}",
+                        pg_detail(e)
+                    ),
+                    e,
+                )
+            };
+            // Prepared once per connection: one text per view a schema names.
+            let sql = format!(
+                "SELECT id::text AS id, data FROM {} WHERE id = ANY($1)",
+                quote_postgres_identifier(view)
+            );
+            let statement = txn.prepare_cached(&sql).await.map_err(|e| read_failed(&e))?;
+            let rows = txn.query(&statement, &[ids]).await.map_err(|e| read_failed(&e))?;
+            let by_id: std::collections::HashMap<String, serde_json::Value> =
+                rows.iter().map(|r| (r.get("id"), r.get("data"))).collect();
+            Ok::<_, FraiseQLError>((*typename, by_id))
+        });
+        let read: Vec<(&str, std::collections::HashMap<String, serde_json::Value>)> =
+            futures::future::try_join_all(reads).await?;
+
+        // A row its view did not return (not visible to this caller), or of a type no view
+        // serves, is `null`.
+        for entry in updated.iter_mut() {
+            let typename = entry["__typename"].as_str().unwrap_or_default();
+            let entity = read
+                .iter()
+                .find(|(name, _)| *name == typename)
+                .and_then(|(_, by_id)| by_id.get(&reported_id(entry)))
+                .cloned()
+                .unwrap_or(serde_json::Value::Null);
             entry["entity"] = entity;
         }
     }

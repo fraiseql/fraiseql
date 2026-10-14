@@ -5,6 +5,8 @@
 //! - **round trips**: each time a client sends after its server last sent. A client that pipelines
 //!   several statements before reading an answer pays one.
 //! - **parses**: `Parse` messages, each a statement PostgreSQL plans.
+//! - **executes**: `Execute` messages, each a prepared statement run (`BEGIN` and `COMMIT`, sent as
+//!   simple queries, are not among them).
 //!
 //! Count one connection at a time (a pool of one) for exact numbers: two connections
 //! interleave their flights. The proxy speaks plaintext only, so the URL it returns carries
@@ -25,6 +27,7 @@ use std::{
 pub struct Wire {
     round_trips:  AtomicU64,
     parses:       AtomicU64,
+    executes:     AtomicU64,
     server_spoke: AtomicBool,
 }
 
@@ -33,6 +36,7 @@ impl Wire {
     pub fn reset(&self) {
         self.round_trips.store(0, Ordering::SeqCst);
         self.parses.store(0, Ordering::SeqCst);
+        self.executes.store(0, Ordering::SeqCst);
     }
 
     /// Round trips counted.
@@ -45,6 +49,12 @@ impl Wire {
     #[must_use]
     pub fn parses(&self) -> u64 {
         self.parses.load(Ordering::SeqCst)
+    }
+
+    /// `Execute` messages counted.
+    #[must_use]
+    pub fn executes(&self) -> u64 {
+        self.executes.load(Ordering::SeqCst)
     }
 }
 
@@ -149,7 +159,7 @@ fn forward(client: TcpStream, server: TcpStream, wire: &Arc<Wire>) {
     });
 }
 
-/// Splits the client's byte stream into protocol messages, counting `Parse`.
+/// Splits the client's byte stream into protocol messages, counting `Parse` and `Execute`.
 #[derive(Default)]
 struct FrontendFramer {
     started: bool,
@@ -178,9 +188,11 @@ impl FrontendFramer {
                 return;
             }
             if self.started {
-                if self.pending[0] == b'P' {
-                    wire.parses.fetch_add(1, Ordering::SeqCst);
-                }
+                match self.pending[0] {
+                    b'P' => wire.parses.fetch_add(1, Ordering::SeqCst),
+                    b'E' => wire.executes.fetch_add(1, Ordering::SeqCst),
+                    _ => 0,
+                };
             } else {
                 let code = u32::from_be_bytes([
                     self.pending[4],
@@ -196,46 +208,4 @@ impl FrontendFramer {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
-mod tests {
-    use super::*;
-
-    fn message(kind: u8, body: &[u8]) -> Vec<u8> {
-        let mut m = vec![kind];
-        m.extend_from_slice(&u32::try_from(body.len() + 4).unwrap().to_be_bytes());
-        m.extend_from_slice(body);
-        m
-    }
-
-    fn startup(code: u32, extra: &[u8]) -> Vec<u8> {
-        let mut m = u32::try_from(8 + extra.len()).unwrap().to_be_bytes().to_vec();
-        m.extend_from_slice(&code.to_be_bytes());
-        m.extend_from_slice(extra);
-        m
-    }
-
-    #[test]
-    fn parses_are_counted_after_startup_however_the_bytes_are_split() {
-        let mut stream = startup(80_877_103, b"");
-        stream.extend(startup(196_608, b"user\0u\0\0"));
-        stream.extend(message(b'P', b"\0SELECT 1\0\0\0"));
-        stream.extend(message(b'B', b"\0\0\0\0\0\0\0"));
-        stream.extend(message(b'P', b"\0SELECT 2\0\0\0"));
-        stream.extend(message(b'S', b""));
-        for chunk in [1, 3, 7, stream.len()] {
-            let (wire, mut framer) = (Wire::default(), FrontendFramer::default());
-            for piece in stream.chunks(chunk) {
-                framer.feed(piece, &wire);
-            }
-            assert_eq!(wire.parses(), 2, "split every {chunk} bytes");
-        }
-    }
-
-    #[test]
-    fn the_url_points_at_the_proxy_in_plaintext() {
-        let proxy = CountingProxy::start("postgresql://u:p@db.example:5433/test?sslmode=require");
-        let url = proxy.url();
-        assert!(url.starts_with("postgresql://u:p@127.0.0.1:"), "{url}");
-        assert!(url.ends_with("/test?sslmode=disable"), "{url}");
-    }
-}
+mod tests;

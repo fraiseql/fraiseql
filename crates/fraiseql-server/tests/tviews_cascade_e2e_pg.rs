@@ -79,8 +79,10 @@ async fn provision(url: &str) {
                FROM tb_user u;
              CREATE VIEW v_post WITH (security_invoker = true) AS SELECT id, data FROM tv_post;
              -- `p1391_reader` is the caller who may not read users: its view returns none.
+             -- Ordered against the report (which lists users by key): rows matched back to
+             -- their entries by position would swap the two authors.
              CREATE VIEW v_user WITH (security_invoker = true) AS SELECT id, data FROM tv_user
-               WHERE current_user <> 'p1391_reader';
+               WHERE current_user <> 'p1391_reader' ORDER BY data ->> 'name' DESC;
              CREATE FUNCTION fn_update_post(p_id uuid, p_title text)
                RETURNS SETOF {SCHEMA}.mutation_response LANGUAGE plpgsql AS $$
              DECLARE v_post jsonb;
@@ -268,6 +270,14 @@ const METRICS_TOKEN: &str = "p1391-metrics-token-0123456789-0123456789";
 
 async fn serve_schema(url: String, schema: CompiledSchema) -> Running {
     let adapter = Arc::new(PostgresAdapter::new(&url).await.unwrap());
+    serve_adapter(url, schema, adapter).await
+}
+
+async fn serve_adapter(
+    url: String,
+    schema: CompiledSchema,
+    adapter: Arc<PostgresAdapter>,
+) -> Running {
     let config = ServerConfig {
         database_url: url,
         cors_enabled: false,
@@ -759,4 +769,125 @@ async fn metrics_report_the_health_of_each_tview_read() {
 fn the_document_loads_without_a_database() {
     let schema = schema();
     assert!(schema.find_type("UpdatePostPayload").is_some());
+}
+
+/// #1573: a derived cascade reads the rows `pg_tviews` reported with no round trip per row,
+/// and plans nothing per call. `renamePosts` over 2 posts, then over 12 (one author gains
+/// 10), through one counted connection: the cascade lists 10 more rows for the same cost.
+#[tokio::test]
+async fn a_derived_cascade_costs_the_same_whatever_its_fan_out() {
+    use fraiseql_test_support::wire::CountingProxy;
+
+    let Some(url) = tviews_database_url() else {
+        return;
+    };
+    provision(&url).await;
+    let proxy = CountingProxy::start(&url);
+    let adapter = Arc::new(PostgresAdapter::with_pool_size(proxy.url(), 1).await.unwrap());
+    let server = serve_adapter(proxy.url().to_string(), schema(), adapter).await;
+    let cost = |title: &'static str| {
+        let (server, wire) = (&server, proxy.wire());
+        async move {
+            run(server, "renamePosts", "warm-up").await;
+            wire.reset();
+            let body = run(server, "renamePosts", title).await;
+            assert!(body.get("errors").is_none(), "{body}");
+            (updated(&body).len(), wire.round_trips(), wire.parses())
+        }
+    };
+
+    let (rows_before, round_trips_before, parses_before) = cost("two posts").await;
+    let (client, connection) = tokio_postgres::connect(&url, tokio_postgres::NoTls).await.unwrap();
+    tokio::spawn(connection);
+    client
+        .batch_execute(&format!(
+            "INSERT INTO {SCHEMA}.tb_post (id, fk_user, title) SELECT gen_random_uuid(), \
+             pk_user, 'more' FROM {SCHEMA}.tb_user, generate_series(1, 10) WHERE name = 'ada'"
+        ))
+        .await
+        .unwrap();
+    let (rows_after, round_trips_after, parses_after) = cost("twelve posts").await;
+
+    assert_eq!((rows_before, rows_after), (4, 14), "2 posts + 2 authors, then 12 + 2");
+    assert_eq!(
+        round_trips_before, 5,
+        "BEGIN, the configuration and the call, the report, every type's read, COMMIT"
+    );
+    assert_eq!(
+        round_trips_after, round_trips_before,
+        "10 more reported rows, no more round trips"
+    );
+    assert_eq!((parses_before, parses_after), (0, 0), "nothing planned per call");
+}
+
+/// The statements `renamePosts` runs under `schema`, through one counted connection, and
+/// its response.
+async fn statements_run(url: &str, schema: CompiledSchema) -> (u64, Value) {
+    use fraiseql_test_support::wire::CountingProxy;
+
+    provision(url).await;
+    let proxy = CountingProxy::start(url);
+    let adapter = Arc::new(PostgresAdapter::with_pool_size(proxy.url(), 1).await.unwrap());
+    let server = serve_adapter(proxy.url().to_string(), schema, adapter).await;
+    run(&server, "renamePosts", "warm-up").await;
+    proxy.wire().reset();
+    let body = run(&server, "renamePosts", "counted").await;
+    assert!(body.get("errors").is_none(), "{body}");
+    (proxy.wire().executes(), body)
+}
+
+/// #1573: a reported type whose reads the engine filters is not read at all. The merge lists
+/// none of its rows (they are invalidated instead), so reading them was pure cost.
+#[tokio::test]
+async fn a_type_the_engine_filters_is_not_read() {
+    let Some(url) = tviews_database_url() else {
+        return;
+    };
+    let (unfiltered, body) = Box::pin(statements_run(&url, schema())).await;
+    assert!(
+        updated(&body).iter().any(|(typename, _)| typename == "User"),
+        "unfiltered, the authors are read and listed: {body}"
+    );
+
+    let filtered_schema = schema_with_inject("users", &json!({ "owner": "jwt:sub" }));
+    let (filtered, body) = Box::pin(statements_run(&url, filtered_schema)).await;
+
+    assert!(
+        updated(&body).iter().all(|(typename, _)| typename == "Post"),
+        "filtered, no author is listed: {body}"
+    );
+    assert_eq!(filtered, unfiltered - 1, "the authors' read is not run");
+}
+
+/// #1573: each derived row is attached to the entry of its own id, whatever order its view
+/// returns rows in. `renamePosts` reports both authors; `v_user` returns them in the
+/// opposite order.
+#[tokio::test]
+async fn each_derived_row_is_matched_to_its_entry_by_id() {
+    let Some(server) = serve().await else {
+        return;
+    };
+    let body = run(&server, "renamePosts", "matched").await;
+    assert!(body.get("errors").is_none(), "{body}");
+
+    let authors: Vec<(String, String)> = body["data"]["renamePosts"]["cascade"]["updated"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|e| e["entity"]["__typename"] == "User")
+        .map(|e| {
+            (
+                e["id"].as_str().unwrap().to_string(),
+                e["entity"]["name"].as_str().unwrap().to_string(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        authors,
+        [
+            (AUTHOR.to_string(), "ada".to_string()),
+            ("00000000-0000-0000-0000-0000000013a2".to_string(), "bob".to_string()),
+        ],
+        "{body}"
+    );
 }

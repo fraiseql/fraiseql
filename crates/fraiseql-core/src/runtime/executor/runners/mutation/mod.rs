@@ -2100,12 +2100,20 @@ pub(in super::super) async fn execute_mutation_impl(
             crate::backend::WriteMode::Commit
         };
         // #1391: a mutation whose cascade also comes from pg_tviews asks the adapter for the
-        // rows its transaction changed, read on its connection, before the gate.
+        // rows its transaction changed, read on its connection, before the gate. A type whose
+        // reads the engine filters is not read (#1573): the merge lists none of its rows.
         let derived_views = (mutation_def.cascade_source == crate::schema::CascadeSource::PgTviews)
             .then(|| derived_cascade::views(&ctx.schema));
         let derived_pairs: Vec<(&str, &str)> = derived_views
             .iter()
             .flatten()
+            .filter(|(name, _)| {
+                !derived_cascade::engine_filtered(
+                    &ctx.schema,
+                    ctx.config.rls_policy.is_some(),
+                    name,
+                )
+            })
             .map(|(name, view)| (name.as_str(), view.as_str()))
             .collect();
         let derived = derived_views.is_some().then(|| {
