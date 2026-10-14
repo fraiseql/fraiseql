@@ -84,7 +84,7 @@ disagreed, and the promise was the part that was wrong.
 ### Added
 
 - **The result cache hears pg_tviews' change feed (#1589).** When the database publishes
-  rows (`pg_tviews.publish_changes = 'rows'`, pg_tviews 0.1.0-beta.30), each server listens on
+  rows (`pg_tviews.publish_changes = 'rows'`, and a pg_tviews registry with `typename`), each server listens on
   `tviews_changes` and evicts what every committed TVIEW write made stale, whoever ran it
   (`psql`, a migration, another application), on every server. Nothing to configure; see
   `docs/modules/cache.md`. Metrics `fraiseql_tviews_feed_connected` and

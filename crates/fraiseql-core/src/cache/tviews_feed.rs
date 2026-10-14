@@ -196,7 +196,7 @@ impl FeedCatalog {
 }
 
 /// Whether the database publishes rows on [`CHANNEL`], and has a registry that names
-/// types and references (`pg_tviews` 0.1.0-beta.30).
+/// types and references (`typename`, which names collections).
 const PUBLISHING_PROBE: &str = "SELECT current_setting('pg_tviews.publish_changes', true) \
      = 'rows' AND EXISTS (SELECT 1 FROM pg_attribute \
      WHERE attrelid = to_regclass('tviews.registry') AND attname = 'typename' \

@@ -4,7 +4,6 @@
 
 use std::sync::atomic::{AtomicU32, Ordering};
 
-use async_trait::async_trait;
 use fraiseql_db::{ComposedLevel, ViewName};
 use serde_json::json;
 
@@ -20,7 +19,7 @@ struct ComposedAdapter {
 }
 
 // async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
-#[async_trait]
+#[async_trait::async_trait]
 impl DatabaseAdapter for ComposedAdapter {
     fn applies_session_variables(&self) -> bool {
         true

@@ -277,7 +277,7 @@ When the database publishes pg_tviews' changes, every server hears **every** com
 to a TVIEW, whoever ran it: FraiseQL, `psql`, a migration, another application.
 
 ```sql
-ALTER DATABASE app SET pg_tviews.publish_changes = 'rows';  -- pg_tviews 0.1.0-beta.30 or later
+ALTER DATABASE app SET pg_tviews.publish_changes = 'rows';  -- a pg_tviews with tviews.registry.typename
 ```
 
 Nothing to configure on FraiseQL's side. At boot each server reads the setting and

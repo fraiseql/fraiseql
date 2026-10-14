@@ -14,8 +14,8 @@
 //! Publishing is a per-database setting, and it makes every server over that database hear
 //! writes made behind its back: the suite runs in a database of its own ([`DATABASE`]),
 //! created on the `TVIEWS_DATABASE_URL` cluster, so no other suite sharing that database
-//! sees it. Needs `pg_tviews` 0.1.0-beta.30 (`tviews.registry.typename`) and a role that can
-//! create a database and set the superuser setting. Without them the suite skips.
+//! sees it. Needs a `pg_tviews` whose registry names types (`tviews.registry.typename`) and a role
+//! that can create a database and set the superuser setting. Without them the suite skips.
 //!
 //! **Execution engine:** `PostgreSQL` + `pg_tviews` · **Infrastructure:** `TVIEWS_DATABASE_URL`
 //! · **Parallelism:** drops and recreates its own `p1589` schema in its own database → run
@@ -70,7 +70,7 @@ async fn own_database(url: &str) -> String {
     own.to_string()
 }
 
-/// Whether the database's `pg_tviews` publishes collections (0.1.0-beta.30).
+/// Whether the database's `pg_tviews` publishes collections (`tviews.registry.typename`).
 async fn publishes_collections(url: &str) -> bool {
     let client = client(url).await;
     client.batch_execute("CREATE EXTENSION IF NOT EXISTS pg_tviews;").await.unwrap();
@@ -188,7 +188,7 @@ struct Running {
 async fn serve() -> Option<Running> {
     let shared = tviews_database_url()?;
     if !publishes_collections(&shared).await {
-        eprintln!("skipping: pg_tviews in TVIEWS_DATABASE_URL predates 0.1.0-beta.30");
+        eprintln!("skipping: pg_tviews in TVIEWS_DATABASE_URL has no tviews.registry.typename");
         return None;
     }
     let url = own_database(&shared).await;
