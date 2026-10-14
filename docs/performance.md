@@ -156,3 +156,21 @@ posts of 100,000 comments): about 180 ms per page on the document keys, 0.24 ms 
 column.
 
 With the column, the read is an index-only scan.
+
+### Dates and times on a TVIEW (#1571)
+
+A `DateTime`, `Date` or `Time` key is compared as `(data->>'key')::timestamptz` (or `::date`,
+`::time`). PostgreSQL refuses to index that cast, because its result depends on the session's
+`TimeZone`, so a sort or a filter on the key reads every row. On a 100 000-row TVIEW, the 20
+newest rows by a document `DateTime`: a parallel sequential scan and a sort, 18 ms. By a native
+`timestamptz` column with an index: an index scan, 0.02 ms, same rows.
+
+The fix is the native column above: add it to the TVIEW's definition (pg_tviews keeps it equal
+to the document's value; it adds its own `created_at` and `updated_at`, so pick another name),
+index it, and map it with an argument of the field's name. `compile --database` names every
+sorted or filtered temporal key a `tv_*` query reads out of its document, and says whether the
+column already exists.
+
+FraiseQL does not sort these keys as text instead. pg_tviews renders them in UTC ISO 8601
+(a documented contract since beta.26), but a value it did not render (text copied through, a
+row from before an upgrade) or `-infinity` would then sort silently out of order.

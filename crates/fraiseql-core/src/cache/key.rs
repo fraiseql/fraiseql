@@ -50,7 +50,8 @@ use serde_json::Value as JsonValue;
 use crate::{
     backend::{
         ComposedEmbed, ComposedKeyset, ComposedLevel, EmbedShape, EmbedSource, LevelKeys,
-        OrderByClause, ProjectionRequest, RelayCursor, WhereOperator, where_clause::WhereClause,
+        NativeCorrelation, OrderByClause, ProjectionRequest, RelayCursor, WhereOperator,
+        where_clause::WhereClause,
     },
     schema::QueryDefinition,
     security::SecurityContext,
@@ -426,6 +427,7 @@ fn hash_composed_level(h: &mut impl Hasher, level: &ComposedLevel) {
                 target_key,
                 parent_key,
                 key_type,
+                native,
             } => {
                 h.write_u8(b'R');
                 hash_strings(h, target_key);
@@ -433,6 +435,16 @@ fn hash_composed_level(h: &mut impl Hasher, level: &ComposedLevel) {
                 // A fieldless enum: its `Debug` name is stable and holds no map.
                 h.write(format!("{key_type:?}").as_bytes());
                 h.write_u8(0);
+                match native {
+                    Some(NativeCorrelation {
+                        target_column,
+                        parent_column,
+                    }) => {
+                        h.write_u8(1);
+                        hash_strings(h, &[target_column.clone(), parent_column.clone()]);
+                    },
+                    None => h.write_u8(0),
+                }
             },
             EmbedSource::Materialised { keys } => {
                 h.write_u8(b'P');

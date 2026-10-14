@@ -43,6 +43,7 @@ fn posts_with_comments_by(author: &str) -> ComposedLevel {
             target_key: vec!["post_id".to_string()],
             parent_key: vec!["id".to_string()],
             key_type:   ScalarFieldType::Text,
+            native:     None,
         },
         level:      comments,
     });

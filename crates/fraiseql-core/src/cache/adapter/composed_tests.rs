@@ -127,6 +127,10 @@ fn posts_with_comments() -> ComposedLevel {
             target_key: vec!["post_id".to_string()],
             parent_key: vec!["id".to_string()],
             key_type:   ScalarFieldType::Text,
+            native:     Some(crate::backend::NativeCorrelation {
+                target_column: "fk_post".to_string(),
+                parent_column: "pk_post".to_string(),
+            }),
         },
         level:      level("tv_comment"),
     });
@@ -143,7 +147,7 @@ async fn read(adapter: &CachedDatabaseAdapter<ComposedAdapter>, routing: ReadRou
 
 fn hear_comments_of_posts(adapter: &CachedDatabaseAdapter<ComposedAdapter>) {
     adapter.collection_tagging().hear(CollectionMap::from_levels([(
-        ("tv_comment", "tv_post"),
+        ("tv_comment", "tv_post", "fk_post", "pk_post"),
         Collection::new("Comment", "fk_post"),
     )]));
 }

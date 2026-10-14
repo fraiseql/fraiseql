@@ -158,13 +158,15 @@ sql_source = "{SCHEMA}.tv_c1589"
     )
 }
 
-/// The document above, compiled, every query cached for 300 s.
-async fn schema() -> (CompiledSchema, TempDir) {
+/// The document above, compiled against the database at `url` (which proves `Post.comments`
+/// joins on `fk_p1589 = pk_p1589`, #1587), every query cached for 300 s.
+async fn schema(url: &str) -> (CompiledSchema, TempDir) {
     let temp_dir = TempDir::new().unwrap();
     let toml_path = temp_dir.path().join("fraiseql.toml");
     std::fs::write(&toml_path, fraiseql_toml()).unwrap();
     let (compiled, _) = compile_to_schema(CompileOptions {
         skip_hash: true,
+        database: Some(url),
         ..CompileOptions::new(toml_path.to_str().unwrap())
     })
     .await
@@ -193,7 +195,7 @@ async fn serve() -> Option<Running> {
     }
     let url = own_database(&shared).await;
     provision(&url).await;
-    let (schema, schema_dir) = schema().await;
+    let (schema, schema_dir) = schema(&url).await;
     let adapter = Arc::new(PostgresAdapter::new(&url).await.unwrap());
     let config = ServerConfig {
         database_url: url.clone(),

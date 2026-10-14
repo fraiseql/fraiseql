@@ -157,11 +157,12 @@ pub struct FeedCatalog {
 
 impl FeedCatalog {
     /// A catalog from `(type, view)` rows and `(child view, parent view, child type,
-    /// reference column)` rows.
+    /// reference column, parent identity column)` rows: one collection per reference, which
+    /// a level joining on exactly those columns forms.
     #[must_use]
     pub fn from_rows<'a>(
         type_rows: impl IntoIterator<Item = (&'a str, &'a str)>,
-        collection_rows: impl IntoIterator<Item = (&'a str, &'a str, &'a str, &'a str)>,
+        collection_rows: impl IntoIterator<Item = (&'a str, &'a str, &'a str, &'a str, &'a str)>,
     ) -> Self {
         let mut type_views: HashMap<String, Vec<ViewName>> = HashMap::new();
         for (type_name, view) in type_rows {
@@ -171,23 +172,11 @@ impl FeedCatalog {
                 views.push(view);
             }
         }
-        // A pair with two reference columns (a comment's author and its reviewer, both
-        // users) is not known: the level does not say which one it follows.
-        let mut pairs: BTreeMap<(&str, &str), BTreeSet<Collection>> = BTreeMap::new();
-        for (child, parent, child_type, column) in collection_rows {
-            pairs
-                .entry((child, parent))
-                .or_default()
-                .insert(Collection::new(child_type, column));
-        }
-        let collections =
-            CollectionMap::from_levels(pairs.into_iter().filter_map(|(pair, collections)| {
-                let mut only = collections.into_iter();
-                match (only.next(), only.next()) {
-                    (Some(collection), None) => Some((pair, collection)),
-                    _ => None,
-                }
-            }));
+        let collections = CollectionMap::from_levels(collection_rows.into_iter().map(
+            |(child, parent, child_type, column, key)| {
+                ((child, parent, column, key), Collection::new(child_type, column))
+            },
+        ));
         Self {
             type_views,
             collections,
@@ -244,7 +233,7 @@ pub async fn read_feed_catalog<A: DatabaseAdapter + ?Sized>(
         .execute_raw_query(&format!(
             "{reads}, {REGISTRY} \
              SELECT c.name AS child, p.name AS parent, ct.typename AS child_type, \
-                    ref.key AS column_name \
+                    ref.key AS column_name, ref.value ->> 'column' AS key_name \
              FROM roots c JOIN tv ct ON ct.rel = c.rel \
              CROSS JOIN LATERAL jsonb_each(ct.refs) ref \
              JOIN tv pt ON pt.entity = ref.value ->> 'entity' \
@@ -258,7 +247,7 @@ pub async fn read_feed_catalog<A: DatabaseAdapter + ?Sized>(
         .iter()
         .filter_map(|row| Some((text(row, "type_name")?, text(row, "view")?)))
         .collect();
-    let collections: Vec<[String; 4]> = collections
+    let collections: Vec<[String; 5]> = collections
         .iter()
         .filter_map(|row| {
             Some([
@@ -266,6 +255,7 @@ pub async fn read_feed_catalog<A: DatabaseAdapter + ?Sized>(
                 text(row, "parent")?,
                 text(row, "child_type")?,
                 text(row, "column_name")?,
+                text(row, "key_name")?,
             ])
         })
         .collect();
@@ -273,7 +263,7 @@ pub async fn read_feed_catalog<A: DatabaseAdapter + ?Sized>(
         types.iter().map(|(t, v)| (t.as_str(), v.as_str())),
         collections
             .iter()
-            .map(|[c, p, t, k]| (c.as_str(), p.as_str(), t.as_str(), k.as_str())),
+            .map(|[c, p, t, k, r]| (c.as_str(), p.as_str(), t.as_str(), k.as_str(), r.as_str())),
     )))
 }
 

@@ -313,10 +313,12 @@ While pg_tviews' change feed is heard, a level listing the children of each pare
 indexed more precisely, by its parents' **collections**: the posts' comments by
 `Comment.fk_post:<post id>` for each post the result holds. A comment added to, moved out of
 or edited in post P evicts the composed reads listing P's comments, and no other. Which
-levels qualify comes from the database, never from a name: the level's view is a TVIEW with
-exactly one `tviews.registry.references` entry to its parent level's TVIEW, and every parent
-row carries its `id`. Any other level (a to-one embed, a plain view, two references to the
-same parent, a parent without an `id`) keeps the rule above.
+levels qualify comes from the database, never from a name: the level joins its parent on the
+columns `compile --database` proved (`native_join`, see
+[Composed reads](../performance.md#composed-reads-correlate-on-the-foreign-key)), that join is a
+`tviews.registry.references` entry of the level's TVIEW, and every parent row carries its `id`.
+Any other level (a to-one embed, a join on document keys, a plain view, a parent without an
+`id`) keeps the rule above.
 
 A write FraiseQL runs still sweeps the views it reaches at once, collection-tagged levels
 included: a client reading after its own write never waits for the feed. Only writes

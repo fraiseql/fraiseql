@@ -996,6 +996,121 @@ mod database_validator_tests {
             report.warnings
         );
     }
+
+    // ── #1571: a sorted or filtered temporal key read out of a TVIEW's document ──
+
+    /// `events` over `tv_event`, returning `Event { occurredAt: <ty> }`, with `auto_params`
+    /// and the relation's extra columns as given.
+    async fn temporal_report(
+        source: &str,
+        ty: FieldType,
+        auto_params: AutoParams,
+        extra_columns: Vec<(&str, &str, bool)>,
+        mapped_by_argument: bool,
+    ) -> Vec<DatabaseWarning> {
+        let mut columns = vec![("data", "jsonb", false), ("id", "uuid", false)];
+        columns.extend(extra_columns);
+        let introspector = MockIntrospector::new(DatabaseType::PostgreSQL)
+            .with_relation("public", source, fraiseql_core::db::RelationKind::Table)
+            .with_columns(source, columns)
+            .with_json_samples(source, "data", vec![serde_json::json!({"occurredAt": "x"})]);
+        let mut query = make_query("events", "Event", source);
+        query.auto_params = auto_params;
+        if mapped_by_argument {
+            query.arguments.push(ArgumentDefinition::new("occurredAt", FieldType::DateTime));
+        }
+        let schema = make_schema(vec![make_type("Event", vec![("occurredAt", ty)])], vec![query]);
+        validate_schema_against_database(&schema, &introspector).await.unwrap().warnings
+    }
+
+    fn sorting() -> AutoParams {
+        AutoParams {
+            has_order_by: true,
+            ..AutoParams::default()
+        }
+    }
+
+    fn temporal_advice(warnings: &[DatabaseWarning]) -> Vec<(&str, &str, &str, bool)> {
+        warnings
+            .iter()
+            .filter_map(|w| match w {
+                DatabaseWarning::TemporalKeyInDocument {
+                    query_name,
+                    field,
+                    column,
+                    column_exists,
+                    ..
+                } => Some((query_name.as_str(), field.as_str(), column.as_str(), *column_exists)),
+                _ => None,
+            })
+            .collect()
+    }
+
+    #[tokio::test]
+    async fn a_sorted_datetime_read_from_a_tview_document_is_advised() {
+        let warnings =
+            temporal_report("tv_event", FieldType::DateTime, sorting(), vec![], false).await;
+        assert_eq!(
+            temporal_advice(&warnings),
+            vec![("events", "occurredAt", "occurred_at", false)]
+        );
+        let advice = warnings
+            .iter()
+            .find(|w| matches!(w, DatabaseWarning::TemporalKeyInDocument { .. }))
+            .unwrap();
+        assert_eq!(advice.severity(), Severity::Warn, "advice, never a failed compile");
+    }
+
+    #[tokio::test]
+    async fn a_filtered_date_is_advised_too() {
+        let filtering = AutoParams {
+            has_where: true,
+            ..AutoParams::default()
+        };
+        let warnings = temporal_report("tv_event", FieldType::Date, filtering, vec![], false).await;
+        assert_eq!(
+            temporal_advice(&warnings),
+            vec![("events", "occurredAt", "occurred_at", false)]
+        );
+    }
+
+    #[tokio::test]
+    async fn a_column_the_query_does_not_map_yet_is_named_as_existing() {
+        let column = vec![("occurred_at", "timestamp with time zone", false)];
+        let warnings =
+            temporal_report("tv_event", FieldType::DateTime, sorting(), column, false).await;
+        assert_eq!(temporal_advice(&warnings), vec![("events", "occurredAt", "occurred_at", true)]);
+    }
+
+    #[tokio::test]
+    async fn a_temporal_key_mapped_to_its_native_column_is_not_advised() {
+        let column = vec![("occurred_at", "timestamp with time zone", false)];
+        let warnings =
+            temporal_report("tv_event", FieldType::DateTime, sorting(), column, true).await;
+        assert!(temporal_advice(&warnings).is_empty(), "{warnings:?}");
+    }
+
+    #[tokio::test]
+    async fn a_query_that_neither_sorts_nor_filters_is_not_advised() {
+        let warnings =
+            temporal_report("tv_event", FieldType::DateTime, AutoParams::default(), vec![], false)
+                .await;
+        assert!(temporal_advice(&warnings).is_empty(), "{warnings:?}");
+    }
+
+    #[tokio::test]
+    async fn a_non_temporal_key_is_not_advised() {
+        let warnings =
+            temporal_report("tv_event", FieldType::String, sorting(), vec![], false).await;
+        assert!(temporal_advice(&warnings).is_empty(), "{warnings:?}");
+    }
+
+    #[tokio::test]
+    async fn a_relation_that_is_not_a_tview_is_not_advised() {
+        let warnings =
+            temporal_report("v_event", FieldType::DateTime, sorting(), vec![], false).await;
+        assert!(temporal_advice(&warnings).is_empty(), "{warnings:?}");
+    }
 }
 
 mod merger_tests {

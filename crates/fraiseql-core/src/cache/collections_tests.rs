@@ -28,6 +28,7 @@ fn correlated() -> EmbedSource {
         target_key: vec!["post_id".to_string()],
         parent_key: vec!["id".to_string()],
         key_type:   ScalarFieldType::Text,
+        native:     None,
     }
 }
 
@@ -45,10 +46,24 @@ fn embed(
     }
 }
 
+/// Joined on the columns `compile --database` proved: the comment's `fk_post`, the post's
+/// `pk_post`.
+fn by_fk_post() -> EmbedSource {
+    EmbedSource::Correlated {
+        target_key: vec!["post_id".to_string()],
+        parent_key: vec!["id".to_string()],
+        key_type:   ScalarFieldType::Text,
+        native:     Some(crate::backend::NativeCorrelation {
+            target_column: "fk_post".to_string(),
+            parent_column: "pk_post".to_string(),
+        }),
+    }
+}
+
 /// `tv_post`, embedding its comments under `comments` as `shape`.
 fn posts(shape: EmbedShape) -> ComposedLevel {
     let mut posts = level("tv_post");
-    posts.embeds.push(embed("comments", shape, correlated(), level("tv_comment")));
+    posts.embeds.push(embed("comments", shape, by_fk_post(), level("tv_comment")));
     posts
 }
 
@@ -65,7 +80,10 @@ fn rows(values: Vec<Value>) -> Vec<JsonbValue> {
 
 /// A map in which `tv_comment` rows are a collection of `tv_post` by `fk_post`.
 fn comments_of_posts() -> CollectionMap {
-    CollectionMap::from_levels([(("tv_comment", "tv_post"), Collection::new("Comment", "fk_post"))])
+    CollectionMap::from_levels([(
+        ("tv_comment", "tv_post", "fk_post", "pk_post"),
+        Collection::new("Comment", "fk_post"),
+    )])
 }
 
 fn views_of(view: &str) -> Vec<String> {
@@ -154,7 +172,7 @@ fn levels_beneath_a_list_are_tagged_by_their_own_rows() {
         .embeds
         .push(embed("author", EmbedShape::One, correlated(), level("tv_user")));
     let mut read = level("tv_post");
-    read.embeds.push(embed("comments", EmbedShape::Many, correlated(), comments));
+    read.embeds.push(embed("comments", EmbedShape::Many, by_fk_post(), comments));
     let result = rows(vec![row(
         json!({"id": "p1"}),
         json!({"comments": [row(json!({"id": "c1"}), json!({"author": row(json!({"id": "u1"}), json!({}))}))]}),
@@ -184,4 +202,17 @@ fn every_level_is_indexed_by_its_secondary_views_too() {
     let (views, tags) = composed_tags(&read, &result, Some(&comments_of_posts()), with_secondary);
     assert_eq!(sorted(views), vec!["tv_post", "tv_post_extra"]);
     assert_eq!(sorted(tags.collected_views), vec!["tv_comment", "tv_comment_extra"]);
+}
+
+#[test]
+fn a_list_correlated_on_stored_keys_is_indexed_by_its_view() {
+    // The registry proves `fk_post`; a level joining on a key in the documents may follow
+    // another relationship to the same parent (pinned comments): no collection is proven.
+    let mut read = level("tv_post");
+    read.embeds
+        .push(embed("comments", EmbedShape::Many, correlated(), level("tv_comment")));
+    let result = rows(vec![row(json!({"id": "p1"}), json!({"comments": []}))]);
+    let (views, tags) = composed_tags(&read, &result, Some(&comments_of_posts()), views_of);
+    assert_eq!(sorted(views), vec!["tv_comment", "tv_post"]);
+    assert!(tags.collections.is_empty(), "{tags:?}");
 }
