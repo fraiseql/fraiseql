@@ -300,7 +300,7 @@ impl Server {
         // Build the result cache and wrap the adapter — the one seam every
         // constructor shares, so `cache_enabled` cannot mean three different
         // things by constructor (#889). Runs the cache+RLS gates.
-        let (cached, cache_config, cache_feed) =
+        let (cached, cache_config, cache_feed, tviews_feed) =
             crate::server::initialization::build_cached_adapter(
                 &schema,
                 config.cache_enabled,
@@ -331,6 +331,7 @@ impl Server {
 
         server.adapter_cache_enabled = cache_config.enabled;
         server.cache_feed = cache_feed;
+        server.tviews_feed = tviews_feed;
 
         server.apply_compiled_config()
     }
@@ -1034,6 +1035,7 @@ impl Server {
             pool_tuning_config: None,
             adapter_cache_enabled: false,
             cache_feed: None,
+            tviews_feed: None,
             storage_max_upload_bytes: 100 * 1024 * 1024, // 100 MiB default
             usage: Arc::clone(crate::usage::aggregator::global_aggregator()),
             tasks,

@@ -99,6 +99,12 @@ disagreed, and the promise was the part that was wrong.
 
 ### Added
 
+- **The result cache hears pg_tviews' change feed (#1589).** When the database publishes
+  rows (`pg_tviews.publish_changes = 'rows'`, pg_tviews 0.1.0-beta.30), each server listens on
+  `tviews_changes` and evicts what every committed TVIEW write made stale, whoever ran it
+  (`psql`, a migration, another application), on every server. Nothing to configure; see
+  `docs/modules/cache.md`. Metrics `fraiseql_tviews_feed_connected` and
+  `fraiseql_tviews_feed_received_total`.
 - **`FRAISEQL_POOL_MAX_SIZE` (and `--pool-max-size`) sizes the PostgreSQL pool (#1558).** It
   overrides the `pool_max_size` config key, so a deployment can size the pool without editing
   its TOML. An unparseable value refuses to boot, naming the variable. The default stays 20:
@@ -137,6 +143,10 @@ disagreed, and the promise was the part that was wrong.
 
 ### Changed
 
+- **Composed reads are cached (#1589).** A REST `?select=` embed or a composed GraphQL list,
+  read through a query with `cache_ttl_seconds`, is cached under a key over the whole tree and
+  evicted by a write to any view it reads; with pg_tviews' change feed heard, a list of each
+  parent's children is evicted by those parents' collections only. They were never cached.
 - **A repeated read costs one round trip, not two (#1557).** Regular, `where` and row reads, with
   or without session variables, are prepared once per pooled connection and reused instead of
   being parsed and described on every call. Read SQL varies with the client's document, so each

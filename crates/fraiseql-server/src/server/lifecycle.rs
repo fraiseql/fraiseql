@@ -168,6 +168,17 @@ impl Server {
             self.tasks.spawn(super::cache_feed::run(connector, parts, instance));
         }
 
+        // #1589: the listener on pg_tviews' change feed, here for the same reason.
+        if let Some(listener) = self.tviews_feed.take() {
+            let tls = self.config.postgres_tls().map_err(ServerError::ConfigError)?;
+            let connector =
+                fraiseql_core::db::postgres::NotifyConnector::new(&self.config.database_url, tls)
+                    .map_err(|e| ServerError::ConfigError(e.to_string()))?;
+            let instance = uuid::Uuid::new_v4().to_string();
+            info!(%instance, "Query result cache: starting the listener on pg_tviews' changes");
+            self.tasks.spawn(super::tviews_feed::run(connector, listener, instance));
+        }
+
         // Keep stored IdPs current (#947). Writes through this server's own admin API
         // refresh synchronously, so the ticker exists to pick up another replica's changes
         // and to keep the certificate-expiry warning honest. Spawned here rather than at

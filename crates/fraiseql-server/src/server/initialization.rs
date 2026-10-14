@@ -1298,6 +1298,7 @@ pub(super) async fn build_cached_adapter<A: DatabaseAdapter + Clone + Send + Syn
     fraiseql_core::cache::CachedDatabaseAdapter<A>,
     fraiseql_core::cache::CacheConfig,
     Option<super::cache_feed::CacheFeedParts>,
+    Option<fraiseql_core::cache::tviews_feed::TviewsListener>,
 )> {
     use fraiseql_core::cache::{CacheConfig, CachedDatabaseAdapter, QueryResultCache};
 
@@ -1348,9 +1349,44 @@ pub(super) async fn build_cached_adapter<A: DatabaseAdapter + Clone + Send + Syn
         cached
     };
 
+    // #1589: writes this server does not run, heard from pg_tviews' change feed.
+    let tviews_feed = if cache_config.enabled {
+        tviews_listener(&cached, schema).await
+    } else {
+        None
+    };
+
     // #1577: last, so the evictor expands another server's sweeps through the graph above.
     let (cached, feed) = attach_cache_feed(cached, cache_config.enabled, cross_instance);
-    Ok((cached, cache_config, feed))
+    Ok((cached, cache_config, feed, tviews_feed))
+}
+
+/// The cache's listener on pg_tviews' change feed, when the database publishes rows (#1589).
+///
+/// Unreadable, the cache keeps hearing only this server's writes, and the log says so.
+async fn tviews_listener<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
+    cached: &fraiseql_core::cache::CachedDatabaseAdapter<A>,
+    schema: &CompiledSchema,
+) -> Option<fraiseql_core::cache::tviews_feed::TviewsListener> {
+    match fraiseql_core::cache::tviews_feed::read_feed_catalog(cached, schema).await {
+        Ok(Some(catalog)) => {
+            info!(
+                types = catalog.type_views.len(),
+                "Query result cache: the database publishes pg_tviews' changes; writes this \
+                 server does not run evict too"
+            );
+            Some(cached.tviews_listener(catalog))
+        },
+        Ok(None) => None,
+        Err(error) => {
+            warn!(
+                %error,
+                "Query result cache: cannot read pg_tviews' change feed catalog; writes this \
+                 server does not run are not heard"
+            );
+            None
+        },
+    }
 }
 
 /// How many announcements wait for the feed before the next one is lost (and the feed
