@@ -382,7 +382,7 @@ impl PgCatalog {
         Ok(row.get(0))
     }
 
-    /// The references between TVIEWs that `sql_sources` name (#1587), from pg_tviews'
+    /// The references between TVIEWs that `sql_sources` name (#1587), from `pg_tviews`'
     /// registry: each child TVIEW's column holding a parent TVIEW's identity, proven by a
     /// `FOREIGN KEY`. Both ends are matched by relation, so a plain view over a TVIEW, or a
     /// source naming none, takes part in none. Empty when the registry has no `references`.
@@ -438,7 +438,7 @@ impl PgCatalog {
     }
 
     /// Whether the database has `tviews.pg_tviews_flush_and_report(integer, boolean,
-    /// boolean)`, the function a `cascade_source = "pg_tviews"` mutation calls before its
+    /// boolean)`, the function a `cascade_source = "`pg_tviews`"` mutation calls before its
     /// commit (#1391).
     ///
     /// # Errors

@@ -1,4 +1,4 @@
-//! #1587: a composed read correlates on the columns pg_tviews proves, end to end.
+//! #1587: a composed read correlates on the columns `pg_tviews` proves, end to end.
 //!
 //! `fraiseql compile --database` reads `tviews.registry.references`: `tv_c1587.fk_p1587` holds
 //! `tv_p1587`'s identity `pk_p1587`, proven by a `FOREIGN KEY`. The compiled relationship then
