@@ -1,5 +1,7 @@
 //! The key of a composed read (#1589).
 
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
 use serde_json::json;
 
 use super::generate_composed_query_key;

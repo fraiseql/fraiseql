@@ -331,7 +331,7 @@ pub struct Server {
     /// (#1577). `None` unless `cache_cross_instance = "notify"` and the cache is on.
     pub(super) cache_feed: Option<cache_feed::CacheFeedParts>,
 
-    /// The result cache's listener on pg_tviews' change feed, started when the server
+    /// The result cache's listener on `pg_tviews`' change feed, started when the server
     /// serves (#1589). `None` unless the cache is on and the database publishes rows.
     pub(super) tviews_feed: Option<fraiseql_core::cache::tviews_feed::TviewsListener>,
 

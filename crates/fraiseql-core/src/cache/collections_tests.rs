@@ -53,7 +53,10 @@ fn posts(shape: EmbedShape) -> ComposedLevel {
 }
 
 fn row(document: Value, embeds: Value) -> Value {
-    json!({ "d": document, "e": embeds })
+    Value::Object(serde_json::Map::from_iter([
+        ("d".to_string(), document),
+        ("e".to_string(), embeds),
+    ]))
 }
 
 fn rows(values: Vec<Value>) -> Vec<JsonbValue> {

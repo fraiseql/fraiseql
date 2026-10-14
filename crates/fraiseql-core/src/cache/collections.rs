@@ -3,7 +3,7 @@
 //! A composed read spans every view its levels name. The plain rule indexes the entry under
 //! all of them, so a write to any view in the tree evicts it. A level listing the children
 //! of each parent row — the comments of each post — can be indexed more precisely when
-//! pg_tviews' change feed is heard: by its **collections**, `Comment.fk_post:<post id>` for
+//! `pg_tviews`' change feed is heard: by its **collections**, `Comment.fk_post:<post id>` for
 //! each post in the result, which the feed names whenever a comment joins, leaves or changes
 //! in a post's list, whoever wrote it. A comment written under another post then no longer
 //! evicts the entry.
@@ -57,7 +57,7 @@ impl CollectionMap {
     }
 }
 
-/// The [`CollectionMap`] composed reads are indexed by, while this server hears pg_tviews'
+/// The [`CollectionMap`] composed reads are indexed by, while this server hears `pg_tviews`'
 /// change feed; nothing otherwise (#1589).
 ///
 /// The feed's listener sets it once it listens (after clearing the cache, so no entry
@@ -84,10 +84,11 @@ impl CollectionTagging {
     }
 }
 
-/// The views a composed read's entry is indexed under, and its [`ComposedTags`], from the
-/// read, the rows it returned, and the collections `map` knows (`None`: the change feed is
-/// not heard, every level is indexed by its views). `views_for` names the views an entry
-/// reading one view is indexed under (the view and the secondary views queries over it
+/// The views a composed read's entry is indexed under, and its [`ComposedTags`].
+///
+/// From the read, the rows it returned, and the collections `map` knows (`None`: the change
+/// feed is not heard, every level is indexed by its views). `views_for` names the views an
+/// entry reading one view is indexed under (the view and the secondary views queries over it
 /// declare).
 #[must_use]
 pub fn composed_tags(
