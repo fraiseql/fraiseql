@@ -15,7 +15,7 @@ dev = [
 
 [project]
 authors = [
-  {name = "FraiseQL Team"}
+  { name = "FraiseQL Team" }
 ]
 classifiers = [
   "Development Status :: 5 - Production/Stable",
@@ -34,7 +34,7 @@ dependencies = [
 ]
 description = "FraiseQL v2 - Compiled GraphQL execution engine (schema authoring)"
 keywords = ["graphql", "database", "sql", "compiler", "schema"]
-license = {text = "MIT"}
+license = { text = "MIT" }
 name = "fraiseql"
 readme = "README.md"
 requires-python = ">=3.10"
