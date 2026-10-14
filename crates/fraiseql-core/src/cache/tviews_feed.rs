@@ -24,7 +24,10 @@ use fraiseql_db::ViewName;
 use serde::Deserialize;
 use serde_json::Value;
 
-use super::{QueryResultCache, collections::CollectionMap};
+use super::{
+    QueryResultCache,
+    collections::{CollectionMap, CollectionTagging},
+};
 use crate::{db::DatabaseAdapter, error::Result, schema::CompiledSchema};
 
 /// The `NOTIFY` channel pg_tviews publishes on.
@@ -322,6 +325,52 @@ impl TviewsEvictor {
             self.cache.invalidate_collections_of(type_name)?;
         }
         Ok(())
+    }
+}
+
+/// What a server's listener on [`CHANNEL`] does to its cache (#1589).
+pub struct TviewsListener {
+    evictor:     TviewsEvictor,
+    tagging:     CollectionTagging,
+    collections: CollectionMap,
+}
+
+impl TviewsListener {
+    /// A listener for `cache`, whose composed reads `tagging` indexes, against `catalog`.
+    #[must_use]
+    pub fn new(
+        cache: Arc<QueryResultCache>,
+        tagging: CollectionTagging,
+        catalog: FeedCatalog,
+    ) -> Self {
+        Self {
+            evictor: TviewsEvictor::new(cache, catalog.type_views),
+            tagging,
+            collections: catalog.collections,
+        }
+    }
+
+    /// The session listens on [`CHANNEL`]. Nothing written before is heard: clear the
+    /// cache, then index composed reads by collection, in that order (a fill that read the
+    /// map is never older than the clear).
+    pub fn listening(&self) {
+        let _ = self.evictor.cache.clear();
+        self.tagging.hear(self.collections.clone());
+    }
+
+    /// The session is lost: what is written from now on is not heard. Stop indexing by
+    /// collection, then clear the cache, whose fence refuses every fill already in flight.
+    pub fn lost(&self) {
+        self.tagging.deafen();
+        let _ = self.evictor.cache.clear();
+    }
+
+    /// Apply `payload`, received on [`CHANNEL`]. An eviction that fails clears the cache:
+    /// evicting less than the write requires is a stale answer.
+    pub fn receive(&self, payload: &str) {
+        if self.evictor.apply(&decode(payload)).is_err() {
+            let _ = self.evictor.cache.clear();
+        }
     }
 }
 

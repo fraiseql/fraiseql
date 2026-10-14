@@ -10,7 +10,7 @@ use serde_json::json;
 
 use super::*;
 use crate::{
-    cache::{CacheConfig, ComposedTags, QueryResultCache},
+    cache::{CacheConfig, ComposedTags, QueryResultCache, collections::CollectionTagging},
     db::types::JsonbValue,
 };
 
@@ -255,4 +255,46 @@ fn a_catalog_knows_a_collection_by_its_one_reference() {
         None,
         "two references to users: which one a level follows is not known"
     );
+}
+
+fn listener(cache: &Arc<QueryResultCache>, tagging: &CollectionTagging) -> TviewsListener {
+    TviewsListener::new(
+        Arc::clone(cache),
+        tagging.clone(),
+        FeedCatalog::from_rows(
+            [("Comment", "tv_comment")],
+            [("tv_comment", "tv_post", "Comment", "fk_post")],
+        ),
+    )
+}
+
+#[test]
+fn listening_clears_the_cache_then_indexes_by_collection() {
+    let (cache, tagging) = (cache(), CollectionTagging::default());
+    fill(&cache);
+    listener(&cache, &tagging).listening();
+    assert!((1..=4).all(|key| !cached(&cache, key)), "what was missed before is gone");
+    assert!(tagging.current().is_some());
+}
+
+#[test]
+fn losing_the_feed_stops_indexing_by_collection_and_clears_the_cache() {
+    let (cache, tagging) = (cache(), CollectionTagging::default());
+    let listener = listener(&cache, &tagging);
+    listener.listening();
+    fill(&cache);
+    listener.lost();
+    assert!(tagging.current().is_none());
+    assert!((1..=4).all(|key| !cached(&cache, key)), "no write is heard any more");
+}
+
+#[test]
+fn a_received_message_is_applied() {
+    let (cache, tagging) = (cache(), CollectionTagging::default());
+    let listener = listener(&cache, &tagging);
+    listener.listening();
+    fill(&cache);
+    listener.receive(r#"{"v":2,"c":{"Comment.fk_post":["p1"]}}"#);
+    assert!(!cached(&cache, 2));
+    assert!(cached(&cache, 1));
 }
