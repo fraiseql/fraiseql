@@ -233,23 +233,6 @@ pub enum DatabaseWarning {
         /// The native column's SQL type (e.g. `uuid`).
         column_type:  String,
     },
-    /// L2: a query sorts or filters a `DateTime`, `Date` or `Time` field it reads out of a
-    /// TVIEW's document (#1571). The runtime compares `(data->>'key')::timestamptz`, a cast
-    /// PostgreSQL will not index (it depends on the session's `TimeZone`), so every sort or
-    /// filter on the key reads every row. A native column of the type, mapped by an argument
-    /// of the field's name, is read instead, and an index on it serves both.
-    TemporalKeyInDocument {
-        /// Name of the query.
-        query_name:    String,
-        /// The `sql_source` relation.
-        sql_source:    String,
-        /// The field, as the schema names it.
-        field:         String,
-        /// The column the runtime would read for it.
-        column:        String,
-        /// Whether the relation already has that column (only the mapping is missing).
-        column_exists: bool,
-    },
 }
 
 /// A query filter the runtime lowers onto the relation: what the author declared.
@@ -328,8 +311,7 @@ impl DatabaseWarning {
             },
             Self::MissingTypeSource { .. }
             | Self::NativeColumnFallback { .. }
-            | Self::SelfOrderingView { .. }
-            | Self::TemporalKeyInDocument { .. } => Severity::Warn,
+            | Self::SelfOrderingView { .. } => Severity::Warn,
         }
     }
 }
@@ -523,29 +505,6 @@ impl fmt::Display for DatabaseWarning {
                     "query `{query_name}`: argument `{arg_name}` is `{graphql_type}` but the native column \
                      `{sql_source}.{arg_name}` is `{column_type}` — the predicate may error or never match. \
                      Align the argument type with the column, or store the field in `data` for JSONB extraction."
-                )
-            },
-            Self::TemporalKeyInDocument {
-                query_name,
-                sql_source,
-                field,
-                column,
-                column_exists,
-            } => {
-                let step = if *column_exists {
-                    format!("`{sql_source}` already has `{column}`: give the query")
-                } else {
-                    format!(
-                        "add `{column}` to the TVIEW's definition (with its own type, e.g. \
-                         `timestamptz`, and an index), then give the query"
-                    )
-                };
-                write!(
-                    f,
-                    "query `{query_name}`: `{field}` is read out of `{sql_source}`'s document, so \
-                     every sort or filter on it casts each row's value and no index can serve it. \
-                     {step} an argument named `{field}` so this compile maps it to the column \
-                     (docs/performance.md, \"Use a Native Column\")."
                 )
             },
         }
@@ -905,17 +864,6 @@ pub async fn validate_schema_against_database(
                 }
             }
 
-            // L2 (#1571): a sorted or filtered temporal key read out of a TVIEW's document.
-            if !jsonb_col.is_empty() {
-                warnings.extend(temporal_keys_in_document(
-                    schema,
-                    query,
-                    source,
-                    &query_native,
-                    &column_map,
-                ));
-            }
-
             if !query_native.is_empty() {
                 native_columns.insert(query.name.clone(), query_native);
             }
@@ -982,45 +930,6 @@ pub async fn validate_schema_against_database(
         native_columns,
         pagination_orders,
     })
-}
-
-/// The `DateTime`, `Date` and `Time` fields `query` sorts or filters while reading them out of
-/// a TVIEW's document, with no native column mapped for them (#1571).
-///
-/// Only a `tv_*` relation: pg_tviews renders every temporal value of a TVIEW in UTC ISO, and
-/// a column is added to its definition alongside the document. Only a query exposing
-/// `orderBy` or `where`: one that does neither never compares the key.
-fn temporal_keys_in_document(
-    schema: &CompiledSchema,
-    query: &fraiseql_core::schema::QueryDefinition,
-    source: &str,
-    query_native: &HashMap<String, fraiseql_core::schema::NativeColumn>,
-    column_map: &HashMap<String, String>,
-) -> Vec<DatabaseWarning> {
-    let relation = source.rsplit('.').next().unwrap_or(source);
-    if !relation.starts_with("tv_")
-        || !(query.auto_params.has_order_by || query.auto_params.has_where)
-    {
-        return Vec::new();
-    }
-    let Some(ty) = schema.find_type(&query.return_type) else {
-        return Vec::new();
-    };
-    ty.fields
-        .iter()
-        .filter(|f| matches!(f.field_type, FieldType::DateTime | FieldType::Date | FieldType::Time))
-        .filter(|f| !query_native.contains_key(f.name.as_str()))
-        .map(|f| {
-            let column = fraiseql_core::utils::to_snake_case(f.name.as_str());
-            DatabaseWarning::TemporalKeyInDocument {
-                query_name: query.name.clone(),
-                sql_source: source.to_string(),
-                field: f.name.to_string(),
-                column_exists: column_map.contains_key(&column),
-                column,
-            }
-        })
-        .collect()
 }
 
 /// The Trinity primary-key column a type's relation is expected to expose.

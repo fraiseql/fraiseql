@@ -217,6 +217,7 @@ pub mod embedding_graph;
 pub mod entity_key;
 pub mod feed;
 pub mod query_analyzer;
+pub mod tviews_feed;
 pub mod uuid_extractor;
 
 // Fact table aggregation caching

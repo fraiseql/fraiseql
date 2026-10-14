@@ -34,8 +34,6 @@ disagreed, and the promise was the part that was wrong.
   (`MetricsResponse::cache_hit_ratio` is `Option<f64>`). Studio's metrics summary
   reads the same counts and now reports `entries`.
 
-- **`fraiseql-cli`'s `DatabaseWarning` gains `TemporalKeyInDocument` (#1571).** An exhaustive
-  `match` on it needs the arm.
 - **`ServerConfig` gains `cache_cross_instance` (#1577).** A struct literal listing every field
   adds it (`CacheCrossInstance::Off` keeps today's behaviour), or ends in `..Default::default()`.
 - **Reads run as prepared statements, cached per connection (#1557).** Behind PgBouncer in
@@ -116,13 +114,6 @@ disagreed, and the promise was the part that was wrong.
   the credential, tenant, locale and session-variable headers. A `GET` never registers a
   persisted query: registration stays a `POST`. `docs/modules/cache.md` has the table, and
   the caveat that a mutation evicts the server's cache, not a browser's or a CDN's.
-- **`compile --database` names the dates a TVIEW query sorts or filters out of its document
-  (#1571).** A `DateTime`, `Date` or `Time` field of a `tv_*` query exposing `orderBy` or `where`,
-  with no native column mapped for it, gets a warning: the runtime's `::timestamptz` cast cannot
-  be indexed, so every sort or filter reads every row (100 000 rows: 18 ms against 0.02 ms by an
-  indexed native column). It says whether the column already exists or must be added to the
-  TVIEW. `docs/performance.md` has the recipe. Sorting these keys as text was considered and not
-  adopted: values pg_tviews did not render would misorder silently.
 - **A write through one server evicts the entries it made stale on every server (#1577).**
   The result cache lives in one process, and a write evicted only on the server that ran it:
   another replica served the old answer until the entry's TTL ran out, and forever at
