@@ -10,10 +10,15 @@ use fraiseql_db::types::ReadRouting;
 use super::CachedDatabaseAdapter;
 use crate::{
     backend::{
-        DatabaseAdapter, ProjectionRequest, WhereClause,
+        ComposedLevel, DatabaseAdapter, ProjectionRequest, WhereClause,
         types::{JsonbValue, sql_hints::OrderByClause},
     },
-    cache::key::{generate_projection_query_key, generate_view_query_key},
+    cache::{
+        collections::composed_tags,
+        key::{
+            generate_composed_query_key, generate_projection_query_key, generate_view_query_key,
+        },
+    },
     error::Result,
 };
 
@@ -126,6 +131,58 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
         )?;
 
         Ok(arc)
+    }
+
+    /// Cache-aware implementation of `execute_composed_with_session` (#1589).
+    ///
+    /// The entry is indexed under every view the tree reads ([`composed_tags`]): a write to
+    /// any of them evicts it. While pg_tviews' change feed is heard, a level listing the
+    /// children of each parent is indexed by those parents' collections instead, which the
+    /// feed names on every change to a child, whoever wrote it.
+    ///
+    /// [`composed_tags`]: crate::cache::collections::composed_tags
+    pub(super) async fn execute_composed_impl(
+        &self,
+        read: &ComposedLevel,
+        session_vars: &[(&str, &str)],
+        routing: ReadRouting,
+    ) -> Result<Arc<Vec<JsonbValue>>> {
+        if !self.cache.is_enabled()
+            || (self.opt_in_mode && !self.cacheable_views.contains(&read.view))
+        {
+            return self.adapter.execute_composed_with_session(read, session_vars, routing).await;
+        }
+        let cache_key = generate_composed_query_key(
+            read,
+            session_vars,
+            crate::runtime::scoped_request_locale().as_deref(),
+            &self.schema_version,
+        );
+        if let Some(cached) = self.cache.get(cache_key)? {
+            return Ok(cached);
+        }
+
+        // Both before the round trip (#1079): a write evicting while the read is in flight
+        // refuses the fill, and so does the feed being lost, which clears the cache after
+        // dropping the map read here.
+        let fence = self.cache.invalidation_generation();
+        let map = self.collections.current();
+
+        let rows = self.adapter.execute_composed_with_session(read, session_vars, routing).await?;
+
+        let (views, tags) =
+            composed_tags(read, &rows, map.as_deref(), |view| self.accessed_views_for(view));
+        let ttl = self.view_ttl_overrides.get(&read.view).copied();
+        self.cache.put_composed(
+            cache_key,
+            Arc::clone(&rows),
+            views,
+            ttl,
+            None,
+            tags,
+            Some(fence),
+        )?;
+        Ok(rows)
     }
 
     /// Cache-aware implementation of `execute_where_query`.
