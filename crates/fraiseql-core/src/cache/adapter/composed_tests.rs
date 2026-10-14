@@ -56,7 +56,7 @@ impl DatabaseAdapter for ComposedAdapter {
     ) -> Result<Arc<Vec<JsonbValue>>> {
         self.reads.fetch_add(1, Ordering::SeqCst);
         Ok(Arc::new(vec![JsonbValue::new(
-            json!({"d": {"id": "p1"}, "e": {"comments": []}}),
+            json!({"d": {"id": "p1"}, "e": {"comments": [{"d": {"id": "c1"}, "e": {}}]}}),
         )]))
     }
 
@@ -237,4 +237,22 @@ fn every_level_opting_in_caches_the_read() {
 
 fn adapter_without_opt_in() -> CachedDatabaseAdapter<ComposedAdapter> {
     adapter()
+}
+
+#[tokio::test]
+async fn an_entity_eviction_reaches_a_composed_read_at_any_level() {
+    for (entity_type, id) in [("Post", "p1"), ("Comment", "c1")] {
+        let adapter = adapter();
+        read(&adapter, ReadRouting::Any).await;
+        adapter.invalidate_by_entity(entity_type, id).unwrap();
+        assert_eq!(read(&adapter, ReadRouting::Any).await, 2, "{entity_type} {id}");
+    }
+}
+
+#[tokio::test]
+async fn an_entity_the_read_does_not_hold_keeps_it() {
+    let adapter = adapter();
+    read(&adapter, ReadRouting::Any).await;
+    adapter.invalidate_by_entity("Comment", "c9").unwrap();
+    assert_eq!(read(&adapter, ReadRouting::Any).await, 1);
 }

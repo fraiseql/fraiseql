@@ -32,6 +32,7 @@ fn compose(cache: &QueryResultCache, key: u64, parents: &[&str], fence: Option<u
     let tags = ComposedTags {
         collected_views: vec!["tv_comment".to_string()],
         collections:     parents.iter().map(|p| (comments_by_post(), (*p).to_string())).collect(),
+        entities:        Vec::new(),
     };
     cache
         .put_composed(key, rows(), vec!["tv_post".to_string()], None, None, tags, fence)
@@ -71,6 +72,7 @@ fn a_child_type_evicts_every_collection_of_it_and_no_other() {
     let tags = ComposedTags {
         collected_views: vec!["tv_tag".to_string()],
         collections:     vec![(Collection::new("Tag", "fk_post"), "p1".to_string())],
+        entities:        Vec::new(),
     };
     cache
         .put_composed(3, rows(), vec!["tv_post".to_string()], None, None, tags, None)

@@ -87,16 +87,16 @@ impl InvalidationFence {
     }
 
     /// Whether an invalidation stamped after `snapshot` reaches a fill indexed under `views`,
-    /// `entity_type` and collections of `child_types`. A plain read: cheap, and enough to
+    /// `entity_types` and collections of `child_types`. A plain read: cheap, and enough to
     /// skip work early.
     pub(super) fn moved_since<'a>(
         &self,
         snapshot: u64,
         views: impl IntoIterator<Item = &'a str>,
-        entity_type: Option<&str>,
+        entity_types: impl IntoIterator<Item = &'a str>,
         child_types: impl IntoIterator<Item = &'a str>,
     ) -> bool {
-        self.reaches(snapshot, views, entity_type, child_types, |slot| slot.load(Ordering::SeqCst))
+        self.reaches(snapshot, views, entity_types, child_types, |slot| slot.load(Ordering::SeqCst))
     }
 
     /// [`moved_since`](Self::moved_since) as the authoritative check, made **after** the
@@ -106,10 +106,10 @@ impl InvalidationFence {
         &self,
         snapshot: u64,
         views: impl IntoIterator<Item = &'a str>,
-        entity_type: Option<&str>,
+        entity_types: impl IntoIterator<Item = &'a str>,
         child_types: impl IntoIterator<Item = &'a str>,
     ) -> bool {
-        self.reaches(snapshot, views, entity_type, child_types, |slot| {
+        self.reaches(snapshot, views, entity_types, child_types, |slot| {
             slot.fetch_add(0, Ordering::SeqCst)
         })
     }
@@ -118,13 +118,13 @@ impl InvalidationFence {
         &self,
         snapshot: u64,
         views: impl IntoIterator<Item = &'a str>,
-        entity_type: Option<&str>,
+        entity_types: impl IntoIterator<Item = &'a str>,
         child_types: impl IntoIterator<Item = &'a str>,
         read: impl Fn(&AtomicU64) -> u64,
     ) -> bool {
         read(&self.everything) > snapshot
             || views.into_iter().any(|view| read(self.slot(VIEW, view)) > snapshot)
-            || entity_type.is_some_and(|et| read(self.slot(ENTITY_TYPE, et)) > snapshot)
+            || entity_types.into_iter().any(|et| read(self.slot(ENTITY_TYPE, et)) > snapshot)
             || child_types
                 .into_iter()
                 .any(|child| read(self.slot(COLLECTION_TYPE, child)) > snapshot)

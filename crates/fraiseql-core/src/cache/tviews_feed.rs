@@ -127,14 +127,17 @@ pub fn decode(payload: &str) -> TviewsMessage {
 
 /// The ids `values` hold, each as text, or `None` when one is neither text nor a number.
 fn ids_of(values: &[Value]) -> Option<Vec<String>> {
-    values
-        .iter()
-        .map(|value| match value {
-            Value::String(id) => Some(id.clone()),
-            Value::Number(id) => Some(id.to_string()),
-            _ => None,
-        })
-        .collect()
+    values.iter().map(id_text).collect()
+}
+
+/// A public id as the feed and the cache's tags spell it: a uuid's (or any string's) text, an
+/// integer's decimal digits; `None` for anything else.
+pub(super) fn id_text(value: &Value) -> Option<String> {
+    match value {
+        Value::String(id) => Some(id.clone()),
+        Value::Number(id) => Some(id.to_string()),
+        _ => None,
+    }
 }
 
 /// `Comment.fk_post` as its child type and column: the type is a GraphQL name, which holds
