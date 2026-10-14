@@ -148,6 +148,7 @@ fn fill(cache: &QueryResultCache) {
     let tags = ComposedTags {
         collected_views: vec!["tv_comment".to_string()],
         collections:     vec![(Collection::new("Comment", "fk_post"), "p1".to_string())],
+        entities:        Vec::new(),
     };
     cache
         .put_composed(2, rows(), vec!["tv_post".to_string()], None, None, tags, None)

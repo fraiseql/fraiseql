@@ -139,8 +139,14 @@ struct Walk<'a, F> {
 }
 
 impl<F: Fn(&str) -> Vec<String>> Walk<'_, F> {
-    /// Index the levels embedded in `level`, whose rows in the result are `rows`.
+    /// Index `level`, whose rows in the result are `rows`, and the levels embedded in it.
     fn level(&mut self, level: &ComposedLevel, rows: &[&Value]) {
+        // Each row by its type and id, as a flat read of the level's view is indexed.
+        if let Some(entity_type) = super::view_name_to_entity_type(&level.view) {
+            self.tags.entities.extend(
+                rows.iter().filter_map(|row| row_id(row)).map(|id| (entity_type.clone(), id)),
+            );
+        }
         for embed in &level.embeds {
             if let EmbedSource::Correlated { .. } = embed.source {
                 match self.collection(level, embed, rows) {
@@ -188,18 +194,14 @@ impl<F: Fn(&str) -> Vec<String>> Walk<'_, F> {
             return None;
         }
         let collection = self.map?.collection(&embed.level.view, &parent.view, join)?;
-        rows.iter().map(|row| Some((collection.clone(), parent_id(row)?))).collect()
+        rows.iter().map(|row| Some((collection.clone(), row_id(row)?))).collect()
     }
 }
 
-/// The public id of a composed row's document, as the change feed writes it: a uuid's
-/// text, an integer's decimal digits.
-fn parent_id(row: &Value) -> Option<String> {
-    match row.get(COMPOSED_DOCUMENT_KEY)?.get("id")? {
-        Value::String(id) => Some(id.clone()),
-        Value::Number(id) => Some(id.to_string()),
-        _ => None,
-    }
+/// The public id of a composed row's document, as the change feed writes it
+/// ([`super::tviews_feed::id_text`]).
+fn row_id(row: &Value) -> Option<String> {
+    super::tviews_feed::id_text(row.get(COMPOSED_DOCUMENT_KEY)?.get("id")?)
 }
 
 /// Drop repeated names, keeping the first of each.

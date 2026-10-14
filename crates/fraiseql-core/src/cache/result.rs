@@ -144,6 +144,9 @@ pub struct ComposedTags {
     pub collected_views: Vec<String>,
     /// Each collection the entry composes, with the parent's id.
     pub collections:     Vec<(Collection, String)>,
+    /// The `(type, id)` of every row of every level, as [`CachedResult::entity_refs`] holds a
+    /// flat read's: an eviction by entity reaches the entry whichever level holds the row.
+    pub entities:        Vec<(String, String)>,
 }
 
 /// Moka `Expiry` implementation: reads TTL from `CachedResult.ttl_seconds`.
@@ -577,7 +580,7 @@ impl QueryResultCache {
             self.fence.moved_since(
                 snapshot,
                 accessed_views.iter().chain(&tags.collected_views).map(String::as_str),
-                entity_type,
+                entity_type.into_iter().chain(tags.entities.iter().map(|(t, _)| t.as_str())),
                 tags.collections.iter().map(|(c, _)| c.child_type.as_str()),
             )
         }) {
@@ -621,10 +624,11 @@ impl QueryResultCache {
                         .as_str()
                         .map(|id| (et.to_string(), id.to_string()))
                 })
+                .chain(tags.entities.iter().cloned())
                 .collect::<Vec<_>>()
                 .into_boxed_slice()
         } else {
-            Box::default()
+            tags.entities.clone().into_boxed_slice()
         };
 
         // Promote owned `String` view names into `ViewName(Arc<str>)` exactly
@@ -703,7 +707,12 @@ impl QueryResultCache {
             self.fence.moved_since_inserted(
                 snapshot,
                 entry.accessed_views.iter().chain(&*entry.collected_views).map(ViewName::as_str),
-                entity_type,
+                entry
+                    .entity_refs
+                    .iter()
+                    .map(|(t, _)| t.as_str())
+                    .chain(entity_type)
+                    .collect::<std::collections::BTreeSet<_>>(),
                 entry.collections.iter().map(|(c, _)| c.child_type.as_str()),
             )
         }) {
@@ -983,17 +992,8 @@ impl QueryResultCache {
             })
             .unwrap_or_default();
 
-        #[allow(clippy::cast_possible_truncation)]
-        // Reason: entry count never exceeds u64
-        let count = keys_to_invalidate.len() as u64;
-
-        for key in keys_to_invalidate {
-            self.store.invalidate(&key);
-            // Index cleanup handled by eviction listener.
-        }
-
-        self.invalidations.fetch_add(count, Ordering::Relaxed);
-        Ok(count)
+        // Index cleanup handled by eviction listener.
+        Ok(self.evict(keys_to_invalidate))
     }
 
     /// Get cache metrics snapshot.
