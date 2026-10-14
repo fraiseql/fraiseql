@@ -8,10 +8,11 @@
 //! in a post's list, whoever wrote it. A comment written under another post then no longer
 //! evicts the entry.
 //!
-//! Which levels are collections comes from the database, never from a name: a level whose
-//! view **is** a TVIEW holding exactly one `tviews.registry.references` entry to its parent
-//! level's TVIEW ([`CollectionMap`]). Every other level — a to-one embed, a plain view, two
-//! references to the same parent, a parent row without an `id` — keeps the plain rule.
+//! Which levels are collections comes from the database, never from a name: a level that
+//! joins its parent on the native columns `compile --database` proved (#1587), where the
+//! child column is a `tviews.registry.references` entry of the level's TVIEW naming the parent
+//! level's TVIEW and its identity ([`CollectionMap`]). Every other level — a to-one embed, a
+//! join on document keys, a plain view, a parent row without an `id` — keeps the plain rule.
 
 use std::{
     collections::HashMap,
@@ -24,36 +25,50 @@ use super::{result::ComposedTags, tviews_feed::Collection};
 use crate::{
     backend::{
         COMPOSED_DOCUMENT_KEY, COMPOSED_EMBEDS_KEY, ComposedEmbed, ComposedLevel, EmbedShape,
-        EmbedSource,
+        EmbedSource, NativeCorrelation,
     },
     db::types::JsonbValue,
 };
 
-/// The collections composed levels are, by `(child view, parent view)`, as FraiseQL names
-/// the views.
+/// The collections composed levels are, by `(child view, parent view, child column, parent
+/// column)`, the views as FraiseQL names them: one entry per registry reference.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CollectionMap {
-    levels: HashMap<(String, String), Collection>,
+    levels: HashMap<(String, String, String, String), Collection>,
 }
 
 impl CollectionMap {
-    /// A map of the given `((child view, parent view), collection)` pairs.
+    /// A map of the given `((child view, parent view, child column, parent column),
+    /// collection)` pairs.
     #[must_use]
     pub fn from_levels<'a>(
-        levels: impl IntoIterator<Item = ((&'a str, &'a str), Collection)>,
+        levels: impl IntoIterator<Item = ((&'a str, &'a str, &'a str, &'a str), Collection)>,
     ) -> Self {
         Self {
             levels: levels
                 .into_iter()
-                .map(|((child, parent), c)| ((child.to_string(), parent.to_string()), c))
+                .map(|((child, parent, column, key), c)| {
+                    ((child.into(), parent.into(), column.into(), key.into()), c)
+                })
                 .collect(),
         }
     }
 
-    /// The collection rows of `child_view` form under a row of `parent_view`, if they do.
+    /// The collection rows of `child_view` form under a row of `parent_view` when joined on
+    /// `join`, if the registry proves one.
     #[must_use]
-    pub fn collection(&self, child_view: &str, parent_view: &str) -> Option<&Collection> {
-        self.levels.get(&(child_view.to_string(), parent_view.to_string()))
+    pub fn collection(
+        &self,
+        child_view: &str,
+        parent_view: &str,
+        join: &NativeCorrelation,
+    ) -> Option<&Collection> {
+        self.levels.get(&(
+            child_view.to_string(),
+            parent_view.to_string(),
+            join.target_column.clone(),
+            join.parent_column.clone(),
+        ))
     }
 }
 
@@ -163,10 +178,16 @@ impl<F: Fn(&str) -> Vec<String>> Walk<'_, F> {
         embed: &ComposedEmbed,
         rows: &[&Value],
     ) -> Option<Vec<(Collection, String)>> {
+        let EmbedSource::Correlated {
+            native: Some(join), ..
+        } = &embed.source
+        else {
+            return None;
+        };
         if embed.shape == EmbedShape::One {
             return None;
         }
-        let collection = self.map?.collection(&embed.level.view, &parent.view)?;
+        let collection = self.map?.collection(&embed.level.view, &parent.view, join)?;
         rows.iter().map(|row| Some((collection.clone(), parent_id(row)?))).collect()
     }
 }

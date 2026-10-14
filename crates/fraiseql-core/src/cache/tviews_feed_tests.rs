@@ -237,24 +237,34 @@ fn a_catalog_maps_each_type_to_the_views_reading_it() {
 }
 
 #[test]
-fn a_catalog_knows_a_collection_by_its_one_reference() {
+fn a_catalog_knows_each_reference_as_a_collection_of_its_join() {
     let catalog = FeedCatalog::from_rows(
         [],
         [
-            ("tv_comment", "tv_post", "Comment", "fk_post"),
-            ("tv_comment", "tv_user", "Comment", "fk_author"),
-            ("tv_comment", "tv_user", "Comment", "reviewed_by"),
+            ("tv_comment", "tv_user", "Comment", "fk_author", "pk_user"),
+            ("tv_comment", "tv_user", "Comment", "reviewed_by", "pk_user"),
         ],
     );
+    let join = |target: &str, parent: &str| crate::backend::NativeCorrelation {
+        target_column: target.to_string(),
+        parent_column: parent.to_string(),
+    };
+    let collection = |target, parent| {
+        catalog
+            .collections
+            .collection("tv_comment", "tv_user", &join(target, parent))
+            .cloned()
+    };
     assert_eq!(
-        catalog.collections.collection("tv_comment", "tv_post"),
-        Some(&Collection::new("Comment", "fk_post"))
+        collection("fk_author", "pk_user"),
+        Some(Collection::new("Comment", "fk_author"))
     );
     assert_eq!(
-        catalog.collections.collection("tv_comment", "tv_user"),
-        None,
-        "two references to users: which one a level follows is not known"
+        collection("reviewed_by", "pk_user"),
+        Some(Collection::new("Comment", "reviewed_by"))
     );
+    assert_eq!(collection("fk_editor", "pk_user"), None, "no such reference");
+    assert_eq!(collection("fk_author", "id"), None, "not the parent's identity");
 }
 
 fn listener(cache: &Arc<QueryResultCache>, tagging: &CollectionTagging) -> TviewsListener {
@@ -263,7 +273,7 @@ fn listener(cache: &Arc<QueryResultCache>, tagging: &CollectionTagging) -> Tview
         tagging.clone(),
         FeedCatalog::from_rows(
             [("Comment", "tv_comment")],
-            [("tv_comment", "tv_post", "Comment", "fk_post")],
+            [("tv_comment", "tv_post", "Comment", "fk_post", "pk_post")],
         ),
     )
 }
