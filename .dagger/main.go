@@ -2040,7 +2040,7 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		// from pg_tviews' registry and pg_depend), and every type a derived cascade reports.
 		"cargo test -p fraiseql-server --test cache_embedding_eviction_e2e_pg -- --test-threads=1",
 		// #1589: pg_tviews' change feed evicts what a write this server did not run made
-		// stale, and composed lists by collection. Skips below pg_tviews 0.1.0-beta.30.
+		// stale, and composed lists by collection. Skips on a pg_tviews without tviews.registry.typename.
 		"cargo test -p fraiseql-server --features rest --test cache_tviews_feed_e2e_pg -- --test-threads=1",
 		// #1577: with `cache_cross_instance = "notify"`, a write through one server evicts on
 		// another over the same database, and a server that cannot hear the others (feed
