@@ -134,6 +134,27 @@ present:
 | offset 0 | 1,347 req/s | 5,977 req/s (4.4×) |
 | offset 2000 | 15.7 req/s | 2,024 req/s (129×) |
 
+## Composed Reads: Correlate on the Foreign Key
+
+A REST `?select=` embed, or a nested list read in one statement, attaches each related row
+to its parent. By default it compares stored document keys, `(data->>'post_id')::uuid =
+(parent.data->>'id')::uuid`, which no index serves: every parent row reads the whole child
+view. On pg_tviews TVIEWs, `fraiseql compile --database` replaces that with the SQL columns
+the database proves join the two: `tviews.registry.references` lists each TVIEW column a
+`FOREIGN KEY` of its root table proves to hold another TVIEW's identity (`tv_comment.fk_post`
+→ `tv_post.pk_post`), and pg_tviews indexes it as `(fk_post, pk_comment)`. The compiled
+relationship records the pair (`native_join`), and the statement compares the columns:
+
+```sql
+WHERE "fk_post" = _l0."_j0"   -- _l0's page carries "pk_post" AS "_j0"
+```
+
+Of several references from the child to the parent (`fk_author`, `reviewed_by`), the one the
+relationship's `foreign_key` names is taken; two and none named, or a type that reads a plain
+view, keep the document keys. Measured with pg_tviews' read-path harness (PostgreSQL 18.4, 20
+posts of 100,000 comments): about 180 ms per page on the document keys, 0.24 ms on the
+column.
+
 With the column, the read is an index-only scan.
 
 ### Dates and times on a TVIEW (#1571)

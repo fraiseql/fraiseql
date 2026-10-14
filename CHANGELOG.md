@@ -130,6 +130,12 @@ disagreed, and the promise was the part that was wrong.
 
 ### Changed
 
+- **Composed reads correlate on the foreign key pg_tviews proves (#1587).** Compiled with
+  `--database`, a relationship between two pg_tviews TVIEWs records the columns
+  `tviews.registry.references` proves it joins on (`native_join`), and a composed read compares
+  `"fk_post" = parent."pk_post"` instead of document keys: an index serves it (~180 ms → 0.24 ms
+  per page of 20 posts over 100k comments). Schemas compiled before, or without `--database`,
+  keep the document keys.
 - **A repeated read costs one round trip, not two (#1557).** Regular, `where` and row reads, with
   or without session variables, are prepared once per pooled connection and reused instead of
   being parsed and described on every call. Read SQL varies with the client's document, so each
