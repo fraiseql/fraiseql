@@ -1720,3 +1720,16 @@ mod admin_sql_console {
         assert!(section.allow_commit, "the acceptance is an endpoint that can commit on request");
     }
 }
+
+// #1577: the cross-server feed is opt-in, spelled as the docs spell it.
+#[test]
+fn the_cache_feed_is_off_unless_asked_for() {
+    let config: ServerConfig = toml::from_str("").unwrap();
+    assert_eq!(config.cache_cross_instance, CacheCrossInstance::Off);
+    assert_eq!(ServerConfig::default().cache_cross_instance, CacheCrossInstance::Off);
+
+    let config: ServerConfig = toml::from_str("cache_cross_instance = \"notify\"\n").unwrap();
+    assert_eq!(config.cache_cross_instance, CacheCrossInstance::Notify);
+
+    assert!(toml::from_str::<ServerConfig>("cache_cross_instance = \"redis\"\n").is_err());
+}

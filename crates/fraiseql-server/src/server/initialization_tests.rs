@@ -59,6 +59,11 @@ async fn a_server_over_the_wire_adapter_refuses_to_boot_with_locale() {
 
 /// The JSON log events `warn_when_nothing_is_cacheable` emits for `schema`.
 fn cache_opt_in_events(schema: &CompiledSchema, cache_enabled: bool) -> Vec<serde_json::Value> {
+    log_events(|| super::warn_when_nothing_is_cacheable(schema, cache_enabled))
+}
+
+/// The JSON log events `emit` writes.
+fn log_events(emit: impl FnOnce()) -> Vec<serde_json::Value> {
     use std::sync::{Arc, Mutex};
 
     #[derive(Clone, Default)]
@@ -77,9 +82,7 @@ fn cache_opt_in_events(schema: &CompiledSchema, cache_enabled: bool) -> Vec<serd
     let captured = Captured::default();
     let writer = captured.clone();
     let subscriber = tracing_subscriber::fmt().json().with_writer(move || writer.clone()).finish();
-    tracing::subscriber::with_default(subscriber, || {
-        super::warn_when_nothing_is_cacheable(schema, cache_enabled);
-    });
+    tracing::subscriber::with_default(subscriber, emit);
     let log = String::from_utf8(captured.0.lock().unwrap().clone()).unwrap();
     log.lines().map(|line| serde_json::from_str(line).unwrap()).collect()
 }
@@ -109,4 +112,56 @@ fn a_cache_a_query_opts_into_says_nothing() {
 #[test]
 fn a_disabled_cache_says_nothing_here() {
     assert!(cache_opt_in_events(&schema_with_users(None), false).is_empty());
+}
+
+// ── #1577: the cache is per process; an entry that never expires is stale on every other ──
+
+/// The JSON log events `warn_on_entries_no_other_server_evicts` emits for `schema`.
+fn per_process_events(schema: &CompiledSchema, cache_enabled: bool) -> Vec<serde_json::Value> {
+    use crate::server_config::CacheCrossInstance;
+    log_events(|| {
+        super::warn_on_entries_no_other_server_evicts(
+            schema,
+            cache_enabled,
+            CacheCrossInstance::Off,
+        );
+    })
+}
+
+#[test]
+fn a_query_cached_without_expiry_is_named_at_boot() {
+    let events = per_process_events(&schema_with_users(Some(0)), true);
+    assert_eq!(events.len(), 1, "{events:?}");
+    assert_eq!(events[0]["level"], "WARN");
+    assert_eq!(events[0]["fields"]["queries"], "[\"users\"]");
+}
+
+#[test]
+fn a_query_cached_with_a_ttl_says_nothing() {
+    assert!(per_process_events(&schema_with_users(Some(60)), true).is_empty());
+}
+
+#[test]
+fn a_query_reading_no_view_is_not_named() {
+    let mut schema = schema_with_users(Some(0));
+    schema.queries[0].sql_source = None;
+    assert!(per_process_events(&schema, true).is_empty(), "the cache never stores it");
+}
+
+#[test]
+fn a_server_hearing_the_others_names_no_query_cached_without_expiry() {
+    use crate::server_config::CacheCrossInstance;
+    let events = log_events(|| {
+        super::warn_on_entries_no_other_server_evicts(
+            &schema_with_users(Some(0)),
+            true,
+            CacheCrossInstance::Notify,
+        );
+    });
+    assert!(events.is_empty(), "another server's write evicts here too: {events:?}");
+}
+
+#[test]
+fn a_disabled_cache_names_no_query_cached_without_expiry() {
+    assert!(per_process_events(&schema_with_users(Some(0)), false).is_empty());
 }

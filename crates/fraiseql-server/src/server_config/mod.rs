@@ -9,6 +9,7 @@
 
 pub mod admin_sql;
 pub mod async_operations;
+mod cache;
 #[cfg(feature = "cdc-outbound")]
 pub mod cdc_outbound;
 pub(crate) mod defaults;
@@ -80,6 +81,7 @@ use std::{collections::HashMap, net::SocketAddr, path::PathBuf};
 
 pub use admin_sql::AdminSqlConfig;
 pub use async_operations::AsyncOperationsConfig;
+pub use cache::CacheCrossInstance;
 #[cfg(feature = "cdc-outbound")]
 pub use cdc_outbound::{CdcOutboundConfig, CdcSinkSectionConfig};
 use defaults::{
@@ -272,6 +274,12 @@ pub struct ServerConfig {
     /// Enable query caching.
     #[serde(default = "defaults::default_true")]
     pub cache_enabled: bool,
+
+    /// How this server's result cache learns of the writes other servers make (#1577):
+    /// `"off"` (default: correct for one server, or within each entry's TTL) or `"notify"`.
+    /// See [`CacheCrossInstance`].
+    #[serde(default)]
+    pub cache_cross_instance: CacheCrossInstance,
 
     /// GraphQL endpoint path.
     #[serde(default = "defaults::default_graphql_path")]
@@ -1449,6 +1457,7 @@ impl Default for ServerConfig {
             tracing_service_name: defaults::default_service_name(),
             apq_enabled: true,
             cache_enabled: true,
+            cache_cross_instance: CacheCrossInstance::Off,
             graphql_path: default_graphql_path(),
             health_path: default_health_path(),
             liveness_path: default_liveness_path(),

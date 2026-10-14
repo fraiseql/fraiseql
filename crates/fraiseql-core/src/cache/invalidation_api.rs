@@ -3,9 +3,11 @@
 //! This module provides view-level and entity-level cache invalidation,
 //! including cascade expansion via `CascadeInvalidator`.
 
+use std::sync::{Arc, Mutex};
+
 use fraiseql_db::ViewName;
 
-use super::adapter::CachedDatabaseAdapter;
+use super::{CascadeInvalidator, QueryResultCache, adapter::CachedDatabaseAdapter};
 use crate::{db::DatabaseAdapter, error::Result};
 
 impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
@@ -40,31 +42,7 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
     /// # }
     /// ```
     pub fn invalidate_views(&self, views: &[ViewName]) -> Result<u64> {
-        // When caching is disabled, both the shard scan and the CascadeInvalidator
-        // mutex are unnecessary — skip them entirely to avoid serializing mutations.
-        if !self.cache.is_enabled() {
-            return Ok(0);
-        }
-
-        // Expand the view list with transitive dependents when a cascade
-        // invalidator is configured. `CascadeInvalidator` works in terms of raw
-        // `String` view names today; promote each `ViewName` to `String` for the
-        // cascade walk and convert the expanded result back at the end.
-        if let Some(cascader) = &self.cascade_invalidator {
-            let mut expanded: std::collections::HashSet<String> =
-                views.iter().map(|v| v.as_str().to_owned()).collect();
-            let mut guard = cascader.lock().map_err(|e| crate::error::FraiseQLError::Internal {
-                message: format!("Cascade invalidator lock poisoned: {e}"),
-                source:  None,
-            })?;
-            for view in views {
-                let transitive = guard.cascade_invalidate(view.as_str())?;
-                expanded.extend(transitive);
-            }
-            let expanded_views: Vec<ViewName> = expanded.into_iter().map(ViewName::from).collect();
-            return self.cache.invalidate_views(&expanded_views);
-        }
-        self.cache.invalidate_views(views)
+        invalidate_expanded(&self.cache, self.cascade_invalidator.as_ref(), views)
     }
 
     /// Evict cache entries that contain the given entity UUID.
@@ -83,4 +61,39 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
     pub fn invalidate_by_entity(&self, entity_type: &str, entity_id: &str) -> Result<u64> {
         self.cache.invalidate_by_entity(entity_type, entity_id)
     }
+}
+
+/// Evict every entry reading one of `views`, or a view that embeds one of them through
+/// `cascade` (#1575). The one implementation for this server's writes and for another
+/// server's announced evictions (#1577).
+pub(super) fn invalidate_expanded(
+    cache: &QueryResultCache,
+    cascade: Option<&Arc<Mutex<CascadeInvalidator>>>,
+    views: &[ViewName],
+) -> Result<u64> {
+    // When caching is disabled, both the shard scan and the CascadeInvalidator
+    // mutex are unnecessary — skip them entirely to avoid serializing mutations.
+    if !cache.is_enabled() {
+        return Ok(0);
+    }
+
+    // Expand the view list with transitive dependents when a cascade
+    // invalidator is configured. `CascadeInvalidator` works in terms of raw
+    // `String` view names today; promote each `ViewName` to `String` for the
+    // cascade walk and convert the expanded result back at the end.
+    if let Some(cascader) = cascade {
+        let mut expanded: std::collections::HashSet<String> =
+            views.iter().map(|v| v.as_str().to_owned()).collect();
+        let mut guard = cascader.lock().map_err(|e| crate::error::FraiseQLError::Internal {
+            message: format!("Cascade invalidator lock poisoned: {e}"),
+            source:  None,
+        })?;
+        for view in views {
+            let transitive = guard.cascade_invalidate(view.as_str())?;
+            expanded.extend(transitive);
+        }
+        let expanded_views: Vec<ViewName> = expanded.into_iter().map(ViewName::from).collect();
+        return cache.invalidate_views(&expanded_views);
+    }
+    cache.invalidate_views(views)
 }

@@ -2039,6 +2039,10 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		// #1575: a write evicts the cached reads of views embedding what it wrote (the graph
 		// from pg_tviews' registry and pg_depend), and every type a derived cascade reports.
 		"cargo test -p fraiseql-server --test cache_embedding_eviction_e2e_pg -- --test-threads=1",
+		// #1577: with `cache_cross_instance = "notify"`, a write through one server evicts on
+		// another over the same database, and a server that cannot hear the others (feed
+		// unreachable, severed, or receiving nothing) caches nothing. DATABASE_URL only.
+		"cargo test -p fraiseql-server --test cache_cross_instance_e2e_pg -- --test-threads=1",
 		// #1391/#1392, the CLI side: compile --database with and without pg_tviews, and
 		// doctor's pg_tviews health (both databases are bound in this leg).
 		"cargo test -p fraiseql-cli --test cascade_source_compile_test -- --test-threads=1",

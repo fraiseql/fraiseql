@@ -155,6 +155,19 @@ impl Server {
             }
         }
 
+        // #1577: the result cache's feed to every other server. Here, like the refreshers
+        // below, so every serve entry point starts it and a built-but-never-served Server
+        // leaves no task (and no connection) behind; its cache stays suspended.
+        if let Some(parts) = self.cache_feed.take() {
+            let tls = self.config.postgres_tls().map_err(ServerError::ConfigError)?;
+            let connector =
+                fraiseql_core::db::postgres::NotifyConnector::new(&self.config.database_url, tls)
+                    .map_err(|e| ServerError::ConfigError(e.to_string()))?;
+            let instance = uuid::Uuid::new_v4().to_string();
+            info!(%instance, "Query result cache: starting the feed to other servers");
+            self.tasks.spawn(super::cache_feed::run(connector, parts, instance));
+        }
+
         // Keep stored IdPs current (#947). Writes through this server's own admin API
         // refresh synchronously, so the ticker exists to pick up another replica's changes
         // and to keep the certificate-expiry warning honest. Spawned here rather than at

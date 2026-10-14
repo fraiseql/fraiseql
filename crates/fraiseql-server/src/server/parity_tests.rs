@@ -743,10 +743,8 @@ async fn postgres_api_keys_without_a_pool_refuse_to_boot() {
     assert!(msg.contains("api_keys"), "the refusal must name the config section, got: {msg}");
 }
 
-/// #1555: building a server whose result cache is on over a schema no query of which declares
-/// `cache_ttl_seconds` reports it, at boot.
-#[tokio::test]
-async fn server_new_reports_a_cache_no_query_opts_into() {
+/// The JSON log lines `Server::new` writes while booting over `schema` with the cache on.
+async fn boot_log(schema: CompiledSchema) -> String {
     use std::sync::Mutex;
 
     #[derive(Clone, Default)]
@@ -771,15 +769,41 @@ async fn server_new_reports_a_cache_no_query_opts_into() {
         cors_enabled: false,
         ..ServerConfig::default()
     };
-    Server::new(config, CompiledSchema::default(), Arc::new(NoopRelayAdapter), None)
+    Server::new(config, schema, Arc::new(NoopRelayAdapter), None)
         .await
         .expect("the server boots");
     drop(guard);
 
-    let log = String::from_utf8(captured.0.lock().expect("log buffer").clone()).expect("utf-8 log");
+    let bytes = captured.0.lock().expect("log buffer").clone();
+    String::from_utf8(bytes).expect("utf-8 log")
+}
+
+/// #1555: building a server whose result cache is on over a schema no query of which declares
+/// `cache_ttl_seconds` reports it, at boot.
+#[tokio::test]
+async fn server_new_reports_a_cache_no_query_opts_into() {
+    let log = boot_log(CompiledSchema::default()).await;
     let reported = log
         .lines()
         .filter_map(|line| serde_json::from_str::<serde_json::Value>(line).ok())
         .any(|event| event["level"] == "WARN" && event["fields"]["cacheable_queries"] == 0);
     assert!(reported, "{log}");
+}
+
+/// #1577: building a server whose result cache is on names, at boot, the queries cached with
+/// no expiry, which another server's write would leave stale.
+#[tokio::test]
+async fn server_new_names_a_query_cached_without_expiry() {
+    let mut schema = CompiledSchema::default();
+    let mut users = fraiseql_core::schema::QueryDefinition::new("users", "User").returning_list();
+    users.sql_source = Some("v_user".to_string());
+    users.cache_ttl_seconds = Some(0);
+    schema.queries.push(users);
+
+    let log = boot_log(schema).await;
+    let named = log
+        .lines()
+        .filter_map(|line| serde_json::from_str::<serde_json::Value>(line).ok())
+        .any(|event| event["level"] == "WARN" && event["fields"]["queries"] == "[\"users\"]");
+    assert!(named, "{log}");
 }

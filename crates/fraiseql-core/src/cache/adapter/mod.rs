@@ -72,6 +72,7 @@ use async_trait::async_trait;
 use super::{
     cascade_invalidator::CascadeInvalidator,
     fact_table_version::{FactTableCacheConfig, FactTableVersionProvider},
+    feed::{CacheEvictor, Eviction, FeedOutbox},
     result::QueryResultCache,
 };
 use crate::{
@@ -245,6 +246,10 @@ pub struct CachedDatabaseAdapter<A: DatabaseAdapter> {
     /// When set, `invalidate_views()` uses BFS to expand the initial view list
     /// to include all transitively dependent views before clearing cache entries.
     pub(super) cascade_invalidator: Option<Arc<Mutex<CascadeInvalidator>>>,
+
+    /// Where this server announces the evictions its writes make, for every other server
+    /// (#1577). `None`: the cache is correct for this server alone.
+    pub(super) feed: Option<FeedOutbox>,
 }
 
 impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
@@ -291,6 +296,7 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
             fact_table_config: FactTableCacheConfig::default(),
             version_provider: Arc::new(FactTableVersionProvider::default()),
             cascade_invalidator: None,
+            feed: None,
         }
     }
 
@@ -367,6 +373,35 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
     pub fn with_cascade_invalidator(mut self, invalidator: CascadeInvalidator) -> Self {
         self.cascade_invalidator = Some(Arc::new(Mutex::new(invalidator)));
         self
+    }
+
+    /// Announce the evictions this server's writes make to every other server (#1577).
+    ///
+    /// The evictions a write makes through the [`DatabaseAdapter`] methods
+    /// (`invalidate_views`, `invalidate_by_entity`, `clear_result_cache`) are announced; the
+    /// inherent methods of the same names, and a schema reload's clear, evict here only.
+    #[must_use]
+    pub fn with_feed(mut self, outbox: FeedOutbox) -> Self {
+        self.feed = Some(outbox);
+        self
+    }
+
+    /// What applies another server's announced evictions to this cache (#1577).
+    #[must_use]
+    pub fn evictor(&self) -> CacheEvictor {
+        CacheEvictor {
+            cache:   Arc::clone(&self.cache),
+            cascade: self.cascade_invalidator.clone(),
+        }
+    }
+
+    /// Queue `eviction` for every other server, when this cache has a feed and is enabled.
+    fn announce(&self, eviction: impl FnOnce() -> Eviction) {
+        if let Some(feed) = &self.feed {
+            if self.cache.is_enabled() {
+                feed.announce(eviction());
+            }
+        }
     }
 
     /// Read every per-query cache declaration out of a compiled schema.
@@ -490,6 +525,7 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
             fact_table_config:    self.fact_table_config,
             version_provider:     self.version_provider,
             cascade_invalidator:  self.cascade_invalidator,
+            feed:                 self.feed,
         };
         // Same reader as the startup path, so a new per-query cache annotation
         // cannot work at boot and stop working after a hot reload.
@@ -552,6 +588,7 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
             fact_table_config,
             version_provider: Arc::new(FactTableVersionProvider::default()),
             cascade_invalidator: None,
+            feed: None,
         }
     }
 
@@ -786,6 +823,7 @@ impl<A: DatabaseAdapter + Clone> Clone for CachedDatabaseAdapter<A> {
             fact_table_config:    self.fact_table_config.clone(),
             version_provider:     Arc::clone(&self.version_provider),
             cascade_invalidator:  self.cascade_invalidator.clone(),
+            feed:                 self.feed.clone(),
         }
     }
 }
@@ -1133,11 +1171,18 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
     async fn invalidate_views(&self, views: &[fraiseql_db::ViewName]) -> Result<u64> {
         // Delegate to the inherent (synchronous) method which handles cascade
         // expansion and cache eviction.
-        CachedDatabaseAdapter::invalidate_views(self, views)
+        let evicted = CachedDatabaseAdapter::invalidate_views(self, views)?;
+        self.announce(|| Eviction::Views(views.iter().map(|v| v.as_str().to_owned()).collect()));
+        Ok(evicted)
     }
 
     async fn invalidate_by_entity(&self, entity_type: &str, entity_id: &str) -> Result<u64> {
-        CachedDatabaseAdapter::invalidate_by_entity(self, entity_type, entity_id)
+        let evicted = CachedDatabaseAdapter::invalidate_by_entity(self, entity_type, entity_id)?;
+        self.announce(|| Eviction::Entity {
+            entity_type: entity_type.to_owned(),
+            entity_id:   entity_id.to_owned(),
+        });
+        Ok(evicted)
     }
 
     /// The operator-visible snapshot of the cache that actually serves queries (#941).
@@ -1172,6 +1217,8 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
         self.cache.run_pending_tasks();
         let before = self.cache.metrics().map(|m| m.size).unwrap_or_default();
         self.cache.clear()?;
+        // An operator clearing one server behind a load balancer means every server.
+        self.announce(|| Eviction::Everything);
         Ok(Some(before))
     }
 

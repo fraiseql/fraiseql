@@ -215,6 +215,7 @@ pub mod cascade_metadata;
 pub mod cascade_response_parser;
 pub mod embedding_graph;
 pub mod entity_key;
+pub mod feed;
 pub mod query_analyzer;
 pub mod uuid_extractor;
 

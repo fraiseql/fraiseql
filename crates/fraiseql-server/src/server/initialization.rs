@@ -1292,10 +1292,12 @@ pub fn tenant_isolation_declaration_check(
 pub(super) async fn build_cached_adapter<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
     schema: &CompiledSchema,
     cache_enabled: bool,
+    cross_instance: crate::server_config::CacheCrossInstance,
     adapter: Arc<A>,
 ) -> crate::Result<(
     fraiseql_core::cache::CachedDatabaseAdapter<A>,
     fraiseql_core::cache::CacheConfig,
+    Option<super::cache_feed::CacheFeedParts>,
 )> {
     use fraiseql_core::cache::{CacheConfig, CachedDatabaseAdapter, QueryResultCache};
 
@@ -1308,6 +1310,8 @@ pub(super) async fn build_cached_adapter<A: DatabaseAdapter + Clone + Send + Syn
     warn_on_inert_cache_ttls(schema, cache_enabled);
     // #1555: and the converse: the cache is on and no query opted into it.
     warn_when_nothing_is_cacheable(schema, cache_enabled);
+    // #1577: the cache is per process, so an entry without expiry is stale on every other.
+    warn_on_entries_no_other_server_evicts(schema, cache_enabled, cross_instance);
 
     let cache_config = CacheConfig::from(cache_enabled);
     if cache_config.enabled {
@@ -1344,7 +1348,47 @@ pub(super) async fn build_cached_adapter<A: DatabaseAdapter + Clone + Send + Syn
         cached
     };
 
-    Ok((cached, cache_config))
+    // #1577: last, so the evictor expands another server's sweeps through the graph above.
+    let (cached, feed) = attach_cache_feed(cached, cache_config.enabled, cross_instance);
+    Ok((cached, cache_config, feed))
+}
+
+/// How many announcements wait for the feed before the next one is lost (and the feed
+/// evicts everything on every other server instead).
+const CACHE_FEED_QUEUE: usize = 16_384;
+
+/// Give the cache a feed to every other server, when `cross_instance` asks for one (#1577).
+///
+/// The cache is suspended (stores nothing) from here until the feed's task first hears
+/// its own message: until then this server cannot know what other servers' writes made
+/// stale.
+fn attach_cache_feed<A: DatabaseAdapter>(
+    cached: fraiseql_core::cache::CachedDatabaseAdapter<A>,
+    cache_enabled: bool,
+    cross_instance: crate::server_config::CacheCrossInstance,
+) -> (
+    fraiseql_core::cache::CachedDatabaseAdapter<A>,
+    Option<super::cache_feed::CacheFeedParts>,
+) {
+    use crate::server_config::CacheCrossInstance;
+
+    match cross_instance {
+        CacheCrossInstance::Off => (cached, None),
+        CacheCrossInstance::Notify if !cache_enabled => {
+            warn!(
+                "`cache_cross_instance = \"notify\"` has no effect: the result cache is \
+                 disabled (`cache_enabled = false`)"
+            );
+            (cached, None)
+        },
+        CacheCrossInstance::Notify => {
+            let (outbox, queue) = fraiseql_core::cache::feed::outbox(CACHE_FEED_QUEUE);
+            let cached = cached.with_feed(outbox);
+            let evictor = cached.evictor();
+            evictor.suspend();
+            (cached, Some(super::cache_feed::CacheFeedParts { queue, evictor }))
+        },
+    }
 }
 
 /// Install the cache's view-embedding graph, read from the database's catalog (#1575).
@@ -1484,6 +1528,42 @@ pub(super) fn warn_when_nothing_is_cacheable(schema: &CompiledSchema, cache_enab
         "The server's result cache is enabled, but no query declares `cache_ttl_seconds`, so \
          nothing is cached: the cache is opt-in per query. Declare a TTL on the queries to \
          cache (or `[[caching.rules]]`), or set `cache_enabled = false`."
+    );
+}
+
+/// Warn naming the queries cached with no expiry, which no other server's write evicts (#1577).
+///
+/// Without the feed (`cache_cross_instance = "off"`), the result cache lives in this process:
+/// a mutation evicts entries on the server that ran it and nowhere else. With several
+/// servers, an entry's TTL is all that bounds its staleness, and a query declaring
+/// `cache_ttl_seconds = 0` has none: another server's write leaves it stale until this
+/// server restarts. The server cannot know it has peers, so it names the queries and says
+/// when that is correct.
+pub(super) fn warn_on_entries_no_other_server_evicts(
+    schema: &CompiledSchema,
+    cache_enabled: bool,
+    cross_instance: crate::server_config::CacheCrossInstance,
+) {
+    if !cache_enabled || cross_instance == crate::server_config::CacheCrossInstance::Notify {
+        return;
+    }
+    let unbounded: Vec<&str> = schema
+        .queries
+        .iter()
+        .filter(|q| q.cache_ttl_seconds == Some(0) && q.sql_source.is_some())
+        .map(|q| q.name.as_str())
+        .collect();
+    if unbounded.is_empty() {
+        return;
+    }
+    warn!(
+        queries = ?unbounded,
+        "{} query/queries are cached with `cache_ttl_seconds = 0` (no expiry). The result \
+         cache is per server: only a mutation run by this server evicts their entries, so a \
+         write through another server leaves them stale until this server restarts. That is \
+         correct with one server; with several, set `cache_cross_instance = \"notify\"` or \
+         give them a TTL above 0.",
+        unbounded.len()
     );
 }
 

@@ -41,3 +41,28 @@ fn the_url_points_at_the_proxy_in_plaintext() {
     assert!(url.starts_with("postgresql://u:p@127.0.0.1:"), "{url}");
     assert!(url.ends_with("/test?sslmode=disable"), "{url}");
 }
+
+#[test]
+fn notifications_are_withheld_only_when_asked_however_the_bytes_are_split() {
+    let mut stream = message(b'R', b"\0\0\0\0");
+    stream.extend(message(b'A', b"\0\0\0\x07chan\0hello\0"));
+    stream.extend(message(b'Z', b"I"));
+    let withheld = [message(b'R', b"\0\0\0\0"), message(b'Z', b"I")].concat();
+    for chunk in [1, 3, 7, stream.len()] {
+        for (drop, expected) in [(false, &stream), (true, &withheld)] {
+            let mut framer = BackendFramer::default();
+            let out: Vec<u8> =
+                stream.chunks(chunk).flat_map(|piece| framer.forwardable(piece, drop)).collect();
+            assert_eq!(&out, expected, "split every {chunk} bytes, drop = {drop}");
+        }
+    }
+}
+
+#[test]
+fn an_answer_to_an_ssl_request_is_forwarded() {
+    let mut declined = vec![b'N'];
+    declined.extend(message(b'A', b"\0\0\0\x07chan\0hi\0"));
+    assert_eq!(BackendFramer::default().forwardable(&declined, true), vec![b'N']);
+    let tls = [b'S', 0x16, 0x03, 0x01];
+    assert_eq!(BackendFramer::default().forwardable(&tls, true), tls.to_vec());
+}

@@ -388,6 +388,7 @@ async fn test_schema_version_change_invalidates_cache() {
         fact_table_config:    FactTableCacheConfig::default(),
         version_provider:     Arc::clone(&version_provider),
         cascade_invalidator:  None,
+        feed:                 None,
     };
 
     // Query with v1
@@ -407,6 +408,7 @@ async fn test_schema_version_change_invalidates_cache() {
         fact_table_config:    FactTableCacheConfig::default(),
         version_provider:     Arc::clone(&version_provider),
         cascade_invalidator:  None,
+        feed:                 None,
     };
 
     // Query with v2 - should miss cache (different schema version)
@@ -1551,4 +1553,93 @@ fn the_cache_answers_session_variable_support_for_its_adapter() {
         );
         assert!(!wire.applies_session_variables());
     }
+}
+
+// ── #1577: a write's evictions are announced to every other server, once ──
+
+/// An adapter over an enabled cache announcing into a queue, and the queue.
+fn announcing_adapter() -> (CachedDatabaseAdapter<MockAdapter>, crate::cache::feed::OutboundQueue) {
+    let (outbox, queue) = crate::cache::feed::outbox(16);
+    let adapter = CachedDatabaseAdapter::new(
+        MockAdapter::new(),
+        QueryResultCache::new(CacheConfig::enabled()),
+        "1.0.0".to_string(),
+    )
+    .with_feed(outbox);
+    (adapter, queue)
+}
+
+/// Everything queued so far, without waiting for more.
+async fn queued(
+    queue: &mut crate::cache::feed::OutboundQueue,
+) -> Vec<crate::cache::feed::Eviction> {
+    tokio::time::timeout(std::time::Duration::from_millis(50), queue.next_batch())
+        .await
+        .ok()
+        .flatten()
+        .unwrap_or_default()
+}
+
+#[tokio::test]
+async fn a_writes_view_sweep_is_announced() {
+    use crate::cache::feed::Eviction;
+    let (adapter, mut queue) = announcing_adapter();
+    DatabaseAdapter::invalidate_views(&adapter, &[ViewName::from("v_user")])
+        .await
+        .unwrap();
+    assert_eq!(queued(&mut queue).await, vec![Eviction::Views(vec!["v_user".to_string()])]);
+}
+
+#[tokio::test]
+async fn a_writes_entity_eviction_is_announced() {
+    use crate::cache::feed::Eviction;
+    let (adapter, mut queue) = announcing_adapter();
+    DatabaseAdapter::invalidate_by_entity(&adapter, "User", "u1").await.unwrap();
+    assert_eq!(
+        queued(&mut queue).await,
+        vec![Eviction::Entity {
+            entity_type: "User".to_string(),
+            entity_id:   "u1".to_string(),
+        }]
+    );
+}
+
+#[tokio::test]
+async fn an_operator_clear_is_announced() {
+    use crate::cache::feed::Eviction;
+    let (adapter, mut queue) = announcing_adapter();
+    DatabaseAdapter::clear_result_cache(&adapter).await.unwrap();
+    assert_eq!(queued(&mut queue).await, vec![Eviction::Everything]);
+}
+
+#[tokio::test]
+async fn an_announced_eviction_applied_here_is_not_announced_again() {
+    use crate::cache::feed::Eviction;
+    let (adapter, mut queue) = announcing_adapter();
+    adapter.evictor().apply(&Eviction::Views(vec!["v_user".to_string()])).unwrap();
+    adapter.evictor().apply(&Eviction::Everything).unwrap();
+    assert!(queued(&mut queue).await.is_empty());
+}
+
+#[tokio::test]
+async fn a_schema_reload_clear_is_not_announced() {
+    let (adapter, mut queue) = announcing_adapter();
+    DatabaseAdapter::on_schema_reload(&adapter);
+    assert!(queued(&mut queue).await.is_empty(), "every server reloads its own schema");
+}
+
+#[tokio::test]
+async fn a_disabled_cache_announces_nothing() {
+    let (outbox, mut queue) = crate::cache::feed::outbox(16);
+    let adapter = CachedDatabaseAdapter::new(
+        MockAdapter::new(),
+        QueryResultCache::new(CacheConfig::disabled()),
+        "1.0.0".to_string(),
+    )
+    .with_feed(outbox);
+    DatabaseAdapter::invalidate_views(&adapter, &[ViewName::from("v_user")])
+        .await
+        .unwrap();
+    DatabaseAdapter::invalidate_by_entity(&adapter, "User", "u1").await.unwrap();
+    assert!(queued(&mut queue).await.is_empty());
 }

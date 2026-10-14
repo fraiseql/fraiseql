@@ -52,7 +52,7 @@ use std::{
     collections::HashSet,
     sync::{
         Arc,
-        atomic::{AtomicU64, AtomicUsize, Ordering},
+        atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering},
     },
     time::Duration,
 };
@@ -233,6 +233,10 @@ pub struct QueryResultCache {
     /// Distinct from [`next_epoch`](Self::next_epoch), which identifies one entry instance
     /// so the eviction listener does not deregister a replacement (#740).
     fence: InvalidationFence,
+
+    /// While set, nothing is stored (#1577): the server cannot hear other servers' writes,
+    /// so it cannot know which of its entries they made stale.
+    suspended: AtomicBool,
 }
 
 /// Cache metrics for monitoring.
@@ -354,6 +358,7 @@ impl QueryResultCache {
             entity_index,
             next_epoch: AtomicU64::new(0),
             fence: InvalidationFence::new(),
+            suspended: AtomicBool::new(false),
         }
     }
 
@@ -473,7 +478,7 @@ impl QueryResultCache {
         before_insert: impl FnOnce(),
         after_insert: impl FnOnce(),
     ) -> Result<()> {
-        if !self.config.enabled {
+        if !self.config.enabled || self.suspended.load(Ordering::SeqCst) {
             return Ok(());
         }
 
@@ -844,6 +849,24 @@ impl QueryResultCache {
         self.entity_index.clear();
         self.memory_bytes.store(0, Ordering::Relaxed);
         Ok(())
+    }
+
+    /// Clear every entry, and store nothing until [`resume`](Self::resume) (#1577).
+    ///
+    /// For a server that can no longer hear other servers' writes. A fill already past the
+    /// suspension check when it lands is refused by the clear's fence.
+    pub fn suspend(&self) {
+        self.suspended.store(true, Ordering::SeqCst);
+        let _ = self.clear();
+    }
+
+    /// Store again, from a cleared cache (#1577).
+    ///
+    /// Cleared **after** storing is allowed again: the clear's fence refuses every fill whose
+    /// read began before it, which includes every read made while suspended.
+    pub fn resume(&self) {
+        self.suspended.store(false, Ordering::SeqCst);
+        let _ = self.clear();
     }
 
     /// Flush pending background tasks in the moka store.

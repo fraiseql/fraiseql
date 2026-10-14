@@ -84,7 +84,9 @@ CachedResult { data, views_depended_on, cached_at, ttl_seconds }
 
 **TTL = 0 means: no time-based expiry.** The entry is stored and lives until a
 mutation evicts it — this is how mutation-invalidated-only queries are declared
-(the injected changelog queries use it). It does **not** mean "never cache".
+(the injected changelog queries use it). It does **not** mean "never cache". Only a
+mutation run by the same server evicts it: with several servers, see
+[Several servers](#several-servers-1577).
 
 **TTL expiry is delegated to moka** via `expire_after_create`; there is no
 manual read-time expiry check (a deliberate perf decision — see
@@ -209,6 +211,64 @@ expands its sweep: a write to `tv_user` refuses an in-flight `tv_post` read.
 A write landing during the store itself is caught after the entry is stored: the read
 withdraws its own entry.
 
+### Several servers (#1577)
+
+The cache lives in one server process. A write evicts entries **on the server that ran
+it**, and nowhere else:
+
+- **One server**: a cached read is never staler than the last write made through it.
+- **Several servers** (replicas behind a load balancer, a rolling deploy, a second process
+  on the same host): server B keeps serving an entry that a write through server A made
+  stale, until the entry's TTL runs out. At `cache_ttl_seconds = 0` it never runs out: B
+  serves the stale entry until B restarts, or until a write through B evicts it.
+- **Writes FraiseQL does not run** (`psql`, a migration, another application, a cron job)
+  evict nothing on any server. Only the TTL bounds them.
+
+So with several servers, a query's `cache_ttl_seconds` is the staleness it accepts after a
+write through another server. Give every cached query a TTL above `0` that the data can be
+stale for, run the cache on one server only (`cache_enabled = false` on the others), or turn
+on the feed below. Without the feed, the server warns at boot naming the queries cached
+with `cache_ttl_seconds = 0`.
+
+#### The feed: `cache_cross_instance = "notify"`
+
+```toml
+# fraiseql.toml (server)
+cache_cross_instance = "notify"   # default "off"
+```
+
+Each server then opens one more connection to `database_url`, of its own, and:
+
+- **announces** what each of its writes evicted (the swept views, the evicted entities, an
+  operator's `cache/clear`) with `NOTIFY fraiseql_cache`, right after the write commits;
+- **applies** every other server's announcements, expanding swept views through its own
+  embedding graph, as if the write had run through it.
+
+Measured on one host, another server serves the write's result 0.4 ms after the write
+answers when idle, and 3.7 ms (p50) / 20 ms (p99) under 40 concurrent writers; the writers
+lose under 2% of their throughput to the feed.
+
+What it does not cover, and what it does about it:
+
+| Case | What happens |
+|---|---|
+| A write FraiseQL does not run | Nothing is announced; the TTL bounds it, as without the feed. |
+| A server crashes between its `COMMIT` and its announcement | That write is never announced; the TTL bounds it. |
+| A server's feed connection drops | That server clears its cache and stores nothing until it listens again, then clears it once more. An outage costs hits, never a stale answer. |
+| A server starts | It stores nothing until its feed listens. |
+| More announcements than the queue holds (16 384), or a failed send | The next message tells every server to clear everything. |
+| A message longer than PostgreSQL's 8 000-byte limit | Split into several; a single name too long for any message clears everything. |
+| A `LISTEN` that receives nothing (PgBouncer in transaction mode) | The server checks that it hears its own message before it caches; it never does, so it never caches, and logs why. Point `database_url` at PostgreSQL or a session-mode pooler. |
+
+The announcement is sent after commit, not in the write's transaction: PostgreSQL serialises
+the commits of every transaction that ran `NOTIFY` on one cluster-wide lock held across the
+commit's flush. Measured under 40 concurrent writers on durable storage, notifying inside the
+transaction cost 13% of the write throughput and 16% of its median latency.
+
+Metrics: `fraiseql_cache_feed_connected` (0 or 1), `fraiseql_cache_feed_sent_total`,
+`fraiseql_cache_feed_received_total`, `fraiseql_cache_feed_reconnects_total`,
+`fraiseql_cache_feed_lost_total`.
+
 ---
 
 ## Operational Notes
@@ -254,7 +314,8 @@ successful clear of nothing.
 
 **Mutation-invalidated-only caching** for a specific query — set
 `cache_ttl_seconds = 0` in the schema (cached, no time-based expiry, evicted by
-mutations):
+mutations). It is correct on one server only: another server's mutations never evict it
+([Several servers](#several-servers-1577)).
 
 ```python
 @fraiseql.query(sql_source="v_live_prices", cache_ttl_seconds=0)

@@ -18,6 +18,8 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **`ServerConfig` gains `cache_cross_instance` (#1577).** A struct literal listing every field
+  adds it (`CacheCrossInstance::Off` keeps today's behaviour), or ends in `..Default::default()`.
 - **Reads run as prepared statements, cached per connection (#1557).** Behind PgBouncer in
   `pool_mode = transaction`, PgBouncer 1.21 or later with `max_prepared_statements` above 0 is now
   needed for reads as well as mutations; without it a read fails with `prepared statement "s…"
@@ -96,6 +98,21 @@ disagreed, and the promise was the part that was wrong.
   the credential, tenant, locale and session-variable headers. A `GET` never registers a
   persisted query: registration stays a `POST`. `docs/modules/cache.md` has the table, and
   the caveat that a mutation evicts the server's cache, not a browser's or a CDN's.
+- **A write through one server evicts the entries it made stale on every server (#1577).**
+  The result cache lives in one process, and a write evicted only on the server that ran it:
+  another replica served the old answer until the entry's TTL ran out, and forever at
+  `cache_ttl_seconds = 0`. With `cache_cross_instance = "notify"` (server config, default
+  `"off"`), each server announces its writes' evictions with `NOTIFY fraiseql_cache` right
+  after commit, on one connection of its own to `database_url`, and applies every other
+  server's (measured: 3.7 ms p50 / 20 ms p99 from a write's answer to a fresh read on another
+  server under 40 concurrent writers, for under 2% of their throughput). A server that
+  cannot hear the feed (not yet connected, connection lost, or a `LISTEN` that receives
+  nothing, as behind PgBouncer in transaction mode) caches nothing until it hears its own
+  message, and clears its cache when it does. Notifying inside the write transaction was
+  measured and not shipped: it serialises commits cluster-wide (−13% writes/s under 40
+  concurrent writers on durable storage). `docs/modules/cache.md` ("Several servers") states
+  the contract either way, and the server names the `cache_ttl_seconds = 0` queries at boot
+  when the feed is off.
 - **The server warns at boot when its result cache is on and no query opts into it (#1555).**
   The cache is opt-in per query (`cache_ttl_seconds`, or `[[caching.rules]]`); with
   `cache_enabled = true` (the default) over a schema that declares no TTL, nothing was cached

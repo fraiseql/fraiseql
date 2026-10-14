@@ -58,7 +58,9 @@ A checklist for hardening FraiseQL deployments. Review each item before going li
 
 ## Infrastructure
 
-- [ ] Run multiple server instances behind a load balancer
+- [ ] Run multiple server instances behind a load balancer (the result cache is per
+      instance: set `cache_cross_instance = "notify"`, or give cached queries a TTL above
+      `0`; see [cache: several servers](../modules/cache.md#several-servers-1577))
 - [ ] Configure connection pool sizes appropriate for your database
 - [ ] Enable health check endpoint monitoring (`GET /health`)
 - [ ] Set up automated credential rotation if using Vault

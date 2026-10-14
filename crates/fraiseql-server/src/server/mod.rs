@@ -33,6 +33,7 @@ use crate::{
 };
 
 mod builder;
+pub(crate) mod cache_feed;
 mod extensions;
 #[cfg(feature = "functions-runtime")]
 mod functions_setup;
@@ -324,6 +325,10 @@ pub struct Server {
     /// Set to `true` when `ServerConfig::cache_enabled = true` and the server was built
     /// with `Server::new` or `Server::with_relay_pagination`.
     pub(super) adapter_cache_enabled: bool,
+
+    /// The result cache's feed to every other server, started when the server serves
+    /// (#1577). `None` unless `cache_cross_instance = "notify"` and the cache is on.
+    pub(super) cache_feed: Option<cache_feed::CacheFeedParts>,
 
     /// Object storage backend for the `/storage/v1/` routes.
     ///

@@ -4,6 +4,7 @@
 
 mod adapter;
 mod introspector;
+mod notify;
 mod server_version;
 mod tls;
 mod where_generator;
@@ -16,6 +17,7 @@ pub use adapter::{
     READ_STATEMENT_CACHE_CAP, ReadReplicaConfig, ReadReplicaPolicy, SearchPath, VectorScanConfig,
 };
 pub use introspector::{IndexInfo, PostgresIntrospector};
+pub use notify::{NOTIFY_APPLICATION_NAME, Notification, NotifyConnector, NotifySession};
 pub use server_version::{
     MINIMUM_SERVER_VERSION_NUM, check_server_version, require_supported_server,
 };

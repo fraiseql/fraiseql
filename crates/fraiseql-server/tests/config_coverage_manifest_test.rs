@@ -53,6 +53,7 @@ const MANIFEST: &[(&str, &str)] = &[
     // ── Feature toggles ──────────────────────────────────────────────────────
     ("apq_enabled", "automatic persisted queries"),
     ("cache_enabled", "query result cache"),
+    ("cache_cross_instance", "query result cache: cross-server feed (#1577)"),
     ("subscriptions_enabled", "subscriptions runtime toggle"),
     ("introspection_enabled", "introspection enforcer (#455)"),
     ("introspection_require_auth", "introspection auth gate"),
