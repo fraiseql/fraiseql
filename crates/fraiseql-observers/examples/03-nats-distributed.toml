@@ -34,7 +34,7 @@ body_template = '''
   "data": {{ event.data }}
 }
 '''
-headers = {"Authorization" = "Bearer ${API_TOKEN}"}
+headers = { "Authorization" = "Bearer ${API_TOKEN}" }
 type = "webhook"
 url_env = "ANALYTICS_WEBHOOK_URL"
 
