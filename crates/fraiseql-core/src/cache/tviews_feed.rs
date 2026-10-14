@@ -24,8 +24,8 @@ use fraiseql_db::ViewName;
 use serde::Deserialize;
 use serde_json::Value;
 
-use super::QueryResultCache;
-use crate::error::Result;
+use super::{QueryResultCache, collections::CollectionMap};
+use crate::{db::DatabaseAdapter, error::Result, schema::CompiledSchema};
 
 /// The `NOTIFY` channel pg_tviews publishes on.
 pub const CHANNEL: &str = "tviews_changes";
@@ -139,6 +139,139 @@ fn ids_of(values: &[Value]) -> Option<Vec<String>> {
 fn collection_of(key: &str) -> Option<Collection> {
     let (child_type, column) = key.split_once('.')?;
     (!child_type.is_empty() && !column.is_empty()).then(|| Collection::new(child_type, column))
+}
+
+/// What the change feed is read against, from the database: the views reading each type,
+/// and the collections composed levels are.
+#[derive(Debug, Clone, Default)]
+pub struct FeedCatalog {
+    /// For each GraphQL type, the views (as FraiseQL names them) that read its TVIEW, on
+    /// their own or through views.
+    pub type_views:  HashMap<String, Vec<ViewName>>,
+    /// The collections composed levels are.
+    pub collections: CollectionMap,
+}
+
+impl FeedCatalog {
+    /// A catalog from `(type, view)` rows and `(child view, parent view, child type,
+    /// reference column)` rows.
+    #[must_use]
+    pub fn from_rows<'a>(
+        type_rows: impl IntoIterator<Item = (&'a str, &'a str)>,
+        collection_rows: impl IntoIterator<Item = (&'a str, &'a str, &'a str, &'a str)>,
+    ) -> Self {
+        let mut type_views: HashMap<String, Vec<ViewName>> = HashMap::new();
+        for (type_name, view) in type_rows {
+            let views = type_views.entry(type_name.to_string()).or_default();
+            let view = ViewName::from(view);
+            if !views.contains(&view) {
+                views.push(view);
+            }
+        }
+        // A pair with two reference columns (a comment's author and its reviewer, both
+        // users) is not known: the level does not say which one it follows.
+        let mut pairs: BTreeMap<(&str, &str), BTreeSet<Collection>> = BTreeMap::new();
+        for (child, parent, child_type, column) in collection_rows {
+            pairs
+                .entry((child, parent))
+                .or_default()
+                .insert(Collection::new(child_type, column));
+        }
+        let collections =
+            CollectionMap::from_levels(pairs.into_iter().filter_map(|(pair, collections)| {
+                let mut only = collections.into_iter();
+                match (only.next(), only.next()) {
+                    (Some(collection), None) => Some((pair, collection)),
+                    _ => None,
+                }
+            }));
+        Self {
+            type_views,
+            collections,
+        }
+    }
+}
+
+/// Whether the database publishes rows on [`CHANNEL`], and has a registry that names
+/// types and references (pg_tviews 0.1.0-beta.30).
+const PUBLISHING_PROBE: &str = "SELECT current_setting('pg_tviews.publish_changes', true) \
+     = 'rows' AND EXISTS (SELECT 1 FROM pg_attribute \
+     WHERE attrelid = to_regclass('tviews.registry') AND attname = 'typename' \
+     AND NOT attisdropped) AS publishing";
+
+/// The registry's TVIEWs, as a CTE following [`reads_cte`](super::embedding_graph).
+const REGISTRY: &str = "tv AS (SELECT to_regclass(quote_ident(g.schema) || '.' || \
+     quote_ident(g.name))::oid AS rel, g.entity, g.typename, g.\"references\" AS refs \
+     FROM tviews.registry g)";
+
+/// Read the [`FeedCatalog`] of `schema`'s views from the database `adapter` serves, or
+/// `None` when it does not publish rows on [`CHANNEL`].
+///
+/// # Errors
+///
+/// `FraiseQLError::Database` when a catalog query fails.
+pub async fn read_feed_catalog<A: DatabaseAdapter + ?Sized>(
+    adapter: &A,
+    schema: &CompiledSchema,
+) -> Result<Option<FeedCatalog>> {
+    let publishing = adapter
+        .execute_raw_query(PUBLISHING_PROBE)
+        .await?
+        .first()
+        .and_then(|row| row.get("publishing"))
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    if !publishing {
+        return Ok(None);
+    }
+    let names = super::swept_view_names(schema);
+    if names.is_empty() {
+        return Ok(Some(FeedCatalog::default()));
+    }
+    let reads = super::embedding_graph::reads_cte(&names);
+    let types = adapter
+        .execute_raw_query(&format!(
+            "{reads}, {REGISTRY} \
+             SELECT DISTINCT tv.typename AS type_name, s.name AS view \
+             FROM reads x JOIN roots s ON s.rel = x.root JOIN tv ON tv.rel = x.rel \
+             ORDER BY 1, 2"
+        ))
+        .await?;
+    let collections = adapter
+        .execute_raw_query(&format!(
+            "{reads}, {REGISTRY} \
+             SELECT c.name AS child, p.name AS parent, ct.typename AS child_type, \
+                    ref.key AS column_name \
+             FROM roots c JOIN tv ct ON ct.rel = c.rel \
+             CROSS JOIN LATERAL jsonb_each(ct.refs) ref \
+             JOIN tv pt ON pt.entity = ref.value ->> 'entity' \
+             JOIN roots p ON p.rel = pt.rel"
+        ))
+        .await?;
+    let text = |row: &HashMap<String, Value>, key: &str| {
+        row.get(key).and_then(Value::as_str).map(str::to_owned)
+    };
+    let types: Vec<(String, String)> = types
+        .iter()
+        .filter_map(|row| Some((text(row, "type_name")?, text(row, "view")?)))
+        .collect();
+    let collections: Vec<[String; 4]> = collections
+        .iter()
+        .filter_map(|row| {
+            Some([
+                text(row, "child")?,
+                text(row, "parent")?,
+                text(row, "child_type")?,
+                text(row, "column_name")?,
+            ])
+        })
+        .collect();
+    Ok(Some(FeedCatalog::from_rows(
+        types.iter().map(|(t, v)| (t.as_str(), v.as_str())),
+        collections
+            .iter()
+            .map(|[c, p, t, k]| (c.as_str(), p.as_str(), t.as_str(), k.as_str())),
+    )))
 }
 
 /// Applies pg_tviews' change feed to this server's cache.
