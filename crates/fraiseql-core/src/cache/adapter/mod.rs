@@ -75,6 +75,7 @@ use super::{
     fact_table_version::{FactTableCacheConfig, FactTableVersionProvider},
     feed::{CacheEvictor, Eviction, FeedOutbox},
     result::QueryResultCache,
+    tviews_feed::TviewsListener,
 };
 use crate::{
     backend::{
@@ -408,6 +409,13 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
     #[must_use]
     pub fn collection_tagging(&self) -> CollectionTagging {
         self.collections.clone()
+    }
+
+    /// What applies pg_tviews' change feed, read against `catalog`, to this cache and its
+    /// composed reads (#1589).
+    #[must_use]
+    pub fn tviews_listener(&self, catalog: super::tviews_feed::FeedCatalog) -> TviewsListener {
+        TviewsListener::new(Arc::clone(&self.cache), self.collections.clone(), catalog)
     }
 
     /// Queue `eviction` for every other server, when this cache has a feed and is enabled.
