@@ -130,6 +130,12 @@ disagreed, and the promise was the part that was wrong.
 
 ### Changed
 
+- **Composed reads assemble their tree as `json` (#1588).** Each level's `{"d", "e"}` wrapper
+  and each embedded list are built with `JSON_OBJECT(… RETURNING json)` and `json_agg`, which
+  concatenate the stored documents' text, instead of being rebuilt as `jsonb` at every level.
+  Measured with pg_tviews' read-path harness (PostgreSQL 18.4, a page of 20 posts with 5
+  comments each, under load): 237 → 147 µs best, 0.82× median of paired rounds; one post
+  unchanged. Same statement shape, one snapshot, one column.
 - **A repeated read costs one round trip, not two (#1557).** Regular, `where` and row reads, with
   or without session variables, are prepared once per pooled connection and reused instead of
   being parsed and described on every call. Read SQL varies with the client's document, so each
