@@ -213,3 +213,46 @@ fn an_unreadable_message_clears_the_cache() {
     evictor(&cache).apply(&decode(r#"{"v":1}"#)).unwrap();
     assert!((1..=4).all(|key| !cached(&cache, key)));
 }
+
+#[test]
+fn a_catalog_maps_each_type_to_the_views_reading_it() {
+    let catalog = FeedCatalog::from_rows(
+        [
+            ("Post", "tv_post"),
+            ("Post", "v_post_full"),
+            ("User", "tv_user"),
+        ],
+        [],
+    );
+    assert_eq!(
+        catalog.type_views,
+        HashMap::from([
+            (
+                "Post".to_string(),
+                vec![ViewName::from("tv_post"), ViewName::from("v_post_full")]
+            ),
+            ("User".to_string(), vec![ViewName::from("tv_user")]),
+        ])
+    );
+}
+
+#[test]
+fn a_catalog_knows_a_collection_by_its_one_reference() {
+    let catalog = FeedCatalog::from_rows(
+        [],
+        [
+            ("tv_comment", "tv_post", "Comment", "fk_post"),
+            ("tv_comment", "tv_user", "Comment", "fk_author"),
+            ("tv_comment", "tv_user", "Comment", "reviewed_by"),
+        ],
+    );
+    assert_eq!(
+        catalog.collections.collection("tv_comment", "tv_post"),
+        Some(&Collection::new("Comment", "fk_post"))
+    );
+    assert_eq!(
+        catalog.collections.collection("tv_comment", "tv_user"),
+        None,
+        "two references to users: which one a level follows is not known"
+    );
+}
