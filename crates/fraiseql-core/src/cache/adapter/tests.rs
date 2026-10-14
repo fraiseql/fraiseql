@@ -389,6 +389,7 @@ async fn test_schema_version_change_invalidates_cache() {
         version_provider:     Arc::clone(&version_provider),
         cascade_invalidator:  None,
         feed:                 None,
+        collections:          crate::cache::collections::CollectionTagging::default(),
     };
 
     // Query with v1
@@ -409,6 +410,7 @@ async fn test_schema_version_change_invalidates_cache() {
         version_provider:     Arc::clone(&version_provider),
         cascade_invalidator:  None,
         feed:                 None,
+        collections:          crate::cache::collections::CollectionTagging::default(),
     };
 
     // Query with v2 - should miss cache (different schema version)

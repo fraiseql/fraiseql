@@ -48,7 +48,9 @@ use ahash::RandomState;
 use serde_json::Value as JsonValue;
 
 use crate::{
-    backend::{OrderByClause, ProjectionRequest, WhereOperator, where_clause::WhereClause},
+    backend::{
+        ComposedLevel, OrderByClause, ProjectionRequest, WhereOperator, where_clause::WhereClause,
+    },
     schema::QueryDefinition,
     security::SecurityContext,
 };
@@ -297,6 +299,44 @@ pub fn generate_projection_query_key(
     hash_session_vars(&mut h, session_vars);
     hash_locale(&mut h, locale);
 
+    h.write(b"\0s:");
+    h.write(schema_version.as_bytes());
+    h.finish()
+}
+
+/// Generate the cache key of a composed read (#1589): every level of `read`, the session
+/// variables and the locale it runs under, and the schema version.
+///
+/// The tree is hashed through its `Debug` rendering, streamed into the hasher. Unlike a
+/// structural hash it cannot leave out a field added to a level, an embed or a predicate
+/// later: every field the read carries is in its `Debug` output, strings quoted and
+/// escaped. Two equal reads render alike; two JSON values equal up to key order may not,
+/// which costs a cache miss, never a wrong hit.
+#[must_use]
+pub fn generate_composed_query_key(
+    read: &ComposedLevel,
+    session_vars: &[(&str, &str)],
+    locale: Option<&str>,
+    schema_version: &str,
+) -> u64 {
+    /// Feeds formatted text to a hasher, so the rendering is never held in memory.
+    struct HashWriter<'a, H: Hasher>(&'a mut H);
+    impl<H: Hasher> std::fmt::Write for HashWriter<'_, H> {
+        fn write_str(&mut self, s: &str) -> std::fmt::Result {
+            self.0.write(s.as_bytes());
+            Ok(())
+        }
+    }
+
+    let mut h = new_hasher();
+    h.write(b"c:");
+    // Reason (expect below): writing to a hasher cannot fail, and a `Debug` impl only
+    // fails when its writer does.
+    std::fmt::Write::write_fmt(&mut HashWriter(&mut h), format_args!("{read:?}"))
+        .expect("hashing a composed read");
+    h.write(b"\0sv:");
+    hash_session_vars(&mut h, session_vars);
+    hash_locale(&mut h, locale);
     h.write(b"\0s:");
     h.write(schema_version.as_bytes());
     h.finish()
@@ -636,3 +676,7 @@ fn hash_session_vars(h: &mut impl std::hash::Hasher, session_vars: &[(&str, &str
         h.write_u8(0);
     }
 }
+
+#[cfg(test)]
+#[path = "key_composed_tests.rs"]
+mod key_composed_tests;

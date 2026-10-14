@@ -71,6 +71,7 @@ use async_trait::async_trait;
 
 use super::{
     cascade_invalidator::CascadeInvalidator,
+    collections::CollectionTagging,
     fact_table_version::{FactTableCacheConfig, FactTableVersionProvider},
     feed::{CacheEvictor, Eviction, FeedOutbox},
     result::QueryResultCache,
@@ -86,6 +87,8 @@ use crate::{
     schema::{CompiledSchema, SourceKind, SourceProbe, sql_source_probes},
 };
 
+#[cfg(test)]
+mod composed_tests;
 mod mutation;
 mod query;
 #[cfg(test)]
@@ -250,6 +253,10 @@ pub struct CachedDatabaseAdapter<A: DatabaseAdapter> {
     /// Where this server announces the evictions its writes make, for every other server
     /// (#1577). `None`: the cache is correct for this server alone.
     pub(super) feed: Option<FeedOutbox>,
+
+    /// The collections composed reads may be indexed by, while this server hears
+    /// pg_tviews' change feed (#1589).
+    pub(super) collections: CollectionTagging,
 }
 
 impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
@@ -297,6 +304,7 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
             version_provider: Arc::new(FactTableVersionProvider::default()),
             cascade_invalidator: None,
             feed: None,
+            collections: CollectionTagging::default(),
         }
     }
 
@@ -393,6 +401,13 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
             cache:   Arc::clone(&self.cache),
             cascade: self.cascade_invalidator.clone(),
         }
+    }
+
+    /// The handle that lets composed reads be indexed by collection while pg_tviews' change
+    /// feed is heard (#1589): the server's listener sets and clears it.
+    #[must_use]
+    pub fn collection_tagging(&self) -> CollectionTagging {
+        self.collections.clone()
     }
 
     /// Queue `eviction` for every other server, when this cache has a feed and is enabled.
@@ -526,6 +541,7 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
             version_provider:     self.version_provider,
             cascade_invalidator:  self.cascade_invalidator,
             feed:                 self.feed,
+            collections:          self.collections,
         };
         // Same reader as the startup path, so a new per-query cache annotation
         // cannot work at boot and stop working after a hot reload.
@@ -589,6 +605,7 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
             version_provider: Arc::new(FactTableVersionProvider::default()),
             cascade_invalidator: None,
             feed: None,
+            collections: CollectionTagging::default(),
         }
     }
 
@@ -824,6 +841,7 @@ impl<A: DatabaseAdapter + Clone> Clone for CachedDatabaseAdapter<A> {
             version_provider:     Arc::clone(&self.version_provider),
             cascade_invalidator:  self.cascade_invalidator.clone(),
             feed:                 self.feed.clone(),
+            collections:          self.collections.clone(),
         }
     }
 }
@@ -1056,19 +1074,18 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
         self.adapter.stream_with_projection(request, session_vars, routing).await
     }
 
-    /// Forwarded to the inner adapter, **uncached**.
-    ///
-    /// A composed read spans every view its embedded levels name, and this cache
-    /// invalidates by the view a read targets. A cached tree would therefore survive a
-    /// write to any view but the root's — serving related rows that no longer exist.
-    /// Caching it correctly needs invalidation by every view in the tree, which is a
-    /// change to the cache, not to this forwarder.
+    /// Cached under every view the tree reads, or by collection while pg_tviews' change
+    /// feed is heard (#1589), unless the query refused staleness — see
+    /// execute_where_query_arc_with_session.
     async fn execute_composed_with_session(
         &self,
         read: &fraiseql_db::ComposedLevel,
         session_vars: &[(&str, &str)],
         routing: ReadRouting,
     ) -> Result<Arc<Vec<JsonbValue>>> {
+        if routing.allows_cached_result() {
+            return self.execute_composed_impl(read, session_vars, routing).await;
+        }
         self.adapter.execute_composed_with_session(read, session_vars, routing).await
     }
 

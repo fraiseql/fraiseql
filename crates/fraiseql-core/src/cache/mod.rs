@@ -213,6 +213,7 @@ pub mod cascade_invalidator;
 // Entity-level caching modules
 pub mod cascade_metadata;
 pub mod cascade_response_parser;
+pub mod collections;
 pub mod embedding_graph;
 pub mod entity_key;
 pub mod feed;
@@ -246,8 +247,8 @@ pub use fact_table_version::{
 pub use fraiseql_db::ViewName;
 pub use invalidation::{InvalidationContext, InvalidationReason};
 pub use key::{
-    extract_accessed_views, generate_cache_key, generate_projection_query_key,
-    generate_view_query_key, hash_security_context,
+    extract_accessed_views, generate_cache_key, generate_composed_query_key,
+    generate_projection_query_key, generate_view_query_key, hash_security_context,
 };
 pub use mutation_reach::{
     declares_cacheable_views, statically_resolved_views, unattributable_mutations,
