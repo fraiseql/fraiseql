@@ -6,7 +6,8 @@
 //!
 //! It refuses only the fills an invalidation could have evicted. Every invalidation takes the
 //! next number of one sequence and stamps it on what it reaches: a slot per view it sweeps, a
-//! slot per entity type it evicts by id, or every fill at once (`clear`). A read snapshots the
+//! slot per entity type it evicts by id, a slot per child type whose collections it evicts
+//! (#1589), or every fill at once (`clear`). A read snapshots the
 //! sequence before its round trip; its fill is refused when a slot it would be indexed under
 //! carries a later stamp. A write to `v_post` therefore no longer refuses a read of `v_user`:
 //! under steady writes some invalidation is always in flight, and a global fence cached
@@ -32,6 +33,7 @@ const SLOTS: usize = 1024;
 /// Hash domains, so a view and an entity type of the same name use different slots.
 const VIEW: u8 = b'v';
 const ENTITY_TYPE: u8 = b'e';
+const COLLECTION_TYPE: u8 = b'c';
 
 /// Sequence-stamped slots; see the module documentation.
 pub(super) struct InvalidationFence {
@@ -71,21 +73,30 @@ impl InvalidationFence {
         self.slot(ENTITY_TYPE, entity_type).fetch_max(stamp, Ordering::SeqCst);
     }
 
+    /// Stamp the slot of the collections of `child_type` (#1589). Call before collecting the
+    /// keys to evict.
+    pub(super) fn stamp_collection_type(&self, child_type: &str) {
+        let stamp = self.next();
+        self.slot(COLLECTION_TYPE, child_type).fetch_max(stamp, Ordering::SeqCst);
+    }
+
     /// Stamp every fill. Call before clearing.
     pub(super) fn stamp_everything(&self) {
         let stamp = self.next();
         self.everything.fetch_max(stamp, Ordering::SeqCst);
     }
 
-    /// Whether an invalidation stamped after `snapshot` reaches a fill indexed under `views`
-    /// and `entity_type`. A plain read: cheap, and enough to skip work early.
+    /// Whether an invalidation stamped after `snapshot` reaches a fill indexed under `views`,
+    /// `entity_type` and collections of `child_types`. A plain read: cheap, and enough to
+    /// skip work early.
     pub(super) fn moved_since<'a>(
         &self,
         snapshot: u64,
         views: impl IntoIterator<Item = &'a str>,
         entity_type: Option<&str>,
+        child_types: impl IntoIterator<Item = &'a str>,
     ) -> bool {
-        self.reaches(snapshot, views, entity_type, |slot| slot.load(Ordering::SeqCst))
+        self.reaches(snapshot, views, entity_type, child_types, |slot| slot.load(Ordering::SeqCst))
     }
 
     /// [`moved_since`](Self::moved_since) as the authoritative check, made **after** the
@@ -96,8 +107,11 @@ impl InvalidationFence {
         snapshot: u64,
         views: impl IntoIterator<Item = &'a str>,
         entity_type: Option<&str>,
+        child_types: impl IntoIterator<Item = &'a str>,
     ) -> bool {
-        self.reaches(snapshot, views, entity_type, |slot| slot.fetch_add(0, Ordering::SeqCst))
+        self.reaches(snapshot, views, entity_type, child_types, |slot| {
+            slot.fetch_add(0, Ordering::SeqCst)
+        })
     }
 
     fn reaches<'a>(
@@ -105,11 +119,15 @@ impl InvalidationFence {
         snapshot: u64,
         views: impl IntoIterator<Item = &'a str>,
         entity_type: Option<&str>,
+        child_types: impl IntoIterator<Item = &'a str>,
         read: impl Fn(&AtomicU64) -> u64,
     ) -> bool {
         read(&self.everything) > snapshot
             || views.into_iter().any(|view| read(self.slot(VIEW, view)) > snapshot)
             || entity_type.is_some_and(|et| read(self.slot(ENTITY_TYPE, et)) > snapshot)
+            || child_types
+                .into_iter()
+                .any(|child| read(self.slot(COLLECTION_TYPE, child)) > snapshot)
     }
 
     fn next(&self) -> u64 {

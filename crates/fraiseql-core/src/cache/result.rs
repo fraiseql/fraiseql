@@ -62,7 +62,7 @@ use fraiseql_db::ViewName;
 use moka::sync::Cache as MokaCache;
 use serde::{Deserialize, Serialize};
 
-use super::{config::CacheConfig, fence::InvalidationFence};
+use super::{config::CacheConfig, fence::InvalidationFence, tviews_feed::Collection};
 use crate::{db::types::JsonbValue, error::Result};
 
 /// Cached query result with metadata.
@@ -106,6 +106,13 @@ pub struct CachedResult {
     /// Used by the eviction listener to clean up `entity_index` on eviction.
     pub entity_refs: Box<[(String, String)]>,
 
+    /// Views of the levels of a composed read tagged by collection (#1589), indexed apart
+    /// from [`accessed_views`](Self::accessed_views): see [`ComposedTags`].
+    pub collected_views: Box<[ViewName]>,
+
+    /// The collections a composed read composes, each with its parent's id (#1589).
+    pub collections: Box<[(Collection, String)]>,
+
     /// Process-unique identity of this cached *entry instance*.
     ///
     /// Distinguishes an entry from its own replacement under the same cache key.
@@ -118,6 +125,26 @@ pub struct CachedResult {
 /// A reverse-index registration: the cache key plus the epoch of the entry
 /// instance that registered it.
 type IndexRef = (u64, u64);
+
+/// Reverse index: child type → `(column, parent id)` → set of `(cache key, epoch)` (#1589).
+type CollectionIndex = DashMap<String, DashMap<(String, String), DashSet<IndexRef>>>;
+
+/// What a composed read's entry is indexed under besides its views and entity (#1589).
+///
+/// A level composing the comments of each post it reads is stale when a comment joins,
+/// leaves or changes in one of those posts' collections, which a row tag cannot catch (the
+/// new comment was never in the result). Such a level is tagged by collection and parent,
+/// and its view goes to [`collected_views`](Self::collected_views) rather than to the
+/// entry's views.
+#[derive(Debug, Clone, Default)]
+pub struct ComposedTags {
+    /// Views of the levels tagged by collection. A write FraiseQL ran sweeps them like any
+    /// view ([`QueryResultCache::invalidate_views`]); a change feed that names collections
+    /// does not ([`QueryResultCache::invalidate_views_except_collections`]).
+    pub collected_views: Vec<String>,
+    /// Each collection the entry composes, with the parent's id.
+    pub collections:     Vec<(Collection, String)>,
+}
 
 /// Moka `Expiry` implementation: reads TTL from `CachedResult.ttl_seconds`.
 struct CacheEntryExpiry;
@@ -223,6 +250,14 @@ pub struct QueryResultCache {
     /// Reverse index: entity type → entity id → set of `(cache key, epoch)`.
     entity_index: Arc<DashMap<String, DashMap<String, DashSet<IndexRef>>>>,
 
+    /// Reverse index: view of a level tagged by collection → set of `(cache key, epoch)`
+    /// (#1589). Swept by [`invalidate_views`](Self::invalidate_views), not by
+    /// [`invalidate_views_except_collections`](Self::invalidate_views_except_collections).
+    collected_view_index: Arc<DashMap<ViewName, DashSet<IndexRef>>>,
+
+    /// Reverse index of the collections composed reads compose (#1589).
+    collection_index: Arc<CollectionIndex>,
+
     /// Source of [`CachedResult::epoch`] values. Monotonic for the process
     /// lifetime; wrap-around at 2^64 puts is not reachable.
     next_epoch: AtomicU64,
@@ -278,11 +313,15 @@ fn build_store(
     memory_bytes: Arc<AtomicUsize>,
     view_index: Arc<DashMap<ViewName, DashSet<IndexRef>>>,
     entity_index: Arc<DashMap<String, DashMap<String, DashSet<IndexRef>>>>,
+    collected_view_index: Arc<DashMap<ViewName, DashSet<IndexRef>>>,
+    collection_index: Arc<CollectionIndex>,
 ) -> MokaCache<u64, Arc<CachedResult>> {
     let max_cap = config.max_entries as u64;
     let mb = memory_bytes;
     let vi = view_index;
     let ei = entity_index;
+    let cvi = collected_view_index;
+    let ci = collection_index;
 
     MokaCache::builder()
         .max_capacity(max_cap)
@@ -308,6 +347,20 @@ fn build_store(
             for (et, id) in &*value.entity_refs {
                 if let Some(by_type) = ei.get(et) {
                     if let Some(keys) = by_type.get(id) {
+                        keys.remove(&reference);
+                    }
+                }
+            }
+
+            // And the composed read's collection tags (#1589).
+            for view in &value.collected_views {
+                if let Some(keys) = cvi.get(view) {
+                    keys.remove(&reference);
+                }
+            }
+            for (collection, parent) in &*value.collections {
+                if let Some(by_type) = ci.get(&collection.child_type) {
+                    if let Some(keys) = by_type.get(&(collection.column.clone(), parent.clone())) {
                         keys.remove(&reference);
                     }
                 }
@@ -338,12 +391,17 @@ impl QueryResultCache {
         let view_index: Arc<DashMap<ViewName, DashSet<IndexRef>>> = Arc::new(DashMap::new());
         let entity_index: Arc<DashMap<String, DashMap<String, DashSet<IndexRef>>>> =
             Arc::new(DashMap::new());
+        let collected_view_index: Arc<DashMap<ViewName, DashSet<IndexRef>>> =
+            Arc::new(DashMap::new());
+        let collection_index: Arc<CollectionIndex> = Arc::new(DashMap::new());
 
         let store = build_store(
             &config,
             Arc::clone(&memory_bytes),
             Arc::clone(&view_index),
             Arc::clone(&entity_index),
+            Arc::clone(&collected_view_index),
+            Arc::clone(&collection_index),
         );
 
         Self {
@@ -356,6 +414,8 @@ impl QueryResultCache {
             memory_bytes,
             view_index,
             entity_index,
+            collected_view_index,
+            collection_index,
             next_epoch: AtomicU64::new(0),
             fence: InvalidationFence::new(),
             suspended: AtomicBool::new(false),
@@ -478,6 +538,33 @@ impl QueryResultCache {
         before_insert: impl FnOnce(),
         after_insert: impl FnOnce(),
     ) -> Result<()> {
+        self.put_tagged(
+            cache_key,
+            result,
+            accessed_views,
+            ttl_override,
+            entity_type,
+            ComposedTags::default(),
+            fence,
+            before_insert,
+            after_insert,
+        )
+    }
+
+    /// [`put_arc_with`](Self::put_arc_with), indexed under `tags` too.
+    #[allow(clippy::too_many_arguments)] // Reason: put_arc_with's arguments plus the tags
+    fn put_tagged(
+        &self,
+        cache_key: u64,
+        result: Arc<Vec<JsonbValue>>,
+        accessed_views: Vec<String>,
+        ttl_override: Option<u64>,
+        entity_type: Option<&str>,
+        tags: ComposedTags,
+        fence: Option<u64>,
+        before_insert: impl FnOnce(),
+        after_insert: impl FnOnce(),
+    ) -> Result<()> {
         if !self.config.enabled || self.suspended.load(Ordering::SeqCst) {
             return Ok(());
         }
@@ -487,8 +574,12 @@ impl QueryResultCache {
         // serialisation and index churn, and keeps the common straddle from ever being
         // visible in the store.
         if fence.is_some_and(|snapshot| {
-            self.fence
-                .moved_since(snapshot, accessed_views.iter().map(String::as_str), entity_type)
+            self.fence.moved_since(
+                snapshot,
+                accessed_views.iter().chain(&tags.collected_views).map(String::as_str),
+                entity_type,
+                tags.collections.iter().map(|(c, _)| c.child_type.as_str()),
+            )
         }) {
             return Ok(());
         }
@@ -541,6 +632,9 @@ impl QueryResultCache {
         // `accessed_views` (the slice stored on the cached entry).
         let accessed_views: Box<[ViewName]> =
             accessed_views.into_iter().map(ViewName::from).collect();
+        let collected_views: Box<[ViewName]> =
+            tags.collected_views.into_iter().map(ViewName::from).collect();
+        let collections: Box<[(Collection, String)]> = tags.collections.into_boxed_slice();
 
         // Identity of this entry instance, so the eviction listener can
         // deregister it without touching a replacement under the same key (#740).
@@ -562,6 +656,19 @@ impl QueryResultCache {
                 .insert(reference);
         }
 
+        // Register the composed read's collection tags (#1589).
+        for view in &collected_views {
+            self.collected_view_index.entry(view.clone()).or_default().insert(reference);
+        }
+        for (collection, parent) in &*collections {
+            self.collection_index
+                .entry(collection.child_type.clone())
+                .or_default()
+                .entry((collection.column.clone(), parent.clone()))
+                .or_default()
+                .insert(reference);
+        }
+
         let cached = CachedResult {
             result,
             accessed_views,
@@ -570,6 +677,8 @@ impl QueryResultCache {
                 .map_or(0, |d| d.as_secs()),
             ttl_seconds,
             entity_refs,
+            collected_views,
+            collections,
             epoch,
         };
 
@@ -593,8 +702,9 @@ impl QueryResultCache {
         if fence.is_some_and(|snapshot| {
             self.fence.moved_since_inserted(
                 snapshot,
-                entry.accessed_views.iter().map(ViewName::as_str),
+                entry.accessed_views.iter().chain(&*entry.collected_views).map(ViewName::as_str),
                 entity_type,
+                entry.collections.iter().map(|(c, _)| c.child_type.as_str()),
             )
         }) {
             self.store.invalidate(&cache_key);
@@ -651,6 +761,106 @@ impl QueryResultCache {
         self.put_arc(cache_key, Arc::new(result), accessed_views, ttl_override, entity_type, fence)
     }
 
+    /// Store a composed read's rows, indexed under `accessed_views`, `entity_type` and
+    /// `tags` (#1589). Otherwise [`put_arc`](Self::put_arc).
+    ///
+    /// # Errors
+    ///
+    /// This method is infallible. The `Result` return type is kept for API compatibility.
+    #[allow(clippy::too_many_arguments)] // Reason: put_arc's arguments plus the tags
+    pub fn put_composed(
+        &self,
+        cache_key: u64,
+        result: Arc<Vec<JsonbValue>>,
+        accessed_views: Vec<String>,
+        ttl_override: Option<u64>,
+        entity_type: Option<&str>,
+        tags: ComposedTags,
+        fence: Option<u64>,
+    ) -> Result<()> {
+        self.put_tagged(
+            cache_key,
+            result,
+            accessed_views,
+            ttl_override,
+            entity_type,
+            tags,
+            fence,
+            || {},
+            || {},
+        )
+    }
+
+    /// Evict the entries composing `collection` of the parent `parent_id` (#1589).
+    ///
+    /// # Errors
+    ///
+    /// This method is infallible. The `Result` return type is kept for API compatibility.
+    pub fn invalidate_collection(&self, collection: &Collection, parent_id: &str) -> Result<u64> {
+        if !self.config.enabled {
+            return Ok(0);
+        }
+        // Stamp before collecting keys (#1079), as invalidate_by_entity does.
+        self.fence.stamp_collection_type(&collection.child_type);
+        // Collect first: the eviction listener re-enters the index (see invalidate_views).
+        let keys: HashSet<u64> = self
+            .collection_index
+            .get(&collection.child_type)
+            .and_then(|by_type| {
+                by_type
+                    .get(&(collection.column.clone(), parent_id.to_string()))
+                    .map(|refs| refs.iter().map(|r| r.0).collect())
+            })
+            .unwrap_or_default();
+        Ok(self.evict(keys))
+    }
+
+    /// Evict the entries composing any collection of `child_type` (#1589).
+    ///
+    /// # Errors
+    ///
+    /// This method is infallible. The `Result` return type is kept for API compatibility.
+    pub fn invalidate_collections_of(&self, child_type: &str) -> Result<u64> {
+        if !self.config.enabled {
+            return Ok(0);
+        }
+        self.fence.stamp_collection_type(child_type);
+        let keys: HashSet<u64> = self
+            .collection_index
+            .get(child_type)
+            .map(|by_type| {
+                by_type
+                    .iter()
+                    .flat_map(|refs| refs.iter().map(|r| r.0).collect::<Vec<_>>())
+                    .collect()
+            })
+            .unwrap_or_default();
+        Ok(self.evict(keys))
+    }
+
+    /// Evict `keys`, counting them as invalidations. No index guard may be held: the eviction
+    /// listener re-enters the indexes.
+    fn evict(&self, keys: HashSet<u64>) -> u64 {
+        #[allow(clippy::cast_possible_truncation)]
+        // Reason: entry count never exceeds u64
+        let count = keys.len() as u64;
+        for key in keys {
+            self.store.invalidate(&key);
+        }
+        self.invalidations.fetch_add(count, Ordering::Relaxed);
+        count
+    }
+
+    /// [`invalidate_views`](Self::invalidate_views), but not by the views of levels tagged by
+    /// collection (#1589).
+    ///
+    /// # Errors
+    ///
+    /// This method is infallible. The `Result` return type is kept for API compatibility.
+    pub fn invalidate_views_except_collections(&self, views: &[ViewName]) -> Result<u64> {
+        self.sweep_views(views, false)
+    }
+
     /// Invalidate entries accessing specified views.
     ///
     /// Uses the `view_index` for O(k) lookup instead of O(n) full-cache scan.
@@ -682,6 +892,12 @@ impl QueryResultCache {
     /// # Ok::<(), fraiseql_core::error::FraiseQLError>(())
     /// ```
     pub fn invalidate_views(&self, views: &[ViewName]) -> Result<u64> {
+        self.sweep_views(views, true)
+    }
+
+    /// Evict the entries indexed under `views`; with `collected`, also those whose levels
+    /// tagged by collection read one of them (#1589).
+    fn sweep_views(&self, views: &[ViewName], collected: bool) -> Result<u64> {
         if !self.config.enabled {
             return Ok(0);
         }
@@ -702,28 +918,23 @@ impl QueryResultCache {
         for view in views {
             // ViewName implements Borrow<str>, so DashMap lookup by &str works
             // without materialising a fresh ViewName.
-            if let Some(keys) = self.view_index.get(view.as_str()) {
-                // Dedup: a query accessing multiple views in `views` would
-                // otherwise be counted and invalidated once per view, and a
-                // key mid-replacement is registered under two epochs.
-                for reference in keys.iter() {
-                    keys_to_invalidate.insert(reference.0);
+            let indexes = std::iter::once(&self.view_index)
+                .chain(collected.then_some(&self.collected_view_index));
+            for index in indexes {
+                if let Some(keys) = index.get(view.as_str()) {
+                    // Dedup: a query accessing multiple views in `views` would
+                    // otherwise be counted and invalidated once per view, and a
+                    // key mid-replacement is registered under two epochs.
+                    for reference in keys.iter() {
+                        keys_to_invalidate.insert(reference.0);
+                    }
                 }
+                // Guard dropped here — safe to proceed
             }
-            // Guard dropped here — safe to proceed
         }
 
-        #[allow(clippy::cast_possible_truncation)]
-        // Reason: entry count never exceeds u64
-        let count = keys_to_invalidate.len() as u64;
-
-        for key in keys_to_invalidate {
-            self.store.invalidate(&key);
-            // Index cleanup handled by eviction listener.
-        }
-
-        self.invalidations.fetch_add(count, Ordering::Relaxed);
-        Ok(count)
+        // Index cleanup handled by eviction listener.
+        Ok(self.evict(keys_to_invalidate))
     }
 
     /// Evict cache entries that contain a specific entity UUID.
@@ -847,6 +1058,8 @@ impl QueryResultCache {
         // async eviction listener to do this.
         self.view_index.clear();
         self.entity_index.clear();
+        self.collected_view_index.clear();
+        self.collection_index.clear();
         self.memory_bytes.store(0, Ordering::Relaxed);
         Ok(())
     }
@@ -948,3 +1161,7 @@ impl CacheMetrics {
         self.hit_rate() > 0.6
     }
 }
+
+#[cfg(test)]
+#[path = "result_collections_tests.rs"]
+mod result_collections_tests;

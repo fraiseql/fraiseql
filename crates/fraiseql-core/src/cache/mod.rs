@@ -253,7 +253,7 @@ pub use mutation_reach::{
     declares_cacheable_views, statically_resolved_views, unattributable_mutations,
 };
 pub use query_analyzer::{QueryAnalyzer, QueryCardinality, QueryEntityProfile};
-pub use result::{CacheMetrics, CachedResult, QueryResultCache};
+pub use result::{CacheMetrics, CachedResult, ComposedTags, QueryResultCache};
 pub use uuid_extractor::UUIDExtractor;
 
 #[cfg(test)]
