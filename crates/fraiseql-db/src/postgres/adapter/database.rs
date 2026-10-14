@@ -129,10 +129,50 @@ async fn run_function_in_txn(
         .map(|v| v as &(dyn tokio_postgres::types::ToSql + Sync))
         .collect();
 
+    // Everything the function and the outbox read of their configuration, in one statement:
+    // the session variables, the #366 marker, the timing stamp, and the `started_at` the
+    // outbox needs. Later pairs win, as when each was its own statement.
+    //
+    // The marker makes the #366 fallback-capture trigger suppress its row: this write is
+    // already logged by the outbox, and on the no-outbox path the opt-out means "no
+    // change-log row", not "let the trigger write a degraded one".
+    let mut configuration: Vec<(&str, &str)> = Vec::with_capacity(session_vars.len() + 3);
+    configuration.extend_from_slice(session_vars);
+    configuration.push((crate::changelog::CDC_MEDIATED_VAR, crate::changelog::CDC_MEDIATED_ON));
+    if adapter.mutation_timing_enabled {
+        configuration.push((
+            adapter.timing_variable_name.as_str(),
+            crate::changelog::CLOCK_TIMESTAMP_DIRECTIVE,
+        ));
+    }
+    // The outbox INSERT reads `fraiseql.started_at` with current_setting() (no missing_ok),
+    // so it must exist on this txn. The mutation runner injects it on the authenticated path;
+    // stamp it on every other one (e.g. an unauthenticated mutation that resolves no session
+    // vars), and never over a value already set. Only the outbox reads it.
+    if changelog.is_some()
+        && !configuration.iter().any(|(name, _)| *name == crate::changelog::STARTED_AT_VAR)
+    {
+        configuration
+            .push((crate::changelog::STARTED_AT_VAR, crate::changelog::CLOCK_TIMESTAMP_DIRECTIVE));
+    }
+    let (configure_sql, configure_params) = set_config_batch(&configuration);
+    let configuration_failed = |e: &tokio_postgres::Error| {
+        let names: Vec<&str> = configuration.iter().map(|(name, _)| *name).collect();
+        crate::postgres::database_error(
+            format!("set_config({names:?}) failed: {}", pg_detail(e)),
+            e,
+        )
+    };
+
     let mut client = adapter.acquire_connection_with_retry().await?;
-    // Parse/plan the (complex) CTE once per connection (statement cache) — this
-    // is the dominant outbox hot-path cost; cached, the in-txn write is ~free.
+    // Parse/plan both statements once per connection (statement cache): the call (with the
+    // outbox, a complex CTE) and the configuration, whose text depends only on how many pairs
+    // it sets and which carry the clock directive.
     let stmt = prepare_cached_stmt(&client, sql.as_str()).await?;
+    let configure = client
+        .prepare_cached(&configure_sql)
+        .await
+        .map_err(|e| configuration_failed(&e))?;
     // The messages below name the outbox when the outbox is what ran. They are the
     // strings the error sanitizer's corpus is reduced from, and an operator reading a
     // failed write wants to know whether the CTE was in it.
@@ -148,60 +188,17 @@ async fn run_function_in_txn(
         )
     })?;
 
-    // Apply session variables FIRST so the function body sees them (and so
-    // the started_at directive stamps the DB clock on this very txn).
-    apply_session_vars(&txn, session_vars).await?;
-
-    // Mark the txn FraiseQL-mediated so the #366 fallback-capture trigger
-    // suppresses its row — this write is already logged by the outbox below,
-    // and on the no-outbox path the opt-out means "no change-log row," not
-    // "let the trigger write a degraded one."
-    mark_cdc_mediated(&txn).await?;
-
-    // If mutation timing is on, stamp the timing variable in the same txn.
-    if adapter.mutation_timing_enabled {
-        txn.execute(
-            "SELECT set_config($1, clock_timestamp()::text, true)",
-            &[&adapter.timing_variable_name],
-        )
-        .await
-        .map_err(|e| {
-            crate::postgres::database_error(
-                format!("Failed to set mutation timing variable: {}", pg_detail(&e)),
-                &e,
-            )
-        })?;
-    }
-
-    // The outbox INSERT reads `fraiseql.started_at` with current_setting()
-    // (no missing_ok), so the GUC MUST exist on this txn. The mutation runner
-    // injects it via session_vars on the authenticated path; guarantee it on
-    // every other path (e.g. an unauthenticated mutation that resolves no
-    // session vars) so the duration computation never hits an unset
-    // parameter and aborts the mutation. Only the outbox reads it, so the
-    // no-changelog path is left exactly as a plain call
-    // leaves it.
-    if changelog.is_some() {
-        let started_at_set =
-            session_vars.iter().any(|(name, _)| *name == crate::changelog::STARTED_AT_VAR)
-                || (adapter.mutation_timing_enabled
-                    && adapter.timing_variable_name == crate::changelog::STARTED_AT_VAR);
-        if !started_at_set {
-            txn.execute(
-                "SELECT set_config($1, clock_timestamp()::text, true)",
-                &[&crate::changelog::STARTED_AT_VAR],
-            )
-            .await
-            .map_err(|e| {
-                crate::postgres::database_error(
-                    format!("Failed to stamp change-log started_at: {}", pg_detail(&e)),
-                    &e,
-                )
-            })?;
-        }
-    }
-
-    let rows: Vec<Row> = txn.query(&stmt, params.as_slice()).await.map_err(|e| {
+    // The configuration and the call in one flight (#1572): the driver sends both before
+    // reading either answer, and PostgreSQL runs them in order, so the function sees the
+    // configuration. Only once `BEGIN` is confirmed, so neither can run outside the txn.
+    // A failed configuration aborts the txn and the call with it; its own error is the one
+    // reported, not the call's "current transaction is aborted".
+    let (configured, called) = futures::join!(
+        txn.execute(&configure, &configure_params),
+        txn.query(&stmt, params.as_slice())
+    );
+    configured.map_err(|e| configuration_failed(&e))?;
+    let rows: Vec<Row> = called.map_err(|e| {
         crate::postgres::database_error(
             format!("Function call {function_name}{mechanism} failed: {}", pg_detail(&e)),
             &e,
@@ -639,39 +636,6 @@ fn set_config_batch<'a>(
         }
     }
     (sql, params)
-}
-
-/// Mark the in-progress mutation transaction as **FraiseQL-mediated** (#366).
-///
-/// Sets [`crate::changelog::CDC_MEDIATED_VAR`] to
-/// [`crate::changelog::CDC_MEDIATED_ON`] transaction-locally
-/// (`set_config(..., true)`), so the value auto-resets on commit and is invisible
-/// to other connections. The shipped fallback-capture trigger reads it and
-/// suppresses its own change-log row for this write, so an app-path mutation —
-/// already logged by the in-transaction outbox — is never double-captured. Set
-/// on every mutation transaction (independent of whether the outbox row is
-/// written), so an opted-out mutation (`changelog=false`) also suppresses the
-/// trigger rather than leaving a degraded fallback row.
-pub(super) async fn mark_cdc_mediated(txn: &tokio_postgres::Transaction<'_>) -> Result<()> {
-    txn.execute(
-        "SELECT set_config($1, $2, true)",
-        &[
-            &crate::changelog::CDC_MEDIATED_VAR,
-            &crate::changelog::CDC_MEDIATED_ON,
-        ],
-    )
-    .await
-    .map_err(|e| {
-        crate::postgres::database_error(
-            format!(
-                "Failed to set {} marker: {}",
-                crate::changelog::CDC_MEDIATED_VAR,
-                pg_detail(&e)
-            ),
-            &e,
-        )
-    })?;
-    Ok(())
 }
 
 /// Build the single statement that runs a mutation function and writes its

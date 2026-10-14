@@ -38,6 +38,7 @@ pub mod changelog;
 pub mod db;
 pub mod sample_schema;
 pub mod services;
+pub mod wire;
 
 pub use db::{
     below_floor_database_url, database_url, failover_standby_database_url, standby_database_url,

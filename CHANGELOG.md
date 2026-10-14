@@ -138,6 +138,16 @@ disagreed, and the promise was the part that was wrong.
   other's rows (a user embedding their posts, each post embedding its author) are invalidated
   together; `cascade_invalidate` visits each view once. A self-dependency is still refused.
   Embedders that relied on the refusal to detect cycles no longer get it.
+- **A mutation takes three round trips, not five to eight, and plans nothing per call (#1572).**
+  The #366 CDC marker, the mutation timing stamp and the outbox's `started_at` are set in the
+  same prepared `set_config` statement as the session variables, and that statement is sent
+  with the function call in one flight once `BEGIN` is confirmed: `BEGIN`, configuration and
+  call, `COMMIT`. The marker was an unprepared statement re-planned on every mutation. A
+  failed configuration rolls back and reports its own error, naming every variable of the
+  batch; the separate "Failed to set mutation timing variable" and "Failed to stamp change-log
+  started_at" messages are gone. On a plain `updateUser` with the outbox: 6 → 3 round trips,
+  5 → 4 statements, server CPU 103.6 → 93.9 µs per mutation. Throughput under row contention
+  is unchanged: the row lock is held from the call to `COMMIT`, which this does not shorten.
 
 ### Fixed
 

@@ -171,7 +171,8 @@ CDC view).
 
 - Marker constants: `fraiseql_db::{CDC_MEDIATED_VAR, CDC_MEDIATED_ON}`
   (`crates/fraiseql-db/src/changelog.rs`); set in the PostgreSQL adapter
-  (`crates/fraiseql-db/src/postgres/adapter/database.rs`, `mark_cdc_mediated`).
+  (`crates/fraiseql-db/src/postgres/adapter/database.rs`, `run_function_in_txn`, in the same
+  prepared `set_config` batch as the session variables).
 - Trigger function: `crates/fraiseql-observers/migrations/11_create_change_log_capture_trigger.sql`
   (exposed as `fraiseql_observers::migrations::entity_change_log_capture_trigger_sql`).
 - `@subscribable` threading: `IntermediateType.subscribable_tables` →
