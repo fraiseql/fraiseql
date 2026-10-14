@@ -86,7 +86,7 @@ pub use serde_json;
 #[cfg(feature = "postgres")]
 pub use tokio_postgres;
 pub use traits::{
-    AdminSqlOutcome, AdminSqlRequest, ArcDatabaseAdapter, BoxDatabaseAdapter,
+    AdminSqlOutcome, AdminSqlRequest, ArcDatabaseAdapter, BatchRowGate, BoxDatabaseAdapter,
     COMPOSED_DOCUMENT_KEY, COMPOSED_EMBEDS_KEY, ChangeLogWrite, ColumnRowStream, ComposedEmbed,
     ComposedKeyset, ComposedLevel, ConstraintDescription, CursorValue, DERIVED_CASCADE_KEY,
     DatabaseAdapter, DerivedCascade, EmbedShape, EmbedSource, JsonbRowStream, LevelKeys,

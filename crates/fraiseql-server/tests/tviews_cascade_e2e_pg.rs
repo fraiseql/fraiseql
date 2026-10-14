@@ -891,3 +891,51 @@ async fn each_derived_row_is_matched_to_its_entry_by_id() {
         "{body}"
     );
 }
+
+/// #1574: in a batch, each call's report says what that call changed. The report is read
+/// after its own call and before the next one; read after every call, the first would list
+/// both authors and the second none.
+#[tokio::test]
+async fn each_call_of_a_batch_reports_what_it_changed() {
+    use fraiseql_core::db::traits::{DERIVED_CASCADE_KEY, DerivedCascade, WriteMode, WriteRequest};
+    let Some(url) = tviews_database_url() else {
+        eprintln!("skipping #1574: TVIEWS_DATABASE_URL not set");
+        return;
+    };
+    provision(&url).await;
+    let adapter = PostgresAdapter::new(&url).await.unwrap();
+    let (post_view, user_view) = (format!("{SCHEMA}.v_post"), format!("{SCHEMA}.v_user"));
+    let views = [("Post", post_view.as_str()), ("User", user_view.as_str())];
+    let derived = DerivedCascade::new(100, &views);
+    let function = format!("{SCHEMA}.fn_update_post");
+    let args = [
+        [json!(POST), json!("ada's, renamed")],
+        [json!(OTHER_POST), json!("bob's, renamed")],
+    ];
+    let requests: Vec<WriteRequest<'_>> = args
+        .iter()
+        .map(|a| {
+            WriteRequest::new(&function, a)
+                .with_derived_cascade(Some(&derived))
+                .with_mode(WriteMode::DryRun)
+        })
+        .collect();
+
+    let rows = fraiseql_core::db::Writer::execute_writes(&adapter, &requests, &|_, _| Ok(()))
+        .await
+        .unwrap();
+
+    let authors: Vec<Vec<String>> = rows
+        .iter()
+        .map(|call| {
+            call[0][DERIVED_CASCADE_KEY]["updated"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .filter(|e| e["__typename"] == "User")
+                .map(|e| e["entity"]["name"].as_str().unwrap().to_string())
+                .collect()
+        })
+        .collect();
+    assert_eq!(authors, [["ada"], ["bob"]]);
+}

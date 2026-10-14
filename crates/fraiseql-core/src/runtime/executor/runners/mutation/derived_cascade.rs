@@ -31,12 +31,12 @@ pub(super) const DERIVED_ENTRIES: &str = "fraiseql_cascade_derived_entries";
 
 /// The types a derived cascade can read, with the view each is read from: every queryable
 /// type (a source, not an error type).
-pub(super) fn views(schema: &CompiledSchema) -> Vec<(String, String)> {
+pub(super) fn views(schema: &CompiledSchema) -> Vec<(&str, &str)> {
     schema
         .types
         .iter()
         .filter(|t| !t.is_error && !t.sql_source.as_str().is_empty())
-        .map(|t| (t.name.to_string(), t.sql_source.as_str().to_string()))
+        .map(|t| (t.name.as_str(), t.sql_source.as_str()))
         .collect()
 }
 

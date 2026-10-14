@@ -1364,8 +1364,6 @@ pub(in super::super) async fn execute_mutation_impl(
     selections: WriteSelections<'_>,
     inline_arguments: &[crate::graphql::GraphQLArgument],
 ) -> Result<MutationExecution> {
-    let selections = selections.as_slice();
-
     // 0. May this executor write at all? First, before every other gate.
     //
     // `78f91c9e2` fixed this for the document path and named the reason: a capability
@@ -1381,6 +1379,82 @@ pub(in super::super) async fn execute_mutation_impl(
     // reach the database further down, so this cannot decay back into a check that some
     // later entry point forgets to make.
     let writer = ctx.writer(mutation_name)?;
+    let prepared = prepare_write(
+        ctx,
+        mutation_name,
+        response_key,
+        variables,
+        security_ctx,
+        selections,
+        inline_arguments,
+    )
+    .await?;
+    let parts = prepared.parts();
+    let request = parts.request(&prepared);
+
+    // Every write commits only once it has been adjudicated (ruling Z 1): the
+    // response is built from the row inside the write's transaction, and its
+    // verdict decides the commit.
+    //
+    // #1353 is why a refusal must be able to take the write with it: the field
+    // authorizer's contract takes the resolved entity as `parent`, so it cannot be
+    // asked before the row exists, and a caller it refused used to lose the field
+    // and keep the side effect. Everything that *can* be asked earlier already ran
+    // before the write (the operation `Authorizer`, `requires_role`,
+    // `requires_actor`, `before:mutation`, and the payload's static gates, all in
+    // `prepare_write`).
+    //
+    // But building the response can fail on any schema, gated or not — no rows, a
+    // row that is not a `mutation_response`, a malformed cascade entry, the cascade
+    // size ceiling. A write that committed and then failed told its caller it failed
+    // while it had landed, and stored no idempotency record, so a retry ran it again.
+    // So it is not only a refusal that decides: every write takes this path. With the
+    // change-log outbox on (the default) the write is in this transaction anyway; the
+    // gate only moves the adjudication before `COMMIT`.
+    //
+    // The write commits only if adjudication completed without error: `adjudicate`
+    // returned `Ok`. That is not the same as every field being allowed — a `Mask`
+    // decision nulls one field on one row and returns `Ok`, because it is a statement
+    // about the value, not the operation. Any `Err` rolls back and is returned
+    // unchanged, whatever its variant.
+    let built = std::sync::OnceLock::new();
+    let gate = |rows: &[std::collections::HashMap<String, serde_json::Value>]| {
+        drop(built.set(prepared.adjudicate(rows)?));
+        Ok(())
+    };
+    // The adapter returns the gate's error verbatim once the rollback has
+    // landed — so a refusal, a failed rollback and a failed commit all surface
+    // here, and a failed rollback surfaces as itself rather than as the error
+    // it was trying to honour.
+    let adjudicated = match writer.execute_write(&request, &gate).await {
+        Ok(_) => built.into_inner().ok_or_else(|| FraiseQLError::Internal {
+            message: format!(
+                "Mutation '{mutation_name}': the commit gate never ran, so the write \
+                 committed unadjudicated"
+            ),
+            source:  None,
+        })?,
+        Err(error) => prepared.answer_violation(error).await?,
+    };
+
+    after_commit(ctx, writer, prepared.mutation_def, mutation_name, security_ctx, &[&adjudicated])
+        .await?;
+    Ok(prepared.execution(adjudicated))
+}
+
+/// Steps 1–4 of a write, everything asked before its transaction: the gates that do not
+/// need the written row, the arguments bound, the selection settled, the session variables
+/// and the change-log stamp resolved.
+async fn prepare_write<'a>(
+    ctx: &'a Arc<ExecutorContext>,
+    mutation_name: &'a str,
+    response_key: &str,
+    variables: Option<&serde_json::Value>,
+    security_ctx: Option<&'a SecurityContext>,
+    selections: WriteSelections<'_>,
+    inline_arguments: &[crate::graphql::GraphQLArgument],
+) -> Result<PreparedWrite<'a>> {
+    let selections = selections.as_slice();
 
     // #633: a tenant over its storage quota writes nothing, whatever the transport. Asked
     // before anything of the write runs, so a refused write executes no hook and no
@@ -1871,11 +1945,6 @@ pub(in super::super) async fn execute_mutation_impl(
     // other gate in this function. It also lets the projection run inside the write's
     // transaction below, which is what lets the field authorizer refuse the write
     // itself (#1353) instead of only its result.
-    // Clone name and return_type to avoid borrow issues after schema lookups
-    let mutation_return_type = mutation_def.return_type.clone();
-    let response_key_owned = response_key.to_string();
-    // Whether this mutation exposes the typed cascade payload surface.
-    let is_cascade = mutation_def.cascade;
 
     // Evaluate @skip / @include against the request variables before projecting, so
     // conditional fields are honoured exactly as on the query path. (Named fragment
@@ -1909,46 +1978,140 @@ pub(in super::super) async fn execute_mutation_impl(
         selections,
     )?;
 
-    let (envelope, result_json, reported) = {
-        // 3b. Resolve session variables once and pass them to the adapter call so
-        //     they are applied on the same connection / transaction as the function
-        //     (fixes #329 — set_config(..., true) is transaction-local, so applying
-        //     it on a separate pooled connection left it invisible to the function).
-        //
-        // Only resolved when there are variables to inject or inject_started_at is
-        // enabled. An anonymous write gets its `literal` and `header` sources and the
-        // timestamp (#1520); claim and enrichment sources need a principal.
-        let resolved_session_vars = {
-            let sv = &ctx.schema.session_variables;
-            if sv.variables.is_empty() && !sv.inject_started_at {
-                Vec::new()
-            } else {
-                crate::runtime::executor::support::security::resolve_session_variables(
-                    sv,
-                    security_ctx,
-                    ctx.schema.tenant_claim(),
-                    crate::runtime::executor::support::security::SessionPurpose::Write,
-                )?
-            }
-        };
-        let session_pairs: Vec<(&str, &str)> =
-            resolved_session_vars.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
+    // 3b. Resolve session variables once and pass them to the adapter call so
+    //     they are applied on the same connection / transaction as the function
+    //     (fixes #329 — set_config(..., true) is transaction-local, so applying
+    //     it on a separate pooled connection left it invisible to the function).
+    //
+    // Only resolved when there are variables to inject or inject_started_at is
+    // enabled. An anonymous write gets its `literal` and `header` sources and the
+    // timestamp (#1520); claim and enrichment sources need a principal.
+    let session_vars = {
+        let sv = &ctx.schema.session_variables;
+        if sv.variables.is_empty() && !sv.inject_started_at {
+            Vec::new()
+        } else {
+            crate::runtime::executor::support::security::resolve_session_variables(
+                sv,
+                security_ctx,
+                ctx.schema.tenant_claim(),
+                crate::runtime::executor::support::security::SessionPurpose::Write,
+            )?
+        }
+    };
 
-        // 4. Call the database function (session variables pinned to its connection) AND write the
-        //    change-log outbox row in the same transaction — the Change Spine transactional outbox.
-        //    The framework owns this write by default; apps drop their hand-rolled
-        //    per-mutation-function inserts on upgrade (a documented breaking change). The adapter
-        //    reads the changed-entity columns (object_id / object_data / updated_fields / cascade)
-        //    from the function's own mutation_response row; only the DML verb and a NOT-NULL
-        //    object_type fallback (the GraphQL return type) are threaded down here. Non-PostgreSQL
-        //    adapters ignore the change-log descriptor (multi-DB parity lands in phase-03).
-        //
-        //    Opt-out (default-on): a row is written only when the global switch
-        //    (`RuntimeConfig.changelog_enabled`) is on AND this mutation is not
-        //    individually opted out (`MutationDefinition.changelog`). Passing `None`
-        //    makes the adapter behave exactly like the session-affine path.
-        let modification_type = mutation_def.operation.kind_str().to_uppercase();
-        let write_changelog = ctx.config.changelog_enabled && mutation_def.changelog;
+    // 4. Call the database function (session variables pinned to its connection) AND write the
+    //    change-log outbox row in the same transaction — the Change Spine transactional outbox. The
+    //    framework owns this write by default; apps drop their hand-rolled per-mutation-function
+    //    inserts on upgrade (a documented breaking change). The adapter reads the changed-entity
+    //    columns (object_id / object_data / updated_fields / cascade) from the function's own
+    //    mutation_response row; only the DML verb and a NOT-NULL object_type fallback (the GraphQL
+    //    return type) are threaded down here. Non-PostgreSQL adapters ignore the change-log
+    //    descriptor (multi-DB parity lands in phase-03).
+    //
+    //    Opt-out (default-on): a row is written only when the global switch
+    //    (`RuntimeConfig.changelog_enabled`) is on AND this mutation is not
+    //    individually opted out (`MutationDefinition.changelog`). Passing `None`
+    //    makes the adapter behave exactly like the session-affine path.
+    let write_changelog = ctx.config.changelog_enabled && mutation_def.changelog;
+    // Serialize the trace context once, into a binding that outlives the write call
+    // (ChangeLogWrite borrows it as JSON text).
+    let trace_context_json = security_ctx
+        .and_then(SecurityContext::trace_context)
+        .map(serde_json::Value::to_string);
+    // The change-log records the type the write produced: its stamp (the CTE prefers it),
+    // else the one type an unstamped success can be — never a union's or a cascade
+    // payload's name (ruling AA 1). An off-contract or ambiguous stamp rolls the whole
+    // write back, change-log row included.
+    let changelog_object_type =
+        unstamped_type(&ctx.schema, &mutation_def.return_type, mutation_def.cascade)
+            .unwrap_or_else(|| mutation_def.return_type.clone());
+
+    // #1391: a mutation whose cascade also comes from pg_tviews asks the adapter for the
+    // rows its transaction changed, read on its connection, before the gate. A type whose
+    // reads the engine filters is not read (#1573): the merge lists none of its rows.
+    let derived_views = (mutation_def.cascade_source == crate::schema::CascadeSource::PgTviews)
+        .then(|| {
+            derived_cascade::views(&ctx.schema)
+                .into_iter()
+                .filter(|(name, _)| {
+                    !derived_cascade::engine_filtered(
+                        &ctx.schema,
+                        ctx.config.rls_policy.is_some(),
+                        name,
+                    )
+                })
+                .collect()
+        });
+
+    Ok(PreparedWrite {
+        ctx,
+        mutation_def,
+        mutation_name,
+        security_ctx,
+        sql_source: sql_source.to_string(),
+        args,
+        response_key: response_key.to_string(),
+        selections: filtered_selections,
+        authz_variables,
+        payload_gates,
+        session_vars,
+        modification_type: mutation_def.operation.kind_str().to_uppercase(),
+        changelog_object_type: write_changelog.then_some(changelog_object_type),
+        trace_context_json,
+        derived_views,
+    })
+}
+
+/// A mutation call, decided: every gate that can be asked before the write has been asked,
+/// and what the write sends and how its rows are judged are fixed.
+struct PreparedWrite<'a> {
+    ctx:                   &'a Arc<ExecutorContext>,
+    mutation_def:          &'a crate::schema::MutationDefinition,
+    mutation_name:         &'a str,
+    security_ctx:          Option<&'a SecurityContext>,
+    sql_source:            String,
+    args:                  Vec<serde_json::Value>,
+    response_key:          String,
+    /// The payload selection, after `@skip`/`@include`.
+    selections:            Vec<FieldSelection>,
+    authz_variables:       std::collections::HashMap<String, serde_json::Value>,
+    payload_gates:         PayloadGates,
+    session_vars:          Vec<(String, String)>,
+    modification_type:     String,
+    /// The type the change-log row records, when this write writes one.
+    changelog_object_type: Option<String>,
+    trace_context_json:    Option<String>,
+    /// The types a derived cascade reads, with their views (#1391), when it asks for one.
+    derived_views:         Option<Vec<(&'a str, &'a str)>>,
+}
+
+/// What a write's rows were judged to be: the parsed outcome, the response built from it, and
+/// the types a derived cascade's report named (#1575).
+type Adjudicated = (MutationOutcome, serde_json::Value, std::collections::BTreeSet<String>);
+
+/// The borrowed pieces a [`crate::backend::WriteRequest`] points into.
+struct WriteParts<'p> {
+    session_pairs: Vec<(&'p str, &'p str)>,
+    changelog:     Option<ChangeLogWrite<'p>>,
+    derived:       Option<crate::backend::DerivedCascade<'p>>,
+    mode:          crate::backend::WriteMode,
+}
+
+impl WriteParts<'_> {
+    fn request<'r>(&'r self, prepared: &'r PreparedWrite<'_>) -> crate::backend::WriteRequest<'r> {
+        crate::backend::WriteRequest::new(&prepared.sql_source, &prepared.args)
+            .with_session_vars(&self.session_pairs)
+            .with_changelog(self.changelog.as_ref())
+            .with_mode(self.mode)
+            .with_derived_cascade(self.derived.as_ref())
+    }
+}
+
+impl PreparedWrite<'_> {
+    fn parts(&self) -> WriteParts<'_> {
+        let ctx = self.ctx;
+        let security_ctx = self.security_ctx;
         // Envelope stamp (phase-03): stamp the tenant partition id EXPLICITLY from the
         // SecurityContext — never reconstructed from connection / RLS state, because
         // out-of-session spine consumers (poller, NATS bridge) bypass RLS and must
@@ -1966,215 +2129,222 @@ pub(in super::super) async fn execute_mutation_impl(
         // is the request's actor classification and `acting_for` the delegated human
         // an agent acts for (#390), both derived onto the SecurityContext at auth time
         // — NULL for an unauthenticated mutation (no SecurityContext to stamp).
-        let tenant_uuid = security_ctx
-            .and_then(|c| c.tenant_id.as_ref())
-            .and_then(|t| uuid::Uuid::parse_str(t.as_str()).ok());
-        let trace_id = security_ctx.and_then(SecurityContext::trace_id);
-        // Serialize the trace context once, into a binding that outlives the write call
-        // (ChangeLogWrite borrows it as JSON text).
-        let trace_context_json = security_ctx
-            .and_then(SecurityContext::trace_context)
-            .map(serde_json::Value::to_string);
-        let actor_type = security_ctx.map(|c| c.actor_type().as_str());
-        let acting_for = security_ctx.and_then(SecurityContext::acting_for);
         // `transport` is the ingress door the request declared (#376) — set by a
         // transport that stamps itself onto the SecurityContext (today: MCP);
         // NULL for the HTTP GraphQL path and unauthenticated mutations.
-        let transport = security_ctx.and_then(SecurityContext::transport);
-        // The change-log records the type the write produced: its stamp (the CTE prefers it),
-        // else the one type an unstamped success can be — never a union's or a cascade
-        // payload's name (ruling AA 1). An off-contract or ambiguous stamp rolls the whole
-        // write back, change-log row included.
-        let changelog_object_type =
-            unstamped_type(&ctx.schema, &mutation_def.return_type, mutation_def.cascade)
-                .unwrap_or_else(|| mutation_def.return_type.clone());
-        let changelog = write_changelog.then(|| {
-            ChangeLogWrite::new(&changelog_object_type, &modification_type)
-                .with_tenant_id(tenant_uuid)
-                .with_trace_id(trace_id)
+        let changelog = self.changelog_object_type.as_deref().map(|object_type| {
+            ChangeLogWrite::new(object_type, &self.modification_type)
+                .with_tenant_id(
+                    security_ctx
+                        .and_then(|c| c.tenant_id.as_ref())
+                        .and_then(|t| uuid::Uuid::parse_str(t.as_str()).ok()),
+                )
+                .with_trace_id(security_ctx.and_then(SecurityContext::trace_id))
                 .with_schema_version(Some(&ctx.schema_version))
-                .with_trace_context(trace_context_json.as_deref())
-                .with_actor_type(actor_type)
-                .with_acting_for(acting_for)
-                .with_transport(transport)
+                .with_trace_context(self.trace_context_json.as_deref())
+                .with_actor_type(security_ctx.map(|c| c.actor_type().as_str()))
+                .with_acting_for(security_ctx.and_then(SecurityContext::acting_for))
+                .with_transport(security_ctx.and_then(SecurityContext::transport))
                 // Opt-in pre-image: when this mutation sets `changelog_pre_image`, the
                 // outbox CTE also records the entity's before-state (from the
                 // function's `entity_before`) into `object_data_before`. Off by
                 // default → no extra column, byte-for-byte today's behavior.
-                .with_pre_image(mutation_def.changelog_pre_image)
+                .with_pre_image(self.mutation_def.changelog_pre_image)
         });
-        // 5/6. Row → outcome → response, as one step, because on the gated path
-        //      below all of it has to happen before the transaction commits.
-        let adjudicate = |rows: &[std::collections::HashMap<String, serde_json::Value>]| {
-            let row = rows.first().ok_or_else(|| FraiseQLError::Validation {
-                message: format!("Mutation '{mutation_name}': function returned no rows"),
-                path:    None,
-            })?;
-            // #1575: what the report says changed, before the merge drops what it may not
-            // serve; every such type's cached reads are stale.
-            let reported = derived_cascade::reported_types(row);
-            // #1391: pg_tviews' report, merged into the cascade it is served from.
-            let row = derived_cascade::merge(&ctx.schema, row, |type_name| {
-                derived_cascade::engine_filtered(
-                    &ctx.schema,
-                    ctx.config.rls_policy.is_some(),
-                    type_name,
-                )
-            });
-            let outcome = parse_mutation_row(&row)?;
-            crate::runtime::mutation_result::check_error_shape(
-                ctx.config.mutation_error_shape_check,
-                &outcome,
-                mutation_name,
-                sql_source,
-            );
-            // The caller needs the envelope; `build_mutation_result` consumes the
-            // outcome to build the projection.
-            let envelope = outcome.clone();
-            let result_json = build_mutation_result(
-                ctx,
-                security_ctx,
-                &payload_gates,
-                outcome,
-                &mutation_return_type,
-                is_cascade,
-                selections,
-                &authz_variables,
-            )
-            .inspect_err(|e| {
-                // A contract error is a bug in the mutation function: say which one, where
-                // operators read (ruling AJ 3); it is also counted.
-                if payload_gates::is_contract_error(e) {
-                    tracing::warn!(
-                        mutation = %mutation_name,
-                        function = %sql_source,
-                        error = %e,
-                        "mutation contract error: the write was rolled back"
-                    );
-                }
-            })?;
-            Ok::<_, FraiseQLError>((envelope, result_json, reported))
-        };
-
-        // Every write commits only once it has been adjudicated (ruling Z 1): the
-        // response is built from the row inside the write's transaction, and its
-        // verdict decides the commit.
-        //
-        // #1353 is why a refusal must be able to take the write with it: the field
-        // authorizer's contract takes the resolved entity as `parent`, so it cannot be
-        // asked before the row exists, and a caller it refused used to lose the field
-        // and keep the side effect. Everything that *can* be asked earlier already ran
-        // before the write (the operation `Authorizer`, `requires_role`,
-        // `requires_actor`, `before:mutation`, and the payload's static gates above).
-        //
-        // But building the response can fail on any schema, gated or not — no rows, a
-        // row that is not a `mutation_response`, a malformed cascade entry, the cascade
-        // size ceiling. A write that committed and then failed told its caller it failed
-        // while it had landed, and stored no idempotency record, so a retry ran it again.
-        // So it is not only a refusal that decides: every write takes this path. With the
-        // change-log outbox on (the default) the write is in this transaction anyway; the
-        // gate only moves the adjudication before `COMMIT`.
-        //
-        // The write commits only if adjudication completed without error: `adjudicate`
-        // returned `Ok`. That is not the same as every field being allowed — a `Mask`
-        // decision nulls one field on one row and returns `Ok`, because it is a statement
-        // about the value, not the operation. Any `Err` rolls back and is returned
-        // unchanged, whatever its variant.
-        let built = std::sync::OnceLock::new();
-        let gate = |rows: &[std::collections::HashMap<String, serde_json::Value>]| {
-            drop(built.set(adjudicate(rows)?));
-            Ok(())
-        };
         // A dry run (#501, `dry_run_mutations`) is the same write in
         // `WriteMode::DryRun` (ruling AA 6): the same transaction, session variables,
         // outbox row and gate, ending in a rollback — so it answers exactly as the write
         // would, and nothing persists.
-        //
-        // The adapter returns the gate's error verbatim once the rollback has
-        // landed — so a refusal, a failed rollback and a failed commit all surface
-        // here, and a failed rollback surfaces as itself rather than as the error
-        // it was trying to honour.
         let mode = if ctx.config.dry_run_mutations {
             crate::backend::WriteMode::DryRun
         } else {
             crate::backend::WriteMode::Commit
         };
-        // #1391: a mutation whose cascade also comes from pg_tviews asks the adapter for the
-        // rows its transaction changed, read on its connection, before the gate. A type whose
-        // reads the engine filters is not read (#1573): the merge lists none of its rows.
-        let derived_views = (mutation_def.cascade_source == crate::schema::CascadeSource::PgTviews)
-            .then(|| derived_cascade::views(&ctx.schema));
-        let derived_pairs: Vec<(&str, &str)> = derived_views
-            .iter()
-            .flatten()
-            .filter(|(name, _)| {
-                !derived_cascade::engine_filtered(
-                    &ctx.schema,
-                    ctx.config.rls_policy.is_some(),
-                    name,
+        WriteParts {
+            session_pairs: self
+                .session_vars
+                .iter()
+                .map(|(k, v)| (k.as_str(), v.as_str()))
+                .collect(),
+            changelog,
+            derived: self.derived_views.as_deref().map(|views| {
+                crate::backend::DerivedCascade::new(
+                    i32::try_from(ctx.config.cascade_limits.max_updated_entities)
+                        .unwrap_or(i32::MAX),
+                    views,
                 )
-            })
-            .map(|(name, view)| (name.as_str(), view.as_str()))
-            .collect();
-        let derived = derived_views.is_some().then(|| {
-            crate::backend::DerivedCascade::new(
-                i32::try_from(ctx.config.cascade_limits.max_updated_entities).unwrap_or(i32::MAX),
-                &derived_pairs,
+            }),
+            mode,
+        }
+    }
+
+    /// 5/6. Row → outcome → response, as one step, because all of it has to happen before
+    /// the transaction commits (see [`execute_mutation_impl`]).
+    fn adjudicate(
+        &self,
+        rows: &[std::collections::HashMap<String, serde_json::Value>],
+    ) -> Result<Adjudicated> {
+        let ctx = self.ctx;
+        let (mutation_name, sql_source) = (self.mutation_name, self.sql_source.as_str());
+        let row = rows.first().ok_or_else(|| FraiseQLError::Validation {
+            message: format!("Mutation '{mutation_name}': function returned no rows"),
+            path:    None,
+        })?;
+        // #1575: what the report says changed, before the merge drops what it may not
+        // serve; every such type's cached reads are stale.
+        let reported = derived_cascade::reported_types(row);
+        // #1391: pg_tviews' report, merged into the cascade it is served from.
+        let row = derived_cascade::merge(&ctx.schema, row, |type_name| {
+            derived_cascade::engine_filtered(
+                &ctx.schema,
+                ctx.config.rls_policy.is_some(),
+                type_name,
             )
         });
-        let request = crate::backend::WriteRequest::new(sql_source, &args)
-            .with_session_vars(&session_pairs)
-            .with_changelog(changelog.as_ref())
-            .with_mode(mode)
-            .with_derived_cascade(derived.as_ref());
-        match writer.execute_write(&request, &gate).await {
-            Ok(_) => built.into_inner().ok_or_else(|| FraiseQLError::Internal {
-                message: format!(
-                    "Mutation '{mutation_name}': the commit gate never ran, so the write \
-                         committed unadjudicated"
-                ),
-                source:  None,
-            })?,
-            // #1424: an integrity constraint the function violated is the data's answer
-            // to this write, and the mutation's result union has a member for it. The
-            // transaction rolled back with the error; the client gets the typed failure
-            // the function would have returned had it pre-checked the constraint.
-            Err(error) => {
-                let entry = constraint_entry(ctx, &error).await;
-                let Some(outcome) = constraint_violation_outcome(
-                    &error,
-                    &ctx.schema,
-                    &mutation_return_type,
-                    payload_gates.contract(),
-                    entry,
-                ) else {
-                    return Err(error);
-                };
-                tracing::info!(
+        let outcome = parse_mutation_row(&row)?;
+        crate::runtime::mutation_result::check_error_shape(
+            ctx.config.mutation_error_shape_check,
+            &outcome,
+            mutation_name,
+            sql_source,
+        );
+        // The caller needs the envelope; `build_mutation_result` consumes the
+        // outcome to build the projection.
+        let envelope = outcome.clone();
+        let result_json = self.build(outcome).inspect_err(|e| {
+            // A contract error is a bug in the mutation function: say which one, where
+            // operators read (ruling AJ 3); it is also counted.
+            if payload_gates::is_contract_error(e) {
+                tracing::warn!(
                     mutation = %mutation_name,
                     function = %sql_source,
-                    error = %error,
-                    "constraint violation answered as the mutation's typed error"
+                    error = %e,
+                    "mutation contract error: the write was rolled back"
                 );
-                let envelope = outcome.clone();
-                let result_json = build_mutation_result(
-                    ctx,
-                    security_ctx,
-                    &payload_gates,
-                    outcome,
-                    &mutation_return_type,
-                    is_cascade,
-                    selections,
-                    &authz_variables,
-                )?;
-                (envelope, result_json, std::collections::BTreeSet::new())
-            },
-        }
-    };
+            }
+        })?;
+        Ok((envelope, result_json, reported))
+    }
 
-    // What follows a commit follows only a commit (ruling AD 3): a dry run rolled back,
-    // so no fact table moved, no cached read is stale, and nothing was executed to audit.
-    let committed = !ctx.config.dry_run_mutations;
+    fn build(&self, outcome: MutationOutcome) -> Result<serde_json::Value> {
+        build_mutation_result(
+            self.ctx,
+            self.security_ctx,
+            &self.payload_gates,
+            outcome,
+            &self.mutation_def.return_type,
+            self.mutation_def.cascade,
+            &self.selections,
+            &self.authz_variables,
+        )
+    }
+
+    /// #1424: an integrity constraint the function violated is the data's answer to this
+    /// write, and the mutation's result union has a member for it. The transaction rolled
+    /// back with the error; the client gets the typed failure the function would have
+    /// returned had it pre-checked the constraint. Any other error is returned.
+    async fn answer_violation(&self, error: FraiseQLError) -> Result<Adjudicated> {
+        let ctx = self.ctx;
+        let entry = constraint_entry(ctx, &error).await;
+        let Some(outcome) = constraint_violation_outcome(
+            &error,
+            &ctx.schema,
+            &self.mutation_def.return_type,
+            self.payload_gates.contract(),
+            entry,
+        ) else {
+            return Err(error);
+        };
+        tracing::info!(
+            mutation = %self.mutation_name,
+            function = %self.sql_source,
+            error = %error,
+            "constraint violation answered as the mutation's typed error"
+        );
+        let envelope = outcome.clone();
+        let result_json = self.build(outcome)?;
+        Ok((envelope, result_json, std::collections::BTreeSet::new()))
+    }
+
+    fn execution(&self, (outcome, result_json, _): Adjudicated) -> MutationExecution {
+        MutationExecution {
+            data: ResultProjector::wrap_in_data_envelope(result_json, &self.response_key),
+            outcome,
+        }
+    }
+}
+
+/// The error a batch returns for an item its function refused (#1574): the batch commits all
+/// of its items or none, so a refused item refuses it. The variant follows the function's
+/// error class, so the transport's status does too.
+fn refused_item(
+    index: usize,
+    count: usize,
+    mutation_name: &str,
+    outcome: &MutationOutcome,
+) -> Option<FraiseQLError> {
+    use crate::runtime::cascade::MutationErrorClass as Class;
+    let MutationOutcome::Error {
+        error_class,
+        message,
+        ..
+    } = outcome
+    else {
+        return None;
+    };
+    let message = format!(
+        "Mutation '{mutation_name}' refused it ({}): {message}; nothing was written",
+        error_class.as_str()
+    );
+    let error = match error_class {
+        Class::Validation => FraiseQLError::Validation {
+            message,
+            path: None,
+        },
+        Class::NotFound => FraiseQLError::NotFound {
+            resource_type: format!("Bulk item {} of {count}", index + 1),
+            identifier:    message,
+        },
+        Class::Unauthorized => FraiseQLError::Authentication { message },
+        Class::Forbidden => FraiseQLError::Authorization {
+            message,
+            action: Some("mutation".to_string()),
+            resource: Some(mutation_name.to_string()),
+        },
+        Class::Internal => FraiseQLError::Internal {
+            message,
+            source: None,
+        },
+        Class::RateLimited | Class::ServiceUnavailable => FraiseQLError::ServiceUnavailable {
+            message,
+            retry_after: None,
+        },
+        Class::Conflict | Class::TransactionFailed | Class::Timeout => {
+            FraiseQLError::Conflict { message }
+        },
+    };
+    Some(error.in_batch_item(index, count))
+}
+
+/// What follows a commit follows only a commit (ruling AD 3), once for every call a
+/// transaction committed together: a dry run rolled back, so no fact table moved, no cached
+/// read is stale, and nothing was executed to audit.
+async fn after_commit(
+    ctx: &ExecutorContext,
+    writer: &dyn crate::backend::Writer,
+    mutation_def: &crate::schema::MutationDefinition,
+    mutation_name: &str,
+    security_ctx: Option<&SecurityContext>,
+    written: &[&Adjudicated],
+) -> Result<()> {
+    if ctx.config.dry_run_mutations {
+        return Ok(());
+    }
+    let succeeded = || {
+        written
+            .iter()
+            .filter(|(envelope, ..)| matches!(envelope, MutationOutcome::Success { .. }))
+    };
 
     // 6a. Bump fact table versions after a successful mutation.
     //
@@ -2183,10 +2353,7 @@ pub(in super::super) async fn execute_mutation_impl(
     // Success only — an Error outcome means no data was written, so caches
     // remain valid.  Non-cached adapters return Ok(()) from the default trait
     // implementation (no-op); only `CachedDatabaseAdapter` performs actual work.
-    if committed
-        && matches!(envelope, MutationOutcome::Success { .. })
-        && !mutation_def.invalidates_fact_tables.is_empty()
-    {
+    if succeeded().next().is_some() && !mutation_def.invalidates_fact_tables.is_empty() {
         // Through the write handle, like the dispatch above: this bumps a version row
         // in the database, so it is write-shaped even though it is cache bookkeeping.
         // It is unreachable without the handle anyway — it runs only after a mutation
@@ -2202,45 +2369,47 @@ pub(in super::super) async fn execute_mutation_impl(
     // than a list-vs-point classification (#741, #742, #763). Declared views,
     // the return type, the stamped entity type and cascade side-effects all
     // resolve in the same place, so no caller can reach a different answer.
-    let plan = if committed {
-        invalidation::plan_invalidation(mutation_def, &envelope, &ctx.schema)
-            .with_reported_types(&reported, &ctx.schema)
-    } else {
-        invalidation::InvalidationPlan::default()
-    };
+    // A batch's calls committed together and are swept together (#1574).
+    let mut plan = invalidation::InvalidationPlan::default();
+    let mut entities = Vec::new();
+    for (envelope, _, reported) in written.iter().copied() {
+        let call = invalidation::plan_invalidation(mutation_def, envelope, &ctx.schema)
+            .with_reported_types(reported, &ctx.schema);
+        entities.extend(plan.absorb(call));
+    }
     if !plan.views.is_empty() {
         ctx.adapter.invalidate_views(&plan.views).await?;
     }
     // Supplementary, not a substitute: covers entries indexed under this entity
     // when the entity's own view could not be resolved from the schema.
-    if let Some((etype, eid)) = &plan.entity {
+    for (etype, eid) in &entities {
         ctx.adapter.invalidate_by_entity(etype, eid).await?;
     }
 
-    // 7. Emit structured mutation audit event when audit_mutations is enabled.
-    //
-    // This is the single chokepoint for all mutation paths (GraphQL handler,
-    // REST handler, typed execute_mutation, bulk filter). Zero-cost when disabled:
-    // the branch is not taken and no string formatting or allocation occurs.
-    if committed && ctx.config.audit_mutations {
-        tracing::info!(
-            target: "fraiseql::mutation_audit",
-            mutation_name = mutation_name,
-            entity_type = %mutation_def.return_type,
-            operation = %mutation_def.operation.kind_str(),
-            tenant_id = %security_ctx
-                .and_then(|c| c.tenant_id.as_ref().map(|t| t.as_str()))
-                .unwrap_or(""),
-            "mutation.executed"
-        );
-    }
+    for (envelope, ..) in written.iter().copied() {
+        // 7. Emit structured mutation audit event when audit_mutations is enabled.
+        //
+        // This is the single chokepoint for all mutation paths (GraphQL handler,
+        // REST handler, typed execute_mutation, bulk filter). Zero-cost when disabled:
+        // the branch is not taken and no string formatting or allocation occurs.
+        if ctx.config.audit_mutations {
+            tracing::info!(
+                target: "fraiseql::mutation_audit",
+                mutation_name = mutation_name,
+                entity_type = %mutation_def.return_type,
+                operation = %mutation_def.operation.kind_str(),
+                tenant_id = %security_ctx
+                    .and_then(|c| c.tenant_id.as_ref().map(|t| t.as_str()))
+                    .unwrap_or(""),
+                "mutation.executed"
+            );
+        }
 
-    // 8. Tell the after-mutation observer (#1340, #1440). Here, rather than in a transport, so
-    //    every transport fires the same `after:mutation` work: this is the one place that knows the
-    //    write committed and what it produced. A failure is `MutationOutcome::Error` even when it
-    //    is served as union data, and a dry run committed nothing, so neither reaches the observer.
-    //    The row is the function's whole entity, not the client's selection.
-    if committed {
+        // 8. Tell the after-mutation observer (#1340, #1440). Here, rather than in a transport, so
+        //    every transport fires the same `after:mutation` work: this is the one place that knows
+        //    the write committed and what it produced. A failure is `MutationOutcome::Error` even
+        //    when it is served as union data, and a dry run committed nothing, so neither reaches
+        //    the observer. The row is the function's whole entity, not the client's selection.
         if let (
             Some(observer),
             MutationOutcome::Success {
@@ -2249,7 +2418,7 @@ pub(in super::super) async fn execute_mutation_impl(
                 entity_id,
                 ..
             },
-        ) = (ctx.config.after_mutation_observer.as_deref(), &envelope)
+        ) = (ctx.config.after_mutation_observer.as_deref(), envelope)
         {
             // The produced type: the stamp the gates validated, else the one type an
             // unstamped success can be. An ambiguous unstamped success was refused, and
@@ -2270,12 +2439,87 @@ pub(in super::super) async fn execute_mutation_impl(
             }
         }
     }
+    Ok(())
+}
 
-    let response = ResultProjector::wrap_in_data_envelope(result_json, &response_key_owned);
-    Ok(MutationExecution {
-        data:    response,
-        outcome: envelope,
-    })
+/// Run `mutation_name` once per item of `items`, in **one** transaction (#1574): every item
+/// commits, or none does.
+///
+/// Every item is prepared first — the operation authorizer, `requires_role`,
+/// `requires_actor`, argument validation and `before:mutation` all run for every item before
+/// any statement — so an item refused there writes nothing. The calls then run in one
+/// transaction ([`Writer::execute_writes`](crate::backend::Writer::execute_writes)), each row
+/// adjudicated before the commit; an item its function refuses (`succeeded = false`) refuses
+/// the batch. The error names the item. One invalidation follows the commit, for every item.
+///
+/// # Errors
+///
+/// The first item's refusal, from any gate or the database, named by its position; nothing
+/// is written.
+pub(in super::super) async fn execute_mutation_batch_impl(
+    ctx: &Arc<ExecutorContext>,
+    mutation_name: &str,
+    items: &[serde_json::Value],
+    security_ctx: Option<&SecurityContext>,
+    selections: WriteSelections<'_>,
+) -> Result<Vec<MutationExecution>> {
+    let writer = ctx.writer(mutation_name)?;
+    let count = items.len();
+    let mut prepared = Vec::with_capacity(count);
+    for (index, item) in items.iter().enumerate() {
+        let write = prepare_write(
+            ctx,
+            mutation_name,
+            mutation_name,
+            Some(item),
+            security_ctx,
+            selections,
+            &[],
+        )
+        .await
+        .map_err(|e| e.in_batch_item(index, count))?;
+        prepared.push(write);
+    }
+    let parts: Vec<WriteParts<'_>> = prepared.iter().map(PreparedWrite::parts).collect();
+    let requests: Vec<crate::backend::WriteRequest<'_>> =
+        parts.iter().zip(&prepared).map(|(parts, write)| parts.request(write)).collect();
+
+    // Every call commits only once it has been adjudicated, as a single write does; here a
+    // failed outcome also refuses, because the batch cannot commit in part.
+    let built: Vec<std::sync::OnceLock<Adjudicated>> =
+        std::iter::repeat_with(std::sync::OnceLock::new).take(count).collect();
+    let gate = |index: usize, rows: &[std::collections::HashMap<String, serde_json::Value>]| {
+        let adjudicated =
+            prepared[index].adjudicate(rows).map_err(|e| e.in_batch_item(index, count))?;
+        if let Some(refused) = refused_item(index, count, mutation_name, &adjudicated.0) {
+            return Err(refused);
+        }
+        drop(built[index].set(adjudicated));
+        Ok(())
+    };
+    writer.execute_writes(&requests, &gate).await?;
+    let built: Vec<Adjudicated> = built
+        .into_iter()
+        .map(std::sync::OnceLock::into_inner)
+        .collect::<Option<_>>()
+        .ok_or_else(|| FraiseQLError::Internal {
+            message: format!(
+                "Mutation '{mutation_name}': the batch committed with an item the commit gate \
+                 never adjudicated"
+            ),
+            source:  None,
+        })?;
+
+    if let Some(first) = prepared.first() {
+        let written: Vec<&Adjudicated> = built.iter().collect();
+        after_commit(ctx, writer, first.mutation_def, mutation_name, security_ctx, &written)
+            .await?;
+    }
+    Ok(prepared
+        .iter()
+        .zip(built)
+        .map(|(write, built)| write.execution(built))
+        .collect())
 }
 
 #[cfg(test)]

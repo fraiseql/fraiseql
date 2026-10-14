@@ -1,9 +1,10 @@
-//! The write capability: [`Writer`], one method, [`Writer::execute_write`] (ruling AA 6).
+//! The write capability: [`Writer`], one method, [`Writer::execute_write`] (ruling AA 6), and
+//! its batch form, [`Writer::execute_writes`] (#1574).
 
 use async_trait::async_trait;
-use fraiseql_error::Result;
+use fraiseql_error::{FraiseQLError, Result};
 
-use super::{ChangeLogWrite, DatabaseAdapter, MutationRowGate};
+use super::{BatchRowGate, ChangeLogWrite, DatabaseAdapter, MutationRowGate};
 
 /// Whether a write commits.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -160,6 +161,33 @@ pub trait Writer: DatabaseAdapter {
         request: &WriteRequest<'_>,
         gate: MutationRowGate<'_>,
     ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>>;
+
+    /// Run every request in `requests` in **one** transaction, under `gate` (#1574).
+    ///
+    /// The contract of [`execute_write`](Self::execute_write), over several calls: in one
+    /// transaction, each call in order with its own `session_vars`, outbox row and derived
+    /// cascade, `gate` called with each call's index and rows before the transaction ends.
+    /// The first database error or gate error rolls everything back and is returned: a
+    /// database error names its call ([`FraiseQLError::in_batch_item`]), a gate error is
+    /// returned verbatim. Otherwise every call commits, or none does: the requests must
+    /// share one [`WriteMode`]. Returns each call's rows, in order.
+    ///
+    /// Provided: refuses. An adapter that cannot hold several calls in one transaction must
+    /// not fall back to one transaction per call, which would commit a batch in part.
+    ///
+    /// # Errors
+    ///
+    /// [`FraiseQLError::Unsupported`] unless the adapter overrides it; otherwise as above.
+    async fn execute_writes(
+        &self,
+        _requests: &[WriteRequest<'_>],
+        _gate: BatchRowGate<'_>,
+    ) -> Result<Vec<Vec<std::collections::HashMap<String, serde_json::Value>>>> {
+        Err(FraiseQLError::Unsupported {
+            message: "this database adapter cannot run a batch of writes in one transaction"
+                .to_string(),
+        })
+    }
 
     /// Bump the version counters of `tables` after a committed write that changed them, so
     /// cached aggregates over them are invalidated by version key.

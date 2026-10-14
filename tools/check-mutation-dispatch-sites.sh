@@ -72,8 +72,10 @@ KNOWN=''
 # `execute_function_call*` family. That family's pattern had stopped at the three variants
 # it was written against and never matched `_gated`, the one every write took by then — a
 # pattern that reads as coverage and matches nothing. With one method there is one name to
-# match, and the old ones cannot come back: they no longer exist.
-PATTERN='\.execute_write\s*\('
+# match, and the old ones cannot come back: they no longer exist. Its batch form,
+# `Writer::execute_writes` (#1574), is the same capability over several calls, so the
+# pattern takes both.
+PATTERN='\.execute_writes?\s*\('
 
 # Rule 2's two halves. A file matching BOTH constructs a write statement and dispatches it
 # outside the chokepoint. Deliberately not keyed on the builder function names alone: a raw
@@ -87,11 +89,14 @@ WRITE_SQL='build_(insert|update|delete)_query|"[[:space:]]*(INSERT INTO|UPDATE |
 # `execute_raw_query`. An entry here is a named defect with an issue, never a resting place.
 KNOWN_RAW=''
 
-# Production code only: a test may drive an adapter directly, and a bench must.
+# Production code only: a test may drive an adapter directly, and a bench must. The
+# executor's `test_support.rs` is a `#[cfg(test)]` module of doubles, excluded as rule 2
+# excludes it.
 violations=$(
   grep -rEn "$PATTERN" crates/*/src --include='*.rs' \
     | grep -vE '/(tests|[a-z_]+_tests)\.rs:' \
     | grep -vE '^[^:]*/tests/' \
+    | grep -vE '/test_support\.rs:' \
     | grep -vE "^($ALLOWED_DIRS)" \
     | grep -vE "^($CHOKEPOINT):" \
     | { if [ -n "$KNOWN" ]; then grep -vE "^($KNOWN):"; else cat; fi } \
@@ -114,6 +119,7 @@ if [ -n "$violations" ]; then
   echo "  Executor::execute_mutation                  (typed, SupportsMutations)"
   echo "  Executor::execute_mutation_as               (structured args + a principal)"
   echo "  Executor::execute_mutation_with_security    (a REST write with a principal)"
+  echo "  Executor::execute_mutation_batch            (REST bulk: one transaction)"
   echo
   echo "If a site genuinely cannot, add it to KNOWN in"
   echo "tools/check-mutation-dispatch-sites.sh with the issue that tracks the gap."

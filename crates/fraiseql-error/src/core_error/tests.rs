@@ -152,3 +152,17 @@ fn observer_variant_source_downcasts_to_subsystem_type() {
     let err = FraiseQLError::Observer(Box::new(inner));
     assert_source_downcasts_to_sentinel(&err, "observer-dispatch-failed");
 }
+
+#[test]
+fn a_batch_item_error_names_its_item_and_keeps_its_variant() {
+    let error = FraiseQLError::Database {
+        message:    "duplicate key".to_string(),
+        sql_state:  Some("23505".to_string()),
+        constraint: None,
+    }
+    .in_batch_item(2, 5);
+
+    assert_eq!(error.to_string(), "Database error: Bulk item 3 of 5: duplicate key");
+    assert_eq!(error.status_code(), 500, "the status of the item's own error");
+    assert!(matches!(error, FraiseQLError::Database { sql_state: Some(s), .. } if s == "23505"));
+}

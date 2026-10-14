@@ -213,7 +213,7 @@ impl OpenApiGenerator<'_> {
                         {
                             "type": "array",
                             "items": single,
-                            "description": "Array body triggers bulk insert mode"
+                            "description": "Array body triggers bulk insert mode: every item is inserted in one transaction, or none is"
                         }
                     ]
                 })

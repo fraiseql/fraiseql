@@ -6929,6 +6929,17 @@ mod rest_write_body {
             )
             .await
         }
+
+        async fn execute_writes(
+            &self,
+            requests: &[crate::backend::traits::WriteRequest<'_>],
+            gate: crate::backend::traits::BatchRowGate<'_>,
+        ) -> std::result::Result<
+            Vec<Vec<std::collections::HashMap<String, serde_json::Value>>>,
+            crate::error::FraiseQLError,
+        > {
+            crate::runtime::executor::test_support::each_write(self, requests, gate).await
+        }
     }
 
     /// `createUser(input: CreateUserInput!)` — the nested shape, and
@@ -7538,6 +7549,204 @@ mod enum_membership {
     }
 }
 
+// ── #1574: a batch commits together, so what follows a commit follows it once ──
+mod batch {
+    use std::{
+        collections::HashMap,
+        sync::atomic::{AtomicUsize, Ordering},
+    };
+
+    use async_trait::async_trait;
+    use serde_json::json;
+
+    use super::*;
+    use crate::backend::types::{DatabaseType, PoolMetrics, sql_hints::OrderByClause};
+
+    /// A writer whose every call returns one successful `Post`, and which counts the
+    /// invalidations and fact-table bumps that follow.
+    #[derive(Default)]
+    struct CountingAdapter {
+        bumps:        AtomicUsize,
+        invalidation: AtomicUsize,
+    }
+
+    // async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
+    #[async_trait]
+    impl DatabaseAdapter for CountingAdapter {
+        async fn invalidate_views(&self, views: &[fraiseql_db::ViewName]) -> Result<u64> {
+            self.invalidation.fetch_add(1, Ordering::SeqCst);
+            Ok(views.len() as u64)
+        }
+
+        async fn execute_with_projection(
+            &self,
+            _view: &str,
+            _projection: Option<&crate::schema::SqlProjectionHint>,
+            _where_clause: Option<&WhereClause>,
+            _limit: Option<u32>,
+            _offset: Option<u32>,
+            _order_by: Option<&[OrderByClause]>,
+        ) -> Result<Vec<JsonbValue>> {
+            Ok(vec![])
+        }
+
+        async fn execute_where_query(
+            &self,
+            _view: &str,
+            _where_clause: Option<&WhereClause>,
+            _limit: Option<u32>,
+            _offset: Option<u32>,
+            _order_by: Option<&[OrderByClause]>,
+        ) -> Result<Vec<JsonbValue>> {
+            Ok(vec![])
+        }
+
+        async fn health_check(&self) -> Result<()> {
+            Ok(())
+        }
+
+        fn database_type(&self) -> DatabaseType {
+            DatabaseType::PostgreSQL
+        }
+
+        fn pool_metrics(&self) -> PoolMetrics {
+            PoolMetrics {
+                total_connections:  1,
+                active_connections: 0,
+                idle_connections:   1,
+                waiting_requests:   0,
+            }
+        }
+
+        async fn execute_raw_query(
+            &self,
+            _sql: &str,
+        ) -> Result<Vec<HashMap<String, serde_json::Value>>> {
+            Ok(vec![])
+        }
+
+        async fn execute_parameterized_aggregate(
+            &self,
+            _sql: &str,
+            _params: &[serde_json::Value],
+        ) -> Result<Vec<HashMap<String, serde_json::Value>>> {
+            Ok(vec![])
+        }
+    }
+
+    // async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
+    #[async_trait]
+    impl crate::backend::traits::Writer for CountingAdapter {
+        async fn execute_write(
+            &self,
+            _request: &crate::backend::traits::WriteRequest<'_>,
+            gate: crate::backend::traits::MutationRowGate<'_>,
+        ) -> Result<Vec<HashMap<String, serde_json::Value>>> {
+            let rows = vec![HashMap::from([
+                ("succeeded".to_string(), json!(true)),
+                ("state_changed".to_string(), json!(true)),
+                ("entity".to_string(), json!({"id": "p1", "title": "Hello"})),
+                ("entity_type".to_string(), json!("Post")),
+                ("message".to_string(), json!("")),
+            ])];
+            gate(&rows)?;
+            Ok(rows)
+        }
+
+        async fn execute_writes(
+            &self,
+            requests: &[crate::backend::traits::WriteRequest<'_>],
+            gate: crate::backend::traits::BatchRowGate<'_>,
+        ) -> Result<Vec<Vec<HashMap<String, serde_json::Value>>>> {
+            crate::runtime::executor::test_support::each_write(self, requests, gate).await
+        }
+
+        async fn bump_fact_table_versions(&self, _tables: &[String]) -> Result<()> {
+            self.bumps.fetch_add(1, Ordering::SeqCst);
+            Ok(())
+        }
+    }
+
+    #[tokio::test]
+    async fn a_committed_batch_is_invalidated_once_for_every_item() {
+        let adapter = Arc::new(CountingAdapter::default());
+        let executor = Executor::new(super::dry_run::schema(), Arc::clone(&adapter));
+        let items = vec![json!({}); 3];
+
+        let result = executor.execute_mutation_batch("createPost", &items, None).await.unwrap();
+
+        assert_eq!(result.affected_rows, 3);
+        assert_eq!(adapter.invalidation.load(Ordering::SeqCst), 1, "one sweep, after the commit");
+        assert_eq!(adapter.bumps.load(Ordering::SeqCst), 1, "one fact-table bump");
+    }
+
+    #[test]
+    fn a_refused_item_keeps_the_status_of_its_error_class() {
+        use crate::runtime::cascade::MutationErrorClass as Class;
+        let status = |class: Class| {
+            let outcome = crate::runtime::mutation_result::MutationOutcome::Error {
+                error_class: class,
+                message:     "no".to_string(),
+                http_status: None,
+                entity_type: None,
+                metadata:    json!({}),
+            };
+            let error = super::super::refused_item(1, 3, "createPost", &outcome).unwrap();
+            assert!(error.to_string().contains("Bulk item 2 of 3"), "{error}");
+            error.status_code()
+        };
+
+        let statuses: Vec<u16> = [
+            Class::Validation,
+            Class::NotFound,
+            Class::Unauthorized,
+            Class::Forbidden,
+            Class::Internal,
+            Class::RateLimited,
+            Class::ServiceUnavailable,
+            Class::Conflict,
+            Class::TransactionFailed,
+            Class::Timeout,
+        ]
+        .into_iter()
+        .map(status)
+        .collect();
+
+        assert_eq!(statuses, [400, 404, 401, 403, 500, 503, 503, 409, 409, 409]);
+    }
+
+    #[test]
+    fn a_succeeded_item_is_not_refused() {
+        let outcome = crate::runtime::mutation_result::MutationOutcome::Success {
+            entity:         json!({}),
+            entity_type:    None,
+            entity_id:      None,
+            cascade:        None,
+            updated_fields: vec![],
+            result:         None,
+        };
+        assert!(super::super::refused_item(0, 1, "createPost", &outcome).is_none());
+    }
+
+    /// `DryRunAdapter` implements `execute_write` only: `Writer`'s default must refuse a batch
+    /// rather than run it call by call, in one transaction each.
+    #[tokio::test]
+    async fn an_adapter_that_cannot_hold_a_batch_refuses_it() {
+        let adapter = Arc::new(super::dry_run::DryRunAdapter::default());
+        let config = RuntimeConfig {
+            dry_run_mutations: true,
+            ..RuntimeConfig::default()
+        };
+        let executor =
+            Executor::with_config(super::dry_run::schema(), Arc::clone(&adapter), config);
+
+        let refused = executor.execute_mutation_batch("createPost", &[json!({})], None).await;
+
+        assert!(matches!(refused, Err(FraiseQLError::Unsupported { .. })), "{refused:?}");
+        assert_eq!(adapter.dry_run_count(), 0, "no call ran");
+    }
+}
+
 // ── AA 6 (rulings AD 3, AD 4): a dry run commits nothing, and nothing follows it ──
 //
 // A dry run runs the function and rolls back. What follows a commit — the fact-table
@@ -7649,6 +7858,11 @@ mod dry_run {
 
     // The writes this double answers, called by its `Writer` impl below.
     impl DryRunAdapter {
+        /// The dry runs this double answered.
+        pub(super) fn dry_run_count(&self) -> usize {
+            self.dry_runs.load(Ordering::SeqCst)
+        }
+
         async fn execute_function_call_dry_run(
             &self,
             _function_name: &str,

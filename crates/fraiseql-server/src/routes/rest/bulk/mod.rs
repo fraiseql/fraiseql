@@ -114,7 +114,7 @@ impl<'a> BulkHandler<'a> {
             mutation_name
         };
 
-        // Execute batch
+        // Every item in one transaction (#1574): all inserted, or none.
         let results = self
             .executor
             .execute_mutation_batch(effective_mutation, items, security_context)
@@ -178,7 +178,8 @@ impl<'a> BulkHandler<'a> {
     ///
     /// # Errors
     ///
-    /// Returns `RestError` on missing filter, max-affected exceeded, or mutation error.
+    /// Returns `RestError` on missing filter, max-affected exceeded, or a row's refusal, in
+    /// which case no row was changed.
     pub async fn handle_bulk_update(
         &self,
         relative_path: &str,
@@ -207,7 +208,8 @@ impl<'a> BulkHandler<'a> {
     ///
     /// # Errors
     ///
-    /// Returns `RestError` on missing filter, max-affected exceeded, or mutation error.
+    /// Returns `RestError` on missing filter, max-affected exceeded, or a row's refusal, in
+    /// which case no row was changed.
     pub async fn handle_bulk_delete(
         &self,
         relative_path: &str,
@@ -306,7 +308,8 @@ impl<'a> BulkHandler<'a> {
 
         // #913: mutate each matched row. The previous implementation called the mutation
         // once with no row identity and reported the filter's row count as
-        // `affected_rows` — a count for work it had not done.
+        // `affected_rows` — a count for work it had not done. #1574: every row in one
+        // transaction, so a refused row leaves none changed.
         let bulk_result = self
             .executor
             .execute_bulk_by_ids(mutation_name, id_field, &ids, Some(body), security_context)

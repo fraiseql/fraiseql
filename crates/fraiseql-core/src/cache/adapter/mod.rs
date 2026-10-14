@@ -76,8 +76,8 @@ use super::{
 };
 use crate::{
     backend::{
-        DatabaseAdapter, DatabaseType, MutationRowGate, PoolMetrics, WhereClause, WriteRequest,
-        Writer, quote_postgres_identifier,
+        BatchRowGate, DatabaseAdapter, DatabaseType, MutationRowGate, PoolMetrics, WhereClause,
+        WriteRequest, Writer, quote_postgres_identifier,
         types::{JsonbValue, OrderByClause, ReadRouting},
     },
     cache::config::RlsEnforcement,
@@ -1205,6 +1205,14 @@ impl<A: Writer> Writer for CachedDatabaseAdapter<A> {
         gate: MutationRowGate<'_>,
     ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
         self.adapter.execute_write(request, gate).await
+    }
+
+    async fn execute_writes(
+        &self,
+        requests: &[WriteRequest<'_>],
+        gate: BatchRowGate<'_>,
+    ) -> Result<Vec<Vec<std::collections::HashMap<String, serde_json::Value>>>> {
+        self.adapter.execute_writes(requests, gate).await
     }
 
     async fn bump_fact_table_versions(&self, tables: &[String]) -> Result<()> {

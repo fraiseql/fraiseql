@@ -64,6 +64,20 @@ disagreed, and the promise was the part that was wrong.
   which only that build called, is gone, and `arrow::FlightDatabaseAdapter` always wraps a
   `PostgresAdapter` (its `new`/`from_arc`/`inner` took the wire adapter under that flag; it is
   no longer `UnwindSafe`/`RefUnwindSafe`, as `PostgresAdapter` is not).
+- **REST bulk writes commit all of their items or none (#1574).** A bulk insert (array `POST`)
+  and a collection `PATCH`/`DELETE` run every item in one transaction. An item refused by the
+  database (a constraint), by its function (`succeeded = false`), by the commit gate or by an
+  authorization or validation gate now refuses the whole request, and nothing is written:
+  before, the items ahead of it stayed committed, and an item its function refused came back
+  as a `201`/`200` entry beside the written ones. The error names the item (`Bulk item 3 of
+  5: …`) and keeps its own status (a unique violation is still `400 CONSTRAINT_VIOLATION`);
+  a refusal maps from the function's `error_class` (`validation` → `400`, `not_found` →
+  `404`, `forbidden` → `403`, `conflict` → `409`). Every item is authorized and validated before any statement
+  runs, the calls are sent in one flight (three round trips for the batch), and the result
+  cache is invalidated once, after the commit. `X-Rows-Affected` is the whole batch or the
+  request fails. Embedders: `Writer` gains `execute_writes` (a batch in one transaction),
+  whose default refuses with `Unsupported`; a `Writer` that wraps another forwards it, as
+  `CachedDatabaseAdapter` does, or its bulk writes are refused.
 
 ### Added
 

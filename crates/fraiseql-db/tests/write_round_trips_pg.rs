@@ -250,3 +250,173 @@ async fn a_configuration_that_fails_returns_its_own_error_and_writes_nothing() {
         .get(0);
     assert_eq!(written, 0, "the call must not commit without its configuration");
 }
+
+/// The tags in `t_1572` that start with `prefix`.
+async fn tags_written(prefix: &str) -> Vec<String> {
+    fixture_client()
+        .await
+        .query(
+            "SELECT tag FROM public.t_1572 WHERE tag LIKE $1 || '%' ORDER BY tag",
+            &[&prefix],
+        )
+        .await
+        .unwrap()
+        .iter()
+        .map(|row| row.get(0))
+        .collect()
+}
+
+/// `n` inserts of `prefix-1` … `prefix-n`.
+fn inserts(prefix: &str, n: usize) -> Vec<[serde_json::Value; 1]> {
+    (1..=n).map(|i| [serde_json::json!(format!("{prefix}-{i:02}"))]).collect()
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn a_batch_takes_three_round_trips_whatever_its_size() {
+    let (adapter, proxy) = proxied_adapter().await;
+    let prefix = uuid::Uuid::new_v4().to_string();
+    let args = inserts(&prefix, 20);
+    let requests: Vec<_> = args
+        .iter()
+        .map(|a| fraiseql_db::WriteRequest::new("public.fn_1572_insert", a))
+        .collect();
+    adapter.execute_writes(&requests[..1], &|_, _| Ok(())).await.unwrap();
+    proxy.wire().reset();
+
+    let rows = adapter.execute_writes(&requests[1..], &|_, _| Ok(())).await.unwrap();
+
+    assert_eq!(rows.len(), 19, "one answer per call");
+    assert_eq!(
+        (proxy.wire().round_trips(), proxy.wire().parses()),
+        (3, 0),
+        "BEGIN, every call with its configuration in one flight, COMMIT"
+    );
+    assert_eq!(tags_written(&prefix).await.len(), 20);
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn each_call_of_a_batch_runs_under_its_own_configuration_in_order() {
+    let (adapter, _proxy) = proxied_adapter().await;
+    let tenants = [
+        [("app.tenant_1572", "t-1")],
+        [("app.tenant_1572", "t-2")],
+        [("app.tenant_1572", "t-3")],
+    ];
+    let requests: Vec<_> = tenants
+        .iter()
+        .map(|session| {
+            fraiseql_db::WriteRequest::new("public.fn_1572_echo", &[]).with_session_vars(session)
+        })
+        .collect();
+
+    let rows = adapter.execute_writes(&requests, &|_, _| Ok(())).await.unwrap();
+
+    let seen: Vec<&serde_json::Value> = rows.iter().map(|r| &r[0]["tenant"]).collect();
+    assert_eq!(seen, ["t-1", "t-2", "t-3"]);
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn a_batch_whose_call_fails_writes_nothing_and_names_the_call() {
+    let (adapter, _proxy) = proxied_adapter().await;
+    let prefix = uuid::Uuid::new_v4().to_string();
+    let args = inserts(&prefix, 4);
+    let bad = [("not a variable name", "x")];
+    let requests: Vec<_> = args
+        .iter()
+        .enumerate()
+        .map(|(i, a)| {
+            let request = fraiseql_db::WriteRequest::new("public.fn_1572_insert", a);
+            if i == 2 {
+                request.with_session_vars(&bad)
+            } else {
+                request
+            }
+        })
+        .collect();
+
+    let refused = adapter.execute_writes(&requests, &|_, _| Ok(())).await;
+
+    assert_eq!(tags_written(&prefix).await, Vec::<String>::new(), "calls 1 and 2 rolled back");
+    match refused {
+        Err(error @ fraiseql_error::FraiseQLError::Database { .. }) => {
+            assert!(error.to_string().contains("Bulk item 3 of 4"), "{error}");
+        },
+        other => panic!("expected call 3's database error, got {other:?}"),
+    }
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn a_gate_refusing_a_call_rolls_back_every_call() {
+    let (adapter, _proxy) = proxied_adapter().await;
+    let prefix = uuid::Uuid::new_v4().to_string();
+    let args = inserts(&prefix, 4);
+    let requests: Vec<_> = args
+        .iter()
+        .map(|a| fraiseql_db::WriteRequest::new("public.fn_1572_insert", a))
+        .collect();
+    let adjudicated = std::sync::Mutex::new(Vec::new());
+
+    let refused = adapter
+        .execute_writes(&requests, &|index, rows| {
+            adjudicated.lock().unwrap().push(rows[0]["tag"].clone());
+            if index == 1 {
+                Err(fraiseql_error::FraiseQLError::validation("refused"))
+            } else {
+                Ok(())
+            }
+        })
+        .await;
+
+    assert_eq!(tags_written(&prefix).await, Vec::<String>::new());
+    assert!(
+        matches!(&refused, Err(fraiseql_error::FraiseQLError::Validation { message, .. }) if message == "refused"),
+        "the gate's error, verbatim: {refused:?}"
+    );
+    assert_eq!(
+        adjudicated.into_inner().unwrap(),
+        [args[0][0].clone(), args[1][0].clone()],
+        "each call's own rows, in order, and none after the refusal"
+    );
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn a_batch_adjudicates_every_call_before_it_commits() {
+    let (adapter, _proxy) = proxied_adapter().await;
+    let prefix = uuid::Uuid::new_v4().to_string();
+    let args = inserts(&prefix, 3);
+    let requests: Vec<_> = args
+        .iter()
+        .map(|a| fraiseql_db::WriteRequest::new("public.fn_1572_insert", a))
+        .collect();
+    let adjudicated = std::sync::Mutex::new(Vec::new());
+
+    adapter
+        .execute_writes(&requests, &|index, _| {
+            adjudicated.lock().unwrap().push(index);
+            Ok(())
+        })
+        .await
+        .unwrap();
+
+    assert_eq!(adjudicated.into_inner().unwrap(), [0, 1, 2]);
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn a_batch_that_mixes_a_dry_run_and_a_commit_is_refused() {
+    let (adapter, _proxy) = proxied_adapter().await;
+    let prefix = uuid::Uuid::new_v4().to_string();
+    let args = inserts(&prefix, 2);
+    let requests = [
+        fraiseql_db::WriteRequest::new("public.fn_1572_insert", &args[0]),
+        fraiseql_db::WriteRequest::new("public.fn_1572_insert", &args[1])
+            .with_mode(fraiseql_db::WriteMode::DryRun),
+    ];
+
+    let refused = adapter.execute_writes(&requests, &|_, _| Ok(())).await;
+
+    assert!(
+        matches!(refused, Err(fraiseql_error::FraiseQLError::Validation { .. })),
+        "a batch commits all of its calls or none: {refused:?}"
+    );
+    assert_eq!(tags_written(&prefix).await, Vec::<String>::new());
+}

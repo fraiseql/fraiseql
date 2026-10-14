@@ -494,6 +494,100 @@ impl FraiseQLError {
         }
     }
 
+    /// The same error, saying it came from item `index` (from 0) of a batch of `count`.
+    ///
+    /// A batch commits all of its items or none (#1574), so its caller needs to know which
+    /// item refused it. The variant is kept: a unique violation in item 3 is still a unique
+    /// violation, with its SQLSTATE and constraint, and maps to the same status. A variant
+    /// with no message to carry the item is returned unchanged.
+    #[must_use]
+    pub fn in_batch_item(self, index: usize, count: usize) -> Self {
+        let at = |message: String| format!("Bulk item {} of {count}: {message}", index + 1);
+        match self {
+            Self::Parse { message, location } => Self::Parse {
+                message: at(message),
+                location,
+            },
+            Self::Validation { message, path } => Self::Validation {
+                message: at(message),
+                path,
+            },
+            Self::Database {
+                message,
+                sql_state,
+                constraint,
+            } => Self::Database {
+                message: at(message),
+                sql_state,
+                constraint,
+            },
+            Self::ConnectionPool { message } => Self::ConnectionPool {
+                message: at(message),
+            },
+            Self::Authorization {
+                message,
+                action,
+                resource,
+            } => Self::Authorization {
+                message: at(message),
+                action,
+                resource,
+            },
+            Self::Authentication { message } => Self::Authentication {
+                message: at(message),
+            },
+            Self::RateLimited {
+                message,
+                retry_after_secs,
+            } => Self::RateLimited {
+                message: at(message),
+                retry_after_secs,
+            },
+            Self::CostExceeded {
+                message,
+                cost,
+                limit,
+                retry_after_secs,
+            } => Self::CostExceeded {
+                message: at(message),
+                cost,
+                limit,
+                retry_after_secs,
+            },
+            Self::Conflict { message } => Self::Conflict {
+                message: at(message),
+            },
+            Self::Configuration { message } => Self::Configuration {
+                message: at(message),
+            },
+            Self::Unsupported { message } => Self::Unsupported {
+                message: at(message),
+            },
+            Self::ServiceUnavailable {
+                message,
+                retry_after,
+            } => Self::ServiceUnavailable {
+                message: at(message),
+                retry_after,
+            },
+            Self::Internal { message, source } => Self::Internal {
+                message: at(message),
+                source,
+            },
+            unchanged @ (Self::UnknownField { .. }
+            | Self::UnknownType { .. }
+            | Self::Timeout { .. }
+            | Self::Cancelled { .. }
+            | Self::ResponseTooLarge { .. }
+            | Self::StorageQuotaExceeded { .. }
+            | Self::NotFound { .. }
+            | Self::Auth(_)
+            | Self::Webhook(_)
+            | Self::Observer(_)
+            | Self::File(_)) => unchanged,
+        }
+    }
+
     /// Check if this is a client error (4xx equivalent).
     ///
     /// Derived from [`Self::status_code`] so the answer stays consistent

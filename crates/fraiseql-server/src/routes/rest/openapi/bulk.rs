@@ -84,7 +84,7 @@ impl OpenApiGenerator<'_> {
                 "summary": format!("Bulk update {}", resource.name),
                 "operationId": format!("bulk_update_{}", resource.name),
                 "description": format!(
-                    "Update all {} matching the filter. CQRS: queries the read view for matching IDs, then calls the update mutation per row.",
+                    "Update all {} matching the filter. CQRS: queries the read view for matching IDs, then calls the update mutation per row, all in one transaction: every row is updated or none is. A row the mutation refuses fails the request with that row's error, naming its position.",
                     resource.name
                 ),
                 "parameters": params,
@@ -118,7 +118,8 @@ impl OpenApiGenerator<'_> {
                         }
                     },
                     "204": { "description": "No content (return=minimal)" },
-                    "400": { "description": "Bad request (missing filter or max-affected exceeded)" }
+                    "400": { "description": "Bad request (missing filter)" },
+                    "413": { "description": "The filter matches more rows than max-affected" }
                 }
             });
             self.apply_security(&mut bulk_op);
@@ -140,7 +141,7 @@ impl OpenApiGenerator<'_> {
                 "summary": format!("Bulk delete {}", resource.name),
                 "operationId": format!("bulk_delete_{}", resource.name),
                 "description": format!(
-                    "Delete all {} matching the filter. CQRS: queries the read view for matching IDs, then calls the delete mutation per row.",
+                    "Delete all {} matching the filter. CQRS: queries the read view for matching IDs, then calls the delete mutation per row, all in one transaction: every row is deleted or none is. A row the mutation refuses fails the request with that row's error, naming its position.",
                     resource.name
                 ),
                 "parameters": params,
@@ -163,7 +164,8 @@ impl OpenApiGenerator<'_> {
                         }
                     },
                     "204": { "description": "No content (return=minimal or no matches)" },
-                    "400": { "description": "Bad request (missing filter or max-affected exceeded)" }
+                    "400": { "description": "Bad request (missing filter)" },
+                    "413": { "description": "The filter matches more rows than max-affected" }
                 }
             });
             self.apply_security(&mut bulk_op);

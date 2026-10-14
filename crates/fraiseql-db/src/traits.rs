@@ -54,6 +54,14 @@ pub type MutationRowGate<'a> = &'a (
         dyn Fn(&[std::collections::HashMap<String, serde_json::Value>]) -> Result<()> + Send + Sync
     );
 
+/// A [`MutationRowGate`] over a batch: adjudicates the rows the call at `index` returned,
+/// for every call of [`Writer::execute_writes`], in order, before the one transaction ends.
+pub type BatchRowGate<'a> = &'a (
+        dyn Fn(usize, &[std::collections::HashMap<String, serde_json::Value>]) -> Result<()>
+            + Send
+            + Sync
+    );
+
 /// The framework-owned change-log row the mutation executor writes in-txn.
 ///
 /// Carries only the fields the adapter cannot derive from the

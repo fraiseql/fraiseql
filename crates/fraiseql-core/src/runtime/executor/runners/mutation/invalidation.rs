@@ -69,6 +69,17 @@ impl InvalidationPlan {
     }
 }
 
+impl InvalidationPlan {
+    /// Plan `other`'s views too, for calls committed together and swept once (#1574), and
+    /// hand back its entity, which a plan holds one of.
+    pub(super) fn absorb(&mut self, other: Self) -> Option<(String, String)> {
+        for view in other.views {
+            push_view(&mut self.views, view);
+        }
+        other.entity
+    }
+}
+
 /// Append `view` unless an equal name is already planned.
 fn push_view(views: &mut Vec<ViewName>, view: ViewName) {
     if !views.iter().any(|v| v.as_str() == view.as_str()) {

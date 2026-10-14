@@ -28,159 +28,247 @@ use crate::{
     where_clause::WhereClause,
 };
 
-/// The one write (ruling AA 6): run a write function inside one explicit transaction,
-/// with the change-log outbox row in the same statement when the request carries one, and
+/// One row a write function returned, by column.
+type RowMap = std::collections::HashMap<String, serde_json::Value>;
+
+/// One call of a write function, ready to send: its statement, its arguments, and the
+/// configuration it runs under.
+struct PreparedCall<'r> {
+    function_name: &'r str,
+    sql:           String,
+    args:          Vec<FlexParam>,
+    configuration: Vec<(&'r str, &'r str)>,
+    /// Names the outbox in an error message when the outbox is what ran. The messages are
+    /// the strings the error sanitizer's corpus is reduced from, and an operator reading a
+    /// failed write wants to know whether the CTE was in it.
+    mechanism:     &'static str,
+    derived:       Option<&'r crate::traits::DerivedCascade<'r>>,
+}
+
+impl<'r> PreparedCall<'r> {
+    fn new(adapter: &'r PostgresAdapter, request: &crate::traits::WriteRequest<'r>) -> Self {
+        let crate::traits::WriteRequest {
+            function: function_name,
+            args,
+            session_vars,
+            changelog,
+            derived_cascade,
+            ..
+        } = *request;
+        let quoted_fn = quote_postgres_identifier(function_name);
+
+        // One statement when there is an outbox row: run the function once and INSERT
+        // its outbox row in the same txn, atomically, with no extra connection acquire
+        // (Change Spine). Otherwise the plain call.
+        let sql = if let Some(cl) = changelog {
+            build_changelog_cte_sql(&quoted_fn, args.len(), cl.pre_image)
+        } else {
+            let placeholders: Vec<String> = (1..=args.len()).map(|i| format!("${i}")).collect();
+            format!("SELECT * FROM {quoted_fn}({})", placeholders.join(", "))
+        };
+
+        // Arguments bind as FlexParam: serde_json::Value only accepts JSON/JSONB types, and
+        // Option<String> only text-family types, and a function signature can mix JSONB,
+        // UUID, INT4 and TEXT. FlexParam accepts every PostgreSQL type and serialises each
+        // value in the binary wire format of the server-resolved parameter type.
+        let mut flex_args: Vec<FlexParam> = args
+            .iter()
+            .map(|v| match v {
+                serde_json::Value::Null => FlexParam::Null,
+                serde_json::Value::String(s) => FlexParam::Text(s.clone()),
+                _ => FlexParam::Text(v.to_string()),
+            })
+            .collect();
+        if let Some(changelog) = changelog {
+            // Function args first; then the threaded change-log envelope params —
+            // object_type fallback ($n+1), modification_type verb ($n+2), the
+            // tenant_id stamp ($n+3, bound against `::uuid`), the trace_id
+            // ($n+4, plain text), the schema_version ($n+5, plain text), the
+            // trace_context ($n+6, bound against `::jsonb`), the actor_type ($n+7,
+            // plain text), the acting_for ($n+8, bound against `::uuid`) and the
+            // transport ($n+9, plain text merged into extra_metadata — #376). Order
+            // matches build_changelog_cte_sql's positional contract; appending the
+            // envelope params keeps the SQL text stable for prepare_cached.
+            flex_args.push(FlexParam::Text(changelog.object_type.to_string()));
+            flex_args.push(FlexParam::Text(changelog.modification_type.to_string()));
+            // tenant_id: bound as text and serialised by FlexParam's UUID branch
+            // (the `::uuid` cast pins the param type); None → SQL NULL.
+            flex_args.push(
+                changelog.tenant_id.map_or(FlexParam::Null, |t| FlexParam::Text(t.to_string())),
+            );
+            // trace_id ($n+4): plain text, None → SQL NULL.
+            flex_args.push(
+                changelog.trace_id.map_or(FlexParam::Null, |t| FlexParam::Text(t.to_string())),
+            );
+            // schema_version ($n+5): plain text, None → SQL NULL.
+            flex_args.push(
+                changelog
+                    .schema_version
+                    .map_or(FlexParam::Null, |s| FlexParam::Text(s.to_string())),
+            );
+            // trace_context ($n+6): JSON text bound against `::jsonb`, None → SQL NULL.
+            flex_args.push(
+                changelog
+                    .trace_context
+                    .map_or(FlexParam::Null, |s| FlexParam::Text(s.to_string())),
+            );
+            // actor_type ($n+7): plain text, None → SQL NULL.
+            flex_args.push(
+                changelog.actor_type.map_or(FlexParam::Null, |s| FlexParam::Text(s.to_string())),
+            );
+            // acting_for ($n+8): bound as text + serialised by FlexParam's UUID branch
+            // (the `::uuid` cast pins the param type); None → SQL NULL.
+            flex_args.push(
+                changelog.acting_for.map_or(FlexParam::Null, |u| FlexParam::Text(u.to_string())),
+            );
+            // transport ($n+9): plain text merged into extra_metadata.transport by the
+            // CTE's deterministic CASE; None → SQL NULL → key omitted (#376).
+            flex_args.push(
+                changelog.transport.map_or(FlexParam::Null, |s| FlexParam::Text(s.to_string())),
+            );
+        }
+
+        // Everything the function and the outbox read of their configuration, in one
+        // statement: the session variables, the #366 marker, the timing stamp, and the
+        // `started_at` the outbox needs. Later pairs win, as when each was its own statement.
+        //
+        // The marker makes the #366 fallback-capture trigger suppress its row: this write is
+        // already logged by the outbox, and on the no-outbox path the opt-out means "no
+        // change-log row", not "let the trigger write a degraded one".
+        let mut configuration: Vec<(&str, &str)> = Vec::with_capacity(session_vars.len() + 3);
+        configuration.extend_from_slice(session_vars);
+        configuration.push((crate::changelog::CDC_MEDIATED_VAR, crate::changelog::CDC_MEDIATED_ON));
+        if adapter.mutation_timing_enabled {
+            configuration.push((
+                adapter.timing_variable_name.as_str(),
+                crate::changelog::CLOCK_TIMESTAMP_DIRECTIVE,
+            ));
+        }
+        // The outbox INSERT reads `fraiseql.started_at` with current_setting() (no
+        // missing_ok), so it must exist on this txn. The mutation runner injects it on the
+        // authenticated path; stamp it on every other one (e.g. an unauthenticated mutation
+        // that resolves no session vars), and never over a value already set. Only the
+        // outbox reads it.
+        if changelog.is_some()
+            && !configuration.iter().any(|(name, _)| *name == crate::changelog::STARTED_AT_VAR)
+        {
+            configuration.push((
+                crate::changelog::STARTED_AT_VAR,
+                crate::changelog::CLOCK_TIMESTAMP_DIRECTIVE,
+            ));
+        }
+
+        Self {
+            function_name,
+            sql,
+            args: flex_args,
+            configuration,
+            mechanism: if changelog.is_some() {
+                " (with change-log outbox)"
+            } else {
+                ""
+            },
+            derived: derived_cascade,
+        }
+    }
+
+    fn params(&self) -> Vec<&(dyn tokio_postgres::types::ToSql + Sync)> {
+        self.args
+            .iter()
+            .map(|v| v as &(dyn tokio_postgres::types::ToSql + Sync))
+            .collect()
+    }
+
+    fn configuration_failed(&self, e: &tokio_postgres::Error) -> FraiseQLError {
+        let names: Vec<&str> = self.configuration.iter().map(|(name, _)| *name).collect();
+        crate::postgres::database_error(
+            format!("set_config({names:?}) failed: {}", pg_detail(e)),
+            e,
+        )
+    }
+
+    fn call_failed(&self, e: &tokio_postgres::Error) -> FraiseQLError {
+        crate::postgres::database_error(
+            format!(
+                "Function call {}{} failed: {}",
+                self.function_name,
+                self.mechanism,
+                pg_detail(e)
+            ),
+            e,
+        )
+    }
+}
+
+/// The one write (ruling AA 6): run write functions inside one explicit transaction, each
+/// with its change-log outbox row in the same statement when its request carries one, and
 /// let the gate decide the transaction's end.
 ///
-/// `gate` runs after the function has executed and before the transaction ends, on the
-/// rows it returned. An `Err` from it rolls back and is returned to the caller verbatim, so
-/// a refusal that could only be decided from the written row still refuses the write. In
-/// [`WriteMode::DryRun`] everything else happens exactly as in a commit — session
-/// variables, CDC marking, the timing stamp, the outbox row, the gate — and the transaction
-/// then rolls back: a dry run exercises the write it stands in for, and nothing persists.
-async fn run_function_in_txn(
+/// `gate` runs on each call's rows, in order, after the call and before the transaction
+/// ends. An `Err` from it rolls back and is returned to the caller verbatim, so a refusal
+/// that could only be decided from a written row still refuses the write — every call of a
+/// batch with it (#1574). In [`WriteMode::DryRun`] everything else happens exactly as in a
+/// commit — session variables, CDC marking, the timing stamp, the outbox row, the gate — and
+/// the transaction then rolls back: a dry run exercises the write it stands in for, and
+/// nothing persists.
+///
+/// `numbered`: a database error says which call of the batch raised it.
+async fn run_functions_in_txn(
     adapter: &PostgresAdapter,
-    request: &crate::traits::WriteRequest<'_>,
-    gate: crate::traits::MutationRowGate<'_>,
-) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
-    let crate::traits::WriteRequest {
-        function: function_name,
-        args,
-        session_vars,
-        changelog,
-        mode,
-        ..
-    } = *request;
+    requests: &[crate::traits::WriteRequest<'_>],
+    gate: crate::traits::BatchRowGate<'_>,
+    numbered: bool,
+) -> Result<Vec<Vec<RowMap>>> {
+    let Some(mode) = requests.first().map(|request| request.mode) else {
+        return Ok(Vec::new());
+    };
+    if requests.iter().any(|request| request.mode != mode) {
+        return Err(FraiseQLError::Validation {
+            message: "a batch of writes commits all of its calls or none: they must share one \
+                      write mode"
+                .to_string(),
+            path:    None,
+        });
+    }
+    let count = requests.len();
+    let at = |index: usize, error: FraiseQLError| {
+        if numbered {
+            error.in_batch_item(index, count)
+        } else {
+            error
+        }
+    };
     let commit = matches!(mode, crate::traits::WriteMode::Commit);
     // Arm the read-your-writes pin (entry + post-commit) — #407. A dry run writes nothing
     // for a later read to miss.
     if commit {
         adapter.mark_write();
     }
-    let quoted_fn = quote_postgres_identifier(function_name);
-
-    // One statement when there is an outbox row: run the function once and INSERT
-    // its outbox row in the same txn, atomically, with no extra connection acquire
-    // (Change Spine). Otherwise the plain call.
-    let sql = if let Some(cl) = changelog {
-        build_changelog_cte_sql(&quoted_fn, args.len(), cl.pre_image)
-    } else {
-        let placeholders: Vec<String> = (1..=args.len()).map(|i| format!("${i}")).collect();
-        format!("SELECT * FROM {quoted_fn}({})", placeholders.join(", "))
-    };
-
-    // Arguments bind as FlexParam: serde_json::Value only accepts JSON/JSONB types, and
-    // Option<String> only text-family types, and a function signature can mix JSONB, UUID,
-    // INT4 and TEXT. FlexParam accepts every PostgreSQL type and serialises each value in the
-    // binary wire format of the server-resolved parameter type.
-    let mut flex_args: Vec<FlexParam> = args
-        .iter()
-        .map(|v| match v {
-            serde_json::Value::Null => FlexParam::Null,
-            serde_json::Value::String(s) => FlexParam::Text(s.clone()),
-            _ => FlexParam::Text(v.to_string()),
-        })
-        .collect();
-    if let Some(changelog) = changelog {
-        // Function args first; then the threaded change-log envelope params —
-        // object_type fallback ($n+1), modification_type verb ($n+2), the
-        // tenant_id stamp ($n+3, bound against `::uuid`), the trace_id
-        // ($n+4, plain text), the schema_version ($n+5, plain text), the
-        // trace_context ($n+6, bound against `::jsonb`), the actor_type ($n+7,
-        // plain text), the acting_for ($n+8, bound against `::uuid`) and the
-        // transport ($n+9, plain text merged into extra_metadata — #376). Order
-        // matches build_changelog_cte_sql's positional contract; appending the
-        // envelope params keeps the SQL text stable for prepare_cached.
-        flex_args.push(FlexParam::Text(changelog.object_type.to_string()));
-        flex_args.push(FlexParam::Text(changelog.modification_type.to_string()));
-        // tenant_id: bound as text and serialised by FlexParam's UUID branch
-        // (the `::uuid` cast pins the param type); None → SQL NULL.
-        flex_args
-            .push(changelog.tenant_id.map_or(FlexParam::Null, |t| FlexParam::Text(t.to_string())));
-        // trace_id ($n+4): plain text, None → SQL NULL.
-        flex_args
-            .push(changelog.trace_id.map_or(FlexParam::Null, |t| FlexParam::Text(t.to_string())));
-        // schema_version ($n+5): plain text, None → SQL NULL.
-        flex_args.push(
-            changelog
-                .schema_version
-                .map_or(FlexParam::Null, |s| FlexParam::Text(s.to_string())),
-        );
-        // trace_context ($n+6): JSON text bound against `::jsonb`, None → SQL NULL.
-        flex_args.push(
-            changelog
-                .trace_context
-                .map_or(FlexParam::Null, |s| FlexParam::Text(s.to_string())),
-        );
-        // actor_type ($n+7): plain text, None → SQL NULL.
-        flex_args
-            .push(changelog.actor_type.map_or(FlexParam::Null, |s| FlexParam::Text(s.to_string())));
-        // acting_for ($n+8): bound as text + serialised by FlexParam's UUID branch
-        // (the `::uuid` cast pins the param type); None → SQL NULL.
-        flex_args
-            .push(changelog.acting_for.map_or(FlexParam::Null, |u| FlexParam::Text(u.to_string())));
-        // transport ($n+9): plain text merged into extra_metadata.transport by the
-        // CTE's deterministic CASE; None → SQL NULL → key omitted (#376).
-        flex_args
-            .push(changelog.transport.map_or(FlexParam::Null, |s| FlexParam::Text(s.to_string())));
-    }
-    let params: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> = flex_args
-        .iter()
-        .map(|v| v as &(dyn tokio_postgres::types::ToSql + Sync))
-        .collect();
-
-    // Everything the function and the outbox read of their configuration, in one statement:
-    // the session variables, the #366 marker, the timing stamp, and the `started_at` the
-    // outbox needs. Later pairs win, as when each was its own statement.
-    //
-    // The marker makes the #366 fallback-capture trigger suppress its row: this write is
-    // already logged by the outbox, and on the no-outbox path the opt-out means "no
-    // change-log row", not "let the trigger write a degraded one".
-    let mut configuration: Vec<(&str, &str)> = Vec::with_capacity(session_vars.len() + 3);
-    configuration.extend_from_slice(session_vars);
-    configuration.push((crate::changelog::CDC_MEDIATED_VAR, crate::changelog::CDC_MEDIATED_ON));
-    if adapter.mutation_timing_enabled {
-        configuration.push((
-            adapter.timing_variable_name.as_str(),
-            crate::changelog::CLOCK_TIMESTAMP_DIRECTIVE,
-        ));
-    }
-    // The outbox INSERT reads `fraiseql.started_at` with current_setting() (no missing_ok),
-    // so it must exist on this txn. The mutation runner injects it on the authenticated path;
-    // stamp it on every other one (e.g. an unauthenticated mutation that resolves no session
-    // vars), and never over a value already set. Only the outbox reads it.
-    if changelog.is_some()
-        && !configuration.iter().any(|(name, _)| *name == crate::changelog::STARTED_AT_VAR)
-    {
-        configuration
-            .push((crate::changelog::STARTED_AT_VAR, crate::changelog::CLOCK_TIMESTAMP_DIRECTIVE));
-    }
-    let (configure_sql, configure_params) = set_config_batch(&configuration);
-    let configuration_failed = |e: &tokio_postgres::Error| {
-        let names: Vec<&str> = configuration.iter().map(|(name, _)| *name).collect();
-        crate::postgres::database_error(
-            format!("set_config({names:?}) failed: {}", pg_detail(e)),
-            e,
-        )
-    };
+    let calls: Vec<PreparedCall<'_>> =
+        requests.iter().map(|request| PreparedCall::new(adapter, request)).collect();
+    let configurations: Vec<_> =
+        calls.iter().map(|call| set_config_batch(&call.configuration)).collect();
 
     let mut client = adapter.acquire_connection_with_retry().await?;
-    // Parse/plan both statements once per connection (statement cache): the call (with the
-    // outbox, a complex CTE) and the configuration, whose text depends only on how many pairs
-    // it sets and which carry the clock directive.
-    let stmt = prepare_cached_stmt(&client, sql.as_str()).await?;
-    let configure = client
-        .prepare_cached(&configure_sql)
-        .await
-        .map_err(|e| configuration_failed(&e))?;
-    // The messages below name the outbox when the outbox is what ran. They are the
-    // strings the error sanitizer's corpus is reduced from, and an operator reading a
-    // failed write wants to know whether the CTE was in it.
-    let mechanism = if changelog.is_some() {
-        " (with change-log outbox)"
-    } else {
-        ""
-    };
+    // Parse/plan each statement once per connection (statement cache): the call (with the
+    // outbox, a complex CTE) and the configuration, whose text depends only on how many
+    // pairs it sets and which carry the clock directive. A batch of one function prepares
+    // each text once.
+    let mut statements = Vec::with_capacity(count);
+    for (index, (call, (configure_sql, _))) in calls.iter().zip(&configurations).enumerate() {
+        let stmt = prepare_cached_stmt(&client, call.sql.as_str())
+            .await
+            .map_err(|e| at(index, e))?;
+        let configure = client
+            .prepare_cached(configure_sql)
+            .await
+            .map_err(|e| at(index, call.configuration_failed(&e)))?;
+        statements.push((stmt, configure));
+    }
+    let mechanism = calls
+        .iter()
+        .find(|call| !call.mechanism.is_empty())
+        .map_or("", |call| call.mechanism);
     let txn = client.build_transaction().start().await.map_err(|e| {
         crate::postgres::database_error(
             format!("Failed to start mutation{mechanism} transaction: {}", pg_detail(&e)),
@@ -193,44 +281,73 @@ async fn run_function_in_txn(
     // configuration. Only once `BEGIN` is confirmed, so neither can run outside the txn.
     // A failed configuration aborts the txn and the call with it; its own error is the one
     // reported, not the call's "current transaction is aborted".
-    let (configured, called) = futures::join!(
-        txn.execute(&configure, &configure_params),
-        txn.query(&stmt, params.as_slice())
-    );
-    configured.map_err(|e| configuration_failed(&e))?;
-    let rows: Vec<Row> = called.map_err(|e| {
-        crate::postgres::database_error(
-            format!("Function call {function_name}{mechanism} failed: {}", pg_detail(&e)),
-            &e,
-        )
-    })?;
-
-    let mut results: Vec<std::collections::HashMap<String, serde_json::Value>> =
-        rows.iter().map(row_to_map).collect();
-
-    // #1391: the rows pg_tviews reports this transaction changed, read on this connection,
-    // before the gate adjudicates the row they are attached to.
-    if let Some(derived) = request.derived_cascade {
-        if let Some(first) = results.first_mut() {
-            if first.get("succeeded").and_then(serde_json::Value::as_bool) == Some(true) {
-                let report = derived_cascade_report(&txn, derived).await?;
-                first.insert(crate::traits::DERIVED_CASCADE_KEY.to_string(), report);
-            }
-        }
-    }
-
-    // The gate decides the commit. It sees the rows the function returned — the
-    // only thing a per-row decision can be keyed on — while they are still
-    // uncommitted, so a refusal takes the write with it rather than leaving the
-    // caller refused and the side effect standing (#1353).
-    if let Err(refusal) = gate(&results) {
-        txn.rollback().await.map_err(|e| {
-            crate::postgres::database_error(
-                format!("Failed to roll back refused mutation transaction: {}", pg_detail(&e)),
-                &e,
+    let flight = |index: usize| {
+        let (call, (stmt, configure)) = (&calls[index], &statements[index]);
+        let configure_params = &configurations[index].1;
+        let txn = &txn;
+        async move {
+            let params = call.params();
+            futures::join!(
+                txn.execute(configure, configure_params),
+                txn.query(stmt, params.as_slice())
             )
-        })?;
-        return Err(refusal);
+        }
+    };
+    // What a flight answered, as the call's rows: its errors, then (#1391) the rows pg_tviews
+    // reports this transaction changed, read on this connection before the gate adjudicates
+    // the row they are attached to.
+    let settle = |index: usize,
+                  (configured, called): (
+        std::result::Result<u64, tokio_postgres::Error>,
+        std::result::Result<Vec<Row>, tokio_postgres::Error>,
+    )| {
+        let call = &calls[index];
+        let txn = &txn;
+        async move {
+            configured.map_err(|e| call.configuration_failed(&e))?;
+            let rows = called.map_err(|e| call.call_failed(&e))?;
+            let mut results: Vec<RowMap> = rows.iter().map(row_to_map).collect();
+            if let Some(derived) = call.derived {
+                if let Some(first) = results.first_mut() {
+                    if first.get("succeeded").and_then(serde_json::Value::as_bool) == Some(true) {
+                        let report = derived_cascade_report(txn, derived).await?;
+                        first.insert(crate::traits::DERIVED_CASCADE_KEY.to_string(), report);
+                    }
+                }
+            }
+            Ok::<_, FraiseQLError>(results)
+        }
+    };
+
+    // Every flight at once (#1574), unless a call reports a derived cascade: its report is
+    // read after its own call and before the next, so those calls go one flight at a time.
+    let answers: Vec<Option<_>> = if calls.iter().all(|call| call.derived.is_none()) {
+        in_order((0..count).map(flight).collect()).await.into_iter().map(Some).collect()
+    } else {
+        std::iter::repeat_with(|| None).take(count).collect()
+    };
+    let mut results = Vec::with_capacity(count);
+    for (index, answer) in answers.into_iter().enumerate() {
+        let answer = match answer {
+            Some(answer) => answer,
+            None => flight(index).await,
+        };
+        let rows = settle(index, answer).await.map_err(|e| at(index, e))?;
+
+        // The gate decides the commit. It sees the rows the function returned — the
+        // only thing a per-row decision can be keyed on — while they are still
+        // uncommitted, so a refusal takes the write with it rather than leaving the
+        // caller refused and the side effect standing (#1353).
+        if let Err(refusal) = gate(index, &rows) {
+            txn.rollback().await.map_err(|e| {
+                crate::postgres::database_error(
+                    format!("Failed to roll back refused mutation transaction: {}", pg_detail(&e)),
+                    &e,
+                )
+            })?;
+            return Err(refusal);
+        }
+        results.push(rows);
     }
 
     if !commit {
@@ -253,6 +370,26 @@ async fn run_function_in_txn(
     adapter.mark_write();
 
     Ok(results)
+}
+
+/// Await `futures` together, polling each for the first time in order: what one sends
+/// reaches the connection before what the next sends, so PostgreSQL runs them in that order.
+async fn in_order<F: std::future::Future>(futures: Vec<F>) -> Vec<F::Output> {
+    let mut pending: Vec<_> =
+        futures.into_iter().map(|f| Box::pin(futures::future::maybe_done(f))).collect();
+    std::future::poll_fn(|cx| {
+        let mut done = true;
+        for future in &mut pending {
+            done &= std::future::Future::poll(future.as_mut(), cx).is_ready();
+        }
+        if done {
+            std::task::Poll::Ready(())
+        } else {
+            std::task::Poll::Pending
+        }
+    })
+    .await;
+    pending.iter_mut().filter_map(|future| future.as_mut().take_output()).collect()
 }
 
 /// Flush `pg_tviews`' queue and report the rows this transaction changed, each reported
@@ -1537,6 +1674,17 @@ impl Writer for PostgresAdapter {
         request: &crate::traits::WriteRequest<'_>,
         gate: crate::traits::MutationRowGate<'_>,
     ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
-        run_function_in_txn(self, request, gate).await
+        let mut rows =
+            run_functions_in_txn(self, std::slice::from_ref(request), &|_, rows| gate(rows), false)
+                .await?;
+        Ok(rows.pop().unwrap_or_default())
+    }
+
+    async fn execute_writes(
+        &self,
+        requests: &[crate::traits::WriteRequest<'_>],
+        gate: crate::traits::BatchRowGate<'_>,
+    ) -> Result<Vec<Vec<std::collections::HashMap<String, serde_json::Value>>>> {
+        run_functions_in_txn(self, requests, gate, true).await
     }
 }

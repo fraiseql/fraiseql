@@ -14,7 +14,7 @@ use indexmap::IndexMap;
 
 use crate::{
     backend::{
-        MutationRowGate, RelayCursor, RelayPageResult, WriteRequest, Writer,
+        BatchRowGate, MutationRowGate, RelayCursor, RelayPageResult, WriteRequest, Writer,
         traits::{DatabaseAdapter, RelayDatabaseAdapter},
         types::{DatabaseType, JsonbValue, PoolMetrics, sql_hints::OrderByClause},
         where_clause::WhereClause,
@@ -22,6 +22,24 @@ use crate::{
     error::Result,
     schema::{AutoParams, CompiledSchema, CursorType, QueryDefinition},
 };
+
+/// A batch over a double's [`Writer::execute_write`], call by call, each put to the gate
+/// under its index.
+///
+/// Only for doubles: they hold no transaction for a batch to share, so this is their
+/// `execute_writes` minus atomicity, which `crates/fraiseql-core/tests/atomic_batch_pg.rs`
+/// proves on PostgreSQL. A real adapter must never answer a batch this way (#1574).
+pub async fn each_write<W: Writer + ?Sized>(
+    writer: &W,
+    requests: &[WriteRequest<'_>],
+    gate: BatchRowGate<'_>,
+) -> Result<Vec<Vec<HashMap<String, serde_json::Value>>>> {
+    let mut answers = Vec::with_capacity(requests.len());
+    for (index, request) in requests.iter().enumerate() {
+        answers.push(writer.execute_write(request, &|rows| gate(index, rows)).await?);
+    }
+    Ok(answers)
+}
 
 /// Capturing mock that records the WHERE clause and limit/offset it receives.
 /// Used to verify parameter threading from executor to adapter.
@@ -332,6 +350,14 @@ impl Writer for CapturingMockAdapter {
         gate(&rows)?;
         Ok(rows)
     }
+
+    async fn execute_writes(
+        &self,
+        requests: &[WriteRequest<'_>],
+        gate: BatchRowGate<'_>,
+    ) -> Result<Vec<Vec<std::collections::HashMap<String, serde_json::Value>>>> {
+        each_write(self, requests, gate).await
+    }
 }
 
 /// Mock database adapter for testing.
@@ -465,6 +491,14 @@ impl Writer for MockAdapter {
         let rows = Vec::new();
         gate(&rows)?;
         Ok(rows)
+    }
+
+    async fn execute_writes(
+        &self,
+        requests: &[WriteRequest<'_>],
+        gate: BatchRowGate<'_>,
+    ) -> Result<Vec<Vec<std::collections::HashMap<String, serde_json::Value>>>> {
+        each_write(self, requests, gate).await
     }
 }
 

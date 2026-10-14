@@ -17,7 +17,7 @@ use fraiseql_core::{
     db::{
         DatabaseAdapter, DatabaseType, RelayCursor, RelayDatabaseAdapter, WhereClause,
         WriteRequest, Writer,
-        traits::{MutationRowGate, RelayPageResult},
+        traits::{BatchRowGate, MutationRowGate, RelayPageResult},
         types::{ColumnSpec, ColumnValue, JsonbValue, OrderByClause, PoolMetrics},
     },
     error::{FraiseQLError, Result},
@@ -457,6 +457,22 @@ impl Writer for FailingAdapter {
         let rows = self.function_rows(request.function)?;
         gate(&rows)?;
         Ok(rows)
+    }
+
+    /// Call by call, each put to the gate under its index: with nothing durable, there is
+    /// no part of a batch to roll back.
+    async fn execute_writes(
+        &self,
+        requests: &[WriteRequest<'_>],
+        gate: BatchRowGate<'_>,
+    ) -> Result<Vec<Vec<HashMap<String, serde_json::Value>>>> {
+        let mut answers = Vec::with_capacity(requests.len());
+        for (index, request) in requests.iter().enumerate() {
+            let rows = self.function_rows(request.function)?;
+            gate(index, &rows)?;
+            answers.push(rows);
+        }
+        Ok(answers)
     }
 }
 

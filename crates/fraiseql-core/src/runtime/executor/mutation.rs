@@ -8,7 +8,8 @@
 //!   it already holds structured arguments.
 //! - The internal dispatch entry point for a client document (`Executor::execute_mutation_query`).
 //! - Convenience wrappers used by the REST transport ([`execute_mutation_with_security`],
-//!   [`execute_mutation_batch`], [`execute_bulk_by_ids`]).
+//!   [`execute_mutation_batch`], [`execute_bulk_by_ids`]); the last two run every item in one
+//!   transaction (`runners::mutation::execute_mutation_batch_impl`).
 //!
 //! None of them carries a capability bound. All converge on `execute_mutation_impl`, whose
 //! step 0 resolves the executor's write slot — see [`Executor::new`] for where the
@@ -155,38 +156,42 @@ impl Executor {
         .map(|execution| execution.data)
     }
 
-    /// Execute a batch of mutations (for REST bulk insert).
+    /// Execute a batch of mutations (for REST bulk insert): every item in **one**
+    /// transaction, all committed or none (#1574).
     ///
-    /// Executes each mutation individually and collects results into a `BulkResult`.
+    /// Every item is authorized and validated before any statement runs. An item refused by
+    /// any gate, by the database, or by its function (`succeeded = false`) refuses the whole
+    /// batch: nothing is written, and the error names the item ("Bulk item 3 of 5: …").
+    /// One cache invalidation follows the commit, for every item.
     ///
     /// # Errors
     ///
-    /// Returns the first error encountered during batch execution.
+    /// The first item's refusal, named by its position.
     pub async fn execute_mutation_batch(
         &self,
         mutation_name: &str,
         items: &[serde_json::Value],
         security_context: Option<&SecurityContext>,
     ) -> crate::error::Result<crate::runtime::BulkResult> {
-        let mut entities = Vec::with_capacity(items.len());
-        for item in items {
-            let result = self
-                .execute_mutation_with_security(mutation_name, item, security_context)
-                .await?;
-            entities.push(result);
-        }
-        Ok(crate::runtime::BulkResult {
-            affected_rows: entities.len() as u64,
-            entities:      Some(entities),
-        })
+        let selections = mutation_return_selections(self.schema(), mutation_name);
+        let executions = runners::mutation::execute_mutation_batch_impl(
+            &self.ctx,
+            mutation_name,
+            items,
+            security_context,
+            WriteSelections::new(&selections)?,
+        )
+        .await?;
+        Ok(bulk_result(executions))
     }
 
     /// Execute a mutation once per identified row — the engine behind a collection-level
-    /// `PATCH`/`DELETE`.
+    /// `PATCH`/`DELETE` — every row in **one** transaction, all committed or none (#1574).
     ///
     /// `ids` are the primary-key values the caller's filter selected; each is merged into
     /// the request body under `id_field` so the mutation function receives the row it is
-    /// meant to act on. `affected_rows` is the number of mutations that actually ran.
+    /// meant to act on. `affected_rows` is the number of mutations that ran: all of them,
+    /// or the call fails and none did.
     ///
     /// This replaces `execute_bulk_by_filter`, which ran the filter query, **discarded
     /// the matched rows**, invoked the mutation exactly once with the body and no row
@@ -201,8 +206,8 @@ impl Executor {
     ///
     /// # Errors
     ///
-    /// Returns whatever the underlying mutation returns; the first failure aborts and
-    /// propagates, so a partially-applied bulk reports the error rather than a count.
+    /// As [`execute_mutation_batch`](Self::execute_mutation_batch): the first row's
+    /// refusal, named by its position; nothing is written.
     pub async fn execute_bulk_by_ids(
         &self,
         mutation_name: &str,
@@ -211,28 +216,27 @@ impl Executor {
         body: Option<&serde_json::Value>,
         security_context: Option<&SecurityContext>,
     ) -> crate::error::Result<crate::runtime::BulkResult> {
-        let mut entities = Vec::with_capacity(ids.len());
+        let items: Vec<serde_json::Value> = ids
+            .iter()
+            .map(|id| {
+                let mut args = body.and_then(|b| b.as_object().cloned()).unwrap_or_default();
+                // The row identity wins over anything the client put in the body under the
+                // same key: a bulk request must not be able to redirect a per-row mutation.
+                args.insert(id_field.to_string(), id.clone());
+                serde_json::Value::Object(args)
+            })
+            .collect();
+        self.execute_mutation_batch(mutation_name, &items, security_context).await
+    }
+}
 
-        for id in ids {
-            let mut args = body.and_then(|b| b.as_object().cloned()).unwrap_or_default();
-            // The row identity wins over anything the client put in the body under the
-            // same key: a bulk request must not be able to redirect a per-row mutation.
-            args.insert(id_field.to_string(), id.clone());
-
-            let result = self
-                .execute_mutation_with_security(
-                    mutation_name,
-                    &serde_json::Value::Object(args),
-                    security_context,
-                )
-                .await?;
-            entities.push(result);
-        }
-
-        Ok(crate::runtime::BulkResult {
-            affected_rows: u64::try_from(entities.len()).unwrap_or(u64::MAX),
-            entities:      Some(entities),
-        })
+/// A committed batch as the REST transport reports it: every item's response, in order.
+fn bulk_result(
+    executions: Vec<runners::mutation::MutationExecution>,
+) -> crate::runtime::BulkResult {
+    crate::runtime::BulkResult {
+        affected_rows: u64::try_from(executions.len()).unwrap_or(u64::MAX),
+        entities:      Some(executions.into_iter().map(|execution| execution.data).collect()),
     }
 }
 
