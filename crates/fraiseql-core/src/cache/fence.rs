@@ -6,11 +6,13 @@
 //!
 //! It refuses only the fills an invalidation could have evicted. Every invalidation takes the
 //! next number of one sequence and stamps it on what it reaches: a slot per view it sweeps, a
-//! slot per entity type it evicts by id, a slot per child type whose collections it evicts
-//! (#1589), or every fill at once (`clear`). A read snapshots the
-//! sequence before its round trip; its fill is refused when a slot it would be indexed under
-//! carries a later stamp. A write to `v_post` therefore no longer refuses a read of `v_user`:
-//! under steady writes some invalidation is always in flight, and a global fence cached
+//! slot per entity type it evicts by id, a slot per collection and parent or per child type
+//! whose collections it evicts (#1589), or every fill at once (`clear`). A change feed's sweep
+//! of a view stamps a slot of its own, which an entry's own views are checked against but the
+//! views of its levels tagged by collection are not: the feed names those levels' collections. A
+//! read snapshots the sequence before its round trip; its fill is refused when a slot it would be
+//! indexed under carries a later stamp. A write to `v_post` therefore no longer refuses a read of
+//! `v_user`: under steady writes some invalidation is always in flight, and a global fence cached
 //! nothing at all (#1584).
 //!
 //! Slots are a fixed array indexed by a hash of the name, so a name never outlives anything
@@ -32,8 +34,28 @@ const SLOTS: usize = 1024;
 
 /// Hash domains, so a view and an entity type of the same name use different slots.
 const VIEW: u8 = b'v';
+/// A view swept by a change feed that names collections: it reaches an entry's own views,
+/// not the views of its levels tagged by collection (#1589).
+const FEED_VIEW: u8 = b'f';
 const ENTITY_TYPE: u8 = b'e';
+/// Every collection of a child type (#1589).
 const COLLECTION_TYPE: u8 = b'c';
+/// One collection of one parent: `(child type, column, parent id)` (#1589).
+const COLLECTION_MEMBER: u8 = b'm';
+
+/// What a fill is indexed under, as the fence checks it.
+#[derive(Default)]
+pub(super) struct Reach<'a> {
+    /// The entry's views: reached by any sweep of them.
+    pub(super) views:           Vec<&'a str>,
+    /// The views of its levels tagged by collection: reached by a write's sweep, not the
+    /// feed's (#1589).
+    pub(super) collected_views: Vec<&'a str>,
+    /// The types of the rows it holds.
+    pub(super) entity_types:    Vec<&'a str>,
+    /// Its collections, as `(child type, column, parent id)`.
+    pub(super) collections:     Vec<(&'a str, &'a str, &'a str)>,
+}
 
 /// Sequence-stamped slots; see the module documentation.
 pub(super) struct InvalidationFence {
@@ -63,21 +85,14 @@ impl InvalidationFence {
     pub(super) fn stamp_views<'a>(&self, views: impl IntoIterator<Item = &'a str>) {
         let stamp = self.next();
         for view in views {
-            self.slot(VIEW, view).fetch_max(stamp, Ordering::SeqCst);
+            self.slot(VIEW, &[view]).fetch_max(stamp, Ordering::SeqCst);
         }
     }
 
     /// Stamp the slot of `entity_type`. Call before collecting the keys to evict.
     pub(super) fn stamp_entity_type(&self, entity_type: &str) {
         let stamp = self.next();
-        self.slot(ENTITY_TYPE, entity_type).fetch_max(stamp, Ordering::SeqCst);
-    }
-
-    /// Stamp the slot of the collections of `child_type` (#1589). Call before collecting the
-    /// keys to evict.
-    pub(super) fn stamp_collection_type(&self, child_type: &str) {
-        let stamp = self.next();
-        self.slot(COLLECTION_TYPE, child_type).fetch_max(stamp, Ordering::SeqCst);
+        self.slot(ENTITY_TYPE, &[entity_type]).fetch_max(stamp, Ordering::SeqCst);
     }
 
     /// Stamp every fill. Call before clearing.
@@ -86,58 +101,66 @@ impl InvalidationFence {
         self.everything.fetch_max(stamp, Ordering::SeqCst);
     }
 
-    /// Whether an invalidation stamped after `snapshot` reaches a fill indexed under `views`,
-    /// `entity_types` and collections of `child_types`. A plain read: cheap, and enough to
-    /// skip work early.
-    pub(super) fn moved_since<'a>(
-        &self,
-        snapshot: u64,
-        views: impl IntoIterator<Item = &'a str>,
-        entity_types: impl IntoIterator<Item = &'a str>,
-        child_types: impl IntoIterator<Item = &'a str>,
-    ) -> bool {
-        self.reaches(snapshot, views, entity_types, child_types, |slot| slot.load(Ordering::SeqCst))
+    /// Stamp the slots of `views` swept by a change feed that names collections, which do
+    /// not reach the views of levels tagged by collection (#1589).
+    pub(super) fn stamp_feed_views<'a>(&self, views: impl IntoIterator<Item = &'a str>) {
+        let stamp = self.next();
+        for view in views {
+            self.slot(FEED_VIEW, &[view]).fetch_max(stamp, Ordering::SeqCst);
+        }
+    }
+
+    /// Stamp the slot of every collection of `child_type` (#1589).
+    pub(super) fn stamp_collection_type(&self, child_type: &str) {
+        let stamp = self.next();
+        self.slot(COLLECTION_TYPE, &[child_type]).fetch_max(stamp, Ordering::SeqCst);
+    }
+
+    /// Stamp the slot of the collection `column` of `child_type` under the parent `parent`
+    /// (#1589).
+    pub(super) fn stamp_collection(&self, child_type: &str, column: &str, parent: &str) {
+        let stamp = self.next();
+        self.slot(COLLECTION_MEMBER, &[child_type, column, parent])
+            .fetch_max(stamp, Ordering::SeqCst);
+    }
+
+    /// Whether an invalidation stamped after `snapshot` reaches a fill indexed under
+    /// `reach`. A plain read: cheap, and enough to skip work early.
+    pub(super) fn moved_since(&self, snapshot: u64, reach: &Reach<'_>) -> bool {
+        self.reaches(snapshot, reach, |slot| slot.load(Ordering::SeqCst))
     }
 
     /// [`moved_since`](Self::moved_since) as the authoritative check, made **after** the
     /// fill is in the store: a read-modify-write per slot, so a check that misses a stamp is
     /// ordered before it (see the module documentation).
-    pub(super) fn moved_since_inserted<'a>(
-        &self,
-        snapshot: u64,
-        views: impl IntoIterator<Item = &'a str>,
-        entity_types: impl IntoIterator<Item = &'a str>,
-        child_types: impl IntoIterator<Item = &'a str>,
-    ) -> bool {
-        self.reaches(snapshot, views, entity_types, child_types, |slot| {
-            slot.fetch_add(0, Ordering::SeqCst)
-        })
+    pub(super) fn moved_since_inserted(&self, snapshot: u64, reach: &Reach<'_>) -> bool {
+        self.reaches(snapshot, reach, |slot| slot.fetch_add(0, Ordering::SeqCst))
     }
 
-    fn reaches<'a>(
-        &self,
-        snapshot: u64,
-        views: impl IntoIterator<Item = &'a str>,
-        entity_types: impl IntoIterator<Item = &'a str>,
-        child_types: impl IntoIterator<Item = &'a str>,
-        read: impl Fn(&AtomicU64) -> u64,
-    ) -> bool {
+    fn reaches(&self, snapshot: u64, reach: &Reach<'_>, read: impl Fn(&AtomicU64) -> u64) -> bool {
+        let moved = |domain: u8, parts: &[&str]| read(self.slot(domain, parts)) > snapshot;
         read(&self.everything) > snapshot
-            || views.into_iter().any(|view| read(self.slot(VIEW, view)) > snapshot)
-            || entity_types.into_iter().any(|et| read(self.slot(ENTITY_TYPE, et)) > snapshot)
-            || child_types
-                .into_iter()
-                .any(|child| read(self.slot(COLLECTION_TYPE, child)) > snapshot)
+            || reach.views.iter().any(|v| moved(VIEW, &[v]) || moved(FEED_VIEW, &[v]))
+            || reach.collected_views.iter().any(|v| moved(VIEW, &[v]))
+            || reach.entity_types.iter().any(|t| moved(ENTITY_TYPE, &[t]))
+            || reach.collections.iter().any(|(t, c, p)| {
+                moved(COLLECTION_TYPE, &[t]) || moved(COLLECTION_MEMBER, &[t, c, p])
+            })
     }
 
     fn next(&self) -> u64 {
         self.sequence.fetch_add(1, Ordering::SeqCst) + 1
     }
 
-    fn slot(&self, domain: u8, name: &str) -> &AtomicU64 {
-        // FNV-1a: stable across toolchains and runs, so which names share a slot is too.
+    fn slot(&self, domain: u8, parts: &[&str]) -> &AtomicU64 {
+        // FNV-1a: stable across toolchains and runs, so which names share a slot is too. Parts
+        // are separated by a NUL, which no name holds.
         let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
-        for byte in std::iter::once(domain).chain(name.bytes()) {
+        let bytes = parts
+            .iter()
+            .enumerate()
+            .flat_map(|(i, part)| (i > 0).then_some(0u8).into_iter().chain(part.bytes()));
+        for byte in std::iter::once(domain).chain(bytes) {
             hash ^= u64::from(byte);
             hash = hash.wrapping_mul(0x0100_0000_01b3);
         }
