@@ -707,12 +707,7 @@ impl QueryResultCache {
             self.fence.moved_since_inserted(
                 snapshot,
                 entry.accessed_views.iter().chain(&*entry.collected_views).map(ViewName::as_str),
-                entry
-                    .entity_refs
-                    .iter()
-                    .map(|(t, _)| t.as_str())
-                    .chain(entity_type)
-                    .collect::<std::collections::BTreeSet<_>>(),
+                entry.entity_refs.iter().map(|(t, _)| t.as_str()).chain(entity_type),
                 entry.collections.iter().map(|(c, _)| c.child_type.as_str()),
             )
         }) {

@@ -7,7 +7,7 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use fraiseql_db::{ComposedLevel, ViewName};
 use serde_json::json;
 
-use super::*;
+use super::{query::ComposedPolicy, *};
 use crate::{
     backend::{ComposedEmbed, EmbedShape, EmbedSource, LevelKeys, ScalarFieldType},
     cache::{CacheConfig, collections::CollectionMap, tviews_feed::Collection},
@@ -222,7 +222,10 @@ fn a_composed_read_lives_as_long_as_its_shortest_lived_level() {
         ("tv_post".to_string(), 600),
         ("tv_comment".to_string(), 5),
     ]));
-    assert_eq!(adapter.composed_policy(&posts_with_comments()), Some(Some(5)));
+    assert_eq!(
+        adapter.composed_policy(&posts_with_comments()),
+        ComposedPolicy::Cached { ttl: Some(5) }
+    );
 }
 
 #[test]
@@ -231,8 +234,14 @@ fn every_level_opting_in_caches_the_read() {
         ("tv_post".to_string(), 600),
         ("tv_comment".to_string(), 600),
     ]));
-    assert_eq!(adapter.composed_policy(&posts_with_comments()), Some(Some(600)));
-    assert_eq!(adapter_without_opt_in().composed_policy(&posts_with_comments()), Some(None));
+    assert_eq!(
+        adapter.composed_policy(&posts_with_comments()),
+        ComposedPolicy::Cached { ttl: Some(600) }
+    );
+    assert_eq!(
+        adapter_without_opt_in().composed_policy(&posts_with_comments()),
+        ComposedPolicy::Cached { ttl: None }
+    );
 }
 
 fn adapter_without_opt_in() -> CachedDatabaseAdapter<ComposedAdapter> {
