@@ -802,7 +802,7 @@ mod metrics_tests {
             queries_success:         950,
             queries_error:           50,
             avg_query_duration_ms:   12.5,
-            cache_hit_ratio:         0.75,
+            cache_hit_ratio:         Some(0.75),
             pool_connections_total:  20,
             pool_connections_idle:   15,
             pool_connections_active: 5,
@@ -813,7 +813,7 @@ mod metrics_tests {
         assert_eq!(response.queries_success, 950);
         assert_eq!(response.queries_error, 50);
         assert!((response.avg_query_duration_ms - 12.5).abs() < 0.001);
-        assert!((response.cache_hit_ratio - 0.75).abs() < 0.001);
+        assert_eq!(response.cache_hit_ratio, Some(0.75));
         assert_eq!(response.pool_connections_total, 20);
         assert_eq!(response.pool_connections_idle, 15);
         assert_eq!(response.pool_connections_active, 5);
@@ -827,7 +827,7 @@ mod metrics_tests {
             queries_success:         95,
             queries_error:           5,
             avg_query_duration_ms:   5.0,
-            cache_hit_ratio:         0.85,
+            cache_hit_ratio:         Some(0.85),
             pool_connections_total:  10,
             pool_connections_idle:   8,
             pool_connections_active: 2,

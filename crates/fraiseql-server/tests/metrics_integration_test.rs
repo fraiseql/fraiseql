@@ -63,8 +63,6 @@ async fn metrics_endpoint_contains_standard_counters() {
     state.metrics.queries_total.fetch_add(100, Ordering::Relaxed);
     state.metrics.queries_success.fetch_add(95, Ordering::Relaxed);
     state.metrics.queries_error.fetch_add(5, Ordering::Relaxed);
-    state.metrics.cache_hits.fetch_add(80, Ordering::Relaxed);
-    state.metrics.cache_misses.fetch_add(20, Ordering::Relaxed);
 
     let router = metrics_router(state);
     let (_, body) = get_text(&router, "/metrics").await;
@@ -73,10 +71,6 @@ async fn metrics_endpoint_contains_standard_counters() {
     assert!(body.contains("fraiseql_graphql_queries_total 100"), "missing queries_total");
     assert!(body.contains("fraiseql_graphql_queries_success 95"), "missing queries_success");
     assert!(body.contains("fraiseql_graphql_queries_error 5"), "missing queries_error");
-
-    // Cache metrics
-    assert!(body.contains("fraiseql_cache_hits 80"), "missing cache_hits");
-    assert!(body.contains("fraiseql_cache_misses 20"), "missing cache_misses");
 
     // HELP and TYPE annotations (Prometheus format compliance)
     assert!(body.contains("# HELP fraiseql_graphql_queries_total"));
@@ -158,16 +152,19 @@ async fn metrics_endpoint_contains_error_breakdown() {
     assert!(body.contains("fraiseql_execution_errors_total 1"));
 }
 
+/// #1583: with no query-result cache there is no cache series, not a series of zeros that
+/// reads as "the cache does nothing". The counts themselves come from the cache, pinned by
+/// `admin_cache_vocabulary_e2e`.
 #[tokio::test]
-async fn metrics_endpoint_cache_hit_ratio_calculation() {
+async fn metrics_endpoint_omits_cache_series_without_a_result_cache() {
     let state = make_metrics_state();
-    state.metrics.cache_hits.store(75, Ordering::Relaxed);
-    state.metrics.cache_misses.store(25, Ordering::Relaxed);
+    assert!(state.executor().result_cache_stats().is_none(), "precondition: no result cache");
 
     let router = metrics_router(state);
     let (_, body) = get_text(&router, "/metrics").await;
 
-    assert!(body.contains("fraiseql_cache_hit_ratio 0.750"), "hit ratio should be 0.750");
+    assert!(!body.contains("fraiseql_cache_hits_total"), "{body}");
+    assert!(!body.contains("fraiseql_cache_hit_ratio"), "{body}");
 }
 
 #[tokio::test]
@@ -275,7 +272,8 @@ async fn json_metrics_empty_state_has_zero_values() {
     assert_eq!(json["queries_success"], 0);
     assert_eq!(json["queries_error"], 0);
     assert_eq!(json["avg_query_duration_ms"], 0.0);
-    assert_eq!(json["cache_hit_ratio"], 0.0);
+    // No query-result cache on this server: no ratio, not a ratio of 0 (#1583).
+    assert_eq!(json["cache_hit_ratio"], serde_json::Value::Null);
 }
 
 // --- Concurrent metrics safety ---
@@ -291,7 +289,6 @@ async fn concurrent_metric_updates_are_safe() {
             for _ in 0..1000 {
                 c.queries_total.fetch_add(1, Ordering::Relaxed);
                 c.queries_success.fetch_add(1, Ordering::Relaxed);
-                c.cache_hits.fetch_add(1, Ordering::Relaxed);
             }
         }));
     }
@@ -302,7 +299,6 @@ async fn concurrent_metric_updates_are_safe() {
 
     assert_eq!(collector.queries_total.load(Ordering::Relaxed), 10_000);
     assert_eq!(collector.queries_success.load(Ordering::Relaxed), 10_000);
-    assert_eq!(collector.cache_hits.load(Ordering::Relaxed), 10_000);
 }
 
 // --- Federation metrics ---

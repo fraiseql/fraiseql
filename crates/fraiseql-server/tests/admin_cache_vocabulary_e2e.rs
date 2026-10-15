@@ -352,3 +352,118 @@ async fn with_the_cache_off_every_endpoint_says_so() {
     let _ = tx.send(());
     let _ = handle.await;
 }
+
+const METRICS_TOKEN: &str = "a-metrics-token-that-is-long-enough";
+
+/// The value of one unlabelled series in a Prometheus text body.
+fn series(body: &str, name: &str) -> Option<f64> {
+    body.lines()
+        .find_map(|line| line.strip_prefix(name)?.strip_prefix(' ')?.trim().parse().ok())
+}
+
+/// #1583 — `/metrics` reports the counts the result cache keeps, the ones the admin stats
+/// read, under the names the shipped dashboards query.
+///
+/// `/metrics` rendered collector fields no production code fed, so a busy cache scraped as
+/// 0 hits and 0 misses forever, and under names (`fraiseql_cache_hits`) the dashboards
+/// (`fraiseql_cache_hits_total`) and docs did not use.
+#[tokio::test]
+async fn metrics_report_the_cache_counts_the_admin_stats_report() {
+    let calls = Arc::new(AtomicU64::new(0));
+    let adapter = CountingAdapter {
+        calls: Arc::clone(&calls),
+    };
+    let config = ServerConfig {
+        metrics_enabled: true,
+        metrics_token: Some(METRICS_TOKEN.to_string()),
+        ..admin_config()
+    };
+    let server = Server::new(config, schema(), Arc::new(adapter), None)
+        .await
+        .expect("Server::new");
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.expect("bind");
+    let port = listener.local_addr().expect("addr").port();
+    let (tx, rx) = tokio::sync::oneshot::channel::<()>();
+    let handle = tokio::spawn(async move {
+        server
+            .serve_on_listener(listener, async {
+                let _ = rx.await;
+            })
+            .await
+    });
+    let client = Client {
+        port,
+        http: reqwest::Client::new(),
+    };
+
+    // One miss, then two hits.
+    for _ in 0..3 {
+        let body = client.graphql("query { prices { id } }").await;
+        assert!(body.get("data").is_some(), "the query must succeed; got: {body}");
+    }
+    assert_eq!(calls.load(Ordering::SeqCst), 1, "precondition: two reads served from cache");
+
+    let stats = client.get_json("/api/v1/admin/cache/stats").await;
+    let result_cache = cache_entry(&stats["data"], "query_result");
+    assert_eq!(
+        (result_cache["hits"].as_u64(), result_cache["misses"].as_u64()),
+        (Some(2), Some(1))
+    );
+
+    let metrics = client
+        .http
+        .get(format!("http://127.0.0.1:{port}/metrics"))
+        .header("Authorization", format!("Bearer {METRICS_TOKEN}"))
+        .send()
+        .await
+        .expect("GET /metrics")
+        .text()
+        .await
+        .expect("text body");
+    assert_eq!(series(&metrics, "fraiseql_cache_hits_total"), Some(2.0), "{metrics}");
+    assert_eq!(series(&metrics, "fraiseql_cache_misses_total"), Some(1.0), "{metrics}");
+    assert_eq!(series(&metrics, "fraiseql_cache_entries"), Some(1.0), "{metrics}");
+
+    // The JSON metrics and Studio's summary read the same counts.
+    let json: serde_json::Value = client
+        .http
+        .get(format!("http://127.0.0.1:{port}/metrics/json"))
+        .header("Authorization", format!("Bearer {METRICS_TOKEN}"))
+        .send()
+        .await
+        .expect("GET /metrics/json")
+        .json()
+        .await
+        .expect("JSON body");
+    let ratio = json["cache_hit_ratio"].as_f64().unwrap_or_else(|| panic!("{json}"));
+    assert!((ratio - 2.0 / 3.0).abs() < 1e-9, "{json}");
+    let summary = client.get_json("/admin/v1/metrics/summary").await;
+    let rate = summary["cache"]["hit_rate"].as_f64().unwrap_or_else(|| panic!("{summary}"));
+    assert!((rate - 2.0 / 3.0).abs() < 1e-9, "{summary}");
+    assert_eq!(summary["cache"]["entries"], 1, "{summary}");
+
+    // Every result-cache series a shipped dashboard queries is one this server emits.
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    for dashboard in [
+        "resources/fraiseql-dashboard.json",
+        "../../deploy/grafana/fraiseql-dashboard.json",
+    ] {
+        let text = std::fs::read_to_string(root.join(dashboard)).expect("dashboard");
+        let queried: std::collections::BTreeSet<&str> = text
+            .match_indices("fraiseql_cache_")
+            .map(|(at, _)| {
+                let end = text[at..]
+                    .find(|c: char| !(c.is_ascii_alphanumeric() || c == '_'))
+                    .map_or(text.len(), |n| at + n);
+                &text[at..end]
+            })
+            .collect();
+        assert!(!queried.is_empty(), "{dashboard} queries the result cache");
+        for name in queried {
+            assert!(series(&metrics, name).is_some(), "{dashboard} queries {name}, not emitted");
+        }
+    }
+
+    let _ = tx.send(());
+    let _ = handle.await;
+}

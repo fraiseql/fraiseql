@@ -281,14 +281,16 @@ cache capacity × average entry size
 Example: 10,000 × 10KB = ~100MB
 ```
 
-**Metrics** exposed on `/metrics`:
+**Metrics** exposed on `/metrics`, read from the cache itself (the same counts
+`GET /api/v1/admin/cache/stats` reports), and absent when the server runs no result cache:
 
 ```
-cache_hits_total
-cache_misses_total
-cache_size_current
-cache_invalidations_total
-cache_memory_bytes_estimated
+fraiseql_cache_hits_total            counter
+fraiseql_cache_misses_total          counter
+fraiseql_cache_hit_ratio             gauge (0-1)
+fraiseql_cache_entries               gauge
+fraiseql_cache_invalidations_total   counter
+fraiseql_cache_memory_bytes          gauge (estimated)
 ```
 
 **Manual invalidation**: invalidation is normally mutation-driven (per-view /

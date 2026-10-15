@@ -30,8 +30,8 @@ pub struct MetricsResponse {
     pub queries_error:           u64,
     /// Average query duration (ms)
     pub avg_query_duration_ms:   f64,
-    /// Cache hit ratio (0-1)
-    pub cache_hit_ratio:         f64,
+    /// Query-result cache hit ratio (0-1), or `None` when the server runs no result cache
+    pub cache_hit_ratio:         Option<f64>,
     /// Total connections in pool
     pub pool_connections_total:  u32,
     /// Idle (available) connections in pool
@@ -63,8 +63,9 @@ pub struct MetricsResponse {
 pub async fn metrics_handler(State(state): State<AppState>) -> impl IntoResponse {
     debug!("Metrics endpoint requested");
 
-    // Collect metrics from AppState
-    let prometheus_metrics = PrometheusMetrics::from(state.metrics.as_ref());
+    // Collect metrics from AppState, the result cache's counters from the cache itself.
+    let prometheus_metrics =
+        PrometheusMetrics::collect(state.metrics.as_ref(), state.executor().result_cache_stats());
     let mut output = prometheus_metrics.to_prometheus_format();
 
     // Append per-entity federation circuit breaker state gauge (Step 8 of Issue #39)
@@ -536,8 +537,9 @@ fn truncate_label(s: &str, max_chars: usize) -> String {
 pub async fn metrics_json_handler(State(state): State<AppState>) -> impl IntoResponse {
     debug!("JSON metrics endpoint requested");
 
-    // Collect metrics from AppState
-    let prometheus_metrics = PrometheusMetrics::from(state.metrics.as_ref());
+    // Collect metrics from AppState, the result cache's counters from the cache itself.
+    let prometheus_metrics =
+        PrometheusMetrics::collect(state.metrics.as_ref(), state.executor().result_cache_stats());
     let pool = state.executor().pool_metrics();
 
     let response = MetricsResponse {
@@ -545,7 +547,10 @@ pub async fn metrics_json_handler(State(state): State<AppState>) -> impl IntoRes
         queries_success:         prometheus_metrics.queries_success,
         queries_error:           prometheus_metrics.queries_error,
         avg_query_duration_ms:   prometheus_metrics.queries_avg_duration_ms,
-        cache_hit_ratio:         prometheus_metrics.cache_hit_ratio,
+        cache_hit_ratio:         prometheus_metrics
+            .result_cache
+            .as_ref()
+            .map(crate::metrics_server::hit_ratio),
         pool_connections_total:  pool.total_connections,
         pool_connections_idle:   pool.idle_connections,
         pool_connections_active: pool.active_connections,

@@ -63,8 +63,8 @@ pub struct PoolStats {
 pub struct CacheStats {
     /// Cache hit rate (0–1).
     pub hit_rate: f64,
-    /// Current number of cached entries, or `None` — `MetricsCollector` does not
-    /// track it, and `0` would read as "the cache is empty".
+    /// Current number of cached entries, or `None` when the server runs no result cache —
+    /// `0` would read as "the cache is empty".
     pub entries:  Option<u64>,
 }
 
@@ -132,11 +132,14 @@ impl MetricsSummary {
 ///
 /// Returns `401` without valid admin credentials (enforced by middleware).
 pub async fn summary_handler(State(state): State<AppState>) -> impl IntoResponse {
-    Json(build_summary(&state.metrics))
+    Json(build_summary(&state.metrics, state.executor().result_cache_stats()))
 }
 
 /// Build a `MetricsSummary` from the live `MetricsCollector`.
-pub(crate) fn build_summary(m: &MetricsCollector) -> MetricsSummary {
+pub(crate) fn build_summary(
+    m: &MetricsCollector,
+    result_cache: Option<fraiseql_core::db::ResultCacheStats>,
+) -> MetricsSummary {
     let latency = LatencyStats {
         p50_ms: m.http_request_duration.estimate_quantile_us(0.5) / 1_000,
         p95_ms: m.http_request_duration.estimate_quantile_us(0.95) / 1_000,
@@ -159,18 +162,10 @@ pub(crate) fn build_summary(m: &MetricsCollector) -> MetricsSummary {
         rate_24h: None,
     };
 
-    // Cache stats
-    let hits = m.cache_hits.load(Ordering::Relaxed);
-    let misses = m.cache_misses.load(Ordering::Relaxed);
-    #[allow(clippy::cast_precision_loss)] // Reason: counter values in practice are < 2^53
-    let hit_rate = if hits + misses > 0 {
-        hits as f64 / (hits + misses) as f64
-    } else {
-        0.0
-    };
+    // Cache stats, from the query-result cache itself (#1583).
     let cache = CacheStats {
-        hit_rate,
-        entries: None, // Not tracked by MetricsCollector — `0` would mean "empty".
+        hit_rate: result_cache.as_ref().map_or(0.0, crate::metrics_server::hit_ratio),
+        entries:  result_cache.map(|c| u64::try_from(c.entries).unwrap_or(u64::MAX)),
     };
 
     // Pool stats need adapter-level access this handler does not have. `None` says

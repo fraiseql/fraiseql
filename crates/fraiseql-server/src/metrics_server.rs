@@ -20,6 +20,7 @@ use std::{
 };
 
 use dashmap::DashMap;
+use fraiseql_core::db::ResultCacheStats;
 
 /// Metrics collector for the server.
 ///
@@ -77,12 +78,6 @@ pub struct MetricsCollector {
 
     /// Total HTTP 5xx responses
     pub http_responses_5xx: AtomicU64,
-
-    /// Cache hits
-    pub cache_hits: AtomicU64,
-
-    /// Cache misses
-    pub cache_misses: AtomicU64,
 
     // Federation Metrics
     /// Federation entity resolutions (total)
@@ -548,19 +543,17 @@ pub struct PrometheusMetrics {
     pub http_responses_4xx:         u64,
     /// HTTP 5xx responses
     pub http_responses_5xx:         u64,
-    /// Cache hit count
-    pub cache_hits:                 u64,
-    /// Cache miss count
-    pub cache_misses:               u64,
-    /// Cache hit ratio (0.0 to 1.0)
-    pub cache_hit_ratio:            f64,
+    /// The query-result cache's own counters, or `None` when the server runs no
+    /// result cache (#1583). Read from the cache itself, the source the admin stats
+    /// endpoint reads, so the two cannot disagree.
+    pub result_cache:               Option<ResultCacheStats>,
 }
 
 impl PrometheusMetrics {
     /// Generate Prometheus text format output.
     #[must_use]
     pub fn to_prometheus_format(&self) -> String {
-        format!(
+        let mut out = format!(
             r"# HELP fraiseql_graphql_queries_total Total GraphQL queries executed
 # TYPE fraiseql_graphql_queries_total counter
 fraiseql_graphql_queries_total {}
@@ -616,18 +609,6 @@ fraiseql_http_responses_4xx {}
 # HELP fraiseql_http_responses_5xx Total 5xx HTTP responses
 # TYPE fraiseql_http_responses_5xx counter
 fraiseql_http_responses_5xx {}
-
-# HELP fraiseql_cache_hits Total cache hits
-# TYPE fraiseql_cache_hits counter
-fraiseql_cache_hits {}
-
-# HELP fraiseql_cache_misses Total cache misses
-# TYPE fraiseql_cache_misses counter
-fraiseql_cache_misses {}
-
-# HELP fraiseql_cache_hit_ratio Cache hit ratio (0-1)
-# TYPE fraiseql_cache_hit_ratio gauge
-fraiseql_cache_hit_ratio {:.3}
 ",
             self.queries_total,
             self.queries_success,
@@ -643,15 +624,65 @@ fraiseql_cache_hit_ratio {:.3}
             self.http_responses_2xx,
             self.http_responses_4xx,
             self.http_responses_5xx,
-            self.cache_hits,
-            self.cache_misses,
-            self.cache_hit_ratio,
-        )
+        );
+        if let Some(cache) = self.result_cache {
+            let _ = write!(
+                out,
+                r"
+# HELP fraiseql_cache_hits_total Query-result cache lookups served from the cache
+# TYPE fraiseql_cache_hits_total counter
+fraiseql_cache_hits_total {}
+
+# HELP fraiseql_cache_misses_total Query-result cache lookups that reached the database
+# TYPE fraiseql_cache_misses_total counter
+fraiseql_cache_misses_total {}
+
+# HELP fraiseql_cache_hit_ratio Query-result cache hit ratio (0-1)
+# TYPE fraiseql_cache_hit_ratio gauge
+fraiseql_cache_hit_ratio {:.3}
+
+# HELP fraiseql_cache_entries Entries held by the query-result cache
+# TYPE fraiseql_cache_entries gauge
+fraiseql_cache_entries {}
+
+# HELP fraiseql_cache_invalidations_total Query-result cache invalidations
+# TYPE fraiseql_cache_invalidations_total counter
+fraiseql_cache_invalidations_total {}
+
+# HELP fraiseql_cache_memory_bytes Estimated memory held by the query-result cache
+# TYPE fraiseql_cache_memory_bytes gauge
+fraiseql_cache_memory_bytes {}
+",
+                cache.hits,
+                cache.misses,
+                hit_ratio(&cache),
+                cache.entries,
+                cache.invalidations,
+                cache.memory_bytes,
+            );
+        }
+        out
     }
 }
 
-impl From<&MetricsCollector> for PrometheusMetrics {
-    fn from(collector: &MetricsCollector) -> Self {
+/// Hits over lookups, or `0.0` before the first lookup.
+#[must_use]
+pub fn hit_ratio(cache: &ResultCacheStats) -> f64 {
+    let lookups = cache.hits + cache.misses;
+    #[allow(clippy::cast_precision_loss)]
+    // Reason: precision loss is acceptable for metrics/statistics
+    if lookups > 0 {
+        cache.hits as f64 / lookups as f64
+    } else {
+        0.0
+    }
+}
+
+impl PrometheusMetrics {
+    /// Snapshot `collector`, with the query-result cache's own counters (`None` when the
+    /// server runs no result cache), as `Executor::result_cache_stats` reports them.
+    #[must_use]
+    pub fn collect(collector: &MetricsCollector, result_cache: Option<ResultCacheStats>) -> Self {
         let queries_total = collector.queries_total.load(Ordering::Relaxed);
         let queries_success = collector.queries_success.load(Ordering::Relaxed);
         let queries_error = collector.queries_error.load(Ordering::Relaxed);
@@ -659,10 +690,6 @@ impl From<&MetricsCollector> for PrometheusMetrics {
 
         let db_queries_total = collector.db_queries_total.load(Ordering::Relaxed);
         let db_queries_duration_us = collector.db_queries_duration_us.load(Ordering::Relaxed);
-
-        let cache_hits = collector.cache_hits.load(Ordering::Relaxed);
-        let cache_misses = collector.cache_misses.load(Ordering::Relaxed);
-        let cache_total = cache_hits + cache_misses;
 
         Self {
             queries_total,
@@ -689,14 +716,7 @@ impl From<&MetricsCollector> for PrometheusMetrics {
             http_responses_2xx: collector.http_responses_2xx.load(Ordering::Relaxed),
             http_responses_4xx: collector.http_responses_4xx.load(Ordering::Relaxed),
             http_responses_5xx: collector.http_responses_5xx.load(Ordering::Relaxed),
-            cache_hits,
-            cache_misses,
-            #[allow(clippy::cast_precision_loss)] // Reason: precision loss is acceptable for metrics/statistics
-            cache_hit_ratio: if cache_total > 0 {
-                cache_hits as f64 / cache_total as f64
-            } else {
-                0.0
-            },
+            result_cache,
         }
     }
 }

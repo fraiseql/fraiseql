@@ -1118,7 +1118,7 @@ mod metrics_server_tests {
         collector.queries_success.store(95, Ordering::Relaxed);
         collector.queries_error.store(5, Ordering::Relaxed);
 
-        let metrics = PrometheusMetrics::from(&collector);
+        let metrics = PrometheusMetrics::collect(&collector, None);
         let output = metrics.to_prometheus_format();
 
         assert!(output.contains("fraiseql_graphql_queries_total 100"));
@@ -1141,12 +1141,13 @@ mod metrics_server_tests {
 
     #[test]
     fn test_cache_hit_ratio_calculation() {
-        let collector = MetricsCollector::new();
-        collector.cache_hits.store(75, Ordering::Relaxed);
-        collector.cache_misses.store(25, Ordering::Relaxed);
+        let cache = fraiseql_core::db::ResultCacheStats {
+            hits: 75,
+            misses: 25,
+            ..Default::default()
+        };
 
-        let metrics = PrometheusMetrics::from(&collector);
-        assert!((metrics.cache_hit_ratio - 0.75).abs() < 0.001);
+        assert!((crate::metrics_server::hit_ratio(&cache) - 0.75).abs() < 0.001);
     }
 
     #[test]
@@ -1155,7 +1156,7 @@ mod metrics_server_tests {
         collector.queries_total.store(10, Ordering::Relaxed);
         collector.queries_duration_us.store(50_000, Ordering::Relaxed); // 50ms total
 
-        let metrics = PrometheusMetrics::from(&collector);
+        let metrics = PrometheusMetrics::collect(&collector, None);
         assert!((metrics.queries_avg_duration_ms - 5.0).abs() < 0.01); // 5ms average
     }
 

@@ -55,7 +55,6 @@ fn bench_metrics_collection(c: &mut Criterion) {
             collector.queries_total.fetch_add(1, Ordering::Relaxed);
             collector.queries_success.fetch_add(1, Ordering::Relaxed);
             collector.queries_duration_us.fetch_add(black_box(5000), Ordering::Relaxed);
-            collector.cache_hits.fetch_add(1, Ordering::Relaxed);
         });
     });
 

@@ -18,6 +18,22 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **`/metrics` reports the query-result cache's real counts, as `fraiseql_cache_*_total`
+  (#1583).** `fraiseql_cache_hits` and `fraiseql_cache_misses` always read 0: the collector
+  fields behind them were never incremented, while the result cache kept its own counters,
+  which only `GET /api/v1/admin/cache/stats` read. The series now come from the cache itself,
+  under the names the shipped Grafana dashboards already query: `fraiseql_cache_hits_total`,
+  `fraiseql_cache_misses_total`, `fraiseql_cache_hit_ratio`, plus `fraiseql_cache_entries`,
+  `fraiseql_cache_invalidations_total` and `fraiseql_cache_memory_bytes`. A server with no
+  result cache emits none of them, rather than zeros. **Breaking:** scrapes or alerts on
+  `fraiseql_cache_hits` / `fraiseql_cache_misses` must move to the `_total` names (they only
+  ever read 0). `MetricsCollector` loses `cache_hits` and `cache_misses`. `PrometheusMetrics`
+  replaces its three cache fields with `result_cache: Option<ResultCacheStats>`, and
+  `From<&MetricsCollector>` with `PrometheusMetrics::collect(collector, result_cache)`. The
+  JSON metrics' `cache_hit_ratio` is `null` without a result cache
+  (`MetricsResponse::cache_hit_ratio` is `Option<f64>`). Studio's metrics summary
+  reads the same counts and now reports `entries`.
+
 - **`fraiseql-cli`'s `DatabaseWarning` gains `TemporalKeyInDocument` (#1571).** An exhaustive
   `match` on it needs the arm.
 - **`ServerConfig` gains `cache_cross_instance` (#1577).** A struct literal listing every field

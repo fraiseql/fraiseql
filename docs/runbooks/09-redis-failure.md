@@ -421,8 +421,8 @@ groups:
 
       - alert: CacheMissRateHigh
         expr: |
-          rate(cache_misses_total[5m]) /
-          (rate(cache_hits_total[5m]) + rate(cache_misses_total[5m]))
+          rate(fraiseql_cache_misses_total[5m]) /
+          (rate(fraiseql_cache_hits_total[5m]) + rate(fraiseql_cache_misses_total[5m]))
           > 0.9
         for: 10m
         action: notify

@@ -163,7 +163,7 @@ mod metrics_summary_tests {
             collector.http_request_duration.observe_us(80_000);
         }
 
-        let summary = build_summary(&collector);
+        let summary = build_summary(&collector, None);
         // P50 should be in the 5ms bucket (5000 us → 5 ms)
         assert_eq!(summary.latency.p50_ms, 5);
         // P99 should be in the 100ms bucket
@@ -173,7 +173,7 @@ mod metrics_summary_tests {
     #[test]
     fn test_build_summary_empty_histogram_returns_zero() {
         let collector = MetricsCollector::new();
-        let summary = build_summary(&collector);
+        let summary = build_summary(&collector, None);
         assert_eq!(summary.latency.p50_ms, 0);
         assert_eq!(summary.latency.p95_ms, 0);
         assert_eq!(summary.latency.p99_ms, 0);
@@ -185,7 +185,7 @@ mod metrics_summary_tests {
         collector.queries_total.store(100, Ordering::Relaxed);
         collector.queries_error.store(10, Ordering::Relaxed);
 
-        let summary = build_summary(&collector);
+        let summary = build_summary(&collector, None);
         assert!((summary.errors.lifetime - 0.1).abs() < f64::EPSILON);
         // The windowed rates are absent, not a copy of the lifetime rate. This test
         // used to assert `rate_5m == 0.1` — naming a five-minute window over a value
@@ -198,17 +198,22 @@ mod metrics_summary_tests {
     #[test]
     fn test_build_summary_cache_hit_rate() {
         let collector = MetricsCollector::new();
-        collector.cache_hits.store(75, Ordering::Relaxed);
-        collector.cache_misses.store(25, Ordering::Relaxed);
+        let cache = fraiseql_core::db::ResultCacheStats {
+            entries: 4,
+            hits: 75,
+            misses: 25,
+            ..Default::default()
+        };
 
-        let summary = build_summary(&collector);
+        let summary = build_summary(&collector, Some(cache));
         assert!((summary.cache.hit_rate - 0.75).abs() < f64::EPSILON);
+        assert_eq!(summary.cache.entries, Some(4));
     }
 
     #[test]
     fn test_build_summary_zero_division_safe() {
         let collector = MetricsCollector::new();
-        let summary = build_summary(&collector);
+        let summary = build_summary(&collector, None);
         assert_eq!(summary.errors.lifetime, 0.0);
         assert_eq!(summary.cache.hit_rate, 0.0);
     }
