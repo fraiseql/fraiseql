@@ -187,10 +187,22 @@ impl FeedCatalog {
     }
 }
 
-/// Whether the database publishes rows on [`CHANNEL`], and has a registry that names
-/// types and references (`typename`, which names collections).
-const PUBLISHING_PROBE: &str = "SELECT current_setting('pg_tviews.publish_changes', true) \
-     = 'rows' AND EXISTS (SELECT 1 FROM pg_attribute \
+/// Whether every session of the database publishes rows on [`CHANNEL`], and its registry
+/// names types (`typename`, which names collections).
+///
+/// What this session sees is not enough: a role-level setting could turn it on for
+/// FraiseQL's role only, or off for another writer, whose writes would then never be heard.
+/// So the value must come from the server or the database (not a role, a user or this
+/// session), and no role may override it in this database.
+const PUBLISHING_PROBE: &str = "SELECT EXISTS (SELECT 1 FROM pg_catalog.pg_settings \
+     WHERE name = 'pg_tviews.publish_changes' AND setting = 'rows' \
+     AND source IN ('configuration file', 'database', 'global')) \
+     AND NOT EXISTS (SELECT 1 FROM pg_catalog.pg_db_role_setting s, \
+     LATERAL unnest(s.setconfig) c WHERE s.setrole <> 0 \
+     AND s.setdatabase IN (0, (SELECT oid FROM pg_catalog.pg_database \
+     WHERE datname = current_database())) \
+     AND c LIKE 'pg_tviews.publish\\_changes=%' AND c <> 'pg_tviews.publish_changes=rows') \
+     AND EXISTS (SELECT 1 FROM pg_attribute \
      WHERE attrelid = to_regclass('tviews.registry') AND attname = 'typename' \
      AND NOT attisdropped) AS publishing";
 

@@ -337,3 +337,40 @@ async fn a_comment_added_to_another_post_keeps_the_composed_read() {
         "a comment of post B evicted post A's composed read"
     );
 }
+
+#[tokio::test]
+async fn a_role_that_does_not_publish_keeps_the_feed_off() {
+    let Some(shared) = tviews_database_url() else {
+        eprintln!("skipping: TVIEWS_DATABASE_URL not set");
+        return;
+    };
+    if !publishes_collections(&shared).await {
+        eprintln!("skipping: pg_tviews in TVIEWS_DATABASE_URL has no tviews.registry.typename");
+        return;
+    }
+    let url = own_database(&shared).await;
+    provision(&url).await;
+    let (schema, _dir) = schema(&url).await;
+    let adapter = PostgresAdapter::new(&url).await.unwrap();
+    let catalog = || fraiseql_core::cache::tviews_feed::read_feed_catalog(&adapter, &schema);
+    assert!(catalog().await.unwrap().is_some(), "the database publishes rows");
+
+    // Another writer's role turns publishing off: its writes would never be heard.
+    let admin = client(&url).await;
+    admin
+        .batch_execute(&format!(
+            "DROP ROLE IF EXISTS p1589_writer; CREATE ROLE p1589_writer;
+             ALTER ROLE p1589_writer IN DATABASE {DATABASE} SET pg_tviews.publish_changes = 'off';"
+        ))
+        .await
+        .unwrap();
+    let refused = catalog().await.unwrap();
+    admin
+        .batch_execute(&format!(
+            "ALTER ROLE p1589_writer IN DATABASE {DATABASE} RESET pg_tviews.publish_changes;
+             DROP ROLE p1589_writer;"
+        ))
+        .await
+        .unwrap();
+    assert!(refused.is_none(), "a role that does not publish must keep the feed off");
+}
