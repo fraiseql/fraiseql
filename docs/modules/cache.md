@@ -296,8 +296,9 @@ type it touched, so the feed's types are swept as they are, without the embeddin
 
 The feed follows pg_tviews' reconnect rule: a connection `LISTEN`s, checks that it receives
 notifications (a `LISTEN` through a pooler in transaction mode receives nothing), clears the
-cache, then applies messages. When it is lost, the cache is cleared again and the server
-reconnects with backoff. In between, writes FraiseQL runs keep evicting as above.
+cache, then applies messages. Every 5 s it sends itself a probe; one not back by the next
+beat (a half-open connection, a stalled listener) counts as lost. When it is lost, the cache
+is cleared again and the server reconnects with backoff. In between, writes FraiseQL runs keep evicting as above.
 
 Metrics: `fraiseql_tviews_feed_connected` (0 or 1), `fraiseql_tviews_feed_received_total`.
 

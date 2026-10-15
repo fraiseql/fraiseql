@@ -22,6 +22,10 @@ use fraiseql_core::{
 use tracing::{info, warn};
 
 /// The first wait before reconnecting; it doubles per failure, up to [`MAX_BACKOFF`].
+/// How often a listening session checks it still receives what it sends: a probe not back
+/// by the next beat ends the session.
+const HEARTBEAT: Duration = Duration::from_secs(5);
+use super::notify_session::PROBE_TIMEOUT;
 const MIN_BACKOFF: Duration = Duration::from_millis(200);
 const MAX_BACKOFF: Duration = Duration::from_secs(30);
 
@@ -38,12 +42,7 @@ pub async fn run(connector: NotifyConnector, listener: TviewsListener, instance:
                 metrics::gauge!("fraiseql_tviews_feed_connected").set(1.0);
                 info!(channel = CHANNEL, "Query result cache: listening to pg_tviews' changes");
 
-                while let Some(notification) = session.recv().await {
-                    if notification.channel == CHANNEL {
-                        metrics::counter!("fraiseql_tviews_feed_received_total").increment(1);
-                        listener.receive(&notification.payload);
-                    }
-                }
+                relay(&mut session, &listener, &probe).await;
 
                 listener.lost();
                 metrics::gauge!("fraiseql_tviews_feed_connected").set(0.0);
@@ -62,6 +61,41 @@ pub async fn run(connector: NotifyConnector, listener: TviewsListener, instance:
                 );
                 tokio::time::sleep(backoff).await;
                 backoff = (backoff * 2).min(MAX_BACKOFF);
+            },
+        }
+    }
+}
+
+/// Apply what `session` receives to `listener` until the session is gone, or stops
+/// delivering: every [`HEARTBEAT`] it sends `probe` to itself, and a probe not back by the
+/// next one ends it, as a lost connection does (a half-open TCP connection, or one that has
+/// stalled, would otherwise pass for a live feed).
+async fn relay(session: &mut NotifySession, listener: &TviewsListener, probe: &str) {
+    let mut heartbeat = tokio::time::interval(HEARTBEAT);
+    heartbeat.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+    heartbeat.tick().await;
+    let mut probe_outstanding = false;
+    loop {
+        tokio::select! {
+            notification = session.recv() => match notification {
+                Some(n) if n.channel == CHANNEL => {
+                    metrics::counter!("fraiseql_tviews_feed_received_total").increment(1);
+                    listener.receive(&n.payload);
+                },
+                Some(n) if n.channel == probe => probe_outstanding = false,
+                Some(_) => {},
+                None => return,
+            },
+            _ = heartbeat.tick() => {
+                if probe_outstanding {
+                    warn!("Query result cache: pg_tviews' change feed stopped delivering");
+                    return;
+                }
+                // Bounded: on a half-open connection the reply never comes.
+                match tokio::time::timeout(PROBE_TIMEOUT, session.notify(probe, "")).await {
+                    Ok(Ok(())) => probe_outstanding = true,
+                    _ => return,
+                }
             },
         }
     }

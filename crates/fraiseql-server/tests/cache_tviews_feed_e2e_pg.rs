@@ -28,6 +28,7 @@ use std::{sync::Arc, time::Duration};
 use fraiseql_cli::commands::compile::{CompileOptions, compile_to_schema};
 use fraiseql_core::{db::postgres::PostgresAdapter, schema::CompiledSchema};
 use fraiseql_server::{Server, server_config::ServerConfig};
+use fraiseql_test_support::wire::CountingProxy;
 use serde_json::Value;
 use tempfile::TempDir;
 
@@ -188,6 +189,12 @@ struct Running {
 }
 
 async fn serve() -> Option<Running> {
+    serve_with_feed_through(None).await
+}
+
+/// [`serve`], its feed's connection (`database_url`) through `proxy` when given; its pool
+/// connects directly.
+async fn serve_with_feed_through(proxy: Option<&CountingProxy>) -> Option<Running> {
     let shared = tviews_database_url()?;
     if !publishes_collections(&shared).await {
         eprintln!("skipping: pg_tviews in TVIEWS_DATABASE_URL has no tviews.registry.typename");
@@ -198,7 +205,7 @@ async fn serve() -> Option<Running> {
     let (schema, schema_dir) = schema(&url).await;
     let adapter = Arc::new(PostgresAdapter::new(&url).await.unwrap());
     let config = ServerConfig {
-        database_url: url.clone(),
+        database_url: proxy.map_or_else(|| url.clone(), |p| p.url().to_string()),
         cors_enabled: false,
         ..ServerConfig::default()
     };
@@ -373,4 +380,40 @@ async fn a_role_that_does_not_publish_keeps_the_feed_off() {
         .await
         .unwrap();
     assert!(refused.is_none(), "a role that does not publish must keep the feed off");
+}
+
+/// A feed whose connection stops delivering (a half-open TCP connection, a stalled listener)
+/// would pass for a live one: writes made behind the server's back stay cached. The
+/// listener's heartbeat notices its probe is not heard back, and clears the cache.
+#[tokio::test]
+async fn a_feed_that_stops_delivering_is_noticed() {
+    let Some(shared) = tviews_database_url() else {
+        eprintln!("skipping: TVIEWS_DATABASE_URL not set");
+        return;
+    };
+    let proxy = CountingProxy::start(&own_database(&shared).await);
+    let Some(server) = serve_with_feed_through(Some(&proxy)).await else {
+        return;
+    };
+    assert!(shows(&server.get(POSTS).await, "A"));
+    server
+        .sql(&format!("UPDATE {SCHEMA}.tb_p1589 SET title = 'heard' WHERE pk_p1589 = 1"))
+        .await;
+    server.eventually(POSTS, |body| shows(body, "heard")).await;
+
+    proxy.drop_notifications(true);
+    server
+        .sql(&format!("UPDATE {SCHEMA}.tb_p1589 SET title = 'unheard' WHERE pk_p1589 = 1"))
+        .await;
+    let start = std::time::Instant::now();
+    loop {
+        if shows(&server.get(POSTS).await, "unheard") {
+            break;
+        }
+        assert!(
+            start.elapsed() < Duration::from_secs(15),
+            "the feed went silent and the server kept serving its cache"
+        );
+        tokio::time::sleep(Duration::from_millis(250)).await;
+    }
 }
