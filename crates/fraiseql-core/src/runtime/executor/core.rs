@@ -795,15 +795,19 @@ impl Executor {
         self.complete_direct(response, query_match)
     }
 
-    /// The same read as [`execute_query_direct`](Self::execute_query_direct), bounded at
-    /// `row_bound` rows instead of a page (#1581).
+    /// The rows the server is about to write: the same read as
+    /// [`execute_query_direct`](Self::execute_query_direct), every gate included, bounded at
+    /// `row_bound` rows instead of a page, and read from the primary.
     ///
-    /// For a count of rows the server itself sets, such as the rows a filtered bulk write
-    /// selects (its affected-rows cap, plus one to see an overflow). `max_page_size` bounds
-    /// a page a client asks for. Held to it, the default bulk cap of 10 000 was refused by
-    /// the default page size of 1 000, so no filtered bulk write ran on a default
-    /// configuration. Every other gate of the read applies. A `limit` argument still
-    /// passes the page guard, and the smaller of the two applies.
+    /// For the rows a filtered bulk write selects, bounded at its affected-rows cap plus one
+    /// to see an overflow (#1581). `max_page_size` bounds a page a client asks for. Held to
+    /// it, the default bulk cap of 10 000 was refused by the default page size of 1 000. A
+    /// `limit` argument still passes the page guard, and the smaller of the two applies.
+    ///
+    /// The read is routed as [`ReadRouting::Primary`](crate::backend::types::ReadRouting::Primary),
+    /// whatever the query declares: never a replica, never the result cache (#1597). A write
+    /// that picked its rows from a cached or lagging answer would skip rows that match now,
+    /// or write rows that no longer do.
     ///
     /// # Errors
     ///

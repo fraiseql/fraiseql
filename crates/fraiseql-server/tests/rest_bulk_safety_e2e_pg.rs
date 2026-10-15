@@ -45,6 +45,7 @@ use std::sync::Arc;
 
 use axum::body::Body;
 use fraiseql_core::{
+    cache::{CacheConfig, CachedDatabaseAdapter, QueryResultCache},
     db::postgres::PostgresAdapter,
     prelude::DatabaseAdapter as _,
     runtime::{Executor, RuntimeConfig},
@@ -365,6 +366,33 @@ async fn rig_with(rest: RestConfig, config: RuntimeConfig) -> Option<Rig> {
     seed(&adapter).await;
 
     let executor = Arc::new(Executor::with_config(schema(rest), Arc::clone(&adapter), config));
+    let state = AppState::new(executor);
+    let router = rest_router(&state, &RestMountConfig::default()).expect("REST router");
+
+    Some(Rig { router, adapter })
+}
+
+/// The default-config rig with the `items` query opted into the result cache, served
+/// through the cache the server runs (#1597). Raw SQL goes through a connection of its own.
+async fn cached_rig() -> Option<Rig> {
+    let url = try_database_url()?;
+    let adapter = Arc::new(PostgresAdapter::new(&url).await.expect("connect"));
+    seed(&adapter).await;
+
+    let mut schema = schema(RestConfig {
+        enabled: true,
+        ..RestConfig::default()
+    });
+    for query in &mut schema.queries {
+        query.cache_ttl_seconds = Some(300);
+    }
+    let cached = CachedDatabaseAdapter::new(
+        PostgresAdapter::new(&url).await.expect("connect"),
+        QueryResultCache::new(CacheConfig::enabled()),
+        "test-v1".to_string(),
+    )
+    .with_cache_metadata_from_schema(&schema);
+    let executor = Arc::new(Executor::new(schema, Arc::new(cached)));
     let state = AppState::new(executor);
     let router = rest_router(&state, &RestMountConfig::default()).expect("REST router");
 
@@ -707,6 +735,41 @@ async fn a_bulk_update_filtered_with_in_writes_the_rows_it_names() {
 
     assert!(status.is_success(), "bulk update filtered with in, got {status} {body}");
     assert_eq!(rig.labels_with_status("retired").await, ["item-0", "item-4"]);
+}
+
+// ---------------------------------------------------------------------------
+// #1597 — a bulk write selects the rows it writes from the database
+// ---------------------------------------------------------------------------
+
+/// The `items` query is cached. A bulk update that matches nothing writes nothing, so it
+/// evicts nothing; when a row then starts to match, the same request must write it, not
+/// replay the empty selection the cache kept.
+#[tokio::test]
+async fn a_bulk_write_selects_its_rows_past_the_result_cache() {
+    let Some(rig) = cached_rig().await else {
+        eprintln!("skipping: DATABASE_URL not set");
+        return;
+    };
+    let uri = "/rest/v1/items?status[eq]=retired";
+
+    let (status, body) = rig.send("PATCH", uri, None, json!({"status": "archived"})).await;
+    assert!(status.is_success(), "nothing matches yet: {status} {body}");
+
+    let _: Vec<std::collections::HashMap<String, Value>> = rig
+        .adapter
+        .execute_raw_query(&format!(
+            "UPDATE {SCHEMA}.tb_item SET status = 'retired' WHERE label = 'item-0'"
+        ))
+        .await
+        .expect("another writer");
+
+    let (status, body) = rig.send("PATCH", uri, None, json!({"status": "archived"})).await;
+    assert!(status.is_success(), "{status} {body}");
+    assert_eq!(
+        rig.labels_with_status("retired").await,
+        Vec::<String>::new(),
+        "the row that now matches is written"
+    );
 }
 
 // ---------------------------------------------------------------------------

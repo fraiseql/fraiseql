@@ -54,6 +54,8 @@ pub struct CapturingMockAdapter {
     pub captured_where:            std::sync::Mutex<Option<WhereClause>>,
     pub captured_limit:            std::sync::Mutex<Option<u32>>,
     pub captured_offset:           std::sync::Mutex<Option<u32>>,
+    /// The routing the last projected read asked for (#1597).
+    pub captured_routing:          std::sync::Mutex<Option<crate::backend::types::ReadRouting>>,
     /// The ORDER BY the last read resolved to.
     ///
     /// `execute_with_projection` used to drop its `order_by` on the floor and
@@ -104,6 +106,7 @@ impl CapturingMockAdapter {
             captured_where: std::sync::Mutex::new(None),
             captured_limit: std::sync::Mutex::new(None),
             captured_offset: std::sync::Mutex::new(None),
+            captured_routing: std::sync::Mutex::new(None),
             captured_order_by: std::sync::Mutex::new(None),
             captured_aggregate_sql: std::sync::Mutex::new(None),
             captured_aggregate_params: std::sync::Mutex::new(None),
@@ -226,6 +229,16 @@ impl DatabaseAdapter for CapturingMockAdapter {
 
     fn supports_composed_reads(&self) -> bool {
         self.composes_reads
+    }
+
+    async fn execute_with_projection_arc_with_session(
+        &self,
+        request: &crate::backend::ProjectionRequest<'_>,
+        _session_vars: &[(&str, &str)],
+        routing: crate::backend::types::ReadRouting,
+    ) -> Result<std::sync::Arc<Vec<JsonbValue>>> {
+        *self.captured_routing.lock().unwrap() = Some(routing);
+        self.execute_with_projection_arc(request).await
     }
 
     async fn execute_composed_with_session(

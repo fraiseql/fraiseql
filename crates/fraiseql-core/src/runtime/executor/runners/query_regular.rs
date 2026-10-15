@@ -1337,8 +1337,10 @@ impl QueryRunner {
     /// Used by the REST transport for embedded sub-queries and NDJSON streaming
     /// where the query parameters are already resolved from HTTP request parameters.
     ///
-    /// `row_bound` is a row count the server sets (#1581): it bounds the read on top of
-    /// the page a `limit` argument asked for, without being held to `max_page_size`.
+    /// `act_on` makes this the read of the rows the server is about to write (#1581,
+    /// #1597): bounded at that many rows on top of the page a `limit` argument asked for,
+    /// without being held to `max_page_size`, and routed to the primary, which also
+    /// bypasses the result cache, whatever the query's own `read_routing` says.
     ///
     /// # Errors
     ///
@@ -1350,7 +1352,7 @@ impl QueryRunner {
         variables: Option<&serde_json::Value>,
         security_context: Option<&SecurityContext>,
         request_budget: Option<&crate::security::RequestBudget>,
-        row_bound: Option<u32>,
+        act_on: Option<u32>,
     ) -> Result<serde_json::Value> {
         // A leaf selection of an object field is the whole object, read as its type.
         let expanded = super::query_nested::expand_leaf_objects(&self.ctx.schema, query_match)?;
@@ -1363,9 +1365,14 @@ impl QueryRunner {
             DirectReadCost::Flat(request_budget),
             None,
         )?;
-        if let Some(bound) = row_bound {
+        if let Some(bound) = act_on {
             resolved.limit = Some(resolved.limit.map_or(bound, |page| page.min(bound)));
         }
+        let routing = if act_on.is_some() {
+            crate::backend::types::ReadRouting::Primary
+        } else {
+            query_match.query_def.read_routing
+        };
         let session_pairs = resolved.session_pairs();
 
         // A nested level its type scopes is read with that type's predicate, as for
@@ -1383,7 +1390,7 @@ impl QueryRunner {
                 .execute_with_projection_arc_with_session(
                     &resolved.projection_request(),
                     &session_pairs,
-                    query_match.query_def.read_routing,
+                    routing,
                 )
                 .await?
         } else {
@@ -1403,7 +1410,7 @@ impl QueryRunner {
                     embeds:       nested_reads,
                 },
                 &session_pairs,
-                query_match.query_def.read_routing,
+                routing,
             )
             .await?
         };

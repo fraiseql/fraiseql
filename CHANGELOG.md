@@ -261,6 +261,14 @@ disagreed, and the promise was the part that was wrong.
   rows read before the write were then stored (at `cache_ttl_seconds = 0`, for good). The
   check is made again once the entry is stored, and the entry withdraws itself.
 
+- **A REST bulk `PATCH`/`DELETE` picks the rows it writes from the primary, never from the
+  result cache (#1597).** The row selection ran the list query through the server's cache, so
+  with that query opted in (`cache_ttl_seconds`) a write could target a cached row set. A
+  request that matched nothing and so evicted nothing was replayed from the cache after
+  another writer made a row match, and the row was skipped. A retry after a refused batch
+  could, the same way, write rows that no longer match. The selection is now routed as
+  `read_routing = primary`, whatever the query declares: never a replica, never the cache.
+
 - **REST `[in]` and `[nin]` filter scalar fields (#1582).** `?label[in]=a,b` (or a JSON array,
   `?label[in]=["a","b"]`) answered `400 IN operator requires an array value` on every field
   whose type is not a list: the operand was coerced to the field's type, one scalar. The

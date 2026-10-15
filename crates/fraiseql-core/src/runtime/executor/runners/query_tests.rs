@@ -3506,4 +3506,19 @@ mod bounded_direct_read {
 
         assert_eq!(adapter.captured_limit(), Some(5));
     }
+
+    /// The rows a write acts on are read from the primary, which also bypasses the result
+    /// cache (#1597); a client read keeps its query's routing.
+    #[tokio::test]
+    async fn the_bounded_read_is_routed_to_the_primary() {
+        use crate::backend::types::ReadRouting;
+        let adapter = Arc::new(CapturingMockAdapter::new(mock_user_results()));
+        let executor = executor(&adapter);
+
+        executor.execute_query_direct(&users_match(), None, None, None).await.unwrap();
+        assert_eq!(*adapter.captured_routing.lock().unwrap(), Some(ReadRouting::Any));
+
+        executor.execute_query_direct_bounded(&users_match(), None, 10).await.unwrap();
+        assert_eq!(*adapter.captured_routing.lock().unwrap(), Some(ReadRouting::Primary));
+    }
 }
