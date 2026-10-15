@@ -256,6 +256,11 @@ disagreed, and the promise was the part that was wrong.
 
 ### Security
 
+- **`wasmtime` and `wasmtime-wasi` 48.0.6** (the `fraiseql-functions` runtime), for
+  RUSTSEC-2026-0352 to -0359 and -0361 to -0364: a filesystem sandbox escape when renaming
+  symlinks with trailing slashes, host panics reachable from guest code in the component
+  model, a stack overflow dropping long chains of recursive types, misaligned host data from
+  exception tags, and handle tables charged to no limit.
 - **`rustls` 0.23.46**, for RUSTSEC-2026-0346, -0347, -0348 and -0349 (TLS secrets in `Debug`
   output, data sent after an ECH rejection, unbounded certificate decompression, and a
   key-exchange downgrade of later connections).
