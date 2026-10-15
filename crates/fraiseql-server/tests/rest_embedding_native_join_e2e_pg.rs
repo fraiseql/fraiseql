@@ -74,11 +74,11 @@ async fn provision(url: &str) -> bool {
              INSERT INTO {SCHEMA}.tb_c1587 (pk_c1587, fk_p1587, body)
                VALUES (1, 1, 'a1'), (2, 1, 'a2'), (3, 2, 'b1');
              SELECT tviews.pg_tviews_create('{SCHEMA}.tv_p1587', $q$
-               SELECT p.pk_p1587, p.id, jsonb_build_object('id', p.id, 'title', p.title) AS data
+               SELECT p.pk_p1587, p.id, jsonb_build_object('id', p.id, 'pk_p1587', p.pk_p1587, 'title', p.title) AS data
                FROM {SCHEMA}.tb_p1587 p $q$);
              SELECT tviews.pg_tviews_create('{SCHEMA}.tv_c1587', $q$
                SELECT c.pk_c1587, c.id, c.fk_p1587,
-                      jsonb_build_object('id', c.id, 'post_id', p.id, 'body', c.body) AS data
+                      jsonb_build_object('id', c.id, 'fk_p1587', c.fk_p1587, 'body', c.body) AS data
                FROM {SCHEMA}.tb_c1587 c JOIN {SCHEMA}.tb_p1587 p ON p.pk_p1587 = c.fk_p1587 $q$);"
         ))
         .await
@@ -100,18 +100,19 @@ enabled = true
 [types.Post]
 sql_source = "{SCHEMA}.tv_p1587"
 fields.id = {{ type = "ID" }}
+fields.pk_p1587 = {{ type = "Int" }}
 fields.title = {{ type = "String" }}
 
 [types.Post.relationships.comments]
 target_type = "Comment"
 cardinality = "OneToMany"
-foreign_key = "post_id"
-referenced_key = "id"
+foreign_key = "fk_p1587"
+referenced_key = "pk_p1587"
 
 [types.Comment]
 sql_source = "{SCHEMA}.tv_c1587"
 fields.id = {{ type = "ID" }}
-fields.post_id = {{ type = "ID" }}
+fields.fk_p1587 = {{ type = "Int" }}
 fields.body = {{ type = "String" }}
 
 [queries.posts]
@@ -209,4 +210,32 @@ async fn a_composed_read_correlates_on_the_columns_pg_tviews_proves() {
         ],
         "{body}"
     );
+}
+
+#[tokio::test]
+async fn a_server_refuses_a_proof_its_database_does_not_hold() {
+    let Some(url) = tviews_database_url() else {
+        eprintln!("skipping: TVIEWS_DATABASE_URL not set");
+        return;
+    };
+    if !provision(&url).await {
+        eprintln!("skipping: pg_tviews in TVIEWS_DATABASE_URL has no tviews.registry.references");
+        return;
+    }
+    let (mut schema, _dir) = compile(&url).await;
+    let adapter = PostgresAdapter::new(&url).await.unwrap();
+    fraiseql_core::schema::refuse_unproven_native_joins(&adapter, &schema)
+        .await
+        .unwrap();
+
+    // Compiled against another database: the column is not here.
+    let post = schema.types.iter_mut().find(|t| t.name == "Post").unwrap();
+    let comments = post.relationships.iter_mut().find(|r| r.name == "comments").unwrap();
+    comments.native_join.as_mut().unwrap().foreign_key = "fk_gone".to_string();
+    let error = fraiseql_core::schema::refuse_unproven_native_joins(&adapter, &schema)
+        .await
+        .unwrap_err()
+        .to_string();
+    assert!(error.contains("Post.comments: p1587.tv_c1587.fk_gone"), "{error}");
+    assert!(error.contains("Recompile with `fraiseql compile --database`"), "{error}");
 }
