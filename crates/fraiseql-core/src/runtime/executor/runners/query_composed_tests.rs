@@ -438,6 +438,8 @@ async fn a_proven_relationship_correlates_on_its_native_columns() {
     orders_rel.native_join = Some(crate::schema::NativeJoin {
         foreign_key:    "fk_user".to_string(),
         referenced_key: "pk_user".to_string(),
+        child_view:     "v_order".to_string(),
+        parent_view:    "v_user".to_string(),
     });
     let qm = users(&schema, &["id"], None);
 
@@ -451,6 +453,34 @@ async fn a_proven_relationship_correlates_on_its_native_columns() {
     assert_eq!(
         native.as_ref().map(|n| (n.target_column.as_str(), n.parent_column.as_str())),
         Some(("fk_user", "pk_user"))
+    );
+}
+
+/// #1587: a proof is for the two views it was read from; a level reading another relation
+/// (a query's own view) may not have the columns, and keeps the stored keys.
+#[tokio::test]
+async fn a_join_proven_for_other_views_is_not_used() {
+    let mut schema = schema();
+    let user = schema.types.iter_mut().find(|t| t.name == "User").unwrap();
+    let orders_rel = user.relationships.iter_mut().find(|r| r.name == "orders").unwrap();
+    orders_rel.native_join = Some(crate::schema::NativeJoin {
+        foreign_key:    "fk_user".to_string(),
+        referenced_key: "pk_user".to_string(),
+        child_view:     "tv_order".to_string(),
+        parent_view:    "tv_user".to_string(),
+    });
+    let qm = users(&schema, &["id"], None);
+
+    let run = run(schema, RuntimeConfig::default(), &qm, &[orders(&["id"])], &[], vec![]).await;
+    run.result.unwrap();
+
+    let read = run.adapter.captured_composed().unwrap();
+    assert!(
+        matches!(
+            &only_embed(&read).source,
+            crate::backend::EmbedSource::Correlated { native: None, .. }
+        ),
+        "{read:?}"
     );
 }
 

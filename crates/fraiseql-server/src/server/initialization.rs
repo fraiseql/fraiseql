@@ -1341,6 +1341,10 @@ pub(super) async fn build_cached_adapter<A: DatabaseAdapter + Clone + Send + Syn
     fraiseql_core::schema::refuse_standby_unreadable_sources(&cached, schema)
         .await
         .map_err(|e| crate::ServerError::ConfigError(e.to_string()))?;
+    // #1587: the native joins `compile --database` proved must exist in this database.
+    fraiseql_core::schema::refuse_unproven_native_joins(&cached, schema)
+        .await
+        .map_err(|e| crate::ServerError::ConfigError(e.to_string()))?;
 
     // #1575: a write also evicts the cached reads of views that embed what it wrote.
     let cached = if cache_config.enabled {

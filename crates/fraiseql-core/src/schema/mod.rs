@@ -116,8 +116,8 @@ pub use security_config::{
 };
 pub(crate) use source_probe::regclass_literal;
 pub use source_probe::{
-    SourceKind, SourceProbe, refuse_standby_unreadable_sources, sql_source_probes,
-    standby_unreadable_sources,
+    SourceKind, SourceProbe, refuse_standby_unreadable_sources, refuse_unproven_native_joins,
+    sql_source_probes, standby_unreadable_sources,
 };
 pub use source_types::{RunAs, SourceDefinition};
 pub use subscribable_ddl::generate_capture_trigger_ddl;

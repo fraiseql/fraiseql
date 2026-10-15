@@ -227,3 +227,70 @@ pub async fn standby_unreadable_sources<A: DatabaseAdapter + ?Sized>(
 #[cfg(test)]
 #[path = "source_probe_tests.rs"]
 mod source_probe_tests;
+
+/// Refuse a schema whose proven native joins (#1587) the database does not have.
+///
+/// `fraiseql compile --database` records the SQL columns a relationship joins on
+/// (`native_join`), and composed reads compare them directly. Deployed against a database
+/// whose views lack them (a TVIEW renamed or rebuilt, another database), every such read
+/// would fail with `column … does not exist`: this says so at boot instead.
+///
+/// # Errors
+///
+/// `FraiseQLError::Configuration` naming each relationship and its missing column;
+/// `FraiseQLError::Database` if the catalog query fails.
+pub async fn refuse_unproven_native_joins<A: DatabaseAdapter + ?Sized>(
+    adapter: &A,
+    schema: &CompiledSchema,
+) -> Result<()> {
+    let columns: Vec<(String, &str, &str)> = schema
+        .types
+        .iter()
+        .flat_map(|t| t.relationships.iter().map(move |r| (t, r)))
+        .filter_map(|(t, r)| r.native_join.as_ref().map(|j| (t, r, j)))
+        .flat_map(|(t, r, j)| {
+            let name = format!("{}.{}", t.name, r.name);
+            [
+                (name.clone(), j.child_view.as_str(), j.foreign_key.as_str()),
+                (name, j.parent_view.as_str(), j.referenced_key.as_str()),
+            ]
+        })
+        .collect();
+    if columns.is_empty() {
+        return Ok(());
+    }
+    let quote = |s: &str| s.replace('\'', "''");
+    let values: Vec<String> = columns
+        .iter()
+        .enumerate()
+        .map(|(i, (_, view, column))| {
+            format!("({i}, to_regclass('{}'), '{}')", regclass_literal(view), quote(column))
+        })
+        .collect();
+    let sql = format!(
+        "SELECT v.i AS i FROM (VALUES {}) AS v(i, rel, col) \
+         WHERE NOT EXISTS (SELECT 1 FROM pg_attribute a WHERE a.attrelid = v.rel \
+         AND a.attname = v.col AND a.attnum > 0 AND NOT a.attisdropped) ORDER BY 1",
+        values.join(", ")
+    );
+    let missing: Vec<String> = adapter
+        .execute_raw_query(&sql)
+        .await?
+        .iter()
+        .filter_map(|row| row.get("i").and_then(serde_json::Value::as_u64))
+        .filter_map(|i| columns.get(usize::try_from(i).ok()?))
+        .map(|(rel, view, column)| format!("{rel}: {view}.{column}"))
+        .collect();
+    if missing.is_empty() {
+        return Ok(());
+    }
+    Err(FraiseQLError::Configuration {
+        message: format!(
+            "This schema was compiled with `--database` to join {} relationship column(s) this \
+             database does not have:\n  - {}\nRecompile with `fraiseql compile --database` \
+             against this database.",
+            missing.len(),
+            missing.join("\n  - ")
+        ),
+    })
+}
