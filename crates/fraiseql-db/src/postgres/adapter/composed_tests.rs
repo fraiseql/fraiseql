@@ -238,11 +238,11 @@ fn an_embedded_level_returns_only_its_kept_keys_and_nulls_its_masked_ones() {
     let inner = lateral(&sql, "_l0_e0");
 
     assert!(
-        inner.contains("FROM jsonb_each(_l1.data) AS _k WHERE _k.key IN ('id', 'total'))"),
+        inner.contains("FROM jsonb_each(_l1.data) AS _e WHERE _e.key IN ('id', 'total')"),
         "{inner}"
     );
     assert!(
-        inner.contains("|| jsonb_build_object('margin', NULL))"),
+        inner.contains("SELECT _m.key, NULL::jsonb FROM unnest(ARRAY['margin']::text[])"),
         "a masked value never leaves the database: {inner}"
     );
     assert!(
@@ -316,7 +316,10 @@ fn a_materialised_level_filters_its_parents_elements_as_its_own_rows() {
         "the level's predicate, unqualified, over each object element: {inner}"
     );
     assert!(!inner.contains("\"v_order\""), "the level's view is not read: {inner}");
-    assert!(inner.contains("'margin', NULL"), "masked as for a view's rows: {inner}");
+    assert!(
+        inner.contains("unnest(ARRAY['margin']::text[])"),
+        "masked as for a view's rows: {inner}"
+    );
     assert_eq!(bound(&params), r#"[Text("u-alice")]"#);
 }
 
@@ -540,4 +543,26 @@ fn levels_are_assembled_as_json_not_rebuilt_as_jsonb() {
             .contains(r#"COALESCE(json_agg(_c.data ORDER BY _c."_o"), '[]'::json)"#),
         "{sql}"
     );
+}
+
+/// #1588: an embedded level's document (its kept keys, its masked keys as `null`) is built
+/// as `json` too: embedded levels always read `LevelKeys::Only`.
+#[test]
+fn an_embedded_levels_kept_and_masked_keys_are_built_as_json() {
+    let mut orders = level("v_order");
+    orders.keys = LevelKeys::Only {
+        kept:   vec!["id".to_string(), "total".to_string()],
+        masked: vec!["margin".to_string()],
+    };
+    let mut root = level("v_user");
+    root.embeds.push(embed("orders", EmbedShape::Many, orders));
+
+    let (sql, _) = build_composed_select_sql(&root).unwrap();
+    let inner = lateral(&sql, "_l0_e0");
+
+    assert!(
+        !inner.contains("jsonb_object_agg") && !inner.contains("jsonb_build_object"),
+        "{inner}"
+    );
+    assert!(inner.contains("json_object_agg(_k.key, _k.value)"), "{inner}");
 }
