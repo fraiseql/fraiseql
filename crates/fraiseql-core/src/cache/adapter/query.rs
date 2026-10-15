@@ -133,18 +133,19 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
         Ok(arc)
     }
 
-    /// Whether a composed read may be cached, and for how long: `None` when it may not,
-    /// else its TTL override (`None`: the global TTL).
+    /// Whether a composed read may be cached, and for how long.
     ///
     /// Every level is part of the entry, so every view the tree reads must opt in (in
     /// opt-in mode), and the entry lives as long as its shortest-lived view allows.
-    pub(super) fn composed_policy(&self, read: &ComposedLevel) -> Option<Option<u64>> {
+    pub(super) fn composed_policy(&self, read: &ComposedLevel) -> ComposedPolicy {
         let mut views = Vec::new();
         collect_views(read, &mut views);
         if self.opt_in_mode && !views.iter().all(|v| self.cacheable_views.contains(*v)) {
-            return None;
+            return ComposedPolicy::Uncached;
         }
-        Some(views.iter().filter_map(|v| self.view_ttl_overrides.get(*v).copied()).min())
+        ComposedPolicy::Cached {
+            ttl: views.iter().filter_map(|v| self.view_ttl_overrides.get(*v).copied()).min(),
+        }
     }
 
     /// Cache-aware implementation of `execute_composed_with_session` (#1589).
@@ -164,9 +165,9 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
         let policy = if self.cache.is_enabled() {
             self.composed_policy(read)
         } else {
-            None
+            ComposedPolicy::Uncached
         };
-        let Some(ttl) = policy else {
+        let ComposedPolicy::Cached { ttl } = policy else {
             return self.adapter.execute_composed_with_session(read, session_vars, routing).await;
         };
         let cache_key = generate_composed_query_key(
@@ -305,4 +306,16 @@ fn collect_views<'a>(level: &'a ComposedLevel, views: &mut Vec<&'a str>) {
     for embed in &level.embeds {
         collect_views(&embed.level, views);
     }
+}
+
+/// Whether a composed read is cached ([`CachedDatabaseAdapter::composed_policy`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum ComposedPolicy {
+    /// Read through: a level's view does not opt into caching.
+    Uncached,
+    /// Cached, for `ttl` seconds (`None`: the global TTL).
+    Cached {
+        /// The shortest TTL override among the tree's views.
+        ttl: Option<u64>,
+    },
 }
