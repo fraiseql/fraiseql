@@ -507,10 +507,21 @@ pub async fn compile_to_schema(
             .map(|t| t.sql_source.to_string())
             .filter(|s| !s.is_empty())
             .collect();
-        let references = catalog.tview_references(&sources).await?;
-        let proven = crate::schema::native_joins::apply_native_joins(&mut schema, &references);
-        if proven > 0 {
-            info!("{proven} relationship(s) correlate on native columns (pg_tviews references)");
+        // An optimization: a registry this role cannot read leaves the stored keys, and says so.
+        match catalog.tview_references(&sources).await {
+            Ok(references) => {
+                let proven =
+                    crate::schema::native_joins::apply_native_joins(&mut schema, &references);
+                if proven > 0 {
+                    info!(
+                        "{proven} relationship(s) correlate on native columns (pg_tviews references)"
+                    );
+                }
+            },
+            Err(error) => warn!(
+                "cannot read tviews.registry.references ({error:#}); composed reads correlate on \
+                 document keys"
+            ),
         }
 
         let contract = validate_mutation_contract(&schema, &catalog).await?;
