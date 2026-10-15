@@ -21,8 +21,6 @@ use fraiseql_core::{
 };
 use tracing::{info, warn};
 
-/// How long a new connection may take to receive its own probe back.
-const PROBE_TIMEOUT: Duration = Duration::from_secs(5);
 /// The first wait before reconnecting; it doubles per failure, up to [`MAX_BACKOFF`].
 const MIN_BACKOFF: Duration = Duration::from_millis(200);
 const MAX_BACKOFF: Duration = Duration::from_secs(30);
@@ -70,40 +68,14 @@ pub async fn run(connector: NotifyConnector, listener: TviewsListener, instance:
 }
 
 /// Open a session, `LISTEN` on [`CHANNEL`], and check it receives notifications, on a
-/// channel of this server's own (a probe on [`CHANNEL`] would reach every other listener
-/// as an unreadable message).
+/// channel of this server's own (a probe on [`CHANNEL`] would reach every other listener as
+/// an unreadable message).
 async fn listening_session(
     connector: &NotifyConnector,
     probe: &str,
 ) -> fraiseql_core::error::Result<NotifySession> {
-    let mut session = connector.connect().await?;
-    session.listen(CHANNEL).await?;
-    session.listen(probe).await?;
-    session.notify(probe, "").await?;
-
-    // Messages on CHANNEL arriving before the probe are dropped: `listening()`, which
-    // follows, clears the cache, which covers every write they name.
-    let heard = tokio::time::timeout(PROBE_TIMEOUT, async {
-        while let Some(notification) = session.recv().await {
-            if notification.channel == probe {
-                return true;
-            }
-        }
-        false
+    super::notify_session::verified_session(connector, &[CHANNEL, probe], probe, "", |n| {
+        n.channel == probe
     })
-    .await;
-    match heard {
-        Ok(true) => Ok(session),
-        Ok(false) => Err(fraiseql_core::error::FraiseQLError::ConnectionPool {
-            message: "the notification connection closed before it heard itself".to_string(),
-        }),
-        Err(_) => Err(fraiseql_core::error::FraiseQLError::ConnectionPool {
-            message: format!(
-                "the notification connection did not receive its own message within {}s; is \
-                 `database_url` a pooler in transaction mode? `LISTEN` needs a session of its \
-                 own",
-                PROBE_TIMEOUT.as_secs()
-            ),
-        }),
-    }
+    .await
 }

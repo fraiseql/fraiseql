@@ -30,8 +30,6 @@ pub struct CacheFeedParts {
     pub evictor: CacheEvictor,
 }
 
-/// How long a new connection may take to receive its own message back.
-const HELLO_TIMEOUT: Duration = Duration::from_secs(5);
 /// The first wait before reconnecting; it doubles per failure, up to [`MAX_BACKOFF`].
 const MIN_BACKOFF: Duration = Duration::from_millis(200);
 const MAX_BACKOFF: Duration = Duration::from_secs(30);
@@ -87,42 +85,23 @@ pub async fn run(connector: NotifyConnector, mut parts: CacheFeedParts, instance
     }
 }
 
-/// Open a session, `LISTEN`, and check it receives what it sends.
+/// Open a session, `LISTEN`, and check it receives what it sends: this server's hello.
+///
+/// The session hears only what was sent after its `LISTEN`, so a hello from this server is
+/// the one just sent. Other servers' messages arriving first are dropped: the resume that
+/// follows clears the cache, which covers every write they announce.
 async fn listening_session(
     connector: &NotifyConnector,
     instance: &str,
 ) -> fraiseql_core::error::Result<NotifySession> {
-    let mut session = connector.connect().await?;
-    session.listen(CHANNEL).await?;
-    session.notify(CHANNEL, &encode_hello(instance)).await?;
-
-    // The session hears only what was sent after its `LISTEN`, so a hello from this server
-    // is the one just sent. Other servers' messages arriving first are dropped: the resume
-    // that follows clears the cache, which covers every write they announce.
-    let heard = tokio::time::timeout(HELLO_TIMEOUT, async {
-        while let Some(notification) = session.recv().await {
-            if matches!(decode(&notification.payload), Received::Hello { from } if from == instance)
-            {
-                return true;
-            }
-        }
-        false
-    })
-    .await;
-    match heard {
-        Ok(true) => Ok(session),
-        Ok(false) => Err(fraiseql_core::error::FraiseQLError::ConnectionPool {
-            message: "the notification connection closed before it heard itself".to_string(),
-        }),
-        Err(_) => Err(fraiseql_core::error::FraiseQLError::ConnectionPool {
-            message: format!(
-                "the notification connection did not receive its own message on `{CHANNEL}` \
-                 within {}s; is `database_url` a pooler in transaction mode? `LISTEN` needs a \
-                 session of its own",
-                HELLO_TIMEOUT.as_secs()
-            ),
-        }),
-    }
+    super::notify_session::verified_session(
+        connector,
+        &[CHANNEL],
+        CHANNEL,
+        &encode_hello(instance),
+        |n| matches!(decode(&n.payload), Received::Hello { from } if from == instance),
+    )
+    .await
 }
 
 /// Send this server's evictions and apply other servers' until the session or the queue
