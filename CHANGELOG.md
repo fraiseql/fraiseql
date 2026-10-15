@@ -36,6 +36,11 @@ disagreed, and the promise was the part that was wrong.
 
 - **`fraiseql-cli`'s `DatabaseWarning` gains `TemporalKeyInDocument` (#1571).** An exhaustive
   `match` on it needs the arm.
+- **Composed reads add public fields (#1587, #1589).** A struct literal or an exhaustive
+  pattern listing every field adds them: `fraiseql_core::schema::Relationship` gains
+  `native_join` (`None` keeps the document-key join),
+  `fraiseql_db::EmbedSource::Correlated` gains `native` (`None` likewise), and
+  `fraiseql_core::cache::CachedResult` gains `collected_views` and `collections`.
 - **`ServerConfig` gains `cache_cross_instance` (#1577).** A struct literal listing every field
   adds it (`CacheCrossInstance::Off` keeps today's behaviour), or ends in `..Default::default()`.
 - **Reads run as prepared statements, cached per connection (#1557).** Behind PgBouncer in
