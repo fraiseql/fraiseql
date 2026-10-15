@@ -131,13 +131,13 @@ Every scheme is tested with deliveries signed locally. Beyond that:
 
 Until a capture settles them, three choices are the conservative ones:
 
-* **`audience` is optional** for the JWT presets. Requiring it is the stronger defence
+- **`audience` is optional** for the JWT presets. Requiring it is the stronger defence
   against a token minted for something else, but neither Kinde nor FusionAuth is confirmed
   to send `aud`. Each preset's claim guard (below) always applies, so a session token signed
   by the same key set is refused either way.
-* **`max_age_secs` needs an `iat`.** A route setting it refuses, at runtime, every token
+- **`max_age_secs` needs an `iat`.** A route setting it refuses, at runtime, every token
   without one, and Kinde documents none.
-* **A Svix sender that spells its event type `event_type`** records an empty event type;
+- **A Svix sender that spells its event type `event_type`** records an empty event type;
   Clerk's `type` is read.
 
 A scheme whose sender is not on this list, but which signs the raw body with a shared
