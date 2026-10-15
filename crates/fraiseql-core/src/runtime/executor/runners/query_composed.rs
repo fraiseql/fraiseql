@@ -462,7 +462,7 @@ impl ComposedPlan {
             embeds: self
                 .embeds
                 .iter()
-                .filter_map(|embed| embed.lower(schema, parent_type))
+                .filter_map(|embed| embed.lower(schema, parent_type, &self.resolved.sql_source))
                 .collect(),
         }
     }
@@ -471,7 +471,12 @@ impl ComposedPlan {
 impl PlannedEmbed {
     /// The embedded level and its correlation, or `None` for a relationship there is
     /// nothing to read for.
-    fn lower(&self, schema: &CompiledSchema, parent_type: &str) -> Option<ComposedEmbed> {
+    fn lower(
+        &self,
+        schema: &CompiledSchema,
+        parent_type: &str,
+        parent_view: &str,
+    ) -> Option<ComposedEmbed> {
         let rel = &self.relationship;
         let (shape, level) = match &self.target {
             EmbedTarget::Unreadable => return None,
@@ -505,7 +510,7 @@ impl PlannedEmbed {
         Some(ComposedEmbed {
             output_key: self.output_key.clone(),
             shape,
-            source: correlated_source(schema, rel, parent_type),
+            source: correlated_source(schema, rel, parent_type, Some((&level.view, parent_view))),
             level,
         })
     }
@@ -514,20 +519,37 @@ impl PlannedEmbed {
 /// The correlation that attaches `rel`'s target rows to a row of `parent_type`: the two
 /// join columns' stored keys, compared as the target key's declared type. REST's embeds
 /// and a GraphQL selection joined through its relationship attach by this one rule.
+///
+/// With `views`, the `(target level's, parent level's)` relations, the relationship's native
+/// join replaces the stored keys when it was proven for exactly those two relations (#1587):
+/// a level reading another one (a query's own view) may not have the columns.
 pub(super) fn correlated_source(
     schema: &CompiledSchema,
     rel: &Relationship,
     parent_type: &str,
+    views: Option<(&str, &str)>,
 ) -> EmbedSource {
     let (target_key, parent_key, key_type) = correlation_keys(schema, rel, parent_type);
+    let native = views.and_then(|(target_view, parent_view)| {
+        let join = rel.native_join.as_ref()?;
+        let (child_view, declaring_view) = if rel.cardinality.is_to_one() {
+            (parent_view, target_view)
+        } else {
+            (target_view, parent_view)
+        };
+        if join.child_view != child_view || join.parent_view != declaring_view {
+            return None;
+        }
+        rel.native_correlation().map(|(target, parent)| NativeCorrelation {
+            target_column: target.to_string(),
+            parent_column: parent.to_string(),
+        })
+    });
     EmbedSource::Correlated {
         target_key,
         parent_key,
         key_type,
-        native: rel.native_correlation().map(|(target, parent)| NativeCorrelation {
-            target_column: target.to_string(),
-            parent_column: parent.to_string(),
-        }),
+        native,
     }
 }
 

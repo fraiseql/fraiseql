@@ -3,9 +3,9 @@
 //! A composed read correlates an embedded level to its parent by stored document keys unless
 //! the compiled schema says which SQL columns join them. `fraiseql compile --database` reads
 //! that from `pg_tviews`' registry: a relationship whose child and parent types read TVIEWs,
-//! where the child TVIEW's reference column holds the parent TVIEW's identity, proven by a
-//! `FOREIGN KEY` (`tviews.registry.references`). Nothing is guessed from a name: a type that
-//! reads a plain view, or a pair the registry does not link, keeps its stored keys.
+//! and whose declared columns are a reference the registry publishes (a child column holding
+//! the parent's identity, proven by a `FOREIGN KEY` and indexed). Nothing is guessed: a type
+//! reading a plain view, or columns the registry does not link, keeps its stored keys.
 
 use fraiseql_core::schema::{CompiledSchema, NativeJoin};
 
@@ -24,9 +24,10 @@ pub struct TviewReference {
 
 /// Record on each relationship of `schema` the native columns `references` prove it joins on.
 ///
-/// Of several references from the child to the parent, the one named by the relationship's
-/// `foreign_key`; else the only one; two or more and none named: no proof. Returns how many
-/// relationships were given one.
+/// A relationship names SQL columns (`foreign_key` on the child, `referenced_key` on the
+/// parent); it gets a proof only when a reference between the two types' views holds exactly
+/// those two columns. Nothing else is taken, not even the only reference between the views:
+/// it may be another relationship's. Returns how many relationships were given one.
 pub fn apply_native_joins(schema: &mut CompiledSchema, references: &[TviewReference]) -> usize {
     let sources: std::collections::HashMap<String, String> = schema
         .types
@@ -46,17 +47,20 @@ pub fn apply_native_joins(schema: &mut CompiledSchema, references: &[TviewRefere
             let (Some(child), Some(parent)) = (sources.get(child), sources.get(parent)) else {
                 continue;
             };
-            let candidates: Vec<&TviewReference> =
-                references.iter().filter(|r| &r.child == child && &r.parent == parent).collect();
-            let only = match candidates.as_slice() {
-                [only] => Some(only),
-                _ => None,
-            };
-            let chosen = candidates.iter().find(|r| r.foreign_key == rel.foreign_key).or(only);
-            rel.native_join = chosen.map(|r| NativeJoin {
-                foreign_key:    r.foreign_key.clone(),
-                referenced_key: r.referenced_key.clone(),
-            });
+            rel.native_join = references
+                .iter()
+                .find(|r| {
+                    &r.child == child
+                        && &r.parent == parent
+                        && r.foreign_key == rel.foreign_key
+                        && r.referenced_key == rel.referenced_key
+                })
+                .map(|r| NativeJoin {
+                    foreign_key:    r.foreign_key.clone(),
+                    referenced_key: r.referenced_key.clone(),
+                    child_view:     child.clone(),
+                    parent_view:    parent.clone(),
+                });
             given += usize::from(rel.native_join.is_some());
         }
     }
