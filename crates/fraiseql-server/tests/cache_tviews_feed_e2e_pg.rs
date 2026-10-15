@@ -107,11 +107,11 @@ async fn provision(url: &str) {
              INSERT INTO {SCHEMA}.tb_c1589 VALUES (1, '{COMMENT_A}', 1, 'first');
              SELECT tviews.pg_tviews_create('{SCHEMA}.tv_p1589', $q$
                SELECT p.pk_p1589, p.id,
-                      jsonb_build_object('id', p.id, 'title', p.title) AS data
+                      jsonb_build_object('id', p.id, 'pk_p1589', p.pk_p1589, 'title', p.title) AS data
                FROM {SCHEMA}.tb_p1589 p $q$);
              SELECT tviews.pg_tviews_create('{SCHEMA}.tv_c1589', $q$
                SELECT c.pk_c1589, c.id, c.fk_p1589,
-                      jsonb_build_object('id', c.id, 'post_id', p.id, 'body', c.body) AS data
+                      jsonb_build_object('id', c.id, 'fk_p1589', c.fk_p1589, 'body', c.body) AS data
                FROM {SCHEMA}.tb_c1589 c JOIN {SCHEMA}.tb_p1589 p ON p.pk_p1589 = c.fk_p1589 $q$);"
         ))
         .await
@@ -132,18 +132,19 @@ enabled = true
 [types.Post]
 sql_source = "{SCHEMA}.tv_p1589"
 fields.id = {{ type = "ID" }}
+fields.pk_p1589 = {{ type = "Int" }}
 fields.title = {{ type = "String" }}
 
 [types.Post.relationships.comments]
 target_type = "Comment"
 cardinality = "OneToMany"
-foreign_key = "post_id"
-referenced_key = "id"
+foreign_key = "fk_p1589"
+referenced_key = "pk_p1589"
 
 [types.Comment]
 sql_source = "{SCHEMA}.tv_c1589"
 fields.id = {{ type = "ID" }}
-fields.post_id = {{ type = "ID" }}
+fields.fk_p1589 = {{ type = "Int" }}
 fields.body = {{ type = "String" }}
 
 [queries.posts]
