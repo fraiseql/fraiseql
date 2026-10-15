@@ -300,6 +300,17 @@ cache, then applies messages. Every 5 s it sends itself a probe; one not back by
 beat (a half-open connection, a stalled listener) counts as lost. When it is lost, the cache
 is cleared again and the server reconnects with backoff. In between, writes FraiseQL runs keep evicting as above.
 
+Limits:
+
+- The catalog (which views read each type, which composed levels are collections) is read once,
+  at boot, like the embedding graph above: a view, TVIEW or reference added while the server
+  runs, or by a schema hot-reload, is heard at the next start.
+- The database must publish rows for every writer: the server listens only when the setting
+  comes from the server or the database and no role overrides it there.
+- pg_tviews commits transactions unpublished while the NOTIFY queue is above 90 % (a listener
+  somewhere stopped reading). A server that stays connected cannot tell it missed them yet
+  (fraiseql/pg_tviews#247); the TTL bounds them.
+
 Metrics: `fraiseql_tviews_feed_connected` (0 or 1), `fraiseql_tviews_feed_received_total`.
 
 ### Composed reads
