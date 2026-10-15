@@ -625,7 +625,13 @@ impl QueryRunner {
                 }) => {
                     let predicate = self.nested_predicate(query, target, security_context)?;
                     let source =
-                        super::query_composed::correlated_source(schema, relationship, parent_type);
+                        // The parent level's relation is not known here: stored keys (#1587).
+                        super::query_composed::correlated_source(
+                            schema,
+                            relationship,
+                            parent_type,
+                            None,
+                        );
                     (predicate, Some(source), Some(view.clone()))
                 },
                 Some(NestedRowGate::Refuse { query }) => {

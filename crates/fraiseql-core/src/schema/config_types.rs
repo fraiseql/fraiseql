@@ -795,14 +795,21 @@ pub struct Relationship {
     pub native_join:    Option<NativeJoin>,
 }
 
-/// The SQL columns of a relationship, proven by a foreign key (#1587): `foreign_key` on the
-/// child's view, `referenced_key` on the parent's, both of one type.
+/// The SQL columns of a relationship, proven by a foreign key (#1587).
+///
+/// `foreign_key` on the child's view, `referenced_key` on the parent's, both of one type.
+/// Proven for those two views only: a level reading another relation (a query's own view)
+/// keeps the stored keys.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct NativeJoin {
     /// The child view's column holding the parent's key (`fk_post`).
     pub foreign_key:    String,
     /// The parent view's column it references (`pk_post`).
     pub referenced_key: String,
+    /// The child's view, as the schema names it (`app.tv_comment`).
+    pub child_view:     String,
+    /// The parent's view (`app.tv_post`).
+    pub parent_view:    String,
 }
 
 impl Relationship {
@@ -1042,6 +1049,8 @@ mod native_join_tests {
             native_join: Some(NativeJoin {
                 foreign_key:    "fk_post".to_string(),
                 referenced_key: "pk_post".to_string(),
+                child_view:     "tv_comment".to_string(),
+                parent_view:    "tv_post".to_string(),
             }),
         }
     }
