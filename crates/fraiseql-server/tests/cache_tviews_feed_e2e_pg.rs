@@ -392,6 +392,10 @@ async fn a_feed_that_stops_delivering_is_noticed() {
         eprintln!("skipping: TVIEWS_DATABASE_URL not set");
         return;
     };
+    if !publishes_collections(&shared).await {
+        eprintln!("skipping: pg_tviews in TVIEWS_DATABASE_URL has no tviews.registry.typename");
+        return;
+    }
     let proxy = CountingProxy::start(&own_database(&shared).await);
     let Some(server) = serve_with_feed_through(Some(&proxy)).await else {
         return;
