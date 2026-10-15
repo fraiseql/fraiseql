@@ -19,7 +19,7 @@ use std::collections::{BTreeMap, HashMap};
 pub use bracket::parse_bracket_key;
 pub use coerce::coerce_to_type;
 use fraiseql_core::{
-    schema::{QueryDefinition, RestConfig, TypeDefinition},
+    schema::{FieldType, QueryDefinition, RestConfig, TypeDefinition},
     utils::operators::OPERATOR_REGISTRY,
 };
 use fraiseql_error::FraiseQLError;
@@ -1229,7 +1229,44 @@ impl<'a> RestParamExtractor<'a> {
                 ))),
             };
         }
+        // `in` / `nin` take a list whatever the field's type is (#1582), as a null check
+        // takes a boolean (#828): the operator decides the operand's shape. A list-typed
+        // field already coerces to a list.
+        if OPERATOR_REGISTRY.get(operator).is_some_and(|op| op.requires_array)
+            && !self.field_type(field_name).is_some_and(|t| matches!(t, FieldType::List(_)))
+        {
+            return self.coerce_list_operand(field_name, raw);
+        }
         self.coerce_field_value(field_name, raw)
+    }
+
+    /// A list operand: a JSON array, else a comma-separated list, each element coerced to
+    /// the field's type.
+    fn coerce_list_operand(
+        &self,
+        field_name: &str,
+        raw: &str,
+    ) -> Result<serde_json::Value, FraiseQLError> {
+        let elements: Vec<String> = match serde_json::from_str::<serde_json::Value>(raw) {
+            Ok(serde_json::Value::Array(items)) => items
+                .into_iter()
+                .map(|item| match item {
+                    serde_json::Value::String(s) => s,
+                    other => other.to_string(),
+                })
+                .collect(),
+            _ => raw.split(',').map(|s| s.trim().to_string()).collect(),
+        };
+        elements
+            .iter()
+            .map(|element| self.coerce_field_value(field_name, element))
+            .collect::<Result<Vec<_>, _>>()
+            .map(serde_json::Value::Array)
+    }
+
+    /// The declared type of `field_name`, when the type is known.
+    fn field_type(&self, field_name: &str) -> Option<&FieldType> {
+        self.type_def?.find_field_by_output_name(field_name).map(|fd| &fd.field_type)
     }
 
     fn coerce_field_value(

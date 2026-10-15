@@ -1385,6 +1385,68 @@ fn null_check_operands_coerce_to_boolean_not_to_the_field_type() {
     );
 }
 
+/// `in` and `nin` take a list, whatever the field's declared type is (#1582).
+///
+/// The operand was coerced to the field's type, which for a scalar field is one scalar:
+/// never the array the operators require, so every such filter answered 400. The operand is
+/// now a JSON array, else a comma-separated list, and each element has the field's type.
+#[test]
+fn list_operators_take_a_list_of_the_fields_type() {
+    let config = test_config();
+    let query_def = list_query_def();
+    let type_def = user_type_def();
+    let extractor = extractor_list(&config, &query_def, &type_def);
+    let filter = |key: &str, value: &str| {
+        extractor
+            .extract(&[], &[(key, value)])
+            .expect("a list operand is valid")
+            .where_clause
+            .expect("filter produces a where clause")
+    };
+
+    assert_eq!(
+        filter("name[in]", "ada,grace")["name"]["in"],
+        serde_json::json!(["ada", "grace"])
+    );
+    assert_eq!(
+        filter("name[in]", r#"["a,b","c"]"#)["name"]["in"],
+        serde_json::json!(["a,b", "c"])
+    );
+    assert_eq!(filter("age[nin]", "30,40")["age"]["nin"], serde_json::json!([30, 40]));
+    assert_eq!(filter("age[in]", "[30,40]")["age"]["in"], serde_json::json!([30, 40]));
+}
+
+/// A list-typed field's operand already coerces to a list, so it is not split a second time.
+#[test]
+fn a_list_typed_field_keeps_its_own_list_coercion() {
+    let config = test_config();
+    let query_def = list_query_def();
+    let type_def = user_type_def()
+        .with_field(FieldDefinition::new("tags", FieldType::List(Box::new(FieldType::String))));
+    let extractor = extractor_list(&config, &query_def, &type_def);
+
+    let where_clause = extractor
+        .extract(&[], &[("tags[in]", "a,b")])
+        .expect("a list operand is valid")
+        .where_clause
+        .expect("filter produces a where clause");
+    assert_eq!(where_clause["tags"]["in"], serde_json::json!(["a", "b"]));
+}
+
+/// Each element of a list operand is coerced, so one of the wrong type is refused.
+#[test]
+fn a_list_element_of_the_wrong_type_is_refused() {
+    let config = test_config();
+    let query_def = list_query_def();
+    let type_def = user_type_def();
+    let extractor = extractor_list(&config, &query_def, &type_def);
+
+    let err = extractor
+        .extract(&[], &[("age[in]", "30,old")])
+        .expect_err("a non-integer element of an Int list must be refused");
+    assert!(format!("{err}").contains("integer"), "the error names the type, got: {err}");
+}
+
 /// The `OpenAPI` document advertises exactly the operators the validator accepts.
 ///
 /// A third hand-maintained list (`BRACKET_OPERATORS_DESC`) advertised `contains`,

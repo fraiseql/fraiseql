@@ -646,6 +646,70 @@ async fn the_selection_reads_at_most_one_row_past_the_cap() {
 }
 
 // ---------------------------------------------------------------------------
+// #1582 — `[in]` / `[nin]` on a scalar field
+// ---------------------------------------------------------------------------
+
+impl Rig {
+    /// The labels a `GET` returns, sorted.
+    async fn labels_of(&self, uri: &str) -> Vec<String> {
+        let (status, body) = self.send("GET", uri, None, Value::Null).await;
+        assert!(status.is_success(), "GET {uri}: {status} {body}");
+        let mut labels: Vec<String> = body["data"]
+            .as_array()
+            .unwrap_or_else(|| panic!("GET {uri}: no data array in {body}"))
+            .iter()
+            .filter_map(|row| row["label"].as_str().map(ToString::to_string))
+            .collect();
+        labels.sort();
+        labels
+    }
+}
+
+/// A comma list, a JSON array, and `nin`: each selects the rows it names.
+#[tokio::test]
+async fn in_and_nin_filter_a_scalar_field() {
+    let Some(rig) = rig().await else {
+        eprintln!("skipping: DATABASE_URL not set");
+        return;
+    };
+
+    assert_eq!(
+        rig.labels_of("/rest/v1/items?label[in]=item-0,item-3&select=label").await,
+        ["item-0", "item-3"]
+    );
+    // `["item-1"]`, percent-encoded.
+    assert_eq!(
+        rig.labels_of("/rest/v1/items?label[in]=%5B%22item-1%22%5D&select=label").await,
+        ["item-1"]
+    );
+    assert_eq!(
+        rig.labels_of("/rest/v1/items?status[nin]=active&select=label").await,
+        ["item-3", "item-4"]
+    );
+}
+
+/// A bulk write filtered with `in` writes exactly the rows it names.
+#[tokio::test]
+async fn a_bulk_update_filtered_with_in_writes_the_rows_it_names() {
+    let Some(rig) = rig().await else {
+        eprintln!("skipping: DATABASE_URL not set");
+        return;
+    };
+
+    let (status, body) = rig
+        .send(
+            "PATCH",
+            "/rest/v1/items?label[in]=item-0,item-4",
+            None,
+            json!({"status": "retired"}),
+        )
+        .await;
+
+    assert!(status.is_success(), "bulk update filtered with in, got {status} {body}");
+    assert_eq!(rig.labels_with_status("retired").await, ["item-0", "item-4"]);
+}
+
+// ---------------------------------------------------------------------------
 // #916 — a client may lower the cap, never raise it
 // ---------------------------------------------------------------------------
 

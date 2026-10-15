@@ -245,6 +245,14 @@ disagreed, and the promise was the part that was wrong.
   rows read before the write were then stored (at `cache_ttl_seconds = 0`, for good). The
   check is made again once the entry is stored, and the entry withdraws itself.
 
+- **REST `[in]` and `[nin]` filter scalar fields (#1582).** `?label[in]=a,b` (or a JSON array,
+  `?label[in]=["a","b"]`) answered `400 IN operator requires an array value` on every field
+  whose type is not a list: the operand was coerced to the field's type, one scalar. The
+  operator now decides the operand's shape, as it already did for null checks. It is a JSON
+  array, else a comma-separated list, and each element is coerced to the field's type, so
+  `?age[in]=30,old` is refused on an `Int` field. Bulk `PATCH`/`DELETE` filters share the
+  extractor and get the same fix.
+
 - **A filtered REST bulk `PATCH`/`DELETE` runs on the default configuration (#1581).** The
   bulk handler selects the rows it will write with a bound of `max_bulk_affected + 1` (10 001
   by default). That bound went through the page-size check like a client's `?limit=`, and the
