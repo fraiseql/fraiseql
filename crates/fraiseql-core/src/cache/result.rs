@@ -62,7 +62,11 @@ use fraiseql_db::ViewName;
 use moka::sync::Cache as MokaCache;
 use serde::{Deserialize, Serialize};
 
-use super::{config::CacheConfig, fence::InvalidationFence, tviews_feed::Collection};
+use super::{
+    config::CacheConfig,
+    fence::{InvalidationFence, Reach},
+    tviews_feed::Collection,
+};
 use crate::{db::types::JsonbValue, error::Result};
 
 /// Cached query result with metadata.
@@ -579,9 +583,19 @@ impl QueryResultCache {
         if fence.is_some_and(|snapshot| {
             self.fence.moved_since(
                 snapshot,
-                accessed_views.iter().chain(&tags.collected_views).map(String::as_str),
-                entity_type.into_iter().chain(tags.entities.iter().map(|(t, _)| t.as_str())),
-                tags.collections.iter().map(|(c, _)| c.child_type.as_str()),
+                &Reach {
+                    views:           accessed_views.iter().map(String::as_str).collect(),
+                    collected_views: tags.collected_views.iter().map(String::as_str).collect(),
+                    entity_types:    entity_type
+                        .into_iter()
+                        .chain(tags.entities.iter().map(|(t, _)| t.as_str()))
+                        .collect(),
+                    collections:     tags
+                        .collections
+                        .iter()
+                        .map(|(c, p)| (c.child_type.as_str(), c.column.as_str(), p.as_str()))
+                        .collect(),
+                },
             )
         }) {
             return Ok(());
@@ -704,11 +718,22 @@ impl QueryResultCache {
         // (`fence.rs`, Ordering). The eviction listener deregisters the withdrawn entry.
         // No DashMap guard is held here: the listener re-enters `view_index`.
         if fence.is_some_and(|snapshot| {
+            let mut entity_types: Vec<&str> =
+                entry.entity_refs.iter().map(|(t, _)| t.as_str()).chain(entity_type).collect();
+            entity_types.sort_unstable();
+            entity_types.dedup();
             self.fence.moved_since_inserted(
                 snapshot,
-                entry.accessed_views.iter().chain(&*entry.collected_views).map(ViewName::as_str),
-                entry.entity_refs.iter().map(|(t, _)| t.as_str()).chain(entity_type),
-                entry.collections.iter().map(|(c, _)| c.child_type.as_str()),
+                &Reach {
+                    views: entry.accessed_views.iter().map(ViewName::as_str).collect(),
+                    collected_views: entry.collected_views.iter().map(ViewName::as_str).collect(),
+                    entity_types,
+                    collections: entry
+                        .collections
+                        .iter()
+                        .map(|(c, p)| (c.child_type.as_str(), c.column.as_str(), p.as_str()))
+                        .collect(),
+                },
             )
         }) {
             self.store.invalidate(&cache_key);
@@ -805,7 +830,8 @@ impl QueryResultCache {
             return Ok(0);
         }
         // Stamp before collecting keys (#1079), as invalidate_by_entity does.
-        self.fence.stamp_collection_type(&collection.child_type);
+        self.fence
+            .stamp_collection(&collection.child_type, &collection.column, parent_id);
         // Collect first: the eviction listener re-enters the index (see invalidate_views).
         let keys: HashSet<u64> = self
             .collection_index
@@ -911,7 +937,12 @@ impl QueryResultCache {
         // ago — stamping first means the window can only ever be too wide (a refused
         // cache write), never too narrow (a stale entry). Only these views' fills are
         // fenced (#1584).
-        self.fence.stamp_views(views.iter().map(ViewName::as_str));
+        let names = views.iter().map(ViewName::as_str);
+        if collected {
+            self.fence.stamp_views(names);
+        } else {
+            self.fence.stamp_feed_views(names);
+        }
 
         // Collect keys first (releases DashMap guards) then invalidate.
         // Moka's eviction listener fires synchronously on the calling thread, so

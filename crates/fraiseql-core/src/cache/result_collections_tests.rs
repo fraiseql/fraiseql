@@ -107,16 +107,6 @@ fn a_sweep_that_keeps_collections_still_evicts_by_the_entrys_own_views() {
 }
 
 #[test]
-fn a_read_that_straddles_a_collection_eviction_is_not_stored() {
-    let cache = cache();
-    let fence = cache.invalidation_generation();
-    assert_eq!(cache.invalidate_collection(&comments_by_post(), "p9").unwrap(), 0);
-
-    compose(&cache, 1, &["p1"], Some(fence));
-    assert!(!cached(&cache, 1), "its comments may predate the eviction");
-}
-
-#[test]
 fn a_read_that_straddles_a_sweep_of_a_collected_view_is_not_stored() {
     let cache = cache();
     let fence = cache.invalidation_generation();
@@ -156,4 +146,58 @@ fn a_clear_leaves_no_collection_behind() {
 
     assert_eq!(cache.invalidate_collections_of("Comment").unwrap(), 0);
     assert_eq!(cache.invalidate_views(&[ViewName::from("tv_comment")]).unwrap(), 0);
+}
+
+#[test]
+fn a_read_that_straddles_the_feeds_sweep_of_a_collected_view_is_stored() {
+    // The feed names the collections a comment write changed: its sweep of tv_comment does
+    // not reach the levels tagged by collection, so it must not refuse their fill either.
+    let cache = cache();
+    let fence = cache.invalidation_generation();
+    cache
+        .invalidate_views_except_collections(&[ViewName::from("tv_comment")])
+        .unwrap();
+
+    compose(&cache, 1, &["p1"], Some(fence));
+    assert!(cached(&cache, 1));
+}
+
+#[test]
+fn a_read_that_straddles_another_parents_collection_eviction_is_stored() {
+    let cache = cache();
+    let fence = cache.invalidation_generation();
+    cache.invalidate_collection(&comments_by_post(), "p9").unwrap();
+
+    compose(&cache, 1, &["p1"], Some(fence));
+    assert!(cached(&cache, 1), "a comment under p9 cannot make p1's comments stale");
+}
+
+#[test]
+fn a_read_that_straddles_its_own_parents_collection_eviction_is_not_stored() {
+    let cache = cache();
+    let fence = cache.invalidation_generation();
+    cache.invalidate_collection(&comments_by_post(), "p1").unwrap();
+
+    compose(&cache, 1, &["p1"], Some(fence));
+    assert!(!cached(&cache, 1));
+}
+
+#[test]
+fn a_read_that_straddles_its_child_types_eviction_is_not_stored() {
+    let cache = cache();
+    let fence = cache.invalidation_generation();
+    cache.invalidate_collections_of("Comment").unwrap();
+
+    compose(&cache, 1, &["p1"], Some(fence));
+    assert!(!cached(&cache, 1));
+}
+
+#[test]
+fn a_plain_read_that_straddles_the_feeds_sweep_of_its_view_is_not_stored() {
+    let cache = cache();
+    let fence = cache.invalidation_generation();
+    cache.invalidate_views_except_collections(&[ViewName::from("tv_post")]).unwrap();
+
+    compose(&cache, 1, &["p1"], Some(fence));
+    assert!(!cached(&cache, 1), "tv_post is the entry's own view");
 }
