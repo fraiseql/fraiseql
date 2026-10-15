@@ -39,6 +39,7 @@ mod extensions;
 mod functions_setup;
 pub(crate) mod initialization;
 mod lifecycle;
+mod notify_session;
 mod routing;
 pub(crate) mod tviews_feed;
 
