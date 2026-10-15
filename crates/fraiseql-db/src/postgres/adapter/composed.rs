@@ -45,6 +45,7 @@ use crate::{
     identifier::quote_postgres_identifier,
     order_by::{Tiebreak, render_order_by_columns},
     path_escape::escape_postgres_jsonb_segment,
+    projection_generator::{ObjectPair, json_object_sql},
     traits::{
         COMPOSED_DOCUMENT_KEY, COMPOSED_EMBEDS_KEY, ComposedEmbed, ComposedKeyset, ComposedLevel,
         EmbedShape, EmbedSource, LevelKeys, NativeCorrelation,
@@ -55,7 +56,7 @@ use crate::{
 /// The column each level carries its ordinal in.
 const ORDINAL: &str = "\"_o\"";
 
-/// Render `root` as one statement returning one JSONB column, one row per root row, in
+/// Render `root` as one statement returning one `json` column, one row per root row, in
 /// the root's order.
 ///
 /// # Errors
@@ -355,21 +356,15 @@ impl Renderer {
             // Reason (expect below): fmt::Write for String is infallible.
             write!(joins, " LEFT JOIN LATERAL ({sql}) AS {embed_alias} ON true")
                 .expect("write to String");
-            embeds.push(crate::projection_generator::ObjectPair::new(
-                literal(&embed.output_key),
-                format!("{embed_alias}.v"),
-            ));
+            embeds.push(ObjectPair::new(literal(&embed.output_key), format!("{embed_alias}.v")));
         }
 
         // Assembled as `json` (#1588): the stored documents' text is concatenated, not
         // rebuilt as `jsonb` at every level. Each level's own document stays `jsonb`, read
         // off the view; only the tree around it is `json`.
-        let data = crate::projection_generator::json_object_sql(&[
-            crate::projection_generator::ObjectPair::new(literal(COMPOSED_DOCUMENT_KEY), document),
-            crate::projection_generator::ObjectPair::new(
-                literal(COMPOSED_EMBEDS_KEY),
-                crate::projection_generator::json_object_sql(&embeds),
-            ),
+        let data = json_object_sql(&[
+            ObjectPair::new(literal(COMPOSED_DOCUMENT_KEY), document),
+            ObjectPair::new(literal(COMPOSED_EMBEDS_KEY), json_object_sql(&embeds)),
         ]);
         Ok(format!(
             "SELECT {data} AS data, {alias}.{ORDINAL} AS {ORDINAL} FROM ({page}) AS \
@@ -528,31 +523,41 @@ fn document_sql(alias: &str, keys: &LevelKeys) -> String {
             format!("({alias}.data - ARRAY[{list}]::text[])")
         },
         LevelKeys::Only { kept, masked } => {
-            // The kept keys are read with `jsonb_each` rather than named one by one, so a
-            // key the document does not hold stays absent instead of arriving as `null`:
-            // the projector tells "absent" from "null" when it picks between a field's
-            // stored spellings.
-            let kept_sql = if kept.is_empty() {
-                "'{}'::jsonb".to_string()
-            } else {
-                let list = kept.iter().map(|k| literal(k)).collect::<Vec<_>>().join(", ");
-                format!(
-                    "(SELECT COALESCE(jsonb_object_agg(_k.key, _k.value), '{{}}'::jsonb) \
-                     FROM jsonb_each({alias}.data) AS _k WHERE _k.key IN ({list}))"
-                )
-            };
-            if masked.is_empty() {
-                return kept_sql;
+            // Built as `json` (#1588): one `json_object_agg` over the kept keys the document
+            // holds and the masked keys as `null`, with no jsonb rebuilt per element. The kept
+            // keys are read with `jsonb_each` rather than named one by one, so a key the
+            // document does not hold stays absent instead of arriving as `null`: the
+            // projector tells "absent" from "null" when it picks between a field's stored
+            // spellings. A masked key is written as SQL NULL, so the value it names is never
+            // read out of the database for this caller, and it wins over a kept spelling.
+            let list =
+                |keys: &[String]| keys.iter().map(|k| literal(k)).collect::<Vec<_>>().join(", ");
+            let mut parts = Vec::new();
+            if !kept.is_empty() {
+                let not_masked = if masked.is_empty() {
+                    String::new()
+                } else {
+                    format!(" AND _e.key NOT IN ({})", list(masked))
+                };
+                parts.push(format!(
+                    "SELECT _e.key, _e.value FROM jsonb_each({alias}.data) AS _e \
+                     WHERE _e.key IN ({}){not_masked}",
+                    list(kept)
+                ));
             }
-            // A masked key is written as SQL NULL, so the value it names is never read out
-            // of the database for this caller.
-            let masked_sql = masked
-                .iter()
-                .map(|k| crate::projection_generator::ObjectPair::new(literal(k), "NULL"))
-                .collect::<Vec<_>>();
+            if !masked.is_empty() {
+                parts.push(format!(
+                    "SELECT _m.key, NULL::jsonb FROM unnest(ARRAY[{}]::text[]) AS _m(key)",
+                    list(masked)
+                ));
+            }
+            if parts.is_empty() {
+                return "'{}'::json".to_string();
+            }
             format!(
-                "({kept_sql} || {})",
-                crate::projection_generator::jsonb_object_sql(&masked_sql)
+                "(SELECT COALESCE(json_object_agg(_k.key, _k.value), '{{}}'::json) \
+                 FROM ({}) AS _k(key, value))",
+                parts.join(" UNION ALL ")
             )
         },
     }

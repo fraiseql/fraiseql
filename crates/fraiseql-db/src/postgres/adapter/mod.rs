@@ -177,8 +177,8 @@ where
         }),
         Err(e) => Err(FraiseQLError::Database {
             message:    format!(
-                "Failed to read the `data` column as JSONB ({e}); the backing view must \
-                 project a JSONB `data` column. Query: {}",
+                "Failed to read the `data` column as JSON ({e}); the backing view must \
+                 project a JSONB `data` column (a composed read returns `json`). Query: {}",
                 query_preview()
             ),
             sql_state:  None,
