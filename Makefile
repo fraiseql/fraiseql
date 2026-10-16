@@ -930,6 +930,8 @@ test-pg-tviews:
 	TVIEWS_DATABASE_URL=postgresql://fraiseql_test:fraiseql_test_password@localhost:5441/test_fraiseql \
 	cargo test -p fraiseql-server --test cache_embedding_eviction_e2e_pg -- --test-threads=1
 	TVIEWS_DATABASE_URL=postgresql://fraiseql_test:fraiseql_test_password@localhost:5441/test_fraiseql \
+	cargo test -p fraiseql-server --test cache_by_id_eviction_e2e_pg -- --test-threads=1
+	TVIEWS_DATABASE_URL=postgresql://fraiseql_test:fraiseql_test_password@localhost:5441/test_fraiseql \
 	cargo test -p fraiseql-server --features rest --test cache_tviews_feed_e2e_pg -- --test-threads=1
 	TVIEWS_DATABASE_URL=postgresql://fraiseql_test:fraiseql_test_password@localhost:5441/test_fraiseql \
 	cargo test -p fraiseql-server --features rest --test rest_embedding_native_join_e2e_pg -- --test-threads=1

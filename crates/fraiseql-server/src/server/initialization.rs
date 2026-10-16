@@ -1347,8 +1347,9 @@ pub(super) async fn build_cached_adapter<A: DatabaseAdapter + Clone + Send + Syn
         .map_err(|e| crate::ServerError::ConfigError(e.to_string()))?;
 
     // #1575: a write also evicts the cached reads of views that embed what it wrote.
+    // #1576: a read of one TVIEW row by id is evicted by that row, as the write reports it.
     let cached = if cache_config.enabled {
-        install_embedding_graph(cached, schema).await
+        install_by_id_sources(install_embedding_graph(cached, schema).await, schema).await
     } else {
         cached
     };
@@ -1454,6 +1455,36 @@ async fn install_embedding_graph<A: DatabaseAdapter + Clone + Send + Sync + 'sta
                 "Query result cache: the view-embedding graph could not be read from the \
                  catalog; a write evicts only the views it names, and cached reads of views \
                  embedding them are evicted by their TTL alone"
+            );
+            cached
+        },
+    }
+}
+
+/// Install the TVIEW sources a read of one row by id is evicted by that row for (#1576).
+///
+/// Unreadable, or with no such source, every read keeps the sweep and writes ask for no
+/// report: the cache is as before, and the log says so.
+async fn install_by_id_sources<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
+    cached: fraiseql_core::cache::CachedDatabaseAdapter<A>,
+    schema: &CompiledSchema,
+) -> fraiseql_core::cache::CachedDatabaseAdapter<A> {
+    match fraiseql_core::cache::read_by_id_sources(&cached, schema).await {
+        Ok(sources) => {
+            if !sources.is_empty() {
+                info!(
+                    sources = sources.len(),
+                    "Query result cache: reads of one TVIEW row by id are evicted by the rows \
+                     pg_tviews reports each write changed"
+                );
+            }
+            cached.with_by_id_sources(sources)
+        },
+        Err(error) => {
+            warn!(
+                %error,
+                "Query result cache: the TVIEW sources could not be read from the catalog; \
+                 a write evicts every cached read of the views it touches"
             );
             cached
         },

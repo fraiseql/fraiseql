@@ -14,6 +14,7 @@ use crate::{
         types::{JsonbValue, sql_hints::OrderByClause},
     },
     cache::{
+        by_id::by_id_tag,
         collections::composed_tags,
         key::{
             generate_composed_query_key, generate_projection_query_key, generate_view_query_key,
@@ -119,16 +120,7 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
         // selective entity-level invalidation can target precise entries.
         // The entry is registered under the view AND every secondary view a
         // query over it declares, so a mutation on a joined view evicts it (#761).
-        let ttl = self.view_ttl_overrides.get(view).copied();
-        let entity_type = view_name_to_entity_type(view);
-        self.cache.put_arc(
-            cache_key,
-            Arc::clone(&arc),
-            self.accessed_views_for(view),
-            ttl,
-            entity_type.as_deref(),
-            Some(fence),
-        )?;
+        self.store(cache_key, &arc, view, request.where_clause, fence)?;
 
         Ok(arc)
     }
@@ -137,6 +129,34 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
     ///
     /// Every level is part of the entry, so every view the tree reads must opt in (in
     /// opt-in mode), and the entry lives as long as its shortest-lived view allows.
+    /// Cache the rows a read of `view` filtered by `where_clause` returned, under `cache_key`:
+    /// a read of one TVIEW row by its id under that row (#1576), any other under its views and
+    /// entity type.
+    fn store(
+        &self,
+        cache_key: u64,
+        rows: &Arc<Vec<JsonbValue>>,
+        view: &str,
+        where_clause: Option<&WhereClause>,
+        fence: u64,
+    ) -> Result<()> {
+        let ttl = self.view_ttl_overrides.get(view).copied();
+        let views = self.accessed_views_for(view);
+        match by_id_tag(&self.by_id_sources, view, where_clause, &views) {
+            Some(row) => {
+                self.cache.put_by_id(cache_key, Arc::clone(rows), views, ttl, row, Some(fence))
+            },
+            None => self.cache.put_arc(
+                cache_key,
+                Arc::clone(rows),
+                views,
+                ttl,
+                view_name_to_entity_type(view).as_deref(),
+                Some(fence),
+            ),
+        }
+    }
+
     pub(super) fn composed_policy(&self, read: &ComposedLevel) -> ComposedPolicy {
         let mut views = Vec::new();
         collect_views(read, &mut views);
@@ -285,16 +305,7 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
         // Cascade invalidation via CascadeInvalidator still expands the view
         // list to transitively dependent views when invalidate_views() is called.
         // `accessed_views_for` adds the query's declared secondary views (#761).
-        let ttl = self.view_ttl_overrides.get(view).copied();
-        let entity_type = view_name_to_entity_type(view);
-        self.cache.put_arc(
-            cache_key,
-            Arc::clone(&arc),
-            self.accessed_views_for(view),
-            ttl,
-            entity_type.as_deref(),
-            Some(fence),
-        )?;
+        self.store(cache_key, &arc, view, where_clause, fence)?;
 
         Ok(arc)
     }

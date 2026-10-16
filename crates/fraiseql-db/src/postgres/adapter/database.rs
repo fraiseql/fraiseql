@@ -34,15 +34,18 @@ type RowMap = std::collections::HashMap<String, serde_json::Value>;
 /// One call of a write function, ready to send: its statement, its arguments, and the
 /// configuration it runs under.
 struct PreparedCall<'r> {
-    function_name: &'r str,
-    sql:           String,
-    args:          Vec<FlexParam>,
-    configuration: Vec<(&'r str, &'r str)>,
+    function_name:  &'r str,
+    sql:            String,
+    args:           Vec<FlexParam>,
+    configuration:  Vec<(&'r str, &'r str)>,
     /// Names the outbox in an error message when the outbox is what ran. The messages are
     /// the strings the error sanitizer's corpus is reduced from, and an operator reading a
     /// failed write wants to know whether the CTE was in it.
-    mechanism:     &'static str,
-    derived:       Option<&'r crate::traits::DerivedCascade<'r>>,
+    mechanism:      &'static str,
+    derived:        Option<&'r crate::traits::DerivedCascade<'r>>,
+    /// Report the rows the call changed, at most this many, in the call's own flight
+    /// (#1576). Never with `derived`, whose report already says.
+    report_changes: Option<i32>,
 }
 
 impl<'r> PreparedCall<'r> {
@@ -53,6 +56,7 @@ impl<'r> PreparedCall<'r> {
             session_vars,
             changelog,
             derived_cascade,
+            report_changes,
             ..
         } = *request;
         let quoted_fn = quote_postgres_identifier(function_name);
@@ -169,6 +173,7 @@ impl<'r> PreparedCall<'r> {
                 ""
             },
             derived: derived_cascade,
+            report_changes: report_changes.filter(|_| derived_cascade.is_none()),
         }
     }
 
@@ -263,7 +268,16 @@ async fn run_functions_in_txn(
             .prepare_cached(configure_sql)
             .await
             .map_err(|e| at(index, call.configuration_failed(&e)))?;
-        statements.push((stmt, configure));
+        let report = match call.report_changes {
+            Some(_) => Some(
+                client
+                    .prepare_cached(CHANGED_ROWS_SQL)
+                    .await
+                    .map_err(|e| at(index, changes_report_failed(&e)))?,
+            ),
+            None => None,
+        };
+        statements.push((stmt, configure, report));
     }
     let mechanism = calls
         .iter()
@@ -281,15 +295,25 @@ async fn run_functions_in_txn(
     // configuration. Only once `BEGIN` is confirmed, so neither can run outside the txn.
     // A failed configuration aborts the txn and the call with it; its own error is the one
     // reported, not the call's "current transaction is aborted".
+    //
+    // A call that reports what it changed (#1576) sends the report in the same flight, after
+    // it: no round trip of its own.
     let flight = |index: usize| {
-        let (call, (stmt, configure)) = (&calls[index], &statements[index]);
+        let (call, (stmt, configure, report)) = (&calls[index], &statements[index]);
         let configure_params = &configurations[index].1;
         let txn = &txn;
         async move {
             let params = call.params();
+            let max_entities = call.report_changes.unwrap_or_default();
             futures::join!(
                 txn.execute(configure, configure_params),
-                txn.query(stmt, params.as_slice())
+                txn.query(stmt, params.as_slice()),
+                async {
+                    match report {
+                        Some(report) => Some(txn.query_one(report, &[&max_entities]).await),
+                        None => None,
+                    }
+                }
             )
         }
     };
@@ -297,9 +321,10 @@ async fn run_functions_in_txn(
     // reports this transaction changed, read on this connection before the gate adjudicates
     // the row they are attached to.
     let settle = |index: usize,
-                  (configured, called): (
+                  (configured, called, reported): (
         std::result::Result<u64, tokio_postgres::Error>,
         std::result::Result<Vec<Row>, tokio_postgres::Error>,
+        Option<std::result::Result<Row, tokio_postgres::Error>>,
     )| {
         let call = &calls[index];
         let txn = &txn;
@@ -307,6 +332,13 @@ async fn run_functions_in_txn(
             configured.map_err(|e| call.configuration_failed(&e))?;
             let rows = called.map_err(|e| call.call_failed(&e))?;
             let mut results: Vec<RowMap> = rows.iter().map(row_to_map).collect();
+            if let Some(reported) = reported {
+                let report: serde_json::Value =
+                    reported.map_err(|e| changes_report_failed(&e))?.get("report");
+                if let Some(first) = results.first_mut() {
+                    first.insert(crate::traits::CHANGED_ROWS_KEY.to_string(), report);
+                }
+            }
             if let Some(derived) = call.derived {
                 if let Some(first) = results.first_mut() {
                     if first.get("succeeded").and_then(serde_json::Value::as_bool) == Some(true) {
@@ -390,6 +422,22 @@ async fn in_order<F: std::future::Future>(futures: Vec<F>) -> Vec<F::Output> {
     })
     .await;
     pending.iter_mut().filter_map(|future| future.as_mut().take_output()).collect()
+}
+
+/// The report of the rows a call changed (#1576): `pg_tviews`' ids only, no row read.
+const CHANGED_ROWS_SQL: &str =
+    "SELECT tviews.pg_tviews_flush_and_report($1, false, true) AS report";
+
+fn changes_report_failed(e: &tokio_postgres::Error) -> FraiseQLError {
+    crate::postgres::database_error(
+        format!(
+            "tviews.pg_tviews_flush_and_report() failed, asked for the rows this write changed \
+             to evict the cached reads of exactly those (is pg_tviews installed and \
+             preloaded?): {}",
+            pg_detail(e)
+        ),
+        e,
+    )
 }
 
 /// Flush `pg_tviews`' queue and report the rows this transaction changed, each reported

@@ -18,7 +18,10 @@ pub use composed_read::{
     EmbedShape, EmbedSource, LevelKeys, NativeCorrelation, composed_read_unsupported,
 };
 use fraiseql_error::{FraiseQLError, Result};
-pub use mutations::{DERIVED_CASCADE_KEY, DerivedCascade, WriteMode, WriteRequest, Writer};
+pub use mutations::{
+    CHANGED_ROWS_KEY, ChangedRows, DERIVED_CASCADE_KEY, DerivedCascade, WriteMode, WriteRequest,
+    Writer,
+};
 pub use relay::RelayDatabaseAdapter;
 
 /// A violated constraint as the catalog describes it (#1531): see
@@ -952,6 +955,29 @@ pub trait DatabaseAdapter: Send + Sync + 'static {
     /// The number of cache entries evicted.
     async fn invalidate_views(&self, _views: &[crate::ViewName]) -> Result<u64> {
         Ok(0)
+    }
+
+    /// Whether a write should report the rows it changed ([`ChangedRows`], #1576), for
+    /// [`invalidate_written`](Self::invalidate_written). A wrapper adapter must forward this
+    /// to the adapter it wraps.
+    fn reports_changed_rows(&self) -> bool {
+        false
+    }
+
+    /// [`invalidate_views`](Self::invalidate_views), after a write whose changed rows are
+    /// all in `changed`: an adapter may evict reads of single rows by those rows rather than
+    /// by the views. Provided: `invalidate_views`. A wrapper adapter must forward this to the
+    /// adapter it wraps.
+    ///
+    /// # Returns
+    ///
+    /// The number of cache entries evicted.
+    async fn invalidate_written(
+        &self,
+        views: &[crate::ViewName],
+        _changed: &ChangedRows,
+    ) -> Result<u64> {
+        self.invalidate_views(views).await
     }
 
     /// Evict cache entries that contain the given entity UUID.

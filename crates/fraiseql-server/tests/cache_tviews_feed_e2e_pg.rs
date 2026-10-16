@@ -164,6 +164,16 @@ sql_source = "{SCHEMA}.tv_p1589"
 return_type = "Comment"
 return_array = true
 sql_source = "{SCHEMA}.tv_c1589"
+
+[queries.post]
+return_type = "Post"
+return_array = false
+sql_source = "{SCHEMA}.tv_p1589"
+
+[[queries.post.args]]
+name = "id"
+type = "ID"
+required = true
 "#
     )
 }
@@ -420,4 +430,57 @@ async fn a_feed_that_stops_delivering_is_noticed() {
         );
         tokio::time::sleep(Duration::from_millis(250)).await;
     }
+}
+
+/// `post(id:)` reads one row of `tv_p1589` by its id (#1576): the feed evicts it by the rows
+/// it names, so a write to post B, made behind the server's back, leaves post A cached.
+#[tokio::test]
+async fn the_feed_evicts_the_reads_by_id_of_the_rows_it_names_only() {
+    let Some(server) = serve().await else {
+        eprintln!("skipping: TVIEWS_DATABASE_URL not set");
+        return;
+    };
+    let title = |id: &str| format!("{{ post(id: \"{id}\") {{ title }} }}");
+    let read = |id: &str| {
+        let query = title(id);
+        let server = &server;
+        async move {
+            let body: Value = server
+                .http
+                .post(format!("{}/graphql", server.base))
+                .json(&serde_json::json!({ "query": query }))
+                .send()
+                .await
+                .unwrap()
+                .json()
+                .await
+                .unwrap();
+            assert!(body.get("errors").is_none(), "{body}");
+            body["data"]["post"]["title"].as_str().unwrap_or_default().to_string()
+        }
+    };
+    assert_eq!(read(POST_A).await, "A");
+    assert_eq!(read(POST_B).await, "B");
+    // Unpublished edits of the TVIEW rows: a read served from the cache does not show them.
+    server
+        .sql(&format!(
+            "UPDATE {SCHEMA}.tv_p1589 SET data = data || '{{\"title\": \"behind\"}}'"
+        ))
+        .await;
+    assert_eq!(read(POST_A).await, "A", "post A is cached");
+    assert_eq!(read(POST_B).await, "B", "post B is cached");
+
+    server
+        .sql(&format!("UPDATE {SCHEMA}.tb_p1589 SET title = 'renamed' WHERE pk_p1589 = 2"))
+        .await;
+    let mut seen = String::new();
+    for _ in 0..50 {
+        seen = read(POST_B).await;
+        if seen == "renamed" {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+    assert_eq!(seen, "renamed", "post B is evicted by the feed");
+    assert_eq!(read(POST_A).await, "A", "post A, which the feed did not name, is still cached");
 }

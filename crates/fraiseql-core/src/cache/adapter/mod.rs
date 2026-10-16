@@ -258,6 +258,11 @@ pub struct CachedDatabaseAdapter<A: DatabaseAdapter> {
     /// The collections composed reads may be indexed by, while this server hears
     /// `pg_tviews`' change feed (#1589).
     pub(super) collections: CollectionTagging,
+
+    /// View name → GraphQL type, for the TVIEW tables a read of one row by id may be indexed
+    /// under its row for (#1576, [`read_by_id_sources`](crate::cache::read_by_id_sources)).
+    /// Empty: every read keeps the sweep, and writes report nothing.
+    pub(super) by_id_sources: Arc<HashMap<String, String>>,
 }
 
 impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
@@ -306,6 +311,7 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
             cascade_invalidator: None,
             feed: None,
             collections: CollectionTagging::default(),
+            by_id_sources: Arc::default(),
         }
     }
 
@@ -381,6 +387,16 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
     #[must_use]
     pub fn with_cascade_invalidator(mut self, invalidator: CascadeInvalidator) -> Self {
         self.cascade_invalidator = Some(Arc::new(Mutex::new(invalidator)));
+        self
+    }
+
+    /// Index a read of one row of these TVIEW sources by its id under that row, and have
+    /// writes report the rows they change to evict those reads (#1576). `sources` is view
+    /// name → the GraphQL type `pg_tviews` reports its rows as, from
+    /// [`read_by_id_sources`](crate::cache::read_by_id_sources).
+    #[must_use]
+    pub fn with_by_id_sources(mut self, sources: HashMap<String, String>) -> Self {
+        self.by_id_sources = Arc::new(sources);
         self
     }
 
@@ -550,6 +566,7 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
             cascade_invalidator:  self.cascade_invalidator,
             feed:                 self.feed,
             collections:          self.collections,
+            by_id_sources:        self.by_id_sources,
         };
         // Same reader as the startup path, so a new per-query cache annotation
         // cannot work at boot and stop working after a hot reload.
@@ -614,6 +631,7 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
             cascade_invalidator: None,
             feed: None,
             collections: CollectionTagging::default(),
+            by_id_sources: Arc::default(),
         }
     }
 
@@ -850,6 +868,7 @@ impl<A: DatabaseAdapter + Clone> Clone for CachedDatabaseAdapter<A> {
             cascade_invalidator:  self.cascade_invalidator.clone(),
             feed:                 self.feed.clone(),
             collections:          self.collections.clone(),
+            by_id_sources:        Arc::clone(&self.by_id_sources),
         }
     }
 }
@@ -1197,6 +1216,26 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
         // Delegate to the inherent (synchronous) method which handles cascade
         // expansion and cache eviction.
         let evicted = CachedDatabaseAdapter::invalidate_views(self, views)?;
+        self.announce(|| Eviction::Views(views.iter().map(|v| v.as_str().to_owned()).collect()));
+        Ok(evicted)
+    }
+
+    fn reports_changed_rows(&self) -> bool {
+        self.cache.is_enabled() && !self.by_id_sources.is_empty()
+    }
+
+    async fn invalidate_written(
+        &self,
+        views: &[fraiseql_db::ViewName],
+        changed: &fraiseql_db::ChangedRows,
+    ) -> Result<u64> {
+        let evicted = super::invalidation_api::invalidate_written(
+            &self.cache,
+            self.cascade_invalidator.as_ref(),
+            views,
+            changed,
+        )?;
+        // Another server holds no report: it sweeps the views, its reads by id included.
         self.announce(|| Eviction::Views(views.iter().map(|v| v.as_str().to_owned()).collect()));
         Ok(evicted)
     }

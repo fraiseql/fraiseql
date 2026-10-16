@@ -57,6 +57,81 @@ impl<'a> DerivedCascade<'a> {
 /// The key a [`DerivedCascade`] report is attached under, on the first returned row.
 pub const DERIVED_CASCADE_KEY: &str = "__fraiseql_derived_cascade";
 
+/// The key the report of the rows a write changed is attached under, on the first returned
+/// row, when its request asked for one ([`WriteRequest::with_changes_reported`], #1576).
+///
+/// `pg_tviews`' report, as `tviews.pg_tviews_flush_and_report(max_entities, false, true)`
+/// returns it after the function: `{"updated": [{"__typename", "id"}], "deleted": [...],
+/// "invalidated_types": [...]}`. No row is read. Read it with [`ChangedRows::from_report`].
+pub const CHANGED_ROWS_KEY: &str = "__fraiseql_changed_rows";
+
+/// The TVIEW rows a committed write changed, by GraphQL type and public id, as `pg_tviews`
+/// reported them (#1576). Cascaded rows are included: `pg_tviews` journals every row it
+/// refreshes.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct ChangedRows {
+    /// Rows inserted, updated or deleted: public ids, as text, by type.
+    pub rows:  std::collections::BTreeMap<String, std::collections::BTreeSet<String>>,
+    /// Types whose rows are not all listed (the report was truncated): every row of each may
+    /// have changed.
+    pub types: std::collections::BTreeSet<String>,
+}
+
+impl ChangedRows {
+    /// Read a `pg_tviews` report (see [`CHANGED_ROWS_KEY`]). `None` when `report` is not one:
+    /// what changed is then unknown. An entry whose id is neither text nor a number names
+    /// its type as wholly changed.
+    #[must_use]
+    pub fn from_report(report: &serde_json::Value) -> Option<Self> {
+        let report = report.as_object()?;
+        let mut changed = Self::default();
+        for arm in ["updated", "deleted"] {
+            let entries = match report.get(arm) {
+                None => continue,
+                Some(entries) => entries.as_array()?,
+            };
+            for entry in entries {
+                let typename = entry.get("__typename")?.as_str()?;
+                match entry.get("id") {
+                    Some(serde_json::Value::String(id)) => {
+                        changed.rows.entry(typename.to_string()).or_default().insert(id.clone());
+                    },
+                    Some(serde_json::Value::Number(id)) => {
+                        changed
+                            .rows
+                            .entry(typename.to_string())
+                            .or_default()
+                            .insert(id.to_string());
+                    },
+                    _ => {
+                        changed.types.insert(typename.to_string());
+                    },
+                }
+            }
+        }
+        if let Some(types) = report.get("invalidated_types") {
+            for typename in types.as_array()? {
+                changed.types.insert(typename.as_str()?.to_string());
+            }
+        }
+        Some(changed)
+    }
+
+    /// Also the rows and types of `other`, committed in the same transaction.
+    pub fn absorb(&mut self, other: Self) {
+        for (typename, ids) in other.rows {
+            self.rows.entry(typename).or_default().extend(ids);
+        }
+        self.types.extend(other.types);
+    }
+
+    /// Every type named, by a row or wholly.
+    pub fn type_names(&self) -> impl Iterator<Item = &str> {
+        self.rows.keys().chain(&self.types).map(String::as_str)
+    }
+}
+
 /// One call of a write function.
 ///
 /// `#[non_exhaustive]`: build it with [`WriteRequest::new`] and the `with_*` builders, so a
@@ -76,6 +151,10 @@ pub struct WriteRequest<'a> {
     pub mode:            WriteMode,
     /// The `pg_tviews` report to attach before the gate, if any (#1391).
     pub derived_cascade: Option<&'a DerivedCascade<'a>>,
+    /// Report the rows the call changed, at most this many (#1576): see
+    /// [`CHANGED_ROWS_KEY`]. A call with a [`DerivedCascade`] carries its report there
+    /// instead.
+    pub report_changes:  Option<i32>,
 }
 
 impl<'a> WriteRequest<'a> {
@@ -89,7 +168,15 @@ impl<'a> WriteRequest<'a> {
             changelog: None,
             mode: WriteMode::Commit,
             derived_cascade: None,
+            report_changes: None,
         }
+    }
+
+    /// Reporting the rows the call changes, at most `max_entities` (#1576).
+    #[must_use]
+    pub const fn with_changes_reported(mut self, max_entities: Option<i32>) -> Self {
+        self.report_changes = max_entities;
+        self
     }
 
     /// With the `pg_tviews` report attached before the gate (#1391).

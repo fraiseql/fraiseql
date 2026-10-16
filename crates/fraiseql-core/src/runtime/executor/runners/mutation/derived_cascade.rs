@@ -68,6 +68,15 @@ pub(super) fn reported_types(row: &HashMap<String, Value>) -> BTreeSet<String> {
     listed.chain(truncated).filter_map(Value::as_str).map(str::to_string).collect()
 }
 
+/// The rows `pg_tviews` reports the call changed (#1576), from the report of the rows it
+/// changed or from a derived cascade's; `None` when the row carries neither, or one this
+/// cannot read.
+pub(super) fn changed_rows(row: &HashMap<String, Value>) -> Option<crate::backend::ChangedRows> {
+    row.get(crate::backend::CHANGED_ROWS_KEY)
+        .or_else(|| row.get(crate::backend::DERIVED_CASCADE_KEY))
+        .and_then(crate::backend::ChangedRows::from_report)
+}
+
 fn key(entry: &Value) -> (String, String) {
     let id = match &entry["id"] {
         Value::String(s) => s.clone(),

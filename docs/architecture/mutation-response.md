@@ -460,8 +460,8 @@ connection and merges the report into the function's `cascade`:
 * **Cost.** The reported rows of a type are read by one prepared statement
   (`WHERE id = ANY(…)`), and the reads of every type are sent together: a derived cascade
   costs the same round trips (`BEGIN`, the function, the report, the reads, `COMMIT`)
-  whether pg_tviews reports one row or a hundred (#1573). The report itself is pg_tviews'
-  cost, and grows with the TVIEWs it reports (pg_tviews#240).
+  whether pg_tviews reports one row or a hundred (#1573). The report reads no TVIEW: pg_tviews
+  takes the ids from its own refresh writes.
 * **Precedence.** The function's entry for a row wins over the report's.
 * **Truncation.** Past `max_updated_entities` rows (the cascade ceiling, default 500),
   pg_tviews names the types it left out; each is invalidated, and none of its rows is

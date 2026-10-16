@@ -2088,14 +2088,23 @@ struct PreparedWrite<'a> {
 
 /// What a write's rows were judged to be: the parsed outcome, the response built from it, and
 /// the types a derived cascade's report named (#1575).
-type Adjudicated = (MutationOutcome, serde_json::Value, std::collections::BTreeSet<String>);
+/// A call's outcome, its response, every type `pg_tviews` reported it changed (#1575), and the
+/// rows it changed when a report says so (#1576; `None`: unknown).
+type Adjudicated = (
+    MutationOutcome,
+    serde_json::Value,
+    std::collections::BTreeSet<String>,
+    Option<crate::backend::ChangedRows>,
+);
 
 /// The borrowed pieces a [`crate::backend::WriteRequest`] points into.
 struct WriteParts<'p> {
-    session_pairs: Vec<(&'p str, &'p str)>,
-    changelog:     Option<ChangeLogWrite<'p>>,
-    derived:       Option<crate::backend::DerivedCascade<'p>>,
-    mode:          crate::backend::WriteMode,
+    session_pairs:  Vec<(&'p str, &'p str)>,
+    changelog:      Option<ChangeLogWrite<'p>>,
+    derived:        Option<crate::backend::DerivedCascade<'p>>,
+    /// Report the rows the call changes, at most this many (#1576).
+    report_changes: Option<i32>,
+    mode:           crate::backend::WriteMode,
 }
 
 impl WriteParts<'_> {
@@ -2105,6 +2114,7 @@ impl WriteParts<'_> {
             .with_changelog(self.changelog.as_ref())
             .with_mode(self.mode)
             .with_derived_cascade(self.derived.as_ref())
+            .with_changes_reported(self.report_changes)
     }
 }
 
@@ -2167,13 +2177,12 @@ impl PreparedWrite<'_> {
                 .map(|(k, v)| (k.as_str(), v.as_str()))
                 .collect(),
             changelog,
-            derived: self.derived_views.as_deref().map(|views| {
-                crate::backend::DerivedCascade::new(
-                    i32::try_from(ctx.config.cascade_limits.max_updated_entities)
-                        .unwrap_or(i32::MAX),
-                    views,
-                )
-            }),
+            derived: self
+                .derived_views
+                .as_deref()
+                .map(|views| crate::backend::DerivedCascade::new(max_entities(ctx), views)),
+            // The cache evicts its reads by id by the rows the write changed (#1576).
+            report_changes: ctx.adapter.reports_changed_rows().then(|| max_entities(ctx)),
             mode,
         }
     }
@@ -2192,7 +2201,12 @@ impl PreparedWrite<'_> {
         })?;
         // #1575: what the report says changed, before the merge drops what it may not
         // serve; every such type's cached reads are stale.
-        let reported = derived_cascade::reported_types(row);
+        let mut reported = derived_cascade::reported_types(row);
+        // #1576: the rows it changed, as either report says; their types' reads are stale too.
+        let changed = derived_cascade::changed_rows(row);
+        if let Some(changed) = &changed {
+            reported.extend(changed.type_names().map(str::to_string));
+        }
         // #1391: pg_tviews' report, merged into the cascade it is served from.
         let row = derived_cascade::merge(&ctx.schema, row, |type_name| {
             derived_cascade::engine_filtered(
@@ -2223,7 +2237,7 @@ impl PreparedWrite<'_> {
                 );
             }
         })?;
-        Ok((envelope, result_json, reported))
+        Ok((envelope, result_json, reported, changed))
     }
 
     fn build(&self, outcome: MutationOutcome) -> Result<serde_json::Value> {
@@ -2263,10 +2277,12 @@ impl PreparedWrite<'_> {
         );
         let envelope = outcome.clone();
         let result_json = self.build(outcome)?;
-        Ok((envelope, result_json, std::collections::BTreeSet::new()))
+        // Rolled back: nothing changed.
+        let unchanged = Some(crate::backend::ChangedRows::default());
+        Ok((envelope, result_json, std::collections::BTreeSet::new(), unchanged))
     }
 
-    fn execution(&self, (outcome, result_json, _): Adjudicated) -> MutationExecution {
+    fn execution(&self, (outcome, result_json, ..): Adjudicated) -> MutationExecution {
         MutationExecution {
             data: ResultProjector::wrap_in_data_envelope(result_json, &self.response_key),
             outcome,
@@ -2326,6 +2342,11 @@ fn refused_item(
     Some(error.in_batch_item(index, count))
 }
 
+/// The most rows `pg_tviews` reports for one call: the cascade ceiling.
+fn max_entities(ctx: &ExecutorContext) -> i32 {
+    i32::try_from(ctx.config.cascade_limits.max_updated_entities).unwrap_or(i32::MAX)
+}
+
 /// What follows a commit follows only a commit (ruling AD 3), once for every call a
 /// transaction committed together: a dry run rolled back, so no fact table moved, no cached
 /// read is stale, and nothing was executed to audit.
@@ -2370,15 +2391,30 @@ async fn after_commit(
     // the return type, the stamped entity type and cascade side-effects all
     // resolve in the same place, so no caller can reach a different answer.
     // A batch's calls committed together and are swept together (#1574).
+    //
+    // #1576: when every call reported the rows it changed, the cache evicts its reads of one
+    // row by id by those rows instead of by the sweep. A call that wrote and failed counts
+    // too: evicting more is never wrong.
     let mut plan = invalidation::InvalidationPlan::default();
     let mut entities = Vec::new();
-    for (envelope, _, reported) in written.iter().copied() {
+    let mut changed = Some(crate::backend::ChangedRows::default());
+    for (envelope, _, reported, call_changed) in written.iter().copied() {
         let call = invalidation::plan_invalidation(mutation_def, envelope, &ctx.schema)
             .with_reported_types(reported, &ctx.schema);
         entities.extend(plan.absorb(call));
+        match (changed.as_mut(), call_changed) {
+            (Some(all), Some(call_changed)) => all.absorb(call_changed.clone()),
+            _ => changed = None,
+        }
     }
-    if !plan.views.is_empty() {
-        ctx.adapter.invalidate_views(&plan.views).await?;
+    match changed.filter(|_| ctx.adapter.reports_changed_rows()) {
+        Some(changed) => {
+            ctx.adapter.invalidate_written(&plan.views, &changed).await?;
+        },
+        None if !plan.views.is_empty() => {
+            ctx.adapter.invalidate_views(&plan.views).await?;
+        },
+        None => {},
     }
     // Supplementary, not a substitute: covers entries indexed under this entity
     // when the entity's own view could not be resolved from the schema.

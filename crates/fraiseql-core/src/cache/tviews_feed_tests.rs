@@ -197,6 +197,35 @@ fn a_whole_type_evicts_its_views_and_every_collection_of_it() {
     assert!(cached(&cache, 4));
 }
 
+/// Reads of one row by id (#1576) are evicted by the rows the feed names and by a whole
+/// type, not by the sweep of their view.
+#[test]
+fn the_feed_evicts_the_reads_by_id_of_its_rows_and_types() {
+    let by_id = |cache: &QueryResultCache, key: u64, type_name: &str, id: &str| {
+        cache
+            .put_by_id(
+                key,
+                rows(),
+                vec!["tv_post".to_string()],
+                None,
+                (type_name.to_string(), id.to_string()),
+                None,
+            )
+            .unwrap();
+    };
+    let cache = cache();
+    by_id(&cache, 10, "Post", "p1");
+    by_id(&cache, 11, "Post", "p2");
+    by_id(&cache, 12, "Tag", "t1");
+    evictor(&cache).apply(&decode(r#"{"v":2,"u":{"Post":["p2"]}}"#)).unwrap();
+    assert!(cached(&cache, 10), "p1 is not named: the sweep of tv_post leaves it");
+    assert!(!cached(&cache, 11), "p2 is named");
+    evictor(&cache).apply(&decode(r#"{"v":2,"d":{"Post":["p1"]}}"#)).unwrap();
+    assert!(!cached(&cache, 10), "a deleted row too");
+    evictor(&cache).apply(&decode(r#"{"v":2,"t":["Tag"]}"#)).unwrap();
+    assert!(!cached(&cache, 12), "a whole type");
+}
+
 #[test]
 fn a_type_no_view_reads_evicts_nothing() {
     let cache = cache();

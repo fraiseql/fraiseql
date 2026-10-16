@@ -5,7 +5,7 @@
 
 use std::sync::{Arc, Mutex};
 
-use fraiseql_db::ViewName;
+use fraiseql_db::{ChangedRows, ViewName};
 
 use super::{CascadeInvalidator, QueryResultCache, adapter::CachedDatabaseAdapter};
 use crate::{db::DatabaseAdapter, error::Result};
@@ -76,24 +76,52 @@ pub(super) fn invalidate_expanded(
     if !cache.is_enabled() {
         return Ok(0);
     }
+    cache.invalidate_views(&expand(cascade, views)?)
+}
 
-    // Expand the view list with transitive dependents when a cascade
-    // invalidator is configured. `CascadeInvalidator` works in terms of raw
-    // `String` view names today; promote each `ViewName` to `String` for the
-    // cascade walk and convert the expanded result back at the end.
-    if let Some(cascader) = cascade {
-        let mut expanded: std::collections::HashSet<String> =
-            views.iter().map(|v| v.as_str().to_owned()).collect();
-        let mut guard = cascader.lock().map_err(|e| crate::error::FraiseQLError::Internal {
-            message: format!("Cascade invalidator lock poisoned: {e}"),
-            source:  None,
-        })?;
-        for view in views {
-            let transitive = guard.cascade_invalidate(view.as_str())?;
-            expanded.extend(transitive);
-        }
-        let expanded_views: Vec<ViewName> = expanded.into_iter().map(ViewName::from).collect();
-        return cache.invalidate_views(&expanded_views);
+/// [`invalidate_expanded`] after a write that reported every row it changed (#1576): the
+/// reads of one row by id are evicted by those rows, and by the types `changed` names
+/// wholly, not by the sweep.
+pub(super) fn invalidate_written(
+    cache: &QueryResultCache,
+    cascade: Option<&Arc<Mutex<CascadeInvalidator>>>,
+    views: &[ViewName],
+    changed: &ChangedRows,
+) -> Result<u64> {
+    if !cache.is_enabled() {
+        return Ok(0);
     }
-    cache.invalidate_views(views)
+    let mut evicted = cache.invalidate_views_except_by_id(&expand(cascade, views)?)?;
+    for (type_name, ids) in &changed.rows {
+        for id in ids {
+            evicted += cache.invalidate_by_id(type_name, id)?;
+        }
+    }
+    for type_name in &changed.types {
+        evicted += cache.invalidate_by_id_type(type_name)?;
+    }
+    Ok(evicted)
+}
+
+/// `views` and every view that embeds one of them through `cascade` (#1575).
+fn expand(
+    cascade: Option<&Arc<Mutex<CascadeInvalidator>>>,
+    views: &[ViewName],
+) -> Result<Vec<ViewName>> {
+    // `CascadeInvalidator` works in terms of raw `String` view names today; promote each
+    // `ViewName` to `String` for the cascade walk and convert the expanded result back.
+    let Some(cascader) = cascade else {
+        return Ok(views.to_vec());
+    };
+    let mut expanded: std::collections::HashSet<String> =
+        views.iter().map(|v| v.as_str().to_owned()).collect();
+    let mut guard = cascader.lock().map_err(|e| crate::error::FraiseQLError::Internal {
+        message: format!("Cascade invalidator lock poisoned: {e}"),
+        source:  None,
+    })?;
+    for view in views {
+        let transitive = guard.cascade_invalidate(view.as_str())?;
+        expanded.extend(transitive);
+    }
+    Ok(expanded.into_iter().map(ViewName::from).collect())
 }

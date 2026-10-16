@@ -193,7 +193,42 @@ whose registry has no such column is read as plain tables (views over them still
 **Tradeoff**: eviction is per view, not per row. Writing one user evicts every cached read of
 `tv_user` and of every view embedding users, including reads that never returned that user.
 Over-eviction costs a re-read; under-eviction would serve a stale row for the entry's TTL,
-forever at TTL 0.
+forever at TTL 0. The one exception is below.
+
+### Reads of one TVIEW row by id (#1576)
+
+A list may gain or lose any row, so a write must sweep it. A read of **one** row of a
+pg_tviews TVIEW by its id, such as `user(id: $id)` over `tv_user`, depends on that row and
+nothing else. pg_tviews journals every row a transaction changes, cascaded rows included,
+and reports them. So such a read is cached under its row, and a write evicts it only when it
+changed that row:
+
+- each mutation asks pg_tviews which rows it changed, in the same round trip as the function
+  (`pg_tviews_flush_and_report(…, false, true)`, which reads no TVIEW);
+- after the commit, the sweep above evicts every other read, and the reads by id are evicted
+  by the rows the report lists, updated, inserted or deleted, and wholly for each type the
+  report truncated (more than `max_updated_entities` rows);
+- a write to user B therefore leaves the cached `user(id: A)` in place, and a write to user A
+  evicts the cached `post(id:)` of each of A's posts, whose rows embed A and which pg_tviews
+  rewrote;
+- with pg_tviews' change feed heard, the feed evicts them by the rows it names too.
+
+A read qualifies only when all of these hold; any other read keeps the sweep:
+
+- Its query's source **is** the TVIEW's table (`tv_user`), not a view over it.
+- The table has no row security: a policy may read other tables.
+- Its only filter is the native `id` column (`compile --database` maps the argument): no
+  injected parameter, no RLS policy of the engine, no other argument.
+- It reads no other view (`additional_views`).
+
+The sources are read from the database at boot, from `tviews.registry`. Without
+`tviews.registry.typename` (pg_tviews older than the pinned version), nothing qualifies and
+writes ask for no report.
+
+**What it rests on**: every change to a TVIEW row goes through pg_tviews' journal. A function
+that writes a TVIEW's table directly, or calls `pg_tviews_flush_and_report()` itself and
+resets the journal, leaves these reads stale until their TTL. Another server evicts them by
+its sweep, as before: the cross-server feed carries views, not rows.
 
 ### A read in flight across a write
 
@@ -202,7 +237,9 @@ while the query is in flight evicts nothing (the entry is not stored yet), and s
 rows afterwards would cache what the database held before the write. So the cache refuses to
 store a read when, while it was in flight, a write evicted something that entry would have
 been evicted by: one of the views it is cached under (its own and its declared secondary
-views), its entity type (a write's eviction by id), or a cache clear (#1079).
+views), its entity type (a write's eviction by id), or a cache clear (#1079). A read of one
+TVIEW row by id is refused only by an eviction of that row or its type, a full sweep of its
+view, or a clear: a write to another row does not refuse it (#1576).
 
 A write that cannot reach the entry does not refuse it (#1584). A write to `tv_post` (with no
 view embedding posts read) does not stop a `tv_user` read from being cached, however many

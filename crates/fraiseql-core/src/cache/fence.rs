@@ -9,7 +9,10 @@
 //! slot per entity type it evicts by id, a slot per collection and parent or per child type
 //! whose collections it evicts (#1589), or every fill at once (`clear`). A change feed's sweep
 //! of a view stamps a slot of its own, which an entry's own views are checked against but the
-//! views of its levels tagged by collection are not: the feed names those levels' collections. A
+//! views of its levels tagged by collection are not: the feed names those levels' collections.
+//! A read of one row by its id (#1576) is checked against a full sweep of its view, its own
+//! `(type, id)` slot and its type's, not against a write's or a feed's sweep: those name the
+//! rows they changed, so a write to user B no longer refuses the fill of user A. A
 //! read snapshots the sequence before its round trip; its fill is refused when a slot it would be
 //! indexed under carries a later stamp. A write to `v_post` therefore no longer refuses a read of
 //! `v_user`: under steady writes some invalidation is always in flight, and a global fence cached
@@ -17,7 +20,8 @@
 //!
 //! Slots are a fixed array indexed by a hash of the name, so a name never outlives anything
 //! and arbitrary names cost no memory. Two names sharing a slot only fence each other's fills
-//! too eagerly: a missed cache write, never a stale entry.
+//! too eagerly: a missed cache write, never a stale entry. Rows read by id have an array of
+//! their own, larger: a write stamps every row it rewrote, many more names than views or types.
 //!
 //! # Ordering
 //!
@@ -32,6 +36,12 @@ use std::sync::atomic::{AtomicU64, Ordering};
 /// Number of slots. A power of two, so the index is a mask.
 const SLOTS: usize = 1024;
 
+/// Number of slots of rows read by id (#1576), apart: a write reports every row it rewrote,
+/// a user's posts and comments with them, so under steady writes thousands of rows are
+/// stamped a second, and a read of another row sharing a slot with one would be refused.
+/// 64 Ki slots (512 KiB) keep that to about one fill in sixty at a thousand rows in flight.
+const ROW_SLOTS: usize = 65_536;
+
 /// Hash domains, so a view and an entity type of the same name use different slots.
 const VIEW: u8 = b'v';
 /// A view swept by a change feed that names collections: it reaches an entry's own views,
@@ -42,6 +52,13 @@ const ENTITY_TYPE: u8 = b'e';
 const COLLECTION_TYPE: u8 = b'c';
 /// One collection of one parent: `(child type, column, parent id)` (#1589).
 const COLLECTION_MEMBER: u8 = b'm';
+/// A view swept by a write that reported the rows it changed: it reaches an entry's own views
+/// and those of its levels, not the reads of one row by id (#1576).
+const WRITE_VIEW: u8 = b'w';
+/// One row read by its id: `(type, id)` (#1576).
+const BY_ID: u8 = b'i';
+/// Every row of a type read by its id (#1576).
+const BY_ID_TYPE: u8 = b't';
 
 /// What a fill is indexed under, as the fence checks it.
 #[derive(Default)]
@@ -55,6 +72,9 @@ pub(super) struct Reach<'a> {
     pub(super) entity_types:    Vec<&'a str>,
     /// Its collections, as `(child type, column, parent id)`.
     pub(super) collections:     Vec<(&'a str, &'a str, &'a str)>,
+    /// The row it reads by id, as `(type, id)`, with its views (#1576): reached by a full
+    /// sweep of those views, by that row and by its type, nothing else.
+    pub(super) by_id:           Option<((&'a str, &'a str), Vec<&'a str>)>,
 }
 
 /// Sequence-stamped slots; see the module documentation.
@@ -65,6 +85,8 @@ pub(super) struct InvalidationFence {
     everything: AtomicU64,
     /// Stamped by the invalidations reaching the names hashed to each slot.
     slots:      Box<[AtomicU64]>,
+    /// Stamped by the evictions of the rows read by id hashed to each slot (#1576).
+    rows:       Box<[AtomicU64]>,
 }
 
 impl InvalidationFence {
@@ -73,6 +95,7 @@ impl InvalidationFence {
             sequence:   AtomicU64::new(0),
             everything: AtomicU64::new(0),
             slots:      (0..SLOTS).map(|_| AtomicU64::new(0)).collect(),
+            rows:       (0..ROW_SLOTS).map(|_| AtomicU64::new(0)).collect(),
         }
     }
 
@@ -110,6 +133,27 @@ impl InvalidationFence {
         }
     }
 
+    /// Stamp the slots of `views` swept by a write that reported the rows it changed: reads
+    /// of one row by id are not reached (#1576).
+    pub(super) fn stamp_write_views<'a>(&self, views: impl IntoIterator<Item = &'a str>) {
+        let stamp = self.next();
+        for view in views {
+            self.slot(WRITE_VIEW, &[view]).fetch_max(stamp, Ordering::SeqCst);
+        }
+    }
+
+    /// Stamp the slot of the row `id` of `type_name`, read by id (#1576).
+    pub(super) fn stamp_by_id(&self, type_name: &str, id: &str) {
+        let stamp = self.next();
+        self.row_slot(type_name, id).fetch_max(stamp, Ordering::SeqCst);
+    }
+
+    /// Stamp the slot of every row of `type_name` read by id (#1576).
+    pub(super) fn stamp_by_id_type(&self, type_name: &str) {
+        let stamp = self.next();
+        self.slot(BY_ID_TYPE, &[type_name]).fetch_max(stamp, Ordering::SeqCst);
+    }
+
     /// Stamp the slot of every collection of `child_type` (#1589).
     pub(super) fn stamp_collection_type(&self, child_type: &str) {
         let stamp = self.next();
@@ -140,8 +184,19 @@ impl InvalidationFence {
     fn reaches(&self, snapshot: u64, reach: &Reach<'_>, read: impl Fn(&AtomicU64) -> u64) -> bool {
         let moved = |domain: u8, parts: &[&str]| read(self.slot(domain, parts)) > snapshot;
         read(&self.everything) > snapshot
-            || reach.views.iter().any(|v| moved(VIEW, &[v]) || moved(FEED_VIEW, &[v]))
-            || reach.collected_views.iter().any(|v| moved(VIEW, &[v]))
+            || reach
+                .views
+                .iter()
+                .any(|v| moved(VIEW, &[v]) || moved(FEED_VIEW, &[v]) || moved(WRITE_VIEW, &[v]))
+            || reach
+                .collected_views
+                .iter()
+                .any(|v| moved(VIEW, &[v]) || moved(WRITE_VIEW, &[v]))
+            || reach.by_id.as_ref().is_some_and(|((t, id), views)| {
+                read(self.row_slot(t, id)) > snapshot
+                    || moved(BY_ID_TYPE, &[t])
+                    || views.iter().any(|v| moved(VIEW, &[v]))
+            })
             || reach.entity_types.iter().any(|t| moved(ENTITY_TYPE, &[t]))
             || reach.collections.iter().any(|(t, c, p)| {
                 moved(COLLECTION_TYPE, &[t]) || moved(COLLECTION_MEMBER, &[t, c, p])
@@ -152,20 +207,30 @@ impl InvalidationFence {
         self.sequence.fetch_add(1, Ordering::SeqCst) + 1
     }
 
+    fn row_slot(&self, type_name: &str, id: &str) -> &AtomicU64 {
+        #[allow(clippy::cast_possible_truncation)] // Reason: masked to ROW_SLOTS - 1 first
+        let index = (hash(BY_ID, &[type_name, id]) & (ROW_SLOTS as u64 - 1)) as usize;
+        &self.rows[index]
+    }
+
     fn slot(&self, domain: u8, parts: &[&str]) -> &AtomicU64 {
-        // FNV-1a: stable across toolchains and runs, so which names share a slot is too. Parts
-        // are separated by a NUL, which no name holds.
-        let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
-        let bytes = parts
-            .iter()
-            .enumerate()
-            .flat_map(|(i, part)| (i > 0).then_some(0u8).into_iter().chain(part.bytes()));
-        for byte in std::iter::once(domain).chain(bytes) {
-            hash ^= u64::from(byte);
-            hash = hash.wrapping_mul(0x0100_0000_01b3);
-        }
         #[allow(clippy::cast_possible_truncation)] // Reason: masked to SLOTS - 1 first
-        let index = (hash & (SLOTS as u64 - 1)) as usize;
+        let index = (hash(domain, parts) & (SLOTS as u64 - 1)) as usize;
         &self.slots[index]
     }
+}
+
+/// FNV-1a of `domain` and `parts`: stable across toolchains and runs, so which names share a
+/// slot is too. Parts are separated by a NUL, which no name holds.
+fn hash(domain: u8, parts: &[&str]) -> u64 {
+    let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
+    let bytes = parts
+        .iter()
+        .enumerate()
+        .flat_map(|(i, part)| (i > 0).then_some(0u8).into_iter().chain(part.bytes()));
+    for byte in std::iter::once(domain).chain(bytes) {
+        hash ^= u64::from(byte);
+        hash = hash.wrapping_mul(0x0100_0000_01b3);
+    }
+    hash
 }

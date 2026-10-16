@@ -116,6 +116,9 @@ disagreed, and the promise was the part that was wrong.
   holds a TVIEW, including TVIEWs the write cannot reach. Grant it until pg_tviews changes
   this (#1601).
 
+- **`CachedResult` has a `by_id` field (#1576)**: the row a read of one TVIEW row by id is
+  cached under. A struct literal of it must set it (`None` for any other read).
+
 ### Added
 
 - **The result cache hears pg_tviews' change feed (#1589).** When the database publishes
@@ -168,6 +171,26 @@ disagreed, and the promise was the part that was wrong.
   deliberately not added: it would serve bounded-stale reads to queries that never chose that.
 
 ### Changed
+
+- **A cached read of one TVIEW row by id survives writes to other rows (#1576).** Every
+  write used to evict every cached read of the views it touched, so on a TVIEW written a few
+  times a second, `user(id: $id)` was almost never served from the cache. A read whose
+  source is a pg_tviews TVIEW's table (with no row security), whose only filter is the
+  native `id` column, and which reads no other view, is now cached under its row. Each
+  write asks pg_tviews which rows it changed (`pg_tviews_flush_and_report()`, sent with the
+  function, no extra round trip), and evicts those reads by the rows it lists, cascaded rows
+  included, and wholly for each type the report truncated. Lists and every other read keep
+  the view sweep. A write to a type the mutation does not name now sweeps that type's
+  views too, since the report names it. pg_tviews' change feed evicts these reads by row
+  as well (#1589); another server's eviction still sweeps them (#1577). Measured on
+  PostgreSQL 18 and pg_tviews 0.1.0-beta.30, under velocitybench M1 (40 writers on 20
+  users): `user(id)` reads of other users went from 0% to 100% cache hits (682 → 42 291
+  reads/s), `post(id)` likewise (631 → 37 120). The report costs each write 0.23 ms in its
+  transaction, so M1 writes dropped from 1 994/s to 1 744/s (−12.6%) and p50 rose from
+  19.2 to 22.1 ms; server CPU per write went from 86 to 138 µs. It relies on every TVIEW
+  row change going through pg_tviews' journal: a function that writes a TVIEW's table
+  directly, or flushes the journal itself, leaves these reads stale until their TTL
+  (`docs/modules/cache.md`).
 
 - **Composed reads are cached (#1589).** A REST `?select=` embed or a composed GraphQL list,
   read through a query with `cache_ttl_seconds`, is cached under a key over the whole tree and

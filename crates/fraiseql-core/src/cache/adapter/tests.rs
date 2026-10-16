@@ -390,6 +390,7 @@ async fn test_schema_version_change_invalidates_cache() {
         cascade_invalidator:  None,
         feed:                 None,
         collections:          crate::cache::collections::CollectionTagging::default(),
+        by_id_sources:        Arc::default(),
     };
 
     // Query with v1
@@ -411,6 +412,7 @@ async fn test_schema_version_change_invalidates_cache() {
         cascade_invalidator:  None,
         feed:                 None,
         collections:          crate::cache::collections::CollectionTagging::default(),
+        by_id_sources:        Arc::default(),
     };
 
     // Query with v2 - should miss cache (different schema version)
@@ -1587,6 +1589,20 @@ async fn a_writes_view_sweep_is_announced() {
     use crate::cache::feed::Eviction;
     let (adapter, mut queue) = announcing_adapter();
     DatabaseAdapter::invalidate_views(&adapter, &[ViewName::from("v_user")])
+        .await
+        .unwrap();
+    assert_eq!(queued(&mut queue).await, vec![Eviction::Views(vec!["v_user".to_string()])]);
+}
+
+/// A write that reported its rows evicts the reads by id here by those rows, but another
+/// server holds no report: it is told the views, and sweeps them whole (#1576).
+#[tokio::test]
+async fn a_write_reporting_its_rows_announces_its_views() {
+    use crate::cache::feed::Eviction;
+    let (adapter, mut queue) = announcing_adapter();
+    let mut changed = fraiseql_db::ChangedRows::default();
+    changed.rows.entry("User".to_string()).or_default().insert("a".to_string());
+    DatabaseAdapter::invalidate_written(&adapter, &[ViewName::from("v_user")], &changed)
         .await
         .unwrap();
     assert_eq!(queued(&mut queue).await, vec![Eviction::Views(vec!["v_user".to_string()])]);

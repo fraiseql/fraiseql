@@ -197,6 +197,7 @@
 //! - **`invalidation`**: Public invalidation API with structured contexts
 
 mod adapter;
+mod by_id;
 mod config;
 mod dependency_tracker;
 mod fact_table_cache;
@@ -233,6 +234,7 @@ pub mod mutation_reach;
 // import the typed view-name newtype alongside `QueryResultCache` etc. without
 // pulling in `fraiseql-db` directly.
 pub use adapter::{CachedDatabaseAdapter, view_name_to_entity_type};
+pub use by_id::read_by_id_sources;
 pub use cascade_invalidator::{CascadeInvalidator, InvalidationStats};
 pub use cascade_metadata::CascadeMetadata;
 pub use cascade_response_parser::CascadeResponseParser;

@@ -2039,6 +2039,9 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		// #1575: a write evicts the cached reads of views embedding what it wrote (the graph
 		// from pg_tviews' registry and pg_depend), and every type a derived cascade reports.
 		"cargo test -p fraiseql-server --test cache_embedding_eviction_e2e_pg -- --test-threads=1",
+		// #1576: a cached read of one TVIEW row by id survives writes to other rows and is
+		// evicted by every write that changes its row, as pg_tviews reports it.
+		"cargo test -p fraiseql-server --test cache_by_id_eviction_e2e_pg -- --test-threads=1",
 		// #1589: pg_tviews' change feed evicts what a write this server did not run made
 		// stale, and composed lists by collection. Fails, rather than skips, on a pg_tviews
 		// without tviews.registry.typename.

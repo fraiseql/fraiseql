@@ -117,6 +117,11 @@ pub struct CachedResult {
     /// The collections a composed read composes, each with its parent's id (#1589).
     pub collections: Box<[(Collection, String)]>,
 
+    /// The one row this entry reads, by its id, as `(type, id)` (#1576). Such an entry is
+    /// indexed under its views apart from other entries: a full sweep of them evicts it, a
+    /// write that reports the rows it changed evicts it only by that row or its type.
+    pub by_id: Option<(String, String)>,
+
     /// Process-unique identity of this cached *entry instance*.
     ///
     /// Distinguishes an entry from its own replacement under the same cache key.
@@ -132,6 +137,24 @@ type IndexRef = (u64, u64);
 
 /// Reverse index: child type → `(column, parent id)` → set of `(cache key, epoch)` (#1589).
 type CollectionIndex = DashMap<String, DashMap<(String, String), DashSet<IndexRef>>>;
+
+/// Reverse index: view → set of `(cache key, epoch)`.
+type ViewIndex = DashMap<ViewName, DashSet<IndexRef>>;
+
+/// Reverse index: type → id → set of `(cache key, epoch)`.
+type RowIndex = DashMap<String, DashMap<String, DashSet<IndexRef>>>;
+
+/// How far a sweep of views reaches.
+#[derive(Clone, Copy)]
+enum Sweep {
+    /// Every entry reading a view: its own views, its levels', its row's (by id).
+    Full,
+    /// A write that reported the rows it changed (#1576): not the reads of one row by id,
+    /// which those rows evict.
+    Write,
+    /// A change feed naming rows and collections (#1589, #1576): an entry's own views only.
+    Feed,
+}
 
 /// What a composed read's entry is indexed under besides its views and entity (#1589).
 ///
@@ -265,6 +288,13 @@ pub struct QueryResultCache {
     /// Reverse index of the collections composed reads compose (#1589).
     collection_index: Arc<CollectionIndex>,
 
+    /// Reverse index: view of an entry reading one row by id → its `(cache key, epoch)`
+    /// (#1576). Swept by [`invalidate_views`](Self::invalidate_views) only.
+    by_id_view_index: Arc<ViewIndex>,
+
+    /// Reverse index: type → id → the entries reading that row by id (#1576).
+    by_id_index: Arc<RowIndex>,
+
     /// Source of [`CachedResult::epoch`] values. Monotonic for the process
     /// lifetime; wrap-around at 2^64 puts is not reachable.
     next_epoch: AtomicU64,
@@ -322,6 +352,8 @@ fn build_store(
     entity_index: Arc<DashMap<String, DashMap<String, DashSet<IndexRef>>>>,
     collected_view_index: Arc<DashMap<ViewName, DashSet<IndexRef>>>,
     collection_index: Arc<CollectionIndex>,
+    by_id_view_index: Arc<ViewIndex>,
+    by_id_index: Arc<RowIndex>,
 ) -> MokaCache<u64, Arc<CachedResult>> {
     let max_cap = config.max_entries as u64;
     let mb = memory_bytes;
@@ -329,6 +361,8 @@ fn build_store(
     let ei = entity_index;
     let cvi = collected_view_index;
     let ci = collection_index;
+    let bvi = by_id_view_index;
+    let bi = by_id_index;
 
     MokaCache::builder()
         .max_capacity(max_cap)
@@ -343,10 +377,19 @@ fn build_store(
             // special case and no future moka cause can detach a live entry (#740).
             let reference: IndexRef = (*key, value.epoch);
 
-            // Remove this instance from the view index.
+            // Remove this instance from the view index it was registered in.
+            let views = if value.by_id.is_some() { &bvi } else { &vi };
             for view in &value.accessed_views {
-                if let Some(keys) = vi.get(view) {
+                if let Some(keys) = views.get(view) {
                     keys.remove(&reference);
+                }
+            }
+            // And the row it reads by id (#1576).
+            if let Some((type_name, id)) = &value.by_id {
+                if let Some(by_type) = bi.get(type_name) {
+                    if let Some(keys) = by_type.get(id) {
+                        keys.remove(&reference);
+                    }
                 }
             }
 
@@ -401,6 +444,8 @@ impl QueryResultCache {
         let collected_view_index: Arc<DashMap<ViewName, DashSet<IndexRef>>> =
             Arc::new(DashMap::new());
         let collection_index: Arc<CollectionIndex> = Arc::new(DashMap::new());
+        let by_id_view_index: Arc<ViewIndex> = Arc::new(DashMap::new());
+        let by_id_index: Arc<RowIndex> = Arc::new(DashMap::new());
 
         let store = build_store(
             &config,
@@ -409,6 +454,8 @@ impl QueryResultCache {
             Arc::clone(&entity_index),
             Arc::clone(&collected_view_index),
             Arc::clone(&collection_index),
+            Arc::clone(&by_id_view_index),
+            Arc::clone(&by_id_index),
         );
 
         Self {
@@ -423,6 +470,8 @@ impl QueryResultCache {
             entity_index,
             collected_view_index,
             collection_index,
+            by_id_view_index,
+            by_id_index,
             next_epoch: AtomicU64::new(0),
             fence: InvalidationFence::new(),
             suspended: AtomicBool::new(false),
@@ -552,13 +601,72 @@ impl QueryResultCache {
             ttl_override,
             entity_type,
             ComposedTags::default(),
+            None,
             fence,
             before_insert,
             after_insert,
         )
     }
 
-    /// [`put_arc_with`](Self::put_arc_with), indexed under `tags` too.
+    /// Store the rows of a read of one row by its id, `by_id` = `(type, id)`, indexed under
+    /// that row and `accessed_views` apart from other entries (#1576). Otherwise
+    /// [`put_arc`](Self::put_arc), with no entity index: the row is the tag.
+    ///
+    /// Only for a read whose rows depend on that one row and nothing else: a write that
+    /// reports the rows it changed evicts it by them, not by its views.
+    ///
+    /// # Errors
+    ///
+    /// This method is infallible. The `Result` return type is kept for API compatibility.
+    pub fn put_by_id(
+        &self,
+        cache_key: u64,
+        result: Arc<Vec<JsonbValue>>,
+        accessed_views: Vec<String>,
+        ttl_override: Option<u64>,
+        by_id: (String, String),
+        fence: Option<u64>,
+    ) -> Result<()> {
+        self.put_by_id_with(
+            cache_key,
+            result,
+            accessed_views,
+            ttl_override,
+            by_id,
+            fence,
+            || {},
+            || {},
+        )
+    }
+
+    /// [`put_by_id`](Self::put_by_id) with [`put_arc_with`](Self::put_arc_with)'s test seams.
+    #[allow(clippy::too_many_arguments)] // Reason: put_by_id's arguments plus the test seam
+    pub(super) fn put_by_id_with(
+        &self,
+        cache_key: u64,
+        result: Arc<Vec<JsonbValue>>,
+        accessed_views: Vec<String>,
+        ttl_override: Option<u64>,
+        by_id: (String, String),
+        fence: Option<u64>,
+        before_insert: impl FnOnce(),
+        after_insert: impl FnOnce(),
+    ) -> Result<()> {
+        self.put_tagged(
+            cache_key,
+            result,
+            accessed_views,
+            ttl_override,
+            None,
+            ComposedTags::default(),
+            Some(by_id),
+            fence,
+            before_insert,
+            after_insert,
+        )
+    }
+
+    /// [`put_arc_with`](Self::put_arc_with), indexed under `tags`, or the row `by_id`, too.
     #[allow(clippy::too_many_arguments)] // Reason: put_arc_with's arguments plus the tags
     fn put_tagged(
         &self,
@@ -568,6 +676,7 @@ impl QueryResultCache {
         ttl_override: Option<u64>,
         entity_type: Option<&str>,
         tags: ComposedTags,
+        by_id: Option<(String, String)>,
         fence: Option<u64>,
         before_insert: impl FnOnce(),
         after_insert: impl FnOnce(),
@@ -584,7 +693,12 @@ impl QueryResultCache {
             self.fence.moved_since(
                 snapshot,
                 &Reach {
-                    views:           accessed_views.iter().map(String::as_str).collect(),
+                    views:           by_id
+                        .is_none()
+                        .then(|| accessed_views.iter().map(String::as_str))
+                        .into_iter()
+                        .flatten()
+                        .collect(),
                     collected_views: tags.collected_views.iter().map(String::as_str).collect(),
                     entity_types:    entity_type
                         .into_iter()
@@ -595,6 +709,12 @@ impl QueryResultCache {
                         .iter()
                         .map(|(c, p)| (c.child_type.as_str(), c.column.as_str(), p.as_str()))
                         .collect(),
+                    by_id:           by_id.as_ref().map(|(t, id)| {
+                        (
+                            (t.as_str(), id.as_str()),
+                            accessed_views.iter().map(String::as_str).collect(),
+                        )
+                    }),
                 },
             )
         }) {
@@ -627,7 +747,9 @@ impl QueryResultCache {
             }
         }
 
-        // Extract entity refs from ALL rows (not just the first).
+        // Extract entity refs from ALL rows (not just the first). A read by id is tagged by
+        // its row instead (#1576).
+        let entity_type = entity_type.filter(|_| by_id.is_none());
         let entity_refs: Box<[(String, String)]> = if let Some(et) = entity_type {
             result
                 .iter()
@@ -659,9 +781,22 @@ impl QueryResultCache {
         let epoch = self.next_epoch.fetch_add(1, Ordering::Relaxed);
         let reference: IndexRef = (cache_key, epoch);
 
-        // Register in view index.
+        // Register in view index, a read by id in its own, and under its row (#1576).
+        let views = if by_id.is_some() {
+            &self.by_id_view_index
+        } else {
+            &self.view_index
+        };
         for view in &accessed_views {
-            self.view_index.entry(view.clone()).or_default().insert(reference);
+            views.entry(view.clone()).or_default().insert(reference);
+        }
+        if let Some((type_name, id)) = &by_id {
+            self.by_id_index
+                .entry(type_name.clone())
+                .or_default()
+                .entry(id.clone())
+                .or_default()
+                .insert(reference);
         }
 
         // Register ALL entity refs in entity index.
@@ -697,6 +832,7 @@ impl QueryResultCache {
             entity_refs,
             collected_views,
             collections,
+            by_id,
             epoch,
         };
 
@@ -722,10 +858,15 @@ impl QueryResultCache {
                 entry.entity_refs.iter().map(|(t, _)| t.as_str()).chain(entity_type).collect();
             entity_types.sort_unstable();
             entity_types.dedup();
+            let views = || entry.accessed_views.iter().map(ViewName::as_str);
             self.fence.moved_since_inserted(
                 snapshot,
                 &Reach {
-                    views: entry.accessed_views.iter().map(ViewName::as_str).collect(),
+                    views: if entry.by_id.is_some() {
+                        Vec::new()
+                    } else {
+                        views().collect()
+                    },
                     collected_views: entry.collected_views.iter().map(ViewName::as_str).collect(),
                     entity_types,
                     collections: entry
@@ -733,6 +874,10 @@ impl QueryResultCache {
                         .iter()
                         .map(|(c, p)| (c.child_type.as_str(), c.column.as_str(), p.as_str()))
                         .collect(),
+                    by_id: entry
+                        .by_id
+                        .as_ref()
+                        .map(|(t, id)| ((t.as_str(), id.as_str()), views().collect())),
                 },
             )
         }) {
@@ -814,10 +959,53 @@ impl QueryResultCache {
             ttl_override,
             entity_type,
             tags,
+            None,
             fence,
             || {},
             || {},
         )
+    }
+
+    /// Evict the reads of the row `id` of `type_name` by its id (#1576).
+    ///
+    /// # Errors
+    ///
+    /// This method is infallible. The `Result` return type is kept for API compatibility.
+    pub fn invalidate_by_id(&self, type_name: &str, id: &str) -> Result<u64> {
+        if !self.config.enabled {
+            return Ok(0);
+        }
+        // Stamp before collecting keys (#1079).
+        self.fence.stamp_by_id(type_name, id);
+        let keys: HashSet<u64> = self
+            .by_id_index
+            .get(type_name)
+            .and_then(|by_type| by_type.get(id).map(|refs| refs.iter().map(|r| r.0).collect()))
+            .unwrap_or_default();
+        Ok(self.evict(keys))
+    }
+
+    /// Evict every read of a row of `type_name` by its id (#1576).
+    ///
+    /// # Errors
+    ///
+    /// This method is infallible. The `Result` return type is kept for API compatibility.
+    pub fn invalidate_by_id_type(&self, type_name: &str) -> Result<u64> {
+        if !self.config.enabled {
+            return Ok(0);
+        }
+        self.fence.stamp_by_id_type(type_name);
+        let keys: HashSet<u64> = self
+            .by_id_index
+            .get(type_name)
+            .map(|by_type| {
+                by_type
+                    .iter()
+                    .flat_map(|refs| refs.iter().map(|r| r.0).collect::<Vec<_>>())
+                    .collect()
+            })
+            .unwrap_or_default();
+        Ok(self.evict(keys))
     }
 
     /// Evict the entries composing `collection` of the parent `parent_id` (#1589).
@@ -888,7 +1076,18 @@ impl QueryResultCache {
     ///
     /// This method is infallible. The `Result` return type is kept for API compatibility.
     pub fn invalidate_views_except_collections(&self, views: &[ViewName]) -> Result<u64> {
-        self.sweep_views(views, false)
+        self.sweep_views(views, Sweep::Feed)
+    }
+
+    /// [`invalidate_views`](Self::invalidate_views), but not the reads of one row by id: for a
+    /// write that reported every row it changed, which [`invalidate_by_id`](Self::invalidate_by_id)
+    /// and [`invalidate_by_id_type`](Self::invalidate_by_id_type) evict (#1576).
+    ///
+    /// # Errors
+    ///
+    /// This method is infallible. The `Result` return type is kept for API compatibility.
+    pub fn invalidate_views_except_by_id(&self, views: &[ViewName]) -> Result<u64> {
+        self.sweep_views(views, Sweep::Write)
     }
 
     /// Invalidate entries accessing specified views.
@@ -922,12 +1121,13 @@ impl QueryResultCache {
     /// # Ok::<(), fraiseql_core::error::FraiseQLError>(())
     /// ```
     pub fn invalidate_views(&self, views: &[ViewName]) -> Result<u64> {
-        self.sweep_views(views, true)
+        self.sweep_views(views, Sweep::Full)
     }
 
-    /// Evict the entries indexed under `views`; with `collected`, also those whose levels
-    /// tagged by collection read one of them (#1589).
-    fn sweep_views(&self, views: &[ViewName], collected: bool) -> Result<u64> {
+    /// Evict the entries indexed under `views`, as far as `sweep` reaches: also those whose
+    /// levels tagged by collection read one of them (#1589), and those reading one row of one
+    /// by id (#1576).
+    fn sweep_views(&self, views: &[ViewName], sweep: Sweep) -> Result<u64> {
         if !self.config.enabled {
             return Ok(0);
         }
@@ -938,11 +1138,20 @@ impl QueryResultCache {
         // cache write), never too narrow (a stale entry). Only these views' fills are
         // fenced (#1584).
         let names = views.iter().map(ViewName::as_str);
-        if collected {
-            self.fence.stamp_views(names);
-        } else {
-            self.fence.stamp_feed_views(names);
+        match sweep {
+            Sweep::Full => self.fence.stamp_views(names),
+            Sweep::Write => self.fence.stamp_write_views(names),
+            Sweep::Feed => self.fence.stamp_feed_views(names),
         }
+        let indexes: &[&ViewIndex] = match sweep {
+            Sweep::Full => &[
+                &self.view_index,
+                &self.collected_view_index,
+                &self.by_id_view_index,
+            ],
+            Sweep::Write => &[&self.view_index, &self.collected_view_index],
+            Sweep::Feed => &[&self.view_index],
+        };
 
         // Collect keys first (releases DashMap guards) then invalidate.
         // Moka's eviction listener fires synchronously on the calling thread, so
@@ -953,8 +1162,6 @@ impl QueryResultCache {
         for view in views {
             // ViewName implements Borrow<str>, so DashMap lookup by &str works
             // without materialising a fresh ViewName.
-            let indexes = std::iter::once(&self.view_index)
-                .chain(collected.then_some(&self.collected_view_index));
             for index in indexes {
                 if let Some(keys) = index.get(view.as_str()) {
                     // Dedup: a query accessing multiple views in `views` would
@@ -994,6 +1201,9 @@ impl QueryResultCache {
             return Ok(0);
         }
 
+        // A read of the entity by its id is indexed under its row instead (#1576).
+        let by_id = self.invalidate_by_id(entity_type, entity_id)?;
+
         // Stamp BEFORE collecting keys (#1079) — see invalidate_views. Only fills that
         // index this entity type can hold the entity (#1584).
         self.fence.stamp_entity_type(entity_type);
@@ -1002,7 +1212,7 @@ impl QueryResultCache {
         // lookup entirely.  Covers cold-cache and write-heavy workloads where no
         // reads are cached yet.
         if !self.entity_index.contains_key(entity_type) {
-            return Ok(0);
+            return Ok(by_id);
         }
 
         // Collect keys first (releases DashMap guards) then invalidate.
@@ -1019,7 +1229,7 @@ impl QueryResultCache {
             .unwrap_or_default();
 
         // Index cleanup handled by eviction listener.
-        Ok(self.evict(keys_to_invalidate))
+        Ok(by_id + self.evict(keys_to_invalidate))
     }
 
     /// Get cache metrics snapshot.
@@ -1086,6 +1296,8 @@ impl QueryResultCache {
         self.entity_index.clear();
         self.collected_view_index.clear();
         self.collection_index.clear();
+        self.by_id_view_index.clear();
+        self.by_id_index.clear();
         self.memory_bytes.store(0, Ordering::Relaxed);
         Ok(())
     }
@@ -1191,3 +1403,7 @@ impl CacheMetrics {
 #[cfg(test)]
 #[path = "result_collections_tests.rs"]
 mod result_collections_tests;
+
+#[cfg(test)]
+#[path = "result_by_id_tests.rs"]
+mod result_by_id_tests;

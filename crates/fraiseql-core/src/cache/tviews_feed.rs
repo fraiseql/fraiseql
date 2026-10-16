@@ -308,7 +308,8 @@ impl TviewsEvictor {
             return self.cache.clear();
         };
         // Rows of a type: every view reading the type, as a write FraiseQL ran would sweep
-        // it, but not the levels indexed by collection: `c` names those precisely.
+        // it, but not the levels indexed by collection, nor the reads of one row by id: `c`
+        // and the rows name those precisely (#1576).
         let views: BTreeSet<&ViewName> = change
             .rows
             .keys()
@@ -319,6 +320,14 @@ impl TviewsEvictor {
         if !views.is_empty() {
             let views: Vec<ViewName> = views.into_iter().cloned().collect();
             self.cache.invalidate_views_except_collections(&views)?;
+        }
+        for (type_name, ids) in &change.rows {
+            for id in ids {
+                self.cache.invalidate_by_id(type_name, id)?;
+            }
+        }
+        for type_name in &change.types {
+            self.cache.invalidate_by_id_type(type_name)?;
         }
         for (collection, parents) in &change.collections {
             for parent in parents {

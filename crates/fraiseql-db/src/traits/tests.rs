@@ -210,3 +210,44 @@ fn take_matched_strips_the_count_and_the_empty_marker() {
     let plain = [JsonbValue::new(json!({ "id": 1 }))];
     assert_eq!(take_matched(&plain).1, None);
 }
+
+/// `pg_tviews`' report read as the rows a write changed (#1576): updated and deleted alike,
+/// ids as text, a truncated type wholly, an unreadable id as its whole type.
+#[test]
+fn a_report_reads_as_the_rows_it_names_and_the_types_it_truncated() {
+    let report = serde_json::json!({
+        "updated": [{"__typename": "User", "id": "a"}, {"__typename": "Tag", "id": 7}],
+        "deleted": [{"__typename": "User", "id": "b"}, {"__typename": "Post", "id": null}],
+        "invalidated_types": ["Comment"],
+        "truncated": true,
+    });
+    let changed = super::ChangedRows::from_report(&report).unwrap();
+    let ids = |t: &str| changed.rows.get(t).map(|ids| ids.iter().cloned().collect::<Vec<_>>());
+    assert_eq!(ids("User"), Some(vec!["a".to_string(), "b".to_string()]));
+    assert_eq!(ids("Tag"), Some(vec!["7".to_string()]));
+    assert_eq!(ids("Post"), None);
+    assert_eq!(
+        changed.types.iter().cloned().collect::<Vec<_>>(),
+        ["Comment".to_string(), "Post".to_string()]
+    );
+}
+
+/// What cannot be read as a report says nothing about what changed: `None`, so the caller
+/// keeps the sweep.
+#[test]
+fn what_is_not_a_report_reads_as_unknown() {
+    for report in [
+        serde_json::json!(null),
+        serde_json::json!([]),
+        serde_json::json!({"updated": "User"}),
+        serde_json::json!({"updated": [{"id": "a"}]}),
+        serde_json::json!({"invalidated_types": [1]}),
+    ] {
+        assert_eq!(super::ChangedRows::from_report(&report), None, "{report}");
+    }
+    assert_eq!(
+        super::ChangedRows::from_report(&serde_json::json!({})),
+        Some(super::ChangedRows::default()),
+        "a report of nothing changed"
+    );
+}
