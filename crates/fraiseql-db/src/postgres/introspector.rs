@@ -624,10 +624,11 @@ pub async fn query_tview_profiles(
             JOIN pg_rewrite r ON r.ev_class = src.oid
             JOIN pg_depend d ON d.objid = r.oid AND d.refclassid = 'pg_class'::regclass
         )
-        SELECT p.entity, p.tview, p.hot_ratio, p.n_dead_tup, p.n_tup_upd, p.n_tup_hot_upd,
+        SELECT p.entity, format('%I.%I', p.schema, p.name) AS tview, p.hot_ratio,
+               p.n_dead_tup, p.n_tup_upd, p.n_tup_hot_upd,
                coalesce(p.warnings, '{}') AS warnings
         FROM tviews.pg_tviews_profile() AS p
-        WHERE to_regclass(p.tview) IN (SELECT oid FROM rel)
+        WHERE to_regclass(format('%I.%I', p.schema, p.name)) IN (SELECT oid FROM rel)
         ORDER BY p.entity
     ";
     let rows = client.query(query, &[&sources]).await.map_err(|e| {

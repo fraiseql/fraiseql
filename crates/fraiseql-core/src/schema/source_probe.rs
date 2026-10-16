@@ -147,15 +147,15 @@ pub fn sql_source_probes(schema: &CompiledSchema) -> Vec<SourceProbe> {
 ///
 /// PostgreSQL refuses to read an UNLOGGED or temporary relation during recovery
 /// ("cannot access temporary or unlogged relations during recovery"), so with read
-/// replicas configured every query over such a source fails on every replica — and
-/// `pg_tviews` creates its `tv_*` tables UNLOGGED by default. Views are followed to the
-/// relations they read (a logged view over an unlogged table fails the same way);
-/// materialized views are not, because they store their own rows.
+/// replicas configured every query over such a source fails on every replica. A `pg_tviews`
+/// TVIEW is UNLOGGED when its `logged` option is false. Views are followed to the relations
+/// they read (a logged view over an unlogged table fails the same way); materialized views
+/// are not, because they store their own rows.
 ///
 /// # Errors
 ///
 /// `FraiseQLError::Configuration` naming each source and the unlogged relation it
-/// depends on.
+/// depends on, and the statement that makes each UNLOGGED table LOGGED.
 pub async fn refuse_standby_unreadable_sources<A: DatabaseAdapter + ?Sized>(
     adapter: &A,
     schema: &CompiledSchema,
@@ -163,22 +163,56 @@ pub async fn refuse_standby_unreadable_sources<A: DatabaseAdapter + ?Sized>(
     if !adapter.serves_reads_from_standbys() {
         return Ok(());
     }
-    let unreadable = standby_unreadable_sources(adapter, schema).await?;
+    let unreadable = unreadable_dependencies(adapter, schema).await?;
     if unreadable.is_empty() {
         return Ok(());
     }
+    let statements = logged_statements(&unreadable);
     Err(FraiseQLError::Configuration {
         message: format!(
             "Read replicas are configured, but {} source relation(s) of this schema depend \
              on an UNLOGGED or temporary table, which a hot standby cannot read: every query \
-             over them would fail on every replica.\n  - {}\nMake those tables LOGGED \
-             (`ALTER TABLE … SET LOGGED`; for pg_tviews, set \
-             `pg_tviews.unlogged_by_default = off` and recreate the TVIEWs) — at the cost \
-             of WAL for every refresh — or remove `read_replica_urls`.",
+             over them would fail on every replica.\n  - {}\nMake those tables LOGGED, at the \
+             cost of WAL for every write to them, or remove `read_replica_urls`:\n  {}\nA \
+             pg_tviews TVIEW is LOGGED unless its `logged` option is false; `SET LOGGED` also \
+             sets the option. A temporary table cannot be read from a replica at all.",
             unreadable.len(),
-            unreadable.join("\n  - ")
+            unreadable.iter().map(Unreadable::described).collect::<Vec<_>>().join("\n  - "),
+            statements.join("\n  ")
         ),
     })
+}
+
+/// A source and an UNLOGGED or temporary relation it depends on.
+struct Unreadable {
+    /// The source, as the schema names it.
+    source:    String,
+    /// The relation, as the server's `search_path` would name it.
+    relation:  String,
+    /// The relation, schema-qualified and quoted.
+    qualified: String,
+    /// Temporary rather than UNLOGGED.
+    temporary: bool,
+}
+
+impl Unreadable {
+    fn described(&self) -> String {
+        format!("{} — reads {}", self.source, self.relation)
+    }
+}
+
+/// The statement that makes each UNLOGGED table of `unreadable` LOGGED, once per table,
+/// by name. A temporary table has none: no statement makes a replica read it.
+fn logged_statements(unreadable: &[Unreadable]) -> Vec<String> {
+    let mut statements: Vec<String> = unreadable
+        .iter()
+        .filter(|d| !d.temporary)
+        .map(|d| format!("ALTER TABLE {} SET LOGGED;", d.qualified))
+        .collect();
+    // Several sources can read one table.
+    statements.sort();
+    statements.dedup();
+    statements
 }
 
 /// The relation sources of `schema` a hot standby cannot read (#1390).
@@ -194,7 +228,20 @@ pub async fn standby_unreadable_sources<A: DatabaseAdapter + ?Sized>(
     adapter: &A,
     schema: &CompiledSchema,
 ) -> Result<Vec<String>> {
-    let mut unreadable: Vec<String> = Vec::new();
+    Ok(unreadable_dependencies(adapter, schema)
+        .await?
+        .iter()
+        .map(Unreadable::described)
+        .collect())
+}
+
+/// Every `(source, UNLOGGED or temporary relation)` pair of `schema`, sources in schema
+/// order, relations by name.
+async fn unreadable_dependencies<A: DatabaseAdapter + ?Sized>(
+    adapter: &A,
+    schema: &CompiledSchema,
+) -> Result<Vec<Unreadable>> {
+    let mut unreadable = Vec::new();
     for probe in sql_source_probes(schema) {
         if probe.kind != SourceKind::Relation {
             continue;
@@ -211,13 +258,24 @@ pub async fn standby_unreadable_sources<A: DatabaseAdapter + ?Sized>(
                JOIN pg_class base ON base.oid = d.refobjid AND base.oid <> rel.oid \
                WHERE rel.kind = 'v' \
              ) \
-             SELECT c.oid::regclass::text AS relation FROM rel \
-             JOIN pg_class c ON c.oid = rel.oid WHERE c.relpersistence IN ('u', 't') \
+             SELECT c.oid::regclass::text AS relation, \
+                    format('%I.%I', n.nspname, c.relname) AS qualified, \
+                    c.relpersistence = 't' AS temporary \
+             FROM rel JOIN pg_class c ON c.oid = rel.oid \
+             JOIN pg_namespace n ON n.oid = c.relnamespace \
+             WHERE c.relpersistence IN ('u', 't') \
              ORDER BY 1"
         );
         for row in adapter.execute_raw_query(&sql).await? {
-            if let Some(relation) = row.get("relation").and_then(serde_json::Value::as_str) {
-                unreadable.push(format!("{} — reads {relation}", probe.display_name()));
+            let text = |key: &str| row.get(key).and_then(serde_json::Value::as_str);
+            if let (Some(relation), Some(qualified)) = (text("relation"), text("qualified")) {
+                unreadable.push(Unreadable {
+                    source:    probe.display_name(),
+                    relation:  relation.to_string(),
+                    qualified: qualified.to_string(),
+                    temporary: row.get("temporary").and_then(serde_json::Value::as_bool)
+                        == Some(true),
+                });
             }
         }
     }

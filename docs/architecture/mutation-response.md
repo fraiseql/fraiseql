@@ -472,6 +472,10 @@ connection and merges the report into the function's `cascade`:
   refuses it against a database without `tviews.pg_tviews_flush_and_report(integer,
   boolean, boolean)`; at run time (an artifact compiled without `--database`) such a write
   fails naming pg_tviews, and commits nothing.
+* **Privileges.** pg_tviews resolves every TVIEW of the database when a write reaches one, so
+  the role FraiseQL connects as needs `USAGE` on each schema that holds a TVIEW, also those
+  its writes never reach. `USAGE` lets it resolve names, not read rows. Without it, every
+  write to a table a TVIEW reads fails with `permission denied for schema` (#1601).
 * **Observed** as the histogram `fraiseql_cascade_derived_entries` on `/metrics`.
 
 The tests run against `docker/pg-tviews` (PostgreSQL 18 with pg_tviews v0.1.0-beta.30 built

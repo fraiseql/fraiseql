@@ -154,7 +154,13 @@ async fn provision(url: &str) {
              GRANT SELECT, UPDATE ON {SCHEMA}.tb_post TO p1391_reader;
              GRANT SELECT ON ALL TABLES IN SCHEMA {SCHEMA} TO p1391_reader;
              GRANT INSERT ON core.tb_entity_change_log TO p1391_reader;
-             GRANT USAGE ON ALL SEQUENCES IN SCHEMA core TO p1391_reader;"
+             GRANT USAGE ON ALL SEQUENCES IN SCHEMA core TO p1391_reader;
+             -- pg_tviews resolves every TVIEW of the database on a write, so a writer needs
+             -- USAGE on each schema holding one, other suites' included (#1601).
+             DO $$ DECLARE s text; BEGIN
+               FOR s IN SELECT DISTINCT schema FROM tviews.registry LOOP
+                 EXECUTE format('GRANT USAGE ON SCHEMA %I TO p1391_reader', s);
+               END LOOP; END $$;"
         ))
         .await
         .unwrap();

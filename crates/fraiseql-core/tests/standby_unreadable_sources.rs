@@ -4,8 +4,8 @@
 //! Issue #1390 — with read replicas configured, a source that depends on an UNLOGGED
 //! table is refused at boot instead of failing every query on every replica.
 //!
-//! `pg_tviews` creates its `tv_*` tables UNLOGGED by default, and PostgreSQL will not read
-//! an UNLOGGED relation during recovery. Driven against the real primary and its
+//! A `pg_tviews` TVIEW declared with `"logged": false` is an UNLOGGED table, and PostgreSQL
+//! will not read an UNLOGGED relation during recovery. Driven against the real primary and its
 //! streaming standby (`STANDBY_DATABASE_URL`, as the read-replica suite is): the test
 //! first shows the standby refusing the read — the defect — then that the check names
 //! the view and the table behind it, follows a view to its table, and passes logged

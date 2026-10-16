@@ -166,11 +166,20 @@ refuses to start when any relation the compiled schema reads depends on one — 
 to the tables they select from — because every query over it would fail on every replica. A
 schema hot-reload is held to the same rule.
 
-pg_tviews creates its `tv_*` tables UNLOGGED by default (`pg_tviews.unlogged_by_default = true`).
-To serve TVIEW-backed types from replicas, make them LOGGED (`pg_tviews.unlogged_by_default =
-off`, then recreate the TVIEWs; or `ALTER TABLE … SET LOGGED`). That is a trade-off: every
-refresh then writes WAL, in exchange for read scale-out. Materialized views are not affected:
-they store their own rows.
+The refusal names each source with the table behind it, and prints the statement that makes
+each UNLOGGED table LOGGED:
+
+```text
+Make those tables LOGGED, at the cost of WAL for every write to them, or remove `read_replica_urls`:
+  ALTER TABLE app.tv_post SET LOGGED;
+```
+
+That is a trade-off: every write and every TVIEW refresh then writes WAL, in exchange for read
+scale-out. A pg_tviews TVIEW is LOGGED unless it was declared with `"logged": false`, and
+`ALTER TABLE … SET LOGGED` also sets that option. A migration that declares the TVIEW again
+with `"logged": false` makes it UNLOGGED again: drop the option from its declaration too. A
+temporary table cannot be read from a replica at all. Materialized views are not
+affected: they store their own rows.
 
 ## Limitations
 

@@ -1474,13 +1474,13 @@ pub(crate) fn refuse_session_variables<A: DatabaseAdapter + ?Sized>(
 
 /// One TVIEW's physical health, from `tviews.pg_tviews_profile()` (#1392).
 ///
-/// The columns `fraiseql doctor` and `/metrics` read. The profile's columns are a stable
-/// contract (`pg_tviews` `docs/reference/profile.md`).
+/// The columns `fraiseql doctor` and `/metrics` read (`pg_tviews` `docs/reference/profile.md`).
+/// The profile names a TVIEW by its `schema` and `name` columns, which `tview` joins.
 #[derive(Debug, Clone, PartialEq)]
 pub struct TviewProfile {
     /// The TVIEW entity (`book` for `tv_book`).
     pub entity:        String,
-    /// The schema-qualified `tv_*` table.
+    /// The schema-qualified `tv_*` table, each part quoted where it needs to be.
     pub tview:         String,
     /// HOT updates / updates since the statistics reset; `None` without updates.
     pub hot_ratio:     Option<f64>,

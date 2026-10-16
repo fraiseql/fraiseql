@@ -139,3 +139,31 @@ fn display_name_round_trips_qualification() {
     assert_eq!(qualified.display_name(), "app.f");
     assert_eq!(bare.display_name(), "v");
 }
+
+fn unreadable(source: &str, qualified: &str, temporary: bool) -> Unreadable {
+    Unreadable {
+        source: source.to_string(),
+        relation: qualified.to_string(),
+        qualified: qualified.to_string(),
+        temporary,
+    }
+}
+
+/// One `SET LOGGED` per UNLOGGED table, however many sources read it, and none for a
+/// temporary table, which no statement makes readable on a replica (#1598).
+#[test]
+fn the_replica_refusal_prints_one_statement_per_unlogged_table() {
+    let statements = logged_statements(&[
+        unreadable("app.v_post", "app.tv_post", false),
+        unreadable("app.v_tmp", "pg_temp_3.scratch", true),
+        unreadable("app.v_post_again", "app.tv_post", false),
+        unreadable("app.v_user", "app.tv_user", false),
+    ]);
+    assert_eq!(
+        statements,
+        [
+            "ALTER TABLE app.tv_post SET LOGGED;",
+            "ALTER TABLE app.tv_user SET LOGGED;"
+        ]
+    );
+}

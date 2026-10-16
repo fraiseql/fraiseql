@@ -3,9 +3,10 @@
 //!
 //! `tv_book` has the two defects the issue names: a GIN index on `data` no reader uses (it
 //! costs every refresh) and an `fk_author` with no leading index (every cascade from an
-//! author scans the table). `tv_author` is healthy: LOGGED, no `fk_*`, no index on `data`.
-//! A TVIEW is recognised from `pg_tviews`' catalog, through the view the schema reads, never by
-//! its name.
+//! author scans the table). It embeds its author's name, so that cascade exists: `pg_tviews`
+//! only asks for the index of a column a write propagates through. `tv_author` is healthy: LOGGED,
+//! no `fk_*`, no index on `data`. A TVIEW is recognised from `pg_tviews`' catalog, through the view
+//! the schema reads, never by its name.
 //!
 //! Needs `pg_tviews`: the `postgres-tviews-test` service, through `TVIEWS_DATABASE_URL`.
 //!
@@ -46,9 +47,9 @@ async fn provision(url: &str) {
              CREATE TABLE tv_author AS SELECT a.pk_author, a.id,
                jsonb_build_object('id', a.id, 'name', a.name) AS data FROM tb_author a;
              CREATE TABLE tv_book AS SELECT b.pk_book, b.id, b.fk_author,
-               jsonb_build_object('id', b.id, 'title', b.title) AS data FROM tb_book b;
-             SELECT tviews.pg_tviews_set_logged('author', true);
-             SELECT tviews.pg_tviews_set_logged('book', true);
+               jsonb_build_object('id', b.id, 'title', b.title,
+                 'author', jsonb_build_object('name', a.name)) AS data
+               FROM tb_book b JOIN tb_author a ON a.pk_author = b.fk_author;
              DO $$ DECLARE i text; BEGIN
                FOR i IN SELECT indexname FROM pg_indexes WHERE schemaname = '{SCHEMA}'
                  AND tablename = 'tv_book' AND indexdef LIKE '%(fk_author%' LOOP
@@ -167,4 +168,99 @@ async fn index_advice_on_a_tview_proposes_the_id_column_not_data() {
         on_tview.iter().all(|h| h.ends_with("(id);") && !h.contains("data")),
         "{on_tview:?}"
     );
+}
+
+/// With read replicas, a schema reading an UNLOGGED TVIEW is refused at boot, and the
+/// refusal prints the statements that lift it (#1598): run as printed, they make the table
+/// LOGGED, `pg_tviews` records it as its `logged` option, and the same schema boots. Two
+/// views read the one TVIEW: one statement for it.
+#[tokio::test]
+async fn the_replica_refusal_prints_the_statements_that_lift_it() {
+    use fraiseql_core::{
+        db::postgres::{
+            PoolPrewarmConfig, PostgresAdapter, PostgresTlsConfig, ReadReplicaPolicy, SearchPath,
+            VectorScanConfig,
+        },
+        schema::{QueryDefinition, refuse_standby_unreadable_sources},
+    };
+
+    const UNLOGGED: &str = "p1598";
+    let Some(url) = tviews_database_url() else {
+        return;
+    };
+    let (client, connection) = tokio_postgres::connect(&url, tokio_postgres::NoTls).await.unwrap();
+    tokio::spawn(connection);
+    client
+        .batch_execute(&format!(
+            "CREATE EXTENSION IF NOT EXISTS pg_tviews;
+             DROP VIEW IF EXISTS {UNLOGGED}.v_draft, {UNLOGGED}.v_draft_again;
+             DO $$ DECLARE t text; BEGIN
+               FOR t IN SELECT schema || '.' || name FROM tviews.registry
+                        WHERE schema = '{UNLOGGED}' LOOP
+                 PERFORM tviews.pg_tviews_drop(t);
+               END LOOP; END $$;
+             DROP SCHEMA IF EXISTS {UNLOGGED} CASCADE;
+             CREATE SCHEMA {UNLOGGED};
+             CREATE TABLE {UNLOGGED}.tb_draft (pk_draft bigint GENERATED ALWAYS AS IDENTITY
+               PRIMARY KEY, id uuid NOT NULL DEFAULT gen_random_uuid() UNIQUE);
+             SELECT tviews.pg_tviews_create('{UNLOGGED}.tv_draft', $T$
+               SELECT d.pk_draft, d.id, jsonb_build_object('id', d.id) AS data
+               FROM {UNLOGGED}.tb_draft d $T$, '{{\"logged\": false}}');
+             CREATE VIEW {UNLOGGED}.v_draft AS SELECT id, data FROM {UNLOGGED}.tv_draft;
+             CREATE VIEW {UNLOGGED}.v_draft_again AS SELECT id, data FROM {UNLOGGED}.tv_draft;"
+        ))
+        .await
+        .unwrap();
+    let mut schema = CompiledSchema::new();
+    for (name, view) in [("drafts", "v_draft"), ("draftsAgain", "v_draft_again")] {
+        let mut query = QueryDefinition::new(name, "Draft");
+        query.sql_source = Some(format!("{UNLOGGED}.{view}"));
+        schema.queries.push(query);
+    }
+    // Reads routed to a replica: the refusal is decided on the primary's catalog, so the
+    // replica may be the same database. The server resolves names in its own schema; the
+    // statements must not depend on that.
+    let adapter = PostgresAdapter::with_pool_config(
+        &url,
+        PoolPrewarmConfig {
+            min_size:            0,
+            max_size:            2,
+            timeout_secs:        None,
+            search_path:         Some(SearchPath::new([UNLOGGED]).unwrap()),
+            max_streaming_reads: None,
+            vector_scan:         VectorScanConfig::default(),
+            tls:                 PostgresTlsConfig::default(),
+            read_replicas:       ReadReplicaPolicy::default().with_urls(vec![url.clone()]),
+        },
+    )
+    .await
+    .unwrap();
+
+    let message = refuse_standby_unreadable_sources(&adapter, &schema)
+        .await
+        .expect_err("an UNLOGGED TVIEW behind a replica")
+        .to_string();
+    let statements: Vec<&str> = message
+        .lines()
+        .map(str::trim)
+        .filter(|l| l.starts_with("ALTER TABLE"))
+        .collect();
+    assert_eq!(statements.len(), 1, "one statement for the one table: {message}");
+    for statement in statements {
+        client.batch_execute(statement).await.unwrap();
+    }
+
+    refuse_standby_unreadable_sources(&adapter, &schema)
+        .await
+        .expect("the printed statements lift the refusal");
+    let logged: Option<bool> = client
+        .query_one(
+            "SELECT (options ->> 'logged')::boolean FROM tviews.registry \
+             WHERE schema = $1 AND name = 'tv_draft'",
+            &[&UNLOGGED],
+        )
+        .await
+        .unwrap()
+        .get(0);
+    assert_eq!(logged, Some(true), "pg_tviews records the TVIEW as LOGGED");
 }

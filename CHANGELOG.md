@@ -103,6 +103,18 @@ disagreed, and the promise was the part that was wrong.
   request fails. Embedders: `Writer` gains `execute_writes` (a batch in one transaction),
   whose default refuses with `Unsupported`; a `Writer` that wraps another forwards it, as
   `CachedDatabaseAdapter` does, or its bulk writes are refused.
+- **pg_tviews 0.1.0-beta.30 is the version FraiseQL is tested against (#1592, #1598).** It
+  is its read contract 2: options, not settings, and TVIEWs LOGGED by default. `fraiseql
+  doctor`'s TVIEW check and `/metrics`' `fraiseql_tview_*` series read `pg_tviews_profile()`'s
+  `schema` and `name` columns (beta.30 renamed them), so against an older pg_tviews they
+  report `could not read pg_tviews_profile()`, as they did against beta.30 before, when
+  `/metrics` dropped every `fraiseql_tview_*` series. With read replicas, the boot refusal of a source that
+  depends on an UNLOGGED table no longer tells you to set `pg_tviews.unlogged_by_default`,
+  which beta.30 removed and refuses. It prints the statement to run for each table instead
+  (`ALTER TABLE app.tv_post SET LOGGED;`), which also sets the TVIEW's `logged` option.
+  **Known:** on beta.30, a write fails unless its role has `USAGE` on every schema that
+  holds a TVIEW, including TVIEWs the write cannot reach. Grant it until pg_tviews changes
+  this (#1601).
 
 ### Added
 
