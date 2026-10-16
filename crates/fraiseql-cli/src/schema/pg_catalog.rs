@@ -442,9 +442,11 @@ impl PgCatalog {
             .collect())
     }
 
-    /// Whether the database has `tviews.pg_tviews_flush_and_report(integer, boolean,
-    /// boolean)`, the function a `cascade_source = "pg_tviews"` mutation calls before its
-    /// commit (#1391).
+    /// Whether `tviews.pg_tviews_flush_and_report(integer, boolean, boolean)`, the call a
+    /// `cascade_source = "pg_tviews"` mutation makes before its commit (#1391), resolves: a
+    /// function of that name whose first three parameters are those and whose others all
+    /// have defaults. `pg_tviews` added a defaulted fourth (`types`), so an exact signature
+    /// is not the question (#1600).
     ///
     /// # Errors
     ///
@@ -453,8 +455,13 @@ impl PgCatalog {
         let client = self.pool.get().await.context("failed to acquire DB connection")?;
         let row = client
             .query_one(
-                "SELECT to_regprocedure(\
-                 'tviews.pg_tviews_flush_and_report(integer,boolean,boolean)') IS NOT NULL",
+                "SELECT EXISTS (SELECT 1 FROM pg_proc p \
+                 JOIN pg_namespace n ON n.oid = p.pronamespace \
+                 WHERE n.nspname = 'tviews' AND p.proname = 'pg_tviews_flush_and_report' \
+                 AND p.pronargs >= 3 AND p.pronargs - p.pronargdefaults <= 3 \
+                 AND p.proargtypes[0] = 'integer'::regtype \
+                 AND p.proargtypes[1] = 'boolean'::regtype \
+                 AND p.proargtypes[2] = 'boolean'::regtype)",
                 &[],
             )
             .await

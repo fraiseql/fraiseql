@@ -132,6 +132,59 @@ async fn compile_against_a_database_with_pg_tviews_accepts_the_source() {
     compile_against(&url).await.unwrap();
 }
 
+/// The probe asks whether the call the runtime makes, `pg_tviews_flush_and_report(int,
+/// bool, bool)`, resolves, not whether one signature exists (#1600): `pg_tviews` added a
+/// defaulted `types text[]` argument, and an exact three-argument lookup refused every
+/// database that has it. Each signature is a stand-in in a database of its own, so no
+/// suite sharing `DATABASE_URL` sees a `tviews` schema.
+#[tokio::test]
+async fn the_flush_probe_accepts_any_signature_the_runtime_call_resolves_to() {
+    let Some(url) = fraiseql_test_support::try_database_url() else {
+        return;
+    };
+    let (admin, connection) = tokio_postgres::connect(&url, tokio_postgres::NoTls).await.unwrap();
+    tokio::spawn(connection);
+    admin.batch_execute("DROP DATABASE IF EXISTS p1600 WITH (FORCE)").await.unwrap();
+    admin.batch_execute("CREATE DATABASE p1600").await.unwrap();
+    let own = match url.rsplit_once('/') {
+        Some((server, _)) => format!("{server}/p1600"),
+        None => panic!("DATABASE_URL names no database: {url}"),
+    };
+    let (client, connection) = tokio_postgres::connect(&own, tokio_postgres::NoTls).await.unwrap();
+    tokio::spawn(connection);
+    client.batch_execute("CREATE SCHEMA tviews").await.unwrap();
+    for (signature, resolves) in [
+        (
+            "max_entities integer, include_data boolean, reset boolean, types text[] DEFAULT NULL",
+            true,
+        ),
+        ("max_entities integer, include_data boolean, reset boolean, types text[]", false),
+        ("max_entities text, include_data boolean, reset boolean", false),
+    ] {
+        client
+            .batch_execute(&format!(
+                "DO $$ DECLARE f regprocedure; BEGIN
+                   FOR f IN SELECT p.oid::regprocedure FROM pg_proc p
+                            WHERE p.proname = 'pg_tviews_flush_and_report' LOOP
+                     EXECUTE 'DROP FUNCTION ' || f;
+                   END LOOP; END $$;
+                 CREATE FUNCTION tviews.pg_tviews_flush_and_report({signature}) RETURNS jsonb
+                   LANGUAGE sql AS $$ SELECT '{{}}'::jsonb $$;"
+            ))
+            .await
+            .unwrap();
+        let compiled = compile_against(&own).await;
+        if resolves {
+            compiled.unwrap_or_else(|e| panic!("({signature}) resolves, and was refused: {e}"));
+        } else {
+            let err = compiled.expect_err(&format!("({signature}) does not resolve"));
+            assert!(err.contains("pg_tviews_flush_and_report"), "{err}");
+        }
+    }
+    drop(client);
+    admin.batch_execute("DROP DATABASE p1600 WITH (FORCE)").await.unwrap();
+}
+
 /// The suite's document compiles with no database.
 #[test]
 fn the_document_loads_without_a_database() {

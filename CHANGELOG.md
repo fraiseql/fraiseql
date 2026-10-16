@@ -259,6 +259,13 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **`compile --database` accepts a pg_tviews whose `pg_tviews_flush_and_report()` gained an
+  argument (#1600).** It looked the function up by its exact three-argument signature, and
+  pg_tviews 0.1.0-beta.30 added a fourth, defaulted one (`types`), so every
+  `cascade_source = "pg_tviews"` mutation was refused as drift although the call the server
+  makes resolves. It now asks whether that call resolves: the first three parameters are
+  `(integer, boolean, boolean)` and the others have defaults.
+
 - **Non-null completion no longer costs an eighth of a read's server time (#1568).** Completing a
   response against its published types (#1522) allocated a label, a path step and three map
   lookups per field per row, and rebuilt every list. It now completes in place and allocates only
