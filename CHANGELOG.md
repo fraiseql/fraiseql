@@ -188,6 +188,10 @@ disagreed, and the promise was the part that was wrong.
 
 ### Changed
 
+- **`fraiseql migrate` is verified against confiture 1.37.0** (was 1.29.0). Its call shapes are
+  unchanged. confiture needs Python 3.14 since 1.30.0; a project on 3.11–3.13 stays on
+  confiture 1.29.x, which `fraiseql migrate` still drives.
+
 - **A cached read of one TVIEW row by id survives writes to other rows (#1576).** Every
   write used to evict every cached read of the views it touched, so on a TVIEW written a few
   times a second, `user(id: $id)` was almost never served from the cache. A read whose

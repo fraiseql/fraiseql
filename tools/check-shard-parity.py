@@ -92,7 +92,7 @@ CI_ONLY = {
         "the #880 canary in its --no-run form; it builds, and the shard runs the "
         "same suite on its own line below, which the mirror does match."
     ),
-    # The four lines that put the pinned confiture on the postgres shard's PATH for
+    # The lines that put the pinned confiture on the postgres shard's PATH for
     # migrate_against_confiture. A developer's confiture is whatever `confiture` their
     # PATH resolves — the Makefile target says so — and the `cargo test` line that
     # runs the suite against it is matched on its own.
@@ -100,10 +100,20 @@ CI_ONLY = {
         "installs the venv module the shard's confiture install needs; a local "
         "mirror uses the developer's own confiture on PATH."
     ),
-    "python3 -m venv /tmp/confiture": (
-        "creates the shard's confiture venv; locally, confiture is already on PATH."
+    "python3 -m venv /tmp/uv": (
+        "creates the venv the shard's pinned uv is installed into; locally, confiture is "
+        "already on PATH."
     ),
-    "/tmp/confiture/bin/pip install --quiet -r /src/tools/confiture-requirements.txt": (
+    "/tmp/uv/bin/pip install --quiet uv==0.9.18": (
+        "installs the uv that fetches the Python confiture needs (3.14; the image has "
+        "3.11); locally, confiture is already on PATH."
+    ),
+    "/tmp/uv/bin/uv venv --quiet --python 3.14.2 /tmp/confiture": (
+        "creates the shard's confiture venv on that Python; locally, confiture is already "
+        "on PATH."
+    ),
+    "/tmp/uv/bin/uv pip install --quiet --python /tmp/confiture/bin/python -r "
+    "/src/tools/confiture-requirements.txt": (
         "installs the pinned confiture into that venv; locally, confiture is already "
         "on PATH."
     ),
