@@ -5,8 +5,8 @@
 //! carries that native join, the composed read correlates `"fk_p1587" = _l0."_j0"` (served by
 //! the managed `(fk_p1587, pk_c1587)` index), and each post still gets exactly its comments.
 //!
-//! Needs `pg_tviews` with `tviews.registry.references`, through `TVIEWS_DATABASE_URL`.
-//! Without it the suite skips.
+//! Needs `pg_tviews` with `tviews.registry.references`, through `TVIEWS_DATABASE_URL`: the
+//! suite skips without the URL, and fails on a `pg_tviews` without `references`.
 //!
 //! **Execution engine:** `PostgreSQL` + `pg_tviews` · **Infrastructure:** `TVIEWS_DATABASE_URL`
 //! · **Parallelism:** drops and recreates its own `p1587` schema → run `--test-threads=1`.
@@ -28,6 +28,11 @@ use tempfile::TempDir;
 use tower::ServiceExt;
 
 const SCHEMA: &str = "p1587";
+
+/// A `pg_tviews` older than the pinned image (`docker/pg-tviews`) would pass every test of
+/// the suite without running one, so it fails instead.
+const NO_REFERENCES: &str = "pg_tviews in TVIEWS_DATABASE_URL has no tviews.registry.references: \
+                             run the pinned image (docker/pg-tviews)";
 
 fn tviews_database_url() -> Option<String> {
     std::env::var("TVIEWS_DATABASE_URL").ok().filter(|u| !u.is_empty())
@@ -151,10 +156,7 @@ async fn a_composed_read_correlates_on_the_columns_pg_tviews_proves() {
         eprintln!("skipping: TVIEWS_DATABASE_URL not set");
         return;
     };
-    if !provision(&url).await {
-        eprintln!("skipping: pg_tviews in TVIEWS_DATABASE_URL has no tviews.registry.references");
-        return;
-    }
+    assert!(provision(&url).await, "{NO_REFERENCES}");
     let (schema, _dir) = compile(&url).await;
 
     let comments = schema
@@ -218,10 +220,7 @@ async fn a_server_refuses_a_proof_its_database_does_not_hold() {
         eprintln!("skipping: TVIEWS_DATABASE_URL not set");
         return;
     };
-    if !provision(&url).await {
-        eprintln!("skipping: pg_tviews in TVIEWS_DATABASE_URL has no tviews.registry.references");
-        return;
-    }
+    assert!(provision(&url).await, "{NO_REFERENCES}");
     let (mut schema, _dir) = compile(&url).await;
     let adapter = PostgresAdapter::new(&url).await.unwrap();
     fraiseql_core::schema::refuse_unproven_native_joins(&adapter, &schema)

@@ -15,7 +15,8 @@
 //! writes made behind its back: the suite runs in a database of its own ([`DATABASE`]),
 //! created on the `TVIEWS_DATABASE_URL` cluster, so no other suite sharing that database
 //! sees it. Needs a `pg_tviews` whose registry names types (`tviews.registry.typename`) and a role
-//! that can create a database and set the superuser setting. Without them the suite skips.
+//! that can create a database and set the superuser setting. Without `TVIEWS_DATABASE_URL` the
+//! suite skips; on a `pg_tviews` without `typename` it fails.
 //!
 //! **Execution engine:** `PostgreSQL` + `pg_tviews` · **Infrastructure:** `TVIEWS_DATABASE_URL`
 //! · **Parallelism:** drops and recreates its own `p1589` schema in its own database → run
@@ -71,11 +72,13 @@ async fn own_database(url: &str) -> String {
     own.to_string()
 }
 
-/// Whether the database's `pg_tviews` publishes collections (`tviews.registry.typename`).
-async fn publishes_collections(url: &str) -> bool {
+/// The database's `pg_tviews` names collections (`tviews.registry.typename`). One older than
+/// the pinned image (`docker/pg-tviews`) would pass every test of the suite without running
+/// one, so the suite fails on it instead.
+async fn require_typename(url: &str) {
     let client = client(url).await;
     client.batch_execute("CREATE EXTENSION IF NOT EXISTS pg_tviews;").await.unwrap();
-    client
+    let has: bool = client
         .query_one(
             "SELECT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = to_regclass('tviews.registry') \
              AND attname = 'typename' AND NOT attisdropped)",
@@ -83,7 +86,12 @@ async fn publishes_collections(url: &str) -> bool {
         )
         .await
         .unwrap()
-        .get(0)
+        .get(0);
+    assert!(
+        has,
+        "pg_tviews in TVIEWS_DATABASE_URL has no tviews.registry.typename: run the pinned image \
+         (docker/pg-tviews)"
+    );
 }
 
 async fn provision(url: &str) {
@@ -197,10 +205,7 @@ async fn serve() -> Option<Running> {
 /// connects directly.
 async fn serve_with_feed_through(proxy: Option<&CountingProxy>) -> Option<Running> {
     let shared = tviews_database_url()?;
-    if !publishes_collections(&shared).await {
-        eprintln!("skipping: pg_tviews in TVIEWS_DATABASE_URL has no tviews.registry.typename");
-        return None;
-    }
+    require_typename(&shared).await;
     let url = own_database(&shared).await;
     provision(&url).await;
     let (schema, schema_dir) = schema(&url).await;
@@ -352,10 +357,7 @@ async fn a_role_that_does_not_publish_keeps_the_feed_off() {
         eprintln!("skipping: TVIEWS_DATABASE_URL not set");
         return;
     };
-    if !publishes_collections(&shared).await {
-        eprintln!("skipping: pg_tviews in TVIEWS_DATABASE_URL has no tviews.registry.typename");
-        return;
-    }
+    require_typename(&shared).await;
     let url = own_database(&shared).await;
     provision(&url).await;
     let (schema, _dir) = schema(&url).await;
@@ -392,10 +394,7 @@ async fn a_feed_that_stops_delivering_is_noticed() {
         eprintln!("skipping: TVIEWS_DATABASE_URL not set");
         return;
     };
-    if !publishes_collections(&shared).await {
-        eprintln!("skipping: pg_tviews in TVIEWS_DATABASE_URL has no tviews.registry.typename");
-        return;
-    }
+    require_typename(&shared).await;
     let proxy = CountingProxy::start(&own_database(&shared).await);
     let Some(server) = serve_with_feed_through(Some(&proxy)).await else {
         return;

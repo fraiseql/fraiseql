@@ -2040,7 +2040,8 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		// from pg_tviews' registry and pg_depend), and every type a derived cascade reports.
 		"cargo test -p fraiseql-server --test cache_embedding_eviction_e2e_pg -- --test-threads=1",
 		// #1589: pg_tviews' change feed evicts what a write this server did not run made
-		// stale, and composed lists by collection. Skips on a pg_tviews without tviews.registry.typename.
+		// stale, and composed lists by collection. Fails, rather than skips, on a pg_tviews
+		// without tviews.registry.typename.
 		"cargo test -p fraiseql-server --features rest --test cache_tviews_feed_e2e_pg -- --test-threads=1",
 		// #1587: compile --database proves a relationship's native join from pg_tviews'
 		// registry, and the REST composed read correlates on it.

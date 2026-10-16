@@ -6,7 +6,7 @@
 //! `tviews.pg_tviews_flush_and_report()` says so. The response lists both.
 //!
 //! Needs `pg_tviews`: the `postgres-tviews-test` service (`docker/pg-tviews`, pinned to
-//! `v0.1.0-beta.26`), through `TVIEWS_DATABASE_URL`. Without it the suite skips.
+//! `v0.1.0-beta.30`), through `TVIEWS_DATABASE_URL`. Without it the suite skips.
 //!
 //! **Execution engine:** `PostgreSQL` + `pg_tviews` · **Infrastructure:** `TVIEWS_DATABASE_URL`
 //! · **Parallelism:** drops and recreates its own `p1391` schema; installs the helper library
