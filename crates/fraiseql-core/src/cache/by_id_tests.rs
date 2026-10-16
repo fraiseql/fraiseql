@@ -73,7 +73,7 @@ fn a_read_that_may_depend_on_more_than_its_row_is_not_tagged() {
     // No predicate: every row.
     assert_eq!(tag("p.tv_user", None, &["p.tv_user"]), None);
     // A second predicate: an injected parameter, an engine RLS filter.
-    let and = WhereClause::And(vec![id.clone(), id.clone()]);
+    let and = WhereClause::And(vec![id.clone(), id]);
     assert_eq!(tag("p.tv_user", Some(&and), &["p.tv_user"]), None);
     // Another column, another operator.
     let other = |column: &str, operator: WhereOperator| WhereClause::NativeField {
