@@ -102,21 +102,20 @@ async fn provision(url: &str) {
              INSERT INTO tb_owner (id, name) VALUES ('{OWNER}', 'v0');
              INSERT INTO tb_item (id, fk_owner, title)
                SELECT gen_random_uuid(), pk_owner, 'item' FROM tb_owner;
+             -- pg_tviews entity names are database-wide: unique ones, each declared with
+             -- the GraphQL type it reports (the `typename` option).
              SELECT tviews.pg_tviews_create('{SCHEMA}.tv_u1575', $T$
                SELECT u.pk_u1575, u.id, jsonb_build_object('id', u.id, 'name', u.name,
-                 'bio', u.bio) AS data FROM {SCHEMA}.tb_u1575 u $T$);
+                 'bio', u.bio) AS data FROM {SCHEMA}.tb_u1575 u $T$, '{{\"typename\": \"User\"}}');
              SELECT tviews.pg_tviews_create('{SCHEMA}.tv_p1575', $T$
                SELECT p.pk_p1575, p.id, p.fk_user, jsonb_build_object('id', p.id,
                  'title', p.title, 'author', jsonb_build_object('id', u.id, 'name', u.name,
                  'bio', u.bio)) AS data
-               FROM {SCHEMA}.tb_p1575 p JOIN {SCHEMA}.tb_u1575 u ON u.pk_u1575 = p.fk_user $T$);
+               FROM {SCHEMA}.tb_p1575 p JOIN {SCHEMA}.tb_u1575 u ON u.pk_u1575 = p.fk_user $T$,
+               '{{\"typename\": \"Post\"}}');
              SELECT tviews.pg_tviews_create('{SCHEMA}.tv_t1575', $T$
                SELECT t.pk_t1575, t.id, jsonb_build_object('id', t.id, 'label', t.label) AS data
-               FROM {SCHEMA}.tb_t1575 t $T$);
-             -- pg_tviews entity names are database-wide: unique ones, typed back.
-             SELECT tviews.pg_tviews_set_typename('u1575', 'User');
-             SELECT tviews.pg_tviews_set_typename('p1575', 'Post');
-             SELECT tviews.pg_tviews_set_typename('t1575', 'Tag');
+               FROM {SCHEMA}.tb_t1575 t $T$, '{{\"typename\": \"Tag\"}}');
              -- Reads the tags only through their TVIEW, grouped: not a `Tag` read.
              CREATE VIEW v_tag_summary AS SELECT md5(t.data->>'label')::uuid AS id,
                jsonb_build_object('id', md5(t.data->>'label')::uuid, 'label', t.data->>'label',
