@@ -39,7 +39,7 @@ const SLOTS: usize = 1024;
 /// Number of slots of rows read by id (#1576), apart: a write reports every row it rewrote,
 /// a user's posts and comments with them, so under steady writes thousands of rows are
 /// stamped a second, and a read of another row sharing a slot with one would be refused.
-/// 64 Ki slots (512 KiB) keep that to about one fill in sixty at a thousand rows in flight.
+/// 65 536 slots (512 `KiB`) keep that to about one fill in sixty at a thousand rows in flight.
 const ROW_SLOTS: usize = 65_536;
 
 /// Hash domains, so a view and an entity type of the same name use different slots.

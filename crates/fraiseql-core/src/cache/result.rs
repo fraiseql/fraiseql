@@ -343,26 +343,31 @@ const fn entry_overhead() -> usize {
     std::mem::size_of::<CachedResult>() + std::mem::size_of::<u64>() * 2
 }
 
+/// The reverse indexes an entry is registered in, as the eviction listener deregisters it.
+struct ReverseIndexes {
+    views:           Arc<ViewIndex>,
+    entities:        Arc<RowIndex>,
+    collected_views: Arc<ViewIndex>,
+    collections:     Arc<CollectionIndex>,
+    by_id_views:     Arc<ViewIndex>,
+    by_id:           Arc<RowIndex>,
+}
+
 /// Build the moka store, wiring the eviction listener to the reverse indexes
 /// and memory counter.
 fn build_store(
     config: &CacheConfig,
     memory_bytes: Arc<AtomicUsize>,
-    view_index: Arc<DashMap<ViewName, DashSet<IndexRef>>>,
-    entity_index: Arc<DashMap<String, DashMap<String, DashSet<IndexRef>>>>,
-    collected_view_index: Arc<DashMap<ViewName, DashSet<IndexRef>>>,
-    collection_index: Arc<CollectionIndex>,
-    by_id_view_index: Arc<ViewIndex>,
-    by_id_index: Arc<RowIndex>,
+    indexes: ReverseIndexes,
 ) -> MokaCache<u64, Arc<CachedResult>> {
     let max_cap = config.max_entries as u64;
     let mb = memory_bytes;
-    let vi = view_index;
-    let ei = entity_index;
-    let cvi = collected_view_index;
-    let ci = collection_index;
-    let bvi = by_id_view_index;
-    let bi = by_id_index;
+    let vi = indexes.views;
+    let ei = indexes.entities;
+    let cvi = indexes.collected_views;
+    let ci = indexes.collections;
+    let bvi = indexes.by_id_views;
+    let bi = indexes.by_id;
 
     MokaCache::builder()
         .max_capacity(max_cap)
@@ -450,12 +455,14 @@ impl QueryResultCache {
         let store = build_store(
             &config,
             Arc::clone(&memory_bytes),
-            Arc::clone(&view_index),
-            Arc::clone(&entity_index),
-            Arc::clone(&collected_view_index),
-            Arc::clone(&collection_index),
-            Arc::clone(&by_id_view_index),
-            Arc::clone(&by_id_index),
+            ReverseIndexes {
+                views:           Arc::clone(&view_index),
+                entities:        Arc::clone(&entity_index),
+                collected_views: Arc::clone(&collected_view_index),
+                collections:     Arc::clone(&collection_index),
+                by_id_views:     Arc::clone(&by_id_view_index),
+                by_id:           Arc::clone(&by_id_index),
+            },
         );
 
         Self {
