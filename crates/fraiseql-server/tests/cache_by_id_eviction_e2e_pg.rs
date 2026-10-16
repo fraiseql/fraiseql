@@ -31,6 +31,12 @@ use serde_json::{Value, json};
 const SCHEMA: &str = "p1576";
 const USER_A: &str = "00000000-0000-0000-0000-00000000157a";
 const USER_B: &str = "00000000-0000-0000-0000-00000000157b";
+/// The user whose posts fill a report before any tag (`labelTagsLate`).
+const USER_C: &str = "00000000-0000-0000-0000-00000000157e";
+/// The default `max_updated_entities`: a write of this many posts, then of tags, fills the
+/// report before `Tag`, which `pg_tviews` then names only as truncated, with none of its rows
+/// listed (it reports in entity order, and `p1576` sorts before `t1576`).
+const POSTS_OF_C: usize = 500;
 /// A user with no row until a test writes one.
 const USER_NEW: &str = "00000000-0000-0000-0000-00000000157c";
 const POST_A: &str = "00000000-0000-0000-0000-0000000015a0";
@@ -92,9 +98,13 @@ async fn provision(url: &str, rls: bool) {
                title text NOT NULL);
              CREATE TABLE tb_t1576 (pk_t1576 bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
                id uuid NOT NULL UNIQUE, label text NOT NULL);
-             INSERT INTO tb_u1576 (id, bio) VALUES ('{USER_A}', 'a0'), ('{USER_B}', 'b0');
+             INSERT INTO tb_u1576 (id, bio)
+               VALUES ('{USER_A}', 'a0'), ('{USER_B}', 'b0'), ('{USER_C}', 'c0');
              INSERT INTO tb_p1576 (id, fk_user, title)
                SELECT '{POST_A}', pk_u1576, 'first' FROM tb_u1576 WHERE id = '{USER_A}';
+             INSERT INTO tb_p1576 (id, fk_user, title)
+               SELECT gen_random_uuid(), pk_u1576, 'c' FROM tb_u1576,
+                 generate_series(1, {POSTS_OF_C}) WHERE id = '{USER_C}';
              INSERT INTO tb_t1576 (id, label) VALUES ('{TAG}', 't0');
              INSERT INTO tb_t1576 (id, label)
                SELECT gen_random_uuid(), 't0' FROM generate_series(2, {TAGS});
@@ -124,6 +134,14 @@ async fn provision(url: &str, rls: bool) {
                UPDATE {SCHEMA}.tb_t1576 SET label = p_label;
                RETURN QUERY SELECT * FROM fraiseql.mutation_ok(
                  (SELECT data FROM {SCHEMA}.tv_u1576 WHERE id = p_id), p_id, 'User');
+             END $$;
+             -- Rewrites C's posts, then every tag: the report is full before `Tag`.
+             CREATE FUNCTION fn_label_tags_late(p_id uuid, p_label text)
+               RETURNS SETOF mutation_response LANGUAGE plpgsql AS $$
+             BEGIN
+               UPDATE {SCHEMA}.tb_p1576 SET title = title || '.'
+                 WHERE fk_user = (SELECT pk_u1576 FROM {SCHEMA}.tb_u1576 WHERE id = '{USER_C}');
+               RETURN QUERY SELECT * FROM {SCHEMA}.fn_label_tags(p_id, p_label);
              END $$;
              -- Writes one tag: a type the mutation does not name, listed by row.
              CREATE FUNCTION fn_label_tag(p_id uuid, p_tag uuid, p_label text)
@@ -193,6 +211,7 @@ fn schema() -> CompiledSchema {
             mutation("updateUser", "fn_update_user", &[("bio", "String")]),
             derived,
             mutation("labelTags", "fn_label_tags", &[("label", "String")]),
+            mutation("labelTagsLate", "fn_label_tags_late", &[("label", "String")]),
             mutation("labelTag", "fn_label_tag", &[("tag", "ID"), ("label", "String")]),
             mutation("deleteTag", "fn_delete_tag", &[("tag", "ID")]),
         ]
@@ -386,8 +405,8 @@ async fn a_by_id_read_is_evicted_when_a_cascade_rewrites_its_row() {
     assert_eq!(after, json!("a1"));
 }
 
-/// More tags changed than the report holds: `Tag` is named truncated, and every by-id read
-/// of a tag goes.
+/// The report is full of posts before any tag: `Tag` is named truncated, none of its rows is
+/// listed, and every by-id read of a tag goes.
 #[tokio::test]
 async fn a_by_id_read_of_a_type_the_report_truncated_is_evicted() {
     let Some(server) = serve(false).await else {
@@ -398,7 +417,7 @@ async fn a_by_id_read_of_a_type_the_report_truncated_is_evicted() {
         (&format!("{{ tag(id: \"{TAG}\") {{ label }} }}"), "/tag/label"),
         &format!("UPDATE tb_t1576 SET label = 'behind' WHERE id = '{TAG}'"),
         &json!("t0"),
-        &format!("mutation {{ labelTags(id: \"{USER_A}\", label: \"t1\") {{ id }} }}"),
+        &format!("mutation {{ labelTagsLate(id: \"{USER_A}\", label: \"t1\") {{ id }} }}"),
     )
     .await;
     assert_eq!(after, json!("t1"));
@@ -458,12 +477,12 @@ async fn a_list_is_swept_by_a_write_to_any_row() {
     let Some(server) = serve(false).await else {
         return;
     };
-    assert_eq!(bios(&server).await, ["a0", "b0"]);
+    assert_eq!(bios(&server).await, ["a0", "b0", "c0"]);
     behind_the_back(&server, &format!("UPDATE tb_u1576 SET bio = 'behind' WHERE id = '{USER_A}'"))
         .await;
-    assert_eq!(bios(&server).await, ["a0", "b0"], "the read is served from the cache");
+    assert_eq!(bios(&server).await, ["a0", "b0", "c0"], "the read is served from the cache");
     graphql(&server, &update_user(USER_B, "b1")).await;
-    assert_eq!(bios(&server).await, ["b1", "behind"]);
+    assert_eq!(bios(&server).await, ["b1", "behind", "c0"]);
 }
 
 /// Row security may make a read depend on more than its row: such a TVIEW keeps the sweep.
