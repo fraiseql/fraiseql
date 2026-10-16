@@ -24,6 +24,17 @@ pub struct RelationInfo {
     pub kind:   RelationKind,
 }
 
+/// A `pg_tviews` TVIEW as it is declared (#1571): what `pg_tviews_create_or_replace()` takes
+/// besides the query.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TviewDeclaration {
+    /// The TVIEW's table, schema-qualified and quoted where needed.
+    pub tview:   String,
+    /// Its options, defaults included (`tviews.registry.options`): the whole declaration, so
+    /// a replace passing fewer resets the others to their defaults.
+    pub options: serde_json::Value,
+}
+
 /// Database introspection trait for querying table metadata.
 #[allow(async_fn_in_trait)] // Reason: trait is used with concrete types only, not dyn Trait
 pub trait DatabaseIntrospector: Send + Sync {
@@ -130,6 +141,17 @@ pub trait DatabaseIntrospector: Send + Sync {
     ///
     /// Returns an error if the catalog query fails.
     async fn get_view_definition(&self, _relation: &str) -> Result<Option<String>> {
+        Ok(None)
+    }
+
+    /// The `pg_tviews` declaration of `relation` when it is a TVIEW's table (#1571).
+    ///
+    /// `None` ⇒ not a TVIEW, no `pg_tviews`, or a connector that cannot read it.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the catalog query fails.
+    async fn tview_declaration(&self, _relation: &str) -> Result<Option<TviewDeclaration>> {
         Ok(None)
     }
 }

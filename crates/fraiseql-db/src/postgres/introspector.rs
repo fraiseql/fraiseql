@@ -426,6 +426,38 @@ impl DatabaseIntrospector for PostgresIntrospector {
 
         Ok(row.get(0))
     }
+
+    async fn tview_declaration(
+        &self,
+        relation: &str,
+    ) -> Result<Option<crate::introspector::TviewDeclaration>> {
+        let client = self.pool.get().await.map_err(|e| FraiseQLError::ConnectionPool {
+            message: format!("Failed to acquire connection: {e}"),
+        })?;
+        // `to_regclass` on both sides: the schema may name the TVIEW bare or qualified, and
+        // the registry names it by schema and table. No registry, or one without
+        // `options` (a pg_tviews older than its read contract 2), declares nothing.
+        let row = client
+            .query_opt(
+                "SELECT format('%I.%I', g.schema, g.name) AS tview, g.options \
+                 FROM tviews.registry g \
+                 WHERE to_regclass(format('%I.%I', g.schema, g.name)) = to_regclass($1)",
+                &[&relation],
+            )
+            .await;
+        match row {
+            Ok(row) => Ok(row.map(|row| crate::introspector::TviewDeclaration {
+                tview:   row.get("tview"),
+                options: row.get("options"),
+            })),
+            // 42P01: no `tviews.registry`; 42703: no `options` column.
+            Err(e) if e.code().is_some_and(|c| matches!(c.code(), "42P01" | "42703")) => Ok(None),
+            Err(e) => Err(crate::postgres::database_error(
+                format!("Failed to read the pg_tviews declaration: {}", pg_detail(&e)),
+                &e,
+            )),
+        }
+    }
 }
 impl PostgresIntrospector {
     /// Every index on `relation`, keys in declared order (#1307).

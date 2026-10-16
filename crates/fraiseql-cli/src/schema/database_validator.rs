@@ -250,6 +250,39 @@ pub enum DatabaseWarning {
         /// Whether the relation already has that column (only the mapping is missing).
         column_exists: bool,
     },
+    /// L2: a query filters a TVIEW's document on keys no index of the TVIEW serves (#1571):
+    /// its inject parameters and arguments that read `data->>'key'`, on every call. `pg_tviews`
+    /// keeps an index declared with the TVIEW (its `indexes` option) over its rebuilds.
+    TviewIndexMissing {
+        /// Name of the query.
+        query_name: String,
+        /// The TVIEW's table, schema-qualified.
+        tview:      String,
+        /// The document keys it filters on, in the index's order.
+        keys:       Vec<String>,
+        /// The TVIEW's options with the index added: the whole declaration a replace must
+        /// pass, since one without `indexes` drops them.
+        options:    serde_json::Value,
+    },
+}
+
+impl DatabaseWarning {
+    /// For [`TviewIndexMissing`](Self::TviewIndexMissing): the statement that declares the
+    /// index with the TVIEW, keeping its definition and its other options. `None` for any
+    /// other warning.
+    #[must_use]
+    pub fn statement(&self) -> Option<String> {
+        let Self::TviewIndexMissing { tview, options, .. } = self else {
+            return None;
+        };
+        let literal = |text: &str| text.replace('\'', "''");
+        Some(format!(
+            "SELECT tviews.pg_tviews_create_or_replace(format('%I.%I', schema, name), query, \
+             '{}'::jsonb) FROM tviews.registry WHERE format('%I.%I', schema, name) = '{}';",
+            literal(&options.to_string()),
+            literal(tview)
+        ))
+    }
 }
 
 /// A query filter the runtime lowers onto the relation: what the author declared.
@@ -329,7 +362,8 @@ impl DatabaseWarning {
             Self::MissingTypeSource { .. }
             | Self::NativeColumnFallback { .. }
             | Self::SelfOrderingView { .. }
-            | Self::TemporalKeyInDocument { .. } => Severity::Warn,
+            | Self::TemporalKeyInDocument { .. }
+            | Self::TviewIndexMissing { .. } => Severity::Warn,
         }
     }
 }
@@ -546,6 +580,22 @@ impl fmt::Display for DatabaseWarning {
                      every sort or filter on it casts each row's value and no index can serve it. \
                      {step} an argument named `{field}` so this compile maps it to the column \
                      (docs/performance.md, \"Use a Native Column\")."
+                )
+            },
+            Self::TviewIndexMissing {
+                query_name,
+                tview,
+                keys,
+                ..
+            } => {
+                write!(
+                    f,
+                    "query `{query_name}`: filters `{tview}`'s document on `{}` on every call, \
+                     and no index of the TVIEW serves it. Declare one with the TVIEW, keeping its \
+                     other options (a replace's options are its whole declaration: one without \
+                     `indexes` drops them): {}",
+                    keys.join("`, `"),
+                    self.statement().unwrap_or_default()
                 )
             },
         }
@@ -876,6 +926,12 @@ pub async fn validate_schema_against_database(
                 let key = fraiseql_core::utils::to_snake_case(&arg);
                 (QueryFilter::Argument(arg), key)
             }));
+            // L2 (#1571): on a TVIEW, an index declared with it serves those keys.
+            if !unresolved.is_empty() {
+                if let Some(declaration) = introspector.tview_declaration(source).await? {
+                    warnings.extend(tview_index_advice(query, &declaration, &unresolved));
+                }
+            }
             check_filters_resolvable(
                 query,
                 source,
@@ -977,11 +1033,49 @@ pub async fn validate_schema_against_database(
         }
     }
 
+    unify_tview_index_advice(&mut warnings);
+
     Ok(DatabaseValidationReport {
         warnings,
         native_columns,
         pagination_orders,
     })
+}
+
+/// Give every [`TviewIndexMissing`](DatabaseWarning::TviewIndexMissing) of one TVIEW the
+/// options with every index advised for it (#1571): a replace's options are its whole
+/// declaration, so applying one query's statement after another's would drop the first's
+/// index. Each statement is then the same declaration, whichever is applied, in any order.
+fn unify_tview_index_advice(warnings: &mut [DatabaseWarning]) {
+    let mut by_tview: HashMap<String, serde_json::Value> = HashMap::new();
+    for warning in warnings.iter() {
+        let DatabaseWarning::TviewIndexMissing { tview, options, .. } = warning else {
+            continue;
+        };
+        let advised = options.get("indexes").and_then(serde_json::Value::as_array);
+        match by_tview.get_mut(tview) {
+            None => {
+                by_tview.insert(tview.clone(), options.clone());
+            },
+            Some(merged) => {
+                let Some(indexes) = merged.get_mut("indexes").and_then(|i| i.as_array_mut()) else {
+                    continue;
+                };
+                for index in advised.into_iter().flatten() {
+                    if !indexes.contains(index) {
+                        indexes.push(index.clone());
+                    }
+                }
+            },
+        }
+    }
+    for warning in warnings.iter_mut() {
+        if let DatabaseWarning::TviewIndexMissing { tview, options, .. } = warning {
+            if let Some(merged) = by_tview.get(tview) {
+                options.clone_from(merged);
+            }
+        }
+    }
 }
 
 /// The `DateTime`, `Date` and `Time` fields `query` sorts or filters while reading them out of
@@ -1021,6 +1115,82 @@ fn temporal_keys_in_document(
             }
         })
         .collect()
+}
+
+/// The index of `declaration`'s TVIEW that `filters` (the document keys `query` reads with
+/// `data->>'key'` on every call) need, unless one it declares leads with them (#1571).
+///
+/// Each key as FraiseQL compares it, which is how `pg_tviews` writes the index: an argument's
+/// JSON number is compared as `numeric`, a boolean as `boolean`, anything else (an inject
+/// parameter included) as text.
+fn tview_index_advice(
+    query: &fraiseql_core::schema::QueryDefinition,
+    declaration: &fraiseql_db::TviewDeclaration,
+    filters: &[(QueryFilter, String)],
+) -> Option<DatabaseWarning> {
+    if filters.is_empty() {
+        return None;
+    }
+    let keys: Vec<serde_json::Value> = filters
+        .iter()
+        .map(|(filter, key)| {
+            let arg_type = match filter {
+                QueryFilter::Argument(name) => {
+                    query.arguments.iter().find(|a| &a.name == name).map(|a| &a.arg_type)
+                },
+                QueryFilter::Inject(_) => None,
+            };
+            match arg_type {
+                Some(FieldType::Int | FieldType::Float) => {
+                    serde_json::json!({ "path": key, "type": "numeric" })
+                },
+                Some(FieldType::Boolean) => serde_json::json!({ "path": key, "type": "boolean" }),
+                _ => serde_json::json!(key),
+            }
+        })
+        .collect();
+    let declared: Vec<serde_json::Value> = declaration
+        .options
+        .get("indexes")
+        .and_then(serde_json::Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    if declared.iter().any(|index| index_leads_with(index, &keys)) {
+        return None;
+    }
+    let mut options = declaration.options.clone();
+    let mut indexes = declared;
+    indexes.push(serde_json::Value::Array(keys));
+    options
+        .as_object_mut()?
+        .insert("indexes".to_string(), serde_json::Value::Array(indexes));
+    Some(DatabaseWarning::TviewIndexMissing {
+        query_name: query.name.clone(),
+        tview: declaration.tview.clone(),
+        keys: filters.iter().map(|(_, key)| key.clone()).collect(),
+        options,
+    })
+}
+
+/// Whether the `pg_tviews` index `index` (an array of keys) opens with `keys`: a key is a
+/// path, or `{"path", "type"}` with `text` the default type; its direction does not matter
+/// to an equality.
+fn index_leads_with(index: &serde_json::Value, keys: &[serde_json::Value]) -> bool {
+    fn key(value: &serde_json::Value) -> Option<(&str, &str)> {
+        match value {
+            serde_json::Value::String(path) => Some((path, "text")),
+            serde_json::Value::Object(key) => Some((
+                key.get("path")?.as_str()?,
+                key.get("type").and_then(serde_json::Value::as_str).unwrap_or("text"),
+            )),
+            _ => None,
+        }
+    }
+    let Some(index) = index.as_array() else {
+        return false;
+    };
+    index.len() >= keys.len()
+        && index.iter().zip(keys).all(|(a, b)| key(a).is_some_and(|a| Some(a) == key(b)))
 }
 
 /// The Trinity primary-key column a type's relation is expected to expose.
@@ -1259,6 +1429,15 @@ impl DatabaseIntrospector for AnyIntrospector {
     async fn get_view_definition(&self, relation: &str) -> fraiseql_core::Result<Option<String>> {
         match self {
             Self::Postgres(i) => i.get_view_definition(relation).await,
+        }
+    }
+
+    async fn tview_declaration(
+        &self,
+        relation: &str,
+    ) -> fraiseql_core::Result<Option<fraiseql_db::TviewDeclaration>> {
+        match self {
+            Self::Postgres(i) => i.tview_declaration(relation).await,
         }
     }
 }

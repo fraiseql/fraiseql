@@ -154,6 +154,33 @@ FraiseQL does not sort these keys as text instead. pg_tviews renders them in UTC
 (a documented contract since beta.26), but a value it did not render (text copied through, a
 row from before an upgrade) or `-infinity` would then sort silently out of order.
 
+### Document keys a TVIEW query filters on: the `indexes` option (#1571)
+
+A query argument or inject parameter that has no native column is compared on the document
+on every call: `data->>'email' = $1` for text, `(data->>'age')::numeric` for a JSON number
+(an `Int` or `Float` argument), `(data->>'active')::boolean` for a boolean. On a TVIEW, pg_tviews
+creates and keeps btree indexes over exactly these expressions when they are declared with
+the TVIEW, in its `indexes` option. It keeps them through rebuilds and dumps.
+
+`compile --database` names every such key of a `tv_*` query that no declared index leads with,
+and prints the statement that declares one, one index per query with its keys in the
+query's order:
+
+```sql
+SELECT tviews.pg_tviews_create_or_replace(format('%I.%I', schema, name), query,
+  '{"typename": "Member", "fillfactor": 70, "indexes": [["email"]]}'::jsonb)
+FROM tviews.registry WHERE format('%I.%I', schema, name) = 'app.tv_member';
+```
+
+The options it prints are the TVIEW's current ones (`tviews.registry.options`) with the index
+added. A replace's options are its whole declaration: an option it leaves out goes back to
+its default. A migration that replaces the TVIEW without its `indexes` **drops them**, so
+keep the option in the TVIEW's own definition (the template or migration that creates it),
+not only in a one-off statement. Each index costs every refresh of the TVIEW's rows an index
+update, so the advice names only keys a query filters on every call, not every field
+`where` or `orderBy` could reach. A `DateTime`, `Date` or `Time` key cannot be indexed this
+way (the cast is not immutable); use a native column, above.
+
 ## Composed Reads: Correlate on the Foreign Key
 
 A REST `?select=` embed, or a nested list read in one statement, attaches each related row

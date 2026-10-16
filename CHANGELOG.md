@@ -119,7 +119,23 @@ disagreed, and the promise was the part that was wrong.
 - **`CachedResult` has a `by_id` field (#1576)**: the row a read of one TVIEW row by id is
   cached under. A struct literal of it must set it (`None` for any other read).
 
+- **`DatabaseWarning` has a `TviewIndexMissing` variant (#1571)**, appended last: an exhaustive
+  `match` on it needs an arm. `DatabaseIntrospector` gains `tview_declaration`, with a default.
+
 ### Added
+
+- **`compile --database` advises pg_tviews' `indexes` option for the document keys a TVIEW
+  query filters on (#1571).** A query argument or inject parameter with no native column is
+  compared on the document on every call (`data->>'email'`, `(data->>'age')::numeric` for a
+  number, `(data->>'active')::boolean`), and nothing indexed it. For each `tv_*` query whose
+  keys no index the TVIEW declares leads with, the compile now warns
+  (`DatabaseWarning::TviewIndexMissing`) and prints the statement that declares one with the
+  TVIEW, which pg_tviews keeps through rebuilds. The statement carries the TVIEW's current
+  options with every index advised for it: a replace's options are its whole declaration, so
+  one without `indexes` drops them, and applying one query's statement must not drop
+  another's. Verified on PostgreSQL 18 with pg_tviews 0.1.0-beta.30: after the statements,
+  FraiseQL's reads by `email`, `age` and `active` are each served by their index, and the
+  TVIEW keeps its other options. `docs/performance.md`.
 
 - **The result cache hears pg_tviews' change feed (#1589).** When the database publishes
   rows (`pg_tviews.publish_changes = 'rows'`, and a pg_tviews registry with `typename`), each server listens on

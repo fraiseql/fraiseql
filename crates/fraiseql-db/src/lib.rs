@@ -74,7 +74,7 @@ pub use dialect::{PostgresDialect, SqlDialect, UnsupportedOperator};
 #[cfg(feature = "wire-backend")]
 pub use fraiseql_wire_adapter::FraiseWireAdapter;
 pub use identifier::quote_postgres_identifier;
-pub use introspector::{DatabaseIntrospector, RelationInfo, RelationKind};
+pub use introspector::{DatabaseIntrospector, RelationInfo, RelationKind, TviewDeclaration};
 #[cfg(feature = "postgres")]
 pub use postgres::{PostgresAdapter, PostgresIntrospector};
 pub use projection_generator::{
