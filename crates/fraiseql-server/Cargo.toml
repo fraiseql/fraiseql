@@ -43,7 +43,7 @@ csv = {version = "1.4", optional = true}
 # XLSX writer (gated by `export-xlsx` feature). `constant_memory` spills
 # in-progress worksheet data to a tempfile so peak heap stays bounded for
 # the 100_000-row cap.
-rust_xlsxwriter = {version = "0.95", features = ["constant_memory"], optional = true}
+rust_xlsxwriter = {version = "0.99", features = ["constant_memory"], optional = true}
 # Temp-file management for XLSX response buffering (gated by `export-xlsx`).
 tempfile = {workspace = true, optional = true}
 # Date/time handling
