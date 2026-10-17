@@ -72,9 +72,9 @@ impl<'r> PreparedCall<'r> {
         };
 
         // Arguments bind as FlexParam: serde_json::Value only accepts JSON/JSONB types, and
-        // Option<String> only text-family types, and a function signature can mix JSONB,
-        // UUID, INT4 and TEXT. FlexParam accepts every PostgreSQL type and serialises each
-        // value in the binary wire format of the server-resolved parameter type.
+        // Option<String> only text-family types, and a function signature can mix any of
+        // them. FlexParam accepts every PostgreSQL type and sends each value in the format of
+        // the server-resolved parameter type: binary for six, text for the rest (#1547).
         let mut flex_args: Vec<FlexParam> = args
             .iter()
             .map(|v| match v {
@@ -548,14 +548,21 @@ const PG_UNDEFINED_COLUMN: &str = "42703";
 /// and `Option<String>` (only accepts text-family types) when binding function-call
 /// arguments whose types are resolved at runtime from the function signature.
 ///
-/// Serialisation strategy (binary wire format):
-/// - `JSONB`: 1-byte version header (1) + UTF-8 JSON bytes
-/// - `JSON`: UTF-8 JSON bytes
-/// - `UUID`: 16-byte big-endian UUID
-/// - `INT4`: 4-byte big-endian i32
-/// - `INT8`: 8-byte big-endian i64
-/// - `BOOL`: 1-byte (0 or 1)
-/// - All other types: UTF-8 bytes (PostgreSQL text binary = raw UTF-8)
+/// Serialisation strategy:
+/// - `JSONB`: binary, a 1-byte version header (1) + UTF-8 JSON bytes
+/// - `JSON`: binary, UTF-8 JSON bytes
+/// - `UUID`: binary, 16-byte big-endian UUID
+/// - `INT4`: binary, 4-byte big-endian i32
+/// - `INT8`: binary, 8-byte big-endian i64
+/// - `BOOL`: binary, 1 byte (0 or 1)
+/// - Every other type: the **text** format, the value's UTF-8 bytes, which PostgreSQL parses with
+///   the type's own input function (#1547). A `float8`, `numeric`, `date`, `timestamp`, `interval`,
+///   an array, an enum or a domain reads its text form; the binary form of most of them is not
+///   their text (a `float8` is 8 bytes, a `date` 4), so sending the text as binary failed with
+///   `insufficient data left in message`.
+///
+/// Inside an array (`id = ANY($1)`) each element is written by [`ToSql::to_sql`] in the binary
+/// format whatever [`ToSql::encode_format`] says, so the six binary encodings stay.
 #[derive(Debug)]
 enum FlexParam {
     /// SQL NULL — accepted by any PostgreSQL type.
@@ -594,8 +601,8 @@ impl tokio_postgres::types::ToSql for FlexParam {
                     let b: bool = s.parse()?;
                     out.put_u8(u8::from(b));
                 } else {
-                    // TEXT, VARCHAR, BPCHAR, NAME, UNKNOWN, and any user-defined type:
-                    // UTF-8 bytes are the binary wire representation for text-family types.
+                    // Sent in the text format (`encode_format`): the UTF-8 bytes, parsed by the
+                    // type's input function. Also the binary form of the text family.
                     out.extend_from_slice(s.as_bytes());
                 }
                 Ok(IsNull::No)
@@ -606,6 +613,24 @@ impl tokio_postgres::types::ToSql for FlexParam {
     fn accepts(_ty: &tokio_postgres::types::Type) -> bool {
         // Accepts all types; per-type serialisation is handled in `to_sql`.
         true
+    }
+
+    fn encode_format(&self, ty: &tokio_postgres::types::Type) -> tokio_postgres::types::Format {
+        use tokio_postgres::types::{Format, Type};
+        if [
+            Type::JSONB,
+            Type::JSON,
+            Type::UUID,
+            Type::INT4,
+            Type::INT8,
+            Type::BOOL,
+        ]
+        .contains(ty)
+        {
+            Format::Binary
+        } else {
+            Format::Text
+        }
     }
 
     fn to_sql_checked(

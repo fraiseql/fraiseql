@@ -332,6 +332,16 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **A mutation argument binds to a `float8`, `numeric`, `date`, `timestamp` or any other
+  function parameter type (#1547).** The function call carries no cast, so PostgreSQL types
+  each parameter from the function's signature, and every argument but six types (`jsonb`,
+  `json`, `uuid`, `int4`, `int8`, `bool`) was sent as its text in the *binary* format: a
+  `float8` parameter read `9.5` as three bytes of an eight-byte value and the call failed
+  with `insufficient data left in message`. The others are now sent in the text format,
+  parsed by the type's own input function: `float4`, `float8`, `numeric`, `int2`, `date`,
+  `time`, `timestamp`, `timestamptz`, `interval`, arrays, enums and domains, through a single
+  mutation and through a batch.
+
 - **An `orderBy` object written inline sorts by its keys in the order written (#1567).**
   `orderBy: {ratio: ASC, isCurrent: DESC}` sorted by `isCurrent` first: the GraphQL parser
   keeps an object literal as a map ordered by key, so every inline object reached the engine
