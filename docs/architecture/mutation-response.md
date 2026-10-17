@@ -478,8 +478,13 @@ connection and merges the report into the function's `cascade`:
   write to a table a TVIEW reads fails with `permission denied for schema` (#1601).
 * **Observed** as the histogram `fraiseql_cascade_derived_entries` on `/metrics`.
 
-The tests run against `docker/pg-tviews` (PostgreSQL 18 with pg_tviews v0.1.0-beta.30 built
+The tests run against `docker/pg-tviews` (PostgreSQL 18 with pg_tviews v0.1.0-beta.31 built
 from source, preloaded): `make test-pg-tviews`.
+
+**Upgrading pg_tviews from beta.30 to beta.31:** install the new library, restart PostgreSQL,
+then run `ALTER EXTENSION pg_tviews UPDATE;` in each database that has the extension. The
+library refuses the beta.30 catalog until then (catalog revision 9). No TVIEW needs to be
+registered again.
 
 ### Success fields (#1397)
 
