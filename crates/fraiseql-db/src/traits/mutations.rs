@@ -62,30 +62,58 @@ pub const DERIVED_CASCADE_KEY: &str = "__fraiseql_derived_cascade";
 ///
 /// `pg_tviews`' report, as `tviews.pg_tviews_flush_and_report(max_entities, false, true)`
 /// returns it after the function: `{"updated": [{"__typename", "id"}], "deleted": [...],
-/// "invalidated_types": [...]}`. No row is read. Read it with [`ChangedRows::from_report`].
+/// "invalidated_types": [...], "collections": {"Comment.fk_post": [...]}}` (`collections`
+/// only for rows written with `pg_tviews.publish_changes = 'rows'`). No row is read. Read it
+/// with [`ChangedRows::from_report`].
 pub const CHANGED_ROWS_KEY: &str = "__fraiseql_changed_rows";
+
+/// Parent ids, as text, by collection: `<child type>.<reference column>`, as `pg_tviews`
+/// names it (`Comment.fk_post`).
+pub type ChangedCollections =
+    std::collections::BTreeMap<String, std::collections::BTreeSet<String>>;
 
 /// The TVIEW rows a committed write changed, by GraphQL type and public id, as `pg_tviews`
 /// reported them (#1576). Cascaded rows are included: `pg_tviews` journals every row it
 /// refreshes.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+///
+/// The default is a write that changed nothing: no row, no type, no collection.
+#[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct ChangedRows {
     /// Rows inserted, updated or deleted: public ids, as text, by type.
-    pub rows:  std::collections::BTreeMap<String, std::collections::BTreeSet<String>>,
+    pub rows:        std::collections::BTreeMap<String, std::collections::BTreeSet<String>>,
     /// Types whose rows are not all listed (the report was truncated): every row of each may
-    /// have changed.
-    pub types: std::collections::BTreeSet<String>,
+    /// have changed, and every collection of each (#1603).
+    pub types:       std::collections::BTreeSet<String>,
+    /// The collections whose members changed: the parents whose child lists the rows left,
+    /// joined or changed in (#1603). `None` when the report captured none (the rows were
+    /// written without `pg_tviews.publish_changes = 'rows'`): which changed is then unknown.
+    pub collections: Option<ChangedCollections>,
+}
+
+impl Default for ChangedRows {
+    fn default() -> Self {
+        Self {
+            rows:        std::collections::BTreeMap::new(),
+            types:       std::collections::BTreeSet::new(),
+            collections: Some(ChangedCollections::new()),
+        }
+    }
 }
 
 impl ChangedRows {
     /// Read a `pg_tviews` report (see [`CHANGED_ROWS_KEY`]). `None` when `report` is not one:
     /// what changed is then unknown. An entry whose id is neither text nor a number names
-    /// its type as wholly changed.
+    /// its type as wholly changed, and a collection's parent likewise its child type. A
+    /// report without `collections`, or with a key that is not `<type>.<column>`, captured
+    /// none ([`collections`](Self::collections) is `None`).
     #[must_use]
     pub fn from_report(report: &serde_json::Value) -> Option<Self> {
         let report = report.as_object()?;
-        let mut changed = Self::default();
+        let mut changed = Self {
+            collections: None,
+            ..Self::default()
+        };
         for arm in ["updated", "deleted"] {
             let entries = match report.get(arm) {
                 None => continue,
@@ -115,15 +143,51 @@ impl ChangedRows {
                 changed.types.insert(typename.as_str()?.to_string());
             }
         }
+        if let Some(collections) = report.get("collections") {
+            let mut read = ChangedCollections::new();
+            let mut readable = true;
+            for (key, parents) in collections.as_object()? {
+                let Some((child_type, _)) = key
+                    .split_once('.')
+                    .filter(|(child_type, column)| !child_type.is_empty() && !column.is_empty())
+                else {
+                    readable = false;
+                    continue;
+                };
+                for parent in parents.as_array()? {
+                    match parent {
+                        serde_json::Value::String(id) => {
+                            read.entry(key.clone()).or_default().insert(id.clone());
+                        },
+                        serde_json::Value::Number(id) => {
+                            read.entry(key.clone()).or_default().insert(id.to_string());
+                        },
+                        _ => {
+                            changed.types.insert(child_type.to_string());
+                        },
+                    }
+                }
+            }
+            changed.collections = readable.then_some(read);
+        }
         Some(changed)
     }
 
-    /// Also the rows and types of `other`, committed in the same transaction.
+    /// Also the rows, types and collections of `other`, committed in the same transaction.
+    /// When either captured no collections, which changed is unknown.
     pub fn absorb(&mut self, other: Self) {
         for (typename, ids) in other.rows {
             self.rows.entry(typename).or_default().extend(ids);
         }
         self.types.extend(other.types);
+        match (self.collections.as_mut(), other.collections) {
+            (Some(mine), Some(theirs)) => {
+                for (key, parents) in theirs {
+                    mine.entry(key).or_default().extend(parents);
+                }
+            },
+            _ => self.collections = None,
+        }
     }
 
     /// Every type named, by a row or wholly.

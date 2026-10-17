@@ -10,6 +10,7 @@
 //! whose collections it evicts (#1589), or every fill at once (`clear`). A change feed's sweep
 //! of a view stamps a slot of its own, which an entry's own views are checked against but the
 //! views of its levels tagged by collection are not: the feed names those levels' collections.
+//! So does a write whose report names the collections it changed (#1603).
 //! A read of one row by its id (#1576) is checked against a full sweep of its view, its own
 //! `(type, id)` slot and its type's, not against a write's or a feed's sweep: those name the
 //! rows they changed, so a write to user B no longer refuses the fill of user A. A
@@ -44,8 +45,9 @@ const ROW_SLOTS: usize = 65_536;
 
 /// Hash domains, so a view and an entity type of the same name use different slots.
 const VIEW: u8 = b'v';
-/// A view swept by a change feed that names collections: it reaches an entry's own views,
-/// not the views of its levels tagged by collection (#1589).
+/// A view swept by a change feed that names collections, or by a write whose report does
+/// (#1603): it reaches an entry's own views, not the views of its levels tagged by collection
+/// (#1589).
 const FEED_VIEW: u8 = b'f';
 const ENTITY_TYPE: u8 = b'e';
 /// Every collection of a child type (#1589).
@@ -65,8 +67,8 @@ const BY_ID_TYPE: u8 = b't';
 pub(super) struct Reach<'a> {
     /// The entry's views: reached by any sweep of them.
     pub(super) views:           Vec<&'a str>,
-    /// The views of its levels tagged by collection: reached by a write's sweep, not the
-    /// feed's (#1589).
+    /// The views of its levels tagged by collection: reached by the sweep of a write that
+    /// named no collection, not the feed's (#1589) nor that of a write that did (#1603).
     pub(super) collected_views: Vec<&'a str>,
     /// The types of the rows it holds.
     pub(super) entity_types:    Vec<&'a str>,
@@ -124,8 +126,9 @@ impl InvalidationFence {
         self.everything.fetch_max(stamp, Ordering::SeqCst);
     }
 
-    /// Stamp the slots of `views` swept by a change feed that names collections, which do
-    /// not reach the views of levels tagged by collection (#1589).
+    /// Stamp the slots of `views` swept by a change feed that names collections, or by a
+    /// write whose report does (#1603), which do not reach the views of levels tagged by
+    /// collection (#1589).
     pub(super) fn stamp_feed_views<'a>(&self, views: impl IntoIterator<Item = &'a str>) {
         let stamp = self.next();
         for view in views {

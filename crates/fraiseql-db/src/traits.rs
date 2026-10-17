@@ -19,8 +19,8 @@ pub use composed_read::{
 };
 use fraiseql_error::{FraiseQLError, Result};
 pub use mutations::{
-    CHANGED_ROWS_KEY, ChangedRows, DERIVED_CASCADE_KEY, DerivedCascade, WriteMode, WriteRequest,
-    Writer,
+    CHANGED_ROWS_KEY, ChangedCollections, ChangedRows, DERIVED_CASCADE_KEY, DerivedCascade,
+    WriteMode, WriteRequest, Writer,
 };
 pub use relay::RelayDatabaseAdapter;
 

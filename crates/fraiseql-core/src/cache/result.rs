@@ -152,7 +152,8 @@ enum Sweep {
     /// A write that reported the rows it changed (#1576): not the reads of one row by id,
     /// which those rows evict.
     Write,
-    /// A change feed naming rows and collections (#1589, #1576): an entry's own views only.
+    /// A change feed naming rows and collections (#1589, #1576), or a write whose report
+    /// names both (#1603): an entry's own views only.
     Feed,
 }
 
@@ -165,9 +166,10 @@ enum Sweep {
 /// entry's views.
 #[derive(Debug, Clone, Default)]
 pub struct ComposedTags {
-    /// Views of the levels tagged by collection. A write FraiseQL ran sweeps them like any
-    /// view ([`QueryResultCache::invalidate_views`]); a change feed that names collections
-    /// does not ([`QueryResultCache::invalidate_views_except_collections`]).
+    /// Views of the levels tagged by collection. A write whose report names no collection
+    /// sweeps them like any view ([`QueryResultCache::invalidate_views`]); a change feed that
+    /// names collections, or a write whose report does (#1603), does not
+    /// ([`QueryResultCache::invalidate_views_except_collections`]).
     pub collected_views: Vec<String>,
     /// Each collection the entry composes, with the parent's id.
     pub collections:     Vec<(Collection, String)>,
@@ -1077,7 +1079,10 @@ impl QueryResultCache {
     }
 
     /// [`invalidate_views`](Self::invalidate_views), but not by the views of levels tagged by
-    /// collection (#1589).
+    /// collection (#1589), nor the reads of one row by id (#1576): for a change feed, or a
+    /// write whose report names the rows and collections it changed (#1603), which
+    /// [`invalidate_collection`](Self::invalidate_collection) and
+    /// [`invalidate_by_id`](Self::invalidate_by_id) evict.
     ///
     /// # Errors
     ///

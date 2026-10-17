@@ -1661,3 +1661,151 @@ async fn a_disabled_cache_announces_nothing() {
     DatabaseAdapter::invalidate_by_entity(&adapter, "User", "u1").await.unwrap();
     assert!(queued(&mut queue).await.is_empty());
 }
+
+// ── #1603: a write reports the collections it changed while composed reads are tagged ──
+
+/// Composed reads are indexed by collection only while `pg_tviews`' change feed is heard, and
+/// only a write's report can then evict them by collection: a server with no read by id asks
+/// for the report while the feed is heard, and not otherwise.
+#[test]
+fn a_write_reports_its_changes_while_composed_reads_are_indexed_by_collection() {
+    let adapter = CachedDatabaseAdapter::new(
+        MockAdapter::new(),
+        QueryResultCache::new(CacheConfig::enabled()),
+        "1.0.0".to_string(),
+    );
+    assert!(!DatabaseAdapter::reports_changed_rows(&adapter), "no read by id, no feed");
+    adapter
+        .collection_tagging()
+        .hear(crate::cache::collections::CollectionMap::default());
+    assert!(DatabaseAdapter::reports_changed_rows(&adapter), "the feed is heard");
+    adapter.collection_tagging().deafen();
+    assert!(!DatabaseAdapter::reports_changed_rows(&adapter), "the feed is lost");
+}
+
+/// An adapter over an enabled cache, and its cache.
+fn adapter_and_cache() -> (CachedDatabaseAdapter<MockAdapter>, Arc<QueryResultCache>) {
+    let adapter = CachedDatabaseAdapter::new(
+        MockAdapter::new(),
+        QueryResultCache::new(CacheConfig::enabled()),
+        "1.0.0".to_string(),
+    );
+    let cache = Arc::clone(&adapter.cache);
+    (adapter, cache)
+}
+
+/// A composed read of `parent`'s comments (`tv_comment`, by `Comment.fk_post`) from
+/// `tv_post`, stored under `key` with `fence` (a snapshot taken before its round trip).
+fn compose_comments_of(cache: &QueryResultCache, key: u64, parent: &str, fence: Option<u64>) {
+    let tags = crate::cache::result::ComposedTags {
+        collected_views: vec!["tv_comment".to_string()],
+        collections:     vec![(
+            crate::cache::tviews_feed::Collection::new("Comment", "fk_post"),
+            parent.to_string(),
+        )],
+        entities:        Vec::new(),
+    };
+    let rows = Arc::new(vec![crate::db::types::JsonbValue::new(
+        json!({"d": {"id": parent}}),
+    )]);
+    cache
+        .put_composed(key, rows, vec!["tv_post".to_string()], None, None, tags, fence)
+        .unwrap();
+}
+
+/// What a write of one comment under `p1` reports: the comment, and `p1`'s collection.
+fn a_comment_under_p1(collections: Option<serde_json::Value>) -> fraiseql_db::ChangedRows {
+    let mut report = json!({"updated": [{"__typename": "Comment", "id": "c1"}]});
+    if let Some(collections) = collections {
+        report["collections"] = collections;
+    }
+    fraiseql_db::ChangedRows::from_report(&report).unwrap()
+}
+
+async fn write_comments(
+    adapter: &CachedDatabaseAdapter<MockAdapter>,
+    changed: &fraiseql_db::ChangedRows,
+) {
+    DatabaseAdapter::invalidate_written(adapter, &[ViewName::from("tv_comment")], changed)
+        .await
+        .unwrap();
+}
+
+/// #1603: a write whose report names the collections it changed evicts the composed reads
+/// of those, not every composed read of comments, and still sweeps the views it reached.
+#[tokio::test]
+async fn a_write_evicts_composed_reads_by_the_collections_it_reports() {
+    let (adapter, cache) = adapter_and_cache();
+    compose_comments_of(&cache, 1, "p1", None);
+    compose_comments_of(&cache, 2, "p2", None);
+    cache
+        .put(3, Vec::new(), vec!["tv_comment".to_string()], None, None, None)
+        .unwrap();
+
+    write_comments(&adapter, &a_comment_under_p1(Some(json!({"Comment.fk_post": ["p1"]})))).await;
+
+    assert!(cache.get(1).unwrap().is_none(), "p1's comments changed");
+    assert!(cache.get(2).unwrap().is_some(), "p2's comments did not");
+    assert!(cache.get(3).unwrap().is_none(), "a read of tv_comment itself is swept");
+}
+
+/// #1603: a report that captured no collections cannot say which lists changed: every
+/// composed read of comments is swept, as before.
+#[tokio::test]
+async fn a_write_that_captured_no_collections_sweeps_every_composed_read_of_them() {
+    let (adapter, cache) = adapter_and_cache();
+    compose_comments_of(&cache, 1, "p1", None);
+    compose_comments_of(&cache, 2, "p2", None);
+
+    write_comments(&adapter, &a_comment_under_p1(None)).await;
+
+    assert!(cache.get(1).unwrap().is_none());
+    assert!(cache.get(2).unwrap().is_none());
+}
+
+/// #1603: a type named wholly (its rows past `max_entities`) stands for every collection of
+/// it.
+#[tokio::test]
+async fn a_type_the_report_names_wholly_evicts_every_collection_of_it() {
+    let (adapter, cache) = adapter_and_cache();
+    compose_comments_of(&cache, 1, "p1", None);
+    compose_comments_of(&cache, 2, "p2", None);
+    let changed = fraiseql_db::ChangedRows::from_report(
+        &json!({"invalidated_types": ["Comment"], "collections": {}}),
+    )
+    .unwrap();
+
+    write_comments(&adapter, &changed).await;
+
+    assert!(cache.get(1).unwrap().is_none());
+    assert!(cache.get(2).unwrap().is_none());
+}
+
+/// #1603: a collection key that is not `<child type>.<column>` names nothing it can evict
+/// by, so the write sweeps as one that captured no collections.
+#[tokio::test]
+async fn a_collection_that_names_no_column_sweeps_every_composed_read() {
+    let (adapter, cache) = adapter_and_cache();
+    compose_comments_of(&cache, 2, "p2", None);
+    let mut changed = a_comment_under_p1(Some(json!({})));
+    changed.collections.as_mut().unwrap().entry("Comment".to_string()).or_default();
+
+    write_comments(&adapter, &changed).await;
+
+    assert!(cache.get(2).unwrap().is_none());
+}
+
+/// #1603: the fence refuses a composed fill that a write's collection eviction reaches, and
+/// only that one: a read of p2's comments in flight across a comment under p1 is stored.
+#[tokio::test]
+async fn a_composed_fill_straddling_a_write_is_refused_only_when_its_collection_changed() {
+    let (adapter, cache) = adapter_and_cache();
+    let fence = cache.invalidation_generation();
+
+    write_comments(&adapter, &a_comment_under_p1(Some(json!({"Comment.fk_post": ["p1"]})))).await;
+    compose_comments_of(&cache, 1, "p1", Some(fence));
+    compose_comments_of(&cache, 2, "p2", Some(fence));
+
+    assert!(cache.get(1).unwrap().is_none(), "p1's fill read the list before the comment");
+    assert!(cache.get(2).unwrap().is_some(), "p2's fill is not stale");
+}

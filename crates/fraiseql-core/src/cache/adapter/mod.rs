@@ -1221,7 +1221,10 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
     }
 
     fn reports_changed_rows(&self) -> bool {
-        self.cache.is_enabled() && !self.by_id_sources.is_empty()
+        // Reads of one row by id are evicted by the rows a write changed (#1576), and
+        // composed reads indexed by collection by the collections it changed (#1603).
+        self.cache.is_enabled()
+            && (!self.by_id_sources.is_empty() || self.collections.current().is_some())
     }
 
     async fn invalidate_written(

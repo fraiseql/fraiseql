@@ -215,6 +215,25 @@ disagreed, and the promise was the part that was wrong.
   directly, or flushes the journal itself, leaves these reads stale until their TTL
   (`docs/modules/cache.md`).
 
+- **A write evicts composed reads by the collections it changed (#1603).** With pg_tviews'
+  change feed heard, a composed list of each parent's children is indexed by those parents'
+  collections (#1589), but a write FraiseQL ran still evicted every composed read of the child
+  type: a comment on post A evicted the cached comments of every post. pg_tviews 0.1.0-beta.31
+  reports the collections a transaction changed (`collections` in
+  `pg_tviews_flush_and_report()`, for rows written with `pg_tviews.publish_changes = 'rows'`),
+  and the write now evicts by those, as the feed does: post B's composed read stays cached. A
+  type the report cannot list in full stands for every collection of it; a transaction that
+  does not publish rows reports none, and its write evicts as before. While the feed is heard,
+  every write asks for the report, also on a server whose TVIEW tables all have row security
+  (which asked for none). Measured on PostgreSQL 18 and pg_tviews 0.1.0-beta.31, composed reads
+  of 200 posts' comments while comments are written on 20 other posts: 0.0% → 99.9% cache hits
+  at 10 writes/s, 0.0% → 28.3% at 100/s. Under heavier comment writes the cache's insert fence
+  still refuses nearly every composed fill (0.5% at ~5 400 writes/s), by the entity type each
+  write's own entity stamps (#1605). Writes cost nothing measurable (M1 1 498 → 1 511/s, p50
+  26.6 → 26.4 ms): they already asked for the report (#1576). Under M1 itself (`updateUser`)
+  composed reads of posts stay at 0%: each write rewrites its author's posts, and a list of a
+  type that was written is swept.
+
 - **Composed reads are cached (#1589).** A REST `?select=` embed or a composed GraphQL list,
   read through a query with `cache_ttl_seconds`, is cached under a key over the whole tree and
   evicted by a write to any view it reads; with pg_tviews' change feed heard, a list of each

@@ -369,9 +369,17 @@ columns `compile --database` proved (`native_join`, see
 Any other level (a to-one embed, a join on document keys, a plain view, a parent without an
 `id`) keeps the rule above.
 
-A write FraiseQL runs still sweeps the views it reaches at once, collection-tagged levels
-included: a client reading after its own write never waits for the feed. Only writes
-FraiseQL does not run rely on the collections.
+A write FraiseQL runs evicts at once, after its commit: a client reading after its own write
+never waits for the feed. It evicts by collection too: pg_tviews' report of the write
+(`tviews.pg_tviews_flush_and_report()`) names the collections the write changed, as the feed
+does, so a comment written on post A leaves the composed reads of post B's comments cached
+(#1603). A type the report cannot list in full (more rows than `max_updated_entities`) evicts
+every composed list of it. A transaction that does not publish rows (`pg_tviews.publish_changes`
+set otherwise for it) captures no collections, and its write sweeps the collection-tagged levels
+with the views it reaches, as any write did before. One limit remains: the cache's insert fence
+refuses a composed fill that read rows of a type some write stamped while it ran, so under
+steady writes of comments (about a hundred a second and up) few composed reads of comments are
+stored at all (#1605).
 
 ---
 

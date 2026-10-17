@@ -97,6 +97,13 @@ async fn require_typename(url: &str) {
 async fn provision(url: &str) {
     let client = client(url).await;
     client
+        .batch_execute(include_str!("../../fraiseql-cli/sql/helpers/mutation_response.sql"))
+        .await
+        .unwrap();
+    for stmt in fraiseql_test_support::changelog::entity_change_log_provision_statements() {
+        client.batch_execute(&stmt).await.unwrap_or_else(|e| panic!("{stmt}: {e}"));
+    }
+    client
         .batch_execute(&format!(
             "CREATE EXTENSION IF NOT EXISTS pg_tviews;
              DO $$ DECLARE t text; BEGIN
@@ -120,7 +127,32 @@ async fn provision(url: &str) {
              SELECT tviews.pg_tviews_create('{SCHEMA}.tv_c1589', $q$
                SELECT c.pk_c1589, c.id, c.fk_p1589,
                       jsonb_build_object('id', c.id, 'fk_p1589', c.fk_p1589, 'body', c.body) AS data
-               FROM {SCHEMA}.tb_c1589 c JOIN {SCHEMA}.tb_p1589 p ON p.pk_p1589 = c.fk_p1589 $q$);"
+               FROM {SCHEMA}.tb_c1589 c JOIN {SCHEMA}.tb_p1589 p ON p.pk_p1589 = c.fk_p1589 $q$);
+             CREATE TYPE {SCHEMA}.mutation_response AS (succeeded boolean,
+               state_changed boolean, error_class text, status_detail text, http_status smallint,
+               message text, entity_id uuid, entity_type text, entity jsonb,
+               updated_fields text[], cascade jsonb, error_detail jsonb, metadata jsonb);
+             -- `p_count` comments on the post `p_id`, through FraiseQL (#1603). With
+             -- `p_publish` off the transaction publishes nothing, so pg_tviews captures no
+             -- collections for its report.
+             CREATE FUNCTION {SCHEMA}.fn_add_comments(p_id uuid, p_body text, p_count int,
+                                                       p_publish boolean)
+               RETURNS SETOF {SCHEMA}.mutation_response LANGUAGE plpgsql AS $$
+             DECLARE v_id uuid;
+             BEGIN
+               IF NOT p_publish THEN
+                 PERFORM set_config('pg_tviews.publish_changes', 'off', true);
+               END IF;
+               INSERT INTO {SCHEMA}.tb_c1589
+                 SELECT m.top + i, gen_random_uuid(), p.pk_p1589, p_body
+                 FROM {SCHEMA}.tb_p1589 p,
+                      (SELECT coalesce(max(pk_c1589), 0) AS top FROM {SCHEMA}.tb_c1589) m,
+                      generate_series(1, p_count) i
+                 WHERE p.id = p_id;
+               SELECT id INTO v_id FROM {SCHEMA}.tb_c1589 ORDER BY pk_c1589 DESC LIMIT 1;
+               RETURN QUERY SELECT * FROM fraiseql.mutation_ok(
+                 (SELECT data FROM {SCHEMA}.tv_c1589 WHERE id = v_id), v_id, 'Comment');
+             END $$;"
         ))
         .await
         .unwrap();
@@ -174,6 +206,17 @@ sql_source = "{SCHEMA}.tv_p1589"
 name = "id"
 type = "ID"
 required = true
+
+[mutations.addComments]
+return_type = "Comment"
+operation = "INSERT"
+sql_source = "{SCHEMA}.fn_add_comments"
+args = [
+  {{ name = "id", type = "ID", required = true }},
+  {{ name = "body", type = "String", required = true }},
+  {{ name = "count", type = "Int", required = true }},
+  {{ name = "publish", type = "Boolean", required = true }},
+]
 "#
     )
 }
@@ -290,6 +333,127 @@ fn shows(body: &Value, text: &str) -> bool {
 const POSTS: &str = "/rest/v1/posts?select=id,title";
 const POST_A_WITH_COMMENTS: &str = "/rest/v1/posts?select=id,title,comments(id,body)&title[eq]=A";
 const COMMENTS: &str = "/rest/v1/comments?select=id,body";
+
+/// Posts A and B with their comments, by id: a title filter would no longer match once
+/// [`Running::cache_both_composed_reads`] renames them.
+fn with_comments(post: &str) -> String {
+    format!("/rest/v1/posts?select=id,title,comments(id,body)&id[eq]={post}")
+}
+
+impl Running {
+    /// Run `addComments` through this server: `count` comments on `post`, the transaction
+    /// publishing rows, or not.
+    async fn add_comments(&self, post: &str, body: &str, count: u32, publish: bool) {
+        let query = format!(
+            "mutation {{ addComments(id: \"{post}\", body: \"{body}\", count: {count}, \
+             publish: {publish}) {{ id }} }}"
+        );
+        let response: Value = self
+            .http
+            .post(format!("{}/graphql", self.base))
+            .json(&serde_json::json!({ "query": query }))
+            .send()
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        assert!(response.get("errors").is_none(), "{response}");
+    }
+
+    /// Cache the composed reads of posts A and B, then rename both posts behind the server's
+    /// back, which `pg_tviews` does not publish: a read served from the cache still shows the
+    /// old titles, one the cache missed shows `behind`.
+    async fn cache_both_composed_reads(&self) {
+        assert!(shows(&self.get(&with_comments(POST_A)).await, "A"), "post A is read");
+        assert!(shows(&self.get(&with_comments(POST_B)).await, "B"), "post B is read");
+        self.sql(&format!(
+            "UPDATE {SCHEMA}.tv_p1589 SET data = data || '{{\"title\": \"behind\"}}'"
+        ))
+        .await;
+        assert!(shows(&self.get(&with_comments(POST_A)).await, "A"), "A's read is cached");
+        assert!(shows(&self.get(&with_comments(POST_B)).await, "B"), "B's read is cached");
+    }
+}
+
+/// #1603: a comment this server writes on post A evicts the composed reads listing A's
+/// comments, by the collections `pg_tviews`' report names, and not post B's. Before, an own
+/// write evicted every composed read of comments. The feed's messages are dropped first: A's
+/// eviction is the write's own, at once, not the feed's.
+#[tokio::test]
+async fn a_comment_this_server_writes_evicts_the_composed_reads_of_its_post_only() {
+    let Some(shared) = tviews_database_url() else {
+        eprintln!("skipping: TVIEWS_DATABASE_URL not set");
+        return;
+    };
+    require_typename(&shared).await;
+    let proxy = CountingProxy::start(&own_database(&shared).await);
+    let Some(server) = serve_with_feed_through(Some(&proxy)).await else {
+        return;
+    };
+    server.cache_both_composed_reads().await;
+    proxy.drop_notifications(true);
+
+    server.add_comments(POST_A, "own", 1, true).await;
+    let post_a = server.get(&with_comments(POST_A)).await;
+    let post_b = server.get(&with_comments(POST_B)).await;
+    assert!(shows(&post_a, "own"), "post A's composed read was not evicted: {post_a}");
+    assert!(
+        shows(&post_b, "B"),
+        "a comment on post A evicted post B's composed read: {post_b}"
+    );
+}
+
+/// #1603: a transaction that does not publish rows captures no collections, so its report
+/// cannot say which lists changed: the write evicts every composed read of comments, as
+/// before.
+#[tokio::test]
+async fn a_write_that_captured_no_collections_evicts_every_composed_read_of_its_type() {
+    let Some(shared) = tviews_database_url() else {
+        eprintln!("skipping: TVIEWS_DATABASE_URL not set");
+        return;
+    };
+    require_typename(&shared).await;
+    let proxy = CountingProxy::start(&own_database(&shared).await);
+    let Some(server) = serve_with_feed_through(Some(&proxy)).await else {
+        return;
+    };
+    server.cache_both_composed_reads().await;
+    proxy.drop_notifications(true);
+
+    server.add_comments(POST_A, "unpublished", 1, false).await;
+    let post_a = server.get(&with_comments(POST_A)).await;
+    let post_b = server.get(&with_comments(POST_B)).await;
+    assert!(
+        shows(&post_a, "unpublished"),
+        "post A's composed read was not evicted: {post_a}"
+    );
+    assert!(shows(&post_b, "behind"), "post B's composed read was not evicted: {post_b}");
+}
+
+/// #1603: more comments than the report lists (`max_updated_entities`, 500) put `Comment`
+/// in `invalidated_types`, which stands for every collection of comments: post B's composed
+/// read is evicted too.
+#[tokio::test]
+async fn a_report_that_cannot_list_a_types_rows_evicts_every_collection_of_it() {
+    let Some(shared) = tviews_database_url() else {
+        eprintln!("skipping: TVIEWS_DATABASE_URL not set");
+        return;
+    };
+    require_typename(&shared).await;
+    let proxy = CountingProxy::start(&own_database(&shared).await);
+    let Some(server) = serve_with_feed_through(Some(&proxy)).await else {
+        return;
+    };
+    server.cache_both_composed_reads().await;
+    proxy.drop_notifications(true);
+
+    server.add_comments(POST_A, "many", 501, true).await;
+    let post_a = server.get(&with_comments(POST_A)).await;
+    let post_b = server.get(&with_comments(POST_B)).await;
+    assert!(shows(&post_a, "many"), "post A's composed read was not evicted: {post_a}");
+    assert!(shows(&post_b, "behind"), "post B's composed read was not evicted: {post_b}");
+}
 
 #[tokio::test]
 async fn a_write_the_server_did_not_run_evicts_the_reads_of_its_type() {

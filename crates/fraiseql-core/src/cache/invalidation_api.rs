@@ -3,11 +3,16 @@
 //! This module provides view-level and entity-level cache invalidation,
 //! including cascade expansion via `CascadeInvalidator`.
 
-use std::sync::{Arc, Mutex};
+use std::{
+    collections::BTreeSet,
+    sync::{Arc, Mutex},
+};
 
 use fraiseql_db::{ChangedRows, ViewName};
 
-use super::{CascadeInvalidator, QueryResultCache, adapter::CachedDatabaseAdapter};
+use super::{
+    CascadeInvalidator, QueryResultCache, adapter::CachedDatabaseAdapter, tviews_feed::Collection,
+};
 use crate::{db::DatabaseAdapter, error::Result};
 
 impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
@@ -82,6 +87,12 @@ pub(super) fn invalidate_expanded(
 /// [`invalidate_expanded`] after a write that reported every row it changed (#1576): the
 /// reads of one row by id are evicted by those rows, and by the types `changed` names
 /// wholly, not by the sweep.
+///
+/// When the report also names the collections whose members changed (#1603), the levels of
+/// composed reads indexed by collection are evicted by those, as the change feed evicts them
+/// (#1589), not by the sweep: a comment on post A leaves the composed reads of post B's
+/// comments. A type named wholly stands for every collection of it. A report that captured
+/// no collections sweeps those levels too.
 pub(super) fn invalidate_written(
     cache: &QueryResultCache,
     cascade: Option<&Arc<Mutex<CascadeInvalidator>>>,
@@ -91,7 +102,22 @@ pub(super) fn invalidate_written(
     if !cache.is_enabled() {
         return Ok(0);
     }
-    let mut evicted = cache.invalidate_views_except_by_id(&expand(cascade, views)?)?;
+    let views = expand(cascade, views)?;
+    // A key that is not `<child type>.<column>` names no collection: unknown, as none.
+    let collections: Option<Vec<(Collection, &BTreeSet<String>)>> =
+        changed.collections.as_ref().and_then(|collections| {
+            collections
+                .iter()
+                .map(|(key, parents)| {
+                    let (child_type, column) = key.split_once('.')?;
+                    Some((Collection::new(child_type, column), parents))
+                })
+                .collect()
+        });
+    let mut evicted = match collections {
+        Some(_) => cache.invalidate_views_except_collections(&views)?,
+        None => cache.invalidate_views_except_by_id(&views)?,
+    };
     for (type_name, ids) in &changed.rows {
         for id in ids {
             evicted += cache.invalidate_by_id(type_name, id)?;
@@ -99,6 +125,16 @@ pub(super) fn invalidate_written(
     }
     for type_name in &changed.types {
         evicted += cache.invalidate_by_id_type(type_name)?;
+    }
+    if let Some(collections) = collections {
+        for (collection, parents) in collections {
+            for parent in parents {
+                evicted += cache.invalidate_collection(&collection, parent)?;
+            }
+        }
+        for type_name in &changed.types {
+            evicted += cache.invalidate_collections_of(type_name)?;
+        }
     }
     Ok(evicted)
 }

@@ -247,7 +247,86 @@ fn what_is_not_a_report_reads_as_unknown() {
     }
     assert_eq!(
         super::ChangedRows::from_report(&serde_json::json!({})),
-        Some(super::ChangedRows::default()),
-        "a report of nothing changed"
+        Some(super::ChangedRows {
+            collections: None,
+            ..super::ChangedRows::default()
+        }),
+        "a report of nothing changed, which captured no collections"
     );
+}
+
+/// The parents of each collection the report names, as text by `<child type>.<column>`
+/// (#1603).
+#[test]
+fn a_report_reads_as_the_collections_it_names() {
+    let report = serde_json::json!({
+        "updated": [{"__typename": "Comment", "id": "c1"}],
+        "collections": {"Comment.fk_post": ["p2", "p1"], "Tag.fk_post": [7]},
+    });
+    let changed = super::ChangedRows::from_report(&report).unwrap();
+    let collections = changed.collections.expect("captured");
+    let parents =
+        |key: &str| collections.get(key).map(|ids| ids.iter().cloned().collect::<Vec<_>>());
+    assert_eq!(parents("Comment.fk_post"), Some(vec!["p1".to_string(), "p2".to_string()]));
+    assert_eq!(parents("Tag.fk_post"), Some(vec!["7".to_string()]));
+    assert!(changed.types.is_empty());
+}
+
+/// No `collections` key: the rows were written without `pg_tviews.publish_changes = 'rows'`
+/// and pg_tviews captured none. Which collections changed is unknown, not "none" (#1603).
+#[test]
+fn a_report_without_collections_captured_none() {
+    let report = serde_json::json!({"updated": [{"__typename": "Comment", "id": "c1"}]});
+    let changed = super::ChangedRows::from_report(&report).unwrap();
+    assert_eq!(changed.collections, None);
+    assert!(changed.rows.contains_key("Comment"), "the rows are read all the same");
+}
+
+/// A parent id that is neither text nor a number names its child type wholly, which stands
+/// for every collection of it; a key that is not `<type>.<column>`, or collections that are
+/// not lists, make what changed unknown (#1603).
+#[test]
+fn an_unreadable_collection_evicts_more_never_less() {
+    let report = serde_json::json!({"collections": {"Comment.fk_post": ["p1", {"x": 1}]}});
+    let changed = super::ChangedRows::from_report(&report).unwrap();
+    assert!(changed.types.contains("Comment"), "{changed:?}");
+    for report in [
+        serde_json::json!({"collections": {"Comment": ["p1"]}}),
+        serde_json::json!({"collections": {".fk_post": ["p1"]}}),
+        serde_json::json!({"collections": {"Comment.": ["p1"]}}),
+    ] {
+        let changed = super::ChangedRows::from_report(&report).unwrap();
+        assert_eq!(changed.collections, None, "{report}");
+    }
+    for report in [
+        serde_json::json!({"collections": ["Comment.fk_post"]}),
+        serde_json::json!({"collections": {"Comment.fk_post": "p1"}}),
+    ] {
+        assert_eq!(super::ChangedRows::from_report(&report), None, "{report}");
+    }
+}
+
+/// The calls of one transaction: their collections together, unless one call's report
+/// captured none, which makes the whole transaction's unknown (#1603).
+#[test]
+fn absorbed_reports_name_their_collections_together_or_none() {
+    let read = |report: serde_json::Value| super::ChangedRows::from_report(&report).unwrap();
+    let mut all = super::ChangedRows::default();
+    all.absorb(read(serde_json::json!({"collections": {"Comment.fk_post": ["p1"]}})));
+    all.absorb(read(serde_json::json!({"collections": {"Comment.fk_post": ["p2"]}})));
+    let parents = all.collections.clone().unwrap()["Comment.fk_post"].len();
+    assert_eq!(parents, 2, "{all:?}");
+
+    all.absorb(read(serde_json::json!({"updated": []})));
+    assert_eq!(all.collections, None, "a call that captured none");
+    all.absorb(read(serde_json::json!({"collections": {"Comment.fk_post": ["p3"]}})));
+    assert_eq!(all.collections, None, "stays unknown");
+}
+
+/// What a write that changed nothing reports: no rows, no types, and no collection.
+#[test]
+fn the_default_is_a_write_that_changed_nothing() {
+    let nothing = super::ChangedRows::default();
+    assert!(nothing.rows.is_empty() && nothing.types.is_empty());
+    assert_eq!(nothing.collections, Some(std::collections::BTreeMap::new()));
 }
