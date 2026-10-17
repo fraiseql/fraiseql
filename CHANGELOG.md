@@ -324,6 +324,16 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **A server hearing pg_tviews' change feed notices the transactions it missed while
+  connected (#1604).** While the cluster's NOTIFY queue is over 90 % full (a listener
+  somewhere stopped reading), pg_tviews commits transactions without publishing them, so a
+  server that stayed connected never heard those writes and served what they changed until
+  the TTL, or forever at TTL 0. pg_tviews 0.1.0-beta.31 counts them
+  (`tviews.pg_tviews_feed_gaps()`); the server reads the count right after it listens and on
+  every 5 s heartbeat, and clears its cache when it moved (metric
+  `fraiseql_tviews_feed_gaps_total`). A pg_tviews that cannot count (not preloaded, or
+  older) is logged once and leaves the reconnect as the only clear.
+
 - **`compile --database` accepts a pg_tviews whose `pg_tviews_flush_and_report()` gained an
   argument (#1600).** It looked the function up by its exact three-argument signature, and
   pg_tviews 0.1.0-beta.30 added a fourth, defaulted one (`types`), so every

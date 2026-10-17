@@ -34,5 +34,8 @@ FROM ${PG_IMAGE}
 COPY --from=build /out/usr/share/postgresql/ /usr/share/postgresql/
 COPY --from=build /out/usr/lib/postgresql/ /usr/lib/postgresql/
 # pg_tviews registers its GUCs and hooks at backend start; pg_stat_statements counts the
-# calls a suite asserts on.
-CMD ["postgres", "-c", "shared_preload_libraries=pg_tviews,pg_stat_statements"]
+# calls a suite asserts on. A NOTIFY queue of 128 pages (1 MiB, the default is 8 GiB) lets a
+# suite fill it past pg_tviews' 90 % limit in a second, so that a transaction commits
+# unpublished (#1604); every other suite's notifications are a few hundred bytes.
+CMD ["postgres", "-c", "shared_preload_libraries=pg_tviews,pg_stat_statements", \
+     "-c", "max_notify_queue_pages=128"]

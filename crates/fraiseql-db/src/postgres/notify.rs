@@ -192,6 +192,18 @@ impl NotifySession {
             .map_err(|e| super::database_error(format!("NOTIFY failed: {}", pg_detail(&e)), &e))
     }
 
+    /// Run `statement`, which returns one `bigint`, on this session's connection, between
+    /// the notifications it receives.
+    ///
+    /// # Errors
+    ///
+    /// [`FraiseQLError::Database`], with the statement's SQLSTATE, when it fails.
+    pub async fn query_bigint(&self, statement: &str) -> Result<i64> {
+        self.client.query_one(statement, &[]).await.map(|row| row.get(0)).map_err(|e| {
+            super::database_error(format!("{statement} failed: {}", pg_detail(&e)), &e)
+        })
+    }
+
     /// The next notification, or `None` once the connection is gone.
     pub async fn recv(&mut self) -> Option<Notification> {
         self.notifications.recv().await

@@ -346,10 +346,15 @@ Limits:
 - The database must publish rows for every writer: the server listens only when the setting
   comes from the server or the database and no role overrides it there.
 - pg_tviews commits transactions unpublished while the NOTIFY queue is above 90 % (a listener
-  somewhere stopped reading). A server that stays connected cannot tell it missed them yet
-  (fraiseql/pg_tviews#247); the TTL bounds them.
+  somewhere stopped reading), and counts them: `tviews.pg_tviews_feed_gaps()`. The server
+  reads the count right after it listens and on every 5 s heartbeat, and clears its cache when
+  the count moved (#1604), so such a write is served stale for one heartbeat at most. The
+  count is per cluster: a gap in another database clears the cache too. A pg_tviews that is
+  not preloaded (SQLSTATE `55000`), or a release without `pg_tviews_feed_gaps()`, cannot count;
+  the server logs that once, and only a reconnect clears the cache, the TTL bounding the rest.
 
-Metrics: `fraiseql_tviews_feed_connected` (0 or 1), `fraiseql_tviews_feed_received_total`.
+Metrics: `fraiseql_tviews_feed_connected` (0 or 1), `fraiseql_tviews_feed_received_total`,
+`fraiseql_tviews_feed_gaps_total` (clears after a gap).
 
 ### Composed reads
 

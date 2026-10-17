@@ -106,6 +106,8 @@ async fn provision(url: &str) {
     client
         .batch_execute(&format!(
             "CREATE EXTENSION IF NOT EXISTS pg_tviews;
+             -- A run that stopped before it gave it back (#1604).
+             GRANT EXECUTE ON FUNCTION tviews.pg_tviews_feed_gaps() TO PUBLIC;
              DO $$ DECLARE t text; BEGIN
                FOR t IN SELECT schema || '.' || name FROM tviews.registry
                         WHERE schema = '{SCHEMA}' ORDER BY entity LOOP
@@ -257,14 +259,39 @@ async fn serve() -> Option<Running> {
 /// [`serve`], its feed's connection (`database_url`) through `proxy` when given; its pool
 /// connects directly.
 async fn serve_with_feed_through(proxy: Option<&CountingProxy>) -> Option<Running> {
+    serve_as(proxy, None).await
+}
+
+/// [`serve_with_feed_through`], the server connecting as `role` when given: a role that is
+/// not a superuser (password: its name), which may read the suite's schema and `tviews`.
+async fn serve_as(proxy: Option<&CountingProxy>, role: Option<&str>) -> Option<Running> {
     let shared = tviews_database_url()?;
     require_typename(&shared).await;
     let url = own_database(&shared).await;
     provision(&url).await;
     let (schema, schema_dir) = schema(&url).await;
-    let adapter = Arc::new(PostgresAdapter::new(&url).await.unwrap());
+    let server_url = match role {
+        None => url.clone(),
+        Some(role) => {
+            client(&url)
+                .await
+                .batch_execute(&format!(
+                    "DO $$ BEGIN CREATE ROLE {role} LOGIN PASSWORD '{role}';
+                       EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+                     GRANT USAGE ON SCHEMA {SCHEMA}, tviews TO {role};
+                     GRANT SELECT ON ALL TABLES IN SCHEMA {SCHEMA}, tviews TO {role};"
+                ))
+                .await
+                .unwrap();
+            let mut as_role = url::Url::parse(&url).unwrap();
+            as_role.set_username(role).unwrap();
+            as_role.set_password(Some(role)).unwrap();
+            as_role.to_string()
+        },
+    };
+    let adapter = Arc::new(PostgresAdapter::new(&server_url).await.unwrap());
     let config = ServerConfig {
-        database_url: proxy.map_or_else(|| url.clone(), |p| p.url().to_string()),
+        database_url: proxy.map_or_else(|| server_url.clone(), |p| p.url().to_string()),
         cors_enabled: false,
         ..ServerConfig::default()
     };
@@ -594,6 +621,143 @@ async fn a_feed_that_stops_delivering_is_noticed() {
         );
         tokio::time::sleep(Duration::from_millis(250)).await;
     }
+}
+
+/// The most NOTIFY queue pages the suite fills: the pinned image runs 128, a megabyte. A
+/// PostgreSQL left at its default (eight gigabytes) cannot be filled by a test.
+const MAX_QUEUE_PAGES: i64 = 4096;
+
+/// A session that holds the cluster's NOTIFY queue: it listens, and sits in a transaction,
+/// so no notification sent after it began is ever freed. Dropping it ends the session and
+/// frees the queue.
+struct QueueHold {
+    _session: tokio_postgres::Client,
+}
+
+impl QueueHold {
+    /// Hold the queue of `url`'s cluster, then fill it past 90 %.
+    async fn fill(url: &str) -> Self {
+        let hold = client(url).await;
+        // Two statements: a LISTEN sent with the BEGIN would join its transaction, and a
+        // session listens only once its LISTEN commits.
+        hold.batch_execute("LISTEN p1604_hold").await.unwrap();
+        hold.batch_execute("BEGIN; SELECT 1").await.unwrap();
+        let filler = client(url).await;
+        let pages: i64 = filler
+            .query_one("SELECT current_setting('max_notify_queue_pages')::bigint", &[])
+            .await
+            .unwrap()
+            .get(0);
+        assert!(
+            pages <= MAX_QUEUE_PAGES,
+            "max_notify_queue_pages is {pages}: run the pinned image (docker/pg-tviews), \
+             whose queue this suite can fill"
+        );
+        for _ in 0..pages {
+            let usage: f64 = filler
+                .query_one("SELECT pg_notification_queue_usage()", &[])
+                .await
+                .unwrap()
+                .get(0);
+            if usage > 0.91 {
+                return Self { _session: hold };
+            }
+            filler
+                .batch_execute(
+                    "SELECT pg_notify('p1604_fill', repeat('x', 7900) || i) \
+                     FROM generate_series(1, 8) i",
+                )
+                .await
+                .unwrap();
+        }
+        panic!("the NOTIFY queue did not fill: is another session freeing it?");
+    }
+}
+
+/// #1604: while the NOTIFY queue is over 90 % full (a listener somewhere stopped reading),
+/// `pg_tviews` commits transactions without publishing them, and counts them
+/// (`tviews.`pg_tviews`_feed_gaps()`). A server that stays connected would never hear the
+/// write: it reads the count on its heartbeat and clears its cache when it moved.
+#[tokio::test]
+async fn a_write_committed_unpublished_clears_the_cache_on_the_next_heartbeat() {
+    let Some(server) = serve().await else {
+        eprintln!("skipping: TVIEWS_DATABASE_URL not set");
+        return;
+    };
+    assert!(shows(&server.get(POSTS).await, "A"), "post A is read");
+    server
+        .sql(&format!(
+            "UPDATE {SCHEMA}.tv_p1589 SET data = data || '{{\"title\": \"behind\"}}' WHERE pk_p1589 = 1"
+        ))
+        .await;
+    assert!(shows(&server.get(POSTS).await, "A"), "the read is cached");
+
+    let hold = QueueHold::fill(&server.url).await;
+    let gaps = || async {
+        let gaps: i64 = client(&server.url)
+            .await
+            .query_one("SELECT tviews.pg_tviews_feed_gaps()", &[])
+            .await
+            .unwrap()
+            .get(0);
+        gaps
+    };
+    let before = gaps().await;
+    server
+        .sql(&format!(
+            "UPDATE {SCHEMA}.tb_p1589 SET title = 'unpublished' WHERE pk_p1589 = 1"
+        ))
+        .await;
+    let after = gaps().await;
+
+    // Two heartbeats (5 s each) and some slack.
+    let start = std::time::Instant::now();
+    let mut evicted = false;
+    while start.elapsed() < Duration::from_secs(15) {
+        if shows(&server.get(POSTS).await, "unpublished") {
+            evicted = true;
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(250)).await;
+    }
+    drop(hold);
+    assert_eq!(after, before + 1, "pg_tviews committed the write unpublished");
+    assert!(evicted, "a write committed unpublished stayed cached past two heartbeats");
+}
+
+/// #1604: a read of the count that fails for another reason than "cannot tell" (here the
+/// server's role may no longer execute it) ends the session, as a lost connection does: the
+/// cache is cleared, since what the session missed is unknown.
+#[tokio::test]
+async fn a_count_the_server_cannot_read_ends_its_session() {
+    let Some(server) = serve_as(None, Some("p1604_server")).await else {
+        eprintln!("skipping: TVIEWS_DATABASE_URL not set");
+        return;
+    };
+    assert!(shows(&server.get(POSTS).await, "A"), "post A is read");
+    server
+        .sql(&format!(
+            "UPDATE {SCHEMA}.tv_p1589 SET data = data || '{{\"title\": \"behind\"}}' WHERE pk_p1589 = 1"
+        ))
+        .await;
+    assert!(shows(&server.get(POSTS).await, "A"), "the read is cached");
+
+    server
+        .sql("REVOKE EXECUTE ON FUNCTION tviews.pg_tviews_feed_gaps() FROM PUBLIC")
+        .await;
+    let start = std::time::Instant::now();
+    let mut cleared = false;
+    while start.elapsed() < Duration::from_secs(15) {
+        if shows(&server.get(POSTS).await, "behind") {
+            cleared = true;
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(250)).await;
+    }
+    server
+        .sql("GRANT EXECUTE ON FUNCTION tviews.pg_tviews_feed_gaps() TO PUBLIC")
+        .await;
+    assert!(cleared, "the count could not be read, and the session went on with its cache");
 }
 
 /// `post(id:)` reads one row of `tv_p1589` by its id (#1576): the feed evicts it by the rows

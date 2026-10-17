@@ -379,6 +379,13 @@ impl TviewsListener {
         let _ = self.evictor.cache.clear();
     }
 
+    /// `pg_tviews` committed transactions without publishing them (#1604): what they wrote
+    /// was never heard, so any entry may be stale. Clear the cache; the feed is still heard,
+    /// so composed reads stay indexed by collection.
+    pub fn missed(&self) {
+        let _ = self.evictor.cache.clear();
+    }
+
     /// Apply `payload`, received on [`CHANNEL`]. An eviction that fails clears the cache:
     /// evicting less than the write requires is a stale answer.
     pub fn receive(&self, payload: &str) {
