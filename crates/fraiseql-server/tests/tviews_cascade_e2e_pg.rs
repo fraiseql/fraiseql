@@ -154,13 +154,7 @@ async fn provision(url: &str) {
              GRANT SELECT, UPDATE ON {SCHEMA}.tb_post TO p1391_reader;
              GRANT SELECT ON ALL TABLES IN SCHEMA {SCHEMA} TO p1391_reader;
              GRANT INSERT ON core.tb_entity_change_log TO p1391_reader;
-             GRANT USAGE ON ALL SEQUENCES IN SCHEMA core TO p1391_reader;
-             -- pg_tviews resolves every TVIEW of the database on a write, so a writer needs
-             -- USAGE on each schema holding one, other suites' included (#1601).
-             DO $$ DECLARE s text; BEGIN
-               FOR s IN SELECT DISTINCT schema FROM tviews.registry LOOP
-                 EXECUTE format('GRANT USAGE ON SCHEMA %I TO p1391_reader', s);
-               END LOOP; END $$;"
+             GRANT USAGE ON ALL SEQUENCES IN SCHEMA core TO p1391_reader;"
         ))
         .await
         .unwrap();
@@ -395,6 +389,77 @@ async fn a_derived_row_the_caller_cannot_read_is_invalidated_not_served() {
     assert_eq!(
         body["data"]["updatePost"]["cascade"]["invalidations"],
         json!([{ "queryName": "users", "scope": "PREFIX" }]),
+        "{body}"
+    );
+}
+
+/// `p1601`: a schema the reader may not use, holding a TVIEW with a reference column
+/// (`tv_r1601.fk_q1601 → tv_q1601`), as another application's schema in the same database
+/// would. Returns the references `tviews.registry` records for `tv_r1601`.
+async fn provision_unusable_schema(url: &str) -> Value {
+    let (client, connection) = tokio_postgres::connect(url, tokio_postgres::NoTls).await.unwrap();
+    tokio::spawn(connection);
+    client
+        .batch_execute(
+            "DO $$ DECLARE t text; BEGIN
+               FOR t IN SELECT schema || '.' || name FROM tviews.registry
+                        WHERE schema = 'p1601' ORDER BY entity DESC LOOP
+                 PERFORM tviews.pg_tviews_drop(t);
+               END LOOP; END $$;
+             DROP SCHEMA IF EXISTS p1601 CASCADE;
+             CREATE SCHEMA p1601;
+             CREATE TABLE p1601.tb_q1601 (pk_q1601 int PRIMARY KEY, id uuid NOT NULL UNIQUE);
+             CREATE TABLE p1601.tb_r1601 (pk_r1601 int PRIMARY KEY, id uuid NOT NULL UNIQUE,
+                                          fk_q1601 int NOT NULL REFERENCES p1601.tb_q1601);
+             INSERT INTO p1601.tb_q1601 VALUES (1, gen_random_uuid());
+             INSERT INTO p1601.tb_r1601 VALUES (1, gen_random_uuid(), 1);
+             SELECT tviews.pg_tviews_create('p1601.tv_q1601', $q$
+               SELECT q.pk_q1601, q.id, jsonb_build_object('id', q.id) AS data
+               FROM p1601.tb_q1601 q $q$);
+             SELECT tviews.pg_tviews_create('p1601.tv_r1601', $q$
+               SELECT r.pk_r1601, r.id, r.fk_q1601, jsonb_build_object('id', r.id) AS data
+               FROM p1601.tb_r1601 r $q$);
+             REVOKE ALL ON SCHEMA p1601 FROM PUBLIC, p1391_reader;",
+        )
+        .await
+        .unwrap();
+    client
+        .query_one(
+            "SELECT r.\"references\" FROM tviews.registry r \
+             WHERE r.schema = 'p1601' AND r.name = 'tv_r1601'",
+            &[],
+        )
+        .await
+        .unwrap()
+        .get(0)
+}
+
+/// #1601: a write reaching a TVIEW needs no `USAGE` on the schemas of other TVIEWs. Since
+/// `pg_tviews` beta.30, every write loads each TVIEW's references, resolving their tables
+/// through the caller's privileges, so a writer without `USAGE` on another schema holding a
+/// TVIEW with a reference column got `permission denied for schema` and its write rolled
+/// back; beta.31 matches them through `pg_class`. A TVIEW without a reference column never
+/// triggered it, so the schema here has one.
+#[tokio::test]
+async fn a_write_needs_no_usage_on_another_schema_holding_a_tview_with_a_reference() {
+    let Some(url) = tviews_database_url() else {
+        eprintln!("skipping #1601: TVIEWS_DATABASE_URL not set");
+        return;
+    };
+    provision(&url).await;
+    let references = provision_unusable_schema(&url).await;
+    assert!(
+        references.get("fk_q1601").is_some(),
+        "tv_r1601 must have a reference column, or this test proves nothing: {references}"
+    );
+    let reader = serve_as(as_reader(&url)).await;
+    let body = update_post(&reader, "no-usage-on-p1601").await;
+    assert!(
+        body.get("errors").is_none(),
+        "a write by a role without USAGE on another TVIEW's schema failed: {body}"
+    );
+    assert!(
+        updated(&body).contains(&("Post".to_string(), json!({ "title": "no-usage-on-p1601" }))),
         "{body}"
     );
 }

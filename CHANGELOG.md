@@ -115,9 +115,9 @@ disagreed, and the promise was the part that was wrong.
   depends on an UNLOGGED table no longer tells you to set `pg_tviews.unlogged_by_default`,
   which beta.30 removed and refuses. It prints the statement to run for each table instead
   (`ALTER TABLE app.tv_post SET LOGGED;`), which also sets the TVIEW's `logged` option.
-  **Known:** on beta.30, a write fails unless its role has `USAGE` on every schema that
-  holds a TVIEW, including TVIEWs the write cannot reach. Grant it until pg_tviews changes
-  this (#1601).
+  beta.31 lifts a requirement beta.30 had: a writing role no longer needs `USAGE` on the
+  schema of every TVIEW with a reference column, also those its writes cannot reach
+  (#1601).
 
 - **`CachedResult` has a `by_id` field (#1576)**: the row a read of one TVIEW row by id is
   cached under. A struct literal of it must set it (`None` for any other read).
