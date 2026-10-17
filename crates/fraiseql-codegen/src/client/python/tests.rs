@@ -378,3 +378,18 @@ fn every_vector_type_maps_to_its_own_surface() {
     assert_eq!(field_type_py(&FieldType::BitVector), "str");
     assert_eq!(field_type_py(&FieldType::SparseVector), "str");
 }
+
+/// #1586: a list declared with nullable items renders them nullable; one declared with
+/// non-null items does not.
+#[test]
+fn an_output_list_with_nullable_items_renders_them_nullable() {
+    use fraiseql_core::schema::{FieldDefinition, FieldType};
+    let list = || FieldType::List(Box::new(FieldType::Float));
+    let mut field = FieldDefinition::nullable("monthlyValues", list());
+    assert_eq!(super::render::field_type_py_output(&field), "list[float] | None");
+    field.nullable_items = true;
+    assert_eq!(super::render::field_type_py_output(&field), "list[float | None] | None");
+    let mut field = FieldDefinition::new("monthlyValues", list());
+    field.nullable_items = true;
+    assert_eq!(super::render::field_type_py_output(&field), "list[float | None]");
+}

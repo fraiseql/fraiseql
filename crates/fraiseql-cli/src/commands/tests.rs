@@ -681,6 +681,7 @@ mod compile_tests {
                         hierarchy:       None,
                         unique:          false,
                         localized:       false,
+                        nullable_items:  false,
                     },
                     FieldDefinition {
                         name:            "email".into(),
@@ -699,6 +700,7 @@ mod compile_tests {
                         hierarchy:       None,
                         unique:          false,
                         localized:       false,
+                        nullable_items:  false,
                     },
                 ],
                 description:         Some("Test type".to_string()),

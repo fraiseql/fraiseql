@@ -966,6 +966,7 @@ mod field_filter_tests {
             hierarchy:       None,
             unique:          false,
             localized:       false,
+            nullable_items:  false,
         }
     }
 
@@ -1095,6 +1096,7 @@ mod field_filter_tests {
             hierarchy: None,
             unique: false,
             localized: false,
+            nullable_items: false,
         }
     }
 

@@ -29,7 +29,7 @@ The types are the ones introspection and the SDL publish:
 | Position | Published as | An incomplete value there |
 |---|---|---|
 | A field | `T!` unless declared nullable | nulls its parent object |
-| A list item | `[T!]` | nulls the list |
+| A list item | `[T!]` unless the list is declared with nullable items (`[T]`) | nulls the list |
 | A root list query | `[T!]!` | nulls `data` |
 | A single query | `T` when declared nullable | is `null` |
 | A mutation | `T` | is `null` |
@@ -37,7 +37,11 @@ The types are the ones introspection and the SDL publish:
 | A subscription event | `T` | is `null` |
 
 So one incomplete row of a non-null list makes the whole field `null`, and, under a
-non-null root, `data`. Declare a field nullable when its value may legitimately be absent.
+non-null root, `data`. Declare a field nullable when its value may legitimately be absent,
+and a list's items nullable when an item may be (`list[float | None]` in Python, `[]*float64`
+in Go, `float option list` in F#, or the type string `"[Float]"`): a sparse series with a
+`null` for a period without data is served as stored. Only the outermost list of a field may
+have nullable items; the compiler refuses `[[Float]]`.
 
 A field gated with `on_deny = "mask"` is published nullable: a caller the gate refuses reads
 it as `null`, which is a value it may take, not an error.

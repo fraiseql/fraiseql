@@ -4,7 +4,7 @@
 //! The generated client targets **Go ≥ 1.21** (generics for the Relay
 //! `Connection[T]`); the shared document machinery lives in `client::common`.
 
-use fraiseql_core::schema::FieldType;
+use fraiseql_core::schema::{FieldDefinition, FieldType};
 
 /// Map a `GraphQL` named-scalar to its Go type, if it is a known scalar.
 ///
@@ -76,6 +76,18 @@ pub(super) fn field_type_go_nullable(ft: &FieldType, nullable: bool) -> String {
         format!("*{base}")
     } else {
         base
+    }
+}
+
+/// Render an output field's type: its outer nullability, and the items of a list it
+/// declares nullable (`[T]`, #1586).
+pub(super) fn field_type_go_output(field: &FieldDefinition) -> String {
+    match &field.field_type {
+        FieldType::List(inner) if field.nullable_items => {
+            let list = format!("[]{}", field_type_go_nullable(inner, true));
+            list
+        },
+        ft => field_type_go_nullable(ft, field.nullable),
     }
 }
 

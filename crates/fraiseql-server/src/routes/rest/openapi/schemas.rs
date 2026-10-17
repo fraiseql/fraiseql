@@ -110,6 +110,13 @@ impl OpenApiGenerator<'_> {
         for field in &type_def.fields {
             let mut field_schema = field_type_to_json_schema(&field.field_type);
 
+            // A list declared with nullable items (`[T]`, #1586) may hold `null`.
+            if field.nullable_items {
+                if let Some(items) = field_schema.get_mut("items").and_then(Value::as_object_mut) {
+                    items.insert("nullable".to_string(), json!(true));
+                }
+            }
+
             if let Some(ref desc) = field.description {
                 if let Value::Object(ref mut map) = field_schema {
                     map.insert("description".to_string(), json!(desc));

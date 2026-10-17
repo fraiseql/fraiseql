@@ -166,6 +166,27 @@ fn nested_object_produces_ref() {
     assert!(spec["components"]["schemas"]["Address"].is_object());
 }
 
+/// #1586: a list declared with nullable items describes items that may be `null`; one
+/// declared with non-null items does not.
+#[test]
+fn a_list_with_nullable_items_describes_them_nullable() {
+    let mut schema = rest_schema();
+    for td in &mut schema.types {
+        if td.name == "User" {
+            let list = || FieldType::List(Box::new(FieldType::Float));
+            let mut sparse = TestFieldBuilder::nullable("monthlyValues", list()).build();
+            sparse.nullable_items = true;
+            td.fields.push(sparse);
+            td.fields.push(TestFieldBuilder::nullable("strictValues", list()).build());
+        }
+    }
+
+    let spec = generate(&schema);
+    let props = &spec["components"]["schemas"]["User"]["properties"];
+    assert_eq!(props["monthlyValues"]["items"]["nullable"], serde_json::json!(true));
+    assert!(props["strictValues"]["items"].get("nullable").is_none(), "{props}");
+}
+
 #[test]
 fn enum_field_produces_ref() {
     let mut schema = rest_schema();

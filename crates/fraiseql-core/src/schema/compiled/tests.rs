@@ -2669,6 +2669,11 @@ fn the_sdl_and_introspection_publish_the_same_field_types() {
         FieldDefinition::nullable("note", FieldType::String),
         FieldDefinition::new("tags", FieldType::List(Box::new(FieldType::String))),
         margin,
+        // #1586: declared `[Float]`.
+        FieldDefinition {
+            nullable_items: true,
+            ..FieldDefinition::nullable("monthly", FieldType::List(Box::new(FieldType::Float)))
+        },
     ];
     schema.types.push(order);
     let mut orders = QueryDefinition::new("orders", "Order").returning_list();
@@ -2708,6 +2713,7 @@ fn the_sdl_and_introspection_publish_the_same_field_types() {
     assert!(compared >= 7, "the object and root fields were compared: {compared}\n{sdl}");
     assert!(sdl.contains("  margin: Int\n"), "a masked field is nullable:\n{sdl}");
     assert!(sdl.contains("  tags: [String!]!\n"), "list items are non-null:\n{sdl}");
+    assert!(sdl.contains("  monthly: [Float]\n"), "declared nullable items:\n{sdl}");
     assert!(sdl.contains("createOrder: Order\n"), "a mutation is nullable:\n{sdl}");
 }
 

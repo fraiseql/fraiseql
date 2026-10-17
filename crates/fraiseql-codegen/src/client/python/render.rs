@@ -5,7 +5,7 @@
 //! generic `TypedDict`s); the shared document machinery lives in
 //! `client::common`.
 
-use fraiseql_core::schema::FieldType;
+use fraiseql_core::schema::{FieldDefinition, FieldType};
 
 /// Map a `GraphQL` named-scalar to its Python type, if it is a known scalar.
 ///
@@ -64,6 +64,22 @@ pub(super) fn field_type_py_nullable(ft: &FieldType, nullable: bool) -> String {
         format!("{base} | None")
     } else {
         base
+    }
+}
+
+/// Render an output field's type: its outer nullability, and the items of a list it
+/// declares nullable (`[T]`, #1586).
+pub(super) fn field_type_py_output(field: &FieldDefinition) -> String {
+    match &field.field_type {
+        FieldType::List(inner) if field.nullable_items => {
+            let list = format!("list[{} | None]", field_type_py(inner));
+            if field.nullable {
+                format!("{list} | None")
+            } else {
+                list
+            }
+        },
+        ft => field_type_py_nullable(ft, field.nullable),
     }
 }
 

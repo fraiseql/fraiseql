@@ -4,7 +4,7 @@
 //! These are the pure, well-tested core the per-file emitters build on. See
 //! `DESIGN-CLIENT-TS.md` §2–§5 for the rules implemented here.
 
-use fraiseql_core::schema::FieldType;
+use fraiseql_core::schema::{FieldDefinition, FieldType};
 
 /// Map a `GraphQL` named-scalar to its `TypeScript` type, if it is a known scalar.
 ///
@@ -60,14 +60,29 @@ pub(super) fn field_type_ts(ft: &FieldType) -> String {
 /// Render a [`FieldType`] with outer nullability applied.
 ///
 /// `T` for non-null, `T | null` for nullable. Lists are `T[]` / `T[] | null`.
-/// The structured `FieldType` model carries outer nullability only, so inner-list
-/// nullability is not expressible here (documented v1 simplification).
+/// An output field's nullable list items are rendered by [`field_type_ts_output`].
 pub(super) fn field_type_ts_nullable(ft: &FieldType, nullable: bool) -> String {
     let base = field_type_ts(ft);
     if nullable {
         format!("{base} | null")
     } else {
         base
+    }
+}
+
+/// Render an output field's type: its outer nullability, and the items of a list it
+/// declares nullable (`[T]`, #1586).
+pub(super) fn field_type_ts_output(field: &FieldDefinition) -> String {
+    match &field.field_type {
+        FieldType::List(inner) if field.nullable_items => {
+            let list = format!("({} | null)[]", field_type_ts(inner));
+            if field.nullable {
+                format!("{list} | null")
+            } else {
+                list
+            }
+        },
+        ft => field_type_ts_nullable(ft, field.nullable),
     }
 }
 

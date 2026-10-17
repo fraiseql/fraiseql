@@ -394,6 +394,7 @@ pub enum FieldDenyPolicy {
 ///     hierarchy: None,
 ///     unique: false,
 ///     localized: false,
+///     nullable_items: false,
 /// };
 /// ```
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -470,6 +471,7 @@ pub struct FieldDefinition {
     ///     hierarchy: None,
     ///     unique: false,
     ///     localized: false,
+    ///     nullable_items: false,
     /// };
     /// ```
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -544,6 +546,16 @@ pub struct FieldDefinition {
     /// the loader refuse it on any other type and in a schema without `[locale]`.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub localized: bool,
+
+    /// Whether the items of this field's list may be `null` (#1586): `[Float]`, where
+    /// `false` is `[Float!]`. Only an output list field reads it, and only its outermost
+    /// list: the compiler refuses nullable items at a deeper level of a nested list.
+    ///
+    /// Introspection and the SDL publish it, and responses are completed against what they
+    /// publish (§ 6.4.4, #1522), so a `null` item of a list declared `[Float]` is served
+    /// rather than nulling the list.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub nullable_items: bool,
 }
 
 /// Encryption configuration for a field in the compiled schema.
@@ -618,6 +630,7 @@ impl FieldDefinition {
             hierarchy: None,
             unique: false,
             localized: false,
+            nullable_items: false,
         }
     }
 
@@ -641,6 +654,7 @@ impl FieldDefinition {
             hierarchy: None,
             unique: false,
             localized: false,
+            nullable_items: false,
         }
     }
 
@@ -672,6 +686,7 @@ impl FieldDefinition {
             hierarchy:       None,
             unique:          false,
             localized:       false,
+            nullable_items:  false,
         }
     }
 

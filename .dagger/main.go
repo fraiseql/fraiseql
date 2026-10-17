@@ -1631,6 +1631,10 @@ func (m *FraiseqlCi) integrationPostgres(ctx context.Context, source *dagger.Dir
 		"cargo test -p fraiseql-cli --features test-postgres --test compile_drift_fail_pg -- --test-threads=1",
 		"echo '### cargo test -p fraiseql-cli --test native_column_nullability_pg (#1533 NOT NULL recorded where proven)'",
 		"cargo test -p fraiseql-cli --features test-postgres --test native_column_nullability_pg -- --test-threads=1",
+		// What an author declares in schema.json is what the runtime serves, compiled with the
+		// real CLI and read through the real executor (#1586).
+		"echo '### cargo test -p fraiseql-cli --test authored_contract_pg (declaration = served contract)'",
+		"cargo test -p fraiseql-cli --features test-postgres --test authored_contract_pg -- --test-threads=1",
 		// #384 verification suites that had NEVER run with a database in any leg:
 		// each self-skips without DATABASE_URL, and the workspace test leg (which
 		// compiles them under --all-features) binds no Postgres — so all three read

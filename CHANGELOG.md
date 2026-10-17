@@ -18,6 +18,14 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **A list declared `[T]` publishes nullable items (#1586).** It published `[T!]` whatever was
+  declared. A schema exporting `"[T]"` for a list of non-null items now publishes and serves
+  nullable ones. Two SDKs exported `[T]` for every list: the F# SDK now exports `[T!]` unless
+  the element is an `option` or `Nullable<>`, and the Java SDK `[T!]` for an array of a
+  primitive (a reference element stays `[T]`). `fraiseql_core::schema::FieldDefinition` gains
+  `nullable_items` (a struct literal listing every field adds `nullable_items: false`).
+  `[[T]]` (nullable items in a nested list) is refused at compile.
+
 - **`/metrics` reports the query-result cache's real counts, as `fraiseql_cache_*_total`
   (#1583).** `fraiseql_cache_hits` and `fraiseql_cache_misses` always read 0: the collector
   fields behind them were never incremented, while the result cache kept its own counters,
@@ -323,6 +331,15 @@ disagreed, and the promise was the part that was wrong.
   reported TVIEW (pg_tviews#240): throughput there is unchanged.
 
 ### Fixed
+
+- **A list declared with nullable items serves a `null` item (#1586).** `list[float | None]`
+  (Python), `[]*float64` (Go) or the type string `"[Float]"` compiled as a list of non-null
+  items, because the compiled schema could not carry item nullability. Since non-null
+  completion (#1522), one `null` item nulled the whole list with a field error. The compiled
+  field now records it (`nullable_items`), and introspection, the SDL, the generated clients
+  (`(T | null)[]`, `list[T | None]`, `Vec<Option<T>>`, `[]*T`) and the OpenAPI document
+  publish `[Float]`, so the item is served as stored. `[Float!]` still nulls the list. Only
+  the outermost list of a field may have nullable items: `[[Float]]` is refused at compile.
 
 - **A server hearing pg_tviews' change feed notices the transactions it missed while
   connected (#1604).** While the cluster's NOTIFY queue is over 90 % full (a listener

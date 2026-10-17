@@ -448,3 +448,18 @@ fn a_mutually_recursive_input_pair_is_boxed_on_both_sides() {
     assert!(inputs.contains("Option<Box<CustomerWhereInput>>"), "got:\n{inputs}");
     assert!(inputs.contains("Option<Box<OrderWhereInput>>"), "got:\n{inputs}");
 }
+
+/// #1586: a list declared with nullable items renders them nullable; one declared with
+/// non-null items does not.
+#[test]
+fn an_output_list_with_nullable_items_renders_them_nullable() {
+    use fraiseql_core::schema::{FieldDefinition, FieldType};
+    let list = || FieldType::List(Box::new(FieldType::Float));
+    let mut field = FieldDefinition::nullable("monthlyValues", list());
+    assert_eq!(super::render::field_type_rs_output(&field), "Option<Vec<f64>>");
+    field.nullable_items = true;
+    assert_eq!(super::render::field_type_rs_output(&field), "Option<Vec<Option<f64>>>");
+    let mut field = FieldDefinition::new("monthlyValues", list());
+    field.nullable_items = true;
+    assert_eq!(super::render::field_type_rs_output(&field), "Vec<Option<f64>>");
+}

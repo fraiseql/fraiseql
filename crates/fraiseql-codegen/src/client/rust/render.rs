@@ -4,7 +4,7 @@
 //! The generated client targets the **2021 edition** and depends only on `serde`
 //! and `serde_json`; the shared document machinery lives in `client::common`.
 
-use fraiseql_core::schema::FieldType;
+use fraiseql_core::schema::{FieldDefinition, FieldType};
 
 /// Map a `GraphQL` named-scalar to its Rust type, if it is a known scalar.
 ///
@@ -67,6 +67,22 @@ pub(super) fn field_type_rs_nullable(ft: &FieldType, nullable: bool) -> String {
         format!("Option<{base}>")
     } else {
         base
+    }
+}
+
+/// Render an output field's type: its outer nullability, and the items of a list it
+/// declares nullable (`[T]`, #1586).
+pub(super) fn field_type_rs_output(field: &FieldDefinition) -> String {
+    match &field.field_type {
+        FieldType::List(inner) if field.nullable_items => {
+            let list = format!("Vec<Option<{}>>", field_type_rs(inner));
+            if field.nullable {
+                format!("Option<{list}>")
+            } else {
+                list
+            }
+        },
+        ft => field_type_rs_nullable(ft, field.nullable),
     }
 }
 

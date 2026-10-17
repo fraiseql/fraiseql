@@ -338,6 +338,7 @@ fn synth_field(name: &str, field_type: FieldType, nullable: bool, desc: &str) ->
         hierarchy: None,
         unique: false,
         localized: false,
+        nullable_items: false,
     }
 }
 

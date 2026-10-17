@@ -4634,3 +4634,30 @@ fn a_fact_table_filter_carries_its_ltree_type_and_hierarchy_into_the_compiled_sc
     assert_eq!(filter.sql_type, SqlType::Ltree);
     assert_eq!(filter.hierarchy.as_deref(), Some("org"));
 }
+
+// #1586: `parse_field_type` drops the item `!`, so the field records whether its list's
+// items may be null; nullable items deeper in a nested list cannot be recorded and are
+// refused rather than published tighter than declared.
+#[test]
+fn list_items_nullable_reads_the_outermost_items() {
+    for (declared, nullable) in [
+        ("[Float]", true),
+        ("[Float]!", true),
+        ("[Float!]", false),
+        ("[Float!]!", false),
+        ("Float", false),
+        ("Float!", false),
+        ("[[Float!]]", true),
+        ("[[Float!]!]", false),
+    ] {
+        assert_eq!(SchemaConverter::list_items_nullable(declared), Ok(nullable), "{declared}");
+    }
+}
+
+#[test]
+fn list_items_nullable_refuses_nullable_items_in_a_nested_list() {
+    for declared in ["[[Float]]", "[[Float]!]!", "[[[Float!]]!]"] {
+        let refusal = SchemaConverter::list_items_nullable(declared).unwrap_err();
+        assert!(refusal.contains("nested list"), "{declared}: {refusal}");
+    }
+}

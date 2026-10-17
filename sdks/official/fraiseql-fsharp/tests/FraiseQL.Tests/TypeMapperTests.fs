@@ -72,12 +72,21 @@ let ``int option maps to Int and is nullable`` () =
     TypeMapper.isNullable typeof<int option> |> should equal true
 
 [<Fact>]
-let ``Guid list maps to [ID]`` () =
-    TypeMapper.toGraphQLType typeof<Guid list> |> should equal "[ID]"
+let ``Guid list maps to [ID!]`` () =
+    TypeMapper.toGraphQLType typeof<Guid list> |> should equal "[ID!]"
 
 [<Fact>]
-let ``int array maps to [Int]`` () =
-    TypeMapper.toGraphQLType typeof<int array> |> should equal "[Int]"
+let ``int array maps to [Int!]`` () =
+    TypeMapper.toGraphQLType typeof<int array> |> should equal "[Int!]"
+
+// #1586: an option element declares nullable items, which the engine now publishes and serves.
+[<Fact>]
+let ``float option list maps to [Float]`` () =
+    TypeMapper.toGraphQLType typeof<float option list> |> should equal "[Float]"
+
+[<Fact>]
+let ``Nullable int array maps to [Int]`` () =
+    TypeMapper.toGraphQLType typeof<Nullable<int> array> |> should equal "[Int]"
 
 [<Fact>]
 let ``string list is not nullable`` () =

@@ -32,6 +32,7 @@ pub(super) fn build_field(field: &FieldDefinition) -> IntrospectionField {
         field_type:         output_type_to_introspection(
             &field.field_type,
             field.published_nullable(),
+            field.nullable_items,
         ),
         is_deprecated:      field.is_deprecated(),
         deprecation_reason: field.deprecation_reason().map(ToString::to_string),
@@ -188,12 +189,15 @@ fn locale_argument() -> IntrospectionInputValue {
 }
 
 /// Convert an **output** field's `FieldType` to its introspection type: as
-/// [`field_type_to_introspection`], with list items non-null (#1522). That is what the SDL,
-/// the compiler's relay types (`edges: [XEdge!]!`) and every generated client (`T[]`,
-/// `Vec<T>`) publish, and what responses are completed against.
+/// [`field_type_to_introspection`], with list items non-null (#1522) unless the field
+/// declares its list's items nullable (`[T]`, #1586). That is what the SDL, the compiler's
+/// relay types (`edges: [XEdge!]!`) and every generated client (`T[]`, `(T | null)[]`)
+/// publish, and what responses are completed against. `nullable_items` is the outermost
+/// list's: the compiler refuses nullable items deeper in a nested list.
 pub(super) fn output_type_to_introspection(
     field_type: &FieldType,
     nullable: bool,
+    nullable_items: bool,
 ) -> IntrospectionType {
     let FieldType::List(inner) = field_type else {
         return field_type_to_introspection(field_type, nullable);
@@ -207,7 +211,11 @@ pub(super) fn output_type_to_introspection(
         possible_types:     None,
         enum_values:        None,
         input_fields:       None,
-        of_type:            Some(Box::new(output_type_to_introspection(inner, false))),
+        of_type:            Some(Box::new(output_type_to_introspection(
+            inner,
+            nullable_items,
+            false,
+        ))),
         specified_by_u_r_l: None,
     };
     if nullable {

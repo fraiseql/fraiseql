@@ -14,7 +14,7 @@ use fraiseql_core::schema::{
 use super::{
     Ctx,
     render::{
-        custom_scalar_name, field_type_py, field_type_py_nullable, is_py_keyword, named_scalar_py,
+        custom_scalar_name, field_type_py, field_type_py_output, is_py_keyword, named_scalar_py,
         parse_input_type, py_param_name,
     },
 };
@@ -142,7 +142,7 @@ fn leaf_dict_fields(fields: &[FieldDefinition]) -> Vec<DictField> {
             DictField {
                 comments,
                 name: field.name.to_string(),
-                py: field_type_py_nullable(&field.field_type, field.nullable),
+                py: field_type_py_output(field),
             }
         })
         .collect()

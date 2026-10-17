@@ -78,3 +78,18 @@ fn graphql_arg_types() {
     assert_eq!(arg_graphql_type(&FieldType::Id, false), "ID!");
     assert_eq!(arg_graphql_type(&FieldType::Input("UserFilter".into()), true), "UserFilter");
 }
+
+/// #1586: a list declared with nullable items renders them nullable; one declared with
+/// non-null items does not.
+#[test]
+fn an_output_list_with_nullable_items_renders_them_nullable() {
+    use fraiseql_core::schema::{FieldDefinition, FieldType};
+    let list = || FieldType::List(Box::new(FieldType::Float));
+    let mut field = FieldDefinition::nullable("monthlyValues", list());
+    assert_eq!(super::field_type_ts_output(&field), "number[] | null");
+    field.nullable_items = true;
+    assert_eq!(super::field_type_ts_output(&field), "(number | null)[] | null");
+    let mut field = FieldDefinition::new("monthlyValues", list());
+    field.nullable_items = true;
+    assert_eq!(super::field_type_ts_output(&field), "(number | null)[]");
+}

@@ -513,6 +513,15 @@ public class TypeSystemTest {
         public int quantity;
     }
 
+    @Test
+    @DisplayName("#1586: an array of a primitive has non-null items; of a reference, nullable ones")
+    void testArrayItemNullability() {
+        assertEquals("[Float!]", TypeConverter.javaToGraphQL(double[].class));
+        assertEquals("[Int!]", TypeConverter.javaToGraphQL(int[].class));
+        assertEquals("[String]", TypeConverter.javaToGraphQL(String[].class));
+        assertEquals("[Float]", TypeConverter.javaToGraphQL(Double[].class));
+    }
+
     @GraphQLType(description = "A simple type for defaults testing")
     public static class SimpleType {
         @GraphQLField

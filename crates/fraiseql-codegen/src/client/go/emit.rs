@@ -20,8 +20,8 @@ use fraiseql_core::schema::{
 use super::{
     Ctx,
     render::{
-        custom_scalar_name, field_type_go_nullable, go_enum_suffix, go_export, go_param_name,
-        is_nilable_go, named_scalar_go, parse_input_type,
+        custom_scalar_name, field_type_go_nullable, field_type_go_output, go_enum_suffix,
+        go_export, go_param_name, is_nilable_go, named_scalar_go, parse_input_type,
     },
 };
 use crate::client::common::{self, finish, leaf_fields, selection_for_return};
@@ -130,7 +130,7 @@ fn leaf_struct_fields(fields: &[FieldDefinition]) -> Vec<GoField> {
             GoField {
                 comments,
                 name: go_export(field.name.as_str()),
-                go_type: field_type_go_nullable(&field.field_type, field.nullable),
+                go_type: field_type_go_output(field),
                 tag: format!("json:\"{}\"", field.name),
             }
         })

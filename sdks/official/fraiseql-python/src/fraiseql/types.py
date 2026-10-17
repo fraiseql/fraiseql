@@ -145,7 +145,9 @@ def python_type_to_graphql(py_type: Any) -> tuple[str, bool]:  # noqa: PLR0911 â
         >>> python_type_to_graphql(str | None)
         ('String', True)
         >>> python_type_to_graphql(list[int])
-        ('[Int]', False)
+        ('[Int!]', False)
+        >>> python_type_to_graphql(list[float | None])
+        ('[Float]', False)
         >>> from fraiseql.scalars import ID, DateTime
         >>> python_type_to_graphql(ID)
         ('ID', False)

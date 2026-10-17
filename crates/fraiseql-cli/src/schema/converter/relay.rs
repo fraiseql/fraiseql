@@ -55,6 +55,7 @@ pub(super) fn inject_relay_types(schema: &mut CompiledSchema) -> anyhow::Result<
             hierarchy:       None,
             unique:          false,
             localized:       false,
+            nullable_items:  false,
         };
         schema.interfaces.push(
             InterfaceDefinition::new("Node")
@@ -83,6 +84,7 @@ pub(super) fn inject_relay_types(schema: &mut CompiledSchema) -> anyhow::Result<
             hierarchy: None,
             unique: false,
             localized: false,
+            nullable_items: false,
         };
         let page_info = TypeDefinition {
             name:                "PageInfo".into(),
@@ -154,6 +156,7 @@ pub(super) fn inject_relay_types(schema: &mut CompiledSchema) -> anyhow::Result<
         hierarchy: None,
         unique: false,
         localized: false,
+        nullable_items: false,
     };
 
     let mut new_types: Vec<TypeDefinition> = Vec::new();

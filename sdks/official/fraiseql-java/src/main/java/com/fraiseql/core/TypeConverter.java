@@ -74,7 +74,11 @@ public class TypeConverter {
             return "[String]";  // Generic fallback for unparameterized collections
         }
         if (javaType.isArray()) {
-            return "[" + javaToGraphQL(javaType.getComponentType()) + "]";
+            // A primitive element cannot be null, so its items are non-null (`[Float!]`); a
+            // reference element may be (`[String]`). The engine publishes and enforces exactly
+            // what is declared (#1586).
+            Class<?> component = javaType.getComponentType();
+            return "[" + javaToGraphQL(component) + (component.isPrimitive() ? "!" : "") + "]";
         }
 
         // Handle Optional

@@ -38,8 +38,13 @@ module TypeMapper =
             | Some inner -> inner
             | None -> t
 
+    /// Whether a list element may be <c>null</c>: an <c>option</c> or <c>Nullable&lt;&gt;</c>.
+    let private isNullableElement (t: System.Type) =
+        unwrapOption t |> Option.isSome || unwrapNullable t |> Option.isSome
+
     /// Recursively converts a .NET type to a GraphQL type string.
-    /// List types become <c>[ElementType]</c>. Option/Nullable wrappers are stripped
+    /// List types become <c>[ElementType!]</c>, or <c>[ElementType]</c> when the element is an
+    /// <c>option</c> or <c>Nullable&lt;&gt;</c>. Option/Nullable wrappers are stripped
     /// (nullability is tracked separately via <see cref="isNullable"/>).
     let rec toGraphQLType (t: System.Type) : string =
         match unwrapOption t with
@@ -49,7 +54,9 @@ module TypeMapper =
             | Some inner -> toGraphQLType inner
             | None ->
                 match unwrapList t with
-                | Some inner -> sprintf "[%s]" (toGraphQLType inner)
+                // An `option` element declares nullable items (`[T]`); any other element
+                // non-null ones (`[T!]`), the contract the engine publishes and enforces (#1586).
+                | Some inner -> sprintf "[%s%s]" (toGraphQLType inner) (if isNullableElement inner then "" else "!")
                 | None ->
                     match t with
                     | t when t = typeof<int> || t = typeof<int64> || t = typeof<int16> || t = typeof<int32> -> "Int"

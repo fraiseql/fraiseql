@@ -422,6 +422,8 @@ impl SchemaConverter {
         }
 
         let field_type = Self::parse_field_type(&intermediate.field_type, declared)?;
+        let nullable_items = Self::list_items_nullable(&intermediate.field_type)
+            .map_err(|e| anyhow::anyhow!("Field '{}': {e}", intermediate.name))?;
 
         // #386: vector_config is required on Vector fields (DDL and request-time
         // dimension validation both need it) and meaningless anywhere else —
@@ -491,6 +493,7 @@ impl SchemaConverter {
             hierarchy: intermediate.hierarchy,
             unique: intermediate.unique.unwrap_or(false),
             localized: intermediate.localized,
+            nullable_items,
         })
     }
 
@@ -539,6 +542,40 @@ impl SchemaConverter {
             // else is an object reference (#923).
             declared.resolve(type_name)
         }))
+    }
+
+    /// Whether the items of the list `type_name` declares may be `null` (#1586): `[Float]`
+    /// is `true`, `[Float!]` and a type that is not a list are `false`.
+    ///
+    /// [`FieldDefinition::nullable_items`] describes the outermost list only, so nullable
+    /// items deeper in a nested list (`[[Float]]`) are refused rather than published
+    /// tighter than declared.
+    ///
+    /// # Errors
+    ///
+    /// Returns the refusal for a nested list whose inner items are nullable.
+    pub(super) fn list_items_nullable(type_name: &str) -> std::result::Result<bool, String> {
+        /// The item type of the list `t` (`!` stripped first), when it is one.
+        fn items(t: &str) -> Option<&str> {
+            let t = t.trim();
+            let t = t.strip_suffix('!').unwrap_or(t).trim();
+            t.strip_prefix('[').and_then(|s| s.strip_suffix(']')).map(str::trim)
+        }
+        let Some(outer) = items(type_name) else {
+            return Ok(false);
+        };
+        let mut inner = items(outer);
+        while let Some(item) = inner {
+            if !item.ends_with('!') {
+                return Err(format!(
+                    "type '{type_name}' declares nullable items inside a nested list; only the \
+                     outermost list of a field may have nullable items. Declare the inner \
+                     items non-null ('{item}!')"
+                ));
+            }
+            inner = items(item);
+        }
+        Ok(!outer.ends_with('!'))
     }
 
     /// Check whether a string is a safe SQL identifier.

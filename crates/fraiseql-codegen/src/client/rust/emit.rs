@@ -17,8 +17,8 @@ use fraiseql_core::schema::{
 use super::{
     Ctx,
     render::{
-        custom_scalar_name, field_type_rs, field_type_rs_nullable, named_scalar_rs,
-        parse_input_type, pascal_case, rs_ident,
+        custom_scalar_name, field_type_rs, field_type_rs_output, named_scalar_rs, parse_input_type,
+        pascal_case, rs_ident,
     },
 };
 use crate::client::common::{
@@ -181,7 +181,7 @@ fn leaf_struct_fields(fields: &[FieldDefinition]) -> Vec<RsField> {
                 attrs: rename_attr(field.name.as_str(), &name, "").into_iter().collect(),
                 comments,
                 name,
-                rs_type: field_type_rs_nullable(&field.field_type, field.nullable),
+                rs_type: field_type_rs_output(field),
             }
         })
         .collect()

@@ -11,8 +11,8 @@ use fraiseql_core::schema::{
 use super::{
     Ctx, input_base_name, leaf_fields, referenced_named_type,
     render::{
-        custom_scalar_name, field_type_ts, field_type_ts_nullable, named_scalar_ts,
-        parse_input_type, ts_ident,
+        custom_scalar_name, field_type_ts, field_type_ts_output, named_scalar_ts, parse_input_type,
+        ts_ident,
     },
     render_imports,
 };
@@ -101,7 +101,7 @@ fn emit_field_line(out: &mut String, field: &FieldDefinition) {
     if let Some(scalar) = custom_scalar_name(&field.field_type) {
         let _ = writeln!(out, "  // TODO: brand custom scalar `{scalar}`");
     }
-    let ts = field_type_ts_nullable(&field.field_type, field.nullable);
+    let ts = field_type_ts_output(field);
     let _ = writeln!(out, "  {}: {ts};", field.name);
 }
 
