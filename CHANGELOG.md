@@ -332,6 +332,15 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **An `orderBy` object written inline sorts by its keys in the order written (#1567).**
+  `orderBy: {ratio: ASC, isCurrent: DESC}` sorted by `isCurrent` first: the GraphQL parser
+  keeps an object literal as a map ordered by key, so every inline object reached the engine
+  with its keys sorted, while the same object passed as a variable kept its order. One request
+  answered with two different first pages. The written order is now read from the document
+  for every inline value (arguments, directive arguments, variable defaults, at any depth),
+  so the literal and the variable agree. A key written twice keeps its first place and its
+  last value, as before.
+
 - **A list declared with nullable items serves a `null` item (#1586).** `list[float | None]`
   (Python), `[]*float64` (Go) or the type string `"[Float]"` compiled as a list of non-null
   items, because the compiled schema could not carry item nullability. Since non-null

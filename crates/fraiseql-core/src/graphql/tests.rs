@@ -286,7 +286,7 @@ mod parser_tests {
     #[allow(unused_imports)]
     // Reason: nested test mod re-imports may not all be used by every test
     use super::*;
-    use crate::graphql::{parser::serialize_value, value_json::MAX_DEPTH as MAX_SERIALIZE_DEPTH};
+    use crate::graphql::value_json::{MAX_DEPTH as MAX_SERIALIZE_DEPTH, encode};
 
     #[test]
     fn test_parse_simple_query() {
@@ -466,7 +466,7 @@ mod parser_tests {
         assert_eq!(user_fields[1].nested_fields[0].name, "permissions");
     }
 
-    // ── serialize_value depth guard ────────────────────────────────────────────
+    // ── value_json::encode depth guard ─────────────────────────────────────────
 
     #[test]
     fn test_serialize_value_flat_list_accepted() {
@@ -476,7 +476,7 @@ mod parser_tests {
             query::Value::String("hello".to_string()),
             query::Value::Boolean(true),
         ]);
-        let result = serialize_value(&value);
+        let result = encode(&value).unwrap();
         assert_eq!(result, r#"[1,"hello",true]"#);
     }
 
@@ -487,24 +487,22 @@ mod parser_tests {
         for _ in 0..MAX_SERIALIZE_DEPTH {
             v = query::Value::List(vec![v]);
         }
-        let result = serialize_value(&v);
-        // Verify it didn't fall back to "null" — it should contain "true".
+        let result = encode(&v).unwrap();
         assert!(result.contains("true"), "value at limit should serialize correctly: {result}");
     }
 
     #[test]
-    fn test_serialize_value_exceeds_depth_returns_null() {
-        // Build a list nested MAX_SERIALIZE_DEPTH + 1 levels — must return "null".
+    fn test_serialize_value_exceeds_depth_is_refused() {
+        // Build a list nested MAX_SERIALIZE_DEPTH + 1 levels — must be refused.
         let mut v: query::Value<String> = query::Value::Boolean(true);
         for _ in 0..=MAX_SERIALIZE_DEPTH {
             v = query::Value::List(vec![v]);
         }
-        let result = serialize_value(&v);
-        assert_eq!(result, "null", "over-limit value must fall back to null: {result}");
+        assert!(encode(&v).is_err(), "an over-limit value is refused");
     }
 
     #[test]
-    fn test_serialize_value_deeply_nested_object_returns_null() {
+    fn test_serialize_value_deeply_nested_object_is_refused() {
         // Deeply nested object should also hit the depth cap.
         let mut v: query::Value<String> = query::Value::Boolean(false);
         for i in 0..=MAX_SERIALIZE_DEPTH {
@@ -512,8 +510,7 @@ mod parser_tests {
             map.insert(format!("k{i}"), v);
             v = query::Value::Object(map);
         }
-        let result = serialize_value(&v);
-        assert_eq!(result, "null", "over-limit object must fall back to null: {result}");
+        assert!(encode(&v).is_err(), "an over-limit object is refused");
     }
 }
 

@@ -42,14 +42,47 @@ pub const MAX_DEPTH: usize = 64;
 /// [`MAX_DEPTH`]. Serialization itself cannot fail: every GraphQL value has a
 /// JSON counterpart.
 pub fn encode(value: &query::Value<String>) -> Result<String> {
-    let json = to_json(value, 0)?;
-    serde_json::to_string(&json).map_err(|e| FraiseQLError::Internal {
+    serialize(&to_json(value, None, 0)?)
+}
+
+/// [`encode`], with each object literal's keys in the order `shape` says they were written
+/// (#1567): the parser keeps an object literal as a map ordered by key.
+///
+/// # Errors
+///
+/// As [`encode`], and `FraiseQLError::Internal` when `shape` does not describe `value`
+/// (a different key set or list length), which would be a defect of the source reader: the
+/// alphabetical order is not a fallback, since a reordered `orderBy` answers with other rows.
+pub(crate) fn encode_ordered(
+    value: &query::Value<String>,
+    shape: &crate::graphql::key_order::Shape,
+) -> Result<String> {
+    serialize(&to_json(value, Some(shape), 0)?)
+}
+
+fn serialize(json: &Value) -> Result<String> {
+    serde_json::to_string(json).map_err(|e| FraiseQLError::Internal {
         message: format!("failed to serialize GraphQL argument: {e}"),
         source:  None,
     })
 }
 
-fn to_json(value: &query::Value<String>, depth: usize) -> Result<Value> {
+fn shape_mismatch() -> FraiseQLError {
+    FraiseQLError::Internal {
+        message: "the written order of a GraphQL object literal could not be read from the \
+                  document; refusing to apply its keys in another order"
+            .to_string(),
+        source:  None,
+    }
+}
+
+fn to_json(
+    value: &query::Value<String>,
+    shape: Option<&crate::graphql::key_order::Shape>,
+    depth: usize,
+) -> Result<Value> {
+    use crate::graphql::key_order::Shape;
+
     if depth > MAX_DEPTH {
         return Err(FraiseQLError::validation(format!(
             "GraphQL argument nests deeper than the {MAX_DEPTH}-level limit"
@@ -66,13 +99,44 @@ fn to_json(value: &query::Value<String>, depth: usize) -> Result<Value> {
         // An enum value is a bare GraphQL name; JSON has no enum, so it travels
         // as a string and `value_type` records that it was an enum.
         query::Value::Enum(e) => Value::String(e.clone()),
-        query::Value::List(items) => Value::Array(
-            items.iter().map(|item| to_json(item, depth + 1)).collect::<Result<Vec<_>>>()?,
-        ),
+        query::Value::List(items) => match shape {
+            None => Value::Array(
+                items.iter().map(|item| to_json(item, None, depth + 1)).collect::<Result<_>>()?,
+            ),
+            Some(Shape::List(shapes)) if shapes.len() == items.len() => Value::Array(
+                items
+                    .iter()
+                    .zip(shapes)
+                    .map(|(item, shape)| to_json(item, Some(shape), depth + 1))
+                    .collect::<Result<_>>()?,
+            ),
+            Some(_) => return Err(shape_mismatch()),
+        },
         query::Value::Object(obj) => {
             let mut map = Map::with_capacity(obj.len());
-            for (k, v) in obj {
-                map.insert(k.clone(), to_json(v, depth + 1)?);
+            match shape {
+                None => {
+                    for (k, v) in obj {
+                        map.insert(k.clone(), to_json(v, None, depth + 1)?);
+                    }
+                },
+                // In the order written. A key written twice keeps its first place and, as
+                // the parser does, its last value. The same key set, or the reader is not
+                // describing this literal.
+                Some(Shape::Object(fields)) => {
+                    for (k, _) in fields {
+                        if map.contains_key(k) {
+                            continue;
+                        }
+                        let v = obj.get(k).ok_or_else(shape_mismatch)?;
+                        let shape = fields.iter().rev().find(|(key, _)| key == k).map(|(_, s)| s);
+                        map.insert(k.clone(), to_json(v, shape, depth + 1)?);
+                    }
+                    if map.len() != obj.len() {
+                        return Err(shape_mismatch());
+                    }
+                },
+                Some(_) => return Err(shape_mismatch()),
             }
             Value::Object(map)
         },

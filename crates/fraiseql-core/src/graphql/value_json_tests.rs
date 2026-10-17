@@ -154,3 +154,32 @@ fn nesting_past_the_cap_is_refused() {
     }
     assert!(encode(&value).is_err(), "a value past the depth cap must be refused");
 }
+
+/// #1567: a shape that does not describe the value is a defect of the source reader, and is
+/// refused rather than encoded in another order.
+#[test]
+fn a_shape_that_does_not_describe_the_value_is_refused() {
+    use crate::graphql::key_order::Shape;
+    let mut object = std::collections::BTreeMap::new();
+    object.insert("a".to_string(), graphql_parser::query::Value::Boolean(true));
+    object.insert("b".to_string(), graphql_parser::query::Value::Boolean(false));
+    let object = graphql_parser::query::Value::Object(object);
+    let keys = |keys: &[&str]| {
+        Shape::Object(keys.iter().map(|k| ((*k).to_string(), Shape::Leaf)).collect())
+    };
+
+    assert_eq!(
+        super::encode_ordered(&object, &keys(&["b", "a"])).unwrap(),
+        r#"{"b":false,"a":true}"#
+    );
+    for wrong in [
+        keys(&["a", "c"]),
+        keys(&["a"]),
+        Shape::Leaf,
+        Shape::List(vec![]),
+    ] {
+        assert!(super::encode_ordered(&object, &wrong).is_err(), "{wrong:?}");
+    }
+    let list = graphql_parser::query::Value::List(vec![object]);
+    assert!(super::encode_ordered(&list, &Shape::List(vec![])).is_err());
+}

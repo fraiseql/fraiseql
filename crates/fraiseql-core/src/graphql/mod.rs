@@ -78,6 +78,9 @@ pub mod parser;
 /// The `value_json` encoding shared by every consumer of an inline argument.
 pub mod value_json;
 
+/// The key order an operation's object literals were written in (#1567).
+pub(crate) mod key_order;
+
 /// Fragment resolution and expansion.
 pub mod fragment_resolver;
 
