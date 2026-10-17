@@ -11,7 +11,7 @@ fraiseql-guard = {workspace = true}
 # Arrow ecosystem (with CSV and Parquet support)
 arrow = {version = "59", features = ["csv", "json"]}
 arrow-flight = "59"
-arrow-schema = "59"
+arrow-schema = "60"
 # Async utilities
 async-stream = "0.3"
 async-trait = "0.1"
