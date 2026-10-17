@@ -423,6 +423,13 @@ disagreed, and the promise was the part that was wrong.
 
 ### Security
 
+- **`zip` 9.0.4, through `rust_xlsxwriter` 0.100** (the XLSX export, `export-xlsx`), for
+  RUSTSEC-2026-0367, -0368 and -0369: archive extraction that kept SUID/SGID bits, applied
+  Unix permissions through symlinks, and created symlinks pointing outside the destination.
+  FraiseQL only writes XLSX archives (and its tests read them back), so no extraction path
+  was reachable; the versions are bumped because the advisories hold for the crate.
+  `rust_xlsxwriter` 0.100 returns a `Result` from `add_worksheet_with_constant_memory()`,
+  which the export now maps to its internal error.
 - **`wasmtime` and `wasmtime-wasi` 48.0.6** (the `fraiseql-functions` runtime), for
   RUSTSEC-2026-0352 to -0359 and -0361 to -0364: a filesystem sandbox escape when renaming
   symlinks with trailing slashes, host panics reachable from guest code in the component

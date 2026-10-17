@@ -209,7 +209,9 @@ async fn build_workbook(ctx: BuildContext) -> Result<Bytes, RestError> {
     let temp_file = create_temp_file(ctx.temp_dir.as_deref())?;
 
     let mut workbook = Workbook::new();
-    let worksheet = workbook.add_worksheet_with_constant_memory();
+    let worksheet = workbook
+        .add_worksheet_with_constant_memory()
+        .map_err(|e| RestError::internal(format!("XLSX worksheet create failed: {e}")))?;
 
     let mut columns: Option<Vec<String>> = None;
     let mut rows_written: u64 = 0;
