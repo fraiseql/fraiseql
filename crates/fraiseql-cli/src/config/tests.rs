@@ -718,13 +718,14 @@ mod security_tests {
         assert!(config.validate().is_err());
     }
 
+    /// #1542: the claim is compiled in every mode, so an empty one is refused in every mode.
     #[test]
-    fn test_tenancy_validate_empty_claim_with_none_ok() {
+    fn test_tenancy_validate_empty_claim_with_none_refused() {
         let config = TenancyTomlConfig {
             mode:         TenancyModeConfig::None,
             tenant_claim: String::new(),
         };
-        assert!(config.validate().is_ok());
+        assert!(config.validate().is_err());
     }
 
     #[test]

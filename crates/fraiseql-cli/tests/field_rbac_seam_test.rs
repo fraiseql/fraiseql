@@ -339,3 +339,15 @@ fn a_toml_schema_role_with_no_scopes_is_refused() {
     assert!(err.contains("at least one scope"), "must say why, naming the role: {err}");
     assert!(err.contains("hr"), "must name the offending role: {err}");
 }
+
+/// #1542: the claim reaches the runtime whatever the mode. Since #1388 it is the request's
+/// tenant on every path, not only under row or schema isolation, and the 2.16 upgrade note
+/// sets it with no `mode`; the compile dropped the section when the mode was `none`, so an
+/// `org_id` token had no tenant.
+#[test]
+fn tenant_claim_reaches_the_runtime_without_an_isolation_mode() {
+    let dir = project_dir("[fraiseql.tenancy]\ntenant_claim = \"org_id\"");
+    let schema = compile(&dir, &["schema.json"]);
+    assert_eq!(schema.tenant_claim(), "org_id");
+    assert!(!schema.is_multi_tenant(), "no mode is still no isolation machinery");
+}

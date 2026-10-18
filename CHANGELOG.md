@@ -18,6 +18,11 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **Every compiled schema's `security` carries `tenancy`, and an empty
+  `[fraiseql.tenancy] tenant_claim` is refused in every mode (#1542, below).** Recompiling
+  changes the artifact's content hash; a project that set `tenant_claim = ""` with no mode
+  must remove the line.
+
 - **Every SDK exports an enum member's value, read from the language's own declaration
   (#1611).** Only Python did: every other SDK exported names, so a value-backed enum was
   stored by name, compared names against stored values and, since #1580, refused each
@@ -467,6 +472,14 @@ disagreed, and the promise was the part that was wrong.
   reported TVIEW (pg_tviews#240): throughput there is unchanged.
 
 ### Fixed
+
+- **`[fraiseql.tenancy] tenant_claim` reaches the compiled schema whatever the mode
+  (#1542).** With `mode` left at `none`, `compile` dropped the section, so the server read the
+  tenant from `tenant_id`: the 2.16 upgrade step (`tenant_claim = "org_id"`, as
+  `docs/auth/auth0.md` shows) did nothing, and a mutation's change-log row was written with a
+  NULL tenant. The section is now always compiled (`mode = "none"` still means no isolation
+  machinery), so every artifact's `security` carries `tenancy` and its content hash changes
+  on recompile. An empty `tenant_claim` is refused in every mode, as it named no claim.
 
 - **An aggregate or window root field takes its arguments inline (#1609).**
   `{ sales_aggregate(groupBy: {category: true}, aggregates: [{revenue_sum: {}}], limit: 5) {

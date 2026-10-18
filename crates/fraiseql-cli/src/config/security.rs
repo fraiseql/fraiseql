@@ -367,10 +367,14 @@ impl TenancyTomlConfig {
     ///
     /// # Errors
     ///
-    /// Returns an error if `tenant_claim` is empty when mode is not `none`.
+    /// Returns an error if `tenant_claim` is empty: it names the request's tenant in every
+    /// mode (#1542).
     pub fn validate(&self) -> Result<()> {
-        if !matches!(self.mode, TenancyModeConfig::None) && self.tenant_claim.is_empty() {
-            anyhow::bail!("tenancy.tenant_claim must not be empty when mode is not 'none'");
+        if self.tenant_claim.is_empty() {
+            anyhow::bail!(
+                "tenancy.tenant_claim must not be empty: it names the JWT claim that carries the \
+                 request's tenant (default \"tenant_id\")"
+            );
         }
         Ok(())
     }

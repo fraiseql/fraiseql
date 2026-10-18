@@ -293,13 +293,11 @@ pub async fn compile_to_schema(
                 // Merge security config into intermediate schema
                 let mut security_json = config.fraiseql.security.to_json();
 
-                // Embed tenancy configuration into the security section
-                if !matches!(
-                    config.fraiseql.tenancy.mode,
-                    crate::config::security::TenancyModeConfig::None
-                ) {
-                    security_json["tenancy"] = config.fraiseql.tenancy.to_json();
-                }
+                // Embed the tenancy configuration whatever its mode: `tenant_claim` names the
+                // request's tenant on every path since #1388, not only under row or schema
+                // isolation, and dropping it with `mode = "none"` reverted the runtime to
+                // `tenant_id` without a word (#1542).
+                security_json["tenancy"] = config.fraiseql.tenancy.to_json();
 
                 intermediate.security = Some(security_json);
 

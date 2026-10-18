@@ -379,3 +379,12 @@ claim = "tenant_id"
         "expected a loud refusal naming the bad source, got: {err}"
     );
 }
+
+/// #1542: the claim is compiled in every mode, so an empty one is refused in every mode: it
+/// would name no claim at all.
+#[test]
+fn an_empty_tenant_claim_is_refused_without_an_isolation_mode() {
+    let dir = project_config_dir("[fraiseql.tenancy]\ntenant_claim = \"\"");
+    let err = compile_err(&dir, &["schema.json"]);
+    assert!(err.contains("tenant_claim"), "{err}");
+}
