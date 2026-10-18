@@ -503,3 +503,37 @@ fn extract_delimited(source: &str, open: &str, close: &str) -> Vec<String> {
     }
     docs
 }
+
+/// #1614: an argument's list items are typed as declared in every generated client, as an
+/// output field's are (#1586). The argument renderers ignored item nullability, so a
+/// `[String]` argument was typed as a list of non-null strings.
+#[test]
+fn an_arguments_list_items_are_typed_as_declared_in_every_client() {
+    let mut schema = CompiledSchema::new();
+    let mut user = TypeDefinition::new("User", "v_user");
+    user.fields.push(FieldDefinition::new("id", FieldType::Id));
+    schema.types.push(user);
+    let mut tagged = QueryDefinition::new("tagged", "User").returning_list();
+    tagged
+        .arguments
+        .push(ArgumentDefinition::new("tags", FieldType::list_of_nullable(FieldType::String)));
+    tagged
+        .arguments
+        .push(ArgumentDefinition::new("ids", FieldType::list(FieldType::Id)));
+    schema.queries.push(tagged);
+
+    let source =
+        |files: &crate::Generated, name: &str| files.get(&PathBuf::from(name)).unwrap().clone();
+    let ts = source(&super::typescript::generate(&schema).unwrap(), "queries.ts");
+    assert!(ts.contains("tags: (string | null)[]"), "{ts}");
+    assert!(ts.contains("ids: string[]"), "{ts}");
+    let go = source(&super::go::generate(&schema).unwrap(), "queries.go");
+    assert!(go.contains("tags []*string"), "{go}");
+    assert!(go.contains("ids []string"), "{go}");
+    let py = source(&super::python::generate(&schema).unwrap(), "queries.py");
+    assert!(py.contains("tags: list[str | None]"), "{py}");
+    assert!(py.contains("ids: list[str]"), "{py}");
+    let rs = source(&super::rust::generate(&schema).unwrap(), "queries.rs");
+    assert!(rs.contains("tags: Vec<Option<String>>"), "{rs}");
+    assert!(rs.contains("ids: Vec<String>"), "{rs}");
+}

@@ -524,7 +524,7 @@ pub(super) fn grpc_query_match(
     let arguments = read_arguments(request_msg, type_def, returns_list);
 
     fraiseql_core::runtime::QueryMatch::from_operation(query_def, fields, arguments, Some(type_def))
-        .map(|m| m.with_enum_values_coerced(schema))
+        .and_then(|m| m.with_client_arguments(schema))
 }
 
 /// Execute a gRPC mutation by calling the database function.

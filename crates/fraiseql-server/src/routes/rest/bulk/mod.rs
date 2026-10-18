@@ -485,7 +485,7 @@ impl<'a> BulkHandler<'a> {
         arguments.insert("where".to_string(), where_clause);
 
         QueryMatch::from_operation(query_def, fields, arguments, type_def)
-            .map(|m| m.with_enum_values_coerced(self.schema))
+            .and_then(|m| m.with_client_arguments(self.schema))
             .map_err(RestError::from)
     }
 

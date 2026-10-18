@@ -24,7 +24,8 @@ pub(super) fn named_scalar_py(name: &str) -> Option<&'static str> {
     }
 }
 
-/// Render a structured [`FieldType`] as a Python type expression (no nullability).
+/// Render a structured [`FieldType`] as a Python type expression: no outer nullability,
+/// each list level's items as the type declares them (`[T]` is `list[T | None]`).
 pub(super) fn field_type_py(ft: &FieldType) -> String {
     match ft {
         FieldType::String
@@ -45,7 +46,10 @@ pub(super) fn field_type_py(ft: &FieldType) -> String {
         // Half precision is a storage choice, not a surface one: both are
         // `[Float!]!` in GraphQL.
         FieldType::Vector | FieldType::HalfVector => "list[float]".to_string(),
-        FieldType::List { item: inner, .. } => format!("list[{}]", field_type_py(inner)),
+        FieldType::List {
+            item,
+            nullable_items,
+        } => format!("list[{}]", field_type_py_nullable(item, *nullable_items)),
         FieldType::Enum(name)
         | FieldType::Object(name)
         | FieldType::Input(name)
@@ -57,20 +61,14 @@ pub(super) fn field_type_py(ft: &FieldType) -> String {
     }
 }
 
-/// Render an output field's type: its outer nullability, and each list level's items as
-/// the type declares them (`[T]` is `list[T | None]`, at any depth, #1586).
+/// Render an output field's type at its published nullability.
 pub(super) fn field_type_py_output(field: &FieldDefinition) -> String {
-    output_py(&field.field_type, field.nullable)
+    field_type_py_nullable(&field.field_type, field.nullable)
 }
 
-fn output_py(ft: &FieldType, nullable: bool) -> String {
-    let base = match ft {
-        FieldType::List {
-            item,
-            nullable_items,
-        } => format!("list[{}]", output_py(item, *nullable_items)),
-        other => field_type_py(other),
-    };
+/// [`field_type_py`] with outer nullability applied: `T | None` when nullable.
+fn field_type_py_nullable(ft: &FieldType, nullable: bool) -> String {
+    let base = field_type_py(ft);
     if nullable {
         format!("{base} | None")
     } else {

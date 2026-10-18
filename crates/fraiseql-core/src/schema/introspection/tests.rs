@@ -1165,3 +1165,64 @@ fn an_input_field_type_string_is_parsed_into_wrappers_and_a_resolved_leaf() {
         Some("String")
     );
 }
+
+/// A published type reference as GraphQL writes it: `NON_NULL(LIST(NON_NULL(ID)))` is `[ID!]!`.
+fn written(t: &IntrospectionType) -> String {
+    let inner = || t.of_type.as_deref().map_or_else(String::new, written);
+    match t.kind {
+        TypeKind::NonNull => format!("{}!", inner()),
+        TypeKind::List => format!("[{}]", inner()),
+        _ => t.name.clone().unwrap_or_default(),
+    }
+}
+
+/// #1614: an argument's list items are published as declared, at every depth, as an
+/// output field's are. Every item was published nullable (`[ID]`) whatever was declared.
+#[test]
+fn an_arguments_list_items_are_published_as_declared() {
+    let mut schema = test_schema();
+    let argument =
+        |name: &str, arg_type: FieldType, nullable: bool| crate::schema::ArgumentDefinition {
+            name: name.to_string(),
+            arg_type,
+            nullable,
+            default_value: None,
+            description: None,
+            deprecation: None,
+            localized: false,
+        };
+    let mut series = crate::schema::QueryDefinition::new("seriesByIds", "User").returning_list();
+    series.arguments = vec![
+        argument("ids", FieldType::list(FieldType::Id), false),
+        argument("tags", FieldType::list_of_nullable(FieldType::String), true),
+        argument("matrix", FieldType::list_of_nullable(FieldType::list(FieldType::Float)), true),
+    ];
+    schema.queries.push(series);
+
+    let introspection = IntrospectionBuilder::build(&schema);
+    let query_type =
+        introspection.types.iter().find(|t| t.name.as_deref() == Some("Query")).unwrap();
+    let field = query_type
+        .fields
+        .as_ref()
+        .unwrap()
+        .iter()
+        .find(|f| f.name == "seriesByIds")
+        .unwrap();
+    let published: Vec<(String, String)> =
+        field.args.iter().map(|a| (a.name.clone(), written(&a.input_type))).collect();
+    assert_eq!(
+        published,
+        vec![
+            ("ids".to_string(), "[ID!]!".to_string()),
+            ("tags".to_string(), "[String]".to_string()),
+            ("matrix".to_string(), "[[Float!]]".to_string()),
+        ]
+    );
+    // The SDL (`_service { sdl }`) is rendered from the same model.
+    let sdl = schema.raw_schema();
+    assert!(
+        sdl.contains("seriesByIds(ids: [ID!]!, tags: [String], matrix: [[Float!]]): [User!]!"),
+        "{sdl}"
+    );
+}

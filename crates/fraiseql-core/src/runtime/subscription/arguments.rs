@@ -96,5 +96,12 @@ pub fn subscription_arguments(
             arguments.insert(argument.name.clone(), value);
         }
     }
+    // #1614: a null item at a `[T!]` position, however it was written.
+    crate::runtime::validate_argument_list_items(
+        schema,
+        &format!("Subscription.{}", root.name),
+        &definition.arguments,
+        |name| arguments.get(name),
+    )?;
     Ok(arguments)
 }

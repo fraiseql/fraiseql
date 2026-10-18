@@ -45,7 +45,17 @@ pub(super) fn field_type_ts(ft: &FieldType) -> String {
         // Half precision is a storage choice, not a surface one: both are
         // `[Float!]!` in GraphQL.
         FieldType::Vector | FieldType::HalfVector => "number[]".to_string(),
-        FieldType::List { item: inner, .. } => format!("{}[]", field_type_ts(inner)),
+        FieldType::List {
+            item,
+            nullable_items,
+        } => {
+            let item = field_type_ts_nullable(item, *nullable_items);
+            if *nullable_items {
+                format!("({item})[]")
+            } else {
+                format!("{item}[]")
+            }
+        },
         FieldType::Enum(name)
         | FieldType::Object(name)
         | FieldType::Input(name)
@@ -59,8 +69,9 @@ pub(super) fn field_type_ts(ft: &FieldType) -> String {
 
 /// Render a [`FieldType`] with outer nullability applied.
 ///
-/// `T` for non-null, `T | null` for nullable. Lists are `T[]` / `T[] | null`.
-/// An output field's nullable list items are rendered by [`field_type_ts_output`].
+/// `T` for non-null, `T | null` for nullable; each list level's items as the type declares
+/// them (`[T]` is `(T | null)[]`, at any depth), for an output field (#1586) and an
+/// argument (#1614) alike.
 pub(super) fn field_type_ts_nullable(ft: &FieldType, nullable: bool) -> String {
     let base = field_type_ts(ft);
     if nullable {
@@ -70,32 +81,9 @@ pub(super) fn field_type_ts_nullable(ft: &FieldType, nullable: bool) -> String {
     }
 }
 
-/// Render an output field's type: its outer nullability, and each list level's items as
-/// the type declares them (`[T]` is `(T | null)[]`, at any depth, #1586).
+/// Render an output field's type: [`field_type_ts_nullable`] at its published nullability.
 pub(super) fn field_type_ts_output(field: &FieldDefinition) -> String {
-    output_ts(&field.field_type, field.nullable)
-}
-
-fn output_ts(ft: &FieldType, nullable: bool) -> String {
-    let base = match ft {
-        FieldType::List {
-            item,
-            nullable_items,
-        } => {
-            let item = output_ts(item, *nullable_items);
-            if *nullable_items {
-                format!("({item})[]")
-            } else {
-                format!("{item}[]")
-            }
-        },
-        other => field_type_ts(other),
-    };
-    if nullable {
-        format!("{base} | null")
-    } else {
-        base
-    }
+    field_type_ts_nullable(&field.field_type, field.nullable)
 }
 
 /// Whether `ft` represents a custom/rich scalar — used to attach a `// TODO: brand`

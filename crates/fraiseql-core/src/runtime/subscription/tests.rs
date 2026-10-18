@@ -1625,3 +1625,47 @@ fn a_filter_fields_entry_naming_an_undeclared_argument_is_refused() {
         "the refusal names the dangling entry: {err}"
     );
 }
+
+/// #1614: a subscription's argument is adjudicated as a query field's is: a null item of a
+/// `[T!]` argument is refused at subscribe, whether written inline or passed in a variable,
+/// and a `[T]` argument takes one.
+#[test]
+fn a_null_item_at_a_non_null_list_argument_is_refused_at_subscribe() {
+    use crate::schema::{ArgumentDefinition, FieldType};
+
+    let manager = manager_for(
+        SubscriptionDefinition::new("OrdersUpdated", "Order")
+            .with_topic("order_updated")
+            .with_argument(ArgumentDefinition::optional("ids", FieldType::list(FieldType::Id)))
+            .with_argument(ArgumentDefinition::optional(
+                "tags",
+                FieldType::list_of_nullable(FieldType::String),
+            )),
+    );
+    let arguments = |document: &str, variables: serde_json::Value| {
+        let parsed = crate::graphql::parse_query(document).unwrap();
+        manager.subscription_arguments(&parsed, Some(&variables))
+    };
+
+    let inline = arguments(
+        r#"subscription { OrdersUpdated(ids: ["a", null]) { id } }"#,
+        serde_json::json!({}),
+    );
+    let variable = arguments(
+        "subscription($i: [ID]) { OrdersUpdated(ids: $i) { id } }",
+        serde_json::json!({ "i": [null] }),
+    );
+    let loose =
+        arguments("subscription { OrdersUpdated(tags: [null]) { id } }", serde_json::json!({}));
+
+    let refused = |result: &crate::error::Result<serde_json::Value>, at: &str| {
+        assert!(
+            matches!(result, Err(crate::error::FraiseQLError::Validation { message, .. })
+                if message.contains(at)),
+            "expected the null item at `{at}` refused: {result:?}"
+        );
+    };
+    refused(&inline, "ids[1]");
+    refused(&variable, "ids[0]");
+    assert_eq!(loose.unwrap(), serde_json::json!({ "tags": [null] }));
+}

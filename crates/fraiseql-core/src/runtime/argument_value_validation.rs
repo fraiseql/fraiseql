@@ -505,18 +505,34 @@ pub fn validate_mutation_argument_values(
     Ok(())
 }
 
-/// What a walk adjudicates besides enum membership, which every walk does.
+/// What a walk adjudicates besides a list's item nullability, which every walk does
+/// (#1614).
 #[derive(Debug, Clone, Copy)]
 struct Rules {
+    /// Enum membership.
+    enums: bool,
     /// Built-in scalars under input objects and lists, and undeclared input keys.
     write: bool,
 }
 
 impl Rules {
-    /// The read paths: enum membership only (module header).
-    const READ: Self = Self { write: false };
+    /// A read's **resolved** arguments: item nullability only. Enum membership is the
+    /// document and variable walks' question, which can name the variable a value came
+    /// from; a resolved value cannot.
+    const LIST_ITEMS: Self = Self {
+        enums: false,
+        write: false,
+    };
+    /// The read paths' document and variable walks: enum membership (module header).
+    const READ: Self = Self {
+        enums: true,
+        write: false,
+    };
     /// A mutation's arguments: everything (#1528).
-    const WRITE: Self = Self { write: true };
+    const WRITE: Self = Self {
+        enums: true,
+        write: true,
+    };
 }
 
 /// Adjudicate enum membership for the **literals** a document writes at a field's
@@ -581,6 +597,48 @@ pub fn validate_enum_variable_values(
     Ok(())
 }
 
+/// Refuse a `null` item at a `[T!]` position anywhere in a read's **resolved** arguments:
+/// an argument's own list, or a list field of an input object under it (#1614).
+///
+/// Run on the map the read is answered from, after inline literals and variables are merged
+/// and nested `$var` references substituted, by both producers of a
+/// [`QueryMatch`](crate::runtime::QueryMatch) (the GraphQL matcher, and
+/// `QueryMatch::with_client_arguments`, which every other transport takes a client's
+/// arguments through) and by a subscription's argument resolution. `argument` looks one up
+/// by name. So a null item
+/// is refused however it was written, and whichever transport carried it: a `nin: [null, …]`
+/// reached SQL as `NOT IN (NULL, …)`, which is never true, and answered with no rows.
+///
+/// `declared` is the field's published argument list
+/// ([`QueryDefinition::graphql_arguments`](crate::schema::QueryDefinition::graphql_arguments)).
+/// A localized argument holds a locale map, checked by its own pass.
+///
+/// # Errors
+///
+/// Returns [`FraiseQLError::Validation`] naming the field and the path to the null item.
+pub fn validate_argument_list_items<'a>(
+    schema: &CompiledSchema,
+    field_label: &str,
+    declared: &[ArgumentDefinition],
+    argument: impl Fn(&str) -> Option<&'a Value>,
+) -> Result<()> {
+    for arg in declared.iter().filter(|arg| !arg.localized) {
+        let Some(value) = argument(&arg.name) else {
+            continue;
+        };
+        walk_field_type(
+            schema,
+            Rules::LIST_ITEMS,
+            field_label,
+            &arg.name,
+            &arg.arg_type,
+            value,
+            0,
+        )?;
+    }
+    Ok(())
+}
+
 /// Walk a compiled [`FieldType`] against `value`, adjudicating every enum under it
 /// (and, under [`Rules::WRITE`], every built-in scalar and input key).
 fn walk_field_type(
@@ -596,12 +654,16 @@ fn walk_field_type(
         return Ok(());
     }
     match declared {
-        FieldType::List { item: inner, .. } => {
-            walk_list(schema, subject, path, value, depth, |v, p, d| {
-                walk_field_type(schema, rules, subject, p, inner, v, d)
-            })
+        FieldType::List {
+            item,
+            nullable_items,
+        } => walk_list(subject, path, *nullable_items, value, depth, |v, p, d| {
+            walk_field_type(schema, rules, subject, p, item, v, d)
+        }),
+        FieldType::Enum(name) if rules.enums => {
+            check_membership(schema, subject, path, name, value)
         },
-        FieldType::Enum(name) => check_membership(schema, subject, path, name, value),
+        FieldType::Enum(_) => Ok(()),
         // The compiler emits an input-type reference as `Object`, never `Input`
         // (`parse_field_type` has no `Input` variant), so both have to resolve
         // through the input registry — the same pairing `execute_mutation_impl`
@@ -640,7 +702,8 @@ fn walk_type_ref(
         return walk_type_ref(schema, rules, subject, path, inner, value, depth);
     }
     if let Some(inner) = declared.strip_prefix('[').and_then(|s| s.strip_suffix(']')) {
-        return walk_list(schema, subject, path, value, depth, |v, p, d| {
+        let nullable_items = !inner.trim_end().ends_with('!');
+        return walk_list(subject, path, nullable_items, value, depth, |v, p, d| {
             walk_type_ref(schema, rules, subject, p, inner, v, d)
         });
     }
@@ -648,6 +711,9 @@ fn walk_type_ref(
         return Ok(());
     }
     if schema.find_enum(declared).is_some() {
+        if !rules.enums {
+            return Ok(());
+        }
         return check_membership(schema, subject, path, declared, value);
     }
     if let (true, Some(scalar)) = (rules.write, Scalar::from_type_name(declared)) {
@@ -656,16 +722,17 @@ fn walk_type_ref(
     walk_input_object(schema, rules, subject, path, declared, value, depth)
 }
 
-/// Apply `walk` to each element of a list value.
+/// Apply `walk` to each element of a list value, refusing a `null` element of a list whose
+/// items are non-null (`[T!]`, § 3.11 input coercion, #1614).
 ///
 /// A value that is not an array is walked as a single element rather than
 /// skipped: § 3.11 lets a bare value stand for a one-element list, and that
 /// coercion is how `where: {status: {in: PENDING}}` is written in practice. A
 /// list declaration must not become a hole an unchecked enum fits through.
 fn walk_list(
-    _schema: &CompiledSchema,
-    _subject: &str,
+    subject: &str,
     path: &str,
+    nullable_items: bool,
     value: &Value,
     depth: usize,
     mut walk: impl FnMut(&Value, &str, usize) -> Result<()>,
@@ -673,7 +740,16 @@ fn walk_list(
     match value.as_array() {
         Some(items) => {
             for (index, item) in items.iter().enumerate() {
-                walk(item, &format!("{path}[{index}]"), depth + 1)?;
+                let at = format!("{path}[{index}]");
+                if item.is_null() && !nullable_items {
+                    return Err(FraiseQLError::Validation {
+                        message: format!(
+                            "{subject} at `{at}` is null, but the list's items are non-null"
+                        ),
+                        path:    Some(at),
+                    });
+                }
+                walk(item, &at, depth + 1)?;
             }
             Ok(())
         },

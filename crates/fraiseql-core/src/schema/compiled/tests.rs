@@ -1879,7 +1879,7 @@ fn raw_schema_renders_the_derived_filter_types_as_input_blocks() {
     let sdl = schema.raw_schema();
 
     assert!(
-        sdl.contains("orders(where: OrderWhereInput, orderBy: [OrderOrderByInput], "),
+        sdl.contains("orders(where: OrderWhereInput, orderBy: [OrderOrderByInput!], "),
         "the arguments must reference the derived types:\n{sdl}"
     );
     assert!(

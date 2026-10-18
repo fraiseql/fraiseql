@@ -164,7 +164,7 @@ type TransportCheckpoint {
 
 type Query {
   products: [Product!]!
-  entityChangeLogs(where: EntityChangeLogWhereInput, orderBy: [EntityChangeLogOrderByInput], limit: Int): [EntityChangeLog!]!
+  entityChangeLogs(where: EntityChangeLogWhereInput, orderBy: [EntityChangeLogOrderByInput!], limit: Int): [EntityChangeLog!]!
   transportCheckpoint(transportName: String!): TransportCheckpoint
 }
 

@@ -168,7 +168,7 @@ type TransportCheckpoint {
 
 type Query {
   reviews: [Review!]!
-  entityChangeLogs(where: EntityChangeLogWhereInput, orderBy: [EntityChangeLogOrderByInput], limit: Int): [EntityChangeLog!]!
+  entityChangeLogs(where: EntityChangeLogWhereInput, orderBy: [EntityChangeLogOrderByInput!], limit: Int): [EntityChangeLog!]!
   transportCheckpoint(transportName: String!): TransportCheckpoint
 }
 

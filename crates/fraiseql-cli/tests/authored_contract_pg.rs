@@ -56,7 +56,9 @@ fn compile(dir: &Path, schema: &Value) -> std::path::PathBuf {
     out
 }
 
-/// Run `operation` through `fraiseql query`: the response, whatever its exit code.
+/// Run `operation` through `fraiseql query`: the response, whatever its exit code. A request
+/// refused before execution prints no response but its error chain on stderr; that comes back
+/// as `{"errors": [{"message": <stderr>}]}`.
 fn query(compiled: &Path, url: &str, operation: &str, variables: Option<&Value>) -> Value {
     let mut args = vec![
         "query".to_string(),
@@ -71,6 +73,9 @@ fn query(compiled: &Path, url: &str, operation: &str, variables: Option<&Value>)
     }
     let output = Command::new(env!("CARGO_BIN_EXE_fraiseql-cli")).args(&args).output().unwrap();
     let stdout = String::from_utf8_lossy(&output.stdout);
+    if stdout.trim().is_empty() && !output.status.success() {
+        return json!({ "errors": [{ "message": String::from_utf8_lossy(&output.stderr) }] });
+    }
     serde_json::from_str(stdout.trim()).unwrap_or_else(|e| {
         panic!(
             "`fraiseql query` printed no JSON response ({e}):\nstdout: {stdout}\nstderr: {}",
@@ -710,4 +715,184 @@ async fn a_stored_value_that_is_no_members_is_a_field_error() {
         "{response}"
     );
     assert_eq!(error["path"][2], json!("priority"), "{response}");
+}
+
+// ── #1614: a null item at a `[T!]` position is refused, a `[T]` position takes it ──────
+
+/// Three `Label` rows (`first`, `second`, `third`), and two mutations over one function that
+/// stores the `text[]` it is given and accepts a `NULL` element: `label(names: [String!]!)` and
+/// `labelLoosely(names: [String])`. Only the declaration can refuse a null item, so a refusal is
+/// ours and not the database's.
+async fn labels(url: &str, dir: &Path) -> std::path::PathBuf {
+    execute(
+        url,
+        &format!(
+            "DROP SCHEMA IF EXISTS {SCHEMA} CASCADE;
+             CREATE SCHEMA {SCHEMA};
+             CREATE SCHEMA IF NOT EXISTS app;
+             DO $$ BEGIN CREATE TYPE app.mutation_error_class AS ENUM ('validation','conflict',
+             'not_found','unauthorized','forbidden','internal','transaction_failed','timeout',
+             'rate_limited','service_unavailable'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+             DO $$ BEGIN CREATE TYPE app.mutation_response AS (succeeded BOOLEAN, state_changed
+             BOOLEAN, error_class app.mutation_error_class, status_detail TEXT, http_status
+             SMALLINT, message TEXT, entity_id UUID, entity_type TEXT, entity JSONB,
+             updated_fields TEXT[], cascade JSONB, error_detail JSONB, metadata JSONB);
+             EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+             CREATE TABLE {SCHEMA}.tb_label (id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+                 name text, names text[]);
+             INSERT INTO {SCHEMA}.tb_label (name) VALUES ('first'), ('second'), ('third');
+             CREATE VIEW {SCHEMA}.v_label AS SELECT id, jsonb_build_object('id', id,
+                 'name', name, 'names', names) AS data FROM {SCHEMA}.tb_label;
+             CREATE FUNCTION {SCHEMA}.fn_label(p_names text[])
+               RETURNS app.mutation_response LANGUAGE plpgsql AS $$
+               DECLARE v app.mutation_response; new_id uuid; BEGIN
+                 INSERT INTO {SCHEMA}.tb_label (name, names) VALUES ('stored', p_names)
+                   RETURNING id INTO new_id;
+                 v.succeeded := true; v.state_changed := true; v.entity_type := 'Label';
+                 v.entity_id := new_id;
+                 v.entity := jsonb_build_object('id', new_id, 'name', 'stored', 'names', p_names);
+                 RETURN v; END; $$;"
+        ),
+    )
+    .await;
+    let mutation = |name: &str, names_type: &str, nullable: bool| {
+        json!({
+            "name": name, "return_type": "Label", "returns_list": false,
+            "nullable": false, "sql_source": format!("{SCHEMA}.fn_label"),
+            "operation": "CREATE",
+            "arguments": [{ "name": "names", "type": names_type, "nullable": nullable }]
+        })
+    };
+    compile(
+        dir,
+        &json!({
+            "types": [{
+                "name": "Label",
+                "sql_source": format!("{SCHEMA}.v_label"),
+                "fields": [
+                    { "name": "id", "type": "ID", "nullable": false },
+                    { "name": "name", "type": "String", "nullable": true },
+                    { "name": "names", "type": "[String]", "nullable": true }
+                ]
+            }],
+            "queries": [{
+                "name": "labels", "return_type": "Label", "returns_list": true,
+                "nullable": false, "sql_source": format!("{SCHEMA}.v_label")
+            }],
+            "mutations": [
+                mutation("label", "[String!]", false),
+                mutation("labelLoosely", "[String]", true)
+            ]
+        }),
+    )
+}
+
+/// How many rows the function stored: a refused request must have stored none.
+async fn stored_labels(url: &str) -> i64 {
+    let (client, conn) = tokio_postgres::connect(url, NoTls).await.unwrap();
+    tokio::spawn(async move {
+        let _ = conn.await;
+    });
+    client
+        .query_one(&format!("SELECT count(*) FROM {SCHEMA}.tb_label WHERE name = 'stored'"), &[])
+        .await
+        .unwrap()
+        .get(0)
+}
+
+/// The refusal names the argument and the item: `names[0]`, before the function is called.
+fn assert_refused_null_item(response: &Value, path: &str) {
+    assert!(response["data"].is_null() || response.get("data").is_none(), "{response}");
+    let message = response["errors"][0]["message"].as_str().unwrap_or_default();
+    assert!(
+        message.contains(path) && message.contains("null"),
+        "expected a refusal naming `{path}` and the null: {response}"
+    );
+}
+
+#[tokio::test]
+async fn a_null_item_at_a_non_null_list_argument_is_refused_before_the_function() {
+    let Some(url) = fraiseql_test_support::try_database_url() else {
+        eprintln!("skipping #1614: DATABASE_URL not set");
+        return;
+    };
+    let dir = TempDir::new().unwrap();
+    let compiled = labels(&url, dir.path()).await;
+
+    let literal = query(&compiled, &url, r#"mutation { label(names: [null, "a"]) { id } }"#, None);
+    let variable = query(
+        &compiled,
+        &url,
+        "mutation($n: [String]!) { label(names: $n) { id } }",
+        Some(&json!({ "n": ["a", null] })),
+    );
+
+    assert_refused_null_item(&literal, "names[0]");
+    assert_refused_null_item(&variable, "names[1]");
+    assert_eq!(stored_labels(&url).await, 0, "the function must not have been called");
+}
+
+#[tokio::test]
+async fn a_null_item_at_a_nullable_item_list_argument_reaches_the_function() {
+    let Some(url) = fraiseql_test_support::try_database_url() else {
+        eprintln!("skipping #1614: DATABASE_URL not set");
+        return;
+    };
+    let dir = TempDir::new().unwrap();
+    let compiled = labels(&url, dir.path()).await;
+
+    let response = query(
+        &compiled,
+        &url,
+        r#"mutation { labelLoosely(names: [null, "a"]) { names } }"#,
+        None,
+    );
+
+    assert_eq!(response["data"]["labelLoosely"]["names"], json!([null, "a"]), "{response}");
+    assert_eq!(stored_labels(&url).await, 1);
+}
+
+/// A filter operand list is `[T!]` (`in`, `nin`). `NOT IN (NULL, 'first')` is never true in
+/// SQL, so a null item answered every `nin` with no rows at all.
+#[tokio::test]
+async fn a_null_item_in_a_filter_operand_list_is_refused() {
+    let Some(url) = fraiseql_test_support::try_database_url() else {
+        eprintln!("skipping #1614: DATABASE_URL not set");
+        return;
+    };
+    let dir = TempDir::new().unwrap();
+    let compiled = labels(&url, dir.path()).await;
+
+    let literal = query(
+        &compiled,
+        &url,
+        r#"{ labels(where: {name: {nin: [null, "first"]}}) { name } }"#,
+        None,
+    );
+    let nested_variable = query(
+        &compiled,
+        &url,
+        "query($n: [String]) { labels(where: {name: {nin: $n}}) { name } }",
+        Some(&json!({ "n": ["first", null] })),
+    );
+    let whole_variable = query(
+        &compiled,
+        &url,
+        "query($w: LabelWhereInput) { labels(where: $w) { name } }",
+        Some(&json!({ "w": { "name": { "nin": [null] } } })),
+    );
+    let served =
+        query(&compiled, &url, r#"{ labels(where: {name: {nin: ["first"]}}) { name } }"#, None);
+
+    assert_refused_null_item(&literal, "nin[0]");
+    assert_refused_null_item(&nested_variable, "nin[1]");
+    assert_refused_null_item(&whole_variable, "nin[0]");
+    let mut names: Vec<&str> = served["data"]["labels"]
+        .as_array()
+        .unwrap_or_else(|| panic!("{served}"))
+        .iter()
+        .map(|l| l["name"].as_str().unwrap())
+        .collect();
+    names.sort_unstable();
+    assert_eq!(names, ["second", "third"], "{served}");
 }

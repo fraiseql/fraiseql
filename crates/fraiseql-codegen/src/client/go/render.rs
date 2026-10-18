@@ -23,7 +23,8 @@ pub(super) fn named_scalar_go(name: &str) -> Option<&'static str> {
     }
 }
 
-/// Render a structured [`FieldType`] as a Go type expression (no nullability).
+/// Render a structured [`FieldType`] as a Go type expression: no outer nullability,
+/// each list level's items as the type declares them (`[T]` is `[]*T`).
 pub(super) fn field_type_go(ft: &FieldType) -> String {
     match ft {
         FieldType::String
@@ -44,7 +45,10 @@ pub(super) fn field_type_go(ft: &FieldType) -> String {
         // Half precision is a storage choice, not a surface one: both are
         // `[Float!]!` in GraphQL.
         FieldType::Vector | FieldType::HalfVector => "[]float64".to_string(),
-        FieldType::List { item: inner, .. } => format!("[]{}", field_type_go(inner)),
+        FieldType::List {
+            item,
+            nullable_items,
+        } => format!("[]{}", field_type_go_nullable(item, *nullable_items)),
         FieldType::Enum(name)
         | FieldType::Object(name)
         | FieldType::Input(name)
@@ -79,21 +83,10 @@ pub(super) fn field_type_go_nullable(ft: &FieldType, nullable: bool) -> String {
     }
 }
 
-/// Render an output field's type: its outer nullability, and each list level's items as
-/// the type declares them (`[T]` is `[]*T`, at any depth, #1586). A slice is nilable, so
-/// a nullable list is the slice itself.
+/// Render an output field's type at its published nullability. A slice is nilable, so a
+/// nullable list is the slice itself.
 pub(super) fn field_type_go_output(field: &FieldDefinition) -> String {
-    output_go(&field.field_type, field.nullable)
-}
-
-fn output_go(ft: &FieldType, nullable: bool) -> String {
-    match ft {
-        FieldType::List {
-            item,
-            nullable_items,
-        } => format!("[]{}", output_go(item, *nullable_items)),
-        other => field_type_go_nullable(other, nullable),
-    }
+    field_type_go_nullable(&field.field_type, field.nullable)
 }
 
 /// Whether `ft` represents a custom/rich scalar — used to attach a

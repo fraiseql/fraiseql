@@ -153,16 +153,25 @@ impl QueryMatch {
         })
     }
 
-    /// Rewrite every enum member named in the arguments to the value it is stored as
-    /// (#1580), as [`QueryMatcher::match_query`] does for a GraphQL document. A transport that
-    /// builds a `QueryMatch` from its own request with [`from_operation`](Self::from_operation)
-    /// calls this before executing it; a sub-query built from values the server read needs
-    /// nothing.
-    #[must_use]
-    pub fn with_enum_values_coerced(mut self, schema: &CompiledSchema) -> Self {
+    /// Take the arguments as a client's, as [`QueryMatcher::match_query`] does for a GraphQL
+    /// document: refuse a null item at a `[T!]` position (#1614), then rewrite every enum
+    /// member named in them to the value it is stored as (#1580). A transport that builds a
+    /// `QueryMatch` from its own request with [`from_operation`](Self::from_operation) calls
+    /// this before executing it; a sub-query built from values the server read needs nothing.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FraiseQLError::Validation`] naming the path to a null item of a `[T!]` list.
+    pub fn with_client_arguments(mut self, schema: &CompiledSchema) -> Result<Self> {
         let published = self.query_def.graphql_arguments(schema);
+        crate::runtime::validate_argument_list_items(
+            schema,
+            &format!("Query.{}", schema.display_name(&self.query_def.name)),
+            &published,
+            |name| self.arguments.get(name),
+        )?;
         crate::runtime::coerce_enum_arguments(schema, &published, &mut self.arguments);
-        self
+        Ok(self)
     }
 
     /// Attach the server's own scoping predicate to a `QueryMatch` built by a
@@ -507,18 +516,26 @@ impl QueryMatcher {
             }
         }
 
-        // 9. #1580: an enum member named in an argument becomes the value it is stored as, the
-        //    value SQL compares. After 5e, so every name here is a member.
-        if let Some(published) = self.arguments.get(&query_def.name) {
-            crate::runtime::coerce_enum_arguments(
-                &self.schema,
-                &published.published,
-                &mut arguments,
-            );
+        let derived;
+        let published = if let Some(published) = self.arguments.get(&query_def.name) {
+            &published.published
         } else {
-            let derived = QueryArguments::derive(&query_def, &self.schema);
-            crate::runtime::coerce_enum_arguments(&self.schema, &derived.published, &mut arguments);
-        }
+            derived = QueryArguments::derive(&query_def, &self.schema);
+            &derived.published
+        };
+
+        // 9. #1614: a null item at a `[T!]` position, however it was written: a literal, a whole
+        //    variable, or one nested in a literal.
+        crate::runtime::validate_argument_list_items(
+            &self.schema,
+            &format!("Query.{}", self.schema.display_name(&query_def.name)),
+            published,
+            |name| arguments.get(name),
+        )?;
+
+        // 10. #1580: an enum member named in an argument becomes the value it is stored as, the
+        //     value SQL compares. After 5e, so every name here is a member.
+        crate::runtime::coerce_enum_arguments(&self.schema, published, &mut arguments);
 
         Ok(QueryMatch {
             query_def,

@@ -23,7 +23,8 @@ pub(super) fn named_scalar_rs(name: &str) -> Option<&'static str> {
     }
 }
 
-/// Render a structured [`FieldType`] as a Rust type expression (no nullability).
+/// Render a structured [`FieldType`] as a Rust type expression: no outer nullability,
+/// each list level's items as the type declares them (`[T]` is `Vec<Option<T>>`).
 pub(super) fn field_type_rs(ft: &FieldType) -> String {
     match ft {
         FieldType::String
@@ -45,7 +46,10 @@ pub(super) fn field_type_rs(ft: &FieldType) -> String {
         // Half precision is a storage choice, not a surface one: both are
         // `[Float!]!` in GraphQL.
         FieldType::Vector | FieldType::HalfVector => "Vec<f64>".to_string(),
-        FieldType::List { item: inner, .. } => format!("Vec<{}>", field_type_rs(inner)),
+        FieldType::List {
+            item,
+            nullable_items,
+        } => format!("Vec<{}>", field_type_rs_nullable(item, *nullable_items)),
         FieldType::Enum(name)
         | FieldType::Object(name)
         | FieldType::Input(name)
@@ -60,20 +64,14 @@ pub(super) fn field_type_rs(ft: &FieldType) -> String {
     }
 }
 
-/// Render an output field's type: its outer nullability, and each list level's items as
-/// the type declares them (`[T]` is `Vec<Option<T>>`, at any depth, #1586).
+/// Render an output field's type at its published nullability.
 pub(super) fn field_type_rs_output(field: &FieldDefinition) -> String {
-    output_rs(&field.field_type, field.nullable)
+    field_type_rs_nullable(&field.field_type, field.nullable)
 }
 
-fn output_rs(ft: &FieldType, nullable: bool) -> String {
-    let base = match ft {
-        FieldType::List {
-            item,
-            nullable_items,
-        } => format!("Vec<{}>", output_rs(item, *nullable_items)),
-        other => field_type_rs(other),
-    };
+/// [`field_type_rs`] with outer nullability applied: `Option<T>` when nullable.
+fn field_type_rs_nullable(ft: &FieldType, nullable: bool) -> String {
+    let base = field_type_rs(ft);
     if nullable {
         format!("Option<{base}>")
     } else {

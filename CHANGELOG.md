@@ -18,6 +18,24 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **An argument's list items are published and enforced as declared (#1614).** An argument
+  or input field declared `[T!]` was introspected as `[T]` (every item nullable), in `__type`,
+  in `_service { sdl }` and in the parameters of the generated TypeScript, Python, Go and Rust
+  clients (`tags: string[]` for a `[String]` argument). Each now says what was declared, at
+  every depth, from one rendering of a type for every position. A `null` item at a `[T!]`
+  position is refused with its path (`Query.labels at `where.name.nin[0]` is null, but the
+  list's items are non-null`) before any statement, however it was written (a literal, a
+  variable, one nested in a literal) and over every transport: GraphQL, MCP, REST, gRPC,
+  subscriptions and mutations. It reached SQL before: a mutation's function received the
+  null, and a filter's `nin: [null, "a"]` became `NOT IN (NULL, 'a')`, which is never true,
+  so the read answered with no rows. **Breaking:** a request that sent a null item to a
+  `[T!]` position is refused; `orderBy` is published as the `[XOrderByInput!]` it was always
+  read as. `QueryMatch::with_enum_values_coerced(schema)` is
+  `with_client_arguments(schema) -> Result<QueryMatch>`, which refuses the null item too.
+  The declaration of a variable is not checked against its use (`$ids: [ID]` passed to a
+  `[ID!]` argument still runs when no item is null): the engine checks no nullability in
+  § 5.8.5 yet, scalars included (#1617).
+
 - **The GraphQL parser is apollo-parser, behind fraiseql's own document model (#1567).**
   `fraiseql_core::graphql_parser` (the re-export of graphql-parser) is removed, and
   `SharedDocument` is now `Arc<fraiseql_core::graphql::document::Document>`: operations and

@@ -267,7 +267,9 @@ function, so a parameter may be any type, `float8`, `numeric`, `date`, `timestam
 `interval`, an enum or a domain included, and takes what that type accepts as text
 (`"NaN"`, `"infinity"`, an offset like `"+02:00"`; a timestamp without one is read in the
 session's time zone). A list argument binds to an array parameter (`list[str]` to `text[]`,
-a list of lists to a two-dimensional array) and to a `jsonb` one as JSON.
+a list of lists to a two-dimensional array) and to a `jsonb` one as JSON. Its items are
+non-null unless declared nullable (`list[str | None]` is `[String]`): a `null` item at a
+non-null position is refused with its path (`names[0]`) before the function is called.
 
 ---
 

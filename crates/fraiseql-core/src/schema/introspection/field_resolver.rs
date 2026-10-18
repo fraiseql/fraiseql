@@ -29,7 +29,7 @@ pub(super) fn build_field(field: &FieldDefinition) -> IntrospectionField {
         } else {
             vec![]
         },
-        field_type:         output_type_to_introspection(
+        field_type:         field_type_to_introspection(
             &field.field_type,
             field.published_nullable(),
         ),
@@ -158,18 +158,7 @@ pub(super) fn build_localized_input_types() -> [IntrospectionType; 2] {
 
 /// `inner`, wrapped in `NON_NULL`.
 fn non_null(inner: IntrospectionType) -> IntrospectionType {
-    IntrospectionType {
-        kind:               TypeKind::NonNull,
-        name:               None,
-        description:        None,
-        fields:             None,
-        interfaces:         None,
-        possible_types:     None,
-        enum_values:        None,
-        input_fields:       None,
-        of_type:            Some(Box::new(inner)),
-        specified_by_u_r_l: None,
-    }
+    wrap(TypeKind::NonNull, inner)
 }
 
 /// A localized field's `locale: String` argument (#1513).
@@ -187,56 +176,14 @@ fn locale_argument() -> IntrospectionInputValue {
     }
 }
 
-/// Convert an **output** field's `FieldType` to its introspection type: as
-/// [`field_type_to_introspection`], with each list level's items as the type declares them
-/// (`[T]` or `[T!]`, at any depth, #1586). That is what the SDL, the compiler's relay types
-/// (`edges: [XEdge!]!`) and every generated client (`T[]`, `(T | null)[]`) publish, and what
-/// responses are completed against (#1522).
-pub(super) fn output_type_to_introspection(
-    field_type: &FieldType,
-    nullable: bool,
-) -> IntrospectionType {
-    let FieldType::List {
-        item,
-        nullable_items,
-    } = field_type
-    else {
-        return field_type_to_introspection(field_type, nullable);
-    };
-    let list = IntrospectionType {
-        kind:               TypeKind::List,
-        name:               None,
-        description:        None,
-        fields:             None,
-        interfaces:         None,
-        possible_types:     None,
-        enum_values:        None,
-        input_fields:       None,
-        of_type:            Some(Box::new(output_type_to_introspection(item, *nullable_items))),
-        specified_by_u_r_l: None,
-    };
-    if nullable {
-        list
-    } else {
-        IntrospectionType {
-            kind:               TypeKind::NonNull,
-            name:               None,
-            description:        None,
-            fields:             None,
-            interfaces:         None,
-            possible_types:     None,
-            enum_values:        None,
-            input_fields:       None,
-            of_type:            Some(Box::new(list)),
-            specified_by_u_r_l: None,
-        }
-    }
-}
-
-/// Convert `FieldType` to introspection type, wrapping in `NON_NULL` when not nullable.
+/// Convert a `FieldType` to its introspection type, wrapping it in `NON_NULL` when not
+/// `nullable`, with each list level's items as the type declares them (`[T]` or `[T!]`, at
+/// any depth, #1586).
 ///
-/// The input form: a list's items are published nullable (`[T]`) whatever the declaration,
-/// which is what an argument or input field accepts today.
+/// The one rendering for every position: an output field, an argument (#1614: arguments
+/// used to publish every item nullable, so a client was told it may send `[null]` to a
+/// `[T!]` argument) and the SDL, which is rendered from this model. It is what responses are
+/// completed against (#1522) and what argument values are adjudicated against.
 pub(super) fn field_type_to_introspection(
     field_type: &FieldType,
     nullable: bool,
@@ -263,36 +210,28 @@ pub(super) fn field_type_to_introspection(
         FieldType::Input(name) => type_ref_with_kind(name, TypeKind::InputObject),
         FieldType::Interface(name) => type_ref_with_kind(name, TypeKind::Interface),
         FieldType::Union(name) => type_ref_with_kind(name, TypeKind::Union),
-        FieldType::List { item: inner, .. } => IntrospectionType {
-            kind:               TypeKind::List,
-            name:               None,
-            description:        None,
-            fields:             None,
-            interfaces:         None,
-            possible_types:     None,
-            enum_values:        None,
-            input_fields:       None,
-            of_type:            Some(Box::new(field_type_to_introspection(inner, true))),
-            specified_by_u_r_l: None,
-        },
+        FieldType::List {
+            item,
+            nullable_items,
+        } => wrap(TypeKind::List, field_type_to_introspection(item, *nullable_items)),
     };
 
-    if nullable {
-        inner
-    } else {
-        // Wrap in NON_NULL
-        IntrospectionType {
-            kind:               TypeKind::NonNull,
-            name:               None,
-            description:        None,
-            fields:             None,
-            interfaces:         None,
-            possible_types:     None,
-            enum_values:        None,
-            input_fields:       None,
-            of_type:            Some(Box::new(inner)),
-            specified_by_u_r_l: None,
-        }
+    if nullable { inner } else { non_null(inner) }
+}
+
+/// A `LIST` or `NON_NULL` wrapper around `of_type`.
+fn wrap(kind: TypeKind, of_type: IntrospectionType) -> IntrospectionType {
+    IntrospectionType {
+        kind,
+        name: None,
+        description: None,
+        fields: None,
+        interfaces: None,
+        possible_types: None,
+        enum_values: None,
+        input_fields: None,
+        of_type: Some(Box::new(of_type)),
+        specified_by_u_r_l: None,
     }
 }
 
