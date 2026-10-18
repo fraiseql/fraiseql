@@ -204,6 +204,17 @@ disagreed, and the promise was the part that was wrong.
 
 ### Changed
 
+- **A composed read under steady child writes is cached (#1605).** A write's eviction by
+  entity id fenced every in-flight cache fill holding a row of that type, although it only
+  evicts the entries holding that row: under a stream of comment writes no composed read of
+  posts with their comments was ever stored. It now fences the fills holding the evicted row,
+  at any level of a composed read. Measured (PostgreSQL 18.4, pg_tviews 0.1.0-beta.31,
+  velocitybench data, composed REST reads of 200 posts' comments while `addComment` writes
+  on 20 other posts, median of 3 interleaved runs): 100 writes/s 22.8 % → 99.9 % hits (an
+  earlier set had 76.0 % before; that rate is bistable before the fix), saturated (~5 300
+  writes/s) 0.5 % → 99.4 %, reads 220/s → 14 800/s. Flat reads of a written view, reads by
+  id and write throughput unchanged.
+
 - **`fraiseql migrate` is verified against confiture 1.37.0** (was 1.29.0). Its call shapes are
   unchanged. confiture needs Python 3.14 since 1.30.0; a project on 3.11–3.13 stays on
   confiture 1.29.x, which `fraiseql migrate` still drives.
@@ -342,7 +353,7 @@ disagreed, and the promise was the part that was wrong.
   built, in an exec that ran before its PRIVATE target volume was mounted. A leg that then
   waited for the volume while another branch's leg built on it got artifacts newer than its
   own sources: fresh to cargo, and newer than the stamp, so invisible to the stale-artifact
-  canary (#1421). Three PRs pushed minutes apart compiled against each other's
+  canary. Three PRs pushed minutes apart compiled against each other's
   `fraiseql_core`. The stamp is now taken by each of the leg's execs as it starts, after the
   mount (`tools/ci-stamp-sources.sh`, sourced through `BASH_ENV`), every Rust exec runs
   through bash, and `tools/check-ci-source-stamp.sh` (ShellGates) refuses a stamp taken
