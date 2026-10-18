@@ -1413,7 +1413,7 @@ mod document_scope {
     use std::sync::Arc;
 
     use super::super::complexity::{
-        document_parses_on_this_thread, document_scope, parse_graphql_document,
+        DocumentCache, document_parses_on_this_thread, document_scope, parse_graphql_document,
     };
 
     #[tokio::test]
@@ -1458,6 +1458,37 @@ mod document_scope {
             assert_eq!(document_parses_on_this_thread() - before, 1, "the inner scope reuses it");
         })
         .await;
+    }
+
+    /// A kept document answers only for the source it was parsed from: an entry under
+    /// a source's key that holds another source is a miss, and the source is parsed.
+    #[tokio::test]
+    async fn a_kept_document_answers_only_for_its_own_source() {
+        let documents = DocumentCache::new(8);
+        let posts = parse_graphql_document("{ posts { id } }").unwrap();
+        documents.0.insert(
+            DocumentCache::key("{ users { id } }"),
+            Arc::new(("{ posts { id } }".into(), posts)),
+        );
+        let before = document_parses_on_this_thread();
+        let users = documents.scope(async { parse_graphql_document("{ users { id } }") }).await;
+        assert_eq!(users.unwrap().operations[0].selections[0].name, "users");
+        assert_eq!(document_parses_on_this_thread() - before, 1, "parsed, not read from the entry");
+    }
+
+    /// A scope a transport opened without the cache reads it once the executor joins: a
+    /// transport that opens only `document_scope` still shares the executor's documents.
+    #[tokio::test]
+    async fn a_scope_joined_with_the_cache_reads_it_from_then_on() {
+        let documents = DocumentCache::new(8);
+        let before = document_parses_on_this_thread();
+        for _ in 0..2 {
+            document_scope(documents.scope(async {
+                parse_graphql_document("{ users { id } }").unwrap();
+            }))
+            .await;
+        }
+        assert_eq!(document_parses_on_this_thread() - before, 1, "the second request reads it");
     }
 
     #[test]

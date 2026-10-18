@@ -90,10 +90,13 @@ impl Executor {
         // #1314: what the served response says about itself (a similarity search that may
         // have stopped short) rides in `extensions.notices`, collected while it executes.
         // #1562: GATE-1, the cost cap, classification and matching read one parse of the
-        // document, inside the transport's scope when it opened one.
+        // document, inside the transport's scope when it opened one, and a document this
+        // executor parsed before is not parsed again.
         // Boxed: the scope holds the whole dispatch, and every caller awaits this future.
-        let (response, notices) = crate::graphql::document_scope(
-            crate::runtime::notices::collect_notices(Box::pin(async {
+        let (response, notices) = self
+            .ctx
+            .documents
+            .scope(crate::runtime::notices::collect_notices(Box::pin(async {
                 if self.ctx.config.query_timeout_ms > 0 {
                     let timeout_duration = Duration::from_millis(self.ctx.config.query_timeout_ms);
                     tokio::time::timeout(
@@ -112,9 +115,8 @@ impl Executor {
                 } else {
                     self.execute_dispatch(query, variables, security_context, operation_name).await
                 }
-            })),
-        )
-        .await;
+            })))
+            .await;
         Ok(crate::runtime::notices::with_notices(response?, &notices))
     }
 

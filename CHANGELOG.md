@@ -253,6 +253,22 @@ disagreed, and the promise was the part that was wrong.
 
 ### Changed
 
+- **An executor parses a repeated document once (#1567).** apollo-parser, with the reading of
+  its tree into fraiseql's document model, costs 2.1–2.4× graphql-parser's parse (2.9 µs for
+  a 44-byte list query, 6.7 µs for a 114-byte document with two roots and a fragment, 40 µs
+  for a 796-byte dashboard, against 1.3, 2.7 and 17.5 µs), and every request parsed its
+  document again, as did each root of a multi-root one: GraphQL reads served 3–9 % fewer
+  requests per second. The executor now keeps the documents its requests parsed (as many as
+  the 1 024 documents it keeps classified), so a document a read-heavy API sends on every
+  request, and the single-root documents a multi-root one is split into, are parsed once; a
+  document that does not parse is parsed on every request, and a kept one answers only for
+  its own source. Against graphql-parser on PostgreSQL 18, result cache off, 5 interleaved
+  runs (spread ≤ 1.2 %): +15 % requests per second for a read by id (36 627 against
+  31 745), +4 % for a 50-row list (15 866 against 15 212), +15 % for the two-root document
+  (15 539 against 13 542). `Executor::documents()` returns the cache; a transport opens a
+  request's scope with `DocumentCache::scope` to share it (`document_scope` opens one
+  without it, which joining the executor's then attaches).
+
 - **A composed read under steady child writes is cached (#1605).** A write's eviction by
   entity id fenced every in-flight cache fill holding a row of that type, although it only
   evicts the entries holding that row: under a stream of comment writes no composed read of

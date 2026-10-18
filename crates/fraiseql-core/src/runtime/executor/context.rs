@@ -98,6 +98,10 @@ pub(super) struct ExecutorContext {
     /// operation; each entry carries both, and a hit is confirmed against them.
     pub(super) parse_cache: MokaCache<u64, Arc<super::support::classify::CachedClassification>>,
 
+    /// The documents this executor's requests parsed, by source (see
+    /// [`DocumentCache`](crate::graphql::DocumentCache)).
+    pub(super) documents: crate::graphql::DocumentCache,
+
     /// Projected introspection responses, keyed by a hash of the normalised
     /// selection set (#F7).
     ///

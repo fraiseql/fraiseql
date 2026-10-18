@@ -137,7 +137,8 @@ fn resolve_gate1(
 
 /// Maximum number of distinct query strings whose parsed ASTs are cached in memory.
 ///
-/// 1 024 entries covers the full distinct-query vocabulary of any realistic workload.
+/// 1 024 entries covers the full distinct-query vocabulary of any realistic workload. The
+/// parsed documents are kept to the same bound.
 /// Each entry holds an `Arc<(QueryType, Option<ParsedQuery>)>` — the AST is shared,
 /// not duplicated.
 const PARSE_CACHE_CAPACITY: u64 = 1_024;
@@ -403,6 +404,7 @@ impl Executor {
             node_type_index,
             gate1,
             parse_cache: MokaCache::new(PARSE_CACHE_CAPACITY),
+            documents: crate::graphql::DocumentCache::new(PARSE_CACHE_CAPACITY),
             introspection_projections: MokaCache::new(INTROSPECTION_PROJECTION_CAPACITY),
         });
 
@@ -431,6 +433,14 @@ impl Executor {
     #[must_use]
     pub fn schema(&self) -> &CompiledSchema {
         &self.ctx.schema
+    }
+
+    /// The documents this executor's requests parsed. A transport opens its request's
+    /// scope with [`DocumentCache::scope`](crate::graphql::DocumentCache::scope), so the
+    /// stages it runs before the executor read a repeated document without parsing it.
+    #[must_use]
+    pub fn documents(&self) -> &crate::graphql::DocumentCache {
+        &self.ctx.documents
     }
 
     /// The matcher this executor resolves documents with: its schema, its effective depth

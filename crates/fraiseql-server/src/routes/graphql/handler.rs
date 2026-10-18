@@ -55,54 +55,57 @@ pub async fn graphql_handler(
     token_claims: Option<axum::Extension<crate::middleware::oidc_auth::SessionTokenClaims>>,
     Json(request): Json<GraphQLRequest>,
 ) -> Result<axum::response::Response, ErrorResponse> {
-    // #1562: every stage below reads this request's one parse of its document.
-    fraiseql_core::graphql::document_scope(async move {
-        // Extract trace context from W3C headers
-        let trace_context = tracing_utils::extract_trace_context(&headers);
-        if trace_context.is_some() {
-            debug!("Extracted W3C trace context from incoming request");
-        }
+    // #1562: every stage below reads this request's one parse of its document, and a
+    // document the executor parsed before is not parsed again.
+    let documents = state.executor().documents().clone();
+    documents
+        .scope(async move {
+            // Extract trace context from W3C headers
+            let trace_context = tracing_utils::extract_trace_context(&headers);
+            if trace_context.is_some() {
+                debug!("Extracted W3C trace context from incoming request");
+            }
 
-        if security_context.is_some() {
-            debug!("Authenticated request with security context");
-        }
+            if security_context.is_some() {
+                debug!("Authenticated request with security context");
+            }
 
-        // GraphQL-over-SSE (#387): opt-in, negotiated by Accept. This branch runs
-        // INSIDE the authenticated route, so it inherits the full middleware stack.
-        if let Some(wire) = state
-            .graphql_incremental_enabled
-            .then(|| incremental::negotiate(&headers))
-            .flatten()
-        {
-            return Ok(with_caching(
-                Box::pin(sse::handle_sse(
+            // GraphQL-over-SSE (#387): opt-in, negotiated by Accept. This branch runs
+            // INSIDE the authenticated route, so it inherits the full middleware stack.
+            if let Some(wire) = state
+                .graphql_incremental_enabled
+                .then(|| incremental::negotiate(&headers))
+                .flatten()
+            {
+                return Ok(with_caching(
+                    Box::pin(sse::handle_sse(
+                        state,
+                        wire,
+                        headers,
+                        peer_ip,
+                        security_context,
+                        token_claims.map(|axum::Extension(claims)| claims),
+                        request,
+                        Method::Post,
+                    ))
+                    .await,
+                ));
+            }
+
+            Ok(answer(
+                execute_graphql_request(
                     state,
-                    wire,
-                    headers,
-                    peer_ip,
-                    security_context,
-                    token_claims.map(|axum::Extension(claims)| claims),
                     request,
                     Method::Post,
-                ))
+                    trace_context,
+                    security_context,
+                    &headers,
+                    &peer_ip,
+                )
                 .await,
-            ));
-        }
-
-        Ok(answer(
-            execute_graphql_request(
-                state,
-                request,
-                Method::Post,
-                trace_context,
-                security_context,
-                &headers,
-                &peer_ip,
-            )
-            .await,
-        ))
-    })
-    .await
+            ))
+        })
+        .await
 }
 
 /// GraphQL HTTP handler for GET requests.
@@ -143,8 +146,10 @@ pub async fn graphql_get_handler(
     token_claims: Option<axum::Extension<crate::middleware::oidc_auth::SessionTokenClaims>>,
     Query(params): Query<GraphQLGetParams>,
 ) -> Result<axum::response::Response, ErrorResponse> {
-    // #1562: every stage below reads this request's one parse of its document.
-    fraiseql_core::graphql::document_scope(async move {
+    // #1562: every stage below reads this request's one parse of its document, and a
+    // document the executor parsed before is not parsed again.
+    let documents = state.executor().documents().clone();
+    documents.scope(async move {
         // Reject oversized GET queries early to prevent DoS via query parsing.
         let max_get_bytes = state.max_get_query_bytes;
         if params.query.as_ref().is_some_and(|q| q.len() > max_get_bytes) {
@@ -304,40 +309,43 @@ pub async fn graphql_query_method_handler(
     OptionalSecurityContext(security_context): OptionalSecurityContext,
     body: axum::body::Bytes,
 ) -> Result<axum::response::Response, ErrorResponse> {
-    // #1562: every stage below reads this request's one parse of its document.
-    fraiseql_core::graphql::document_scope(async move {
-        // This handler is a method-router fallback, so it also catches PUT/DELETE/…
-        // Anything that is not QUERY gets the same 405 the router would have produced.
-        if method.as_str() != HTTP_QUERY_METHOD {
-            return Err(ErrorResponse::from_error(GraphQLError::method_not_allowed(
-                "Method not allowed on the GraphQL endpoint",
-            )));
-        }
+    // #1562: every stage below reads this request's one parse of its document, and a
+    // document the executor parsed before is not parsed again.
+    let documents = state.executor().documents().clone();
+    documents
+        .scope(async move {
+            // This handler is a method-router fallback, so it also catches PUT/DELETE/…
+            // Anything that is not QUERY gets the same 405 the router would have produced.
+            if method.as_str() != HTTP_QUERY_METHOD {
+                return Err(ErrorResponse::from_error(GraphQLError::method_not_allowed(
+                    "Method not allowed on the GraphQL endpoint",
+                )));
+            }
 
-        let request: GraphQLRequest = serde_json::from_slice(&body).map_err(|e| {
-            ErrorResponse::from_error(GraphQLError::request(format!("Invalid QUERY body: {e}")))
-        })?;
+            let request: GraphQLRequest = serde_json::from_slice(&body).map_err(|e| {
+                ErrorResponse::from_error(GraphQLError::request(format!("Invalid QUERY body: {e}")))
+            })?;
 
-        // Queries-only, judged on the resolved document (`stages::resolve_query_body`), with
-        // the parser the executor uses, so the gate cannot disagree with what would
-        // actually execute. A document that does not parse surfaces the executor's parse
-        // error — it executes nothing, so no state can change.
-        let trace_context = tracing_utils::extract_trace_context(&headers);
+            // Queries-only, judged on the resolved document (`stages::resolve_query_body`), with
+            // the parser the executor uses, so the gate cannot disagree with what would
+            // actually execute. A document that does not parse surfaces the executor's parse
+            // error — it executes nothing, so no state can change.
+            let trace_context = tracing_utils::extract_trace_context(&headers);
 
-        Ok(answer(
-            execute_graphql_request(
-                state,
-                request,
-                Method::Query,
-                trace_context,
-                security_context,
-                &headers,
-                &peer_ip,
-            )
-            .await,
-        ))
-    })
-    .await
+            Ok(answer(
+                execute_graphql_request(
+                    state,
+                    request,
+                    Method::Query,
+                    trace_context,
+                    security_context,
+                    &headers,
+                    &peer_ip,
+                )
+                .await,
+            ))
+        })
+        .await
 }
 
 /// The method a GraphQL request arrived on, which decides what it may run, whether it

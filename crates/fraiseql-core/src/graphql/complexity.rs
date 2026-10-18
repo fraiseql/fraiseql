@@ -25,7 +25,7 @@ pub type DocumentParse = Result<SharedDocument, ComplexityValidationError>;
 /// shared (below). `tools/check-graphql-parse-sites.sh` fails the build if a second call
 /// site appears.
 ///
-/// # Parsed once per request (#1562)
+/// # Parsed once per request (#1562), and once per executor
 ///
 /// Inside [`document_scope`], the first source parsed is kept, and a later call
 /// with the **same bytes** returns that document instead of parsing again. A
@@ -36,34 +36,59 @@ pub type DocumentParse = Result<SharedDocument, ComplexityValidationError>;
 /// sharing it cannot change an answer, and a different source (a synthetic
 /// single-root document, say) is simply parsed. Outside a scope every call parses.
 ///
+/// A scope opened by [`DocumentCache::scope`] also reads and fills that cache, so a
+/// document a read-heavy API sends on every request, and the single-root documents a
+/// multi-root one is split into, are parsed once by the executor that owns it.
+///
 /// # Errors
 ///
 /// Returns [`ComplexityValidationError::MalformedQuery`] when the source is not an
 /// executable document (with the line and column of the first error), and when the
 /// parser panics.
 pub fn parse_graphql_document(query: &str) -> DocumentParse {
-    let remembered = REQUEST_DOCUMENT.try_with(|slot| {
-        slot.borrow()
+    let in_scope = REQUEST_DOCUMENT.try_with(|slot| {
+        let scope = slot.borrow();
+        let kept = scope
+            .kept
             .as_ref()
             .filter(|(source, _)| **source == *query)
-            .map(|(_, parse)| parse.clone())
+            .map(|(_, parse)| parse.clone());
+        (kept, scope.documents.clone())
     });
-    if let Ok(Some(parse)) = remembered {
-        return parse;
-    }
-    let parse = parse_uncached(query).map(SharedDocument::new);
+    let documents = match in_scope {
+        Ok((Some(parse), _)) => return parse,
+        Ok((None, documents)) => documents,
+        Err(_) => None,
+    };
+    let parse = if let Some(document) = documents.as_ref().and_then(|d| d.get(query)) {
+        Ok(document)
+    } else {
+        let parse = parse_uncached(query).map(SharedDocument::new);
+        if let (Some(documents), Ok(document)) = (&documents, &parse) {
+            documents.insert(query, document);
+        }
+        parse
+    };
     let _ = REQUEST_DOCUMENT.try_with(|slot| {
-        let mut slot = slot.borrow_mut();
-        if slot.is_none() {
-            *slot = Some((query.into(), parse.clone()));
+        let mut scope = slot.borrow_mut();
+        if scope.kept.is_none() {
+            scope.kept = Some((query.into(), parse.clone()));
         }
     });
     parse
 }
 
+/// One request's view of the parser: the first document it parsed, and the
+/// executor's [`DocumentCache`] when the scope was opened with one.
+#[derive(Default)]
+struct RequestScope {
+    kept:      Option<(Box<str>, DocumentParse)>,
+    documents: Option<DocumentCache>,
+}
+
 tokio::task_local! {
-    /// The first document parsed in the current [`document_scope`], by its source.
-    static REQUEST_DOCUMENT: std::cell::RefCell<Option<(Box<str>, DocumentParse)>>;
+    /// The current [`document_scope`].
+    static REQUEST_DOCUMENT: std::cell::RefCell<RequestScope>;
 }
 
 /// Run `future` as one request: the first document it parses is parsed once and
@@ -75,10 +100,75 @@ tokio::task_local! {
 /// than starting an empty one, which would parse the document a second time.
 /// Nothing outlives the outermost future: the document is dropped with it.
 pub async fn document_scope<F: std::future::Future>(future: F) -> F::Output {
-    if REQUEST_DOCUMENT.try_with(|_| ()).is_ok() {
+    scope_with(None, future).await
+}
+
+async fn scope_with<F: std::future::Future>(
+    documents: Option<DocumentCache>,
+    future: F,
+) -> F::Output {
+    let joined = REQUEST_DOCUMENT.try_with(|slot| {
+        let mut scope = slot.borrow_mut();
+        if scope.documents.is_none() {
+            scope.documents.clone_from(&documents);
+        }
+    });
+    if joined.is_ok() {
         future.await
     } else {
-        REQUEST_DOCUMENT.scope(std::cell::RefCell::new(None), future).await
+        let scope = RequestScope {
+            kept: None,
+            documents,
+        };
+        REQUEST_DOCUMENT.scope(std::cell::RefCell::new(scope), future).await
+    }
+}
+
+/// The documents an executor has parsed, by source, shared by its requests.
+///
+/// Parsing is a function of the source alone, so a kept document answers exactly as
+/// a fresh parse would. A hit is checked against the source it was parsed from (the
+/// key is a 64-bit hash), only documents that parsed are kept, and the least recently
+/// used is evicted past the capacity, so a client sending distinct documents costs
+/// a parse each, as it would without the cache.
+#[derive(Clone)]
+pub struct DocumentCache(
+    pub(super) moka::sync::Cache<u64, std::sync::Arc<(Box<str>, SharedDocument)>>,
+);
+
+impl DocumentCache {
+    /// A cache holding at most `capacity` documents.
+    #[must_use]
+    pub fn new(capacity: u64) -> Self {
+        Self(moka::sync::Cache::new(capacity))
+    }
+
+    /// The key a source is kept under.
+    pub(super) fn key(source: &str) -> u64 {
+        xxhash_rust::xxh3::xxh3_64(source.as_bytes())
+    }
+
+    fn get(&self, source: &str) -> Option<SharedDocument> {
+        let entry = self.0.get(&Self::key(source))?;
+        (*entry.0 == *source).then(|| entry.1.clone())
+    }
+
+    fn insert(&self, source: &str, document: &SharedDocument) {
+        self.0
+            .insert(Self::key(source), std::sync::Arc::new((source.into(), document.clone())));
+    }
+
+    /// Run `future` as one request (see [`document_scope`]) whose parses read and fill
+    /// this cache. Inside an open scope this joins it, and the scope reads this cache
+    /// from then on if it was opened without one.
+    pub async fn scope<F: std::future::Future>(&self, future: F) -> F::Output {
+        scope_with(Some(self.clone()), future).await
+    }
+}
+
+impl std::fmt::Debug for DocumentCache {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DocumentCache").field("entries", &self.0.entry_count()).finish()
     }
 }
 

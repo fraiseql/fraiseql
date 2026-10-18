@@ -2601,6 +2601,33 @@ mod parse_cache {
         assert_eq!(parses, 1, "one execution, one parse");
     }
 
+    /// A read-heavy API sends the same few documents: the executor keeps each one it
+    /// parsed, so a later request for the same source is not parsed again, nor are the
+    /// single-root documents a multi-root one is split into.
+    #[tokio::test]
+    async fn a_repeated_document_is_parsed_once_per_executor() {
+        let schema = test_schema();
+        let adapter = Arc::new(MockAdapter::new(mock_user_results()));
+        let executor = Executor::new(schema, adapter);
+
+        let before = crate::graphql::document_parses_on_this_thread();
+        for _ in 0..3 {
+            let response = executor.execute("{ users { id name } }", None).await.unwrap();
+            assert!(response["data"]["users"].is_array(), "the query executes: {response}");
+        }
+        let multi = "{ a: users { id } b: users { name } }";
+        let first = executor.execute(multi, None).await.unwrap();
+        let after_first = crate::graphql::document_parses_on_this_thread() - before;
+        let again = executor.execute(multi, None).await.unwrap();
+        let parses = crate::graphql::document_parses_on_this_thread() - before;
+        assert_eq!(first, again, "a kept document answers as a fresh parse does");
+        assert_eq!(
+            after_first, 4,
+            "one parse of the repeated document, one of the multi-root one and of each root"
+        );
+        assert_eq!(parses, after_first, "three requests and a repeat: no parse after the first");
+    }
+
     /// The cache key is a 64-bit hash, so two documents can share one. An entry
     /// planted under a document's key, but computed for a different document, must
     /// not answer for it: the request is classified afresh (#1562).

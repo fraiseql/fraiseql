@@ -116,8 +116,9 @@ pub mod stream_split;
 pub use complexity::document_parses_on_this_thread;
 pub use complexity::{
     ComplexityConfig, ComplexityValidationError, DEFAULT_MAX_ALIASES, DirectReadProjection,
-    DocumentParse, MAX_VARIABLES_COUNT, QueryMetrics, RequestValidator, SharedDocument,
-    document_scope, estimate_direct_read_cost, estimate_query_cost, parse_graphql_document,
+    DocumentCache, DocumentParse, MAX_VARIABLES_COUNT, QueryMetrics, RequestValidator,
+    SharedDocument, document_scope, estimate_direct_read_cost, estimate_query_cost,
+    parse_graphql_document,
 };
 pub use defer::DeferredPayload;
 pub use directive_evaluator::{

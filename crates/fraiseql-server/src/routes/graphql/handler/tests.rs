@@ -97,7 +97,7 @@ fn detect_mutation_name_reliably_flags_mutations() {
 mod parse_once {
     use std::sync::Arc;
 
-    use axum::{Router, body::Body, routing::post};
+    use axum::{Router, body::Body, routing::get};
     use fraiseql_core::{
         db::types::JsonbValue, graphql::document_parses_on_this_thread, runtime::Executor,
         schema::FieldType,
@@ -110,7 +110,9 @@ mod parse_once {
     use serde_json::{Value, json};
     use tower::ServiceExt;
 
-    use crate::routes::graphql::{AppState, graphql_handler};
+    use crate::routes::graphql::{
+        AppState, graphql_get_handler, graphql_handler, handler::graphql_query_method_handler,
+    };
 
     fn router() -> Router {
         let schema = TestSchemaBuilder::new()
@@ -124,9 +126,11 @@ mod parse_once {
         let adapter = FailingAdapter::new()
             .with_response("v_users", vec![JsonbValue::new(json!({ "id": 1 }))]);
         let executor = Arc::new(Executor::new(schema, Arc::new(adapter)));
-        Router::new()
-            .route("/graphql", post(graphql_handler))
-            .with_state(AppState::new(executor))
+        // Mounted as `Server` mounts them: GET, POST, and the QUERY method as the fallback.
+        let methods = get(graphql_get_handler)
+            .post(graphql_handler)
+            .fallback(graphql_query_method_handler);
+        Router::new().route("/graphql", methods).with_state(AppState::new(executor))
     }
 
     /// POSTs `body` and returns the response with the parses it cost.
@@ -137,6 +141,11 @@ mod parse_once {
             .header("content-type", "application/json")
             .body(Body::from(serde_json::to_vec(&body).unwrap()))
             .unwrap();
+        send_counting(router, request).await
+    }
+
+    /// Sends `request` and returns the response with the parses it cost.
+    async fn send_counting(router: Router, request: Request<Body>) -> (Value, usize) {
         let before = document_parses_on_this_thread();
         let response = router.oneshot(request).await.unwrap();
         let parses = document_parses_on_this_thread() - before;
@@ -151,14 +160,51 @@ mod parse_once {
         assert_eq!(parses, 1, "one POST query, one parse");
     }
 
+    /// The executor keeps the documents it parsed: a repeated query is parsed by the
+    /// first request only, a malformed one by every request (only a parse is kept).
     #[tokio::test]
-    async fn a_repeated_query_is_parsed_once_each_time() {
+    async fn a_repeated_query_is_parsed_by_the_first_request_only() {
         let router = router();
         let query = json!({ "query": "query Q { users { id } }", "operationName": "Q" });
         let (_, first) = post_counting(router.clone(), query.clone()).await;
-        let (body, second) = post_counting(router, query).await;
+        let (body, second) = post_counting(router.clone(), query).await;
         assert_eq!(body, json!({ "data": { "users": [{ "id": 1 }] } }), "the query executes");
-        assert_eq!((first, second), (1, 1), "each request parses its document once");
+        assert_eq!((first, second), (1, 0), "the second request reads the first one's parse");
+
+        let malformed = json!({ "query": "{ users { id }" });
+        let (_, first) = post_counting(router.clone(), malformed.clone()).await;
+        let (body, second) = post_counting(router, malformed).await;
+        assert_eq!(body["errors"][0]["code"], "PARSE_ERROR", "{body}");
+        assert_eq!((first, second), (1, 1), "a document that did not parse is parsed again");
+    }
+
+    /// GET and the QUERY method read the executor's documents as POST does.
+    #[tokio::test]
+    async fn a_repeated_get_or_query_method_request_is_parsed_by_the_first_only() {
+        let get_request = || {
+            Request::builder()
+                .method("GET")
+                .uri("/graphql?query=%7B%20users%20%7B%20id%20%7D%20%7D")
+                .body(Body::empty())
+                .unwrap()
+        };
+        let query_request = || {
+            Request::builder()
+                .method("QUERY")
+                .uri("/graphql")
+                .header("content-type", "application/json")
+                .body(Body::from(r#"{"query": "{ users { id } }"}"#))
+                .unwrap()
+        };
+        let requests: [(&str, &dyn Fn() -> Request<Body>); 2] =
+            [("GET", &get_request), ("QUERY", &query_request)];
+        for (method, request) in requests {
+            let router = router();
+            let (_, first) = send_counting(router.clone(), request()).await;
+            let (body, second) = send_counting(router, request()).await;
+            assert_eq!(body, json!({ "data": { "users": [{ "id": 1 }] } }), "{method}: {body}");
+            assert_eq!((first, second), (1, 0), "{method}: the second request reads the first's");
+        }
     }
 
     /// A malformed document is parsed once, and its error says what is missing and where.
