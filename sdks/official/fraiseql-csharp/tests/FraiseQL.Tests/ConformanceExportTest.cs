@@ -68,6 +68,7 @@ public class ConformanceExportTest
         SchemaRegistry.Instance.Register(typeof(ConformanceSupportTicket));
         SchemaRegistry.Instance.Register(typeof(ConformanceUserNotFound));
         SchemaRegistry.Instance.Register(typeof(ConformanceDocument));
+        SchemaRegistry.Instance.Register(typeof(ConformanceReadingSeries));
         SchemaRegistry.Instance.Register(typeof(ConformanceCreateUserInput));
 
         SchemaRegistry.Instance.RegisterEnum("OrderStatus", new[] { "PENDING", "SHIPPED", "CANCELLED" });
@@ -83,6 +84,13 @@ public class ConformanceExportTest
             .Nullable()
             .SqlSource("v_user")
             .Argument("id", "ID")
+            .Register();
+
+        QueryBuilder.Query("readingSeriesByIds")
+            .ReturnType("ReadingSeries")
+            .ReturnsList(true)
+            .SqlSource("v_reading_series")
+            .Argument("ids", "[ID!]")
             .Register();
 
         // Two-word argument, deliberately (#1255). Every argument in this fixture used
@@ -221,6 +229,24 @@ public class ConformanceExportTest
 
         [GraphQLField(Type = "String", Nullable = true)]
         public string? Phone1 { get; set; }
+    }
+
+    // Lists (#1586, #1608), inferred from the C# types: an element is non-null unless
+    // written `T?`, at every level.
+    [GraphQLType(Name = "ReadingSeries", SqlSource = "v_reading_series")]
+    private sealed class ConformanceReadingSeries
+    {
+        [GraphQLField(Type = "ID")]
+        public string Id { get; set; } = string.Empty;
+
+        [GraphQLField]
+        public List<string> Labels { get; set; } = new();
+
+        [GraphQLField]
+        public List<double?>? Readings { get; set; }
+
+        [GraphQLField]
+        public List<List<double?>> Grid { get; set; } = new();
     }
 
     [GraphQLType(Name = "Document", SqlSource = "v_document")]

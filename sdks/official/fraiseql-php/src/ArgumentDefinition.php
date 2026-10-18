@@ -31,22 +31,12 @@ final class ArgumentDefinition
     }
 
     /**
-     * Get the GraphQL type string with modifiers.
-     *
-     * @param bool $nonNullList If true, wraps list in ! (only applies if isList=true)
-     * @return string GraphQL type string (e.g., 'String!', '[Int!]', '[User]!')
+     * The GraphQL type string: `String!`, `[Int!]!`, `[ID!]` (a nullable list of non-null
+     * items); see {@see TypeInfo::graphQLTypeString()}.
      */
-    public function getGraphQLTypeString(bool $nonNullList = false): string
+    public function getGraphQLTypeString(): string
     {
-        $baseType = $this->type;
-
-        if ($this->isList) {
-            $itemType = $this->nullable ? $baseType : $baseType . '!';
-            $listType = '[' . $itemType . ']';
-            return $nonNullList ? $listType . '!' : $listType;
-        }
-
-        return $this->nullable ? $baseType : $baseType . '!';
+        return TypeInfo::graphQLTypeString($this->type, $this->isList, $this->nullable);
     }
 
     /**

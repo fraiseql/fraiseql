@@ -19,14 +19,15 @@ open FraiseQL
 
 [<GraphQLType(Name = "Author", SqlSource = "v_author", Description = "A blog author")>]
 type AuthorEntity() =
-    [<GraphQLField(Nullable = false)>]
+    [<GraphQLField>]
     member val Id: System.Guid = System.Guid.Empty with get, set
 
-    [<GraphQLField(Nullable = false)>]
+    [<GraphQLField>]
     member val Name: string = "" with get, set
 
-    [<GraphQLField(Nullable = true)>]
-    member val Bio: string = null with get, set
+    // Non-null unless an `option` (or `Nullable = true`), as in every SDK.
+    [<GraphQLField>]
+    member val Bio: string option = None with get, set
 
 // Registration
 SchemaRegistry.register typeof<AuthorEntity>

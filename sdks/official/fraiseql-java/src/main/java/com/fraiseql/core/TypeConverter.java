@@ -1,6 +1,11 @@
 package com.fraiseql.core;
 
+import java.lang.annotation.Annotation;
+import java.lang.reflect.AnnotatedArrayType;
+import java.lang.reflect.AnnotatedParameterizedType;
+import java.lang.reflect.AnnotatedType;
 import java.lang.reflect.Field;
+import java.lang.reflect.ParameterizedType;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Collection;
@@ -69,16 +74,17 @@ public class TypeConverter {
             return "DateTime";
         }
 
-        // Handle collections
+        // Handle collections: a Class carries no element type, and no annotation on it.
         if (Collection.class.isAssignableFrom(javaType)) {
-            return "[String]";  // Generic fallback for unparameterized collections
+            throw new IllegalArgumentException(String.format(
+                "%s has no element type to export; declare the field with its element type "
+                    + "(List<Integer>), or name the GraphQL type (@GraphQLField(type = \"[Int!]\"))",
+                javaType.getSimpleName()));
         }
         if (javaType.isArray()) {
-            // A primitive element cannot be null, so its items are non-null (`[Float!]`); a
-            // reference element may be (`[String]`). The engine publishes and enforces exactly
-            // what is declared (#1586).
-            Class<?> component = javaType.getComponentType();
-            return "[" + javaToGraphQL(component) + (component.isPrimitive() ? "!" : "") + "]";
+            // Without the field's annotations, an element is non-null (#1586, #1608): see
+            // toGraphQL(AnnotatedType) for how an element is marked nullable.
+            return "[" + javaToGraphQL(javaType.getComponentType()) + "!]";
         }
 
         // Handle Optional
@@ -97,6 +103,72 @@ public class TypeConverter {
 
         // Default: use class name
         return javaType.getSimpleName();
+    }
+
+    /**
+     * Converts a field's declared type to a GraphQL type string, every list level with its
+     * items' nullability (#1586, #1608).
+     *
+     * <p>A position is non-null unless Java marks it nullable: an element whose type carries
+     * a type-use annotation named {@code Nullable} retained at runtime (JSpecify's
+     * {@code org.jspecify.annotations.Nullable}: {@code List<@Nullable Double>},
+     * {@code @Nullable Double[]}), or is an {@code Optional<T>}, is nullable; a primitive
+     * and any other reference are not. The field's own nullability stays
+     * {@code @GraphQLField(nullable = true)}.
+     *
+     * @param type the field's annotated type ({@link Field#getAnnotatedType()})
+     * @param where {@code Type.field}, named in a refusal
+     * @return the GraphQL type string, without the field's own {@code !}
+     * @throws IllegalArgumentException for a collection whose element type is not declared
+     */
+    public static String toGraphQL(AnnotatedType type, String where) {
+        if (type instanceof AnnotatedArrayType array) {
+            return list(array.getAnnotatedGenericComponentType(), where);
+        }
+        if (type instanceof AnnotatedParameterizedType parameterized
+            && parameterized.getType() instanceof ParameterizedType generic
+            && generic.getRawType() instanceof Class<?> raw) {
+            AnnotatedType[] arguments = parameterized.getAnnotatedActualTypeArguments();
+            if (Collection.class.isAssignableFrom(raw) && arguments.length == 1) {
+                return list(arguments[0], where);
+            }
+            if (raw == Optional.class && arguments.length == 1) {
+                return toGraphQL(arguments[0], where);
+            }
+        }
+        if (type.getType() instanceof Class<?> raw) {
+            if (Collection.class.isAssignableFrom(raw)) {
+                throw new IllegalArgumentException(String.format(
+                    "%s is a %s with no element type to export; declare it with its element "
+                        + "type (List<Integer>), or name the GraphQL type "
+                        + "(@GraphQLField(type = \"[Int!]\"))",
+                    where, raw.getSimpleName()));
+            }
+            return javaToGraphQL(raw);
+        }
+        throw new IllegalArgumentException(String.format(
+            "%s has type %s, which names no GraphQL type; name it (@GraphQLField(type = ...))",
+            where, type.getType().getTypeName()));
+    }
+
+    private static String list(AnnotatedType element, String where) {
+        return "[" + toGraphQL(element, where) + (isNullable(element) ? "" : "!") + "]";
+    }
+
+    /** Whether Java marks this position nullable: {@code @Nullable} or {@code Optional<T>}. */
+    private static boolean isNullable(AnnotatedType type) {
+        if (type.getType() instanceof Class<?> raw && raw.isPrimitive()) {
+            return false;
+        }
+        if (type.getType() instanceof ParameterizedType generic && generic.getRawType() == Optional.class) {
+            return true;
+        }
+        for (Annotation annotation : type.getAnnotations()) {
+            if ("Nullable".equals(annotation.annotationType().getSimpleName())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -155,7 +227,8 @@ public class TypeConverter {
             // For @Measure / @Dimension without @GraphQLField, synthesise a basic field info
             if (!hasGraphQLField) {
                 String fieldName = field.getName();
-                String graphQLType = canonicalizeIdType(fieldName, javaToGraphQL(field.getType()));
+                String graphQLType = canonicalizeIdType(fieldName,
+                    toGraphQL(field.getAnnotatedType(), type.getSimpleName() + "." + fieldName));
                 String description = hasMeasure
                     ? field.getAnnotation(Measure.class).description()
                     : field.getAnnotation(Dimension.class).description();
@@ -168,7 +241,8 @@ public class TypeConverter {
             final boolean isList = field.getType().isArray()
                 || Collection.class.isAssignableFrom(field.getType());
             String graphQLType = annotation.type().isEmpty()
-                ? javaToGraphQL(field.getType()) : annotation.type();
+                ? toGraphQL(field.getAnnotatedType(), type.getSimpleName() + "." + field.getName())
+                : annotation.type();
             graphQLType = canonicalizeIdType(fieldName, graphQLType);
             final boolean nullable = annotation.nullable();
 

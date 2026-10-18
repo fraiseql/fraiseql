@@ -100,6 +100,22 @@ CRUD_MUTATIONS = ("createSupportTicket", "updateSupportTicket", "deleteSupportTi
 # `createdAt` — and only an exact-value assertion over a multi-word value sees it (#1247).
 PAGINATION_QUERIES = ("pagedByColumn", "pagedSelfOrdered", "pagedDerived")
 
+# The `list_fields` construct owns `ReadingSeries`, and `list_arguments` the query that
+# takes a list (#1586, #1608). A list position is non-null unless the author marks it
+# nullable in the language's own way (`T | None`, a pointer, an `option`, `@Nullable`,
+# `T?`), at every level: the item of a list, the list itself, the item of a nested list.
+# The three fields cover the four positions a list has: `labels` non-null list of
+# non-null items, `readings` nullable list of nullable items, and `grid` a nested list
+# whose outer items are non-null and inner items nullable, which is the case an SDK that
+# reads only the outermost level gets wrong. Before these constructs the fixture held no
+# list at all, which is how four SDKs came to export a list as a scalar (#1608) and two to
+# declare every list's items nullable (#1586) behind green suites.
+#
+# Two constructs because the Rust SDK authors types and no queries: one construct would
+# make it declare the whole of it a gap. `ReadingSeries` is two words for #1247's reason.
+LIST_TYPE = "ReadingSeries"
+LIST_QUERY = "readingSeriesByIds"
+
 # The `function_definition` construct owns its one function (#1325). A function is not
 # a GraphQL surface at all — it is an out-of-band handler the server dispatches from the
 # compiled `functions` section, a *sibling* of the compiled schema rather than a field
@@ -190,6 +206,8 @@ CONSTRUCTS = (
     "mutation_requires_actor",
     "subscriptions",
     "vector_fields",
+    "list_fields",
+    "list_arguments",
     "function_definition",
     "function_backed_query",
 )
@@ -614,6 +632,26 @@ def project(compiled: dict[str, Any]) -> dict[str, Any]:
         for name in AUTHORED_VECTOR_TYPES
         if name in types
     }
+
+    observations["list_fields"] = (
+        {"sql_source": types[LIST_TYPE].get("sql_source"), "fields": _fields(types[LIST_TYPE])}
+        if LIST_TYPE in types
+        else {}
+    )
+
+    observations["list_arguments"] = (
+        {
+            "return_type": queries[LIST_QUERY].get("return_type"),
+            "returns_list": queries[LIST_QUERY].get("returns_list"),
+            "arguments": [
+                {"name": a.get("name"), "type": a.get("arg_type"), "nullable": a.get("nullable")}
+                for a in queries[LIST_QUERY].get("arguments", [])
+                if isinstance(a, dict)
+            ],
+        }
+        if LIST_QUERY in queries
+        else {}
+    )
 
     # The compiled `functions` section is a SIBLING of the compiled schema, not one of
     # its fields — `fraiseql-core` knows nothing about functions — so it is read off the

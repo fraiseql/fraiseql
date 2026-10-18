@@ -104,10 +104,10 @@ let ``applyGraphQLFieldAttribute reads Type correctly via explicit override`` ()
     attr.Type |> should equal "ID"
 
 [<Fact>]
-let ``applyGraphQLFieldAttribute Nullable defaults to true`` () =
+let ``applyGraphQLFieldAttribute Nullable defaults to false`` () =
     let prop = typeof<MinimalClass>.GetProperty("Value")
     let attr = prop.GetCustomAttributes(typeof<GraphQLFieldAttribute>, false).[0] :?> GraphQLFieldAttribute
-    attr.Nullable |> should equal true
+    attr.Nullable |> should equal false
 
 [<Fact>]
 let ``applyGraphQLFieldAttribute reads Nullable false`` () =

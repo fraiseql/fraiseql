@@ -77,9 +77,11 @@ final class TypeBuilder
     ): self {
         $this->fields[$name] = new FieldDefinition(
             name: $name,
-            type: $type,
+            // A list field's type is its list type, items non-null (#1608): `listField('tags',
+            // 'String')` is `[String!]`. A list type written out (`'[Float]'`) is kept.
+            type: TypeInfo::graphQLTypeString($type, $isList, true),
             nullable: $nullable,
-            isList: $isList,
+            isList: $isList || str_starts_with(trim($type), '['),
             description: $description,
             phpType: 'mixed',
             parentType: $this->name,

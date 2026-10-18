@@ -62,6 +62,22 @@ type IntIdEntity() =
     [<GraphQLField(Nullable = false)>]
     member val Id: int = 0 with get, set
 
+// #1608: a field is non-null unless F# marks it nullable (an `option`, a `Nullable<>`) or
+// the attribute says so, as every other SDK reads its own language.
+[<GraphQLType(Name = "Plain", SqlSource = "v_plain")>]
+type PlainEntity() =
+    [<GraphQLField>]
+    member val Title: string = "" with get, set
+
+    [<GraphQLField>]
+    member val Subtitle: string option = None with get, set
+
+    [<GraphQLField(Type = "String")>]
+    member val Note: string option = None with get, set
+
+    [<GraphQLField(Nullable = true)>]
+    member val Legacy: string = "" with get, set
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -443,3 +459,12 @@ let ``concurrent register is thread-safe`` () =
 
     System.Threading.Tasks.Task.WaitAll(tasks)
     SchemaRegistry.getAllTypes () |> List.length |> should equal 1
+
+[<Fact>]
+let ``a field is non-null unless marked nullable`` () =
+    cleanup ()
+    SchemaRegistry.register typeof<PlainEntity>
+    let fields = (SchemaRegistry.getTypeDefinition "Plain").Value.fields
+    let nullable name = (fields |> List.find (fun f -> f.name = name)).nullable
+    (nullable "title", nullable "subtitle", nullable "note", nullable "legacy")
+    |> should equal (false, true, true, true)

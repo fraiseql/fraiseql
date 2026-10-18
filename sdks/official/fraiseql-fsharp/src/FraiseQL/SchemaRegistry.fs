@@ -67,21 +67,10 @@ module SchemaRegistry =
                     else
                         resolvedTypeRaw
 
-                // When an explicit Nullable value was set on the attribute, honour it.
-                // Fall back to the .NET type analysis only when no attribute-level type
-                // override is present AND the attribute Nullable is still at the default
-                // (true), which suggests the developer left it as-is and the .NET type
-                // (e.g. option<T>) should drive nullability. When an explicit Type string
-                // is provided, always use the attribute's Nullable directly.
-                let resolvedNullable =
-                    if fieldAttr.Type <> "" then
-                        fieldAttr.Nullable
-                    elif autoNullable then
-                        // .NET type is option<T> or Nullable<T> — treat as nullable regardless
-                        true
-                    else
-                        // .NET type is non-nullable but the attribute may override to true
-                        fieldAttr.Nullable
+                // Non-null unless F# marks it nullable (an `option`, a `Nullable<>`) or the
+                // attribute does, whether the type is inferred or named (#1608): the rule
+                // every SDK applies in its own language.
+                let resolvedNullable = autoNullable || fieldAttr.Nullable
 
                 let scope =
                     if fieldAttr.Scope <> "" then Some fieldAttr.Scope else None

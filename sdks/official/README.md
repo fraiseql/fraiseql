@@ -22,23 +22,42 @@ reason shown here, and the suite fails if a declared gap is no longer true.
 
 | Directory | Language | Distribution | Conformance | Declared gaps |
 |-----------|----------|--------------|-------------|---------------|
-| `fraiseql-python/` | Python 3.11+ | PyPI | 29/30 | fact_tables: the SDK has no fact-table authoring |
-| `fraiseql-typescript/` | TypeScript / Node.js | npm | 30/30 | — |
-| `fraiseql-go/` | Go 1.23+ | — (source-only) | 29/30 | type_crud: the SDK ships no CRUD generator |
-| `fraiseql-php/` | PHP 8.2+ | — (source-only) | 29/30 | fact_tables: the SDK has no fact-table authoring |
-| `fraiseql-java/` | Java 21+ | — (source-only) | 29/30 | fact_tables: `@GraphQLFactTable` registers an ordinary type and emits no fact table |
-| `fraiseql-csharp/` | C# / .NET 8+ | — (source-only) | 28/30 | subscriptions: the SDK ships no subscription authoring surface at all (#1024); fact_tables: no fact-table authoring |
-| `fraiseql-fsharp/` | F# / .NET 8+ | — (source-only) | 28/30 | subscriptions: the SDK ships no subscription authoring surface at all (#1024); fact_tables: no fact-table authoring |
-| `fraiseql-elixir/` | Elixir | — (source-only) | 28/30 | subscriptions: the SDK ships no subscription authoring surface at all (#1024); fact_tables: no fact-table authoring |
-| `fraiseql-ruby/` | Ruby 3.2+ | — (source-only) | 28/30 | subscriptions: the SDK ships no subscription authoring surface at all (#1024); fact_tables: no fact-table authoring |
-| `fraiseql-dart/` | Dart / Flutter | — (source-only) | 28/30 | subscriptions: the SDK ships no subscription authoring surface at all (#1024); fact_tables: no fact-table authoring |
-| `fraiseql-rust/` | Rust | crates.io | 6/30 | queries, mutations, subscriptions, enums, input types, CRUD, relationships, Relay and error-type flags, serverless functions, fact tables, localized mutation arguments: the Rust SDK is field-level-RBAC focused and ships no builder for them |
+| `fraiseql-python/` | Python 3.11+ | PyPI | 31/32 | fact_tables: the SDK has no fact-table authoring |
+| `fraiseql-typescript/` | TypeScript / Node.js | npm | 32/32 | — |
+| `fraiseql-go/` | Go 1.23+ | — (source-only) | 31/32 | type_crud: the SDK ships no CRUD generator |
+| `fraiseql-php/` | PHP 8.2+ | — (source-only) | 31/32 | fact_tables: the SDK has no fact-table authoring |
+| `fraiseql-java/` | Java 21+ | — (source-only) | 31/32 | fact_tables: `@GraphQLFactTable` registers an ordinary type and emits no fact table |
+| `fraiseql-csharp/` | C# / .NET 8+ | — (source-only) | 30/32 | subscriptions: the SDK ships no subscription authoring surface at all (#1024); fact_tables: no fact-table authoring |
+| `fraiseql-fsharp/` | F# / .NET 8+ | — (source-only) | 30/32 | subscriptions: the SDK ships no subscription authoring surface at all (#1024); fact_tables: no fact-table authoring |
+| `fraiseql-elixir/` | Elixir | — (source-only) | 30/32 | subscriptions: the SDK ships no subscription authoring surface at all (#1024); fact_tables: no fact-table authoring |
+| `fraiseql-ruby/` | Ruby 3.2+ | — (source-only) | 30/32 | subscriptions: the SDK ships no subscription authoring surface at all (#1024); fact_tables: no fact-table authoring |
+| `fraiseql-dart/` | Dart / Flutter | — (source-only) | 30/32 | subscriptions: the SDK ships no subscription authoring surface at all (#1024); fact_tables: no fact-table authoring |
+| `fraiseql-rust/` | Rust | crates.io | 7/32 | queries, mutations, subscriptions, enums, input types, CRUD, relationships, Relay and error-type flags, serverless functions, fact tables, localized mutation arguments, list arguments: the Rust SDK is field-level-RBAC focused and ships no builder for them |
 
 The scores and gap counts above are checked against `conformance/manifest.json` by
 `selftest.py`, because they had already drifted: the table read `19/19` when the fixture
 carried 23 constructs, and Go's `type_crud` gap was not listed at all. A support matrix
 nobody checks is a published claim about eleven SDKs that decays every time a construct is
 added.
+
+## One rule for nullability
+
+Every SDK reads the nullability its language already declares, and adds no knob of its own
+(#1586, #1608). **Every position (a field, a list, a list's items, at any depth) is non-null
+unless the language marks it nullable**, and it is published and enforced as declared:
+
+| SDK | A nullable position is written | A list is |
+|---|---|---|
+| Python | `T \| None` | `list[T]`, `list[T \| None]`, nested |
+| Go | a pointer: `*T`, `*[]T` | a slice: `[]T`, `[]*T`, nested |
+| Java | `@GraphQLField(nullable = true)` for a field; an `Optional<T>` element, or one whose type carries a runtime-retained type-use annotation named `Nullable` (JSpecify's): `List<@Nullable Double>` | an array or a `Collection` declared with its element type; a raw `List` is refused |
+| C# | `T?` (`double?`, and `string?` under nullable reference types) | an array or a one-argument generic collection: `List<double?>` |
+| F# | `option` / `Nullable<>` (or `Nullable = true`) | an array or a one-argument generic collection: `float option list` |
+| PHP | `?T` / `T\|null`; for an element, in the docblock: `/** @var list<?float> */` | an `array` whose docblock gives its element type; an `array` without one is refused |
+| Elixir | the GraphQL type string: `"[Float]"` | Ecto's `{:array, :float}` (`[Float!]`), or a type string |
+| TypeScript, Ruby, Dart, Rust | the GraphQL type string they are given, published as written: `"[Float]"`, `"[[Float]!]"` | |
+
+`conformance/`'s `list_fields` and `list_arguments` constructs hold all eleven to it.
 
 The TypeScript decorators `@Type`, `@Query`, `@Mutation` and `@Subscription` are **not**
 an authoring path — TypeScript erases the types they would need, so they refuse rather

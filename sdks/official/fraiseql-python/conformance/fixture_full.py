@@ -164,6 +164,15 @@ class Document:
     similarity: Annotated[float, fraiseql.field(vector_distance="embedding")]
 
 
+# Lists (#1586, #1608): every position non-null unless written `| None`, at every level.
+@fraiseql.type(sql_source="v_reading_series")
+class ReadingSeries:
+    id: ID
+    labels: list[str]
+    readings: list[float | None] | None = None
+    grid: list[list[float | None]]
+
+
 @fraiseql.enum
 class OrderStatus(Enum):
     PENDING = "PENDING"
@@ -188,6 +197,11 @@ def users() -> list[User]:
 
 @fraiseql.query(sql_source="v_user")
 def user(id: ID) -> User | None:
+    pass
+
+
+@fraiseql.query(sql_source="v_reading_series")
+def reading_series_by_ids(ids: list[ID]) -> list[ReadingSeries]:
     pass
 
 

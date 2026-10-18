@@ -285,7 +285,9 @@ public class SchemaFormatter {
         for (Map.Entry<String, String> arg : arguments.entrySet()) {
             ObjectNode argNode = mapper.createObjectNode();
             argNode.put("name", arg.getKey());
-            argNode.put("type", bareType(arg.getValue()));
+            // The argument's own `!` travels as `nullable`; a list keeps its brackets and its
+            // items' marker (`[ID!]`), which bareType dropped (#1608).
+            argNode.put("type", stripOuterNonNull(arg.getValue()));
             argNode.put("nullable", !isNonNull(arg.getValue()));
             if (localized.contains(arg.getKey())) {
                 argNode.put("localized", true);

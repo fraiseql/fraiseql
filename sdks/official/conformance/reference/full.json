@@ -187,6 +187,32 @@
           "vector_distance": "embedding"
         }
       ]
+    },
+    {
+      "name": "ReadingSeries",
+      "sql_source": "v_reading_series",
+      "fields": [
+        {
+          "name": "id",
+          "type": "ID",
+          "nullable": false
+        },
+        {
+          "name": "labels",
+          "type": "[String!]",
+          "nullable": false
+        },
+        {
+          "name": "readings",
+          "type": "[Float]",
+          "nullable": true
+        },
+        {
+          "name": "grid",
+          "type": "[[Float]!]",
+          "nullable": false
+        }
+      ]
     }
   ],
   "enums": [
@@ -381,6 +407,20 @@
         {
           "name": "sku",
           "type": "String",
+          "nullable": false
+        }
+      ]
+    },
+    {
+      "name": "readingSeriesByIds",
+      "return_type": "ReadingSeries",
+      "returns_list": true,
+      "nullable": false,
+      "sql_source": "v_reading_series",
+      "arguments": [
+        {
+          "name": "ids",
+          "type": "[ID!]",
           "nullable": false
         }
       ]

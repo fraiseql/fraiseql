@@ -118,7 +118,8 @@ final class IntegrationTest extends TestCase
         $this->assertSame(['Int', false], [$fields['id']['type'], $fields['id']['nullable']]);
         $this->assertSame(['String', false], [$fields['name']['type'], $fields['name']['nullable']]);
         $this->assertSame(['String', true], [$fields['email']['type'], $fields['email']['nullable']]);
-        $this->assertSame('String', $fields['roles']['type']);
+        // A list field's type is its list type, items non-null (#1608); it was `String`.
+        $this->assertSame('[String!]', $fields['roles']['type']);
     }
 
     public function testSchemaWithMetadata(): void
@@ -226,7 +227,7 @@ final class IntegrationTest extends TestCase
         // A field whose type is another declared type keeps that type's name, so the
         // reference survives to the compiler rather than being flattened into a string.
         $feed = self::fields(self::type($schema, 'Feed'));
-        $this->assertSame('Post', $feed['posts']['type']);
+        $this->assertSame('[Post!]', $feed['posts']['type']);
         $this->assertSame('Author', $feed['author']['type']);
     }
 

@@ -17,6 +17,10 @@ defmodule FraiseQL.TypeMapper do
 
   Unknown atoms are converted to PascalCase, e.g. `:user_profile` → `"UserProfile"`.
 
+  A list is `{:array, type}`, Ecto's spelling, with non-null items at every level
+  (`{:array, :string}` → `"[String!]"`); a GraphQL type string is published as written,
+  which is how a list with nullable items is declared (`"[Float]"`).
+
   ## Examples
 
       iex> FraiseQL.TypeMapper.to_graphql_type(:string)
@@ -73,10 +77,19 @@ defmodule FraiseQL.TypeMapper do
       iex> FraiseQL.TypeMapper.to_graphql_type(:blog_post)
       "BlogPost"
   """
-  @spec to_graphql_type(atom()) :: String.t()
+  @spec to_graphql_type(atom() | {:array, term()} | String.t()) :: String.t()
   def to_graphql_type(atom) when is_atom(atom) do
     Map.get(@known_types, atom) || to_pascal_case(atom)
   end
+
+  # A list (#1586, #1608), spelled as Ecto spells an array column: its items are non-null,
+  # at every level (`{:array, {:array, :float}}` is `[[Float!]!]`), as every SDK reads a
+  # list position its language does not mark nullable.
+  def to_graphql_type({:array, item}), do: "[" <> to_graphql_type(item) <> "!]"
+
+  # A GraphQL type string is published as written: the way to declare nullable items
+  # (`"[Float]"`), as in the SDKs whose types are strings.
+  def to_graphql_type(graphql_type) when is_binary(graphql_type), do: graphql_type
 
   @doc """
   Converts an atom to PascalCase string.

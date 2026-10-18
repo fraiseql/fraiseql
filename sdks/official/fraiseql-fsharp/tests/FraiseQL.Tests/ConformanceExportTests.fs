@@ -108,6 +108,22 @@ type ConformanceUserNotFound() =
     [<GraphQLField(Type = "String", Nullable = false)>]
     member val Code = "" with get, set
 
+// Lists (#1586, #1608), inferred from the F# types: an element is non-null unless it is
+// an `option`, at every level.
+[<GraphQLType(Name = "ReadingSeries", SqlSource = "v_reading_series")>]
+type ConformanceReadingSeries() =
+    [<GraphQLField(Type = "ID")>]
+    member val Id = "" with get, set
+
+    [<GraphQLField>]
+    member val Labels: string list = [] with get, set
+
+    [<GraphQLField>]
+    member val Readings: float option list option = None with get, set
+
+    [<GraphQLField>]
+    member val Grid: float option list list = [] with get, set
+
 [<GraphQLType(Name = "Document", SqlSource = "v_document")>]
 type ConformanceDocument() =
     [<GraphQLField(Type = "ID", Nullable = false)>]
@@ -156,6 +172,7 @@ let private authorFull () =
     SchemaRegistry.register typeof<ConformanceSupportTicket>
     SchemaRegistry.register typeof<ConformanceUserNotFound>
     SchemaRegistry.register typeof<ConformanceDocument>
+    SchemaRegistry.register typeof<ConformanceReadingSeries>
 
     SchemaRegistry.registerInput
         {
@@ -186,6 +203,13 @@ let private authorFull () =
     |> QueryBuilder.nullable true
     |> QueryBuilder.sqlSource "v_user"
     |> QueryBuilder.withArgument "id" "ID" false
+    |> QueryBuilder.register
+
+    QueryBuilder.query "readingSeriesByIds"
+    |> QueryBuilder.returnType "ReadingSeries"
+    |> QueryBuilder.returnsList true
+    |> QueryBuilder.sqlSource "v_reading_series"
+    |> QueryBuilder.withArgument "ids" "[ID!]" false
     |> QueryBuilder.register
 
     // Two-word argument, deliberately (#1255). Every argument in this fixture used to be

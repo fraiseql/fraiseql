@@ -125,6 +125,26 @@ func TestGoToGraphQLType(t *testing.T) {
 			expectedType: "[String]",
 			expectedNull: false,
 		},
+		// A pointer marks the list itself nullable, as it does every other position
+		// (#1608): *[]*float64 is a nullable list of nullable items.
+		{
+			name:         "pointer to a slice of nullable floats",
+			goType:       reflect.TypeOf((*[]*float64)(nil)),
+			expectedType: "[Float]",
+			expectedNull: true,
+		},
+		{
+			name:         "slice of slices of nullable floats",
+			goType:       reflect.TypeOf([][]*float64{}),
+			expectedType: "[[Float]!]",
+			expectedNull: false,
+		},
+		{
+			name:         "slice of nullable slices",
+			goType:       reflect.TypeOf([]*[]float64{}),
+			expectedType: "[[Float!]]",
+			expectedNull: false,
+		},
 	}
 
 	for _, tt := range tests {

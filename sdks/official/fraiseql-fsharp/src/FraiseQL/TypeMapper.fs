@@ -11,16 +11,20 @@ module TypeMapper =
         else
             None
 
-    /// Unwraps F# <c>list&lt;'T&gt;</c> or <c>'T array</c>, returning the element type if present.
+    /// Unwraps a collection, returning the element type if present: an array, or any
+    /// one-argument generic collection (<c>list</c>, <c>seq</c>, <c>ResizeArray</c>,
+    /// <c>Set</c>, ...), as C#'s mapper reads one (#1608). An <c>option</c> is not one.
     let private unwrapList (t: System.Type) =
-        if
+        if t.IsArray then
+            Some(t.GetElementType())
+        elif
             t.IsGenericType
-            && (t.GetGenericTypeDefinition() = typedefof<list<_>>
-                || t.GetGenericTypeDefinition() = typedefof<System.Collections.Generic.IEnumerable<_>>)
+            && t.GetGenericArguments().Length = 1
+            && t.GetGenericTypeDefinition() <> typedefof<option<_>>
+            && t.GetGenericTypeDefinition() <> typedefof<System.Nullable<_>>
+            && typeof<System.Collections.IEnumerable>.IsAssignableFrom t
         then
             Some(t.GetGenericArguments().[0])
-        elif t.IsArray then
-            Some(t.GetElementType())
         else
             None
 

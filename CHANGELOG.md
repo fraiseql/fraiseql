@@ -38,14 +38,27 @@ disagreed, and the promise was the part that was wrong.
 - **A list declared `[T]` publishes nullable items, at every level of a nested list
   (#1586).** It published `[T!]` whatever was declared. A schema exporting `"[T]"` for a list
   of non-null items now publishes and serves nullable ones. Two SDKs exported `[T]` for every
-  list: the F# SDK now exports `[T!]` unless the element is an `option` or `Nullable<>`, and
-  the Java SDK `[T!]` for an array of a primitive (a reference element stays `[T]`). In the
+  list: they now follow the rule every SDK does (#1608, below). In the
   compiled schema, `FieldType::List` carries its items' nullability: `FieldType::List(Box<T>)`
   is `FieldType::List { item, nullable_items }`, built with `FieldType::list(item)` (`[T!]`) or
   `FieldType::list_of_nullable(item)` (`[T]`), serialized `{"List": {"item": "Float"}}` and
   `{"List": {"item": "Float", "nullable_items": true}}` (was `{"List": "Float"}`: recompile).
   `FieldType::parse` and `to_graphql_string` keep each level's item marker (`[String]` and
   `[String!]` no longer parse alike).
+
+- **Every SDK reads a position's nullability from its language, at every level of a list
+  (#1608).** The rule is stated in `sdks/official/README.md` ("One rule for nullability"):
+  non-null unless the language marks it nullable. Changes an author can see: **Java** list
+  elements are `[T!]` unless an `Optional<T>` or annotated with a runtime type-use
+  `@Nullable` (a `String[]` or `Double[]` was `[T]`), and a collection with no element type
+  (a raw `List`) is refused (it exported `[String]`); **F#** fields are non-null unless an
+  `option`/`Nullable<>` or `Nullable = true` (`GraphQLField.Nullable` defaulted to `true`);
+  **PHP** a property typed `?T` is nullable when the attribute names its type too (it was
+  non-null), and an `array` property with no element type in its docblock nor a `type` is
+  refused (it exported `String`); `getGraphQLTypeString()` (`FieldDefinition`,
+  `ArgumentDefinition`, `TypeInfo::toGraphQLTypeString`) lose their `$nonNullList` argument and
+  give a list `[T!]` items, its own `!` from `nullable` (an optional list was `[T]`); **Go**
+  `*[]T` is a nullable list (it was non-null).
 
 - **`/metrics` reports the query-result cache's real counts, as `fraiseql_cache_*_total`
   (#1583).** `fraiseql_cache_hits` and `fraiseql_cache_misses` always read 0: the collector
@@ -450,6 +463,17 @@ disagreed, and the promise was the part that was wrong.
   author writes, and where (`expected `}`, found the end of the document at 1:15`). The
   parse costs about what it did: 0.89×–1.12× of graphql-parser with the key-order re-read,
   parse and walk together (7 interleaved runs, three documents, spread ±1–13 %).
+
+- **Every SDK exports a list field and a list argument with its element type (#1608).** In
+  four SDKs a list was lost: Java exported any `Collection` as `[String]` and a list argument
+  as its bare element (`[Int!]` became `Int`); C# exported `List<double>` as `String`; PHP
+  exported an `array` property as `String` and a builder `listField` as its bare element;
+  Elixir could not declare a list at all. Each now infers the list from its own types: Java
+  from the field's generic or array type, C# from an array or a generic collection (with
+  `T?` for a nullable element), PHP from the property's docblock (`/** @var list<?float>
+  */`), Elixir from Ecto's `{:array, :float}`, and F# also from a `ResizeArray` or `Set`.
+  The cross-SDK conformance fixture gains a list type (`[String!]!`, `[Float]`, `[[Float]!]!`)
+  and a list argument, which all eleven SDKs author and compile.
 
 - **A list declared with nullable items serves a `null` item, at any depth (#1586).**
   `list[float | None]` (Python), `[]*float64` (Go) or the type string `"[Float]"` compiled as

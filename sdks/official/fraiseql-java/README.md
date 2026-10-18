@@ -125,8 +125,18 @@ Java types map to GraphQL types:
 | `LocalDate`, `java.sql.Date` | `Date` | No |
 | `LocalDateTime`, `OffsetDateTime`, `ZonedDateTime`, `Instant`, `java.util.Date`, `java.sql.Timestamp` | `DateTime` | No |
 | `LocalTime`, `OffsetTime`, `java.sql.Time` | `Time` | No |
-| `List<T>`, `Set<T>` | `[T]` | No |
+| `List<T>`, `Set<T>`, `T[]` | `[T!]` | No |
+| `List<@Nullable T>`, `List<Optional<T>>`, `@Nullable T[]` | `[T]` | No |
+| `List<List<@Nullable T>>` | `[[T]!]` | No |
 | `Optional<T>` | `T` | Yes |
+
+A field is non-null unless `@GraphQLField(nullable = true)`; a list's element is non-null
+unless it is an `Optional<T>` or its type carries a type-use annotation named `Nullable`
+retained at runtime (JSpecify's `org.jspecify.annotations.Nullable`; JetBrains'
+`@Nullable` is not retained and cannot be read), at every level. A collection declared
+without its element type (a raw `List`) is refused: name the GraphQL type instead
+(`@GraphQLField(type = "[Int!]")`). The rule is the same in every SDK
+([../README.md](../README.md#one-rule-for-nullability)).
 
 ### Annotations
 

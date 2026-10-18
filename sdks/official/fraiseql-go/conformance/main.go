@@ -103,6 +103,17 @@ func authorFull() error {
 		return err
 	}
 
+	// Lists (#1586, #1608): the GraphQL type string, every level as written. A struct
+	// would say the same through goToGraphQLType: `*[]*float64` is `[Float]`.
+	if err := fraiseql.RegisterType("ReadingSeries", []fraiseql.FieldInfo{
+		{Name: "id", Type: "ID", Nullable: false},
+		{Name: "labels", Type: "[String!]", Nullable: false},
+		{Name: "readings", Type: "[Float]", Nullable: true},
+		{Name: "grid", Type: "[[Float]!]", Nullable: false},
+	}, ""); err != nil {
+		return err
+	}
+
 	// `displayName` is two words: a hand-authored input type's field names are a third
 	// registration path, distinct from a type's fields and from a `crud` type's generated
 	// input objects, and no fixture name had ever reached it (#1255).
@@ -125,6 +136,13 @@ func authorFull() error {
 		ReturnType("User").ReturnsArray(false).Nullable(true).
 		SqlSource("v_user").
 		Arg("id", "ID", nil, false).
+		Register(); err != nil {
+		return err
+	}
+	if err := fraiseql.NewQuery("readingSeriesByIds").
+		ReturnType("ReadingSeries").ReturnsArray(true).Nullable(false).
+		SqlSource("v_reading_series").
+		Arg("ids", "[ID!]", nil, false).
 		Register(); err != nil {
 		return err
 	}

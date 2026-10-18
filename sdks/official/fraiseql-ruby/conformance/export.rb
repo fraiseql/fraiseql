@@ -82,6 +82,14 @@ def author_full
     t.field :code, :string, nullable: false
   end
 
+  # Lists (#1586, #1608): the GraphQL type string, every level as written.
+  schema.type "ReadingSeries", sql_source: "v_reading_series" do |t|
+    t.field :id, :id, nullable: false
+    t.field :labels, "[String!]", nullable: false
+    t.field :readings, "[Float]", nullable: true
+    t.field :grid, "[[Float]!]", nullable: false
+  end
+
   schema.type "Document", sql_source: "v_document" do |t|
     t.field :id, :id, nullable: false
     t.field :embedding, :vector, nullable: false,
@@ -119,6 +127,11 @@ def author_full
   schema.query :user, return_type: "User", returns_list: false, nullable: true,
                       sql_source: "v_user" do |q|
     q.argument :id, :id, nullable: false
+  end
+
+  schema.query :reading_series_by_ids, return_type: "ReadingSeries", returns_list: true,
+                                       nullable: false, sql_source: "v_reading_series" do |q|
+    q.argument :ids, "[ID!]", nullable: false
   end
 
   schema.query :tenant_orders, return_type: "Order", returns_list: true, nullable: false,

@@ -11,6 +11,8 @@
   },
   "function_definition": {},
   "input_types": {},
+  "list_arguments": {},
+  "list_fields": {},
   "mutation_argument_localized": [],
   "mutation_arguments": {},
   "mutation_invalidates_fact_tables": {},

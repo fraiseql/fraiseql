@@ -214,7 +214,7 @@ public class AdvancedFeaturesTest {
 
         var tagsField = fields.get("tags");
         assertTrue(tagsField.isList);
-        assertEquals("[String]!", tagsField.getGraphQLType());
+        assertEquals("[String!]!", tagsField.getGraphQLType());
     }
 
     /**
@@ -239,11 +239,11 @@ public class AdvancedFeaturesTest {
 
         // List of non-null
         var tagsField = typeInfo.fields.get("tags");
-        assertEquals("[String]!", tagsField.getGraphQLType());
+        assertEquals("[String!]!", tagsField.getGraphQLType());
 
         // Nullable list
         var optionalTagsField = typeInfo.fields.get("optionalTags");
-        assertEquals("[String]", optionalTagsField.getGraphQLType());
+        assertEquals("[String!]", optionalTagsField.getGraphQLType());
     }
 
     /**

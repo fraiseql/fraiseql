@@ -518,8 +518,10 @@ public class TypeSystemTest {
     void testArrayItemNullability() {
         assertEquals("[Float!]", TypeConverter.javaToGraphQL(double[].class));
         assertEquals("[Int!]", TypeConverter.javaToGraphQL(int[].class));
-        assertEquals("[String]", TypeConverter.javaToGraphQL(String[].class));
-        assertEquals("[Float]", TypeConverter.javaToGraphQL(Double[].class));
+        // A reference element is non-null unless marked @Nullable, which a Class cannot carry
+        // (ListNullabilityTest reads it from the field).
+        assertEquals("[String!]", TypeConverter.javaToGraphQL(String[].class));
+        assertEquals("[Float!]", TypeConverter.javaToGraphQL(Double[].class));
     }
 
     @GraphQLType(description = "A simple type for defaults testing")

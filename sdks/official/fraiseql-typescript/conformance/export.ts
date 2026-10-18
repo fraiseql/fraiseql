@@ -167,6 +167,19 @@ function authorFull(): void {
     { sqlSource: "v_document" }
   );
 
+  // Lists (#1586, #1608): the GraphQL type string, every level as written.
+  registerTypeFields(
+    "ReadingSeries",
+    [
+      { name: "id", type: "ID", nullable: false },
+      { name: "labels", type: "[String!]", nullable: false },
+      { name: "readings", type: "[Float]", nullable: true },
+      { name: "grid", type: "[[Float]!]", nullable: false },
+    ],
+    undefined,
+    { sqlSource: "v_reading_series" }
+  );
+
   enum_("OrderStatus", { PENDING: "PENDING", SHIPPED: "SHIPPED", CANCELLED: "CANCELLED" });
 
   input("CreateUserInput", [
@@ -188,6 +201,16 @@ function authorFull(): void {
     [{ name: "id", type: "ID", nullable: false }],
     undefined,
     { sql_source: "v_user" }
+  );
+
+  registerQuery(
+    "readingSeriesByIds",
+    "ReadingSeries",
+    true,
+    false,
+    [{ name: "ids", type: "[ID!]", nullable: false }],
+    undefined,
+    { sql_source: "v_reading_series" }
   );
 
   // The argument is two words on purpose (#1255): every argument in this fixture used

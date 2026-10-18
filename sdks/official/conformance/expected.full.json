@@ -142,6 +142,64 @@
       ]
     }
   },
+  "list_arguments": {
+    "arguments": [
+      {
+        "name": "ids",
+        "nullable": false,
+        "type": {
+          "List": {
+            "item": "ID"
+          }
+        }
+      }
+    ],
+    "return_type": "ReadingSeries",
+    "returns_list": true
+  },
+  "list_fields": {
+    "fields": [
+      {
+        "name": "id",
+        "nullable": false,
+        "type": "ID"
+      },
+      {
+        "name": "labels",
+        "nullable": false,
+        "type": {
+          "List": {
+            "item": "String"
+          }
+        }
+      },
+      {
+        "name": "readings",
+        "nullable": true,
+        "type": {
+          "List": {
+            "item": "Float",
+            "nullable_items": true
+          }
+        }
+      },
+      {
+        "name": "grid",
+        "nullable": false,
+        "type": {
+          "List": {
+            "item": {
+              "List": {
+                "item": "Float",
+                "nullable_items": true
+              }
+            }
+          }
+        }
+      }
+    ],
+    "sql_source": "v_reading_series"
+  },
   "mutation_argument_localized": [
     "createUser(displayName)"
   ],

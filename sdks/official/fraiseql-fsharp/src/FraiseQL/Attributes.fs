@@ -112,8 +112,9 @@ type GraphQLFieldAttribute() =
     /// is inferred automatically from the .NET property type via <c>TypeMapper</c>.
     member val Type: string = "" with get, set
 
-    /// Whether this field may return null. Defaults to true (nullable).
-    member val Nullable: bool = true with get, set
+    /// Whether this field may return null, beyond what its type says. A field is non-null
+    /// unless its type is an <c>option</c> or a <c>Nullable&lt;&gt;</c>, or this is set.
+    member val Nullable: bool = false with get, set
 
     /// Optional human-readable description exposed in GraphQL introspection.
     member val Description: string = "" with get, set

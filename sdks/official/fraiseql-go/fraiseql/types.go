@@ -111,8 +111,9 @@ var scalarPkgPath = reflect.TypeOf(ID("")).PkgPath()
 //	*int -> ("Int", true)
 //	string -> ("String", false)
 //	*string -> ("String", true)
-//	[]User -> ("[User]", false)
-//	*[]User -> ("[User]", true)
+//	[]User -> ("[User!]", false)
+//	[]*User -> ("[User]", false)
+//	*[]User -> ("[User!]", true)
 //	bool -> ("Boolean", false)
 //	float64 -> ("Float", false)
 func goToGraphQLType(goType reflect.Type) (string, bool, error) {
@@ -139,7 +140,9 @@ func goToGraphQLType(goType reflect.Type) (string, bool, error) {
 		}
 		listType += "]"
 
-		return listType, false, nil // Lists themselves are not nullable
+		// The list itself is nullable when it is behind a pointer (*[]T), as any other
+		// position is (#1608).
+		return listType, nullable, nil
 	}
 
 	// An SDK scalar (fraiseql.Email, fraiseql.DateTime, …) is the engine scalar of its name

@@ -46,32 +46,12 @@ final readonly class FieldDefinition
     }
 
     /**
-     * Get the complete GraphQL type string with modifiers.
-     *
-     * Examples:
-     * - "Int!" (non-nullable int)
-     * - "[String!]!" (non-nullable list of non-nullable strings)
-     * - "[User]" (nullable list of nullable User types)
-     *
-     * @param bool $nonNullList Whether the list itself should be non-nullable
-     * @return string The GraphQL type string
+     * The complete GraphQL type string: `Int!`, `[String!]!`, `[String!]` (a nullable list of
+     * non-null items); see {@see TypeInfo::graphQLTypeString()}.
      */
-    public function getGraphQLTypeString(bool $nonNullList = false): string
+    public function getGraphQLTypeString(): string
     {
-        $type = $this->type;
-
-        if ($this->isList) {
-            $type = '[' . $type . (!$this->nullable ? '!' : '') . ']';
-            if ($nonNullList) {
-                $type .= '!';
-            }
-        } else {
-            if (!$this->nullable) {
-                $type .= '!';
-            }
-        }
-
-        return $type;
+        return TypeInfo::graphQLTypeString($this->type, $this->isList, $this->nullable);
     }
 
     /**

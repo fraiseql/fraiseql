@@ -111,6 +111,27 @@ final class ConformanceUserNotFound
     public string $code;
 }
 
+// Lists (#1586, #1608): the element type from the docblock, as PHPStan and Psalm read it;
+// every position non-null unless written `?T` / `T|null`, at every level.
+#[GraphQLType(name: 'ReadingSeries', sqlSource: 'v_reading_series')]
+final class ConformanceReadingSeries
+{
+    #[GraphQLField(type: 'ID', nullable: false)]
+    public string $id;
+
+    /** @var list<string> */
+    #[GraphQLField]
+    public array $labels;
+
+    /** @var list<?float>|null */
+    #[GraphQLField]
+    public ?array $readings;
+
+    /** @var list<list<?float>> */
+    #[GraphQLField]
+    public array $grid;
+}
+
 #[GraphQLType(name: 'Document', sqlSource: 'v_document')]
 final class ConformanceDocument
 {
@@ -191,6 +212,7 @@ function authorFull(): void
     StaticAPI::register(ConformanceSupportTicket::class);
     StaticAPI::register(ConformanceUserNotFound::class);
     StaticAPI::register(ConformanceDocument::class);
+    StaticAPI::register(ConformanceReadingSeries::class);
     StaticAPI::register(ConformanceCreateUserInput::class);
 
     StaticAPI::enum('OrderStatus', ['PENDING', 'SHIPPED', 'CANCELLED']);
@@ -208,6 +230,13 @@ function authorFull(): void
         ->nullable(true)
         ->sqlSource('v_user')
         ->argument('id', 'ID', nullable: false)
+        ->register();
+
+    StaticAPI::query('readingSeriesByIds')
+        ->returnType('ReadingSeries')
+        ->returnsList(true)
+        ->sqlSource('v_reading_series')
+        ->argument('ids', '[ID!]', nullable: false)
         ->register();
 
     // Two-word argument, deliberately (#1255). Every argument in this fixture used to be

@@ -68,12 +68,13 @@ final class AdvancedFeaturesTest extends TestCase
         $idArg = $args->getArgument('ids');
         $this->assertTrue($idArg->isList);
         $this->assertFalse($idArg->nullable);
-        $this->assertSame('[Int!]', $idArg->getGraphQLTypeString());
+        $this->assertSame('[Int!]!', $idArg->getGraphQLTypeString());
 
         $tagArg = $args->getArgument('tags');
         $this->assertTrue($tagArg->isList);
         $this->assertTrue($tagArg->nullable);
-        $this->assertSame('[String]', $tagArg->getGraphQLTypeString());
+        // An optional list is a nullable list of non-null items (#1608).
+        $this->assertSame('[String!]', $tagArg->getGraphQLTypeString());
     }
 
     public function testArgumentBuilderObjectTypes(): void

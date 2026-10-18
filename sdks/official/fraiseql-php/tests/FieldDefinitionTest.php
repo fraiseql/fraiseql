@@ -96,9 +96,10 @@ final class FieldDefinitionTest extends TestCase
             parentType: 'Post',
         );
 
-        $this->assertSame('[String!]', $field->getGraphQLTypeString());
+        $this->assertSame('[String!]!', $field->getGraphQLTypeString());
     }
 
+    // `nullable` is the list's own nullability; its items are non-null (#1608).
     public function testGetGraphQLTypeStringNullableList(): void
     {
         $field = new FieldDefinition(
@@ -109,20 +110,21 @@ final class FieldDefinitionTest extends TestCase
             parentType: 'Post',
         );
 
-        $this->assertSame('[String]', $field->getGraphQLTypeString());
+        $this->assertSame('[String!]', $field->getGraphQLTypeString());
     }
 
-    public function testGetGraphQLTypeStringWithNonNullList(): void
+    // A list type written out keeps its items as written.
+    public function testGetGraphQLTypeStringWrittenList(): void
     {
         $field = new FieldDefinition(
             name: 'tags',
-            type: 'String',
-            nullable: true,
+            type: '[String]',
+            nullable: false,
             isList: true,
             parentType: 'Post',
         );
 
-        $this->assertSame('[String]!', $field->getGraphQLTypeString(true));
+        $this->assertSame('[String]!', $field->getGraphQLTypeString());
     }
 
     public function testIsScalar(): void

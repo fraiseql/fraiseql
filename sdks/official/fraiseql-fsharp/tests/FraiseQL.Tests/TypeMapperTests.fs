@@ -167,3 +167,16 @@ let ``toCamelCase converts snake_case`` () =
 [<Fact>]
 let ``toCamelCase handles empty string`` () =
     TypeMapper.toCamelCase "" |> should equal ""
+
+// #1608: any one-argument generic collection is a list, every level with its items'
+// nullability; an element is non-null unless it is an `option` or `Nullable<>`.
+[<Fact>]
+let ``ResizeArray and seq map to lists`` () =
+    TypeMapper.toGraphQLType typeof<ResizeArray<string>> |> should equal "[String!]"
+    TypeMapper.toGraphQLType typeof<seq<int option>> |> should equal "[Int]"
+    TypeMapper.toGraphQLType typeof<Set<Guid>> |> should equal "[ID!]"
+
+[<Fact>]
+let ``a nested list carries each level's items`` () =
+    TypeMapper.toGraphQLType typeof<float option list list> |> should equal "[[Float]!]"
+    TypeMapper.toGraphQLType typeof<float list option list> |> should equal "[[Float!]]"

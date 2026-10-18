@@ -127,6 +127,29 @@ Marks a property as a GraphQL field.
 | `scopes` | `?array` | Multiple JWT scopes required |
 | `localized` | `bool` | A String stored as a locale map (`[locale]` in `fraiseql.toml`) |
 
+A field is nullable when `nullable: true` or its property type is `?T`. A `type` written in
+the attribute is published as written. Without one, an `array` property is a list whose
+element type comes from its docblock, the way PHPStan and Psalm read it, with every position
+non-null unless written `?T` / `T|null`, at every level:
+
+```php
+/** @var list<string> */
+#[GraphQLField]
+public array $labels;      // [String!]!
+
+/** @var list<?float>|null */
+#[GraphQLField]
+public ?array $readings;   // [Float]
+
+/** @var list<list<?float>> */
+#[GraphQLField]
+public array $grid;        // [[Float]!]!
+```
+
+An `array` with neither a docblock element type nor an attribute `type` is refused. The
+builder's `listField('tags', 'String')` is `[String!]`. The rule is the same in every SDK
+([../README.md](../README.md#one-rule-for-nullability)).
+
 A mutation argument takes `localized: true` too (`->argument('displayName', 'String',
 nullable: true, localized: true)`), and an input field `'localized' => true`. Only a String
 can be localized; exporting any other localized field, input field or argument is refused.

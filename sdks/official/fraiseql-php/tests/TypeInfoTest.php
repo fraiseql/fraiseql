@@ -86,17 +86,11 @@ final class TypeInfoTest extends TestCase
         // Nullable scalar
         $this->assertSame('String', TypeInfo::fromString('?string')->toGraphQLTypeString());
 
-        // Non-nullable list
-        $this->assertSame('[Int!]', TypeInfo::fromString('int[]')->toGraphQLTypeString());
+        // Non-nullable list of non-null items
+        $this->assertSame('[Int!]!', TypeInfo::fromString('int[]')->toGraphQLTypeString());
 
-        // Nullable list
-        $this->assertSame('[String]', TypeInfo::fromString('?string[]')->toGraphQLTypeString());
-    }
-
-    public function testToGraphQLTypeStringWithNonNullList(): void
-    {
-        $this->assertSame('[Int!]!', TypeInfo::fromString('int[]')->toGraphQLTypeString(true));
-        $this->assertSame('[String]!', TypeInfo::fromString('?string[]')->toGraphQLTypeString(true));
+        // Nullable list: the position's nullability, never its items' (#1608)
+        $this->assertSame('[String!]', TypeInfo::fromString('?string[]')->toGraphQLTypeString());
     }
 
     public function testIsCustomType(): void

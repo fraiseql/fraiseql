@@ -101,6 +101,17 @@ fn full() -> SchemaRegistry {
         ],
         "v_document",
     );
+    // Lists (#1586, #1608): the GraphQL type string, every level as written.
+    registry.register_type_with_source(
+        "ReadingSeries",
+        vec![
+            Field::new("id", "ID").with_nullable(false),
+            Field::new("labels", "[String!]").with_nullable(false),
+            Field::new("readings", "[Float]").with_nullable(true),
+            Field::new("grid", "[[Float]!]").with_nullable(false),
+        ],
+        "v_reading_series",
+    );
     registry
 }
 

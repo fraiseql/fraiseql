@@ -106,32 +106,26 @@ final readonly class TypeInfo
     }
 
     /**
-     * Get the complete GraphQL type string including list and nullable modifiers.
+     * The one rule every type string of this SDK follows (#1586, #1608): `$type` is the item
+     * type of a list when `$isList` (its items non-null, `[T!]`) unless it is already a list
+     * type, and `$nullable` is the position's own nullability, never its items'.
      *
-     * Examples:
-     * - Int! (non-nullable int)
-     * - [String!]! (non-nullable list of non-nullable strings)
-     * - [User] (nullable list of nullable User types)
-     *
-     * @param bool $nonNullList Whether the list itself should be non-nullable
-     * @return string The complete GraphQL type string
+     * @return string `T`, `T!`, `[T!]`, `[T!]!`, or `$type` as written plus its outer `!`
      */
-    public function toGraphQLTypeString(bool $nonNullList = false): string
+    public static function graphQLTypeString(string $type, bool $isList, bool $nullable): string
     {
-        $type = $this->graphQLType;
-
-        if ($this->isList) {
-            $type = '[' . $type . (!$this->isNullable ? '!' : '') . ']';
-            if ($nonNullList) {
-                $type .= '!';
-            }
-        } else {
-            if (!$this->isNullable) {
-                $type .= '!';
-            }
+        if ($isList && !str_starts_with(trim($type), '[')) {
+            $type = '[' . $type . '!]';
         }
+        return $nullable ? $type : $type . '!';
+    }
 
-        return $type;
+    /**
+     * The complete GraphQL type string: `Int!`, `[String!]!`, `[String!]` (a nullable list).
+     */
+    public function toGraphQLTypeString(): string
+    {
+        return self::graphQLTypeString($this->graphQLType, $this->isList, $this->isNullable);
     }
 
     /**

@@ -5,6 +5,23 @@ defmodule FraiseQL.TypeMapperTest do
   alias FraiseQL.TypeMapper
 
   # ---------------------------------------------------------------------------
+  # to_graphql_type/1 — lists (#1586, #1608)
+  # ---------------------------------------------------------------------------
+
+  # Ecto's `{:array, type}`: a list whose items are non-null, at every level. A GraphQL
+  # type string is published as written, which is how nullable items are declared.
+  test "maps {:array, type} to a list of non-null items" do
+    assert TypeMapper.to_graphql_type({:array, :string}) == "[String!]"
+    assert TypeMapper.to_graphql_type({:array, {:array, :float}}) == "[[Float!]!]"
+    assert TypeMapper.to_graphql_type({:array, :id}) == "[ID!]"
+  end
+
+  test "publishes a GraphQL type string as written" do
+    assert TypeMapper.to_graphql_type("[Float]") == "[Float]"
+    assert TypeMapper.to_graphql_type("[[Float]!]") == "[[Float]!]"
+  end
+
+  # ---------------------------------------------------------------------------
   # to_graphql_type/1 — known atoms
   # ---------------------------------------------------------------------------
 

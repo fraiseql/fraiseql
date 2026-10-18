@@ -60,6 +60,7 @@ public class ConformanceExport {
         FraiseQL.registerType(ConformanceSupportTicket.class);
         FraiseQL.registerErrorType(ConformanceUserNotFound.class);
         FraiseQL.registerType(ConformanceDocument.class);
+        FraiseQL.registerType(ConformanceReadingSeries.class);
 
         FraiseQL.getRegistry().registerEnum("OrderStatus", enumValues(), "");
         FraiseQL.getRegistry().registerInputType(
@@ -78,6 +79,13 @@ public class ConformanceExport {
             // Argument types are GraphQL type expressions: the trailing `!` is what makes
             // this argument required.
             .arg("id", "ID!")
+            .register();
+
+        FraiseQL.query("readingSeriesByIds")
+            .returnType("ReadingSeries")
+            .returnsArray(true)
+            .sqlSource("v_reading_series")
+            .arg("ids", "[ID!]!")
             .register();
 
         Map<String, String> tenantInject = new LinkedHashMap<>();
@@ -286,6 +294,28 @@ public class ConformanceExport {
 
         @GraphQLField(type = "String")
         public String code;
+    }
+
+    /** A type-use {@code @Nullable}, as JSpecify's: the SDK matches it by its simple name. */
+    @java.lang.annotation.Target(java.lang.annotation.ElementType.TYPE_USE)
+    @java.lang.annotation.Retention(java.lang.annotation.RetentionPolicy.RUNTIME)
+    @interface Nullable {}
+
+    // Lists (#1586, #1608), inferred from the Java types: an element is non-null unless
+    // marked @Nullable (or an Optional), at every level.
+    @GraphQLType(name = "ReadingSeries", sqlSource = "v_reading_series")
+    public static class ConformanceReadingSeries {
+        @GraphQLField(type = "ID")
+        public String id;
+
+        @GraphQLField
+        public List<String> labels;
+
+        @GraphQLField(nullable = true)
+        public List<@Nullable Double> readings;
+
+        @GraphQLField
+        public List<List<@Nullable Double>> grid;
     }
 
     @GraphQLType(name = "Document", sqlSource = "v_document")

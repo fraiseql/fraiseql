@@ -98,6 +98,15 @@ defmodule Conformance.FullSchema do
     field(:code, :string, nullable: false)
   end
 
+  # Lists (#1586, #1608): Ecto's `{:array, type}` for non-null items, a GraphQL type string
+  # for nullable ones.
+  fraiseql_type "ReadingSeries", sql_source: "v_reading_series" do
+    field(:id, :id, nullable: false)
+    field(:labels, {:array, :string}, nullable: false)
+    field(:readings, "[Float]", nullable: true)
+    field(:grid, "[[Float]!]", nullable: false)
+  end
+
   fraiseql_type "Document", sql_source: "v_document" do
     field(:id, :id, nullable: false)
 
@@ -150,6 +159,14 @@ defmodule Conformance.FullSchema do
                  nullable: true,
                  sql_source: "v_user" do
     argument(:id, :id, nullable: false)
+  end
+
+  fraiseql_query :reading_series_by_ids,
+                 return_type: "ReadingSeries",
+                 returns_list: true,
+                 nullable: false,
+                 sql_source: "v_reading_series" do
+    argument(:ids, {:array, :id}, nullable: false)
   end
 
   # The name is a snake_case atom, which is how an Elixir author writes an identifier and

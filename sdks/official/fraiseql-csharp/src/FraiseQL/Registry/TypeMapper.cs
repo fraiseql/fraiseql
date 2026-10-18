@@ -40,7 +40,7 @@ public static class TypeMapper
         if (attr?.Type is { } explicitType)
             return (explicitType, attr.Nullable || isNullable);
 
-        var graphqlType = MapBaseType(baseType);
+        var graphqlType = MapType(baseType, nullabilityInfo);
         // attr.Nullable = true can force nullable; C# type system nullability always applies
         var nullable = isNullable || (attr?.Nullable ?? false);
         return (graphqlType, nullable);
@@ -77,6 +77,38 @@ public static class TypeMapper
         fieldName == "id" && StringShapedIdTypes.Contains(graphqlType)
             ? "ID"
             : graphqlType;
+
+    /// <summary>
+    /// Maps a C# type to its GraphQL type, every list level with its items' nullability
+    /// (#1586, #1608): an array or a generic collection is a list, and its element is
+    /// non-null unless C# marks it nullable (<c>double?</c>, <c>string?</c>).
+    /// </summary>
+    /// <param name="type">The type, its own <c>Nullable&lt;T&gt;</c> already unwrapped.</param>
+    /// <param name="info">Its nullability, as <see cref="NullabilityInfoContext"/> reads it.</param>
+    private static string MapType(Type type, NullabilityInfo info)
+    {
+        var (element, elementInfo) = ElementOf(type, info);
+        if (element is null || elementInfo is null)
+            return MapBaseType(type);
+        var valueElement = Nullable.GetUnderlyingType(element);
+        var elementNullable = valueElement is not null
+                           || elementInfo.ReadState == NullabilityState.Nullable;
+        return $"[{MapType(valueElement ?? element, elementInfo)}{(elementNullable ? "" : "!")}]";
+    }
+
+    /// <summary>The element of an array or a one-argument generic collection, if any.</summary>
+    private static (Type? Element, NullabilityInfo? Info) ElementOf(Type type, NullabilityInfo info)
+    {
+        if (type == typeof(string))
+            return (null, null);
+        if (type.IsArray)
+            return (type.GetElementType(), info.ElementType);
+        if (type.IsGenericType
+            && type.GetGenericArguments().Length == 1
+            && typeof(System.Collections.IEnumerable).IsAssignableFrom(type))
+            return (type.GetGenericArguments()[0], info.GenericTypeArguments[0]);
+        return (null, null);
+    }
 
     /// <summary>Maps a non-nullable C# base type to its GraphQL scalar equivalent.</summary>
     /// <param name="baseType">The C# type to map.</param>

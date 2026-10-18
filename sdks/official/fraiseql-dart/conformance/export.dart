@@ -120,6 +120,18 @@ FraiseQLSchema authorFull() {
     },
   );
 
+  // Lists (#1586, #1608): the GraphQL type string, every level as written.
+  schema.type(
+    'ReadingSeries',
+    sqlSource: 'v_reading_series',
+    fields: {
+      'id': const FieldType.id(nullable: false),
+      'labels': const FieldType.named('[String!]', nullable: false),
+      'readings': const FieldType.named('[Float]'),
+      'grid': const FieldType.named('[[Float]!]', nullable: false),
+    },
+  );
+
   schema.type(
     'Document',
     sqlSource: 'v_document',
@@ -180,6 +192,15 @@ FraiseQLSchema authorFull() {
     nullable: true,
     sqlSource: 'v_user',
     arguments: {'id': const FieldType.id(nullable: false)},
+  );
+
+  schema.query(
+    'readingSeriesByIds',
+    returnType: 'ReadingSeries',
+    returnsList: true,
+    nullable: false,
+    sqlSource: 'v_reading_series',
+    arguments: {'ids': const FieldType.named('[ID!]', nullable: false)},
   );
 
   // The argument is two words on purpose (#1255): every argument in this fixture used to
