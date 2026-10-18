@@ -337,6 +337,12 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **`fraiseql migrate` and `compile --check-migrations` name the package that installs
+  confiture (#1602).** With confiture missing, both told the user to `cargo install
+  confiture`, which installs an unrelated crates.io crate, and `migrate` also suggested a
+  Homebrew formula that does not exist. Both now print `uv tool install fraiseql-confiture`
+  and `pipx install fraiseql-confiture` (PyPI; Python 3.14 or later).
+
 - **MCP calls an operation whose return type is a union or an interface (#1546).** A tool's
   document selected the return type's own scalar fields, looked up among the object types
   only, so a union or an interface got no selection and the document was refused before

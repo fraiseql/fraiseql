@@ -502,12 +502,23 @@ fn is_confiture_installed() -> bool {
         .is_ok_and(|s| s.success())
 }
 
+/// The commands that install confiture, one a line (#1602).
+///
+/// confiture ships on PyPI as `fraiseql-confiture`, which installs a `confiture` console
+/// script and needs Python 3.14 or later. `confiture` on crates.io is an unrelated crate and
+/// there is no Homebrew formula: neither installs the tool this command runs.
+pub(crate) const CONFITURE_INSTALL_COMMANDS: [&str; 2] = [
+    "uv tool install fraiseql-confiture",
+    "pipx install fraiseql-confiture",
+];
+
 fn print_install_instructions(formatter: &OutputFormatter) {
     formatter.progress("confiture is not installed.");
     formatter.progress("");
-    formatter.progress("Install it with one of:");
-    formatter.progress("  cargo install confiture          # From crates.io");
-    formatter.progress("  brew install confiture            # macOS (if available)");
+    formatter.progress("Install it (Python 3.14 or later) with one of:");
+    for command in CONFITURE_INSTALL_COMMANDS {
+        formatter.progress(&format!("  {command}"));
+    }
     formatter.progress("");
     formatter.progress("Learn more: https://github.com/fraiseql/confiture");
 }

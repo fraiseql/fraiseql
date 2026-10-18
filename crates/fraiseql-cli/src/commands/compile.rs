@@ -1059,7 +1059,8 @@ fn run_check_migrations(schema: &CompiledSchema) -> Result<()> {
             // confiture not installed — warn but don't fail the build
             eprintln!(
                 "WARN: confiture is not installed; skipping migration drift check.\n\
-                 Install it with: cargo install confiture"
+                 Install it with: {}",
+                super::migrate::CONFITURE_INSTALL_COMMANDS.join("  (or)  ")
             );
             Ok(())
         },

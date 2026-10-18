@@ -291,3 +291,50 @@ fn migrate_reads_database_url_from_toml() {
         "URL should have been resolved from fraiseql.toml; stderr: {stderr}"
     );
 }
+
+// ── #1602: the install hint names the package that installs confiture ────────────
+
+/// The CLI with an empty `PATH`, so confiture is absent whatever the machine has installed:
+/// these tests never skip.
+fn cli_without_confiture(dir: &tempfile::TempDir) -> Command {
+    let mut command = cli();
+    command.env("PATH", dir.path());
+    command
+}
+
+/// The hint names `fraiseql-confiture` (`PyPI`) through `uv tool` and `pipx`, and neither
+/// `cargo install confiture` (an unrelated crate) nor Homebrew (no formula exists).
+fn assert_names_the_confiture_package(text: &str) {
+    assert!(text.contains("uv tool install fraiseql-confiture"), "{text}");
+    assert!(text.contains("pipx install fraiseql-confiture"), "{text}");
+    assert!(
+        !text.contains("cargo install confiture"),
+        "an unrelated crates.io crate: {text}"
+    );
+    assert!(!text.contains("brew install"), "no Homebrew formula exists: {text}");
+}
+
+#[test]
+fn migrate_without_confiture_prints_the_pypi_install_commands() {
+    let empty = tempfile::TempDir::new().unwrap();
+    let out = cli_without_confiture(&empty)
+        .args(["migrate", "up", "--database", "postgres://localhost/test"])
+        .output()
+        .unwrap();
+    assert!(!out.status.success());
+    assert_names_the_confiture_package(&String::from_utf8_lossy(&out.stderr));
+}
+
+#[test]
+fn compile_check_migrations_without_confiture_prints_the_pypi_install_commands() {
+    let empty = tempfile::TempDir::new().unwrap();
+    let work = tempfile::TempDir::new().unwrap();
+    let schema = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/minimal_schema.json");
+    let out = cli_without_confiture(&empty)
+        .current_dir(work.path())
+        .args(["compile", schema, "--skip-hash", "--check-migrations", "-o"])
+        .arg(work.path().join("schema.compiled.json"))
+        .output()
+        .unwrap();
+    assert_names_the_confiture_package(&String::from_utf8_lossy(&out.stderr));
+}
