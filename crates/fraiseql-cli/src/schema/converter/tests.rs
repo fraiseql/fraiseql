@@ -1121,11 +1121,13 @@ fn test_convert_enum() {
                     name:        "PENDING".to_string(),
                     description: None,
                     deprecated:  None,
+                    value:       None,
                 },
                 IntermediateEnumValue {
                     name:        "PROCESSING".to_string(),
                     description: Some("Currently being processed".to_string()),
                     deprecated:  None,
+                    value:       None,
                 },
                 IntermediateEnumValue {
                     name:        "CANCELLED".to_string(),
@@ -1133,6 +1135,7 @@ fn test_convert_enum() {
                     deprecated:  Some(IntermediateDeprecation {
                         reason: Some("Use VOIDED instead".to_string()),
                     }),
+                    value:       None,
                 },
             ],
             description: Some("Order status enum".to_string()),

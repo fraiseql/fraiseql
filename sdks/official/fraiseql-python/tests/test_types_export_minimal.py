@@ -129,6 +129,34 @@ def test_export_types_with_enums() -> None:
         assert schema["types"][0]["name"] == "User"
 
 
+def test_an_enum_exports_each_members_value_when_it_is_not_its_name() -> None:
+    """#1580: a value-backed member exports its value; a member stored as its name does not."""
+    from enum import auto
+
+    @fraiseql.enum
+    class OrderStatus(Enum):
+        PENDING = "pending"
+        SHIPPED = "shipped"
+        LOST = "LOST"
+
+    @fraiseql.enum
+    class Level(Enum):
+        LOW = auto()
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        output_path = Path(tmpdir) / "schema_types.json"
+        fraiseql.export_types(str(output_path))
+        schema = json.loads(output_path.read_text())
+
+    by_name = {e["name"]: e["values"] for e in schema["enums"]}
+    assert by_name["OrderStatus"] == [
+        {"name": "PENDING", "value": "pending"},
+        {"name": "SHIPPED", "value": "shipped"},
+        {"name": "LOST"},
+    ]
+    assert by_name["Level"] == [{"name": "LOW"}], "an auto() integer is not a stored value"
+
+
 def test_export_types_with_input_types() -> None:
     """export_types() should include input types in output."""
 

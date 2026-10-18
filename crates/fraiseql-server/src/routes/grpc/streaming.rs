@@ -39,6 +39,8 @@ struct StreamState {
     columns:        Vec<ColumnSpec>,
     /// Which of `columns` are published non-null (#1522).
     non_null:       Vec<bool>,
+    /// The valued enum each of `columns` is typed as, if any (#1580).
+    enums:          Vec<Option<fraiseql_core::schema::EnumDefinition>>,
     /// The streamed type, for a refusal's message.
     type_name:      String,
     row_descriptor: MessageDescriptor,
@@ -129,6 +131,7 @@ pub async fn build_streaming_body(
         StreamState {
             chunks: rows.ready_chunks(usize::try_from(batch_size.max(1)).unwrap_or(usize::MAX)),
             non_null: handler::non_null_columns(&columns, type_def),
+            enums: handler::valued_enum_columns(&columns, type_def, executor.schema()),
             type_name: type_def.name.to_string(),
             columns,
             row_descriptor,
@@ -147,7 +150,8 @@ pub async fn build_streaming_body(
             let mut all_frames = Vec::new();
             for row in chunk {
                 match row {
-                    Ok(row) => {
+                    Ok(mut row) => {
+                        handler::serve_enum_members(&mut row, &state.enums);
                         // A row the schema forbids ends the stream, as a failed read does.
                         if let Some(e) = handler::incomplete_row(
                             &row,

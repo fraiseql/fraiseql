@@ -84,6 +84,7 @@ fn document_fixture() -> CompiledSchema {
             name:        "ADMIN".to_string(),
             description: None,
             deprecation: None,
+            value:       None,
         }],
         description: None,
     });
@@ -390,6 +391,7 @@ fn leaf_return_fixture(field_type: &FieldType, query_name: &str) -> CompiledSche
                 name:        "ADMIN".to_string(),
                 description: None,
                 deprecation: None,
+                value:       None,
             }],
             description: None,
         });

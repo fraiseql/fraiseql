@@ -197,11 +197,13 @@ fn enum_field_produces_ref() {
                 name:        "ACTIVE".to_string(),
                 description: None,
                 deprecation: None,
+                value:       None,
             },
             fraiseql_core::schema::EnumValueDefinition {
                 name:        "INACTIVE".to_string(),
                 description: None,
                 deprecation: None,
+                value:       None,
             },
         ],
         description: None,

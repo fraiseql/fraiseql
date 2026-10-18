@@ -149,6 +149,43 @@ pub fn non_null_columns(columns: &[ColumnSpec], type_def: &TypeDefinition) -> Ve
         .collect()
 }
 
+/// For each of `columns`, positionally, the enum its field is typed as, when that enum's
+/// members store values other than their names (#1580).
+///
+/// Such a column's stored value is served as its member's name, as GraphQL completion
+/// serves it.
+#[must_use]
+pub fn valued_enum_columns(
+    columns: &[ColumnSpec],
+    type_def: &TypeDefinition,
+    schema: &CompiledSchema,
+) -> Vec<Option<fraiseql_core::schema::EnumDefinition>> {
+    columns
+        .iter()
+        .map(|c| {
+            let field = type_def.fields.iter().find(|f| f.name.as_str() == c.name)?;
+            let FieldType::Enum(name) = &field.field_type else {
+                return None;
+            };
+            schema.find_enum(name).filter(|e| e.has_stored_values()).cloned()
+        })
+        .collect()
+}
+
+/// Serve each stored enum value of `row` as its member's name (#1580), in place.
+pub fn serve_enum_members(
+    row: &mut [ColumnValue],
+    enums: &[Option<fraiseql_core::schema::EnumDefinition>],
+) {
+    for (value, def) in row.iter_mut().zip(enums) {
+        if let (ColumnValue::Text(stored), Some(def)) = (&mut *value, def) {
+            if let Some(member) = def.member_stored_as(stored) {
+                *stored = member.to_string();
+            }
+        }
+    }
+}
+
 /// The refusal for a row holding `NULL` in a column the schema publishes non-null, or
 /// `None` for a complete row (#1522).
 ///
@@ -476,6 +513,7 @@ pub(super) fn grpc_query_match(
     let arguments = read_arguments(request_msg, type_def, returns_list);
 
     fraiseql_core::runtime::QueryMatch::from_operation(query_def, fields, arguments, Some(type_def))
+        .map(|m| m.with_enum_values_coerced(schema))
 }
 
 /// Execute a gRPC mutation by calling the database function.

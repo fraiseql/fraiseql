@@ -18,6 +18,11 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **`EnumValueDefinition` gains `value` (#1580).** A struct literal listing every field adds
+  `value: None` (the member is stored as its name), or builds with
+  `EnumValueDefinition::new(..).stored_as(..)`. An enum whose members share a stored value
+  (`{"name": "A", "value": "B"}` beside a member `B` with none) no longer loads.
+
 - **A list declared `[T]` publishes nullable items (#1586).** It published `[T!]` whatever was
   declared. A schema exporting `"[T]"` for a list of non-null items now publishes and serves
   nullable ones. Two SDKs exported `[T]` for every list: the F# SDK now exports `[T!]` unless
@@ -331,6 +336,18 @@ disagreed, and the promise was the part that was wrong.
   reported TVIEW (pg_tviews#240): throughput there is unchanged.
 
 ### Fixed
+
+- **An enum whose members store values is filtered, written and served by its member names
+  (#1580).** A Python `SHIPPED = "shipped"` exported its name only, so the compiled schema
+  had no way to map one to the other: `where: {status: {eq: SHIPPED}}` compared against
+  `'SHIPPED'` and matched no row stored as `"shipped"`, a mutation wrote `"SHIPPED"`, and a
+  read served the stored `"shipped"`, which is not a member. The Python SDK now exports a
+  member's value when it is a string other than its name (`{"name": "SHIPPED", "value":
+  "shipped"}`), and the compiled enum carries it. A name written in a request (an argument,
+  an input field at any depth, a `where:` operand over GraphQL, REST and gRPC) reaches SQL as
+  the stored value, and a stored value is served as its member's name (GraphQL, REST, gRPC,
+  subscriptions). An enum whose members store their names behaves as before. Two members of
+  one enum stored as the same value are refused at compile and at load.
 
 - **A mutation argument binds to a `float8`, `numeric`, `date`, `timestamp` or any other
   function parameter type (#1547).** The function call carries no cast, so PostgreSQL types

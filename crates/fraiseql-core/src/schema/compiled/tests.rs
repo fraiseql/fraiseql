@@ -2858,3 +2858,26 @@ mod removed_partial_period {
             .expect("a fact table without partial_period loads");
     }
 }
+
+/// #1580: a stored value is served as the one member stored as it, so two members of an
+/// enum sharing one (a member without a `value` stores its name) are refused at load.
+#[test]
+fn an_enum_whose_members_share_a_stored_value_is_refused_at_load() {
+    let load = |values: &str| {
+        CompiledSchema::from_json(
+            &format!(
+                r#"{{"types":[],"queries":[],"mutations":[],"subscriptions":[],
+                "enums":[{{"name":"OrderStatus","values":{values}}}]}}"#
+            ),
+            false,
+        )
+    };
+    for shared in [
+        r#"[{"name":"A","value":"x"},{"name":"B","value":"x"}]"#,
+        r#"[{"name":"A","value":"B"},{"name":"B"}]"#,
+    ] {
+        let err = load(shared).unwrap_err().to_string();
+        assert!(err.contains("stored value of enum OrderStatus"), "{shared}: {err}");
+    }
+    load(r#"[{"name":"A","value":"B"},{"name":"B","value":"a"}]"#).unwrap();
+}

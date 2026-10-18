@@ -1459,16 +1459,20 @@ def enum(cls: type[E]) -> type[E]:
             "name": "OrderStatus",
             "description": "Status of an order.",
             "values": [
-                {"name": "PENDING"},
-                {"name": "PROCESSING"},
-                {"name": "SHIPPED"},
-                {"name": "DELIVERED"}
+                {"name": "PENDING", "value": "pending"},
+                {"name": "PROCESSING", "value": "processing"},
+                {"name": "SHIPPED", "value": "shipped"},
+                {"name": "DELIVERED", "value": "delivered"}
             ]
         }
 
     Notes:
         - Class must inherit from enum.Enum
-        - Values are extracted from member names (not values)
+        - The GraphQL members are the member names. A member whose value is a string other
+          than its name exports that value: a request names ``SHIPPED``, the database stores
+          and compares ``"shipped"``, and a stored ``"shipped"`` is served as ``SHIPPED``.
+          Other values (``auto()`` integers, tuples) are not exported: such a member is
+          stored as its name.
         - Use docstrings on the class for descriptions
         - Use `deprecated` marker function for deprecated values
     """
@@ -1480,6 +1484,8 @@ def enum(cls: type[E]) -> type[E]:
     values = []
     for member in cls:
         value_info: dict[str, Any] = {"name": member.name}
+        if isinstance(member.value, str) and member.value != member.name:
+            value_info["value"] = member.value
 
         # Check for deprecation (can be set via class attribute)
         if hasattr(member, "_deprecated"):

@@ -1719,8 +1719,6 @@ async fn prepare_write<'a>(
     )?;
     let variables = localized.as_ref().or(variables);
 
-    let vars_obj = variables.and_then(|v| v.as_object());
-
     // #1362, #1528: every value written at an argument — or at a field of the input
     // object under one, at any depth — must have its declared type: an enum must name a
     // member, a built-in scalar must hold one, and an input object may carry only the
@@ -1737,6 +1735,15 @@ async fn prepare_write<'a>(
         &mutation_def.arguments,
         variables,
     )?;
+    // #1580: and every enum member named there becomes the value it is stored as, the value
+    // the function receives. After the membership check, so every name here is a member.
+    let enum_coerced = crate::runtime::coerce_enum_argument_object(
+        &ctx.schema,
+        &mutation_def.arguments,
+        variables,
+    );
+    let variables = enum_coerced.as_ref().or(variables);
+    let vars_obj = variables.and_then(|v| v.as_object());
 
     let mut missing_required: Vec<&str> = Vec::new();
     let total_args = mutation_def.arguments.len() + mutation_def.inject_params.len();

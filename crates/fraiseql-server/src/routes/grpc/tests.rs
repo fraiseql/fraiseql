@@ -1060,3 +1060,81 @@ mod status_mapping {
         );
     }
 }
+
+// ── #1580: valued enums are served by member name ────────────────────
+
+#[test]
+fn a_stored_enum_value_is_served_as_its_member_name_over_grpc() {
+    use fraiseql_core::schema::{
+        CompiledSchema, EnumDefinition, EnumValueDefinition, FieldDefinition, TypeDefinition,
+    };
+
+    use super::handler::{serve_enum_members, valued_enum_columns};
+
+    let mut schema = CompiledSchema::new();
+    schema.enums.push(EnumDefinition::new("OrderStatus").with_values(vec![
+        EnumValueDefinition::new("SHIPPED").stored_as("shipped"),
+        EnumValueDefinition::new("LOST"),
+    ]));
+    let mut order = TypeDefinition::new("Order", "v_order");
+    order.fields = vec![
+        FieldDefinition::new("status", FieldType::Enum("OrderStatus".into())),
+        FieldDefinition::new("note", FieldType::String),
+    ];
+    let columns = vec![
+        ColumnSpec {
+            name:        "status".into(),
+            column_type: RowViewColumnType::Text,
+        },
+        ColumnSpec {
+            name:        "note".into(),
+            column_type: RowViewColumnType::Text,
+        },
+    ];
+    let enums = valued_enum_columns(&columns, &order, &schema);
+    let mut row = vec![
+        ColumnValue::Text("shipped".into()),
+        ColumnValue::Text("shipped".into()),
+    ];
+
+    serve_enum_members(&mut row, &enums);
+
+    assert!(matches!(&row[0], ColumnValue::Text(s) if s == "SHIPPED"), "{row:?}");
+    assert!(matches!(&row[1], ColumnValue::Text(s) if s == "shipped"), "a String column");
+}
+
+/// #1580: a gRPC request's filter names an enum member and reaches SQL as its stored value.
+#[test]
+fn a_grpc_filter_on_a_valued_enum_reaches_sql_as_the_stored_value() {
+    use fraiseql_core::schema::{
+        CompiledSchema, EnumDefinition, EnumValueDefinition, FieldDefinition, QueryDefinition,
+        TypeDefinition,
+    };
+    use prost_reflect::DynamicMessage;
+
+    use super::handler::grpc_query_match;
+
+    let mut schema = CompiledSchema::new();
+    schema.enums.push(
+        EnumDefinition::new("OrderStatus")
+            .with_values(vec![EnumValueDefinition::new("SHIPPED").stored_as("shipped")]),
+    );
+    let mut user = TypeDefinition::new("User", "v_user");
+    user.fields = vec![FieldDefinition::new(
+        "name",
+        FieldType::Enum("OrderStatus".into()),
+    )];
+    schema.types.push(user.clone());
+    let mut users = QueryDefinition::new("users", "User").returning_list();
+    users.sql_source = Some("v_user".into());
+    users.auto_params.has_where = true;
+    schema.queries.push(users);
+    schema.build_indexes();
+    let pool = test_descriptor_pool();
+    let mut request = DynamicMessage::new(pool.get_message_by_name("test.User").unwrap());
+    request.set_field_by_name("name", Value::String("SHIPPED".into()));
+
+    let query_match = grpc_query_match(&schema, "users", &[], true, &request, &user).unwrap();
+
+    assert_eq!(query_match.arguments["where"], serde_json::json!({"name": {"eq": "shipped"}}));
+}

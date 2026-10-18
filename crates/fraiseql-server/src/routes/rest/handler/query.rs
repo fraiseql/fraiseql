@@ -647,7 +647,8 @@ impl RestHandler<'_> {
 
         // Build QueryMatch
         let mut query_match =
-            QueryMatch::from_operation(query_def.clone(), field_names, arguments, type_def)?;
+            QueryMatch::from_operation(query_def.clone(), field_names, arguments, type_def)?
+                .with_enum_values_coerced(self.schema);
         if let Some(relevance) = relevance {
             query_match = query_match.with_search_relevance(relevance);
         }

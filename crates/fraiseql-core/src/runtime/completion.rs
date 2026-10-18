@@ -1,4 +1,5 @@
-//! Non-null completion of a response — GraphQL § 6.4.4 (*Handling Execution Errors*, #1522).
+//! Non-null completion of a response — GraphQL § 6.4.4 (*Handling Execution Errors*, #1522),
+//! and the result coercion of an enum whose members store values (§ 3.9, #1580).
 //!
 //! A field the schema publishes as non-null (`String!`, `[Edge!]!`) must never be answered
 //! with `null`. When the stored value is missing or `null`, § 6.4.4 makes it a **field
@@ -77,9 +78,12 @@ impl TypeRef {
 #[derive(Debug, Clone, Default)]
 pub struct OutputTypes {
     /// Object and interface type name → field name → published type.
-    fields:   AHashMap<String, AHashMap<String, TypeRef>>,
+    fields:     AHashMap<String, AHashMap<String, TypeRef>>,
     /// Interface and union type name → the object types it may resolve to.
-    possible: AHashMap<String, HashSet<String>>,
+    possible:   AHashMap<String, HashSet<String>>,
+    /// Enum type name → stored value → member name, for the enums whose members store a
+    /// value other than their name (#1580): such a value is served as its member's name.
+    enum_names: AHashMap<String, AHashMap<String, String>>,
 }
 
 impl OutputTypes {
@@ -106,6 +110,10 @@ impl OutputTypes {
                     .possible
                     .insert(name.clone(), possible.iter().map(|p| p.name.clone()).collect());
             }
+        }
+        for e in schema.enums.iter().filter(|e| e.has_stored_values()) {
+            let names = e.values.iter().map(|v| (v.stored().to_string(), v.name.clone())).collect();
+            types.enum_names.insert(e.name.clone(), names);
         }
         #[cfg(feature = "federation")]
         types.add_federation(schema);
@@ -421,6 +429,15 @@ impl<'a> Walk<'a> {
             },
             TypeRef::Named(name) => match value {
                 Value::Object(map) => self.object(map, name, sel, path, errors, depth),
+                // A stored enum value is served as its member's name (#1580).
+                Value::String(stored) => {
+                    if let Some(member) =
+                        self.types.enum_names.get(name).and_then(|names| names.get(stored.as_str()))
+                    {
+                        stored.clone_from(member);
+                    }
+                    Ok(())
+                },
                 _ => Ok(()),
             },
         }

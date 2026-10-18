@@ -484,7 +484,9 @@ impl<'a> BulkHandler<'a> {
         let mut arguments = std::collections::HashMap::new();
         arguments.insert("where".to_string(), where_clause);
 
-        QueryMatch::from_operation(query_def, fields, arguments, type_def).map_err(RestError::from)
+        QueryMatch::from_operation(query_def, fields, arguments, type_def)
+            .map(|m| m.with_enum_values_coerced(self.schema))
+            .map_err(RestError::from)
     }
 
     /// Build the HTTP response for a bulk operation result.

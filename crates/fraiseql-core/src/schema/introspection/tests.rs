@@ -315,16 +315,19 @@ fn test_enum_type_introspection() {
                 name:        "PENDING".to_string(),
                 description: Some("Order is pending".to_string()),
                 deprecation: None,
+                value:       None,
             },
             EnumValueDefinition {
                 name:        "PROCESSING".to_string(),
                 description: None,
                 deprecation: None,
+                value:       None,
             },
             EnumValueDefinition {
                 name:        "SHIPPED".to_string(),
                 description: None,
                 deprecation: None,
+                value:       None,
             },
             EnumValueDefinition {
                 name:        "CANCELLED".to_string(),
@@ -332,6 +335,7 @@ fn test_enum_type_introspection() {
                 deprecation: Some(DeprecationInfo {
                     reason: Some("Use REFUNDED instead".to_string()),
                 }),
+                value:       None,
             },
         ],
     });

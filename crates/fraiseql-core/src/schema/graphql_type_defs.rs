@@ -414,6 +414,25 @@ impl EnumDefinition {
     pub fn find_value(&self, name: &str) -> Option<&EnumValueDefinition> {
         self.values.iter().find(|v| v.name == name)
     }
+
+    /// Whether a member stores a value other than its name (#1580): only then do names
+    /// and stored values need mapping.
+    #[must_use]
+    pub fn has_stored_values(&self) -> bool {
+        self.values.iter().any(|v| v.stored() != v.name)
+    }
+
+    /// The value the member `name` is stored as, when `name` is a member.
+    #[must_use]
+    pub fn stored_value_of(&self, name: &str) -> Option<&str> {
+        self.find_value(name).map(EnumValueDefinition::stored)
+    }
+
+    /// The member stored as `stored`, by name, when one is.
+    #[must_use]
+    pub fn member_stored_as(&self, stored: &str) -> Option<&str> {
+        self.values.iter().find(|v| v.stored() == stored).map(|v| v.name.as_str())
+    }
 }
 
 /// A single value within a GraphQL enum type.
@@ -438,6 +457,13 @@ pub struct EnumValueDefinition {
     /// Deprecation information (if this value is deprecated).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub deprecation: Option<DeprecationInfo>,
+
+    /// The value the member is stored as, when it is not its name (#1580): a Python
+    /// `SHIPPED = "shipped"`. A name written in a request (an argument, an input field, a
+    /// `where:` operand) reaches SQL as this value, and a stored value is served as the
+    /// name. `None` stores the name.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub value: Option<String>,
 }
 
 impl EnumValueDefinition {
@@ -448,7 +474,21 @@ impl EnumValueDefinition {
             name:        name.into(),
             description: None,
             deprecation: None,
+            value:       None,
         }
+    }
+
+    /// Store this member as `value` rather than its name (#1580).
+    #[must_use]
+    pub fn stored_as(mut self, value: impl Into<String>) -> Self {
+        self.value = Some(value.into());
+        self
+    }
+
+    /// The value this member is stored as: its `value`, or its name.
+    #[must_use]
+    pub fn stored(&self) -> &str {
+        self.value.as_deref().unwrap_or(&self.name)
     }
 
     /// Set description.

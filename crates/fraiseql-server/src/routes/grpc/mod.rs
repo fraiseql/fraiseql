@@ -344,8 +344,13 @@ impl DynamicGrpcService {
                 }) {
                     return grpc_error_response(tonic::Code::Internal, &e.to_string());
                 }
+                let enums = handler::valued_enum_columns(&read.columns, type_def, &self.schema);
+                let mut rows = read.rows;
+                for row in &mut rows {
+                    handler::serve_enum_members(row, &enums);
+                }
                 handler::encode_response(
-                    read.rows,
+                    rows,
                     &read.columns,
                     *returns_list,
                     row_descriptor,

@@ -188,3 +188,171 @@ async fn the_published_schema_carries_the_declared_item_nullability() {
         "`[Float!]`: {strict}"
     );
 }
+
+// ── #1580: enum member values ───────────────────────────────────────────────────────
+
+/// `Order.status: OrderStatus` (`PENDING = "pending"`, `SHIPPED = "shipped"`, `LOST` with no
+/// value), over rows storing the values, and a mutation whose function stores what it is
+/// given. The schema is what the Python SDK exports for those declarations.
+async fn orders(url: &str, dir: &Path) -> std::path::PathBuf {
+    execute(
+        url,
+        &format!(
+            "DROP SCHEMA IF EXISTS {SCHEMA} CASCADE;
+             CREATE SCHEMA {SCHEMA};
+             CREATE SCHEMA IF NOT EXISTS app;
+             DO $$ BEGIN CREATE TYPE app.mutation_error_class AS ENUM ('validation','conflict',
+             'not_found','unauthorized','forbidden','internal','transaction_failed','timeout',
+             'rate_limited','service_unavailable'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+             DO $$ BEGIN CREATE TYPE app.mutation_response AS (succeeded BOOLEAN, state_changed
+             BOOLEAN, error_class app.mutation_error_class, status_detail TEXT, http_status
+             SMALLINT, message TEXT, entity_id UUID, entity_type TEXT, entity JSONB,
+             updated_fields TEXT[], cascade JSONB, error_detail JSONB, metadata JSONB);
+             EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+             CREATE TABLE {SCHEMA}.tb_order (id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+                 status text);
+             INSERT INTO {SCHEMA}.tb_order VALUES
+                 ('00000000-0000-0000-0000-000000000001', 'shipped'),
+                 ('00000000-0000-0000-0000-000000000002', 'pending'),
+                 ('00000000-0000-0000-0000-000000000003', 'LOST');
+             CREATE VIEW {SCHEMA}.v_order AS SELECT id,
+                 jsonb_build_object('id', id, 'status', status) AS data FROM {SCHEMA}.tb_order;
+             CREATE FUNCTION {SCHEMA}.fn_record_status(p_status text)
+               RETURNS app.mutation_response LANGUAGE plpgsql AS $$
+               DECLARE v app.mutation_response; new_id uuid; BEGIN
+                 INSERT INTO {SCHEMA}.tb_order (status) VALUES (p_status) RETURNING id INTO new_id;
+                 v.succeeded := true; v.state_changed := true; v.entity_type := 'Order';
+                 v.entity_id := new_id;
+                 v.entity := jsonb_build_object('id', new_id, 'status', p_status);
+                 RETURN v; END; $$;"
+        ),
+    )
+    .await;
+    compile(
+        dir,
+        &json!({
+            "enums": [{
+                "name": "OrderStatus",
+                "values": [
+                    { "name": "PENDING", "value": "pending" },
+                    { "name": "SHIPPED", "value": "shipped" },
+                    { "name": "LOST" }
+                ]
+            }],
+            "types": [{
+                "name": "Order",
+                "sql_source": format!("{SCHEMA}.v_order"),
+                "fields": [
+                    { "name": "id", "type": "ID", "nullable": false },
+                    { "name": "status", "type": "OrderStatus", "nullable": true }
+                ]
+            }],
+            "queries": [{
+                "name": "orders", "return_type": "Order", "returns_list": true,
+                "nullable": false, "sql_source": format!("{SCHEMA}.v_order")
+            }],
+            "mutations": [{
+                "name": "recordStatus", "return_type": "Order", "returns_list": false,
+                "nullable": false, "sql_source": format!("{SCHEMA}.fn_record_status"),
+                "operation": "CREATE",
+                "arguments": [{ "name": "status", "type": "OrderStatus", "nullable": false }]
+            }]
+        }),
+    )
+}
+
+/// The ids `{ orders(where: …) { id } }` answers, in id order.
+fn ids(response: &Value) -> Vec<String> {
+    let mut ids: Vec<String> = response["data"]["orders"]
+        .as_array()
+        .unwrap_or_else(|| panic!("{response}"))
+        .iter()
+        .map(|o| o["id"].as_str().unwrap()[35..].to_string())
+        .collect();
+    ids.sort();
+    ids
+}
+
+#[tokio::test]
+async fn a_valued_enum_member_filters_the_rows_storing_its_value() {
+    let Some(url) = fraiseql_test_support::try_database_url() else {
+        eprintln!("skipping #1580: DATABASE_URL not set");
+        return;
+    };
+    let dir = TempDir::new().unwrap();
+    let compiled = orders(&url, dir.path()).await;
+
+    let eq = query(&compiled, &url, "{ orders(where: {status: {eq: SHIPPED}}) { id } }", None);
+    let within = query(
+        &compiled,
+        &url,
+        "{ orders(where: {status: {in: [PENDING, LOST]}}) { id } }",
+        None,
+    );
+    let variable = query(
+        &compiled,
+        &url,
+        "query($w: OrderWhereInput) { orders(where: $w) { id } }",
+        Some(&json!({ "w": { "status": { "eq": "SHIPPED" } } })),
+    );
+
+    assert_eq!(ids(&eq), ["1"], "{eq}");
+    assert_eq!(ids(&within), ["2", "3"], "a member with no value is stored as its name");
+    assert_eq!(ids(&variable), ["1"], "{variable}");
+}
+
+#[tokio::test]
+async fn a_stored_enum_value_is_served_as_its_member_name() {
+    let Some(url) = fraiseql_test_support::try_database_url() else {
+        eprintln!("skipping #1580: DATABASE_URL not set");
+        return;
+    };
+    let dir = TempDir::new().unwrap();
+    let compiled = orders(&url, dir.path()).await;
+
+    let response = query(&compiled, &url, "{ orders { id status } }", None);
+
+    let mut served: Vec<(String, Value)> = response["data"]["orders"]
+        .as_array()
+        .unwrap_or_else(|| panic!("{response}"))
+        .iter()
+        .map(|o| (o["id"].as_str().unwrap()[35..].to_string(), o["status"].clone()))
+        .collect();
+    served.sort_by(|a, b| a.0.cmp(&b.0));
+    assert_eq!(
+        served,
+        [
+            ("1".to_string(), json!("SHIPPED")),
+            ("2".to_string(), json!("PENDING")),
+            ("3".to_string(), json!("LOST")),
+        ],
+        "{response}"
+    );
+}
+
+#[tokio::test]
+async fn a_valued_enum_member_reaches_the_function_as_its_value() {
+    let Some(url) = fraiseql_test_support::try_database_url() else {
+        eprintln!("skipping #1580: DATABASE_URL not set");
+        return;
+    };
+    let dir = TempDir::new().unwrap();
+    let compiled = orders(&url, dir.path()).await;
+
+    let response =
+        query(&compiled, &url, "mutation { recordStatus(status: SHIPPED) { status } }", None);
+
+    assert_eq!(response["data"]["recordStatus"]["status"], json!("SHIPPED"), "{response}");
+    let (client, conn) = tokio_postgres::connect(&url, NoTls).await.unwrap();
+    tokio::spawn(async move {
+        let _ = conn.await;
+    });
+    let stored: Vec<String> = client
+        .query(&format!("SELECT status FROM {SCHEMA}.tb_order ORDER BY status"), &[])
+        .await
+        .unwrap()
+        .iter()
+        .map(|r| r.get(0))
+        .collect();
+    assert_eq!(stored, ["LOST", "pending", "shipped", "shipped"], "the function got `shipped`");
+}

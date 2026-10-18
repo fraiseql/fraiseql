@@ -90,3 +90,59 @@ fn rows_affected_zero() {
     set_rows_affected(&mut headers, 0);
     assert_eq!(headers.get("x-rows-affected").unwrap().to_str().unwrap(), "0");
 }
+
+// -----------------------------------------------------------------------
+// #1580: the rows a bulk filter selects are compared by stored enum value
+// -----------------------------------------------------------------------
+
+#[test]
+fn a_bulk_filter_on_a_valued_enum_reaches_sql_as_the_stored_value() {
+    use std::sync::Arc;
+
+    use fraiseql_core::{
+        runtime::Executor,
+        schema::{CompiledSchema, EnumDefinition, EnumValueDefinition, FieldType, RestConfig},
+    };
+    use fraiseql_test_utils::{
+        failing_adapter::FailingAdapter,
+        schema_builder::{TestFieldBuilder, TestQueryBuilder, TestTypeBuilder},
+    };
+
+    use crate::routes::rest::resource::RestRouteTable;
+
+    let mut schema = CompiledSchema::new();
+    schema.queries.push(
+        TestQueryBuilder::new("orders", "Order")
+            .returns_list(true)
+            .with_sql_source("v_order")
+            .build(),
+    );
+    schema.types.push(
+        TestTypeBuilder::new("Order", "v_order")
+            .with_field(TestFieldBuilder::new("id", FieldType::Id).build())
+            .with_field(
+                TestFieldBuilder::new("status", FieldType::Enum("OrderStatus".into())).build(),
+            )
+            .build(),
+    );
+    schema.enums.push(
+        EnumDefinition::new("OrderStatus")
+            .with_values(vec![EnumValueDefinition::new("SHIPPED").stored_as("shipped")]),
+    );
+    schema.rest_config = Some(RestConfig {
+        enabled: true,
+        require_auth: false,
+        ..RestConfig::default()
+    });
+    schema.build_indexes();
+    let executor = Arc::new(Executor::new(schema.clone(), Arc::new(FailingAdapter::new())));
+    let route_table = RestRouteTable::from_compiled_schema(&schema).unwrap();
+    let config = schema.rest_config.clone().unwrap();
+    let bulk = super::BulkHandler::new(&executor, &schema, &config, &route_table);
+
+    let selection = bulk
+        .build_filter_query_match("orders", &[("status[eq]", "SHIPPED")], "Order", "no filter")
+        .unwrap();
+
+    assert_eq!(selection.arguments["where"], serde_json::json!({"status": {"eq": "shipped"}}));
+}

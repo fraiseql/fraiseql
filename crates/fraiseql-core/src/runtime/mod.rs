@@ -55,6 +55,7 @@ mod argument_value_validation;
 pub mod cascade;
 pub(crate) mod completion;
 mod embed_selection;
+mod enum_coercion;
 mod executor;
 mod explain;
 pub mod field_filter;
@@ -97,6 +98,7 @@ pub use argument_value_validation::{
     validate_mutation_argument_values, validate_variable_values,
 };
 pub use embed_selection::{CountSelection, EmbedSelection};
+pub(crate) use enum_coercion::{coerce_enum_argument_object, coerce_enum_arguments};
 pub(crate) use executor::field_type_to_where_type;
 pub use executor::{
     Executor,

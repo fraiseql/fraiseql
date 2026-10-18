@@ -799,6 +799,15 @@ impl CompiledSchema {
         duplicates("type", self.types.iter().map(|t| t.name.as_str()), &mut violations);
         duplicates("query", self.queries.iter().map(|q| q.name.as_str()), &mut violations);
         duplicates("mutation", self.mutations.iter().map(|m| m.name.as_str()), &mut violations);
+        // #1580: a stored value is served as the one member stored as it, so two members of
+        // an enum cannot share one (a member without a `value` is stored as its name).
+        for e in &self.enums {
+            duplicates(
+                &format!("stored value of enum {}", e.name),
+                e.values.iter().map(crate::schema::EnumValueDefinition::stored),
+                &mut violations,
+            );
+        }
         violations
     }
 

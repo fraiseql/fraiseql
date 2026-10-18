@@ -316,11 +316,13 @@ fn sample_schema() -> IntermediateSchema {
                     name:        "ACTIVE".to_string(),
                     description: None,
                     deprecated:  None,
+                    value:       None,
                 },
                 IntermediateEnumValue {
                     name:        "INACTIVE".to_string(),
                     description: None,
                     deprecated:  None,
+                    value:       None,
                 },
             ],
             description: None,

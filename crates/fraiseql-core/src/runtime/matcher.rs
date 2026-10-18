@@ -153,6 +153,18 @@ impl QueryMatch {
         })
     }
 
+    /// Rewrite every enum member named in the arguments to the value it is stored as
+    /// (#1580), as [`QueryMatcher::match_query`] does for a GraphQL document. A transport that
+    /// builds a `QueryMatch` from its own request with [`from_operation`](Self::from_operation)
+    /// calls this before executing it; a sub-query built from values the server read needs
+    /// nothing.
+    #[must_use]
+    pub fn with_enum_values_coerced(mut self, schema: &CompiledSchema) -> Self {
+        let published = self.query_def.graphql_arguments(schema);
+        crate::runtime::coerce_enum_arguments(schema, &published, &mut self.arguments);
+        self
+    }
+
     /// Attach the server's own scoping predicate to a `QueryMatch` built by a
     /// non-GraphQL transport.
     ///
@@ -493,6 +505,19 @@ impl QueryMatcher {
                     }
                 }
             }
+        }
+
+        // 9. #1580: an enum member named in an argument becomes the value it is stored as, the
+        //    value SQL compares. After 5e, so every name here is a member.
+        if let Some(published) = self.arguments.get(&query_def.name) {
+            crate::runtime::coerce_enum_arguments(
+                &self.schema,
+                &published.published,
+                &mut arguments,
+            );
+        } else {
+            let derived = QueryArguments::derive(&query_def, &self.schema);
+            crate::runtime::coerce_enum_arguments(&self.schema, &derived.published, &mut arguments);
         }
 
         Ok(QueryMatch {

@@ -337,6 +337,21 @@ class UserRole(Enum):
     VIEWER = "VIEWER"
 ```
 
+The GraphQL members are the member **names**. A member whose value is a string other than
+its name is stored as that value:
+
+```python
+@fraiseql.enum
+class OrderStatus(Enum):
+    PENDING = "pending"
+    SHIPPED = "shipped"
+```
+
+A request names `SHIPPED` (in an argument, an input field or a `where:` operand) and the
+database compares and stores `"shipped"`; a stored `"shipped"` is served as `SHIPPED`, over
+GraphQL, REST and gRPC. A member whose value is its name, or not a string (`auto()`), is
+stored as its name. Two members cannot be stored as the same value.
+
 ---
 
 ### `@fraiseql.input`

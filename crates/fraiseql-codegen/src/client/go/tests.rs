@@ -45,11 +45,13 @@ fn fixture() -> CompiledSchema {
                 name:        "ADMIN".to_string(),
                 description: None,
                 deprecation: None,
+                value:       None,
             },
             EnumValueDefinition {
                 name:        "MEMBER".to_string(),
                 description: None,
                 deprecation: None,
+                value:       None,
             },
         ],
         description: None,

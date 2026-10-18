@@ -428,6 +428,11 @@ pub struct IntermediateEnumValue {
     /// Deprecation info (if value is deprecated)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub deprecated: Option<IntermediateDeprecation>,
+
+    /// The value the member is stored as, when it is not its name (#1580): what a Python
+    /// `SHIPPED = "shipped"` declares.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub value: Option<String>,
 }
 
 /// Deprecation information for enum values or input fields.

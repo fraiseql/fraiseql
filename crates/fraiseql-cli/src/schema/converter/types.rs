@@ -182,6 +182,7 @@ impl SchemaConverter {
             name: intermediate.name,
             description: intermediate.description,
             deprecation,
+            value: intermediate.value,
         }
     }
 
