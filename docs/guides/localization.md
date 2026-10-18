@@ -15,7 +15,7 @@ them, and how a request picks one:
 [locale]
 allowed = ["en-US", "fr", "fr-CA", "fr-FR", "de-DE"]
 default = "en-US"
-fallback = { "fr-CA" = "fr-FR" }
+fallback = {"fr-CA" = "fr-FR"}
 ```
 
 A request reads a localized field through its locale's chain: the locale, its explicit

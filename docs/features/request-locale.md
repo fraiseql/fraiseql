@@ -13,7 +13,7 @@ each locale's answers apart.
 [locale]
 default  = "en-US"
 allowed  = ["en-US", "en-GB", "fr", "fr-FR", "de-DE"]
-fallback = { "fr-CA" = "fr-FR" }   # optional; every target must be allowed
+fallback = {"fr-CA" = "fr-FR"}   # optional; every target must be allowed
 resolve  = [                        # optional; this is the default order
   { argument = "locale" },          # GraphQL `extensions.locale`, REST `?locale=`
   { header = "Accept-Language" },   # q-values honoured

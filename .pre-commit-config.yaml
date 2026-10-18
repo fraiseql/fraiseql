@@ -61,6 +61,13 @@ repos:
     hooks:
       - id: pretty-format-toml
         args: [--autofix]
+        # The hook's rev pins the hook, not the library it formats with: `toml-sort` and
+        # `tomlkit` resolve to whatever was latest when an environment was built. tomlkit
+        # below 0.13.2 writes an inline table as `{ "fr-CA" = "fr-FR" }`, 0.13.2 and later
+        # as `{"fr-CA" = "fr-FR"}`, so pre-commit.ci (its environment built earlier) and a
+        # local run (built later) rewrote the same nine files back and forth on every PR
+        # (#1599). Pinned, both build the same environment.
+        additional_dependencies: [toml-sort==0.24.4, tomlkit==0.15.0]
         # Cargo.toml files have strict semantic ordering requirements (e.g. [package]
         # must precede [[bin]], and workspace-inherited fields must stay in [package]
         # not [package.metadata.*] subsections). The generic TOML formatter breaks

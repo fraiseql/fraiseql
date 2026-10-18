@@ -25,7 +25,7 @@ name = "User"
 # a federation entity whose type has no source is refused at compile time, which
 # is what a TOML-only compile of this file used to hit.
 [queries.user]
-args = [{ name = "id", required = true, type = "ID" }]
+args = [{name = "id", required = true, type = "ID"}]
 description = "Fetch a single user by ID."
 return_type = "User"
 sql_source = "v_user"

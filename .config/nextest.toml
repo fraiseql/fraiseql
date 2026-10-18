@@ -3,9 +3,9 @@
 
 [profile.default]
 # Default timeout for all tests (60 seconds)
-slow-timeout = { period = "60s", terminate-after = 2 }
+slow-timeout = {period = "60s", terminate-after = 2}
 
 # Testcontainer tests need more time for Docker container startup + SCRAM init
 [[profile.default.overrides]]
 filter = "test(test_order_by_with_collation_c) | test(/testcontainer_auth/)"
-slow-timeout = { period = "120s", terminate-after = 2 }
+slow-timeout = {period = "120s", terminate-after = 2}

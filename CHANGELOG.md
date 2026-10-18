@@ -337,6 +337,14 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **The TOML formatter writes one style on pre-commit.ci and locally (#1599).** The hook's
+  rev was pinned and its formatting library was not: tomlkit before 0.13.2 writes an inline
+  table as `{ "fr-CA" = "fr-FR" }`, 0.13.2 and later as `{"fr-CA" = "fr-FR"}`, so the bot
+  (its environment built earlier) and a local run rewrote the same nine files on every PR,
+  and the localization guide, which quotes one of them, went red whenever only the example
+  flipped. `toml-sort` and `tomlkit` are now pinned (`additional_dependencies`), the files are
+  formatted once, and the guide quotes the new spelling.
+
 - **`fraiseql migrate` and `compile --check-migrations` name the package that installs
   confiture (#1602).** With confiture missing, both told the user to `cargo install
   confiture`, which installs an unrelated crates.io crate, and `migrate` also suggested a
