@@ -191,30 +191,41 @@ pub fn parse_selected_operation(
     source: &str,
 ) -> Result<ParsedQuery, GraphQLParseError> {
     // The written order of every object literal, read from the source (#1567): the parser
-    // keeps an object literal as a map ordered by key.
-    let shapes = key_order::document_shapes(source).map_err(|e| order_unreadable(&e))?;
-    if shapes.len() != doc.definitions.len() {
-        return Err(order_unreadable(&format!(
-            "{} definitions read, {} parsed",
-            shapes.len(),
-            doc.definitions.len()
-        )));
-    }
-    let operation_shapes = doc
-        .definitions
-        .iter()
-        .zip(&shapes)
-        .find_map(|(def, shapes)| match def {
-            // By where it starts: no two operations of a document start at one position,
-            // and a caller may pass a copy of the one it selected.
-            Definition::Operation(op)
-                if operation_position(op) == operation_position(operation) =>
-            {
-                Some(shapes)
-            },
-            _ => None,
-        })
-        .ok_or_else(|| order_unreadable("the operation is not one of the document's"))?;
+    // keeps an object literal as a map ordered by key. Only a document holding an object of
+    // two keys or more has an order to lose, so only one is read again (most are not, and
+    // some request paths parse a document more than once).
+    let shapes = if key_order::has_ordered_object(doc) {
+        let shapes = key_order::document_shapes(source).map_err(|e| order_unreadable(&e))?;
+        if shapes.len() != doc.definitions.len() {
+            return Err(order_unreadable(&format!(
+                "{} definitions read, {} parsed",
+                shapes.len(),
+                doc.definitions.len()
+            )));
+        }
+        Some(shapes)
+    } else {
+        None
+    };
+    let operation_shapes = match &shapes {
+        None => None,
+        Some(shapes) => Some(
+            doc.definitions
+                .iter()
+                .zip(shapes)
+                .find_map(|(def, shapes)| match def {
+                    // By where it starts: no two operations of a document start at one
+                    // position, and a caller may pass a copy of the one it selected.
+                    Definition::Operation(op)
+                        if operation_position(op) == operation_position(operation) =>
+                    {
+                        Some(shapes)
+                    },
+                    _ => None,
+                })
+                .ok_or_else(|| order_unreadable("the operation is not one of the document's"))?,
+        ),
+    };
 
     let (operation_type, operation_name, root_field, selections, variables) =
         extract_operation(operation, operation_shapes)?;
@@ -222,7 +233,7 @@ pub fn parse_selected_operation(
     // Fragments are document-scoped, not operation-scoped: an operation may
     // spread any fragment the document defines, so the whole set travels with
     // every selected operation.
-    let fragments = extract_fragments(doc, &shapes)?;
+    let fragments = extract_fragments(doc, shapes.as_deref())?;
 
     Ok(ParsedQuery {
         operation_type,
@@ -259,13 +270,14 @@ fn order_unreadable(detail: &str) -> GraphQLParseError {
 /// Extract fragment definitions from GraphQL document.
 fn extract_fragments(
     doc: &Document<String>,
-    shapes: &[DefinitionShapes],
+    shapes: Option<&[DefinitionShapes]>,
 ) -> Result<Vec<crate::graphql::types::FragmentDefinition>, GraphQLParseError> {
     let mut fragments = Vec::new();
 
-    for (def, shapes) in doc.definitions.iter().zip(shapes) {
+    for (i, def) in doc.definitions.iter().enumerate() {
         if let Definition::Fragment(fragment) = def {
-            let selections = parse_selection_set(&fragment.selection_set, &shapes.selection)?;
+            let shapes = shapes.map(|s| s[i].selection.as_slice());
+            let selections = parse_selection_set(&fragment.selection_set, shapes)?;
 
             // Extract fragment spreads from selections
             let fragment_spreads = extract_fragment_spreads(&fragment.selection_set);
@@ -313,7 +325,7 @@ fn extract_fragment_spreads(selection_set: &query::SelectionSet<String>) -> Vec<
 /// Extract operation details from GraphQL operation definition.
 fn extract_operation(
     operation: &OperationDefinition<String>,
-    shapes: &DefinitionShapes,
+    shapes: Option<&DefinitionShapes>,
 ) -> Result<
     (String, Option<String>, String, Vec<FieldSelection>, Vec<VariableDefinition>),
     GraphQLParseError,
@@ -335,7 +347,7 @@ fn extract_operation(
     };
 
     // Parse selection set (recursive)
-    let selections = parse_selection_set(selection_set, &shapes.selection)?;
+    let selections = parse_selection_set(selection_set, shapes.map(|s| s.selection.as_slice()))?;
 
     // Get root field name (first field in selection set)
     let root_field = selections
@@ -344,16 +356,18 @@ fn extract_operation(
         .ok_or(GraphQLParseError::EmptySelection)?;
 
     // Parse variable definitions
-    if shapes.variable_defaults.len() != var_defs.len() {
+    if shapes.is_some_and(|s| s.variable_defaults.len() != var_defs.len()) {
         return Err(order_unreadable("the variable definitions differ"));
     }
     let variables = var_defs
         .iter()
-        .zip(&shapes.variable_defaults)
-        .map(|(var_def, shape)| {
+        .enumerate()
+        .map(|(i, var_def)| {
+            let shape = shapes.map(|s| s.variable_defaults[i].as_ref());
             let default_value = match (&var_def.default_value, shape) {
-                (Some(value), Some(shape)) => Some(serialize_ordered(value, shape)?),
-                (None, None) => None,
+                (Some(value), Some(Some(shape))) => Some(serialize_ordered(value, Some(shape))?),
+                (Some(value), None) => Some(serialize_ordered(value, None)?),
+                (None, None | Some(None)) => None,
                 _ => return Err(order_unreadable("a variable default differs")),
             };
             Ok(VariableDefinition {
@@ -372,23 +386,29 @@ fn extract_operation(
 /// Handles fields, fragment spreads, and inline fragments.
 fn parse_selection_set(
     selection_set: &query::SelectionSet<String>,
-    shapes: &[SelectionShapes],
+    shapes: Option<&[SelectionShapes]>,
 ) -> Result<Vec<FieldSelection>, GraphQLParseError> {
     let mut fields = Vec::new();
 
-    if shapes.len() != selection_set.items.len() {
+    if shapes.is_some_and(|s| s.len() != selection_set.items.len()) {
         return Err(order_unreadable("a selection set differs"));
     }
-    for (selection, shapes) in selection_set.items.iter().zip(shapes) {
+    for (i, selection) in selection_set.items.iter().enumerate() {
+        let shapes = shapes.map(|s| &s[i]);
         match selection {
             Selection::Field(field) => {
                 // Parse field arguments
-                let arguments = arguments(&field.arguments, &shapes.arguments)?;
+                let arguments =
+                    arguments(&field.arguments, shapes.map(|s| s.arguments.as_slice()))?;
 
                 // Parse nested selection set (recursive)
-                let nested_fields = parse_selection_set(&field.selection_set, &shapes.selection)?;
+                let nested_fields = parse_selection_set(
+                    &field.selection_set,
+                    shapes.map(|s| s.selection.as_slice()),
+                )?;
 
-                let directives = parse_directives(&field.directives, &shapes.directives)?;
+                let directives =
+                    parse_directives(&field.directives, shapes.map(|s| s.directives.as_slice()))?;
 
                 fields.push(FieldSelection {
                     name: field.name.clone(),
@@ -401,7 +421,8 @@ fn parse_selection_set(
             Selection::FragmentSpread(spread) => {
                 // Represent fragment spread as a special field with "..." prefix
                 // This will be resolved by FragmentResolver
-                let directives = parse_directives(&spread.directives, &shapes.directives)?;
+                let directives =
+                    parse_directives(&spread.directives, shapes.map(|s| s.directives.as_slice()))?;
 
                 fields.push(FieldSelection {
                     name: format!("...{}", spread.fragment_name),
@@ -419,8 +440,12 @@ fn parse_selection_set(
                         query::TypeCondition::On(name) => name.clone(),
                     });
 
-                let nested_fields = parse_selection_set(&inline.selection_set, &shapes.selection)?;
-                let directives = parse_directives(&inline.directives, &shapes.directives)?;
+                let nested_fields = parse_selection_set(
+                    &inline.selection_set,
+                    shapes.map(|s| s.selection.as_slice()),
+                )?;
+                let directives =
+                    parse_directives(&inline.directives, shapes.map(|s| s.directives.as_slice()))?;
 
                 fields.push(FieldSelection {
                     name: format!("...on {type_condition}"),
@@ -454,9 +479,15 @@ fn value_type_string(value: &query::Value<String>) -> String {
 /// Serialize an argument value with its object literals' keys in the order written.
 fn serialize_ordered(
     value: &query::Value<String>,
-    shape: &Shape,
+    shape: Option<&Shape>,
 ) -> Result<String, GraphQLParseError> {
-    crate::graphql::value_json::encode_ordered(value, shape).map_err(|e| match e {
+    let encoded = match shape {
+        Some(shape) => crate::graphql::value_json::encode_ordered(value, shape),
+        // No object of two keys or more in the document: the parser's order is the
+        // written one.
+        None => crate::graphql::value_json::encode(value),
+    };
+    encoded.map_err(|e| match e {
         crate::error::FraiseQLError::Validation { .. } => {
             GraphQLParseError::ValueNestingTooDeep(crate::graphql::value_json::MAX_DEPTH)
         },
@@ -467,19 +498,19 @@ fn serialize_ordered(
 /// A field's or a directive's arguments, each value with its written shape.
 fn arguments(
     arguments: &[(String, query::Value<String>)],
-    shapes: &[Shape],
+    shapes: Option<&[Shape]>,
 ) -> Result<Vec<GraphQLArgument>, GraphQLParseError> {
-    if arguments.len() != shapes.len() {
+    if shapes.is_some_and(|s| s.len() != arguments.len()) {
         return Err(order_unreadable("an argument list differs"));
     }
     arguments
         .iter()
-        .zip(shapes)
-        .map(|((name, value), shape)| {
+        .enumerate()
+        .map(|(i, (name, value))| {
             Ok(GraphQLArgument {
                 name:       name.clone(),
                 value_type: value_type_string(value),
-                value_json: serialize_ordered(value, shape)?,
+                value_json: serialize_ordered(value, shapes.map(|s| &s[i]))?,
             })
         })
         .collect()
@@ -488,18 +519,18 @@ fn arguments(
 /// Parse graphql-parser directives, each argument value with its written shape.
 fn parse_directives(
     directives: &[GraphQLDirective<String>],
-    shapes: &[Vec<Shape>],
+    shapes: Option<&[Vec<Shape>]>,
 ) -> Result<Vec<Directive>, GraphQLParseError> {
-    if directives.len() != shapes.len() {
+    if shapes.is_some_and(|s| s.len() != directives.len()) {
         return Err(order_unreadable("a directive list differs"));
     }
     directives
         .iter()
-        .zip(shapes)
-        .map(|(directive, shapes)| {
+        .enumerate()
+        .map(|(i, directive)| {
             Ok(Directive {
                 name:      directive.name.clone(),
-                arguments: arguments(&directive.arguments, shapes)?,
+                arguments: arguments(&directive.arguments, shapes.map(|s| s[i].as_slice()))?,
             })
         })
         .collect()

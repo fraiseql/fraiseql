@@ -430,7 +430,7 @@ impl<'a> Walk<'a> {
             TypeRef::Named(name) => match value {
                 Value::Object(map) => self.object(map, name, sel, path, errors, depth),
                 // A stored enum value is served as its member's name (#1580).
-                Value::String(stored) => {
+                Value::String(stored) if !self.types.enum_names.is_empty() => {
                     if let Some(member) =
                         self.types.enum_names.get(name).and_then(|names| names.get(stored.as_str()))
                     {

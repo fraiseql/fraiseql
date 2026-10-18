@@ -16,6 +16,8 @@
 //! grammar, not adjudicate it. A document it cannot follow is reported, never served with the
 //! alphabetical order: a silently reordered sort answers with other rows.
 
+use graphql_parser::query;
+
 /// How a value was written: the order of an object's keys, recursively.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Shape {
@@ -45,6 +47,61 @@ pub struct DefinitionShapes {
     pub variable_defaults: Vec<Option<Shape>>,
     /// Its selection set.
     pub selection:         Vec<SelectionShapes>,
+}
+
+/// Whether `doc` holds an object literal of two keys or more anywhere (an argument, a
+/// directive argument, a variable default, at any depth): only such a literal has a written
+/// order the parser loses. A walk of the parsed tree, cheaper than reading the source again.
+pub fn has_ordered_object(doc: &query::Document<'_, String>) -> bool {
+    fn value(v: &query::Value<'_, String>) -> bool {
+        match v {
+            query::Value::Object(fields) => fields.len() > 1 || fields.values().any(value),
+            query::Value::List(items) => items.iter().any(value),
+            _ => false,
+        }
+    }
+    fn directives(ds: &[query::Directive<'_, String>]) -> bool {
+        ds.iter().any(|d| d.arguments.iter().any(|(_, v)| value(v)))
+    }
+    fn selection_set(set: &query::SelectionSet<'_, String>) -> bool {
+        set.items.iter().any(|item| match item {
+            query::Selection::Field(f) => {
+                f.arguments.iter().any(|(_, v)| value(v))
+                    || directives(&f.directives)
+                    || selection_set(&f.selection_set)
+            },
+            query::Selection::FragmentSpread(s) => directives(&s.directives),
+            query::Selection::InlineFragment(i) => {
+                directives(&i.directives) || selection_set(&i.selection_set)
+            },
+        })
+    }
+    fn variables(defs: &[query::VariableDefinition<'_, String>]) -> bool {
+        defs.iter().any(|d| d.default_value.as_ref().is_some_and(value))
+    }
+    doc.definitions.iter().any(|def| match def {
+        query::Definition::Operation(op) => match op {
+            query::OperationDefinition::SelectionSet(set) => selection_set(set),
+            query::OperationDefinition::Query(q) => {
+                variables(&q.variable_definitions)
+                    || directives(&q.directives)
+                    || selection_set(&q.selection_set)
+            },
+            query::OperationDefinition::Mutation(m) => {
+                variables(&m.variable_definitions)
+                    || directives(&m.directives)
+                    || selection_set(&m.selection_set)
+            },
+            query::OperationDefinition::Subscription(s) => {
+                variables(&s.variable_definitions)
+                    || directives(&s.directives)
+                    || selection_set(&s.selection_set)
+            },
+        },
+        query::Definition::Fragment(f) => {
+            directives(&f.directives) || selection_set(&f.selection_set)
+        },
+    })
 }
 
 /// Read the shapes of every definition of `source`, in document order.

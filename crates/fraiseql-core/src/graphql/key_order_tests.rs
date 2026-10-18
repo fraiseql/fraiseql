@@ -132,3 +132,32 @@ fn a_document_the_reader_cannot_follow_is_refused() {
     assert!(document_shapes("{ docs(orderBy: {ratio ASC}) { id } }").is_err());
     assert!(document_shapes("{ docs(s: \"open").is_err());
 }
+
+/// Only a document holding an object of two keys or more has an order to lose, wherever it
+/// sits; the source is read again only for one.
+#[test]
+fn only_a_document_with_a_multi_key_object_is_read_again() {
+    let holds = |source: &str| {
+        super::has_ordered_object(
+            &crate::graphql::complexity::parse_graphql_document(source).unwrap(),
+        )
+    };
+    for source in [
+        "{ users(id: 1) { id } }",
+        "query($w: JSON = {a: 1}) { users(where: {a: {eq: 1}}, list: [{b: 2}]) { id } }",
+        "{ users @dir(x: {a: 1}) { id } }",
+    ] {
+        assert!(!holds(source), "{source}");
+    }
+    for source in [
+        "{ users(orderBy: {a: ASC, b: DESC}) { id } }",
+        "{ users(where: {a: {gt: 1, lt: 9}}) { id } }",
+        "{ users(list: [{a: 1}, {b: 2, c: 3}]) { id } }",
+        "query($o: JSON = {a: 1, b: 2}) { users(orderBy: $o) { id } }",
+        "{ users { posts @dir(x: {a: 1, b: 2}) { id } } }",
+        "{ ...F } fragment F on Query { users(orderBy: {a: ASC, b: DESC}) { id } }",
+        "subscription { s(filter: {a: 1, b: 2}) { id } }",
+    ] {
+        assert!(holds(source), "{source}");
+    }
+}
