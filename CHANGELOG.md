@@ -337,6 +337,16 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **MCP calls an operation whose return type is a union or an interface (#1546).** A tool's
+  document selected the return type's own scalar fields, looked up among the object types
+  only, so a union or an interface got no selection and the document was refused before
+  execution (*Field of composite type 'WriteResult' must have a selection set*). Under
+  `[fraiseql.mutations] auto_error_union = true` that was every mutation tool. A union now
+  selects `__typename` and each member's leaf fields under an inline fragment, so the result
+  says which member it is; an interface selects its own leaf fields (its implementors' wait
+  on #1612). Fields are selected by the name the schema publishes (an alias, not the stored
+  key), and half-precision and sparse vector fields, which were left out, are selected.
+
 - **An enum whose members store values is filtered, written and served by its member names
   (#1580).** A Python `SHIPPED = "shipped"` exported its name only, so the compiled schema
   had no way to map one to the other: `where: {status: {eq: SHIPPED}}` compared against

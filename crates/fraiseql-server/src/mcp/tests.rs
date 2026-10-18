@@ -27,6 +27,65 @@ mod executor_tests {
         assert!(!is_scalar_field_type(&FieldType::Object("User".to_string())));
     }
 
+    /// #1546: a half-precision and a sparse vector are scalars (`JSON` and `String`), and
+    /// a field is selected by the name the schema publishes, its alias.
+    #[test]
+    fn every_leaf_type_is_selected_by_its_published_name() {
+        assert!(is_scalar_field_type(&FieldType::HalfVector));
+        assert!(is_scalar_field_type(&FieldType::SparseVector));
+        let mut doc = TypeDefinition::new("Doc", "v_doc");
+        doc.fields = vec![
+            FieldDefinition::new("embedding", FieldType::HalfVector),
+            FieldDefinition::new("author", FieldType::String).with_alias("writer"),
+        ];
+        let schema = CompiledSchema {
+            types: vec![doc],
+            ..CompiledSchema::default()
+        };
+        assert_eq!(
+            super::super::executor::scalar_fields_for_type("Doc", &schema),
+            ["embedding", "writer"]
+        );
+    }
+
+    /// #1546: a union is selected as `__typename` and each member's leaf fields under a
+    /// fragment; an interface as its own leaf fields.
+    #[test]
+    fn an_abstract_return_type_gets_a_selection() {
+        use fraiseql_core::schema::{InterfaceDefinition, UnionDefinition};
+
+        use super::super::executor::selection_for_type;
+
+        let mut user = TypeDefinition::new("User", "v_user");
+        user.fields = vec![
+            FieldDefinition::new("id", FieldType::Id),
+            FieldDefinition::new("email", FieldType::String),
+        ];
+        let mut error = TypeDefinition::new("MutationError", "");
+        error.fields = vec![FieldDefinition::new("message", FieldType::String)];
+        let schema = CompiledSchema {
+            types: vec![user, error],
+            unions: vec![UnionDefinition {
+                name:         "WriteResult".to_string(),
+                member_types: vec!["User".to_string(), "MutationError".to_string()],
+                description:  None,
+            }],
+            interfaces: vec![
+                InterfaceDefinition::new("Account")
+                    .with_field(FieldDefinition::new("email", FieldType::String)),
+            ],
+            ..CompiledSchema::default()
+        };
+
+        assert_eq!(
+            selection_for_type("WriteResult", &schema),
+            " { __typename ... on User { id email } ... on MutationError { message } }"
+        );
+        assert_eq!(selection_for_type("Account", &schema), " { email }");
+        assert_eq!(selection_for_type("User", &schema), " { id email }");
+        assert_eq!(selection_for_type("String", &schema), "");
+    }
+
     /// One query `users(filter: JSON, limit: Int)` returning `User { id name }`.
     fn schema() -> CompiledSchema {
         let mut users = QueryDefinition::new("users", "User");

@@ -16,8 +16,8 @@
 //! stay `conflict` / 409 (pinned here, so splitting them later is a visible change).
 //!
 //! The typed error exists only for a mutation returning a union or interface with one error
-//! member. `/graphql` serves it; REST mounts no route for such a mutation
-//! (`rest/resource/mod.rs`), and MCP cannot call one (#1546).
+//! member. `/graphql` serves it, and MCP since #1546 (`mcp_abstract_returns_e2e_pg`); REST
+//! mounts no route for such a mutation (`rest/resource/mod.rs`).
 //!
 //! **Execution engine:** `PostgreSQL` · **Infrastructure:** `DATABASE_URL` ·
 //! **Parallelism:** creates and drops its own `p1531_identifier` schema → run

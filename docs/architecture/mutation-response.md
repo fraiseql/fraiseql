@@ -180,8 +180,9 @@ direction is not recoverable from anything structured (its localized message is 
 difference, and `lc_messages` is superuser-only).
 
 The member must declare a field to carry the entry: the synthesized `MutationError` has
-`errors` (JSON). A declared error type adds `errors` the same way. REST does not reach this path
-(it mounts no route for a union-returning mutation), MCP cannot call one (#1546), and gRPC's
+`errors` (JSON). A declared error type adds `errors` the same way. MCP serves it: a tool for a
+union-returning mutation selects `__typename` and each member's fields (#1546). REST does not
+reach this path (it mounts no route for a union-returning mutation), and gRPC's
 `MutationResponse` carries `success`, `id` and `error` only.
 
 A mutation with no error member, or with several, keeps the top-level

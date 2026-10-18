@@ -184,13 +184,7 @@ pub(crate) fn build_operation(
         format!("({})", call_args.join(", "))
     };
 
-    let fields = scalar_fields_for_type(operation.return_type(), schema);
-    let fields_str = if fields.is_empty() {
-        // Scalar return type — no field selection needed
-        String::new()
-    } else {
-        format!(" {{ {} }}", fields.join(" "))
-    };
+    let fields_str = selection_for_type(operation.return_type(), schema);
 
     let op_type = if operation.is_mutation() {
         "mutation"
@@ -258,10 +252,57 @@ pub(crate) fn is_valid_graphql_name(name: &str) -> bool {
     }
 }
 
-/// Get all scalar field names for a given type.
+/// The selection set a tool's document selects on its return type: ` { … }`, or nothing for
+/// a scalar or an enum, which take none.
 ///
-/// Walks the `TypeDefinition.fields` and returns names of fields whose type
-/// is a scalar (not `Object`, not `List(Object)`).
+/// An object type selects its leaf fields. A union selects `__typename` and each member's
+/// leaf fields under an inline fragment, so the tool's result says which member it is and
+/// carries that member's fields; an interface selects its own leaf fields (#1546). Looking
+/// the name up among the object types alone left an abstract type with no selection, which
+/// GraphQL refuses before execution, so no tool returning one (every mutation, under
+/// `auto_error_union`) could run.
+///
+/// An interface selects neither `__typename` nor its implementors' fragments: a read typed
+/// as an interface answers `__typename` with the interface's own name and an inline
+/// fragment as a key of its own (#1612), so either would put a wrong value in the result.
+#[must_use]
+pub fn selection_for_type(type_name: &str, schema: &CompiledSchema) -> String {
+    let fragments = |members: &mut dyn Iterator<Item = &str>| -> String {
+        members
+            .filter_map(|member| {
+                let fields = scalar_fields_for_type(member, schema);
+                (!fields.is_empty()).then(|| format!("... on {member} {{ {} }}", fields.join(" ")))
+            })
+            .collect::<Vec<_>>()
+            .join(" ")
+    };
+    if let Some(union) = schema.unions.iter().find(|u| u.name == type_name) {
+        let members = fragments(&mut union.member_types.iter().map(String::as_str));
+        return format!(" {{ __typename {members} }}");
+    }
+    if let Some(interface) = schema.find_interface(type_name) {
+        let own: Vec<&str> = interface
+            .fields
+            .iter()
+            .filter(|f| is_scalar_field_type(&f.field_type))
+            .map(fraiseql_core::schema::FieldDefinition::output_name)
+            .collect();
+        return if own.is_empty() {
+            String::new()
+        } else {
+            format!(" {{ {} }}", own.join(" "))
+        };
+    }
+    let fields = scalar_fields_for_type(type_name, schema);
+    if fields.is_empty() {
+        String::new()
+    } else {
+        format!(" {{ {} }}", fields.join(" "))
+    }
+}
+
+/// The leaf fields of the object type `type_name`, by the names the schema publishes
+/// (an aliased field's alias), or none when it is not an object type.
 #[must_use]
 pub fn scalar_fields_for_type(type_name: &str, schema: &CompiledSchema) -> Vec<String> {
     let Some(type_def) = schema.types.iter().find(|t| t.name == type_name) else {
@@ -272,7 +313,7 @@ pub fn scalar_fields_for_type(type_name: &str, schema: &CompiledSchema) -> Vec<S
         .fields
         .iter()
         .filter(|f| is_scalar_field_type(&f.field_type))
-        .map(|f| f.name.to_string())
+        .map(|f| f.output_name().to_string())
         .collect()
 }
 
@@ -292,6 +333,8 @@ pub(crate) fn is_scalar_field_type(field_type: &FieldType) -> bool {
         | FieldType::Decimal
         | FieldType::Vector
         | FieldType::BitVector
+        | FieldType::HalfVector
+        | FieldType::SparseVector
         | FieldType::Scalar(_)
         | FieldType::Enum(_) => true,
         FieldType::List(inner) => is_scalar_field_type(inner),

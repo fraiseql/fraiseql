@@ -1952,6 +1952,9 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		// HS256 Bearer tokens authenticate MCP calls (auth parity with /graphql).
 		// Recreates core.tb_entity_change_log → serial, changelog-owning binary.
 		"cargo test -p fraiseql-server --features mcp --test mcp_transport_stamp_e2e_pg -- --test-threads=1",
+		// #1546: a tool whose operation returns a union, an interface or an auto_error_union
+		// result is called through the MCP service against PostgreSQL.
+		"cargo test -p fraiseql-server --features mcp --test mcp_abstract_returns_e2e_pg -- --test-threads=1",
 		// #390: every authenticated write path (graphql + REST) records a derived,
 		// unforgeable actor in the change-log; unauthenticated writes are refused, not
 		// recorded unattributed. Recreates core.tb_entity_change_log → serial, and must
