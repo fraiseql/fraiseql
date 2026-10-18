@@ -468,6 +468,15 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **An enum operand passed as a variable inside an inline `where:` filters the rows
+  (#1610).** `query($s: OrderStatus) { orders(where: {status: {eq: $s}}) { id } }` was
+  refused before execution (*`where.status.eq` has enum type `OrderStatus`, but the document
+  wrote an object*): the walk over a document's literals read the nested variable reference
+  as an object at an enum position. A reference nested in a literal is now left to the
+  variable's own check, which names the variable (`$s`) for a value no member names. A
+  `{"$var": …}` object anywhere else (a variable's value, a REST or MCP payload) is data, and
+  is still refused at an enum position.
+
 - **An MCP tool selects only the fields its caller may read (#1615).** A tool's document
   selected every leaf field of its return type, so a caller without a field's
   `requires_scope` (with the default `on_deny = "reject"`) had the whole call refused, and an

@@ -539,3 +539,40 @@ fn a_string_that_is_not_a_uuid_is_refused_at_a_uuid_argument() {
         "a UUID passes"
     );
 }
+
+/// #1610: in a document literal, a nested `{"$var": …}` is a variable reference, left to the
+/// variable's own check; as data (a payload, a variable's value) the same object is an object
+/// written at an enum position, and is refused.
+#[test]
+fn a_variable_marker_is_a_reference_only_in_a_document_literal() {
+    let schema = enum_schema();
+    let marker = json!({"status": {"$var": "s"}});
+    let reference = literal("input", "object", &marker.to_string());
+
+    assert!(
+        validate_enum_argument_literals(&schema, "Query.orders", &input_arg(), &[reference])
+            .is_ok(),
+        "a nested variable reference in a literal is the variable's to adjudicate"
+    );
+    let payload = json!({"input": marker});
+    assert!(
+        message(validate_mutation_argument_values(
+            &schema,
+            "Mutation.createOrder",
+            &input_arg(),
+            Some(&payload)
+        ))
+        .contains("OrderStatus"),
+        "a marker-shaped object in a payload is data, refused at an enum position"
+    );
+    assert!(
+        message(validate_enum_variable_values(
+            &schema,
+            None,
+            &[var("i", "CreateOrderInput", true)],
+            Some(&json!({"i": marker}))
+        ))
+        .contains("OrderStatus"),
+        "a marker-shaped object in a variable's value is data, refused at an enum position"
+    );
+}

@@ -510,9 +510,14 @@ pub fn validate_mutation_argument_values(
 #[derive(Debug, Clone, Copy)]
 struct Rules {
     /// Enum membership.
-    enums: bool,
+    enums:   bool,
     /// Built-in scalars under input objects and lists, and undeclared input keys.
-    write: bool,
+    write:   bool,
+    /// The value is a document literal, where a `{"$var": …}` object is a variable
+    /// reference: its value is adjudicated against the variable's own declaration
+    /// ([`validate_enum_variable_values`]), so the walk leaves it (#1610). Anywhere else
+    /// (a variable's value, a resolved map, a REST payload) such an object is data.
+    literal: bool,
 }
 
 impl Rules {
@@ -520,19 +525,33 @@ impl Rules {
     /// document and variable walks' question, which can name the variable a value came
     /// from; a resolved value cannot.
     const LIST_ITEMS: Self = Self {
-        enums: false,
-        write: false,
+        enums:   false,
+        write:   false,
+        literal: false,
     };
-    /// The read paths' document and variable walks: enum membership (module header).
+    /// The read paths' document literals: enum membership (module header).
+    const LITERAL: Self = Self {
+        enums:   true,
+        write:   false,
+        literal: true,
+    };
+    /// The read paths' variable values: enum membership.
     const READ: Self = Self {
-        enums: true,
-        write: false,
+        enums:   true,
+        write:   false,
+        literal: false,
     };
     /// A mutation's arguments: everything (#1528).
     const WRITE: Self = Self {
-        enums: true,
-        write: true,
+        enums:   true,
+        write:   true,
+        literal: false,
     };
+
+    /// Whether `value` is a variable reference this walk leaves to the variable's own check.
+    fn leaves(self, value: &Value) -> bool {
+        self.literal && value_json::variable_name(value).is_some()
+    }
 }
 
 /// Adjudicate enum membership for the **literals** a document writes at a field's
@@ -561,7 +580,7 @@ pub fn validate_enum_argument_literals(
         if value_json::variable_name(&value).is_some() {
             continue;
         }
-        walk_field_type(schema, Rules::READ, field_label, &arg.name, &def.arg_type, &value, 0)?;
+        walk_field_type(schema, Rules::LITERAL, field_label, &arg.name, &def.arg_type, &value, 0)?;
     }
     Ok(())
 }
@@ -650,7 +669,7 @@ fn walk_field_type(
     value: &Value,
     depth: usize,
 ) -> Result<()> {
-    if value.is_null() || depth > MAX_WALK_DEPTH {
+    if value.is_null() || depth > MAX_WALK_DEPTH || rules.leaves(value) {
         return Ok(());
     }
     match declared {
@@ -692,7 +711,7 @@ fn walk_type_ref(
     value: &Value,
     depth: usize,
 ) -> Result<()> {
-    if depth > MAX_WALK_DEPTH {
+    if depth > MAX_WALK_DEPTH || rules.leaves(value) {
         return Ok(());
     }
     let declared = declared.trim();

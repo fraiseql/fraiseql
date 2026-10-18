@@ -896,3 +896,45 @@ async fn a_null_item_in_a_filter_operand_list_is_refused() {
     names.sort_unstable();
     assert_eq!(names, ["second", "third"], "{served}");
 }
+
+// ── #1610: an enum operand passed as a variable inside an inline `where:` ──────────────
+
+/// A variable nested in an inline literal is adjudicated against its own declaration, as a
+/// whole-argument variable is. The literal walk read the nested `{"$var": "s"}` marker as an
+/// object written at an enum position and refused the request.
+#[tokio::test]
+async fn an_enum_operand_passed_as_a_nested_variable_filters_the_rows() {
+    let Some(url) = fraiseql_test_support::try_database_url() else {
+        eprintln!("skipping #1610: DATABASE_URL not set");
+        return;
+    };
+    let dir = TempDir::new().unwrap();
+    let compiled = orders(&url, dir.path()).await;
+
+    let eq = query(
+        &compiled,
+        &url,
+        "query($s: OrderStatus) { orders(where: {status: {eq: $s}}) { id } }",
+        Some(&json!({ "s": "SHIPPED" })),
+    );
+    let in_list = query(
+        &compiled,
+        &url,
+        "query($s: OrderStatus) { orders(where: {status: {in: [PENDING, $s]}}) { id } }",
+        Some(&json!({ "s": "LOST" })),
+    );
+    let not_a_member = query(
+        &compiled,
+        &url,
+        "query($s: OrderStatus) { orders(where: {status: {eq: $s}}) { id } }",
+        Some(&json!({ "s": "BANANA" })),
+    );
+
+    assert_eq!(ids(&eq), ["1"], "{eq}");
+    assert_eq!(ids(&in_list), ["2", "3"], "{in_list}");
+    let message = not_a_member["errors"][0]["message"].as_str().unwrap_or_default();
+    assert!(
+        message.contains("$s") && message.contains("OrderStatus"),
+        "a value no member names is refused, naming the variable: {not_a_member}"
+    );
+}
