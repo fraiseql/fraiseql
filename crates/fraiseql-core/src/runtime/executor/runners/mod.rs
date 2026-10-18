@@ -9,6 +9,7 @@ mod aggregate_gates;
 mod aggregate_hierarchy;
 pub(super) mod mutation;
 pub(super) mod query;
+mod query_abstract;
 pub(super) mod query_composed;
 pub(super) mod query_function;
 pub(super) mod query_nested;

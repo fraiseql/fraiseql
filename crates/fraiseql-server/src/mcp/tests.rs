@@ -57,6 +57,7 @@ mod executor_tests {
         use super::super::executor::selection_for_type;
 
         let mut user = TypeDefinition::new("User", "v_user");
+        user.implements = vec!["Account".to_string()];
         user.fields = vec![
             FieldDefinition::new("id", FieldType::Id),
             FieldDefinition::new("email", FieldType::String),
@@ -81,7 +82,11 @@ mod executor_tests {
             selection_for_type("WriteResult", &schema),
             " { __typename ... on User { id email } ... on MutationError { message } }"
         );
-        assert_eq!(selection_for_type("Account", &schema), " { email }");
+        // #1612: an interface says which implementor a result is, and carries its fields.
+        assert_eq!(
+            selection_for_type("Account", &schema),
+            " { __typename email ... on User { id email } }"
+        );
         assert_eq!(selection_for_type("User", &schema), " { id email }");
         assert_eq!(selection_for_type("String", &schema), "");
     }

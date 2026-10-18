@@ -404,6 +404,14 @@ class User:
     email: str
 ```
 
+A query returning an interface (or a union) answers each row as the object type it is:
+`__typename` names that type, and the inline fragments it satisfies are applied
+(`{ nodes { id ... on User { email } } }`). The type is the one the row's data names under
+`__typename`, or, when the data names none, the one implementor whose `sql_source` the query
+reads; a view holding rows of several types must store `__typename` in each row's data. A
+field reached through a fragment is gated as on its own type: a `requires_scope` field is
+refused or masked per its `on_deny`, and a policy-gated (`authorize`) field refuses the read.
+
 ---
 
 ### `@fraiseql.scalar`

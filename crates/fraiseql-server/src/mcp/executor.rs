@@ -257,14 +257,11 @@ pub(crate) fn is_valid_graphql_name(name: &str) -> bool {
 ///
 /// An object type selects its leaf fields. A union selects `__typename` and each member's
 /// leaf fields under an inline fragment, so the tool's result says which member it is and
-/// carries that member's fields; an interface selects its own leaf fields (#1546). Looking
+/// carries that member's fields; an interface selects `__typename`, its own leaf fields and
+/// each implementor's under an inline fragment, for the same reason (#1546, #1612). Looking
 /// the name up among the object types alone left an abstract type with no selection, which
 /// GraphQL refuses before execution, so no tool returning one (every mutation, under
 /// `auto_error_union`) could run.
-///
-/// An interface selects neither `__typename` nor its implementors' fragments: a read typed
-/// as an interface answers `__typename` with the interface's own name and an inline
-/// fragment as a key of its own (#1612), so either would put a wrong value in the result.
 #[must_use]
 pub fn selection_for_type(type_name: &str, schema: &CompiledSchema) -> String {
     let fragments = |members: &mut dyn Iterator<Item = &str>| -> String {
@@ -287,11 +284,14 @@ pub fn selection_for_type(type_name: &str, schema: &CompiledSchema) -> String {
             .filter(|f| is_scalar_field_type(&f.field_type))
             .map(fraiseql_core::schema::FieldDefinition::output_name)
             .collect();
-        return if own.is_empty() {
-            String::new()
-        } else {
-            format!(" {{ {} }}", own.join(" "))
-        };
+        let implementors = fragments(
+            &mut schema
+                .types
+                .iter()
+                .filter(|t| t.implements.contains(&interface.name))
+                .map(|t| t.name.as_str()),
+        );
+        return format!(" {{ __typename {} {implementors} }}", own.join(" "));
     }
     let fields = scalar_fields_for_type(type_name, schema);
     if fields.is_empty() {

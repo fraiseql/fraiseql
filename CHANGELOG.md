@@ -433,9 +433,21 @@ disagreed, and the promise was the part that was wrong.
   execution (*Field of composite type 'WriteResult' must have a selection set*). Under
   `[fraiseql.mutations] auto_error_union = true` that was every mutation tool. A union now
   selects `__typename` and each member's leaf fields under an inline fragment, so the result
-  says which member it is; an interface selects its own leaf fields (its implementors' wait
-  on #1612). Fields are selected by the name the schema publishes (an alias, not the stored
+  says which member it is; an interface selects `__typename`, its own leaf fields and each
+  implementor's under an inline fragment (#1612, below). Fields are selected by the name the schema publishes (an alias, not the stored
   key), and half-precision and sparse vector fields, which were left out, are selected.
+
+- **A read typed as an interface or a union answers each row as its object type (#1612).**
+  `{ accounts { __typename email ... on User { id } } }` over `accounts: [Account]` answered
+  `__typename: "Account"` (an interface, which § 3.7 forbids as a runtime type) and the
+  fragment as a key of its own, never reading `id`. Each row is now of the type its data
+  names under `__typename`, or, when it names none, of the one implementor (or member) whose
+  view the query reads; a row neither says is refused, naming what to store. `__typename`
+  names that type and the inline fragments it satisfies are applied. A field reached through
+  a fragment is gated as on its own type: a `requires_scope` field is refused or masked per
+  its `on_deny` on the rows of that type, and a policy-gated field (#423) refuses the read, as
+  a nested one does. Both the authenticated and the anonymous GraphQL paths read this way
+  (REST and gRPC mount no route for an abstract return type).
 
 - **An enum whose members store values is filtered, written and served by its member names
   (#1580).** A Python `SHIPPED = "shipped"` exported its name only, so the compiled schema

@@ -543,20 +543,36 @@ impl QueryRunner {
             root_fields,
         );
 
+        // 0b. #1612: a read typed as an interface or a union is a read of each object type
+        //     its rows may be (`query_abstract`).
+        let abstract_read =
+            super::query_abstract::AbstractRead::of(&self.ctx.schema, &query_match.query_def);
+        if let Some(read) = &abstract_read {
+            read.refuse_gated_fields(&self.ctx.schema, root_fields)?;
+        }
+
         // 3. Create execution plan
         let plan = self.ctx.planner.plan(&query_match)?;
 
         // 3a. Field-level RBAC at every level of the selection, each against its own type
         //     and by field name (`query_nested`). Before the read, so a `Reject` anywhere
         //     in the tree never reaches the database.
-        let selection_access = super::query_nested::SelectionAccess::classify(
-            &self.ctx.schema,
-            &query_match.query_def.return_type,
-            root_fields,
-            plan.projection_fields.clone(),
-            Some(security_context),
-            super::query_nested::LevelAuthz::from_config(&self.ctx.config, variables),
-        )?;
+        let selection_access = match &abstract_read {
+            Some(read) => read.classify(
+                &self.ctx.schema,
+                root_fields,
+                Some(security_context),
+                super::query_nested::LevelAuthz::from_config(&self.ctx.config, variables),
+            )?,
+            None => super::query_nested::SelectionAccess::classify(
+                &self.ctx.schema,
+                &query_match.query_def.return_type,
+                root_fields,
+                plan.projection_fields.clone(),
+                Some(security_context),
+                super::query_nested::LevelAuthz::from_config(&self.ctx.config, variables),
+            )?,
+        };
 
         // 3b. The nested levels whose type scopes its rows, each read with that type's
         //     predicate (`query_nested`). None: the read is flat, as it always was.
@@ -731,7 +747,7 @@ impl QueryRunner {
         let projection_hint = self.build_projection_hint(
             &query_match,
             &plan,
-            gated_present || !nested_reads.is_empty(),
+            gated_present || !nested_reads.is_empty() || abstract_read.is_some(),
             order_by_clauses.as_ref().and_then(|c| c.first()),
         )?;
 
@@ -813,7 +829,10 @@ impl QueryRunner {
         // The rows the dynamic field authorizer (11c) reads: kept only on the branch that needs
         // them, so the other can give its rows up to the projector instead of cloning them.
         let mut authorizer_rows = None;
-        let mut projected = if composed || gated_present {
+        let mut projected = if let Some(read) = &abstract_read {
+            // Each row as the object type it is, its own masks applied (#1612).
+            read.project(&results, root_fields, &self.ctx.schema, &selection_access)?
+        } else if composed || gated_present {
             // Stored documents with their gated levels merged in, or read whole because a
             // policy-gated field bypassed the SQL projection: projected the way a nested
             // list element always was, at every depth — aliases, recasing, `__typename`, a
@@ -1099,6 +1118,13 @@ impl QueryRunner {
             root_fields,
             "unauthenticated query",
         )?;
+        // #1612: a read typed as an interface or a union is a read of each object type its
+        // rows may be (`query_abstract`), gated fields through any of them refused as above.
+        let abstract_read =
+            super::query_abstract::AbstractRead::of(&self.ctx.schema, &query_match.query_def);
+        if let Some(read) = &abstract_read {
+            read.refuse_gated_fields(&self.ctx.schema, root_fields)?;
+        }
 
         // 2. Create execution plan
         let plan = self.ctx.planner.plan(&query_match)?;
@@ -1109,14 +1135,22 @@ impl QueryRunner {
         //     apply_field_rbac_filtering. Classifying here (not after the read) means a
         //     Reject never reaches the database. At every level, as the authenticated
         //     path does (`query_nested`).
-        let selection_access = super::query_nested::SelectionAccess::classify(
-            &self.ctx.schema,
-            &query_match.query_def.return_type,
-            root_fields,
-            plan.projection_fields.clone(),
-            None,
-            super::query_nested::LevelAuthz::from_config(&self.ctx.config, variables),
-        )?;
+        let selection_access = match &abstract_read {
+            Some(read) => read.classify(
+                &self.ctx.schema,
+                root_fields,
+                None,
+                super::query_nested::LevelAuthz::from_config(&self.ctx.config, variables),
+            )?,
+            None => super::query_nested::SelectionAccess::classify(
+                &self.ctx.schema,
+                &query_match.query_def.return_type,
+                root_fields,
+                plan.projection_fields.clone(),
+                None,
+                super::query_nested::LevelAuthz::from_config(&self.ctx.config, variables),
+            )?,
+        };
         let access = &selection_access.root;
 
         // No nested level can need its type's predicate here: a policy refused this
@@ -1235,7 +1269,7 @@ impl QueryRunner {
         let projection_hint = self.build_projection_hint(
             &query_match,
             &plan,
-            false,
+            abstract_read.is_some(),
             order_by_clauses.as_ref().and_then(|c| c.first()),
         )?;
 
@@ -1286,35 +1320,41 @@ impl QueryRunner {
 
         // 4. Project results — masked fields stay in the projection so the response still carries
         //    the key in its requested position, then get nulled below (same as the authenticated
-        //    path).
-        let projector = ResultProjector::new(access.projected.clone())
-            // #1192: a `String` field whose text parses as JSON must stay a string.
-            .with_declared_scalars(&self.ctx.schema, &query_match.query_def.return_type)
-            .configure_typename_from_selections(
-                &query_match.selections,
+        //    path). A read typed as an interface or a union projects each row as its type, its
+        //    masks applied (#1612).
+        let mut projected = if let Some(read) = &abstract_read {
+            read.project(&results, root_fields, &self.ctx.schema, &selection_access)?
+        } else {
+            let projector = ResultProjector::new(access.projected.clone())
+                // #1192: a `String` field whose text parses as JSON must stay a string.
+                .with_declared_scalars(&self.ctx.schema, &query_match.query_def.return_type)
+                .configure_typename_from_selections(
+                    &query_match.selections,
+                    &query_match.query_def.return_type,
+                );
+            // #1556: moved, not cloned, unless the row cache holds the rows too.
+            let mut projected =
+                projector.project_results_owned(results, query_match.query_def.returns_list)?;
+            // #489: recase + project nested list-of-object fields left raw by SQL projection.
+            crate::runtime::project_nested_lists(
+                &mut projected,
                 &query_match.query_def.return_type,
+                query_match.selections.first().map_or(&[][..], |r| r.nested_fields.as_slice()),
+                &self.ctx.schema,
             );
-        // #1556: moved, not cloned, unless the row cache holds the rows too.
-        let mut projected =
-            projector.project_results_owned(results, query_match.query_def.returns_list)?;
-        // #489: recase + project nested list-of-object fields left raw by SQL projection.
-        crate::runtime::project_nested_lists(
-            &mut projected,
-            &query_match.query_def.return_type,
-            query_match.selections.first().map_or(&[][..], |r| r.nested_fields.as_slice()),
-            &self.ctx.schema,
-        );
 
-        // #912: `__typename` is stripped from the SQL projection at every depth (it
-        //       is a meta-field, not a JSONB key — projecting it emits a literal
-        //       NULL). The root object is stamped by the projector and list elements
-        //       by `project_entity`; nested single objects have no other owner.
-        crate::runtime::stamp_nested_typenames(
-            &mut projected,
-            &query_match.query_def.return_type,
-            query_match.selections.first().map_or(&[][..], |r| r.nested_fields.as_slice()),
-            &self.ctx.schema,
-        );
+            // #912: `__typename` is stripped from the SQL projection at every depth (it
+            //       is a meta-field, not a JSONB key — projecting it emits a literal
+            //       NULL). The root object is stamped by the projector and list elements
+            //       by `project_entity`; nested single objects have no other owner.
+            crate::runtime::stamp_nested_typenames(
+                &mut projected,
+                &query_match.query_def.return_type,
+                query_match.selections.first().map_or(&[][..], |r| r.nested_fields.as_slice()),
+                &self.ctx.schema,
+            );
+            projected
+        };
 
         // 4a. #743: null out fields denied to the anonymous caller under on_deny=Mask.
         selection_access.null_masked(
