@@ -281,4 +281,42 @@ public class EnumTest {
         @GraphQLField
         public String status;
     }
+
+    // =========================================================================
+    // EXPORTED VALUES (#1611)
+    // =========================================================================
+
+    @Test
+    @DisplayName("A member is exported with the value it maps to, unless the value is its name")
+    void testEnumValuesAreExported() {
+        Map<String, String> values = new LinkedHashMap<>();
+        values.put("PENDING", "pending");
+        values.put("IN_TRANSIT", "transit");
+        values.put("SHIPPED", "SHIPPED");
+        registry.registerEnum("OrderStatus", values, null);
+
+        var exported = SchemaFormatter.formatSchema(registry).get("enums").get(0).get("values");
+
+        assertEquals(
+            "[{\"name\":\"PENDING\",\"value\":\"pending\"},"
+                + "{\"name\":\"IN_TRANSIT\",\"value\":\"transit\"},{\"name\":\"SHIPPED\"}]",
+            exported.toString());
+    }
+
+    @Test
+    @DisplayName("An integer value is exported as a number; another type is refused, named")
+    void testIntegerEnumValuesAndRefusal() {
+        Map<String, Object> priority = new LinkedHashMap<>();
+        priority.put("LOW", 1);
+        priority.put("HIGH", 3L);
+        registry.registerEnum("Priority", priority, null);
+
+        var exported = SchemaFormatter.formatSchema(registry).get("enums").get(0).get("values");
+        assertEquals("[{\"name\":\"LOW\",\"value\":1},{\"name\":\"HIGH\",\"value\":3}]",
+            exported.toString());
+
+        var refused = assertThrows(IllegalArgumentException.class,
+            () -> registry.registerEnum("Ratio", Map.of("HALF", 0.5), null));
+        assertTrue(refused.getMessage().contains("Ratio.HALF"), refused.getMessage());
+    }
 }

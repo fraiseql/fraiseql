@@ -186,7 +186,8 @@
       ],
       "unsupported": {
         "subscriptions": "the SDK ships no subscription authoring surface at all \u2014 no builder, no decorator, no registry entry. Five of the eleven SDKs have one (Python, TypeScript, Go, PHP, Java); adding a sixth is a feature, not a key rename, so the gap is declared rather than papered over (#1024).",
-        "fact_tables": "the SDK has no fact-table authoring surface \u2014 its only `fact_table` matches are the mutation key `invalidates_fact_tables` (AF 1). Fact-table authoring is a feature, not a key rename."
+        "fact_tables": "the SDK has no fact-table authoring surface \u2014 its only `fact_table` matches are the mutation key `invalidates_fact_tables` (AF 1). Fact-table authoring is a feature, not a key rename.",
+        "enum_values": "a Dart enum member carries no stored value its serializers write (`enumType` takes the member names), so every member is stored as its name"
       },
       "container": "dart:stable",
       "container_env": [
@@ -229,7 +230,8 @@
         "function_backed_query": "the Rust SDK is field-level-RBAC focused: it registers types and their field scopes and ships no builder for this construct. Declared alongside `function_definition` of necessity: a function-backed query and the function it names are one declaration the compiler refuses either half of, so an SDK that cannot author a function cannot author the query either",
         "fact_tables": "the SDK has no fact-table authoring surface \u2014 its only `fact_table` matches are the mutation key `invalidates_fact_tables` (AF 1). Fact-table authoring is a feature, not a key rename.",
         "mutation_argument_localized": "the Rust SDK is field-level-RBAC focused: it registers types and their field scopes and ships no builder for this construct",
-        "list_arguments": "the SDK registers types only and ships no query builder, so it has no argument to declare a list on; `list_fields` holds it to the same rule for a type's fields"
+        "list_arguments": "the SDK registers types only and ships no query builder, so it has no argument to declare a list on; `list_fields` holds it to the same rule for a type's fields",
+        "enum_values": "the Rust SDK is field-level-RBAC focused and ships no enum builder"
       }
     }
   }

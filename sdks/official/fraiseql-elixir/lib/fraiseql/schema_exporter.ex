@@ -170,7 +170,7 @@ defmodule FraiseQL.SchemaExporter do
   defp enum_to_map(%FraiseQL.EnumDefinition{} = e) do
     base = %{
       "name" => e.name,
-      "values" => Enum.map(e.values, &%{"name" => &1})
+      "values" => Enum.map(e.values, &maybe_put(%{"name" => &1.name}, "value", &1.value))
     }
 
     maybe_put(base, "description", e.description)

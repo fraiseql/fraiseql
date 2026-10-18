@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Text.Json.Serialization;
 using FraiseQL.Attributes;
 using FraiseQL.Models;
 
@@ -245,18 +246,41 @@ public sealed class SchemaRegistry
         }
     }
 
-    /// <summary>Registers a GraphQL enum type.</summary>
-    /// <param name="name">The enum type name.</param>
-    /// <param name="values">The member names, in declaration order.</param>
+    /// <summary>Registers a C# enum as a GraphQL enum type named for it (#1611).</summary>
+    /// <remarks>
+    /// Each member is stored as <c>System.Text.Json</c> writes it: its integer, or, when the
+    /// enum carries <c>[JsonConverter(typeof(JsonStringEnumConverter))]</c>, its name (or its
+    /// <c>[JsonStringEnumMemberName]</c>). A request names the member; the database stores and
+    /// compares the value; a stored value is served as its member's name. A member whose value
+    /// is its name is exported without one.
+    /// </remarks>
+    /// <typeparam name="TEnum">The enum type.</typeparam>
     /// <param name="description">Optional description.</param>
-    public void RegisterEnum(string name, IReadOnlyList<string> values, string? description = null)
+    public void RegisterEnum<TEnum>(string? description = null)
+        where TEnum : struct, Enum
     {
+        var type = typeof(TEnum);
+        var asStrings = type.GetCustomAttributes(typeof(JsonConverterAttribute), inherit: false)
+            .OfType<JsonConverterAttribute>()
+            .Any(a => a.ConverterType is { } converter
+                && (converter == typeof(JsonStringEnumConverter)
+                    || (converter.IsGenericType
+                        && converter.GetGenericTypeDefinition() == typeof(JsonStringEnumConverter<>))));
+        var values = Enum.GetValues<TEnum>()
+            .Select(member =>
+            {
+                var name = member.ToString();
+                object? stored = asStrings
+                    ? type.GetField(name)!.GetCustomAttributes(typeof(JsonStringEnumMemberNameAttribute), false)
+                        .OfType<JsonStringEnumMemberNameAttribute>().FirstOrDefault()?.Name ?? name
+                    : Convert.ToInt64(member, System.Globalization.CultureInfo.InvariantCulture);
+                return new IntermediateEnumValue(name, Equals(stored, name) ? null : stored);
+            })
+            .ToList()
+            .AsReadOnly();
         lock (_lock)
         {
-            _enums.Add(new IntermediateEnum(
-                name,
-                values.Select(v => new IntermediateEnumValue(v)).ToList().AsReadOnly(),
-                description));
+            _enums.Add(new IntermediateEnum(type.Name, values, description));
         }
     }
 

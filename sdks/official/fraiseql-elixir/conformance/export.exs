@@ -145,6 +145,8 @@ defmodule Conformance.FullSchema do
   end
 
   fraiseql_enum("OrderStatus", values: ["PENDING", "SHIPPED", "CANCELLED"])
+  fraiseql_enum("Priority", values: [LOW: 1, HIGH: 3])
+  fraiseql_enum("Delivery", values: [IN_TRANSIT: "transit", ARRIVED: "ARRIVED"])
 
   fraiseql_query(:users,
     return_type: "User",

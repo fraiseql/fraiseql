@@ -107,16 +107,16 @@ final class StaticAPI
     }
 
     /**
-     * Register a GraphQL enum type.
+     * Register a PHP enum as a GraphQL enum type: each case a member, stored as its backed
+     * value (or its name for a pure enum). See {@see SchemaRegistry::registerEnum()}.
      *
-     * @param string $name Enum type name (e.g. 'OrderStatus')
-     * @param list<string> $values Enum member names, in declaration order
+     * @param class-string<\UnitEnum> $enum The enum class (e.g. `OrderStatus::class`)
      * @param string|null $description Optional enum description
      * @return void
      */
-    public static function enum(string $name, array $values, ?string $description = null): void
+    public static function enum(string $enum, ?string $description = null): void
     {
-        SchemaRegistry::getInstance()->registerEnum($name, $values, $description);
+        SchemaRegistry::getInstance()->registerEnum($enum, $description);
     }
 
     /**

@@ -229,6 +229,31 @@
           "name": "CANCELLED"
         }
       ]
+    },
+    {
+      "name": "Priority",
+      "values": [
+        {
+          "name": "LOW",
+          "value": 1
+        },
+        {
+          "name": "HIGH",
+          "value": 3
+        }
+      ]
+    },
+    {
+      "name": "Delivery",
+      "values": [
+        {
+          "name": "IN_TRANSIT",
+          "value": "transit"
+        },
+        {
+          "name": "ARRIVED"
+        }
+      ]
     }
   ],
   "input_types": [

@@ -53,7 +53,7 @@ final class SchemaRegistry
     /**
      * Registered GraphQL enum types, keyed by name.
      *
-     * @var array<string, array{name: string, values: list<array{name: string}>, description: string|null}>
+     * @var array<string, array{name: string, values: list<array{name: string, value?: int|string}>, description: string|null}>
      */
     private array $enums = [];
 
@@ -359,29 +359,46 @@ final class SchemaRegistry
     }
 
     /**
-     * Register a GraphQL enum type.
+     * Register a PHP enum as a GraphQL enum type, named for the enum's short class name.
      *
-     * @param string $name Enum type name (e.g. "OrderStatus")
-     * @param list<string> $values Enum member names, in declaration order
+     * Each case is a member, stored as the value PHP gives it (#1611): a backed enum's
+     * string or integer, the case name for a pure enum, and a member whose value is its
+     * name is exported without one. A request names `SHIPPED`; the database stores and
+     * compares the value; a stored value is served as its member's name.
+     *
+     * @param class-string<\UnitEnum> $enum The enum class (e.g. `OrderStatus::class`)
      * @param string|null $description Optional enum description
      * @return self Fluent interface
      *
-     * @throws FraiseQLException If an enum with this name is already registered
+     * @throws FraiseQLException If `$enum` is not an enum, or its name is already registered
      */
-    public function registerEnum(string $name, array $values, ?string $description = null): self
+    public function registerEnum(string $enum, ?string $description = null): self
     {
+        if (!enum_exists($enum)) {
+            throw new FraiseQLException(
+                "registerEnum() takes a PHP enum class (`OrderStatus::class` for "
+                . "`enum OrderStatus: string { case SHIPPED = 'shipped'; }`); '{$enum}' is not one.",
+            );
+        }
+        $name = (new \ReflectionEnum($enum))->getShortName();
         if (isset($this->enums[$name])) {
             throw new FraiseQLException(
                 "Enum '{$name}' is already registered. Each name must be unique within a schema.",
             );
         }
 
+        $values = [];
+        foreach ($enum::cases() as $case) {
+            $member = ['name' => $case->name];
+            if ($case instanceof \BackedEnum && $case->value !== $case->name) {
+                $member['value'] = $case->value;
+            }
+            $values[] = $member;
+        }
+
         $this->enums[$name] = [
             'name' => $name,
-            'values' => array_values(array_map(
-                static fn (string $value): array => ['name' => $value],
-                $values,
-            )),
+            'values' => $values,
             'description' => $description,
         ];
 
@@ -391,7 +408,7 @@ final class SchemaRegistry
     /**
      * Get all registered enum types.
      *
-     * @return array<string, array{name: string, values: list<array{name: string}>, description: string|null}>
+     * @return array<string, array{name: string, values: list<array{name: string, value?: int|string}>, description: string|null}>
      */
     public function getAllEnums(): array
     {

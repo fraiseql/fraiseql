@@ -388,18 +388,47 @@ defmodule FraiseQL.EnumDefinition do
   ## Fields
 
     * `:name` — the GraphQL enum type name, e.g. `"OrderStatus"`
-    * `:values` — the member names, in declaration order
+    * `:values` — the members, in declaration order: each its name and the value it is
+      stored as (`nil` when it is stored as its name), see `members!/2`
     * `:description` — optional human-readable description
   """
 
   @enforce_keys [:name, :values]
   defstruct [:name, :values, description: nil]
 
+  @type member :: %{name: String.t(), value: String.t() | integer() | nil}
+
   @type t :: %__MODULE__{
           name: String.t(),
-          values: [String.t()],
+          values: [member()],
           description: String.t() | nil
         }
+
+  @doc """
+  The members `values` declares (#1611): a list of names, each stored as its name, or a
+  keyword list mapping each member to the value it is stored as, a string or an integer,
+  as Ecto.Enum writes `values: [low: 1, high: 3]`. A member whose value is its name is
+  stored as its name.
+
+  Raises `ArgumentError` for a value that is neither a string nor an integer, naming the
+  member.
+  """
+  @spec members!(String.t(), [String.t() | atom() | {atom() | String.t(), term()}]) :: [member()]
+  def members!(enum_name, values) do
+    Enum.map(values, fn
+      {member, value} when is_binary(value) or is_integer(value) ->
+        name = to_string(member)
+        %{name: name, value: if(value == name, do: nil, else: value)}
+
+      {member, value} ->
+        raise ArgumentError,
+              "#{enum_name}.#{member} = #{inspect(value)}: an enum member is stored as its " <>
+                "value, which must be a string or an integer (SHIPPED: \"shipped\", LOW: 1)"
+
+      name ->
+        %{name: to_string(name), value: nil}
+    end)
+  end
 end
 
 defmodule FraiseQL.FunctionPredicate do

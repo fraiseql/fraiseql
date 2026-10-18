@@ -125,7 +125,25 @@ func authorFull() error {
 		return err
 	}
 
-	fraiseql.Enum("OrderStatus", "PENDING", "SHIPPED", "CANCELLED")
+	if err := fraiseql.Enum("OrderStatus",
+		fraiseql.EnumMember{Name: "PENDING"},
+		fraiseql.EnumMember{Name: "SHIPPED"},
+		fraiseql.EnumMember{Name: "CANCELLED"},
+	); err != nil {
+		return err
+	}
+	if err := fraiseql.Enum("Priority",
+		fraiseql.EnumMember{Name: "LOW", Value: 1},
+		fraiseql.EnumMember{Name: "HIGH", Value: 3},
+	); err != nil {
+		return err
+	}
+	if err := fraiseql.Enum("Delivery",
+		fraiseql.EnumMember{Name: "IN_TRANSIT", Value: "transit"},
+		fraiseql.EnumMember{Name: "ARRIVED", Value: "ARRIVED"},
+	); err != nil {
+		return err
+	}
 
 	if err := fraiseql.NewQuery("users").
 		ReturnType("User").ReturnsArray(true).Nullable(false).

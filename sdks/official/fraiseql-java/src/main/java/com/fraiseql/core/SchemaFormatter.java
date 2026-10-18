@@ -550,9 +550,17 @@ public class SchemaFormatter {
                 enumNode.put("description", enumInfo.description);
             }
             ArrayNode valuesArray = mapper.createArrayNode();
-            for (String value : enumInfo.values.keySet()) {
+            // #1611: a member is stored as the value the map gives it; a member whose value is
+            // its name (or none) is stored as its name and exported without one.
+            for (Map.Entry<String, Object> member : enumInfo.values.entrySet()) {
                 ObjectNode valueNode = mapper.createObjectNode();
-                valueNode.put("name", value);
+                valueNode.put("name", member.getKey());
+                Object value = member.getValue();
+                if (value instanceof String text && !text.equals(member.getKey())) {
+                    valueNode.put("value", text);
+                } else if (value instanceof Number number) {
+                    valueNode.put("value", number.longValue());
+                }
                 valuesArray.add(valueNode);
             }
             enumNode.set("values", valuesArray);

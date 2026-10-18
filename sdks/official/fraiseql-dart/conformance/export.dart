@@ -176,6 +176,9 @@ FraiseQLSchema authorFull() {
   );
 
   schema.enumType('OrderStatus', ['PENDING', 'SHIPPED', 'CANCELLED']);
+  // Dart members carry no stored value: `enum_values` is a declared gap.
+  schema.enumType('Priority', ['LOW', 'HIGH']);
+  schema.enumType('Delivery', ['IN_TRANSIT', 'ARRIVED']);
 
   schema.query(
     'users',

@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using FraiseQL.Attributes;
 using FraiseQL.Builders;
 using FraiseQL.Export;
@@ -22,6 +23,31 @@ namespace FraiseQL.Tests;
 [Collection("SchemaRegistry")]
 public class ConformanceExportTest
 {
+    /// <summary>Stored by its names, as <c>System.Text.Json</c> writes a string enum.</summary>
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public enum OrderStatus
+    {
+        PENDING,
+        SHIPPED,
+        CANCELLED,
+    }
+
+    /// <summary>Stored as its integers, as <c>System.Text.Json</c> writes an enum.</summary>
+    public enum Priority
+    {
+        LOW = 1,
+        HIGH = 3,
+    }
+
+    /// <summary>Stored as its names, one renamed.</summary>
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public enum Delivery
+    {
+        [JsonStringEnumMemberName("transit")]
+        IN_TRANSIT,
+        ARRIVED,
+    }
+
     [Fact]
     public void ConformanceExport()
     {
@@ -71,7 +97,9 @@ public class ConformanceExportTest
         SchemaRegistry.Instance.Register(typeof(ConformanceReadingSeries));
         SchemaRegistry.Instance.Register(typeof(ConformanceCreateUserInput));
 
-        SchemaRegistry.Instance.RegisterEnum("OrderStatus", new[] { "PENDING", "SHIPPED", "CANCELLED" });
+        SchemaRegistry.Instance.RegisterEnum<OrderStatus>();
+        SchemaRegistry.Instance.RegisterEnum<Priority>();
+        SchemaRegistry.Instance.RegisterEnum<Delivery>();
 
         QueryBuilder.Query("users")
             .ReturnType("User")

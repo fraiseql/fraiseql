@@ -671,17 +671,21 @@ defmodule FraiseQL.Schema do
   Declares a GraphQL enum type.
 
       fraiseql_enum "OrderStatus", values: ["PENDING", "SHIPPED", "CANCELLED"]
+      fraiseql_enum "Priority", values: [LOW: 1, HIGH: 3]
 
   Options:
 
-    * `:values` — required, the member names in declaration order
+    * `:values` — required, the members in declaration order: a list of names, each stored
+      as its name, or a keyword list mapping each member to the value it is stored as, a
+      string or an integer (#1611)
     * `:description` — optional human-readable description
   """
   defmacro fraiseql_enum(name, opts) do
     quote do
       @fraiseql_enums %FraiseQL.EnumDefinition{
         name: unquote(name),
-        values: unquote(Keyword.fetch!(opts, :values)),
+        values:
+          FraiseQL.EnumDefinition.members!(unquote(name), unquote(Keyword.fetch!(opts, :values))),
         description: unquote(opts[:description])
       }
     end

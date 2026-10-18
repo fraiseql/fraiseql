@@ -1,9 +1,53 @@
 {
+  "enum_values": {
+    "Delivery": [
+      [
+        "IN_TRANSIT",
+        "transit"
+      ],
+      [
+        "ARRIVED",
+        null
+      ]
+    ],
+    "OrderStatus": [
+      [
+        "PENDING",
+        null
+      ],
+      [
+        "SHIPPED",
+        null
+      ],
+      [
+        "CANCELLED",
+        null
+      ]
+    ],
+    "Priority": [
+      [
+        "LOW",
+        1
+      ],
+      [
+        "HIGH",
+        3
+      ]
+    ]
+  },
   "enums": {
+    "Delivery": [
+      "IN_TRANSIT",
+      "ARRIVED"
+    ],
     "OrderStatus": [
       "PENDING",
       "SHIPPED",
       "CANCELLED"
+    ],
+    "Priority": [
+      "LOW",
+      "HIGH"
     ]
   },
   "fact_tables": {

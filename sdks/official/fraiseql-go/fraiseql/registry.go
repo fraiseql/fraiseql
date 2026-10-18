@@ -2,6 +2,7 @@ package fraiseql
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"reflect"
 	"sort"
@@ -249,6 +250,9 @@ type SubscriptionDefinition struct {
 // EnumValueDefinition represents a single value in a GraphQL enum.
 type EnumValueDefinition struct {
 	Name string `json:"name"`
+	// Value is what the member is stored as when it is not its name: a string or an
+	// integer (#1611).
+	Value any `json:"value,omitempty"`
 }
 
 // EnumDefinition represents a GraphQL enum type.
@@ -690,27 +694,62 @@ func ClearRegistry() {
 	Reset()
 }
 
+// EnumMember is one member of a GraphQL enum: its name, and the value it is stored as.
+//
+// Value is the constant a Go program uses for the member (`StatusShipped`, of a `type Status
+// string` or `type Priority int`), a string or an integer of any kind; nil stores the member
+// as its name. Go has no enum declaration to read, so the constant is passed here.
+type EnumMember struct {
+	Name  string
+	Value any
+}
+
 // Enum registers a GraphQL enum type with the schema registry.
 //
-// Members are exported in the order given (#929). The previous signature took a
-// map[string]string, which had two defects: Go randomizes map iteration, so the
-// exported member order changed from run to run (two builds of the same schema
-// produced different artifacts, and the SDK conformance gate was a coin flip);
-// and the map's values were silently dropped — only the keys were ever
-// exported, so any name→value mapping an author wrote did nothing.
-func Enum(name string, members ...string) {
+// Members are exported in the order given (#929). Each is stored as its Value (#1611): a
+// request names `SHIPPED`, the database stores and compares `"shipped"` (or `3`), and a
+// stored value is served as its member's name. A member whose value is its name is
+// exported without one. A Value that is neither a string nor an integer is refused,
+// naming the member.
+func Enum(name string, members ...EnumMember) error {
+	enumValues := make([]EnumValueDefinition, 0, len(members))
+	for _, member := range members {
+		value, err := storedEnumValue(member.Value)
+		if err != nil {
+			return fmt.Errorf("%s.%s = %#v: %w", name, member.Name, member.Value, err)
+		}
+		if value == member.Name {
+			value = nil
+		}
+		enumValues = append(enumValues, EnumValueDefinition{Name: member.Name, Value: value})
+	}
+
 	reg := getInstance()
 	reg.mu.Lock()
 	defer reg.mu.Unlock()
-
-	enumValues := make([]EnumValueDefinition, 0, len(members))
-	for _, memberName := range members {
-		enumValues = append(enumValues, EnumValueDefinition{Name: memberName})
-	}
-
 	reg.enums[name] = EnumDefinition{
 		Name:   name,
 		Values: enumValues,
+	}
+	return nil
+}
+
+// storedEnumValue reads a member's value as the string or integer it is stored as.
+func storedEnumValue(value any) (any, error) {
+	if value == nil {
+		return nil, nil
+	}
+	v := reflect.ValueOf(value)
+	switch v.Kind() {
+	case reflect.String:
+		return v.String(), nil
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		return v.Int(), nil
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		return v.Uint(), nil
+	default:
+		return nil, errors.New("an enum member is stored as its value, which must be a string " +
+			"or an integer (EnumMember{Name: \"SHIPPED\", Value: StatusShipped})")
 	}
 }
 

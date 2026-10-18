@@ -400,6 +400,8 @@ export interface ObserverDefinition {
  */
 export interface EnumValue {
   name: string;
+  /** What the member is stored as, when it is not its name (#1611). */
+  value?: string | number;
   deprecated?: { reason: string };
 }
 

@@ -295,7 +295,11 @@ fraiseql.registerSubscription("userCDC", "User", [], "All user changes", {
 
 #### `enum_(name, values, config?)`
 
-Define a GraphQL enum type.
+Define a GraphQL enum type from a TypeScript `enum` or a plain object. The keys are the
+member names; each member is stored as its value, a string or an integer (`"pending"` is
+what the database stores and compares, `PENDING` what a request names and a response
+serves). A member whose value is its name is stored as its name; any other value (a float,
+a boolean, an object) is refused, naming the member.
 
 ```typescript
 const OrderStatus = fraiseql.enum_("OrderStatus", {
@@ -305,6 +309,9 @@ const OrderStatus = fraiseql.enum_("OrderStatus", {
 }, {
   description: "Status of an order"
 });
+
+enum Priority { LOW = 1, HIGH = 3 }
+fraiseql.enum_("Priority", Priority); // stored as 1 and 3
 ```
 
 Then use in types:

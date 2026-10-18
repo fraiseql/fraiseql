@@ -30,7 +30,7 @@ from typing import Any
 # author-visible fact, except where a construct explicitly asserts its synthesis.
 AUTHORED_TYPES = ("User", "Order", "UserNotFound")
 AUTHORED_INPUT_TYPES = ("CreateUserInput",)
-AUTHORED_ENUMS = ("OrderStatus",)
+AUTHORED_ENUMS = ("OrderStatus", "Priority", "Delivery")
 AUTHORED_QUERIES = ("users", "user", "tenantOrders")
 AUTHORED_MUTATIONS = ("createUser", "placeOrder")
 AUTHORED_SUBSCRIPTIONS = ("orderUpdated",)
@@ -189,6 +189,7 @@ CONSTRUCTS = (
     "type_crud",
     "input_types",
     "enums",
+    "enum_values",
     "queries",
     "query_arguments",
     "query_inject_params",
@@ -446,6 +447,19 @@ def project(compiled: dict[str, Any]) -> dict[str, Any]:
 
     observations["enums"] = {
         name: [v.get("name") for v in enums[name].get("values", []) if isinstance(v, dict)]
+        for name in AUTHORED_ENUMS
+        if name in enums
+    }
+
+    # #1611: what each member is stored as, as compiled: its value, or `None` when it is
+    # stored as its name. `enums` above sees the names alone, so an SDK that dropped every
+    # value (each one did but Python's) still passed it.
+    observations["enum_values"] = {
+        name: [
+            [v.get("name"), v.get("value")]
+            for v in enums[name].get("values", [])
+            if isinstance(v, dict)
+        ]
         for name in AUTHORED_ENUMS
         if name in enums
     }

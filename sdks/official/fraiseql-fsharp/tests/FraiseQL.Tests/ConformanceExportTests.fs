@@ -17,6 +17,23 @@ open System
 open Xunit
 open FraiseQL
 
+/// Stored by its names: a fieldless union's cases carry no value.
+type OrderStatus =
+    | PENDING
+    | SHIPPED
+    | CANCELLED
+
+/// Stored as its integers.
+type Priority =
+    | LOW = 1
+    | HIGH = 3
+
+/// Stored as its names, one renamed, as System.Text.Json writes a string enum.
+[<System.Text.Json.Serialization.JsonConverter(typeof<System.Text.Json.Serialization.JsonStringEnumConverter>)>]
+type Delivery =
+    | [<System.Text.Json.Serialization.JsonStringEnumMemberName("transit")>] IN_TRANSIT = 0
+    | ARRIVED = 1
+
 [<GraphQLType(Name = "User", SqlSource = "v_user")>]
 type ConformanceMinimalUser() =
     [<GraphQLField(Type = "ID", Nullable = false)>]
@@ -190,7 +207,9 @@ let private authorFull () =
             description = None
         }
 
-    SchemaRegistry.registerEnum "OrderStatus" [ "PENDING"; "SHIPPED"; "CANCELLED" ] None
+    SchemaRegistry.registerEnum typeof<OrderStatus> None
+    SchemaRegistry.registerEnum typeof<Priority> None
+    SchemaRegistry.registerEnum typeof<Delivery> None
 
     QueryBuilder.query "users"
     |> QueryBuilder.returnType "User"

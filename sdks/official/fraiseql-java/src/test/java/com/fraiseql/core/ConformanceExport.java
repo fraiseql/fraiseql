@@ -63,6 +63,14 @@ public class ConformanceExport {
         FraiseQL.registerType(ConformanceReadingSeries.class);
 
         FraiseQL.getRegistry().registerEnum("OrderStatus", enumValues(), "");
+        Map<String, Object> priority = new LinkedHashMap<>();
+        priority.put("LOW", 1);
+        priority.put("HIGH", 3);
+        FraiseQL.getRegistry().registerEnum("Priority", priority, "");
+        Map<String, Object> delivery = new LinkedHashMap<>();
+        delivery.put("IN_TRANSIT", "transit");
+        delivery.put("ARRIVED", "ARRIVED");
+        FraiseQL.getRegistry().registerEnum("Delivery", delivery, "");
         FraiseQL.getRegistry().registerInputType(
             "CreateUserInput", ConformanceCreateUserInput.class, "");
 

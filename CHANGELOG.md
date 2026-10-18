@@ -18,6 +18,37 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **Every SDK exports an enum member's value, read from the language's own declaration
+  (#1611).** Only Python did: every other SDK exported names, so a value-backed enum was
+  stored by name, compared names against stored values and, since #1580, refused each
+  stored value as no member's. Each SDK now stores a member as the value its language gives
+  it, a string or an integer, refuses any other value where the enum is declared (naming
+  the member), and exports a member whose value is its name without one
+  (`sdks/official/README.md` has the table). Signatures that change:
+  - **Go:** `Enum(name string, members ...EnumMember) error`, `EnumMember{Name, Value}`
+    (was `members ...string`): `fraiseql.Enum("Priority", fraiseql.EnumMember{Name: "LOW",
+    Value: PriorityLow})`; a nil `Value` stores the name.
+  - **PHP:** `StaticAPI::enum(Priority::class, ?description)` and
+    `SchemaRegistry::registerEnum(Priority::class, ?description)` take a PHP enum (was a
+    name and a list of names); a backed enum's values are stored, a pure enum's names.
+  - **C#:** `RegisterEnum<TEnum>(description?)` (was a name and a list of names): the
+    member's integer, or its name (or `[JsonStringEnumMemberName]`) under
+    `[JsonConverter(typeof(JsonStringEnumConverter))]`. Member names are published as
+    declared (`Pending`).
+  - **F#:** `registerEnum typeof<T> description` (was a name and a list): a .NET enum's
+    integers (or names, as C#), a fieldless union's case names; a case with fields is
+    refused.
+  - **Java:** `registerEnum(name, Map<String, ?>, description)` exports the map's values (it
+    exported the keys only), a `String` or an `Integer`/`Long`; a null description no longer
+    crashes the export.
+  - **TypeScript:** `enum_` exports the object's values, and skips a numeric `enum`'s
+    reverse mapping (it registered `"1"`, `"3"` as members).
+  - **Ruby:** `schema.enum` takes a Hash name → value (it exported members named
+    `["pending", 0]`); **Elixir:** `fraiseql_enum ..., values:` takes a keyword list (it
+    crashed the export), and `FraiseQL.EnumDefinition.values` holds `%{name, value}` maps.
+  - Dart members carry no stored value and stay stored as their names; the conformance
+    fixture's new `enum_values` construct is a declared gap there and in Rust (no enums).
+
 - **`fraiseql_server::mcp::executor::selection_for_type` and `scalar_fields_for_type` take the
   caller's field predicate (#1615)**, `&dyn Fn(&FieldDefinition) -> bool`: pass
   `&|f| executor.may_select_field(f, caller)` for a caller's selection, `&|_| true` for every

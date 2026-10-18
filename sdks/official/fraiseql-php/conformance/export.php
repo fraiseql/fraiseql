@@ -23,6 +23,28 @@ use FraiseQL\SchemaExporter;
 use FraiseQL\StaticAPI;
 use FraiseQL\VectorConfig;
 
+/** Stored as its names. */
+enum OrderStatus
+{
+    case PENDING;
+    case SHIPPED;
+    case CANCELLED;
+}
+
+/** Stored as its integers (#1611). */
+enum Priority: int
+{
+    case LOW = 1;
+    case HIGH = 3;
+}
+
+/** Stored as its string values, one equal to its name. */
+enum Delivery: string
+{
+    case IN_TRANSIT = 'transit';
+    case ARRIVED = 'ARRIVED';
+}
+
 // Both directions, deliberately (#1266): which join column is read off which side swaps
 // with the cardinality, so a fixture carrying only `OneToMany` would be uniform in
 // exactly the dimension that selects the branch. The keys name SQL **columns**
@@ -215,7 +237,9 @@ function authorFull(): void
     StaticAPI::register(ConformanceReadingSeries::class);
     StaticAPI::register(ConformanceCreateUserInput::class);
 
-    StaticAPI::enum('OrderStatus', ['PENDING', 'SHIPPED', 'CANCELLED']);
+    StaticAPI::enum(OrderStatus::class);
+    StaticAPI::enum(Priority::class);
+    StaticAPI::enum(Delivery::class);
 
     StaticAPI::query('users')
         ->returnType('User')

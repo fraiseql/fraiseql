@@ -181,6 +181,12 @@ function authorFull(): void {
   );
 
   enum_("OrderStatus", { PENDING: "PENDING", SHIPPED: "SHIPPED", CANCELLED: "CANCELLED" });
+  enum Priority {
+    LOW = 1,
+    HIGH = 3,
+  }
+  enum_("Priority", Priority);
+  enum_("Delivery", { IN_TRANSIT: "transit", ARRIVED: "ARRIVED" });
 
   input("CreateUserInput", [
     { name: "email", type: "String", nullable: false },

@@ -300,13 +300,63 @@ module SchemaRegistry =
         inputTypes.Values |> Seq.toList
 
     /// Registers a <see cref="QueryDefinition"/> directly (without reflection).
-    /// Registers a GraphQL enum type.
-    let registerEnum (name: string) (values: string list) (description: string option) : unit =
+    /// Registers an F# type as a GraphQL enum type named for it (#1611). Each member is stored
+    /// as the value F# gives it: a .NET enum member's integer, or its name (or its
+    /// `[<JsonStringEnumMemberName>]`) when the enum carries
+    /// `[<JsonConverter(typeof<JsonStringEnumConverter>)>]`, as System.Text.Json writes it; a
+    /// fieldless union case's name. A member whose value is its name is exported without one.
+    let registerEnum (enumType: Type) (description: string option) : unit =
+        let enumMember (name: string) (stored: obj) =
+            { name = name; value = if stored.Equals(box name) then None else Some stored }
+
+        let values =
+            if enumType.IsEnum then
+                let asStrings =
+                    enumType.GetCustomAttributes(typeof<System.Text.Json.Serialization.JsonConverterAttribute>, false)
+                    |> Seq.cast<System.Text.Json.Serialization.JsonConverterAttribute>
+                    |> Seq.exists (fun a ->
+                        not (isNull a.ConverterType)
+                        && (a.ConverterType = typeof<System.Text.Json.Serialization.JsonStringEnumConverter>
+                            || (a.ConverterType.IsGenericType
+                                && a.ConverterType.GetGenericTypeDefinition() = typeof<System.Text.Json.Serialization.JsonStringEnumConverter<DayOfWeek>>.GetGenericTypeDefinition())))
+
+                [ for value in Enum.GetValues(enumType) ->
+                      let name = Enum.GetName(enumType, value)
+
+                      if asStrings then
+                          let renamed =
+                              enumType.GetField(name).GetCustomAttributes(typeof<System.Text.Json.Serialization.JsonStringEnumMemberNameAttribute>, false)
+                              |> Seq.cast<System.Text.Json.Serialization.JsonStringEnumMemberNameAttribute>
+                              |> Seq.tryHead
+
+                          enumMember name (renamed |> Option.map (fun a -> a.Name) |> Option.defaultValue name |> box)
+                      else
+                          enumMember name (box (Convert.ToInt64(value, Globalization.CultureInfo.InvariantCulture))) ]
+            elif Microsoft.FSharp.Reflection.FSharpType.IsUnion(enumType) then
+                [ for case in Microsoft.FSharp.Reflection.FSharpType.GetUnionCases(enumType) ->
+                      if case.GetFields().Length > 0 then
+                          let message =
+                              sprintf
+                                  "%s.%s carries fields; an enum member carries none (a fieldless union case or a .NET enum member)"
+                                  enumType.Name
+                                  case.Name
+
+                          raise (ArgumentException(message))
+
+                      enumMember case.Name (box case.Name) ]
+            else
+                let message =
+                    sprintf
+                        "%s is neither a .NET enum nor a union; registerEnum takes typeof<Priority> for `type Priority = | Low = 1` or `type Status = | Pending | Shipped`"
+                        enumType.Name
+
+                raise (ArgumentException(message))
+
         lock lockObj (fun () ->
             enums.Add(
                 {
-                    name = name
-                    values = values |> List.map (fun v -> { name = v })
+                    name = enumType.Name
+                    values = values
                     description = description
                 }
             ))

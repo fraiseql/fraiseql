@@ -209,15 +209,36 @@ module FraiseQL
     end
 
     # Declares a GraphQL enum type.
+    #
+    # `values` is an Array of member names, each stored as its name, or a Hash mapping each
+    # member name to the value it is stored as, a String or an Integer, as Rails writes
+    # `enum status: { pending: 0, shipped: 1 }` (#1611). A request names `SHIPPED`; the
+    # database stores and compares the value; a stored value is served as its member's name.
     def enum(name, values, description: nil)
       definition = {
         "name" => name.to_s,
-        "values" => values.map { |value| { "name" => value.to_s } }
+        "values" => enum_members(name, values)
       }
       definition["description"] = description if description
 
       @enums << definition
       definition
+    end
+
+    # The exported members of an enum: `{"name"}`, plus `"value"` when it is not the name.
+    def enum_members(enum_name, values)
+      return values.map { |value| { "name" => value.to_s } } unless values.is_a?(Hash)
+
+      values.map do |member, value|
+        unless value.is_a?(String) || value.is_a?(Integer)
+          raise ArgumentError,
+                "#{enum_name}.#{member} = #{value.inspect}: an enum member is stored as its " \
+                "value, which must be a String or an Integer (SHIPPED: \"shipped\", LOW: 1)"
+        end
+
+        name = member.to_s
+        value == name ? { "name" => name } : { "name" => name, "value" => value }
+      end
     end
 
     # Declares a serverless function (#1325).

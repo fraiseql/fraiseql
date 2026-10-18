@@ -375,10 +375,11 @@ public class SchemaRegistry {
      * Register an enum type in the schema.
      *
      * @param enumName the enum name
-     * @param values the enum values (name -> value map)
+     * @param values each member name and the value it is stored as (#1611); a member whose
+     *     value is its name is stored as its name
      * @param description optional description
      */
-    public void registerEnum(String enumName, Map<String, String> values, String description) {
+    public void registerEnum(String enumName, Map<String, ?> values, String description) {
         EnumInfo enumInfo = new EnumInfo(enumName, values, description);
         enums.put(enumName, enumInfo);
     }
@@ -1151,16 +1152,30 @@ public class SchemaRegistry {
      */
     public static class EnumInfo {
         public final String name;
-        public final Map<String, String> values;
+        public final Map<String, Object> values;
         public final String description;
 
         /**
-         * Creates a EnumInfo with the values given.
+         * Creates a EnumInfo with the values given: each a String or an integer (Integer or
+         * Long), the value the member is stored as (#1611).
+         *
+         * @throws IllegalArgumentException for a value of any other type, naming the member
          */
-        public EnumInfo(String name, Map<String, String> values, String description) {
+        public EnumInfo(String name, Map<String, ?> values, String description) {
             this.name = name;
-            this.values = Collections.unmodifiableMap(new LinkedHashMap<>(values));
-            this.description = description;
+            Map<String, Object> members = new LinkedHashMap<>();
+            values.forEach((member, value) -> {
+                if (value != null && !(value instanceof String)
+                        && !(value instanceof Integer) && !(value instanceof Long)) {
+                    throw new IllegalArgumentException(name + "." + member + " = " + value
+                        + ": an enum member is stored as its value, which must be a String or an"
+                        + " integer (SHIPPED -> \"shipped\", LOW -> 1)");
+                }
+                members.put(member, value);
+            });
+            this.values = Collections.unmodifiableMap(members);
+            // The description is optional; null exported as none, not a crash at export.
+            this.description = description == null ? "" : description;
         }
 
         @Override

@@ -305,6 +305,8 @@ type EnumValueDefinition =
     {
         /// The member name, as it appears in a GraphQL document.
         name: string
+        /// What the member is stored as, a string or an integer, when it is not its name (#1611).
+        value: obj option
     }
 
 /// Represents a GraphQL enum type.

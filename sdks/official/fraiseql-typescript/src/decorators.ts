@@ -304,37 +304,32 @@ export interface EnumConfig {
 }
 
 /**
- * Decorator to mark an object as a GraphQL enum.
+ * Register a GraphQL enum from a TypeScript enum or a plain object of members.
  *
- * This decorator registers the enum with the schema registry for JSON export.
- * NO runtime behavior - only used for schema compilation.
+ * Each own key is a member name, and each member is stored as the value TypeScript gives it:
+ * a string, or an integer (a numeric `enum`'s, whose reverse-mapping keys are skipped). A
+ * request names `SHIPPED`; the database stores and compares the value (`"shipped"`, `1`); a
+ * stored value is served as its member's name. A member whose value is its name is exported
+ * without one. Any other value (a float, a boolean, an object) is refused here, naming the
+ * member (#1611).
  *
- * @param values - Object with enum values as keys (values are not used, only keys matter)
+ * @param name - The GraphQL enum name
+ * @param values - The enum object: `OrderStatus` for `enum OrderStatus { … }`, or `{ PENDING: "pending" }`
  * @param config - Optional configuration
- * @returns Decorator function
+ * @returns `values`, unchanged
  *
  * @example
  * ```ts
- * const OrderStatus = enum('OrderStatus', {
- *   PENDING: 'pending',
- *   SHIPPED: 'shipped',
- *   DELIVERED: 'delivered'
- * }, {
- *   description: 'The status of an order'
- * })
+ * enum Priority { LOW = 1, HIGH = 3 }
+ * enum_("Priority", Priority);
+ * enum_("OrderStatus", { PENDING: "pending", SHIPPED: "shipped" }, {
+ *   description: "The status of an order",
+ * });
  * ```
  *
  * This generates JSON:
  * ```json
- * {
- *   "name": "OrderStatus",
- *   "description": "The status of an order",
- *   "values": [
- *     {"name": "PENDING"},
- *     {"name": "SHIPPED"},
- *     {"name": "DELIVERED"}
- *   ]
- * }
+ * {"name": "Priority", "values": [{"name": "LOW", "value": 1}, {"name": "HIGH", "value": 3}]}
  * ```
  */
 export function enum_(
@@ -342,15 +337,25 @@ export function enum_(
   values: Record<string, unknown>,
   config?: EnumConfig
 ): Record<string, unknown> {
-  // Extract enum value names from the values object
-  const enumValues: EnumValue[] = Object.keys(values).map((key) => ({
-    name: key,
-  }));
+  const enumValues: EnumValue[] = Object.keys(values)
+    // A numeric enum also maps each value back to its name (`Priority[1] === "LOW"`): that key
+    // is a number's text, which no GraphQL name can be.
+    .filter((key) => !/^-?\d+$/.test(key))
+    .map((key) => {
+      const value = values[key];
+      const stored =
+        typeof value === "string" || (typeof value === "number" && Number.isInteger(value));
+      if (!stored) {
+        throw new TypeError(
+          `${name}.${key} = ${JSON.stringify(value)}: an enum member is stored as its value, ` +
+            `which must be a string or an integer (SHIPPED = "shipped", LOW = 1)`
+        );
+      }
+      return value === key ? { name: key } : { name: key, value: value as string | number };
+    });
 
-  // Register enum with schema registry
   SchemaRegistry.registerEnum(name, enumValues, config?.description);
 
-  // Return the values object for backward compatibility
   return values;
 }
 

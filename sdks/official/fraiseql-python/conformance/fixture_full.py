@@ -180,6 +180,18 @@ class OrderStatus(Enum):
     CANCELLED = "CANCELLED"
 
 
+@fraiseql.enum
+class Priority(Enum):
+    LOW = 1
+    HIGH = 3
+
+
+@fraiseql.enum
+class Delivery(Enum):
+    IN_TRANSIT = "transit"
+    ARRIVED = "ARRIVED"
+
+
 @fraiseql.input
 class CreateUserInput:
     email: str

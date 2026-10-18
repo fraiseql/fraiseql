@@ -115,6 +115,8 @@ def author_full
   end
 
   schema.enum "OrderStatus", %w[PENDING SHIPPED CANCELLED]
+  schema.enum "Priority", { LOW: 1, HIGH: 3 }
+  schema.enum "Delivery", { IN_TRANSIT: "transit", ARRIVED: "ARRIVED" }
 
   schema.query :users, return_type: "User", returns_list: true, nullable: false,
                        sql_source: "v_user"

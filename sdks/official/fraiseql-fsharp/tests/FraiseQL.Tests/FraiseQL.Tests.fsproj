@@ -13,6 +13,7 @@
     <Compile Include="VectorFieldTests.fs" />
     <Compile Include="LocalizedTests.fs" />
     <Compile Include="ClientTests.fs" />
+    <Compile Include="EnumValueTests.fs" />
     <Compile Include="ConformanceExportTests.fs" />
   </ItemGroup>
   <ItemGroup>
