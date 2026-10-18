@@ -345,20 +345,33 @@ class UserRole(Enum):
     VIEWER = "VIEWER"
 ```
 
-The GraphQL members are the member **names**. A member whose value is a string other than
-its name is stored as that value:
+The GraphQL members are the member **names**, and each member is stored as its **value**,
+a `str` or an `int`, as Python's own serializers write it:
 
 ```python
 @fraiseql.enum
 class OrderStatus(Enum):
     PENDING = "pending"
     SHIPPED = "shipped"
+
+@fraiseql.enum
+class Priority(Enum):
+    LOW = 1
+    HIGH = 3
 ```
 
 A request names `SHIPPED` (in an argument, an input field or a `where:` operand) and the
 database compares and stores `"shipped"`; a stored `"shipped"` is served as `SHIPPED`, over
-GraphQL, REST and gRPC. A member whose value is its name, or not a string (`auto()`), is
-stored as its name. Two members cannot be stored as the same value.
+GraphQL, REST and gRPC. `Priority.LOW` is stored as the JSON integer `1`, and a function
+parameter of type `int` receives `1`. An `auto()` member is stored as the integer it is
+(`1`, `2`, in declaration order: inserting a member renumbers the ones after it), and a
+`StrEnum` with `auto()` as its lowercase name. A member whose value is its name is stored as
+its name. A value that is neither a `str` nor an `int` (a float, a bool, a tuple, `None`)
+is refused when the enum is declared, and two members cannot be stored as the same value.
+
+A stored value that is no member's (a `7` under `Priority`, a `"shipped"` under an enum
+whose members are stored as their names) is a field error naming the value and how the
+members are stored, never served as it is (GraphQL § 3.9); over gRPC it refuses the row.
 
 ---
 

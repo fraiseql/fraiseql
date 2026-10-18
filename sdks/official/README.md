@@ -59,6 +59,15 @@ unless the language marks it nullable**, and it is published and enforced as dec
 
 `conformance/`'s `list_fields` and `list_arguments` constructs hold all eleven to it.
 
+The same principle decides what an **enum member is stored as** (#1580): the value the
+language gives it, a string or an integer, as the language's standard serializers write it,
+and its name when the language gives it none; any other value is refused at export, and a
+member whose value is its name is exported without one. The Python SDK implements it
+(`.value`: `LOW = 1` is `1`, `auto()` included). The other SDKs export member names only
+today; #1611 carries the rule to them: TypeScript the enum's runtime value, PHP a backed
+enum's value, Go the constant's value, C# the member's integer (as `System.Text.Json` writes
+it); Java, Rust, Dart, Elixir and Ruby members carry no value and stay stored as their names.
+
 The TypeScript decorators `@Type`, `@Query`, `@Mutation` and `@Subscription` are **not**
 an authoring path — TypeScript erases the types they would need, so they refuse rather
 than register the placeholders they used to. Use `registerTypeFields` / `registerQuery` /

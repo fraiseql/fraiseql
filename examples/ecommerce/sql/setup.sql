@@ -252,9 +252,9 @@ SELECT
     jsonb_build_object(
         'id',           o.id,
         'order_number', o.order_number,
-        -- The GraphQL surface publishes OrderStatus, whose value names are
-        -- uppercase; the storage enum is lowercase. The view is where the two meet.
-        'status',       upper(o.status::text),
+        -- The column's own value: OrderStatus declares it for each member
+        -- (PAID = "paid"), and the engine serves the member's name.
+        'status',       o.status::text,
         'currency',     o.currency,
         'placed_at',    o.placed_at,
         'item_count',   (SELECT count(*) FROM tb_order_item i WHERE i.fk_order = o.pk_order),

@@ -1468,11 +1468,14 @@ def enum(cls: type[E]) -> type[E]:
 
     Notes:
         - Class must inherit from enum.Enum
-        - The GraphQL members are the member names. A member whose value is a string other
-          than its name exports that value: a request names ``SHIPPED``, the database stores
-          and compares ``"shipped"``, and a stored ``"shipped"`` is served as ``SHIPPED``.
-          Other values (``auto()`` integers, tuples) are not exported: such a member is
-          stored as its name.
+        - The GraphQL members are the member names, and each member is stored as its
+          ``.value``, a ``str`` or an ``int``, as Python's own serializers write it: a
+          request names ``SHIPPED``, the database stores and compares ``"shipped"``, and a
+          stored ``"shipped"`` is served as ``SHIPPED``; ``LOW = 1`` is stored as ``1``. An
+          ``auto()`` member is stored as the integer it is (``1``, ``2``), which depends on
+          the members' order; a ``StrEnum`` with ``auto()`` stores the lowercase names. A
+          member whose value is its name is stored as its name. Any other value (a float,
+          a bool, a tuple, ``None``) is refused here.
         - Use docstrings on the class for descriptions
         - Use `deprecated` marker function for deprecated values
     """
@@ -1484,8 +1487,15 @@ def enum(cls: type[E]) -> type[E]:
     values = []
     for member in cls:
         value_info: dict[str, Any] = {"name": member.name}
-        if isinstance(member.value, str) and member.value != member.name:
-            value_info["value"] = member.value
+        value = member.value
+        # `bool` is an `int` in Python and `True` is not `1` in JSON, so it is refused too.
+        if isinstance(value, bool) or not isinstance(value, (str, int)):
+            raise TypeError(
+                f"{cls.__name__}.{member.name} = {value!r}: an enum member is stored as its "
+                "value, which must be a str or an int (SHIPPED = 'shipped', LOW = 1)"
+            )
+        if value != member.name:
+            value_info["value"] = value
 
         # Check for deprecation (can be set via class attribute)
         if hasattr(member, "_deprecated"):

@@ -521,3 +521,193 @@ async fn a_list_argument_reaches_an_array_parameter() {
         ]
     );
 }
+
+// ── #1580: an enum member stores the value its language gives it, a string or an integer ──
+
+/// `Task.priority: Priority` (`LOW = 1`, `MID = 2`, `HIGH = 3`, as the Python SDK exports a
+/// `class Priority(Enum)`), over rows storing the integers, one of them 7, which is no
+/// member's; and a mutation whose function takes the `int` column it writes.
+async fn tasks(url: &str, dir: &Path) -> std::path::PathBuf {
+    execute(
+        url,
+        &format!(
+            "DROP SCHEMA IF EXISTS {SCHEMA} CASCADE;
+             CREATE SCHEMA {SCHEMA};
+             CREATE SCHEMA IF NOT EXISTS app;
+             DO $$ BEGIN CREATE TYPE app.mutation_error_class AS ENUM ('validation','conflict',
+             'not_found','unauthorized','forbidden','internal','transaction_failed','timeout',
+             'rate_limited','service_unavailable'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+             DO $$ BEGIN CREATE TYPE app.mutation_response AS (succeeded BOOLEAN, state_changed
+             BOOLEAN, error_class app.mutation_error_class, status_detail TEXT, http_status
+             SMALLINT, message TEXT, entity_id UUID, entity_type TEXT, entity JSONB,
+             updated_fields TEXT[], cascade JSONB, error_detail JSONB, metadata JSONB);
+             EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+             CREATE TABLE {SCHEMA}.tb_task (id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+                 priority int);
+             INSERT INTO {SCHEMA}.tb_task VALUES
+                 ('00000000-0000-0000-0000-000000000001', 1),
+                 ('00000000-0000-0000-0000-000000000002', 3),
+                 ('00000000-0000-0000-0000-000000000003', 7);
+             CREATE VIEW {SCHEMA}.v_task AS SELECT id,
+                 jsonb_build_object('id', id, 'priority', priority) AS data FROM {SCHEMA}.tb_task;
+             CREATE FUNCTION {SCHEMA}.fn_record_priority(p_priority int)
+               RETURNS app.mutation_response LANGUAGE plpgsql AS $$
+               DECLARE v app.mutation_response; new_id uuid; BEGIN
+                 INSERT INTO {SCHEMA}.tb_task (priority) VALUES (p_priority) RETURNING id INTO new_id;
+                 v.succeeded := true; v.state_changed := true; v.entity_type := 'Task';
+                 v.entity_id := new_id;
+                 v.entity := jsonb_build_object('id', new_id, 'priority', p_priority);
+                 RETURN v; END; $$;
+             CREATE TABLE {SCHEMA}.tb_task_doc (id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+                 priority jsonb);
+             CREATE FUNCTION {SCHEMA}.fn_record_priority_doc(p_priority jsonb)
+               RETURNS app.mutation_response LANGUAGE plpgsql AS $$
+               DECLARE v app.mutation_response; new_id uuid; BEGIN
+                 INSERT INTO {SCHEMA}.tb_task_doc (priority) VALUES (p_priority)
+                   RETURNING id INTO new_id;
+                 v.succeeded := true; v.state_changed := true; v.entity_type := 'Task';
+                 v.entity_id := new_id;
+                 v.entity := jsonb_build_object('id', new_id, 'priority', p_priority);
+                 RETURN v; END; $$;"
+        ),
+    )
+    .await;
+    compile(
+        dir,
+        &json!({
+            "enums": [{
+                "name": "Priority",
+                "values": [
+                    { "name": "LOW", "value": 1 },
+                    { "name": "MID", "value": 2 },
+                    { "name": "HIGH", "value": 3 }
+                ]
+            }],
+            "types": [{
+                "name": "Task",
+                "sql_source": format!("{SCHEMA}.v_task"),
+                "fields": [
+                    { "name": "id", "type": "ID", "nullable": false },
+                    { "name": "priority", "type": "Priority", "nullable": true }
+                ]
+            }],
+            "queries": [{
+                "name": "tasks", "return_type": "Task", "returns_list": true,
+                "nullable": false, "sql_source": format!("{SCHEMA}.v_task")
+            }],
+            "mutations": [{
+                "name": "recordPriority", "return_type": "Task", "returns_list": false,
+                "nullable": false, "sql_source": format!("{SCHEMA}.fn_record_priority"),
+                "operation": "CREATE",
+                "arguments": [{ "name": "priority", "type": "Priority", "nullable": false }]
+            }, {
+                "name": "recordPriorityDoc", "return_type": "Task", "returns_list": false,
+                "nullable": false, "sql_source": format!("{SCHEMA}.fn_record_priority_doc"),
+                "operation": "CREATE",
+                "arguments": [{ "name": "priority", "type": "Priority", "nullable": false }]
+            }]
+        }),
+    )
+}
+
+#[tokio::test]
+async fn an_integer_valued_enum_is_filtered_written_and_served_by_its_names() {
+    let Some(url) = fraiseql_test_support::try_database_url() else {
+        eprintln!("skipping #1580: DATABASE_URL not set");
+        return;
+    };
+    let dir = TempDir::new().unwrap();
+    let compiled = tasks(&url, dir.path()).await;
+
+    let high = query(&compiled, &url, "{ tasks(where: {priority: {eq: HIGH}}) { id } }", None);
+    let low_or_high = query(
+        &compiled,
+        &url,
+        "query($w: TaskWhereInput) { tasks(where: $w) { id } }",
+        Some(&json!({ "w": { "priority": { "in": ["LOW", "HIGH"] } } })),
+    );
+    let written =
+        query(&compiled, &url, "mutation { recordPriority(priority: MID) { priority } }", None);
+
+    let ids = |response: &Value| {
+        let mut ids: Vec<String> = response["data"]["tasks"]
+            .as_array()
+            .unwrap_or_else(|| panic!("{response}"))
+            .iter()
+            .map(|t| t["id"].as_str().unwrap()[35..].to_string())
+            .collect();
+        ids.sort();
+        ids
+    };
+    assert_eq!(ids(&high), ["2"], "{high}");
+    assert_eq!(ids(&low_or_high), ["1", "2"], "{low_or_high}");
+    assert_eq!(written["data"]["recordPriority"]["priority"], json!("MID"), "{written}");
+    let (client, conn) = tokio_postgres::connect(&url, NoTls).await.unwrap();
+    tokio::spawn(async move {
+        let _ = conn.await;
+    });
+    let stored: Vec<i32> = client
+        .query(&format!("SELECT priority FROM {SCHEMA}.tb_task ORDER BY priority"), &[])
+        .await
+        .unwrap()
+        .iter()
+        .map(|r| r.get(0))
+        .collect();
+    assert_eq!(stored, [1, 2, 3, 7], "the function got the integer 2");
+
+    // A `jsonb` parameter stores the JSON it is given: the integer, which completion
+    // serves back as its member (a string "2" would be no member's).
+    let doc = query(
+        &compiled,
+        &url,
+        "mutation { recordPriorityDoc(priority: MID) { priority } }",
+        None,
+    );
+    assert_eq!(doc["data"]["recordPriorityDoc"]["priority"], json!("MID"), "{doc}");
+    let kinds: Vec<String> = client
+        .query(&format!("SELECT jsonb_typeof(priority) FROM {SCHEMA}.tb_task_doc"), &[])
+        .await
+        .unwrap()
+        .iter()
+        .map(|r| r.get(0))
+        .collect();
+    assert_eq!(kinds, ["number"]);
+}
+
+/// GraphQL § 3.9 result coercion: a value that is no member's is a field error, never served
+/// raw. The error names the value, the enum and how its members are stored.
+#[tokio::test]
+async fn a_stored_value_that_is_no_members_is_a_field_error() {
+    let Some(url) = fraiseql_test_support::try_database_url() else {
+        eprintln!("skipping #1580: DATABASE_URL not set");
+        return;
+    };
+    let dir = TempDir::new().unwrap();
+    let compiled = tasks(&url, dir.path()).await;
+
+    let response = query(&compiled, &url, "{ tasks { id priority } }", None);
+
+    let mut served: Vec<(String, Value)> = response["data"]["tasks"]
+        .as_array()
+        .unwrap_or_else(|| panic!("{response}"))
+        .iter()
+        .map(|t| (t["id"].as_str().unwrap()[35..].to_string(), t["priority"].clone()))
+        .collect();
+    served.sort_by(|a, b| a.0.cmp(&b.0));
+    assert_eq!(
+        served,
+        [
+            ("1".to_string(), json!("LOW")),
+            ("2".to_string(), json!("HIGH")),
+            ("3".to_string(), Value::Null),
+        ],
+        "{response}"
+    );
+    let error = &response["errors"][0];
+    let message = error["message"].as_str().unwrap_or_default();
+    assert!(
+        message.contains('7') && message.contains("Priority") && message.contains("LOW = 1"),
+        "{response}"
+    );
+    assert_eq!(error["path"][2], json!("priority"), "{response}");
+}

@@ -52,6 +52,8 @@ const MAX_COMPLETION_DEPTH: usize = 64;
 enum TypeRef {
     NonNull(Box<TypeRef>),
     List(Box<TypeRef>),
+    /// An enum: its value is checked against the members (§ 3.9 result coercion).
+    Enum(String),
     Named(String),
 }
 
@@ -64,6 +66,7 @@ impl TypeRef {
             TypeKind::List => {
                 Some(Self::List(Box::new(Self::from_introspection(t.of_type.as_deref()?)?)))
             },
+            TypeKind::Enum => t.name.clone().map(Self::Enum),
             _ => t.name.clone().map(Self::Named),
         }
     }
@@ -78,12 +81,55 @@ impl TypeRef {
 #[derive(Debug, Clone, Default)]
 pub struct OutputTypes {
     /// Object and interface type name → field name → published type.
-    fields:     AHashMap<String, AHashMap<String, TypeRef>>,
+    fields:   AHashMap<String, AHashMap<String, TypeRef>>,
     /// Interface and union type name → the object types it may resolve to.
-    possible:   AHashMap<String, HashSet<String>>,
-    /// Enum type name → stored value → member name, for the enums whose members store a
-    /// value other than their name (#1580): such a value is served as its member's name.
-    enum_names: AHashMap<String, AHashMap<String, String>>,
+    possible: AHashMap<String, HashSet<String>>,
+    /// Enum type name → its members by stored value (#1580): a stored value is served as
+    /// its member's name, and one that is no member's is a field error.
+    enums:    AHashMap<String, EnumMembers>,
+}
+
+/// An enum's members by the value each is stored as: a string (its name, or a string
+/// value) or an integer.
+#[derive(Debug, Clone)]
+struct EnumMembers {
+    strings:    AHashMap<String, String>,
+    ints:       AHashMap<i64, String>,
+    definition: crate::schema::EnumDefinition,
+}
+
+impl EnumMembers {
+    fn of(e: &crate::schema::EnumDefinition) -> Self {
+        let mut strings = AHashMap::new();
+        let mut ints = AHashMap::new();
+        for v in &e.values {
+            match &v.value {
+                Some(crate::schema::StoredEnumValue::Int(n)) => {
+                    ints.insert(*n, v.name.clone());
+                },
+                Some(crate::schema::StoredEnumValue::String(s)) => {
+                    strings.insert(s.clone(), v.name.clone());
+                },
+                None => {
+                    strings.insert(v.name.clone(), v.name.clone());
+                },
+            }
+        }
+        Self {
+            strings,
+            ints,
+            definition: e.clone(),
+        }
+    }
+
+    /// The member `stored` is the stored value of.
+    fn member_of(&self, stored: &Value) -> Option<&String> {
+        match stored {
+            Value::String(s) => self.strings.get(s.as_str()),
+            Value::Number(n) => n.as_i64().and_then(|n| self.ints.get(&n)),
+            _ => None,
+        }
+    }
 }
 
 impl OutputTypes {
@@ -111,9 +157,8 @@ impl OutputTypes {
                     .insert(name.clone(), possible.iter().map(|p| p.name.clone()).collect());
             }
         }
-        for e in schema.enums.iter().filter(|e| e.has_stored_values()) {
-            let names = e.values.iter().map(|v| (v.stored().to_string(), v.name.clone())).collect();
-            types.enum_names.insert(e.name.clone(), names);
+        for e in &schema.enums {
+            types.enums.insert(e.name.clone(), EnumMembers::of(e));
         }
         #[cfg(feature = "federation")]
         types.add_federation(schema);
@@ -270,17 +315,32 @@ impl std::fmt::Display for Label<'_> {
 
 /// The § 6.4.4 field error for a `null` at a non-null position.
 fn violation(label: Label<'_>, path: &[Step<'_>]) -> Value {
-    let path: Vec<Value> = path
-        .iter()
+    serde_json::json!({
+        "message": format!("Cannot return null for non-nullable field {label}."),
+        "path": response_path(path),
+    })
+}
+
+/// The field error for a stored value of an enum position that is no member's stored value.
+fn not_a_member(
+    label: Label<'_>,
+    path: &[Step<'_>],
+    stored: &Value,
+    members: &EnumMembers,
+) -> Value {
+    serde_json::json!({
+        "message": members.definition.not_a_member_message(stored, &label),
+        "path": response_path(path),
+    })
+}
+
+fn response_path(path: &[Step<'_>]) -> Vec<Value> {
+    path.iter()
         .map(|step| match *step {
             Step::Key(key) => Value::String(key.to_string()),
             Step::Index(index) => Value::from(index),
         })
-        .collect();
-    serde_json::json!({
-        "message": format!("Cannot return null for non-nullable field {label}."),
-        "path": path,
-    })
+        .collect()
 }
 
 /// One completion: the types and the request's variables.
@@ -411,6 +471,21 @@ impl<'a> Walk<'a> {
         }
         match field_ref {
             TypeRef::NonNull(_) => self.position(value, field_ref, sel, label, path, errors, depth),
+            // A stored value is served as its member's name (#1580), and a value that is no
+            // member's is a field error, never served (§ 3.9 result coercion).
+            TypeRef::Enum(name) => {
+                let Some(members) = self.types.enums.get(name.as_str()) else {
+                    return Ok(());
+                };
+                let Some(member) = members.member_of(value) else {
+                    errors.push(not_a_member(label, path, value, members));
+                    return Err(Propagate);
+                };
+                if value.as_str() != Some(member.as_str()) {
+                    *value = Value::String(member.clone());
+                }
+                Ok(())
+            },
             TypeRef::List(inner) => {
                 let Value::Array(items) = value else {
                     return Ok(());
@@ -429,15 +504,6 @@ impl<'a> Walk<'a> {
             },
             TypeRef::Named(name) => match value {
                 Value::Object(map) => self.object(map, name, sel, path, errors, depth),
-                // A stored enum value is served as its member's name (#1580).
-                Value::String(stored) if !self.types.enum_names.is_empty() => {
-                    if let Some(member) =
-                        self.types.enum_names.get(name).and_then(|names| names.get(stored.as_str()))
-                    {
-                        stored.clone_from(member);
-                    }
-                    Ok(())
-                },
                 _ => Ok(()),
             },
         }

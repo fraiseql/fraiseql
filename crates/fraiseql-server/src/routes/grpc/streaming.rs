@@ -131,7 +131,7 @@ pub async fn build_streaming_body(
         StreamState {
             chunks: rows.ready_chunks(usize::try_from(batch_size.max(1)).unwrap_or(usize::MAX)),
             non_null: handler::non_null_columns(&columns, type_def),
-            enums: handler::valued_enum_columns(&columns, type_def, executor.schema()),
+            enums: handler::enum_columns(&columns, type_def, executor.schema()),
             type_name: type_def.name.to_string(),
             columns,
             row_descriptor,
@@ -151,7 +151,15 @@ pub async fn build_streaming_body(
             for row in chunk {
                 match row {
                     Ok(mut row) => {
-                        handler::serve_enum_members(&mut row, &state.enums);
+                        if let Err(e) = handler::serve_enum_members(
+                            &mut row,
+                            &state.enums,
+                            &state.columns,
+                            &state.type_name,
+                        ) {
+                            state.sent_trailers = true;
+                            return Some((Ok(error_trailers(&e)), state));
+                        }
                         // A row the schema forbids ends the stream, as a failed read does.
                         if let Some(e) = handler::incomplete_row(
                             &row,

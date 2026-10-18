@@ -802,9 +802,10 @@ impl CompiledSchema {
         // #1580: a stored value is served as the one member stored as it, so two members of
         // an enum cannot share one (a member without a `value` is stored as its name).
         for e in &self.enums {
+            let stored: Vec<String> = e.values.iter().map(|v| v.stored().to_string()).collect();
             duplicates(
                 &format!("stored value of enum {}", e.name),
-                e.values.iter().map(crate::schema::EnumValueDefinition::stored),
+                stored.iter().map(String::as_str),
                 &mut violations,
             );
         }

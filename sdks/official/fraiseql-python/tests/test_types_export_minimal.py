@@ -8,6 +8,7 @@ All configuration moves to fraiseql.toml instead.
 """
 
 import json
+import sys
 import tempfile
 from enum import Enum
 from pathlib import Path
@@ -130,8 +131,14 @@ def test_export_types_with_enums() -> None:
 
 
 def test_an_enum_exports_each_members_value_when_it_is_not_its_name() -> None:
-    """#1580: a value-backed member exports its value; a member stored as its name does not."""
-    from enum import auto
+    """#1580: a member is stored as the value Python gives it, a str or an int.
+
+    `.value` is the member's data in Python's own serializers (Pydantic, `json` for an
+    `IntEnum`/`StrEnum`) and in FraiseQL v1, and Python keeps no trace of `auto()` on a
+    member, so an `auto()` member is stored as the integer it is, as `LOW = 1` is. A member
+    whose value is its name is stored as its name.
+    """
+    from enum import IntEnum, auto
 
     @fraiseql.enum
     class OrderStatus(Enum):
@@ -140,8 +147,18 @@ def test_an_enum_exports_each_members_value_when_it_is_not_its_name() -> None:
         LOST = "LOST"
 
     @fraiseql.enum
+    class Priority(Enum):
+        LOW = 1
+        HIGH = 3
+
+    @fraiseql.enum
     class Level(Enum):
         LOW = auto()
+        HIGH = auto()
+
+    @fraiseql.enum
+    class Severity(IntEnum):
+        MINOR = 10
 
     with tempfile.TemporaryDirectory() as tmpdir:
         output_path = Path(tmpdir) / "schema_types.json"
@@ -154,7 +171,39 @@ def test_an_enum_exports_each_members_value_when_it_is_not_its_name() -> None:
         {"name": "SHIPPED", "value": "shipped"},
         {"name": "LOST"},
     ]
-    assert by_name["Level"] == [{"name": "LOW"}], "an auto() integer is not a stored value"
+    assert by_name["Priority"] == [{"name": "LOW", "value": 1}, {"name": "HIGH", "value": 3}]
+    assert by_name["Level"] == [{"name": "LOW", "value": 1}, {"name": "HIGH", "value": 2}]
+    assert by_name["Severity"] == [{"name": "MINOR", "value": 10}]
+
+
+@pytest.mark.skipif(sys.version_info < (3, 11), reason="enum.StrEnum is Python 3.11+")
+def test_a_str_enum_auto_member_exports_the_lowercase_name_python_gives_it() -> None:
+    """A `StrEnum`'s `auto()` value is the member's name in lower case, and is stored as it."""
+    from enum import StrEnum, auto
+
+    @fraiseql.enum
+    class Colour(StrEnum):
+        RED = auto()
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        output_path = Path(tmpdir) / "schema_types.json"
+        fraiseql.export_types(str(output_path))
+        schema = json.loads(output_path.read_text())
+
+    by_name = {e["name"]: e["values"] for e in schema["enums"]}
+    assert by_name["Colour"] == [{"name": "RED", "value": "red"}]
+
+
+@pytest.mark.parametrize("value", [1.5, True, (1, 2), None])
+def test_an_enum_value_that_is_neither_a_str_nor_an_int_is_refused(value: object) -> None:
+    """A stored value is a string or an integer; anything else is refused where it is
+    declared, with the member named, rather than exported as its name."""
+
+    with pytest.raises(TypeError, match=r"Odd\.X.*str or an int"):
+
+        @fraiseql.enum
+        class Odd(Enum):
+            X = value
 
 
 def test_export_types_with_input_types() -> None:

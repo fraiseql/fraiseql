@@ -1069,7 +1069,7 @@ fn a_stored_enum_value_is_served_as_its_member_name_over_grpc() {
         CompiledSchema, EnumDefinition, EnumValueDefinition, FieldDefinition, TypeDefinition,
     };
 
-    use super::handler::{serve_enum_members, valued_enum_columns};
+    use super::handler::{enum_columns, serve_enum_members};
 
     let mut schema = CompiledSchema::new();
     schema.enums.push(EnumDefinition::new("OrderStatus").with_values(vec![
@@ -1091,16 +1091,36 @@ fn a_stored_enum_value_is_served_as_its_member_name_over_grpc() {
             column_type: RowViewColumnType::Text,
         },
     ];
-    let enums = valued_enum_columns(&columns, &order, &schema);
+    let enums = enum_columns(&columns, &order, &schema);
     let mut row = vec![
         ColumnValue::Text("shipped".into()),
         ColumnValue::Text("shipped".into()),
     ];
 
-    serve_enum_members(&mut row, &enums);
+    serve_enum_members(&mut row, &enums, &columns, "Order").unwrap();
 
     assert!(matches!(&row[0], ColumnValue::Text(s) if s == "SHIPPED"), "{row:?}");
     assert!(matches!(&row[1], ColumnValue::Text(s) if s == "shipped"), "a String column");
+
+    // An integer value is read as text (`data->>'status'`); a value that is no member's
+    // refuses the row, as completion refuses it on the other transports (§ 3.9).
+    let mut priorities = CompiledSchema::new();
+    priorities.enums.push(EnumDefinition::new("OrderStatus").with_values(vec![
+        EnumValueDefinition::new("LOW").stored_as(1_i64),
+        EnumValueDefinition::new("HIGH").stored_as(3_i64),
+    ]));
+    let enums = enum_columns(&columns, &order, &priorities);
+    let mut row = vec![ColumnValue::Text("3".into()), ColumnValue::Text("x".into())];
+    serve_enum_members(&mut row, &enums, &columns, "Order").unwrap();
+    assert!(matches!(&row[0], ColumnValue::Text(s) if s == "HIGH"), "{row:?}");
+    let mut row = vec![ColumnValue::Text("7".into()), ColumnValue::Text("x".into())];
+    let refusal = serve_enum_members(&mut row, &enums, &columns, "Order").unwrap_err();
+    assert!(
+        refusal.contains("\"7\"")
+            && refusal.contains("Order.status")
+            && refusal.contains("LOW = 1"),
+        "{refusal}"
+    );
 }
 
 /// #1580: a gRPC request's filter names an enum member and reaches SQL as its stored value.

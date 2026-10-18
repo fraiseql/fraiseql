@@ -429,10 +429,11 @@ pub struct IntermediateEnumValue {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub deprecated: Option<IntermediateDeprecation>,
 
-    /// The value the member is stored as, when it is not its name (#1580): what a Python
-    /// `SHIPPED = "shipped"` declares.
+    /// The value the member is stored as, when it is not its name (#1580): the value the
+    /// authoring language gives the member, a string (`SHIPPED = "shipped"`) or an integer
+    /// (`LOW = 1`). Any other JSON value is refused when the document is read.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub value: Option<String>,
+    pub value: Option<fraiseql_core::schema::StoredEnumValue>,
 }
 
 /// Deprecation information for enum values or input fields.

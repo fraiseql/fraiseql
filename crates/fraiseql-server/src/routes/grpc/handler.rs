@@ -149,13 +149,12 @@ pub fn non_null_columns(columns: &[ColumnSpec], type_def: &TypeDefinition) -> Ve
         .collect()
 }
 
-/// For each of `columns`, positionally, the enum its field is typed as, when that enum's
-/// members store values other than their names (#1580).
+/// For each of `columns`, positionally, the enum its field is typed as (#1580).
 ///
 /// Such a column's stored value is served as its member's name, as GraphQL completion
-/// serves it.
+/// serves it, and a value that is no member's refuses the row.
 #[must_use]
-pub fn valued_enum_columns(
+pub fn enum_columns(
     columns: &[ColumnSpec],
     type_def: &TypeDefinition,
     schema: &CompiledSchema,
@@ -167,23 +166,35 @@ pub fn valued_enum_columns(
             let FieldType::Enum(name) = &field.field_type else {
                 return None;
             };
-            schema.find_enum(name).filter(|e| e.has_stored_values()).cloned()
+            schema.find_enum(name).cloned()
         })
         .collect()
 }
 
 /// Serve each stored enum value of `row` as its member's name (#1580), in place.
+///
+/// A value that is no member's is refused (GraphQL § 3.9, worded as completion words it).
+/// Protobuf carries no per-field error, so the row is refused, as a missing non-null is.
+///
+/// # Errors
+///
+/// The message naming the stored value, the field and how the enum's members are stored.
 pub fn serve_enum_members(
     row: &mut [ColumnValue],
     enums: &[Option<fraiseql_core::schema::EnumDefinition>],
-) {
-    for (value, def) in row.iter_mut().zip(enums) {
+    columns: &[ColumnSpec],
+    type_name: &str,
+) -> Result<(), String> {
+    for ((value, def), column) in row.iter_mut().zip(enums).zip(columns) {
         if let (ColumnValue::Text(stored), Some(def)) = (&mut *value, def) {
-            if let Some(member) = def.member_stored_as(stored) {
-                *stored = member.to_string();
-            }
+            let Some(member) = def.member_stored_as_text(stored) else {
+                let field = format!("{type_name}.{}", column.name);
+                return Err(def.not_a_member_message(&format!("{stored:?}"), &field));
+            };
+            *stored = member.to_string();
         }
     }
+    Ok(())
 }
 
 /// The refusal for a row holding `NULL` in a column the schema publishes non-null, or

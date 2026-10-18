@@ -322,19 +322,24 @@
       "name": "OrderStatus",
       "values": [
         {
-          "name": "PENDING"
+          "name": "PENDING",
+          "value": "pending"
         },
         {
-          "name": "PAID"
+          "name": "PAID",
+          "value": "paid"
         },
         {
-          "name": "SHIPPED"
+          "name": "SHIPPED",
+          "value": "shipped"
         },
         {
-          "name": "DELIVERED"
+          "name": "DELIVERED",
+          "value": "delivered"
         },
         {
-          "name": "CANCELLED"
+          "name": "CANCELLED",
+          "value": "cancelled"
         }
       ],
       "description": "Where an order is in its lifecycle."

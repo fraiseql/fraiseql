@@ -419,19 +419,123 @@ impl EnumDefinition {
     /// and stored values need mapping.
     #[must_use]
     pub fn has_stored_values(&self) -> bool {
-        self.values.iter().any(|v| v.stored() != v.name)
+        self.values.iter().any(EnumValueDefinition::stores_a_value)
     }
 
-    /// The value the member `name` is stored as, when `name` is a member.
+    /// The value the member `name` is stored as, as JSON, when `name` is a member.
     #[must_use]
-    pub fn stored_value_of(&self, name: &str) -> Option<&str> {
+    pub fn stored_value_of(&self, name: &str) -> Option<serde_json::Value> {
         self.find_value(name).map(EnumValueDefinition::stored)
     }
 
-    /// The member stored as `stored`, by name, when one is.
+    /// The member stored as `text`, a stored value read as text (`data->>'priority'` reads
+    /// the integer `1` as `"1"`), by name, when one is.
     #[must_use]
-    pub fn member_stored_as(&self, stored: &str) -> Option<&str> {
-        self.values.iter().find(|v| v.stored() == stored).map(|v| v.name.as_str())
+    pub fn member_stored_as_text(&self, text: &str) -> Option<&str> {
+        self.values
+            .iter()
+            .find(|v| match &v.value {
+                None => v.name == text,
+                Some(StoredEnumValue::String(s)) => s == text,
+                Some(StoredEnumValue::Int(n)) => text.parse::<i64>() == Ok(*n),
+            })
+            .map(|v| v.name.as_str())
+    }
+
+    /// How the members are stored, for a refusal naming them: `LOW = 1, MID = 2`, a member
+    /// stored as its name written as its name.
+    #[must_use]
+    pub fn stored_listing(&self) -> String {
+        self.values
+            .iter()
+            .map(|v| match &v.value {
+                Some(stored) if v.stores_a_value() => format!("{} = {stored}", v.name),
+                _ => v.name.clone(),
+            })
+            .collect::<Vec<_>>()
+            .join(", ")
+    }
+
+    /// The refusal of a stored value that is no member's (GraphQL § 3.9 result coercion),
+    /// for the field `field` (`Task.priority`): every transport words it so.
+    #[must_use]
+    pub fn not_a_member_message(
+        &self,
+        stored: &dyn std::fmt::Display,
+        field: &dyn std::fmt::Display,
+    ) -> String {
+        format!(
+            "Enum {} cannot represent the stored value {stored} of field {field}: its members \
+             are stored as {}.",
+            self.name,
+            self.stored_listing()
+        )
+    }
+}
+
+/// The value an enum member is stored as when it is not its name (#1580).
+///
+/// The value the authoring language gives the member, a string (`SHIPPED = "shipped"`) or
+/// an integer (`LOW = 1`), serialized as the JSON it is.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize)]
+#[serde(untagged)]
+pub enum StoredEnumValue {
+    /// An integer value.
+    Int(i64),
+    /// A string value.
+    String(String),
+}
+
+impl StoredEnumValue {
+    /// The value as JSON: what a `jsonb` column holds for it.
+    #[must_use]
+    pub fn to_json(&self) -> serde_json::Value {
+        match self {
+            Self::Int(n) => serde_json::Value::from(*n),
+            Self::String(s) => serde_json::Value::String(s.clone()),
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for StoredEnumValue {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let value = serde_json::Value::deserialize(deserializer)?;
+        match &value {
+            serde_json::Value::String(s) => Ok(Self::String(s.clone())),
+            _ => value.as_i64().map(Self::Int).ok_or_else(|| {
+                serde::de::Error::custom(format!(
+                    "an enum member's value is a string or an integer (`SHIPPED = \"shipped\"`, \
+                     `LOW = 1`), not {value}"
+                ))
+            }),
+        }
+    }
+}
+
+impl std::fmt::Display for StoredEnumValue {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Int(n) => write!(f, "{n}"),
+            Self::String(s) => write!(f, "{s:?}"),
+        }
+    }
+}
+
+impl From<&str> for StoredEnumValue {
+    fn from(value: &str) -> Self {
+        Self::String(value.to_string())
+    }
+}
+
+impl From<String> for StoredEnumValue {
+    fn from(value: String) -> Self {
+        Self::String(value)
+    }
+}
+
+impl From<i64> for StoredEnumValue {
+    fn from(value: i64) -> Self {
+        Self::Int(value)
     }
 }
 
@@ -458,12 +562,13 @@ pub struct EnumValueDefinition {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub deprecation: Option<DeprecationInfo>,
 
-    /// The value the member is stored as, when it is not its name (#1580): a Python
-    /// `SHIPPED = "shipped"`. A name written in a request (an argument, an input field, a
-    /// `where:` operand) reaches SQL as this value, and a stored value is served as the
-    /// name. `None` stores the name.
+    /// The value the member is stored as, when it is not its name (#1580): what the
+    /// authoring language gives the member, a string (`SHIPPED = "shipped"`) or an integer
+    /// (`LOW = 1`). A name written in a request (an argument, an input field, a `where:`
+    /// operand) reaches SQL as this value, and a stored value is served as the name. `None`
+    /// stores the name.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub value: Option<String>,
+    pub value: Option<StoredEnumValue>,
 }
 
 impl EnumValueDefinition {
@@ -478,17 +583,29 @@ impl EnumValueDefinition {
         }
     }
 
-    /// Store this member as `value` rather than its name (#1580).
+    /// Store this member as `value` rather than its name (#1580): a string or an integer.
     #[must_use]
-    pub fn stored_as(mut self, value: impl Into<String>) -> Self {
+    pub fn stored_as(mut self, value: impl Into<StoredEnumValue>) -> Self {
         self.value = Some(value.into());
         self
     }
 
-    /// The value this member is stored as: its `value`, or its name.
+    /// The value this member is stored as, as JSON: its `value`, or its name.
     #[must_use]
-    pub fn stored(&self) -> &str {
-        self.value.as_deref().unwrap_or(&self.name)
+    pub fn stored(&self) -> serde_json::Value {
+        self.value
+            .as_ref()
+            .map_or_else(|| serde_json::Value::String(self.name.clone()), StoredEnumValue::to_json)
+    }
+
+    /// Whether this member stores a value other than its name.
+    #[must_use]
+    pub fn stores_a_value(&self) -> bool {
+        match &self.value {
+            None => false,
+            Some(StoredEnumValue::String(s)) => *s != self.name,
+            Some(StoredEnumValue::Int(_)) => true,
+        }
     }
 
     /// Set description.

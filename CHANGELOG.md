@@ -31,9 +31,29 @@ disagreed, and the promise was the part that was wrong.
   number beyond 64 bits.
 
 - **`EnumValueDefinition` gains `value` (#1580)**, and so does `fraiseql-cli`'s
-  `IntermediateEnumValue`. A struct literal listing every field adds `value: None` (the
-  member is stored as its name), or builds with `EnumValueDefinition::new(..).stored_as(..)`. An enum whose members share a stored value
+  `IntermediateEnumValue`: an `Option<StoredEnumValue>`, a string or an integer (`{"name":
+  "LOW", "value": 1}`); any other JSON value is refused with the member named. A struct
+  literal listing every field adds `value: None` (the member is stored as its name), or builds
+  with `EnumValueDefinition::new(..).stored_as("shipped")` / `.stored_as(1_i64)`.
+  `EnumValueDefinition::stored()` and `EnumDefinition::stored_value_of()` return the
+  `serde_json::Value` the member is stored as, and `EnumDefinition::member_stored_as(&str)` is
+  `member_stored_as_text(&str)`, which reads an integer stored value from its text (`"1"`). An enum whose members share a stored value
   (`{"name": "A", "value": "B"}` beside a member `B` with none) no longer loads.
+
+- **A stored enum value that is no member's is a field error, never served (#1580).**
+  GraphQL § 3.9 result coercion: a `7` under an enum whose members are stored as `1`, `2`,
+  `3`, or a `"shipped"` under an enum whose members are stored as their names, was served as
+  it was, a value no client can parse as the enum. It is now a field error naming the stored
+  value, the field and how the members are stored (`Enum Priority cannot represent the stored
+  value 7 of field Task.priority: its members are stored as LOW = 1, MID = 2, HIGH = 3.`), the
+  field `null` and the error propagated as for any null at a non-null position. Over gRPC it
+  refuses the row (`fraiseql_server::routes::grpc::handler::valued_enum_columns` is
+  `enum_columns`, over every enum, and `serve_enum_members` returns the refusal). A database
+  storing an enum's values in another spelling than its members' must declare the values.
+  A Python enum's values are now declared (below), so a view that spelled them as the member
+  names to match the dropped values (`'status', upper(o.status::text)` for `PAID = "paid"`)
+  must store the values themselves (`o.status::text`): it is otherwise refused here, at the
+  first read, as `examples/ecommerce` was.
 
 - **A list declared `[T]` publishes nullable items, at every level of a nested list
   (#1586).** It published `[T!]` whatever was declared. A schema exporting `"[T]"` for a list
@@ -421,13 +441,17 @@ disagreed, and the promise was the part that was wrong.
   (#1580).** A Python `SHIPPED = "shipped"` exported its name only, so the compiled schema
   had no way to map one to the other: `where: {status: {eq: SHIPPED}}` compared against
   `'SHIPPED'` and matched no row stored as `"shipped"`, a mutation wrote `"SHIPPED"`, and a
-  read served the stored `"shipped"`, which is not a member. The Python SDK now exports a
-  member's value when it is a string other than its name (`{"name": "SHIPPED", "value":
-  "shipped"}`), and the compiled enum carries it. A name written in a request (an argument,
-  an input field at any depth, a `where:` operand over GraphQL, REST and gRPC) reaches SQL as
-  the stored value, and a stored value is served as its member's name (GraphQL, REST, gRPC,
+  read served the stored `"shipped"`, which is not a member. The Python SDK now exports each
+  member's value, a `str` or an `int`, as Python's own serializers write it (`{"name":
+  "SHIPPED", "value": "shipped"}`, `{"name": "LOW", "value": 1}`; an `auto()` member is the
+  integer it is, a `StrEnum`'s `auto()` its lowercase name), and refuses any other value
+  (a float, a bool, a tuple, `None`) where the enum is declared. The compiled enum carries
+  it. A name written in a request (an argument, an input field at any depth, a `where:`
+  operand over GraphQL, REST and gRPC) reaches SQL as the stored value, an integer as an
+  integer, and a stored value is served as its member's name (GraphQL, REST, gRPC,
   subscriptions). An enum whose members store their names behaves as before. Two members of
-  one enum stored as the same value are refused at compile and at load.
+  one enum stored as the same value are refused at compile and at load. The rule is stated
+  for every SDK in `sdks/official/README.md`; the other SDKs follow it in #1611.
 
 - **A mutation argument binds to a `float8`, `numeric`, `date`, `timestamp`, an array or any
   other function parameter type (#1547).** The function call carries no cast, so PostgreSQL

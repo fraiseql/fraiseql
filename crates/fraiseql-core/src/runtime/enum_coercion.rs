@@ -149,9 +149,7 @@ fn coerce_member(schema: &CompiledSchema, enum_name: &str, value: &mut Value) {
     let Some(stored) = value.as_str().and_then(|name| def.stored_value_of(name)) else {
         return;
     };
-    if value.as_str() != Some(stored) {
-        *value = Value::String(stored.to_string());
-    }
+    *value = stored;
 }
 
 #[cfg(test)]

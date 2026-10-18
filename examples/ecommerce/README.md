@@ -32,9 +32,10 @@ that blob and recases the keys. Nothing issues a query per nested field.
 ### Where storage meets the surface
 
 `tb_order.status` is a lowercase PostgreSQL enum. `OrderStatus`, like every
-GraphQL enum, publishes uppercase value names. `v_order` reconciles the two with
-`upper(o.status::text)` — the view is the projection layer, so that is where the
-conversion belongs, not in the client.
+GraphQL enum, publishes uppercase member names, and declares the value each member
+is stored as (`PAID = "paid"`). `v_order` stores the column's own value; the engine
+serves it as `PAID` and filters `status: {eq: PAID}` against `'paid'`, so no layer
+converts between the two spellings.
 
 ## Quick Start
 
