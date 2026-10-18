@@ -694,6 +694,27 @@ impl QueryResultCache {
             return Ok(());
         }
 
+        // Extract entity refs from ALL rows (not just the first). A read by id is tagged by
+        // its row instead (#1576). Before the fence: an eviction by entity reaches exactly
+        // the fills holding its row, so these are what the fence checks (#1605).
+        let entity_type = entity_type.filter(|_| by_id.is_none());
+        let entity_refs: Box<[(String, String)]> = if let Some(et) = entity_type {
+            result
+                .iter()
+                .filter_map(|row| {
+                    row.as_value()
+                        .as_object()?
+                        .get("id")?
+                        .as_str()
+                        .map(|id| (et.to_string(), id.to_string()))
+                })
+                .chain(tags.entities.iter().cloned())
+                .collect::<Vec<_>>()
+                .into_boxed_slice()
+        } else {
+            tags.entities.clone().into_boxed_slice()
+        };
+
         // Cheap pre-check: if an invalidation reaching this fill already landed, do no work
         // at all. The authoritative check is after the insert, below — this one saves the
         // serialisation and index churn, and keeps the common straddle from ever being
@@ -709,9 +730,9 @@ impl QueryResultCache {
                         .flatten()
                         .collect(),
                     collected_views: tags.collected_views.iter().map(String::as_str).collect(),
-                    entity_types:    entity_type
-                        .into_iter()
-                        .chain(tags.entities.iter().map(|(t, _)| t.as_str()))
+                    entities:        entity_refs
+                        .iter()
+                        .map(|(t, id)| (t.as_str(), id.as_str()))
                         .collect(),
                     collections:     tags
                         .collections
@@ -755,26 +776,6 @@ impl QueryResultCache {
                 return Ok(()); // silently skip when budget is exhausted
             }
         }
-
-        // Extract entity refs from ALL rows (not just the first). A read by id is tagged by
-        // its row instead (#1576).
-        let entity_type = entity_type.filter(|_| by_id.is_none());
-        let entity_refs: Box<[(String, String)]> = if let Some(et) = entity_type {
-            result
-                .iter()
-                .filter_map(|row| {
-                    row.as_value()
-                        .as_object()?
-                        .get("id")?
-                        .as_str()
-                        .map(|id| (et.to_string(), id.to_string()))
-                })
-                .chain(tags.entities.iter().cloned())
-                .collect::<Vec<_>>()
-                .into_boxed_slice()
-        } else {
-            tags.entities.clone().into_boxed_slice()
-        };
 
         // Promote owned `String` view names into `ViewName(Arc<str>)` exactly
         // once. The same Arc is then shared by `view_index` and
@@ -863,27 +864,27 @@ impl QueryResultCache {
         // (`fence.rs`, Ordering). The eviction listener deregisters the withdrawn entry.
         // No DashMap guard is held here: the listener re-enters `view_index`.
         if fence.is_some_and(|snapshot| {
-            let mut entity_types: Vec<&str> =
-                entry.entity_refs.iter().map(|(t, _)| t.as_str()).chain(entity_type).collect();
-            entity_types.sort_unstable();
-            entity_types.dedup();
             let views = || entry.accessed_views.iter().map(ViewName::as_str);
             self.fence.moved_since_inserted(
                 snapshot,
                 &Reach {
-                    views: if entry.by_id.is_some() {
+                    views:           if entry.by_id.is_some() {
                         Vec::new()
                     } else {
                         views().collect()
                     },
                     collected_views: entry.collected_views.iter().map(ViewName::as_str).collect(),
-                    entity_types,
-                    collections: entry
+                    entities:        entry
+                        .entity_refs
+                        .iter()
+                        .map(|(t, id)| (t.as_str(), id.as_str()))
+                        .collect(),
+                    collections:     entry
                         .collections
                         .iter()
                         .map(|(c, p)| (c.child_type.as_str(), c.column.as_str(), p.as_str()))
                         .collect(),
-                    by_id: entry
+                    by_id:           entry
                         .by_id
                         .as_ref()
                         .map(|(t, id)| ((t.as_str(), id.as_str()), views().collect())),
@@ -1216,9 +1217,10 @@ impl QueryResultCache {
         // A read of the entity by its id is indexed under its row instead (#1576).
         let by_id = self.invalidate_by_id(entity_type, entity_id)?;
 
-        // Stamp BEFORE collecting keys (#1079) — see invalidate_views. Only fills that
-        // index this entity type can hold the entity (#1584).
-        self.fence.stamp_entity_type(entity_type);
+        // Stamp BEFORE collecting keys (#1079) — see invalidate_views. This evicts the
+        // entries holding this row and no other, so it fences the fills holding it (#1605):
+        // a fill of another row of the type, stored first, would have been left in place.
+        self.fence.stamp_entity(entity_type, entity_id);
 
         // Short-circuit: if entity_type has no indexed entries, skip the DashMap
         // lookup entirely.  Covers cold-cache and write-heavy workloads where no

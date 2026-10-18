@@ -3342,14 +3342,22 @@ mod invalidation_fence_tests {
         );
     }
 
-    /// An entity eviction reaches only fills that index that entity type.
+    /// An entity eviction reaches only the fills holding its row: it evicts the entries
+    /// whose entity references hold that `(type, id)`, and no other (#1605).
     #[test]
-    fn an_entity_eviction_fences_only_fills_of_its_type() {
+    fn an_entity_eviction_fences_only_fills_holding_its_row() {
         assert!(
             !straddled_fill_is_stored(&["v_user"], Some("User"), |c| {
                 c.invalidate_by_entity("User", "u-1").unwrap();
             }),
-            "a read holding Users must not cache across an eviction of a User"
+            "a read holding User u-1 must not cache across an eviction of u-1"
+        );
+        assert!(
+            straddled_fill_is_stored(&["v_user"], Some("User"), |c| {
+                c.invalidate_by_entity("User", "u-2").unwrap();
+            }),
+            "an eviction of User u-2 must not refuse the fill of a read holding only u-1 \
+             (#1605): stored first, it would have been left in place"
         );
         assert!(
             straddled_fill_is_stored(&["v_user"], Some("User"), |c| {
@@ -3357,6 +3365,35 @@ mod invalidation_fence_tests {
             }),
             "an eviction of a Post must not refuse the fill of a read holding Users (#1584)"
         );
+    }
+
+    /// A list holding many rows is refused by an eviction of any one of them, and by none of
+    /// another row.
+    #[test]
+    fn an_entity_eviction_fences_a_list_holding_its_row_wherever_it_sits() {
+        let list = || {
+            (1..=50)
+                .map(|n| {
+                    crate::backend::types::JsonbValue::new(
+                        serde_json::json!({"id": format!("u-{n}")}),
+                    )
+                })
+                .collect::<Vec<_>>()
+        };
+        for (evicted, stored) in [
+            ("u-1", false),
+            ("u-37", false),
+            ("u-50", false),
+            ("u-51", true),
+        ] {
+            let cache = row_cache();
+            let fence = cache.invalidation_generation();
+            cache.invalidate_by_entity("User", evicted).unwrap();
+            cache
+                .put(1_u64, list(), vec!["v_user".to_string()], None, Some("User"), Some(fence))
+                .unwrap();
+            assert_eq!(cache.get(1_u64).unwrap().is_some(), stored, "eviction of {evicted}");
+        }
     }
 
     /// `clear` reaches every fill.
@@ -3396,11 +3433,38 @@ mod invalidation_fence_tests {
             .unwrap();
     }
 
+    /// As above, for an eviction of a row the fill holds (#1605): the pre-check reads the
+    /// rows' references, so the straddled fill never reaches the store.
+    #[test]
+    fn a_fill_straddling_an_eviction_of_a_row_it_holds_is_never_visible() {
+        let cache = row_cache();
+        let fence = cache.invalidation_generation();
+        cache.invalidate_by_entity("User", "u-1").unwrap();
+        cache
+            .put_arc_with(
+                1_u64,
+                std::sync::Arc::new(rows()),
+                vec!["v_user".to_string()],
+                None,
+                Some("User"),
+                Some(fence),
+                || {},
+                || {
+                    assert!(
+                        cache.get(1_u64).unwrap().is_none(),
+                        "a reader concurrent with the put must not be served a fill whose read \
+                         straddled an eviction of a row it holds"
+                    );
+                },
+            )
+            .unwrap();
+    }
+
     /// An invalidation that lands inside `put` itself, after the pre-check and before the
     /// entry is in the store, collects a key that is not stored yet: it evicts nothing. The
     /// fill must notice and withdraw, or the pre-write rows stay cached (at TTL 0, forever).
     /// Each way an invalidation reaches a fill is raced there: its source view, a secondary
-    /// view, its entity type, a clear.
+    /// view, a row it holds, a clear.
     #[test]
     fn an_invalidation_landing_inside_the_put_does_not_leave_the_fill_cached() {
         let racers: [(&str, fn(&QueryResultCache)); 4] = [
@@ -3410,7 +3474,7 @@ mod invalidation_fence_tests {
             ("a secondary view", |c| {
                 c.invalidate_views(&[ViewName::from("v_post")]).unwrap();
             }),
-            ("its entity type", |c| {
+            ("a row it holds", |c| {
                 c.invalidate_by_entity("User", "u-1").unwrap();
             }),
             ("a clear", |c| c.clear().unwrap()),

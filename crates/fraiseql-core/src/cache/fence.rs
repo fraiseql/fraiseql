@@ -1,28 +1,45 @@
-//! The insert fence of [`QueryResultCache`](super::QueryResultCache) (#1079, #1584).
+//! The insert fence of [`QueryResultCache`](super::QueryResultCache) (#1079, #1584, #1605).
 //!
 //! A cached read is `get` → miss → **await the database** → `put`. An invalidation landing
 //! inside that await evicts nothing (the key is not registered yet), and the `put` would then
 //! store rows fetched before the write committed. The fence refuses such a fill.
 //!
-//! It refuses only the fills an invalidation could have evicted. Every invalidation takes the
-//! next number of one sequence and stamps it on what it reaches: a slot per view it sweeps, a
-//! slot per entity type it evicts by id, a slot per collection and parent or per child type
-//! whose collections it evicts (#1589), or every fill at once (`clear`). A change feed's sweep
-//! of a view stamps a slot of its own, which an entry's own views are checked against but the
-//! views of its levels tagged by collection are not: the feed names those levels' collections.
-//! So does a write whose report names the collections it changed (#1603).
-//! A read of one row by its id (#1576) is checked against a full sweep of its view, its own
-//! `(type, id)` slot and its type's, not against a write's or a feed's sweep: those name the
-//! rows they changed, so a write to user B no longer refuses the fill of user A. A
-//! read snapshots the sequence before its round trip; its fill is refused when a slot it would be
-//! indexed under carries a later stamp. A write to `v_post` therefore no longer refuses a read of
-//! `v_user`: under steady writes some invalidation is always in flight, and a global fence cached
-//! nothing at all (#1584).
+//! # What a stamp must reach
 //!
-//! Slots are a fixed array indexed by a hash of the name, so a name never outlives anything
+//! The rule every slot below follows: **an invalidation fences exactly the fills its own key
+//! collection would have evicted, had they been stored before it.** A fill it would not have
+//! evicted cannot be made stale by it: had the fill landed first, the invalidation would
+//! have left it in place, so letting it land second changes nothing. Whatever else the write
+//! changed is the business of the invalidations that do reach it (its views, its
+//! collections, its feed), each fenced by its own stamp. Refusing more is never unsound,
+//! only a missed cache write; refusing less is a stale entry.
+//!
+//! So every invalidation takes the next number of one sequence and stamps it on what its
+//! eviction is keyed by:
+//!
+//! - a sweep of views: a slot per view (a change feed's, or a write's that names its collections, a
+//!   slot of its own: those do not reach the views of levels tagged by collection, #1589, #1603; a
+//!   write that reported its rows, another: it does not reach reads of one row by id, #1576);
+//! - an eviction of the entity `(type, id)` (`invalidate_by_entity`): the slot of that row (#1605).
+//!   It evicts the entries whose entity references hold that id, so it fences the fills that hold
+//!   it, and no other fill of the type. Under a steady stream of comment writes a per-type stamp
+//!   refused every composed read holding *any* comment;
+//! - an eviction of collections: a slot per collection and parent, or per child type (#1589);
+//! - a read of one row by its id (#1576): its own `(type, id)` slot, its type's, and a full sweep
+//!   of its views;
+//! - `clear`: every fill at once.
+//!
+//! A read snapshots the sequence before its round trip; its fill is refused when a slot it
+//! would be indexed under carries a later stamp. The fill is checked against the slots of
+//! **every** reference it will be indexed under: its views, and each `(type, id)` its rows and
+//! its composed levels hold, read from the rows it fetched, which are exactly what the entity
+//! index will register.
+//!
+//! Slots are fixed arrays indexed by a hash of the name, so a name never outlives anything
 //! and arbitrary names cost no memory. Two names sharing a slot only fence each other's fills
-//! too eagerly: a missed cache write, never a stale entry. Rows read by id have an array of
-//! their own, larger: a write stamps every row it rewrote, many more names than views or types.
+//! too eagerly: a missed cache write, never a stale entry. Rows, read by id or evicted by
+//! entity, have an array of their own, larger: a write stamps every row it rewrote, many
+//! more names than views or types.
 //!
 //! # Ordering
 //!
@@ -30,17 +47,18 @@
 //! **after** it is in the store, with a read-modify-write on each slot. Either the fill's
 //! check reads the stamp, and it withdraws its own entry, or the check precedes the stamp in
 //! the slot's modification order, and the insert happens-before the invalidation's key
-//! collection, which then evicts it. There is no third order.
+//! collection, which then evicts it. There is no third order (#1585).
 
 use std::sync::atomic::{AtomicU64, Ordering};
 
 /// Number of slots. A power of two, so the index is a mask.
 const SLOTS: usize = 1024;
 
-/// Number of slots of rows read by id (#1576), apart: a write reports every row it rewrote,
-/// a user's posts and comments with them, so under steady writes thousands of rows are
-/// stamped a second, and a read of another row sharing a slot with one would be refused.
-/// 65 536 slots (512 `KiB`) keep that to about one fill in sixty at a thousand rows in flight.
+/// Number of slots of rows, read by id (#1576) or evicted by entity (#1605), apart: a write
+/// reports every row it rewrote, a user's posts and comments with them, so under steady
+/// writes thousands of rows are stamped a second, and a fill holding another row sharing a
+/// slot with one would be refused. 65 536 slots (512 `KiB`) keep that to about one row in
+/// sixty at a thousand rows in flight.
 const ROW_SLOTS: usize = 65_536;
 
 /// Hash domains, so a view and an entity type of the same name use different slots.
@@ -49,7 +67,8 @@ const VIEW: u8 = b'v';
 /// (#1603): it reaches an entry's own views, not the views of its levels tagged by collection
 /// (#1589).
 const FEED_VIEW: u8 = b'f';
-const ENTITY_TYPE: u8 = b'e';
+/// One row evicted by entity: `(type, id)` (#1605).
+const ENTITY: u8 = b'e';
 /// Every collection of a child type (#1589).
 const COLLECTION_TYPE: u8 = b'c';
 /// One collection of one parent: `(child type, column, parent id)` (#1589).
@@ -70,8 +89,9 @@ pub(super) struct Reach<'a> {
     /// The views of its levels tagged by collection: reached by the sweep of a write that
     /// named no collection, not the feed's (#1589) nor that of a write that did (#1603).
     pub(super) collected_views: Vec<&'a str>,
-    /// The types of the rows it holds.
-    pub(super) entity_types:    Vec<&'a str>,
+    /// The rows it holds, `(type, id)`, as its entity references index them: reached by an
+    /// eviction of that row (#1605).
+    pub(super) entities:        Vec<(&'a str, &'a str)>,
     /// Its collections, as `(child type, column, parent id)`.
     pub(super) collections:     Vec<(&'a str, &'a str, &'a str)>,
     /// The row it reads by id, as `(type, id)`, with its views (#1576): reached by a full
@@ -87,7 +107,8 @@ pub(super) struct InvalidationFence {
     everything: AtomicU64,
     /// Stamped by the invalidations reaching the names hashed to each slot.
     slots:      Box<[AtomicU64]>,
-    /// Stamped by the evictions of the rows read by id hashed to each slot (#1576).
+    /// Stamped by the evictions of the rows hashed to each slot, read by id (#1576) or evicted
+    /// by entity (#1605).
     rows:       Box<[AtomicU64]>,
 }
 
@@ -114,10 +135,11 @@ impl InvalidationFence {
         }
     }
 
-    /// Stamp the slot of `entity_type`. Call before collecting the keys to evict.
-    pub(super) fn stamp_entity_type(&self, entity_type: &str) {
+    /// Stamp the slot of the row `id` of `entity_type`, evicted by entity (#1605). Call before
+    /// collecting the keys to evict.
+    pub(super) fn stamp_entity(&self, entity_type: &str, id: &str) {
         let stamp = self.next();
-        self.slot(ENTITY_TYPE, &[entity_type]).fetch_max(stamp, Ordering::SeqCst);
+        self.row_slot(ENTITY, entity_type, id).fetch_max(stamp, Ordering::SeqCst);
     }
 
     /// Stamp every fill. Call before clearing.
@@ -148,7 +170,7 @@ impl InvalidationFence {
     /// Stamp the slot of the row `id` of `type_name`, read by id (#1576).
     pub(super) fn stamp_by_id(&self, type_name: &str, id: &str) {
         let stamp = self.next();
-        self.row_slot(type_name, id).fetch_max(stamp, Ordering::SeqCst);
+        self.row_slot(BY_ID, type_name, id).fetch_max(stamp, Ordering::SeqCst);
     }
 
     /// Stamp the slot of every row of `type_name` read by id (#1576).
@@ -196,11 +218,14 @@ impl InvalidationFence {
                 .iter()
                 .any(|v| moved(VIEW, &[v]) || moved(WRITE_VIEW, &[v]))
             || reach.by_id.as_ref().is_some_and(|((t, id), views)| {
-                read(self.row_slot(t, id)) > snapshot
+                read(self.row_slot(BY_ID, t, id)) > snapshot
                     || moved(BY_ID_TYPE, &[t])
                     || views.iter().any(|v| moved(VIEW, &[v]))
             })
-            || reach.entity_types.iter().any(|t| moved(ENTITY_TYPE, &[t]))
+            || reach
+                .entities
+                .iter()
+                .any(|(t, id)| read(self.row_slot(ENTITY, t, id)) > snapshot)
             || reach.collections.iter().any(|(t, c, p)| {
                 moved(COLLECTION_TYPE, &[t]) || moved(COLLECTION_MEMBER, &[t, c, p])
             })
@@ -210,9 +235,9 @@ impl InvalidationFence {
         self.sequence.fetch_add(1, Ordering::SeqCst) + 1
     }
 
-    fn row_slot(&self, type_name: &str, id: &str) -> &AtomicU64 {
+    fn row_slot(&self, domain: u8, type_name: &str, id: &str) -> &AtomicU64 {
         #[allow(clippy::cast_possible_truncation)] // Reason: masked to ROW_SLOTS - 1 first
-        let index = (hash(BY_ID, &[type_name, id]) & (ROW_SLOTS as u64 - 1)) as usize;
+        let index = (hash(domain, &[type_name, id]) & (ROW_SLOTS as u64 - 1)) as usize;
         &self.rows[index]
     }
 

@@ -305,7 +305,7 @@ async fn a_read_straddling_an_entity_eviction_of_another_type_is_cached() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn a_read_straddling_an_entity_eviction_of_its_type_is_not_cached() {
+async fn a_read_straddling_an_entity_eviction_of_a_row_it_holds_is_not_cached() {
     let g = Gated::new("f1584e", 1_584_005).await;
     let cached = gated_cache().await;
     g.straddle(&cached, || {
@@ -314,7 +314,25 @@ async fn a_read_straddling_an_entity_eviction_of_its_type_is_not_cached() {
     .await;
     assert!(
         rereads(&g, &cached).await,
-        "a read straddling an eviction of the entity type it holds must not be cached (#1079)"
+        "a read straddling an eviction of a row it holds must not be cached (#1079)"
+    );
+    g.drop().await;
+}
+
+/// #1605: an eviction of another row of the type reaches no fill that does not hold it, so
+/// it refuses none. A per-type fence refused this one, and under steady writes to other rows
+/// of a type, every fill holding that type.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_read_straddling_an_entity_eviction_of_another_row_of_its_type_is_cached() {
+    let g = Gated::new("f1605a", 1_605_001).await;
+    let cached = gated_cache().await;
+    g.straddle(&cached, || {
+        cached.invalidate_by_entity("Gated", "g-2").unwrap();
+    })
+    .await;
+    assert!(
+        !rereads(&g, &cached).await,
+        "an eviction of Gated g-2 must not refuse the fill of a read holding only g-1 (#1605)"
     );
     g.drop().await;
 }

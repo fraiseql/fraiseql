@@ -237,7 +237,9 @@ while the query is in flight evicts nothing (the entry is not stored yet), and s
 rows afterwards would cache what the database held before the write. So the cache refuses to
 store a read when, while it was in flight, a write evicted something that entry would have
 been evicted by: one of the views it is cached under (its own and its declared secondary
-views), its entity type (a write's eviction by id), or a cache clear (#1079). A read of one
+views), a row it holds (a write's eviction by entity id, at any level of a composed read:
+an eviction of another row of the same type does not refuse it, #1605), or a cache clear
+(#1079). A read of one
 TVIEW row by id is refused only by an eviction of that row or its type, a full sweep of its
 view, or a clear: a write to another row does not refuse it (#1576).
 

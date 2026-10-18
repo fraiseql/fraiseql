@@ -201,3 +201,30 @@ fn a_plain_read_that_straddles_the_feeds_sweep_of_its_view_is_not_stored() {
     compose(&cache, 1, &["p1"], Some(fence));
     assert!(!cached(&cache, 1), "tv_post is the entry's own view");
 }
+
+/// #1605: a composed read holds its comments' rows by `(type, id)`. An eviction of a comment
+/// it holds refuses its fill; an eviction of another comment, a write on another post, does
+/// not: under steady comment writes a per-type fence stored no composed read at all.
+#[test]
+fn a_composed_fill_is_fenced_by_the_rows_it_holds_not_by_their_type() {
+    let compose_holding = |cache: &QueryResultCache, fence: Option<u64>| {
+        let tags = ComposedTags {
+            collected_views: vec!["tv_comment".to_string()],
+            collections:     vec![(comments_by_post(), "p1".to_string())],
+            entities:        vec![
+                ("Post".to_string(), "p1".to_string()),
+                ("Comment".to_string(), "c1".to_string()),
+            ],
+        };
+        cache
+            .put_composed(1, rows(), vec!["tv_post".to_string()], None, None, tags, fence)
+            .unwrap();
+    };
+    for (evicted, stored) in [("c1", false), ("c9", true)] {
+        let cache = cache();
+        let fence = cache.invalidation_generation();
+        cache.invalidate_by_entity("Comment", evicted).unwrap();
+        compose_holding(&cache, Some(fence));
+        assert_eq!(cached(&cache, 1), stored, "a straddled eviction of Comment {evicted}");
+    }
+}
