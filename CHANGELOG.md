@@ -442,7 +442,9 @@ disagreed, and the promise was the part that was wrong.
   for an array parameter (`text[]`, `float8[]`, an enum's array, a domain over one,
   multi-dimensional arrays, quoted items and `null` items included) and as JSON for a `jsonb`
   one; it used to reach an array parameter as `["a","b"]`, refused as a `malformed array
-  literal`. Through a single mutation and through a batch. Measured against binding each
+  literal`. A string argument bound to a `json`/`jsonb` parameter is the JSON string it is:
+  it was sent as its raw characters, so `"hello"` was refused as invalid JSON and `"2"`
+  stored as the number `2`. Through a single mutation and through a batch. Measured against binding each
   type in binary with its own type (PostgreSQL 18, 5 interleaved runs): equal within the
   noise (binding alone +2 % for binary, a full write −1 %, spread ±9 %).
 

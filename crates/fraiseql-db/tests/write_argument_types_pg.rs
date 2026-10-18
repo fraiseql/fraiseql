@@ -23,7 +23,7 @@ use serde_json::{Value, json};
 /// which is not PostgreSQL's array syntax, and the edge values of each type's input function
 /// (`NaN`, `infinity`, a zone offset, a zone-less timestamp, more digits than a `float8`) are
 /// read by the server exactly as written.
-const CASES: [(&str, &str, &str); 31] = [
+const CASES: [(&str, &str, &str); 34] = [
     ("float8", "9.5", "9.5"),
     ("float4", "0.25", "0.25"),
     (
@@ -72,6 +72,10 @@ const CASES: [(&str, &str, &str); 31] = [
     ("p1547.mood[]", r#"["happy", "sad"]"#, "{happy,sad}"),
     ("jsonb[]", r#"[{"a": 1}, [2]]"#, r#"{"{\"a\": 1}",[2]}"#),
     ("p1547.labels", r#"["a", "b"]"#, "{a,b}"),
+    // A `jsonb` parameter takes the JSON value the argument is: a string stays a string.
+    ("jsonb", r#""hello""#, r#""hello""#),
+    ("jsonb", r#""2""#, r#""2""#),
+    ("jsonb", "2", "2"),
 ];
 
 /// The function `p1547.fn_<n>` of each case stores its one argument as text and returns it.

@@ -79,9 +79,7 @@ impl<'r> PreparedCall<'r> {
             .iter()
             .map(|v| match v {
                 serde_json::Value::Null => FlexParam::Null,
-                serde_json::Value::String(s) => FlexParam::Text(s.clone()),
-                serde_json::Value::Array(items) => FlexParam::List(items.clone()),
-                _ => FlexParam::Text(v.to_string()),
+                value => FlexParam::Value(value.clone()),
             })
             .collect();
         if let Some(changelog) = changelog {
@@ -562,9 +560,11 @@ const PG_UNDEFINED_COLUMN: &str = "42703";
 ///   their text (a `float8` is 8 bytes, a `date` 4), so sending the text as binary failed with
 ///   `insufficient data left in message`.
 ///
-/// A JSON array (a list argument) is sent to an array parameter in PostgreSQL's array syntax,
-/// `{"a","b"}`, each item parsed by the element type's input function, and to a `json`/`jsonb`
-/// parameter as the JSON it is.
+/// A write function's argument is the JSON value the request carries, written for the
+/// parameter's type: a `json`/`jsonb` parameter takes it as the JSON it is (a string stays a
+/// string), an array parameter a JSON array in PostgreSQL's array syntax, `{"a","b"}`, each
+/// item parsed by the element type's input function, and any other parameter its text (a
+/// string's own characters, any other value's JSON).
 ///
 /// Inside an array (`id = ANY($1)`) each element is written by [`ToSql::to_sql`] in the binary
 /// format whatever [`ToSql::encode_format`] says, so the six binary encodings stay.
@@ -572,10 +572,43 @@ const PG_UNDEFINED_COLUMN: &str = "42703";
 enum FlexParam {
     /// SQL NULL — accepted by any PostgreSQL type.
     Null,
-    /// A text-encoded value; binary-serialised according to the server-resolved type.
+    /// A text-encoded value; binary-serialised according to the server-resolved type. A
+    /// `json`/`jsonb` parameter takes the text as JSON text.
     Text(String),
-    /// A JSON array, written for the server-resolved type: an array literal or JSON.
-    List(Vec<serde_json::Value>),
+    /// A request's JSON value, written for the server-resolved type.
+    Value(serde_json::Value),
+}
+
+/// Write `text`, the text form of a value, for the parameter type `ty`: the binary form of
+/// the six types `encode_format` sends in binary, the UTF-8 bytes otherwise.
+fn write_text(
+    text: &str,
+    ty: &tokio_postgres::types::Type,
+    out: &mut bytes::BytesMut,
+) -> std::result::Result<(), Box<dyn std::error::Error + Sync + Send>> {
+    use tokio_postgres::types::Type;
+    if *ty == Type::JSONB {
+        // JSONB binary wire format: 1-byte version (1) + JSON bytes
+        out.put_u8(1);
+        out.extend_from_slice(text.as_bytes());
+    } else if *ty == Type::UUID {
+        let uuid = uuid::Uuid::parse_str(text)?;
+        out.extend_from_slice(uuid.as_bytes());
+    } else if *ty == Type::INT4 {
+        let n: i32 = text.parse()?;
+        out.put_i32(n);
+    } else if *ty == Type::INT8 {
+        let n: i64 = text.parse()?;
+        out.put_i64(n);
+    } else if *ty == Type::BOOL {
+        let b: bool = text.parse()?;
+        out.put_u8(u8::from(b));
+    } else {
+        // Sent in the text format (`encode_format`): the UTF-8 bytes, parsed by the type's
+        // input function. Also the binary form of `json` and of the text family.
+        out.extend_from_slice(text.as_bytes());
+    }
+    Ok(())
 }
 
 /// Write `items` in PostgreSQL's array syntax: every item quoted (an element type's input
@@ -632,46 +665,28 @@ impl tokio_postgres::types::ToSql for FlexParam {
         match self {
             Self::Null => Ok(IsNull::Yes),
             Self::Text(s) => {
-                if *ty == Type::JSONB {
-                    // JSONB binary wire format: 1-byte version (1) + JSON bytes
-                    out.put_u8(1);
-                    out.extend_from_slice(s.as_bytes());
-                } else if *ty == Type::JSON {
-                    out.extend_from_slice(s.as_bytes());
-                } else if *ty == Type::UUID {
-                    let uuid = uuid::Uuid::parse_str(s)?;
-                    out.extend_from_slice(uuid.as_bytes());
-                } else if *ty == Type::INT4 {
-                    let n: i32 = s.parse()?;
-                    out.put_i32(n);
-                } else if *ty == Type::INT8 {
-                    let n: i64 = s.parse()?;
-                    out.put_i64(n);
-                } else if *ty == Type::BOOL {
-                    let b: bool = s.parse()?;
-                    out.put_u8(u8::from(b));
-                } else {
-                    // Sent in the text format (`encode_format`): the UTF-8 bytes, parsed by the
-                    // type's input function. Also the binary form of the text family.
-                    out.extend_from_slice(s.as_bytes());
-                }
+                write_text(s, ty, out)?;
                 Ok(IsNull::No)
             },
-            Self::List(items) => {
+            Self::Value(value) => {
                 if *ty == Type::JSONB {
                     out.put_u8(1);
-                    serde_json::to_writer((&mut *out).writer(), items)?;
+                    serde_json::to_writer((&mut *out).writer(), value)?;
                 } else if *ty == Type::JSON {
-                    serde_json::to_writer((&mut *out).writer(), items)?;
-                } else if let Some(element) = array_element(ty) {
+                    serde_json::to_writer((&mut *out).writer(), value)?;
+                } else if let (Some(element), serde_json::Value::Array(items)) =
+                    (array_element(ty), value)
+                {
                     let json_elements = [Type::JSONB, Type::JSON].contains(element);
                     let mut literal = String::new();
                     write_array_literal(items, json_elements, &mut literal);
                     out.extend_from_slice(literal.as_bytes());
+                } else if let serde_json::Value::String(s) = value {
+                    write_text(s, ty, out)?;
                 } else {
                     // Another type reads the JSON text with its own input function, which
-                    // accepts it (`text`) or refuses it with its own message.
-                    serde_json::to_writer((&mut *out).writer(), items)?;
+                    // accepts it (`9.5` for a `float8`) or refuses it with its own message.
+                    write_text(&value.to_string(), ty, out)?;
                 }
                 Ok(IsNull::No)
             },
