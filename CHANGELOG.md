@@ -18,9 +18,9 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
-- **`EnumValueDefinition` gains `value` (#1580).** A struct literal listing every field adds
-  `value: None` (the member is stored as its name), or builds with
-  `EnumValueDefinition::new(..).stored_as(..)`. An enum whose members share a stored value
+- **`EnumValueDefinition` gains `value` (#1580)**, and so does `fraiseql-cli`'s
+  `IntermediateEnumValue`. A struct literal listing every field adds `value: None` (the
+  member is stored as its name), or builds with `EnumValueDefinition::new(..).stored_as(..)`. An enum whose members share a stored value
   (`{"name": "A", "value": "B"}` beside a member `B` with none) no longer loads.
 
 - **A list declared `[T]` publishes nullable items (#1586).** It published `[T!]` whatever was
