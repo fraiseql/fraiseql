@@ -117,29 +117,15 @@ mod executor_tests {
     /// Parse a document and return its root field names, so an assertion can be made
     /// about the shape of the operation rather than about the text of it.
     fn root_fields(document: &str) -> Vec<String> {
-        use graphql_parser::query::{Definition, OperationDefinition, Selection};
-
-        let doc = graphql_parser::parse_query::<String>(document)
+        let doc = fraiseql_core::graphql::document::parse(document)
             .map_err(|e| format!("built document must parse: {e}\n{document}"))
             .expect("valid GraphQL document");
-        let mut roots = Vec::new();
-        for def in &doc.definitions {
-            let Definition::Operation(op) = def else {
-                continue;
-            };
-            let selection_set = match op {
-                OperationDefinition::Query(q) => &q.selection_set,
-                OperationDefinition::Mutation(m) => &m.selection_set,
-                OperationDefinition::Subscription(s) => &s.selection_set,
-                OperationDefinition::SelectionSet(s) => s,
-            };
-            for selection in &selection_set.items {
-                if let Selection::Field(field) = selection {
-                    roots.push(field.name.clone());
-                }
-            }
-        }
-        roots
+        doc.operations
+            .iter()
+            .flat_map(|op| &op.selections)
+            .filter(|selection| !selection.name.starts_with("..."))
+            .map(|field| field.name.clone())
+            .collect()
     }
 
     /// **The class gate for #808.** No caller-supplied value — however nested,

@@ -1,30 +1,29 @@
 // GraphQL query complexity analysis — AST-based to prevent DoS attacks.
 //
-// Uses `graphql-parser` to walk the document tree, correctly handling
-// operation names, arguments, fragment spreads, and aliases (which a
-// character-scan approach cannot distinguish from field names).
+// Walks the parsed document, correctly handling operation names, arguments,
+// fragment spreads, and aliases (which a character-scan approach cannot
+// distinguish from field names).
 
 use std::collections::{HashMap, HashSet};
 
-use graphql_parser::query::{
-    Definition, Document, Field, FragmentDefinition, OperationDefinition, Selection, SelectionSet,
+use crate::graphql::{
+    document::{Document, Operation},
+    types::{FieldSelection, FragmentDefinition, GraphQLArgument},
 };
 
 /// A parsed GraphQL document, shared by every stage that reads one request.
-pub type SharedDocument = std::sync::Arc<Document<'static, String>>;
+pub type SharedDocument = std::sync::Arc<Document>;
 
 /// The outcome of parsing one source, as [`parse_graphql_document`] returns it.
 pub type DocumentParse = Result<SharedDocument, ComplexityValidationError>;
 
-/// Parse a GraphQL query source into a [`graphql_parser`] document.
+/// Parse a GraphQL query source into a [`Document`].
 ///
-/// This is the **only** place in the workspace that calls
-/// [`graphql_parser::parse_query`]. Every other parse — the validator, the
-/// analyzer, the subscription name extractor, the REST `validate` endpoint —
-/// comes through here, because the parser can panic on input a client controls
-/// (see below) and a guard is only worth having if nothing can walk around it.
-/// `tools/check-graphql-parse-sites.sh` fails the build if a second call site
-/// appears.
+/// This is the **only** entry point to the parser in the workspace. Every parse — the
+/// validator, the analyzer, the subscription root, the REST `validate` endpoint, the
+/// matcher — comes through here, so a guard on the parser is one guard, and the parse is
+/// shared (below). `tools/check-graphql-parse-sites.sh` fails the build if a second call
+/// site appears.
 ///
 /// # Parsed once per request (#1562)
 ///
@@ -39,9 +38,9 @@ pub type DocumentParse = Result<SharedDocument, ComplexityValidationError>;
 ///
 /// # Errors
 ///
-/// Returns [`ComplexityValidationError::MalformedQuery`] when the source fails
-/// to parse as a GraphQL query document, when it carries block-string
-/// indentation `graphql-parser` cannot handle (#976), or when the parser panics.
+/// Returns [`ComplexityValidationError::MalformedQuery`] when the source is not an
+/// executable document (with the line and column of the first error), and when the
+/// parser panics.
 pub fn parse_graphql_document(query: &str) -> DocumentParse {
     let remembered = REQUEST_DOCUMENT.try_with(|slot| {
         slot.borrow()
@@ -52,7 +51,7 @@ pub fn parse_graphql_document(query: &str) -> DocumentParse {
     if let Ok(Some(parse)) = remembered {
         return parse;
     }
-    let parse = parse_uncached(query).map(|document| SharedDocument::new(document.into_static()));
+    let parse = parse_uncached(query).map(SharedDocument::new);
     let _ = REQUEST_DOCUMENT.try_with(|slot| {
         let mut slot = slot.borrow_mut();
         if slot.is_none() {
@@ -83,32 +82,20 @@ pub async fn document_scope<F: std::future::Future>(future: F) -> F::Output {
     }
 }
 
-/// The parse itself, behind the guards [`parse_graphql_document`] documents.
-fn parse_uncached(query: &str) -> Result<Document<'_, String>, ComplexityValidationError> {
+/// The parse itself, behind the guard [`parse_graphql_document`] documents.
+fn parse_uncached(query: &str) -> Result<Document, ComplexityValidationError> {
     #[cfg(any(test, feature = "test-utils"))]
     PARSES_ON_THIS_THREAD.with(|n| n.set(n.get() + 1));
     if query.trim().is_empty() {
         return Err(ComplexityValidationError::MalformedQuery("Empty query".to_string()));
     }
-    if !block_string_indent_is_supported(query) {
-        return Err(ComplexityValidationError::MalformedQuery(
-            "unsupported block string indentation: a line inside this document is indented \
-             with non-ASCII whitespace, which the GraphQL parser cannot process (#976). \
-             Indent block strings with spaces or tabs."
-                .to_string(),
-        ));
-    }
-    // Defence in depth for the rest of the parser. `graphql-parser` 0.4.1 is
-    // unmaintained, and #976 showed a 27-byte document is enough to panic it. The
-    // guard above closes that specific hole soundly; this closes the class, so an
-    // unknown parser panic costs the client a rejected query rather than costing
-    // everyone on that connection their response. libFuzzer's panic hook aborts
-    // before unwinding, so this does not hide anything from the fuzz campaign.
-    match std::panic::catch_unwind(|| {
-        graphql_parser::parse_query::<String>(query)
-            .map_err(|e| ComplexityValidationError::MalformedQuery(format!("{e}")))
-    }) {
-        Ok(result) => result,
+    // Defence in depth. The parser is error-resilient by design and a fuzz campaign found
+    // no input that panics it (see `document`), but a parser panic on a client's document
+    // must cost that client a refused query, never the connection's other responses.
+    // libFuzzer's panic hook aborts before unwinding, so this hides nothing from the fuzz
+    // target, which calls the parser directly.
+    match std::panic::catch_unwind(|| crate::graphql::document::parse(query)) {
+        Ok(result) => result.map_err(|e| ComplexityValidationError::MalformedQuery(e.to_string())),
         Err(_) => Err(ComplexityValidationError::MalformedQuery(
             "the GraphQL parser failed on this document".to_string(),
         )),
@@ -130,32 +117,6 @@ thread_local! {
 #[must_use]
 pub fn document_parses_on_this_thread() -> usize {
     PARSES_ON_THIS_THREAD.with(std::cell::Cell::get)
-}
-
-/// Whether every line's indentation is ASCII, which is what makes
-/// `graphql-parser`'s block-string handling safe on this document (#976).
-///
-/// The parser measures a block string's common indent in **bytes**
-/// (`line.len() - line.trim_start().len()`) but strips it with `str::trim_start`,
-/// which is Unicode-aware, then slices the line at that byte offset. Indent a
-/// line with U+00A0 and the offset lands mid-codepoint, and `&line[indent..]`
-/// panics — on a document that is well-formed by the GraphQL spec.
-///
-/// When every line's leading whitespace run is ASCII, each such char is one byte,
-/// so the computed indent equals the character count and every offset up to it is
-/// a char boundary. The common indent is a minimum over those lines and the
-/// parser only slices lines at or past it, so no slice can split a codepoint.
-///
-/// Only *indentation* is checked. Non-ASCII whitespace is not GraphQL whitespace,
-/// so elsewhere it is string content — which the parser copies without slicing,
-/// and which real queries legitimately carry.
-fn block_string_indent_is_supported(query: &str) -> bool {
-    if !query.contains("\"\"\"") {
-        return true;
-    }
-    !query
-        .lines()
-        .any(|line| line.chars().take_while(|c| c.is_whitespace()).any(|c| !c.is_ascii()))
 }
 
 /// Default maximum number of aliases per query (alias amplification protection).
@@ -360,7 +321,7 @@ impl RequestValidator {
     /// (audit H4).
     fn document_metrics<'a>(
         &self,
-        document: &'a Document<'static, String>,
+        document: &'a Document,
         variables: Option<&'a serde_json::Value>,
     ) -> QueryMetrics {
         let fragments = collect_fragments(document);
@@ -417,7 +378,7 @@ impl RequestValidator {
     /// complexity, or alias-amplification limits.
     pub fn validate_query_doc<'a>(
         &self,
-        document: &'a Document<'static, String>,
+        document: &'a Document,
         variables: Option<&'a serde_json::Value>,
     ) -> Result<(), ComplexityValidationError> {
         if self.is_no_op() {
@@ -515,7 +476,7 @@ struct SelectionMetrics {
 /// and aliases hidden inside spread fragments were never counted, bypassing the
 /// alias-amplification limit (audit H4, alias counter).
 struct DocumentAnalyzer<'a> {
-    by_name:        HashMap<&'a str, &'a FragmentDefinition<'static, String>>,
+    by_name:        HashMap<&'a str, &'a FragmentDefinition>,
     memo:           HashMap<&'a str, SelectionMetrics>,
     visiting:       HashSet<&'a str>,
     max_depth:      usize,
@@ -532,23 +493,21 @@ struct DocumentAnalyzer<'a> {
 
 impl<'a> DocumentAnalyzer<'a> {
     fn new(
-        document: &'a Document<'static, String>,
-        fragments: &[&'a FragmentDefinition<'static, String>],
+        document: &'a Document,
+        fragments: &[&'a FragmentDefinition],
         max_depth: usize,
         max_complexity: usize,
         variables: Option<&'a serde_json::Value>,
     ) -> Self {
         let mut defaults: HashMap<&'a str, i64> = HashMap::new();
-        for def in &document.definitions {
-            let Definition::Operation(op) = def else {
-                continue;
-            };
-            for var in operation_variable_definitions(op) {
-                if let Some(graphql_parser::query::Value::Int(n)) = &var.default_value {
-                    if let Some(n) = n.as_i64() {
-                        let slot = defaults.entry(var.name.as_str()).or_insert(n);
-                        *slot = (*slot).max(n);
-                    }
+        for op in &document.operations {
+            for var in &op.variables {
+                let default = var.default_value.as_deref().and_then(|json| {
+                    crate::graphql::value_json::decode(json).ok().and_then(|v| v.as_i64())
+                });
+                if let Some(n) = default {
+                    let slot = defaults.entry(var.name.as_str()).or_insert(n);
+                    *slot = (*slot).max(n);
                 }
             }
         }
@@ -585,26 +544,19 @@ impl<'a> DocumentAnalyzer<'a> {
     /// only; the alias total sums operations only, where each fragment spread
     /// contributes the fragment's own alias count *per occurrence* — that is
     /// the alias-amplification fix (the old counter scored spreads as 0).
-    fn analyze_document(&mut self, document: &'a Document<'static, String>) -> QueryMetrics {
+    fn analyze_document(&mut self, document: &'a Document) -> QueryMetrics {
         let mut depth = 0usize;
         let mut complexity = 0usize;
         let mut aliases = 0usize;
-        for def in &document.definitions {
-            match def {
-                Definition::Operation(op) => {
-                    let m = self.selection_metrics(
-                        operation_selection_set(op),
-                        FRAGMENT_SPREAD_DEPTH_LIMIT,
-                    );
-                    depth = depth.max(m.depth);
-                    complexity = complexity.saturating_add(m.complexity);
-                    aliases = aliases.saturating_add(m.aliases);
-                },
-                Definition::Fragment(f) => {
-                    let m = self.resolve_fragment(f.name.as_str(), FRAGMENT_SPREAD_DEPTH_LIMIT);
-                    depth = depth.max(m.depth);
-                },
-            }
+        for op in &document.operations {
+            let m = self.selection_metrics(&op.selections, FRAGMENT_SPREAD_DEPTH_LIMIT);
+            depth = depth.max(m.depth);
+            complexity = complexity.saturating_add(m.complexity);
+            aliases = aliases.saturating_add(m.aliases);
+        }
+        for f in &document.fragments {
+            let m = self.resolve_fragment(f.name.as_str(), FRAGMENT_SPREAD_DEPTH_LIMIT);
+            depth = depth.max(m.depth);
         }
         QueryMetrics {
             depth,
@@ -640,7 +592,7 @@ impl<'a> DocumentAnalyzer<'a> {
             return m;
         };
         self.visiting.insert(name);
-        let m = self.selection_metrics(&frag.selection_set, budget - 1);
+        let m = self.selection_metrics(&frag.selections, budget - 1);
         self.visiting.remove(name);
         self.memo.insert(name, m);
         m
@@ -648,26 +600,26 @@ impl<'a> DocumentAnalyzer<'a> {
 
     fn selection_metrics(
         &mut self,
-        selection_set: &'a SelectionSet<'static, String>,
+        selection_set: &'a [FieldSelection],
         budget: usize,
     ) -> SelectionMetrics {
         let mut max_child_depth = 0usize;
         let mut complexity = 0usize;
         let mut aliases = 0usize;
-        for sel in &selection_set.items {
-            let child = match sel {
-                Selection::Field(field) => {
-                    let self_alias = usize::from(field.alias.is_some());
-                    if field.selection_set.items.is_empty() {
+        for sel in selection_set {
+            let child = match Kind::of(sel) {
+                Kind::Field => {
+                    let self_alias = usize::from(sel.alias.is_some());
+                    if sel.nested_fields.is_empty() {
                         SelectionMetrics {
                             depth:      0,
                             complexity: 1,
                             aliases:    self_alias,
                         }
                     } else {
-                        let nested = self.selection_metrics(&field.selection_set, budget);
+                        let nested = self.selection_metrics(&sel.nested_fields, budget);
                         let multiplier = extract_limit_multiplier(
-                            &field.arguments,
+                            &sel.arguments,
                             self.variables,
                             &self.defaults,
                         );
@@ -684,18 +636,14 @@ impl<'a> DocumentAnalyzer<'a> {
                         }
                     }
                 },
-                Selection::InlineFragment(inline) => {
-                    self.selection_metrics(&inline.selection_set, budget)
-                },
-                Selection::FragmentSpread(spread) => {
-                    self.resolve_fragment(spread.fragment_name.as_str(), budget)
-                },
+                Kind::InlineFragment => self.selection_metrics(&sel.nested_fields, budget),
+                Kind::Spread(name) => self.resolve_fragment(name, budget),
             };
             max_child_depth = max_child_depth.max(child.depth);
             complexity = complexity.saturating_add(child.complexity);
             aliases = aliases.saturating_add(child.aliases);
         }
-        let depth = if selection_set.items.is_empty() {
+        let depth = if selection_set.is_empty() {
             0
         } else {
             max_child_depth.saturating_add(1)
@@ -711,11 +659,11 @@ impl<'a> DocumentAnalyzer<'a> {
     /// `1 + nested_complexity * pagination_multiplier`. This is exactly the
     /// per-field score [`selection_metrics`](Self::selection_metrics) assigns, so
     /// a cost walk with no `@cost` overrides equals the complexity score.
-    fn field_complexity(&mut self, field: &'a Field<'static, String>, budget: usize) -> usize {
-        if field.selection_set.items.is_empty() {
+    fn field_complexity(&mut self, field: &'a FieldSelection, budget: usize) -> usize {
+        if field.nested_fields.is_empty() {
             1
         } else {
-            let nested = self.selection_metrics(&field.selection_set, budget);
+            let nested = self.selection_metrics(&field.nested_fields, budget);
             let multiplier =
                 extract_limit_multiplier(&field.arguments, self.variables, &self.defaults);
             1usize.saturating_add(nested.complexity.saturating_mul(multiplier))
@@ -730,45 +678,53 @@ impl<'a> DocumentAnalyzer<'a> {
     /// normal complexity contribution.
     fn document_cost<S: std::hash::BuildHasher>(
         &mut self,
-        document: &'a Document<'static, String>,
+        document: &'a Document,
         root_weights: &HashMap<String, usize, S>,
     ) -> usize {
-        let mut cost = 0usize;
-        for def in &document.definitions {
-            if let Definition::Operation(op) = def {
-                cost =
-                    cost.saturating_add(self.root_cost(operation_selection_set(op), root_weights));
-            }
-        }
-        cost
+        document.operations.iter().fold(0usize, |cost, op: &'a Operation| {
+            cost.saturating_add(self.root_cost(&op.selections, root_weights))
+        })
     }
 
     fn root_cost<S: std::hash::BuildHasher>(
         &mut self,
-        selection_set: &'a SelectionSet<'static, String>,
+        selection_set: &'a [FieldSelection],
         root_weights: &HashMap<String, usize, S>,
     ) -> usize {
         let mut cost = 0usize;
-        for sel in &selection_set.items {
-            let c = match sel {
-                Selection::Field(field) => root_weights
-                    .get(field.name.as_str())
+        for sel in selection_set {
+            let c = match Kind::of(sel) {
+                Kind::Field => root_weights
+                    .get(sel.name.as_str())
                     .copied()
-                    .unwrap_or_else(|| self.field_complexity(field, FRAGMENT_SPREAD_DEPTH_LIMIT)),
-                Selection::InlineFragment(inline) => {
-                    self.root_cost(&inline.selection_set, root_weights)
-                },
-                Selection::FragmentSpread(spread) => {
-                    self.resolve_fragment(
-                        spread.fragment_name.as_str(),
-                        FRAGMENT_SPREAD_DEPTH_LIMIT,
-                    )
-                    .complexity
+                    .unwrap_or_else(|| self.field_complexity(sel, FRAGMENT_SPREAD_DEPTH_LIMIT)),
+                Kind::InlineFragment => self.root_cost(&sel.nested_fields, root_weights),
+                Kind::Spread(name) => {
+                    self.resolve_fragment(name, FRAGMENT_SPREAD_DEPTH_LIMIT).complexity
                 },
             };
             cost = cost.saturating_add(c);
         }
         cost
+    }
+}
+
+/// What a selection is: [`document`](crate::graphql::document) writes a fragment spread as a
+/// selection named `...<fragment>` and an inline fragment as one named `...on <type>`, and
+/// no field name begins with `.`.
+enum Kind<'a> {
+    Field,
+    InlineFragment,
+    Spread(&'a str),
+}
+
+impl<'a> Kind<'a> {
+    fn of(selection: &'a FieldSelection) -> Self {
+        match selection.name.strip_prefix("...") {
+            None => Self::Field,
+            Some(rest) if rest.starts_with("on ") => Self::InlineFragment,
+            Some(fragment) => Self::Spread(fragment),
+        }
     }
 }
 
@@ -781,7 +737,7 @@ impl<'a> DocumentAnalyzer<'a> {
 /// [`RequestValidator::analyze`]'s `complexity`.
 #[must_use]
 pub fn estimate_query_cost<'a, S: std::hash::BuildHasher>(
-    document: &'a Document<'static, String>,
+    document: &'a Document,
     root_cost_weights: &HashMap<String, usize, S>,
     variables: Option<&'a serde_json::Value>,
 ) -> usize {
@@ -912,30 +868,6 @@ pub fn estimate_direct_read_cost<S: std::hash::BuildHasher>(
     projection.complexity()
 }
 
-/// The top-level selection set of any operation kind.
-fn operation_variable_definitions<'a>(
-    op: &'a graphql_parser::query::OperationDefinition<'static, String>,
-) -> &'a [graphql_parser::query::VariableDefinition<'static, String>] {
-    use graphql_parser::query::OperationDefinition as Op;
-    match op {
-        Op::SelectionSet(_) => &[],
-        Op::Query(q) => &q.variable_definitions,
-        Op::Mutation(m) => &m.variable_definitions,
-        Op::Subscription(s) => &s.variable_definitions,
-    }
-}
-
-const fn operation_selection_set<'a>(
-    op: &'a OperationDefinition<'static, String>,
-) -> &'a SelectionSet<'static, String> {
-    match op {
-        OperationDefinition::Query(q) => &q.selection_set,
-        OperationDefinition::Mutation(m) => &m.selection_set,
-        OperationDefinition::Subscription(s) => &s.selection_set,
-        OperationDefinition::SelectionSet(ss) => ss,
-    }
-}
-
 impl Default for RequestValidator {
     fn default() -> Self {
         Self {
@@ -949,20 +881,8 @@ impl Default for RequestValidator {
 }
 
 /// Collect all fragment definitions from a parsed document.
-fn collect_fragments<'a>(
-    document: &'a Document<'static, String>,
-) -> Vec<&'a FragmentDefinition<'static, String>> {
-    document
-        .definitions
-        .iter()
-        .filter_map(|def| {
-            if let Definition::Fragment(f) = def {
-                Some(f)
-            } else {
-                None
-            }
-        })
-        .collect()
+fn collect_fragments(document: &Document) -> Vec<&FragmentDefinition> {
+    document.fragments.iter().collect()
 }
 
 /// Extract pagination limit from field arguments to use as a cost multiplier.
@@ -976,38 +896,38 @@ fn collect_fragments<'a>(
 const PAGINATION_MULTIPLIER_CEILING: usize = 100;
 
 fn extract_limit_multiplier(
-    arguments: &[(String, graphql_parser::query::Value<String>)],
+    arguments: &[GraphQLArgument],
     variables: Option<&serde_json::Map<String, serde_json::Value>>,
     defaults: &HashMap<&str, i64>,
 ) -> usize {
-    for (name, value) in arguments {
-        if matches!(name.as_str(), "first" | "limit" | "take" | "last") {
-            match value {
-                graphql_parser::query::Value::Int(n) => {
+    for argument in arguments {
+        if !matches!(argument.name.as_str(), "first" | "limit" | "take" | "last") {
+            continue;
+        }
+        let Ok(value) = crate::graphql::value_json::decode(&argument.value_json) else {
+            continue;
+        };
+        if let Some(var) = crate::graphql::value_json::variable_name(&value) {
+            // A supplied value wins, `null` included (it scores the ceiling);
+            // an omitted variable takes its declared default.
+            let supplied = variables.and_then(|vars| vars.get(var));
+            return supplied
+                .map_or_else(|| defaults.get(var).copied(), serde_json::Value::as_i64)
+                .map_or(PAGINATION_MULTIPLIER_CEILING, |n| {
                     #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-                    // Reason: value is clamped to [1, 100] immediately after; truncation and
-                    // sign loss are safe
-                    let limit = n.as_i64().unwrap_or(10) as usize;
-                    return limit.clamp(1, PAGINATION_MULTIPLIER_CEILING);
-                },
-                graphql_parser::query::Value::Variable(var) => {
-                    // A supplied value wins, `null` included (it scores the ceiling);
-                    // an omitted variable takes its declared default.
-                    let supplied = variables.and_then(|vars| vars.get(var));
-                    return supplied
-                        .map_or_else(
-                            || defaults.get(var.as_str()).copied(),
-                            serde_json::Value::as_i64,
-                        )
-                        .map_or(PAGINATION_MULTIPLIER_CEILING, |n| {
-                            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-                            // Reason: value is clamped to [1, 100] immediately after; truncation
-                            // and sign loss are safe
-                            let limit = n as usize;
-                            limit.clamp(1, PAGINATION_MULTIPLIER_CEILING)
-                        });
-                },
-                _ => {},
+                    // Reason: value is clamped to [1, 100] immediately after; truncation
+                    // and sign loss are safe
+                    let limit = n as usize;
+                    limit.clamp(1, PAGINATION_MULTIPLIER_CEILING)
+                });
+        }
+        if argument.value_type == "int" {
+            if let Some(n) = value.as_i64() {
+                #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+                // Reason: value is clamped to [1, 100] immediately after; truncation and
+                // sign loss are safe
+                let limit = n as usize;
+                return limit.clamp(1, PAGINATION_MULTIPLIER_CEILING);
             }
         }
     }

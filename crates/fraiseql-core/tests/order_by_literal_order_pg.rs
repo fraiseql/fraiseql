@@ -133,9 +133,45 @@ async fn a_variable_default_keeps_its_order() {
         return;
     };
 
-    for query in
-        ["query($o: JSON = {ratio: ASC, current: DESC}) { docs(limit: 2, orderBy: $o) { id } }"]
-    {
-        assert_eq!(page(&executor, query, None).await, ["a", "b"], "{query}");
+    // The second order is not the rows' own: a default that did not reach the query would
+    // leave them unsorted, `a, b`, and pass the first case by coincidence.
+    for (query, expected) in [
+        (
+            "query($o: JSON = {ratio: ASC, current: DESC}) { docs(limit: 2, orderBy: $o) { id } }",
+            ["a", "b"],
+        ),
+        (
+            "query($o: JSON = {current: DESC, ratio: ASC}) { docs(limit: 2, orderBy: $o) { id } }",
+            ["c", "d"],
+        ),
+    ] {
+        assert_eq!(page(&executor, query, None).await, expected, "{query}");
+    }
+}
+
+/// An input object naming a key twice is refused (GraphQL § 5.6.3, Input Object Field
+/// Uniqueness), never applied with one of its two values: `{ratio: ASC, ratio: DESC}` has no
+/// order to sort by.
+#[tokio::test]
+async fn an_input_object_naming_a_key_twice_is_refused() {
+    let Some(executor) = executor().await else {
+        eprintln!("skipping #1567: DATABASE_URL not set");
+        return;
+    };
+
+    for query in [
+        "{ docs(limit: 2, orderBy: {ratio: ASC, ratio: DESC}) { id } }",
+        "query($o: JSON = {current: DESC, ratio: ASC, current: ASC}) { docs(orderBy: $o) { id } }",
+    ] {
+        let error = executor
+            .execute(query, None)
+            .await
+            .map(|response| panic!("{query} was answered: {response}"))
+            .unwrap_err()
+            .to_string();
+        assert!(
+            error.contains("names `") && error.contains("twice") && error.contains("5.6.3"),
+            "{query}: {error}"
+        );
     }
 }

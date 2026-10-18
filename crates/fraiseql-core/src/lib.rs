@@ -164,8 +164,6 @@ pub mod db {
     pub use fraiseql_db::{PostgresAdapter, PostgresIntrospector, postgres};
 }
 
-/// The `graphql_parser` this crate's public API is built against (#1198).
-pub use graphql_parser;
 /// The `indexmap` this crate's public API is built against (#1198).
 pub use indexmap;
 /// The `jsonwebtoken` this crate's public API is built against (#1198).

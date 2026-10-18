@@ -189,7 +189,8 @@ The current skip list primarily falls into these categories:
   aws-smithy-http, aws-smithy-json): Resolves when aws-sdk-s3 migrates to rustls 0.23
 - **rand ecosystem** (rand 0.7/0.8, rand_chacha, rand_core, getrandom): Resolves
   when `quickcheck` and other old-rand consumers upgrade
-- **thiserror 1.x**: Resolves when `graphql-parser` migrates to thiserror 2.x
+- **thiserror 1.x**: Resolves when async-imap, async-nats, deno_ops, protobuf,
+  serde_v8 and witx move to thiserror 2.x
 - **windows-sys** (0.48/0.52/0.59): Resolves as Windows ecosystem standardises
 - **wasi** (0.9/0.11): Transitive; resolves with getrandom consolidation
 

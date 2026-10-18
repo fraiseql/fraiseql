@@ -205,6 +205,11 @@ enum ItemOrderByField { id name rank label }
 input ItemOrderByInput { field: ItemOrderByField!, direction: SortDirection = ASC }
 ```
 
+An object written inline is applied in the order its keys were written, as the same object
+passed as a variable is: `orderBy: {ratio: ASC, isCurrent: DESC}` sorts by `ratio` first.
+An input object naming a key twice (`{ratio: ASC, ratio: DESC}`) is refused with its
+position, as GraphQL requires (§ 5.6.3), rather than sorted by one of the two.
+
 The keys are the type's fields that order meaningfully (not a relation, a list, a `JSON`
 document or a vector, whose order would be that of their serialized text), plus the
 native columns the query reads with `--database`, named by their key. The engine accepts

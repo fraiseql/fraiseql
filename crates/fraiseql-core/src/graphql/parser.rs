@@ -1,17 +1,12 @@
-//! GraphQL query parser using graphql-parser crate.
+//! Selecting the operation to execute from a parsed document (§ 6.1), as a [`ParsedQuery`].
 //!
-//! Parses GraphQL query strings into a Rust AST for further processing
-//! by fragment resolution and directive evaluation.
-
-use graphql_parser::query::{
-    self, Definition, Directive as GraphQLDirective, Document, OperationDefinition, Selection,
-};
+//! The document itself is read once by [`document::parse`](crate::graphql::document::parse),
+//! through the request's shared parse
+//! ([`parse_graphql_document`](crate::graphql::parse_graphql_document)).
 
 use crate::graphql::{
-    key_order::{self, DefinitionShapes, SelectionShapes, Shape},
-    types::{
-        Directive, FieldSelection, GraphQLArgument, GraphQLType, ParsedQuery, VariableDefinition,
-    },
+    document::{Document, Operation},
+    types::ParsedQuery,
 };
 
 /// Errors that can occur when parsing a GraphQL query.
@@ -42,10 +37,6 @@ pub enum GraphQLParseError {
     /// Selection set has no fields.
     #[error("No fields in selection set")]
     EmptySelection,
-
-    /// GraphQL value nesting exceeds the allowed depth limit.
-    #[error("GraphQL value nesting exceeds maximum depth ({0} levels)")]
-    ValueNestingTooDeep(usize),
 }
 
 impl GraphQLParseError {
@@ -113,8 +104,7 @@ pub fn parse_query_with_operation_name(
     source: &str,
     operation_name: Option<&str>,
 ) -> Result<ParsedQuery, GraphQLParseError> {
-    // Through the guarded seam, not `query::parse_query` directly: the parser can
-    // panic on a client-controlled document (#976), and this entry point is public.
+    // Through the request's shared parse: one document per request, whichever stage asks.
     let doc = crate::graphql::complexity::parse_graphql_document(source)
         .map_err(|e| GraphQLParseError::Syntax(e.to_string()))?;
 
@@ -124,13 +114,10 @@ pub fn parse_query_with_operation_name(
 
 /// Choose the operation to execute from a parsed document (GraphQL § 6.1).
 fn select_operation<'d>(
-    doc: &'d Document<'static, String>,
+    doc: &'d Document,
     operation_name: Option<&str>,
-) -> Result<&'d OperationDefinition<'static, String>, GraphQLParseError> {
-    let mut operations = doc.definitions.iter().filter_map(|def| match def {
-        query::Definition::Operation(op) => Some(op),
-        query::Definition::Fragment(_) => None,
-    });
+) -> Result<&'d Operation, GraphQLParseError> {
+    let mut operations = doc.operations.iter();
 
     let Some(requested) = operation_name else {
         // Anonymous request: legal only when the document is unambiguous.
@@ -142,34 +129,14 @@ fn select_operation<'d>(
         return Ok(first);
     };
 
-    let mut saw_any = false;
-    for op in operations {
-        saw_any = true;
-        if operation_definition_name(op).is_some_and(|name| name == requested) {
-            return Ok(op);
-        }
+    if doc.operations.is_empty() {
+        return Err(GraphQLParseError::MissingOperation);
     }
-
-    if saw_any {
-        Err(GraphQLParseError::UnknownOperation(requested.to_string()))
-    } else {
-        Err(GraphQLParseError::MissingOperation)
-    }
-}
-
-/// The declared name of an operation, if it has one.
-///
-/// A bare selection set (`{ users { id } }`) is anonymous by construction and
-/// can never be selected by name.
-fn operation_definition_name<'a>(
-    operation: &'a OperationDefinition<'static, String>,
-) -> Option<&'a str> {
-    match operation {
-        OperationDefinition::Query(q) => q.name.as_deref(),
-        OperationDefinition::Mutation(m) => m.name.as_deref(),
-        OperationDefinition::Subscription(s) => s.name.as_deref(),
-        OperationDefinition::SelectionSet(_) => None,
-    }
+    // A bare selection set (`{ users { id } }`) is anonymous by construction and can never
+    // be selected by name.
+    operations
+        .find(|op| op.name.as_deref() == Some(requested))
+        .ok_or_else(|| GraphQLParseError::UnknownOperation(requested.to_string()))
 }
 
 /// Build a [`ParsedQuery`] from an operation the caller has **already selected**.
@@ -183,383 +150,35 @@ fn operation_definition_name<'a>(
 ///
 /// # Errors
 ///
-/// - [`GraphQLParseError::EmptySelection`] — the operation selects no field.
-/// - [`GraphQLParseError::ValueNestingTooDeep`] — an argument value nests too deeply.
+/// [`GraphQLParseError::EmptySelection`] — the operation selects no field.
 pub fn parse_selected_operation(
-    operation: &OperationDefinition<String>,
-    doc: &Document<String>,
+    operation: &Operation,
+    doc: &Document,
     source: &str,
 ) -> Result<ParsedQuery, GraphQLParseError> {
-    // The written order of every object literal, read from the source (#1567): the parser
-    // keeps an object literal as a map ordered by key. Only a document holding an object of
-    // two keys or more has an order to lose, so only one is read again (most are not, and
-    // some request paths parse a document more than once).
-    let shapes = if key_order::has_ordered_object(doc) {
-        let shapes = key_order::document_shapes(source).map_err(|e| order_unreadable(&e))?;
-        if shapes.len() != doc.definitions.len() {
-            return Err(order_unreadable(&format!(
-                "{} definitions read, {} parsed",
-                shapes.len(),
-                doc.definitions.len()
-            )));
-        }
-        Some(shapes)
-    } else {
-        None
-    };
-    let operation_shapes = match &shapes {
-        None => None,
-        Some(shapes) => Some(
-            doc.definitions
-                .iter()
-                .zip(shapes)
-                .find_map(|(def, shapes)| match def {
-                    // By where it starts: no two operations of a document start at one
-                    // position, and a caller may pass a copy of the one it selected.
-                    Definition::Operation(op)
-                        if operation_position(op) == operation_position(operation) =>
-                    {
-                        Some(shapes)
-                    },
-                    _ => None,
-                })
-                .ok_or_else(|| order_unreadable("the operation is not one of the document's"))?,
-        ),
-    };
-
-    let (operation_type, operation_name, root_field, selections, variables) =
-        extract_operation(operation, operation_shapes)?;
-
-    // Fragments are document-scoped, not operation-scoped: an operation may
-    // spread any fragment the document defines, so the whole set travels with
-    // every selected operation.
-    let fragments = extract_fragments(doc, shapes.as_deref())?;
+    // Get root field name (first field in selection set)
+    let root_field = operation
+        .selections
+        .first()
+        .map(|s| s.name.clone())
+        .ok_or(GraphQLParseError::EmptySelection)?;
 
     Ok(ParsedQuery {
-        operation_type,
-        operation_name,
+        operation_type: operation.kind.as_str().to_string(),
+        operation_name: operation.name.clone(),
         root_field,
-        selections,
-        variables,
-        fragments,
+        selections: operation.selections.clone(),
+        variables: operation.variables.clone(),
+        // Fragments are document-scoped, not operation-scoped: an operation may
+        // spread any fragment the document defines, so the whole set travels with
+        // every selected operation.
+        fragments: doc.fragments.clone(),
         // `Arc<str>` is the same one-allocation cost as `String::from(&str)` at
         // construction time, but downstream clones of `ParsedQuery` (notably in
         // the parse cache and during fragment resolution) become atomic
         // ref-count bumps instead of full string copies.
         source: std::sync::Arc::from(source),
     })
-}
-
-/// Where an operation starts in its document.
-const fn operation_position(operation: &OperationDefinition<'_, String>) -> graphql_parser::Pos {
-    match operation {
-        OperationDefinition::Query(q) => q.position,
-        OperationDefinition::Mutation(m) => m.position,
-        OperationDefinition::Subscription(s) => s.position,
-        OperationDefinition::SelectionSet(set) => set.span.0,
-    }
-}
-
-/// The refusal for a document whose object literals' written order could not be read.
-fn order_unreadable(detail: &str) -> GraphQLParseError {
-    GraphQLParseError::Syntax(format!(
-        "the written order of the document's object literals could not be read ({detail})"
-    ))
-}
-
-/// Extract fragment definitions from GraphQL document.
-fn extract_fragments(
-    doc: &Document<String>,
-    shapes: Option<&[DefinitionShapes]>,
-) -> Result<Vec<crate::graphql::types::FragmentDefinition>, GraphQLParseError> {
-    let mut fragments = Vec::new();
-
-    for (i, def) in doc.definitions.iter().enumerate() {
-        if let Definition::Fragment(fragment) = def {
-            let shapes = shapes.map(|s| s[i].selection.as_slice());
-            let selections = parse_selection_set(&fragment.selection_set, shapes)?;
-
-            // Extract fragment spreads from selections
-            let fragment_spreads = extract_fragment_spreads(&fragment.selection_set);
-
-            // Convert type condition to string
-            let type_condition = match &fragment.type_condition {
-                query::TypeCondition::On(type_name) => type_name.clone(),
-            };
-
-            fragments.push(crate::graphql::types::FragmentDefinition {
-                name: fragment.name.clone(),
-                type_condition,
-                selections,
-                fragment_spreads,
-            });
-        }
-    }
-
-    Ok(fragments)
-}
-
-/// Extract fragment spreads from a selection set.
-fn extract_fragment_spreads(selection_set: &query::SelectionSet<String>) -> Vec<String> {
-    let mut spreads = Vec::new();
-
-    for selection in &selection_set.items {
-        match selection {
-            Selection::FragmentSpread(spread) => {
-                spreads.push(spread.fragment_name.clone());
-            },
-            Selection::InlineFragment(inline) => {
-                // Inline fragments can also contain spreads
-                spreads.extend(extract_fragment_spreads(&inline.selection_set));
-            },
-            Selection::Field(field) => {
-                // Fields can have nested selections with spreads
-                spreads.extend(extract_fragment_spreads(&field.selection_set));
-            },
-        }
-    }
-
-    spreads
-}
-
-/// Extract operation details from GraphQL operation definition.
-fn extract_operation(
-    operation: &OperationDefinition<String>,
-    shapes: Option<&DefinitionShapes>,
-) -> Result<
-    (String, Option<String>, String, Vec<FieldSelection>, Vec<VariableDefinition>),
-    GraphQLParseError,
-> {
-    let operation_type = match operation {
-        OperationDefinition::Query(_) | OperationDefinition::SelectionSet(_) => "query",
-        OperationDefinition::Mutation(_) => "mutation",
-        OperationDefinition::Subscription(_) => "subscription",
-    }
-    .to_string();
-
-    let (name, selection_set, var_defs) = match operation {
-        OperationDefinition::Query(q) => (&q.name, &q.selection_set, &q.variable_definitions),
-        OperationDefinition::Mutation(m) => (&m.name, &m.selection_set, &m.variable_definitions),
-        OperationDefinition::Subscription(s) => {
-            (&s.name, &s.selection_set, &s.variable_definitions)
-        },
-        OperationDefinition::SelectionSet(sel_set) => (&None, sel_set, &Vec::new()),
-    };
-
-    // Parse selection set (recursive)
-    let selections = parse_selection_set(selection_set, shapes.map(|s| s.selection.as_slice()))?;
-
-    // Get root field name (first field in selection set)
-    let root_field = selections
-        .first()
-        .map(|s| s.name.clone())
-        .ok_or(GraphQLParseError::EmptySelection)?;
-
-    // Parse variable definitions
-    if shapes.is_some_and(|s| s.variable_defaults.len() != var_defs.len()) {
-        return Err(order_unreadable("the variable definitions differ"));
-    }
-    let variables = var_defs
-        .iter()
-        .enumerate()
-        .map(|(i, var_def)| {
-            let shape = shapes.map(|s| s.variable_defaults[i].as_ref());
-            let default_value = match (&var_def.default_value, shape) {
-                (Some(value), Some(Some(shape))) => Some(serialize_ordered(value, Some(shape))?),
-                (Some(value), None) => Some(serialize_ordered(value, None)?),
-                (None, None | Some(None)) => None,
-                _ => return Err(order_unreadable("a variable default differs")),
-            };
-            Ok(VariableDefinition {
-                name: var_def.name.clone(),
-                var_type: parse_graphql_type(&var_def.var_type),
-                default_value,
-            })
-        })
-        .collect::<Result<_, _>>()?;
-
-    Ok((operation_type, name.clone(), root_field, selections, variables))
-}
-
-/// Parse GraphQL selection set recursively.
-///
-/// Handles fields, fragment spreads, and inline fragments.
-fn parse_selection_set(
-    selection_set: &query::SelectionSet<String>,
-    shapes: Option<&[SelectionShapes]>,
-) -> Result<Vec<FieldSelection>, GraphQLParseError> {
-    let mut fields = Vec::new();
-
-    if shapes.is_some_and(|s| s.len() != selection_set.items.len()) {
-        return Err(order_unreadable("a selection set differs"));
-    }
-    for (i, selection) in selection_set.items.iter().enumerate() {
-        let shapes = shapes.map(|s| &s[i]);
-        match selection {
-            Selection::Field(field) => {
-                // Parse field arguments
-                let arguments =
-                    arguments(&field.arguments, shapes.map(|s| s.arguments.as_slice()))?;
-
-                // Parse nested selection set (recursive)
-                let nested_fields = parse_selection_set(
-                    &field.selection_set,
-                    shapes.map(|s| s.selection.as_slice()),
-                )?;
-
-                let directives =
-                    parse_directives(&field.directives, shapes.map(|s| s.directives.as_slice()))?;
-
-                fields.push(FieldSelection {
-                    name: field.name.clone(),
-                    alias: field.alias.clone(),
-                    arguments,
-                    nested_fields,
-                    directives,
-                });
-            },
-            Selection::FragmentSpread(spread) => {
-                // Represent fragment spread as a special field with "..." prefix
-                // This will be resolved by FragmentResolver
-                let directives =
-                    parse_directives(&spread.directives, shapes.map(|s| s.directives.as_slice()))?;
-
-                fields.push(FieldSelection {
-                    name: format!("...{}", spread.fragment_name),
-                    alias: None,
-                    arguments: vec![],
-                    nested_fields: vec![],
-                    directives,
-                });
-            },
-            Selection::InlineFragment(inline) => {
-                // Represent inline fragment as special field
-                // Type condition is stored in the name
-                let type_condition =
-                    inline.type_condition.as_ref().map_or_else(String::new, |tc| match tc {
-                        query::TypeCondition::On(name) => name.clone(),
-                    });
-
-                let nested_fields = parse_selection_set(
-                    &inline.selection_set,
-                    shapes.map(|s| s.selection.as_slice()),
-                )?;
-                let directives =
-                    parse_directives(&inline.directives, shapes.map(|s| s.directives.as_slice()))?;
-
-                fields.push(FieldSelection {
-                    name: format!("...on {type_condition}"),
-                    alias: None,
-                    arguments: vec![],
-                    nested_fields,
-                    directives,
-                });
-            },
-        }
-    }
-
-    Ok(fields)
-}
-
-/// Get type of GraphQL value for classification.
-fn value_type_string(value: &query::Value<String>) -> String {
-    match value {
-        query::Value::String(_) => "string".to_string(),
-        query::Value::Int(_) => "int".to_string(),
-        query::Value::Float(_) => "float".to_string(),
-        query::Value::Boolean(_) => "boolean".to_string(),
-        query::Value::Null => "null".to_string(),
-        query::Value::Enum(_) => "enum".to_string(),
-        query::Value::List(_) => "list".to_string(),
-        query::Value::Object(_) => "object".to_string(),
-        query::Value::Variable(_) => "variable".to_string(),
-    }
-}
-
-/// Serialize an argument value with its object literals' keys in the order written.
-fn serialize_ordered(
-    value: &query::Value<String>,
-    shape: Option<&Shape>,
-) -> Result<String, GraphQLParseError> {
-    let encoded = match shape {
-        Some(shape) => crate::graphql::value_json::encode_ordered(value, shape),
-        // No object of two keys or more in the document: the parser's order is the
-        // written one.
-        None => crate::graphql::value_json::encode(value),
-    };
-    encoded.map_err(|e| match e {
-        crate::error::FraiseQLError::Validation { .. } => {
-            GraphQLParseError::ValueNestingTooDeep(crate::graphql::value_json::MAX_DEPTH)
-        },
-        other => order_unreadable(&other.to_string()),
-    })
-}
-
-/// A field's or a directive's arguments, each value with its written shape.
-fn arguments(
-    arguments: &[(String, query::Value<String>)],
-    shapes: Option<&[Shape]>,
-) -> Result<Vec<GraphQLArgument>, GraphQLParseError> {
-    if shapes.is_some_and(|s| s.len() != arguments.len()) {
-        return Err(order_unreadable("an argument list differs"));
-    }
-    arguments
-        .iter()
-        .enumerate()
-        .map(|(i, (name, value))| {
-            Ok(GraphQLArgument {
-                name:       name.clone(),
-                value_type: value_type_string(value),
-                value_json: serialize_ordered(value, shapes.map(|s| &s[i]))?,
-            })
-        })
-        .collect()
-}
-
-/// Parse graphql-parser directives, each argument value with its written shape.
-fn parse_directives(
-    directives: &[GraphQLDirective<String>],
-    shapes: Option<&[Vec<Shape>]>,
-) -> Result<Vec<Directive>, GraphQLParseError> {
-    if shapes.is_some_and(|s| s.len() != directives.len()) {
-        return Err(order_unreadable("a directive list differs"));
-    }
-    directives
-        .iter()
-        .enumerate()
-        .map(|(i, directive)| {
-            Ok(Directive {
-                name:      directive.name.clone(),
-                arguments: arguments(&directive.arguments, shapes.map(|s| s[i].as_slice()))?,
-            })
-        })
-        .collect()
-}
-
-/// Parse GraphQL type from graphql-parser Type to our `GraphQLType`.
-fn parse_graphql_type(graphql_type: &query::Type<String>) -> GraphQLType {
-    match graphql_type {
-        query::Type::NamedType(name) => GraphQLType {
-            name:          name.clone(),
-            nullable:      true, // Named types are nullable by default
-            list:          false,
-            list_nullable: false,
-        },
-        query::Type::ListType(inner) => GraphQLType {
-            name:          format!("[{}]", parse_graphql_type(inner).name),
-            nullable:      true,
-            list:          true,
-            list_nullable: true, // List items are nullable by default
-        },
-        query::Type::NonNullType(inner) => {
-            let mut parsed = parse_graphql_type(inner);
-            parsed.nullable = false;
-            if parsed.list {
-                parsed.list_nullable = false;
-            }
-            parsed
-        },
-    }
 }
 
 /// Map a parse failure onto the error kind the client should see.

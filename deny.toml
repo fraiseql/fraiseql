@@ -7,8 +7,9 @@
 # require it; EOL dependency. Blocked on a custom hyper-rustls 0.27 HttpClient — tracked
 # as #1111, since no aws-* version bump or feature selection resolves it.
 # Re-evaluate by: 2026-12-01
-# - thiserror 1.x — graphql-parser 0.4 pins thiserror 1.x; blocked on upstream update.
-# Re-evaluate by: 2026-12-01 — migrate off graphql-parser if still blocked.
+# - thiserror 1.x — async-imap, async-nats, deno_ops, protobuf, serde_v8 and witx pin it
+# (the GraphQL parser no longer does); blocked on those upstreams.
+# Re-evaluate by: 2026-12-01
 # - h2 0.3      — hyper 0.14 (aws-smithy-http-client) pins it; RUSTSEC-2026-0258 has no 0.3-series
 # fix, so this rides the same aws-stack blocker as rustls 0.21. The default build's h2 is 0.4.16
 # and is NOT affected — the acceptance is scoped to h2@0.3.27 only.

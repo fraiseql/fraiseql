@@ -19,8 +19,8 @@
 
 use std::collections::HashMap;
 
+use apollo_parser::cst::{self, CstNode as _};
 use fraiseql_error::{FraiseQLError, Result};
-use graphql_parser::query;
 use serde_json::{Map, Value};
 
 /// Object key marking a GraphQL variable reference.
@@ -34,113 +34,107 @@ pub const VARIABLE_TAG: &str = "$var";
 /// share the limit so a value that serialized cannot fail to resolve.
 pub const MAX_DEPTH: usize = 64;
 
-/// Build the JSON representation of a parsed GraphQL argument value.
+/// Why a literal written in a document cannot be stored, and the byte offset it was
+/// written at.
+#[derive(Debug)]
+pub(crate) struct LiteralError {
+    pub(crate) at:      usize,
+    pub(crate) message: String,
+}
+
+/// Build the JSON representation of a literal written in a document: an argument, a
+/// directive argument or a variable default.
+///
+/// An object literal keeps the order its keys were written in, so an inline `orderBy`
+/// sorts as the same object passed as a variable does (#1567).
 ///
 /// # Errors
 ///
-/// Returns `FraiseQLError::Validation` if the value nests deeper than
-/// [`MAX_DEPTH`]. Serialization itself cannot fail: every GraphQL value has a
-/// JSON counterpart.
-pub fn encode(value: &query::Value<String>) -> Result<String> {
-    serialize(&to_json(value, None, 0)?)
+/// [`LiteralError`] for a literal with no JSON counterpart, or none that keeps what was
+/// written: an integer beyond `i64`, a number beyond `f64`, an input object naming a key
+/// twice (§ 5.6.3: refused, as one of its two values would otherwise be applied silently),
+/// or a value nesting deeper than [`MAX_DEPTH`].
+pub(crate) fn encode_literal(value: &cst::Value) -> std::result::Result<String, LiteralError> {
+    let json = literal_to_json(value, 0)?;
+    Ok(json.to_string())
 }
 
-/// [`encode`], with each object literal's keys in the order `shape` says they were written
-/// (#1567): the parser keeps an object literal as a map ordered by key.
-///
-/// # Errors
-///
-/// As [`encode`], and `FraiseQLError::Internal` when `shape` does not describe `value`
-/// (a different key set or list length), which would be a defect of the source reader: the
-/// alphabetical order is not a fallback, since a reordered `orderBy` answers with other rows.
-pub(crate) fn encode_ordered(
-    value: &query::Value<String>,
-    shape: &crate::graphql::key_order::Shape,
-) -> Result<String> {
-    serialize(&to_json(value, Some(shape), 0)?)
+fn at(node: &apollo_parser::SyntaxNode) -> usize {
+    usize::from(node.text_range().start())
 }
 
-fn serialize(json: &Value) -> Result<String> {
-    serde_json::to_string(json).map_err(|e| FraiseQLError::Internal {
-        message: format!("failed to serialize GraphQL argument: {e}"),
-        source:  None,
-    })
-}
-
-fn shape_mismatch() -> FraiseQLError {
-    FraiseQLError::Internal {
-        message: "the written order of a GraphQL object literal could not be read from the \
-                  document; refusing to apply its keys in another order"
-            .to_string(),
-        source:  None,
-    }
-}
-
-fn to_json(
-    value: &query::Value<String>,
-    shape: Option<&crate::graphql::key_order::Shape>,
-    depth: usize,
-) -> Result<Value> {
-    use crate::graphql::key_order::Shape;
-
+fn literal_to_json(value: &cst::Value, depth: usize) -> std::result::Result<Value, LiteralError> {
+    let refuse = |node: &apollo_parser::SyntaxNode, message: String| LiteralError {
+        at: at(node),
+        message,
+    };
     if depth > MAX_DEPTH {
-        return Err(FraiseQLError::validation(format!(
-            "GraphQL argument nests deeper than the {MAX_DEPTH}-level limit"
-        )));
+        return Err(refuse(
+            value.syntax(),
+            format!("GraphQL argument nests deeper than the {MAX_DEPTH}-level limit"),
+        ));
     }
     Ok(match value {
-        query::Value::String(s) => Value::String(s.clone()),
-        query::Value::Int(i) => i.as_i64().map_or(Value::Null, Value::from),
-        query::Value::Float(f) => {
-            serde_json::Number::from_f64(*f).map_or(Value::Null, Value::Number)
+        cst::Value::Variable(variable) => {
+            let name = variable.name().map(|n| n.text().to_string()).unwrap_or_default();
+            variable_ref(&name)
         },
-        query::Value::Boolean(b) => Value::Bool(*b),
-        query::Value::Null => Value::Null,
+        cst::Value::StringValue(s) => Value::String(String::from(s)),
+        cst::Value::IntValue(i) => {
+            let text = i.syntax().text().to_string();
+            let n: i64 = text.parse().map_err(|_| {
+                refuse(
+                    i.syntax(),
+                    format!("integer `{text}` is out of range (a 64-bit integer at most)"),
+                )
+            })?;
+            Value::from(n)
+        },
+        cst::Value::FloatValue(f) => {
+            let text = f.syntax().text().to_string();
+            text.parse::<f64>()
+                .ok()
+                .and_then(serde_json::Number::from_f64)
+                .map(Value::Number)
+                .ok_or_else(|| {
+                    refuse(
+                        f.syntax(),
+                        format!("number `{text}` is out of range (a 64-bit float at most)"),
+                    )
+                })?
+        },
+        cst::Value::BooleanValue(b) => Value::Bool(b.true_token().is_some()),
+        cst::Value::NullValue(_) => Value::Null,
         // An enum value is a bare GraphQL name; JSON has no enum, so it travels
         // as a string and `value_type` records that it was an enum.
-        query::Value::Enum(e) => Value::String(e.clone()),
-        query::Value::List(items) => match shape {
-            None => Value::Array(
-                items.iter().map(|item| to_json(item, None, depth + 1)).collect::<Result<_>>()?,
-            ),
-            Some(Shape::List(shapes)) if shapes.len() == items.len() => Value::Array(
-                items
-                    .iter()
-                    .zip(shapes)
-                    .map(|(item, shape)| to_json(item, Some(shape), depth + 1))
-                    .collect::<Result<_>>()?,
-            ),
-            Some(_) => return Err(shape_mismatch()),
+        cst::Value::EnumValue(e) => {
+            Value::String(e.name().map(|n| n.text().to_string()).unwrap_or_default())
         },
-        query::Value::Object(obj) => {
-            let mut map = Map::with_capacity(obj.len());
-            match shape {
-                None => {
-                    for (k, v) in obj {
-                        map.insert(k.clone(), to_json(v, None, depth + 1)?);
-                    }
-                },
-                // In the order written. A key written twice keeps its first place and, as
-                // the parser does, its last value. The same key set, or the reader is not
-                // describing this literal.
-                Some(Shape::Object(fields)) => {
-                    for (k, _) in fields {
-                        if map.contains_key(k) {
-                            continue;
-                        }
-                        let v = obj.get(k).ok_or_else(shape_mismatch)?;
-                        let shape = fields.iter().rev().find(|(key, _)| key == k).map(|(_, s)| s);
-                        map.insert(k.clone(), to_json(v, shape, depth + 1)?);
-                    }
-                    if map.len() != obj.len() {
-                        return Err(shape_mismatch());
-                    }
-                },
-                Some(_) => return Err(shape_mismatch()),
+        cst::Value::ListValue(list) => Value::Array(
+            list.values()
+                .map(|item| literal_to_json(&item, depth + 1))
+                .collect::<std::result::Result<_, _>>()?,
+        ),
+        cst::Value::ObjectValue(object) => {
+            let mut map = Map::new();
+            for field in object.object_fields() {
+                let key = field.name().map(|n| n.text().to_string()).unwrap_or_default();
+                let Some(item) = field.value() else {
+                    return Err(refuse(field.syntax(), format!("`{key}` has no value")));
+                };
+                let item = literal_to_json(&item, depth + 1)?;
+                if map.insert(key.clone(), item).is_some() {
+                    return Err(refuse(
+                        field.syntax(),
+                        format!(
+                            "the input object names `{key}` twice; an input object's field \
+                             names are unique (GraphQL § 5.6.3)"
+                        ),
+                    ));
+                }
             }
             Value::Object(map)
         },
-        query::Value::Variable(v) => variable_ref(v),
     })
 }
 
@@ -168,7 +162,7 @@ pub fn variable_name(value: &Value) -> Option<&str> {
 ///
 /// Returns `FraiseQLError::Internal` if the stored string is not valid JSON.
 /// This can only happen if something wrote `value_json` without going through
-/// [`encode`] — and it must be loud: the previous `.ok()?` dropped the argument,
+/// `encode_literal` — and it must be loud: the previous `.ok()?` dropped the argument,
 /// and a dropped filter widens the result set instead of narrowing it.
 pub fn decode(value_json: &str) -> Result<Value> {
     serde_json::from_str(value_json).map_err(|e| FraiseQLError::Internal {

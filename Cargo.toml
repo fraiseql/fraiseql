@@ -106,7 +106,7 @@ fraiseql-webhooks = { path = "crates/fraiseql-webhooks", version = "2.17.0" }
 fraiseql-cdc-sinks = { path = "crates/fraiseql-cdc-sinks", version = "2.17.0" }
 fraiseql-wire = { path = "crates/fraiseql-wire", version = "2.17.0" }
 futures = "0.3"
-graphql-parser = "0.4"
+apollo-parser = "0.8"
 hex = "0.4"
 hmac = "0.13"
 indexmap = { version = "2", features = ["serde"] }

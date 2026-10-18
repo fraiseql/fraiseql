@@ -4,7 +4,6 @@
 #![allow(clippy::panic)] // Reason: test code, panics acceptable
 pub use std::collections::{HashMap, HashSet};
 
-pub use graphql_parser::query;
 pub use serde_json::json;
 
 mod fragment_resolver_tests {
@@ -286,7 +285,7 @@ mod parser_tests {
     #[allow(unused_imports)]
     // Reason: nested test mod re-imports may not all be used by every test
     use super::*;
-    use crate::graphql::value_json::{MAX_DEPTH as MAX_SERIALIZE_DEPTH, encode};
+    use crate::graphql::value_json::MAX_DEPTH as MAX_SERIALIZE_DEPTH;
 
     #[test]
     fn test_parse_simple_query() {
@@ -468,49 +467,43 @@ mod parser_tests {
 
     // ── value_json::encode depth guard ─────────────────────────────────────────
 
+    /// The stored `value_json` of `literal`, written as an argument, or why it was refused.
+    fn encoded(literal: &str) -> Result<String, String> {
+        parse_query(&format!("{{ f(a: {literal}) {{ id }} }}"))
+            .map(|parsed| parsed.selections[0].arguments[0].value_json.clone())
+            .map_err(|e| e.to_string())
+    }
+
     #[test]
     fn test_serialize_value_flat_list_accepted() {
         // A flat list of scalars is well within the depth limit.
-        let value = query::Value::List(vec![
-            query::Value::Int(graphql_parser::query::Number::from(1_i32)),
-            query::Value::String("hello".to_string()),
-            query::Value::Boolean(true),
-        ]);
-        let result = encode(&value).unwrap();
-        assert_eq!(result, r#"[1,"hello",true]"#);
+        assert_eq!(encoded(r#"[1, "hello", true]"#).unwrap(), r#"[1,"hello",true]"#);
     }
 
     #[test]
     fn test_serialize_value_nested_at_limit_accepted() {
-        // Build a list nested exactly MAX_SERIALIZE_DEPTH levels — must serialize.
-        let mut v: query::Value<String> = query::Value::Boolean(true);
-        for _ in 0..MAX_SERIALIZE_DEPTH {
-            v = query::Value::List(vec![v]);
-        }
-        let result = encode(&v).unwrap();
+        // A list nested exactly MAX_SERIALIZE_DEPTH levels — must serialize.
+        let literal =
+            format!("{}true{}", "[".repeat(MAX_SERIALIZE_DEPTH), "]".repeat(MAX_SERIALIZE_DEPTH));
+        let result = encoded(&literal).unwrap();
         assert!(result.contains("true"), "value at limit should serialize correctly: {result}");
     }
 
     #[test]
     fn test_serialize_value_exceeds_depth_is_refused() {
-        // Build a list nested MAX_SERIALIZE_DEPTH + 1 levels — must be refused.
-        let mut v: query::Value<String> = query::Value::Boolean(true);
-        for _ in 0..=MAX_SERIALIZE_DEPTH {
-            v = query::Value::List(vec![v]);
-        }
-        assert!(encode(&v).is_err(), "an over-limit value is refused");
+        // A list nested MAX_SERIALIZE_DEPTH + 1 levels — must be refused.
+        let n = MAX_SERIALIZE_DEPTH + 1;
+        assert!(encoded(&format!("{}true{}", "[".repeat(n), "]".repeat(n))).is_err());
     }
 
     #[test]
     fn test_serialize_value_deeply_nested_object_is_refused() {
         // Deeply nested object should also hit the depth cap.
-        let mut v: query::Value<String> = query::Value::Boolean(false);
+        let mut literal = "false".to_string();
         for i in 0..=MAX_SERIALIZE_DEPTH {
-            let mut map = std::collections::BTreeMap::new();
-            map.insert(format!("k{i}"), v);
-            v = query::Value::Object(map);
+            literal = format!("{{k{i}: {literal}}}");
         }
-        assert!(encode(&v).is_err(), "an over-limit object is refused");
+        assert!(encoded(&literal).is_err(), "an over-limit object is refused");
     }
 }
 
@@ -885,6 +878,17 @@ mod complexity_tests {
     }
 
     // ── Aliases ──
+
+    /// An inline fragment's fields are scored as fields, not as a spread of a fragment the
+    /// document does not define (which scores the depth limit).
+    #[test]
+    fn an_inline_fragment_scores_its_fields() {
+        let validator = RequestValidator::new();
+        let inline = validator.analyze("{ users { ... on User { id name } } }").expect("parses");
+        let direct = validator.analyze("{ users { id name } }").expect("parses");
+        assert_eq!(inline.complexity, direct.complexity);
+        assert!(inline.depth <= direct.depth + 1, "{inline:?}");
+    }
 
     #[test]
     fn test_alias_count_within_limit() {
@@ -1316,86 +1320,88 @@ mod complexity_tests {
     }
 }
 
-/// The GraphQL parser must not be able to panic the request path (#976).
+/// No document a client sends can panic the parser, and every well-formed one is read as the
+/// specification reads it (#976).
 ///
-/// `graphql-parser` computes block-string indentation in bytes but strips it with
-/// `str::trim_start`, which is Unicode-aware, then slices the line at that byte
-/// offset. A block string indented with multi-byte Unicode whitespace therefore
-/// slices mid-codepoint and panics — from an unauthenticated request, on a
-/// document that is well-formed by the GraphQL spec.
-mod parser_panic_containment {
+/// The inputs are reduced fuzz artifacts: graphql-parser 0.4 sliced a block string indented
+/// with multi-byte whitespace mid-codepoint (#976, run 30736254002); cynic-parser 0.11 did the
+/// same, unwrapped an integer literal too large for an `i64`, and reached `unreachable!()` on a
+/// NUL inside a block string. Non-ASCII whitespace is not GraphQL whitespace (§ 2.1.7), so a
+/// line indented with it has no indentation and the character stays in the value (§ 2.9.4).
+mod parser_robustness {
 
     #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
-    use super::super::complexity::{RequestValidator, parse_graphql_document};
+    use super::super::{
+        complexity::{RequestValidator, parse_graphql_document},
+        parse_query,
+    };
 
-    /// A block string whose second line is indented with U+00A0 (NBSP, 2 bytes)
-    /// while its first is indented with one ASCII space. This is the reduced form
-    /// of the libFuzzer artifact from run 30736254002.
-    const NBSP_INDENT: &str = "{ a(t: \"\"\"\n x\n\u{a0}y\n\"\"\") }";
+    /// A block string whose second line is indented with U+00A0 (NBSP, 2 bytes) while its
+    /// first is indented with one ASCII space.
+    const NBSP_INDENT: &str = "{ a(t: \"\"\"\n x\n\u{a0}y\n\"\"\") { id } }";
 
-    /// U+2006 (SIX-PER-EM SPACE, 3 bytes) — a different width, to show the defect
-    /// is about byte-vs-char indentation generally, not one codepoint.
-    const EM_SPACE_INDENT: &str = "{ a(t: \"\"\"\n  x\n\u{2006}y\n\"\"\") }";
+    /// U+2006 (SIX-PER-EM SPACE, 3 bytes): a different width.
+    const EM_SPACE_INDENT: &str = "{ a(t: \"\"\"\n  x\n\u{2006}y\n\"\"\") { id } }";
 
-    #[test]
-    fn nbsp_indented_block_string_is_an_error_not_a_panic() {
-        let err = parse_graphql_document(NBSP_INDENT)
-            .expect_err("a document the parser cannot handle must be rejected, not accepted");
-        assert!(
-            err.to_string().contains("block string"),
-            "the rejection must name the reason so an operator can act on it, got: {err}"
-        );
+    /// The value of the root field's first argument, as its JSON.
+    fn first_argument(document: &str) -> String {
+        let parsed = parse_query(document).unwrap_or_else(|e| panic!("{document:?}: {e}"));
+        parsed.selections[0].arguments[0].value_json.clone()
     }
 
     #[test]
-    fn em_space_indented_block_string_is_an_error_not_a_panic() {
-        parse_graphql_document(EM_SPACE_INDENT)
-            .expect_err("multi-byte whitespace indentation must be rejected, not accepted");
+    fn a_block_string_indented_with_non_ascii_whitespace_is_read_as_written() {
+        assert_eq!(first_argument(NBSP_INDENT), r#"" x\n y""#.replace(" y", "\u{a0}y"));
+        assert_eq!(first_argument(EM_SPACE_INDENT), r#""  x\n y""#.replace(" y", "\u{2006}y"));
     }
 
     #[test]
-    fn validator_entry_point_is_an_error_not_a_panic() {
-        // `validate_query` parses on its own path, so the seam has to cover it too.
+    fn every_entry_point_reads_it() {
         let validator = RequestValidator::new();
-        validator
-            .validate_query(NBSP_INDENT)
-            .expect_err("validate_query must reject rather than panic");
-    }
-
-    #[test]
-    fn analyzer_entry_point_is_an_error_not_a_panic() {
-        // `analyze_with_variables` is the third in-crate parse site.
-        let validator = RequestValidator::new();
-        validator
-            .analyze_with_variables(NBSP_INDENT, None)
-            .expect_err("analyze_with_variables must reject rather than panic");
+        validator.validate_query(NBSP_INDENT).unwrap();
+        validator.analyze_with_variables(NBSP_INDENT, None).unwrap();
     }
 
     #[test]
     fn ordinary_block_strings_still_parse() {
-        // The guard must not cost us block strings — only the ones the parser
-        // cannot handle. An all-ASCII-indented block string is the common case.
-        let doc = "{ a(t: \"\"\"\n  hello\n  world\n\"\"\") }";
-        parse_graphql_document(doc).expect("an ASCII-indented block string is valid input");
+        assert_eq!(
+            first_argument("{ a(t: \"\"\"\n  hello\n    world\n\"\"\") { id } }"),
+            r#""hello\n  world""#
+        );
+        assert_eq!(first_argument("{ a(t: \"x\u{a0}y\") { id } }"), "\"x\u{a0}y\"");
+        assert_eq!(
+            first_argument("{ a(t: \"\"\"\n  x\u{a0}y\n  z\n\"\"\") { id } }"),
+            "\"x\u{a0}y\\nz\""
+        );
+    }
+
+    /// Any Unicode scalar value is a source character (§ 2.1.1, September 2025 edition), so a
+    /// NUL is block-string content like any other.
+    #[test]
+    fn a_nul_inside_a_block_string_is_read_not_a_panic() {
+        let value = first_argument("{a(t: \"\"\",\0\0\0\0\0\0\0\"\"\") { id } }");
+        assert_eq!(serde_json::from_str::<String>(&value).unwrap(), ",\0\0\0\0\0\0\0");
     }
 
     #[test]
-    fn unicode_whitespace_inside_a_string_literal_still_parses() {
-        // Non-ASCII whitespace is not GraphQL whitespace — it is only ever legal as
-        // string *content*. Only indentation can reach the defect, so content must
-        // keep working: rejecting it would cost real queries for no safety.
-        let doc = "{ a(t: \"x\u{a0}y\") }";
-        parse_graphql_document(doc).expect("NBSP inside a string literal is valid input");
+    fn a_number_out_of_range_is_refused_with_its_position() {
+        for (document, kind) in [
+            ("{ users(limit: 99999999999999999999) { id } }", "integer"),
+            ("{ users(ratio: 1e400) { id } }", "number"),
+        ] {
+            let error = parse_query(document).unwrap_err().to_string();
+            assert!(
+                error.contains(kind) && error.contains("out of range") && error.contains("1:16"),
+                "{document}: {error}"
+            );
+        }
     }
 
     #[test]
-    fn unicode_whitespace_in_block_string_content_still_parses() {
-        // The same, in the construct that carries the defect: the block string is
-        // ASCII-indented, and the NBSP sits in the text. Nothing here can be sliced
-        // mid-codepoint, so the guard must let it through.
-        let doc = "{ a(t: \"\"\"\n  x\u{a0}y\n  z\n\"\"\") }";
-        parse_graphql_document(doc).expect("NBSP in block-string content is valid input");
+    fn a_type_system_definition_in_a_request_is_refused() {
+        let error = parse_graphql_document("type Foo { a: Int } { users { id } }").unwrap_err();
+        assert!(error.to_string().contains("type Foo"), "{error}");
     }
 }
 
@@ -1428,8 +1434,15 @@ mod document_scope {
             let users = parse_graphql_document("{ users { id } }").unwrap();
             let posts = parse_graphql_document("{ posts { id } }").unwrap();
             let fresh = crate::graphql::complexity::parse_graphql_document("{ posts { id } }");
-            assert_ne!(users, posts, "a different source is not answered with the kept document");
-            assert_eq!(posts, fresh.unwrap(), "it is answered with its own");
+            let root =
+                |doc: &crate::graphql::SharedDocument| doc.operations[0].selections[0].name.clone();
+            assert_eq!(root(&users), "users");
+            assert_eq!(
+                root(&posts),
+                "posts",
+                "a different source is not answered with the kept document"
+            );
+            assert_eq!(root(&fresh.unwrap()), "posts", "it is answered with its own");
             let users_again = parse_graphql_document("{ users { id } }").unwrap();
             assert!(Arc::ptr_eq(&users, &users_again), "and does not displace the request's");
         })

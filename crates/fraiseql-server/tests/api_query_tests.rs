@@ -165,10 +165,11 @@ async fn validate_rejects_mismatched_braces() {
 }
 
 /// #976: this endpoint exists to hand a client-controlled document to the parser,
-/// which makes it the most direct route to the block-string panic. It must answer
-/// `valid: false` over HTTP — a dropped connection is not a validation result.
+/// which makes it the most direct route to the block-string panic. A block string
+/// indented with U+00A0 is read as written (NBSP is not GraphQL whitespace, § 2.1.3),
+/// so the request is answered `valid: true` over HTTP, not dropped.
 #[tokio::test]
-async fn validate_rejects_unicode_block_string_indent_over_http() {
+async fn validate_reads_a_unicode_block_string_indent_over_http() {
     let router = api_router(make_test_state());
     let (status, json) = post_json(
         &router,
@@ -178,12 +179,7 @@ async fn validate_rejects_unicode_block_string_indent_over_http() {
     .await;
 
     assert_eq!(status, StatusCode::OK, "the request must be answered, not dropped");
-    assert_eq!(json["data"]["valid"], false);
-    let errors = json["data"]["errors"].as_array().unwrap();
-    assert!(
-        errors.iter().any(|e| e.as_str().unwrap_or_default().contains("block string")),
-        "the client must be told what is wrong with the document, got: {errors:?}"
-    );
+    assert_eq!(json["data"]["valid"], true, "{json}");
 }
 
 #[tokio::test]

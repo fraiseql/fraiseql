@@ -12,6 +12,7 @@ Audit of all GraphQL query complexity and abuse protections in FraiseQL.
 | **Offset depth** | none | Yes (`max_offset` in `[validation]`, `FRAISEQL_MAX_OFFSET` env) | `crates/fraiseql-core/src/runtime/executor/runners/query_params.rs` (`enforce_max_offset`); see [pagination](../features/pagination.md#deep-offset) |
 | **Complexity error rate** | 30 errors/60s per key | Yes (`complexity_errors_max_requests`) | `crates/fraiseql-core/src/validation/rate_limiting.rs:67` |
 | **Federation batch** | 1000 representations | No (hardcoded) | `crates/fraiseql-server/src/federation/` |
+| **Fragment cycles** | refused | No | `crates/fraiseql-core/src/graphql/fragments.rs` (`FragmentGraph::detect_cycles`); the validator scores a spread cycle over its limits (`graphql/complexity.rs`) |
 
 ### Alias Amplification (Hardcoded at 30)
 
@@ -134,7 +135,6 @@ costed ahead of deployment with
 | Attack | Status | Notes |
 |--------|--------|-------|
 | **Per-field cost weights** | ⚠️ Partial (#379) | Cost budgets, root-operation `@cost` weights, per-tenant windows and the schema-wide ceiling are enforced (see above). Fine-grained *per-field* cost scoring is not present — non-weighted roots score the type-agnostic complexity count. |
-| **Fragment cycle detection** | ❓ Unverified | `graphql-parser` crate handles AST parsing; cycle detection depends on the library. |
 | **Introspection disable** | ❓ Unverified | No `disable_introspection` flag found in `validation.rs`. Check `routes/graphql/handler.rs`. |
 | **Batch query amplification** | ❓ Unverified | HTTP batching (array of operations) not confirmed present or absent. |
 | **Field count explosion** | ❌ Not implemented | No `max_fields_per_query` limit. |
@@ -185,7 +185,6 @@ complexity_errors_window_secs  = 60
 
 ## Recommended Gaps to Address
 
-1. **Fragment cycle detection** — confirm `graphql-parser` handles this or add explicit check
-2. **Introspection control** — add `allow_introspection: bool` flag to `RequestValidator`
-3. **Per-field cost scoring** — extend the type-agnostic complexity score with per-field weights (per-tenant `cost_budget` and root-operation `@cost` weights already shipped in #379)
-4. **Field count limit** — add `max_fields_per_selection_set: usize` to `RequestValidator`
+1. **Introspection control** — add `allow_introspection: bool` flag to `RequestValidator`
+2. **Per-field cost scoring** — extend the type-agnostic complexity score with per-field weights (per-tenant `cost_budget` and root-operation `@cost` weights already shipped in #379)
+3. **Field count limit** — add `max_fields_per_selection_set: usize` to `RequestValidator`

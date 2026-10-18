@@ -18,6 +18,18 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **The GraphQL parser is apollo-parser, behind fraiseql's own document model (#1567).**
+  `fraiseql_core::graphql_parser` (the re-export of graphql-parser) is removed, and
+  `SharedDocument` is now `Arc<fraiseql_core::graphql::document::Document>`: operations and
+  fragments of fraiseql's types, which `parse_graphql_document` returns, and
+  `parse_selected_operation` takes a `document::Operation` and its `Document`.
+  `value_json::encode` is removed (a literal is encoded while the document is read), and so is
+  `GraphQLParseError::ValueNestingTooDeep` (the refusal is a parse error with its position).
+  Parse error messages change text (`expected `}`, found the end of the document at 1:15`
+  for `Parse error at 1:15 / Unexpected end of input / Expected }`). A document the server
+  answered before may now be refused: one naming an input-object key twice, or holding a
+  number beyond 64 bits.
+
 - **`EnumValueDefinition` gains `value` (#1580)**, and so does `fraiseql-cli`'s
   `IntermediateEnumValue`. A struct literal listing every field adds `value: None` (the
   member is stored as its name), or builds with `EnumValueDefinition::new(..).stored_as(..)`. An enum whose members share a stored value
@@ -419,12 +431,21 @@ disagreed, and the promise was the part that was wrong.
 
 - **An `orderBy` object written inline sorts by its keys in the order written (#1567).**
   `orderBy: {ratio: ASC, isCurrent: DESC}` sorted by `isCurrent` first: the GraphQL parser
-  keeps an object literal as a map ordered by key, so every inline object reached the engine
-  with its keys sorted, while the same object passed as a variable kept its order. One request
-  answered with two different first pages. The written order is now read from the document
-  for every inline value (arguments, directive arguments, variable defaults, at any depth),
-  so the literal and the variable agree. A key written twice keeps its first place and its
-  last value, as before.
+  (graphql-parser 0.4) kept an object literal as a map ordered by key, so every inline object
+  reached the engine with its keys sorted, while the same object passed as a variable kept
+  its order. One request answered with two different first pages. The parser is now
+  apollo-parser, which keeps a document as written, read once per request into fraiseql's
+  own document model: every inline value (arguments, directive arguments, variable
+  defaults, at any depth) keeps its order, so the literal and the variable agree. The
+  same change fixes three more parse defects: an input object naming a key twice
+  (`{ratio: ASC, ratio: DESC}`), which was applied with its last value, is refused with its
+  position (§ 5.6.3); a block string indented with non-ASCII whitespace (U+00A0), refused
+  since #976 because graphql-parser panicked on it, is read as the specification reads it;
+  and a number too large for a 64-bit integer or float (`1e400`, served as `null`) is
+  refused with its position. A parse error now names what is missing in the characters an
+  author writes, and where (`expected `}`, found the end of the document at 1:15`). The
+  parse costs about what it did: 0.89×–1.12× of graphql-parser with the key-order re-read,
+  parse and walk together (7 interleaved runs, three documents, spread ±1–13 %).
 
 - **A list declared with nullable items serves a `null` item (#1586).** `list[float | None]`
   (Python), `[]*float64` (Go) or the type string `"[Float]"` compiled as a list of non-null

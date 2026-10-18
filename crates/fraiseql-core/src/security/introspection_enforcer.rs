@@ -279,16 +279,10 @@ impl IntrospectionEnforcer {
             return false;
         };
 
-        doc.definitions
-            .iter()
-            .filter_map(|def| match def {
-                graphql_parser::query::Definition::Operation(op) => Some(op),
-                graphql_parser::query::Definition::Fragment(_) => None,
-            })
-            .any(|op| {
-                crate::graphql::parse_selected_operation(op, &doc, query)
-                    .is_ok_and(|parsed| self.is_introspection(&parsed))
-            })
+        doc.operations.iter().any(|op| {
+            crate::graphql::parse_selected_operation(op, &doc, query)
+                .is_ok_and(|parsed| self.is_introspection(&parsed))
+        })
     }
 
     /// Scan an already-parsed query's root selection set for the configured

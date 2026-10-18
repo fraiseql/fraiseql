@@ -70,7 +70,7 @@ fraiseql-error = { workspace = true }
 fraiseql-federation = { workspace = true, optional = true }
 futures = { workspace = true }
 # GraphQL
-graphql-parser = { workspace = true }
+apollo-parser = { workspace = true }
 hex = { workspace = true }
 hmac = { workspace = true }
 hostname = { version = "0.4", optional = true }

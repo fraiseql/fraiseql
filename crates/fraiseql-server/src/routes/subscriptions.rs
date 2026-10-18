@@ -1703,21 +1703,17 @@ pub(crate) struct SubscriptionRoot {
 pub(crate) fn extract_subscription_root(
     query: &str,
 ) -> Result<(SubscriptionRoot, ParsedQuery), SubscriptionDocumentError> {
-    use graphql_parser::query::{Definition, OperationDefinition, Selection};
+    use fraiseql_core::graphql::document::OperationKind;
 
     let parse_err = |msg: &str| {
         SubscriptionDocumentError::Parse(format!("Could not parse subscription: {msg}"))
     };
 
-    // Through the guarded seam: the parser can panic on a client-controlled
-    // document (#976), and this path runs on the WebSocket handshake.
+    // Through the request's shared parse, the one entry point to the parser.
     let doc = fraiseql_core::graphql::complexity::parse_graphql_document(query)
         .map_err(|e| parse_err(&e.to_string()))?;
 
-    let mut sub_ops = doc.definitions.iter().filter_map(|def| match def {
-        Definition::Operation(OperationDefinition::Subscription(sub)) => Some(sub),
-        _ => None,
-    });
+    let mut sub_ops = doc.operations.iter().filter(|op| op.kind == OperationKind::Subscription);
     let sub = sub_ops
         .next()
         .ok_or_else(|| parse_err("no subscription operation in document"))?;
@@ -1727,10 +1723,7 @@ pub(crate) fn extract_subscription_root(
         ));
     }
 
-    let mut root_fields = sub.selection_set.items.iter().filter_map(|sel| match sel {
-        Selection::Field(field) => Some(field),
-        _ => None,
-    });
+    let mut root_fields = sub.selections.iter().filter(|sel| !sel.name.starts_with("..."));
     let first = root_fields.next().ok_or_else(|| parse_err("subscription has no root field"))?;
     if root_fields.next().is_some() {
         return Err(parse_err(
@@ -1740,17 +1733,13 @@ pub(crate) fn extract_subscription_root(
 
     let root = SubscriptionRoot {
         name:         first.name.clone(),
-        response_key: first.alias.clone().unwrap_or_else(|| first.name.clone()),
+        response_key: first.response_key().to_string(),
     };
 
     // The operation is already selected, so this builds the AST for *it* rather
     // than re-selecting from the document.
-    let parsed = fraiseql_core::graphql::parse_selected_operation(
-        &OperationDefinition::Subscription(sub.clone()),
-        &doc,
-        query,
-    )
-    .map_err(|e| parse_err(&e.to_string()))?;
+    let parsed = fraiseql_core::graphql::parse_selected_operation(sub, &doc, query)
+        .map_err(|e| parse_err(&e.to_string()))?;
 
     Ok((root, parsed))
 }

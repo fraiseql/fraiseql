@@ -2643,7 +2643,7 @@ mod fact_table_hierarchy {
 /// a relay root as its connection, a mutation nullable.
 #[test]
 fn the_sdl_and_introspection_publish_the_same_field_types() {
-    use graphql_parser::schema::{Definition, TypeDefinition as SdlType, parse_schema};
+    use apollo_parser::cst::{self, CstNode as _};
 
     use crate::schema::{
         ArgumentDefinition, FieldDefinition, FieldDenyPolicy, FieldType, IntrospectionBuilder,
@@ -2685,27 +2685,28 @@ fn the_sdl_and_introspection_publish_the_same_field_types() {
     schema.mutations.push(MutationDefinition::new("createOrder", "Order"));
 
     let sdl = schema.raw_schema();
-    let document = parse_schema::<String>(&sdl).unwrap();
+    let tree = apollo_parser::Parser::new(&sdl).parse();
+    assert_eq!(tree.errors().len(), 0, "the SDL parses:\n{sdl}");
     let introspection = IntrospectionBuilder::build(&schema);
     let mut compared = 0;
-    for definition in &document.definitions {
-        let Definition::TypeDefinition(SdlType::Object(object)) = definition else {
+    for definition in tree.document().definitions() {
+        let cst::Definition::ObjectTypeDefinition(object) = definition else {
             continue;
         };
+        let object_name = object.name().unwrap().text().to_string();
         let published = introspection
             .types
             .iter()
-            .find(|t| t.name.as_deref() == Some(object.name.as_str()))
+            .find(|t| t.name.as_deref() == Some(object_name.as_str()))
             .and_then(|t| t.fields.as_ref())
             .unwrap();
-        for field in &object.fields {
-            let expected = published.iter().find(|f| f.name == field.name).unwrap();
+        for field in object.fields_definition().unwrap().field_definitions() {
+            let field_name = field.name().unwrap().text().to_string();
+            let expected = published.iter().find(|f| f.name == field_name).unwrap();
             assert_eq!(
-                field.field_type.to_string(),
+                field.ty().unwrap().syntax().text().to_string(),
                 rendered(&expected.field_type),
-                "`{}.{}`",
-                object.name,
-                field.name
+                "`{object_name}.{field_name}`"
             );
             compared += 1;
         }

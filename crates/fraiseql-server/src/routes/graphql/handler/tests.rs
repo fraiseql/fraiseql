@@ -161,17 +161,17 @@ mod parse_once {
         assert_eq!((first, second), (1, 1), "each request parses its document once");
     }
 
-    /// The body is the one the server answered with before #1562, byte for byte.
+    /// A malformed document is parsed once, and its error says what is missing and where.
     #[tokio::test]
     async fn a_malformed_document_is_parsed_once_and_reported_as_before() {
         let (body, parses) = post_counting(router(), json!({ "query": "{ users { id }" })).await;
         assert_eq!(
             body,
             json!({ "errors": [{
-                "message": "query parse error: Parse error at 1:15\nUnexpected end of input\nExpected }\n",
+                "message": "expected `}`, found the end of the document at 1:15",
                 "code": "PARSE_ERROR",
             }] }),
-            "the parse error is reported unchanged"
+            "the parse error names the missing token and its position"
         );
         assert_eq!(parses, 1, "the error is not re-derived by a second parse");
     }
