@@ -18,56 +18,65 @@ name = "lazy_pause_resume"
 required-features = ["bench-with-postgres"]
 
 [dependencies]
-base64 = "0.22"  # Base64 encoding/decoding
+base64 = "0.22" # Base64 encoding/decoding
 # Bytes manipulation
 bytes = "1"
 futures = "0.3"
-hmac = "0.13"  # HMAC-SHA256
+hmac = "0.13"   # HMAC-SHA256
 # Metrics for observability. Pinned to 0.24 to match the recorder the server
 # installs via metrics-exporter-prometheus 0.18 — a facade-version mismatch means
 # emissions and the recorder bind to different global statics, silently dropping
 # every wire metric (audit H45).
-metrics = "0.24"  # Metrics collection framework
+metrics = "0.24" # Metrics collection framework
 pbkdf2 = "0.13"  # Key derivation for SCRAM
-rand = "0.9"  # Random nonce generation
+rand = "0.9"     # Random nonce generation
 # TLS support. default-features = false drops rustls's default `aws_lc_rs` provider
 # so the workspace links exactly one rustls crypto provider — ring (M-dual-crypto).
-rustls = {version = "0.23", default-features = false, features = ["ring", "std", "tls12", "logging"]}
+rustls = { version = "0.23", default-features = false, features = [
+  "ring",
+  "std",
+  "tls12",
+  "logging",
+] }
 rustls-native-certs = "0.8.3"
 rustls-pki-types = "1"
 # Serialization
-serde = {version = "1", features = ["derive"]}
-serde_json = {workspace = true}
+serde = { version = "1", features = ["derive"] }
+serde_json = { workspace = true }
 # Cryptography for SCRAM authentication
-sha2 = "0.11"  # HMAC-SHA256 for SCRAM
-socket2 = {version = "0.6", features = ["all"]}
-subtle = "2"  # Constant-time comparison for SCRAM
+sha2 = "0.11"                                     # HMAC-SHA256 for SCRAM
+socket2 = { version = "0.6", features = ["all"] }
+subtle = "2"                                      # Constant-time comparison for SCRAM
 # Error handling
 thiserror = "2"
 # Async runtime
-tokio = {workspace = true}
+tokio = { workspace = true }
 # default-features = false drops tokio-rustls's default `aws_lc_rs` provider (M-dual-crypto).
-tokio-rustls = {version = "0.26", default-features = false, features = ["ring", "logging", "tls12"]}
+tokio-rustls = { version = "0.26", default-features = false, features = [
+  "ring",
+  "logging",
+  "tls12",
+] }
 # Tracing
 tracing = "0.1"
-tracing-subscriber = {version = "0.3", features = ["env-filter"]}
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 webpki-roots = "0.26"
 # User info for default values
 whoami = "1"
 # Secure password memory management
-zeroize = {version = "1.6", features = ["std", "derive"]}
+zeroize = { version = "1.6", features = ["std", "derive"] }
 
 [dev-dependencies]
-criterion = {version = "0.5", features = ["async_tokio"]}
+criterion = { version = "0.5", features = ["async_tokio"] }
 # Prometheus recorder for the metrics-facade scrape test (audit H45). Pulls a
 # matching `metrics` 0.24, so a wire emission and the recorder share one global.
 metrics-exporter-prometheus = "0.18"
 # Integration tests connect through the test-support harness (env-URL first; optional
 # local-testcontainers spawn). Dagger provides the Postgres service in CI.
-fraiseql-test-support = {path = "../fraiseql-test-support"}
-proptest = {workspace = true}
+fraiseql-test-support = { path = "../fraiseql-test-support" }
+proptest = { workspace = true }
 # CA-file fixtures for the #887 load_custom_ca tests.
-tempfile = {workspace = true}
+tempfile = { workspace = true }
 tokio-postgres = "0.7"
 tokio-test = "0.4"
 

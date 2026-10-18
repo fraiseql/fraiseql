@@ -2,20 +2,20 @@
 # The one outbound-address guard (#776/#802). A JWKS URI is operator-supplied and
 # its host is resolved at fetch time, so this crate both checks every resolved
 # address and pins the connection to it.
-fraiseql-guard = {workspace = true}
-jsonwebtoken = {workspace = true}
-parking_lot = {workspace = true}
-reqwest = {workspace = true}
-serde = {version = "1.0", features = ["derive"]}
-serde_json = {workspace = true}
+fraiseql-guard = { workspace = true }
+jsonwebtoken = { workspace = true }
+parking_lot = { workspace = true }
+reqwest = { workspace = true }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = { workspace = true }
 thiserror = "2.0"
-tokio = {workspace = true, features = ["sync", "net"]}
-tracing = {workspace = true}
-url = {workspace = true}
+tokio = { workspace = true, features = ["sync", "net"] }
+tracing = { workspace = true }
+url = { workspace = true }
 
 [dev-dependencies]
-tokio = {workspace = true, features = ["macros", "rt-multi-thread", "time"]}
-futures = {workspace = true}
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "time"] }
+futures = { workspace = true }
 wiremock = "0.6"
 
 [lints]

@@ -18,8 +18,10 @@ version.workspace = true
 # and must be dev-dependable by every workspace crate (down to fraiseql-db) without
 # creating a dependency cycle. It pulls NO workspace crates.
 [dependencies]
-testcontainers = {version = "0.27", features = ["watchdog"], optional = true}
-testcontainers-modules = {version = "0.15", features = ["postgres"], optional = true}
+testcontainers = { version = "0.27", features = ["watchdog"], optional = true }
+testcontainers-modules = { version = "0.15", features = [
+  "postgres",
+], optional = true }
 
 [features]
 default = []
@@ -31,7 +33,7 @@ local-testcontainers = ["dep:testcontainers", "dep:testcontainers-modules"]
 
 # tokio is dev-only (doctest/example runtime). The library itself stays runtime-agnostic.
 [dev-dependencies]
-tokio = {workspace = true}
+tokio = { workspace = true }
 
 [lints]
 workspace = true

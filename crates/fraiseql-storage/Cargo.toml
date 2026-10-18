@@ -20,11 +20,16 @@ fraiseql-error = { workspace = true }
 # admin API (#974), so readers take a lock-free snapshot rather than a lock.
 arc-swap = { workspace = true }
 bytes = "1"
-sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "postgres", "chrono", "uuid"] }
+sqlx = { version = "0.8", features = [
+  "runtime-tokio-rustls",
+  "postgres",
+  "chrono",
+  "uuid",
+] }
 tokio = { version = "1", features = ["fs", "io-util", "rt"] }
 axum = { workspace = true }
 serde = { version = "1", features = ["derive"] }
-serde_json = {workspace = true}
+serde_json = { workspace = true }
 sha2 = "0.11"
 hex = "0.4"
 thiserror = "1"

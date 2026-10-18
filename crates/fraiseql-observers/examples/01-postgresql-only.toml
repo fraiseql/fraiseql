@@ -19,7 +19,7 @@
 condition = "data.status == 'shipped'"
 entity = "Order"
 event_type = "UPDATE"
-on_failure = "log"  # Log errors (no DLQ without Redis)
+on_failure = "log"                     # Log errors (no DLQ without Redis)
 
 [[observers.order_shipped_email.actions]]
 body_template = "Order #{{ data.id }} is on its way."
@@ -35,11 +35,11 @@ max_delay_ms = 30000
 
 # Performance features (both need Redis, so both off)
 [performance]
-enable_caching = false  # No action result caching
-enable_dedup = false  # No deduplication (at-most-once delivery)
+enable_caching = false # No action result caching
+enable_dedup = false   # No deduplication (at-most-once delivery)
 
 # Transport configuration
 [transport]
-run_bridge = false  # No NATS bridge
-run_executors = true  # Run observers in-process
-transport = "postgres"  # PostgreSQL LISTEN/NOTIFY (default)
+run_bridge = false     # No NATS bridge
+run_executors = true   # Run observers in-process
+transport = "postgres" # PostgreSQL LISTEN/NOTIFY (default)

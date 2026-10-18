@@ -84,15 +84,26 @@
 id = "image:fraiseql-server"
 kind = "container-image"
 consumed_as = "ghcr.io/<owner>/server:<version> · docker.io/fraiseql/server:<version>"
-publishes = ["workflow:docker-build.yml:build-and-push", "workflow:docker-build.yml:publish-to-docker-hub"]
+publishes = [
+  "workflow:docker-build.yml:build-and-push",
+  "workflow:docker-build.yml:publish-to-docker-hub",
+]
 builds = ["dagger:Images"]
-executes = ["dagger:ImageBoots", "dagger:ImagePropertiesAll", "tool:tools/chart-deploy-test.sh", "tool:tools/compose-stack-test.sh"]
+executes = [
+  "dagger:ImageBoots",
+  "dagger:ImagePropertiesAll",
+  "tool:tools/chart-deploy-test.sh",
+  "tool:tools/compose-stack-test.sh",
+]
 
 [[artifact]]
 id = "image:fraiseql-server-full"
 kind = "container-image"
 consumed_as = "ghcr.io/<owner>/server-full:<version> · docker.io/fraiseql/server-full:<version>"
-publishes = ["workflow:docker-build.yml:build-and-push", "workflow:docker-build.yml:publish-to-docker-hub"]
+publishes = [
+  "workflow:docker-build.yml:build-and-push",
+  "workflow:docker-build.yml:publish-to-docker-hub",
+]
 builds = ["dagger:Images"]
 executes = ["dagger:ImageBoots", "dagger:ImagePropertiesAll"]
 
@@ -100,7 +111,10 @@ executes = ["dagger:ImageBoots", "dagger:ImagePropertiesAll"]
 id = "image:fraiseql-server-platform"
 kind = "container-image"
 consumed_as = "ghcr.io/<owner>/server-platform:<version> · docker.io/fraiseql/server-platform:<version>"
-publishes = ["workflow:docker-build.yml:build-and-push", "workflow:docker-build.yml:publish-to-docker-hub"]
+publishes = [
+  "workflow:docker-build.yml:build-and-push",
+  "workflow:docker-build.yml:publish-to-docker-hub",
+]
 builds = ["dagger:Images"]
 executes = ["dagger:ImageBoots", "dagger:ImagePropertiesAll"]
 
@@ -108,7 +122,10 @@ executes = ["dagger:ImageBoots", "dagger:ImagePropertiesAll"]
 id = "image:tutorial"
 kind = "container-image"
 consumed_as = "ghcr.io/<owner>/tutorial:<version> · docker.io/fraiseql/tutorial:<version>"
-publishes = ["workflow:docker-build.yml:build-and-push", "workflow:docker-build.yml:publish-to-docker-hub"]
+publishes = [
+  "workflow:docker-build.yml:build-and-push",
+  "workflow:docker-build.yml:publish-to-docker-hub",
+]
 builds = ["dagger:Images"]
 executes = ["dagger:TutorialImageBoot"]
 
@@ -263,7 +280,10 @@ executes = []
 id = "sdk:official/fraiseql-rust"
 kind = "sdk-package"
 consumed_as = "crates.io/crates/fraiseql-rust — first published at 2.15.0"
-publishes = ["workflow:release.yml:publish-rust-sdk", "workflow:rust-sdk.yml:publish"]
+publishes = [
+  "workflow:release.yml:publish-rust-sdk",
+  "workflow:rust-sdk.yml:publish",
+]
 builds = ["workflow:sdk-suites.yml:suite"]
 executes = []
 
@@ -513,7 +533,10 @@ kind = "release-asset"
 consumed_as = "github release v<version> · fraiseql-full-x86_64-unknown-linux-gnu.tar.gz"
 publishes = ["workflow:release.yml:build-binaries"]
 builds = ["workflow:release.yml:build-binaries"]
-executes = ["workflow:release-smoke.yml:verify-published-full", "tool:tools/consume-published-artifacts.sh"]
+executes = [
+  "workflow:release-smoke.yml:verify-published-full",
+  "tool:tools/consume-published-artifacts.sh",
+]
 
 [[artifact]]
 id = "release-asset:fraiseql-full-aarch64-unknown-linux-gnu.tar.gz"

@@ -2,9 +2,9 @@
 # axum is optional: only needed when fraiseql-error is used as an HTTP layer.
 # Crates that expose HTTP handlers (e.g. fraiseql-server) should enable the
 # `axum-compat` feature. Pure logic crates (e.g. fraiseql-db) must NOT enable it.
-axum = {workspace = true, optional = true}
-serde = {version = "1", features = ["derive"]}
-serde_json = {workspace = true}
+axum = { workspace = true, optional = true }
+serde = { version = "1", features = ["derive"] }
+serde_json = { workspace = true }
 thiserror = "2"
 toml = "0.8"
 

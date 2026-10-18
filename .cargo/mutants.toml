@@ -34,7 +34,7 @@ examine_globs = [
   "crates/fraiseql-secrets/src/encryption/mod.rs",
   "crates/fraiseql-secrets/src/encryption/rotation_api.rs",
   "crates/fraiseql-secrets/src/encryption/credential_rotation.rs",
-  "crates/fraiseql-secrets/src/encryption/database_adapter.rs"
+  "crates/fraiseql-secrets/src/encryption/database_adapter.rs",
 ]
 # ─── Exclude: known false positives ────────────────────────────────────
 exclude_re = [
@@ -68,7 +68,7 @@ exclude_re = [
   "DatabaseFieldAdapter>::decrypt_value",
   # DatabaseFieldAdapter::cache_size with 1: cache is empty initially, tested by cache_size_empty test.
   # The mutant replacing 0 with 1 survives because no test populates the cache (requires Vault).
-  "replace.*cache_size.*with 1"
+  "replace.*cache_size.*with 1",
 ]
 # Use nextest for faster test execution.
 test_tool = "nextest"

@@ -359,13 +359,18 @@ disagreed, and the promise was the part that was wrong.
   through bash, and `tools/check-ci-source-stamp.sh` (ShellGates) refuses a stamp taken
   anywhere else.
 
-- **The TOML formatter writes one style on pre-commit.ci and locally (#1599).** The hook's
-  rev was pinned and its formatting library was not: tomlkit before 0.13.2 writes an inline
-  table as `{ "fr-CA" = "fr-FR" }`, 0.13.2 and later as `{"fr-CA" = "fr-FR"}`, so the bot
-  (its environment built earlier) and a local run rewrote the same nine files on every PR,
-  and the localization guide, which quotes one of them, went red whenever only the example
-  flipped. `toml-sort` and `tomlkit` are now pinned (`additional_dependencies`), the files are
-  formatted once, and the guide quotes the new spelling.
+- **The TOML formatter writes one style on pre-commit.ci and locally (#1599).** The
+  `pretty-format-toml` hook's rev was pinned and the formatter it runs was not: it requires
+  `toml-sort>=0.22.0`, so each environment took the latest toml-sort when it was built, and
+  toml-sort 0.25.0 (2026-09-12) writes an inline table as `{ "fr-CA" = "fr-FR" }` where every
+  earlier release wrote `{"fr-CA" = "fr-FR"}`. The bot's fresh environment and a local cached
+  one rewrote the same nine files on every PR, and the localization guide, which quotes one of
+  them, went red whenever only the example flipped. The hook is now taplo, through a pre-commit
+  rev that pins the binary itself (`taplo==0.9.3`), over every TOML file: `Cargo.toml` files
+  and the four ledgers the toml-sort hook was excluded from (it sorted their keys and deleted
+  their comments) are formatted too, and keep every key, value and comment. 53 files are
+  reformatted once (inline tables spaced as in the TOML specification, long arrays one item
+  per line).
 
 - **`fraiseql migrate` and `compile --check-migrations` name the package that installs
   confiture (#1602).** With confiture missing, both told the user to `cargo install

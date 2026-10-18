@@ -47,78 +47,78 @@ required-features = ["federation"]
 # The `metrics` facade (no recorder): the server installs the recorder and renders it
 # on `/metrics` (#1391's derived-cascade fan-out).
 metrics = "0.24"
-fraiseql-guard = {workspace = true}
-fraiseql-jwks = {workspace = true}
-ahash = {workspace = true}
+fraiseql-guard = { workspace = true }
+fraiseql-jwks = { workspace = true }
+ahash = { workspace = true }
 # Arrow Flight integration (optional)
 # Note: fraiseql-arrow depends on fraiseql-core, not the other way around
 # to avoid circular dependency. fraiseql-arrow provides the Flight server
 # and concrete Arrow conversion implementations.
-arrow = {version = "59", optional = true}
-arrow-array = {version = "59", optional = true}
-base64 = {workspace = true}
+arrow = { version = "59", optional = true }
+arrow-array = { version = "59", optional = true }
+base64 = { workspace = true }
 # Utilities
-bytes = {workspace = true}
-chrono = {workspace = true}
-dashmap = {workspace = true}
-deadpool = {workspace = true}
-dhat = {version = "0.3", optional = true}
+bytes = { workspace = true }
+chrono = { workspace = true }
+dashmap = { workspace = true }
+deadpool = { workspace = true }
+dhat = { version = "0.3", optional = true }
 # Database abstraction layer (adapters, collation, introspector, filters)
-fraiseql-db = {workspace = true, default-features = false}
-fraiseql-error = {workspace = true}
+fraiseql-db = { workspace = true, default-features = false }
+fraiseql-error = { workspace = true }
 # Federation support (Apollo Federation v2)
-fraiseql-federation = {workspace = true, optional = true}
-futures = {workspace = true}
+fraiseql-federation = { workspace = true, optional = true }
+futures = { workspace = true }
 # GraphQL
-graphql-parser = {workspace = true}
-hex = {workspace = true}
-hmac = {workspace = true}
-hostname = {version = "0.4", optional = true}
-indexmap = {workspace = true}
-jsonwebtoken = {workspace = true}
-lru = {workspace = true}
-moka = {workspace = true}
-parking_lot = {workspace = true}
-rand = {workspace = true}
+graphql-parser = { workspace = true }
+hex = { workspace = true }
+hmac = { workspace = true }
+hostname = { version = "0.4", optional = true }
+indexmap = { workspace = true }
+jsonwebtoken = { workspace = true }
+lru = { workspace = true }
+moka = { workspace = true }
+parking_lot = { workspace = true }
+rand = { workspace = true }
 # Kafka (optional)
-fraiseql-kafka = {workspace = true, optional = true}
+fraiseql-kafka = { workspace = true, optional = true }
 # Redis APQ backend (optional)
-redis = {workspace = true, optional = true}
-regex = {workspace = true}
-reqwest = {workspace = true}
+redis = { workspace = true, optional = true }
+regex = { workspace = true }
+reqwest = { workspace = true }
 # Workspace dependencies
-serde = {workspace = true}
-serde_json = {workspace = true}
-serde_path_to_error = {workspace = true}
-sha2 = {workspace = true}
-subtle = "2.5"  # Constant-time comparison for hash verification (APQ)
-thiserror = {workspace = true}
-tokio = {workspace = true}
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_path_to_error = { workspace = true }
+sha2 = { workspace = true }
+subtle = "2.5"                             # Constant-time comparison for hash verification (APQ)
+thiserror = { workspace = true }
+tokio = { workspace = true }
 # Database - PostgreSQL (kept for non-db modules: audit, federation, security)
-tokio-postgres = {workspace = true, features = ["with-serde_json-1"]}
+tokio-postgres = { workspace = true, features = ["with-serde_json-1"] }
 tokio-util = "0.7"
-toml = {workspace = true}
+toml = { workspace = true }
 # Logging
-tracing = {workspace = true}
-uuid = {workspace = true}
-xxhash-rust = {workspace = true}
-zeroize = {version = "1.8", features = ["std"]}
+tracing = { workspace = true }
+uuid = { workspace = true }
+xxhash-rust = { workspace = true }
+zeroize = { version = "1.8", features = ["std"] }
 async-trait.workspace = true
 deadpool-postgres.workspace = true
 
 [dev-dependencies]
-criterion = {version = "0.5", features = ["async_tokio"]}
-moka = {workspace = true}
-fraiseql-test-utils = {path = "../fraiseql-test-utils"}
-fraiseql-test-support = {path = "../fraiseql-test-support"}
-fraiseql-wire = {workspace = true}
-insta = {workspace = true}
-tracing-subscriber = {workspace = true}
+criterion = { version = "0.5", features = ["async_tokio"] }
+moka = { workspace = true }
+fraiseql-test-utils = { path = "../fraiseql-test-utils" }
+fraiseql-test-support = { path = "../fraiseql-test-support" }
+fraiseql-wire = { workspace = true }
+insta = { workspace = true }
+tracing-subscriber = { workspace = true }
 mutants = "0.0.4"
-proptest = {workspace = true}
+proptest = { workspace = true }
 serial_test = "3"
-temp-env = {workspace = true}
-tempfile = {workspace = true}
+temp-env = { workspace = true }
+tempfile = { workspace = true }
 tokio-test = "0.4"
 wiremock = "0.6"
 

@@ -7,59 +7,64 @@ harness = false
 name = "arrow_vs_json_serialization"
 
 [dependencies]
-fraiseql-guard = {workspace = true}
+fraiseql-guard = { workspace = true }
 # Arrow ecosystem (with CSV and Parquet support)
-arrow = {version = "59", features = ["csv", "json"]}
+arrow = { version = "59", features = ["csv", "json"] }
 arrow-flight = "59"
 arrow-schema = "59"
 # Async utilities
 async-stream = "0.3"
 async-trait = "0.1"
 # Date/time parsing
-chrono = {workspace = true}
+chrono = { workspace = true }
 # ClickHouse client (optional)
-clickhouse = {version = "0.14", features = ["inserter"], optional = true}
+clickhouse = { version = "0.14", features = ["inserter"], optional = true }
 # Concurrent data structures
-dashmap = {workspace = true}
+dashmap = { workspace = true }
 # FraiseQL core (for Executor and query execution)
-fraiseql-core = {workspace = true}
+fraiseql-core = { workspace = true }
 futures = "0.3"
 # HTTP client (for SSRF-safe URL parsing)
-reqwest = {workspace = true}
+reqwest = { workspace = true }
 # JWT handling (for session token creation and validation)
 jsonwebtoken = "10"
-parquet = {version = "59", optional = true}
+parquet = { version = "59", optional = true }
 prost = "0.14"
 # Serialization
-serde = {version = "1", features = ["derive"]}
-serde_json = {workspace = true}
+serde = { version = "1", features = ["derive"] }
+serde_json = { workspace = true }
 # Error handling
 thiserror = "2"
 # Async runtime
-tokio = {workspace = true}
+tokio = { workspace = true }
 tokio-stream = "0.1"
 # gRPC framework
 tonic = "0.14"
 # Logging
 tracing = "0.1"
 # UUID generation (used in handshake for session tokens)
-uuid = {workspace = true}
+uuid = { workspace = true }
 
 [dev-dependencies]
-criterion = {version = "0.5", features = ["async_tokio"]}
+criterion = { version = "0.5", features = ["async_tokio"] }
 # Integration test dependencies
-fraiseql-core = {workspace = true, features = ["postgres"]}
+fraiseql-core = { workspace = true, features = ["postgres"] }
 # Canonical DATABASE_URL resolution: `database_url()` panics with an actionable
 # message, `try_database_url()` is the self-skipping form. Bare `std::env::var`
 # in a test is what tools/check-test-imports.sh refuses (#1075).
-fraiseql-test-support = {path = "../fraiseql-test-support"}
-sqlx = {version = "0.8", features = ["postgres", "runtime-tokio", "chrono", "uuid"]}
-temp-env = {workspace = true}
+fraiseql-test-support = { path = "../fraiseql-test-support" }
+sqlx = { version = "0.8", features = [
+  "postgres",
+  "runtime-tokio",
+  "chrono",
+  "uuid",
+] }
+temp-env = { workspace = true }
 tempfile = "3"
 tokio-stream = "0.1"
 tokio-test = "0.4"
-tracing-subscriber = {version = "0.3", features = ["env-filter"]}
-uuid = {workspace = true}
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+uuid = { workspace = true }
 
 [features]
 clickhouse = ["dep:clickhouse"]

@@ -55,46 +55,21 @@ repos:
       - id: mixed-line-ending
         args: ['--fix=lf']
 
-  # TOML formatting
-  - repo: https://github.com/macisamuele/language-formatters-pre-commit-hooks
-    rev: v2.16.0
+  # TOML formatting: taplo, every TOML file. The hook's rev pins the formatter itself
+  # (`taplo==<rev>`, a static binary with no dependencies to resolve), so an environment
+  # built today writes what one built a year ago wrote. The toml-sort hook it replaces
+  # pinned only itself: its `toml-sort>=0.22.0` floor let each environment pick the latest
+  # toml-sort when it was built, and toml-sort 0.25.0 changed its inline-table spacing, so
+  # pre-commit.ci and a local run rewrote the same files back and forth (#1599). It also
+  # sorted keys and dropped comments, which is why five ledgers had been excluded from it;
+  # taplo keeps order and comments, so only generated files are excluded.
+  - repo: https://github.com/ComPWA/taplo-pre-commit
+    rev: v0.9.3
     hooks:
-      - id: pretty-format-toml
-        args: [--autofix]
-        # The hook's rev pins the hook, not the library it formats with: `toml-sort` and
-        # `tomlkit` resolve to whatever was latest when an environment was built. tomlkit
-        # below 0.13.2 writes an inline table as `{ "fr-CA" = "fr-FR" }`, 0.13.2 and later
-        # as `{"fr-CA" = "fr-FR"}`, so pre-commit.ci (its environment built earlier) and a
-        # local run (built later) rewrote the same nine files back and forth on every PR
-        # (#1599). Pinned, both build the same environment.
-        additional_dependencies: [toml-sort==0.24.4, tomlkit==0.15.0]
-        # Cargo.toml files have strict semantic ordering requirements (e.g. [package]
-        # must precede [[bin]], and workspace-inherited fields must stay in [package]
-        # not [package.metadata.*] subsections). The generic TOML formatter breaks
-        # these invariants by sorting table headers alphabetically.
-        # suite-coverage-exemptions.toml is a documented ledger: the formatter
-        # strips its section comments (the published reasons ARE the content).
-        # delivery-artifacts.toml and .gitleaks.toml are ledgers of the same kind, and
-        # were measured against this hook rather than assumed: it deletes the former's
-        # section headers and flattens the aligned leg-reference table so a wrapped
-        # entry becomes a bare `# WORKFLOW ACTUALLY CALLS ...` line (-144 lines net),
-        # and it drops the comment recording that two keys .gitleaks.toml allowlists
-        # are real ones committed to a public tree (#1211). Both also alphabetise keys,
-        # which in .gitleaks.toml reorders rules and allowlists inside a security gate
-        # that SILENTLY DISCARDS a block it cannot use.
+      - id: taplo-format
         # uv.lock is `uv`'s own generated artifact, excluded for the same reason as
-        # Cargo.lock: the tool that writes it owns its formatting. Without this the two
-        # fight — `uv lock` writes its style, pre-commit.ci rewrites all 2586 lines into
-        # another, and every PR carries a full-lockfile diff that hides real dependency
-        # changes from review.
-        # required-checks.toml is the fourth ledger of the same kind, and it was measured
-        # rather than assumed: on PR #1308 the bot flattened the hanging indentation out
-        # of #1302's ruleset-first-vs-file-first comparison — the two labelled branches
-        # became one run of prose — and moved `ruleset` below the 25-entry `required`
-        # array, away from the `branch` it is read with. Nothing parses worse (both
-        # readers use tomllib), but the reasoning a future author needs is the content
-        # here, exactly as the three ledgers above.
-        exclude: '((^|/)Cargo\.(toml|lock)|(^|/)uv\.lock|^tools/suite-coverage-exemptions\.toml|^tools/delivery-artifacts\.toml|^tools/required-checks\.toml|^\.gitleaks\.toml)$'
+        # Cargo.lock: the tool that writes it owns its formatting.
+        exclude: '(^|/)uv\.lock$'
 
   # Markdown linting
   - repo: https://github.com/igorshubovych/markdownlint-cli

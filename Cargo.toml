@@ -25,7 +25,7 @@ opt-level = 1
 
 [workspace]
 members = [
-  "crates/fraiseql",  # Root umbrella crate
+  "crates/fraiseql",              # Root umbrella crate
   "crates/fraiseql-arrow",
   "crates/fraiseql-auth",
   "crates/fraiseql-cli",
@@ -33,21 +33,21 @@ members = [
   "crates/fraiseql-core",
   "crates/fraiseql-db",
   "crates/fraiseql-error",
-  "crates/fraiseql-guard",  # Shared outbound-address SSRF guard (one guard, every crate)
-  "crates/fraiseql-jwks",  # The one bounded JWKS client (one cache, every verifier)
-  "crates/fraiseql-kafka",  # Shared Kafka egress (one producer, every caller)
+  "crates/fraiseql-guard",        # Shared outbound-address SSRF guard (one guard, every crate)
+  "crates/fraiseql-jwks",         # The one bounded JWKS client (one cache, every verifier)
+  "crates/fraiseql-kafka",        # Shared Kafka egress (one producer, every caller)
   "crates/fraiseql-observers",
   "crates/fraiseql-secrets",
   "crates/fraiseql-server",
   "crates/fraiseql-test-support",
   "crates/fraiseql-test-utils",
   "crates/fraiseql-webhooks",
-  "crates/fraiseql-cdc-sinks",  # Outbound CDC: drains the change-log outbox to brokers (#382)
-  "crates/fraiseql-federation",  # Apollo Federation v2 support
-  "crates/fraiseql-saga",  # Distributed saga orchestration, above the engine (#1354)
-  "crates/fraiseql-functions",  # Serverless functions runtime
-  "crates/fraiseql-storage",  # Object storage backends
-  "crates/fraiseql-wire",  # Streaming JSON query engine for Postgres
+  "crates/fraiseql-cdc-sinks",    # Outbound CDC: drains the change-log outbox to brokers (#382)
+  "crates/fraiseql-federation",   # Apollo Federation v2 support
+  "crates/fraiseql-saga",         # Distributed saga orchestration, above the engine (#1354)
+  "crates/fraiseql-functions",    # Serverless functions runtime
+  "crates/fraiseql-storage",      # Object storage backends
+  "crates/fraiseql-wire",         # Streaming JSON query engine for Postgres
   # Runnable examples. They are workspace members so `cargo check --workspace
   # --all-targets` and `cargo clippy --workspace` compile and lint them on every
   # push; nothing else in CI would. They set `publish = false` and deliberately do
@@ -57,7 +57,7 @@ members = [
   "examples/complex-queries",
   "examples/error-handling",
   "examples/performance",
-  "examples/subscriptions"
+  "examples/subscriptions",
 ]
 resolver = "2"
 
@@ -67,61 +67,61 @@ anyhow = "1.0"
 arc-swap = "1"
 async-trait = "0.1"
 # HTTP server (Axum)
-axum = {version = "0.8"}
+axum = { version = "0.8" }
 # Encoding
 ahash = "0.8"
 base64 = "0.22"
 # Utilities
 bytes = "1.0"
 # Time
-chrono = {version = "0.4", features = ["serde"]}
+chrono = { version = "0.4", features = ["serde"] }
 dashmap = "6.1"
 # Connection pooling
 deadpool = "0.12"
 deadpool-postgres = "0.14"
 # Internal crates
-fraiseql-arrow = {path = "crates/fraiseql-arrow", version = "2.17.0"}
-fraiseql-auth = {path = "crates/fraiseql-auth", version = "2.17.0"}
+fraiseql-arrow = { path = "crates/fraiseql-arrow", version = "2.17.0" }
+fraiseql-auth = { path = "crates/fraiseql-auth", version = "2.17.0" }
 # Deliberately loose floor (2.3.0, not the current 2.7.0): fraiseql-server takes
 # fraiseql-cli as a dev-dependency while fraiseql-cli depends on fraiseql-server,
 # a publish cycle. A floor equal to the unpublished current version breaks the
 # first `cargo publish` of the cut (the sibling isn't on crates.io yet). Keep this
 # floor loose — see the v2.4.0 release lessons. Do NOT bump it to match the others.
-fraiseql-cli = {path = "crates/fraiseql-cli", version = "2.3.0"}
-fraiseql-codegen = {path = "crates/fraiseql-codegen", version = "2.17.0"}
-fraiseql-core = {path = "crates/fraiseql-core", version = "2.17.0", default-features = false}
-fraiseql-db = {path = "crates/fraiseql-db", version = "2.17.0", default-features = false}
-fraiseql-error = {path = "crates/fraiseql-error", version = "2.17.0", default-features = false}
-fraiseql-federation = {path = "crates/fraiseql-federation", version = "2.17.0"}
-fraiseql-saga = {path = "crates/fraiseql-saga", version = "2.17.0"}
-fraiseql-guard = {path = "crates/fraiseql-guard", version = "2.17.0"}
-fraiseql-jwks = {path = "crates/fraiseql-jwks", version = "2.17.0"}
-fraiseql-kafka = {path = "crates/fraiseql-kafka", version = "2.17.0"}
-fraiseql-functions = {path = "crates/fraiseql-functions", version = "2.17.0"}
-fraiseql-storage = {path = "crates/fraiseql-storage", version = "2.17.0"}
-fraiseql-observers = {path = "crates/fraiseql-observers", version = "2.17.0"}
-fraiseql-secrets = {path = "crates/fraiseql-secrets", version = "2.17.0"}
-fraiseql-server = {path = "crates/fraiseql-server", version = "2.17.0"}
-fraiseql-webhooks = {path = "crates/fraiseql-webhooks", version = "2.17.0"}
-fraiseql-cdc-sinks = {path = "crates/fraiseql-cdc-sinks", version = "2.17.0"}
-fraiseql-wire = {path = "crates/fraiseql-wire", version = "2.17.0"}
+fraiseql-cli = { path = "crates/fraiseql-cli", version = "2.3.0" }
+fraiseql-codegen = { path = "crates/fraiseql-codegen", version = "2.17.0" }
+fraiseql-core = { path = "crates/fraiseql-core", version = "2.17.0", default-features = false }
+fraiseql-db = { path = "crates/fraiseql-db", version = "2.17.0", default-features = false }
+fraiseql-error = { path = "crates/fraiseql-error", version = "2.17.0", default-features = false }
+fraiseql-federation = { path = "crates/fraiseql-federation", version = "2.17.0" }
+fraiseql-saga = { path = "crates/fraiseql-saga", version = "2.17.0" }
+fraiseql-guard = { path = "crates/fraiseql-guard", version = "2.17.0" }
+fraiseql-jwks = { path = "crates/fraiseql-jwks", version = "2.17.0" }
+fraiseql-kafka = { path = "crates/fraiseql-kafka", version = "2.17.0" }
+fraiseql-functions = { path = "crates/fraiseql-functions", version = "2.17.0" }
+fraiseql-storage = { path = "crates/fraiseql-storage", version = "2.17.0" }
+fraiseql-observers = { path = "crates/fraiseql-observers", version = "2.17.0" }
+fraiseql-secrets = { path = "crates/fraiseql-secrets", version = "2.17.0" }
+fraiseql-server = { path = "crates/fraiseql-server", version = "2.17.0" }
+fraiseql-webhooks = { path = "crates/fraiseql-webhooks", version = "2.17.0" }
+fraiseql-cdc-sinks = { path = "crates/fraiseql-cdc-sinks", version = "2.17.0" }
+fraiseql-wire = { path = "crates/fraiseql-wire", version = "2.17.0" }
 futures = "0.3"
 graphql-parser = "0.4"
 hex = "0.4"
 hmac = "0.13"
-indexmap = {version = "2", features = ["serde"]}
-jsonwebtoken = {version = "10", features = ["rust_crypto"]}
+indexmap = { version = "2", features = ["serde"] }
+jsonwebtoken = { version = "10", features = ["rust_crypto"] }
 # Caching
 # Lockfile holds 0.18.2 or later: RUSTSEC-2026-0253 (use-after-free when a key's
 # Drop panics in LruCache::pop) affects 0.18.1. The requirement stays at "0.18" —
 # tightening it to "0.18.2" re-resolves the whole graph and drags in unrelated
 # socket2/itertools/windows-sys dedup drift, which a security fix should not carry.
 lru = "0.18"
-moka = {version = "0.12", default-features = false, features = ["sync"]}
+moka = { version = "0.12", default-features = false, features = ["sync"] }
 # Parking lot (faster mutexes)
 parking_lot = "0.12"
 # Snapshot testing
-insta = {version = "1.38", features = ["yaml"]}
+insta = { version = "1.38", features = ["yaml"] }
 # Property-based testing
 proptest = "1.4"
 # Random
@@ -140,16 +140,23 @@ rand = "0.9"
 # and `WITH_SASL_OAUTHBEARER` are set, `WITH_SASL_CYRUS` is not, and the link line is
 # `-lssl -lcrypto -lz` with no `-lsasl2`. That covers every managed-Kafka auth mode
 # `kafka+sasl-ssl://` needs; only Kerberos is out of reach.
-rdkafka = {version = "0.39", features = ["tokio", "ssl"]}
+rdkafka = { version = "0.39", features = ["tokio", "ssl"] }
 regex = "1.10"
 # Redis client (consolidated across auth/core/observers/server — F015)
-redis = {version = "1", features = ["aio", "tokio-comp", "connection-manager"]}
+redis = { version = "1", features = [
+  "aio",
+  "tokio-comp",
+  "connection-manager",
+] }
 # HTTP client — rustls only, no OpenSSL dependency
-reqwest = {version = "0.12", default-features = false, features = ["json", "rustls-tls"]}
+reqwest = { version = "0.12", default-features = false, features = [
+  "json",
+  "rustls-tls",
+] }
 # Serialization
 # "rc": `WhereClause::Typed` shares its field-type map behind an `Arc`. Skipping
 # the field instead would make a round-tripped clause silently lose its types.
-serde = {version = "1.0", features = ["derive", "rc"]}
+serde = { version = "1.0", features = ["derive", "rc"] }
 # "preserve_order": GraphQL requires a response's fields to appear in the order
 # the query asked for them (spec §"Response Format"). Without this feature
 # `serde_json::Map` is a BTreeMap, so every response came back alphabetised.
@@ -160,7 +167,7 @@ serde = {version = "1.0", features = ["derive", "rc"]}
 # `serde_json::Value` in the workspace — including two digests derived from one
 # (#899, #900). Making it unconditional is what lets that be a property of the
 # product instead of a property of the feature set.
-serde_json = {version = "1.0", features = ["preserve_order"]}
+serde_json = { version = "1.0", features = ["preserve_order"] }
 # Names the JSON path in schema-load errors ("security.rate_limiting.requests_per_second:
 # invalid type …"), so a refused compiled schema tells the operator which section to fix.
 # Already in every server build as an axum dependency.
@@ -168,41 +175,55 @@ serde_path_to_error = "0.1"
 # Crypto
 sha2 = "0.11"
 # Testing utilities
-temp-env = {version = "0.3", features = ["async_closure"]}
+temp-env = { version = "0.3", features = ["async_closure"] }
 tempfile = "3.25"
 # Error handling
 thiserror = "2.0"
 # Async runtime
-tokio = {version = "1.52", features = ["rt-multi-thread", "macros", "net", "time", "io-util", "io-std", "sync", "signal", "fs"]}
+tokio = { version = "1.52", features = [
+  "rt-multi-thread",
+  "macros",
+  "net",
+  "time",
+  "io-util",
+  "io-std",
+  "sync",
+  "signal",
+  "fs",
+] }
 # Database drivers
 # PostgreSQL
-tokio-postgres = {version = "0.7", features = ["with-serde_json-1", "with-uuid-1", "with-chrono-0_4"]}
+tokio-postgres = { version = "0.7", features = [
+  "with-serde_json-1",
+  "with-uuid-1",
+  "with-chrono-0_4",
+] }
 # Configuration
 toml = "0.8"
-tower = {version = "0.5"}
+tower = { version = "0.5" }
 # Logging
 tracing = "0.1"
-tracing-subscriber = {version = "0.3", features = ["env-filter"]}
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 # URL parsing (consolidated — F033)
 url = "2"
 # UUID
 # `v5` (namespace-SHA-1) is used to derive an MCP agent thread's store key from
 # the authenticated principal (#967) — the derivation must be stable across
 # restarts, so a random v4 will not do.
-uuid = {version = "1.21", features = ["v4", "v5", "serde"]}
+uuid = { version = "1.21", features = ["v4", "v5", "serde"] }
 # Hashing
-xxhash-rust = {version = "0.8", features = ["xxh3"]}
+xxhash-rust = { version = "0.8", features = ["xxh3"] }
 
 [workspace.lints.clippy]
 # ── Global levels ────────────────────────────────────────────────────────────
 # priority = -1 lets individual lint entries below override the group level.
-all = {level = "deny", priority = -1}
+all = { level = "deny", priority = -1 }
 # Reason: the only two `cargo` lints with known false positives in this
 # workspace (`cargo_common_metadata` — internal crates lack crates.io fields;
 # `multiple_crate_versions` — transitive dependency duplicates) are
 # individually allowed below. Promote the group to `deny` so any newly-added
 # cargo lint (e.g. wildcard versions, dep-in-features mistakes) fails fast.
-cargo = {level = "deny", priority = -1}
+cargo = { level = "deny", priority = -1 }
 # Reason: internal crates don't need all crates.io metadata fields.
 cargo_common_metadata = "allow"
 # Reason: negative-first guard clauses are sometimes more readable than positive-first.
@@ -227,12 +248,12 @@ must_use_candidate = "deny"
 # individually allowed below with a documented reason. Everything else in the
 # nursery group fails the build, so newly-stabilizing lints get caught the
 # same day they appear instead of accumulating as silent warnings.
-nursery = {level = "deny", priority = -1}
+nursery = { level = "deny", priority = -1 }
 # Reason: explicit match is sometimes clearer than map_or_else for multi-line branches.
 option_if_let_else = "allow"
 # Reason: `.unwrap_or(default_fn())` is sometimes clearer than `.unwrap_or_else(|| ...)`.
 or_fun_call = "allow"
-pedantic = {level = "deny", priority = -1}
+pedantic = { level = "deny", priority = -1 }
 # Reason: style preference — closure is sometimes clearer than a method reference.
 redundant_closure_for_method_calls = "allow"
 # Reason: builder pattern — chained methods don't always return a value callers must check.
@@ -384,23 +405,23 @@ unused_variables = "warn"
 [workspace.metadata.crate-size-budget]
 fraiseql = 2_000
 fraiseql-arrow = 15_000
-fraiseql-auth = 48_000  # re-baselined #1055 (was 25_000, actual 39_201)
+fraiseql-auth = 48_000        # re-baselined #1055 (was 25_000, actual 39_201)
 fraiseql-cdc-sinks = 10_000
-fraiseql-cli = 58_000  # re-baselined #1055 (was 40_000, actual 48_681)
-fraiseql-codegen = 8_000  # first budget; the crate predates #1055 and had none
-fraiseql-core = 165_000  # re-baselined for reads by id evicted by their row (#1576: by_id.rs, the row index and fence slots, invalidate_written, their tests; was 163_000, actual 163_129), for composed reads in the cache and pg_tviews' change feed (#1589: tviews_feed.rs, collections.rs, the composed key and collection index, their tests; was 160_000, actual 161_473), after the per-view insert fence (#1584/#1585: fence.rs, its unit and real-PG tests; was 158_000, actual 158_118), after the request locale and localized fields (#1512/#1513: resolution, locale arguments, translations, write coercion, index report; was 152_000, actual 154_189), after multiple trusted token issuers (#1400, 150_000 → 152_000)
+fraiseql-cli = 58_000         # re-baselined #1055 (was 40_000, actual 48_681)
+fraiseql-codegen = 8_000      # first budget; the crate predates #1055 and had none
+fraiseql-core = 165_000       # re-baselined for reads by id evicted by their row (#1576: by_id.rs, the row index and fence slots, invalidate_written, their tests; was 163_000, actual 163_129), for composed reads in the cache and pg_tviews' change feed (#1589: tviews_feed.rs, collections.rs, the composed key and collection index, their tests; was 160_000, actual 161_473), after the per-view insert fence (#1584/#1585: fence.rs, its unit and real-PG tests; was 158_000, actual 158_118), after the request locale and localized fields (#1512/#1513: resolution, locale arguments, translations, write coercion, index report; was 152_000, actual 154_189), after multiple trusted token issuers (#1400, 150_000 → 152_000)
 fraiseql-db = 25_000
 fraiseql-error = 5_000
 fraiseql-federation = 12_500  # re-baselined #1354, which moved the saga half out (was 22_000, actual 10_293)
-fraiseql-functions = 23_000  # first budget; the crate predates #1055 and had none
+fraiseql-functions = 23_000   # first budget; the crate predates #1055 and had none
 fraiseql-guard = 5_000
-fraiseql-jwks = 5_000  # new in #1335; fetch + bound + select a key, and nothing else
-fraiseql-kafka = 5_000  # new in #1102; connect + produce and nothing else
+fraiseql-jwks = 5_000         # new in #1335; fetch + bound + select a key, and nothing else
+fraiseql-kafka = 5_000        # new in #1102; connect + produce and nothing else
 fraiseql-observers = 45_000
 fraiseql-secrets = 20_000
-fraiseql-saga = 9_500  # new in #1354; the saga half of fraiseql-federation, moved above core (actual 7_724)
-fraiseql-server = 127_000  # re-baselined for the pg_tviews feed-gap watch and its real-PG tests (#1603, #1604: own-write collection and full-NOTIFY-queue e2e tests; was 126_000, actual 126_055), for the cross-server cache feed (#1577: cache_feed.rs, its config, boot warning and two-server real-PG tests; was 125_000, actual 125_440), after #1055 (was 55_000, actual 105_420)
-fraiseql-storage = 20_000  # first budget; the crate predates #1055 and had none
+fraiseql-saga = 9_500         # new in #1354; the saga half of fraiseql-federation, moved above core (actual 7_724)
+fraiseql-server = 127_000     # re-baselined for the pg_tviews feed-gap watch and its real-PG tests (#1603, #1604: own-write collection and full-NOTIFY-queue e2e tests; was 126_000, actual 126_055), for the cross-server cache feed (#1577: cache_feed.rs, its config, boot warning and two-server real-PG tests; was 125_000, actual 125_440), after #1055 (was 55_000, actual 105_420)
+fraiseql-storage = 20_000     # first budget; the crate predates #1055 and had none
 fraiseql-test-support = 5_000
 fraiseql-test-utils = 5_000
 fraiseql-webhooks = 10_000
@@ -415,7 +436,7 @@ homepage = "https://fraiseql.dev"
 keywords = ["graphql", "database", "compiler", "sql"]
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/fraiseql/fraiseql"
-rust-version = "1.95.0"  # MSRV — wasmtime 48 (the release fixing RUSTSEC-2026-0314 and
+rust-version = "1.95.0"                               # MSRV — wasmtime 48 (the release fixing RUSTSEC-2026-0314 and
 # RUSTSEC-2026-0316) needs 1.95; it was 1.94.1 for wasmtime 46 (#933) and aws-sdk-kinesis
 # 1.112 (#975). The patch is pinned because CI runs exactly this version — Docker's
 # rust:1.95 tracks the newest patch, so a floating floor would be a claim no leg tested.

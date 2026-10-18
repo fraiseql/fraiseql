@@ -1,12 +1,12 @@
 [dependencies]
-fraiseql-guard = {workspace = true}
-rdkafka = {workspace = true}
+fraiseql-guard = { workspace = true }
+rdkafka = { workspace = true }
 thiserror = "2.0"
-tracing = {workspace = true}
+tracing = { workspace = true }
 
 [dev-dependencies]
-temp-env = {workspace = true}
-tokio = {workspace = true, features = ["macros", "rt-multi-thread"]}
+temp-env = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 
 [lints]
 workspace = true

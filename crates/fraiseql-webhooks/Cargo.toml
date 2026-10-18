@@ -1,31 +1,31 @@
 [dependencies]
 base64 = "0.22"
-ed25519-dalek = {version = "2", features = ["std"]}
-fraiseql-error = {workspace = true}
+ed25519-dalek = { version = "2", features = ["std"] }
+fraiseql-error = { workspace = true }
 # The one bounded JWKS client (#1335). Brought in for #1322: the `jwt-jwks` scheme
 # verifies against keys a publisher serves, and this crate does not keep a second
 # cache of them. It does no network I/O itself — the route hands it a `JwksKeys`.
-fraiseql-jwks = {workspace = true}
+fraiseql-jwks = { workspace = true }
 futures = "0.3"
 hex = "0.4"
 hmac = "0.13"
-jsonwebtoken = {workspace = true}
-p256 = {version = "0.13", features = ["ecdsa", "pem"]}
-serde = {version = "1.0", features = ["derive"]}
-serde_json = {workspace = true}
+jsonwebtoken = { workspace = true }
+p256 = { version = "0.13", features = ["ecdsa", "pem"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = { workspace = true }
 sha1 = "0.11"
 sha2 = "0.11"
-sqlx = {version = "0.8", features = ["postgres", "runtime-tokio", "uuid"]}
+sqlx = { version = "0.8", features = ["postgres", "runtime-tokio", "uuid"] }
 subtle = "2.5"
 thiserror = "2.0"
-tokio = {workspace = true}
-tracing = {workspace = true}
-uuid = {workspace = true}
+tokio = { workspace = true }
+tracing = { workspace = true }
+uuid = { workspace = true }
 
 [dev-dependencies]
-fraiseql-test-support = {path = "../fraiseql-test-support"}
+fraiseql-test-support = { path = "../fraiseql-test-support" }
 rand = "0.9"
-rand_core = {version = "0.6", features = ["getrandom"]}
+rand_core = { version = "0.6", features = ["getrandom"] }
 tokio-test = "0.4"
 
 [features]

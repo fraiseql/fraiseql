@@ -81,7 +81,6 @@ paths = [
 ]
 
 # ── private-key ───────────────────────────────────────────────────────────────
-
 [[rules]]
 id = "private-key"
 
@@ -97,7 +96,6 @@ id = "private-key"
   ]
 
 # ── jwt ───────────────────────────────────────────────────────────────────────
-
 [[rules]]
 id = "jwt"
 
@@ -114,7 +112,6 @@ id = "jwt"
   ]
 
 # ── generic-api-key ───────────────────────────────────────────────────────────
-
 [[rules]]
 id = "generic-api-key"
 
@@ -136,7 +133,6 @@ id = "generic-api-key"
   ]
 
 # ── curl-auth-header ──────────────────────────────────────────────────────────
-
 [[rules]]
 id = "curl-auth-header"
 
@@ -153,7 +149,6 @@ id = "curl-auth-header"
   regexes = ['''^YOUR_[A-Z0-9_]+$''']
 
 # ── stripe-access-token ───────────────────────────────────────────────────────
-
 [[rules]]
 id = "stripe-access-token"
 

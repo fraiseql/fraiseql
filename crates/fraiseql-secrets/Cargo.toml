@@ -18,29 +18,29 @@ harness = false
 name = "secrets_bench"
 
 [dependencies]
-fraiseql-guard = {workspace = true}
+fraiseql-guard = { workspace = true }
 # Encryption
-aes-gcm = {version = "0.10", features = ["zeroize"]}
+aes-gcm = { version = "0.10", features = ["zeroize"] }
 async-trait = "0.1"
 base64 = "0.22"
-chrono = {workspace = true}
-dashmap = {workspace = true}
-fraiseql-core = {workspace = true}
+chrono = { workspace = true }
+dashmap = { workspace = true }
+fraiseql-core = { workspace = true }
 rand = "0.9"
-reqwest = {workspace = true}
-serde = {version = "1.0", features = ["derive"]}
-serde_json = {workspace = true}
-thiserror = {workspace = true}
-tokio = {workspace = true}
+reqwest = { workspace = true }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
 tracing = "0.1"
-uuid = {workspace = true}
+uuid = { workspace = true }
 zeroize = "1.8"
 
 [dev-dependencies]
-criterion = {version = "0.5", features = ["html_reports"]}
+criterion = { version = "0.5", features = ["html_reports"] }
 mutants = "0.0.4"
-proptest = {workspace = true}
-temp-env = {workspace = true}
+proptest = { workspace = true }
+temp-env = { workspace = true }
 tempfile = "3.13"
 tokio-test = "0.4"
 wiremock = "0.6"

@@ -18,21 +18,21 @@ harness = false
 name = "federation_bench"
 
 [dependencies]
-fraiseql-guard = {workspace = true}
-chrono = {workspace = true}
-dashmap = {workspace = true}
-deadpool = {workspace = true}
-deadpool-postgres = {workspace = true}
-fraiseql-db = {workspace = true, default-features = false}
-fraiseql-error = {workspace = true, default-features = false}
-lru = {workspace = true}
-reqwest = {workspace = true}
-serde = {workspace = true, features = ["derive"]}
-serde_json = {workspace = true}
-tokio = {workspace = true}
-tokio-postgres = {workspace = true}
-tracing = {workspace = true}
-uuid = {workspace = true}
+fraiseql-guard = { workspace = true }
+chrono = { workspace = true }
+dashmap = { workspace = true }
+deadpool = { workspace = true }
+deadpool-postgres = { workspace = true }
+fraiseql-db = { workspace = true, default-features = false }
+fraiseql-error = { workspace = true, default-features = false }
+lru = { workspace = true }
+reqwest = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+tokio = { workspace = true }
+tokio-postgres = { workspace = true }
+tracing = { workspace = true }
+uuid = { workspace = true }
 zeroize = "1.8"
 
 [dev-dependencies]
@@ -42,14 +42,16 @@ zeroize = "1.8"
 # configure it to fail loudly if the local path is ever reached, and the
 # real-SQL forward-execution proofs live in `tests/saga_integration.rs`
 # against PostgreSQL (G2 removed the non-PG adapters).
-fraiseql-db = {workspace = true, default-features = false, features = ["postgres"]}
-fraiseql-test-utils = {path = "../fraiseql-test-utils"}
-chrono = {workspace = true}
-criterion = {version = "0.5", features = ["html_reports"]}
-proptest = {workspace = true}
-serde_json = {workspace = true}
-tempfile = {workspace = true}
-tokio = {workspace = true, features = ["macros", "rt-multi-thread"]}
+fraiseql-db = { workspace = true, default-features = false, features = [
+  "postgres",
+] }
+fraiseql-test-utils = { path = "../fraiseql-test-utils" }
+chrono = { workspace = true }
+criterion = { version = "0.5", features = ["html_reports"] }
+proptest = { workspace = true }
+serde_json = { workspace = true }
+tempfile = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 wiremock = "0.6"
 
 [features]

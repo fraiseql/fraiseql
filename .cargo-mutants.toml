@@ -7,7 +7,7 @@ exclude_globs = [
   "crates/*/src/main.rs",
   "crates/**/mod.rs",
   "crates/**/*_test*.rs",
-  "crates/**/tests.rs"
+  "crates/**/tests.rs",
 ]
 # Parallel jobs
 jobs = 4

@@ -67,15 +67,15 @@ max_delay_ms = 30000
 
 # Performance features (Redis-backed)
 [performance]
-enable_caching = true  # Action result caching
-enable_dedup = true  # Event deduplication (prevents duplicate processing)
+enable_caching = true # Action result caching
+enable_dedup = true   # Event deduplication (prevents duplicate processing)
 
 # Redis configuration (dedup + caching)
 [redis]
-cache_ttl_secs = 60  # 1 minute cache TTL
+cache_ttl_secs = 60            # 1 minute cache TTL
 command_timeout_secs = 2
 connect_timeout_secs = 5
-dedup_window_secs = 300  # 5 minutes dedup window
+dedup_window_secs = 300        # 5 minutes dedup window
 pool_size = 10
 url = "redis://localhost:6379"
 

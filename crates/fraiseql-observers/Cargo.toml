@@ -1,65 +1,70 @@
 [dependencies]
-fraiseql-guard = {workspace = true}
-arrow = {version = "59", optional = true}
+fraiseql-guard = { workspace = true }
+arrow = { version = "59", optional = true }
 # NATS Dependencies
-async-nats = {version = "0.49", optional = true}
+async-nats = { version = "0.49", optional = true }
 async-trait = "0.1"
 base64 = "0.22"
-chrono = {workspace = true}
-dashmap = {workspace = true}
+chrono = { workspace = true }
+dashmap = { workspace = true }
 # Arrow Flight Dependencies
-fraiseql-arrow = {workspace = true, optional = true}
-fraiseql-error = {workspace = true}
+fraiseql-arrow = { workspace = true, optional = true }
+fraiseql-error = { workspace = true }
 futures = "0.3"
-hex = {workspace = true}
-hmac = {workspace = true}
+hex = { workspace = true }
+hmac = { workspace = true }
 http = "1.1"
 # SMTP for the email action (#349). rustls only — no OpenSSL (matches the
 # workspace TLS stack). Unconditional: it adds no new rustls version (reqwest
 # already pulls rustls here), and keeping it always-compiled means the
 # refused-send acceptance test runs in the standard test leg, not only behind a
 # feature the CI test leg would skip.
-lettre = {version = "0.11", default-features = false, features = ["builder", "smtp-transport", "tokio1", "tokio1-rustls-tls"]}
-parking_lot = {workspace = true}
-prometheus = {version = "0.14", optional = true}
+lettre = { version = "0.11", default-features = false, features = [
+  "builder",
+  "smtp-transport",
+  "tokio1",
+  "tokio1-rustls-tls",
+] }
+parking_lot = { workspace = true }
+prometheus = { version = "0.14", optional = true }
 rand = "0.9"
-redis = {workspace = true, optional = true}
-reqwest = {workspace = true}
-serde = {version = "1.0", features = ["derive"]}
-serde_json = {workspace = true}
+redis = { workspace = true, optional = true }
+reqwest = { workspace = true }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = { workspace = true }
 sha2 = "0.11"
 # sqlx with multiple database backends (features enabled conditionally)
-sqlx = {version = "0.8", features = ["runtime-tokio", "uuid", "chrono"]}
+sqlx = { version = "0.8", features = ["runtime-tokio", "uuid", "chrono"] }
 thiserror = "2.0"
-tokio = {workspace = true}
-tokio-util = {version = "0.7", features = ["compat"], optional = true}
+tokio = { workspace = true }
+tokio-util = { version = "0.7", features = ["compat"], optional = true }
 tracing = "0.1"
-uuid = {workspace = true}
+uuid = { workspace = true }
 
 [dev-dependencies]
-criterion = {version = "0.5", features = ["async_tokio"]}
+criterion = { version = "0.5", features = ["async_tokio"] }
 # Round-trip verification of the webhook HMAC signer against the project's own
 # Stripe-shape verifier (#345). Test-only; fraiseql-webhooks does not depend on
 # fraiseql-observers, so there is no production dependency cycle.
-fraiseql-webhooks = {path = "../fraiseql-webhooks"}
-fraiseql-test-utils = {path = "../fraiseql-test-utils"}
-fraiseql-test-support = {path = "../fraiseql-test-support"}
-proptest = {workspace = true}
+fraiseql-webhooks = { path = "../fraiseql-webhooks" }
+fraiseql-test-utils = { path = "../fraiseql-test-utils" }
+fraiseql-test-support = { path = "../fraiseql-test-support" }
+proptest = { workspace = true }
 # The shipped example configs and the guide's TOML blocks are parsed by a test, so a key
 # the struct no longer accepts reddens CI instead of the reader's first boot.
-toml = {workspace = true}
+toml = { workspace = true }
 # #884: the idempotency token must be canonical whatever `serde_json::Map` the
 # final binary unifies to. The defect was invisible crate-scoped, because only a
 # workspace build pulled `preserve_order` in (via deno_core) and no CI leg runs
 # `cargo test --workspace --all-features`. Enabling it here makes the *test*
 # build the risky configuration — an IndexMap — so the guard runs where it can
 # actually fail.
-serde_json = {workspace = true, features = ["preserve_order"]}
+serde_json = { workspace = true, features = ["preserve_order"] }
 # Raw Redis client for the #428 cache-invalidation integration test: seed keys and
 # assert deletions against the bound Redis service. Dev-only (the production Redis
 # dependency is the optional `redis` behind the `caching` feature).
-redis = {workspace = true}
-temp-env = {workspace = true}
+redis = { workspace = true }
+temp-env = { workspace = true }
 tokio-test = "0.4"
 wiremock = "0.6"
 

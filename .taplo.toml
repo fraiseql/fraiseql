@@ -1,0 +1,8 @@
+# taplo's defaults format every TOML file in the repo (see .pre-commit-config.yaml).
+
+# .gitleaks.toml nests each rule's allowlists under it, and reads that way.
+[[rule]]
+include = [".gitleaks.toml"]
+
+[rule.formatting]
+indent_tables = true

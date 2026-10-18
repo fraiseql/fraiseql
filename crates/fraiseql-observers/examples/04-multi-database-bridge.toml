@@ -30,20 +30,20 @@
 
 # Transport configuration
 [transport]
-run_bridge = true  # ✅ Run bridge (PostgreSQL → NATS)
-run_executors = false  # ❌ Do NOT run observers (bridge only)
-transport = "nats"  # Use NATS transport
+run_bridge = true     # ✅ Run bridge (PostgreSQL → NATS)
+run_executors = false # ❌ Do NOT run observers (bridge only)
+transport = "nats"    # Use NATS transport
 
 # Bridge configuration (PostgreSQL → NATS)
 [transport.bridge]
-batch_size = 100  # Events per batch
-notify_channel = "fraiseql_events"  # PostgreSQL NOTIFY channel
-poll_interval_secs = 1  # Poll frequency when idle
+batch_size = 100                   # Events per batch
+notify_channel = "fraiseql_events" # PostgreSQL NOTIFY channel
+poll_interval_secs = 1             # Poll frequency when idle
 transport_name = "pg_to_nats_db1"  # Unique per database
 
 # NATS transport settings
 [transport.nats]
-consumer_name = "fraiseql_bridge_db1"  # Unique per bridge
+consumer_name = "fraiseql_bridge_db1"                            # Unique per bridge
 stream_name = "fraiseql_events"
 subject_prefix = "fraiseql.mutation"
 url = "nats://nats-1:4222,nats://nats-2:4222,nats://nats-3:4222"

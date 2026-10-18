@@ -3,10 +3,10 @@
 
 [changelog]
 expose = true
-max_limit = 1000  # documented page ceiling
+max_limit = 1000                # documented page ceiling
 read_role = "changelog_reader"  # role required for entity_change_logs / transport_checkpoint
-schema = "core"  # PG schema holding the source tables (default)
-write_role = "changelog_writer"  # role required for upsert_transport_checkpoint
+schema = "core"                 # PG schema holding the source tables (default)
+write_role = "changelog_writer" # role required for upsert_transport_checkpoint
 
 [observers]
 # The changelog tables (tb_entity_change_log, tb_transport_checkpoint) live in

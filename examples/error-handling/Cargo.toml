@@ -17,7 +17,7 @@ name = "error-handling"
 path = "src/main.rs"
 
 [dependencies]
-anyhow = {workspace = true}
-fraiseql-core = {workspace = true, features = ["postgres"]}
-serde_json = {workspace = true}
-tokio = {workspace = true}
+anyhow = { workspace = true }
+fraiseql-core = { workspace = true, features = ["postgres"] }
+serde_json = { workspace = true }
+tokio = { workspace = true }

@@ -19,7 +19,7 @@ ignore = [
   # only private-key site is the opt-in GCS service-account signer. The unused RS256 signing
   # API was removed; tools/check-crypto-providers.sh confines RSA private keys to gcs.rs.
   # deadline: 2027-01-31 — matches deny.toml.
-  "RUSTSEC-2023-0071"
+  "RUSTSEC-2023-0071",
 ]
 # Surface unsound + unmaintained advisories as warnings so new soundness issues are visible
 # in `cargo audit` output.

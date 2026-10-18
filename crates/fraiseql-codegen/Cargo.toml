@@ -1,13 +1,13 @@
 [dependencies]
-fraiseql-core = {workspace = true}
-fraiseql-error = {workspace = true}
-hex = {workspace = true}
-serde = {workspace = true}
-serde_json = {workspace = true}
-sha2 = {workspace = true}
+fraiseql-core = { workspace = true }
+fraiseql-error = { workspace = true }
+hex = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
 
 [dev-dependencies]
-tempfile = {workspace = true}
+tempfile = { workspace = true }
 
 [lints]
 workspace = true
