@@ -473,6 +473,12 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **`_service { sdl }` declares a count sibling as `Int!` and a relay query as its
+  connection (#1616).** 2.16.0 rendered every root query from its return type
+  (`ordersCount(…): Order!`), so a federation gateway composing from the SDL refused
+  `{ ordersCount }`. The SDL has been rendered from the introspection model since #1522; a
+  test now holds every query kind to it.
+
 - **`[fraiseql.tenancy] tenant_claim` reaches the compiled schema whatever the mode
   (#1542).** With `mode` left at `none`, `compile` dropped the section, so the server read the
   tenant from `tenant_id`: the 2.16 upgrade step (`tenant_claim = "org_id"`, as

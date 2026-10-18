@@ -299,3 +299,58 @@ fn shared_value_type_is_identical_across_subgraphs() {
         assert!(sdl.contains("currency: String"), "Money.currency drifted");
     }
 }
+
+/// #1616: `_service { sdl }` declares each query as introspection does: a count sibling as
+/// `Int!`, a relay query as its connection with the cursor arguments. The SDL is rendered
+/// from the introspection model since #1522, so this pins the agreement for every query kind
+/// rather than fixing a divergence.
+#[test]
+fn the_service_sdl_declares_every_query_kind_as_introspection_does() {
+    let mut s = CompiledSchema::new();
+    s.types.push(
+        TypeDefinition::new("Order", "v_order")
+            .with_field(FieldDefinition::new("id", FieldType::Id))
+            .with_field(FieldDefinition::new("name", FieldType::String)),
+    );
+    s.queries.push(
+        QueryDefinition::new("orders", "Order")
+            .returning_list()
+            .with_sql_source("v_order"),
+    );
+    let mut count = QueryDefinition::new("ordersCount", "Order").with_sql_source("v_order");
+    count.returns_count = true;
+    s.queries.push(count);
+    let mut page = QueryDefinition::new("ordersPage", "Order")
+        .returning_list()
+        .with_sql_source("v_order");
+    page.relay = true;
+    s.queries.push(page);
+    s.federation = Some(FederationConfig {
+        enabled: true,
+        version: Some("v2".to_string()),
+        service_name: Some("orders".to_string()),
+        entities: vec![FederationEntity {
+            name: "Order".to_string(),
+            key_fields: vec!["id".to_string()],
+            ..Default::default()
+        }],
+        ..Default::default()
+    });
+    s.build_indexes();
+
+    let sdl = service_sdl(&s);
+    let declared = |field: &str| {
+        sdl.lines()
+            .map(str::trim)
+            .find(|l| l.starts_with(&format!("{field}(")) || l.starts_with(&format!("{field}:")))
+            .map(ToString::to_string)
+            .unwrap_or_default()
+    };
+
+    assert!(declared("ordersCount").ends_with(": Int!"), "{}", declared("ordersCount"));
+    let page = declared("ordersPage");
+    assert!(page.ends_with(": OrderConnection!"), "{page}");
+    for argument in ["first: Int", "after: String", "last: Int", "before: String"] {
+        assert!(page.contains(argument), "{page}");
+    }
+}
