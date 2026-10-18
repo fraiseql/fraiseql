@@ -334,7 +334,7 @@ async fn mcp_e2e_tool_call_mutation() {
 #[test]
 fn mcp_e2e_scalar_field_selection() {
     let schema = build_test_schema();
-    let fields = executor::scalar_fields_for_type("User", &schema);
+    let fields = executor::scalar_fields_for_type("User", &schema, &|_| true);
 
     assert!(fields.contains(&"id".to_string()));
     assert!(fields.contains(&"name".to_string()));
@@ -345,7 +345,7 @@ fn mcp_e2e_scalar_field_selection() {
 #[test]
 fn mcp_e2e_scalar_fields_unknown_type() {
     let schema = build_test_schema();
-    let fields = executor::scalar_fields_for_type("NonExistentType", &schema);
+    let fields = executor::scalar_fields_for_type("NonExistentType", &schema, &|_| true);
     assert!(fields.is_empty());
 }
 

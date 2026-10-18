@@ -229,7 +229,7 @@ fn tool_with_no_arguments_has_empty_schema() {
 #[test]
 fn scalar_fields_for_type_returns_all_scalar_fields() {
     let schema = build_test_schema();
-    let fields = scalar_fields_for_type("User", &schema);
+    let fields = scalar_fields_for_type("User", &schema, &|_| true);
     assert!(fields.contains(&"id".to_string()));
     assert!(fields.contains(&"name".to_string()));
     assert!(fields.contains(&"email".to_string()));
@@ -239,7 +239,7 @@ fn scalar_fields_for_type_returns_all_scalar_fields() {
 #[test]
 fn scalar_fields_for_unknown_type_returns_empty() {
     let schema = build_test_schema();
-    let fields = scalar_fields_for_type("NonExistent", &schema);
+    let fields = scalar_fields_for_type("NonExistent", &schema, &|_| true);
     assert!(fields.is_empty());
 }
 

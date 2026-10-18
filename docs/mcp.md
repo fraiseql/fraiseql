@@ -129,7 +129,7 @@ When an AI client calls a tool, FraiseQL builds a GraphQL query from the tool na
 
 1. The MCP client sends a `tools/call` JSON-RPC request with the tool name and arguments.
 2. FraiseQL resolves the tool name against the advertised tool list — the same list `tools/list` returns, after `include`/`exclude`/`read_only`. A name that is not on it is refused here.
-3. FraiseQL constructs a GraphQL operation whose values travel as variables: `query ($limit: Int) { users(limit: $limit) { id name email } }` with `{"limit": 10}`. Argument *names* must be ones the operation declares; anything else is refused.
+3. FraiseQL constructs a GraphQL operation whose values travel as variables: `query ($limit: Int) { users(limit: $limit) { id name email } }` with `{"limit": 10}`. Argument *names* must be ones the operation declares; anything else is refused. The selection is the caller's: every leaf field of the return type the caller may read, and for a union or an interface `__typename` plus each member's (or implementor's) readable fields under an inline fragment. A `requires_scope` field is selected only for a caller holding the scope (a masked one is left out rather than returned as `null`), and an `authorize` field only for an authenticated caller when a field authorizer is configured, so a call is never refused for a field the agent did not ask for. A tool whose result has such fields says so in its description, without naming them.
 4. The caller's tenant is resolved (JWT claim, `X-Tenant-ID`, or `Host`) and the operation is executed on that tenant's `Executor`, applying all security rules.
 5. The JSON result is returned as an MCP text content block. Execution errors pass through the configured error sanitizer first.
 

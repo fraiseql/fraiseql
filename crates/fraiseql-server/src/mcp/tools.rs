@@ -144,7 +144,7 @@ pub fn schema_to_tools(schema: &CompiledSchema, config: &McpConfig) -> Vec<Tool>
         .into_iter()
         .map(|(display, op)| match op {
             ExposedOperation::Query(q) => query_to_tool(q, &display, schema),
-            ExposedOperation::Mutation(m) => mutation_to_tool(m, &display),
+            ExposedOperation::Mutation(m) => mutation_to_tool(m, &display, schema),
         })
         .collect()
 }
@@ -169,7 +169,11 @@ pub fn should_include(name: &str, config: &McpConfig) -> bool {
 /// exactly when `auto_params` makes them acceptable, and an argument the tool
 /// advertises is always an argument the tool accepts.
 fn query_to_tool(query: &QueryDefinition, display_name: &str, schema: &CompiledSchema) -> Tool {
-    let description = query.description.clone().unwrap_or_else(|| format!("Query: {display_name}"));
+    let description = describe_result(
+        query.description.clone().unwrap_or_else(|| format!("Query: {display_name}")),
+        &query.return_type,
+        schema,
+    );
 
     let mut tool = Tool::new(
         Cow::Owned(display_name.to_string()),
@@ -183,11 +187,19 @@ fn query_to_tool(query: &QueryDefinition, display_name: &str, schema: &CompiledS
 }
 
 /// Convert a mutation definition into an MCP tool.
-fn mutation_to_tool(mutation: &MutationDefinition, display_name: &str) -> Tool {
-    let description = mutation
-        .description
-        .clone()
-        .unwrap_or_else(|| format!("Mutation: {display_name}"));
+fn mutation_to_tool(
+    mutation: &MutationDefinition,
+    display_name: &str,
+    schema: &CompiledSchema,
+) -> Tool {
+    let description = describe_result(
+        mutation
+            .description
+            .clone()
+            .unwrap_or_else(|| format!("Mutation: {display_name}")),
+        &mutation.return_type,
+        schema,
+    );
 
     let mut tool = Tool::new(
         Cow::Owned(display_name.to_string()),
@@ -208,6 +220,44 @@ fn mutation_to_tool(mutation: &MutationDefinition, display_name: &str) -> Tool {
             .open_world(false),
     );
     tool
+}
+
+/// `description`, plus a sentence when the tool's result has fields only some callers may
+/// read (a `requires_scope` or `authorize` field of the return type, of a union member or of
+/// an interface's implementor). A call selects only the fields its caller may read (#1615), so
+/// an agent learns why one is absent. Neither the fields nor their scopes are named: nothing
+/// else publishes them, and introspection may be disabled.
+fn describe_result(description: String, return_type: &str, schema: &CompiledSchema) -> String {
+    let types: Vec<&str> = schema.unions.iter().find(|u| u.name == return_type).map_or_else(
+        || {
+            let implementors: Vec<&str> = schema
+                .types
+                .iter()
+                .filter(|t| t.implements.iter().any(|i| i == return_type))
+                .map(|t| t.name.as_str())
+                .collect();
+            if implementors.is_empty() {
+                vec![return_type]
+            } else {
+                implementors
+            }
+        },
+        |u| u.member_types.iter().map(String::as_str).collect(),
+    );
+    let gated = schema
+        .types
+        .iter()
+        .filter(|t| types.contains(&t.name.as_str()))
+        .flat_map(|t| &t.fields)
+        .any(|f| f.requires_scope.is_some() || f.authorize);
+    if gated {
+        format!(
+            "{description} Some fields of the result are returned only to callers allowed to \
+             read them."
+        )
+    } else {
+        description
+    }
 }
 
 /// Convert argument definitions into a JSON Schema object for MCP tool input.

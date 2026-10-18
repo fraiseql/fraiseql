@@ -18,6 +18,12 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **`fraiseql_server::mcp::executor::selection_for_type` and `scalar_fields_for_type` take the
+  caller's field predicate (#1615)**, `&dyn Fn(&FieldDefinition) -> bool`: pass
+  `&|f| executor.may_select_field(f, caller)` for a caller's selection, `&|_| true` for every
+  field. An interface's selection no longer lists its own fields beside the implementor
+  fragments.
+
 - **An argument's list items are published and enforced as declared (#1614).** An argument
   or input field declared `[T!]` was introspected as `[T]` (every item nullable), in `__type`,
   in `_service { sdl }` and in the parameters of the generated TypeScript, Python, Go and Rust
@@ -430,6 +436,18 @@ disagreed, and the promise was the part that was wrong.
   reported TVIEW (pg_tviews#240): throughput there is unchanged.
 
 ### Fixed
+
+- **An MCP tool selects only the fields its caller may read (#1615).** A tool's document
+  selected every leaf field of its return type, so a caller without a field's
+  `requires_scope` (with the default `on_deny = "reject"`) had the whole call refused, and an
+  `authorize` field refused every anonymous call and every call on a server with no field
+  authorizer, although the agent asked for none of them; the same caller's GraphQL read of
+  the other fields succeeded. The selection is now built per call, from the engine's rule
+  (`Executor::may_select_field`): a scoped field only for a caller holding the scope (a
+  masked one is left out rather than returned `null`), an `authorize` field only for an
+  authenticated caller with a field authorizer configured. An interface selects each
+  implementor's readable fields under an inline fragment, gated by the implementor's own
+  definition. A tool whose result has such fields says so in its description, naming none.
 
 - **A CI leg waiting for its target volume no longer links another branch's crates
   (#1596).** Each Rust leg stamped its sources with an instant taken when the pipeline was

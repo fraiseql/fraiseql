@@ -144,6 +144,41 @@ pub fn can_reference_field(
     if field.authorize {
         return false;
     }
+    holds_required_scope(security_config, field, context)
+}
+
+/// Whether a request may *select* `field` without the read being refused for it, before any
+/// row is read — the question a transport asks when it builds a selection itself, as an MCP
+/// tool does (#1615):
+///
+/// * a `requires_scope` field: only when the caller holds the scope, whatever its `on_deny`. A
+///   `Reject` refuses the read and a `Mask` serves `null`, which a caller cannot tell from a stored
+///   `null`;
+/// * an `authorize` field: only when the caller is authenticated and a field authorizer is
+///   configured. Otherwise the read is refused for it whatever the rows hold (fail-closed,
+///   `read_plan::field_authz_inputs`); what the authorizer then decides per row is the
+///   application's policy.
+#[must_use]
+pub fn may_select_field(
+    security_config: Option<&SecurityConfig>,
+    field: &FieldDefinition,
+    context: Option<&SecurityContext>,
+    authorizer_configured: bool,
+) -> bool {
+    if field.authorize && !(context.is_some() && authorizer_configured) {
+        return false;
+    }
+    holds_required_scope(security_config, field, context)
+}
+
+/// Whether `context` holds `field`'s `requires_scope`, or the field requires none. A request
+/// with no principal holds no scope (#743), and a schema with no `security` section grants
+/// none (ruling Y 7).
+fn holds_required_scope(
+    security_config: Option<&SecurityConfig>,
+    field: &FieldDefinition,
+    context: Option<&SecurityContext>,
+) -> bool {
     let Some(scope) = field.requires_scope.as_deref() else {
         return true;
     };

@@ -6,7 +6,7 @@
 
 use fraiseql_core::{
     runtime::Executor,
-    schema::{CompiledSchema, FieldType, McpConfig},
+    schema::{CompiledSchema, FieldDefinition, FieldType, McpConfig},
     security::SecurityContext,
 };
 use rmcp::model::{CallToolResult, ContentBlock};
@@ -49,7 +49,10 @@ pub async fn call_tool(
     arguments: Option<&serde_json::Map<String, serde_json::Value>>,
     ctx: &McpCallContext<'_>,
 ) -> CallToolResult {
-    let operation = match build_operation(tool_name, arguments, ctx.schema, ctx.config) {
+    let may_select =
+        |field: &FieldDefinition| ctx.executor.may_select_field(field, ctx.security_context);
+    let operation = match build_operation(tool_name, arguments, ctx.schema, ctx.config, &may_select)
+    {
         Ok(op) => op,
         Err(e) => return error_result(&e),
     };
@@ -115,7 +118,9 @@ pub(crate) struct McpOperation {
 /// query ($limit: Int) { users(limit: $limit) { id name email } }
 /// ```
 ///
-/// and the variables `{ "limit": 10 }`.
+/// and the variables `{ "limit": 10 }`. The fields selected are those `may_select` admits:
+/// the caller's, so a call is never refused for a field the caller may not read and never
+/// asked for (#1615).
 ///
 /// # Security
 ///
@@ -138,6 +143,7 @@ pub(crate) fn build_operation(
     arguments: Option<&serde_json::Map<String, serde_json::Value>>,
     schema: &CompiledSchema,
     config: &McpConfig,
+    may_select: &dyn Fn(&FieldDefinition) -> bool,
 ) -> Result<McpOperation, String> {
     // Resolve against the advertised set, so `include`/`exclude`/`read_only` are
     // enforced where the call executes and not only where the tool list is built.
@@ -184,7 +190,7 @@ pub(crate) fn build_operation(
         format!("({})", call_args.join(", "))
     };
 
-    let fields_str = selection_for_type(operation.return_type(), schema);
+    let fields_str = selection_for_type(operation.return_type(), schema, may_select);
 
     let op_type = if operation.is_mutation() {
         "mutation"
@@ -255,19 +261,25 @@ pub(crate) fn is_valid_graphql_name(name: &str) -> bool {
 /// The selection set a tool's document selects on its return type: ` { … }`, or nothing for
 /// a scalar or an enum, which take none.
 ///
-/// An object type selects its leaf fields. A union selects `__typename` and each member's
-/// leaf fields under an inline fragment, so the tool's result says which member it is and
-/// carries that member's fields; an interface selects `__typename`, its own leaf fields and
-/// each implementor's under an inline fragment, for the same reason (#1546, #1612). Looking
-/// the name up among the object types alone left an abstract type with no selection, which
-/// GraphQL refuses before execution, so no tool returning one (every mutation, under
-/// `auto_error_union`) could run.
+/// An object type selects its leaf fields. A union or an interface selects `__typename` and
+/// each member's (or implementor's) leaf fields under an inline fragment, so the tool's result
+/// says which type each value is and carries that type's fields (#1546, #1612); a field is
+/// gated by its own type's definition, as GraphQL reads it, which is why an interface's own
+/// field list is not selected beside them. Looking the name up among the object types alone
+/// left an abstract type with no selection, which GraphQL refuses before execution, so no tool
+/// returning one (every mutation, under `auto_error_union`) could run.
+///
+/// Only the fields `may_select` admits are selected: those the caller may read (#1615).
 #[must_use]
-pub fn selection_for_type(type_name: &str, schema: &CompiledSchema) -> String {
+pub fn selection_for_type(
+    type_name: &str,
+    schema: &CompiledSchema,
+    may_select: &dyn Fn(&FieldDefinition) -> bool,
+) -> String {
     let fragments = |members: &mut dyn Iterator<Item = &str>| -> String {
         members
             .filter_map(|member| {
-                let fields = scalar_fields_for_type(member, schema);
+                let fields = scalar_fields_for_type(member, schema, may_select);
                 (!fields.is_empty()).then(|| format!("... on {member} {{ {} }}", fields.join(" ")))
             })
             .collect::<Vec<_>>()
@@ -278,12 +290,6 @@ pub fn selection_for_type(type_name: &str, schema: &CompiledSchema) -> String {
         return format!(" {{ __typename {members} }}");
     }
     if let Some(interface) = schema.find_interface(type_name) {
-        let own: Vec<&str> = interface
-            .fields
-            .iter()
-            .filter(|f| is_scalar_field_type(&f.field_type))
-            .map(fraiseql_core::schema::FieldDefinition::output_name)
-            .collect();
         let implementors = fragments(
             &mut schema
                 .types
@@ -291,9 +297,9 @@ pub fn selection_for_type(type_name: &str, schema: &CompiledSchema) -> String {
                 .filter(|t| t.implements.contains(&interface.name))
                 .map(|t| t.name.as_str()),
         );
-        return format!(" {{ __typename {} {implementors} }}", own.join(" "));
+        return format!(" {{ __typename {implementors} }}");
     }
-    let fields = scalar_fields_for_type(type_name, schema);
+    let fields = scalar_fields_for_type(type_name, schema, may_select);
     if fields.is_empty() {
         String::new()
     } else {
@@ -301,10 +307,14 @@ pub fn selection_for_type(type_name: &str, schema: &CompiledSchema) -> String {
     }
 }
 
-/// The leaf fields of the object type `type_name`, by the names the schema publishes
-/// (an aliased field's alias), or none when it is not an object type.
+/// The leaf fields of the object type `type_name` that `may_select` admits, by the names the
+/// schema publishes (an aliased field's alias), or none when it is not an object type.
 #[must_use]
-pub fn scalar_fields_for_type(type_name: &str, schema: &CompiledSchema) -> Vec<String> {
+pub fn scalar_fields_for_type(
+    type_name: &str,
+    schema: &CompiledSchema,
+    may_select: &dyn Fn(&FieldDefinition) -> bool,
+) -> Vec<String> {
     let Some(type_def) = schema.types.iter().find(|t| t.name == type_name) else {
         return vec![];
     };
@@ -312,7 +322,7 @@ pub fn scalar_fields_for_type(type_name: &str, schema: &CompiledSchema) -> Vec<S
     type_def
         .fields
         .iter()
-        .filter(|f| is_scalar_field_type(&f.field_type))
+        .filter(|f| is_scalar_field_type(&f.field_type) && may_select(f))
         .map(|f| f.output_name().to_string())
         .collect()
 }

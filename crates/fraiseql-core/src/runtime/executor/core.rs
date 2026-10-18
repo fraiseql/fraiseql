@@ -435,6 +435,23 @@ impl Executor {
         &self.ctx.schema
     }
 
+    /// Whether `caller` may select `field` without the read being refused for it
+    /// ([`may_select_field`](crate::runtime::may_select_field)), under this executor's schema
+    /// and field authorizer.
+    #[must_use]
+    pub fn may_select_field(
+        &self,
+        field: &crate::schema::FieldDefinition,
+        caller: Option<&SecurityContext>,
+    ) -> bool {
+        crate::runtime::may_select_field(
+            self.ctx.schema.security.as_ref(),
+            field,
+            caller,
+            self.ctx.config.field_authorizer.is_some(),
+        )
+    }
+
     /// The documents this executor's requests parsed. A transport opens its request's
     /// scope with [`DocumentCache::scope`](crate::graphql::DocumentCache::scope), so the
     /// stages it runs before the executor read a repeated document without parsing it.

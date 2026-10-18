@@ -131,6 +131,7 @@ pub use executor::{
 pub use explain::{ExplainPlan, ExplainResult};
 pub use field_filter::{
     FieldAccessResult, can_access_field, can_reference_field, classify_field_access, filter_fields,
+    may_select_field,
 };
 pub use jsonb_strategy::{JsonbOptimizationOptions, JsonbStrategy};
 pub use locale_argument::translations;

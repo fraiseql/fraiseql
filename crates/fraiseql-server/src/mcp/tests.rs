@@ -43,7 +43,7 @@ mod executor_tests {
             ..CompiledSchema::default()
         };
         assert_eq!(
-            super::super::executor::scalar_fields_for_type("Doc", &schema),
+            super::super::executor::scalar_fields_for_type("Doc", &schema, &|_| true),
             ["embedding", "writer"]
         );
     }
@@ -79,16 +79,17 @@ mod executor_tests {
         };
 
         assert_eq!(
-            selection_for_type("WriteResult", &schema),
+            selection_for_type("WriteResult", &schema, &|_| true),
             " { __typename ... on User { id email } ... on MutationError { message } }"
         );
-        // #1612: an interface says which implementor a result is, and carries its fields.
+        // #1612: an interface says which implementor a result is, and carries its fields, each
+        // gated by its implementor's definition (#1615).
         assert_eq!(
-            selection_for_type("Account", &schema),
-            " { __typename email ... on User { id email } }"
+            selection_for_type("Account", &schema, &|_| true),
+            " { __typename ... on User { id email } }"
         );
-        assert_eq!(selection_for_type("User", &schema), " { id email }");
-        assert_eq!(selection_for_type("String", &schema), "");
+        assert_eq!(selection_for_type("User", &schema, &|_| true), " { id email }");
+        assert_eq!(selection_for_type("String", &schema, &|_| true), "");
     }
 
     /// One query `users(filter: JSON, limit: Int)` returning `User { id name }`.
@@ -164,7 +165,7 @@ mod executor_tests {
 
         for payload in payloads {
             let args = payload.as_object().unwrap();
-            let built = build_operation("users", Some(args), &schema, &config);
+            let built = build_operation("users", Some(args), &schema, &config, &|_| true);
             assert!(built.is_ok(), "payload must build, not be rejected: {:?}", built.err());
             let op = built.expect("checked above");
 
@@ -190,10 +191,15 @@ mod executor_tests {
         let schema = schema();
         let args = serde_json::json!({ "notAnArgument": 1 });
 
-        let err =
-            build_operation("users", Some(args.as_object().unwrap()), &schema, &open_config())
-                .err()
-                .expect("an undeclared argument must be refused");
+        let err = build_operation(
+            "users",
+            Some(args.as_object().unwrap()),
+            &schema,
+            &open_config(),
+            &|_| true,
+        )
+        .err()
+        .expect("an undeclared argument must be refused");
 
         assert!(err.contains("notAnArgument"), "{err}");
         assert!(err.contains("filter"), "the error should list the accepted arguments: {err}");
@@ -203,7 +209,7 @@ mod executor_tests {
     #[test]
     fn a_call_with_no_arguments_declares_no_variables() {
         let schema = schema();
-        let op = build_operation("users", None, &schema, &open_config()).unwrap();
+        let op = build_operation("users", None, &schema, &open_config(), &|_| true).unwrap();
 
         assert_eq!(root_fields(&op.document), vec!["users".to_string()]);
         assert!(op.variables.is_empty(), "{:?}", op.variables);
@@ -271,7 +277,7 @@ mod executor_tests {
                 let args = serde_json::json!({ "filter": value });
                 let args = args.as_object().unwrap();
 
-                let Ok(op) = build_operation("users", Some(args), &schema, &config) else {
+                let Ok(op) = build_operation("users", Some(args), &schema, &config, &|_| true) else {
                     // Refusing is an acceptable outcome; executing the wrong thing is not.
                     return Ok(());
                 };
@@ -298,8 +304,14 @@ mod executor_tests {
         let schema = schema();
         let args = serde_json::json!({ "limit": 10 });
 
-        let op = build_operation("users", Some(args.as_object().unwrap()), &schema, &open_config())
-            .unwrap();
+        let op = build_operation(
+            "users",
+            Some(args.as_object().unwrap()),
+            &schema,
+            &open_config(),
+            &|_| true,
+        )
+        .unwrap();
 
         assert!(op.document.contains("$limit: Int"), "{}", op.document);
         assert!(!op.document.contains("filter"), "{}", op.document);
@@ -328,6 +340,61 @@ mod tools_tests {
             include,
             exclude,
             read_only: false,
+        }
+    }
+
+    /// #1615: a tool whose result has fields only some callers may read says so, without
+    /// naming them or their scopes: neither is published anywhere else (introspection and the
+    /// SDL carry no scope, and introspection may be disabled).
+    #[test]
+    fn a_tool_with_gated_result_fields_says_so_without_naming_them() {
+        use fraiseql_core::schema::{
+            CompiledSchema, FieldDefinition, MutationDefinition, QueryDefinition, TypeDefinition,
+            UnionDefinition,
+        };
+
+        use super::super::tools::schema_to_tools;
+
+        const SENTENCE: &str =
+            "Some fields of the result are returned only to callers allowed to read them.";
+
+        let mut user = TypeDefinition::new("User", "v_user");
+        let mut secret = FieldDefinition::nullable("secret", FieldType::String);
+        secret.requires_scope = Some("read:secret".to_string());
+        user.fields = vec![FieldDefinition::new("id", FieldType::Id), secret];
+        let mut note = TypeDefinition::new("Note", "v_note");
+        note.fields = vec![FieldDefinition::new("id", FieldType::Id)];
+        let mut schema = CompiledSchema {
+            types: vec![user, note],
+            unions: vec![UnionDefinition {
+                name:         "WriteResult".to_string(),
+                member_types: vec!["User".to_string()],
+                description:  None,
+            }],
+            ..CompiledSchema::default()
+        };
+        schema.queries.push(QueryDefinition::new("users", "User"));
+        schema.queries.push(QueryDefinition::new("notes", "Note"));
+        schema.mutations.push(MutationDefinition::new("createUser", "WriteResult"));
+        schema.build_indexes();
+
+        let tools = schema_to_tools(&schema, &make_config(vec![], vec![]));
+        let description = |name: &str| {
+            tools
+                .iter()
+                .find(|t| t.name == name)
+                .unwrap()
+                .description
+                .clone()
+                .unwrap_or_default()
+        };
+
+        assert!(description("users").contains(SENTENCE), "{}", description("users"));
+        assert!(description("createUser").contains(SENTENCE), "{}", description("createUser"));
+        assert!(!description("notes").contains(SENTENCE), "{}", description("notes"));
+        for name in ["users", "createUser"] {
+            let text = description(name);
+            assert!(!text.contains("secret"), "a gated field is not named: {text}");
         }
     }
 

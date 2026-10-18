@@ -7,6 +7,9 @@
 //! an operation failed, and under `auto_error_union` that is every mutation tool. Each call
 //! here goes through the MCP service, as an agent's would, against PostgreSQL.
 //!
+//! #1615: the selection is the caller's: a field it may not read is not selected, so the
+//! call is not refused for a field the agent never asked for.
+//!
 //! **Execution engine:** `PostgreSQL` · **Infrastructure:** `DATABASE_URL` ·
 //! **Parallelism:** creates and drops its own `p1546_mcp` schema → run `--test-threads=1`.
 #![cfg(feature = "mcp")]
@@ -440,4 +443,192 @@ async fn masked_and_policy_gated_fields_in_fragments_are_gated() {
         policy.as_ref().is_err_and(|e| e.contains("Guest")),
         "a policy-gated field through an interface is refused: {policy:?}"
     );
+}
+
+// ── #1615: a tool selects what its caller may read ──────────────────────────────────
+
+/// [`schema_with_gated_fields`] with `users: [User]`, and a `reader` role granting
+/// `read:secret` and `read:model`; `default_role`, when given, is the role of an
+/// authenticated principal that carries none (#894).
+fn scoped_schema(default_role: Option<&str>) -> CompiledSchema {
+    let mut schema = schema_with_gated_fields();
+    schema.queries.push(
+        QueryDefinition::new("users", "User")
+            .returning_list()
+            .with_sql_source(format!("{SCHEMA}.v_user")),
+    );
+    schema.security = Some(fraiseql_core::schema::SecurityConfig {
+        role_definitions: vec![fraiseql_core::schema::RoleDefinition::new(
+            "reader",
+            vec!["read:secret".to_string(), "read:model".to_string()],
+        )],
+        default_role: default_role.map(ToString::to_string),
+        ..fraiseql_core::schema::SecurityConfig::default()
+    });
+    schema.build_indexes();
+    schema
+}
+
+fn principal(roles: &[&str]) -> fraiseql_core::security::SecurityContext {
+    fraiseql_core::security::SecurityContext {
+        user_id:          "agent".into(),
+        roles:            roles.iter().map(|r| (*r).to_string()).collect(),
+        tenant_id:        None,
+        scopes:           vec![],
+        attributes:       std::collections::HashMap::new(),
+        request_id:       "req-1615".to_string(),
+        ip_address:       None,
+        authenticated_at: chrono::Utc::now(),
+        expires_at:       chrono::Utc::now() + chrono::Duration::hours(1),
+        issuer:           None,
+        audience:         None,
+        email:            None,
+        display_name:     None,
+    }
+}
+
+/// Call `tool` as `caller` (anonymous when `None`): whether it failed, and its response.
+async fn call_as(
+    schema: CompiledSchema,
+    url: &str,
+    tool: &str,
+    arguments: &Value,
+    caller: Option<&fraiseql_core::security::SecurityContext>,
+) -> (bool, Value) {
+    let adapter = Arc::new(PostgresAdapter::new(url).await.unwrap());
+    let executor = Executor::new(schema.clone(), adapter);
+    let config = McpConfig {
+        enabled: true,
+        require_auth: false,
+        read_only: false,
+        ..McpConfig::default()
+    };
+    let sanitizer = fraiseql_server::config::error_sanitization::ErrorSanitizer::new(
+        fraiseql_server::config::error_sanitization::ErrorSanitizationConfig::default(),
+    );
+    let result = fraiseql_server::mcp::executor::call_tool(
+        tool,
+        arguments.as_object(),
+        &fraiseql_server::mcp::executor::McpCallContext {
+            schema:           &schema,
+            executor:         &executor,
+            config:           &config,
+            security_context: caller,
+            error_sanitizer:  &sanitizer,
+        },
+    )
+    .await;
+    let text = result
+        .content
+        .first()
+        .and_then(|c| c.as_text().map(|t| t.text.clone()))
+        .unwrap_or_default();
+    let response = serde_json::from_str(&text).unwrap_or(Value::String(text));
+    (result.is_error == Some(true), response)
+}
+
+/// The first row of `field` in a successful response.
+fn first_row(failed: bool, response: &Value, field: &str) -> Value {
+    assert!(!failed, "the call must succeed: {response}");
+    response["data"][field][0].clone()
+}
+
+/// A field whose `requires_scope` the caller does not hold is not selected, so the call
+/// answers the rest; a caller holding the scope, through a role or through the default role,
+/// gets it. The tool used to select it for every caller, and the call was refused for a field
+/// the agent never asked for.
+#[tokio::test]
+async fn a_tool_selects_the_scoped_fields_its_caller_may_read() {
+    let Some(url) = provisioned().await else {
+        eprintln!("skipping #1615: DATABASE_URL not set");
+        return;
+    };
+    let call = |schema, caller| {
+        let url = url.clone();
+        async move { call_as(schema, &url, "users", &json!({}), caller).await }
+    };
+
+    let (failed, anonymous) = call(scoped_schema(None), None).await;
+    let anonymous = first_row(failed, &anonymous, "users");
+    let unscoped_principal = principal(&[]);
+    let (failed, unscoped) = call(scoped_schema(None), Some(&unscoped_principal)).await;
+    let unscoped = first_row(failed, &unscoped, "users");
+    let reader = principal(&["reader"]);
+    let (failed, by_role) = call(scoped_schema(None), Some(&reader)).await;
+    let by_role = first_row(failed, &by_role, "users");
+    let (failed, by_default) = call(scoped_schema(Some("reader")), Some(&unscoped_principal)).await;
+    let by_default = first_row(failed, &by_default, "users");
+
+    for row in [&anonymous, &unscoped] {
+        assert_eq!(row["email"], json!("ada@example.com"), "{row}");
+        assert!(row.get("secret").is_none(), "an unreadable field is not selected: {row}");
+    }
+    assert_eq!(by_role["secret"], json!("s3cret"), "{by_role}");
+    assert_eq!(by_default["secret"], json!("s3cret"), "{by_default}");
+}
+
+/// The same rule under a union member (a mutation's result) and an interface's
+/// implementors, a masked field included: it is left out rather than served as `null`.
+#[tokio::test]
+async fn abstract_returns_select_what_their_caller_may_read() {
+    let Some(url) = provisioned().await else {
+        eprintln!("skipping #1615: DATABASE_URL not set");
+        return;
+    };
+    let unscoped = principal(&[]);
+    let reader = principal(&["reader"]);
+
+    let (failed, created) = call_as(
+        scoped_schema(None),
+        &url,
+        "createUser",
+        &json!({ "email": "lovelace@example.com" }),
+        Some(&unscoped),
+    )
+    .await;
+    let (failed_everyone, everyone) =
+        call_as(scoped_schema(None), &url, "everyone", &json!({}), Some(&unscoped)).await;
+    let (_, everyone_read) =
+        call_as(scoped_schema(None), &url, "everyone", &json!({}), Some(&reader)).await;
+
+    assert!(!failed, "{created}");
+    assert_eq!(created["data"]["createUser"]["email"], json!("lovelace@example.com"));
+    assert!(created["data"]["createUser"].get("secret").is_none(), "{created}");
+    assert!(!failed_everyone, "{everyone}");
+    let bot = |response: &Value| {
+        response["data"]["everyone"]
+            .as_array()
+            .unwrap_or_else(|| panic!("{response}"))
+            .iter()
+            .find(|r| r["__typename"] == "Bot")
+            .cloned()
+            .unwrap_or_default()
+    };
+    assert!(bot(&everyone).get("model").is_none(), "{everyone}");
+    assert_eq!(bot(&everyone_read)["model"], json!("gpt"), "{everyone_read}");
+    let user = everyone["data"]["everyone"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|r| r["__typename"] == "User")
+        .cloned()
+        .unwrap_or_default();
+    assert!(user.get("secret").is_none(), "{everyone}");
+}
+
+/// A field the #423 authorizer decides cannot be read by a caller the authorizer cannot be
+/// asked about (anonymous, or no authorizer configured): the engine refuses the whole read for
+/// it, so the tool does not select it.
+#[tokio::test]
+async fn an_authorized_field_is_not_selected_when_it_cannot_be_authorized() {
+    let Some(url) = provisioned().await else {
+        eprintln!("skipping #1615: DATABASE_URL not set");
+        return;
+    };
+
+    let (failed, guests) = call_as(scoped_schema(None), &url, "guests", &json!({}), None).await;
+
+    let guest = first_row(failed, &guests, "guests");
+    assert_eq!(guest["email"], json!("guest@example.com"), "{guest}");
+    assert!(guest.get("visits").is_none(), "{guest}");
 }
