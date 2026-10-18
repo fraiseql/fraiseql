@@ -22,7 +22,7 @@ use crate::{
         ColumnRowStream, ComposedLevel, DatabaseAdapter, JsonbRowStream, ProjectionRequest, Writer,
     },
     types::{
-        DatabaseType, JsonbValue, PoolMetrics, QueryParam, ReadRouting,
+        DatabaseType, JsonbValue, PoolMetrics, ReadRouting,
         sql_hints::{OrderByClause, SqlProjectionHint},
     },
     where_clause::WhereClause,
@@ -577,6 +577,21 @@ enum FlexParam {
     Text(String),
     /// A request's JSON value, written for the server-resolved type.
     Value(serde_json::Value),
+}
+
+/// An aggregate's parameters, each written for the type the server resolves it to, as a
+/// write function's arguments are (#1620): a string compared with `data->>'region'` is text,
+/// a number compared with `SUM(qty)` (a `numeric`) its text in the text format. They were
+/// bound as `QueryParam`, whose number is text bytes sent under the binary format, which a
+/// `numeric` parameter cannot read (`insufficient data left in message`).
+fn aggregate_params(params: &[serde_json::Value]) -> Vec<FlexParam> {
+    params
+        .iter()
+        .map(|v| match v {
+            serde_json::Value::Null => FlexParam::Null,
+            value => FlexParam::Value(value.clone()),
+        })
+        .collect()
 }
 
 /// Write `text`, the text form of a value, for the parameter type `ty`: the binary form of
@@ -1363,11 +1378,9 @@ impl DatabaseAdapter for PostgresAdapter {
         sql: &str,
         params: &[serde_json::Value],
     ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
-        // Convert serde_json::Value params to QueryParam so that strings are bound
-        // as TEXT (not JSONB), which is required for correct WHERE comparisons against
-        // data->>'field' expressions that return TEXT.
-        let typed: Vec<QueryParam> = params.iter().cloned().map(QueryParam::from).collect();
-        let param_refs = crate::types::as_sql_param_refs(&typed);
+        let typed = aggregate_params(params);
+        let param_refs: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> =
+            typed.iter().map(|v| v as &(dyn tokio_postgres::types::ToSql + Sync)).collect();
 
         // Compiled aggregate SELECT: read-only, replica-eligible (#407).
         let client = self.acquire_read_connection_with_retry(ReadRouting::Any).await?;
@@ -1395,8 +1408,9 @@ impl DatabaseAdapter for PostgresAdapter {
             return self.execute_parameterized_aggregate(sql, params).await;
         }
 
-        let typed: Vec<QueryParam> = params.iter().cloned().map(QueryParam::from).collect();
-        let param_refs = crate::types::as_sql_param_refs(&typed);
+        let typed = aggregate_params(params);
+        let param_refs: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> =
+            typed.iter().map(|v| v as &(dyn tokio_postgres::types::ToSql + Sync)).collect();
 
         // Read-only aggregate with session vars; standby-safe → replica-eligible.
         let mut client = self.acquire_read_connection_with_retry(routing).await?;

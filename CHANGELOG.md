@@ -468,6 +468,12 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **An aggregate's `HAVING` against a `SUM` of an integer measure runs (#1620).** Every such
+  request failed on PostgreSQL with `insufficient data left in message`: a number was sent
+  as text bytes under the binary format, and `SUM(bigint)` makes the parameter a `numeric`.
+  Aggregate and window parameters now bind as a write function's arguments do (`FlexParam`),
+  each written for the type the server resolves it to.
+
 - **An enum operand passed as a variable inside an inline `where:` filters the rows
   (#1610).** `query($s: OrderStatus) { orders(where: {status: {eq: $s}}) { id } }` was
   refused before execution (*`where.status.eq` has enum type `OrderStatus`, but the document
