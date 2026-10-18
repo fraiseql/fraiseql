@@ -236,23 +236,18 @@ async fn a_limit_above_the_page_ceiling_is_refused() {
     }
 }
 
-/// An inline argument is not where the planners read `limit`: it used to be dropped, and the
-/// whole table served under a `200`.
+/// An inline `limit` bounds the page as a variable does (#1609). It used to be dropped, and
+/// the whole table served under a `200` (#1532, which refused it instead).
 #[tokio::test]
-async fn an_inline_argument_on_the_root_is_refused_not_ignored() {
+async fn an_inline_limit_on_the_root_bounds_the_page() {
     let Some(executor) = executor().await else {
         return;
     };
     for kind in Kind::BOTH {
-        let result = executor
+        let served = executor
             .execute(&kind.document(SALE, "(limit: 1)"), Some(&kind.variables(SALE, &json!({}))))
-            .await;
-        let err = match result {
-            Ok(served) => {
-                panic!("{kind:?}: the inline limit was ignored and this was served: {served}")
-            },
-            Err(e) => e.to_string(),
-        };
-        assert!(err.contains("variables"), "{kind:?}: names where the request goes: {err}");
+            .await
+            .unwrap_or_else(|e| panic!("{kind:?}: {e}"));
+        assert_eq!(regions(&served, kind, SALE).len(), 1, "{kind:?}: {served}");
     }
 }

@@ -498,11 +498,14 @@ A fact table gives the `<name>_aggregate` root field. There is no `aggregate_que
 section: the compiler refuses one.
 
 The `<name>_aggregate` and `<name>_window` root fields take their request (`table`,
-`groupBy` or `select`, `aggregates` or `windows`, `where`, `orderBy`, `limit`, `offset`)
-from the request's **variables**; an argument written on the root field is refused, never
-ignored. `limit` and `offset` are read as a list's: a value that is not a non-negative `Int`
-is refused, `limit` is held to `[validation] max_page_size` and `offset` to `max_offset`, all
-before any statement (#1532, #1306).
+`groupBy` or `select`, `aggregates` or `windows`, `where`, `having`, `orderBy`, `limit`,
+`offset`) as arguments, written inline or passed as variables, as every root field does: a
+variable named like an argument wins over the argument written inline, and an object
+literal keeps its written key order (`orderBy: {revenue_sum: DESC, region: ASC}`). An
+argument the planner does not read is refused, naming the ones it does, never ignored
+(#1609). `limit` and `offset` are read as a list's: a value that is not a non-negative
+`Int` is refused, `limit` is held to `[validation] max_page_size` and `offset` to
+`max_offset`, all before any statement (#1532, #1306).
 
 ---
 

@@ -114,6 +114,48 @@ fn localize_where(
 }
 
 /// Runner for aggregate and window analytics queries.
+/// The request an aggregate or window root field makes (#1609): its arguments written inline,
+/// resolved against the request's variables (nested `$var`s substituted, an object literal's
+/// written key order kept), with a variable named like an argument winning over the argument
+/// written inline, as for every root field (`QueryMatcher`). An inline argument the planner
+/// does not read is refused, naming the ones it does, rather than ignored.
+fn root_request(
+    query_name: &str,
+    parsed: Option<&crate::graphql::ParsedQuery>,
+    variables: Option<&serde_json::Value>,
+    accepted: &[&str],
+) -> Result<serde_json::Value> {
+    let mut request = match variables {
+        Some(serde_json::Value::Object(map)) => map.clone(),
+        _ => serde_json::Map::new(),
+    };
+    let Some(root) = parsed.and_then(|p| p.selections.first()) else {
+        return Ok(serde_json::Value::Object(request));
+    };
+    let variable_map = crate::runtime::matcher::QueryMatcher::extract_arguments(variables);
+    for argument in &root.arguments {
+        if !accepted.contains(&argument.name.as_str()) {
+            return Err(FraiseQLError::Validation {
+                message: format!(
+                    "`{query_name}` takes no argument `{}`; it reads {}",
+                    argument.name,
+                    accepted.iter().map(|a| format!("`{a}`")).collect::<Vec<_>>().join(", ")
+                ),
+                path:    Some(format!("{query_name}.{}", argument.name)),
+            });
+        }
+        if request.contains_key(&argument.name) {
+            continue;
+        }
+        if let Some(value) =
+            crate::runtime::matcher::QueryMatcher::resolve_inline_arg(argument, &variable_map)?
+        {
+            request.insert(argument.name.clone(), value);
+        }
+    }
+    Ok(serde_json::Value::Object(request))
+}
+
 pub(in super::super) struct AggregateRunner {
     ctx: Arc<ExecutorContext>,
 }
@@ -174,12 +216,14 @@ impl AggregateRunner {
     ///
     /// # Errors
     ///
-    /// * [`FraiseQLError::Validation`] — the query name does not end with `_aggregate`, or the
-    ///   derived fact table is not found in the compiled schema.
+    /// * [`FraiseQLError::Validation`] — the query name does not end with `_aggregate`, the derived
+    ///   fact table is not found in the compiled schema, or the root field is written with an
+    ///   argument the planner does not read.
     /// * Propagates errors from [`execute_aggregate_query`](Self::execute_aggregate_query).
     pub(in super::super) async fn execute_aggregate_dispatch(
         &self,
         query_name: &str,
+        parsed: Option<&crate::graphql::ParsedQuery>,
         variables: Option<&serde_json::Value>,
         security_context: Option<&SecurityContext>,
     ) -> Result<serde_json::Value> {
@@ -207,9 +251,22 @@ impl AggregateRunner {
             }
         })?;
 
-        // Parse query variables into aggregate query JSON
-        let empty_json = serde_json::json!({});
-        let query_json = variables.unwrap_or(&empty_json);
+        let query_json = root_request(
+            query_name,
+            parsed,
+            variables,
+            &[
+                "table",
+                "where",
+                "groupBy",
+                "aggregates",
+                "having",
+                "orderBy",
+                "limit",
+                "offset",
+            ],
+        )?;
+        let query_json = &query_json;
 
         // Execute aggregate query
         self.execute_aggregate_query(query_json, query_name, metadata, security_context)
@@ -220,12 +277,14 @@ impl AggregateRunner {
     ///
     /// # Errors
     ///
-    /// * [`FraiseQLError::Validation`] — the query name does not end with `_window`, or the derived
-    ///   fact table is not found in the compiled schema.
+    /// * [`FraiseQLError::Validation`] — the query name does not end with `_window`, the derived
+    ///   fact table is not found in the compiled schema, or the root field is written with an
+    ///   argument the planner does not read.
     /// * Propagates errors from [`execute_window_query`](Self::execute_window_query).
     pub(in super::super) async fn execute_window_dispatch(
         &self,
         query_name: &str,
+        parsed: Option<&crate::graphql::ParsedQuery>,
         variables: Option<&serde_json::Value>,
         security_context: Option<&SecurityContext>,
     ) -> Result<serde_json::Value> {
@@ -253,9 +312,15 @@ impl AggregateRunner {
             }
         })?;
 
-        // Parse query variables into window query JSON
-        let empty_json = serde_json::json!({});
-        let query_json = variables.unwrap_or(&empty_json);
+        let query_json = root_request(
+            query_name,
+            parsed,
+            variables,
+            &[
+                "table", "select", "windows", "where", "orderBy", "limit", "offset",
+            ],
+        )?;
+        let query_json = &query_json;
 
         // Execute window query
         self.execute_window_query(query_json, query_name, metadata, security_context)

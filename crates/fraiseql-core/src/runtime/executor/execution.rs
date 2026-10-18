@@ -569,12 +569,22 @@ impl Executor {
             },
             QueryType::Aggregate(query_name) => {
                 self.aggregate_runner()
-                    .execute_aggregate_dispatch(query_name, variables, security_context)
+                    .execute_aggregate_dispatch(
+                        query_name,
+                        maybe_parsed.as_ref(),
+                        variables,
+                        security_context,
+                    )
                     .await
             },
             QueryType::Window(query_name) => {
                 self.aggregate_runner()
-                    .execute_window_dispatch(query_name, variables, security_context)
+                    .execute_window_dispatch(
+                        query_name,
+                        maybe_parsed.as_ref(),
+                        variables,
+                        security_context,
+                    )
                     .await
             },
             #[cfg(feature = "federation")]

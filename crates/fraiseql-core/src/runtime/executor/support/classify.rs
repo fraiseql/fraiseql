@@ -292,28 +292,16 @@ impl Executor {
             return Ok((QueryType::Mutation { roots }, None));
         }
 
-        // Aggregate and window queries (root field ends with `_aggregate` / `_window`).
-        // Their planners read the whole request — `groupBy`, `limit`, `offset`, … — from
-        // the request's variables, and nothing reads an argument written on the root. One
-        // used to be dropped in silence, so `sales_aggregate(limit: 1)` served every group
-        // under a `200` (#1532): refuse it, naming where the request goes.
+        // Aggregate and window queries (root field ends with `_aggregate` / `_window`). Their
+        // planners read the request — `groupBy`, `limit`, `offset`, … — from the root field's
+        // arguments, inline or as variables (#1609); the parsed document goes with them.
         if root_field.ends_with("_aggregate") || root_field.ends_with("_window") {
-            if let Some(argument) = parsed.selections.first().and_then(|r| r.arguments.first()) {
-                return Err(crate::error::FraiseQLError::Validation {
-                    message: format!(
-                        "`{root_field}` takes no arguments: an aggregate or window request is \
-                         read from the request's variables (`{name}` belongs there)",
-                        name = argument.name
-                    ),
-                    path:    Some(root_field.clone()),
-                });
-            }
             let query_type = if root_field.ends_with("_aggregate") {
                 QueryType::Aggregate(root_field.clone())
             } else {
                 QueryType::Window(root_field.clone())
             };
-            return Ok((query_type, None));
+            return Ok((query_type, Some(parsed)));
         }
 
         // Regular query — return the already-parsed AST to avoid re-parsing in

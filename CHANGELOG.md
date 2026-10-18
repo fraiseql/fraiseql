@@ -468,6 +468,16 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **An aggregate or window root field takes its arguments inline (#1609).**
+  `{ sales_aggregate(groupBy: {category: true}, aggregates: [{revenue_sum: {}}], limit: 5) {
+  … } }` was refused (*takes no arguments … read from the request's variables*, #1532): only
+  variables matched by name were read. The arguments are now read as every root field's
+  are: inline literals (nested `$var`s substituted, an object literal's written key order
+  kept, so `orderBy: {revenue_sum: DESC, category: ASC}` sorts as written) and variables
+  alike, a variable named like an argument winning. An argument the planner does not read
+  is refused, naming the ones it does. The request shape itself (`table` and `aggregates`
+  passed as arguments, aggregates not in introspection) is unchanged.
+
 - **An aggregate's `HAVING` against a `SUM` of an integer measure runs (#1620).** Every such
   request failed on PostgreSQL with `insufficient data left in message`: a number was sent
   as text bytes under the binary format, and `SUM(bigint)` makes the parameter a `numeric`.
