@@ -279,7 +279,7 @@ func (m *FraiseqlCi) Fmt(
 	return m.rustBase().
 		WithMountedDirectory("/src", source).
 		WithWorkdir("/src").
-		WithExec([]string{"cargo", "+" + fmtNightly, "fmt", "--all", "--", "--check"}).
+		WithExec([]string{"bash", "-c", "cargo +" + fmtNightly + " fmt --all -- --check"}).
 		Stdout(ctx)
 }
 
@@ -293,16 +293,13 @@ func (m *FraiseqlCi) Clippy(
 	source *dagger.Directory,
 ) (string, error) {
 	return m.rustSrc(source).
-		WithExec([]string{
-			"cargo", "clippy", "--workspace", "--all-features", "--all-targets",
-			"--", "-D", "warnings",
+		WithExec([]string{"bash", "-c",
+			"cargo clippy --workspace --all-features --all-targets -- -D warnings",
 		}).
 		// The async-jobs example subgraph is its own crate outside the workspace;
 		// its clippy gate lived only in the retired legacy ci.yml (#951).
 		WithWorkdir("/src/examples/async-jobs-subgraph/subgraph").
-		WithExec([]string{
-			"cargo", "clippy", "--all-targets", "--", "-D", "warnings",
-		}).
+		WithExec([]string{"bash", "-c", "cargo clippy --all-targets -- -D warnings"}).
 		Stdout(ctx)
 }
 
@@ -331,7 +328,7 @@ func (m *FraiseqlCi) CheckDefault(
 	source *dagger.Directory,
 ) (string, error) {
 	return m.rustSrc(source).
-		WithExec([]string{"cargo", "check", "--workspace", "--all-targets"}).
+		WithExec([]string{"bash", "-c", "cargo check --workspace --all-targets"}).
 		Stdout(ctx)
 }
 
@@ -413,7 +410,7 @@ func (m *FraiseqlCi) Rustdoc(
 ) (string, error) {
 	return m.rustSrc(source).
 		WithEnvVariable("RUSTDOCFLAGS", "-D warnings").
-		WithExec([]string{"cargo", "doc", "--workspace", "--all-features", "--no-deps"}).
+		WithExec([]string{"bash", "-c", "cargo doc --workspace --all-features --no-deps"}).
 		Stdout(ctx)
 }
 
@@ -437,7 +434,7 @@ func (m *FraiseqlCi) RustdocDefault(
 ) (string, error) {
 	return m.rustSrc(source).
 		WithEnvVariable("RUSTDOCFLAGS", "-D warnings").
-		WithExec([]string{"cargo", "doc", "--workspace", "--no-deps", "--keep-going"}).
+		WithExec([]string{"bash", "-c", "cargo doc --workspace --no-deps --keep-going"}).
 		Stdout(ctx)
 }
 
@@ -525,6 +522,10 @@ func (m *FraiseqlCi) ShellGates(
 		// The #1421 stale-artifact check the canary runs in every Rust leg, proved RED and
 		// GREEN on synthetic cargo logs (a green leg cannot show it would ever fire).
 		"bash tools/tests/ci_stale_artifacts_test.sh",
+		// #1596: the stamp is taken inside each exec of a Rust leg, after its target volume
+		// is mounted, by tools/ci-stamp-sources.sh (BASH_ENV); proved in a tree with no .git.
+		"bash tools/check-ci-source-stamp.sh",
+		"bash tools/tests/ci_source_stamp_test.sh",
 		"bash tools/check-phases-citations.sh",
 		"bash tools/check-image-context.sh",
 		"bash tools/tests/doc_image_refs_test.sh",
@@ -805,29 +806,35 @@ func (m *FraiseqlCi) rustSrc(source *dagger.Directory) *dagger.Container {
 //
 //   - Sequential staleness (#880): an artifact an earlier run built from different source
 //     can be newer than this checkout's files, and cargo links it. So every file of the
-//     source is stamped with one instant taken at leg start; no artifact written before
-//     it can be judged fresh. The instant is also exported as FRAISEQL_SOURCE_TOUCHED_AT,
-//     which is what lets tools/ci-target-canary.sh prove it (any cached workspace artifact
-//     older than the stamp fails the leg), and — being new on every call — it keeps Dagger
-//     from replaying a cached stamp step with an old instant.
+//     source is stamped with one instant; no artifact written before it can be judged
+//     fresh. The instant is exported as FRAISEQL_SOURCE_TOUCHED_AT, which is what lets
+//     tools/ci-target-canary.sh prove it (any cached workspace artifact older than the
+//     stamp fails the leg).
 //   - Concurrent staleness: two runners on this box ran two branches' legs at once on
-//     one volume, and one branch's tests linked the other's crates. A stamp cannot fix
-//     that (the other run's artifact is written after it), so the volume is mounted
-//     PRIVATE: Dagger hands a busy volume to one user at a time. Measured on this engine
-//     (v0.21): concurrent PRIVATE users are serialized, never given a shared live mount.
+//     one volume, and one branch's tests linked the other's crates. So the volume is
+//     mounted PRIVATE: Dagger hands a busy volume to one user at a time. Measured on this
+//     engine (v0.21): concurrent PRIVATE users are serialized, never given a shared mount.
+//   - The two together (#1596): the instant is taken, and the sources touched, by each of
+//     the leg's execs as it starts, once it holds the volume: BASH_ENV sources
+//     tools/ci-stamp-sources.sh. Taken when the pipeline was built, in an exec before the
+//     mount, a leg that waited for the volume got artifacts another branch built after
+//     its stamp, newer than its sources (fresh to cargo) and than the stamp (invisible to
+//     the canary). So every exec on this container is a bash (tools/check-ci-source-stamp.sh
+//     refuses a direct `cargo` one), and FRAISEQL_LEG_NONCE, new on every call, keeps
+//     Dagger from replaying a cached exec.
 //
 // The cost is a rustc invocation per workspace unit on every leg; sccache (content-
 // addressed, RUSTC_WRAPPER in rustBaseFor) answers those from its cache.
 func rustSource(base *dagger.Container, source *dagger.Directory, targetVol string) *dagger.Container {
-	stamp := strconv.FormatInt(time.Now().Unix(), 10)
 	return base.
 		WithMountedDirectory("/src", source).
 		WithWorkdir("/src").
-		WithEnvVariable("FRAISEQL_SOURCE_TOUCHED_AT", stamp).
-		WithExec([]string{"bash", "-c", `find /src -mindepth 1 -exec touch -h -d "@${FRAISEQL_SOURCE_TOUCHED_AT}" {} +`}).
 		WithMountedCache("/src/target", dag.CacheVolume(targetVol), dagger.ContainerWithMountedCacheOpts{
 			Sharing: dagger.CacheSharingModePrivate,
-		})
+		}).
+		WithEnvVariable("FRAISEQL_LEG_NONCE", strconv.FormatInt(time.Now().UnixNano(), 10)).
+		WithEnvVariable("FRAISEQL_STAMP_ROOT", "/src").
+		WithEnvVariable("BASH_ENV", "/src/tools/ci-stamp-sources.sh")
 }
 
 // rustBase is the shared Rust toolchain container for fmt/clippy/rustdoc. It pins the

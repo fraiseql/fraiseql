@@ -337,6 +337,17 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **A CI leg waiting for its target volume no longer links another branch's crates
+  (#1596).** Each Rust leg stamped its sources with an instant taken when the pipeline was
+  built, in an exec that ran before its PRIVATE target volume was mounted. A leg that then
+  waited for the volume while another branch's leg built on it got artifacts newer than its
+  own sources: fresh to cargo, and newer than the stamp, so invisible to the stale-artifact
+  canary (#1421). Three PRs pushed minutes apart compiled against each other's
+  `fraiseql_core`. The stamp is now taken by each of the leg's execs as it starts, after the
+  mount (`tools/ci-stamp-sources.sh`, sourced through `BASH_ENV`), every Rust exec runs
+  through bash, and `tools/check-ci-source-stamp.sh` (ShellGates) refuses a stamp taken
+  anywhere else.
+
 - **The TOML formatter writes one style on pre-commit.ci and locally (#1599).** The hook's
   rev was pinned and its formatting library was not: tomlkit before 0.13.2 writes an inline
   table as `{ "fr-CA" = "fr-FR" }`, 0.13.2 and later as `{"fr-CA" = "fr-FR"}`, so the bot
