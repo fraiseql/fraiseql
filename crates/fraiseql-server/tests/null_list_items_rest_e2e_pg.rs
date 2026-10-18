@@ -74,10 +74,7 @@ async fn seed(adapter: &PostgresAdapter) {
     }
 }
 
-async fn router() -> Option<(axum::Router, TempDir)> {
-    let url = try_database_url()?;
-    let adapter = Arc::new(PostgresAdapter::new(&url).await.expect("connect"));
-    seed(&adapter).await;
+async fn compile_document() -> (CompiledSchema, TempDir) {
     let temp_dir = TempDir::new().expect("temp dir");
     let toml_path = temp_dir.path().join("fraiseql.toml");
     std::fs::write(&toml_path, fraiseql_toml()).expect("write fraiseql.toml");
@@ -91,6 +88,14 @@ async fn router() -> Option<(axum::Router, TempDir)> {
         CompiledSchema::from_json(&compiled.schema.to_json().expect("serialize"), false)
             .expect("the compiler's own output must survive load");
     schema.build_indexes();
+    (schema, temp_dir)
+}
+
+async fn router() -> Option<(axum::Router, TempDir)> {
+    let url = try_database_url()?;
+    let adapter = Arc::new(PostgresAdapter::new(&url).await.expect("connect"));
+    seed(&adapter).await;
+    let (schema, temp_dir) = compile_document().await;
     let runtime_config = fraiseql_core::runtime::RuntimeConfig::from_compiled_schema(&schema)
         .expect("runtime config");
     let executor = Arc::new(Executor::with_config(schema, adapter, runtime_config));
@@ -118,6 +123,16 @@ async fn get(router: &axum::Router, filter: &Value) -> (StatusCode, Value) {
     let json = serde_json::from_slice(&bytes)
         .unwrap_or_else(|_| json!({"raw": String::from_utf8_lossy(&bytes)}));
     (status, json)
+}
+
+#[tokio::test]
+async fn the_document_loads_without_a_database() {
+    let (schema, _dir) = compile_document().await;
+    assert!(schema.find_query("labels").is_some(), "the `labels` query is served");
+    assert!(
+        schema.input_types.iter().any(|t| t.name == "LabelWhereInput"),
+        "the derived `LabelWhereInput` the refusal reads is carried"
+    );
 }
 
 #[tokio::test]

@@ -2066,6 +2066,9 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		// #1587: compile --database proves a relationship's native join from pg_tviews'
 		// registry, and the REST composed read correlates on it.
 		"cargo test -p fraiseql-server --features rest --test rest_embedding_native_join_e2e_pg -- --test-threads=1",
+		// #1614: a null item at a `[T!]` filter operand is refused over REST (it read as
+		// `NOT IN (NULL, …)`, no rows, under a 200). Owns its p1614_items schema → serial.
+		"cargo test -p fraiseql-server --features rest --test null_list_items_rest_e2e_pg -- --test-threads=1",
 		// #1577: with `cache_cross_instance = "notify"`, a write through one server evicts on
 		// another over the same database, and a server that cannot hear the others (feed
 		// unreachable, severed, or receiving nothing) caches nothing. DATABASE_URL only.
