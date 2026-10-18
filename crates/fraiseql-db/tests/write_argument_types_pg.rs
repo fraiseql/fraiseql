@@ -18,7 +18,12 @@ use fraiseql_db::{PostgresAdapter, Writer as _};
 use serde_json::{Value, json};
 
 /// `(parameter type, argument as the mutation runner passes it, the value stored, as text)`.
-const CASES: [(&str, &str, &str); 9] = [
+///
+/// The arguments are JSON, as a GraphQL request carries them: a list argument is a JSON array,
+/// which is not PostgreSQL's array syntax, and the edge values of each type's input function
+/// (`NaN`, `infinity`, a zone offset, a zone-less timestamp, more digits than a `float8`) are
+/// read by the server exactly as written.
+const CASES: [(&str, &str, &str); 31] = [
     ("float8", "9.5", "9.5"),
     ("float4", "0.25", "0.25"),
     (
@@ -26,12 +31,47 @@ const CASES: [(&str, &str, &str); 9] = [
         "\"12345678901234567890.123456789\"",
         "12345678901234567890.123456789",
     ),
+    (
+        "numeric",
+        "\"0.1000000000000000055511151231257827\"",
+        "0.1000000000000000055511151231257827",
+    ),
     ("int2", "7", "7"),
     ("date", "\"2026-10-18\"", "2026-10-18"),
     ("timestamp", "\"2026-10-18T12:34:56.789\"", "2026-10-18 12:34:56.789"),
     ("timestamptz", "\"2026-10-18T12:34:56+00:00\"", "2026-10-18 12:34:56+00"),
+    // An offset is honoured, and a zone-less value is read in the session's zone (UTC here).
+    ("timestamptz", "\"2026-10-18T12:34:56+02:00\"", "2026-10-18 10:34:56+00"),
+    ("timestamptz", "\"2026-10-18T12:34:56\"", "2026-10-18 12:34:56+00"),
     ("interval", "\"1 day 02:03:04\"", "1 day 02:03:04"),
+    // The special values each input function accepts.
+    ("float8", "\"NaN\"", "NaN"),
+    ("float8", "\"-Infinity\"", "-Infinity"),
+    ("numeric", "\"NaN\"", "NaN"),
+    ("numeric", "\"Infinity\"", "Infinity"),
+    ("timestamptz", "\"infinity\"", "infinity"),
+    ("date", "\"-infinity\"", "-infinity"),
+    // An enum and domains are parsed by their own (or their base type's) input function.
+    ("p1547.mood", "\"happy\"", "happy"),
+    ("p1547.posint", "7", "7"),
+    ("p1547.ratio", "0.25", "0.25"),
+    // Arrays: a string already in PostgreSQL's array syntax, and the JSON array a GraphQL
+    // list argument is, whatever its items hold.
     ("text[]", "\"{a,b}\"", "{a,b}"),
+    (
+        "text[]",
+        r#"["a,b", "c\"d", "{x}", "back\\slash", "NULL", null, ""]"#,
+        r#"{"a,b","c\"d","{x}","back\\slash","NULL",NULL,""}"#,
+    ),
+    ("text[]", "[]", "{}"),
+    ("float8[]", "[1.5, 2.5]", "{1.5,2.5}"),
+    ("int4[]", "[1, 2, 3]", "{1,2,3}"),
+    ("int4[]", "[[1, 2], [3, 4]]", "{{1,2},{3,4}}"),
+    ("bool[]", "[true, false]", "{t,f}"),
+    ("date[]", r#"["2026-10-18", null]"#, "{2026-10-18,NULL}"),
+    ("p1547.mood[]", r#"["happy", "sad"]"#, "{happy,sad}"),
+    ("jsonb[]", r#"[{"a": 1}, [2]]"#, r#"{"{\"a\": 1}",[2]}"#),
+    ("p1547.labels", r#"["a", "b"]"#, "{a,b}"),
 ];
 
 /// The function `p1547.fn_<n>` of each case stores its one argument as text and returns it.
@@ -42,6 +82,10 @@ async fn install() -> PostgresAdapter {
     let mut ddl = String::from(
         "DROP SCHEMA IF EXISTS p1547 CASCADE; CREATE SCHEMA p1547;
          SET TIME ZONE 'UTC';
+         CREATE TYPE p1547.mood AS ENUM ('happy', 'sad');
+         CREATE DOMAIN p1547.posint AS int4 CHECK (VALUE > 0);
+         CREATE DOMAIN p1547.ratio AS float8;
+         CREATE DOMAIN p1547.labels AS text[];
          CREATE TABLE p1547.received (kind text, value text);",
     );
     for (n, (kind, ..)) in CASES.iter().enumerate() {
@@ -65,18 +109,25 @@ fn argument(raw: &str) -> [Value; 1] {
 #[tokio::test]
 async fn each_parameter_type_binds_through_a_single_call() {
     let adapter = install().await;
+    let mut wrong = Vec::new();
     for (n, (kind, raw, stored)) in CASES.iter().enumerate() {
         let function = format!("p1547.fn_{n}");
         let args = argument(raw);
         let request = fraiseql_db::WriteRequest::new(&function, &args);
 
-        let rows = adapter
-            .execute_write(&request, &|_| Ok(()))
-            .await
-            .unwrap_or_else(|e| panic!("{kind} ({raw}): {e}"));
-
-        assert_eq!(rows[0]["value"], json!(stored), "{kind}");
+        match adapter.execute_write(&request, &|_| Ok(())).await {
+            Ok(rows) if rows[0]["value"] == json!(stored) => {},
+            Ok(rows) => wrong.push(format!("{kind} {raw}: stored {}", rows[0]["value"])),
+            Err(e) => wrong.push(format!("{kind} {raw}: {e}")),
+        }
     }
+    assert!(
+        wrong.is_empty(),
+        "{} of {} cases:\n{}",
+        wrong.len(),
+        CASES.len(),
+        wrong.join("\n")
+    );
 }
 
 #[tokio::test]

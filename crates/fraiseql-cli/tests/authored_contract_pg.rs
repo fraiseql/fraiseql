@@ -6,6 +6,7 @@
 //! shape the compiler accepts must reach the response as declared, not tightened or loosened
 //! on the way.
 //!
+//! - #1547: a list argument reaches an array parameter of the function as the list it is.
 //! - #1586: a list declared with nullable items (`[Float]`) serves a `null` item. A list declared
 //!   with non-null items (`[Float!]`) still nulls the list on one (§ 6.4.4, #1522).
 //!
@@ -355,4 +356,113 @@ async fn a_valued_enum_member_reaches_the_function_as_its_value() {
         .map(|r| r.get(0))
         .collect();
     assert_eq!(stored, ["LOST", "pending", "shipped", "shipped"], "the function got `shipped`");
+}
+
+// ── #1547: a list argument binds to an array parameter ──────────────────────────────
+
+/// `tag(labels: [String!]!, scores: [Float!]!)` over a function taking `text[]` and
+/// `float8[]`, which stores what it is given.
+async fn taggings(url: &str, dir: &Path) -> std::path::PathBuf {
+    execute(
+        url,
+        &format!(
+            "DROP SCHEMA IF EXISTS {SCHEMA} CASCADE;
+             CREATE SCHEMA {SCHEMA};
+             CREATE SCHEMA IF NOT EXISTS app;
+             DO $$ BEGIN CREATE TYPE app.mutation_error_class AS ENUM ('validation','conflict',
+             'not_found','unauthorized','forbidden','internal','transaction_failed','timeout',
+             'rate_limited','service_unavailable'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+             DO $$ BEGIN CREATE TYPE app.mutation_response AS (succeeded BOOLEAN, state_changed
+             BOOLEAN, error_class app.mutation_error_class, status_detail TEXT, http_status
+             SMALLINT, message TEXT, entity_id UUID, entity_type TEXT, entity JSONB,
+             updated_fields TEXT[], cascade JSONB, error_detail JSONB, metadata JSONB);
+             EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+             CREATE TABLE {SCHEMA}.tb_tagging (id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+                 labels text[], scores float8[]);
+             CREATE VIEW {SCHEMA}.v_tagging AS SELECT id, jsonb_build_object('id', id,
+                 'labels', labels, 'scores', scores) AS data FROM {SCHEMA}.tb_tagging;
+             CREATE FUNCTION {SCHEMA}.fn_tag(p_labels text[], p_scores float8[])
+               RETURNS app.mutation_response LANGUAGE plpgsql AS $$
+               DECLARE v app.mutation_response; new_id uuid; BEGIN
+                 INSERT INTO {SCHEMA}.tb_tagging (labels, scores) VALUES (p_labels, p_scores)
+                   RETURNING id INTO new_id;
+                 v.succeeded := true; v.state_changed := true; v.entity_type := 'Tagging';
+                 v.entity_id := new_id;
+                 v.entity := jsonb_build_object('id', new_id, 'labels', p_labels,
+                                                'scores', p_scores);
+                 RETURN v; END; $$;"
+        ),
+    )
+    .await;
+    compile(
+        dir,
+        &json!({
+            "types": [{
+                "name": "Tagging",
+                "sql_source": format!("{SCHEMA}.v_tagging"),
+                "fields": [
+                    { "name": "id", "type": "ID", "nullable": false },
+                    { "name": "labels", "type": "[String!]", "nullable": false },
+                    { "name": "scores", "type": "[Float!]", "nullable": false }
+                ]
+            }],
+            "queries": [{
+                "name": "taggings", "return_type": "Tagging", "returns_list": true,
+                "nullable": false, "sql_source": format!("{SCHEMA}.v_tagging")
+            }],
+            "mutations": [{
+                "name": "tag", "return_type": "Tagging", "returns_list": false,
+                "nullable": false, "sql_source": format!("{SCHEMA}.fn_tag"),
+                "operation": "CREATE",
+                "arguments": [
+                    { "name": "labels", "type": "[String!]", "nullable": false },
+                    { "name": "scores", "type": "[Float!]", "nullable": false }
+                ]
+            }]
+        }),
+    )
+}
+
+#[tokio::test]
+async fn a_list_argument_reaches_an_array_parameter() {
+    let Some(url) = fraiseql_test_support::try_database_url() else {
+        eprintln!("skipping #1547: DATABASE_URL not set");
+        return;
+    };
+    let dir = TempDir::new().unwrap();
+    let compiled = taggings(&url, dir.path()).await;
+
+    let inline = query(
+        &compiled,
+        &url,
+        r#"mutation { tag(labels: ["a,b", "say \"hi\""], scores: [1.5, 2.5]) { labels scores } }"#,
+        None,
+    );
+    let variables = query(
+        &compiled,
+        &url,
+        "mutation($l: [String!]!, $s: [Float!]!) { tag(labels: $l, scores: $s) { labels } }",
+        Some(&json!({ "l": ["{x}", "NULL"], "s": [] })),
+    );
+
+    assert_eq!(inline["data"]["tag"]["labels"], json!(["a,b", "say \"hi\""]), "{inline}");
+    assert_eq!(variables["data"]["tag"]["labels"], json!(["{x}", "NULL"]), "{variables}");
+    let (client, conn) = tokio_postgres::connect(&url, NoTls).await.unwrap();
+    tokio::spawn(async move {
+        let _ = conn.await;
+    });
+    let stored: Vec<(Vec<String>, Vec<f64>)> = client
+        .query(&format!("SELECT labels, scores FROM {SCHEMA}.tb_tagging ORDER BY labels"), &[])
+        .await
+        .unwrap()
+        .iter()
+        .map(|r| (r.get(0), r.get(1)))
+        .collect();
+    assert_eq!(
+        stored,
+        [
+            (vec!["a,b".to_string(), "say \"hi\"".to_string()], vec![1.5, 2.5]),
+            (vec!["{x}".to_string(), "NULL".to_string()], vec![]),
+        ]
+    );
 }

@@ -400,15 +400,22 @@ disagreed, and the promise was the part that was wrong.
   subscriptions). An enum whose members store their names behaves as before. Two members of
   one enum stored as the same value are refused at compile and at load.
 
-- **A mutation argument binds to a `float8`, `numeric`, `date`, `timestamp` or any other
-  function parameter type (#1547).** The function call carries no cast, so PostgreSQL types
-  each parameter from the function's signature, and every argument but six types (`jsonb`,
-  `json`, `uuid`, `int4`, `int8`, `bool`) was sent as its text in the *binary* format: a
-  `float8` parameter read `9.5` as three bytes of an eight-byte value and the call failed
-  with `insufficient data left in message`. The others are now sent in the text format,
-  parsed by the type's own input function: `float4`, `float8`, `numeric`, `int2`, `date`,
-  `time`, `timestamp`, `timestamptz`, `interval`, arrays, enums and domains, through a single
-  mutation and through a batch.
+- **A mutation argument binds to a `float8`, `numeric`, `date`, `timestamp`, an array or any
+  other function parameter type (#1547).** The function call carries no cast, so PostgreSQL
+  types each parameter from the function's signature, and every argument but six types
+  (`jsonb`, `json`, `uuid`, `int4`, `int8`, `bool`) was sent as its text in the *binary*
+  format: a `float8` parameter read `9.5` as three bytes of an eight-byte value and the call
+  failed with `insufficient data left in message`. The others are now sent in the text
+  format, parsed by the type's own input function: `float4`, `float8`, `numeric`, `int2`,
+  `date`, `time`, `timestamp`, `timestamptz`, `interval`, enums and domains, with each
+  type's special values (`NaN`, `infinity`) and a timestamp's offset read as written. A list
+  argument, which a request carries as a JSON array, is written in PostgreSQL's array syntax
+  for an array parameter (`text[]`, `float8[]`, an enum's array, a domain over one,
+  multi-dimensional arrays, quoted items and `null` items included) and as JSON for a `jsonb`
+  one; it used to reach an array parameter as `["a","b"]`, refused as a `malformed array
+  literal`. Through a single mutation and through a batch. Measured against binding each
+  type in binary with its own type (PostgreSQL 18, 5 interleaved runs): equal within the
+  noise (binding alone +2 % for binary, a full write −1 %, spread ±9 %).
 
 - **An `orderBy` object written inline sorts by its keys in the order written (#1567).**
   `orderBy: {ratio: ASC, isCurrent: DESC}` sorted by `isCurrent` first: the GraphQL parser

@@ -261,6 +261,14 @@ def create_post(title: str, body: str | None = None) -> Post:
 | `invalidates` | `list[str] \| None` | Cache views to invalidate on success |
 | `inject` | `dict[str, str] \| None` | JWT claim injections |
 
+**Arguments reach the function's parameters as PostgreSQL reads them.** The call carries no
+cast: each argument is typed by the function's signature and read by that type's own input
+function, so a parameter may be any type, `float8`, `numeric`, `date`, `timestamptz`,
+`interval`, an enum or a domain included, and takes what that type accepts as text
+(`"NaN"`, `"infinity"`, an offset like `"+02:00"`; a timestamp without one is read in the
+session's time zone). A list argument binds to an array parameter (`list[str]` to `text[]`,
+a list of lists to a two-dimensional array) and to a `jsonb` one as JSON.
+
 ---
 
 ### `@fraiseql.subscription`

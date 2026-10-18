@@ -80,6 +80,7 @@ impl<'r> PreparedCall<'r> {
             .map(|v| match v {
                 serde_json::Value::Null => FlexParam::Null,
                 serde_json::Value::String(s) => FlexParam::Text(s.clone()),
+                serde_json::Value::Array(items) => FlexParam::List(items.clone()),
                 _ => FlexParam::Text(v.to_string()),
             })
             .collect();
@@ -561,6 +562,10 @@ const PG_UNDEFINED_COLUMN: &str = "42703";
 ///   their text (a `float8` is 8 bytes, a `date` 4), so sending the text as binary failed with
 ///   `insufficient data left in message`.
 ///
+/// A JSON array (a list argument) is sent to an array parameter in PostgreSQL's array syntax,
+/// `{"a","b"}`, each item parsed by the element type's input function, and to a `json`/`jsonb`
+/// parameter as the JSON it is.
+///
 /// Inside an array (`id = ANY($1)`) each element is written by [`ToSql::to_sql`] in the binary
 /// format whatever [`ToSql::encode_format`] says, so the six binary encodings stay.
 #[derive(Debug)]
@@ -569,6 +574,51 @@ enum FlexParam {
     Null,
     /// A text-encoded value; binary-serialised according to the server-resolved type.
     Text(String),
+    /// A JSON array, written for the server-resolved type: an array literal or JSON.
+    List(Vec<serde_json::Value>),
+}
+
+/// Write `items` in PostgreSQL's array syntax: every item quoted (an element type's input
+/// function reads `"1"` as it reads `1`), `NULL` for a JSON `null`, and a nested JSON array as
+/// a sub-array, unless the elements are `json`/`jsonb`, where every item is one JSON value
+/// written as its JSON text.
+fn write_array_literal(items: &[serde_json::Value], json_elements: bool, out: &mut String) {
+    out.push('{');
+    for (i, item) in items.iter().enumerate() {
+        if i > 0 {
+            out.push(',');
+        }
+        match item {
+            serde_json::Value::Null => out.push_str("NULL"),
+            serde_json::Value::Array(inner) if !json_elements => {
+                write_array_literal(inner, json_elements, out);
+            },
+            serde_json::Value::String(s) if !json_elements => quote_array_item(s, out),
+            other => quote_array_item(&other.to_string(), out),
+        }
+    }
+    out.push('}');
+}
+
+fn quote_array_item(item: &str, out: &mut String) {
+    out.push('"');
+    for c in item.chars() {
+        if c == '"' || c == '\\' {
+            out.push('\\');
+        }
+        out.push(c);
+    }
+    out.push('"');
+}
+
+/// The element type of `ty`, seen through any domains over it, when it is an array type.
+fn array_element(ty: &tokio_postgres::types::Type) -> Option<&tokio_postgres::types::Type> {
+    use tokio_postgres::types::Kind;
+    match ty.kind() {
+        Kind::Array(element) => Some(element),
+        Kind::Domain(base) => array_element(base),
+        _ => None,
+    }
 }
 
 impl tokio_postgres::types::ToSql for FlexParam {
@@ -604,6 +654,24 @@ impl tokio_postgres::types::ToSql for FlexParam {
                     // Sent in the text format (`encode_format`): the UTF-8 bytes, parsed by the
                     // type's input function. Also the binary form of the text family.
                     out.extend_from_slice(s.as_bytes());
+                }
+                Ok(IsNull::No)
+            },
+            Self::List(items) => {
+                if *ty == Type::JSONB {
+                    out.put_u8(1);
+                    serde_json::to_writer((&mut *out).writer(), items)?;
+                } else if *ty == Type::JSON {
+                    serde_json::to_writer((&mut *out).writer(), items)?;
+                } else if let Some(element) = array_element(ty) {
+                    let json_elements = [Type::JSONB, Type::JSON].contains(element);
+                    let mut literal = String::new();
+                    write_array_literal(items, json_elements, &mut literal);
+                    out.extend_from_slice(literal.as_bytes());
+                } else {
+                    // Another type reads the JSON text with its own input function, which
+                    // accepts it (`text`) or refuses it with its own message.
+                    serde_json::to_writer((&mut *out).writer(), items)?;
                 }
                 Ok(IsNull::No)
             },
