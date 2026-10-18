@@ -394,7 +394,6 @@ pub enum FieldDenyPolicy {
 ///     hierarchy: None,
 ///     unique: false,
 ///     localized: false,
-///     nullable_items: false,
 /// };
 /// ```
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -471,7 +470,6 @@ pub struct FieldDefinition {
     ///     hierarchy: None,
     ///     unique: false,
     ///     localized: false,
-    ///     nullable_items: false,
     /// };
     /// ```
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -546,16 +544,6 @@ pub struct FieldDefinition {
     /// the loader refuse it on any other type and in a schema without `[locale]`.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub localized: bool,
-
-    /// Whether the items of this field's list may be `null` (#1586): `[Float]`, where
-    /// `false` is `[Float!]`. Only an output list field reads it, and only its outermost
-    /// list: the compiler refuses nullable items at a deeper level of a nested list.
-    ///
-    /// Introspection and the SDL publish it, and responses are completed against what they
-    /// publish (§ 6.4.4, #1522), so a `null` item of a list declared `[Float]` is served
-    /// rather than nulling the list.
-    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
-    pub nullable_items: bool,
 }
 
 /// Encryption configuration for a field in the compiled schema.
@@ -630,7 +618,6 @@ impl FieldDefinition {
             hierarchy: None,
             unique: false,
             localized: false,
-            nullable_items: false,
         }
     }
 
@@ -654,7 +641,6 @@ impl FieldDefinition {
             hierarchy: None,
             unique: false,
             localized: false,
-            nullable_items: false,
         }
     }
 
@@ -686,7 +672,6 @@ impl FieldDefinition {
             hierarchy:       None,
             unique:          false,
             localized:       false,
-            nullable_items:  false,
         }
     }
 
@@ -939,8 +924,10 @@ impl FieldDefinition {
 ///
 /// # JSON Representation
 ///
-/// Scalar types serialize as: `{"String": null}`, `{"Int": null}`, etc.
-/// Complex types serialize as: `{"List": {"String": null}}`, `{"Object": "User"}`, etc.
+/// Scalar types serialize as their name: `"String"`, `"Int"`, etc. Complex types carry
+/// their payload: `{"Object": "User"}`; a list its item type and, when its items may be
+/// `null`, that: `{"List": {"item": "String"}}` is `[String!]`,
+/// `{"List": {"item": "Float", "nullable_items": true}}` is `[Float]`.
 ///
 /// # Example
 ///
@@ -948,7 +935,7 @@ impl FieldDefinition {
 /// use fraiseql_core::schema::FieldType;
 ///
 /// let string_type = FieldType::String;
-/// let list_type = FieldType::List(Box::new(FieldType::String));
+/// let list_type = FieldType::list(FieldType::String);
 /// let object_type = FieldType::Object("User".to_string());
 /// ```
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -1037,7 +1024,18 @@ pub enum FieldType {
 
     // ===== Container Types =====
     /// List of another type.
-    List(Box<FieldType>),
+    ///
+    /// `nullable_items` says whether an item may be `null` at this level: `[T]` when
+    /// `true`, `[T!]` when `false` (#1586). A nested list's items carry their own
+    /// (`[[T]!]`). The list's own nullability is that of its position: the field's
+    /// [`FieldDefinition::nullable`], or the enclosing list's `nullable_items`.
+    List {
+        /// The type of each item.
+        item:           Box<FieldType>,
+        /// Whether an item may be `null`; omitted from the compiled schema when not.
+        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+        nullable_items: bool,
+    },
 
     /// Reference to another GraphQL object type.
     Object(String),
@@ -1088,7 +1086,7 @@ macro_rules! builtin_scalars {
                 match self {
                     $(Self::$variant => Some($name),)+
                     Self::Scalar(_)
-                    | Self::List(_)
+                    | Self::List { .. }
                     | Self::Object(_)
                     | Self::Enum(_)
                     | Self::Input(_)
@@ -1187,10 +1185,28 @@ impl FieldType {
         }
     }
 
+    /// A list whose items are never `null` (`[T!]`).
+    #[must_use]
+    pub fn list(item: Self) -> Self {
+        Self::List {
+            item:           Box::new(item),
+            nullable_items: false,
+        }
+    }
+
+    /// A list whose items may be `null` (`[T]`).
+    #[must_use]
+    pub fn list_of_nullable(item: Self) -> Self {
+        Self::List {
+            item:           Box::new(item),
+            nullable_items: true,
+        }
+    }
+
     /// Check if this is a list type.
     #[must_use]
     pub const fn is_list(&self) -> bool {
-        matches!(self, Self::List(_))
+        matches!(self, Self::List { .. })
     }
 
     /// Check if this is an object reference.
@@ -1203,7 +1219,7 @@ impl FieldType {
     #[must_use]
     pub fn inner_type(&self) -> Option<&FieldType> {
         match self {
-            Self::List(inner) => Some(inner),
+            Self::List { item: inner, .. } => Some(inner),
             _ => None,
         }
     }
@@ -1241,7 +1257,12 @@ impl FieldType {
             // Vectors are arrays of floats; a half-precision one is the same
             // surface with a smaller column behind it.
             Self::Vector | Self::HalfVector => "[Float!]!".to_string(),
-            Self::List(inner) => format!("[{}]", inner.to_graphql_string()),
+            Self::List {
+                item,
+                nullable_items,
+            } => {
+                format!("[{}{}]", item.to_graphql_string(), if *nullable_items { "" } else { "!" })
+            },
             // Named types: scalars, objects, enums, inputs, interfaces, unions all use their name
             Self::Scalar(name)
             | Self::Object(name)
@@ -1289,7 +1310,7 @@ impl FieldType {
             },
             // Lists and complex types stored as JSONB
             Self::Json
-            | Self::List(_)
+            | Self::List { .. }
             | Self::Object(_)
             | Self::Enum(_)
             | Self::Input(_)
@@ -1326,7 +1347,8 @@ impl FieldType {
     ///
     /// assert_eq!(FieldType::parse("String"), FieldType::String);
     /// assert_eq!(FieldType::parse("Int!"), FieldType::Int);
-    /// assert_eq!(FieldType::parse("[String]"), FieldType::List(Box::new(FieldType::String)));
+    /// assert_eq!(FieldType::parse("[String!]"), FieldType::list(FieldType::String));
+    /// assert_eq!(FieldType::parse("[String]"), FieldType::list_of_nullable(FieldType::String));
     /// assert_eq!(FieldType::parse("User"), FieldType::Object("User".to_string()));
     /// ```
     #[must_use]
@@ -1350,11 +1372,15 @@ impl FieldType {
         // Strip non-null marker (we handle nullability separately)
         let s = s.trim_end_matches('!');
 
-        // Handle list types: [Type] or [Type!]
+        // Handle list types: [Type] or [Type!], each level with its items' nullability
         if s.starts_with('[') && s.ends_with(']') {
-            let inner = &s[1..s.len() - 1];
-            let inner_type = Self::parse_type_string(inner);
-            return Self::List(Box::new(inner_type));
+            let inner = s[1..s.len() - 1].trim();
+            let item = Self::parse_type_string(inner);
+            return if inner.ends_with('!') {
+                Self::list(item)
+            } else {
+                Self::list_of_nullable(item)
+            };
         }
 
         // Handle core scalar types (case-insensitive matching)

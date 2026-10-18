@@ -2331,7 +2331,6 @@ mod optimizer_tests {
                         hierarchy:       None,
                         unique:          false,
                         localized:       false,
-                        nullable_items:  false,
                     })
                     .collect(),
                 description:         None,
@@ -2397,7 +2396,6 @@ mod optimizer_tests {
                         hierarchy:       None,
                         unique:          false,
                         localized:       false,
-                        nullable_items:  false,
                     })
                     .collect(),
                 description:         None,
@@ -2473,7 +2471,6 @@ mod optimizer_tests {
                         hierarchy:       None,
                         unique:          false,
                         localized:       false,
-                        nullable_items:  false,
                     })
                     .collect(),
                 description:         None,

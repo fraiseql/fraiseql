@@ -686,14 +686,13 @@ fn coerce_json_value() {
 
 #[test]
 fn coerce_list_csv() {
-    let result = coerce_to_type("a,b,c", &FieldType::List(Box::new(FieldType::String))).unwrap();
+    let result = coerce_to_type("a,b,c", &FieldType::list(FieldType::String)).unwrap();
     assert_eq!(result, serde_json::json!(["a", "b", "c"]));
 }
 
 #[test]
 fn coerce_list_json_array() {
-    let result =
-        coerce_to_type(r#"["a","b"]"#, &FieldType::List(Box::new(FieldType::String))).unwrap();
+    let result = coerce_to_type(r#"["a","b"]"#, &FieldType::list(FieldType::String)).unwrap();
     assert_eq!(result, serde_json::json!(["a", "b"]));
 }
 
@@ -1423,7 +1422,7 @@ fn a_list_typed_field_keeps_its_own_list_coercion() {
     let config = test_config();
     let query_def = list_query_def();
     let type_def = user_type_def()
-        .with_field(FieldDefinition::new("tags", FieldType::List(Box::new(FieldType::String))));
+        .with_field(FieldDefinition::new("tags", FieldType::list(FieldType::String)));
     let extractor = extractor_list(&config, &query_def, &type_def);
 
     let where_clause = extractor

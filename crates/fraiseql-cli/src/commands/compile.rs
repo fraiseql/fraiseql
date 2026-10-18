@@ -1184,7 +1184,9 @@ pub(crate) fn field_type_to_pg(ft: &FieldType) -> String {
         FieldType::DateTime => "TIMESTAMPTZ".to_string(),
         FieldType::Date => "DATE".to_string(),
         FieldType::Time => "TIME".to_string(),
-        FieldType::Json | FieldType::List(_) | FieldType::Object(_) => "JSONB".to_string(),
+        FieldType::Json | FieldType::List { item: _, .. } | FieldType::Object(_) => {
+            "JSONB".to_string()
+        },
         FieldType::Decimal => "NUMERIC".to_string(),
         FieldType::Vector => "VECTOR".to_string(),
         // Width-less on purpose: a `BitVector` field always carries a

@@ -44,7 +44,7 @@
         {"name": "role", "field_type": {"Enum": "UserRole"}},
         {"name": "createdAt", "field_type": "DateTime"},
         {"name": "tenant", "field_type": {"Object": "Tenant"}},
-        {"name": "posts", "field_type": {"List": {"Object": "Post"}}}
+        {"name": "posts", "field_type": {"List": {"item": {"Object": "Post"}}}}
       ],
       "relationships": [
         {"name": "tenant", "target_type": "Tenant", "cardinality": "ManyToOne", "foreign_key": "fk_tenant", "referenced_key": "id"},
@@ -66,7 +66,7 @@
         {"name": "score", "field_type": "Float", "nullable": true},
         {"name": "metadata", "field_type": "Json", "nullable": true},
         {"name": "author", "field_type": {"Object": "User"}},
-        {"name": "comments", "field_type": {"List": {"Object": "Comment"}}}
+        {"name": "comments", "field_type": {"List": {"item": {"Object": "Comment"}}}}
       ],
       "relationships": [
         {"name": "author", "target_type": "User", "cardinality": "ManyToOne", "foreign_key": "fk_author", "referenced_key": "id"},

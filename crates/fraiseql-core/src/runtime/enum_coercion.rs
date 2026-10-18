@@ -79,7 +79,7 @@ fn coerce_field_type(
         return;
     }
     match declared {
-        FieldType::List(inner) => {
+        FieldType::List { item: inner, .. } => {
             each_item(value, |item| coerce_field_type(schema, inner, item, depth + 1));
         },
         FieldType::Enum(name) => coerce_member(schema, name, value),

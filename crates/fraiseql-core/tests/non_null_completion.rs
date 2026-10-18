@@ -50,7 +50,7 @@ fn schema() -> CompiledSchema {
         .with_field(FieldDefinition::nullable("maker", FieldType::Object("Maker".into())))
         .with_field(FieldDefinition::nullable(
             "tags",
-            FieldType::List(Box::new(FieldType::Object("Tag".into()))),
+            FieldType::list(FieldType::Object("Tag".into())),
         ))
         .build();
     let tag = TestTypeBuilder::new("Tag", "v_unused_tag")
@@ -103,7 +103,7 @@ fn schema() -> CompiledSchema {
         TestTypeBuilder::new("ProductConnection", "")
             .with_field(FieldDefinition::new(
                 "edges",
-                FieldType::List(Box::new(FieldType::Object("ProductEdge".into()))),
+                FieldType::list(FieldType::Object("ProductEdge".into())),
             ))
             .with_field(FieldDefinition::new("pageInfo", FieldType::Object("PageInfo".into())))
             .build(),

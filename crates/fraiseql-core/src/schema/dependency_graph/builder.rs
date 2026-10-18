@@ -204,7 +204,7 @@ impl SchemaDependencyGraph {
             | FieldType::Input(name)
             | FieldType::Interface(name)
             | FieldType::Union(name) => Some(name.clone()),
-            FieldType::List(inner) => Self::extract_referenced_type(inner),
+            FieldType::List { item: inner, .. } => Self::extract_referenced_type(inner),
             _ => None, // Scalars don't create dependencies
         }
     }

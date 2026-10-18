@@ -83,10 +83,7 @@ fn schema() -> CompiledSchema {
         fields: vec![
             FieldDefinition::new("id", FieldType::Int),
             FieldDefinition::new("name", FieldType::String),
-            FieldDefinition::new(
-                "orders",
-                FieldType::List(Box::new(FieldType::Object("Order".to_string()))),
-            ),
+            FieldDefinition::new("orders", FieldType::list(FieldType::Object("Order".to_string()))),
         ],
         ..TypeDefinition::new("User", "v_user")
     };

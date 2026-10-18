@@ -37,7 +37,7 @@ fn scalar_types_map_correctly() {
 #[test]
 fn non_scalar_types_return_none() {
     assert_eq!(field_type_to_column_type(&FieldType::Object("User".to_string())), None);
-    assert_eq!(field_type_to_column_type(&FieldType::List(Box::new(FieldType::String))), None);
+    assert_eq!(field_type_to_column_type(&FieldType::list(FieldType::String)), None);
     assert_eq!(field_type_to_column_type(&FieldType::Vector), None);
 }
 
@@ -468,7 +468,7 @@ fn column_specs_from_type_filters_non_scalars() {
         .with_field(FieldDefinition::new("name", FieldType::String))
         .with_field(FieldDefinition::new(
             "posts",
-            FieldType::List(Box::new(FieldType::Object("Post".into()))),
+            FieldType::list(FieldType::Object("Post".into())),
         ))
         .with_field(FieldDefinition::new("age", FieldType::Int));
 

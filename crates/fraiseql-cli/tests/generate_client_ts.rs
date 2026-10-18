@@ -126,9 +126,10 @@ fn generate_client_typescript_surfaces_auto_params_arguments() {
     // The auto-wired parameters become GraphQL variables and are forwarded to the
     // field — typed against the derived filter surface (#1154), not as opaque
     // `JSON`, so a generated client can express a filter its user can typecheck.
+    // An `orderBy` item cannot be null, and the variable says so (#1586).
     assert!(
         queries.contains(
-            "query events($where: EventWhereInput, $orderBy: [EventOrderByInput], $limit: Int)"
+            "query events($where: EventWhereInput, $orderBy: [EventOrderByInput!], $limit: Int)"
         ),
         "auto_params must become typed query variables:\n{queries}"
     );

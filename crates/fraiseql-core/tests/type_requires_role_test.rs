@@ -250,7 +250,7 @@ fn a_gated_type_nested_under_an_ungated_one_is_refused() {
              "fields": [{"name": "id", "field_type": "ID", "nullable": false}]},
             {"name": "User", "sql_source": "v_user", "fields": [
                 {"name": "id", "field_type": "ID", "nullable": false},
-                {"name": "orders", "field_type": {"List": {"Object": "Order"}}, "nullable": true}
+                {"name": "orders", "field_type": {"List": {"item": {"Object": "Order"}}}, "nullable": true}
             ]}
         ],
         "queries": [{"name": "users", "return_type": "User", "returns_list": true,
@@ -275,7 +275,7 @@ fn a_gated_type_nested_under_the_same_role_loads() {
              "fields": [{"name": "id", "field_type": "ID", "nullable": false}]},
             {"name": "User", "sql_source": "v_user", "requires_role": "admin", "fields": [
                 {"name": "id", "field_type": "ID", "nullable": false},
-                {"name": "orders", "field_type": {"List": {"Object": "Order"}}, "nullable": true}
+                {"name": "orders", "field_type": {"List": {"item": {"Object": "Order"}}}, "nullable": true}
             ]}
         ],
         "queries": [{"name": "users", "return_type": "User", "returns_list": true,

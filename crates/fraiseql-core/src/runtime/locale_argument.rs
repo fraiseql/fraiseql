@@ -101,7 +101,7 @@ fn resolve_at(
             }
         }
         let child = match &field.field_type {
-            FieldType::List(inner) => inner.type_name(),
+            FieldType::List { item: inner, .. } => inner.type_name(),
             other => other.type_name(),
         };
         if let Some(child) = child.filter(|_| !sel.nested_fields.is_empty()) {

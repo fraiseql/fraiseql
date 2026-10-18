@@ -40,10 +40,7 @@ fn schema(valued: bool) -> CompiledSchema {
 fn declared() -> Vec<ArgumentDefinition> {
     vec![
         ArgumentDefinition::new("status", FieldType::Enum("OrderStatus".into())),
-        ArgumentDefinition::new(
-            "statuses",
-            FieldType::List(Box::new(FieldType::Enum("OrderStatus".into()))),
-        ),
+        ArgumentDefinition::new("statuses", FieldType::list(FieldType::Enum("OrderStatus".into()))),
         ArgumentDefinition::new("input", FieldType::Object("OrderInput".into())),
         ArgumentDefinition::new("note", FieldType::String),
     ]

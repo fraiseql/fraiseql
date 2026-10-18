@@ -308,7 +308,7 @@ fn orders_meaningfully(schema: &CompiledSchema, field_type: &FieldType) -> bool 
         | FieldType::BitVector
         | FieldType::HalfVector
         | FieldType::SparseVector
-        | FieldType::List(_)
+        | FieldType::List { item: _, .. }
         | FieldType::Input(_)
         | FieldType::Interface(_)
         | FieldType::Union(_) => false,
@@ -717,7 +717,7 @@ fn classify(schema: &CompiledSchema, field_type: &FieldType) -> Slot {
             // compares it as text.
             None => leaf(name, name, Ops::string()),
         },
-        FieldType::List(inner) => match classify(schema, inner) {
+        FieldType::List { item: inner, .. } => match classify(schema, inner) {
             Slot::Leaf(inner_leaf) => Slot::Leaf(LeafFilter {
                 key:     format!("{}List", inner_leaf.key),
                 operand: format!("[{}!]", inner_leaf.operand),

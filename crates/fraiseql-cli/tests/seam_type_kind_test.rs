@@ -177,7 +177,7 @@ fn a_list_of_enums_resolves_the_element_kind() {
 
     assert_eq!(
         order_field_type(&compiled, "history"),
-        json!({"List": {"Enum": "OrderStatus"}}),
+        json!({"List": {"item": {"Enum": "OrderStatus"}}}),
         "#923: the element of a list must be resolved too"
     );
 }
@@ -346,7 +346,10 @@ fn a_list_of_custom_scalars_resolves_the_element_kind() {
         &scalar_decls(),
     ));
 
-    assert_eq!(order_field_type(&compiled, "ccs"), json!({"List": {"Scalar": "Email"}}));
+    assert_eq!(
+        order_field_type(&compiled, "ccs"),
+        json!({"List": {"item": {"Scalar": "Email"}}})
+    );
 }
 
 /// Consumer 1: introspection. An introspecting client is told a scalar is an

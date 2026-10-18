@@ -45,7 +45,7 @@ pub(super) fn field_type_py(ft: &FieldType) -> String {
         // Half precision is a storage choice, not a surface one: both are
         // `[Float!]!` in GraphQL.
         FieldType::Vector | FieldType::HalfVector => "list[float]".to_string(),
-        FieldType::List(inner) => format!("list[{}]", field_type_py(inner)),
+        FieldType::List { item: inner, .. } => format!("list[{}]", field_type_py(inner)),
         FieldType::Enum(name)
         | FieldType::Object(name)
         | FieldType::Input(name)
@@ -57,29 +57,24 @@ pub(super) fn field_type_py(ft: &FieldType) -> String {
     }
 }
 
-/// Render a [`FieldType`] with outer nullability applied (`T` / `T | None`).
-pub(super) fn field_type_py_nullable(ft: &FieldType, nullable: bool) -> String {
-    let base = field_type_py(ft);
+/// Render an output field's type: its outer nullability, and each list level's items as
+/// the type declares them (`[T]` is `list[T | None]`, at any depth, #1586).
+pub(super) fn field_type_py_output(field: &FieldDefinition) -> String {
+    output_py(&field.field_type, field.nullable)
+}
+
+fn output_py(ft: &FieldType, nullable: bool) -> String {
+    let base = match ft {
+        FieldType::List {
+            item,
+            nullable_items,
+        } => format!("list[{}]", output_py(item, *nullable_items)),
+        other => field_type_py(other),
+    };
     if nullable {
         format!("{base} | None")
     } else {
         base
-    }
-}
-
-/// Render an output field's type: its outer nullability, and the items of a list it
-/// declares nullable (`[T]`, #1586).
-pub(super) fn field_type_py_output(field: &FieldDefinition) -> String {
-    match &field.field_type {
-        FieldType::List(inner) if field.nullable_items => {
-            let list = format!("list[{} | None]", field_type_py(inner));
-            if field.nullable {
-                format!("{list} | None")
-            } else {
-                list
-            }
-        },
-        ft => field_type_py_nullable(ft, field.nullable),
     }
 }
 
@@ -88,7 +83,7 @@ pub(super) fn field_type_py_output(field: &FieldDefinition) -> String {
 pub(super) fn custom_scalar_name(ft: &FieldType) -> Option<&str> {
     match ft {
         FieldType::Scalar(name) => Some(name),
-        FieldType::List(inner) => custom_scalar_name(inner),
+        FieldType::List { item: inner, .. } => custom_scalar_name(inner),
         _ => None,
     }
 }

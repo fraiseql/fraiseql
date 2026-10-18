@@ -270,10 +270,7 @@ fn schema(user_view: &str) -> CompiledSchema {
         FieldDefinition::new("name", FieldType::String),
         FieldDefinition::new("tenant_id", FieldType::String),
         FieldDefinition::new("owner", FieldType::String),
-        FieldDefinition::new(
-            "orders",
-            FieldType::List(Box::new(FieldType::Object("Order".to_string()))),
-        ),
+        FieldDefinition::new("orders", FieldType::list(FieldType::Object("Order".to_string()))),
     ];
     schema.types.push(user);
 

@@ -59,7 +59,7 @@ fn schema() -> CompiledSchema {
                 { "name": "cascadeCount", "field_type": "Int" },
                 { "name": "reason", "field_type": "String" },
                 { "name": "machine", "field_type": { "Object": "Machine" } },
-                { "name": "blockers", "field_type": { "List": { "Object": "Blocker" } } }
+                { "name": "blockers", "field_type": { "List": {"item": { "Object": "Blocker" }} } }
             ]},
             { "name": "Machine", "sql_source": "v_machine", "fields": [
                 { "name": "id", "field_type": "ID" },

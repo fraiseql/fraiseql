@@ -596,9 +596,11 @@ fn walk_field_type(
         return Ok(());
     }
     match declared {
-        FieldType::List(inner) => walk_list(schema, subject, path, value, depth, |v, p, d| {
-            walk_field_type(schema, rules, subject, p, inner, v, d)
-        }),
+        FieldType::List { item: inner, .. } => {
+            walk_list(schema, subject, path, value, depth, |v, p, d| {
+                walk_field_type(schema, rules, subject, p, inner, v, d)
+            })
+        },
         FieldType::Enum(name) => check_membership(schema, subject, path, name, value),
         // The compiler emits an input-type reference as `Object`, never `Input`
         // (`parse_field_type` has no `Input` variant), so both have to resolve

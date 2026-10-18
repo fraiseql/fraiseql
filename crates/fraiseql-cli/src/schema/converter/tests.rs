@@ -420,7 +420,7 @@ fn parse_field_type_unwraps_list_of_objects() {
             &crate::schema::converter::DeclaredTypeNames::default()
         )
         .unwrap(),
-        FieldType::List(Box::new(FieldType::Object("Item".to_string()))),
+        FieldType::list(FieldType::Object("Item".to_string())),
     );
 }
 
@@ -432,7 +432,7 @@ fn parse_field_type_unwraps_nullable_element_list() {
             &crate::schema::converter::DeclaredTypeNames::default()
         )
         .unwrap(),
-        FieldType::List(Box::new(FieldType::Object("Item".to_string()))),
+        FieldType::list_of_nullable(FieldType::Object("Item".to_string())),
     );
 }
 
@@ -444,7 +444,7 @@ fn parse_field_type_unwraps_list_of_scalars() {
             &crate::schema::converter::DeclaredTypeNames::default()
         )
         .unwrap(),
-        FieldType::List(Box::new(FieldType::String)),
+        FieldType::list(FieldType::String),
     );
 }
 
@@ -476,7 +476,7 @@ fn parse_field_type_nested_list() {
             &crate::schema::converter::DeclaredTypeNames::default()
         )
         .unwrap(),
-        FieldType::List(Box::new(FieldType::List(Box::new(FieldType::Object("Item".to_string()))))),
+        FieldType::list(FieldType::list(FieldType::Object("Item".to_string()))),
     );
 }
 
@@ -527,7 +527,7 @@ fn convert_field_list_type_compiles_to_list() {
     .unwrap();
     assert_eq!(
         compiled.field_type,
-        FieldType::List(Box::new(FieldType::Object("Item".to_string()))),
+        FieldType::list(FieldType::Object("Item".to_string())),
         "a list field must compile to FieldType::List, not Object(\"[Item!]\")"
     );
 }
@@ -2088,9 +2088,9 @@ fn promote_input_type_args_rewrites_object_to_input() {
     m2.arguments = vec![arg(FieldType::Object("Order".to_string()))];
     // (3) list of an input type → inner promoted to Input
     let mut m3 = MutationDefinition::new("bulkCreate", "Order");
-    m3.arguments = vec![arg(FieldType::List(Box::new(FieldType::Object(
+    m3.arguments = vec![arg(FieldType::list(FieldType::Object(
         "CreateOrderInput".to_string(),
-    ))))];
+    )))];
     schema.mutations = vec![m1, m2, m3];
 
     SchemaConverter::promote_input_type_args(&mut schema);
@@ -2107,7 +2107,7 @@ fn promote_input_type_args_rewrites_object_to_input() {
     );
     assert_eq!(
         schema.mutations[2].arguments[0].arg_type,
-        FieldType::List(Box::new(FieldType::Input("CreateOrderInput".to_string()))),
+        FieldType::list(FieldType::Input("CreateOrderInput".to_string())),
         "a list of an input type must promote its element to Input"
     );
 }
@@ -2499,7 +2499,7 @@ mod tenancy_tests {
         let updates = compiled.types.iter().find(|t| t.name.as_str() == "CascadeUpdates").unwrap();
         let updated_field = updates.find_field("updated").expect("CascadeUpdates.updated");
         assert!(
-            matches!(&updated_field.field_type, FieldType::List(inner)
+            matches!(&updated_field.field_type, FieldType::List { item: inner, .. }
                 if matches!(inner.as_ref(), FieldType::Object(n) if n == "UpdatedEntity")),
             "updated: [UpdatedEntity!]!"
         );
@@ -4638,29 +4638,24 @@ fn a_fact_table_filter_carries_its_ltree_type_and_hierarchy_into_the_compiled_sc
     assert_eq!(filter.hierarchy.as_deref(), Some("org"));
 }
 
-// #1586: `parse_field_type` drops the item `!`, so the field records whether its list's
-// items may be null; nullable items deeper in a nested list cannot be recorded and are
-// refused rather than published tighter than declared.
+// #1586: each list level records whether its items may be `null`, at any depth; the
+// outermost `!` is the field's own nullability.
 #[test]
-fn list_items_nullable_reads_the_outermost_items() {
-    for (declared, nullable) in [
-        ("[Float]", true),
-        ("[Float]!", true),
-        ("[Float!]", false),
-        ("[Float!]!", false),
-        ("Float", false),
-        ("Float!", false),
-        ("[[Float!]]", true),
-        ("[[Float!]!]", false),
+fn parse_field_type_records_each_levels_item_nullability() {
+    let declared = crate::schema::converter::DeclaredTypeNames::default();
+    let parse = |t: &str| SchemaConverter::parse_field_type(t, &declared).unwrap();
+    let (strict, loose) = (FieldType::list, FieldType::list_of_nullable);
+    for (written, expected) in [
+        ("[Float]", loose(FieldType::Float)),
+        ("[Float]!", loose(FieldType::Float)),
+        ("[Float!]", strict(FieldType::Float)),
+        ("[Float!]!", strict(FieldType::Float)),
+        ("Float", FieldType::Float),
+        ("[[Float]]", loose(loose(FieldType::Float))),
+        ("[[Float]!]", strict(loose(FieldType::Float))),
+        ("[[Float!]]", loose(strict(FieldType::Float))),
+        ("[[[Float!]]!]!", strict(loose(strict(FieldType::Float)))),
     ] {
-        assert_eq!(SchemaConverter::list_items_nullable(declared), Ok(nullable), "{declared}");
-    }
-}
-
-#[test]
-fn list_items_nullable_refuses_nullable_items_in_a_nested_list() {
-    for declared in ["[[Float]]", "[[Float]!]!", "[[[Float!]]!]"] {
-        let refusal = SchemaConverter::list_items_nullable(declared).unwrap_err();
-        assert!(refusal.contains("nested list"), "{declared}: {refusal}");
+        assert_eq!(parse(written), expected, "{written}");
     }
 }

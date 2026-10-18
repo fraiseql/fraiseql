@@ -57,7 +57,6 @@ fn create_user_type_with_scopes() -> TypeDefinition {
                 hierarchy:       None,
                 unique:          false,
                 localized:       false,
-                nullable_items:  false,
             },
             FieldDefinition {
                 name:            "name".into(),
@@ -76,7 +75,6 @@ fn create_user_type_with_scopes() -> TypeDefinition {
                 hierarchy:       None,
                 unique:          false,
                 localized:       false,
-                nullable_items:  false,
             },
             // Protected fields
             FieldDefinition {
@@ -96,7 +94,6 @@ fn create_user_type_with_scopes() -> TypeDefinition {
                 hierarchy:       None,
                 unique:          false,
                 localized:       false,
-                nullable_items:  false,
             },
             FieldDefinition {
                 name:            "phone".into(),
@@ -115,7 +112,6 @@ fn create_user_type_with_scopes() -> TypeDefinition {
                 hierarchy:       None,
                 unique:          false,
                 localized:       false,
-                nullable_items:  false,
             },
             // Admin-only fields
             FieldDefinition {
@@ -135,7 +131,6 @@ fn create_user_type_with_scopes() -> TypeDefinition {
                 hierarchy:       None,
                 unique:          false,
                 localized:       false,
-                nullable_items:  false,
             },
             FieldDefinition {
                 name:            "ssn".into(),
@@ -154,7 +149,6 @@ fn create_user_type_with_scopes() -> TypeDefinition {
                 hierarchy:       None,
                 unique:          false,
                 localized:       false,
-                nullable_items:  false,
             },
         ],
         description:         Some("User type with field-level scopes".to_string()),

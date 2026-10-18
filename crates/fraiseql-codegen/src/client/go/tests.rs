@@ -326,7 +326,7 @@ fn every_field_type_maps_to_its_own_surface() {
         // vector, `{1:0.5,7:0.25}/1000` for a sparse one.
         (FieldType::BitVector, "string"),
         (FieldType::SparseVector, "string"),
-        (FieldType::List(Box::new(FieldType::String)), "[]string"),
+        (FieldType::list(FieldType::String), "[]string"),
         (FieldType::Object("User".to_string()), "User"),
         (FieldType::Enum("UserRole".to_string()), "UserRole"),
         (FieldType::Input("UserFilter".to_string()), "UserFilter"),
@@ -345,10 +345,7 @@ fn nullability_only_adds_a_pointer_where_go_needs_one() {
     assert_eq!(field_type_go_nullable(&FieldType::Int, false), "int");
     assert_eq!(field_type_go_nullable(&FieldType::Vector, true), "[]float64");
     assert_eq!(field_type_go_nullable(&FieldType::Json, true), "any");
-    assert_eq!(
-        field_type_go_nullable(&FieldType::List(Box::new(FieldType::String)), true),
-        "[]string"
-    );
+    assert_eq!(field_type_go_nullable(&FieldType::list(FieldType::String), true), "[]string");
 }
 
 #[test]
@@ -390,16 +387,22 @@ fn an_operation_named_after_a_type_does_not_redeclare_it() {
 }
 
 /// #1586: a list declared with nullable items renders them nullable; one declared with
-/// non-null items does not.
+/// non-null items does not; a nested list renders each level's items as declared.
 #[test]
 fn an_output_list_with_nullable_items_renders_them_nullable() {
     use fraiseql_core::schema::{FieldDefinition, FieldType};
-    let list = || FieldType::List(Box::new(FieldType::Float));
-    let mut field = FieldDefinition::nullable("monthlyValues", list());
-    assert_eq!(super::render::field_type_go_output(&field), "[]float64");
-    field.nullable_items = true;
-    assert_eq!(super::render::field_type_go_output(&field), "[]*float64");
-    let mut field = FieldDefinition::new("monthlyValues", list());
-    field.nullable_items = true;
-    assert_eq!(super::render::field_type_go_output(&field), "[]*float64");
+    let render = |field: &FieldDefinition| super::render::field_type_go_output(field);
+    let strict = FieldType::list(FieldType::Float);
+    let loose = || FieldType::list_of_nullable(FieldType::Float);
+    assert_eq!(render(&FieldDefinition::nullable("v", strict)), "[]float64");
+    assert_eq!(render(&FieldDefinition::nullable("v", loose())), "[]*float64");
+    assert_eq!(render(&FieldDefinition::new("v", loose())), "[]*float64");
+    assert_eq!(render(&FieldDefinition::new("v", FieldType::list(loose()))), "[][]*float64");
+    assert_eq!(
+        render(&FieldDefinition::new(
+            "v",
+            FieldType::list_of_nullable(FieldType::list(FieldType::Float))
+        )),
+        "[][]float64"
+    );
 }

@@ -121,7 +121,7 @@ fn subgraph_reviews() -> CompiledSchema {
             .with_field(FieldDefinition::new("id", FieldType::Id))
             .with_field(FieldDefinition::new(
                 "reviews",
-                FieldType::List(Box::new(FieldType::Object("Review".into()))),
+                FieldType::list(FieldType::Object("Review".into())),
             )),
     );
 

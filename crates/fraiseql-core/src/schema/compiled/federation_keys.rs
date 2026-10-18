@@ -403,7 +403,7 @@ impl CompiledSchema {
                 kind,
             };
             match &field.field_type {
-                FieldType::List(_) => problems.push(invalid("a list")),
+                FieldType::List { item: _, .. } => problems.push(invalid("a list")),
                 FieldType::Interface(_) => problems.push(invalid("an interface")),
                 FieldType::Union(_) => problems.push(invalid("a union")),
                 FieldType::Input(_) => problems.push(invalid("an input object")),

@@ -139,9 +139,9 @@ fn unknown_column_family_is_never_flagged() {
 #[test]
 fn list_arg_is_checked_by_its_element_type() {
     // `[Int!]` against a uuid column is still a mismatch; `[ID!]` is permissive.
-    let int_list = FieldType::List(Box::new(FieldType::Int));
+    let int_list = FieldType::list(FieldType::Int);
     assert!(!arg_type_convertible(&int_list, "uuid"));
-    let id_list = FieldType::List(Box::new(FieldType::Id));
+    let id_list = FieldType::list(FieldType::Id);
     assert!(arg_type_convertible(&id_list, "uuid"));
 }
 

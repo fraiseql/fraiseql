@@ -75,7 +75,7 @@ pub fn coerce_localized_arguments(
 /// The input object a value of `field_type` is (through list wrappers), by name.
 fn input_type_of(field_type: &FieldType) -> Option<&str> {
     match field_type {
-        FieldType::List(inner) => input_type_of(inner),
+        FieldType::List { item: inner, .. } => input_type_of(inner),
         FieldType::Input(name) | FieldType::Object(name) => Some(name),
         _ => None,
     }

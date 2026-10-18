@@ -125,11 +125,7 @@ fn a_request_query_payload_is_a_discriminated_union_of_its_fields() {
                 },
                 super::RequestQueryField {
                     name:      "bulkQuotePreview".to_string(),
-                    arguments: vec![argument(
-                        "skus",
-                        FieldType::List(Box::new(FieldType::String)),
-                        false,
-                    )],
+                    arguments: vec![argument("skus", FieldType::list(FieldType::String), false)],
                 },
             ],
         },

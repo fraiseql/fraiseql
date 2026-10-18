@@ -2086,7 +2086,6 @@ mod field_rbac {
                 hierarchy:       None,
                 unique:          false,
                 localized:       false,
-                nullable_items:  false,
             },
             FieldDefinition {
                 name:            "name".into(),
@@ -2105,7 +2104,6 @@ mod field_rbac {
                 hierarchy:       None,
                 unique:          false,
                 localized:       false,
-                nullable_items:  false,
             },
             // Protected field: reject when unauthorized
             FieldDefinition {
@@ -2125,7 +2123,6 @@ mod field_rbac {
                 hierarchy:       None,
                 unique:          false,
                 localized:       false,
-                nullable_items:  false,
             },
             // Protected field: mask when unauthorized
             FieldDefinition {
@@ -2145,7 +2142,6 @@ mod field_rbac {
                 hierarchy:       None,
                 unique:          false,
                 localized:       false,
-                nullable_items:  false,
             },
         ];
 
@@ -4046,7 +4042,7 @@ mod gated_filters {
         let user = schema.types.iter_mut().find(|t| t.name == "User").unwrap();
         user.fields.push(FieldDefinition::new(
             "orders",
-            FieldType::List(Box::new(FieldType::Object("Order".to_string()))),
+            FieldType::list(FieldType::Object("Order".to_string())),
         ));
         user.fields
             .push(FieldDefinition::nullable("account", FieldType::Object("Account".to_string())));

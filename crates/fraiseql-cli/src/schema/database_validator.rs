@@ -662,7 +662,7 @@ fn sql_type_family(sql_type: &str) -> SqlFamily {
 fn arg_type_convertible(field_type: &FieldType, sql_type: &str) -> bool {
     // A list filter (`[ID!]`) drives the predicate with its element type.
     let base = match field_type {
-        FieldType::List(inner) => inner.as_ref(),
+        FieldType::List { item: inner, .. } => inner.as_ref(),
         other => other,
     };
     let family = sql_type_family(sql_type);

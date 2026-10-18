@@ -81,9 +81,10 @@ fn query(compiled: &Path, url: &str, operation: &str, variables: Option<&Value>)
 
 // ── #1586: list item nullability ────────────────────────────────────────────────────
 
-/// `Report.monthlyValues: [Float]` (a month with no data is `null`) and
-/// `Report.strictValues: [Float!]`, over one row holding a `null` in each. The row stores
-/// its keys in snake case, as the compiler's default naming convention reads them.
+/// `Report.monthlyValues: [Float]` (a month with no data is `null`),
+/// `Report.strictValues: [Float!]`, and their nested forms `grid: [[Float]]` and
+/// `strictGrid: [[Float!]!]`, over one row holding a `null` in each. The row stores its keys
+/// in snake case, as the compiler's default naming convention reads them.
 async fn reports(url: &str, dir: &Path) -> std::path::PathBuf {
     execute(
         url,
@@ -93,7 +94,8 @@ async fn reports(url: &str, dir: &Path) -> std::path::PathBuf {
              CREATE TABLE {SCHEMA}.tb_report (id uuid PRIMARY KEY, data jsonb NOT NULL);
              INSERT INTO {SCHEMA}.tb_report VALUES ('00000000-0000-0000-0000-000000001586',
                  '{{\"id\": \"00000000-0000-0000-0000-000000001586\",
-                    \"monthly_values\": [12.0, null, 7.5], \"strict_values\": [1.0, null]}}');
+                    \"monthly_values\": [12.0, null, 7.5], \"strict_values\": [1.0, null],
+                    \"grid\": [[1.0, null], null, [2.5]], \"strict_grid\": [[1.0], [null]]}}');
              CREATE VIEW {SCHEMA}.v_report AS SELECT id, data FROM {SCHEMA}.tb_report;"
         ),
     )
@@ -107,7 +109,9 @@ async fn reports(url: &str, dir: &Path) -> std::path::PathBuf {
                 "fields": [
                     { "name": "id", "type": "ID", "nullable": false },
                     { "name": "monthlyValues", "type": "[Float]", "nullable": true },
-                    { "name": "strictValues", "type": "[Float!]", "nullable": true }
+                    { "name": "strictValues", "type": "[Float!]", "nullable": true },
+                    { "name": "grid", "type": "[[Float]]", "nullable": true },
+                    { "name": "strictGrid", "type": "[[Float!]!]", "nullable": true }
                 ]
             }],
             "queries": [{
@@ -188,6 +192,57 @@ async fn the_published_schema_carries_the_declared_item_nullability() {
         (&json!("LIST"), &json!("NON_NULL"), &json!("Float")),
         "`[Float!]`: {strict}"
     );
+}
+
+/// A nested list carries its items' nullability at every level, as declared: published,
+/// and served (a `null` inner item of `[[Float!]!]` propagates through the non-null inner
+/// list and item to the field).
+#[tokio::test]
+async fn a_nested_list_is_published_and_served_as_declared() {
+    let Some(url) = fraiseql_test_support::try_database_url() else {
+        eprintln!("skipping #1586: DATABASE_URL not set");
+        return;
+    };
+    let dir = TempDir::new().unwrap();
+    let compiled = reports(&url, dir.path()).await;
+
+    let served = query(&compiled, &url, "{ reports { grid strictGrid } }", None);
+    let published = query(
+        &compiled,
+        &url,
+        "{ __type(name: \"Report\") { fields { name type { kind name ofType { kind name \
+         ofType { kind name ofType { kind name ofType { kind name } } } } } } } }",
+        None,
+    );
+
+    assert_eq!(
+        served["data"],
+        json!({ "reports": [{ "grid": [[1.0, null], null, [2.5]], "strictGrid": null }] }),
+        "{served}"
+    );
+    assert_eq!(
+        served["errors"][0]["path"],
+        json!(["reports", 0, "strictGrid", 1, 0]),
+        "{served}"
+    );
+    let kinds = |name: &str| {
+        let field = published["data"]["__type"]["fields"]
+            .as_array()
+            .unwrap_or_else(|| panic!("{published}"))
+            .iter()
+            .find(|f| f["name"] == name)
+            .unwrap_or_else(|| panic!("no field {name}: {published}"))
+            .clone();
+        let mut kinds = Vec::new();
+        let mut at = &field["type"];
+        while !at.is_null() {
+            kinds.push(at["name"].as_str().map_or_else(|| at["kind"].to_string(), str::to_string));
+            at = &at["ofType"];
+        }
+        kinds.join(" ")
+    };
+    assert_eq!(kinds("grid"), r#""LIST" "LIST" Float"#);
+    assert_eq!(kinds("strictGrid"), r#""LIST" "NON_NULL" "LIST" "NON_NULL" Float"#);
 }
 
 // ── #1580: enum member values ───────────────────────────────────────────────────────

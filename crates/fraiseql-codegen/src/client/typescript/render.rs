@@ -45,7 +45,7 @@ pub(super) fn field_type_ts(ft: &FieldType) -> String {
         // Half precision is a storage choice, not a surface one: both are
         // `[Float!]!` in GraphQL.
         FieldType::Vector | FieldType::HalfVector => "number[]".to_string(),
-        FieldType::List(inner) => format!("{}[]", field_type_ts(inner)),
+        FieldType::List { item: inner, .. } => format!("{}[]", field_type_ts(inner)),
         FieldType::Enum(name)
         | FieldType::Object(name)
         | FieldType::Input(name)
@@ -70,19 +70,31 @@ pub(super) fn field_type_ts_nullable(ft: &FieldType, nullable: bool) -> String {
     }
 }
 
-/// Render an output field's type: its outer nullability, and the items of a list it
-/// declares nullable (`[T]`, #1586).
+/// Render an output field's type: its outer nullability, and each list level's items as
+/// the type declares them (`[T]` is `(T | null)[]`, at any depth, #1586).
 pub(super) fn field_type_ts_output(field: &FieldDefinition) -> String {
-    match &field.field_type {
-        FieldType::List(inner) if field.nullable_items => {
-            let list = format!("({} | null)[]", field_type_ts(inner));
-            if field.nullable {
-                format!("{list} | null")
+    output_ts(&field.field_type, field.nullable)
+}
+
+fn output_ts(ft: &FieldType, nullable: bool) -> String {
+    let base = match ft {
+        FieldType::List {
+            item,
+            nullable_items,
+        } => {
+            let item = output_ts(item, *nullable_items);
+            if *nullable_items {
+                format!("({item})[]")
             } else {
-                list
+                format!("{item}[]")
             }
         },
-        ft => field_type_ts_nullable(ft, field.nullable),
+        other => field_type_ts(other),
+    };
+    if nullable {
+        format!("{base} | null")
+    } else {
+        base
     }
 }
 
@@ -91,7 +103,7 @@ pub(super) fn field_type_ts_output(field: &FieldDefinition) -> String {
 pub(super) fn custom_scalar_name(ft: &FieldType) -> Option<&str> {
     match ft {
         FieldType::Scalar(name) => Some(name),
-        FieldType::List(inner) => custom_scalar_name(inner),
+        FieldType::List { item: inner, .. } => custom_scalar_name(inner),
         _ => None,
     }
 }

@@ -660,7 +660,7 @@ impl SchemaConverter {
                 FieldType::Object(name) if input_names.contains(name) => {
                     *ft = FieldType::Input(name.clone());
                 },
-                FieldType::List(inner) => promote(inner, input_names),
+                FieldType::List { item: inner, .. } => promote(inner, input_names),
                 _ => {},
             }
         }
@@ -886,7 +886,7 @@ impl SchemaConverter {
             FieldType::Input(name) => name.clone(),
             FieldType::Interface(name) => name.clone(),
             FieldType::Union(name) => name.clone(),
-            FieldType::List(inner) => Self::extract_type_name(inner),
+            FieldType::List { item: inner, .. } => Self::extract_type_name(inner),
             // Reason: non_exhaustive requires catch-all for cross-crate matches
             _ => "Unknown".to_string(),
         }

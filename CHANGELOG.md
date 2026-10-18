@@ -35,13 +35,17 @@ disagreed, and the promise was the part that was wrong.
   member is stored as its name), or builds with `EnumValueDefinition::new(..).stored_as(..)`. An enum whose members share a stored value
   (`{"name": "A", "value": "B"}` beside a member `B` with none) no longer loads.
 
-- **A list declared `[T]` publishes nullable items (#1586).** It published `[T!]` whatever was
-  declared. A schema exporting `"[T]"` for a list of non-null items now publishes and serves
-  nullable ones. Two SDKs exported `[T]` for every list: the F# SDK now exports `[T!]` unless
-  the element is an `option` or `Nullable<>`, and the Java SDK `[T!]` for an array of a
-  primitive (a reference element stays `[T]`). `fraiseql_core::schema::FieldDefinition` gains
-  `nullable_items` (a struct literal listing every field adds `nullable_items: false`).
-  `[[T]]` (nullable items in a nested list) is refused at compile.
+- **A list declared `[T]` publishes nullable items, at every level of a nested list
+  (#1586).** It published `[T!]` whatever was declared. A schema exporting `"[T]"` for a list
+  of non-null items now publishes and serves nullable ones. Two SDKs exported `[T]` for every
+  list: the F# SDK now exports `[T!]` unless the element is an `option` or `Nullable<>`, and
+  the Java SDK `[T!]` for an array of a primitive (a reference element stays `[T]`). In the
+  compiled schema, `FieldType::List` carries its items' nullability: `FieldType::List(Box<T>)`
+  is `FieldType::List { item, nullable_items }`, built with `FieldType::list(item)` (`[T!]`) or
+  `FieldType::list_of_nullable(item)` (`[T]`), serialized `{"List": {"item": "Float"}}` and
+  `{"List": {"item": "Float", "nullable_items": true}}` (was `{"List": "Float"}`: recompile).
+  `FieldType::parse` and `to_graphql_string` keep each level's item marker (`[String]` and
+  `[String!]` no longer parse alike).
 
 - **`/metrics` reports the query-result cache's real counts, as `fraiseql_cache_*_total`
   (#1583).** `fraiseql_cache_hits` and `fraiseql_cache_misses` always read 0: the collector
@@ -447,14 +451,18 @@ disagreed, and the promise was the part that was wrong.
   parse costs about what it did: 0.89×–1.12× of graphql-parser with the key-order re-read,
   parse and walk together (7 interleaved runs, three documents, spread ±1–13 %).
 
-- **A list declared with nullable items serves a `null` item (#1586).** `list[float | None]`
-  (Python), `[]*float64` (Go) or the type string `"[Float]"` compiled as a list of non-null
-  items, because the compiled schema could not carry item nullability. Since non-null
-  completion (#1522), one `null` item nulled the whole list with a field error. The compiled
-  field now records it (`nullable_items`), and introspection, the SDL, the generated clients
-  (`(T | null)[]`, `list[T | None]`, `Vec<Option<T>>`, `[]*T`) and the OpenAPI document
-  publish `[Float]`, so the item is served as stored. `[Float!]` still nulls the list. Only
-  the outermost list of a field may have nullable items: `[[Float]]` is refused at compile.
+- **A list declared with nullable items serves a `null` item, at any depth (#1586).**
+  `list[float | None]` (Python), `[]*float64` (Go) or the type string `"[Float]"` compiled as
+  a list of non-null items, because the compiled schema could not carry item nullability.
+  Since non-null completion (#1522), one `null` item nulled the whole list with a field
+  error. Each list level of a compiled field now records its items' nullability, and
+  introspection, the SDL, the generated clients (`(T | null)[]`, `list[T | None]`,
+  `Vec<Option<T>>`, `[]*T`) and the OpenAPI document publish it, so the item is served as
+  stored; a generated client declares a list argument's variable as the argument is declared
+  (`$orderBy: [EventOrderByInput!]`, was `[EventOrderByInput]`). `[Float!]` still nulls the
+  list. A nested list is published as declared at every
+  level: `[[Float]!]` and `[[Float!]]` were refused at compile (`[[Float]]` too), and now
+  compile, publish and serve their own items' nullability.
 
 - **A server hearing pg_tviews' change feed notices the transactions it missed while
   connected (#1604).** While the cluster's NOTIFY queue is over 90 % full (a listener

@@ -17,7 +17,7 @@
         {"name": "message",        "field_type": "String",     "nullable": false},
         {"name": "conflicting_id", "field_type": "ID",         "nullable": true},
         {"name": "code",           "field_type": "Int",        "nullable": false},
-        {"name": "affected_ids",   "field_type": {"List": "UUID"}, "nullable": false},
+        {"name": "affected_ids",   "field_type": {"List": {"item": "UUID"}}, "nullable": false},
         {"name": "details",        "field_type": "Json",       "nullable": true}
       ]
     }

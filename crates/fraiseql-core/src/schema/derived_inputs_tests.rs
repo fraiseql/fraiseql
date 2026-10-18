@@ -29,13 +29,13 @@ fn schema() -> CompiledSchema {
         .push(FieldDefinition::new("placedAt", FieldType::Object("datetime".into())));
     order
         .fields
-        .push(FieldDefinition::new("tags", FieldType::List(Box::new(FieldType::String))));
+        .push(FieldDefinition::new("tags", FieldType::list(FieldType::String)));
     order
         .fields
         .push(FieldDefinition::new("customer", FieldType::Object("Customer".into())));
     order.fields.push(FieldDefinition::new(
         "lines",
-        FieldType::List(Box::new(FieldType::Object("OrderLine".into()))),
+        FieldType::list(FieldType::Object("OrderLine".into())),
     ));
     schema.types.push(order);
 
@@ -45,7 +45,7 @@ fn schema() -> CompiledSchema {
     // Closes the cycle.
     customer.fields.push(FieldDefinition::new(
         "orders",
-        FieldType::List(Box::new(FieldType::Object("Order".into()))),
+        FieldType::list(FieldType::Object("Order".into())),
     ));
     customer
         .fields

@@ -232,9 +232,9 @@ fn test_field_type_serialization() {
     let json = serde_json::to_string(&field).unwrap();
     assert!(json.contains(r#""field_type":"ID""#));
 
-    let list_field = FieldDefinition::new("tags", FieldType::List(Box::new(FieldType::String)));
+    let list_field = FieldDefinition::new("tags", FieldType::list(FieldType::String));
     let list_json = serde_json::to_string(&list_field).unwrap();
-    assert!(list_json.contains(r#""field_type":{"List":"String"}"#));
+    assert!(list_json.contains(r#""field_type":{"List":{"item":"String"}}"#));
 
     let obj_field = FieldDefinition::new("author", FieldType::Object("User".to_string()));
     let obj_json = serde_json::to_string(&obj_field).unwrap();
@@ -250,7 +250,7 @@ fn test_field_type_is_scalar() {
     assert!(FieldType::DateTime.is_scalar());
     assert!(FieldType::Json.is_scalar());
 
-    assert!(!FieldType::List(Box::new(FieldType::String)).is_scalar());
+    assert!(!FieldType::list(FieldType::String).is_scalar());
     assert!(!FieldType::Object("User".to_string()).is_scalar());
 }
 
@@ -260,11 +260,12 @@ fn test_field_type_to_graphql_string() {
     assert_eq!(FieldType::Int.to_graphql_string(), "Int");
     assert_eq!(FieldType::Id.to_graphql_string(), "ID");
 
-    assert_eq!(FieldType::List(Box::new(FieldType::String)).to_graphql_string(), "[String]");
+    assert_eq!(FieldType::list(FieldType::String).to_graphql_string(), "[String!]");
+    assert_eq!(FieldType::list_of_nullable(FieldType::String).to_graphql_string(), "[String]");
 
     assert_eq!(
-        FieldType::List(Box::new(FieldType::List(Box::new(FieldType::Int)))).to_graphql_string(),
-        "[[Int]]"
+        FieldType::list(FieldType::list_of_nullable(FieldType::Int)).to_graphql_string(),
+        "[[Int]!]"
     );
 
     assert_eq!(FieldType::Object("User".to_string()).to_graphql_string(), "User");
@@ -1365,15 +1366,15 @@ fn test_parse_unknown_type_as_object() {
 fn test_parse_with_list_syntax() {
     // List of builtin scalar
     let result = FieldType::parse("[String]");
-    assert_eq!(result, FieldType::List(Box::new(FieldType::String)));
+    assert_eq!(result, FieldType::list_of_nullable(FieldType::String));
 
     // List of rich scalar
-    let result = FieldType::parse("[Email]");
-    assert_eq!(result, FieldType::List(Box::new(FieldType::Scalar("Email".to_string()))));
+    let result = FieldType::parse("[Email!]");
+    assert_eq!(result, FieldType::list(FieldType::Scalar("Email".to_string())));
 
     // List of object type
     let result = FieldType::parse("[User]");
-    assert_eq!(result, FieldType::List(Box::new(FieldType::Object("User".to_string()))));
+    assert_eq!(result, FieldType::list_of_nullable(FieldType::Object("User".to_string())));
 }
 
 #[test]
@@ -1388,22 +1389,23 @@ fn test_parse_with_non_null_marker() {
 
     // Non-null list of non-null items
     let result = FieldType::parse("[String!]!");
-    assert_eq!(result, FieldType::List(Box::new(FieldType::String)));
+    assert_eq!(result, FieldType::list(FieldType::String));
 }
 
 #[test]
 fn test_parse_nested_lists() {
     // Nested list
     let result = FieldType::parse("[[String]]");
-    assert_eq!(result, FieldType::List(Box::new(FieldType::List(Box::new(FieldType::String)))));
-
-    // Nested list with rich scalar
-    let result = FieldType::parse("[[Email]]");
     assert_eq!(
         result,
-        FieldType::List(Box::new(FieldType::List(Box::new(FieldType::Scalar(
-            "Email".to_string()
-        )))))
+        FieldType::list_of_nullable(FieldType::list_of_nullable(FieldType::String))
+    );
+
+    // Nested list with rich scalar, each level's items as written
+    let result = FieldType::parse("[[Email]!]");
+    assert_eq!(
+        result,
+        FieldType::list(FieldType::list_of_nullable(FieldType::Scalar("Email".to_string())))
     );
 }
 

@@ -173,7 +173,7 @@ impl CompiledSchema {
 /// and cannot carry `requires_role`.
 fn named_type(ty: &crate::schema::FieldType) -> Option<&str> {
     match ty {
-        crate::schema::FieldType::List(inner) => named_type(inner),
+        crate::schema::FieldType::List { item: inner, .. } => named_type(inner),
         crate::schema::FieldType::Object(name)
         | crate::schema::FieldType::Interface(name)
         | crate::schema::FieldType::Union(name) => Some(name),

@@ -17,7 +17,7 @@ fn schema(entities: &str) -> CompiledSchema {
                 {{"name":"id","field_type":"ID"}},
                 {{"name":"organizationId","field_type":"UUID"}},
                 {{"name":"address","field_type":{{"Object":"Address"}}}},
-                {{"name":"tags","field_type":{{"List":"String"}}}},
+                {{"name":"tags","field_type":{{"List":{{"item":"String"}}}}}},
                 {{"name":"owner","field_type":{{"Interface":"Node"}}}},
                 {{"name":"status","field_type":{{"Enum":"Status"}}}}
             ]}},

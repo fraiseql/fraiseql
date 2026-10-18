@@ -1784,7 +1784,7 @@ fn graphql_arguments_types_where_and_order_by_against_the_derived_surface() {
     assert_eq!(arg("where").arg_type, FieldType::Input("OrderWhereInput".to_string()));
     assert_eq!(
         arg("orderBy").arg_type,
-        FieldType::List(Box::new(FieldType::Input("OrderOrderByInput".to_string()))),
+        FieldType::list(FieldType::Input("OrderOrderByInput".to_string())),
         "the engine parses `[{{field, direction}}]`, so the published type is a list"
     );
     // Untouched: these were never dynamic shapes.
@@ -1824,7 +1824,7 @@ fn every_published_argument_type_resolves_against_the_schema() {
     for query in &schema.queries {
         for arg in query.graphql_arguments(&schema) {
             let mut ty = &arg.arg_type;
-            while let crate::schema::FieldType::List(inner) = ty {
+            while let crate::schema::FieldType::List { item: inner, .. } = ty {
                 ty = inner;
             }
             if let crate::schema::FieldType::Input(name) = ty {
@@ -2667,13 +2667,14 @@ fn the_sdl_and_introspection_publish_the_same_field_types() {
     order.fields = vec![
         FieldDefinition::new("id", FieldType::Id),
         FieldDefinition::nullable("note", FieldType::String),
-        FieldDefinition::new("tags", FieldType::List(Box::new(FieldType::String))),
+        FieldDefinition::new("tags", FieldType::list(FieldType::String)),
         margin,
-        // #1586: declared `[Float]`.
-        FieldDefinition {
-            nullable_items: true,
-            ..FieldDefinition::nullable("monthly", FieldType::List(Box::new(FieldType::Float)))
-        },
+        // #1586: declared `[Float]`, and `[[Float]!]`.
+        FieldDefinition::nullable("monthly", FieldType::list_of_nullable(FieldType::Float)),
+        FieldDefinition::nullable(
+            "grid",
+            FieldType::list(FieldType::list_of_nullable(FieldType::Float)),
+        ),
     ];
     schema.types.push(order);
     let mut orders = QueryDefinition::new("orders", "Order").returning_list();
@@ -2715,6 +2716,7 @@ fn the_sdl_and_introspection_publish_the_same_field_types() {
     assert!(sdl.contains("  margin: Int\n"), "a masked field is nullable:\n{sdl}");
     assert!(sdl.contains("  tags: [String!]!\n"), "list items are non-null:\n{sdl}");
     assert!(sdl.contains("  monthly: [Float]\n"), "declared nullable items:\n{sdl}");
+    assert!(sdl.contains("  grid: [[Float]!]\n"), "a nested list's own items:\n{sdl}");
     assert!(sdl.contains("createOrder: Order\n"), "a mutation is nullable:\n{sdl}");
 }
 
@@ -2785,7 +2787,7 @@ mod unresolved_field_types {
     fn a_field_naming_an_undeclared_object_is_refused_at_load() {
         for ty in [
             FieldType::Object("Nope".to_string()),
-            FieldType::List(Box::new(FieldType::Object("Nope".to_string()))),
+            FieldType::list(FieldType::Object("Nope".to_string())),
             FieldType::Interface("Nope".to_string()),
             FieldType::Union("Nope".to_string()),
         ] {
@@ -2798,7 +2800,7 @@ mod unresolved_field_types {
     fn a_field_naming_a_declared_object_interface_or_union_loads() {
         for ty in [
             FieldType::Object("Owner".to_string()),
-            FieldType::List(Box::new(FieldType::Object("Owner".to_string()))),
+            FieldType::list(FieldType::Object("Owner".to_string())),
             FieldType::Interface("Node".to_string()),
             FieldType::Union("Party".to_string()),
             FieldType::Scalar("Hostname".to_string()),

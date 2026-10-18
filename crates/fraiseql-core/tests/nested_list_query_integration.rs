@@ -98,7 +98,7 @@ fn schema() -> CompiledSchema {
                 "fields": [
                     { "name": "id", "field_type": "ID" },
                     { "name": "code", "field_type": "String" },
-                    { "name": "lineItems", "field_type": { "List": { "Object": "LineItem" } } }
+                    { "name": "lineItems", "field_type": { "List": {"item": { "Object": "LineItem" }} } }
                 ]
             },
             {

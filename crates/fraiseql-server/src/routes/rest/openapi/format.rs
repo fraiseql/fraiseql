@@ -34,8 +34,18 @@ pub(super) fn field_type_to_json_schema(ft: &FieldType) -> Value {
         // A bit vector is the text form of a `bit(N)` value (#959).
         FieldType::BitVector => json!({ "type": "string", "pattern": "^[01]+$" }),
         FieldType::Scalar(name) => scalar_to_json_schema(name),
-        FieldType::List(inner) => {
-            json!({ "type": "array", "items": field_type_to_json_schema(inner) })
+        // Each level's items as declared: `[T]` items may be `null` (#1586).
+        FieldType::List {
+            item,
+            nullable_items,
+        } => {
+            let mut items = field_type_to_json_schema(item);
+            if *nullable_items {
+                if let Some(items) = items.as_object_mut() {
+                    items.insert("nullable".to_string(), json!(true));
+                }
+            }
+            json!({ "type": "array", "items": items })
         },
         FieldType::Object(name) | FieldType::Enum(name) | FieldType::Input(name) => {
             json!({ "$ref": format!("#/components/schemas/{name}") })

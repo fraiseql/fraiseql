@@ -110,10 +110,7 @@ fn schema() -> CompiledSchema {
     tagged.fields = vec![
         fraiseql_core::schema::FieldDefinition::new("id", FieldType::Int),
         fraiseql_core::schema::FieldDefinition::new("label", FieldType::String),
-        fraiseql_core::schema::FieldDefinition::new(
-            "tags",
-            FieldType::List(Box::new(FieldType::String)),
-        ),
+        fraiseql_core::schema::FieldDefinition::new("tags", FieldType::list(FieldType::String)),
     ];
     schema.types.push(tagged);
 

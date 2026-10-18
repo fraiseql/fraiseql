@@ -301,7 +301,7 @@ fn build_reference_paths(schema: &CompiledSchema) -> HashMap<String, String> {
 fn object_type_name(field_type: &FieldType) -> Option<&str> {
     match field_type {
         FieldType::Object(name) => Some(name.as_str()),
-        FieldType::List(inner) => object_type_name(inner),
+        FieldType::List { item: inner, .. } => object_type_name(inner),
         _ => None,
     }
 }
@@ -338,7 +338,6 @@ fn synth_field(name: &str, field_type: FieldType, nullable: bool, desc: &str) ->
         hierarchy: None,
         unique: false,
         localized: false,
-        nullable_items: false,
     }
 }
 
@@ -428,13 +427,13 @@ fn cascade_updates_type() -> TypeDefinition {
         vec![
             synth_field(
                 "updated",
-                FieldType::List(Box::new(FieldType::Object(UPDATED_ENTITY.to_string()))),
+                FieldType::list(FieldType::Object(UPDATED_ENTITY.to_string())),
                 false,
                 "Entities created or updated by the mutation.",
             ),
             synth_field(
                 "deleted",
-                FieldType::List(Box::new(FieldType::Object(DELETED_ENTITY.to_string()))),
+                FieldType::list(FieldType::Object(DELETED_ENTITY.to_string())),
                 false,
                 "Entities deleted by the mutation.",
             ),
@@ -446,7 +445,7 @@ fn cascade_updates_type() -> TypeDefinition {
             ),
             synth_field(
                 "invalidations",
-                FieldType::List(Box::new(FieldType::Object(QUERY_INVALIDATION.to_string()))),
+                FieldType::list(FieldType::Object(QUERY_INVALIDATION.to_string())),
                 false,
                 "Client-side cache-invalidation hints emitted by the mutation.",
             ),
@@ -596,7 +595,7 @@ fn cascade_payload_type(
             ),
             synth_field(
                 "updatedFields",
-                FieldType::List(Box::new(FieldType::String)),
+                FieldType::list(FieldType::String),
                 false,
                 "GraphQL field names on the primary entity changed by this mutation (#433).",
             ),

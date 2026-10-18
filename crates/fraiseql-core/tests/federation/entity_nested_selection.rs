@@ -62,10 +62,7 @@ fn user_schema() -> CompiledSchema {
         let mut t = TypeDefinition::new("User", USER_RELATION);
         t.fields = vec![
             FieldDefinition::new("id", FieldType::String),
-            FieldDefinition::new(
-                "orders",
-                FieldType::List(Box::new(FieldType::Object("Order".to_string()))),
-            ),
+            FieldDefinition::new("orders", FieldType::list(FieldType::Object("Order".to_string()))),
         ];
         t
     });

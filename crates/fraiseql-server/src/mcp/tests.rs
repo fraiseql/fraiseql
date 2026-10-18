@@ -23,7 +23,7 @@ mod executor_tests {
     fn test_is_scalar_field_type() {
         assert!(is_scalar_field_type(&FieldType::String));
         assert!(is_scalar_field_type(&FieldType::Int));
-        assert!(is_scalar_field_type(&FieldType::List(Box::new(FieldType::Int))));
+        assert!(is_scalar_field_type(&FieldType::list(FieldType::Int)));
         assert!(!is_scalar_field_type(&FieldType::Object("User".to_string())));
     }
 
@@ -441,7 +441,7 @@ mod tools_tests {
         let schema = field_type_to_json_schema(&FieldType::Boolean);
         assert_eq!(schema, serde_json::json!({ "type": "boolean" }));
 
-        let schema = field_type_to_json_schema(&FieldType::List(Box::new(FieldType::Int)));
+        let schema = field_type_to_json_schema(&FieldType::list(FieldType::Int));
         assert_eq!(schema, serde_json::json!({ "type": "array", "items": { "type": "integer" } }));
     }
 

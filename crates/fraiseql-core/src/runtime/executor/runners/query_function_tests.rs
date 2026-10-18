@@ -783,7 +783,7 @@ fn nested_scoped_quote_schema() -> CompiledSchema {
         .fields
         .push(FieldDefinition::new(
             "lines",
-            FieldType::List(Box::new(FieldType::Object("Line".to_string()))),
+            FieldType::list(FieldType::Object("Line".to_string())),
         ));
     schema.types.push(TypeDefinition {
         fields: vec![

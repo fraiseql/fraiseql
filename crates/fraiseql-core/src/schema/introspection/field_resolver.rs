@@ -32,7 +32,6 @@ pub(super) fn build_field(field: &FieldDefinition) -> IntrospectionField {
         field_type:         output_type_to_introspection(
             &field.field_type,
             field.published_nullable(),
-            field.nullable_items,
         ),
         is_deprecated:      field.is_deprecated(),
         deprecation_reason: field.deprecation_reason().map(ToString::to_string),
@@ -189,17 +188,19 @@ fn locale_argument() -> IntrospectionInputValue {
 }
 
 /// Convert an **output** field's `FieldType` to its introspection type: as
-/// [`field_type_to_introspection`], with list items non-null (#1522) unless the field
-/// declares its list's items nullable (`[T]`, #1586). That is what the SDL, the compiler's
-/// relay types (`edges: [XEdge!]!`) and every generated client (`T[]`, `(T | null)[]`)
-/// publish, and what responses are completed against. `nullable_items` is the outermost
-/// list's: the compiler refuses nullable items deeper in a nested list.
+/// [`field_type_to_introspection`], with each list level's items as the type declares them
+/// (`[T]` or `[T!]`, at any depth, #1586). That is what the SDL, the compiler's relay types
+/// (`edges: [XEdge!]!`) and every generated client (`T[]`, `(T | null)[]`) publish, and what
+/// responses are completed against (#1522).
 pub(super) fn output_type_to_introspection(
     field_type: &FieldType,
     nullable: bool,
-    nullable_items: bool,
 ) -> IntrospectionType {
-    let FieldType::List(inner) = field_type else {
+    let FieldType::List {
+        item,
+        nullable_items,
+    } = field_type
+    else {
         return field_type_to_introspection(field_type, nullable);
     };
     let list = IntrospectionType {
@@ -211,11 +212,7 @@ pub(super) fn output_type_to_introspection(
         possible_types:     None,
         enum_values:        None,
         input_fields:       None,
-        of_type:            Some(Box::new(output_type_to_introspection(
-            inner,
-            nullable_items,
-            false,
-        ))),
+        of_type:            Some(Box::new(output_type_to_introspection(item, *nullable_items))),
         specified_by_u_r_l: None,
     };
     if nullable {
@@ -237,6 +234,9 @@ pub(super) fn output_type_to_introspection(
 }
 
 /// Convert `FieldType` to introspection type, wrapping in `NON_NULL` when not nullable.
+///
+/// The input form: a list's items are published nullable (`[T]`) whatever the declaration,
+/// which is what an argument or input field accepts today.
 pub(super) fn field_type_to_introspection(
     field_type: &FieldType,
     nullable: bool,
@@ -263,7 +263,7 @@ pub(super) fn field_type_to_introspection(
         FieldType::Input(name) => type_ref_with_kind(name, TypeKind::InputObject),
         FieldType::Interface(name) => type_ref_with_kind(name, TypeKind::Interface),
         FieldType::Union(name) => type_ref_with_kind(name, TypeKind::Union),
-        FieldType::List(inner) => IntrospectionType {
+        FieldType::List { item: inner, .. } => IntrospectionType {
             kind:               TypeKind::List,
             name:               None,
             description:        None,

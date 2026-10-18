@@ -966,7 +966,6 @@ mod field_filter_tests {
             hierarchy:       None,
             unique:          false,
             localized:       false,
-            nullable_items:  false,
         }
     }
 
@@ -1096,7 +1095,6 @@ mod field_filter_tests {
             hierarchy: None,
             unique: false,
             localized: false,
-            nullable_items: false,
         }
     }
 
@@ -3666,9 +3664,9 @@ mod projection_tests {
                 "fields": [
                     { "name": "id", "field_type": "Int" },
                     { "name": "margin", "field_type": "Int" },
-                    { "name": "tags", "field_type": { "List": "String" } },
+                    { "name": "tags", "field_type": { "List": {"item": "String"} } },
                     { "name": "parent", "field_type": { "Object": "Folder" } },
-                    { "name": "children", "field_type": { "List": { "Object": "Folder" } } }
+                    { "name": "children", "field_type": { "List": {"item": { "Object": "Folder" }} } }
                 ]
             }]
         }))

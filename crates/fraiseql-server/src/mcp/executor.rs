@@ -231,7 +231,7 @@ fn graphql_type_name(field_type: &FieldType) -> String {
         | FieldType::Input(name)
         | FieldType::Interface(name)
         | FieldType::Union(name) => name.clone(),
-        FieldType::List(inner) => format!("[{}]", graphql_type_name(inner)),
+        FieldType::List { item: inner, .. } => format!("[{}]", graphql_type_name(inner)),
         // Reason: FieldType is #[non_exhaustive]; a future variant carries no known
         // GraphQL name, and `String` is the same fallback `field_type_to_json_schema`
         // uses for the advertised input schema. `BitVector` lands here by
@@ -337,7 +337,7 @@ pub(crate) fn is_scalar_field_type(field_type: &FieldType) -> bool {
         | FieldType::SparseVector
         | FieldType::Scalar(_)
         | FieldType::Enum(_) => true,
-        FieldType::List(inner) => is_scalar_field_type(inner),
+        FieldType::List { item: inner, .. } => is_scalar_field_type(inner),
         // Reason: FieldType is #[non_exhaustive]; future variants also default to non-scalar
         FieldType::Object(_)
         | FieldType::Input(_)

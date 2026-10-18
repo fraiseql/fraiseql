@@ -24,7 +24,7 @@
         {"name": "birth_date", "field_type": "Date",     "nullable": true},
         {"name": "login_time", "field_type": "Time",     "nullable": true},
         {"name": "email_addr", "field_type": {"Scalar": "Email"}, "nullable": true, "alias": "emailAddress"},
-        {"name": "tags",  "field_type": {"List": "String"}, "nullable": true}
+        {"name": "tags",  "field_type": {"List": {"item": "String"}}, "nullable": true}
       ]
     }
   ],

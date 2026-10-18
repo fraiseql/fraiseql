@@ -85,10 +85,7 @@ fn filtered() -> (DocumentRowFilter, CompiledSchema) {
     let mut user = TypeDefinition::new("User", "v_user");
     user.fields = vec![
         FieldDefinition::new("id", FieldType::Int),
-        FieldDefinition::new(
-            "orders",
-            FieldType::List(Box::new(FieldType::Object("Order".to_string()))),
-        ),
+        FieldDefinition::new("orders", FieldType::list(FieldType::Object("Order".to_string()))),
     ];
     let mut order = TypeDefinition::new("Order", "v_order");
     order.fields = vec![
@@ -171,7 +168,7 @@ fn two_parents() -> CompiledSchema {
         let mut t = TypeDefinition::new(parent, "");
         t.fields = vec![FieldDefinition::new(
             "members",
-            FieldType::List(Box::new(FieldType::Object("Member".to_string()))),
+            FieldType::list(FieldType::Object("Member".to_string())),
         )];
         schema.types.push(t);
     }

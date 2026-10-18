@@ -654,7 +654,7 @@ mod compile_tests {
     fn test_field_type_to_pg_complex_types_are_jsonb() {
         assert_eq!(field_type_to_pg(&FieldType::Json), "JSONB");
         assert_eq!(field_type_to_pg(&FieldType::Object("Address".to_string())), "JSONB");
-        assert_eq!(field_type_to_pg(&FieldType::List(Box::new(FieldType::String))), "JSONB");
+        assert_eq!(field_type_to_pg(&FieldType::list(FieldType::String)), "JSONB");
     }
 
     #[test]
@@ -681,7 +681,6 @@ mod compile_tests {
                         hierarchy:       None,
                         unique:          false,
                         localized:       false,
-                        nullable_items:  false,
                     },
                     FieldDefinition {
                         name:            "email".into(),
@@ -700,7 +699,6 @@ mod compile_tests {
                         hierarchy:       None,
                         unique:          false,
                         localized:       false,
-                        nullable_items:  false,
                     },
                 ],
                 description:         Some("Test type".to_string()),

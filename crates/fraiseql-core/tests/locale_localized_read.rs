@@ -60,7 +60,7 @@ fn schema_with(nullable: bool) -> CompiledSchema {
         .with_field(FieldDefinition::nullable("category", FieldType::Object("Category".into())))
         .with_field(FieldDefinition::nullable(
             "tags",
-            FieldType::List(Box::new(FieldType::Object("Tag".into()))),
+            FieldType::list(FieldType::Object("Tag".into())),
         ))
         .with_field(secret)
         .with_field(motto)

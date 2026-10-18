@@ -358,7 +358,7 @@ fn every_field_type_maps_to_its_own_surface() {
         // vector, `{1:0.5,7:0.25}/1000` for a sparse one.
         (FieldType::BitVector, "String"),
         (FieldType::SparseVector, "String"),
-        (FieldType::List(Box::new(FieldType::String)), "Vec<String>"),
+        (FieldType::list(FieldType::String), "Vec<String>"),
         (FieldType::Object("User".to_string()), "User"),
         (FieldType::Enum("UserRole".to_string()), "UserRole"),
         (FieldType::Input("UserFilter".to_string()), "UserFilter"),
@@ -452,16 +452,25 @@ fn a_mutually_recursive_input_pair_is_boxed_on_both_sides() {
 }
 
 /// #1586: a list declared with nullable items renders them nullable; one declared with
-/// non-null items does not.
+/// non-null items does not; a nested list renders each level's items as declared.
 #[test]
 fn an_output_list_with_nullable_items_renders_them_nullable() {
     use fraiseql_core::schema::{FieldDefinition, FieldType};
-    let list = || FieldType::List(Box::new(FieldType::Float));
-    let mut field = FieldDefinition::nullable("monthlyValues", list());
-    assert_eq!(super::render::field_type_rs_output(&field), "Option<Vec<f64>>");
-    field.nullable_items = true;
-    assert_eq!(super::render::field_type_rs_output(&field), "Option<Vec<Option<f64>>>");
-    let mut field = FieldDefinition::new("monthlyValues", list());
-    field.nullable_items = true;
-    assert_eq!(super::render::field_type_rs_output(&field), "Vec<Option<f64>>");
+    let render = |field: &FieldDefinition| super::render::field_type_rs_output(field);
+    let strict = FieldType::list(FieldType::Float);
+    let loose = || FieldType::list_of_nullable(FieldType::Float);
+    assert_eq!(render(&FieldDefinition::nullable("v", strict)), "Option<Vec<f64>>");
+    assert_eq!(render(&FieldDefinition::nullable("v", loose())), "Option<Vec<Option<f64>>>");
+    assert_eq!(render(&FieldDefinition::new("v", loose())), "Vec<Option<f64>>");
+    assert_eq!(
+        render(&FieldDefinition::new("v", FieldType::list(loose()))),
+        "Vec<Vec<Option<f64>>>"
+    );
+    assert_eq!(
+        render(&FieldDefinition::new(
+            "v",
+            FieldType::list_of_nullable(FieldType::list(FieldType::Float))
+        )),
+        "Vec<Option<Vec<f64>>>"
+    );
 }

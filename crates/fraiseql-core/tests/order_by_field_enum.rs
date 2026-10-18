@@ -41,7 +41,7 @@ fn item_type() -> fraiseql_core::schema::TypeDefinition {
         .with_simple_field("name", FieldType::String)
         .with_simple_field("rank", FieldType::Int)
         .with_field(label)
-        .with_field(FieldDefinition::nullable("tags", FieldType::List(Box::new(FieldType::String))))
+        .with_field(FieldDefinition::nullable("tags", FieldType::list(FieldType::String)))
         .with_field(FieldDefinition::nullable("meta", FieldType::Json))
         .build()
 }
@@ -357,7 +357,7 @@ async fn a_sort_by_an_enum_value_is_served() {
 #[tokio::test]
 async fn a_query_with_no_sortable_key_publishes_no_order_by() {
     let bag = TestTypeBuilder::new("Bag", "tv_obf_bag")
-        .with_field(FieldDefinition::nullable("tags", FieldType::List(Box::new(FieldType::String))))
+        .with_field(FieldDefinition::nullable("tags", FieldType::list(FieldType::String)))
         .with_field(FieldDefinition::nullable("meta", FieldType::Json))
         .build();
     let mut bags = TestQueryBuilder::new("bags", "Bag")

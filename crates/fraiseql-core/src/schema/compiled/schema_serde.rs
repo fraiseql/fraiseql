@@ -227,7 +227,7 @@ impl CompiledSchema {
         for (owner, fields) in owners {
             for field in fields {
                 let mut base = &field.field_type;
-                while let FieldType::List(inner) = base {
+                while let FieldType::List { item: inner, .. } = base {
                     base = inner;
                 }
                 let (kind, name) = match base {

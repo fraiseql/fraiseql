@@ -58,7 +58,7 @@ fn schema() -> CompiledSchema {
                 "fields": [
                     { "name": "id", "field_type": "ID" },
                     { "name": "customer", "field_type": { "Object": "Customer" } },
-                    { "name": "lineItems", "field_type": { "List": { "Object": "LineItem" } } }
+                    { "name": "lineItems", "field_type": { "List": {"item": { "Object": "LineItem" }} } }
                 ]
             },
             {
@@ -67,7 +67,7 @@ fn schema() -> CompiledSchema {
                 "fields": [
                     { "name": "id", "field_type": "ID" },
                     { "name": "displayName", "field_type": "String" },
-                    { "name": "orders", "field_type": { "List": { "Object": "Order" } } }
+                    { "name": "orders", "field_type": { "List": {"item": { "Object": "Order" }} } }
                 ]
             },
             {

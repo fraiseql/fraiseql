@@ -35,10 +35,7 @@ fn every_vector_type_maps_to_its_own_surface() {
 fn references_pass_through_as_names() {
     assert_eq!(field_type_ts(&FieldType::Object("User".into())), "User");
     assert_eq!(field_type_ts(&FieldType::Enum("Role".into())), "Role");
-    assert_eq!(
-        field_type_ts(&FieldType::List(Box::new(FieldType::Object("Post".into())))),
-        "Post[]"
-    );
+    assert_eq!(field_type_ts(&FieldType::list(FieldType::Object("Post".into()))), "Post[]");
 }
 
 #[test]
@@ -51,9 +48,9 @@ fn nullability_wraps() {
 fn leaf_classification() {
     assert!(is_leaf(&FieldType::String));
     assert!(is_leaf(&FieldType::Enum("Role".into())));
-    assert!(is_leaf(&FieldType::List(Box::new(FieldType::String))));
+    assert!(is_leaf(&FieldType::list(FieldType::String)));
     assert!(!is_leaf(&FieldType::Object("User".into())));
-    assert!(!is_leaf(&FieldType::List(Box::new(FieldType::Object("Post".into())))));
+    assert!(!is_leaf(&FieldType::list(FieldType::Object("Post".into()))));
 }
 
 #[test]
@@ -80,16 +77,25 @@ fn graphql_arg_types() {
 }
 
 /// #1586: a list declared with nullable items renders them nullable; one declared with
-/// non-null items does not.
+/// non-null items does not; a nested list renders each level's items as declared.
 #[test]
 fn an_output_list_with_nullable_items_renders_them_nullable() {
     use fraiseql_core::schema::{FieldDefinition, FieldType};
-    let list = || FieldType::List(Box::new(FieldType::Float));
-    let mut field = FieldDefinition::nullable("monthlyValues", list());
-    assert_eq!(super::field_type_ts_output(&field), "number[] | null");
-    field.nullable_items = true;
-    assert_eq!(super::field_type_ts_output(&field), "(number | null)[] | null");
-    let mut field = FieldDefinition::new("monthlyValues", list());
-    field.nullable_items = true;
-    assert_eq!(super::field_type_ts_output(&field), "(number | null)[]");
+    let render = |field: &FieldDefinition| super::field_type_ts_output(field);
+    let strict = FieldType::list(FieldType::Float);
+    let loose = || FieldType::list_of_nullable(FieldType::Float);
+    assert_eq!(render(&FieldDefinition::nullable("v", strict)), "number[] | null");
+    assert_eq!(render(&FieldDefinition::nullable("v", loose())), "(number | null)[] | null");
+    assert_eq!(render(&FieldDefinition::new("v", loose())), "(number | null)[]");
+    assert_eq!(
+        render(&FieldDefinition::new("v", FieldType::list(loose()))),
+        "(number | null)[][]"
+    );
+    assert_eq!(
+        render(&FieldDefinition::new(
+            "v",
+            FieldType::list_of_nullable(FieldType::list(FieldType::Float))
+        )),
+        "(number[] | null)[]"
+    );
 }

@@ -93,9 +93,10 @@ scalar map:
 
 - **Object/interface fields** (`FieldDefinition`) and **operation arguments**
   (`ArgumentDefinition`) use the structured `FieldType` enum with a separate
-  `nullable: bool`. An output field also carries `nullable_items` (#1586), so
-  `[Post!]!` renders as `Post[]` and `[Post]!` as `(Post | null)[]`. Arguments
-  carry outer nullability only.
+  `nullable: bool`. Each `FieldType::List` level carries its items' nullability
+  (#1586), so an output `[Post!]!` renders as `Post[]`, `[Post]!` as
+  `(Post | null)[]` and `[[Post]!]!` as `(Post | null)[][]`. Arguments are rendered
+  with outer nullability only.
   - non-null field → `name: T;`  · nullable field → `name: T | null;`
   - list (outer non-null) → `T[]`  · list (outer nullable) → `T[] | null`
 - **Input object fields** (`InputFieldDefinition`) use a GraphQL type **string**

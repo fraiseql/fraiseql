@@ -251,7 +251,7 @@ pub(crate) fn field_type_to_json_schema(field_type: &FieldType) -> serde_json::V
         FieldType::Boolean => serde_json::json!({ "type": "boolean" }),
         FieldType::Json => serde_json::json!({ "type": "object" }),
         FieldType::Vector => serde_json::json!({ "type": "array", "items": { "type": "number" } }),
-        FieldType::List(inner) => {
+        FieldType::List { item: inner, .. } => {
             serde_json::json!({ "type": "array", "items": field_type_to_json_schema(inner) })
         },
         // Reason: FieldType is #[non_exhaustive]; all other variants (including future ones) map to

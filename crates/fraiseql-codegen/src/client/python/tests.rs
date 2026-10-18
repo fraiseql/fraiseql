@@ -382,16 +382,25 @@ fn every_vector_type_maps_to_its_own_surface() {
 }
 
 /// #1586: a list declared with nullable items renders them nullable; one declared with
-/// non-null items does not.
+/// non-null items does not; a nested list renders each level's items as declared.
 #[test]
 fn an_output_list_with_nullable_items_renders_them_nullable() {
     use fraiseql_core::schema::{FieldDefinition, FieldType};
-    let list = || FieldType::List(Box::new(FieldType::Float));
-    let mut field = FieldDefinition::nullable("monthlyValues", list());
-    assert_eq!(super::render::field_type_py_output(&field), "list[float] | None");
-    field.nullable_items = true;
-    assert_eq!(super::render::field_type_py_output(&field), "list[float | None] | None");
-    let mut field = FieldDefinition::new("monthlyValues", list());
-    field.nullable_items = true;
-    assert_eq!(super::render::field_type_py_output(&field), "list[float | None]");
+    let render = |field: &FieldDefinition| super::render::field_type_py_output(field);
+    let strict = FieldType::list(FieldType::Float);
+    let loose = || FieldType::list_of_nullable(FieldType::Float);
+    assert_eq!(render(&FieldDefinition::nullable("v", strict)), "list[float] | None");
+    assert_eq!(render(&FieldDefinition::nullable("v", loose())), "list[float | None] | None");
+    assert_eq!(render(&FieldDefinition::new("v", loose())), "list[float | None]");
+    assert_eq!(
+        render(&FieldDefinition::new("v", FieldType::list(loose()))),
+        "list[list[float | None]]"
+    );
+    assert_eq!(
+        render(&FieldDefinition::new(
+            "v",
+            FieldType::list_of_nullable(FieldType::list(FieldType::Float))
+        )),
+        "list[list[float] | None]"
+    );
 }

@@ -728,7 +728,7 @@ impl QueryDefinition {
             Some(keys) if keys.is_empty() => return None,
             Some(_) => match order_by_type_names(schema, self) {
                 Some((item, _)) if schema.find_input_type(&item).is_some() => {
-                    FieldType::List(Box::new(FieldType::Input(item)))
+                    FieldType::list(FieldType::Input(item))
                 },
                 _ => FieldType::Json,
             },

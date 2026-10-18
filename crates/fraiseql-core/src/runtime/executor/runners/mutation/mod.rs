@@ -365,7 +365,7 @@ fn success_field_value_ok(
             | FieldType::HalfVector
             | FieldType::SparseVector
             | FieldType::Enum(_)
-            | FieldType::List(_)
+            | FieldType::List { item: _, .. }
             | FieldType::Object(_)
             | FieldType::Input(_)
             | FieldType::Interface(_)

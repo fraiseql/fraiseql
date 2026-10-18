@@ -100,7 +100,7 @@ fn test_type_with_list_reference() {
                 "User",
                 vec![
                     ("id", FieldType::Id),
-                    ("posts", FieldType::List(Box::new(FieldType::Object("Post".to_string())))),
+                    ("posts", FieldType::list(FieldType::Object("Post".to_string()))),
                 ],
             ),
             make_type("Post", vec![("title", FieldType::String)]),

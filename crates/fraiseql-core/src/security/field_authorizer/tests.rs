@@ -375,10 +375,7 @@ fn a_gated_field_inside_a_list_of_nested_objects_is_seen() {
             "Post",
             vec![
                 plain("title", FieldType::String),
-                plain(
-                    "comments",
-                    FieldType::List(Box::new(FieldType::Object("Comment".to_string()))),
-                ),
+                plain("comments", FieldType::list(FieldType::Object("Comment".to_string()))),
             ],
         ),
         object(

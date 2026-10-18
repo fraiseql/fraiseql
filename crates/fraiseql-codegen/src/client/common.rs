@@ -89,7 +89,7 @@ pub(super) fn leaf_fields(fields: &[FieldDefinition]) -> Vec<&FieldDefinition> {
 pub(super) fn is_leaf(ft: &FieldType) -> bool {
     match ft {
         FieldType::Object(_) | FieldType::Interface(_) | FieldType::Union(_) => false,
-        FieldType::List(inner) => is_leaf(inner),
+        FieldType::List { item: inner, .. } => is_leaf(inner),
         _ => true,
     }
 }
@@ -102,7 +102,7 @@ pub(super) fn referenced_named_type(ft: &FieldType) -> Option<&str> {
         | FieldType::Input(n)
         | FieldType::Interface(n)
         | FieldType::Union(n) => Some(n),
-        FieldType::List(inner) => referenced_named_type(inner),
+        FieldType::List { item: inner, .. } => referenced_named_type(inner),
         _ => None,
     }
 }

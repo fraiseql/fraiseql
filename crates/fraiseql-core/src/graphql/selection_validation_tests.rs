@@ -34,10 +34,7 @@ fn schema() -> CompiledSchema {
         FieldDefinition::nullable("name", FieldType::String),
         FieldDefinition::nullable("status", FieldType::Enum("Status".into())),
         FieldDefinition::nullable("profile", FieldType::Object("Profile".into())),
-        FieldDefinition::nullable(
-            "tags",
-            FieldType::List(Box::new(FieldType::Object("Tag".into()))),
-        ),
+        FieldDefinition::nullable("tags", FieldType::list(FieldType::Object("Tag".into()))),
         FieldDefinition::nullable("blob", FieldType::Json),
         FieldDefinition::nullable("ghost", FieldType::Object("NotInSchema".into())),
         FieldDefinition::nullable("shell", FieldType::Object("Fieldless".into())),
