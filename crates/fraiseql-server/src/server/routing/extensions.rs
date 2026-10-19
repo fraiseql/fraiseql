@@ -4,7 +4,7 @@
 use axum::{Router, middleware};
 use tracing::info;
 
-use super::super::{BearerAuthState, Server, api, bearer_auth_middleware};
+use super::super::{BearerAuthState, Server, bearer_auth_middleware};
 #[cfg(feature = "rest")]
 use super::AuthPosture;
 use crate::routes::graphql::AppState;
@@ -39,10 +39,6 @@ impl Server {
             ));
             info!("Async-operations endpoints mounted (/operations/v1)");
         }
-
-        // Remaining API routes (query intelligence, federation)
-        let api_router = api::routes(state.clone());
-        app = app.nest("/api/v1", api_router);
 
         // Tenant admin credentials (#1089): minted and revoked by the deployment
         // administrator only, so behind the platform bearer gate, where a tenant admin token
