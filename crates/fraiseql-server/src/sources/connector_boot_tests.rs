@@ -96,15 +96,27 @@ async fn an_enabled_source_with_no_functions_section_refuses_the_boot() {
 /// source refuse the boot, the fixture's `example_source` broke the smoke and nothing
 /// before the release cut could see it. This leg runs on every push. `module_dir` is
 /// resolved from the working directory, which in the smoke is the repository root.
+///
+/// The fixture also declares sections only the smoke's full build serves (`rest_config`
+/// and `federation`, #1621), which a narrower build refuses at load by design (#1326).
+/// Exactly the sections this build lacks are removed, read from the loader's own table,
+/// so every section this build can serve is still booted.
 #[tokio::test]
 async fn the_release_smoke_source_schema_boots() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let extended = crate::schema::CompiledSchemaLoader::new(
-        root.join("docker/e2e/schema.with-source.compiled.json"),
-    )
-    .load_extended()
-    .await
-    .unwrap();
+    let fixture = root.join("docker/e2e/schema.with-source.compiled.json");
+    let mut document: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(&fixture).unwrap()).unwrap();
+    let sections = document.as_object_mut().unwrap();
+    for gated in crate::schema::loader::gated_sections() {
+        if !gated.compiled_in {
+            sections.remove(gated.name);
+        }
+    }
+    let dir = tempfile::tempdir().unwrap();
+    let served = dir.path().join("schema.compiled.json");
+    std::fs::write(&served, serde_json::to_vec(&document).unwrap()).unwrap();
+    let extended = crate::schema::CompiledSchemaLoader::new(served).load_extended().await.unwrap();
     assert!(
         extended.schema.sources.iter().any(|source| source.enabled),
         "the fixture must keep an enabled source, or this boot proves nothing"
