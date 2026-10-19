@@ -803,6 +803,12 @@ disagreed, and the promise was the part that was wrong.
   key-exchange downgrade of later connections).
 - **`quinn-proto` 0.11.19**, a transitive dependency, for RUSTSEC-2026-0338, -0339, -0340, -0341
   and -0342 (remote panics and memory exhaustion in its QUIC stream handling).
+- **Lockfiles outside the Rust workspace:** `proxy-addr` 2.0.8 in the tutorial
+  (GHSA-jqcg-44mw-7w3h, IP spoofing through an IPv4-mapped IPv6 trust subnet), `source-map-js`
+  1.2.2 in the TypeScript SDK's development tree (GHSA-68fv-2mgg-jv7q, an event-loop denial of
+  service) and `fsspec` 2026.9.0 in the Python SDK's lock, through the LlamaIndex extra
+  (GHSA-27vj-qcqg-25rc, template injection in `ReferenceFileSystem`). `nltk`
+  (GHSA-8mgp-746c-j5xp) stays at 3.10.3: no release fixes it yet.
 
 ## [2.17.0] - 2026-10-11
 
