@@ -910,6 +910,45 @@ mod chokepoint {
 // token validation — with no descriptor pool, dispatch table or adapter, because it
 // reads none of them.
 #[cfg(feature = "auth")]
+/// **Reproduction (GHSA-7482-9g53-rj7f).** gRPC validated a token's signature and expiry
+/// and never asked the revocation store: a revoked token was served until it expired.
+mod revocation {
+    use std::sync::Arc;
+
+    use crate::{
+        routes::grpc::DynamicGrpcService,
+        testing::idp::{TestIdp, token},
+        token_revocation::{InMemoryRevocationStore, RevocationStore, TokenRevocationManager},
+    };
+
+    /// Whether `jti`'s token is admitted, against a store that revoked `revoked`.
+    async fn admitted(jti: &str, revoked: &str) -> bool {
+        let idp = TestIdp::start().await;
+        let store = Arc::new(InMemoryRevocationStore::new());
+        store.revoke(revoked, 3600).await.unwrap();
+        let manager = Arc::new(TokenRevocationManager::new(store, false, false, 3600));
+        DynamicGrpcService::validate_bearer(
+            &idp.validator(true),
+            Some(&manager),
+            &token("alice", jti),
+        )
+        .await
+        .is_ok()
+    }
+
+    #[tokio::test]
+    async fn a_revoked_token_is_refused() {
+        assert!(!admitted("j-revoked", "j-revoked").await);
+    }
+
+    /// The control: the same token, not revoked, is admitted, which also proves the
+    /// fixture's key and claims satisfy the validator.
+    #[tokio::test]
+    async fn a_live_token_is_admitted() {
+        assert!(admitted("j-live", "j-revoked").await);
+    }
+}
+
 mod principal_production {
     use fraiseql_core::{security::AuthenticatedUser, types::UserId};
     use serde_json::json;

@@ -61,6 +61,7 @@ fn build_grpc_service_for_test(
         rate_limiter,
         #[cfg(feature = "auth")]
         None,
+        None,
     )
 }
 

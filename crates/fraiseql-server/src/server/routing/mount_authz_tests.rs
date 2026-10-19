@@ -285,3 +285,50 @@ mod api_v1_intelligence_routes {
         assert_eq!(status, StatusCode::NOT_FOUND);
     }
 }
+
+/// **Reproduction (GHSA-7482-9g53-rj7f).** The storage router validated an OIDC token's
+/// signature and expiry and never asked the revocation store, so a revoked token kept
+/// reading and writing objects until it expired.
+mod storage_revocation {
+    use super::*;
+    use crate::{
+        testing::idp::{TestIdp, token},
+        token_revocation::{InMemoryRevocationStore, RevocationStore, TokenRevocationManager},
+    };
+
+    /// The status of a storage read with `jti`'s token, against a store that revoked
+    /// `revoked`.
+    async fn status(jti: &str, revoked: &str) -> StatusCode {
+        let idp = TestIdp::start().await;
+        let store = Arc::new(InMemoryRevocationStore::new());
+        store.revoke(revoked, 3600).await.unwrap();
+        let mut server = server_with(ServerConfig::default())
+            .await
+            .with_storage_state(minimal_storage_state())
+            .with_revocation_manager(Arc::new(TokenRevocationManager::new(
+                store, false, false, 3600,
+            )));
+        server.oidc_validator = Some(idp.validator(false));
+        let state = server.build_app_state();
+        let app: Router = server.mount_extensions(Router::new(), &state);
+        let request = Request::builder()
+            .method("GET")
+            .uri("/storage/v1/object/docs/report.txt")
+            .header("authorization", format!("Bearer {}", token("alice", jti)))
+            .body(Body::empty())
+            .unwrap();
+        app.oneshot(request).await.unwrap().status()
+    }
+
+    #[tokio::test]
+    async fn a_revoked_token_is_refused() {
+        assert_eq!(status("j-revoked", "j-revoked").await, StatusCode::UNAUTHORIZED);
+    }
+
+    /// The control: the same token, not revoked, passes authentication, and the read
+    /// goes on to fail or succeed for its own reasons (no database here).
+    #[tokio::test]
+    async fn a_live_token_is_admitted() {
+        assert_ne!(status("j-live", "j-revoked").await, StatusCode::UNAUTHORIZED);
+    }
+}

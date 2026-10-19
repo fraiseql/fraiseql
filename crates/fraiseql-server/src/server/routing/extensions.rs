@@ -514,6 +514,8 @@ impl Server {
         // PublicRead reads.
         let storage_token = self.config.storage_token.clone();
         let validator = self.oidc_validator.clone();
+        // GHSA-7482-9g53-rj7f: the store both HTTP auth middlewares check.
+        let revocation = self.revocation_manager.clone();
 
         // Fail closed (M-storage-legacy): with neither a storage_token nor an OIDC
         // validator there is no way to authenticate a caller, so no request could
@@ -533,6 +535,7 @@ impl Server {
                 move |mut request: axum::extract::Request, next: axum::middleware::Next| {
                     let storage_token = storage_token.clone();
                     let validator = validator.clone();
+                    let revocation = revocation.clone();
                     async move {
                         use axum::http::{StatusCode, header};
                         use axum::response::IntoResponse;
@@ -542,7 +545,7 @@ impl Server {
                             .headers()
                             .get(header::AUTHORIZATION)
                             .and_then(|v| v.to_str().ok())
-                            .and_then(|v| v.strip_prefix("Bearer "))
+                            .and_then(fraiseql_core::security::bearer_credential)
                             .map(str::to_owned)
                             .or_else(|| extract_access_token_cookie(request.headers()));
 
@@ -553,6 +556,21 @@ impl Server {
                             } else if let Some(ref validator) = validator {
                                 match validator.validate_token(&token).await {
                                     Ok(user) => {
+                                        if crate::middleware::oidc_auth::check_revocation(
+                                            revocation.as_ref(),
+                                            &user,
+                                            &token,
+                                        )
+                                        .await
+                                        .is_err()
+                                        {
+                                            tracing::debug!("Storage auth: token is revoked");
+                                            return (
+                                                StatusCode::UNAUTHORIZED,
+                                                "Invalid or expired token",
+                                            )
+                                                .into_response();
+                                        }
                                         let storage_user = fraiseql_storage::StorageUser {
                                             user_id: Some(user.user_id.to_string()),
                                             roles:   user.scopes,

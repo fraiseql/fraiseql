@@ -34,12 +34,7 @@ use crate::routes::graphql::AppState;
 /// non-UTF-8, not a Bearer credential, or empty.
 pub(crate) fn extract_bearer(headers: &http::HeaderMap) -> Option<String> {
     let value = headers.get(http::header::AUTHORIZATION)?.to_str().ok()?;
-    let token = value.strip_prefix("Bearer ")?.trim();
-    if token.is_empty() {
-        None
-    } else {
-        Some(token.to_string())
-    }
+    fraiseql_core::security::bearer_credential(value).map(ToOwned::to_owned)
 }
 
 /// Global counter for MCP tool calls (used by metrics endpoint).
@@ -215,6 +210,20 @@ impl FraiseQLMcpService {
         // writes queryable in the audit trail.
         match validator.validate(&token).await {
             Ok(user) => {
+                // GHSA-7482-9g53-rj7f: a valid signature is not a live session. The same
+                // revocation check both HTTP middlewares run, against the same store, so
+                // a token revoked by `/auth/revoke` or "revoke all sessions" stops here too.
+                if crate::middleware::oidc_auth::check_revocation(
+                    self.state.revocation_manager.as_ref(),
+                    &user,
+                    &token,
+                )
+                .await
+                .is_err()
+                {
+                    tracing::debug!(user_id = %user.user_id, "MCP Bearer token is revoked");
+                    return Err(error_result("Invalid or expired authentication token"));
+                }
                 let mut ctx = crate::extractors::build_security_context(
                     &user,
                     request_id,

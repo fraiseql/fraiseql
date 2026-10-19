@@ -230,18 +230,14 @@ pub async fn bearer_auth_middleware(
                 .into_response();
         },
         Some(header_value) => {
-            // Check for "Bearer " prefix
-            if !header_value.starts_with("Bearer ") {
+            let Some(token) = fraiseql_core::security::bearer_credential(header_value) else {
                 return (
                     StatusCode::UNAUTHORIZED,
                     [(header::WWW_AUTHENTICATE, "Bearer")],
                     "Invalid Authorization header format. Expected: Bearer <token>",
                 )
                     .into_response();
-            }
-
-            // Extract token
-            let token = &header_value[7..]; // Skip "Bearer "
+            };
 
             // Constant-time comparison to prevent timing attacks
             if !constant_time_compare(token, &auth_state.token) {
@@ -329,7 +325,7 @@ pub async fn admin_principal_middleware(
         )
             .into_response();
     };
-    let Some(token) = extract_bearer_token(header_value) else {
+    let Some(token) = fraiseql_core::security::bearer_credential(header_value) else {
         return (
             StatusCode::UNAUTHORIZED,
             [(header::WWW_AUTHENTICATE, "Bearer")],
@@ -363,17 +359,6 @@ pub async fn admin_principal_middleware(
     state.failure_limiter.record_success(&peer_key);
     request.extensions_mut().insert(principal);
     next.run(request).await
-}
-
-/// Extract the bearer token from an `Authorization` header value.
-///
-/// Returns `Some(token)` if the header has the `Bearer ` prefix (with trailing space),
-/// `None` for all other formats (Basic, Digest, missing prefix, etc.).
-///
-/// Exposed as `pub` for property testing.
-#[must_use]
-pub fn extract_bearer_token(header_value: &str) -> Option<&str> {
-    header_value.strip_prefix("Bearer ")
 }
 
 /// Constant-time string comparison to prevent timing attacks.
@@ -513,7 +498,7 @@ pub async fn admin_dual_auth_middleware(
             .into_response();
     };
 
-    let Some(token) = extract_bearer_token(header_value) else {
+    let Some(token) = fraiseql_core::security::bearer_credential(header_value) else {
         return (
             StatusCode::UNAUTHORIZED,
             [(header::WWW_AUTHENTICATE, "Bearer")],

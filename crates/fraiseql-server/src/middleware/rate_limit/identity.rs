@@ -70,7 +70,7 @@ impl VerifiedSubject {
 /// request cannot be authenticated by the transport and anonymous to the limiter.
 fn bearer_token(headers: &HeaderMap) -> Option<String> {
     match headers.get(header::AUTHORIZATION).and_then(|v| v.to_str().ok()) {
-        Some(value) => value.strip_prefix("Bearer ").map(ToOwned::to_owned),
+        Some(value) => fraiseql_core::security::bearer_credential(value).map(ToOwned::to_owned),
         None => crate::middleware::oidc_auth::extract_access_token_cookie(headers),
     }
 }

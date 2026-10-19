@@ -6,21 +6,6 @@ mod admin_tests {
     use super::super::admin::*;
 
     #[test]
-    fn test_extract_bearer_token_valid() {
-        assert_eq!(extract_bearer_token(Some("Bearer abc123")), Some("abc123"));
-    }
-
-    #[test]
-    fn test_extract_bearer_token_no_header() {
-        assert_eq!(extract_bearer_token(None), None);
-    }
-
-    #[test]
-    fn test_extract_bearer_token_wrong_scheme() {
-        assert_eq!(extract_bearer_token(Some("Basic abc")), None);
-    }
-
-    #[test]
     fn test_admin_health_response_serializes() {
         let resp = AdminHealthResponse {
             uptime_secs:    10,
