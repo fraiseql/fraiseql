@@ -325,8 +325,8 @@ async fn a_server_whose_feed_is_down_serves_no_stale_entry_and_recovers() {
     until_caching(&b, &url).await;
 }
 
-/// The phase's criterion in its own terms: terminate the listener's backend, write, let it
-/// reconnect, read fresh.
+/// The failure this suite exists for, in its own terms: terminate the listener's backend,
+/// write, let it reconnect, read fresh.
 #[tokio::test]
 async fn a_server_reads_fresh_after_its_feed_backend_is_terminated() {
     let url = database_url().await;

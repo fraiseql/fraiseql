@@ -2017,8 +2017,7 @@ async fn prepare_write<'a>(
     //    inserts on upgrade (a documented breaking change). The adapter reads the changed-entity
     //    columns (object_id / object_data / updated_fields / cascade) from the function's own
     //    mutation_response row; only the DML verb and a NOT-NULL object_type fallback (the GraphQL
-    //    return type) are threaded down here. Non-PostgreSQL adapters ignore the change-log
-    //    descriptor (multi-DB parity lands in phase-03).
+    //    return type) are threaded down here.
     //
     //    Opt-out (default-on): a row is written only when the global switch
     //    (`RuntimeConfig.changelog_enabled`) is on AND this mutation is not
@@ -2133,7 +2132,7 @@ impl PreparedWrite<'_> {
     fn parts(&self) -> WriteParts<'_> {
         let ctx = self.ctx;
         let security_ctx = self.security_ctx;
-        // Envelope stamp (phase-03): stamp the tenant partition id EXPLICITLY from the
+        // Envelope stamp: stamp the tenant partition id EXPLICITLY from the
         // SecurityContext — never reconstructed from connection / RLS state, because
         // out-of-session spine consumers (poller, NATS bridge) bypass RLS and must
         // re-authz fan-out from the row itself. `tenant_id` is the Trinity
