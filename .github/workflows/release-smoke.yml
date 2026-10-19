@@ -32,9 +32,11 @@ jobs:
   smoke:
     name: Server boot smoke
     runs-on: ubuntu-latest
-    # 30 min: the default-features build + boot, then a second build with the
-    # native runtime mounted (functions-runtime-deno pulls a prebuilt V8 + swc).
-    timeout-minutes: 30
+    # The default-features build + boot, then a second build with the full -full
+    # server surface (V8 + swc, and since #1621 rest, arrow and cdc-outbound). On
+    # ubuntu-latest that was 7m + 16m for 2.17.0; adding Arrow pushed the second
+    # build past the old 30m budget, so the job was killed mid-build.
+    timeout-minutes: 60
 
     services:
       postgres:

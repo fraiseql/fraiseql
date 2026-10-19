@@ -225,7 +225,10 @@ jobs:
     # standalone `fraiseql-server` (#643) in one job. The V8 crate artifact is shared
     # across the two -full builds, but fraiseql-server is a large crate; V8 release
     # compilation is heavy, so allow generous headroom over the lean-only 60m.
-    timeout-minutes: 120
+    # 2.17.0's slowest target (aarch64-apple-darwin) took 107m of the old 120m, and
+    # #1621 adds rest, arrow and cdc-outbound to both -full builds (+14-15% each,
+    # measured on the arm64 smoke). A timeout here strands a half-published release.
+    timeout-minutes: 180
     strategy:
       fail-fast: false
       matrix:
