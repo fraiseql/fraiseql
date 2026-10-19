@@ -576,3 +576,56 @@ fn a_variable_marker_is_a_reference_only_in_a_document_literal() {
         "a marker-shaped object in a variable's value is data, refused at an enum position"
     );
 }
+
+// ── Resolved list items — § 3.11 for `[T!]` (#1614) ──────────────────────────
+
+/// `LabelWhere { name: StringFilter, note: String, _and: [LabelWhere!] }` over
+/// `StringFilter { nin: [String!] }`: the shape a derived filter takes.
+fn where_schema() -> (CompiledSchema, Vec<ArgumentDefinition>) {
+    let mut schema = CompiledSchema::new();
+    schema.input_types.push(
+        InputObjectDefinition::new("StringFilter")
+            .with_field(InputFieldDefinition::new("nin", "[String!]")),
+    );
+    schema.input_types.push(
+        InputObjectDefinition::new("LabelWhere")
+            .with_field(InputFieldDefinition::new("name", "StringFilter"))
+            .with_field(InputFieldDefinition::new("note", "String"))
+            .with_field(InputFieldDefinition::new("_and", "[LabelWhere!]")),
+    );
+    let declared = vec![ArgumentDefinition::optional(
+        "where",
+        FieldType::Object("LabelWhere".to_string()),
+    )];
+    (schema, declared)
+}
+
+fn list_items(where_value: &Value) -> Result<()> {
+    let (schema, declared) = where_schema();
+    validate_argument_list_items(
+        &schema,
+        || "Query.labels".to_string(),
+        &declared,
+        |name| (name == "where").then_some(where_value),
+    )
+}
+
+/// Every path the walk is skipped or taken on: a null item under the argument's input
+/// object, one under a list of input objects, and a null that is no list's item.
+#[test]
+fn a_null_item_is_found_wherever_it_sits_in_a_resolved_argument() {
+    assert!(
+        message(list_items(&json!({"name": {"nin": [null, "first"]}})))
+            .contains("where.name.nin[0]"),
+        "an operand list under the argument's input object"
+    );
+    assert!(
+        message(list_items(&json!({"_and": [{"name": {"nin": ["first", null]}}]})))
+            .contains("where._and[0].name.nin[1]"),
+        "an operand list under a list of input objects"
+    );
+    assert!(
+        list_items(&json!({"note": null, "name": {"nin": ["first"]}})).is_ok(),
+        "a null field value is no list's item"
+    );
+}

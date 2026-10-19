@@ -166,7 +166,7 @@ impl QueryMatch {
         let published = self.query_def.graphql_arguments(schema);
         crate::runtime::validate_argument_list_items(
             schema,
-            &format!("Query.{}", schema.display_name(&self.query_def.name)),
+            || format!("Query.{}", schema.display_name(&self.query_def.name)),
             &published,
             |name| self.arguments.get(name),
         )?;
@@ -528,7 +528,7 @@ impl QueryMatcher {
         //    variable, or one nested in a literal.
         crate::runtime::validate_argument_list_items(
             &self.schema,
-            &format!("Query.{}", self.schema.display_name(&query_def.name)),
+            || format!("Query.{}", self.schema.display_name(&query_def.name)),
             published,
             |name| arguments.get(name),
         )?;

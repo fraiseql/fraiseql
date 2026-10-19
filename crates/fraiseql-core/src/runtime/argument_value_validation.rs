@@ -632,23 +632,27 @@ pub fn validate_enum_variable_values(
 /// ([`QueryDefinition::graphql_arguments`](crate::schema::QueryDefinition::graphql_arguments)).
 /// A localized argument holds a locale map, checked by its own pass.
 ///
+/// A null item is this walk's only refusal, so an argument whose
+/// value holds no array with a null in it is not walked: the walk's per-item paths and
+/// input-type lookups, and `field_label`, are paid only by a request that could be refused.
+///
 /// # Errors
 ///
 /// Returns [`FraiseQLError::Validation`] naming the field and the path to the null item.
 pub fn validate_argument_list_items<'a>(
     schema: &CompiledSchema,
-    field_label: &str,
+    field_label: impl Fn() -> String,
     declared: &[ArgumentDefinition],
     argument: impl Fn(&str) -> Option<&'a Value>,
 ) -> Result<()> {
     for arg in declared.iter().filter(|arg| !arg.localized) {
-        let Some(value) = argument(&arg.name) else {
+        let Some(value) = argument(&arg.name).filter(|value| holds_a_null_item(value, 0)) else {
             continue;
         };
         walk_field_type(
             schema,
             Rules::LIST_ITEMS,
-            field_label,
+            &field_label(),
             &arg.name,
             &arg.arg_type,
             value,
@@ -656,6 +660,22 @@ pub fn validate_argument_list_items<'a>(
         )?;
     }
     Ok(())
+}
+
+/// Whether any array under `value` (`value` itself included) may hold a `null` item.
+///
+/// Past the walk's depth bound the answer is yes: the walk, which stops there too, decides.
+fn holds_a_null_item(value: &Value, depth: usize) -> bool {
+    if depth > MAX_WALK_DEPTH {
+        return true;
+    }
+    match value {
+        Value::Array(items) => {
+            items.iter().any(|item| item.is_null() || holds_a_null_item(item, depth + 1))
+        },
+        Value::Object(fields) => fields.values().any(|field| holds_a_null_item(field, depth + 1)),
+        _ => false,
+    }
 }
 
 /// Walk a compiled [`FieldType`] against `value`, adjudicating every enum under it

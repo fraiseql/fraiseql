@@ -68,9 +68,11 @@ disagreed, and the promise was the part that was wrong.
   position is refused with its path (`Query.labels at `where.name.nin[0]` is null, but the
   list's items are non-null`) before any statement, however it was written (a literal, a
   variable, one nested in a literal) and over every transport: GraphQL, MCP, REST, gRPC,
-  subscriptions and mutations. It reached SQL before: a mutation's function received the
-  null, and a filter's `nin: [null, "a"]` became `NOT IN (NULL, 'a')`, which is never true,
-  so the read answered with no rows. **Breaking:** a request that sent a null item to a
+  subscriptions and mutations. An argument holding no null item is not walked for it, so a
+  read pays for the rule only when it could be refused (benched with the result cache off: a
+  filtered read is within 1% of before). It reached SQL before: a mutation's function
+  received the null, and a filter's `nin: [null, "a"]` became `NOT IN (NULL, 'a')`, which is
+  never true, so the read answered with no rows. **Breaking:** a request that sent a null item to a
   `[T!]` position is refused; `orderBy` is published as the `[XOrderByInput!]` it was always
   read as. `QueryMatch::with_enum_values_coerced(schema)` is
   `with_client_arguments(schema) -> Result<QueryMatch>`, which refuses the null item too.
