@@ -547,6 +547,10 @@ func (m *FraiseqlCi) ShellGates(
 		// two lists; building the images is the heavy leg's job (#1205).
 		"python3 tools/check-image-parity.py",
 		"make test-image-parity-gate",
+		// #1621: every platform-artifact recipe compiles the server features
+		// docs/releases.md lists.
+		"make lint-artifact-features",
+		"make test-artifact-features-gate",
 		// One level up from check-suite-coverage.py: every artifact this repository
 		// SHIPS maps to a leg that executes it, or to an exemption naming the issue
 		// that owns the gap. Discovery reads the same sources the four per-class

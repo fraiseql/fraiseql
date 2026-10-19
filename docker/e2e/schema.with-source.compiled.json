@@ -41,5 +41,12 @@
   "functions": {
     "module_dir": "docker/e2e/functions",
     "definitions": []
+  },
+  "rest_config": {"enabled": true},
+  "federation": {
+    "enabled": true,
+    "version": "v2",
+    "service_name": "smoke",
+    "entities": []
   }
 }

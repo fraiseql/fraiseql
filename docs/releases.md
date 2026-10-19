@@ -8,7 +8,7 @@ two variants; pick by whether your deployment uses the opt-in platform features.
 | Artifact | Features | Use it when |
 |----------|----------|-------------|
 | `fraiseql-<target>` (**default**) | `cli,server,postgres` | You compile schemas and/or run a plain GraphQL-over-Postgres server. This is the lean binary — no V8, no extra runtime weight. |
-| `fraiseql-full-<target>` | `release-full` — Deno/TypeScript functions, scheduled `sources`, `observers`, `mcp`, `inbound` + `inbound-email`, `metrics`, `federation`, and `run-server` | Your deployment uses any FraiseQL **platform feature**: `after:mutation`/`cron`/`after:capture` functions, scheduled sources, federation, the MCP endpoint, inbound ingestion, or Prometheus metrics. Contains **two** binaries — `fraiseql` and `fraiseql-server` (see below). |
+| `fraiseql-full-<target>` | `release-full`: the `rest` and `arrow` (Arrow Flight) transports, `federation`, `cdc-outbound` (to NATS JetStream), Deno/TypeScript functions (`functions-runtime-deno`), scheduled `sources`, `observers`, `mcp`, `inbound` + `inbound-email`, `metrics`, and `run-server` | Your deployment uses any FraiseQL **transport or platform feature** beyond GraphQL: REST, Arrow Flight, federation, outbound CDC, `after:mutation`/`cron`/`after:capture` functions, scheduled sources, the MCP endpoint, inbound ingestion, or Prometheus metrics. Contains **two** binaries — `fraiseql` and `fraiseql-server` (see below). |
 
 The `-full` tarball contains **two** binaries:
 
@@ -22,6 +22,12 @@ The `-full` tarball contains **two** binaries:
   wires the observer / tenancy / storage / token-revocation / secrets subsystems, and
   validates `sql_source`s at boot. Point a full `server.toml` at this binary — not at
   `fraiseql run`.
+
+Both binaries compile the same server surface, and so does the `fraiseql-server-platform`
+image. `tools/check-artifact-features.py` fails the build if any recipe for these artifacts
+drops or adds a feature this row does not list. 2.17.0 and earlier shipped this tarball without
+REST, Arrow Flight or outbound CDC, and with the server half of `federation` compiled out of
+`fraiseql run` (#1621).
 
 The lean `fraiseql-<target>` artifact ships only the umbrella `fraiseql` binary (no
 `fraiseql-server`, and its `fraiseql run` is compiled out).
