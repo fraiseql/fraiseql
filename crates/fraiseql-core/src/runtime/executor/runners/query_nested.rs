@@ -420,6 +420,27 @@ impl NestedRowGate {
             },
         }
     }
+
+    /// What the type's predicate is evaluated over: the embedded documents, or the type's
+    /// own rows.
+    const fn over(&self) -> Over {
+        match self {
+            Self::Project { .. } => Over::Documents,
+            Self::Join { .. } | Self::Refuse { .. } => Over::Rows,
+        }
+    }
+}
+
+/// What a type's row predicate is evaluated over, which decides where an `inject_params`
+/// column is read (#1579).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(in super::super) enum Over {
+    /// The type's own rows, read from its view: a native column is read as the column.
+    Rows,
+    /// The type's documents, as another view embeds them or a write returns them: every
+    /// column is read as the document key of the same name, which `compile --database`
+    /// checks holds the native column's value (#1579).
+    Documents,
 }
 
 /// Every nested object field whose rows its type scopes, and how — built once, with the
@@ -486,19 +507,18 @@ fn row_gate(
     }
 
     // The keys the type's predicate may read: the policy's, and each `inject_params`
-    // column held in the document. A native column is not in an embedded document.
+    // column's document key. A native column counts as the key of the same name (#1579):
+    // the two hold the same value, which `compile --database` checks. Every key must be one
+    // the type declares, so a document carries it; a column the type does not publish is
+    // not in any document and refuses below.
     let mut paths = match policy.map(|p| p.constrained_paths(&RlsTarget::query(&read.name, target)))
     {
         None => Some(Vec::new()),
         Some(ConstrainedPaths::Declared(paths)) => Some(paths),
         Some(ConstrainedPaths::Opaque) => None,
     };
-    for column in read.inject_params.keys() {
-        if read.native_columns.contains_key(column) {
-            paths = None;
-        } else if let Some(paths) = paths.as_mut() {
-            paths.push(crate::utils::to_snake_case(column));
-        }
+    if let Some(paths) = paths.as_mut() {
+        paths.extend(read.inject_params.keys().map(|column| crate::utils::to_snake_case(column)));
     }
     let declared = schema.find_type(target);
     let carried = paths.filter(|paths| {
@@ -600,7 +620,8 @@ impl QueryRunner {
             let (predicate, source, view) = match gate {
                 None => (None, None, None),
                 Some(NestedRowGate::Project { query, paths }) => {
-                    let predicate = self.nested_predicate(query, target, security_context)?;
+                    let predicate =
+                        self.nested_predicate(query, target, Over::Documents, security_context)?;
                     if let Some(clause) = predicate.as_ref() {
                         if !reads_only(clause, paths) {
                             return Err(FraiseQLError::Authorization {
@@ -623,7 +644,8 @@ impl QueryRunner {
                     view,
                     relationship,
                 }) => {
-                    let predicate = self.nested_predicate(query, target, security_context)?;
+                    let predicate =
+                        self.nested_predicate(query, target, Over::Rows, security_context)?;
                     let source =
                         // The parent level's relation is not known here: stored keys (#1587).
                         super::query_composed::correlated_source(
@@ -635,15 +657,19 @@ impl QueryRunner {
                     (predicate, Some(source), Some(view.clone()))
                 },
                 Some(NestedRowGate::Refuse { query }) => {
-                    let predicate = self.nested_predicate(query, target, security_context)?;
+                    let predicate =
+                        self.nested_predicate(query, target, Over::Rows, security_context)?;
                     if predicate.is_some() {
                         return Err(FraiseQLError::Authorization {
                             message:  format!(
-                                "'{parent_type}.{}' embeds '{target}', whose row-security policy \
-                                 does not declare the keys it reads, and '{parent_type}' declares \
-                                 no relationship '{}' to read '{target}' through; refusing rather \
-                                 than serving '{target}' rows unfiltered (declare the \
-                                 relationship, or implement `RLSPolicy::constrained_paths`)",
+                                "'{parent_type}.{}' embeds '{target}', whose row security reads \
+                                 a key its documents do not carry (a policy that does not declare \
+                                 its keys, or an `inject_params` column '{target}' does not \
+                                 publish as a field), and '{parent_type}' declares no \
+                                 relationship '{}' to read '{target}' through; refusing rather \
+                                 than serving '{target}' rows unfiltered (publish the column as a \
+                                 field, declare the relationship, or implement \
+                                 `RLSPolicy::constrained_paths`)",
                                 field.name, field.name
                             ),
                             action:   Some("read".to_string()),
@@ -724,7 +750,10 @@ impl QueryRunner {
                 continue;
             };
             if let Some(gate) = self.ctx.nested_row_gates.get(parent_type, field.name.as_str()) {
-                if self.nested_predicate(gate.query(), target, security_context)?.is_some() {
+                if self
+                    .nested_predicate(gate.query(), target, gate.over(), security_context)?
+                    .is_some()
+                {
                     return Err(FraiseQLError::Authorization {
                         message:  format!(
                             "{surface} cannot apply the row security of '{target}' to the \
@@ -747,9 +776,10 @@ impl QueryRunner {
         &self,
         query: &str,
         target: &str,
+        over: Over,
         security_context: Option<&SecurityContext>,
     ) -> Result<Option<WhereClause>> {
-        level_predicate(&self.ctx, query, target, security_context)
+        level_predicate(&self.ctx, query, target, over, security_context)
     }
 }
 
@@ -759,9 +789,17 @@ fn level_predicate(
     ctx: &ExecutorContext,
     query: &str,
     target: &str,
+    over: Over,
     security_context: Option<&SecurityContext>,
 ) -> Result<Option<WhereClause>> {
-    row_predicate(&ctx.schema, ctx.config.rls_policy.as_deref(), query, target, security_context)
+    row_predicate(
+        &ctx.schema,
+        ctx.config.rls_policy.as_deref(),
+        query,
+        target,
+        over,
+        security_context,
+    )
 }
 
 /// [`level_predicate`] over a schema and a policy, for a caller that holds no executor
@@ -771,6 +809,7 @@ fn row_predicate(
     policy: Option<&dyn RLSPolicy>,
     query: &str,
     target: &str,
+    over: Over,
     security_context: Option<&SecurityContext>,
 ) -> Result<Option<WhereClause>> {
     let Some(read) = schema.queries.iter().find(|q| q.name == query) else {
@@ -805,6 +844,11 @@ fn row_predicate(
                 path:    None,
             });
         };
+        let in_documents = std::collections::HashMap::new();
+        let native_columns = match over {
+            Over::Rows => &read.native_columns,
+            Over::Documents => &in_documents,
+        };
         for (column, source) in &read.inject_params {
             let value = super::super::resolve_inject_value(
                 column,
@@ -815,7 +859,7 @@ fn row_predicate(
             conditions.push(super::query_params::inject_param_where_clause(
                 column,
                 value,
-                &read.native_columns,
+                native_columns,
             ));
         }
     }
@@ -907,7 +951,7 @@ fn relation_guards(
         // The predicate is the one path (a) applies to this level: its gate's read's.
         if let Some(gate) = row_gate(schema, policy, parent, field, target) {
             if let Some(predicate) =
-                row_predicate(schema, policy, gate.query(), target, security_context)?
+                row_predicate(schema, policy, gate.query(), target, gate.over(), security_context)?
             {
                 let under = path[..=depth].to_vec();
                 let guard = match &gate {
@@ -938,7 +982,8 @@ fn relation_guards(
                             message:  format!(
                                 "Access denied: '{}.{}' cannot be used to filter by: which \
                                  '{target}' rows the request may read cannot be decided over the \
-                                 document the view embeds (declare the policy's keys with \
+                                 document the view embeds (publish each `inject_params` column \
+                                 of '{target}' as a field, declare the policy's keys with \
                                  `RLSPolicy::constrained_paths`, or declare '{}' as a \
                                  relationship of '{}')",
                                 parent.name, field.name, field.name, parent.name
@@ -1349,7 +1394,8 @@ impl DocumentRowFilter {
             let key = (root_type.to_string(), field.name.to_string());
             if let std::collections::hash_map::Entry::Vacant(slot) = self.by_field.entry(key) {
                 if let Some(gate) = ctx.nested_row_gates.get(root_type, field.name.as_str()) {
-                    let predicate = level_predicate(ctx, gate.query(), target, security_context)?;
+                    let predicate =
+                        level_predicate(ctx, gate.query(), target, gate.over(), security_context)?;
                     if let Some(clause) = predicate {
                         let refuse = |why: &str| FraiseQLError::Authorization {
                             message:  format!(
@@ -1363,8 +1409,10 @@ impl DocumentRowFilter {
                         };
                         let NestedRowGate::Project { paths, .. } = gate else {
                             return Err(refuse(
-                                "the row-security policy of that type does not declare the \
-                                 keys it reads, so it cannot be evaluated over that document",
+                                "its row security reads a key that document does not carry (a \
+                                 policy that does not declare its keys, or an `inject_params` \
+                                 column the type does not publish as a field), so it cannot be \
+                                 evaluated over that document",
                             ));
                         };
                         if !reads_only(&clause, paths) {
@@ -1486,7 +1534,7 @@ impl RootRowFilter {
             |read| RlsTarget::query(&read.name, type_name),
         );
         let clause = match read {
-            Some(read) => level_predicate(ctx, &read.name, type_name, principal)?,
+            Some(read) => level_predicate(ctx, &read.name, type_name, Over::Documents, principal)?,
             None => match (policy, principal) {
                 (Some(policy), Some(principal)) => policy
                     .evaluate(principal, &target)?
@@ -1521,10 +1569,8 @@ impl RootRowFilter {
                 return Err(refuse("does not declare the keys it reads"));
             },
         };
+        // A native column is read as the document key of the same name (#1579).
         for column in read.map(|r| r.inject_params.keys()).into_iter().flatten() {
-            if read.is_some_and(|r| r.native_columns.contains_key(column)) {
-                return Err(refuse("reads a native column, which a document does not hold"));
-            }
             paths.push(crate::utils::to_snake_case(column));
         }
         let declared = schema.find_type(type_name);

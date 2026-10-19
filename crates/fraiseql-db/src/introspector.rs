@@ -124,6 +124,31 @@ pub trait DatabaseIntrospector: Send + Sync {
         Ok(None)
     }
 
+    /// Compare `relation`'s native `column` with the key of the same name in its
+    /// `json_column` document, over at most `limit` rows (#1579): `(sampled, disagreeing)`,
+    /// a row disagreeing when `to_jsonb(column)` is distinct from `json_column -> key` (a row
+    /// with neither agrees).
+    ///
+    /// A type scoped by an `inject_params` column it also publishes as a field is filtered on
+    /// the column at the root and on the document key wherever its document is embedded, so
+    /// the two must hold the same value.
+    ///
+    /// `None` ⇒ this connector cannot compare.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the query fails.
+    async fn column_key_disagreements(
+        &self,
+        _relation: &str,
+        _column: &str,
+        _json_column: &str,
+        _key: &str,
+        _limit: usize,
+    ) -> Result<Option<(u64, u64)>> {
+        Ok(None)
+    }
+
     /// The SQL body of `relation`, when it is a view (#1303).
     ///
     /// Read to answer one question the catalog cannot: does this view already

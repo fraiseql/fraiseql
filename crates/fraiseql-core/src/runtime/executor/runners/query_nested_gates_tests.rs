@@ -724,9 +724,11 @@ async fn a_nested_types_inject_params_scope_its_embedded_rows() {
     assert!(adapter.captured_where().is_none() && adapter.captured_composed().is_none());
 }
 
-/// A native-column scope is not in an embedded document: with nothing to join, refused.
+/// A native-column scope the type publishes as a field is evaluated over the embedded
+/// documents, on the key of the same name (#1579): `compile --database` checks that the
+/// column and the key agree.
 #[tokio::test]
-async fn a_nested_types_native_column_scope_is_not_evaluated_over_embedded_documents() {
+async fn a_nested_types_native_column_scope_it_publishes_is_read_off_the_document() {
     let mut schema = schema();
     let orders = schema.queries.iter_mut().find(|q| q.name == "orders").unwrap();
     orders
@@ -735,6 +737,29 @@ async fn a_nested_types_native_column_scope_is_not_evaluated_over_embedded_docum
     orders
         .native_columns
         .insert("owner".to_string(), crate::schema::NativeColumn::nullable("text"));
+    schema.build_indexes();
+
+    let query = "{ users { id orders { id } } }";
+    let (result, adapter) = run(schema, vec![], config(), query, Some(&principal())).await;
+    result.unwrap();
+    let read = adapter.captured_composed().expect("a composed read");
+    let embed = only_embed(&read);
+    assert!(matches!(embed.source, EmbedSource::Materialised { .. }));
+    assert_eq!(embed.level.where_clause, Some(owner_is("u-alice")));
+}
+
+/// A native-column scope the type does not publish is in no document: with nothing to join,
+/// refused (fail closed).
+#[tokio::test]
+async fn a_nested_types_native_column_scope_it_does_not_publish_is_refused() {
+    let mut schema = schema();
+    let orders = schema.queries.iter_mut().find(|q| q.name == "orders").unwrap();
+    orders
+        .inject_params
+        .insert("region".to_string(), InjectedParamSource::Jwt("sub".to_string()));
+    orders
+        .native_columns
+        .insert("region".to_string(), crate::schema::NativeColumn::nullable("text"));
     schema.build_indexes();
 
     let (result, _) = run(

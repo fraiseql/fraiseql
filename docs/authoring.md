@@ -579,6 +579,17 @@ because that predicate is false for every row and every caller would get an empt
 empty view cannot be checked and is reported as a warning. Without `--database` the
 compiler cannot see the view, so this check needs it.
 
+The type's documents are scoped by the same key wherever another view embeds them
+(`{ orders { customer { name } } }`) or a write returns them, and a filter through the
+relation (`orders(where: {customer: …})`) reads only the related rows the caller may read.
+There the key is read off the embedded document, so **the type must publish it as a field**
+(`tenant_id: ID` on `Customer`): a type scoped by a key it does not publish cannot be
+embedded, and the read is refused naming it, unless the parent declares the relationship to
+read it through. A native column and the document key of the same name must therefore hold
+the same value (#1579): `compile --database` compares them over sampled rows and refuses a
+view where they differ. Build the key from the column
+(`jsonb_build_object('tenant_id', tenant_id, …)`) and they always agree.
+
 > **RLS + views: make `sql_source` views `security_invoker`.** If you enforce
 > tenant isolation with PostgreSQL Row-Level Security, every `sql_source` view MUST
 > be created `WITH (security_invoker = true)`:

@@ -18,6 +18,11 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **`fraiseql_cli::schema::DatabaseWarning` gains `NativeKeyDisagreement` (#1579).** The
+  enum is exhaustive, so an embedder matching it adds an arm. `compile --database` reports it
+  (error severity) when a native `inject_params` column and the document key of the same name
+  hold different values in sampled rows.
+
 - **Every compiled schema's `security` carries `tenancy`, and an empty
   `[fraiseql.tenancy] tenant_claim` is refused in every mode (#1542, below).** Recompiling
   changes the artifact's content hash; a project that set `tenant_claim = ""` with no mode
@@ -474,6 +479,20 @@ disagreed, and the promise was the part that was wrong.
   reported TVIEW (pg_tviews#240): throughput there is unchanged.
 
 ### Fixed
+
+- **A type scoped by a native `inject_params` column can be embedded, when it publishes the
+  key as a field (#1579).** `{ orders { customer { name } } }`, a mutation result selecting
+  `customer { name }`, a filter through the relation (`orders(where: {customer: …})`) and a
+  subscription's after-image were refused (FORBIDDEN, the nested row gates treated a native
+  column as absent from every document), even though `Customer` published `tenant_id` and
+  its document carried it. The root read still filters on the column (indexed); an embedded
+  document, a returned one and an after-image are filtered on the document key of the same
+  name. A type that does not publish the key is still refused, naming it. `compile
+  --database` now compares the column with the key over up to 1000 sampled rows and fails
+  (error-severity drift, `--allow-drift` to override) when they differ, naming the query,
+  the column and the rows. `DatabaseIntrospector` gains `column_key_disagreements` (with a
+  default). The refusals name an unpublished `inject_params` column as a cause, rather than
+  only "the policy".
 
 - **Every field a client selects is in the response, in the order it was selected, `null`
   where the server has no value for it (#1618).** A constraint violation served as a

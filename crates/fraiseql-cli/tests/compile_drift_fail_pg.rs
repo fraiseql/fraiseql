@@ -732,3 +732,68 @@ async fn a_camel_case_argument_resolves_to_its_snake_case_column() {
         "the failure must name the argument and the key the runtime reads. log:\n{log}"
     );
 }
+
+/// #1579: a query scoped by an `inject_params` column that is a native column of its view,
+/// whose type publishes the key, reads the column at the root and the document key wherever
+/// the document is embedded. A view whose column and key disagree fails the compile, naming
+/// both; one that builds the key from the column compiles.
+#[tokio::test]
+async fn a_native_inject_column_must_agree_with_the_key_it_publishes() {
+    let Some(client) = client().await else { return };
+    let url = fraiseql_test_support::try_database_url().unwrap();
+    client
+        .batch_execute(
+            "DROP VIEW IF EXISTS v_cdf1579_agree; DROP VIEW IF EXISTS v_cdf1579_disagree;
+             CREATE VIEW v_cdf1579_agree AS SELECT t.id, t.tenant_id, jsonb_build_object('id', \
+             t.id, 'tenant_id', t.tenant_id) AS data FROM (VALUES (1, \
+             '00000000-0000-0000-0000-00000000000a'::uuid)) t(id, tenant_id);
+             CREATE VIEW v_cdf1579_disagree AS SELECT t.id, t.tenant_id, \
+             jsonb_build_object('id', t.id, 'tenant_id', '00000000-0000-0000-0000-00000000000b') \
+             AS data FROM (VALUES (1, '00000000-0000-0000-0000-00000000000a'::uuid)) \
+             t(id, tenant_id);",
+        )
+        .await
+        .unwrap();
+    let schema = |view: &str| {
+        write_json(&json!({
+            "types": [{
+                "name": "Customer",
+                "sql_source": view,
+                "fields": [
+                    {"name": "id", "type": "Int", "nullable": false},
+                    {"name": "tenant_id", "type": "UUID", "nullable": false}
+                ]
+            }],
+            "queries": [{
+                "name": "customers",
+                "return_type": "Customer",
+                "returns_list": true,
+                "sql_source": view,
+                "inject_params": {"tenant_id": "jwt:tenant_id"}
+            }]
+        }))
+    };
+
+    let out_dir = TempDir::new().unwrap();
+    let out = out_dir.path().join("schema.compiled.json");
+    let disagreeing = schema("v_cdf1579_disagree");
+    let (ok, log) = run_compile(disagreeing.path(), &url, &out, &[]);
+    assert!(!ok, "a column and a key holding different values must fail the compile:\n{log}");
+    assert!(
+        log.contains("query `customers`: is scoped by `tenant_id`")
+            && log.contains("1 of 1 sampled `v_cdf1579_disagree` rows"),
+        "the failure names the query, the column and the rows:\n{log}"
+    );
+    assert!(!out.exists(), "a failed compile must not write the artifact");
+
+    let agreeing = schema("v_cdf1579_agree");
+    let (ok, log) = run_compile(agreeing.path(), &url, &out, &[]);
+    assert!(ok, "a key built from the column compiles:\n{log}");
+    let compiled: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(&out).unwrap()).unwrap();
+    let query = &compiled["queries"][0];
+    assert!(
+        query["native_columns"].get("tenant_id").is_some(),
+        "the root read keeps the native column: {query}"
+    );
+}

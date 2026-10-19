@@ -264,6 +264,24 @@ pub enum DatabaseWarning {
         /// pass, since one without `indexes` drops them.
         options:    serde_json::Value,
     },
+    /// L3 (#1579): a query is scoped by an `inject_params` column that is a native column of
+    /// its relation, its type publishes the key as a field, and sampled rows hold a
+    /// different value in the column than in the document. The root read filters on the
+    /// column and an embedded document of the type on the key: they must agree.
+    NativeKeyDisagreement {
+        /// Name of the query.
+        query_name:  String,
+        /// The `sql_source` relation.
+        sql_source:  String,
+        /// The native column, and the document key of the same name.
+        column:      String,
+        /// The JSON column holding the document.
+        json_column: String,
+        /// Rows sampled.
+        sampled:     u64,
+        /// Rows whose column and key differ.
+        disagreeing: u64,
+    },
 }
 
 impl DatabaseWarning {
@@ -346,7 +364,8 @@ impl DatabaseWarning {
             | Self::MissingCursorColumn { .. }
             | Self::MissingPaginationColumn { .. }
             | Self::MissingIdentityColumn { .. }
-            | Self::TypeConvertibility { .. } => Severity::Error,
+            | Self::TypeConvertibility { .. }
+            | Self::NativeKeyDisagreement { .. } => Severity::Error,
             // Evidence of absence fails the compile; an empty relation proves nothing.
             Self::UnresolvableFilter { reason, .. } => match reason {
                 InjectMiss::NoJsonColumn | InjectMiss::NotInSampledRows { .. } => Severity::Error,
@@ -580,6 +599,24 @@ impl fmt::Display for DatabaseWarning {
                      every sort or filter on it casts each row's value and no index can serve it. \
                      {step} an argument named `{field}` so this compile maps it to the column \
                      (docs/performance.md, \"Use a Native Column\")."
+                )
+            },
+            Self::NativeKeyDisagreement {
+                query_name,
+                sql_source,
+                column,
+                json_column,
+                sampled,
+                disagreeing,
+            } => {
+                write!(
+                    f,
+                    "query `{query_name}`: is scoped by `{column}`, read from the native column \
+                     at the root and from the `{json_column}` key `{column}` wherever the \
+                     document is embedded, and {disagreeing} of {sampled} sampled \
+                     `{sql_source}` rows hold a different value in each — an embedded document \
+                     would be filtered on another value than its row. Build the key from the \
+                     column (`jsonb_build_object('{column}', {column}, …)`)."
                 )
             },
             Self::TviewIndexMissing {
@@ -913,6 +950,22 @@ pub async fn validate_schema_against_database(
                 &column_map,
                 &not_null,
             );
+            // L3 (#1579): an inject column the type publishes is read from the column at the
+            // root and from the document key wherever the document is embedded.
+            if !jsonb_col.is_empty()
+                && column_map.get(jsonb_col).is_some_and(|t| is_json_type(t, db_type))
+            {
+                check_native_keys_agree(
+                    schema,
+                    query,
+                    source,
+                    &query_native,
+                    introspector,
+                    &mut warnings,
+                )
+                .await?;
+            }
+
             // An inject key or argument with no column falls back to `data->>'key'` at
             // runtime. If the JSON does not carry it either, the predicate is false for every
             // row (#1382, #1394); if it does, the fallback is only slower.
@@ -1404,6 +1457,21 @@ impl DatabaseIntrospector for AnyIntrospector {
         }
     }
 
+    async fn column_key_disagreements(
+        &self,
+        relation: &str,
+        column: &str,
+        json_column: &str,
+        key: &str,
+        limit: usize,
+    ) -> fraiseql_core::Result<Option<(u64, u64)>> {
+        match self {
+            Self::Postgres(i) => {
+                i.column_key_disagreements(relation, column, json_column, key, limit).await
+            },
+        }
+    }
+
     async fn function_exists(
         &self,
         schema: Option<&str>,
@@ -1556,6 +1624,56 @@ async fn check_filters_resolvable(
     }
     Ok(())
 }
+
+/// Report every `inject_params` column of `query` that is a native column of `source`, is a
+/// key its type publishes, and holds another value than the document's key in a sampled row
+/// (#1579). The nested row gates read such a key off an embedded document; the root read
+/// reads the column.
+async fn check_native_keys_agree(
+    schema: &fraiseql_core::schema::CompiledSchema,
+    query: &fraiseql_core::schema::QueryDefinition,
+    source: &str,
+    query_native: &HashMap<String, fraiseql_core::schema::NativeColumn>,
+    introspector: &impl DatabaseIntrospector,
+    warnings: &mut Vec<DatabaseWarning>,
+) -> fraiseql_core::Result<()> {
+    let Some(declared) = schema.find_type(&query.return_type) else {
+        return Ok(());
+    };
+    for column in query.inject_params.keys().filter(|c| query_native.contains_key(*c)) {
+        let key = fraiseql_core::utils::to_snake_case(column);
+        let published = declared
+            .fields
+            .iter()
+            .any(|f| fraiseql_core::utils::to_snake_case(f.name.as_str()) == key);
+        if !published {
+            continue;
+        }
+        let compared = introspector
+            .column_key_disagreements(
+                source,
+                column,
+                &query.jsonb_column,
+                &key,
+                AGREEMENT_SAMPLE_ROWS,
+            )
+            .await?;
+        if let Some((sampled, disagreeing)) = compared.filter(|(_, d)| *d > 0) {
+            warnings.push(DatabaseWarning::NativeKeyDisagreement {
+                query_name: query.name.clone(),
+                sql_source: source.to_string(),
+                column: column.clone(),
+                json_column: query.jsonb_column.clone(),
+                sampled,
+                disagreeing,
+            });
+        }
+    }
+    Ok(())
+}
+
+/// Rows sampled to check a native column against its document key (#1579).
+const AGREEMENT_SAMPLE_ROWS: usize = 1000;
 
 /// Rows sampled to decide whether a filter key lives in the JSON column.
 const INJECT_SAMPLE_ROWS: usize = 20;

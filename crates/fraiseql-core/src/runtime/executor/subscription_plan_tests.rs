@@ -842,3 +842,56 @@ fn a_masked_localized_fields_translations_are_empty_without_its_scope() {
         json!([{"value": "Hi"}, {"value": "Salut"}])
     );
 }
+
+// ── #1579: a native `inject_params` column read off the after-image ──
+
+/// `schema()` with a list read of `Order` scoped by `column`, a native column of its view,
+/// from the token's `tenant_id`; `Order` publishes `tenant_id`.
+fn native_scope_executor(column: &str) -> Executor {
+    let mut schema = schema();
+    let order = schema.types.iter_mut().find(|t| t.name == "Order").unwrap();
+    order.fields.push(FieldDefinition::nullable("tenant_id", FieldType::String));
+    let mut orders = crate::schema::QueryDefinition::new("orders", "Order")
+        .returning_list()
+        .with_sql_source("v_order");
+    orders.inject_params.insert(
+        column.to_string(),
+        crate::schema::InjectedParamSource::Jwt("tenant_id".to_string()),
+    );
+    orders
+        .native_columns
+        .insert(column.to_string(), crate::schema::NativeColumn::nullable("text"));
+    schema.queries.push(orders);
+    schema.build_indexes();
+    executor(schema, RuntimeConfig::default())
+}
+
+// The column the type publishes is read as its document key: another tenant's after-image
+// is suppressed, the subscriber's own delivered.
+#[test]
+fn a_native_scope_the_type_publishes_is_read_off_the_after_image() {
+    let exec = native_scope_executor("tenant_id");
+    let planned = plan(
+        &exec,
+        "subscription { orderCreated { id } }",
+        &json!({}),
+        Some(&tenant_principal()),
+    )
+    .unwrap();
+    assert_eq!(planned.deliver(&json!({"id": "o2", "tenant_id": "t2"})), None);
+    let own = json!({"id": "o1", "tenant_id": "t1"});
+    assert_eq!(planned.deliver(&own).map(|s| s.data), Some(json!({"id": "o1"})));
+}
+
+// A column the type does not publish is in no after-image: refused (fail closed).
+#[test]
+fn a_native_scope_the_type_does_not_publish_refuses_the_plan() {
+    let exec = native_scope_executor("region");
+    let planned = plan(
+        &exec,
+        "subscription { orderCreated { id } }",
+        &json!({}),
+        Some(&tenant_principal()),
+    );
+    assert!(matches!(planned, Err(FraiseQLError::Authorization { .. })), "{planned:?}");
+}

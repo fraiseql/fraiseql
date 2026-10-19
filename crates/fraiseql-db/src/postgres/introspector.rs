@@ -336,6 +336,38 @@ impl DatabaseIntrospector for PostgresIntrospector {
             .collect()
     }
 
+    async fn column_key_disagreements(
+        &self,
+        relation: &str,
+        column: &str,
+        json_column: &str,
+        key: &str,
+        limit: usize,
+    ) -> Result<Option<(u64, u64)>> {
+        let client = self.pool.get().await.map_err(|e| FraiseQLError::ConnectionPool {
+            message: format!("Failed to acquire connection: {e}"),
+        })?;
+        let quote = |ident: &str| format!("\"{}\"", ident.replace('"', "\"\""));
+        let table = relation.split('.').map(quote).collect::<Vec<_>>().join(".");
+        let (column, json_column) = (quote(column), quote(json_column));
+        let query = format!(
+            "SELECT count(*), count(*) FILTER (WHERE ({json_column} -> $1::text)::jsonb IS \
+             DISTINCT FROM to_jsonb({column})) FROM (SELECT {json_column}, {column} FROM {table} \
+             LIMIT {limit}) sampled"
+        );
+        let row = client.query_one(&query, &[&key]).await.map_err(|e| {
+            crate::postgres::database_error(
+                format!(
+                    "Failed to compare a native column with its document key: {}",
+                    pg_detail(&e)
+                ),
+                &e,
+            )
+        })?;
+        let count = |i: usize| u64::try_from(row.get::<_, i64>(i)).unwrap_or_default();
+        Ok(Some((count(0), count(1))))
+    }
+
     async fn function_exists(&self, schema: Option<&str>, name: &str) -> Result<Option<bool>> {
         let client = self.pool.get().await.map_err(|e| FraiseQLError::ConnectionPool {
             message: format!("Failed to acquire connection: {e}"),

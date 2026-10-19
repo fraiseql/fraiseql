@@ -2002,6 +2002,10 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		// are their controls (the same reads at the root, which are gated) and the one
 		// case the view composition already covers. Creates and drops its own schema.
 		"cargo test -p fraiseql-server --test graphql_nested_type_gates_e2e_pg -- --test-threads=1",
+		// #1579: a type scoped by a native `inject_params` column it publishes is embedded
+		// (a read, a write's result, a relation filter) and filtered on its document key;
+		// one that does not publish it is still refused. Creates and drops its own schema.
+		"cargo test -p fraiseql-server --test nested_inject_document_key_e2e_pg -- --test-threads=1",
 		// #1271: a declared field name and the stored JSONB key it reads are two
 		// different strings. The REST runner reads the whole `data` document and
 		// projects in Rust, and that projector took the declared name verbatim
