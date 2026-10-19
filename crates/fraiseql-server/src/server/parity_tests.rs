@@ -283,6 +283,31 @@ async fn with_flight_service_carries_the_full_compiled_config() {
     assert_carries_full_config(&server, "Server::with_flight_service").await;
 }
 
+// ── #1621: an arrow build serves relay queries ───────────────────────────────
+//
+// Every `arrow` build boots through `with_flight_service`, never through
+// `with_relay_pagination`. That constructor built a relay-less executor, so each
+// relay query on an arrow build answered "Relay pagination is not supported" while
+// the same schema worked on a build without `arrow`.
+
+#[cfg(feature = "arrow")]
+#[tokio::test]
+async fn with_flight_service_builds_a_relay_capable_executor() {
+    let server = Server::with_flight_service(
+        fully_configured_server_config(),
+        fully_configured_schema(),
+        Arc::new(NoopRelayAdapter),
+        None,
+        None,
+    )
+    .await
+    .expect("with_flight_service must boot the fixture schema");
+    assert!(
+        server.executor.relay_enabled(),
+        "the arrow boot path must answer relay queries as the non-arrow binary does"
+    );
+}
+
 // ── #783: the Flight service must receive the OIDC validator ─────────────────
 //
 // `create_flight_service` builds the service with `oidc_validator: None` and
