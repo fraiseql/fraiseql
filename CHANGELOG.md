@@ -1027,8 +1027,12 @@ disagreed, and the promise was the part that was wrong.
   second spelling that `snake_case`d to it is refused); a query whose type has no sortable key
   publishes no `orderBy` and refuses one; a query whose native columns differ from its
   siblings' gets `{Query}OrderByInput` in place of the entity's. A compiled schema in which a
-  declaration takes a derived sort-key enum's name is refused at load. Typed clients
-  regenerate; documents writing `field: "name"` as a string keep executing.
+  declaration takes a derived sort-key enum's name is refused at load. **Upgrade: write an
+  inline `field:` unquoted**, as GraphQL writes every enum value:
+  `orderBy: [{field: name, direction: ASC}]`, not `field: "name"`. FraiseQL itself still
+  executes the quoted form, but every tool that validates a document against the published
+  schema (typed clients, GraphiQL, a federation gateway) now refuses it. A variable carries
+  the key as a JSON string, as before. Typed clients regenerate.
 - **A server configuration's `[validation] max_page_size` or `max_offset` is refused at boot
   (#1306).** Both ceilings belong to the compiled schema and their environment overrides
   (`FRAISEQL_MAX_PAGE_SIZE`, `FRAISEQL_MAX_OFFSET`), which every hot reload re-derives. A

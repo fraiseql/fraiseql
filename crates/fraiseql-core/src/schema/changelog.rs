@@ -15,7 +15,7 @@
 //! ```graphql
 //! entity_change_logs(
 //!   where:   { pk_entity_change_log: { gt: $cursor }, object_type: { eq: "User" } }
-//!   orderBy: [{ field: "pk_entity_change_log", direction: ASC }]
+//!   orderBy: [{ field: pk_entity_change_log, direction: ASC }]
 //!   limit:   100
 //! ) { pk_entity_change_log object_type object_data created_at }
 //! ```
@@ -145,7 +145,7 @@ fn entity_change_logs_query(cfg: &ChangelogConfig, nc: NamingConvention) -> Quer
     q.description = Some(format!(
         "Cursor-paginate the observer change-log. Poll with \
          `where: {{ {cursor}: {{ gt: $cursor }} }}`, \
-         `orderBy: [{{ field: \"{cursor}\", direction: ASC }}]`, and a \
+         `orderBy: [{{ field: {cursor}, direction: ASC }}]`, and a \
          `limit` (server max {}). Optional equality filters: {}, {}.",
         cfg.max_limit,
         cased("object_type", nc),
