@@ -61,7 +61,7 @@ jobs:
             dockerfile: Dockerfile
             build-context: .
             image-suffix: "server-platform"
-            build-args: "CARGO_FEATURES=rest,arrow,functions-runtime-deno,sources,mcp,inbound,inbound-email,metrics,observers,federation"
+            build-args: "CARGO_FEATURES=rest,arrow,cdc-outbound,functions-runtime-deno,sources,mcp,inbound,inbound-email,metrics,observers,federation"
             optional: true
 
           - name: tutorial
@@ -147,7 +147,7 @@ jobs:
             build-context: .
             image-suffix: "server-platform"
             docker-hub-image: fraiseql/server-platform
-            build-args: "CARGO_FEATURES=rest,arrow,functions-runtime-deno,sources,mcp,inbound,inbound-email,metrics,observers,federation"
+            build-args: "CARGO_FEATURES=rest,arrow,cdc-outbound,functions-runtime-deno,sources,mcp,inbound,inbound-email,metrics,observers,federation"
 
           - name: tutorial
             dockerfile: tutorial/Dockerfile

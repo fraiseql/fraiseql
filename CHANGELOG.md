@@ -16,6 +16,32 @@ disagreed, and the promise was the part that was wrong.
 
 ## [Unreleased]
 
+### Breaking
+
+- **`Server::with_flight_service` requires a `RelayDatabaseAdapter` (#1621).** It now
+  builds the same relay-capable executor as `Server::with_relay_pagination`. An embedder
+  calling it with an adapter that does not implement relay pagination implements the
+  trait or uses `Server::new`. `PostgresAdapter` already implements it.
+
+### Fixed
+
+- **The `-full` release binaries ship the REST and Arrow Flight transports, outbound CDC
+  and the server half of federation (#1621).** The `fraiseql` crate's `release-full`
+  bundle and the `-full` tarball's `fraiseql-server` were built without `rest`, `arrow` or
+  `cdc-outbound`, and the crate's `federation` and `arrow` features never enabled the
+  matching `fraiseql-server` features, so `fraiseql run` compiled out the server's
+  federation routes. The crate gains `rest` and `cdc-outbound` pass-throughs, and the
+  tarball, the `fraiseql-server-platform` image and the release smoke build one feature
+  list. `tools/check-artifact-features.py` (preflight and ShellGates) holds every one of
+  those recipes to the list in `docs/releases.md`, and the release smoke now requires the
+  REST OpenAPI document and a federation `_service` answer from the binary it boots.
+
+- **An `arrow` build serves relay queries (#1621).** Every `arrow` build boots through
+  `Server::with_flight_service`, which built an executor without relay pagination, so each
+  relay query answered "Relay pagination is not supported" on an `arrow` build and worked
+  on one without it. That already affected the `fraiseql-server-full` and
+  `fraiseql-server-platform` images.
+
 ## [2.17.0] - 2026-10-19
 
 ### Breaking

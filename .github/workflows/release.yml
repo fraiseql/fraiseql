@@ -350,8 +350,9 @@ jobs:
 
       # ── Feature-complete "-full" variant (phase 01, option a) ──────────────────
       # A SECOND artifact per native target — `fraiseql-full-<target>` — carrying the
-      # stable opt-in platform features (Deno functions, sources, observers, /mcp,
-      # inbound, metrics) via the umbrella `release-full` bundle. The lean default
+      # stable opt-in transports and platform features (REST, Arrow Flight,
+      # federation, outbound CDC, Deno functions, sources, observers, /mcp, inbound,
+      # metrics) via the umbrella `release-full` bundle. The lean default
       # artifact above is UNCHANGED. Adopters of the platform features download the
       # `-full` binary instead of rebuilding cli+server from source at the same
       # revision (the #507 jsonb_column same-revision contract makes mixing a stock
@@ -386,17 +387,18 @@ jobs:
       # dev quick-launcher that reads only [server]/[database] (#643); a real deployment
       # of auth/federation/observers/enrichment/tenancy/storage needs `fraiseql-server`,
       # which was previously reachable only by rebuilding from source. Built with the
-      # same stable platform surface `release-full` compiles into the umbrella (auth and
-      # cli are on by default in fraiseql-server). One archive now carries the compiler
+      # same server surface `release-full` compiles into the umbrella (auth and cli are
+      # on by default in fraiseql-server); tools/check-artifact-features.py holds both to
+      # the list in docs/releases.md (#1621). One archive now carries the compiler
       # CLI and the server at a single revision — the #507 same-revision contract made
       # physical.
       - name: Build fraiseql-server binary (cargo, -full)
         if: '!matrix.lean_only && !matrix.zig_target'
-        run: cargo build --release --target ${{ matrix.target }} --package fraiseql-server --features functions-runtime-deno,inbound-email,sources,mcp,metrics,observers,federation
+        run: cargo build --release --target ${{ matrix.target }} --package fraiseql-server --features rest,arrow,cdc-outbound,functions-runtime-deno,sources,mcp,inbound,inbound-email,metrics,observers,federation
 
       - name: Build fraiseql-server binary (zigbuild, glibc-floored, -full)
         if: matrix.zig_target && !matrix.lean_only
-        run: cargo zigbuild --release --target ${{ matrix.zig_target }} --package fraiseql-server --features functions-runtime-deno,inbound-email,sources,mcp,metrics,observers,federation
+        run: cargo zigbuild --release --target ${{ matrix.zig_target }} --package fraiseql-server --features rest,arrow,cdc-outbound,functions-runtime-deno,sources,mcp,inbound,inbound-email,metrics,observers,federation
 
       - name: Strip full binaries (Linux/macOS native)
         if: matrix.os != 'windows-latest' && !matrix.lean_only

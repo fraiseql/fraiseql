@@ -208,9 +208,11 @@ jobs:
         run: kill "$(cat /tmp/fraiseql-server.pid 2>/dev/null)" 2>/dev/null || true
 
       - name: Build fraiseql-server with the full platform feature surface mounted
-        # The shipped `-full` release variant (phase 01) compiles the whole stable
-        # platform surface: functions-runtime-deno + sources + inbound-email +
-        # observers + mcp + metrics. Boot the server binary with the SAME surface so
+        # The shipped `-full` release variant compiles the whole stable surface listed
+        # in docs/releases.md: the rest and arrow transports, federation, cdc-outbound,
+        # functions-runtime-deno, sources, inbound-email, observers, mcp and metrics.
+        # tools/check-artifact-features.py holds this list to release.yml's. Boot the
+        # server binary with the SAME surface so
         # a panic in any feature-gated startup path (V8/Deno + WASM registration,
         # after:mutation dispatch mounts, inbound source wiring, the /mcp nest, the
         # /metrics recorder) is caught here — the "compiles but panics on boot" guard,
@@ -218,7 +220,7 @@ jobs:
         # only nests when the compiled schema declares mcp config, so this fixture
         # (no mcp block) proves the feature compiles + does not panic at boot; the
         # functional /mcp + Deno-fires + source-ticks checks live in the Dagger suites.
-        run: cargo build --release -p fraiseql-server --features functions-runtime-deno,inbound-email,sources,mcp,metrics,observers
+        run: cargo build --release -p fraiseql-server --features rest,arrow,cdc-outbound,functions-runtime-deno,sources,mcp,inbound,inbound-email,metrics,observers,federation
 
       # Boot against a schema that declares a scheduled source (#573). With the
       # `sources` feature compiled in, this reaches the feature-gated source-scheduler
@@ -279,6 +281,38 @@ jobs:
           test "$code" = "200" \
             || { echo "::error::/api/roles with the admin token returned HTTP $code (expected 200) — the RBAC schema was not created at boot (#748)" >&2; exit 1; }
           echo "RBAC management API answered from real tables (401 unauth, 200 authed)."
+
+      # #1621: the -full artifacts shipped for releases without REST, and with the server
+      # half of federation compiled out of the umbrella. The fixture declares
+      # `rest_config` and `federation`, so this binary has to answer both. A build
+      # missing either feature refuses the schema at boot instead (#1326), which fails
+      # the /health wait above.
+      - name: Assert the REST transport and federation answer (#1621)
+        run: |
+          set -eu
+          code=$(curl -s -o /tmp/openapi.json -w '%{http_code}' http://127.0.0.1:8817/rest/v1/openapi.json)
+          test "$code" = "200" \
+            || { echo "::error::/rest/v1/openapi.json returned HTTP $code (expected 200) — REST is not in this build" >&2; exit 1; }
+          grep -q '"/users"' /tmp/openapi.json \
+            || { echo "::error::the served OpenAPI document has no /users path" >&2; cat /tmp/openapi.json >&2; exit 1; }
+          rows=$(curl -s http://127.0.0.1:8817/rest/v1/users)
+          for who in Alice Bob Charlie; do
+            echo "$rows" | grep -q "\"$who\"" \
+              || { echo "::error::GET /rest/v1/users is missing the seeded row $who: $rows" >&2; exit 1; }
+          done
+          status=$(curl -s -o /tmp/service.json -w '%{http_code}' \
+            -X POST http://127.0.0.1:8817/graphql \
+            -H 'Content-Type: application/json' \
+            -d '{"query":"{ _service { sdl } }"}')
+          echo "HTTP $status"; cat /tmp/service.json; echo
+          test "$status" = "200" \
+            || { echo "::error::{ _service { sdl } } returned HTTP $status (expected 200)" >&2; exit 1; }
+          grep -q '"sdl"[[:space:]]*:[[:space:]]*"[^"]' /tmp/service.json \
+            || { echo "::error::{ _service { sdl } } returned no SDL — federation is not in this build" >&2; exit 1; }
+          if grep -q '"errors"' /tmp/service.json; then
+            echo "::error::{ _service { sdl } } response contained errors" >&2; exit 1
+          fi
+          echo "REST (OpenAPI + 3 seeded rows) and federation (_service SDL) answered."
 
       - name: Stop server
         if: always()
@@ -384,7 +418,7 @@ jobs:
         run: |
           cargo zigbuild --release --target aarch64-unknown-linux-gnu.2.28 \
             --package fraiseql-server \
-            --features functions-runtime-deno,inbound-email,sources,mcp,metrics,observers,federation
+            --features rest,arrow,cdc-outbound,functions-runtime-deno,sources,mcp,inbound,inbound-email,metrics,observers,federation
 
       # The ceiling release.yml enforces, applied here so a floor regression surfaces
       # on dispatch rather than at tag time.
