@@ -1294,6 +1294,16 @@ mod cache_visibility {
     /// `GET /rest/v1/users` over a schema that lets shared caches keep public reads for
     /// ten minutes, as `auth` (when given) with `extra` request headers.
     async fn cache_control(auth: Option<&str>, extra: &[(&str, &str)]) -> String {
+        caching(|_| {}, auth, extra).await.0
+    }
+
+    /// [`cache_control`] over the schema as `adjust` leaves it: the response's
+    /// `Cache-Control` and `Vary`.
+    async fn caching(
+        adjust: impl FnOnce(&mut fraiseql_core::schema::CompiledSchema),
+        auth: Option<&str>,
+        extra: &[(&str, &str)],
+    ) -> (String, String) {
         let users = vec![JsonbValue::new(
             json!({"pk_user_id": 1, "name": "Alice", "email": "a@t.com"}),
         )];
@@ -1302,6 +1312,7 @@ mod cache_visibility {
         let rest = schema.rest_config.as_mut().unwrap();
         rest.default_cache_ttl = 60;
         rest.cdn_max_age = Some(600);
+        adjust(&mut schema);
         let router = build_router(adapter, schema);
 
         let mut builder = Request::builder().uri("/rest/v1/users");
@@ -1321,7 +1332,15 @@ mod cache_visibility {
         }
         let (status, headers, _) = send_request(&router, request).await;
         assert_eq!(status, StatusCode::OK, "the read is served");
-        headers.get("cache-control").unwrap().to_str().unwrap().to_string()
+        let header = |name: &str| {
+            headers.get(name).map_or_else(String::new, |v| v.to_str().unwrap().to_string())
+        };
+        (header("cache-control"), header("vary"))
+    }
+
+    /// Whether `vary` names `header`, case-insensitively.
+    fn varies_on(vary: &str, header: &str) -> bool {
+        vary.split(',').any(|name| name.trim().eq_ignore_ascii_case(header))
     }
 
     /// Control: an anonymous read is the same for every anonymous caller — public.
@@ -1353,5 +1372,94 @@ mod cache_visibility {
                 extra.0
             );
         }
+    }
+
+    /// **Reproduction (GHSA-8x5r-mxp4-3xfh).** An anonymous read addressed to a tenant
+    /// is that tenant's rows. Marked `public` and varying only on `Authorization`, a
+    /// shared cache stores it under its URL and serves it to the next tenant's caller.
+    #[tokio::test]
+    async fn an_anonymous_read_naming_a_tenant_is_private_and_varies_on_it() {
+        let (value, vary) = caching(|_| {}, None, &[("x-tenant-id", "t1")]).await;
+        assert!(value.starts_with("private") && !value.contains("s-maxage"), "{value}");
+        assert!(varies_on(&vary, "x-tenant-id"), "{vary}");
+    }
+
+    /// **Reproduction (GHSA-8x5r-mxp4-3xfh).** A header the schema reads a session
+    /// variable from selects what the database's row policies see: the answer is the
+    /// caller's, not the URL's.
+    #[tokio::test]
+    async fn an_anonymous_read_under_a_header_session_variable_is_private() {
+        let (value, vary) = caching(
+            |schema| {
+                schema.session_variables.variables.push(
+                    fraiseql_core::schema::SessionVariableMapping {
+                        name:   "app.org".to_string(),
+                        source: fraiseql_core::schema::SessionVariableSource::Header {
+                            header: "x-org".to_string(),
+                        },
+                    },
+                );
+            },
+            None,
+            &[("x-org", "acme")],
+        )
+        .await;
+        assert!(value.starts_with("private") && !value.contains("s-maxage"), "{value}");
+        assert!(varies_on(&vary, "x-org"), "{vary}");
+    }
+
+    /// **Reproduction (GHSA-8x5r-mxp4-3xfh).** A locale header changes the answer
+    /// without making it anyone's own: it may stay public, but a shared cache must key
+    /// on it.
+    #[tokio::test]
+    async fn an_anonymous_read_under_a_header_locale_varies_on_it() {
+        let (_, vary) = caching(
+            |schema| {
+                schema.locale = Some(
+                    serde_json::from_value(json!({
+                        "default": "en",
+                        "allowed": ["en", "fr"],
+                        "resolve": [{ "header": "accept-language" }],
+                    }))
+                    .unwrap(),
+                );
+            },
+            None,
+            &[("accept-language", "fr")],
+        )
+        .await;
+        assert!(varies_on(&vary, "accept-language"), "{vary}");
+    }
+
+    /// A credential header with no resolved principal (no auth layer is mounted here)
+    /// is still a credential, as on `/graphql`: a shared cache must neither store the
+    /// answer nor serve it to a caller sending a different one.
+    #[tokio::test]
+    async fn an_anonymous_read_carrying_a_credential_header_is_private() {
+        for extra in [
+            ("authorization", "Bearer t"),
+            ("cookie", "__Host-access_token=t"),
+            ("x-api-key", "k"),
+        ] {
+            let (value, vary) = caching(|_| {}, None, &[extra]).await;
+            assert!(value.starts_with("private"), "{}: {value}", extra.0);
+            assert!(varies_on(&vary, extra.0), "{}: {vary}", extra.0);
+        }
+    }
+
+    /// An export is a bulk read for one caller: whatever its rows, no cache keeps it.
+    #[tokio::test]
+    async fn an_export_is_never_stored() {
+        let (value, _) = caching(
+            |schema| {
+                for query in schema.queries.iter_mut().filter(|q| q.name == "users") {
+                    query.rest_stream = true;
+                }
+            },
+            None,
+            &[("accept", "application/x-ndjson")],
+        )
+        .await;
+        assert_eq!(value, "no-store");
     }
 }

@@ -21,6 +21,9 @@ pub mod auth;
 pub mod before_mutation;
 pub mod graphql;
 pub mod health;
+// `Cache-Control` and `Vary` for every transport that answers a cacheable `GET`: one
+// decision, so the transports cannot disagree about whose answer may be shared.
+pub(crate) mod http_cache;
 pub mod query_function;
 // Shared Idempotency-Key store: used by the REST write surface and by the
 // GraphQL mutation path (saga peers deduplicate at-least-once dispatch on the

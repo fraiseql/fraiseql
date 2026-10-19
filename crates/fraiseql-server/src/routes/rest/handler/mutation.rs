@@ -175,16 +175,12 @@ impl RestHandler<'_> {
             response_headers.insert("x-rows-affected", HeaderValue::from_static("1"));
         }
 
-        // Cache-Control: no-store for mutations
-        super::super::cache_control::apply_cache_headers(
+        // A write's answer is never stored.
+        crate::routes::http_cache::apply(
             &mut response_headers,
-            &super::super::cache_control::CacheContext {
-                is_get:        false,
-                authenticated: security_context.is_some(),
-                query_ttl:     None,
-                default_ttl:   self.config.default_cache_ttl,
-                cdn_max_age:   self.config.cdn_max_age,
-            },
+            crate::routes::http_cache::Caching::NoStore,
+            None,
+            &[],
         );
 
         let status =
@@ -290,16 +286,12 @@ impl RestHandler<'_> {
         let mut response_headers = HeaderMap::new();
         set_request_id(headers, &mut response_headers);
 
-        // Cache-Control: no-store for mutations
-        super::super::cache_control::apply_cache_headers(
+        // A write's answer is never stored.
+        crate::routes::http_cache::apply(
             &mut response_headers,
-            &super::super::cache_control::CacheContext {
-                is_get:        false,
-                authenticated: security_context.is_some(),
-                query_ttl:     None,
-                default_ttl:   self.config.default_cache_ttl,
-                cdn_max_age:   self.config.cdn_max_age,
-            },
+            crate::routes::http_cache::Caching::NoStore,
+            None,
+            &[],
         );
 
         Ok(RestResponse {
@@ -366,15 +358,11 @@ impl RestHandler<'_> {
                 let mut response_headers = HeaderMap::new();
                 set_request_id(headers, &mut response_headers);
 
-                super::super::cache_control::apply_cache_headers(
+                crate::routes::http_cache::apply(
                     &mut response_headers,
-                    &super::super::cache_control::CacheContext {
-                        is_get:        false,
-                        authenticated: security_context.is_some(),
-                        query_ttl:     None,
-                        default_ttl:   self.config.default_cache_ttl,
-                        cdn_max_age:   self.config.cdn_max_age,
-                    },
+                    crate::routes::http_cache::Caching::NoStore,
+                    None,
+                    &[],
                 );
 
                 Ok(RestResponse {
@@ -450,15 +438,11 @@ impl RestHandler<'_> {
                 let mut response_headers = HeaderMap::new();
                 set_request_id(headers, &mut response_headers);
 
-                super::super::cache_control::apply_cache_headers(
+                crate::routes::http_cache::apply(
                     &mut response_headers,
-                    &super::super::cache_control::CacheContext {
-                        is_get:        false,
-                        authenticated: security_context.is_some(),
-                        query_ttl:     None,
-                        default_ttl:   self.config.default_cache_ttl,
-                        cdn_max_age:   self.config.cdn_max_age,
-                    },
+                    crate::routes::http_cache::Caching::NoStore,
+                    None,
+                    &[],
                 );
 
                 let want_entity = if prefer.return_representation {

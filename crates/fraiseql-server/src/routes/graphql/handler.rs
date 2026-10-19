@@ -21,6 +21,7 @@ use super::{
 use crate::{
     error::{ErrorResponse, GraphQLError},
     extractors::{OptionalSecurityContext, PeerIp},
+    routes::http_cache,
     tracing_utils,
 };
 
@@ -389,7 +390,7 @@ fn with_caching(
         Ok(http) => http,
         Err(error) => axum::response::IntoResponse::into_response(error),
     };
-    http_cache::apply(http.headers_mut(), http_cache::Caching::NoStore, None);
+    http_cache::apply(http.headers_mut(), http_cache::Caching::NoStore, None, &[]);
     http
 }
 
@@ -622,7 +623,7 @@ async fn execute_graphql_request(
             crate::routes::idempotency::IdempotencyCheck::Replay(stored) => {
                 debug!("Replaying stored response for repeated Idempotency-Key mutation");
                 let mut headers = HeaderMap::new();
-                http_cache::apply(&mut headers, http_cache::Caching::NoStore, None);
+                http_cache::apply(&mut headers, http_cache::Caching::NoStore, None, &[]);
                 return Ok(Answer {
                     response: GraphQLResponse {
                         body: stored.body.unwrap_or(serde_json::Value::Null),
@@ -844,6 +845,7 @@ async fn execute_graphql_request(
                 ttl: executor.response_cache_ttl(&query, operation_name),
                 principal,
                 tenant: tenant_key.is_some(),
+                s_maxage: None,
             },
             headers,
             executor.schema(),
@@ -852,7 +854,7 @@ async fn execute_graphql_request(
         http_cache::Caching::NoStore
     };
     let mut cache_headers = HeaderMap::new();
-    http_cache::apply(&mut cache_headers, caching, Some(executor.schema()));
+    http_cache::apply(&mut cache_headers, caching, Some(executor.schema()), &[]);
 
     Ok(Answer {
         response: GraphQLResponse {
@@ -891,7 +893,6 @@ pub(super) fn tenant_dispatch_error(error: &FraiseQLError) -> GraphQLError {
     }
 }
 
-mod http_cache;
 mod incremental;
 mod sse;
 mod stages;

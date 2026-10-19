@@ -143,6 +143,15 @@ document.
 `Cookie`, `X-API-Key`, `X-Tenant-ID`, and every header the schema reads a locale or a
 session variable from.
 
+A REST `GET` is decided by the same table, with three differences:
+
+- A query with no `cache_ttl_seconds` takes `[rest] default_cache_ttl` (`0` by default,
+  which stores nothing).
+- A `public` answer also carries `s-maxage=<cdn_max_age>` when `[rest] cdn_max_age` is set.
+- `Vary` also lists `Accept` and `Prefer`, which select the representation.
+
+Every REST write, and every export (CSV, NDJSON, XLSX), is `no-store`.
+
 Two differences from the server's result cache:
 
 - **A mutation does not reach an HTTP cache.** The server evicts its own entries when a
