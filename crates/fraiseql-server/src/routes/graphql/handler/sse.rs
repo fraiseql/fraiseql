@@ -44,7 +44,7 @@ use tracing::{debug, warn};
 
 use super::{
     super::{app_state::AppState, request::GraphQLRequest, tenant_dispatch},
-    execute_graphql_request,
+    execute_admitted,
     incremental::{self, Chunk, Wire},
     stages,
 };
@@ -78,12 +78,11 @@ pub(in super::super) async fn handle_sse(
     mut request: GraphQLRequest,
     method: super::Method,
 ) -> Result<Response, ErrorResponse> {
-    // Resolve who is asking and what they are asking, through the same stages
-    // the buffered pipeline starts with (APQ / trusted-document resolution must
-    // happen before the document can be inspected for @stream).
-    let security_context =
-        Box::pin(stages::authenticate(&state, &headers, security_context)).await?;
-    let query = Box::pin(stages::resolve_query_body(&state, &mut request, method)).await?;
+    // Who is asking and what they are asking, through the buffered pipeline's own
+    // admission (APQ / trusted-document resolution must happen before the document can
+    // be inspected for @stream).
+    let admitted =
+        Box::pin(stages::admit(&state, &headers, security_context, &mut request, method)).await?;
 
     // § 6.1 — the streaming surface must plan the same operation the buffered
     // one would execute. Planning the document's first operation while the
@@ -91,10 +90,11 @@ pub(in super::super) async fn handle_sse(
     // request.
     let operation_name = request.operation_name.clone();
     let op = operation_name.as_deref();
-    let plan = plan_stream(&state, &query, request.variables.as_ref(), op)?;
+    let plan = plan_stream(&state, &admitted.query, request.variables.as_ref(), op)?;
     let max_depth = state.executor.load().max_query_depth();
-    let defer_plan = plan_defer(&query, request.variables.as_ref(), op, max_depth);
-    let nested_stream_plan = plan_nested_stream(&query, request.variables.as_ref(), op, max_depth);
+    let defer_plan = plan_defer(&admitted.query, request.variables.as_ref(), op, max_depth);
+    let nested_stream_plan =
+        plan_nested_stream(&admitted.query, request.variables.as_ref(), op, max_depth);
 
     if plan.is_some() && defer_plan.is_some() {
         return Err(ErrorResponse::from_error(GraphQLError::new(
@@ -123,22 +123,15 @@ pub(in super::super) async fn handle_sse(
     }
 
     let Some(plan) = plan else {
-        // Single-result mode: the whole buffered pipeline runs once (it
-        // re-validates the already-resolved principal, which is idempotent),
-        // and the response becomes one `next` event plus `complete`.
+        // Single-result mode: the rest of the buffered pipeline runs once, on the
+        // request admitted above, and the response becomes one `next` event plus
+        // `complete`.
         let variables = request.variables.clone();
         let batch_size = state.graphql_incremental_batch_size.max(1) as usize;
-        let response = Box::pin(execute_graphql_request(
-            state,
-            request,
-            method,
-            None,
-            security_context,
-            &headers,
-            &peer_ip,
-        ))
-        .await?
-        .response;
+        let response =
+            Box::pin(execute_admitted(state, request, method, admitted, &headers, &peer_ip))
+                .await?
+                .response;
         let chunks = match (defer_plan, nested_stream_plan) {
             (Some(selections), _) => {
                 deferred_chunks(response.body, &selections, variables.as_ref())
@@ -155,21 +148,21 @@ pub(in super::super) async fn handle_sse(
     };
 
     // ── @stream mode: one-time gates, then batched delivery ─────────────────
-    // Mirrors the one-time prefix of `execute_graphql_request`; per-request
-    // stages that only apply to mutations (idempotency, before-mutation hooks)
-    // are structurally inapplicable — @stream is queries-only by construction.
+    // The stages after admission that a query runs; those that only apply to
+    // mutations (idempotency, before-mutation hooks) are structurally inapplicable:
+    // @stream is queries-only by construction.
+    let stages::Admitted {
+        security_context,
+        query,
+    } = admitted;
     stages::enforce_introspection_policy(&state, &query, security_context.as_ref())?;
     stages::validate_request(&state, &query, &request, &peer_ip)?;
 
+    // Refused as the buffered pipeline refuses: a header naming a tenant the token is not
+    // bound to is FORBIDDEN, a malformed one a validation error.
     let tenant_key =
-        tenant_dispatch::resolve_tenant_key(&state, security_context.as_ref(), &headers).map_err(
-            |e| {
-                ErrorResponse::from_error(GraphQLError::new(
-                    e.to_string(),
-                    crate::error::ErrorCode::ValidationError,
-                ))
-            },
-        )?;
+        tenant_dispatch::resolve_tenant_key(&state, security_context.as_ref(), &headers)
+            .map_err(|e| ErrorResponse::from_error(GraphQLError::from_fraiseql_error(&e)))?;
 
     state.metrics.queries_total.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
 

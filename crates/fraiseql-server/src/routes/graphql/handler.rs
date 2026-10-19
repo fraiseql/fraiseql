@@ -541,8 +541,6 @@ async fn execute_graphql_request(
     headers: &HeaderMap,
     peer_ip: &str,
 ) -> Result<Answer, ErrorResponse> {
-    // ── Who is asking ────────────────────────────────────────────────────────
-    //
     // Every `await` on a stage is `Box::pin`ned. An awaited `async fn` embeds its
     // whole state machine in the caller's future, so the nine stages compose into
     // a type deep enough that rustc 1.97 refuses to compute the handler's layout
@@ -550,14 +548,28 @@ async fn execute_graphql_request(
     // small enough for `clippy::large_futures`, which this crate has tripped
     // repeatedly on `Server`-shaped futures. The cost is one allocation per stage
     // per request, against a database round-trip.
-    let mut security_context =
-        Box::pin(stages::authenticate(&state, headers, security_context)).await?;
-    security_context = stages::stamp_trace_context(headers, security_context);
-    #[cfg(feature = "auth")]
-    Box::pin(stages::enrich_identity(&state, &mut security_context)).await?;
+    let admitted =
+        Box::pin(stages::admit(&state, headers, security_context, &mut request, method)).await?;
+    Box::pin(execute_admitted(state, request, method, admitted, headers, peer_ip)).await
+}
 
-    // ── What they are asking ─────────────────────────────────────────────────
-    let query = Box::pin(stages::resolve_query_body(&state, &mut request, method)).await?;
+/// The buffered pipeline after [`stages::admit`].
+///
+/// The SSE handler's single-result mode enters here with the request it has already
+/// admitted, so no admission stage runs twice: identity enrichment can run a
+/// provisioning statement.
+async fn execute_admitted(
+    state: AppState,
+    request: GraphQLRequest,
+    method: Method,
+    admitted: stages::Admitted,
+    headers: &HeaderMap,
+    peer_ip: &str,
+) -> Result<Answer, ErrorResponse> {
+    let stages::Admitted {
+        security_context,
+        query,
+    } = admitted;
 
     let start_time = Instant::now();
     let metrics = &state.metrics;

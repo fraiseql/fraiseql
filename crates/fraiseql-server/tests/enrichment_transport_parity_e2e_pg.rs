@@ -175,6 +175,8 @@ fn server_config() -> ServerConfig {
         }),
         // #874: production validate() refuses cors_enabled = true with no origins.
         cors_enabled: false,
+        // GHSA-h22c-5xf9-g5vw: the `@stream` cases below reach the SSE handler.
+        enable_graphql_incremental: true,
         ..ServerConfig::default()
     };
     config.identity = serde_json::from_value(json!({
@@ -290,6 +292,11 @@ async fn graphql_post(base: &str, query: &str, token: &str) -> Answer {
 
 /// Stand the fixture and a real `Server::serve_on_listener` mount up.
 async fn start() -> Option<(String, tokio::sync::oneshot::Sender<()>)> {
+    start_with(build_schema()).await
+}
+
+/// [`start`], serving `schema`.
+async fn start_with(schema: CompiledSchema) -> Option<(String, tokio::sync::oneshot::Sender<()>)> {
     let url = try_database_url()?;
     let adapter = Arc::new(PostgresAdapter::new(&url).await.expect("connect to the test database"));
     seed(&adapter).await;
@@ -309,7 +316,7 @@ async fn start() -> Option<(String, tokio::sync::oneshot::Sender<()>)> {
 
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.expect("bind");
     let port = listener.local_addr().expect("local addr").port();
-    let server = Box::pin(Server::new(config, build_schema(), adapter, Some(pool)))
+    let server = Box::pin(Server::new(config, schema, adapter, Some(pool)))
         .await
         .expect("Server::new with [auth_hs256] and [identity.enrichment]");
 
@@ -379,6 +386,91 @@ async fn graphql_serves_the_resolved_subject_its_own_rows() {
          other count means the predicate did not come from the resolve. Body: {}",
         answer.body
     );
+
+    let _ = shutdown.send(());
+}
+
+// ---------------------------------------------------------------------------
+// GHSA-h22c-5xf9-g5vw: a root `@stream` is the same request as `/graphql`
+// ---------------------------------------------------------------------------
+
+/// `POST /graphql` negotiated to `text/event-stream`: the status, and the whole event
+/// stream as text.
+async fn graphql_stream(base: &str, query: &str, token: &str) -> (u16, String) {
+    let response = reqwest::Client::new()
+        .post(format!("{base}/graphql"))
+        .header("authorization", format!("Bearer {token}"))
+        .header("accept", "text/event-stream")
+        .json(&json!({ "query": query }))
+        .send()
+        .await
+        .expect("GraphQL POST negotiated to SSE");
+    let status = response.status().as_u16();
+    (status, response.text().await.expect("event stream"))
+}
+
+/// [`build_schema`] with no enriched-identity consumer: `[identity.enrichment]` is the
+/// deployment's admission gate (the actor must exist) and nothing reads what it resolves.
+/// The engine's #1336 backstop fires only when the schema declares a consumer, so this
+/// is the deployment shape where the transport's own enrichment is the only gate.
+fn build_schema_without_consumer() -> CompiledSchema {
+    let mut schema = build_schema();
+    for query in &mut schema.queries {
+        query.inject_params.clear();
+    }
+    schema.build_indexes();
+    schema
+}
+
+/// **Reproduction (GHSA-h22c-5xf9-g5vw).** The SSE handler ran its own copy of the
+/// admission prefix, without identity enrichment, so a root `@stream` served a subject
+/// `/graphql` refuses (the control above) wherever enrichment is the admission gate.
+#[tokio::test]
+async fn graphql_stream_refuses_a_subject_the_actor_table_does_not_know() {
+    let Some((base, shutdown)) = start_with(build_schema_without_consumer()).await else {
+        eprintln!("skipping GHSA-h22c stream parity: DATABASE_URL not set");
+        return;
+    };
+
+    let (status, body) = graphql_stream(
+        &base,
+        "{ audits @stream(initialCount: 1) { id } }",
+        &token_for(UNKNOWN_SUB),
+    )
+    .await;
+
+    assert_eq!(status, 403, "refused before any event, as /graphql refuses. Body: {body}");
+    assert!(!body.contains("\"audits\""), "no row is delivered. Body: {body}");
+
+    let _ = shutdown.send(());
+}
+
+/// **Reproduction (GHSA-h22c-5xf9-g5vw), availability half.** Where the schema reads the
+/// enriched identity, the engine's backstop refused the unresolved principal the SSE
+/// handler dispatched: every authenticated root `@stream` answered 403. Resolved at
+/// admission, a known subject streams its own tenant's rows, which the token alone
+/// cannot select.
+#[tokio::test]
+async fn graphql_stream_serves_the_resolved_subject_its_own_rows() {
+    let Some((base, shutdown)) = start().await else {
+        eprintln!("skipping GHSA-h22c stream parity: DATABASE_URL not set");
+        return;
+    };
+
+    let (status, body) = graphql_stream(
+        &base,
+        "{ orders @stream(initialCount: 1) { id tenant_id } }",
+        &token_for(KNOWN_SUB),
+    )
+    .await;
+
+    assert_eq!(status, 200, "Body: {body}");
+    assert_eq!(
+        body.matches(KNOWN_ORG).count(),
+        ROWS_A,
+        "every row of {KNOWN_ORG}, streamed. Body: {body}"
+    );
+    assert!(!body.contains("tenant-b"), "no other tenant's row. Body: {body}");
 
     let _ = shutdown.send(());
 }
