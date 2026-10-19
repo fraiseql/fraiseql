@@ -51,8 +51,11 @@ fn unrequested_keys_are_dropped_and_keys_follow_the_selection_order() {
 }
 
 #[test]
-fn a_missing_field_stays_absent() {
-    assert_owned_equals_borrowed(&simple(&["id", "missing"]), &[json!({"id": "1"})], true);
+fn a_missing_field_completes_to_null_in_its_place() {
+    let projector = simple(&["missing", "id"]);
+    assert_owned_equals_borrowed(&projector, &[json!({"id": "1"})], true);
+    let projected = projector.project_results(&rows(&[json!({"id": "1"})]), true).unwrap();
+    assert_eq!(serde_json::to_string(&projected).unwrap(), r#"[{"missing":null,"id":"1"}]"#);
 }
 
 #[test]

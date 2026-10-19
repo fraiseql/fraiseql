@@ -475,6 +475,19 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **Every field a client selects is in the response, in the order it was selected, `null`
+  where the server has no value for it (#1618).** A constraint violation served as a
+  declared `@fraiseql.error` type (#1424) left out each selected field the server does not
+  fill, such as `metadata`, and put `status` last whatever its place in the selection; a
+  failure the function returned without those keys did the same. Both projectors skipped a
+  selected key the document did not carry: the one every mutation payload, abstract read,
+  relay node and federation entity goes through, and the read path's, so a REST
+  `?select=email,id` left `email` out of a row whose document had none while `/graphql`
+  answered `"email": null`. Both now complete such a field to `null` in its place (GraphQL
+  § 6.3), on `/graphql`, MCP and REST alike; `status` takes its place in the selection. An
+  error type's `status` the selection does not name is still served, after the selected
+  fields, as the generated clients expect.
+
 - **`_service { sdl }` declares a count sibling as `Int!` and a relay query as its
   connection (#1616).** 2.16.0 rendered every root query from its return type
   (`ordersCount(…): Order!`), so a federation gateway composing from the SDL refused

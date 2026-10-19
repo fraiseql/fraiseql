@@ -451,13 +451,10 @@ impl ProjectionMapper {
         }
         let mut source = source;
         for (index, field) in fields.iter().enumerate() {
-            let (key, value) = match &mut source {
+            let found = match &mut source {
                 Cow::Borrowed(map) => {
                     let map: &Map<String, JsonValue> = map;
-                    match field.lookup_in(map) {
-                        Some(value) => (None, Cow::Borrowed(value)),
-                        None => continue,
-                    }
+                    field.lookup_in(map).map(|value| (None, Cow::Borrowed(value)))
                 },
                 Cow::Owned(map) => {
                     let taken = if later_readers.get(index).copied().unwrap_or(true) {
@@ -465,11 +462,14 @@ impl ProjectionMapper {
                     } else {
                         field.take_from(map).map(|(key, value)| (Some(key), value))
                     };
-                    match taken {
-                        Some((key, value)) => (key, Cow::Owned(value)),
-                        None => continue,
-                    }
+                    taken.map(|(key, value)| (key, Cow::Owned(value)))
                 },
+            };
+            // A requested field the row has no value for completes to `null`, in its place
+            // (GraphQL § 6.3; #1618), as `project_entity` and a SQL-projected read answer it.
+            let Some((key, value)) = found else {
+                result.insert(field.output.clone(), JsonValue::Null);
+                continue;
             };
             let output =
                 key.filter(|key| *key == field.output).unwrap_or_else(|| field.output.clone());
@@ -888,7 +888,10 @@ fn project_entity_at(
         let field_def =
             type_def.and_then(|td| td.fields.iter().find(|f| f.name.as_str() == sel.name));
         let Some(value) = lookup_source(obj, &sel.name) else {
-            // Absent stored key → omit (matches query/SQL behaviour: absent stays absent).
+            // A selected field the document has no value for completes to `null`, in its
+            // place (GraphQL § 6.3; #1618), as a SQL-projected read answers the same key.
+            // Whether `null` may stand there is non-null completion's to decide.
+            out.insert(sel.response_key().to_string(), JsonValue::Null);
             continue;
         };
         let projected = project_field_value(value, field_def, sel, schema);

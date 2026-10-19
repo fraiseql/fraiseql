@@ -171,7 +171,12 @@ The server key `mutation_constraint_metadata` sets how much is said:
 |---|---|
 | `"identifier"` (default) | `identifier`, `code`, `message`, `details.sqlstate` |
 | `"full"` | also `details.table` and `details.columns` (the constraint's key columns, from `pg_constraint` or `pg_index`; omitted for an expression index rather than guessed) |
-| `"none"` | no entry; `status`, `httpStatus` and `message` only |
+| `"none"` | no entry (`errors` is `null`); `status`, `httpStatus` and `message` only |
+
+Every field the client selects on the member is in the response, in the order it was
+selected; one the server has no value for (`errors` under `"none"`, a declared `metadata`)
+is `null` (#1618). A `status` the selection does not name is served after the selected
+fields, since the generated clients read it on every error type.
 
 Never the database's `DETAIL` and never a value, at any setting: they carry the row. A
 foreign-key violation (`23503`) is `conflict` / 409 in both directions: PostgreSQL 18 names the

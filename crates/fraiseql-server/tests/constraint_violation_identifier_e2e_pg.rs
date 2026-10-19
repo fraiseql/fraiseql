@@ -15,6 +15,10 @@
 //! the **referencing** table in both directions, so its direction is not recoverable and both
 //! stay `conflict` / 409 (pinned here, so splitting them later is a visible change).
 //!
+//! #1618: every field selected on the error member is served, in selection order, `null`
+//! where the server has no value for it; and a REST read completes a field its document
+//! lacks, through the same projectors.
+//!
 //! The typed error exists only for a mutation returning a union or interface with one error
 //! member. `/graphql` serves it, and MCP since #1546 (`mcp_abstract_returns_e2e_pg`); REST
 //! mounts no route for such a mutation (`rest/resource/mod.rs`).
@@ -96,8 +100,9 @@ async fn provision(adapter: &PostgresAdapter) {
         ),
         format!("INSERT INTO {SCHEMA}.tb_booking VALUES (tsrange('2026-01-01', '2026-01-05'))"),
         format!(
-            "CREATE VIEW {SCHEMA}.v_user AS SELECT id, jsonb_build_object('id', id, 'email', \
-             email) AS data FROM {SCHEMA}.tb_user"
+            // A user with no email has no `email` key (#1618's REST read).
+            "CREATE VIEW {SCHEMA}.v_user AS SELECT id, jsonb_strip_nulls(jsonb_build_object('id', \
+             id, 'email', email)) AS data FROM {SCHEMA}.tb_user"
         ),
         function(
             "create_user",
@@ -116,6 +121,13 @@ async fn provision(adapter: &PostgresAdapter) {
             "delete_team",
             "p_team uuid",
             &format!("DELETE FROM {SCHEMA}.tb_team WHERE id = p_team"),
+        ),
+        // A failure the function reports itself, with no `metadata` (#1618).
+        format!(
+            "CREATE FUNCTION {SCHEMA}.fn_refuse() RETURNS app.mutation_response LANGUAGE plpgsql \
+             AS $$ DECLARE v app.mutation_response; BEGIN v.succeeded := false; \
+             v.state_changed := false; v.error_class := 'conflict'; v.http_status := 409; \
+             v.message := 'refused'; RETURN v; END; $$"
         ),
         function(
             "book",
@@ -148,6 +160,8 @@ fn schema() -> CompiledSchema {
         FieldDefinition::nullable("message", FieldType::String),
         FieldDefinition::nullable("httpStatus", FieldType::Int),
         FieldDefinition::nullable("errors", FieldType::Json),
+        FieldDefinition::nullable("errorClass", FieldType::String),
+        FieldDefinition::nullable("metadata", FieldType::Json),
     ];
     schema.types.extend([user, error]);
     schema.unions.push(UnionDefinition {
@@ -200,6 +214,7 @@ fn schema() -> CompiledSchema {
             ],
         ),
     ]);
+    schema.mutations.push(mutation("refuse", "refuse", Vec::new()));
     schema.rest_config = Some(RestConfig {
         enabled: true,
         ..RestConfig::default()
@@ -463,4 +478,179 @@ async fn the_synthesized_error_member_serves_the_entry() {
     let result =
         typed_error(&running, &format!("createUser(email: \"{TAKEN_EMAIL}\", name: \"x\")")).await;
     assert_identifies(&result, "conflict", 409, "tb_user_email_live_key", "23505");
+}
+
+/// The keys of `object`, in the order the response carries them.
+fn keys(object: &Value) -> Vec<&str> {
+    object
+        .as_object()
+        .unwrap_or_else(|| panic!("not an object: {object}"))
+        .keys()
+        .map(String::as_str)
+        .collect()
+}
+
+/// #1618: every field a client selects on the error member is in the response, in the order
+/// it was selected, `null` where the server has no value for it — whether the database
+/// raised the failure (a constraint) or the function returned it (with no `metadata`).
+#[tokio::test]
+async fn every_selected_field_of_the_error_member_completes_in_selection_order() {
+    let Some(server) = serve(ConstraintMetadata::None).await else {
+        eprintln!("skipping #1618: DATABASE_URL not set");
+        return;
+    };
+    let selection = "{ __typename ... on MutationError { metadata errorClass status message \
+                     errors httpStatus } }";
+    for (call, status, message) in [
+        (
+            "createUser(email: \"a@b.c\")",
+            "validation",
+            "The request contains an invalid value",
+        ),
+        ("refuse", "conflict", "refused"),
+    ] {
+        let body: Value = reqwest::Client::new()
+            .post(format!("{}/graphql", server.base))
+            .json(&json!({ "query": format!("mutation {{ {call} {selection} }}") }))
+            .send()
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        let root = call.split('(').next().unwrap();
+        let result = &body["data"][root];
+        assert_eq!(
+            keys(result),
+            [
+                "__typename",
+                "metadata",
+                "errorClass",
+                "status",
+                "message",
+                "errors",
+                "httpStatus"
+            ],
+            "{call}: every selected field, in selection order: {body}"
+        );
+        assert_eq!(result["metadata"], Value::Null, "{call}: {body}");
+        assert_eq!(result["errors"], Value::Null, "{call}: {body}");
+        assert_eq!(result["errorClass"], status, "{call}: {body}");
+        assert_eq!(result["status"], status, "{call}: {body}");
+        assert_eq!(result["message"], message, "{call}: {body}");
+    }
+}
+
+/// The generated clients declare `status` on every error type, whether or not the type
+/// does, and read it to discriminate the failure: one the selection does not place is still
+/// served, after the selected fields.
+#[tokio::test]
+async fn an_unselected_status_is_still_served_after_the_selection() {
+    let Some(server) = serve(ConstraintMetadata::None).await else {
+        return;
+    };
+    let body: Value = reqwest::Client::new()
+        .post(format!("{}/graphql", server.base))
+        .json(
+            &json!({ "query": "mutation { refuse { __typename ... on MutationError { message \
+                                  metadata } } }" }),
+        )
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let result = &body["data"]["refuse"];
+    assert_eq!(keys(result), ["__typename", "message", "metadata", "status"], "{body}");
+    assert_eq!(result["status"], "conflict", "{body}");
+}
+
+/// #1618 through MCP: the tool's selection takes every leaf of the error member, and every
+/// one of them comes back, the ones the server has no value for as `null`.
+#[tokio::test]
+async fn an_mcp_tool_receives_every_field_of_the_error_member() {
+    use fraiseql_core::{runtime::Executor, schema::McpConfig};
+    use fraiseql_server::{mcp::handler::FraiseQLMcpService, routes::graphql::AppState};
+
+    let Some(url) = try_database_url() else {
+        return;
+    };
+    let adapter = Arc::new(PostgresAdapter::new(&url).await.unwrap());
+    provision(&adapter).await;
+    let service = FraiseQLMcpService::new(
+        AppState::new(Arc::new(Executor::new(schema(), adapter))),
+        McpConfig {
+            enabled: true,
+            require_auth: false,
+            read_only: false,
+            ..McpConfig::default()
+        },
+    );
+    for (tool, arguments) in [
+        ("createUser", json!({ "email": "a@b.c" })),
+        ("refuse", json!({})),
+    ] {
+        let result = service
+            .call_tool_authenticated(
+                tool,
+                arguments.as_object(),
+                None,
+                "mcp-1618".to_string(),
+                &axum::http::HeaderMap::new(),
+            )
+            .await;
+        let text = result
+            .content
+            .first()
+            .and_then(|c| c.as_text().map(|t| t.text.clone()))
+            .unwrap_or_default();
+        let body: Value = serde_json::from_str(&text).unwrap_or(Value::String(text));
+        let error = &body["data"][tool];
+        assert_eq!(error["__typename"], "MutationError", "{tool}: {body}");
+        for field in [
+            "status",
+            "message",
+            "httpStatus",
+            "errors",
+            "errorClass",
+            "metadata",
+        ] {
+            assert!(
+                error.as_object().is_some_and(|o| o.contains_key(field)),
+                "{tool}: `{field}` is selected and must be present: {body}"
+            );
+        }
+        assert_eq!(error["metadata"], Value::Null, "{tool}: {body}");
+    }
+}
+
+/// #1618 on the read side of the same projectors: a REST read selecting a field its document
+/// does not carry gets it as `null`, in the order `select` names it, as `/graphql` does.
+#[tokio::test]
+async fn a_rest_read_completes_a_field_the_document_lacks() {
+    let Some(server) = serve(ConstraintMetadata::None).await else {
+        return;
+    };
+    let url = try_database_url().unwrap();
+    PostgresAdapter::new(&url)
+        .await
+        .unwrap()
+        .execute_raw_query(&format!("INSERT INTO {SCHEMA}.tb_user (name) VALUES ('no email')"))
+        .await
+        .unwrap();
+    let body: Value = reqwest::Client::new()
+        .get(format!("{}/rest/v1/users?select=email,id", server.base))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let rows = body["data"].as_array().unwrap_or_else(|| panic!("{body}"));
+    assert_eq!(rows.len(), 2, "{body}");
+    for row in rows {
+        assert_eq!(keys(row), ["email", "id"], "{body}");
+    }
+    assert!(rows.iter().any(|row| row["email"].is_null()), "{body}");
 }

@@ -528,9 +528,11 @@ async fn test_projection_nonexistent_fields() {
     ]);
     let projected = projector.project_results(&results, false).unwrap();
 
-    // Should return empty object for nonexistent fields
-    assert!(projected.is_object());
-    assert_eq!(projected.as_object().unwrap().len(), 0);
+    // A requested field the row does not carry completes to `null`, in its place (#1618).
+    assert_eq!(
+        serde_json::to_string(&projected).unwrap(),
+        r#"{"nonexistent_field":null,"another_missing":null}"#
+    );
 }
 
 #[tokio::test]

@@ -3651,6 +3651,17 @@ mod projection_tests {
 
         assert_eq!(via_entity, via_mapper, "the two projectors must agree on one row");
         assert_eq!(via_mapper, json!({ "id": 10, "fkUser": 1 }));
+
+        // A selected field the row does not carry completes to `null` in its place, in both
+        // (#1618).
+        let sparse = json!({ "id": 10 });
+        let via_entity = project_entity(&sparse, "Order", &[leaf("fkUser"), leaf("id")], &schema);
+        let via_mapper = ProjectionMapper::new(vec!["fkUser".to_string(), "id".to_string()])
+            .project(&JsonbValue::new(sparse))
+            .unwrap();
+        for projected in [&via_entity, &via_mapper] {
+            assert_eq!(serde_json::to_string(projected).unwrap(), r#"{"fkUser":null,"id":10}"#);
+        }
     }
 
     /// `Folder` whose `parent` is a `Folder`, and `folder_doc(n)` its stored document with

@@ -127,13 +127,15 @@ fn only_selected_fields_returned() {
 }
 
 #[test]
-fn missing_source_key_is_omitted() {
+fn missing_source_key_completes_to_null() {
     let s = schema();
     let md = json!({ "reason": "only reason present" });
     let out = project_entity(&md, "DecommissionError", &[sel("reason"), sel("cascadeCount")], &s);
-    let obj = out.as_object().unwrap();
-    assert!(obj.contains_key("reason"));
-    assert!(!obj.contains_key("cascadeCount"), "absent source key → absent output key");
+    // A selected field the source does not carry is `null`, in its place (#1618).
+    assert_eq!(
+        serde_json::to_string(&out).unwrap(),
+        r#"{"reason":"only reason present","cascadeCount":null}"#
+    );
 }
 
 // ── nested object recursion ────────────────────────────────────────────────

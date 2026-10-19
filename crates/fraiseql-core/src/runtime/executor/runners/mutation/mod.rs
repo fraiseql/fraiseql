@@ -1141,9 +1141,10 @@ fn build_mutation_result(
 
             // Build the error projection source from the error_detail JSONB, enriched
             // with the composite's first-class fields under snake_case keys so a
-            // declared error type can surface them as ordinary projected fields
-            // (project_entity omits any field whose source key is absent). The
-            // always-injected `status` is attached after projection, below.
+            // declared error type can surface them as ordinary projected fields. A
+            // selected field the source has no value for completes to `null` (#1618).
+            // `status` is a source key too, so a selected one takes its place in the
+            // selection; an unselected one is injected below.
             let mut source_map = match metadata {
                 serde_json::Value::Object(map) => map,
                 _ => serde_json::Map::new(),
@@ -1161,6 +1162,7 @@ fn build_mutation_result(
             source_map
                 .entry("error_class".to_string())
                 .or_insert_with(|| serde_json::Value::String(status.to_string()));
+            source_map.insert("status".to_string(), serde_json::Value::String(status.to_string()));
             let source = serde_json::Value::Object(source_map);
 
             // Resolve the concrete error type to project (ruling AG 3), symmetric with the
@@ -1219,10 +1221,12 @@ fn build_mutation_result(
                 serde_json::Value::Object(map)
             };
 
-            // Inject the synthetic `status` field — not part of the type definition,
-            // but required by clients to discriminate error outcomes.
+            // Inject the synthetic `status` field when the selection did not place it: the
+            // generated clients declare it on every error type, whether or not the type
+            // does, to discriminate error outcomes.
             if let serde_json::Value::Object(ref mut map) = result {
-                map.insert("status".to_string(), serde_json::Value::String(status.to_string()));
+                map.entry("status".to_string())
+                    .or_insert_with(|| serde_json::Value::String(status.to_string()));
             }
 
             Ok(result)
