@@ -556,6 +556,10 @@ func (m *FraiseqlCi) ShellGates(
 		// only coverage if some run: step invokes it (#1205's hole, one level up).
 		"python3 tools/check-delivery-coverage.py",
 		"make test-delivery-coverage-gate",
+		// #1640: every crates/*/src/**/*.rs is declared by some target. Walks the
+		// filesystem, not `git ls-files`, which is empty in this container.
+		"make lint-module-reachability",
+		"make test-module-reachability-gate",
 		// A published SDK's lockfile may not pin a version its manifest no longer
 		// claims (#1225): the 2.15.0 bump edited the SDK manifests and left
 		// fraiseql-python's uv.lock and fraiseql-rust's Cargo.lock at 2.14.1.
