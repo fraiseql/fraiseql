@@ -124,6 +124,9 @@ impl Server {
     /// raw adapter; the two do not share a cache, which is why `flight_upload_tables`
     /// and `cache_enabled` are mutually exclusive (see Errors).
     ///
+    /// The executor serves relay queries, as [`Server::with_relay_pagination`]'s does,
+    /// so the adapter must implement [`RelayDatabaseAdapter`].
+    ///
     /// # Arguments
     ///
     /// * `config` - Server configuration
@@ -139,7 +142,9 @@ impl Server {
     /// reaches the mutation runner, so nothing invalidates the result cache for the views
     /// over the uploaded table and GraphQL reads would serve pre-upload rows until the TTL
     /// expired. Also returns an error if OIDC validator initialization fails.
-    pub async fn with_flight_service<A: Writer + Clone + Send + Sync + 'static>(
+    pub async fn with_flight_service<
+        A: Writer + RelayDatabaseAdapter + Clone + Send + Sync + 'static,
+    >(
         config: ServerConfig,
         schema: CompiledSchema,
         adapter: Arc<A>,
@@ -204,8 +209,14 @@ impl Server {
             )
             .await?;
 
-        let executor =
-            Arc::new(Executor::with_config(schema.clone(), Arc::new(cached), executor_config));
+        // Relay-capable, as `with_relay_pagination` builds it: every `arrow` binary boots
+        // through this constructor, so a relay-less executor here refused every relay
+        // query that the same schema answers on a build without `arrow` (#1621).
+        let executor = Arc::new(Executor::with_config_and_relay(
+            schema.clone(),
+            Arc::new(cached),
+            executor_config,
+        ));
         let subscription_manager = Arc::new(SubscriptionManager::new(Arc::new(schema)));
 
         // Boxed: `from_executor` constructs every subsystem, and its future is

@@ -27,6 +27,7 @@ use fraiseql_core::{
     cache::{CacheConfig, CachedDatabaseAdapter, QueryResultCache},
     db::{
         DatabaseAdapter, DatabaseType, WhereClause,
+        traits::{RelayCursor, RelayDatabaseAdapter, RelayPageResult},
         types::{JsonbValue, OrderByClause, PoolMetrics},
     },
     error::Result as FraiseQLResult,
@@ -139,6 +140,30 @@ impl fraiseql_core::db::traits::Writer for CountingAdapter {
         let _ = (request, gate);
         Err(fraiseql_core::error::FraiseQLError::Unsupported {
             message: "this test double does not write".to_string(),
+        })
+    }
+}
+
+// `Server::with_flight_service` builds a relay-capable executor (#1621), so its adapter
+// implements the trait. No test here issues a relay query.
+// Reason: `RelayDatabaseAdapter` is async because real adapters query a database.
+#[allow(unknown_lints, clippy::unused_async_trait_impl)]
+impl RelayDatabaseAdapter for CountingAdapter {
+    #[allow(clippy::too_many_arguments)] // Reason: mirrors the trait's full cursor/filter/sort signature
+    async fn execute_relay_page(
+        &self,
+        _view: &str,
+        _cursor_column: &str,
+        _after: Option<RelayCursor>,
+        _before: Option<RelayCursor>,
+        _limit: u32,
+        _forward: bool,
+        _where_clause: Option<&WhereClause>,
+        _order_by: Option<&[OrderByClause]>,
+        _include_total_count: bool,
+    ) -> FraiseQLResult<RelayPageResult> {
+        Err(fraiseql_core::error::FraiseQLError::Unsupported {
+            message: "this test double does not serve relay pages".to_string(),
         })
     }
 }
