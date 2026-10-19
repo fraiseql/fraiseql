@@ -367,9 +367,9 @@ disagreed, and the promise was the part that was wrong.
   and the compiler that wrote it. They are SQL comments, so a reader that parses the SQL is
   unaffected (Confiture's generated migration is byte-identical); a consumer that compares the
   files byte for byte, Confiture's checked-in contract fixture included, sees them change.
-- **New public fields for the short-search signal (#1314):** `ProjectionRequest.matched_up_to`
-  and `RuntimeConfig.nearest_short_result`. Both have a default; a struct literal that lists
-  every field must add them.
+- **New public fields for the short-search signal (#1314):** `ProjectionRequest.matched_up_to`,
+  `RuntimeConfig.nearest_short_result` and `ServerConfig.vector_on_short_result`. All have a
+  default; a struct literal that lists every field must add them.
 - **A session variable in the `fraiseql.` namespace is refused.** That namespace is the
   server's own (`fraiseql.locale` on reads, `fraiseql.started_at` before a mutation). Only
   `fraiseql.locale` was refused, and only in that exact case, while PostgreSQL resolves a
@@ -456,7 +456,9 @@ disagreed, and the promise was the part that was wrong.
 - **`_fraiseql_inbound_message` is referenced by the dispatch ledger (#1175).** A `TRUNCATE`
   of the spine needs `CASCADE` (deleting rows cascades on its own). Embedders:
   `routes::after_mutation::spawn_after_ingest` takes the spine message's id and the pool to
-  settle its ledger rows in, and `inbound::email::build_pollers` the dispatch lease.
+  settle its ledger rows in, `inbound::email::build_pollers` the dispatch lease, and
+  `ServerConfig` gains `inbound_dispatch` (a struct literal listing every field adds it, or ends
+  in `..Default::default()`).
 - **Observer actions of type `sms`, `push` and `search` are refused when a config is parsed
   (#428).** They had no transport (H24): the variants were kept so such a config still
   deserialized, and `validate()` then rejected it. They are gone; the parse error names the
