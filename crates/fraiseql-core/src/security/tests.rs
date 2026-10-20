@@ -4148,3 +4148,84 @@ mod issuer_tests {
         assert_eq!(ctx.issuer, None);
     }
 }
+
+/// Every wildcard scope matcher answers by one rule (`*` grants everything; `read:*` and
+/// `read:User.*` grant only below their delimiter), and the admin check stays exact.
+mod scope_grant_tests {
+    use std::collections::HashMap;
+
+    use chrono::Utc;
+
+    use crate::{
+        graphql::require_permission_directive::RequirePermissionDirective,
+        schema::security_config::RoleDefinition,
+        security::{AuthenticatedUser, SecurityContext},
+        types::UserId,
+    };
+
+    /// `(granted pattern, required scope, granted?)`.
+    const CASES: &[(&str, &str, bool)] = &[
+        ("read:x", "read:x", true),
+        ("admin*", "administer:x", false),
+        ("read:*", "readwrite:x", false),
+        ("read:*", "read:x", true),
+        ("read:User.*", "read:User.email", true),
+        ("*", "write:anything", true),
+    ];
+
+    fn user(scopes: &[&str]) -> AuthenticatedUser {
+        AuthenticatedUser {
+            user_id:      UserId::new("u1"),
+            scopes:       scopes.iter().map(ToString::to_string).collect(),
+            expires_at:   Utc::now() + chrono::Duration::hours(1),
+            email:        None,
+            display_name: None,
+            extra_claims: HashMap::new(),
+        }
+    }
+
+    fn assert_follows_the_rule(matcher: &str, grants: impl Fn(&str, &str) -> bool) {
+        let wrong: Vec<_> = CASES
+            .iter()
+            .filter(|(pattern, required, want)| grants(pattern, required) != *want)
+            .collect();
+        assert!(wrong.is_empty(), "{matcher} disagrees with the scope rule on {wrong:?}");
+    }
+
+    #[test]
+    fn security_context_follows_the_scope_rule() {
+        assert_follows_the_rule("SecurityContext::has_scope", |pattern, required| {
+            SecurityContext::from_user(&user(&[]), "req".to_string())
+                .with_scopes(vec![pattern.to_string()])
+                .has_scope(required)
+        });
+    }
+
+    #[test]
+    fn role_definition_follows_the_scope_rule() {
+        assert_follows_the_rule("RoleDefinition::has_scope", |pattern, required| {
+            RoleDefinition::new("r", vec![pattern.to_string()]).has_scope(required)
+        });
+    }
+
+    #[test]
+    fn require_permission_follows_the_scope_rule() {
+        assert_follows_the_rule(
+            "@requirePermission",
+            RequirePermissionDirective::permission_matches,
+        );
+    }
+
+    /// The admin scope and revoke-all checks read `AuthenticatedUser::has_scope`, which
+    /// stays exact: a wildcard grant never satisfies them.
+    #[test]
+    fn the_admin_scope_check_stays_exact() {
+        assert!(user(&["fraiseql:admin"]).has_scope("fraiseql:admin"));
+        for wildcard in ["*", "fraiseql:*", "fraiseql*"] {
+            assert!(
+                !user(&[wildcard]).has_scope("fraiseql:admin"),
+                "`{wildcard}` must not satisfy the exact admin check"
+            );
+        }
+    }
+}

@@ -40,7 +40,7 @@
 //! let config = AuthConfig {
 //!     required: true,
 //!     token_expiry_secs: 3600,
-//!     signing_key: Some(SigningKey::hs256("your-secret-key")),
+//!     signing_key: SigningKey::hs256("your-secret-key"),
 //!     issuer: Some("https://your-issuer.com".to_string()),
 //!     audience: Some("your-api".to_string()),
 //!     clock_skew_secs: 60,
@@ -62,7 +62,7 @@ pub mod types;
 pub use config::AuthConfig;
 pub use middleware::AuthMiddleware;
 pub use signing_key::SigningKey;
-pub use types::{AuthRequest, AuthenticatedUser, TokenClaims};
+pub use types::{AuthRequest, AuthenticatedUser};
 
 #[cfg(test)]
 mod tests;

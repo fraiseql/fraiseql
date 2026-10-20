@@ -26,7 +26,7 @@ use crate::graphql::directive_evaluator::{
 ///
 /// Permissions use a colon-separated format: `resource:action:scope`
 ///
-/// - `*:*` - Full wildcard (admin access)
+/// - `*` - Full wildcard (admin access)
 /// - `query:*` - All query operations
 /// - `query:users:read` - Specific query permission
 /// - `admin:*` - Admin operations
@@ -50,39 +50,11 @@ impl RequirePermissionDirective {
         Self
     }
 
-    /// Check if a user's permission matches a required permission.
-    ///
-    /// Supports wildcard matching:
-    /// - `*:*` matches everything
-    /// - `query:*` matches any query permission
-    /// - `query:users:*` matches any user query permission
-    /// - `query:users:read` matches exact permission
+    /// Check if a user's permission matches a required permission, by
+    /// [`crate::security::scope_grants`]: `*` matches everything, `query:*` any
+    /// `query:…` permission, `query:users:*` any `query:users:…` permission.
     pub(crate) fn permission_matches(user_permission: &str, required_permission: &str) -> bool {
-        // Exact match
-        if user_permission == required_permission {
-            return true;
-        }
-
-        // Wildcard: user has full admin access
-        if user_permission == "*:*" {
-            return true;
-        }
-
-        // Wildcard matching (e.g., "query:*" matches "query:users:read")
-        let user_parts: Vec<&str> = user_permission.split(':').collect();
-        let required_parts: Vec<&str> = required_permission.split(':').collect();
-
-        // If last part is a wildcard, check if prefix matches
-        if let Some(&last_part) = user_parts.last() {
-            if last_part == "*" {
-                let user_prefix_len = user_parts.len() - 1;
-                if user_prefix_len <= required_parts.len() {
-                    return user_parts[..user_prefix_len] == required_parts[..user_prefix_len];
-                }
-            }
-        }
-
-        false
+        crate::security::scope_grants(user_permission, required_permission)
     }
 
     /// Extract user permissions from the evaluation context.

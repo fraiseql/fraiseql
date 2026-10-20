@@ -56,6 +56,26 @@ disagreed, and the promise was the part that was wrong.
   `schema.query_index` becomes `schema.derived.query_index`, and likewise
   `mutation_index`, `subscription_index`, `where_relation_fields` and `custom_scalars`.
 
+- **One scope rule for every wildcard matcher; `fraiseql-core`'s `AuthConfig` always
+  verifies signatures (#1639).**
+  - `SecurityContext::has_scope`, `RoleDefinition::has_scope` and `@requirePermission` all
+    answer by `fraiseql_core::security::scope_grants`: `*` grants every scope, `read:*`
+    grants only `read:…`, and `read:User.*` grants only `read:User.…`. Two spellings stop
+    granting: `@requirePermission(… "*:*")` (use `*`), and, for an embedder calling
+    `SecurityContext::has_scope`, a bare-prefix or trailing-colon scope such as `admin*` or
+    `admin:` (use `admin:*`). `SecurityContext::has_scope` read `admin*` as a string
+    prefix, so it granted `administer:x`. No in-tree check calls it: `requires_scope` is
+    decided by the principal's roles through `RoleDefinition::has_scope`, which already
+    applied the rule.
+  - The admin-scope and revoke-all checks stay exact: a wildcard grant never satisfies
+    them.
+  - `AuthConfig::signing_key` is a `SigningKey`, not an `Option`. The unsigned presets
+    `AuthConfig::{permissive, standard, strict}` and `AuthMiddleware::{permissive,
+    standard, strict}`, `AuthConfig::has_signing_key`, `TokenClaims` and the path that
+    accepted an unsigned token are removed, and `AuthConfig` no longer implements
+    `Serialize`/`Deserialize`. Build one with `AuthConfig::with_hs256` or
+    `with_rs256_pem`.
+
 - **`/metrics` no longer exports database-timing series (#1634).**
   `fraiseql_database_queries_total` and `fraiseql_database_query_duration_ms` counted each
   successful GraphQL request as one database query and its whole duration as database

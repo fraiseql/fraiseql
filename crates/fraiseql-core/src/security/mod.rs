@@ -41,6 +41,7 @@ pub mod request_budget;
 pub mod response_budget;
 pub mod rls_policy;
 pub mod role_gate;
+pub mod scope;
 pub mod security_context;
 pub mod tls_enforcer;
 pub mod validation_audit;
@@ -90,6 +91,7 @@ pub use response_budget::{ResponseBudget, column_bytes, json_bytes};
 pub use rls_policy::{
     CompiledRLSPolicy, ConstrainedPaths, DefaultRLSPolicy, NoRLSPolicy, RLSPolicy, RlsWhereClause,
 };
+pub use scope::scope_grants;
 pub use security_context::{
     BoxFuture, EnrichmentMark, EnrichmentOutcome, IdentityEnricher, SecurityContext,
 };

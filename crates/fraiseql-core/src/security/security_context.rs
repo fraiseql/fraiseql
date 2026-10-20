@@ -442,9 +442,8 @@ impl SecurityContext {
         self.roles.iter().any(|r| r == role)
     }
 
-    /// Check if the user has a specific scope.
-    ///
-    /// Supports wildcards: `admin:*` matches any admin scope.
+    /// Check if the user has a specific scope, by [`super::scope_grants`]: `admin:*`
+    /// matches any `admin:…` scope.
     ///
     /// # Arguments
     ///
@@ -455,20 +454,7 @@ impl SecurityContext {
     /// `true` if the user has the specified scope, `false` otherwise.
     #[must_use]
     pub fn has_scope(&self, scope: &str) -> bool {
-        self.scopes.iter().any(|s| {
-            if s == scope {
-                return true;
-            }
-            // Support wildcard matching: "admin:*" matches "admin:read"
-            if s.ends_with(':') {
-                scope.starts_with(s)
-            } else if s.ends_with('*') {
-                let prefix = &s[..s.len() - 1];
-                scope.starts_with(prefix)
-            } else {
-                false
-            }
-        })
+        self.scopes.iter().any(|granted| super::scope_grants(granted, scope))
     }
 
     /// Get a custom attribute from the JWT claims.

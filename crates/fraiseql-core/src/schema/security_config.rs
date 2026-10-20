@@ -92,44 +92,12 @@ impl RoleDefinition {
         self
     }
 
-    /// Check if this role has a specific scope.
-    ///
-    /// Supports exact matching and wildcard patterns:
-    /// - `read:User.email` matches exactly
-    /// - `read:*` matches any scope starting with "read:"
-    /// - `read:User.*` matches "read:User.email", "read:User.name", etc.
-    /// - `admin:*` matches any admin scope
+    /// Check if this role has a specific scope, by [`crate::security::scope_grants`].
     #[must_use]
     pub fn has_scope(&self, required_scope: &str) -> bool {
-        self.scopes.iter().any(|scope| {
-            let scope = scope.as_str();
-            if scope == "*" {
-                return true; // Wildcard matches everything
-            }
-
-            if scope == required_scope {
-                return true; // Exact match
-            }
-
-            // Handle wildcard patterns like "read:*" or "admin:*". The delimiter is
-            // part of the match: `read:*` grants `read:…` only, never `readwrite:…`
-            // scopes that merely share the string prefix (#784).
-            if let Some(prefix) = scope.strip_suffix(":*") {
-                return required_scope
-                    .strip_prefix(prefix)
-                    .is_some_and(|rest| rest.starts_with(':'));
-            }
-
-            // Handle Type.* wildcard patterns like "read:User.*". Only a prefix
-            // ending on a `.`/`:` boundary is a wildcard grant; a bare prefix like
-            // "read*" would otherwise also match "readwrite:…" (#784).
-            if let Some(prefix) = scope.strip_suffix('*') {
-                return (prefix.ends_with('.') || prefix.ends_with(':'))
-                    && required_scope.starts_with(prefix);
-            }
-
-            false
-        })
+        self.scopes
+            .iter()
+            .any(|scope| crate::security::scope_grants(scope.as_str(), required_scope))
     }
 }
 

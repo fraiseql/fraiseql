@@ -1,4 +1,4 @@
-//! Authentication types: `AuthenticatedUser`, `AuthRequest`, `TokenClaims`.
+//! Authentication types: `AuthenticatedUser`, `AuthRequest`.
 
 use std::{collections::HashMap, fmt};
 
@@ -138,28 +138,6 @@ impl AuthRequest {
 
         Ok(header[7..].to_string())
     }
-}
-
-/// Claims extracted from JWT token
-///
-/// This is a simplified representation of JWT claims.
-/// In production, this would be more comprehensive.
-#[derive(Debug, Clone)]
-pub struct TokenClaims {
-    /// Subject (user ID)
-    pub sub: Option<String>,
-
-    /// Expiration timestamp (seconds since epoch)
-    pub exp: Option<i64>,
-
-    /// Scope claim (space-separated string)
-    pub scope: Option<String>,
-
-    /// Audience claim
-    pub aud: Option<Vec<String>>,
-
-    /// Issuer claim
-    pub iss: Option<String>,
 }
 
 /// JWT claims structure for jsonwebtoken crate deserialization.

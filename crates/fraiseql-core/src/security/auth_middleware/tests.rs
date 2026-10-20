@@ -24,34 +24,38 @@ mod middleware_tests {
     // Helper Functions
     // ============================================================================
 
-    /// Create a valid JWT token with specified claims (for testing)
-    ///
-    /// Note: This creates a structurally valid JWT, but doesn't sign it.
-    /// For real use, you'd use a proper JWT library.
+    /// The HS256 secret every test middleware verifies against.
+    const TEST_SECRET: &str = "test-secret-for-auth-middleware-tests";
+
+    /// `payload` as an HS256 JWT signed with [`TEST_SECRET`].
+    fn sign(payload: &serde_json::Value) -> String {
+        use jsonwebtoken::{EncodingKey, Header, encode};
+
+        encode(&Header::default(), payload, &EncodingKey::from_secret(TEST_SECRET.as_bytes()))
+            .expect("sign test token")
+    }
+
+    /// A signed token for `sub` expiring `exp_offset_secs` from now.
     fn create_test_token(sub: &str, exp_offset_secs: i64, scope: Option<&str>) -> String {
         let now = chrono::Utc::now().timestamp();
-        let exp = now + exp_offset_secs;
-
-        // Create payload
-        let mut payload = serde_json::json!({
-            "sub": sub,
-            "exp": exp,
-            "iat": now,
-            "aud": ["test-audience"],
-            "iss": "test-issuer"
-        });
-
+        let mut payload = serde_json::json!({"sub": sub, "exp": now + exp_offset_secs, "iat": now});
         if let Some(s) = scope {
             payload["scope"] = serde_json::json!(s);
         }
+        sign(&payload)
+    }
 
-        // Encode payload as hex for testing
-        let payload_json = payload.to_string();
-        let payload_hex = hex::encode(&payload_json);
-        let signature = "test_signature"; // Not a real signature
+    /// Middleware requiring a token signed with [`TEST_SECRET`].
+    fn standard() -> AuthMiddleware {
+        AuthMiddleware::from_config(AuthConfig::with_hs256(TEST_SECRET))
+    }
 
-        // Format: header.payload_hex.signature
-        format!("header.{payload_hex}.{signature}")
+    /// [`standard`], with authentication optional.
+    fn permissive() -> AuthMiddleware {
+        AuthMiddleware::from_config(AuthConfig {
+            required: false,
+            ..AuthConfig::with_hs256(TEST_SECRET)
+        })
     }
 
     // ============================================================================
@@ -99,29 +103,29 @@ mod middleware_tests {
 
     #[test]
     fn test_valid_token_structure() {
-        let middleware = AuthMiddleware::permissive();
         let token = create_test_token("user123", 3600, None);
 
-        let result = middleware.validate_token_structure(&token);
-        result.unwrap_or_else(|e| panic!("expected valid token structure: {e}"));
+        let result =
+            standard().validate_request(&AuthRequest::new(Some(format!("Bearer {token}"))));
+        result.unwrap_or_else(|e| panic!("expected a valid signed token to validate: {e}"));
     }
 
     #[test]
     fn test_token_with_wrong_part_count_rejected() {
-        let middleware = AuthMiddleware::permissive();
         let token = "header.payload"; // Missing signature
 
-        let result = middleware.validate_token_structure(token);
-        assert!(matches!(result, Err(SecurityError::InvalidToken)));
+        let result =
+            standard().validate_request(&AuthRequest::new(Some(format!("Bearer {token}"))));
+        assert!(matches!(result, Err(SecurityError::InvalidToken)), "{result:?}");
     }
 
     #[test]
     fn test_token_with_empty_part_rejected() {
-        let middleware = AuthMiddleware::permissive();
         let token = "header..signature"; // Empty payload
 
-        let result = middleware.validate_token_structure(token);
-        assert!(matches!(result, Err(SecurityError::InvalidToken)));
+        let result =
+            standard().validate_request(&AuthRequest::new(Some(format!("Bearer {token}"))));
+        assert!(matches!(result, Err(SecurityError::InvalidToken)), "{result:?}");
     }
 
     // ============================================================================
@@ -130,7 +134,7 @@ mod middleware_tests {
 
     #[test]
     fn test_valid_token_not_expired() {
-        let middleware = AuthMiddleware::standard();
+        let middleware = standard();
         let token = create_test_token("user123", 3600, None); // 1 hour from now
         let req = AuthRequest::new(Some(format!("Bearer {token}")));
 
@@ -140,7 +144,7 @@ mod middleware_tests {
 
     #[test]
     fn test_expired_token_rejected() {
-        let middleware = AuthMiddleware::standard();
+        let middleware = standard();
         let token = create_test_token("user123", -3600, None); // 1 hour ago
         let req = AuthRequest::new(Some(format!("Bearer {token}")));
 
@@ -158,7 +162,11 @@ mod middleware_tests {
     /// The ±1-second cases are tested here; the zero-offset case is inherently racy.
     #[test]
     fn test_token_expired_one_second_ago_is_rejected() {
-        let middleware = AuthMiddleware::standard();
+        // No clock-skew leeway, so the boundary is the `exp` claim itself.
+        let middleware = AuthMiddleware::from_config(AuthConfig {
+            clock_skew_secs: 0,
+            ..AuthConfig::with_hs256(TEST_SECRET)
+        });
         let token = create_test_token("user123", -1, None); // expired 1 second ago
         let req = AuthRequest::new(Some(format!("Bearer {token}")));
 
@@ -174,7 +182,7 @@ mod middleware_tests {
     /// side of the expiry boundary.
     #[test]
     fn test_token_expiring_soon_is_accepted() {
-        let middleware = AuthMiddleware::standard();
+        let middleware = standard();
         let token = create_test_token("user123", 60, None); // expires in 60 seconds
         let req = AuthRequest::new(Some(format!("Bearer {token}")));
 
@@ -190,7 +198,7 @@ mod middleware_tests {
 
     #[test]
     fn test_missing_sub_claim_rejected() {
-        let middleware = AuthMiddleware::standard();
+        let middleware = standard();
 
         // Create token without 'sub' claim
         let now = chrono::Utc::now().timestamp();
@@ -199,8 +207,7 @@ mod middleware_tests {
             "iat": now
         });
 
-        let payload_hex = hex::encode(payload.to_string());
-        let token = format!("header.{payload_hex}.signature");
+        let token = sign(&payload);
 
         let req = AuthRequest::new(Some(format!("Bearer {token}")));
         let result = middleware.validate_request(&req);
@@ -214,7 +221,7 @@ mod middleware_tests {
 
     #[test]
     fn test_missing_exp_claim_rejected() {
-        let middleware = AuthMiddleware::standard();
+        let middleware = standard();
 
         // Create token without 'exp' claim
         let payload = serde_json::json!({
@@ -222,8 +229,7 @@ mod middleware_tests {
             "iat": chrono::Utc::now().timestamp()
         });
 
-        let payload_hex = hex::encode(payload.to_string());
-        let token = format!("header.{payload_hex}.signature");
+        let token = sign(&payload);
 
         let req = AuthRequest::new(Some(format!("Bearer {token}")));
         let result = middleware.validate_request(&req);
@@ -241,7 +247,7 @@ mod middleware_tests {
 
     #[test]
     fn test_user_id_extracted_from_token() {
-        let middleware = AuthMiddleware::standard();
+        let middleware = standard();
         let token = create_test_token("user_12345", 3600, None);
         let req = AuthRequest::new(Some(format!("Bearer {token}")));
 
@@ -253,7 +259,7 @@ mod middleware_tests {
 
     #[test]
     fn test_scopes_extracted_from_token() {
-        let middleware = AuthMiddleware::standard();
+        let middleware = standard();
         let token = create_test_token("user123", 3600, Some("read write admin"));
         let req = AuthRequest::new(Some(format!("Bearer {token}")));
 
@@ -265,7 +271,7 @@ mod middleware_tests {
 
     #[test]
     fn test_empty_scopes_when_scope_claim_absent() {
-        let middleware = AuthMiddleware::standard();
+        let middleware = standard();
         let token = create_test_token("user123", 3600, None);
         let req = AuthRequest::new(Some(format!("Bearer {token}")));
 
@@ -277,7 +283,7 @@ mod middleware_tests {
 
     #[test]
     fn test_expires_at_extracted_correctly() {
-        let middleware = AuthMiddleware::standard();
+        let middleware = standard();
         let offset_secs = 7200; // 2 hours
 
         let token = create_test_token("user123", offset_secs, None);
@@ -296,39 +302,6 @@ mod middleware_tests {
     // ============================================================================
     // Configuration Tests
     // ============================================================================
-
-    #[test]
-    fn test_permissive_config() {
-        let config = AuthConfig::permissive();
-        assert!(!config.required);
-        assert_eq!(config.token_expiry_secs, 3600);
-    }
-
-    #[test]
-    fn test_standard_config() {
-        let config = AuthConfig::standard();
-        assert!(config.required);
-        assert_eq!(config.token_expiry_secs, 3600);
-    }
-
-    #[test]
-    fn test_strict_config() {
-        let config = AuthConfig::strict();
-        assert!(config.required);
-        assert_eq!(config.token_expiry_secs, 1800);
-    }
-
-    #[test]
-    fn test_middleware_helpers() {
-        let permissive = AuthMiddleware::permissive();
-        assert!(!permissive.config().required);
-
-        let standard = AuthMiddleware::standard();
-        assert!(standard.config().required);
-
-        let strict = AuthMiddleware::strict();
-        assert!(strict.config().required);
-    }
 
     // ============================================================================
     // AuthenticatedUser Tests
@@ -418,7 +391,7 @@ mod middleware_tests {
 
     #[test]
     fn test_error_messages_clear_and_actionable() {
-        let middleware = AuthMiddleware::standard();
+        let middleware = standard();
 
         // Test missing header error
         let req = AuthRequest::new(None);
@@ -438,7 +411,7 @@ mod middleware_tests {
     #[test]
     fn test_auth_not_required_allows_missing_token() {
         // When auth is NOT required, missing token should still go through extraction
-        let middleware = AuthMiddleware::permissive(); // required = false
+        let middleware = permissive(); // required = false
         let req = AuthRequest::new(None);
 
         let result = middleware.validate_request(&req);
@@ -448,7 +421,7 @@ mod middleware_tests {
 
     #[test]
     fn test_whitespace_in_scopes_handled() {
-        let middleware = AuthMiddleware::standard();
+        let middleware = standard();
         let token = create_test_token("user123", 3600, Some("  read   write  admin  "));
         let req = AuthRequest::new(Some(format!("Bearer {token}")));
 
@@ -461,7 +434,7 @@ mod middleware_tests {
 
     #[test]
     fn test_single_scope_parsed_correctly() {
-        let middleware = AuthMiddleware::standard();
+        let middleware = standard();
         let token = create_test_token("user123", 3600, Some("read"));
         let req = AuthRequest::new(Some(format!("Bearer {token}")));
 
@@ -730,21 +703,11 @@ mod middleware_tests {
     }
 
     #[test]
-    fn test_config_has_signing_key() {
-        let config_without = AuthConfig::standard();
-        assert!(!config_without.has_signing_key());
-
-        let config_with = AuthConfig::with_hs256("secret");
-        assert!(config_with.has_signing_key());
-    }
-
-    #[test]
     fn test_config_builder_pattern() {
         let config = AuthConfig::with_hs256("secret")
             .with_issuer("https://auth.example.com")
             .with_audience("my-api");
 
-        assert!(config.has_signing_key());
         assert_eq!(config.issuer, Some("https://auth.example.com".to_string()));
         assert_eq!(config.audience, Some("my-api".to_string()));
     }

@@ -528,7 +528,9 @@ mod require_permission_directive_tests {
 
     #[test]
     fn test_permission_matches_wildcard() {
-        assert!(RequirePermissionDirective::permission_matches("*:*", "query:users:read"));
+        assert!(RequirePermissionDirective::permission_matches("*", "query:users:read"));
+        // `*:*` is not a second spelling of `*`: the one scope rule reads it as "below `*:`".
+        assert!(!RequirePermissionDirective::permission_matches("*:*", "query:users:read"));
         assert!(RequirePermissionDirective::permission_matches("query:*", "query:users:read"));
         assert!(!RequirePermissionDirective::permission_matches(
             "mutation:*",
