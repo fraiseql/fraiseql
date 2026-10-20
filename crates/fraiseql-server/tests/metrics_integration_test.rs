@@ -77,6 +77,26 @@ async fn metrics_endpoint_contains_standard_counters() {
     assert!(body.contains("# TYPE fraiseql_graphql_queries_total counter"));
 }
 
+/// No database-timing series is exported until one is measured at the statement seam:
+/// the counter and average counted whole requests as database queries, and the
+/// histogram was never observed.
+#[tokio::test]
+async fn metrics_endpoint_exports_no_database_timing() {
+    let state = make_metrics_state();
+    state.metrics.queries_total.fetch_add(1, Ordering::Relaxed);
+    let router = metrics_router(state);
+    let (_, body) = get_text(&router, "/metrics").await;
+
+    assert!(body.contains("fraiseql_graphql_queries_total 1"), "the scrape must succeed");
+    for series in [
+        "fraiseql_database_queries_total",
+        "fraiseql_database_query_duration_ms",
+        "fraiseql_database_query_duration_seconds",
+    ] {
+        assert!(!body.contains(series), "{series} is exported but measures no database time");
+    }
+}
+
 /// #379: the estimated operation cost is exported as a counter so an operator
 /// can observe real traffic costs before sizing budgets, and dashboards can
 /// derive average cost per query.

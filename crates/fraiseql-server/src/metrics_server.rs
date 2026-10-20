@@ -52,12 +52,6 @@ pub struct MetricsCollector {
     /// budgets from observed traffic before enforcing them.
     pub queries_cost_total: AtomicU64,
 
-    /// Total database queries executed
-    pub db_queries_total: AtomicU64,
-
-    /// Total database query time (microseconds)
-    pub db_queries_duration_us: AtomicU64,
-
     /// Total validation errors
     pub validation_errors_total: AtomicU64,
 
@@ -124,9 +118,6 @@ pub struct MetricsCollector {
 
     /// HTTP request duration histogram (shared with export endpoints).
     pub http_request_duration: Arc<Histogram>,
-
-    /// Database query duration histogram (shared with export endpoints).
-    pub db_query_duration: Arc<Histogram>,
 
     /// Total successful schema reloads
     pub schema_reloads_total: AtomicU64,
@@ -516,37 +507,33 @@ impl TimingGuard {
 #[derive(Debug)]
 pub struct PrometheusMetrics {
     /// Total GraphQL queries executed
-    pub queries_total:              u64,
+    pub queries_total:           u64,
     /// Successful GraphQL queries
-    pub queries_success:            u64,
+    pub queries_success:         u64,
     /// Failed GraphQL queries
-    pub queries_error:              u64,
+    pub queries_error:           u64,
     /// Average query duration in milliseconds
-    pub queries_avg_duration_ms:    f64,
+    pub queries_avg_duration_ms: f64,
     /// Sum of estimated operation costs (#379)
-    pub queries_cost_total:         u64,
-    /// Total database queries executed
-    pub db_queries_total:           u64,
-    /// Average database query duration in milliseconds
-    pub db_queries_avg_duration_ms: f64,
+    pub queries_cost_total:      u64,
     /// Total validation errors
-    pub validation_errors_total:    u64,
+    pub validation_errors_total: u64,
     /// Total parse errors
-    pub parse_errors_total:         u64,
+    pub parse_errors_total:      u64,
     /// Total execution errors
-    pub execution_errors_total:     u64,
+    pub execution_errors_total:  u64,
     /// Total HTTP requests processed
-    pub http_requests_total:        u64,
+    pub http_requests_total:     u64,
     /// HTTP 2xx responses
-    pub http_responses_2xx:         u64,
+    pub http_responses_2xx:      u64,
     /// HTTP 4xx responses
-    pub http_responses_4xx:         u64,
+    pub http_responses_4xx:      u64,
     /// HTTP 5xx responses
-    pub http_responses_5xx:         u64,
+    pub http_responses_5xx:      u64,
     /// The query-result cache's own counters, or `None` when the server runs no
     /// result cache (#1583). Read from the cache itself, the source the admin stats
     /// endpoint reads, so the two cannot disagree.
-    pub result_cache:               Option<ResultCacheStats>,
+    pub result_cache:            Option<ResultCacheStats>,
 }
 
 impl PrometheusMetrics {
@@ -573,14 +560,6 @@ fraiseql_graphql_query_duration_ms {}
 # HELP fraiseql_graphql_queries_cost_total Sum of estimated operation costs (#379)
 # TYPE fraiseql_graphql_queries_cost_total counter
 fraiseql_graphql_queries_cost_total {}
-
-# HELP fraiseql_database_queries_total Total database queries executed
-# TYPE fraiseql_database_queries_total counter
-fraiseql_database_queries_total {}
-
-# HELP fraiseql_database_query_duration_ms Average database query time in milliseconds
-# TYPE fraiseql_database_query_duration_ms gauge
-fraiseql_database_query_duration_ms {}
 
 # HELP fraiseql_validation_errors_total Total validation errors
 # TYPE fraiseql_validation_errors_total counter
@@ -615,8 +594,6 @@ fraiseql_http_responses_5xx {}
             self.queries_error,
             self.queries_avg_duration_ms,
             self.queries_cost_total,
-            self.db_queries_total,
-            self.db_queries_avg_duration_ms,
             self.validation_errors_total,
             self.parse_errors_total,
             self.execution_errors_total,
@@ -688,9 +665,6 @@ impl PrometheusMetrics {
         let queries_error = collector.queries_error.load(Ordering::Relaxed);
         let queries_duration_us = collector.queries_duration_us.load(Ordering::Relaxed);
 
-        let db_queries_total = collector.db_queries_total.load(Ordering::Relaxed);
-        let db_queries_duration_us = collector.db_queries_duration_us.load(Ordering::Relaxed);
-
         Self {
             queries_total,
             queries_success,
@@ -699,13 +673,6 @@ impl PrometheusMetrics {
             #[allow(clippy::cast_precision_loss)] // Reason: precision loss is acceptable for metrics/statistics
             queries_avg_duration_ms: if queries_total > 0 {
                 (queries_duration_us as f64 / queries_total as f64) / 1000.0
-            } else {
-                0.0
-            },
-            db_queries_total,
-            #[allow(clippy::cast_precision_loss)] // Reason: precision loss is acceptable for metrics/statistics
-            db_queries_avg_duration_ms: if db_queries_total > 0 {
-                (db_queries_duration_us as f64 / db_queries_total as f64) / 1000.0
             } else {
                 0.0
             },

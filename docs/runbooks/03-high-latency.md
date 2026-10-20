@@ -398,7 +398,7 @@ EOF
 # Grafana dashboard for latency monitoring
 # Create dashboard with:
 # - Request latency percentiles (p50, p95, p99)
-# - Database query time histogram
+# - Database query time (from PostgreSQL's pg_stat_statements; the server exports none)
 # - Connection pool usage
 # - Query count and error rate
 ```

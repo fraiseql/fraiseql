@@ -777,8 +777,6 @@ async fn execute_graphql_request(
     // Record successful query metrics
     metrics.queries_success.fetch_add(1, Ordering::Relaxed);
     metrics.queries_duration_us.fetch_add(elapsed_us, Ordering::Relaxed);
-    metrics.db_queries_total.fetch_add(1, Ordering::Relaxed);
-    metrics.db_queries_duration_us.fetch_add(elapsed_us, Ordering::Relaxed);
     metrics.operation_metrics.record(op_name, elapsed_us, false);
 
     // #379 acceptance: the audit trail records the estimated cost alongside

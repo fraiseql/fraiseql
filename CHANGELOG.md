@@ -41,6 +41,18 @@ disagreed, and the promise was the part that was wrong.
   it off. The server no longer logs that block. Read the compiled section through
   `fraiseql_core::schema::SecurityConfig`, the type the server applies.
 
+- **`/metrics` no longer exports database-timing series (#1634).**
+  `fraiseql_database_queries_total` and `fraiseql_database_query_duration_ms` counted each
+  successful GraphQL request as one database query and its whole duration as database
+  time, and `fraiseql_database_query_duration_seconds` was never observed. Alerts or
+  dashboards on them read request numbers; use `fraiseql_graphql_queries_total`,
+  `fraiseql_graphql_query_duration_ms` and `fraiseql_http_request_duration_seconds` for
+  those, and PostgreSQL's `pg_stat_statements` for database time. The
+  `MetricsCollector::{db_queries_total, db_queries_duration_us, db_query_duration}` and
+  `PrometheusMetrics::{db_queries_total, db_queries_avg_duration_ms}` fields are removed.
+  Statement-level database timing returns once query execution has a single seam to
+  measure at.
+
 ### Fixed
 
 - **The `-full` release binaries ship the REST and Arrow Flight transports, outbound CDC

@@ -398,11 +398,6 @@ pub async fn metrics_handler(State(state): State<AppState>) -> impl IntoResponse
         "fraiseql_http_request_duration_seconds",
         "HTTP request duration in seconds",
     ));
-    // Database query duration histogram
-    output.push_str(&state.metrics.db_query_duration.to_prometheus_lines(
-        "fraiseql_database_query_duration_seconds",
-        "Database query duration in seconds",
-    ));
 
     // JWT replay prevention counters.
     {
