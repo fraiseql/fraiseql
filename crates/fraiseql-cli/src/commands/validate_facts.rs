@@ -11,15 +11,15 @@ use std::{collections::HashSet, fs, path::Path};
 
 use anyhow::Result;
 use fraiseql_core::{
-    compiler::{
-        fact_table::{DatabaseIntrospector, FactTableDetector, FactTableMetadata},
-        ir::AuthoringIR,
-        parser::SchemaParser,
-    },
+    compiler::fact_table::{DatabaseIntrospector, FactTableDetector, FactTableMetadata},
     db::PostgresIntrospector,
+    schema::CompiledSchema,
 };
 
-use crate::output::OutputFormatter;
+use crate::{
+    output::OutputFormatter,
+    schema::{IntermediateSchema, SchemaConverter},
+};
 
 /// Validation error type.
 #[derive(Debug)]
@@ -104,10 +104,9 @@ pub async fn run(
     // 1. Load and parse schema
     let schema_str = fs::read_to_string(schema_path)?;
 
-    let parser = SchemaParser::new();
-    let ir: AuthoringIR = parser.parse(&schema_str)?;
+    let declared_metadata = declared_fact_tables(&schema_str)?;
 
-    let declared_tables: HashSet<String> = ir.fact_tables.keys().cloned().collect();
+    let declared_tables: HashSet<String> = declared_metadata.keys().cloned().collect();
 
     formatter
         .progress(&format!("Found {} declared fact table(s) in schema", declared_tables.len()));
@@ -157,7 +156,7 @@ pub async fn run(
         match FactTableDetector::introspect(&introspector, table_name).await {
             Ok(actual_metadata) => {
                 // Compare structures against declared metadata
-                if let Some(declared) = ir.fact_tables.get(table_name) {
+                if let Some(declared) = declared_metadata.get(table_name) {
                     let comparison_issues =
                         compare_metadata(table_name, declared, &actual_metadata);
                     issues.extend(comparison_issues);
@@ -298,4 +297,32 @@ pub(crate) fn compare_metadata(
     }
 
     issues
+}
+
+/// The fact tables `schema_json` declares, by table name.
+///
+/// Reads an authoring `schema.json` (strict `IntermediateSchema`, whose `fact_tables` is an
+/// array) or a `schema.compiled.json` (whose `fact_tables` is a map). A file that is
+/// neither is an error naming both reasons, never "no fact tables".
+pub(crate) fn declared_fact_tables(
+    schema_json: &str,
+) -> Result<std::collections::HashMap<String, FactTableMetadata>> {
+    let authoring_err = match serde_json::from_str::<IntermediateSchema>(schema_json) {
+        Ok(authoring) => {
+            return Ok(authoring
+                .fact_tables
+                .unwrap_or_default()
+                .into_iter()
+                .map(|ft| (ft.table_name.clone(), SchemaConverter::convert_fact_table(ft)))
+                .collect());
+        },
+        Err(e) => e,
+    };
+    match serde_json::from_str::<CompiledSchema>(schema_json) {
+        Ok(compiled) => Ok(compiled.fact_tables),
+        Err(compiled_err) => Err(anyhow::anyhow!(
+            "the schema is neither an authoring schema.json ({authoring_err}) nor a \
+             schema.compiled.json ({compiled_err})"
+        )),
+    }
 }

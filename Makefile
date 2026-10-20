@@ -252,6 +252,7 @@ test-integration-postgres: db-up db-failover-reset
 	@echo "### fraiseql-cli against-db suites (each self-skips without DATABASE_URL)"
 	@cargo test -p fraiseql-cli --features test-postgres --test init_first_run_pg -- --test-threads=1
 	@cargo test -p fraiseql-cli --features test-postgres --test generate_views_validate_pg -- --test-threads=1
+	@cargo test -p fraiseql-cli --features test-postgres --test validate_facts_pg -- --test-threads=1
 	@cargo test -p fraiseql-cli --features test-postgres --test compile_drift_fail_pg -- --test-threads=1
 	@cargo test -p fraiseql-cli --features test-postgres --test native_column_nullability_pg -- --test-threads=1
 	@cargo test -p fraiseql-cli --features test-postgres --test authored_contract_pg -- --test-threads=1

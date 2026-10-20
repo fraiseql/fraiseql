@@ -4,9 +4,9 @@
 //!
 //! This module contains:
 //!
-//! - **Parser / IR / Validator** — parse authoring-time JSON into an intermediate representation
-//!   (`AuthoringIR`) and validate it. Used by the CLI `validate-facts` command and by
-//!   `SchemaConverter` (in `fraiseql-cli`).
+//! - **Parser / IR / Validator** — parse JSON into an intermediate representation (`AuthoringIR`)
+//!   and validate it. No production path calls the parser: the CLI compiles through its own
+//!   `IntermediateSchema` pipeline. `ir::IRQuery` is still read by `cache::query_analyzer`.
 //!
 //! - **Runtime sub-modules** — aggregate types, aggregation planning, fact tables, and window
 //!   functions, consumed by the runtime executor.

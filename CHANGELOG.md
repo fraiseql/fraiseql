@@ -80,6 +80,12 @@ disagreed, and the promise was the part that was wrong.
   apply them, or an allowed locale with no ICU collation now refuses to boot on those
   paths too, instead of failing per request.
 
+- **`fraiseql validate facts` reads an authoring `schema.json` (#1626).** It parsed the
+  schema as a map of fact tables, found none in the authoring format's array, printed
+  "No fact tables declared" and exited 0. It now reads the authoring format (strictly) or
+  a `schema.compiled.json`, and a declared fact table the database lacks fails the
+  command. A file that is neither is an error, not "no fact tables".
+
 - **A relay query annotated `reads_from = primary` reads the primary (#1622).** With no
   session variables to apply, the PostgreSQL adapter's relay page dropped the query's
   routing and could be served by a replica. The `RelayDatabaseAdapter` default also

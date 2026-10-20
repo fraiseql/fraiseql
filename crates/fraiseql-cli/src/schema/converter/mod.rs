@@ -893,7 +893,7 @@ impl SchemaConverter {
     }
 
     /// Convert `IntermediateFactTable` to `FactTableMetadata`.
-    fn convert_fact_table(ft: IntermediateFactTable) -> FactTableMetadata {
+    pub(crate) fn convert_fact_table(ft: IntermediateFactTable) -> FactTableMetadata {
         FactTableMetadata {
             table_name:               ft.table_name,
             type_name:                ft.type_name,

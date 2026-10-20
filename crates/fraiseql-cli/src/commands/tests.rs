@@ -4058,3 +4058,40 @@ mod default_collision_tests {
         assert!(message.contains("exclude_inject_defaults"), "{message}");
     }
 }
+
+#[cfg(test)]
+mod declared_fact_tables_tests {
+    use super::super::validate_facts::declared_fact_tables;
+    use crate::schema::{IntermediateSchema, SchemaConverter};
+
+    /// The `fact_tables` an authoring `schema.json` carries: an array.
+    const AUTHORING: &str = r#"{"fact_tables": [{"table_name": "tf_sales", "measures": [],
+        "dimensions": {"name": "data", "paths": []}, "denormalized_filters": []}]}"#;
+
+    fn names(schema_json: &str) -> Vec<String> {
+        let mut names: Vec<String> =
+            declared_fact_tables(schema_json).expect("a valid schema").into_keys().collect();
+        names.sort();
+        names
+    }
+
+    #[test]
+    fn an_authoring_schema_declares_its_fact_tables() {
+        assert_eq!(names(AUTHORING), ["tf_sales"]);
+    }
+
+    #[test]
+    fn a_compiled_schema_declares_its_fact_tables() {
+        let intermediate: IntermediateSchema =
+            serde_json::from_str(AUTHORING).expect("the authoring fixture parses");
+        let compiled = SchemaConverter::convert(intermediate).expect("the fixture compiles");
+        let json = compiled.to_json().expect("the compiled schema serializes");
+        assert_eq!(names(&json), ["tf_sales"]);
+    }
+
+    #[test]
+    fn a_malformed_schema_is_an_error_not_zero_tables() {
+        let result = declared_fact_tables(r#"{"fact_tables": 5}"#);
+        assert!(result.is_err(), "a schema neither format accepts must fail, got {result:?}");
+    }
+}

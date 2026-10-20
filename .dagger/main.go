@@ -1639,6 +1639,10 @@ func (m *FraiseqlCi) integrationPostgres(ctx context.Context, source *dagger.Dir
 		// in a rolled-back transaction; this suite proves it can PASS and FAIL.
 		"echo '### cargo test -p fraiseql-cli --test generate_views_validate_pg (#821 validate can fail)'",
 		"cargo test -p fraiseql-cli --features test-postgres --test generate_views_validate_pg -- --test-threads=1",
+		// #1626: validate facts reads an authoring schema.json, so a declared fact table the
+		// database lacks fails the command instead of "no fact tables declared".
+		"echo '### cargo test -p fraiseql-cli --test validate_facts_pg (#1626 validate facts can fail)'",
+		"cargo test -p fraiseql-cli --features test-postgres --test validate_facts_pg -- --test-threads=1",
 		// #384 — `compile --database` is a drift linter that can FAIL: error-severity
 		// schema↔database drift exits non-zero and writes no artifact; doctor
 		// reports the same drift as structured JSON. Proves both directions.
