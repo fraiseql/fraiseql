@@ -80,6 +80,28 @@ the server has a PostgreSQL pool. Every request needs a valid bearer token carry
 the `fraiseql:admin` scope: no or invalid token returns 401, a token without the
 scope returns 403.
 
+### Tenant Scope
+
+The token's tenant (the claim `[fraiseql.tenancy] tenant_claim` names, `tenant_id` by
+default) decides what an admin acts on.
+
+- **No tenant: the operator.** Every observer, every execution, and every route below.
+- **A numeric tenant: that organisation** (`fk_customer_org`).
+  - It creates observers it owns.
+  - It lists and reads its own observers and the global ones (`fk_customer_org` null).
+  - It changes, deletes, enables and disables only its own observers.
+  - It sees logs and statistics only for its own observers. A global observer fires on
+    every tenant's events, so its executions are the operator's to read.
+  - Another organisation's observer answers 404.
+- **Any other tenant: refused with 403.** `fk_customer_org` is a `BIGINT`, so a tenant
+  such as `acme` or a UUID names no organisation the observer tables can scope by.
+
+The changelog, the checkpoints, the runtime controls and the dead letter queue span every
+tenant. They answer 403 to any token that names one.
+
+A failed database query answers 500 with a generic message. The database's error text
+goes to the server log only.
+
 ### Observer Management, Changelog and Checkpoints
 
 | Method | Path | Does | Params |

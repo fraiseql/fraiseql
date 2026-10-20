@@ -5,7 +5,7 @@ use uuid::Uuid;
 
 use super::{
     CreateObserverRequest, ListObserverLogsQuery, ListObserversQuery, Observer, ObserverLog,
-    ObserverStats, UpdateObserverRequest,
+    ObserverScope, ObserverStats, UpdateObserverRequest,
 };
 use crate::ServerError;
 
@@ -22,7 +22,7 @@ impl ObserverRepository {
         Self { pool }
     }
 
-    /// List observers with optional filters.
+    /// List the observers `scope` can see, with optional filters.
     ///
     /// # Errors
     ///
@@ -30,7 +30,7 @@ impl ObserverRepository {
     pub async fn list(
         &self,
         query: &ListObserversQuery,
-        customer_org: Option<i64>,
+        scope: ObserverScope,
     ) -> Result<(Vec<Observer>, i64), ServerError> {
         let offset = (query.page - 1) * query.page_size;
 
@@ -50,12 +50,7 @@ impl ObserverRepository {
         if let Some(enabled) = query.enabled {
             count_qb.push(" AND enabled = ").push_bind(enabled);
         }
-        if let Some(org_id) = customer_org {
-            count_qb
-                .push(" AND (fk_customer_org IS NULL OR fk_customer_org = ")
-                .push_bind(org_id)
-                .push(")");
-        }
+        scope.push_visible(&mut count_qb);
 
         let total_count: (i64,) = count_qb
             .build_query_as()
@@ -84,12 +79,7 @@ impl ObserverRepository {
         if let Some(enabled) = query.enabled {
             select_qb.push(" AND enabled = ").push_bind(enabled);
         }
-        if let Some(org_id) = customer_org {
-            select_qb
-                .push(" AND (fk_customer_org IS NULL OR fk_customer_org = ")
-                .push_bind(org_id)
-                .push(")");
-        }
+        scope.push_visible(&mut select_qb);
 
         select_qb
             .push(" ORDER BY priority ASC, pk_observer ASC")
@@ -107,7 +97,7 @@ impl ObserverRepository {
         Ok((observers, total_count.0))
     }
 
-    /// Get a single observer by ID.
+    /// Get an observer `scope` can see by ID.
     ///
     /// # Errors
     ///
@@ -115,7 +105,7 @@ impl ObserverRepository {
     pub async fn get_by_id(
         &self,
         id: Uuid,
-        customer_org: Option<i64>,
+        scope: ObserverScope,
     ) -> Result<Option<Observer>, ServerError> {
         let mut qb: sqlx::QueryBuilder<sqlx::Postgres> = sqlx::QueryBuilder::new(
             r"SELECT pk_observer, id, name, description, entity_type, event_type,
@@ -126,11 +116,7 @@ impl ObserverRepository {
         );
         qb.push_bind(id).push(" AND deleted_at IS NULL");
 
-        if let Some(org_id) = customer_org {
-            qb.push(" AND (fk_customer_org IS NULL OR fk_customer_org = ")
-                .push_bind(org_id)
-                .push(")");
-        }
+        scope.push_visible(&mut qb);
 
         let observer: Option<Observer> = qb
             .build_query_as()
@@ -149,7 +135,7 @@ impl ObserverRepository {
     pub async fn create(
         &self,
         request: &CreateObserverRequest,
-        customer_org: Option<i64>,
+        scope: ObserverScope,
         created_by: Option<&str>,
     ) -> Result<Observer, ServerError> {
         let actions_json = serde_json::to_value(&request.actions)
@@ -184,7 +170,7 @@ impl ObserverRepository {
         .bind(request.priority)
         .bind(&retry_config_json)
         .bind(request.timeout_ms)
-        .bind(customer_org)
+        .bind(scope.organisation())
         .bind(created_by)
         .fetch_one(&self.pool)
         .await
@@ -202,7 +188,10 @@ impl ObserverRepository {
         Ok(observer)
     }
 
-    /// Update an existing observer.
+    /// Update an existing observer the scope owns.
+    ///
+    /// Returns `None` when no live observer with this id is owned by `scope`: an organisation
+    /// does not change another organisation's observers, nor the global ones.
     ///
     /// # Errors
     ///
@@ -211,113 +200,60 @@ impl ObserverRepository {
         &self,
         id: Uuid,
         request: &UpdateObserverRequest,
-        customer_org: Option<i64>,
+        scope: ObserverScope,
         updated_by: Option<&str>,
     ) -> Result<Option<Observer>, ServerError> {
-        // First check if the observer exists
-        let existing: Option<Observer> = self.get_by_id(id, customer_org).await?;
-        if existing.is_none() {
-            return Ok(None);
-        }
-
-        let mut set_clauses = vec!["updated_by = $2".to_string()];
-        let mut param_index = 3;
-
-        // Build dynamic SET clause based on provided fields
-        if request.name.is_some() {
-            set_clauses.push(format!("name = ${}", param_index));
-            param_index += 1;
-        }
-        if request.description.is_some() {
-            set_clauses.push(format!("description = ${}", param_index));
-            param_index += 1;
-        }
-        if request.entity_type.is_some() {
-            set_clauses.push(format!("entity_type = ${}", param_index));
-            param_index += 1;
-        }
-        if request.event_type.is_some() {
-            set_clauses.push(format!("event_type = ${}", param_index));
-            param_index += 1;
-        }
-        if request.condition_expression.is_some() {
-            set_clauses.push(format!("condition_expression = ${}", param_index));
-            param_index += 1;
-        }
-        if request.actions.is_some() {
-            set_clauses.push(format!("actions = ${}", param_index));
-            param_index += 1;
-        }
-        if request.enabled.is_some() {
-            set_clauses.push(format!("enabled = ${}", param_index));
-            param_index += 1;
-        }
-        if request.priority.is_some() {
-            set_clauses.push(format!("priority = ${}", param_index));
-            param_index += 1;
-        }
-        if request.retry_config.is_some() {
-            set_clauses.push(format!("retry_config = ${}", param_index));
-            param_index += 1;
-        }
-        if request.timeout_ms.is_some() {
-            set_clauses.push(format!("timeout_ms = ${}", param_index));
-            // param_index += 1; // Not needed for last param
-        }
-
-        let sql = format!(
-            r"
-            UPDATE tb_observer
-            SET {}
-            WHERE id = $1 AND deleted_at IS NULL
-            RETURNING
-                pk_observer, id, name, description, entity_type, event_type,
-                condition_expression, actions, enabled, priority, retry_config,
-                timeout_ms, fk_customer_org, created_at, updated_at,
-                created_by, updated_by, deleted_at
-            ",
-            set_clauses.join(", ")
-        );
-
-        // Build query with dynamic bindings
-        let mut query = sqlx::query_as::<_, Observer>(&sql).bind(id).bind(updated_by);
+        let mut qb: sqlx::QueryBuilder<sqlx::Postgres> =
+            sqlx::QueryBuilder::new("UPDATE tb_observer SET updated_by = ");
+        qb.push_bind(updated_by);
 
         if let Some(ref name) = request.name {
-            query = query.bind(name);
+            qb.push(", name = ").push_bind(name);
         }
         if let Some(ref description) = request.description {
-            query = query.bind(description);
+            qb.push(", description = ").push_bind(description);
         }
         if let Some(ref entity_type) = request.entity_type {
-            query = query.bind(entity_type);
+            qb.push(", entity_type = ").push_bind(entity_type);
         }
         if let Some(ref event_type) = request.event_type {
-            query = query.bind(event_type);
+            qb.push(", event_type = ").push_bind(event_type);
         }
         if let Some(ref condition_expression) = request.condition_expression {
-            query = query.bind(condition_expression);
+            qb.push(", condition_expression = ").push_bind(condition_expression);
         }
         if let Some(ref actions) = request.actions {
             let actions_json = serde_json::to_value(actions)
                 .map_err(|e| ServerError::Validation(format!("Invalid actions: {}", e)))?;
-            query = query.bind(actions_json);
+            qb.push(", actions = ").push_bind(actions_json);
         }
         if let Some(enabled) = request.enabled {
-            query = query.bind(enabled);
+            qb.push(", enabled = ").push_bind(enabled);
         }
         if let Some(priority) = request.priority {
-            query = query.bind(priority);
+            qb.push(", priority = ").push_bind(priority);
         }
         if let Some(ref retry_config) = request.retry_config {
             let retry_config_json = serde_json::to_value(retry_config)
                 .map_err(|e| ServerError::Validation(format!("Invalid retry config: {}", e)))?;
-            query = query.bind(retry_config_json);
+            qb.push(", retry_config = ").push_bind(retry_config_json);
         }
         if let Some(timeout_ms) = request.timeout_ms {
-            query = query.bind(timeout_ms);
+            qb.push(", timeout_ms = ").push_bind(timeout_ms);
         }
 
-        let observer = query
+        qb.push(" WHERE id = ").push_bind(id).push(" AND deleted_at IS NULL");
+        scope.push_owned(&mut qb, "pk_observer");
+        qb.push(
+            r" RETURNING
+                pk_observer, id, name, description, entity_type, event_type,
+                condition_expression, actions, enabled, priority, retry_config,
+                timeout_ms, fk_customer_org, created_at, updated_at,
+                created_by, updated_by, deleted_at",
+        );
+
+        let observer = qb
+            .build_query_as()
             .fetch_optional(&self.pool)
             .await
             .map_err(|e| ServerError::Database(e.to_string()))?;
@@ -325,21 +261,17 @@ impl ObserverRepository {
         Ok(observer)
     }
 
-    /// Soft delete an observer.
+    /// Soft delete an observer the scope owns.
     ///
     /// # Errors
     ///
     /// Returns `ServerError::Database` on query failure.
-    pub async fn delete(&self, id: Uuid, customer_org: Option<i64>) -> Result<bool, ServerError> {
+    pub async fn delete(&self, id: Uuid, scope: ObserverScope) -> Result<bool, ServerError> {
         let mut qb: sqlx::QueryBuilder<sqlx::Postgres> =
             sqlx::QueryBuilder::new("UPDATE tb_observer SET deleted_at = NOW() WHERE id = ");
         qb.push_bind(id).push(" AND deleted_at IS NULL");
 
-        if let Some(org_id) = customer_org {
-            qb.push(" AND (fk_customer_org IS NULL OR fk_customer_org = ")
-                .push_bind(org_id)
-                .push(")");
-        }
+        scope.push_owned(&mut qb, "pk_observer");
 
         let result = qb
             .build()
@@ -350,7 +282,7 @@ impl ObserverRepository {
         Ok(result.rows_affected() > 0)
     }
 
-    /// Get observer statistics.
+    /// Get statistics for the observers `scope` owns.
     ///
     /// # Errors
     ///
@@ -358,7 +290,7 @@ impl ObserverRepository {
     pub async fn get_stats(
         &self,
         observer_id: Option<Uuid>,
-        customer_org: Option<i64>,
+        scope: ObserverScope,
     ) -> Result<Vec<ObserverStats>, ServerError> {
         let mut qb: sqlx::QueryBuilder<sqlx::Postgres> =
             sqlx::QueryBuilder::new("SELECT * FROM vw_observer_stats WHERE 1=1");
@@ -367,14 +299,7 @@ impl ObserverRepository {
             qb.push(" AND observer_id = ").push_bind(id);
         }
 
-        if let Some(org_id) = customer_org {
-            qb.push(
-                " AND pk_observer IN (SELECT pk_observer FROM tb_observer \
-                 WHERE fk_customer_org IS NULL OR fk_customer_org = ",
-            )
-            .push_bind(org_id)
-            .push(")");
-        }
+        scope.push_owned(&mut qb, "pk_observer");
 
         qb.push(" ORDER BY observer_name ASC");
 
@@ -387,7 +312,7 @@ impl ObserverRepository {
         Ok(stats)
     }
 
-    /// List observer execution logs.
+    /// List execution logs of the observers `scope` owns.
     ///
     /// # Errors
     ///
@@ -395,7 +320,7 @@ impl ObserverRepository {
     pub async fn list_logs(
         &self,
         query: &ListObserverLogsQuery,
-        customer_org: Option<i64>,
+        scope: ObserverScope,
     ) -> Result<(Vec<ObserverLog>, i64), ServerError> {
         let offset = (query.page - 1) * query.page_size;
 
@@ -418,12 +343,7 @@ impl ObserverRepository {
         if let Some(ref trace_id) = query.trace_id {
             count_qb.push(" AND trace_id = ").push_bind(trace_id);
         }
-        if let Some(org_id) = customer_org {
-            count_qb
-                .push(" AND (fk_customer_org IS NULL OR fk_customer_org = ")
-                .push_bind(org_id)
-                .push(")");
-        }
+        scope.push_owned(&mut count_qb, "fk_observer");
 
         let total_count: (i64,) = count_qb
             .build_query_as()
@@ -454,12 +374,7 @@ impl ObserverRepository {
         if let Some(ref trace_id) = query.trace_id {
             select_qb.push(" AND trace_id = ").push_bind(trace_id);
         }
-        if let Some(org_id) = customer_org {
-            select_qb
-                .push(" AND (fk_customer_org IS NULL OR fk_customer_org = ")
-                .push_bind(org_id)
-                .push(")");
-        }
+        scope.push_owned(&mut select_qb, "fk_observer");
 
         select_qb
             .push(" ORDER BY created_at DESC")

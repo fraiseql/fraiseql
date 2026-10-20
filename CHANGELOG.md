@@ -22,6 +22,14 @@ disagreed, and the promise was the part that was wrong.
   builds the same relay-capable executor as `Server::with_relay_pagination`. An embedder
   calling it with an adapter that does not implement relay pagination implements the
   trait or uses `Server::new`. `PostgresAdapter` already implements it.
+- **The observer admin API scopes every route by the token's tenant (#1625).** An
+  organisation can no longer read, change, delete, enable or disable another
+  organisation's observers. It no longer changes global observers, and it no longer sees
+  the executions of either. A token whose tenant is not a number answers 403 on every
+  route. So does a token with any tenant on the changelog, the checkpoints, the runtime
+  controls and the DLQ. External changelog consumers use a token that names no tenant.
+  `ObserverRepository` methods take an `ObserverScope` in place of
+  `customer_org: Option<i64>`, and the handlers take it as an extractor.
 
 ### Fixed
 
@@ -41,6 +49,20 @@ disagreed, and the promise was the part that was wrong.
   relay query answered "Relay pagination is not supported" on an `arrow` build and worked
   on one without it. That already affected the `fraiseql-server-full` and
   `fraiseql-server-platform` images.
+
+### Security
+
+- **The observer admin API acts only on the caller's organisation (#1625).** Behind the
+  `fraiseql:admin` scope:
+  - get, delete, enable, disable, statistics and logs ignored the caller's tenant, so an
+    organisation's administrator could act on any observer by its id;
+  - logs were filtered on a column the runtime never writes, so every tenant's executions
+    were listed to every organisation;
+  - a tenant that is not a number turned scoping off entirely;
+  - the changelog served every tenant's entity changes to any admin token;
+  - failed queries returned the database's error text.
+
+  See `docs/operations/observers.md` § Tenant Scope.
 
 ## [2.17.0] - 2026-10-19
 

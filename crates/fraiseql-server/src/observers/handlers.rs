@@ -6,14 +6,13 @@ use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
 };
-use fraiseql_core::security::SecurityContext;
 use uuid::Uuid;
 
 use super::{
     ActionConfig, CreateObserverRequest, ListObserverLogsQuery, ListObserversQuery,
-    ObserverRepository, PaginatedResponse, UpdateObserverRequest,
+    ObserverRepository, ObserverScope, OperatorOnly, PaginatedResponse, UpdateObserverRequest,
 };
-use crate::extractors::OptionalSecurityContext;
+use crate::{ServerError, extractors::OptionalSecurityContext};
 
 /// Reject observer actions whose `type` the runtime cannot dispatch (#612 item 10).
 ///
@@ -81,17 +80,54 @@ async fn refresh_runtime_after_write(state: &ObserverState) {
     }
 }
 
-/// List observers with optional filters.
+/// The response for a repository failure.
+///
+/// A conflict or a validation failure carries a message this crate wrote, about the request.
+/// Anything else is the database's own text, which names tables, columns and constraints: it is
+/// logged and the caller gets a generic message.
+fn repository_error(operation: &str, error: &ServerError) -> Response {
+    let (status, message) = match error {
+        ServerError::Conflict(message) => (StatusCode::CONFLICT, message.clone()),
+        ServerError::Validation(message) => (StatusCode::BAD_REQUEST, message.clone()),
+        other => {
+            tracing::error!(error = %other, "Failed to {operation}");
+            (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to {operation}"))
+        },
+    };
+    (status, Json(serde_json::json!({ "error": message }))).into_response()
+}
+
+fn observer_not_found() -> Response {
+    (
+        StatusCode::NOT_FOUND,
+        Json(serde_json::json!({ "error": "Observer not found" })),
+    )
+        .into_response()
+}
+
+/// Reject an `event_type` the observer runtime does not emit.
+fn reject_unknown_event_type(event_type: Option<&String>) -> Option<Response> {
+    let valid_types = ["INSERT", "UPDATE", "DELETE", "CUSTOM"];
+    event_type.filter(|t| !valid_types.contains(&t.as_str())).map(|event_type| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({
+                "error": format!("Invalid event_type '{}'. Must be one of: {:?}", event_type, valid_types)
+            })),
+        )
+            .into_response()
+    })
+}
+
+/// List the observers the caller can see.
 ///
 /// GET /api/observers
 pub async fn list_observers(
     State(state): State<ObserverState>,
-    OptionalSecurityContext(security_context): OptionalSecurityContext,
+    scope: ObserverScope,
     Query(query): Query<ListObserversQuery>,
-) -> impl IntoResponse {
-    let customer_org: Option<i64> = extract_customer_org(security_context.as_ref());
-
-    match state.repository.list(&query, customer_org).await {
+) -> Response {
+    match state.repository.list(&query, scope).await {
         Ok((observers, total_count)) => {
             // R8: never echo webhook secrets (actions[].headers) in a response body.
             let observers: Vec<_> =
@@ -100,57 +136,36 @@ pub async fn list_observers(
                 PaginatedResponse::new(observers, query.page, query.page_size, total_count);
             (StatusCode::OK, Json(response)).into_response()
         },
-        Err(e) => {
-            let error_msg = e.to_string();
-            tracing::error!("Failed to list observers: {}", error_msg);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({ "error": error_msg })),
-            )
-                .into_response()
-        },
+        Err(e) => repository_error("list observers", &e),
     }
 }
 
-/// Get a single observer by ID.
+/// Get a single observer the caller can see.
 ///
 /// GET /api/observers/{id}
 pub async fn get_observer(
     State(state): State<ObserverState>,
+    scope: ObserverScope,
     Path(id): Path<Uuid>,
-) -> impl IntoResponse {
-    let customer_org: Option<i64> = None;
-
-    match state.repository.get_by_id(id, customer_org).await {
+) -> Response {
+    match state.repository.get_by_id(id, scope).await {
         Ok(Some(observer)) => {
             (StatusCode::OK, Json(observer.with_redacted_secrets())).into_response()
         },
-        Ok(None) => (
-            StatusCode::NOT_FOUND,
-            Json(serde_json::json!({ "error": "Observer not found" })),
-        )
-            .into_response(),
-        Err(e) => {
-            let error_msg = e.to_string();
-            tracing::error!("Failed to get observer {}: {}", id, error_msg);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({ "error": error_msg })),
-            )
-                .into_response()
-        },
+        Ok(None) => observer_not_found(),
+        Err(e) => repository_error("get observer", &e),
     }
 }
 
-/// Create a new observer.
+/// Create a new observer, owned by the caller's organisation (global for the operator).
 ///
 /// POST /api/observers
 pub async fn create_observer(
     State(state): State<ObserverState>,
+    scope: ObserverScope,
     OptionalSecurityContext(security_context): OptionalSecurityContext,
     Json(request): Json<CreateObserverRequest>,
-) -> impl IntoResponse {
-    // Validate request
+) -> Response {
     if request.name.is_empty() {
         return (
             StatusCode::BAD_REQUEST,
@@ -172,257 +187,148 @@ pub async fn create_observer(
     if let Some(resp) = reject_undispatchable_actions(&request.actions) {
         return resp;
     }
-
-    // Validate event_type if provided
-    if let Some(ref event_type) = request.event_type {
-        let valid_types = ["INSERT", "UPDATE", "DELETE", "CUSTOM"];
-        if !valid_types.contains(&event_type.as_str()) {
-            return (
-                StatusCode::BAD_REQUEST,
-                Json(serde_json::json!({
-                    "error": format!("Invalid event_type '{}'. Must be one of: {:?}", event_type, valid_types)
-                })),
-            )
-                .into_response();
-        }
+    if let Some(resp) = reject_unknown_event_type(request.event_type.as_ref()) {
+        return resp;
     }
 
-    let customer_org: Option<i64> = extract_customer_org(security_context.as_ref());
-    let created_by: Option<&str> = extract_user_id(security_context.as_ref());
+    let created_by = security_context.as_ref().map(|ctx| ctx.user_id.as_str());
 
-    match state.repository.create(&request, customer_org, created_by).await {
+    match state.repository.create(&request, scope, created_by).await {
         Ok(observer) => {
             refresh_runtime_after_write(&state).await;
             (StatusCode::CREATED, Json(observer.with_redacted_secrets())).into_response()
         },
-        Err(e) => {
-            let error_msg = e.to_string();
-            tracing::error!("Failed to create observer: {}", error_msg);
-            let status = if error_msg.contains("already exists") {
-                StatusCode::CONFLICT
-            } else {
-                StatusCode::INTERNAL_SERVER_ERROR
-            };
-            (status, Json(serde_json::json!({ "error": error_msg }))).into_response()
-        },
+        Err(e) => repository_error("create observer", &e),
     }
 }
 
-/// Update an existing observer.
+/// Update an observer the caller owns.
 ///
 /// PATCH /api/observers/{id}
 pub async fn update_observer(
     State(state): State<ObserverState>,
+    scope: ObserverScope,
     OptionalSecurityContext(security_context): OptionalSecurityContext,
     Path(id): Path<Uuid>,
     Json(request): Json<UpdateObserverRequest>,
-) -> impl IntoResponse {
-    // Validate event_type if provided
-    if let Some(ref event_type) = request.event_type {
-        let valid_types = ["INSERT", "UPDATE", "DELETE", "CUSTOM"];
-        if !valid_types.contains(&event_type.as_str()) {
-            return (
-                StatusCode::BAD_REQUEST,
-                Json(serde_json::json!({
-                    "error": format!("Invalid event_type '{}'. Must be one of: {:?}", event_type, valid_types)
-                })),
-            )
-                .into_response();
-        }
+) -> Response {
+    if let Some(resp) = reject_unknown_event_type(request.event_type.as_ref()) {
+        return resp;
     }
-
     // Reject action types the runtime cannot dispatch (#612 item 10).
-    if let Some(ref actions) = request.actions {
-        if let Some(resp) = reject_undispatchable_actions(actions) {
-            return resp;
-        }
+    if let Some(resp) = request.actions.as_deref().and_then(reject_undispatchable_actions) {
+        return resp;
     }
 
-    let customer_org: Option<i64> = extract_customer_org(security_context.as_ref());
-    let updated_by: Option<&str> = extract_user_id(security_context.as_ref());
-
-    match state.repository.update(id, &request, customer_org, updated_by).await {
-        Ok(Some(observer)) => {
-            refresh_runtime_after_write(&state).await;
-            (StatusCode::OK, Json(observer.with_redacted_secrets())).into_response()
-        },
-        Ok(None) => (
-            StatusCode::NOT_FOUND,
-            Json(serde_json::json!({ "error": "Observer not found" })),
-        )
-            .into_response(),
-        Err(e) => {
-            let error_msg = e.to_string();
-            tracing::error!("Failed to update observer {}: {}", id, error_msg);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({ "error": error_msg })),
-            )
-                .into_response()
-        },
-    }
+    let updated_by = security_context.as_ref().map(|ctx| ctx.user_id.as_str());
+    write_observer(&state, id, &request, scope, updated_by, "update observer").await
 }
 
-/// Delete an observer (soft delete).
+/// Delete an observer the caller owns (soft delete).
 ///
 /// DELETE /api/observers/{id}
 pub async fn delete_observer(
     State(state): State<ObserverState>,
+    scope: ObserverScope,
     Path(id): Path<Uuid>,
-) -> impl IntoResponse {
-    let customer_org: Option<i64> = None;
-
-    match state.repository.delete(id, customer_org).await {
+) -> Response {
+    match state.repository.delete(id, scope).await {
         Ok(true) => {
             refresh_runtime_after_write(&state).await;
             StatusCode::NO_CONTENT.into_response()
         },
-        Ok(false) => (
-            StatusCode::NOT_FOUND,
-            Json(serde_json::json!({ "error": "Observer not found" })),
-        )
-            .into_response(),
-        Err(e) => {
-            let error_msg = e.to_string();
-            tracing::error!("Failed to delete observer {}: {}", id, error_msg);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({ "error": error_msg })),
-            )
-                .into_response()
-        },
+        Ok(false) => observer_not_found(),
+        Err(e) => repository_error("delete observer", &e),
     }
 }
 
-/// Get observer statistics.
+/// Get statistics for the observers the caller owns.
 ///
 /// GET /api/observers/stats
 /// GET /api/observers/{id}/stats
 pub async fn get_observer_stats(
     State(state): State<ObserverState>,
+    scope: ObserverScope,
     observer_id: Option<Path<Uuid>>,
-) -> impl IntoResponse {
-    let customer_org: Option<i64> = None;
-    let id = observer_id.map(|p| p.0);
-
-    match state.repository.get_stats(id, customer_org).await {
+) -> Response {
+    match state.repository.get_stats(observer_id.map(|p| p.0), scope).await {
         Ok(stats) => (StatusCode::OK, Json(stats)).into_response(),
-        Err(e) => {
-            let error_msg = e.to_string();
-            tracing::error!("Failed to get observer stats: {}", error_msg);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({ "error": error_msg })),
-            )
-                .into_response()
-        },
+        Err(e) => repository_error("get observer stats", &e),
     }
 }
 
-/// List observer execution logs.
+/// List execution logs of the observers the caller owns.
 ///
 /// GET /api/observers/logs
 /// GET /api/observers/{id}/logs
 pub async fn list_observer_logs(
     State(state): State<ObserverState>,
+    scope: ObserverScope,
     Path(observer_id): Path<Option<Uuid>>,
     Query(mut query): Query<ListObserverLogsQuery>,
-) -> impl IntoResponse {
-    // If observer_id is in path, use it
+) -> Response {
     if let Some(id) = observer_id {
         query.observer_id = Some(id);
     }
 
-    let customer_org: Option<i64> = None;
-
-    match state.repository.list_logs(&query, customer_org).await {
+    match state.repository.list_logs(&query, scope).await {
         Ok((logs, total_count)) => {
             let response = PaginatedResponse::new(logs, query.page, query.page_size, total_count);
             (StatusCode::OK, Json(response)).into_response()
         },
-        Err(e) => {
-            let error_msg = e.to_string();
-            tracing::error!("Failed to list observer logs: {}", error_msg);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({ "error": error_msg })),
-            )
-                .into_response()
-        },
+        Err(e) => repository_error("list observer logs", &e),
     }
 }
 
-/// Enable an observer.
+/// Enable an observer the caller owns.
 ///
 /// POST /api/observers/{id}/enable
 pub async fn enable_observer(
     State(state): State<ObserverState>,
+    scope: ObserverScope,
+    OptionalSecurityContext(security_context): OptionalSecurityContext,
     Path(id): Path<Uuid>,
-) -> impl IntoResponse {
+) -> Response {
     let request = UpdateObserverRequest {
         enabled: Some(true),
         ..Default::default()
     };
-
-    let customer_org: Option<i64> = None;
-    let updated_by: Option<&str> = None;
-
-    match state.repository.update(id, &request, customer_org, updated_by).await {
-        Ok(Some(observer)) => {
-            refresh_runtime_after_write(&state).await;
-            (StatusCode::OK, Json(observer.with_redacted_secrets())).into_response()
-        },
-        Ok(None) => (
-            StatusCode::NOT_FOUND,
-            Json(serde_json::json!({ "error": "Observer not found" })),
-        )
-            .into_response(),
-        Err(e) => {
-            let error_msg = e.to_string();
-            tracing::error!("Failed to enable observer {}: {}", id, error_msg);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({ "error": error_msg })),
-            )
-                .into_response()
-        },
-    }
+    let updated_by = security_context.as_ref().map(|ctx| ctx.user_id.as_str());
+    write_observer(&state, id, &request, scope, updated_by, "enable observer").await
 }
 
-/// Disable an observer.
+/// Disable an observer the caller owns.
 ///
 /// POST /api/observers/{id}/disable
 pub async fn disable_observer(
     State(state): State<ObserverState>,
+    scope: ObserverScope,
+    OptionalSecurityContext(security_context): OptionalSecurityContext,
     Path(id): Path<Uuid>,
-) -> impl IntoResponse {
+) -> Response {
     let request = UpdateObserverRequest {
         enabled: Some(false),
         ..Default::default()
     };
+    let updated_by = security_context.as_ref().map(|ctx| ctx.user_id.as_str());
+    write_observer(&state, id, &request, scope, updated_by, "disable observer").await
+}
 
-    let customer_org: Option<i64> = None;
-    let updated_by: Option<&str> = None;
-
-    match state.repository.update(id, &request, customer_org, updated_by).await {
+async fn write_observer(
+    state: &ObserverState,
+    id: Uuid,
+    request: &UpdateObserverRequest,
+    scope: ObserverScope,
+    updated_by: Option<&str>,
+    operation: &str,
+) -> Response {
+    match state.repository.update(id, request, scope, updated_by).await {
         Ok(Some(observer)) => {
-            refresh_runtime_after_write(&state).await;
+            refresh_runtime_after_write(state).await;
             (StatusCode::OK, Json(observer.with_redacted_secrets())).into_response()
         },
-        Ok(None) => (
-            StatusCode::NOT_FOUND,
-            Json(serde_json::json!({ "error": "Observer not found" })),
-        )
-            .into_response(),
-        Err(e) => {
-            let error_msg = e.to_string();
-            tracing::error!("Failed to disable observer {}: {}", id, error_msg);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({ "error": error_msg })),
-            )
-                .into_response()
-        },
+        Ok(None) => observer_not_found(),
+        Err(e) => repository_error(operation, &e),
     }
 }
 
@@ -444,7 +350,10 @@ pub struct RuntimeHealthState {
 /// Get observer runtime health status.
 ///
 /// GET /api/observers/runtime/health
-pub async fn get_runtime_health(State(state): State<RuntimeHealthState>) -> impl IntoResponse {
+pub async fn get_runtime_health(
+    State(state): State<RuntimeHealthState>,
+    _: OperatorOnly,
+) -> impl IntoResponse {
     let runtime = state.runtime.read().await;
     let health = runtime.health();
 
@@ -469,7 +378,10 @@ pub async fn get_runtime_health(State(state): State<RuntimeHealthState>) -> impl
 /// Reload observers from database.
 ///
 /// POST /api/observers/runtime/reload
-pub async fn reload_observers(State(state): State<RuntimeHealthState>) -> impl IntoResponse {
+pub async fn reload_observers(
+    State(state): State<RuntimeHealthState>,
+    _: OperatorOnly,
+) -> impl IntoResponse {
     let runtime = state.runtime.read().await;
 
     match runtime.reload_observers().await {
@@ -481,46 +393,6 @@ pub async fn reload_observers(State(state): State<RuntimeHealthState>) -> impl I
             })),
         )
             .into_response(),
-        Err(e) => {
-            let error_msg = e.to_string();
-            tracing::error!("Failed to reload observers: {}", error_msg);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({ "error": error_msg })),
-            )
-                .into_response()
-        },
+        Err(e) => repository_error("reload observers", &e),
     }
-}
-
-// ============================================================================
-// Authentication Context Extraction
-// ============================================================================
-
-/// Extract customer/tenant organization ID from request context.
-///
-/// In a full implementation, this would use Axum extractors to pull from
-/// the `SecurityContext` middleware. For now, returns None as a safe default.
-/// In production, integrate with your auth middleware to extract from:
-/// - X-Tenant-Id header
-/// - JWT claims (`tenant_id` field)
-/// - Session context
-///
-/// # Returns
-///
-/// Extract tenant/customer-org identifier from the authenticated security context.
-///
-/// Parses `SecurityContext::tenant_id` (a string) as `i64`.
-/// Returns `None` if unauthenticated or if the tenant ID is absent or non-numeric.
-#[must_use]
-fn extract_customer_org(ctx: Option<&SecurityContext>) -> Option<i64> {
-    ctx?.tenant_id.as_ref().map(|t| t.as_str())?.parse::<i64>().ok()
-}
-
-/// Extract the authenticated user ID from the security context.
-///
-/// Returns `None` when the request is unauthenticated.
-#[must_use]
-fn extract_user_id(ctx: Option<&SecurityContext>) -> Option<&str> {
-    Some(ctx?.user_id.as_str())
 }

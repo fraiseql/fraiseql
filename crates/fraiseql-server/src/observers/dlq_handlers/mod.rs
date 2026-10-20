@@ -15,7 +15,10 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
 use uuid::Uuid;
 
-use super::runtime::{InMemoryDlq, ObserverRuntime};
+use super::{
+    OperatorOnly,
+    runtime::{InMemoryDlq, ObserverRuntime},
+};
 
 // ── State ────────────────────────────────────────────────────────────────────
 
@@ -146,7 +149,10 @@ pub struct RetryAllResponse {
 /// `GET /api/observers/delivery/health`
 ///
 /// Returns a summary of observer delivery health including DLQ counts.
-pub async fn delivery_health_handler(State(state): State<DlqState>) -> impl IntoResponse {
+pub async fn delivery_health_handler(
+    State(state): State<DlqState>,
+    _: OperatorOnly,
+) -> impl IntoResponse {
     let runtime = state.runtime.read().await;
     let health = runtime.health();
     let dlq = runtime.dlq();
@@ -169,6 +175,7 @@ pub async fn delivery_health_handler(State(state): State<DlqState>) -> impl Into
 /// Returns a paginated, optionally filtered list of DLQ items.
 pub async fn dlq_list_handler(
     State(state): State<DlqState>,
+    _: OperatorOnly,
     Query(query): Query<DlqListQuery>,
 ) -> impl IntoResponse {
     let runtime = state.runtime.read().await;
@@ -218,6 +225,7 @@ pub async fn dlq_list_handler(
 /// Returns a single DLQ item by ID.
 pub async fn dlq_get_handler(
     State(state): State<DlqState>,
+    _: OperatorOnly,
     Path(id): Path<Uuid>,
 ) -> impl IntoResponse {
     let runtime = state.runtime.read().await;
@@ -282,6 +290,7 @@ async fn claim_and_process(
 /// under concurrent retries; a failed redispatch re-inserts the item.
 pub async fn dlq_retry_handler(
     State(state): State<DlqState>,
+    _: OperatorOnly,
     Path(id): Path<Uuid>,
 ) -> impl IntoResponse {
     let runtime = state.runtime.read().await;
@@ -338,7 +347,10 @@ pub async fn dlq_retry_handler(
 /// remove-and-return), so an item that a per-item retry claims concurrently is
 /// not also dispatched by this loop. Successfully retried items stay removed;
 /// failed ones are re-inserted.
-pub async fn dlq_retry_all_handler(State(state): State<DlqState>) -> impl IntoResponse {
+pub async fn dlq_retry_all_handler(
+    State(state): State<DlqState>,
+    _: OperatorOnly,
+) -> impl IntoResponse {
     let runtime = state.runtime.read().await;
     let dlq = runtime.dlq();
 
@@ -402,6 +414,7 @@ pub async fn dlq_retry_all_handler(State(state): State<DlqState>) -> impl IntoRe
 /// real backing for the `fraiseql-observers dlq remove` CLI command (#341).
 pub async fn dlq_delete_handler(
     State(state): State<DlqState>,
+    _: OperatorOnly,
     Path(id): Path<Uuid>,
 ) -> impl IntoResponse {
     let runtime = state.runtime.read().await;
@@ -438,7 +451,10 @@ pub struct DlqStatsResponse {
 /// items, total recorded retry attempts, count dropped at capacity, and a
 /// per-action breakdown. Backs the `fraiseql-observers dlq stats` CLI command
 /// (#341) with real data instead of fabricated numbers.
-pub async fn dlq_stats_handler(State(state): State<DlqState>) -> impl IntoResponse {
+pub async fn dlq_stats_handler(
+    State(state): State<DlqState>,
+    _: OperatorOnly,
+) -> impl IntoResponse {
     let runtime = state.runtime.read().await;
     let dlq = runtime.dlq();
     let items = dlq.list_all();

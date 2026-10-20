@@ -15,6 +15,8 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 
+use super::OperatorOnly;
+
 // ── State ────────────────────────────────────────────────────────────────────
 
 /// Shared state for changelog HTTP handlers.
@@ -219,6 +221,7 @@ async fn fetch_changelog(
 /// `?latest=true` — fetch the single newest entry's cursor (the tail).
 pub async fn changelog_list_handler(
     State(state): State<ChangelogState>,
+    _: OperatorOnly,
     Query(query): Query<ChangelogQuery>,
 ) -> impl IntoResponse {
     match fetch_changelog(&state.pool, &query).await {
@@ -227,7 +230,7 @@ pub async fn changelog_list_handler(
             tracing::error!("Failed to query changelog: {e}");
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({ "error": format!("Database error: {e}") })),
+                Json(serde_json::json!({ "error": "Database error; see the server log" })),
             )
                 .into_response()
         },
@@ -239,6 +242,7 @@ pub async fn changelog_list_handler(
 /// Read the current checkpoint for a given listener.
 pub async fn checkpoint_get_handler(
     State(state): State<ChangelogState>,
+    _: OperatorOnly,
     Path(listener_id): Path<String>,
 ) -> impl IntoResponse {
     let result = sqlx::query_as::<_, (String, i64, Option<DateTime<Utc>>)>(
@@ -271,7 +275,7 @@ pub async fn checkpoint_get_handler(
             tracing::error!("Failed to read checkpoint: {e}");
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({ "error": format!("Database error: {e}") })),
+                Json(serde_json::json!({ "error": "Database error; see the server log" })),
             )
                 .into_response()
         },
@@ -283,6 +287,7 @@ pub async fn checkpoint_get_handler(
 /// Create or update a checkpoint. Uses `ON CONFLICT … DO UPDATE` (upsert).
 pub async fn checkpoint_save_handler(
     State(state): State<ChangelogState>,
+    _: OperatorOnly,
     Path(listener_id): Path<String>,
     Json(body): Json<SaveCheckpointRequest>,
 ) -> impl IntoResponse {
@@ -316,7 +321,7 @@ pub async fn checkpoint_save_handler(
             tracing::error!("Failed to save checkpoint: {e}");
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({ "error": format!("Database error: {e}") })),
+                Json(serde_json::json!({ "error": "Database error; see the server log" })),
             )
                 .into_response()
         },

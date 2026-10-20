@@ -6,6 +6,7 @@ use axum::{
 };
 
 use super::{
+    ObserverScope,
     changelog_handlers::{
         ChangelogState, changelog_list_handler, checkpoint_get_handler, checkpoint_save_handler,
     },
@@ -53,33 +54,37 @@ pub fn observer_routes(state: ObserverState) -> Router {
 /// Get stats for all observers (wrapper to pass None for `observer_id`).
 async fn get_all_stats(
     state: axum::extract::State<ObserverState>,
+    scope: ObserverScope,
 ) -> impl axum::response::IntoResponse {
-    get_observer_stats(state, None).await
+    get_observer_stats(state, scope, None).await
 }
 
 /// Get stats for a single observer.
 async fn get_single_stats(
     state: axum::extract::State<ObserverState>,
+    scope: ObserverScope,
     path: axum::extract::Path<uuid::Uuid>,
 ) -> impl axum::response::IntoResponse {
-    get_observer_stats(state, Some(path)).await
+    get_observer_stats(state, scope, Some(path)).await
 }
 
 /// List logs for all observers.
 async fn list_all_logs(
     state: axum::extract::State<ObserverState>,
+    scope: ObserverScope,
     query: axum::extract::Query<super::ListObserverLogsQuery>,
 ) -> impl axum::response::IntoResponse {
-    list_observer_logs(state, axum::extract::Path(None), query).await
+    list_observer_logs(state, scope, axum::extract::Path(None), query).await
 }
 
 /// List logs for a single observer.
 async fn list_single_logs(
     state: axum::extract::State<ObserverState>,
+    scope: ObserverScope,
     path: axum::extract::Path<uuid::Uuid>,
     query: axum::extract::Query<super::ListObserverLogsQuery>,
 ) -> impl axum::response::IntoResponse {
-    list_observer_logs(state, axum::extract::Path(Some(path.0)), query).await
+    list_observer_logs(state, scope, axum::extract::Path(Some(path.0)), query).await
 }
 
 /// Create the observer runtime health router.

@@ -39,6 +39,7 @@ pub mod pg_function_dlq;
 pub mod repository;
 pub mod routes;
 pub mod runtime;
+mod scope;
 
 #[cfg(test)]
 mod tests;
@@ -53,6 +54,7 @@ pub use routes::{
     observer_changelog_routes, observer_dlq_routes, observer_routes, observer_runtime_routes,
 };
 pub use runtime::{ObserverRuntime, ObserverRuntimeConfig, RuntimeHealth};
+pub use scope::{ObserverScope, OperatorOnly, ScopeRefusal};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 use uuid::Uuid;

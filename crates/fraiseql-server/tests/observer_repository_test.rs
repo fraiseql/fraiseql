@@ -21,7 +21,9 @@
 
 mod observer_test_helpers;
 
-use fraiseql_server::observers::{ListObserverLogsQuery, ListObserversQuery, ObserverRepository};
+use fraiseql_server::observers::{
+    ListObserverLogsQuery, ListObserversQuery, ObserverRepository, ObserverScope,
+};
 use observer_test_helpers::setup_observer_schema;
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -125,7 +127,7 @@ async fn test_list_tenant_isolation() {
         enabled:         None,
     };
 
-    let (observers, count) = repo.list(&query, Some(1)).await.unwrap();
+    let (observers, count) = repo.list(&query, ObserverScope::Organisation(1)).await.unwrap();
     let names: Vec<&str> = observers.iter().map(|o| o.name.as_str()).collect();
 
     assert!(names.contains(&name_a.as_str()), "org-1 observer should appear");
@@ -155,7 +157,7 @@ async fn test_list_injection_payload_returns_no_rows() {
     };
 
     // Must return 0 rows: the payload is a literal string, not SQL.
-    let (observers, count) = repo.list(&query, Some(1)).await.unwrap();
+    let (observers, count) = repo.list(&query, ObserverScope::Organisation(1)).await.unwrap();
     assert_eq!(
         observers.len(),
         0,
@@ -188,7 +190,7 @@ async fn test_list_all_filters() {
         enabled:         Some(true),
     };
 
-    let (observers, count) = repo.list(&query, Some(10)).await.unwrap();
+    let (observers, count) = repo.list(&query, ObserverScope::Organisation(10)).await.unwrap();
     let names: Vec<&str> = observers.iter().map(|o| o.name.as_str()).collect();
 
     assert!(names.contains(&target.as_str()));
@@ -216,8 +218,11 @@ async fn test_list_pagination_correctness() {
         enabled:         None,
     };
 
-    let (page1, total) = repo.list(&base, Some(99)).await.unwrap();
-    let (page2, _) = repo.list(&ListObserversQuery { page: 2, ..base }, Some(99)).await.unwrap();
+    let (page1, total) = repo.list(&base, ObserverScope::Organisation(99)).await.unwrap();
+    let (page2, _) = repo
+        .list(&ListObserversQuery { page: 2, ..base }, ObserverScope::Organisation(99))
+        .await
+        .unwrap();
 
     assert_eq!(total, 3);
     assert_eq!(page1.len(), 2);
@@ -261,7 +266,7 @@ async fn test_list_logs_filters() {
         event_id:    None,
         trace_id:    None,
     };
-    let (logs, _) = repo.list_logs(&q_status, None).await.unwrap();
+    let (logs, _) = repo.list_logs(&q_status, ObserverScope::Operator).await.unwrap();
     assert!(logs.iter().all(|l| l.status == "success"));
     assert_eq!(logs.len(), 1);
 
@@ -274,7 +279,7 @@ async fn test_list_logs_filters() {
         event_id:    None,
         trace_id:    Some(trace.clone()),
     };
-    let (logs, count) = repo.list_logs(&q_trace, None).await.unwrap();
+    let (logs, count) = repo.list_logs(&q_trace, ObserverScope::Operator).await.unwrap();
     assert_eq!(count, 1);
     assert_eq!(logs[0].trace_id.as_deref(), Some(trace.as_str()));
 
@@ -287,7 +292,8 @@ async fn test_list_logs_filters() {
         event_id:    None,
         trace_id:    Some("x' OR 1=1 --".to_string()),
     };
-    let (logs_inject, cnt_inject) = repo.list_logs(&q_inject, None).await.unwrap();
+    let (logs_inject, cnt_inject) =
+        repo.list_logs(&q_inject, ObserverScope::Operator).await.unwrap();
     assert_eq!(logs_inject.len(), 0, "injection payload must not match rows");
     assert_eq!(cnt_inject, 0);
 
@@ -300,7 +306,7 @@ async fn test_list_logs_filters() {
         event_id:    None,
         trace_id:    None,
     };
-    let (logs_obs, cnt_obs) = repo.list_logs(&q_obs, None).await.unwrap();
+    let (logs_obs, cnt_obs) = repo.list_logs(&q_obs, ObserverScope::Operator).await.unwrap();
     assert_eq!(cnt_obs, 2);
     assert!(logs_obs.iter().all(|l| l.fk_observer == pk));
 }
@@ -324,7 +330,7 @@ async fn test_delete_tenant_isolation() {
     let repo = ObserverRepository::new(pool.clone());
 
     // Attempt to delete org-2's observer while acting as org-1 — must return false
-    let deleted = repo.delete(uuid_org2, Some(1)).await.unwrap();
+    let deleted = repo.delete(uuid_org2, ObserverScope::Organisation(1)).await.unwrap();
     assert!(!deleted, "cross-tenant delete must be rejected");
 
     // The row must still be alive

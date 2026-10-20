@@ -174,6 +174,19 @@ pub async fn setup_observer_schema(pool: &PgPool) -> Result<(), sqlx::Error> {
         .await?;
     }
 
+    // 4b. The stats view the admin API reads. Taken from migration 06 itself rather than a
+    //     copy: the fixture had no view at all, so no test ever reached `get_stats`.
+    let migration = std::fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../fraiseql-observers/migrations/06_create_observer_management.sql"
+    ))
+    .expect("migration 06 is readable from the workspace");
+    let view_start = migration
+        .find("CREATE OR REPLACE VIEW vw_observer_stats")
+        .expect("migration 06 defines vw_observer_stats");
+    let view_len = migration[view_start..].find(';').expect("the view statement ends");
+    sqlx::query(&migration[view_start..view_start + view_len]).execute(pool).await?;
+
     // 5. Create checkpoint table
     sqlx::query(
         r"

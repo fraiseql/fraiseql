@@ -409,7 +409,8 @@ impl ObserverRuntime {
             include_deleted: false,
         };
 
-        let (observers, _total) = self.repository.list(&query, None).await?;
+        let (observers, _total) =
+            self.repository.list(&query, super::ObserverScope::Operator).await?;
 
         let mut definitions = HashMap::new();
         let mut entity_type_index: HashMap<(String, String), Vec<i64>> = HashMap::new();

@@ -1498,7 +1498,8 @@ async fn test_admin_create_reloads_matcher() {
     use fraiseql_server::{
         extractors::OptionalSecurityContext,
         observers::{
-            CreateObserverRequest, ObserverRepository, ObserverState, handlers::create_observer,
+            CreateObserverRequest, ObserverRepository, ObserverScope, ObserverState,
+            handlers::create_observer,
         },
     };
     use tokio::sync::RwLock;
@@ -1544,9 +1545,14 @@ async fn test_admin_create_reloads_matcher() {
     }))
     .expect("valid create request");
 
-    let response = create_observer(State(state), OptionalSecurityContext(None), Json(request))
-        .await
-        .into_response();
+    let response = create_observer(
+        State(state),
+        ObserverScope::Operator,
+        OptionalSecurityContext(None),
+        Json(request),
+    )
+    .await
+    .into_response();
     assert_eq!(response.status(), StatusCode::CREATED, "create should succeed");
 
     // The matcher must now reflect the new observer WITHOUT a manual reload.

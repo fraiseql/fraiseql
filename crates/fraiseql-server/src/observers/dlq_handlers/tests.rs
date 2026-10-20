@@ -115,8 +115,8 @@ async fn concurrent_retry_dispatches_at_most_once() {
 
     // Fire two concurrent retries on the same id.
     let (r1, r2) = tokio::join!(
-        dlq_retry_handler(State(state.clone()), Path(id)),
-        dlq_retry_handler(State(state.clone()), Path(id)),
+        dlq_retry_handler(State(state.clone()), OperatorOnly, Path(id)),
+        dlq_retry_handler(State(state.clone()), OperatorOnly, Path(id)),
     );
 
     let mut codes = [
@@ -148,7 +148,7 @@ mod dlq_endpoints {
     use tokio::sync::RwLock;
     use uuid::Uuid;
 
-    use super::super::{DlqState, dlq_delete_handler, dlq_stats_handler};
+    use super::super::{DlqState, OperatorOnly, dlq_delete_handler, dlq_stats_handler};
     use crate::observers::runtime::{ObserverRuntime, ObserverRuntimeConfig};
 
     fn webhook_action() -> ActionConfig {
@@ -186,7 +186,9 @@ mod dlq_endpoints {
             runtime: Arc::new(RwLock::new(runtime)),
         };
 
-        let resp = dlq_delete_handler(State(state.clone()), Path(id)).await.into_response();
+        let resp = dlq_delete_handler(State(state.clone()), OperatorOnly, Path(id))
+            .await
+            .into_response();
         assert_eq!(resp.status(), StatusCode::OK, "deleting a present item returns 200");
         assert_eq!(state.runtime.read().await.dlq().count(), 0, "the item is removed");
     }
@@ -197,7 +199,9 @@ mod dlq_endpoints {
             runtime: Arc::new(RwLock::new(empty_runtime())),
         };
 
-        let resp = dlq_delete_handler(State(state), Path(Uuid::new_v4())).await.into_response();
+        let resp = dlq_delete_handler(State(state), OperatorOnly, Path(Uuid::new_v4()))
+            .await
+            .into_response();
         assert_eq!(resp.status(), StatusCode::NOT_FOUND, "deleting an absent item returns 404");
     }
 
@@ -220,7 +224,7 @@ mod dlq_endpoints {
             runtime: Arc::new(RwLock::new(runtime)),
         };
 
-        let resp = dlq_stats_handler(State(state)).await.into_response();
+        let resp = dlq_stats_handler(State(state), OperatorOnly).await.into_response();
         assert_eq!(resp.status(), StatusCode::OK);
         let body = axum::body::to_bytes(resp.into_body(), usize::MAX).await.expect("body");
         let json: serde_json::Value = serde_json::from_slice(&body).expect("json");
