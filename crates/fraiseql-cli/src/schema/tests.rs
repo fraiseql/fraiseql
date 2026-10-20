@@ -13,7 +13,6 @@ mod database_validator_tests {
             ArgumentDefinition, AutoParams, CompiledSchema, CursorType, FieldDefinition, FieldType,
             MutationDefinition, PaginationOrder, QueryDefinition, TypeDefinition,
         },
-        validation::CustomTypeRegistry,
     };
     use indexmap::IndexMap;
 
@@ -228,7 +227,6 @@ mod database_validator_tests {
             debug_config: None,
             mcp_config: None,
             schema_sdl: None,
-            custom_scalars: CustomTypeRegistry::default(),
             ..Default::default()
         }
     }
@@ -2139,7 +2137,6 @@ mod optimizer_tests {
             ArgumentDefinition, AutoParams, CompiledSchema, CursorType, FieldDefinition,
             FieldDenyPolicy, FieldType, QueryDefinition, TypeDefinition,
         },
-        validation::CustomTypeRegistry,
     };
     use indexmap::IndexMap;
 
@@ -2167,7 +2164,6 @@ mod optimizer_tests {
             debug_config: None,
             mcp_config: None,
             schema_sdl: None,
-            custom_scalars: CustomTypeRegistry::default(),
             ..Default::default()
         };
 
@@ -2233,7 +2229,6 @@ mod optimizer_tests {
             debug_config: None,
             mcp_config: None,
             schema_sdl: None,
-            custom_scalars: CustomTypeRegistry::default(),
             ..Default::default()
         };
 
@@ -2298,7 +2293,6 @@ mod optimizer_tests {
             debug_config: None,
             mcp_config: None,
             schema_sdl: None,
-            custom_scalars: CustomTypeRegistry::default(),
             ..Default::default()
         };
 
@@ -2363,7 +2357,6 @@ mod optimizer_tests {
             debug_config: None,
             mcp_config: None,
             schema_sdl: None,
-            custom_scalars: CustomTypeRegistry::default(),
             ..Default::default()
         };
 
@@ -2428,7 +2421,6 @@ mod optimizer_tests {
             debug_config: None,
             mcp_config: None,
             schema_sdl: None,
-            custom_scalars: CustomTypeRegistry::default(),
             ..Default::default()
         };
 
@@ -2503,7 +2495,6 @@ mod optimizer_tests {
             debug_config: None,
             mcp_config: None,
             schema_sdl: None,
-            custom_scalars: CustomTypeRegistry::default(),
             ..Default::default()
         };
 

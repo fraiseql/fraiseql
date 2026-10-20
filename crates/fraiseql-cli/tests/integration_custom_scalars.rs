@@ -272,7 +272,7 @@ fn test_custom_scalar_preserves_all_metadata() {
 
     let compiled = SchemaConverter::convert(schema).expect("Failed to convert schema");
 
-    let scalar = compiled.custom_scalars.get("CustomType").expect("Failed to get scalar");
+    let scalar = compiled.derived.custom_scalars.get("CustomType").expect("Failed to get scalar");
     assert_eq!(scalar.name, "CustomType");
     assert_eq!(scalar.description, Some("A custom type".to_string()));
     assert_eq!(scalar.specified_by_url, Some(url));
@@ -323,7 +323,7 @@ fn test_empty_custom_scalars_list() {
     let compiled = SchemaConverter::convert(schema).expect("Failed to convert schema");
 
     // Should have empty registry, not error
-    let all_scalars = compiled.custom_scalars.list_all();
+    let all_scalars = compiled.derived.custom_scalars.list_all();
     assert!(all_scalars.is_empty());
 }
 
@@ -376,6 +376,10 @@ fn test_custom_scalar_with_no_validation_rules() {
 
     let compiled = SchemaConverter::convert(schema).expect("Failed to convert schema");
 
-    let scalar = compiled.custom_scalars.get("SimpleScalar").expect("Failed to get scalar");
+    let scalar = compiled
+        .derived
+        .custom_scalars
+        .get("SimpleScalar")
+        .expect("Failed to get scalar");
     assert!(scalar.validation_rules.is_empty());
 }

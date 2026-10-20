@@ -84,8 +84,8 @@ pub fn validate_custom_scalar_from_schema(
     schema: &CompiledSchema,
 ) -> Result<()> {
     // Check if this is a custom scalar type
-    if schema.custom_scalars.exists(scalar_type_name) {
-        schema.custom_scalars.validate(scalar_type_name, value)
+    if schema.derived.custom_scalars.exists(scalar_type_name) {
+        schema.derived.custom_scalars.validate(scalar_type_name, value)
     } else {
         // Not a custom scalar, pass through (built-in type)
         Ok(())

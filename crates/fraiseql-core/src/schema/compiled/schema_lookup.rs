@@ -102,11 +102,12 @@ impl CompiledSchema {
         let derived = crate::schema::derived_inputs::derive(self);
         self.input_types.extend(derived.input_types);
         self.enums.extend(derived.enums);
-        self.where_relation_fields = crate::schema::derived_inputs::relation_field_maps(self);
+        self.derived.where_relation_fields =
+            crate::schema::derived_inputs::relation_field_maps(self);
 
         let camel = matches!(self.naming_convention, NamingConvention::CamelCase);
 
-        self.query_index = self
+        self.derived.query_index = self
             .queries
             .iter()
             .enumerate()
@@ -122,7 +123,7 @@ impl CompiledSchema {
             })
             .collect();
 
-        self.mutation_index = self
+        self.derived.mutation_index = self
             .mutations
             .iter()
             .enumerate()
@@ -138,7 +139,7 @@ impl CompiledSchema {
             })
             .collect();
 
-        self.subscription_index = self
+        self.derived.subscription_index = self
             .subscriptions
             .iter()
             .enumerate()
@@ -266,15 +267,18 @@ impl CompiledSchema {
     /// migration.
     #[must_use]
     pub fn find_query(&self, name: &str) -> Option<&QueryDefinition> {
-        if self.query_index.is_empty() && !self.queries.is_empty() {
+        if self.derived.query_index.is_empty() && !self.queries.is_empty() {
             self.queries.iter().find(|q| q.name == name).or_else(|| {
                 let snake = crate::utils::casing::to_snake_case(name);
                 self.queries.iter().find(|q| q.name == snake)
             })
         } else {
-            self.query_index
+            self.derived
+                .query_index
                 .get(name)
-                .or_else(|| self.query_index.get(&crate::utils::casing::to_snake_case(name)))
+                .or_else(|| {
+                    self.derived.query_index.get(&crate::utils::casing::to_snake_case(name))
+                })
                 .map(|&i| &self.queries[i])
         }
     }
@@ -289,15 +293,18 @@ impl CompiledSchema {
     /// compiled before the SDK camelCase migration.
     #[must_use]
     pub fn find_mutation(&self, name: &str) -> Option<&MutationDefinition> {
-        if self.mutation_index.is_empty() && !self.mutations.is_empty() {
+        if self.derived.mutation_index.is_empty() && !self.mutations.is_empty() {
             self.mutations.iter().find(|m| m.name == name).or_else(|| {
                 let snake = crate::utils::casing::to_snake_case(name);
                 self.mutations.iter().find(|m| m.name == snake)
             })
         } else {
-            self.mutation_index
+            self.derived
+                .mutation_index
                 .get(name)
-                .or_else(|| self.mutation_index.get(&crate::utils::casing::to_snake_case(name)))
+                .or_else(|| {
+                    self.derived.mutation_index.get(&crate::utils::casing::to_snake_case(name))
+                })
                 .map(|&i| &self.mutations[i])
         }
     }
@@ -312,15 +319,18 @@ impl CompiledSchema {
     /// compiled before the SDK camelCase migration.
     #[must_use]
     pub fn find_subscription(&self, name: &str) -> Option<&SubscriptionDefinition> {
-        if self.subscription_index.is_empty() && !self.subscriptions.is_empty() {
+        if self.derived.subscription_index.is_empty() && !self.subscriptions.is_empty() {
             self.subscriptions.iter().find(|s| s.name == name).or_else(|| {
                 let snake = crate::utils::casing::to_snake_case(name);
                 self.subscriptions.iter().find(|s| s.name == snake)
             })
         } else {
-            self.subscription_index
+            self.derived
+                .subscription_index
                 .get(name)
-                .or_else(|| self.subscription_index.get(&crate::utils::casing::to_snake_case(name)))
+                .or_else(|| {
+                    self.derived.subscription_index.get(&crate::utils::casing::to_snake_case(name))
+                })
                 .map(|&i| &self.subscriptions[i])
         }
     }

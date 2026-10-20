@@ -231,7 +231,7 @@ const PROBES: &[Probe] = &[
     }),
     ("custom_scalars", |c| {
         want(
-            c.schema.custom_scalars.get("Email").is_some(),
+            c.schema.derived.custom_scalars.get("Email").is_some(),
             "custom scalar Email absent from the compiled CustomTypeRegistry — its \
              validation_rules would silently never run",
         )

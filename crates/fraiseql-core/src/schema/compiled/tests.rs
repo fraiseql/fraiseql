@@ -438,8 +438,8 @@ fn from_json_builds_query_index() {
         "subscriptions": []
     }"#;
     let schema = CompiledSchema::from_json(json, false).unwrap();
-    assert!(schema.query_index.contains_key("users"));
-    assert_eq!(schema.query_index["users"], 0);
+    assert!(schema.derived.query_index.contains_key("users"));
+    assert_eq!(schema.derived.query_index["users"], 0);
 }
 
 // ---------------------------------------------------------------------------
@@ -584,7 +584,7 @@ fn from_json_builds_mutation_index() {
         "subscriptions": []
     }"#;
     let schema = CompiledSchema::from_json(json, false).unwrap();
-    assert!(schema.mutation_index.contains_key("createUser"));
+    assert!(schema.derived.mutation_index.contains_key("createUser"));
 }
 
 // -------------------------------------------------------------------------
@@ -708,8 +708,8 @@ fn build_indexes_populates_all_three_maps() {
     schema.queries.push(make_query("getUser", "User"));
     schema.mutations.push(make_mutation("createUser", "User"));
     schema.build_indexes();
-    assert!(schema.query_index.contains_key("getUser"));
-    assert!(schema.mutation_index.contains_key("createUser"));
+    assert!(schema.derived.query_index.contains_key("getUser"));
+    assert!(schema.derived.mutation_index.contains_key("createUser"));
 }
 
 #[test]
@@ -719,9 +719,9 @@ fn build_indexes_multiple_queries() {
     schema.queries.push(make_query("beta", "B"));
     schema.queries.push(make_query("gamma", "C"));
     schema.build_indexes();
-    assert_eq!(schema.query_index["alpha"], 0);
-    assert_eq!(schema.query_index["beta"], 1);
-    assert_eq!(schema.query_index["gamma"], 2);
+    assert_eq!(schema.derived.query_index["alpha"], 0);
+    assert_eq!(schema.derived.query_index["beta"], 1);
+    assert_eq!(schema.derived.query_index["gamma"], 2);
 }
 
 // -------------------------------------------------------------------------
@@ -1594,8 +1594,8 @@ fn preserve_convention_no_camel_index_entry() {
     schema.build_indexes();
 
     // Only 1 index entry (the original name); camelCase only works via fallback
-    assert_eq!(schema.query_index.len(), 1);
-    assert!(schema.query_index.contains_key("dns_servers"));
+    assert_eq!(schema.derived.query_index.len(), 1);
+    assert!(schema.derived.query_index.contains_key("dns_servers"));
 }
 
 #[test]
@@ -2883,4 +2883,84 @@ fn an_enum_whose_members_share_a_stored_value_is_refused_at_load() {
         assert!(err.contains("stored value of enum OrderStatus"), "{shared}: {err}");
     }
     load(r#"[{"name":"A","value":"B"},{"name":"B","value":"a"}]"#).unwrap();
+}
+
+// ── Equality covers every serialized section ─────────────────────────────────
+
+/// The number of `CompiledSchema` fields that serialize. Each is set non-default by
+/// [`every_section`]; the derived, never-serialized state is not counted.
+const SERIALIZED_SECTIONS: usize = 32;
+
+/// A compiled schema whose every serialized section holds a non-default value.
+fn every_section() -> serde_json::Value {
+    serde_json::json!({
+        "types": [{"name": "User", "sql_source": "v_user", "fields": []}],
+        "enums": [{"name": "Role", "values": [{"name": "A"}]}],
+        "input_types": [{"name": "UserInput", "fields": []}],
+        "interfaces": [{"name": "Node", "fields": []}],
+        "unions": [{"name": "Thing", "member_types": ["User"]}],
+        "queries": [{"name": "users", "return_type": "User"}],
+        "mutations": [{"name": "createUser", "return_type": "User"}],
+        "subscriptions": [{"name": "userCreated", "return_type": "User"}],
+        "directives": [{"name": "audit", "locations": ["FIELD_DEFINITION"]}],
+        "fact_tables": {"tf_sales": {"table_name": "tf_sales", "measures": [],
+            "dimensions": {"name": "data", "paths": []}, "denormalized_filters": []}},
+        "observers": [{"name": "o", "entity": "User", "event": "INSERT", "actions": [],
+            "retry": {"max_attempts": 1, "backoff_strategy": "fixed",
+                      "initial_delay_ms": 1, "max_delay_ms": 1}}],
+        "sources": [{"name": "s", "schedule": "* * * * *", "function": "f"}],
+        "subscribable": [{"entity_type": "User", "tables": ["tb_user"]}],
+        "operation_cost_weights": {"users": 3},
+        "federation": {"enabled": true},
+        "security": {},
+        "auth": {},
+        "observers_config": {},
+        "subscriptions_config": {},
+        "validation_config": {},
+        "debug_config": {},
+        "mcp_config": {},
+        "rest_config": {},
+        "grpc_config": {},
+        "changelog": {},
+        "session_variables": {"variables": [{"name": "app.t", "source": "literal", "value": "x"}]},
+        "locale": {"default": "en-US", "allowed": ["en-US"]},
+        "hierarchies_config": {},
+        "naming_convention": "camelCase",
+        "naming_acronyms": ["ID"],
+        "fraiseql_version": "2.0.0",
+        "schema_sdl": "type Query { a: Int }"
+    })
+}
+
+/// Two compiled schemas that serialize differently are unequal: dropping any one
+/// section from a schema that sets them all makes it a different schema. The keys come
+/// from the serialized form, so a section added later is covered without editing this.
+#[test]
+fn every_serialized_section_participates_in_equality() {
+    let full: CompiledSchema = serde_json::from_value(every_section()).expect("the fixture loads");
+    let serialized = serde_json::to_value(&full).expect("the fixture serializes");
+    let keys: Vec<String> = serialized.as_object().expect("an object").keys().cloned().collect();
+    assert_eq!(
+        keys.len(),
+        SERIALIZED_SECTIONS,
+        "fixture: every serialized section must be present and non-default, got {keys:?}"
+    );
+
+    let ignored: Vec<&String> = keys
+        .iter()
+        .filter(|key| {
+            let mut without = serialized.clone();
+            without.as_object_mut().expect("an object").remove(key.as_str());
+            let loaded = serde_json::from_value::<CompiledSchema>(without);
+            assert!(loaded.is_ok(), "the fixture without `{key}` must load: {loaded:?}");
+            let other = loaded.unwrap();
+            assert_ne!(
+                serde_json::to_value(&other).expect("serializes"),
+                serialized,
+                "fixture: `{key}` holds its default value, so dropping it tests nothing"
+            );
+            full == other
+        })
+        .collect();
+    assert!(ignored.is_empty(), "equality ignores these serialized sections: {ignored:?}");
 }

@@ -33,7 +33,7 @@ pub use localized_indexes::LocalizedIndexAdvice;
 pub use mutation::{CascadeSource, InputStyle, MutationDefinition, MutationOperation};
 pub use query::{CursorType, NativeColumn, PaginationOrder, QueryDefinition};
 pub use schema::{
-    AppleSocialConfig, AuthClientConfig, CURRENT_FRAISEQL_VERSION, CompiledSchema,
+    AppleSocialConfig, AuthClientConfig, CURRENT_FRAISEQL_VERSION, CompiledSchema, DerivedState,
     DiscordSocialConfig, FacebookSocialConfig, GitHubSocialConfig, GoogleSocialConfig,
     LocalAuthConfig, PkceClientConfig, ProducerVersion, SocialAuthConfig, SubscribableEntity,
 };

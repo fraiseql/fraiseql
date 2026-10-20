@@ -1363,7 +1363,7 @@ mod input_validator_tests {
 
             registry.register("LibraryCode".to_string(), def).unwrap();
 
-            s.custom_scalars = registry;
+            s.derived.custom_scalars = registry;
             s
         };
 
@@ -1391,7 +1391,7 @@ mod input_validator_tests {
 
             registry.register("LibraryCode".to_string(), def).unwrap();
 
-            s.custom_scalars = registry;
+            s.derived.custom_scalars = registry;
             s
         };
 
@@ -1428,7 +1428,7 @@ mod input_validator_tests {
 
             registry.register("StudentID".to_string(), def).unwrap();
 
-            s.custom_scalars = registry;
+            s.derived.custom_scalars = registry;
             s
         };
 
@@ -1488,7 +1488,7 @@ mod input_validator_tests {
 
             registry.register("StudentID".to_string(), def).unwrap();
 
-            s.custom_scalars = registry;
+            s.derived.custom_scalars = registry;
             s
         };
 
@@ -1526,7 +1526,7 @@ mod input_validator_tests {
 
             registry.register("PatientID".to_string(), def).unwrap();
 
-            s.custom_scalars = registry;
+            s.derived.custom_scalars = registry;
             s
         };
 

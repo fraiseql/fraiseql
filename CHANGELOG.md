@@ -48,6 +48,14 @@ disagreed, and the promise was the part that was wrong.
   `KafkaMessage` are replaced by one `DeliveredEvent<'a>`, which both transports
   serialize; its `operation` is a `SubscriptionOperation`.
 
+- **`CompiledSchema` equality compares every serialized section (#1631).** The
+  hand-written `PartialEq` skipped `operation_cost_weights`, `rest_config`, `grpc_config`,
+  `session_variables`, `locale` and `hierarchies_config`, so two schemas differing only
+  there compared equal. `PartialEq` is now derived. The five never-serialized fields
+  moved into `CompiledSchema::derived` (`DerivedState`), which always compares equal:
+  `schema.query_index` becomes `schema.derived.query_index`, and likewise
+  `mutation_index`, `subscription_index`, `where_relation_fields` and `custom_scalars`.
+
 - **`/metrics` no longer exports database-timing series (#1634).**
   `fraiseql_database_queries_total` and `fraiseql_database_query_duration_ms` counted each
   successful GraphQL request as one database query and its whole duration as database

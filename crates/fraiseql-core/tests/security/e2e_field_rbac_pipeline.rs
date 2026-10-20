@@ -217,7 +217,6 @@ fn create_compiled_schema_with_rbac() -> CompiledSchema {
         debug_config: None,
         mcp_config: None,
         schema_sdl: None,
-        custom_scalars: Default::default(),
         ..CompiledSchema::default()
     }
 }

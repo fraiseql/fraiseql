@@ -642,7 +642,7 @@ impl CompiledSchema {
                 add(&field.field_type, &mut referenced);
             }
         }
-        for (name, _) in self.custom_scalars.list_all() {
+        for (name, _) in self.derived.custom_scalars.list_all() {
             referenced.insert(name);
         }
 

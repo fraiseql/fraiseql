@@ -190,7 +190,6 @@ fn create_schema_with_mixed_fields() -> CompiledSchema {
         debug_config: None,
         mcp_config: None,
         schema_sdl: None,
-        custom_scalars: Default::default(),
         ..CompiledSchema::default()
     }
 }

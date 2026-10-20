@@ -50,8 +50,8 @@ fn exposed_config_injects_full_surface() {
     assert!(schema.mutations.iter().any(|m| m.name == "upsert_transport_checkpoint"));
 
     // Indexes were rebuilt → operations resolve in-memory.
-    assert!(schema.query_index.contains_key("entity_change_logs"));
-    assert!(schema.mutation_index.contains_key("upsert_transport_checkpoint"));
+    assert!(schema.derived.query_index.contains_key("entity_change_logs"));
+    assert!(schema.derived.mutation_index.contains_key("upsert_transport_checkpoint"));
 }
 
 /// `EntityChangeLog.id` is `FieldType::Id` — the reason this projection satisfies the

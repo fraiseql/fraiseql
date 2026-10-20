@@ -4,7 +4,6 @@
 use field_type::{DistanceMetric, VectorConfig, VectorIndexType};
 
 use super::*;
-use crate::validation::CustomTypeRegistry;
 
 #[test]
 fn test_empty_schema_creation() {
@@ -214,7 +213,6 @@ fn test_schema_to_json_roundtrip() {
         debug_config: None,
         mcp_config: None,
         schema_sdl: None,
-        custom_scalars: CustomTypeRegistry::default(),
         ..CompiledSchema::default()
     };
 
@@ -354,7 +352,6 @@ fn test_operation_count() {
         debug_config: None,
         mcp_config: None,
         schema_sdl: None,
-        custom_scalars: CustomTypeRegistry::default(),
         ..CompiledSchema::default()
     };
 
@@ -884,7 +881,6 @@ fn test_vector_field_roundtrip() {
         debug_config: None,
         mcp_config: None,
         schema_sdl: None,
-        custom_scalars: CustomTypeRegistry::default(),
         ..CompiledSchema::default()
     };
 

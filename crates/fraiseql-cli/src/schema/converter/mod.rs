@@ -26,7 +26,6 @@ use fraiseql_core::{
         DimensionColumn, DimensionPath, FactTableMetadata, FilterColumn, MeasureColumn, SqlType,
     },
     schema::{CompiledSchema, FieldType},
-    validation::CustomTypeRegistry,
 };
 use fraiseql_functions::FunctionsConfig;
 use tracing::{info, warn};
@@ -558,7 +557,6 @@ impl SchemaConverter {
             hierarchies_config: intermediate.hierarchies_config,
             changelog: intermediate.changelog_config, // Changelog exposure config from TOML
             schema_sdl: None,                         // Raw GraphQL SDL
-            custom_scalars: CustomTypeRegistry::default(), // Custom scalar registry
             ..Default::default()
         };
 
@@ -567,6 +565,7 @@ impl SchemaConverter {
             for scalar_def in custom_scalars_vec {
                 let custom_type = Self::convert_custom_scalar(scalar_def)?;
                 compiled
+                    .derived
                     .custom_scalars
                     .register(custom_type.name.clone(), custom_type)
                     .context("Failed to register custom scalar")?;
@@ -729,7 +728,7 @@ impl SchemaConverter {
         // This used to register every type name appearing in any object field, which made a
         // field-type typo legalize itself as a return type too (#724 item 2) — the same
         // blindness as `SchemaValidator`, duplicated here.
-        for (name, _) in schema.custom_scalars.list_all() {
+        for (name, _) in schema.derived.custom_scalars.list_all() {
             type_names.insert(name);
         }
 

@@ -74,18 +74,14 @@ pub fn boot_frozen_drift(current: &CompiledSchema, next: &CompiledSchema) -> Vec
         subscribable: _,
         operation_cost_weights: _,
         session_variables: _,
-        custom_scalars: _,
         changelog: _, // `write_enabled` is re-derived into RuntimeConfig on reload
         schema_sdl: _,
         // Neither hot nor boot-frozen: the reload path validates it before
         // reaching this gate, so both sides are this build by then (#1304).
         fraiseql_version: _,
-        query_index: _,
-        mutation_index: _,
-        subscription_index: _,
-        // Derived from `types` by `build_indexes`, so it follows the executor
-        // swap exactly as `types` does.
-        where_relation_fields: _,
+        // Never serialized: the indexes `build_indexes` derives from the sections
+        // here, so they follow the executor swap exactly as those sections do.
+        derived: _,
         // Compile-time only: its effect is already baked into `queries`, which is
         // hot, so a change on its own is inert rather than half-applied.
         hierarchies_config: _,

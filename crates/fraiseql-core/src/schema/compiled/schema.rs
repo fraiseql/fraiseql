@@ -163,7 +163,7 @@ pub struct SubscribableEntity {
 /// let schema = CompiledSchema::from_json(json, false).unwrap();
 /// assert_eq!(schema.types.len(), 0);
 /// ```
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct CompiledSchema {
     /// GraphQL object type definitions.
     #[serde(default)]
@@ -364,33 +364,41 @@ pub struct CompiledSchema {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub schema_sdl: Option<String>,
 
-    /// Custom scalar type registry.
-    ///
-    /// Contains definitions for custom scalar types defined in the schema.
-    /// Built during code generation from `IRScalar` definitions.
-    /// Not serialized - populated at runtime from `ir.scalars`.
+    /// State built from other data and never serialized: the lookup indexes and filter
+    /// surface `build_indexes()` derives from the sections above, and the custom-scalar
+    /// registry the compiler fills. Equality ignores it (see [`DerivedState`]).
     #[serde(skip)]
+    pub derived: DerivedState,
+}
+
+/// The never-serialized part of a [`CompiledSchema`].
+///
+/// `CompiledSchema` equality is equality of what it serializes, so this compares equal
+/// whatever it holds: the indexes are functions of the serialized sections, and the
+/// custom-scalar registry is compile-time state no loaded schema carries.
+/// `every_serialized_section_participates_in_equality` pins the serialized half.
+#[derive(Debug, Clone, Default)]
+pub struct DerivedState {
+    /// Custom scalar type registry, filled by the compiler from the authoring schema's
+    /// `custom_scalars`. Not serialized, so it is empty on a loaded schema.
     pub custom_scalars: CustomTypeRegistry,
 
-    /// O(1) lookup index: query name → index into `self.queries`.
+    /// O(1) lookup index: query name → index into the schema's `queries`.
     /// Built at construction time by `build_indexes()`; not serialized.
     /// Populated automatically by `from_json()`; call `build_indexes()` after
-    /// direct mutation of `self.queries`.
-    #[serde(skip)]
+    /// direct mutation of `queries`.
     pub query_index: HashMap<String, usize>,
 
-    /// O(1) lookup index: mutation name → index into `self.mutations`.
+    /// O(1) lookup index: mutation name → index into the schema's `mutations`.
     /// Built at construction time by `build_indexes()`; not serialized.
     /// Populated automatically by `from_json()`; call `build_indexes()` after
-    /// direct mutation of `self.mutations`.
-    #[serde(skip)]
+    /// direct mutation of `mutations`.
     pub mutation_index: HashMap<String, usize>,
 
-    /// O(1) lookup index: subscription name → index into `self.subscriptions`.
+    /// O(1) lookup index: subscription name → index into the schema's `subscriptions`.
     /// Built at construction time by `build_indexes()`; not serialized.
     /// Populated automatically by `from_json()`; call `build_indexes()` after
-    /// direct mutation of `self.subscriptions`.
-    #[serde(skip)]
+    /// direct mutation of `subscriptions`.
     pub subscription_index: HashMap<String, usize>,
 
     /// The `where` keys of every type a nested predicate can descend into.
@@ -399,39 +407,14 @@ pub struct CompiledSchema {
     /// `{machine: {bogus: {eq: …}}}` is refused because `MachineWhereInput` has
     /// no `bogus`, rather than lowering to a JSON path that matches nothing.
     /// Built at construction time by `build_indexes()`; not serialized.
-    #[serde(skip)]
     pub where_relation_fields: fraiseql_db::where_clause::RelationFieldMaps,
 }
 
-impl PartialEq for CompiledSchema {
-    fn eq(&self, other: &Self) -> bool {
-        // Compare all fields except custom_scalars (runtime state)
-        self.fraiseql_version == other.fraiseql_version
-            && self.types == other.types
-            && self.enums == other.enums
-            && self.input_types == other.input_types
-            && self.interfaces == other.interfaces
-            && self.unions == other.unions
-            && self.queries == other.queries
-            && self.mutations == other.mutations
-            && self.subscriptions == other.subscriptions
-            && self.directives == other.directives
-            && self.fact_tables == other.fact_tables
-            && self.observers == other.observers
-            && self.sources == other.sources
-            && self.subscribable == other.subscribable
-            && self.federation == other.federation
-            && self.security == other.security
-            && self.auth == other.auth
-            && self.observers_config == other.observers_config
-            && self.subscriptions_config == other.subscriptions_config
-            && self.validation_config == other.validation_config
-            && self.debug_config == other.debug_config
-            && self.mcp_config == other.mcp_config
-            && self.changelog == other.changelog
-            && self.naming_convention == other.naming_convention
-            && self.naming_acronyms == other.naming_acronyms
-            && self.schema_sdl == other.schema_sdl
+// Reason: equality of a compiled schema is equality of its serialized form; this state is
+// rebuilt from it or never present after a load.
+impl PartialEq for DerivedState {
+    fn eq(&self, _other: &Self) -> bool {
+        true
     }
 }
 

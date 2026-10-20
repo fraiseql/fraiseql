@@ -68,12 +68,12 @@ mod subscription_types;
 pub use changelog::inject_changelog;
 pub use compiled::{
     AppleSocialConfig, ArgumentDefinition, AuthClientConfig, AutoParams, CURRENT_FRAISEQL_VERSION,
-    CascadeSource, CompiledSchema, CursorType, DirectiveDefinition, DirectiveLocationKind,
-    DiscordSocialConfig, FacebookSocialConfig, FederationKeyProblem, GitHubSocialConfig,
-    GoogleSocialConfig, InputStyle, LocalAuthConfig, LocalizedIndexAdvice, MutationDefinition,
-    MutationOperation, NativeColumn, PaginationOrder, PkceClientConfig, ProducerVersion,
-    QueryDefinition, SocialAuthConfig, SubscribableEntity, canonicalize_json, content_hash_of,
-    is_safe_sql_identifier,
+    CascadeSource, CompiledSchema, CursorType, DerivedState, DirectiveDefinition,
+    DirectiveLocationKind, DiscordSocialConfig, FacebookSocialConfig, FederationKeyProblem,
+    GitHubSocialConfig, GoogleSocialConfig, InputStyle, LocalAuthConfig, LocalizedIndexAdvice,
+    MutationDefinition, MutationOperation, NativeColumn, PaginationOrder, PkceClientConfig,
+    ProducerVersion, QueryDefinition, SocialAuthConfig, SubscribableEntity, canonicalize_json,
+    content_hash_of, is_safe_sql_identifier,
 };
 pub use config_types::{
     AuthorizationPolicy, AuthorizationRule, Cardinality, ChangelogConfig, CircuitBreakerConfig,
