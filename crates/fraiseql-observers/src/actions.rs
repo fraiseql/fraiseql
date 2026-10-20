@@ -435,32 +435,102 @@ impl WebhookAction {
         classify_http_status(status, duration_ms)
     }
 
+    /// Render a webhook body template against the event's data.
+    ///
+    /// A template that parses as JSON is rendered as a tree: a string that is exactly one
+    /// `{{ path }}` takes that value with its own JSON type, and a string with embedded
+    /// placeholders interpolates their text (an embedded `null` is refused, never the text
+    /// `null`). Any other template is substituted as text, string values JSON-escaped so they
+    /// cannot leave their string (H11), then parsed as JSON if it can be. Paths are dotted
+    /// (`customer.email`); a placeholder the event cannot fill refuses the delivery.
+    ///
+    /// # Errors
+    ///
+    /// `ObserverError::TemplateRenderingFailed` naming the unmatched placeholder or the
+    /// embedded null.
     #[allow(clippy::unused_self)] // Reason: method is part of a public API / trait consistency
     pub(crate) fn render_body_template(&self, template: &str, data: &Value) -> Result<Value> {
-        let mut rendered = template.to_string();
-
-        if let Value::Object(map) = data {
-            for (key, value) in map {
-                let placeholder = format!("{{{{ {key} }}}}");
-                let replacement = match value {
-                    // H11: JSON-escape string values WITHOUT the wrapping quotes so the
-                    // substituted text stays inside its surrounding JSON string context.
-                    // An attacker-controlled field value can no longer break out of the
-                    // string and inject sibling keys into the (HMAC-signed) payload.
-                    Value::String(s) => json_escape_inner(s),
-                    // Numbers/bools/null/arrays/objects serialize to valid JSON tokens
-                    // with no breakout characters, preserving the unquoted-typed-slot
-                    // contract (e.g. `"amount": {{ total }}` -> `"amount": 150`).
-                    other => other.to_string(),
-                };
-                rendered = rendered.replace(&placeholder, &replacement);
-            }
+        if let Ok(tree) = serde_json::from_str::<Value>(template) {
+            return render_tree(tree, data);
         }
+        let rendered = substitute(template, data, |value| match value {
+            Value::String(s) => Ok(json_escape_inner(s)),
+            other => Ok(other.to_string()),
+        })?;
+        Ok(serde_json::from_str(&rendered).unwrap_or(Value::String(rendered)))
+    }
+}
 
-        // Every substituted value is now context-safe, so re-parsing yields the
-        // intended structure; non-JSON templates (plain-text bodies) fall back to a
-        // JSON string, exactly as before.
-        serde_json::from_str(&rendered).or(Ok(Value::String(rendered)))
+/// The value at the dotted `path` (`customer.email`) inside `data`, if every segment exists.
+fn lookup<'a>(data: &'a Value, path: &str) -> Option<&'a Value> {
+    path.split('.').try_fold(data, |value, segment| value.get(segment))
+}
+
+/// The path of a string that is exactly one placeholder (`{{ path }}`), if it is one.
+fn whole_placeholder(s: &str) -> Option<&str> {
+    let inner = s.trim().strip_prefix("{{")?.strip_suffix("}}")?.trim();
+    (!inner.is_empty() && !inner.contains("{{") && !inner.contains("}}")).then_some(inner)
+}
+
+fn unmatched(path: &str) -> ObserverError {
+    ObserverError::TemplateRenderingFailed {
+        reason: format!("the event has no value for the template placeholder `{{{{ {path} }}}}`"),
+    }
+}
+
+/// Replace every `{{ path }}` in `text` by `render(value at path)`.
+fn substitute(
+    text: &str,
+    data: &Value,
+    render: impl Fn(&Value) -> Result<String>,
+) -> Result<String> {
+    let mut out = String::with_capacity(text.len());
+    let mut rest = text;
+    while let Some(open) = rest.find("{{") {
+        let Some(close) = rest[open..].find("}}") else {
+            break;
+        };
+        let path = rest[open + 2..open + close].trim();
+        let value = lookup(data, path).ok_or_else(|| unmatched(path))?;
+        out.push_str(&rest[..open]);
+        out.push_str(&render(value)?);
+        rest = &rest[open + close + 2..];
+    }
+    out.push_str(rest);
+    Ok(out)
+}
+
+/// Render a JSON template tree: whole-placeholder strings take the typed value, strings with
+/// embedded placeholders interpolate their text. Keys are left as written.
+fn render_tree(node: Value, data: &Value) -> Result<Value> {
+    match node {
+        Value::String(s) => {
+            if let Some(path) = whole_placeholder(&s) {
+                return lookup(data, path).cloned().ok_or_else(|| unmatched(path));
+            }
+            if !s.contains("{{") {
+                return Ok(Value::String(s));
+            }
+            substitute(&s, data, |value| match value {
+                Value::String(text) => Ok(text.clone()),
+                Value::Null => Err(ObserverError::TemplateRenderingFailed {
+                    reason: format!("a null value cannot be embedded in the string {s:?}"),
+                }),
+                other => Ok(other.to_string()),
+            })
+            .map(Value::String)
+        },
+        Value::Array(items) => items
+            .into_iter()
+            .map(|item| render_tree(item, data))
+            .collect::<Result<_>>()
+            .map(Value::Array),
+        Value::Object(map) => map
+            .into_iter()
+            .map(|(key, value)| Ok((key, render_tree(value, data)?)))
+            .collect::<Result<serde_json::Map<_, _>>>()
+            .map(Value::Object),
+        other => Ok(other),
     }
 }
 

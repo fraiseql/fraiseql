@@ -134,6 +134,81 @@ mod actions_tests {
     }
 
     #[test]
+    fn a_dotted_placeholder_renders_the_nested_value() {
+        let data = json!({"customer": {"email": "a@b"}});
+        let rendered = WebhookAction::new()
+            .render_body_template(r#"{"to": "{{ customer.email }}"}"#, &data)
+            .unwrap();
+        assert_eq!(rendered, json!({"to": "a@b"}));
+    }
+
+    /// A string node that is exactly one placeholder takes the value's own JSON type.
+    #[test]
+    fn a_whole_string_slot_takes_the_typed_value() {
+        let data = json!({"email": "a@b", "count": 3, "missing_null": null});
+        let rendered = WebhookAction::new()
+            .render_body_template(
+                r#"{"to": "{{ email }}", "n": "{{ count }}", "z": "{{ missing_null }}"}"#,
+                &data,
+            )
+            .unwrap();
+        assert_eq!(rendered, json!({"to": "a@b", "n": 3, "z": null}));
+    }
+
+    #[test]
+    fn an_unmatched_placeholder_is_a_delivery_error() {
+        let result =
+            WebhookAction::new().render_body_template(r#"{"x": "{{ nope }}"}"#, &json!({"id": 1}));
+        assert_refused_as_unmatched(&result, "nope");
+    }
+
+    #[test]
+    fn an_unmatched_embedded_placeholder_is_a_delivery_error() {
+        let result = WebhookAction::new()
+            .render_body_template(r#"{"msg": "Order {{ nope }}"}"#, &json!({"id": 1}));
+        assert_refused_as_unmatched(&result, "nope");
+    }
+
+    /// A template that is not JSON (an unquoted value slot) is substituted as text, and an
+    /// unmatched placeholder there refuses the delivery too.
+    #[test]
+    fn an_unmatched_placeholder_in_a_text_template_is_a_delivery_error() {
+        let result = WebhookAction::new()
+            .render_body_template(r#"{"amount": {{ nope }}}"#, &json!({"total": 1}));
+        assert_refused_as_unmatched(&result, "nope");
+    }
+
+    /// The refusal names the placeholder the event could not fill.
+    fn assert_refused_as_unmatched(result: &crate::error::Result<serde_json::Value>, path: &str) {
+        match result {
+            Err(crate::error::ObserverError::TemplateRenderingFailed { reason }) => assert!(
+                reason.contains("no value for the template placeholder") && reason.contains(path),
+                "the refusal must name the unmatched `{path}`, got {reason:?}"
+            ),
+            other => panic!("a placeholder the event cannot fill must refuse, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn an_embedded_placeholder_interpolates_its_text() {
+        let data = json!({"id": 7, "name": r#"a"b"#});
+        let rendered = WebhookAction::new()
+            .render_body_template(r#"{"msg": "Order {{ id }} by {{ name }}"}"#, &data)
+            .unwrap();
+        assert_eq!(rendered, json!({"msg": r#"Order 7 by a"b"#}));
+    }
+
+    #[test]
+    fn an_embedded_null_is_a_delivery_error() {
+        let result = WebhookAction::new()
+            .render_body_template(r#"{"msg": "Order {{ id }}"}"#, &json!({"id": null}));
+        assert!(
+            matches!(result, Err(crate::error::ObserverError::TemplateRenderingFailed { .. })),
+            "a null inside a string must not render as the text null, got {result:?}"
+        );
+    }
+
+    #[test]
     fn test_slack_render_message_template() {
         let slack = SlackAction::new();
         let data = json!({"status": "shipped", "order_id": "12345"});

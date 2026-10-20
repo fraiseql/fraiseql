@@ -76,6 +76,17 @@ disagreed, and the promise was the part that was wrong.
     `Serialize`/`Deserialize`. Build one with `AuthConfig::with_hs256` or
     `with_rs256_pem`.
 
+- **Webhook `body_template` placeholders are strict, nested and typed (#1656).** A
+  placeholder reads the changed row by a dotted path (`{{ customer.email }}`; only
+  top-level keys were substituted before). In a template that is JSON, a string that is
+  exactly one placeholder takes the value's own type (`"{{ total }}"` sends `150`, and a
+  null sends `null`), and placeholders embedded in a string interpolate their text. A
+  placeholder the row cannot fill, or a null embedded in a string, now refuses the
+  delivery with a template error and dead-letters the event. It used to send the
+  literal `{{ … }}` text or the word `null`. Templates naming event metadata such as
+  `{{ entity_id }}` (not a field of the row) are refused. Put the value in the row, or
+  drop the placeholder.
+
 - **`/metrics` no longer exports database-timing series (#1634).**
   `fraiseql_database_queries_total` and `fraiseql_database_query_duration_ms` counted each
   successful GraphQL request as one database query and its whole duration as database

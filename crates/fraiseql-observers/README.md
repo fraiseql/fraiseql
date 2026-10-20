@@ -65,10 +65,11 @@ let webhook_action = ActionConfig::Webhook {
         m.insert("Authorization".to_string(), "Bearer token".to_string());
         m
     },
-    // Placeholders are `{{ field }}`. String field values are JSON-escaped on
-    // substitution, so an attacker-controlled value stays inside its JSON string
-    // and cannot inject sibling keys into the (optionally signed) payload.
-    body_template: Some(r#"{"event": "{{ entity_type }}", "id": "{{ entity_id }}"}"#.to_string()),
+    // Placeholders `{{ path }}` read the changed row (`event.data`), with dotted paths.
+    // A string that is exactly one placeholder takes the value's JSON type ("{{ total }}"
+    // -> 150); placeholders embedded in a string interpolate their text. A placeholder the
+    // row cannot fill, or a null embedded in a string, refuses the delivery.
+    body_template: Some(r#"{"order": "{{ id }}", "to": "{{ customer.email }}", "total": "{{ total }}"}"#.to_string()),
     // Optional: sign the payload with HMAC-SHA256 from an env var holding the
     // secret. Receivers verify the `X-FraiseQL-Signature-256: t=<ts>,v1=<hex>`
     // header (Stripe-compatible; e.g. fraiseql-webhooks' StripeVerifier).
