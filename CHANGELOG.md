@@ -20,6 +20,21 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **`POST /api/v1/query/validate` is removed, and `/api/v1/query/stats` and
+  `/api/v1/federation/{subgraphs,graph,plan}` are served only with an admin token
+  (GHSA-4p85-qj4v-qhp5).** With no `admin_token` configured they answer 404. Use
+  `POST /api/v1/query/explain` (admin read token) or `fraiseql compile` to validate a query.
+- **A REST `GET` with a zero TTL is `no-store` (was `public, max-age=0`), and `Vary` lists
+  `Cookie`, `X-API-Key`, `X-Tenant-ID` and the schema's locale and session-variable
+  headers.** `fraiseql_server::routes::rest::cache_control` (`apply_cache_headers`,
+  `CacheContext`) is removed.
+- **`fraiseql_server::routes::grpc::build_grpc_service` takes a final
+  `revocation: Option<Arc<TokenRevocationManager>>` argument.** Pass the store the
+  deployment's HTTP auth checks; `None` leaves revoked tokens working on gRPC.
+- **`Authorization: Bearer ` with an empty credential is malformed everywhere.** The admin
+  bearer gate answers 401 (was 403). `fraiseql_server::middleware::auth::extract_bearer_token`
+  and `fraiseql_server::routes::studio::admin::extract_bearer_token` are removed; use
+  `fraiseql_core::security::bearer_credential`.
 - **`Server::with_flight_service` requires a `RelayDatabaseAdapter` (#1621).** It now
   builds the same relay-capable executor as `Server::with_relay_pagination`. An embedder
   calling it with an adapter that does not implement relay pagination implements the
@@ -43,6 +58,26 @@ disagreed, and the promise was the part that was wrong.
   relay query answered "Relay pagination is not supported" on an `arrow` build and worked
   on one without it. That already affected the `fraiseql-server-full` and
   `fraiseql-server-platform` images.
+
+### Security
+
+- **REST reads take the same `Cache-Control` decision as `/graphql`
+  (GHSA-8x5r-mxp4-3xfh).** An anonymous REST `GET` addressed to a tenant, or selected by a
+  header the schema reads a session variable from, was answered `public` and varied only on
+  `Authorization, Accept, Prefer`, so a shared cache could serve one tenant's rows to the
+  next caller of the URL. It is now `private` and `Vary` names every header that can change
+  the answer. Streamed exports (NDJSON, CSV, XLSX), which carried no `Cache-Control`, are
+  `no-store`.
+- **MCP, the storage API and the gRPC service refuse a revoked token
+  (GHSA-7482-9g53-rj7f).** They validated bearer tokens themselves and never asked the
+  revocation store, so a token revoked by `/auth/revoke` or "revoke all sessions" kept
+  working on them until it expired.
+- **A GraphQL `@stream` request over SSE is admitted by the same stages as `/graphql`
+  (GHSA-h22c-5xf9-g5vw).** The SSE path skipped identity enrichment. Where enrichment was
+  the admission gate, a subject `/graphql` refuses was streamed rows. Where the schema reads
+  the enriched identity, every authenticated root `@stream` was refused (403).
+- **`/api/v1/query/stats` and `/api/v1/federation/*` require the admin read token
+  (GHSA-4p85-qj4v-qhp5).** They were served without authentication.
 
 ## [2.17.0] - 2026-10-19
 

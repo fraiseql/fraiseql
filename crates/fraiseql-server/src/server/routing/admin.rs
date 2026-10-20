@@ -531,8 +531,8 @@ impl Server {
             if self.config.admin_readonly_token.is_none() {
                 warn!(
                     admin_write_routes = "reload-schema, cache/clear",
-                    admin_read_routes =
-                        "cache/stats, config, explain, query/explain, grafana-dashboard",
+                    admin_read_routes = "cache/stats, config, explain, query/explain, query/stats, federation/*, \
+                         grafana-dashboard",
                     "Admin API running in single-token mode: admin_token grants ALL operations \
                      including destructive ones. Set admin_readonly_token to scope access."
                 );
@@ -575,6 +575,16 @@ impl Server {
                     "/api/v1/admin/query-stats/{queryid}",
                     get(api::query_stats::query_stats_detail_handler),
                 )
+                // GHSA-4p85-qj4v-qhp5: the query-intelligence and federation reads
+                // describe the schema, its plans and its traffic, as `query/explain`
+                // does; they were mounted with no authentication.
+                .route("/api/v1/query/stats", get(api::query::stats_handler));
+            #[cfg(feature = "federation")]
+            let admin_read_router = admin_read_router
+                .route("/api/v1/federation/subgraphs", get(api::federation::subgraphs_handler))
+                .route("/api/v1/federation/graph", get(api::federation::graph_handler))
+                .route("/api/v1/federation/plan", get(api::federation::plan_handler));
+            let admin_read_router = admin_read_router
                 .route_layer(middleware::from_fn_with_state(read_auth, bearer_auth_middleware))
                 .with_state(state.clone());
             app = app.merge(admin_read_router);

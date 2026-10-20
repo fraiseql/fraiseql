@@ -1,6 +1,6 @@
 //! Behavioral tests for query intelligence API endpoints.
 //!
-//! Exercises the real `explain_handler`, `validate_handler`, and `stats_handler`
+//! Exercises the real `explain_handler` and `stats_handler`
 //! through axum's `tower::ServiceExt::oneshot`.
 //!
 //! **Execution engine:** real FraiseQL executor
@@ -124,72 +124,6 @@ async fn explain_deeply_nested_query_generates_warnings() {
         warnings.iter().any(|w| w.as_str().unwrap().contains("depth")),
         "Expected depth warning, got: {warnings:?}"
     );
-}
-
-// ============================================================================
-// VALIDATE ENDPOINT
-// ============================================================================
-
-#[tokio::test]
-async fn validate_accepts_well_formed_query() {
-    let router = api_router(make_test_state());
-    let (status, json) = post_json(
-        &router,
-        "/api/v1/query/validate",
-        serde_json::json!({ "query": "query { users { id } }" }),
-    )
-    .await;
-
-    assert_eq!(status, StatusCode::OK);
-    assert_eq!(json["data"]["valid"], true);
-    assert!(json["data"]["errors"].as_array().unwrap().is_empty());
-}
-
-#[tokio::test]
-async fn validate_rejects_mismatched_braces() {
-    let router = api_router(make_test_state());
-    let (status, json) = post_json(
-        &router,
-        "/api/v1/query/validate",
-        serde_json::json!({ "query": "query { users { id }" }),
-    )
-    .await;
-
-    assert_eq!(status, StatusCode::OK);
-    assert_eq!(json["data"]["valid"], false);
-    let errors = json["data"]["errors"].as_array().unwrap();
-    assert!(
-        !errors.is_empty(),
-        "parser should report at least one error for mismatched braces"
-    );
-}
-
-/// #976: this endpoint exists to hand a client-controlled document to the parser,
-/// which makes it the most direct route to the block-string panic. A block string
-/// indented with U+00A0 is read as written (NBSP is not GraphQL whitespace, § 2.1.3),
-/// so the request is answered `valid: true` over HTTP, not dropped.
-#[tokio::test]
-async fn validate_reads_a_unicode_block_string_indent_over_http() {
-    let router = api_router(make_test_state());
-    let (status, json) = post_json(
-        &router,
-        "/api/v1/query/validate",
-        serde_json::json!({ "query": "{ a(t: \"\"\"\n x\n\u{a0}y\n\"\"\") }" }),
-    )
-    .await;
-
-    assert_eq!(status, StatusCode::OK, "the request must be answered, not dropped");
-    assert_eq!(json["data"]["valid"], true, "{json}");
-}
-
-#[tokio::test]
-async fn validate_reports_empty_query_as_invalid() {
-    let router = api_router(make_test_state());
-    let (status, json) =
-        post_json(&router, "/api/v1/query/validate", serde_json::json!({ "query": "" })).await;
-
-    assert_eq!(status, StatusCode::OK);
-    assert_eq!(json["data"]["valid"], false);
 }
 
 // ============================================================================

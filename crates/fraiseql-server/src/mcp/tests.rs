@@ -567,6 +567,86 @@ mod handler_tests {
     }
 }
 
+/// **Reproduction (GHSA-7482-9g53-rj7f).** MCP validated a Bearer token's signature and
+/// expiry, and never asked the revocation store: a token revoked by `/auth/revoke` kept
+/// working here until it expired.
+mod revocation_tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
+    use std::sync::Arc;
+
+    use fraiseql_core::{
+        runtime::Executor,
+        schema::{CompiledSchema, McpConfig},
+        security::{AuthConfig, AuthMiddleware},
+    };
+    use fraiseql_test_utils::failing_adapter::FailingAdapter;
+
+    use crate::{
+        mcp::handler::{FraiseQLMcpService, McpTokenValidator},
+        routes::graphql::AppState,
+        token_revocation::{InMemoryRevocationStore, RevocationStore, TokenRevocationManager},
+    };
+
+    const SECRET: &str = "fraiseql-mcp-revocation-secret-32";
+    const REFUSAL: &str = "Invalid or expired authentication token";
+
+    fn token(jti: &str) -> String {
+        let now = chrono::Utc::now().timestamp();
+        let claims =
+            serde_json::json!({ "sub": "alice", "jti": jti, "iat": now, "exp": now + 3600 });
+        jsonwebtoken::encode(
+            &jsonwebtoken::Header::new(jsonwebtoken::Algorithm::HS256),
+            &claims,
+            &jsonwebtoken::EncodingKey::from_secret(SECRET.as_bytes()),
+        )
+        .unwrap()
+    }
+
+    /// The text of a tool call made with `jti`'s token, against a store that revoked
+    /// `revoked`.
+    async fn call(jti: &str, revoked: &str) -> String {
+        let store = Arc::new(InMemoryRevocationStore::new());
+        store.revoke(revoked, 3600).await.unwrap();
+        let manager = Arc::new(TokenRevocationManager::new(store, false, false, 3600));
+        let executor =
+            Arc::new(Executor::new(CompiledSchema::default(), Arc::new(FailingAdapter::new())));
+        let state = AppState::new(executor).with_revocation_manager(manager);
+        let service = FraiseQLMcpService::new(state, McpConfig::default()).with_token_validator(
+            Some(McpTokenValidator::Hs256(Arc::new(AuthMiddleware::from_config(
+                AuthConfig::with_hs256(SECRET),
+            )))),
+        );
+        let result = service
+            .call_tool_authenticated(
+                "no_such_tool",
+                None,
+                Some(token(jti)),
+                "req-1".to_string(),
+                &http::HeaderMap::new(),
+            )
+            .await;
+        result
+            .content
+            .iter()
+            .filter_map(|c| c.as_text().map(|t| t.text.clone()))
+            .collect()
+    }
+
+    #[tokio::test]
+    async fn a_revoked_token_is_refused() {
+        assert_eq!(call("j-revoked", "j-revoked").await, REFUSAL);
+    }
+
+    /// The control: the same token, not revoked, is authenticated, and the call goes
+    /// on to fail for its own reason (the tool does not exist).
+    #[tokio::test]
+    async fn a_live_token_is_admitted() {
+        let text = call("j-live", "j-revoked").await;
+        assert_ne!(text, REFUSAL, "{text}");
+    }
+}
+
 /// #967: Resources and Prompts.
 ///
 /// The load-bearing property is not the shape of the advertisement — it is that

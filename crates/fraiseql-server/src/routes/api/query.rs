@@ -63,22 +63,6 @@ pub struct ComplexityInfo {
     pub alias_count: usize,
 }
 
-/// Request to validate a query.
-#[derive(Debug, Deserialize)]
-pub struct ValidateRequest {
-    /// GraphQL query string to validate
-    pub query: String,
-}
-
-/// Response from validate endpoint.
-#[derive(Debug, Serialize)]
-pub struct ValidateResponse {
-    /// Whether the query is syntactically valid
-    pub valid:  bool,
-    /// List of validation errors (if any)
-    pub errors: Vec<String>,
-}
-
 /// Response from stats endpoint.
 #[derive(Debug, Serialize)]
 pub struct StatsResponse {
@@ -182,43 +166,6 @@ pub async fn explain_handler(
 
 /// Validate GraphQL query syntax.
 ///
-/// Performs full AST-based validation on a GraphQL query.
-/// Returns a list of any errors found.
-///
-/// # Errors
-///
-/// This handler always succeeds; validation errors are reported inside the response body.
-pub async fn validate_handler(
-    State(_state): State<AppState>,
-    Json(req): Json<ValidateRequest>,
-) -> Result<Json<ApiResponse<ValidateResponse>>, ApiError> {
-    if req.query.trim().is_empty() {
-        return Ok(Json(ApiResponse {
-            status: "success".to_string(),
-            data:   ValidateResponse {
-                valid:  false,
-                errors: vec!["Query cannot be empty".to_string()],
-            },
-        }));
-    }
-
-    // Full AST parse: reports real syntax errors, not brace-matching heuristics.
-    // Through the guarded seam — this endpoint hands a client-controlled document
-    // straight to the parser, which #976 showed can panic.
-    let (valid, errors) =
-        match fraiseql_core::graphql::complexity::parse_graphql_document(&req.query) {
-            Ok(_) => (true, vec![]),
-            Err(e) => (false, vec![e.to_string()]),
-        };
-
-    let response = ValidateResponse { valid, errors };
-
-    Ok(Json(ApiResponse {
-        status: "success".to_string(),
-        data:   response,
-    }))
-}
-
 /// Get query execution statistics.
 ///
 /// Returns aggregated metrics from query executions, read from the in-process

@@ -84,6 +84,9 @@ pub struct DynamicGrpcService {
     /// builds for itself is a copy that drifts from the one the deployment configured.
     #[cfg(feature = "auth")]
     identity_resolver: Option<Arc<crate::identity::IdentityResolver>>,
+    /// The deployment's token-revocation store (GHSA-7482-9g53-rj7f), checked after a
+    /// token validates, as both HTTP auth middlewares check it.
+    revocation:        Option<Arc<crate::token_revocation::TokenRevocationManager>>,
 }
 
 impl Clone for DynamicGrpcService {
@@ -98,6 +101,7 @@ impl Clone for DynamicGrpcService {
             rate_limiter: self.rate_limiter.as_ref().map(Arc::clone),
             #[cfg(feature = "auth")]
             identity_resolver: self.identity_resolver.as_ref().map(Arc::clone),
+            revocation: self.revocation.as_ref().map(Arc::clone),
         }
     }
 }
@@ -447,9 +451,9 @@ impl DynamicGrpcService {
             return Ok(None); // Auth not configured — allow anonymous access.
         };
 
-        let token = match auth_header.as_deref() {
-            Some(h) if h.starts_with("Bearer ") => h[7..].to_string(),
-            Some(_) => {
+        let token = match auth_header.as_deref().map(fraiseql_core::security::bearer_credential) {
+            Some(Some(token)) => token.to_string(),
+            Some(None) => {
                 debug!("gRPC request has invalid Authorization header format");
                 return Err(grpc_error_response(
                     tonic::Code::Unauthenticated,
@@ -468,24 +472,51 @@ impl DynamicGrpcService {
             },
         };
 
-        match validator.validate_token(&token).await {
-            Ok(user) => {
-                debug!(user_id = %user.user_id, "gRPC user authenticated");
-                Self::principal_from_user(
-                    #[cfg(feature = "auth")]
-                    self.identity_resolver.as_deref(),
-                    &user,
-                    request_id,
-                    self.schema.tenant_claim(),
-                )
-                .await
-                .map(Some)
-            },
-            Err(e) => {
-                warn!(error = %e, "gRPC token validation failed");
-                Err(grpc_error_response(tonic::Code::Unauthenticated, "Invalid or expired token"))
-            },
+        let user = Self::validate_bearer(validator, self.revocation.as_ref(), &token).await?;
+        debug!(user_id = %user.user_id, "gRPC user authenticated");
+        Self::principal_from_user(
+            #[cfg(feature = "auth")]
+            self.identity_resolver.as_deref(),
+            &user,
+            request_id,
+            self.schema.tenant_claim(),
+        )
+        .await
+        .map(Some)
+    }
+
+    /// Validate a bearer token, then ask the revocation store about it, as both HTTP
+    /// auth middlewares do (GHSA-7482-9g53-rj7f). Both refusals answer the same
+    /// `UNAUTHENTICATED`, so the response does not say which one fired.
+    ///
+    /// An associated function for the reason [`principal_from_user`](Self::principal_from_user)
+    /// is one: tests drive it with a local JWKS endpoint and no descriptor pool.
+    ///
+    /// # Errors
+    ///
+    /// `UNAUTHENTICATED` when the token is invalid, expired or revoked.
+    // Reason: the `Err` variant is the gRPC response itself, as on `authenticate`.
+    #[allow(clippy::result_large_err)]
+    async fn validate_bearer(
+        validator: &OidcValidator,
+        revocation: Option<&Arc<crate::token_revocation::TokenRevocationManager>>,
+        token: &str,
+    ) -> std::result::Result<fraiseql_core::security::AuthenticatedUser, http::Response<TonicBody>>
+    {
+        let refused =
+            || grpc_error_response(tonic::Code::Unauthenticated, "Invalid or expired token");
+        let user = validator.validate_token(token).await.map_err(|e| {
+            warn!(error = %e, "gRPC token validation failed");
+            refused()
+        })?;
+        if crate::middleware::oidc_auth::check_revocation(revocation, &user, token)
+            .await
+            .is_err()
+        {
+            debug!(user_id = %user.user_id, "gRPC token is revoked");
+            return Err(refused());
         }
+        Ok(user)
     }
 
     /// Turn a **validated** token's user into the principal this request dispatches
@@ -640,6 +671,10 @@ impl tower::Service<http::Request<TonicBody>> for DynamicGrpcService {
 /// runs the tenancy runtime must not mount this over the default executor for tenant
 /// traffic, since a tenant's request would be answered from the default database.
 ///
+/// `revocation` must be the store the deployment's HTTP auth middlewares check (the
+/// server's `[security.token_revocation]` manager): with `None`, a revoked token keeps
+/// working on this transport until it expires.
+///
 /// Returns `None` if gRPC is not configured or not enabled.
 /// Returns `Some(GrpcServices)` on success, containing the dynamic service,
 /// an optional reflection service, and the service name.
@@ -654,6 +689,7 @@ pub fn build_grpc_service(
     oidc_validator: Option<Arc<OidcValidator>>,
     rate_limiter: Option<Arc<RateLimiter>>,
     #[cfg(feature = "auth")] identity_resolver: Option<Arc<crate::identity::IdentityResolver>>,
+    revocation: Option<Arc<crate::token_revocation::TokenRevocationManager>>,
 ) -> Result<Option<GrpcServices>, FraiseQLError> {
     let grpc_config = match schema.grpc_config.as_ref() {
         Some(cfg) if cfg.enabled => cfg,
@@ -750,6 +786,7 @@ pub fn build_grpc_service(
         rate_limiter,
         #[cfg(feature = "auth")]
         identity_resolver,
+        revocation,
     };
 
     Ok(Some(GrpcServices {

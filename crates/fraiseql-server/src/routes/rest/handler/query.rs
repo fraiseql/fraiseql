@@ -786,20 +786,33 @@ impl RestHandler<'_> {
                 .insert("x-preference-fallback", HeaderValue::from_static("count=exact"));
         }
 
-        // Cache-Control headers: a read produced for a principal is never shareable, whichever
-        // header carried its credential (bearer, `__Host-access_token` cookie, `x-api-key`).
-        super::super::cache_control::apply_cache_headers(
-            &mut response_headers,
-            &super::super::cache_control::CacheContext {
-                is_get:        true,
-                authenticated: security_context.is_some(),
-                query_ttl:     query_match.query_def.cache_ttl_seconds,
-                default_ttl:   self.config.default_cache_ttl,
-                cdn_max_age:   self.config.cdn_max_age,
-            },
-        );
-
         let body = build_query_response(&result, total, &params.pagination)?;
+
+        // GHSA-8x5r-mxp4-3xfh: the same decision `/graphql` makes. A read produced for a
+        // principal, addressed to a tenant, or selected by a header the schema reads a
+        // session variable from is never offered to a shared cache, and `Vary` names every
+        // header that can change the answer. An undeclared TTL falls back to the REST
+        // default; a zero TTL stores nothing.
+        let caching = crate::routes::http_cache::decide(
+            &crate::routes::http_cache::Answered {
+                body:      &body,
+                ttl:       query_match
+                    .query_def
+                    .cache_ttl_seconds
+                    .or(Some(self.config.default_cache_ttl)),
+                principal: security_context.is_some(),
+                tenant:    self.tenant.is_some(),
+                s_maxage:  self.config.cdn_max_age,
+            },
+            headers,
+            self.schema,
+        );
+        crate::routes::http_cache::apply(
+            &mut response_headers,
+            caching,
+            Some(self.schema),
+            &["Accept", "Prefer"],
+        );
 
         // #873.3: `RestConfig::etag` finally has a consumer on the live path.
         //

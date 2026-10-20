@@ -35,6 +35,47 @@ use crate::{
     tracing_utils,
 };
 
+/// Who is asking and what they are asking: the request after the stages every
+/// `/graphql` entry point runs before it plans anything.
+pub(super) struct Admitted {
+    /// The principal, authenticated, stamped with the request's trace and enriched.
+    pub security_context: Option<SecurityContext>,
+    /// The document the request executes, resolved and allowed for its method.
+    pub query:            String,
+}
+
+/// Run the admission prefix: [`authenticate`], [`stamp_trace_context`],
+/// [`enrich_identity`], [`resolve_query_body`], in that order.
+///
+/// The buffered handler and the SSE handler both start here, so a stage added to one
+/// reaches the other. They used not to: the SSE handler ran its own copy of the prefix,
+/// which lacked enrichment, so a root `@stream` executed for a subject the enrichment
+/// gate denies (GHSA-h22c-5xf9-g5vw).
+///
+/// # Errors
+///
+/// The first refusal among the stages', unchanged.
+pub(super) async fn admit(
+    state: &AppState,
+    headers: &HeaderMap,
+    security_context: Option<SecurityContext>,
+    request: &mut GraphQLRequest,
+    method: Method,
+) -> Result<Admitted, ErrorResponse> {
+    // Each stage is boxed for the reason `execute_graphql_request` gives.
+    let security_context = Box::pin(authenticate(state, headers, security_context)).await?;
+    #[cfg_attr(not(feature = "auth"), allow(unused_mut))]
+    // Reason: only identity enrichment, compiled with `auth`, rewrites the context.
+    let mut security_context = stamp_trace_context(headers, security_context);
+    #[cfg(feature = "auth")]
+    Box::pin(enrich_identity(state, &mut security_context)).await?;
+    let query = Box::pin(resolve_query_body(state, request, method)).await?;
+    Ok(Admitted {
+        security_context,
+        query,
+    })
+}
+
 /// Resolve the request's principal from the credentials it presents.
 ///
 /// Order is load-bearing: a service account's `run_as` ceiling takes precedence

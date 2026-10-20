@@ -47,15 +47,6 @@ pub struct AdminSchemaResponse {
 // Token extraction helper (public for testing)
 // ---------------------------------------------------------------------------
 
-/// Extract the bearer token from an `Authorization` header value.
-///
-/// Returns `Some(token)` for `"Bearer <token>"` headers; `None` otherwise.
-#[must_use]
-pub fn extract_bearer_token(auth_header: Option<&str>) -> Option<&str> {
-    let header = auth_header?;
-    header.strip_prefix("Bearer ")
-}
-
 // ---------------------------------------------------------------------------
 // Handlers
 // ---------------------------------------------------------------------------

@@ -265,7 +265,7 @@ pub async fn oidc_auth_middleware(
 
         match auth_header {
             Some(header_value) => {
-                if !header_value.starts_with("Bearer ") {
+                let Some(token) = fraiseql_core::security::bearer_credential(header_value) else {
                     tracing::debug!("Invalid Authorization header format");
                     return (
                         StatusCode::UNAUTHORIZED,
@@ -276,8 +276,8 @@ pub async fn oidc_auth_middleware(
                         "Invalid Authorization header format",
                     )
                         .into_response();
-                }
-                Some(header_value[7..].to_owned())
+                };
+                Some(token.to_owned())
             },
             None => extract_access_token_cookie(request.headers()),
         }
@@ -364,7 +364,7 @@ enum TokenExtraction {
 fn extract_bearer_or_cookie(headers: &axum::http::HeaderMap) -> TokenExtraction {
     let auth_header = headers.get(header::AUTHORIZATION).and_then(|value| value.to_str().ok());
     match auth_header {
-        Some(value) => match value.strip_prefix("Bearer ") {
+        Some(value) => match fraiseql_core::security::bearer_credential(value) {
             Some(token) => TokenExtraction::Found(token.to_owned()),
             None => TokenExtraction::Malformed,
         },

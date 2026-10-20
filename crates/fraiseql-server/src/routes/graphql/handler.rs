@@ -21,6 +21,7 @@ use super::{
 use crate::{
     error::{ErrorResponse, GraphQLError},
     extractors::{OptionalSecurityContext, PeerIp},
+    routes::http_cache,
     tracing_utils,
 };
 
@@ -389,7 +390,7 @@ fn with_caching(
         Ok(http) => http,
         Err(error) => axum::response::IntoResponse::into_response(error),
     };
-    http_cache::apply(http.headers_mut(), http_cache::Caching::NoStore, None);
+    http_cache::apply(http.headers_mut(), http_cache::Caching::NoStore, None, &[]);
     http
 }
 
@@ -540,8 +541,6 @@ async fn execute_graphql_request(
     headers: &HeaderMap,
     peer_ip: &str,
 ) -> Result<Answer, ErrorResponse> {
-    // ── Who is asking ────────────────────────────────────────────────────────
-    //
     // Every `await` on a stage is `Box::pin`ned. An awaited `async fn` embeds its
     // whole state machine in the caller's future, so the nine stages compose into
     // a type deep enough that rustc 1.97 refuses to compute the handler's layout
@@ -549,14 +548,28 @@ async fn execute_graphql_request(
     // small enough for `clippy::large_futures`, which this crate has tripped
     // repeatedly on `Server`-shaped futures. The cost is one allocation per stage
     // per request, against a database round-trip.
-    let mut security_context =
-        Box::pin(stages::authenticate(&state, headers, security_context)).await?;
-    security_context = stages::stamp_trace_context(headers, security_context);
-    #[cfg(feature = "auth")]
-    Box::pin(stages::enrich_identity(&state, &mut security_context)).await?;
+    let admitted =
+        Box::pin(stages::admit(&state, headers, security_context, &mut request, method)).await?;
+    Box::pin(execute_admitted(state, request, method, admitted, headers, peer_ip)).await
+}
 
-    // ── What they are asking ─────────────────────────────────────────────────
-    let query = Box::pin(stages::resolve_query_body(&state, &mut request, method)).await?;
+/// The buffered pipeline after [`stages::admit`].
+///
+/// The SSE handler's single-result mode enters here with the request it has already
+/// admitted, so no admission stage runs twice: identity enrichment can run a
+/// provisioning statement.
+async fn execute_admitted(
+    state: AppState,
+    request: GraphQLRequest,
+    method: Method,
+    admitted: stages::Admitted,
+    headers: &HeaderMap,
+    peer_ip: &str,
+) -> Result<Answer, ErrorResponse> {
+    let stages::Admitted {
+        security_context,
+        query,
+    } = admitted;
 
     let start_time = Instant::now();
     let metrics = &state.metrics;
@@ -622,7 +635,7 @@ async fn execute_graphql_request(
             crate::routes::idempotency::IdempotencyCheck::Replay(stored) => {
                 debug!("Replaying stored response for repeated Idempotency-Key mutation");
                 let mut headers = HeaderMap::new();
-                http_cache::apply(&mut headers, http_cache::Caching::NoStore, None);
+                http_cache::apply(&mut headers, http_cache::Caching::NoStore, None, &[]);
                 return Ok(Answer {
                     response: GraphQLResponse {
                         body: stored.body.unwrap_or(serde_json::Value::Null),
@@ -844,6 +857,7 @@ async fn execute_graphql_request(
                 ttl: executor.response_cache_ttl(&query, operation_name),
                 principal,
                 tenant: tenant_key.is_some(),
+                s_maxage: None,
             },
             headers,
             executor.schema(),
@@ -852,7 +866,7 @@ async fn execute_graphql_request(
         http_cache::Caching::NoStore
     };
     let mut cache_headers = HeaderMap::new();
-    http_cache::apply(&mut cache_headers, caching, Some(executor.schema()));
+    http_cache::apply(&mut cache_headers, caching, Some(executor.schema()), &[]);
 
     Ok(Answer {
         response: GraphQLResponse {
@@ -891,7 +905,6 @@ pub(super) fn tenant_dispatch_error(error: &FraiseQLError) -> GraphQLError {
     }
 }
 
-mod http_cache;
 mod incremental;
 mod sse;
 mod stages;

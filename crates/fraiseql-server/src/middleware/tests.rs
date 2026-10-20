@@ -150,8 +150,11 @@ mod auth_tests {
         assert_eq!(response.status(), StatusCode::FORBIDDEN);
     }
 
+    /// `Bearer ` with nothing after it presents no credential: refused as malformed (401,
+    /// with a challenge), like any other header that is not `Bearer <token>`, and not as
+    /// a wrong token (403).
     #[tokio::test]
-    async fn test_empty_bearer_token_returns_403() {
+    async fn an_empty_bearer_credential_is_malformed() {
         let app = create_test_app("secret-token-12345");
 
         let request = Request::builder()
@@ -162,7 +165,7 @@ mod auth_tests {
 
         let response = app.oneshot(request).await.unwrap();
 
-        assert_eq!(response.status(), StatusCode::FORBIDDEN);
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
     }
 
     #[test]

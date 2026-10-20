@@ -69,8 +69,8 @@ fn test_openapi_spec_documents_query_endpoints() {
         "Should document /api/v1/query/explain"
     );
     assert!(
-        paths.get("/api/v1/query/validate").is_some(),
-        "Should document /api/v1/query/validate"
+        paths.get("/api/v1/query/validate").is_none(),
+        "/api/v1/query/validate is removed and must not be documented"
     );
 }
 

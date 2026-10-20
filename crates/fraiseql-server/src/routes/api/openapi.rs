@@ -127,30 +127,6 @@ fn components_schema() -> serde_json::Value {
                         }
                     }
                 },
-                "ValidateRequest": {
-                    "type": "object",
-                    "required": ["query"],
-                    "properties": {
-                        "query": {
-                            "type": "string",
-                            "description": "GraphQL query to validate"
-                        }
-                    }
-                },
-                "ValidateResponse": {
-                    "type": "object",
-                    "properties": {
-                        "valid": {
-                            "type": "boolean"
-                        },
-                        "errors": {
-                            "type": "array",
-                            "items": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                },
                 "StatsResponse": {
                     "type": "object",
                     "properties": {
@@ -305,21 +281,6 @@ fn components_schema() -> serde_json::Value {
                             "properties": {
                                 "data": {
                                     "$ref": "#/components/schemas/ExplainResponse"
-                                }
-                            }
-                        }
-                    ]
-                },
-                "ApiResponseValidate": {
-                    "allOf": [
-                        {
-                            "$ref": "#/components/schemas/ApiResponse"
-                        },
-                        {
-                            "type": "object",
-                            "properties": {
-                                "data": {
-                                    "$ref": "#/components/schemas/ValidateResponse"
                                 }
                             }
                         }
@@ -490,35 +451,6 @@ pub fn get_openapi_spec() -> String {
                         },
                         "400": {
                             "description": "Invalid query or validation error"
-                        }
-                    }
-                }
-            },
-            "/api/v1/query/validate": {
-                "post": {
-                    "summary": "Validate GraphQL query syntax",
-                    "description": "Validates GraphQL query syntax without executing analysis. Fast validation for batch operations.",
-                    "tags": ["Query Intelligence"],
-                    "requestBody": {
-                        "required": true,
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/ValidateRequest"
-                                }
-                            }
-                        }
-                    },
-                    "responses": {
-                        "200": {
-                            "description": "Query validation result",
-                            "content": {
-                                "application/json": {
-                                    "schema": {
-                                        "$ref": "#/components/schemas/ApiResponseValidate"
-                                    }
-                                }
-                            }
                         }
                     }
                 }
