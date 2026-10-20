@@ -78,6 +78,10 @@ disagreed, and the promise was the part that was wrong.
   the enriched identity, every authenticated root `@stream` was refused (403).
 - **`/api/v1/query/stats` and `/api/v1/federation/*` require the admin read token
   (GHSA-4p85-qj4v-qhp5).** They were served without authentication.
+- **Wasmtime 48.0.7 (RUSTSEC-2026-0378, RUSTSEC-2026-0379).** The functions runtime's
+  Wasmtime and Cranelift move from 48.0.6 / 0.135.6 to 48.0.7 / 0.135.7: on aarch64 a large
+  Wasm `br_table` could jump to the wrong target, and lowering a host-created component-model
+  stream into a guest expecting another payload type panicked.
 
 ## [2.17.0] - 2026-10-19
 
