@@ -163,10 +163,10 @@ pub use session_headers::{
 };
 pub use sql_logger::{SqlOperation, SqlQueryLog, SqlQueryLogBuilder, create_sql_span};
 pub use subscription::{
-    ActiveSubscription, DeliveryResult, KafkaAdapter, KafkaConfig, KafkaMessage, SubscriptionError,
-    SubscriptionEvent, SubscriptionId, SubscriptionManager, SubscriptionOperation,
-    SubscriptionPayload, TransportAdapter, TransportManager, WebhookAdapter, WebhookConfig,
-    WebhookPayload, extract_rls_conditions, protocol,
+    ActiveSubscription, DeliveredEvent, DeliveryResult, KafkaAdapter, KafkaConfig,
+    SubscriptionError, SubscriptionEvent, SubscriptionId, SubscriptionManager,
+    SubscriptionOperation, SubscriptionPayload, TransportAdapter, TransportManager, WebhookAdapter,
+    WebhookConfig, extract_rls_conditions, protocol,
 };
 pub use tenant_enforcer::TenantEnforcer;
 pub use variable_validation::{

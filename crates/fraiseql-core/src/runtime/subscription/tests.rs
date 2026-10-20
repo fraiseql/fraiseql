@@ -247,8 +247,39 @@ fn test_webhook_config_defaults() {
     assert!(config.headers.is_empty());
 }
 
+/// The delivered event (Kafka and webhook alike) spells `operation` exactly as
+/// `SubscriptionOperation` serializes: `CREATE`, `UPDATE`, `DELETE`. Both transports used
+/// its `Debug` form (`Create`).
 #[test]
-fn test_webhook_payload_from_event() {
+fn every_outbound_payload_spells_operation_as_the_enum_serializes() {
+    for operation in [
+        SubscriptionOperation::Create,
+        SubscriptionOperation::Update,
+        SubscriptionOperation::Delete,
+    ] {
+        let event = SubscriptionEvent {
+            event_id: "evt_1".to_string(),
+            entity_type: "Order".to_string(),
+            entity_id: "ord_1".to_string(),
+            operation,
+            data: serde_json::json!({"id": "ord_1"}),
+            old_data: None,
+            timestamp: chrono::Utc::now(),
+            sequence_number: 1,
+            tenant_id: None,
+            change_spine: None,
+            errors: Vec::new(),
+        };
+        let expected = serde_json::to_value(operation).unwrap();
+        assert_eq!(expected, serde_json::json!(operation.to_string()), "fixture: serde = Display");
+
+        let delivered = serde_json::to_value(DeliveredEvent::from_event(&event, "orders")).unwrap();
+        assert_eq!(delivered["operation"], expected, "delivered event for {operation:?}");
+    }
+}
+
+#[test]
+fn delivered_event_carries_the_event_and_its_subscription() {
     let event = SubscriptionEvent {
         event_id:        "evt_123".to_string(),
         entity_type:     "Order".to_string(),
@@ -263,13 +294,13 @@ fn test_webhook_payload_from_event() {
         errors:          Vec::new(),
     };
 
-    let payload = WebhookPayload::from_event(&event, "order_created");
+    let payload = DeliveredEvent::from_event(&event, "order_created");
 
     assert_eq!(payload.event_id, "evt_123");
     assert_eq!(payload.subscription_name, "order_created");
     assert_eq!(payload.entity_type, "Order");
     assert_eq!(payload.entity_id, "ord_456");
-    assert_eq!(payload.operation, "Create");
+    assert_eq!(payload.operation, SubscriptionOperation::Create);
     assert_eq!(payload.data["total"], 99.99);
     assert!(payload.old_data.is_none());
     assert_eq!(payload.sequence_number, 42);
@@ -325,7 +356,7 @@ fn test_kafka_config_defaults() {
 }
 
 #[test]
-fn test_kafka_message_from_event() {
+fn delivered_event_carries_the_previous_row_of_an_update() {
     let event = SubscriptionEvent {
         event_id:        "evt_789".to_string(),
         entity_type:     "User".to_string(),
@@ -340,38 +371,11 @@ fn test_kafka_message_from_event() {
         errors:          Vec::new(),
     };
 
-    let message = KafkaMessage::from_event(&event, "user_updated");
+    let message = DeliveredEvent::from_event(&event, "user_updated");
 
-    assert_eq!(message.event_id, "evt_789");
-    assert_eq!(message.subscription_name, "user_updated");
-    assert_eq!(message.entity_type, "User");
-    assert_eq!(message.entity_id, "usr_123");
-    assert_eq!(message.operation, "Update");
+    assert_eq!(message.operation, SubscriptionOperation::Update);
     assert_eq!(message.data["name"], "John");
-    assert_eq!(message.old_data.as_ref().unwrap()["name"], "Jane");
-    assert_eq!(message.sequence_number, 100);
-}
-
-#[test]
-fn test_kafka_message_key() {
-    let event = SubscriptionEvent {
-        event_id:        "evt_1".to_string(),
-        entity_type:     "Order".to_string(),
-        entity_id:       "ord_partition_key".to_string(),
-        operation:       SubscriptionOperation::Create,
-        data:            serde_json::json!({}),
-        old_data:        None,
-        timestamp:       chrono::Utc::now(),
-        sequence_number: 1,
-        tenant_id:       None,
-        change_spine:    None,
-        errors:          Vec::new(),
-    };
-
-    let message = KafkaMessage::from_event(&event, "test_sub");
-
-    // Key should be entity_id for consistent partitioning
-    assert_eq!(message.key(), "ord_partition_key");
+    assert_eq!(message.old_data.unwrap()["name"], "Jane");
 }
 
 #[test]

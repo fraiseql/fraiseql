@@ -1,6 +1,7 @@
 use async_trait::async_trait;
-use serde::Serialize;
 
+#[cfg(feature = "kafka")]
+use super::types::DeliveredEvent;
 use super::{SubscriptionError, transport::TransportAdapter, types::SubscriptionEvent};
 
 /// Kafka transport adapter configuration.
@@ -82,67 +83,6 @@ impl KafkaConfig {
     pub fn with_compression(mut self, compression: impl Into<String>) -> Self {
         self.compression = Some(compression.into());
         self
-    }
-}
-
-/// Kafka message format for event delivery.
-#[derive(Debug, Clone, Serialize)]
-pub struct KafkaMessage {
-    /// Unique event identifier.
-    pub event_id: String,
-
-    /// Subscription name.
-    pub subscription_name: String,
-
-    /// Entity type.
-    pub entity_type: String,
-
-    /// Entity primary key (used as message key).
-    pub entity_id: String,
-
-    /// Operation type.
-    pub operation: String,
-
-    /// Event data.
-    pub data: serde_json::Value,
-
-    /// Previous data (for UPDATE operations).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub old_data: Option<serde_json::Value>,
-
-    /// Event timestamp.
-    pub timestamp: String,
-
-    /// Sequence number.
-    pub sequence_number: u64,
-
-    /// The field errors that left `data` `null` (#1522); omitted when there are none.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub errors: Vec<serde_json::Value>,
-}
-
-impl KafkaMessage {
-    /// Create a Kafka message from a subscription event.
-    #[must_use]
-    pub fn from_event(event: &SubscriptionEvent, subscription_name: &str) -> Self {
-        Self {
-            event_id:          event.event_id.clone(),
-            subscription_name: subscription_name.to_string(),
-            entity_type:       event.entity_type.clone(),
-            entity_id:         event.entity_id.clone(),
-            operation:         format!("{:?}", event.operation),
-            data:              event.data.clone(),
-            old_data:          event.old_data.clone(),
-            timestamp:         event.timestamp.to_rfc3339(),
-            sequence_number:   event.sequence_number,
-            errors:            event.errors.clone(),
-        }
-    }
-
-    /// Get the message key (`entity_id` for partitioning).
-    #[must_use]
-    pub fn key(&self) -> &str {
-        &self.entity_id
     }
 }
 
@@ -253,7 +193,7 @@ impl TransportAdapter for KafkaAdapter {
     ) -> Result<(), SubscriptionError> {
         use fraiseql_kafka::{EgressOutcome, EgressRecord};
 
-        let message = KafkaMessage::from_event(event, subscription_name);
+        let message = DeliveredEvent::from_event(event, subscription_name);
         let topic = self.get_topic(subscription_name);
 
         let payload = serde_json::to_string(&message).map_err(|e| {
@@ -264,9 +204,9 @@ impl TransportAdapter for KafkaAdapter {
             .egress
             .send(EgressRecord {
                 topic,
-                key: message.key(),
+                key: message.entity_id,
                 payload: payload.as_bytes(),
-                headers: &[("fraiseql-event-id", &message.event_id)],
+                headers: &[("fraiseql-event-id", message.event_id)],
             })
             .await;
 
@@ -279,7 +219,7 @@ impl TransportAdapter for KafkaAdapter {
             EgressOutcome::Delivered => {
                 tracing::debug!(
                     topic = topic,
-                    key = message.key(),
+                    key = message.entity_id,
                     event_id = %event.event_id,
                     "Kafka message delivered successfully"
                 );
@@ -288,7 +228,7 @@ impl TransportAdapter for KafkaAdapter {
             EgressOutcome::Transient(reason) => {
                 tracing::error!(
                     topic = topic,
-                    key = message.key(),
+                    key = message.entity_id,
                     event_id = %event.event_id,
                     %reason,
                     "Kafka delivery failed; at-most-once, so this event is not retried"
@@ -301,7 +241,7 @@ impl TransportAdapter for KafkaAdapter {
             EgressOutcome::Permanent(reason) => {
                 tracing::error!(
                     topic = topic,
-                    key = message.key(),
+                    key = message.entity_id,
                     event_id = %event.event_id,
                     %reason,
                     "Kafka refused this message permanently; redelivery could not succeed"

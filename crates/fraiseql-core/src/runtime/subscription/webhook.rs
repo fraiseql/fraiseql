@@ -1,7 +1,10 @@
 use async_trait::async_trait;
-use serde::Serialize;
 
-use super::{SubscriptionError, transport::TransportAdapter, types::SubscriptionEvent};
+use super::{
+    SubscriptionError,
+    transport::TransportAdapter,
+    types::{DeliveredEvent, SubscriptionEvent},
+};
 
 /// Webhook transport adapter configuration.
 #[derive(Debug, Clone)]
@@ -72,61 +75,6 @@ impl WebhookTransportConfig {
     pub fn with_header(mut self, name: impl Into<String>, value: impl Into<String>) -> Self {
         self.headers.insert(name.into(), value.into());
         self
-    }
-}
-
-/// Webhook payload format for event delivery.
-#[derive(Debug, Clone, Serialize)]
-pub struct WebhookPayload {
-    /// Unique event identifier.
-    pub event_id: String,
-
-    /// Subscription name that triggered the event.
-    pub subscription_name: String,
-
-    /// Entity type (e.g., "Order").
-    pub entity_type: String,
-
-    /// Entity primary key.
-    pub entity_id: String,
-
-    /// Operation type.
-    pub operation: String,
-
-    /// Event data.
-    pub data: serde_json::Value,
-
-    /// Previous data (for UPDATE operations).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub old_data: Option<serde_json::Value>,
-
-    /// Event timestamp (ISO 8601).
-    pub timestamp: String,
-
-    /// Sequence number for ordering.
-    pub sequence_number: u64,
-
-    /// The field errors that left `data` `null` (#1522); omitted when there are none.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub errors: Vec<serde_json::Value>,
-}
-
-impl WebhookPayload {
-    /// Create a webhook payload from a subscription event.
-    #[must_use]
-    pub fn from_event(event: &SubscriptionEvent, subscription_name: &str) -> Self {
-        Self {
-            event_id:          event.event_id.clone(),
-            subscription_name: subscription_name.to_string(),
-            entity_type:       event.entity_type.clone(),
-            entity_id:         event.entity_id.clone(),
-            operation:         format!("{:?}", event.operation),
-            data:              event.data.clone(),
-            old_data:          event.old_data.clone(),
-            timestamp:         event.timestamp.to_rfc3339(),
-            sequence_number:   event.sequence_number,
-            errors:            event.errors.clone(),
-        }
     }
 }
 
@@ -207,7 +155,7 @@ impl TransportAdapter for WebhookAdapter {
         event: &SubscriptionEvent,
         subscription_name: &str,
     ) -> Result<(), SubscriptionError> {
-        let payload = WebhookPayload::from_event(event, subscription_name);
+        let payload = DeliveredEvent::from_event(event, subscription_name);
         let payload_json = serde_json::to_string(&payload).map_err(|e| {
             SubscriptionError::Internal(format!("Failed to serialize payload: {e}"))
         })?;

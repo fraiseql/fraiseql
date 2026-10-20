@@ -41,6 +41,13 @@ disagreed, and the promise was the part that was wrong.
   it off. The server no longer logs that block. Read the compiled section through
   `fraiseql_core::schema::SecurityConfig`, the type the server applies.
 
+- **Kafka and webhook subscription payloads spell `operation` as `CREATE`, `UPDATE` or
+  `DELETE` (#1629).** They sent `Create`, `Update` and `Delete`, the enum's `Debug` form,
+  while `SubscriptionOperation` serializes in upper case. A consumer that compares the
+  field must accept the upper-case values. In `fraiseql-core`, `WebhookPayload` and
+  `KafkaMessage` are replaced by one `DeliveredEvent<'a>`, which both transports
+  serialize; its `operation` is a `SubscriptionOperation`.
+
 - **`/metrics` no longer exports database-timing series (#1634).**
   `fraiseql_database_queries_total` and `fraiseql_database_query_duration_ms` counted each
   successful GraphQL request as one database query and its whole duration as database

@@ -63,14 +63,14 @@ mod types;
 mod webhook;
 
 pub use arguments::subscription_arguments;
-pub use kafka::{KafkaAdapter, KafkaConfig, KafkaMessage};
+pub use kafka::{KafkaAdapter, KafkaConfig};
 pub use manager::SubscriptionManager;
 pub use transport::{BoxDynTransportAdapter, DeliveryResult, TransportAdapter, TransportManager};
 pub use types::{
-    ActiveSubscription, ChangeSpineEnvelope, SubscriptionEvent, SubscriptionId,
+    ActiveSubscription, ChangeSpineEnvelope, DeliveredEvent, SubscriptionEvent, SubscriptionId,
     SubscriptionOperation, SubscriptionPayload,
 };
-pub use webhook::{WebhookAdapter, WebhookPayload, WebhookTransportConfig};
+pub use webhook::{WebhookAdapter, WebhookTransportConfig};
 /// Backward-compatible type alias — use [`WebhookTransportConfig`] in new code.
 pub type WebhookConfig = WebhookTransportConfig;
 

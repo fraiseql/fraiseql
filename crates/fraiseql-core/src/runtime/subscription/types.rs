@@ -201,6 +201,56 @@ pub struct SubscriptionEvent {
     pub errors: Vec<serde_json::Value>,
 }
 
+/// One subscription event as an outbound transport (webhook, Kafka) delivers it.
+///
+/// Both transports serialize this one shape, so their payloads cannot disagree. `operation`
+/// is the enum itself and serializes as `CREATE`/`UPDATE`/`DELETE`
+/// (`every_outbound_payload_spells_operation_as_the_enum_serializes`).
+#[derive(Debug, Clone, Serialize)]
+pub struct DeliveredEvent<'a> {
+    /// Unique event identifier.
+    pub event_id:          &'a str,
+    /// The subscription that matched the event.
+    pub subscription_name: &'a str,
+    /// Entity type (e.g. `"Order"`).
+    pub entity_type:       &'a str,
+    /// Entity primary key; Kafka keys the message by it.
+    pub entity_id:         &'a str,
+    /// The change that produced the event.
+    pub operation:         SubscriptionOperation,
+    /// The entity after the change.
+    pub data:              &'a serde_json::Value,
+    /// The entity before an update.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub old_data:          Option<&'a serde_json::Value>,
+    /// Event timestamp, RFC 3339.
+    pub timestamp:         String,
+    /// The subscription's delivery position.
+    pub sequence_number:   u64,
+    /// The field errors that left `data` `null`; omitted when there are none.
+    #[serde(skip_serializing_if = "<[_]>::is_empty")]
+    pub errors:            &'a [serde_json::Value],
+}
+
+impl<'a> DeliveredEvent<'a> {
+    /// The delivered form of `event` for the subscription `subscription_name`.
+    #[must_use]
+    pub fn from_event(event: &'a SubscriptionEvent, subscription_name: &'a str) -> Self {
+        Self {
+            event_id: &event.event_id,
+            subscription_name,
+            entity_type: &event.entity_type,
+            entity_id: &event.entity_id,
+            operation: event.operation,
+            data: &event.data,
+            old_data: event.old_data.as_ref(),
+            timestamp: event.timestamp.to_rfc3339(),
+            sequence_number: event.sequence_number,
+            errors: &event.errors,
+        }
+    }
+}
+
 impl SubscriptionEvent {
     /// Create a new subscription event.
     #[must_use]
