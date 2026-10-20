@@ -291,8 +291,6 @@
   operation_rbac.rs       Operation-level RBAC enforcement
   middleware.rs           Auth middleware composition
   monitoring.rs           Auth subsystem health metrics
-  security_config.rs      Auth security configuration
-  security_init.rs        Subsystem wiring at startup
   provider.rs             OAuthProvider trait
   oidc_provider.rs        OIDC discovery + token endpoint
   oidc_server_client.rs   OIDC client (server-side flow)

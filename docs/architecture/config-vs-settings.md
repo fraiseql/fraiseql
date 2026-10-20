@@ -1,13 +1,13 @@
 # Config vs Settings
 
-FraiseQL uses 150+ `*Config` types and 6 `*Settings` types. The naming is intentional and encodes a semantic distinction.
+FraiseQL uses 150+ `*Config` types and a handful of compiled `*Settings` types. The naming is intentional and encodes a semantic distinction.
 
 ## Definitions
 
 | Suffix | Source | Lifecycle | Example |
 |--------|--------|-----------|---------|
 | `*Config` | `fraiseql.toml`, env vars, CLI flags | Mutable during development; baked at compile time | `ServerConfig`, `OidcConfig`, `RateLimitConfig` |
-| `*Settings` | `schema.compiled.json` | Immutable after server start | `SecuritySettings`, `RateLimitingSettings` |
+| `*Settings` | `schema.compiled.json` | Immutable after server start | `FraiseQLSettings`, `SecuritySettings` |
 
 ## Flow
 
@@ -31,26 +31,27 @@ Config types represent **developer intent** expressed in TOML or environment var
 
 Settings types represent **validated, compiled configuration** embedded in `schema.compiled.json` by the CLI compiler. They are loaded once at server startup and never change during the server's lifetime.
 
-- Defined in: `fraiseql-cli/src/config/`, `fraiseql-auth/src/security_config.rs`
+- Defined in: `fraiseql-cli/src/config/`
 - Loaded from: `schema.compiled.json` (the `"security"` key)
 - Validated: at compile time by `fraiseql-cli compile`
 - Immutable after `Server::new()`
 
-## The 6 Settings Types
+## The Compiled Settings Types
 
 | Type | Crate | Purpose |
 |------|-------|---------|
 | `FraiseQLSettings` | `fraiseql-cli` | Top-level compiled settings container |
-| `SecuritySettings` | `fraiseql-cli` | Security subsystem aggregate (contains the 4 below) |
-| `AuditLoggingSettings` | `fraiseql-auth` | Audit log level, enabled flag |
-| `ErrorSanitizationSettings` | `fraiseql-auth` | Error message stripping for production |
-| `RateLimitingSettings` | `fraiseql-auth` | Auth endpoint rate limits (compiled from TOML) |
-| `StateEncryptionSettings` | `fraiseql-auth` | PKCE state encryption key config |
+| `SecuritySettings` | `fraiseql-cli` | The `[fraiseql.security]` section, compiled into the schema's `"security"` key |
+| `FunctionsSettings` | `fraiseql-cli` | The `[functions]` section |
+
+The server reads the compiled `"security"` key through `fraiseql_core::schema::SecurityConfig`
+only, in the subsystems that apply it: the error sanitizer, state encryption and
+`RuntimeConfig`.
 
 ## When to Use Which
 
 - **Adding a new server knob** (bind address, pool size, feature toggle) -> `*Config` in `server_config/`
-- **Adding a new security policy** that gets baked into the compiled schema -> `*Settings` in `fraiseql-auth` or `fraiseql-cli`
+- **Adding a new security policy** that gets baked into the compiled schema -> `*Settings` in `fraiseql-cli`
 - **Adding runtime-only middleware config** (rate limiting per IP, CORS origins) -> `*Config` in `server_config/`
 
 ## Environment Variable Overrides

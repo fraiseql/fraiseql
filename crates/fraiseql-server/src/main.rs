@@ -255,35 +255,6 @@ struct LoadedSchema {
     functions: Option<fraiseql_server::schema::loader::FunctionsConfig>,
 }
 
-/// Initialize security configuration from the compiled schema (auth feature only).
-///
-/// Without `[auth]` configured, this is a no-op and RBAC/admin endpoints are
-/// unprotected by OIDC — use `admin_token` or network controls as defence-in-depth.
-#[cfg(feature = "auth")]
-fn init_security(schema: &CompiledSchema) -> anyhow::Result<()> {
-    tracing::info!("Initializing security configuration from schema");
-    let schema_json_str = schema.to_json().unwrap_or_else(|e| {
-        tracing::warn!(error = %e, "Failed to serialize schema to JSON");
-        "{}".to_string()
-    });
-    let security_config = fraiseql_server::auth::init_security_config(&schema_json_str)
-        .unwrap_or_else(|e| {
-            tracing::warn!(error = %e, "Failed to load security config from schema, using defaults");
-            fraiseql_server::auth::init_default_security_config()
-        });
-    if let Err(e) = fraiseql_server::auth::validate_security_config(&security_config) {
-        tracing::error!(error = %e, "Security configuration validation failed");
-        anyhow::bail!(e);
-    }
-    fraiseql_server::auth::log_security_config(&security_config);
-    Ok(())
-}
-
-#[cfg(not(feature = "auth"))]
-fn init_security(_schema: &CompiledSchema) -> anyhow::Result<()> {
-    Ok(())
-}
-
 /// Create the PostgreSQL adapter.
 async fn build_postgres_adapter(config: &ServerConfig) -> anyhow::Result<Arc<PostgresAdapter>> {
     fraiseql_server::server_config::build_postgres_adapter(config)
@@ -496,7 +467,6 @@ async fn main() -> anyhow::Result<()> {
     }
 
     let loaded = load_schema(&config).await?;
-    init_security(&loaded.schema)?;
 
     warn_files_not_wired(&config);
     // `warn_sources_feature_missing` used to live here (#573): a lean build logged a

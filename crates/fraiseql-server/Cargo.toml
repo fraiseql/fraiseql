@@ -482,8 +482,7 @@ required-features = ["federation"]
 name = "federation_saga_validation_test"
 required-features = ["federation"]
 
-# The three suites that reach `crate::auth` for `PkceStateStore`,
-# `SecurityConfigFromSchema`, `init_security_config` and friends. Undeclared until
+# The two suites that reach `crate::auth` for `PkceStateStore` and friends. Undeclared until
 # #1277, which cost nothing while no gate built a `fraiseql-server` test target
 # without the crate defaults — `auth` is one of them — and cost a compile the
 # moment the narrow `server-rest-*` combos gained `--all-targets`.
@@ -498,10 +497,6 @@ required-features = ["auth"]
 
 [[test]]
 name = "security"
-required-features = ["auth"]
-
-[[test]]
-name = "security_config_runtime_test"
 required-features = ["auth"]
 
 # docs.rs builds a crate with its DEFAULT features unless told otherwise, so the published

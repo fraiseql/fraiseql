@@ -34,8 +34,6 @@ pub mod rate_limiting;
 pub mod saml;
 /// SCIM 2.0 provisioning storage and credentials (#946).
 pub mod scim;
-pub mod security_config;
-pub mod security_init;
 pub mod session;
 pub mod session_bearer;
 pub mod session_postgres;
@@ -155,14 +153,6 @@ pub use saml::{
     SamlIdpConfigBuilder, SamlReplayCache, SamlReplayStore, VerifiedAssertion,
     effective_saml_email_verified, saml_acs, saml_login, saml_provider_key, saml_routes,
     verify_saml_response,
-};
-pub use security_config::{
-    AuditLoggingSettings, ErrorSanitizationSettings, SecurityConfigFromSchema,
-    StateEncryptionSettings,
-};
-pub use security_init::{
-    init_default_security_config, init_security_config, log_security_config,
-    validate_security_config,
 };
 /// The `serde_json` this crate's public API is built against (#1198).
 pub use serde_json;

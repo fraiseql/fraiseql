@@ -31,6 +31,16 @@ disagreed, and the promise was the part that was wrong.
   `ObserverRepository` methods take an `ObserverScope` in place of
   `customer_org: Option<i64>`, and the handlers take it as an extractor.
 
+- **`fraiseql-auth` drops its second reader of the compiled `security` section (#1624).**
+  `SecurityConfigFromSchema`, `AuditLoggingSettings`, `ErrorSanitizationSettings`,
+  `StateEncryptionSettings`, `init_security_config`, `init_default_security_config`,
+  `validate_security_config` and `log_security_config` are removed. The server parsed the
+  schema with them at boot, logged the result as its security posture and discarded it.
+  That reader looked for keys the compiler no longer emits and defaulted audit logging
+  on, so the boot log reported `audit_logging_enabled = true` for a schema compiled with
+  it off. The server no longer logs that block. Read the compiled section through
+  `fraiseql_core::schema::SecurityConfig`, the type the server applies.
+
 ### Fixed
 
 - **The `-full` release binaries ship the REST and Arrow Flight transports, outbound CDC
