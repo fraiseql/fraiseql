@@ -1698,6 +1698,24 @@ mod observer_redis_env_tests {
     }
 
     #[tokio::test]
+    async fn the_declared_reload_keys_reach_the_runtime() {
+        let cfg = resolve("[runtime]\nauto_reload = false\nreload_interval_secs = 7", &[])
+            .expect("valid observer config");
+        assert!(
+            !cfg.auto_reload,
+            "[observers.runtime] auto_reload = false must reach the runtime"
+        );
+        assert_eq!(cfg.reload_interval_secs, 7);
+    }
+
+    #[tokio::test]
+    async fn auto_reload_with_a_zero_interval_refuses_boot() {
+        let err = resolve("[runtime]\nreload_interval_secs = 0", &[])
+            .expect_err("auto_reload (the default) with a zero interval would reload in a loop");
+        assert!(err.to_string().contains("reload_interval_secs"), "got: {err}");
+    }
+
+    #[tokio::test]
     async fn an_unparseable_redis_override_refuses_boot() {
         let err = resolve(WITH_SECTION, &[("FRAISEQL_REDIS_CONNECT_TIMEOUT_SECS", "5s")])
             .expect_err("`5s` is not a number of seconds");

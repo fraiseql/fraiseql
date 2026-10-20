@@ -342,3 +342,47 @@ async fn test_delete_tenant_isolation() {
             .unwrap();
     assert!(still_there.is_some(), "observer must not have been deleted");
 }
+
+// ---------------------------------------------------------------------------
+// Auto-reload: an observer another replica creates reaches this one
+// ---------------------------------------------------------------------------
+
+/// Start a runtime with a 1-second reload interval and `auto_reload` as given, over
+/// an empty `tb_observer`; then insert one observer behind its back and return how
+/// many observers it has loaded 3 seconds later.
+async fn observers_loaded_after_an_insert(auto_reload: bool) -> usize {
+    use fraiseql_server::observers::runtime::{ObserverRuntime, ObserverRuntimeConfig};
+
+    let (pool, _svc) = setup_pg().await;
+    let mut config = ObserverRuntimeConfig::new(pool.clone()).with_poll_interval(50);
+    config.auto_reload = auto_reload;
+    config.reload_interval_secs = 1;
+    let mut runtime = ObserverRuntime::new(config);
+    runtime.start().await.expect("the observer runtime starts");
+    assert_eq!(runtime.health().observer_count, 0, "fixture: nothing to load at start");
+
+    insert_observer(&pool, "created-elsewhere", "Order", "INSERT", None).await;
+    tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+
+    let loaded = runtime.health().observer_count;
+    runtime.stop().await.expect("the observer runtime stops");
+    loaded
+}
+
+#[tokio::test]
+async fn an_observer_inserted_after_start_is_loaded_within_the_reload_interval() {
+    assert_eq!(
+        observers_loaded_after_an_insert(true).await,
+        1,
+        "auto_reload must load an observer created after start within its interval"
+    );
+}
+
+#[tokio::test]
+async fn auto_reload_false_never_reloads() {
+    assert_eq!(
+        observers_loaded_after_an_insert(false).await,
+        0,
+        "with auto_reload off, only an explicit reload loads new observers"
+    );
+}

@@ -80,6 +80,13 @@ disagreed, and the promise was the part that was wrong.
   apply them, or an allowed locale with no ICU collation now refuses to boot on those
   paths too, instead of failing per request.
 
+- **`[observers.runtime] auto_reload` and `reload_interval_secs` take effect (#1655).**
+  The server parsed both keys and never read them, so an observer created through one
+  replica's admin API ran on another only after someone called
+  `POST /api/observers/runtime/reload` there. With `auto_reload = true`, the default, each
+  replica now reloads `tb_observer` every `reload_interval_secs` (default 60).
+  `reload_interval_secs = 0` with `auto_reload = true` is refused at boot.
+
 ### Security
 
 - **The observer admin API acts only on the caller's organisation (#1625).** Behind the

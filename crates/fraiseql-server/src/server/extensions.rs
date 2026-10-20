@@ -246,8 +246,19 @@ impl Server {
             crate::ServerError::ConfigError(format!("invalid observer transport config: {e}"))
         })?;
 
+        let runtime = &observer_config.runtime;
+        if runtime.auto_reload && runtime.reload_interval_secs == 0 {
+            return Err(crate::ServerError::ConfigError(
+                "[observers.runtime] reload_interval_secs = 0 with auto_reload = true would \
+                 reload observers continuously; set an interval in seconds, or auto_reload = \
+                 false to reload only through POST /api/observers/runtime/reload"
+                    .to_string(),
+            ));
+        }
+
         let runtime_config = ObserverRuntimeConfig::new(pool.clone())
             .with_poll_interval(observer_config.runtime.poll_interval_ms)
+            .with_reload(runtime.auto_reload, runtime.reload_interval_secs)
             .with_batch_size(observer_config.runtime.batch_size)
             .with_channel_capacity(observer_config.runtime.channel_capacity)
             .with_max_dlq_size(observer_config.runtime.max_dlq_size)

@@ -26,6 +26,13 @@ sub-tables `[observers.runtime.transport]`, `[observers.runtime.email]`,
 `[observers.runtime.pool]` and `[observers.runtime.redis]`. `[observers.runtime]`
 rejects unknown keys, so a typo stops the server at boot instead of being ignored.
 
+Each replica loads `tb_observer` at start. With `auto_reload = true` (the default) it
+reloads every `reload_interval_secs` (default 60), so an observer created, edited or
+disabled through any replica's admin API takes effect on every replica within one
+interval. `POST /api/observers/runtime/reload` applies it at once, but only on the
+replica that serves the request. With `auto_reload = false`, that endpoint is the only
+way to reload. `reload_interval_secs = 0` with `auto_reload = true` is refused at boot.
+
 `[observers] enabled = false` starts no runtime. Diagnose a running runtime with the
 server's own logs (`RUST_LOG=fraiseql_server=debug,fraiseql_observers=debug`).
 

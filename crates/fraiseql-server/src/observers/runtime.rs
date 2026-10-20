@@ -242,6 +242,14 @@ impl ObserverRuntimeConfig {
         self
     }
 
+    /// Set whether the runtime reloads `tb_observer` on its own, and how often.
+    #[must_use]
+    pub const fn with_reload(mut self, auto_reload: bool, interval_secs: u64) -> Self {
+        self.auto_reload = auto_reload;
+        self.reload_interval_secs = interval_secs;
+        self
+    }
+
     /// Set the in-memory DLQ size cap (`None` = unbounded).
     #[must_use]
     pub const fn with_max_dlq_size(mut self, max: Option<usize>) -> Self {
@@ -307,6 +315,8 @@ pub struct ObserverRuntime {
     task_handle:         Option<JoinHandle<()>>,
     /// Handle to this replica's subscription fan-out task (#1503), when it has one.
     fanout_handle:       Option<JoinHandle<()>>,
+    /// Handle to the `auto_reload` ticker, when `auto_reload` is on.
+    reload_handle:       Option<JoinHandle<()>>,
     /// Channel to send shutdown signal
     shutdown_tx:         Option<mpsc::Sender<()>>,
     /// Statistics
@@ -363,6 +373,7 @@ impl ObserverRuntime {
             running: Arc::new(AtomicBool::new(false)),
             task_handle: None,
             fanout_handle: None,
+            reload_handle: None,
             shutdown_tx: None,
             events_processed: Arc::new(std::sync::atomic::AtomicU64::new(0)),
             errors: Arc::new(std::sync::atomic::AtomicU64::new(0)),
@@ -394,7 +405,7 @@ impl ObserverRuntime {
     /// Returns (definitions, `entity_type_index`) tuple.
     /// `entity_type_index` maps (`entity_type`, `event_type`) -> `observer_id` for logging.
     async fn load_observers(
-        &self,
+        repository: &ObserverRepository,
     ) -> Result<
         (HashMap<String, ObserverDefinition>, HashMap<(String, String), Vec<i64>>),
         ServerError,
@@ -409,8 +420,7 @@ impl ObserverRuntime {
             include_deleted: false,
         };
 
-        let (observers, _total) =
-            self.repository.list(&query, super::ObserverScope::Operator).await?;
+        let (observers, _total) = repository.list(&query, super::ObserverScope::Operator).await?;
 
         let mut definitions = HashMap::new();
         let mut entity_type_index: HashMap<(String, String), Vec<i64>> = HashMap::new();
@@ -491,6 +501,42 @@ impl ObserverRuntime {
     /// fails, or the configured transport cannot connect (e.g. an unreachable
     /// NATS broker) — the latter is the #350 dead-broker boot-failure contract.
     pub async fn start(&mut self) -> Result<(), ServerError> {
+        Box::pin(self.start_event_source()).await?;
+        self.spawn_reload_ticker();
+        Ok(())
+    }
+
+    /// When `auto_reload` is on, reload `tb_observer` every `reload_interval_secs`, so an
+    /// observer created through another replica's admin API reaches this one within one
+    /// interval. Pinned by `observer_repository_test`'s auto-reload pair.
+    fn spawn_reload_ticker(&mut self) {
+        if !self.config.auto_reload {
+            return;
+        }
+        let reloader = self.reloader();
+        let period = Duration::from_secs(self.config.reload_interval_secs);
+        self.reload_handle = Some(tokio::spawn(async move {
+            let mut ticker = tokio::time::interval_at(tokio::time::Instant::now() + period, period);
+            ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+            let mut loaded = None;
+            loop {
+                ticker.tick().await;
+                match reloader.reload().await {
+                    Ok(count) if loaded != Some(count) => {
+                        info!(observers = count, "Observer auto-reload loaded a changed set");
+                        loaded = Some(count);
+                    },
+                    Ok(_) => {},
+                    Err(e) => {
+                        warn!(error = %e, "Observer auto-reload failed; keeping the loaded set");
+                    },
+                }
+            }
+        }));
+    }
+
+    /// The event-source half of [`start`](Self::start).
+    async fn start_event_source(&mut self) -> Result<(), ServerError> {
         if self.running.load(Ordering::SeqCst) {
             return Err(ServerError::ConfigError("Observer runtime already running".to_string()));
         }
@@ -508,7 +554,7 @@ impl ObserverRuntime {
         info!("Starting observer runtime (PostgreSQL LISTEN/NOTIFY transport)...");
 
         // Load initial observers with entity_type index for logging
-        let (observers, entity_type_index) = self.load_observers().await?;
+        let (observers, entity_type_index) = Self::load_observers(&self.repository).await?;
         self.observer_count.store(observers.len(), Ordering::SeqCst);
 
         // #985: the mount decision reads the loaded action set, and
@@ -972,7 +1018,7 @@ impl ObserverRuntime {
         };
 
         // Load initial observers + build matcher/executor (same as the PG path).
-        let (observers, entity_type_index) = self.load_observers().await?;
+        let (observers, entity_type_index) = Self::load_observers(&self.repository).await?;
         self.observer_count.store(observers.len(), Ordering::SeqCst);
         let matcher = EventMatcher::build(observers).map_err(|e| {
             ServerError::ConfigError(format!("Failed to build event matcher: {}", e))
@@ -1165,6 +1211,11 @@ impl ObserverRuntime {
         if let Some(handle) = self.fanout_handle.take() {
             handle.abort();
         }
+        // A reload only swaps in what `tb_observer` holds, so stopping it mid-way
+        // loses nothing the next start does not load again.
+        if let Some(handle) = self.reload_handle.take() {
+            handle.abort();
+        }
 
         info!("Observer runtime stopped");
         Ok(())
@@ -1248,10 +1299,51 @@ impl ObserverRuntime {
     ///
     /// Returns `ServerError::Database` if loading observers fails.
     pub async fn reload_observers(&self) -> Result<usize, ServerError> {
+        let count = self.reloader().reload().await?;
+        info!("Reloaded {} observers successfully", count);
+        Ok(count)
+    }
+
+    /// The state a reload reads and swaps, cloned so a task can reload without the runtime.
+    fn reloader(&self) -> ObserverReloader {
+        ObserverReloader {
+            repository: self.repository.clone(),
+            pool: self.config.pool.clone(),
+            email: self.config.email.clone(),
+            dlq: self.dlq.clone(),
+            matcher: self.matcher.clone(),
+            executor: self.executor.clone(),
+            entity_type_index: self.entity_type_index.clone(),
+            observer_count: self.observer_count.clone(),
+            #[cfg(feature = "observers-cache")]
+            cache_invalidator: self.cache_invalidator.clone(),
+        }
+    }
+}
+
+/// What a reload reads (`tb_observer`, the executor's dependencies) and the shared slots
+/// it swaps, so the admin endpoint and the `auto_reload` ticker run one reload.
+struct ObserverReloader {
+    repository:        ObserverRepository,
+    pool:              PgPool,
+    email:             Option<EmailSmtpConfig>,
+    dlq:               Arc<InMemoryDlq>,
+    matcher:           Arc<RwLock<Option<EventMatcher>>>,
+    executor:          Arc<RwLock<Option<Arc<ObserverExecutor>>>>,
+    entity_type_index: Arc<ArcSwap<HashMap<(String, String), Vec<i64>>>>,
+    observer_count:    Arc<std::sync::atomic::AtomicUsize>,
+    #[cfg(feature = "observers-cache")]
+    cache_invalidator: Option<Arc<fraiseql_observers::RedisCacheInvalidator>>,
+}
+
+impl ObserverReloader {
+    /// Load `tb_observer` and swap the matcher, executor and index; returns the count.
+    async fn reload(&self) -> Result<usize, ServerError> {
         debug!("Reloading observers from database");
 
         // Load observers from database
-        let (observers, new_entity_type_index) = self.load_observers().await?;
+        let (observers, new_entity_type_index) =
+            ObserverRuntime::load_observers(&self.repository).await?;
         let count = observers.len();
 
         // Build new matcher
@@ -1262,11 +1354,11 @@ impl ObserverRuntime {
         let rebuilt = ObserverExecutor::new_with_email(
             new_matcher.clone(),
             self.dlq.clone(),
-            self.config.email.as_ref(),
+            self.email.as_ref(),
         )
         .map_err(|e| ServerError::ConfigError(format!("invalid observer email config: {e}")))?
         // #632: keep the database pool wired across hot reloads.
-        .with_database_pool(self.config.pool.clone());
+        .with_database_pool(self.pool.clone());
         // #985: and keep the cache transport wired too — a reload rebuilds the
         // executor, so without this a reloaded `cache` action silently stops
         // invalidating while every other action keeps working. Mounted before
@@ -1299,8 +1391,6 @@ impl ObserverRuntime {
 
         // Update count
         self.observer_count.store(count, Ordering::SeqCst);
-
-        info!("Reloaded {} observers successfully", count);
         Ok(count)
     }
 }
