@@ -101,6 +101,11 @@ disagreed, and the promise was the part that was wrong.
 
   See `docs/operations/observers.md` § Tenant Scope.
 
+- **`wasmtime` and `wasmtime-wasi` 48.0.7** (the `fraiseql-functions` runtime), for
+  RUSTSEC-2026-0378 and -0379: a host panic lowering a component-model stream into a guest
+  expecting a different payload type, and Cranelift on aarch64 jumping to the wrong target
+  on a large `br_table`.
+
 ## [2.17.0] - 2026-10-19
 
 ### Breaking
