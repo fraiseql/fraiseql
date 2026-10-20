@@ -50,6 +50,14 @@ disagreed, and the promise was the part that was wrong.
   on one without it. That already affected the `fraiseql-server-full` and
   `fraiseql-server-platform` images.
 
+- **`Server::with_relay_pagination` and `Server::with_flight_service` run every boot gate
+  `Server::new` runs (#1623).** Both skipped four of them, and the binary boots through
+  one of the two whenever a schema has relay queries or the build has `arrow`. A schema
+  reading enriched identity with no `[identity.enrichment]`, a `[locale]` resolving from
+  an enriched field `map` does not produce, session variables on an adapter that cannot
+  apply them, or an allowed locale with no ICU collation now refuses to boot on those
+  paths too, instead of failing per request.
+
 ### Security
 
 - **The observer admin API acts only on the caller's organisation (#1625).** Behind the

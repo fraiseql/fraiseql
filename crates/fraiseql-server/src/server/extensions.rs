@@ -7,7 +7,7 @@ use std::sync::Arc;
 use fraiseql_arrow::FraiseQLFlightService;
 use fraiseql_core::{
     db::traits::{RelayDatabaseAdapter, Writer},
-    runtime::{Executor, SubscriptionManager},
+    runtime::Executor,
     schema::CompiledSchema,
 };
 #[cfg(feature = "observers")]
@@ -38,7 +38,7 @@ impl Server {
     ///
     /// # Errors
     ///
-    /// Returns error if OIDC validator initialization fails.
+    /// Same as [`Server::new`]: every boot gate it runs, this constructor runs.
     ///
     /// # Example
     ///
@@ -56,58 +56,18 @@ impl Server {
         adapter: Arc<A>,
         db_pool: Option<sqlx::PgPool>,
     ) -> Result<Self> {
-        // Same boot gates as `Server::new` — these must not drift by constructor (H16).
-        // Refuse to boot if any field is marked for at-rest encryption (H12); the write
-        // path does not encrypt, so the data would be stored in plaintext.
-        crate::server::initialization::field_encryption_unsupported_check(&schema)?;
-        // Build the runtime config from the compiled schema (validates format version,
-        // reads the audit flag, applies the #421 page-size ceiling + change-log toggle).
-        let executor_config = crate::server::initialization::executor_runtime_config(
-            &schema, &config,
-        )
-        .map_err(|msg| {
-            super::ServerError::ConfigError(format!("Incompatible compiled schema: {msg}"))
-        })?;
-
-        // Read every schema-derived subsystem through the one shared seam.
-        let subsystems = Self::schema_subsystems(&schema, &config).await?;
-
-        // The one shared cache seam — see `build_cached_adapter` (#889).
-        let (cached, cache_config, cache_feed, tviews_feed) =
-            crate::server::initialization::build_cached_adapter(
-                &schema,
-                config.cache_enabled,
-                config.cache_cross_instance,
-                adapter,
-            )
-            .await?;
-        let executor = Arc::new(Executor::with_config_and_relay(
-            schema.clone(),
-            Arc::new(cached),
-            executor_config,
-        ));
-        let subscription_manager = Arc::new(SubscriptionManager::new(Arc::new(schema)));
-
-        // Boxed: `from_executor` constructs every subsystem, and its future is
-        // large enough that inlining it tips each public constructor past
-        // clippy's `large_futures` stack budget — and, more to the point, puts a
-        // multi-KiB frame on every caller's stack.
-        let mut server = Box::pin(Self::from_executor(
+        // Boxed: `new_inner` nests the whole subsystem-construction future, which puts
+        // it past clippy's 16-KiB `large_futures` threshold.
+        Box::pin(Self::new_inner(
             config,
-            executor,
-            subscription_manager,
-            subsystems,
+            schema,
+            adapter,
             db_pool,
+            Executor::with_config_and_relay,
             #[cfg(feature = "arrow")]
             None,
         ))
-        .await?;
-
-        server.adapter_cache_enabled = cache_config.enabled;
-        server.cache_feed = cache_feed;
-        server.tviews_feed = tviews_feed;
-
-        server.apply_compiled_config()
+        .await
     }
 }
 
@@ -141,22 +101,18 @@ impl Server {
     /// non-empty `flight_upload_tables`: a Flight `Upload` is a direct INSERT that never
     /// reaches the mutation runner, so nothing invalidates the result cache for the views
     /// over the uploaded table and GraphQL reads would serve pre-upload rows until the TTL
-    /// expired. Also returns an error if OIDC validator initialization fails.
+    /// expired, or when `[tenancy.runtime]` is enabled with a non-empty
+    /// `flight_upload_tables`. Otherwise the same as [`Server::new`]: every boot gate it
+    /// runs, this constructor runs.
     pub async fn with_flight_service<
         A: Writer + RelayDatabaseAdapter + Clone + Send + Sync + 'static,
     >(
         config: ServerConfig,
         schema: CompiledSchema,
         adapter: Arc<A>,
-        #[allow(unused_variables)]
-        // Reason: used inside #[cfg(feature = "observers")] block; unused when feature is off
         db_pool: Option<sqlx::PgPool>,
         flight_service: Option<FraiseQLFlightService>,
     ) -> Result<Self> {
-        // Same boot gates as `Server::new` — these must not drift by constructor (H16).
-        // Refuse to boot on at-rest-encryption-marked fields (H12, plaintext write path).
-        crate::server::initialization::field_encryption_unsupported_check(&schema)?;
-
         // The one combination the cache cannot be made honest for. Everything else on
         // this path caches exactly like `Server::new`; an allow-listed Upload writes
         // rows behind the cache's back, so refuse rather than serve stale reads.
@@ -186,58 +142,17 @@ impl Server {
             ));
         }
 
-        // Build the runtime config from the compiled schema (validates format version,
-        // reads the audit flag, applies the #421 page-size ceiling + change-log toggle).
-        let executor_config = crate::server::initialization::executor_runtime_config(
-            &schema, &config,
-        )
-        .map_err(|msg| {
-            super::ServerError::ConfigError(format!("Incompatible compiled schema: {msg}"))
-        })?;
-
-        // Read every schema-derived subsystem through the one shared seam.
-        let subsystems = Self::schema_subsystems(&schema, &config).await?;
-
-        // The one shared cache seam — see `build_cached_adapter` (#889). This path
-        // used to skip it entirely, which is what made `cache_enabled` inert here.
-        let (cached, cache_config, cache_feed, tviews_feed) =
-            crate::server::initialization::build_cached_adapter(
-                &schema,
-                config.cache_enabled,
-                config.cache_cross_instance,
-                adapter,
-            )
-            .await?;
-
         // Relay-capable, as `with_relay_pagination` builds it: every `arrow` binary boots
-        // through this constructor, so a relay-less executor here refused every relay
-        // query that the same schema answers on a build without `arrow` (#1621).
-        let executor = Arc::new(Executor::with_config_and_relay(
-            schema.clone(),
-            Arc::new(cached),
-            executor_config,
-        ));
-        let subscription_manager = Arc::new(SubscriptionManager::new(Arc::new(schema)));
-
-        // Boxed: `from_executor` constructs every subsystem, and its future is
-        // large enough that inlining it tips each public constructor past
-        // clippy's `large_futures` stack budget — and, more to the point, puts a
-        // multi-KiB frame on every caller's stack.
-        let mut server = Box::pin(Self::from_executor(
+        // through this constructor. Boxed for the same `large_futures` reason.
+        Box::pin(Self::new_inner(
             config,
-            executor,
-            subscription_manager,
-            subsystems,
+            schema,
+            adapter,
             db_pool,
+            Executor::with_config_and_relay,
             flight_service,
         ))
-        .await?;
-
-        server.adapter_cache_enabled = cache_config.enabled;
-        server.cache_feed = cache_feed;
-        server.tviews_feed = tviews_feed;
-
-        server.apply_compiled_config()
+        .await
     }
 }
 

@@ -11,6 +11,11 @@
 //! phase's durable deliverable: a fifth construction path that forgets to carry a
 //! setting fails here rather than in production.
 //!
+//! Every public constructor also refuses what any boot gate refuses. One test per gate
+//! builds a tripping schema through all three: `enrichment_consumer_without_resolver_check`,
+//! `locale_enrichment_fields_check`, `session_variables_supported_check` and
+//! `locale_collations_check`.
+//!
 //! **Execution engine:** in-memory (no database required)
 //! **Infrastructure:** none — the fail-closed webhook probe targets a closed local port
 //! **Parallelism:** safe
@@ -48,14 +53,25 @@ const FIXTURE_MAX_PAGE_SIZE: u32 = 100;
 /// The compiled `[subscriptions] max_subscriptions_per_connection`.
 const FIXTURE_MAX_SUBSCRIPTIONS: u32 = 7;
 
+/// Answers every read with no rows, so the catalog holds no ICU collation.
 #[derive(Debug, Clone)]
-struct NoopRelayAdapter;
+struct NoopRelayAdapter {
+    /// What `applies_session_variables` reports: the input of the session-variable gate.
+    applies_session_variables: bool,
+}
+
+impl Default for NoopRelayAdapter {
+    fn default() -> Self {
+        Self {
+            applies_session_variables: true,
+        }
+    }
+}
 
 #[async_trait]
 impl DatabaseAdapter for NoopRelayAdapter {
-    // A test double: the session variables a read carries are accepted (#1115).
     fn applies_session_variables(&self) -> bool {
-        true
+        self.applies_session_variables
     }
 
     async fn execute_where_query(
@@ -247,7 +263,7 @@ async fn server_new_carries_the_full_compiled_config() {
     let server = Server::new(
         fully_configured_server_config(),
         fully_configured_schema(),
-        Arc::new(NoopRelayAdapter),
+        Arc::new(NoopRelayAdapter::default()),
         None,
     )
     .await
@@ -260,7 +276,7 @@ async fn with_relay_pagination_carries_the_full_compiled_config() {
     let server = Server::with_relay_pagination(
         fully_configured_server_config(),
         fully_configured_schema(),
-        Arc::new(NoopRelayAdapter),
+        Arc::new(NoopRelayAdapter::default()),
         None,
     )
     .await
@@ -274,7 +290,7 @@ async fn with_flight_service_carries_the_full_compiled_config() {
     let server = Server::with_flight_service(
         fully_configured_server_config(),
         fully_configured_schema(),
-        Arc::new(NoopRelayAdapter),
+        Arc::new(NoopRelayAdapter::default()),
         None,
         None,
     )
@@ -296,7 +312,7 @@ async fn with_flight_service_builds_a_relay_capable_executor() {
     let server = Server::with_flight_service(
         fully_configured_server_config(),
         fully_configured_schema(),
-        Arc::new(NoopRelayAdapter),
+        Arc::new(NoopRelayAdapter::default()),
         None,
         None,
     )
@@ -306,6 +322,186 @@ async fn with_flight_service_builds_a_relay_capable_executor() {
         server.executor.relay_enabled(),
         "the arrow boot path must answer relay queries as the non-arrow binary does"
     );
+}
+
+// ── Every constructor runs the same boot gates ───────────────────────────────
+
+/// Build a server from `schema` and `config` through every public constructor, and
+/// return each constructor's refusal, labelled by its name.
+///
+/// # Panics
+///
+/// When any constructor boots, naming each one: the schema trips a gate, so every path
+/// must refuse it.
+async fn refusals_through_every_constructor(
+    schema: &CompiledSchema,
+    config: &ServerConfig,
+    adapter: &NoopRelayAdapter,
+) -> Vec<(&'static str, String)> {
+    let refusals = [
+        (
+            "Server::new",
+            Server::new(config.clone(), schema.clone(), Arc::new(adapter.clone()), None)
+                .await
+                .err(),
+        ),
+        (
+            "Server::with_relay_pagination",
+            Server::with_relay_pagination(
+                config.clone(),
+                schema.clone(),
+                Arc::new(adapter.clone()),
+                None,
+            )
+            .await
+            .err(),
+        ),
+    ]
+    .into_iter();
+    #[cfg(feature = "arrow")]
+    let refusals = refusals.chain(std::iter::once((
+        "Server::with_flight_service",
+        Server::with_flight_service(
+            config.clone(),
+            schema.clone(),
+            Arc::new(adapter.clone()),
+            None,
+            None,
+        )
+        .await
+        .err(),
+    )));
+    let (refused, booted): (Vec<_>, Vec<_>) = refusals.partition(|(_, err)| err.is_some());
+    let booted: Vec<&str> = booted.into_iter().map(|(path, _)| path).collect();
+    assert!(booted.is_empty(), "{booted:?} booted a schema a boot gate refuses");
+    refused
+        .into_iter()
+        .filter_map(|(path, err)| Some((path, err?.to_string())))
+        .collect()
+}
+
+/// Assert that every constructor refuses, and that each refusal is `gate`'s.
+async fn assert_every_constructor_refuses(
+    schema: &CompiledSchema,
+    config: &ServerConfig,
+    adapter: &NoopRelayAdapter,
+    gate: &str,
+    needle: &str,
+) {
+    for (path, err) in refusals_through_every_constructor(schema, config, adapter).await {
+        assert!(err.contains(needle), "{path} must refuse through {gate}, got: {err}");
+    }
+}
+
+/// A `[locale]` allowing `en-US`, resolved from `sources`.
+fn schema_with_locale(sources: Vec<fraiseql_core::schema::LocaleSource>) -> CompiledSchema {
+    CompiledSchema {
+        locale: Some(
+            fraiseql_core::schema::LocaleConfig::new(
+                "en-US",
+                vec!["en-US".to_string()],
+                std::collections::BTreeMap::new(),
+                sources,
+            )
+            .expect("a valid [locale]"),
+        ),
+        ..fully_configured_schema()
+    }
+}
+
+/// An `[identity.enrichment]` that is enabled and maps one column to `field`.
+#[cfg(feature = "auth")]
+fn config_with_enrichment(field: &str) -> ServerConfig {
+    ServerConfig {
+        identity: Some(crate::identity::IdentityConfig {
+            enrichment: Some(crate::identity::EnrichmentQueryConfig {
+                enabled:           true,
+                query:             "SELECT 1 AS col".to_string(),
+                map:               [("col".to_string(), field.to_string())].into(),
+                cache_ttl_secs:    60,
+                negative_ttl_secs: 5,
+                provision:         None,
+            }),
+            sender:     None,
+        }),
+        ..fully_configured_server_config()
+    }
+}
+
+#[cfg(feature = "auth")]
+#[tokio::test]
+async fn enrichment_consumer_without_resolver_check_refuses_through_every_constructor() {
+    use fraiseql_core::schema::{SessionVariableMapping, SessionVariableSource};
+
+    let mut schema = fully_configured_schema();
+    schema.session_variables.variables.push(SessionVariableMapping {
+        name:   "app.actor".to_string(),
+        source: SessionVariableSource::Enrichment {
+            field: "actor_id".to_string(),
+        },
+    });
+    assert_every_constructor_refuses(
+        &schema,
+        &fully_configured_server_config(),
+        &NoopRelayAdapter::default(),
+        "enrichment_consumer_without_resolver_check",
+        "`[identity.enrichment]` is not enabled",
+    )
+    .await;
+}
+
+#[cfg(feature = "auth")]
+#[tokio::test]
+async fn locale_enrichment_fields_check_refuses_through_every_constructor() {
+    let schema = schema_with_locale(vec![fraiseql_core::schema::LocaleSource::Enrichment {
+        enrichment: "preferred_locale".to_string(),
+    }]);
+    assert_every_constructor_refuses(
+        &schema,
+        &config_with_enrichment("actor_id"),
+        &NoopRelayAdapter::default(),
+        "locale_enrichment_fields_check",
+        "`map` does not produce",
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn session_variables_supported_check_refuses_through_every_constructor() {
+    use fraiseql_core::schema::{SessionVariableMapping, SessionVariableSource};
+
+    let mut schema = fully_configured_schema();
+    schema.session_variables.variables.push(SessionVariableMapping {
+        name:   "app.tenant_id".to_string(),
+        source: SessionVariableSource::Jwt {
+            claim: "tenant_id".to_string(),
+        },
+    });
+    assert_every_constructor_refuses(
+        &schema,
+        &fully_configured_server_config(),
+        &NoopRelayAdapter {
+            applies_session_variables: false,
+        },
+        "session_variables_supported_check",
+        "cannot apply session variables",
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn locale_collations_check_refuses_through_every_constructor() {
+    let schema = schema_with_locale(vec![fraiseql_core::schema::LocaleSource::Header {
+        header: "accept-language".to_string(),
+    }]);
+    assert_every_constructor_refuses(
+        &schema,
+        &fully_configured_server_config(),
+        &NoopRelayAdapter::default(),
+        "locale_collations_check",
+        "no ICU collation",
+    )
+    .await;
 }
 
 // ── #783: the Flight service must receive the OIDC validator ─────────────────
@@ -348,7 +544,7 @@ async fn with_flight_service_wires_the_oidc_validator_into_the_passed_service() 
     let server = Server::with_flight_service(
         config,
         fully_configured_schema(),
-        Arc::new(NoopRelayAdapter),
+        Arc::new(NoopRelayAdapter::default()),
         None,
         Some(flight_service),
     )
@@ -394,7 +590,7 @@ async fn hot_reload_preserves_the_full_runtime_config() {
     let server = Server::new(
         fully_configured_server_config(),
         fully_configured_schema(),
-        Arc::new(NoopRelayAdapter),
+        Arc::new(NoopRelayAdapter::default()),
         None,
     )
     .await
@@ -428,7 +624,7 @@ async fn hot_reload_preserves_relay_dispatch() {
     let server = Server::with_relay_pagination(
         fully_configured_server_config(),
         fully_configured_schema(),
-        Arc::new(NoopRelayAdapter),
+        Arc::new(NoopRelayAdapter::default()),
         None,
     )
     .await
@@ -456,7 +652,7 @@ async fn hot_reload_refuses_a_schema_whose_boot_frozen_config_changed() {
     let server = Server::new(
         fully_configured_server_config(),
         fully_configured_schema(),
-        Arc::new(NoopRelayAdapter),
+        Arc::new(NoopRelayAdapter::default()),
         None,
     )
     .await
@@ -496,7 +692,7 @@ async fn hot_reload_runs_the_boot_safety_gates() {
     let server = Server::new(
         fully_configured_server_config(),
         fully_configured_schema(),
-        Arc::new(NoopRelayAdapter),
+        Arc::new(NoopRelayAdapter::default()),
         None,
     )
     .await
@@ -546,7 +742,8 @@ async fn library_construction_path_runs_config_validate() {
         ..fully_configured_server_config()
     };
     let result =
-        Server::new(config, fully_configured_schema(), Arc::new(NoopRelayAdapter), None).await;
+        Server::new(config, fully_configured_schema(), Arc::new(NoopRelayAdapter::default()), None)
+            .await;
     assert!(
         result.is_err(),
         "Server::new must refuse the config validate() refuses — the library \
@@ -597,9 +794,13 @@ async fn social_login_without_hs256_refuses_to_boot() {
     // because every reader wants exactly this value.
     std::env::set_var("FRAISEQL_TEST_P26_SOCIAL_GH_SECRET", "gh-secret");
     let schema = schema_with_github_social("FRAISEQL_TEST_P26_SOCIAL_GH_SECRET");
-    let result =
-        Server::new(fully_configured_server_config(), schema, Arc::new(NoopRelayAdapter), None)
-            .await;
+    let result = Server::new(
+        fully_configured_server_config(),
+        schema,
+        Arc::new(NoopRelayAdapter::default()),
+        None,
+    )
+    .await;
     let msg = result.err().map(|e| e.to_string()).unwrap_or_default();
     assert!(
         msg.contains("auth_hs256"),
@@ -620,7 +821,7 @@ async fn social_login_with_unset_secret_env_refuses_to_boot() {
         issuer:     Some("https://sp.example.com".to_string()),
         audience:   Some("fraiseql".to_string()),
     });
-    let result = Server::new(config, schema, Arc::new(NoopRelayAdapter), None).await;
+    let result = Server::new(config, schema, Arc::new(NoopRelayAdapter::default()), None).await;
     let msg = result.err().map(|e| e.to_string()).unwrap_or_default();
     assert!(
         msg.contains("__FRAISEQL_TEST_P26_DEFINITELY_UNSET__"),
@@ -642,7 +843,7 @@ async fn social_login_without_a_pool_refuses_to_boot() {
         issuer:     Some("https://sp.example.com".to_string()),
         audience:   Some("fraiseql".to_string()),
     });
-    let result = Server::new(config, schema, Arc::new(NoopRelayAdapter), None).await;
+    let result = Server::new(config, schema, Arc::new(NoopRelayAdapter::default()), None).await;
     let msg = result.err().map(|e| e.to_string()).unwrap_or_default();
     assert!(
         msg.contains("[auth.social]") && msg.contains("pool"),
@@ -685,7 +886,9 @@ async fn local_auth_without_a_pool_refuses_to_boot() {
         mfa: true,
         ..fraiseql_core::schema::LocalAuthConfig::default()
     });
-    let result = Server::new(hs256_server_config(), schema, Arc::new(NoopRelayAdapter), None).await;
+    let result =
+        Server::new(hs256_server_config(), schema, Arc::new(NoopRelayAdapter::default()), None)
+            .await;
     let msg = result.err().map(|e| e.to_string()).unwrap_or_default();
     assert!(
         msg.contains("[auth.local]") && msg.contains("pool"),
@@ -705,7 +908,7 @@ async fn local_auth_without_hs256_refuses_to_boot() {
     let result = Server::new(
         fully_configured_server_config(), // no [auth_hs256]
         schema,
-        Arc::new(NoopRelayAdapter),
+        Arc::new(NoopRelayAdapter::default()),
         None,
     )
     .await;
@@ -726,7 +929,9 @@ async fn local_auth_otp_with_an_unknown_mailbox_refuses_to_boot() {
         email_from: Some("no-such-mailbox".to_string()),
         ..fraiseql_core::schema::LocalAuthConfig::default()
     });
-    let result = Server::new(hs256_server_config(), schema, Arc::new(NoopRelayAdapter), None).await;
+    let result =
+        Server::new(hs256_server_config(), schema, Arc::new(NoopRelayAdapter::default()), None)
+            .await;
     let msg = result.err().map(|e| e.to_string()).unwrap_or_default();
     // The pool check fires first (it guards every method); with a pool present
     // the mailbox check is what the live-PG suite proves. Either refusal is a
@@ -755,7 +960,7 @@ async fn postgres_api_keys_without_a_pool_refuse_to_boot() {
     let result = Server::new(
         fully_configured_server_config(),
         schema,
-        Arc::new(NoopRelayAdapter),
+        Arc::new(NoopRelayAdapter::default()),
         None, // no db_pool
     )
     .await;
@@ -794,7 +999,7 @@ async fn boot_log(schema: CompiledSchema) -> String {
         cors_enabled: false,
         ..ServerConfig::default()
     };
-    Server::new(config, schema, Arc::new(NoopRelayAdapter), None)
+    Server::new(config, schema, Arc::new(NoopRelayAdapter::default()), None)
         .await
         .expect("the server boots");
     drop(guard);

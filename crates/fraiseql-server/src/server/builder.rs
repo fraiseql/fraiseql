@@ -206,7 +206,16 @@ impl Server {
         // `new_inner` nests the whole subsystem-construction future inside this one, which
         // puts it past clippy's 16-KiB `large_futures` threshold. One allocation at
         // startup.
-        Box::pin(Self::new_inner(config, schema, adapter, db_pool, Executor::with_config)).await
+        Box::pin(Self::new_inner(
+            config,
+            schema,
+            adapter,
+            db_pool,
+            Executor::with_config,
+            #[cfg(feature = "arrow")]
+            None,
+        ))
+        .await
     }
 }
 
@@ -236,16 +245,18 @@ impl Server {
             adapter,
             db_pool,
             Executor::read_only_with_config,
+            #[cfg(feature = "arrow")]
+            None,
         ))
         .await
     }
 
-    /// The shared body of both constructors. They differ by exactly one thing — which
-    /// `Executor` constructor builds the engine — so it is passed in rather than
-    /// duplicated: a second copy of this function is how `cache_enabled` came to mean
-    /// three different things by constructor (#889).
+    /// The shared body of every public constructor, so each runs the same boot gates.
+    /// They differ only in which `Executor` constructor builds the engine and, under
+    /// `arrow`, the Flight service handed in. `parity_tests.rs` pins each gate through
+    /// every constructor.
     #[allow(clippy::cognitive_complexity)] // Reason: server construction with subsystem initialization (auth, rate-limit, observers, etc.)
-    async fn new_inner<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
+    pub(super) async fn new_inner<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
         config: ServerConfig,
         schema: CompiledSchema,
         adapter: Arc<A>,
@@ -255,6 +266,7 @@ impl Server {
             Arc<CachedDatabaseAdapter<A>>,
             fraiseql_core::runtime::RuntimeConfig,
         ) -> Executor,
+        #[cfg(feature = "arrow")] flight_service: Option<FraiseQLFlightService>,
     ) -> Result<Self> {
         // Build the runtime config from the compiled schema. This is the single
         // seam every server constructor routes through (H16): it validates the
@@ -325,7 +337,7 @@ impl Server {
             subsystems,
             db_pool,
             #[cfg(feature = "arrow")]
-            None,
+            flight_service,
         ))
         .await?;
 
