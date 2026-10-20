@@ -154,7 +154,8 @@ would be the hole the extractor exists to close.
 
 ## Every execution is audited
 
-One entry per request, in the same tamper-evident chain as the credential events:
+One entry per request, emitted as a structured security log event, like the credential
+events (there is no tamper-evident chain yet, #1630):
 
 ```
 event_type   = admin_sql_execution

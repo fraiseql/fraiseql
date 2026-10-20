@@ -31,6 +31,11 @@
 #      `after:ingest` and its dispatch, and does not name the ledger, so at-least-once
 #      *ingestion* (a pull source re-polling into the deduplicating spine), a provider's
 #      at-least-once delivery, and outbound delivery stay legitimate.
+#   7. No document claims a tamper-evident audit chain until the tree has one (#1630): a line
+#      naming `tamper-evident`, a hash chain, `integrity_hash` or `fraiseql_audit_logs` must
+#      read as a negative ("not yet", "does not", "#1630", ...). Positional, per line. The rule
+#      stands down once crates/ holds both a `CREATE TABLE ... fraiseql_audit_logs` (an INSERT
+#      alone does not count) and the CLI ships `fraiseql audit verify`.
 #
 # A rule with nothing to check is a failure, not a pass: no markdown, no architecture.md, no
 # names in it, no observers crate, no roadmap, no README sentence.
@@ -154,8 +159,22 @@ else
   fi
 fi
 
+# --- Rule 7: no audit hash chain is claimed until one exists (#1630) ------------------------
+chain_terms='tamper-evident|tamper evident|hash chain|hash-chain|integrity_hash|fraiseql_audit_logs'
+chain_negatives="not yet|no tamper|does not|doesn't|is not|isn't|planned|#1630|no hash chain"
+if grep -rqsE 'CREATE TABLE[^;]*fraiseql_audit_logs' crates \
+   && grep -rqs 'fraiseql audit verify' crates/fraiseql-cli/src; then
+  :
+elif [ -n "$md_files" ]; then
+  hits=$(printf '%s\n' "$md_files" | grep -vE "$historical_paths" | xargs -d '\n' grep -n -iE "$chain_terms" 2>/dev/null | grep -viE "$chain_negatives" || true)
+  if [ -n "$hits" ]; then
+    fail "rule 7: a tamper-evident audit chain is claimed, and the tree has none (#1630):"
+    printf '%s\n' "$hits" | report
+  fi
+fi
+
 if [ "$failures" -gt 0 ]; then
   echo "doc claims: $failures rule failure(s)" >&2
   exit 1
 fi
-echo "doc claims: ok — backends, architecture names, observer actions, roadmap status, the parity count and the after:ingest guarantee all match the tree"
+echo "doc claims: ok — backends, architecture names, observer actions, roadmap status, the parity count, the after:ingest guarantee and the audit chain all match the tree"

@@ -115,6 +115,13 @@ disagreed, and the promise was the part that was wrong.
   apply them, or an allowed locale with no ICU collation now refuses to boot on those
   paths too, instead of failing per request.
 
+- **The audit docs no longer describe a hash chain that does not exist (#1630).** The
+  deployment security guide and the admin SQL console page said audit entries form a
+  tamper-evident SHA-256 chain and gave a `SELECT integrity_hash FROM fraiseql_audit_logs`
+  check; no entry is chained and no migration creates that table. Both now describe the
+  structured security log events that exist and recommend a write-once external store.
+  `tools/check-doc-claims.sh` rule 7 keeps the claim out until the chain is built.
+
 - **`fraiseql validate facts` reads an authoring `schema.json` (#1626).** It parsed the
   schema as a map of fact tables, found none in the authoring format's array, printed
   "No fact tables declared" and exited 0. It now reads the authoring format (strictly) or

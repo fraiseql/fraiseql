@@ -651,20 +651,17 @@ critical endpoints.
 
 ## Audit Log Integrity
 
-Audit entries form a SHA256 hash chain: each entry includes the hash of the
-previous entry, providing tamper detection within the PostgreSQL table.
+FraiseQL does not yet chain its audit entries: no entry carries the hash of the one
+before it, so nothing in the database detects an edited or deleted entry (tracked in
+#1630). Security events (JWT and session-token validation, OAuth and OIDC exchanges,
+authentication and authorization outcomes, admin SQL executions) are emitted as
+structured log events (`Security event: …`, with `event_type`,
+`secret_type`, `subject`, `operation` and `context` fields).
 
-**Limitation**: The integrity chain is stored in the same database as the audit
-data. An attacker with direct database write access could recompute the entire
-chain after modification.
-
-**Recommendation for high-compliance environments** (SOC2, PCI-DSS):
-
-1. Stream audit logs to an external immutable store (S3 with Object Lock, CloudWatch
-   Logs, or a SIEM like Splunk/Loki)
-2. Use the `fraiseql_audit_logs` table as the primary source, external store as
-   tamper-evident backup
-3. Periodically verify chain integrity: `SELECT integrity_hash FROM fraiseql_audit_logs ORDER BY id`
+**Recommendation for high-compliance environments** (SOC2, PCI-DSS): ship those
+events off the host as they are written, to a store an attacker on the database or
+the server cannot rewrite (S3 with Object Lock, CloudWatch Logs, or a SIEM such as
+Splunk or Loki), and treat that store as the record.
 
 ### External Audit Log Export
 
@@ -702,9 +699,8 @@ log_level = "info"
 
 **Recommendation for SOC2/PCI compliance:** Use the webhook exporter to push
 audit entries to an immutable store (S3 with Object Lock, or a SIEM with
-write-once retention). The PostgreSQL audit table remains the primary source;
-the external store provides a tamper-evident backup that survives database
-compromise.
+write-once retention). That write-once copy is the one that survives a
+compromised database or server.
 
 ---
 
