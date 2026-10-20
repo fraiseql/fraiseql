@@ -83,12 +83,15 @@ RESOLVER='(resolve_request_identity|enrich_identity|resolve_identity)\s*\('
 #                         reads no row, so there is no identity to scope by.
 #   tenant_admin.rs       the tenant admin API reads the principal to *name* the actor in
 #   observers/handlers.rs an audit record. Admin-token gated, no user data operation.
+#   observers/scope.rs    the observer admin API reads the principal's tenant to choose
+#                         which organisation's observers it acts on (#1625). Admin-token
+#                         gated, no user data operation.
 #
 # `security_context.rs` is NOT here, and the staleness check below is why: it only
 # *defines* these constructors, so listing it would have been an allowlist entry that
 # excused a file with nothing to excuse — and would have hidden a real producer added
 # there later.
-DEFERRED='crates/fraiseql-server/src/extractors.rs|crates/fraiseql-server/src/api_key/mod.rs|crates/fraiseql-server/src/service_account.rs|crates/fraiseql-server/src/routes/api/admin_sql.rs|crates/fraiseql-server/src/routes/introspection.rs|crates/fraiseql-server/src/routes/api/tenant_admin.rs|crates/fraiseql-server/src/observers/handlers.rs'
+DEFERRED='crates/fraiseql-server/src/extractors.rs|crates/fraiseql-server/src/api_key/mod.rs|crates/fraiseql-server/src/service_account.rs|crates/fraiseql-server/src/routes/api/admin_sql.rs|crates/fraiseql-server/src/routes/introspection.rs|crates/fraiseql-server/src/routes/api/tenant_admin.rs|crates/fraiseql-server/src/observers/handlers.rs|crates/fraiseql-server/src/observers/scope.rs'
 
 # Producers that do NOT resolve and are tracked as defects. Each needs an issue.
 # Empty since #1349: the Flight handlers resolve through the `IdentityEnricher` seam, so
