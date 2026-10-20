@@ -130,6 +130,13 @@ expect fatal F6 "a server recipe names a feature fraiseql-server does not have" 
 expect fatal F7 "the docs row appears twice, so which one is the promise is ambiguous" 'expected exactly one table row' \
     sed -i '/^| `fraiseql-full-<target>`/p' docs/releases.md
 
+expect fatal F8 "a server feature names an optional dependency without dep:" 'names the optional dependency `rmcp` without `dep:`' \
+    sed -i 's|"dep:rmcp"|"rmcp"|' crates/fraiseql-server/Cargo.toml
+expect fatal F9 "an optional dependency no feature names as dep:" 'the optional dependency `zz-unwired` is named by no feature' \
+    sed -i '0,/^\[dependencies\]$/s//[dependencies]\nzz-unwired = { version = "1", optional = true }/' crates/fraiseql-server/Cargo.toml
+
+expect fatal F10 "a feature only re-enables the optional dependency of its own name" 'the feature `rmcp` only re-enables the optional dependency `rmcp`' \
+    sed -i 's|^webhooks = \["dep:fraiseql-webhooks"\]$|webhooks = ["dep:fraiseql-webhooks"]\nrmcp = ["dep:rmcp"]|' crates/fraiseql-server/Cargo.toml
 echo
 if [ "$TESTS_FAILED" -gt 0 ]; then
     echo "❌ $TESTS_FAILED of $TESTS_RUN assertions failed"

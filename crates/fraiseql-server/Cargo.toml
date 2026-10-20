@@ -256,7 +256,7 @@ auth = ["dep:fraiseql-auth"]
 # would not meet its own acceptance. With this off, `[admin_sql] enabled = true`
 # is refused by name at boot.
 admin-sql = ["auth"]
-aws-s3 = ["aws-sdk-s3", "aws-config", "fraiseql-storage/aws-s3"]
+aws-s3 = ["dep:aws-sdk-s3", "dep:aws-config", "fraiseql-storage/aws-s3"]
 azure-blob = ["fraiseql-storage/azure-blob"]
 # The image-render endpoint (#370): compiles fraiseql-storage's transform
 # pipeline and mounts GET /storage/v1/render/{bucket}/{*key}.
@@ -351,7 +351,7 @@ sources = ["functions-runtime-deno", "observers"]
 # secrets and webhooks are opt-in: add them to your dependency features when needed.
 default = ["auth", "cli"]
 # MCP (Model Context Protocol) server
-mcp = ["rmcp", "schemars"]
+mcp = ["dep:rmcp", "dep:schemars"]
 metrics = ["dep:metrics-exporter-prometheus"]
 # Multi-database runtime support (#327).
 # Each flag enables the matching adapter in fraiseql-core / fraiseql-db so that
@@ -362,7 +362,7 @@ metrics = ["dep:metrics-exporter-prometheus"]
 # Observer system for reactive business logic
 # checkpoint is not optional for the server: the change-log runtime restores a
 # durable cursor at start so a restart never replays the change log (#805).
-observers = ["fraiseql-observers", "fraiseql-observers/checkpoint"]
+observers = ["dep:fraiseql-observers", "fraiseql-observers/checkpoint"]
 # observers-enterprise: high-availability features for multi-instance deployments.
 # Not a paid/commercial tier — the name reflects production HA requirements.
 # observers-metrics (#634): compile the fraiseql-observers prometheus registry
@@ -383,7 +383,7 @@ observers-nats = ["observers", "fraiseql-observers/nats"]
 observers-cache = ["observers", "fraiseql-observers/caching"]
 redis-apq = ["fraiseql-core/redis-apq"]
 # REST idempotency backed by Redis for multi-replica deployments
-redis-idempotency = ["redis", "rmp-serde"]
+redis-idempotency = ["dep:redis", "dep:rmp-serde"]
 # REST transport
 rest = []
 # REST export formats — fine-grained flags compose into the `export` umbrella.
@@ -398,25 +398,21 @@ export-xlsx = ["dep:rust_xlsxwriter", "dep:tempfile"]
 export = ["export-csv", "export-xlsx"]
 auth-saml = ["auth", "fraiseql-auth/auth-saml"]
 redis-pkce = ["auth", "fraiseql-auth/redis-pkce"]
-redis-rate-limiting = ["redis"]
+redis-rate-limiting = ["dep:redis"]
 # Persist usage counters to Redis so they survive process restarts
-redis-usage = ["redis"]
+redis-usage = ["dep:redis"]
 secrets = ["dep:fraiseql-secrets"]
 testing = []
 tracing-opentelemetry = [
-  "opentelemetry",
-  "opentelemetry_sdk",
-  "opentelemetry-otlp",
+  "dep:opentelemetry",
+  "dep:opentelemetry_sdk",
+  "dep:opentelemetry-otlp",
   "dep:tracing-opentelemetry",
 ]
 webhooks = ["dep:fraiseql-webhooks"]
 # `wire-backend` was removed (#1566). It booted the server on `FraiseWireAdapter`, which pages
 # in memory, counts by fetching every row, has no pool, TLS or cancellation, and measured no
 # faster than `PostgresAdapter`. The adapter stays a library (`fraiseql-core`'s `wire-backend`).
-prost = ["dep:prost"]
-prost-reflect = ["dep:prost-reflect"]
-http-body = ["dep:http-body"]
-http-body-util = ["dep:http-body-util"]
 
 [lints]
 workspace = true

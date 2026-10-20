@@ -322,11 +322,11 @@ jobs:
 
       - name: Build binary (cargo)
         if: '!matrix.zig_target'
-        run: cargo build --release --target ${{ matrix.target }} --package fraiseql --features cli,server,postgres
+        run: cargo build --release --target ${{ matrix.target }} --package fraiseql --features cli,server
 
       - name: Build binary (zigbuild, glibc-floored / musl)
         if: matrix.zig_target
-        run: cargo zigbuild --release --target ${{ matrix.zig_target }} --package fraiseql --features cli,server,postgres
+        run: cargo zigbuild --release --target ${{ matrix.zig_target }} --package fraiseql --features cli,server
 
       - name: Strip binary (Linux/macOS native)
         if: matrix.os != 'windows-latest'

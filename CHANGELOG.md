@@ -87,6 +87,20 @@ disagreed, and the promise was the part that was wrong.
   `{{ entity_id }}` (not a field of the row) are refused. Put the value in the row, or
   drop the placeholder.
 
+- **Feature names that enabled nothing of their own are removed (#1662).**
+  - The `fraiseql` crate drops `minimal` (it enabled nothing) and `postgres` (it only
+    forwarded to `fraiseql-core/postgres`, which the crate now always enables). Its
+    `default` is empty. A manifest naming either feature drops it.
+  - `fraiseql-server` names every optional dependency with `dep:`, so Cargo no longer
+    adds implicit features named after them (`rmcp`, `schemars`, `redis`, `rmp-serde`,
+    `aws-sdk-s3`, `aws-config`, `fraiseql-observers`, `opentelemetry`,
+    `opentelemetry_sdk`, `opentelemetry-otlp`). The explicit `prost`, `prost-reflect`,
+    `http-body` and `http-body-util` features, which only re-enabled the dependency of
+    the same name, are removed too. Enable the feature that uses the dependency (`mcp`,
+    `redis-*`, `aws-s3`, `observers`, `tracing-opentelemetry`, `grpc`) instead.
+  - `tools/check-artifact-features.py` refuses a manifest that leaves Cargo an implicit
+    dependency feature.
+
 - **`/metrics` no longer exports database-timing series (#1634).**
   `fraiseql_database_queries_total` and `fraiseql_database_query_duration_ms` counted each
   successful GraphQL request as one database query and its whole duration as database

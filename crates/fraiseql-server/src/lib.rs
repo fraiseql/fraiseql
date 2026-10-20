@@ -189,10 +189,10 @@ pub use futures;
 /// The `http` this crate's public API is built against (#1198).
 pub use http;
 /// The `http_body` this crate's public API is built against (#1198).
-#[cfg(any(feature = "grpc", feature = "http-body"))]
+#[cfg(feature = "grpc")]
 pub use http_body;
 /// The `prost-reflect` this crate's public API is built against (#1198).
-#[cfg(any(feature = "grpc", feature = "prost-reflect"))]
+#[cfg(feature = "grpc")]
 pub use prost_reflect;
 /// The `reqwest` this crate's public API is built against (#1198).
 pub use reqwest;

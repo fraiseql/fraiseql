@@ -87,12 +87,13 @@ def _sibling(name: str, mod: str):
 
 
 def feature_table(path: Path) -> dict[str, list[str] | None]:
-    """The `[features]` table, plus an empty entry per optional dependency.
+    """The `[features]` table, refusing a manifest that leaves Cargo an implicit feature.
 
-    A bare optional-dependency name in a feature list (`"rmcp"` rather than
-    `"dep:rmcp"`) is Cargo's implicit feature for that dependency. It enables no
-    feature of this crate, so it is entered as `None`: a leaf, neither reported
-    unknown nor counted as part of a compiled surface.
+    Every optional dependency is named `dep:<name>` by some feature, no feature lists an
+    optional dependency bare (`"rmcp"` rather than `"dep:rmcp"`), and no feature exists
+    only to re-enable a dependency of its own name (`prost = ["dep:prost"]`). Each of those
+    is an implicit dependency feature: a name downstream manifests can depend on that
+    enables no feature of this crate.
     """
     if not path.is_file():
         die(f"{path} does not exist")
@@ -103,12 +104,21 @@ def feature_table(path: Path) -> dict[str, list[str] | None]:
     features = manifest.get("features")
     if not isinstance(features, dict) or not features:
         die(f"{path} has no [features] table")
-    implicit: dict[str, list[str] | None] = {
-        name: None
+    optional = {
+        name
         for name, spec in manifest.get("dependencies", {}).items()
         if isinstance(spec, dict) and spec.get("optional")
     }
-    return {**implicit, **features}
+    entries = [entry for listed in features.values() for entry in listed]
+    for name in sorted(optional & features.keys()):
+        if features[name] == [f"dep:{name}"]:
+            die(f"{path}: the feature `{name}` only re-enables the optional dependency `{name}`")
+    for name in sorted(optional - features.keys()):
+        if name in entries:
+            die(f"{path}: a feature names the optional dependency `{name}` without `dep:`")
+        if f"dep:{name}" not in entries:
+            die(f"{path}: the optional dependency `{name}` is named by no feature as `dep:{name}`")
+    return features
 
 
 def server_closure(
@@ -131,7 +141,7 @@ def server_closure(
         # `dep:x` and `crate/feat` entries enable no server feature of their own.
         entries = server[name] or []
         pending.extend(e for e in entries if not e.startswith("dep:") and "/" not in e)
-    return frozenset(n for n in seen if n != "default" and server[n] is not None)
+    return frozenset(n for n in seen if n != "default")
 
 
 def umbrella_closure(

@@ -16,8 +16,7 @@ The default feature set for new projects:
 | Feature | Description |
 |---------|-------------|
 | `auth` | OIDC/JWT authentication (required for `redis-pkce`) |
-| `secrets` | Secrets management (HashiCorp Vault, environment variables, local files) |
-| `webhooks` | Outbound webhook dispatch |
+| `cli` | The `fraiseql-server` binary's command-line arguments |
 
 To opt out of all defaults: `--no-default-features`.
 
@@ -100,9 +99,9 @@ To opt out of all defaults: `--no-default-features`.
 
 | Use Case | Recommended features |
 |----------|---------------------|
-| Local development | `--no-default-features` or `--no-default-features --features postgres` |
+| Local development | `--no-default-features` |
 | Development with auth | `auth` (default) |
-| Production (single-instance) | `auth,secrets,metrics` (default + `metrics`) |
+| Production (single-instance) | `auth,secrets,metrics` |
 | Production (multi-instance, HA) | `auth,secrets,metrics,observers,observers-enterprise` |
 | Analytics workload | `arrow,metrics` |
 | Full feature build (CI) | `--all-features` |
