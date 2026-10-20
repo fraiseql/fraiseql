@@ -55,29 +55,19 @@ impl RelayDatabaseAdapter for PostgresAdapter {
         include_total_count: bool,
     ) -> Result<RelayPageResult> {
         // Relay pagination is a compiled SELECT pair: replica-eligible (#407).
-        let client = self.acquire_read_connection_with_retry(ReadRouting::Any).await?;
-        let active = if forward {
-            after.clone()
-        } else {
-            before.clone()
-        };
-        let page = self
-            .run_relay_page(
-                &**client,
-                view,
-                cursor_column,
-                after,
-                before,
-                limit,
-                forward,
-                where_clause,
-                order_by,
-                include_total_count,
-            )
-            .await;
-        drop(client);
-        self.refuse_a_cursor_the_page_could_not_read(page, active.as_ref(), order_by)
-            .await
+        self.relay_page_routed(
+            view,
+            cursor_column,
+            after,
+            before,
+            limit,
+            forward,
+            where_clause,
+            order_by,
+            include_total_count,
+            ReadRouting::Any,
+        )
+        .await
     }
 
     #[allow(clippy::too_many_arguments)] // Reason: relay pagination requires all cursor/filter/sort/count arguments plus session vars; no natural grouping
@@ -95,10 +85,10 @@ impl RelayDatabaseAdapter for PostgresAdapter {
         session_vars: &[(&str, &str)],
         routing: ReadRouting,
     ) -> Result<RelayPageResult> {
-        // Fast path: no session vars => identical to execute_relay_page.
+        // Fast path: no session variables to apply, so no transaction; same routing.
         if session_vars.is_empty() {
             return self
-                .execute_relay_page(
+                .relay_page_routed(
                     view,
                     cursor_column,
                     after,
@@ -108,6 +98,7 @@ impl RelayDatabaseAdapter for PostgresAdapter {
                     where_clause,
                     order_by,
                     include_total_count,
+                    routing,
                 )
                 .await;
         }
@@ -162,6 +153,49 @@ impl RelayDatabaseAdapter for PostgresAdapter {
 }
 
 impl PostgresAdapter {
+    /// One relay page with no session variables, on a connection `routing` chooses. Both
+    /// `execute_relay_page` (`Any`) and the session path's fast path go through it, so the
+    /// fast path keeps the query's routing
+    /// (`a_relay_page_routed_to_the_primary_never_reads_a_replica`).
+    #[allow(clippy::too_many_arguments)] // Reason: the relay page arguments plus its routing
+    async fn relay_page_routed(
+        &self,
+        view: &str,
+        cursor_column: &str,
+        after: Option<RelayCursor>,
+        before: Option<RelayCursor>,
+        limit: u32,
+        forward: bool,
+        where_clause: Option<&WhereClause>,
+        order_by: Option<&[OrderByClause]>,
+        include_total_count: bool,
+        routing: ReadRouting,
+    ) -> Result<RelayPageResult> {
+        let client = self.acquire_read_connection_with_retry(routing).await?;
+        let active = if forward {
+            after.clone()
+        } else {
+            before.clone()
+        };
+        let page = self
+            .run_relay_page(
+                &**client,
+                view,
+                cursor_column,
+                after,
+                before,
+                limit,
+                forward,
+                where_clause,
+                order_by,
+                include_total_count,
+            )
+            .await;
+        drop(client);
+        self.refuse_a_cursor_the_page_could_not_read(page, active.as_ref(), order_by)
+            .await
+    }
+
     /// `page`, unless it failed on a data exception that the cursor it resumed from caused
     /// (#1521): then a refusal of the cursor, saying how to recover.
     ///

@@ -41,14 +41,24 @@ mod trait_defaults {
     /// Implements only the *collecting* half of the trait.
     struct CollectOnlyAdapter {
         rows: Vec<JsonbValue>,
+        /// What `applies_session_variables` reports.
+        applies_session_variables: bool,
+    }
+
+    impl CollectOnlyAdapter {
+        const fn new(rows: Vec<JsonbValue>) -> Self {
+            Self {
+                rows,
+                applies_session_variables: true,
+            }
+        }
     }
 
     // Reason: the trait is declared with the async-trait macro; impls must match.
     #[async_trait]
     impl DatabaseAdapter for CollectOnlyAdapter {
-        // A test double: the session variables a read carries are accepted (#1115).
         fn applies_session_variables(&self) -> bool {
-            true
+            self.applies_session_variables
         }
 
         async fn execute_where_query(
@@ -112,13 +122,11 @@ mod trait_defaults {
 
     #[tokio::test]
     async fn projection_default_streams_the_collected_rows_in_order() {
-        let adapter = CollectOnlyAdapter {
-            rows: vec![
-                JsonbValue::new(json!({"id": 1})),
-                JsonbValue::new(json!({"id": 2})),
-                JsonbValue::new(json!({"id": 3})),
-            ],
-        };
+        let adapter = CollectOnlyAdapter::new(vec![
+            JsonbValue::new(json!({"id": 1})),
+            JsonbValue::new(json!({"id": 2})),
+            JsonbValue::new(json!({"id": 3})),
+        ]);
 
         let stream = adapter
             .stream_with_projection(&ProjectionRequest::new("v_user"), &[], ReadRouting::Any)
@@ -131,7 +139,7 @@ mod trait_defaults {
 
     #[tokio::test]
     async fn row_query_default_streams_the_collected_rows_in_order() {
-        let adapter = CollectOnlyAdapter { rows: Vec::new() };
+        let adapter = CollectOnlyAdapter::new(Vec::new());
         let columns = [ColumnSpec {
             name:        "id".to_string(),
             column_type: RowViewColumnType::Int64,
@@ -152,6 +160,64 @@ mod trait_defaults {
             })
             .collect();
         assert_eq!(ids, vec![1, 2]);
+    }
+
+    // Reason: the trait's required method returns a future; a double with no database
+    // answers it immediately.
+    #[allow(unknown_lints, clippy::unused_async_trait_impl)]
+    impl crate::traits::RelayDatabaseAdapter for CollectOnlyAdapter {
+        #[allow(clippy::too_many_arguments)] // Reason: mirrors the trait's signature
+        async fn execute_relay_page(
+            &self,
+            _view: &str,
+            _cursor_column: &str,
+            _after: Option<crate::traits::RelayCursor>,
+            _before: Option<crate::traits::RelayCursor>,
+            _limit: u32,
+            _forward: bool,
+            _where_clause: Option<&WhereClause>,
+            _order_by: Option<&[OrderByClause]>,
+            _include_total_count: bool,
+        ) -> Result<crate::traits::RelayPageResult> {
+            Ok(crate::traits::RelayPageResult {
+                rows:        self.rows.clone(),
+                total_count: None,
+            })
+        }
+    }
+
+    /// A relay read carrying session variables, on an adapter that inherits the default
+    /// and cannot apply them, is refused like every sibling `*_with_session` default:
+    /// served without them, it would ignore every policy that reads them.
+    #[tokio::test]
+    async fn the_default_relay_with_session_refuses_session_variables() {
+        use crate::traits::RelayDatabaseAdapter as _;
+
+        let adapter = CollectOnlyAdapter {
+            applies_session_variables: false,
+            ..CollectOnlyAdapter::new(vec![JsonbValue::new(json!({"id": 1}))])
+        };
+
+        let result = adapter
+            .execute_relay_page_with_session(
+                "v_user",
+                "id",
+                None,
+                None,
+                10,
+                true,
+                None,
+                None,
+                false,
+                &[("app.tenant_id", "t1")],
+                ReadRouting::Any,
+            )
+            .await;
+
+        assert!(
+            matches!(result, Err(fraiseql_error::FraiseQLError::Unsupported { .. })),
+            "the default must refuse session variables it cannot apply, got {result:?}"
+        );
     }
 }
 

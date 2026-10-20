@@ -79,8 +79,9 @@ pub trait RelayDatabaseAdapter: DatabaseAdapter {
     /// pagination over views reading `current_setting()` returns the correct
     /// tenant's rows (fixes #329 for the cursor-pagination path).
     ///
-    /// Adapters that do not support session variables inherit the default,
-    /// which drops `session_vars` and delegates to `execute_relay_page`.
+    /// The default refuses non-empty `session_vars` on an adapter that cannot apply them,
+    /// as every sibling `*_with_session` default does, then delegates to
+    /// `execute_relay_page` (`the_default_relay_with_session_refuses_session_variables`).
     ///
     /// # Errors
     ///
@@ -98,19 +99,23 @@ pub trait RelayDatabaseAdapter: DatabaseAdapter {
         where_clause: Option<&'a WhereClause>,
         order_by: Option<&'a [OrderByClause]>,
         include_total_count: bool,
-        _session_vars: &'a [(&'a str, &'a str)],
+        session_vars: &'a [(&'a str, &'a str)],
         _routing: ReadRouting,
     ) -> impl Future<Output = Result<RelayPageResult>> + Send + 'a {
-        self.execute_relay_page(
-            view,
-            cursor_column,
-            after,
-            before,
-            limit,
-            forward,
-            where_clause,
-            order_by,
-            include_total_count,
-        )
+        async move {
+            super::refuse_session_variables(self, session_vars)?;
+            self.execute_relay_page(
+                view,
+                cursor_column,
+                after,
+                before,
+                limit,
+                forward,
+                where_clause,
+                order_by,
+                include_total_count,
+            )
+            .await
+        }
     }
 }

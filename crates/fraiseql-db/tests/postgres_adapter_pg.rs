@@ -2001,6 +2001,76 @@ async fn a_query_routed_to_the_primary_never_reads_a_replica() {
     bs_cleanup(tag, &standby).await;
 }
 
+/// The relay twin of [`a_query_routed_to_the_primary_never_reads_a_replica`]: a relay
+/// page with no session variables takes the adapter's fast path, which must keep the
+/// query's routing.
+#[tokio::test]
+async fn a_relay_page_routed_to_the_primary_never_reads_a_replica() {
+    use fraiseql_db::traits::RelayDatabaseAdapter;
+
+    let tag = "relay_routing";
+    let relay_view = format!("v_rr957_{tag}_page");
+    let primary = rr_admin_connect(&test_db_url()).await;
+    // A run that panicked after creating the page view would block the fixture's DROP VIEW.
+    primary
+        .batch_execute(&format!("DROP VIEW IF EXISTS {relay_view};"))
+        .await
+        .expect("drop a leftover page view");
+    let standby = bs_fixture(tag).await;
+    // A relay page reads a cursor column; the probe view has only `data`.
+    primary
+        .batch_execute(&format!(
+            "CREATE VIEW {relay_view} AS SELECT 1 AS pk, data FROM v_rr957_{tag};"
+        ))
+        .await
+        .expect("relay page view");
+    bs_wait_caught_up(&standby).await;
+    let adapter = bs_adapter(None, std::time::Duration::from_millis(100)).await;
+
+    let origin = |routing| {
+        let adapter = &adapter;
+        let relay_view = &relay_view;
+        async move {
+            let page = adapter
+                .execute_relay_page_with_session(
+                    relay_view,
+                    "pk",
+                    None,
+                    None,
+                    10,
+                    true,
+                    None,
+                    None,
+                    false,
+                    &[],
+                    routing,
+                )
+                .await
+                .expect("routed relay page");
+            assert_eq!(page.rows.len(), 1, "the probe view yields exactly one row");
+            page.rows[0].as_value()["origin"].as_str().expect("origin marker").to_string()
+        }
+    };
+
+    // The control: with `any`, the standby serves the page.
+    assert_eq!(
+        origin(fraiseql_db::types::ReadRouting::Any).await,
+        "replica",
+        "with no routing override, an unpinned relay page is replica-served"
+    );
+    assert_eq!(
+        origin(fraiseql_db::types::ReadRouting::Primary).await,
+        "primary",
+        "a relay page routed to the primary must not read a replica"
+    );
+
+    primary
+        .batch_execute(&format!("DROP VIEW IF EXISTS {relay_view};"))
+        .await
+        .expect("drop the page view");
+    bs_cleanup(tag, &standby).await;
+}
+
 #[tokio::test]
 async fn a_query_routed_to_a_replica_ignores_the_read_your_writes_pin() {
     let tag = "pin";

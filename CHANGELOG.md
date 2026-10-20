@@ -80,6 +80,12 @@ disagreed, and the promise was the part that was wrong.
   apply them, or an allowed locale with no ICU collation now refuses to boot on those
   paths too, instead of failing per request.
 
+- **A relay query annotated `reads_from = primary` reads the primary (#1622).** With no
+  session variables to apply, the PostgreSQL adapter's relay page dropped the query's
+  routing and could be served by a replica. The `RelayDatabaseAdapter` default also
+  dropped session variables silently; it now refuses them on an adapter that cannot
+  apply them, as every other `*_with_session` default does.
+
 - **`[observers.runtime] auto_reload` and `reload_interval_secs` take effect (#1655).**
   The server parsed both keys and never read them, so an observer created through one
   replica's admin API ran on another only after someone called
