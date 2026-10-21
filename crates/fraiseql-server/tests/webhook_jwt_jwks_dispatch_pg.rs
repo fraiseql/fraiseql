@@ -48,10 +48,10 @@ use wiremock::{
 };
 
 /// A 2048-bit RSA private key, PKCS#8 PEM. Generated offline for tests only.
-const RSA_PRIVATE_PEM: &str = include_str!("fixtures/idp/rs256-private.pem");
+const RSA_PRIVATE_PEM: &str = include_str!("../test_data/idp/rs256-private.pem");
 
 /// The matching modulus, base64url (the file ends with a newline; read it trimmed).
-const RSA_N: &str = include_str!("fixtures/idp/rs256-modulus.txt");
+const RSA_N: &str = include_str!("../test_data/idp/rs256-modulus.txt");
 
 const PUBLISHED_KID: &str = "hanko-tenant-key";
 const JWKS_PATH: &str = "/.well-known/jwks.json";

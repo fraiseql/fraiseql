@@ -57,10 +57,23 @@ fi
 # green, so it fails here. Test files are exempt: they sign tokens as an external issuer.
 # Scanned with grep, not git: the container this leg runs in has no `.git`.
 allowed_rsa_signers="crates/fraiseql-storage/src/backend/gcs.rs"
+# Test helpers under src/ that a path cannot mark as tests. Each is exempt only while
+# its parent module declares it `#[cfg(test)]`; without that it would ship, so it fails.
+test_only_rsa_signers="crates/fraiseql-server/src/testing/idp.rs"
+for signer in $test_only_rsa_signers; do
+  module="$(basename "$signer" .rs)"
+  parent="$(dirname "$signer")/mod.rs"
+  if ! grep -B1 -E "^pub(\(crate\))? mod ${module};" "$parent" 2>/dev/null | head -1 | grep -qxF '#[cfg(test)]'; then
+    echo "FAIL (#1110): ${signer} is exempt as a test-only RSA signer, but ${parent} does not"
+    echo "    declare \`mod ${module}\` directly under #[cfg(test)]."
+    rc=1
+  fi
+done
 rsa_private="$(grep -rlE 'EncodingKey::from_rsa_(pem|der|raw_components)|RsaPrivateKey' \
   --include='*.rs' crates 2>/dev/null \
   | grep -vE '(^|/)tests/|(^|/)tests?\.rs$|_tests?\.rs$|/fuzz/|/benches/' \
-  | grep -vxF "$allowed_rsa_signers" || true)"
+  | grep -vxF "$allowed_rsa_signers" \
+  | grep -vxF "$test_only_rsa_signers" || true)"
 if [ -n "$rsa_private" ]; then
   echo "FAIL (#1110): RSA private-key operations outside ${allowed_rsa_signers}:"
   printf '    %s\n' $rsa_private
@@ -74,4 +87,4 @@ if [ "$rc" -ne 0 ]; then
   exit 1
 fi
 
-echo "OK: default fraiseql-server build links one crypto provider (${providers}) and one rustls major (${rustls_majors}); RSA private keys only in ${allowed_rsa_signers}."
+echo "OK: default fraiseql-server build links one crypto provider (${providers}) and one rustls major (${rustls_majors}); RSA private keys only in ${allowed_rsa_signers} and the test-only ${test_only_rsa_signers}."

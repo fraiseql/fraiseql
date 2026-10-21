@@ -1,7 +1,7 @@
 //! A local OIDC identity provider for tests: a JWKS endpoint on loopback serving one
 //! RS256 key, a validator pointed at it, and tokens signed with that key.
 //!
-//! The key material is `tests/fixtures/idp/`, shared with the integration suites that
+//! The key material is `test_data/idp/`, shared with the integration suites that
 //! sign their own tokens, so there is one test key in the tree.
 
 use std::sync::Arc;
@@ -13,8 +13,8 @@ use wiremock::{
     matchers::{method, path},
 };
 
-const PRIVATE_PEM: &str = include_str!("../../tests/fixtures/idp/rs256-private.pem");
-const MODULUS: &str = include_str!("../../tests/fixtures/idp/rs256-modulus.txt");
+const PRIVATE_PEM: &str = include_str!("../../test_data/idp/rs256-private.pem");
+const MODULUS: &str = include_str!("../../test_data/idp/rs256-modulus.txt");
 const KID: &str = "fraiseql-test-idp";
 const JWKS_PATH: &str = "/jwks";
 
