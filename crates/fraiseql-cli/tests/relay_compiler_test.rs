@@ -25,6 +25,7 @@ fn relay_intermediate_schema() -> IntermediateSchema {
         grpc_config:       None,
         version:           "2.0.0".to_string(),
         types:             vec![IntermediateType {
+            subscription_policy:    None,
             name:                   "User".to_string(),
             sql_source:             None,
             fields:                 vec![

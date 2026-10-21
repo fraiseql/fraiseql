@@ -13,6 +13,7 @@ import {
   FieldMetadata,
   Relationship,
   SubscriptionOptions,
+  SubscriptionPolicy,
   SuccessField,
 } from "./registry";
 import { CustomScalar } from "./scalars";
@@ -524,6 +525,8 @@ export function registerTypeFields(
     cascade?: boolean;
     /** Relationships followed by REST resource embedding (#1266). */
     relationships?: Relationship[];
+    /** Per-row visibility for this type's subscription deliveries (#1657). */
+    subscriptionPolicy?: SubscriptionPolicy;
   }
 ): void {
   SchemaRegistry.registerType(typeName, fields, description, options);

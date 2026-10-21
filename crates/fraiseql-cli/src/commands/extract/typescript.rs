@@ -27,6 +27,7 @@ impl SchemaExtractor for TypeScriptExtractor {
             if let Some(body) = extract_balanced_braces(&source[after_match..]) {
                 let fields = extract_ts_fields(&body);
                 types.push(IntermediateType {
+                    subscription_policy: None,
                     sql_source: None,
                     name,
                     fields,

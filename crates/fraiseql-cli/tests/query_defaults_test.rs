@@ -28,6 +28,7 @@ fn base_schema_with_query(
         grpc_config: None,
         version: "2.0.0".to_string(),
         types: vec![IntermediateType {
+            subscription_policy:    None,
             name:                   query.return_type.clone(),
             sql_source:             None,
             fields:                 vec![],

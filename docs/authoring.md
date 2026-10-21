@@ -212,6 +212,28 @@ with `cascade=True` (a value object cannot originate a cascade); both raise a `V
 authoring time. See [entity identity](adr/0017-entity-identity-contract.md) and the
 [cascade surface](architecture/mutation-response.md#cascade-the-typed-cascade-surface).
 
+**Subscription row visibility.** `subscription_policy` scopes a type's subscription
+deliveries to the rows a subscriber owns: a row is delivered only when its `owner_path`
+field equals the subscriber's enriched `identity_field`, unless the subscriber holds one of
+`bypass_roles`. A subscriber whose identity cannot be resolved is refused, never served
+every row ([enriched identity](architecture/enriched-identity-rls.md#the-push-path-subscription-row-visibility-596)).
+
+```python
+@fraiseql.type(
+    sql_source="v_order",
+    subscription_policy={"owner_path": "$.fk_user", "identity_field": "user_id"},
+)
+class Order:
+    id: str
+    fk_user: str  # published as `fkUser`; the row stores it as `fk_user`
+```
+
+`owner_path` names the key the **stored row** carries, a single level deep: under the
+default `camelCase` convention that is the field's snake_case spelling (`$.fk_user` for
+`fkUser`). `fraiseql compile` refuses a path that names no field of the type, or a nested
+one. TypeScript takes `subscriptionPolicy: { ownerPath, identityField, bypassRoles }` in
+`registerTypeFields`, and `fraiseql.toml` takes a `[types.Order.subscription_policy]` table.
+
 ---
 
 ### `@fraiseql.query`

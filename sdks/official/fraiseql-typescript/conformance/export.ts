@@ -103,6 +103,7 @@ function authorFull(): void {
           referencedKey: "id",
         },
       ],
+      subscriptionPolicy: { ownerPath: "$.fk_user", identityField: "user_id" },
     }
   );
 

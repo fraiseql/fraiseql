@@ -57,6 +57,7 @@ fn test_detect_unknown_return_type() {
 fn test_detect_duplicate_query_names() {
     let schema = IntermediateSchema {
         types: vec![IntermediateType {
+            subscription_policy:    None,
             name:                   "User".to_string(),
             sql_source:             None,
             fields:                 vec![],
@@ -140,6 +141,7 @@ fn test_detect_duplicate_query_names() {
 fn test_warning_for_query_without_sql_source() {
     let schema = IntermediateSchema {
         types: vec![IntermediateType {
+            subscription_policy:    None,
             name:                   "User".to_string(),
             sql_source:             None,
             fields:                 vec![],
@@ -199,6 +201,7 @@ fn test_valid_observer() {
 
     let schema = IntermediateSchema {
         types: vec![IntermediateType {
+            subscription_policy:    None,
             name:                   "Order".to_string(),
             sql_source:             None,
             fields:                 vec![],
@@ -274,6 +277,7 @@ fn test_observer_with_invalid_event() {
 
     let schema = IntermediateSchema {
         types: vec![IntermediateType {
+            subscription_policy:    None,
             name:                   "Order".to_string(),
             sql_source:             None,
             fields:                 vec![],
@@ -318,6 +322,7 @@ fn test_observer_with_invalid_action_type() {
 
     let schema = IntermediateSchema {
         types: vec![IntermediateType {
+            subscription_policy:    None,
             name:                   "Order".to_string(),
             sql_source:             None,
             fields:                 vec![],
@@ -362,6 +367,7 @@ fn test_observer_with_invalid_retry_config() {
 
     let schema = IntermediateSchema {
         types: vec![IntermediateType {
+            subscription_policy:    None,
             name:                   "Order".to_string(),
             sql_source:             None,
             fields:                 vec![],
@@ -402,6 +408,7 @@ fn test_observer_with_invalid_retry_config() {
 fn test_query_injection_in_sql_source_rejected() {
     let schema = IntermediateSchema {
         types: vec![IntermediateType {
+            subscription_policy:    None,
             name:                   "User".to_string(),
             sql_source:             None,
             fields:                 vec![],
@@ -456,6 +463,7 @@ fn test_query_injection_in_sql_source_rejected() {
 fn test_query_schema_qualified_sql_source_passes() {
     let schema = IntermediateSchema {
         types: vec![IntermediateType {
+            subscription_policy:    None,
             name:                   "User".to_string(),
             sql_source:             None,
             fields:                 vec![],
@@ -1050,4 +1058,77 @@ fn run_as_with_blank_grant_is_rejected() {
             .any(|e| e.path.contains("run_as") && e.severity == ErrorSeverity::Error),
         "the blank role is rejected"
     );
+}
+
+// ── #1657: a subscription_policy is checked at compile ───────────────────────
+
+/// The validator's errors for an `Order { id, owner_id }` declaring `policy`.
+fn policy_errors(policy: &serde_json::Value) -> Vec<String> {
+    let parsed = serde_json::from_value::<crate::schema::IntermediateSchema>(serde_json::json!({
+        "types": [{
+            "name": "Order",
+            "sql_source": "v_order",
+            "fields": [
+                {"name": "id", "type": "ID", "nullable": false},
+                {"name": "owner_id", "type": "String", "nullable": false}
+            ],
+            "subscription_policy": policy
+        }]
+    }));
+    assert!(parsed.is_ok(), "an authoring type must accept subscription_policy: {parsed:?}");
+    SchemaValidator::validate(&parsed.unwrap())
+        .unwrap()
+        .errors
+        .into_iter()
+        .map(|e| format!("{} @ {}", e.message, e.path))
+        .collect()
+}
+
+#[test]
+fn a_policy_naming_an_unknown_owner_field_fails_compile_with_a_diagnostic() {
+    let errors =
+        policy_errors(&serde_json::json!({"owner_path": "$.nope", "identity_field": "user_id"}));
+    assert!(
+        errors.iter().any(|e| e.contains("Order") && e.contains("nope")),
+        "an owner_path naming no field of the type must be refused, naming both: {errors:?}"
+    );
+}
+
+#[test]
+fn a_nested_owner_path_fails_compile() {
+    let errors = policy_errors(
+        &serde_json::json!({"owner_path": "$.owner.id", "identity_field": "user_id"}),
+    );
+    assert!(
+        errors.iter().any(|e| e.contains("Order") && e.contains("single-level")),
+        "a nested owner_path must be refused at compile: {errors:?}"
+    );
+}
+
+#[test]
+fn a_valid_subscription_policy_compiles_clean() {
+    let errors = policy_errors(
+        &serde_json::json!({"owner_path": "$.owner_id", "identity_field": "user_id"}),
+    );
+    assert!(errors.is_empty(), "{errors:?}");
+}
+
+/// Delivery reads `owner_path` from the stored row, which carries a field snake_case first:
+/// a policy on the camelCase field `fkUser` names `$.fk_user`, and that must compile.
+#[test]
+fn an_owner_path_may_name_the_stored_key_of_a_camelcase_field() {
+    let parsed = serde_json::from_value::<crate::schema::IntermediateSchema>(serde_json::json!({
+        "types": [{
+            "name": "Order",
+            "sql_source": "v_order",
+            "fields": [
+                {"name": "id", "type": "ID", "nullable": false},
+                {"name": "fkUser", "type": "ID", "nullable": false}
+            ],
+            "subscription_policy": {"owner_path": "$.fk_user", "identity_field": "user_id"}
+        }]
+    }))
+    .unwrap();
+    let errors = SchemaValidator::validate(&parsed).unwrap().errors;
+    assert!(errors.is_empty(), "{errors:?}");
 }

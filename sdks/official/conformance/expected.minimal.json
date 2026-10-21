@@ -52,6 +52,7 @@
     "implements_node": [],
     "node_interface_synthesized": false
   },
+  "type_subscription_policy": {},
   "types": {
     "User": {
       "fields": [

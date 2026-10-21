@@ -569,6 +569,12 @@
     ],
     "node_interface_synthesized": true
   },
+  "type_subscription_policy": {
+    "Order": {
+      "identity_field": "user_id",
+      "owner_path": "$.fk_user"
+    }
+  },
   "types": {
     "Order": {
       "fields": [

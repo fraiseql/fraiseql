@@ -991,3 +991,36 @@ mod database_target_tests {
         schema_targeting(None).validate_self_contained().unwrap();
     }
 }
+
+/// `[types.X.subscription_policy]` reaches the intermediate type (#1657), through the one
+/// emitter every TOML path uses.
+mod subscription_policy {
+    use super::super::*;
+
+    #[test]
+    fn a_toml_subscription_policy_reaches_the_intermediate_type() {
+        let schema: TomlSchema = toml::from_str(
+            r#"
+[schema]
+name = "app"
+version = "1.0.0"
+database_target = "postgresql"
+
+[types.Order]
+sql_source = "v_order"
+fields.id = { type = "ID" }
+fields.owner_id = { type = "String" }
+
+[types.Order.subscription_policy]
+owner_path = "$.owner_id"
+identity_field = "user_id"
+"#,
+        )
+        .expect("a subscription_policy table must parse");
+        let json = schema.types["Order"].to_intermediate_json("Order");
+        assert_eq!(
+            json["subscription_policy"],
+            serde_json::json!({"owner_path": "$.owner_id", "identity_field": "user_id"})
+        );
+    }
+}

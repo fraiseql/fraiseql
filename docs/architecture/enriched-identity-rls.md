@@ -178,7 +178,9 @@ did not: any principal authorized to subscribe to an entity received **every** r
 after-images. It now consumes the *same* enriched identity fields, so the two paths
 share one boundary.
 
-An entity declares a row policy in the compiled schema:
+An entity declares a row policy, authored on the type (`subscription_policy=` in Python,
+`subscriptionPolicy` in TypeScript, `[types.X.subscription_policy]` in TOML) and compiled
+onto it:
 
 ```jsonc
 "subscription_policy": {

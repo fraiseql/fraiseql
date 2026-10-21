@@ -6,6 +6,34 @@ describe("SchemaRegistry", () => {
   });
 
   describe("registerType", () => {
+    it("emits a declared subscription policy in snake_case (#1657)", () => {
+      SchemaRegistry.registerType(
+        "Order",
+        [
+          { name: "id", type: "Int", nullable: false },
+          { name: "owner_id", type: "String", nullable: false },
+        ],
+        undefined,
+        {
+          subscriptionPolicy: {
+            ownerPath: "$.owner_id",
+            identityField: "user_id",
+            bypassRoles: ["admin"],
+          },
+        }
+      );
+      expect(SchemaRegistry.getSchema().types[0].subscription_policy).toEqual({
+        owner_path: "$.owner_id",
+        identity_field: "user_id",
+        bypass_roles: ["admin"],
+      });
+    });
+
+    it("omits subscription_policy when none is declared", () => {
+      SchemaRegistry.registerType("Order", [{ name: "id", type: "Int", nullable: false }]);
+      expect(SchemaRegistry.getSchema().types[0]).not.toHaveProperty("subscription_policy");
+    });
+
     it("should register a type with fields", () => {
       SchemaRegistry.registerType("User", [
         { name: "id", type: "Int", nullable: false },

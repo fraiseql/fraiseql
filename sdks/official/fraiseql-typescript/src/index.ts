@@ -59,6 +59,7 @@ export type {
   DistanceMetric,
   Cardinality,
   Relationship,
+  SubscriptionPolicy,
   TypeDefinition,
   QueryDefinition,
   MutationDefinition,

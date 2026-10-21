@@ -74,6 +74,7 @@ impl SchemaExtractor for PythonExtractor {
 
             let description = params.get("description").cloned();
             types.push(IntermediateType {
+                subscription_policy: None,
                 sql_source: None,
                 name,
                 fields,

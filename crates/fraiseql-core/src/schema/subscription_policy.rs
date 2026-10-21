@@ -83,6 +83,19 @@ impl SubscriptionPolicy {
         self.owner_path.trim_start_matches("$.")
     }
 
+    /// Whether `owner_path` names the stored key of the declared field `field_name`.
+    ///
+    /// Delivery reads `owner_path` from the row as stored, which carries a field under its
+    /// `snake_case` key first and its declared spelling as the fallback, as the read path does
+    /// (`runtime::projection::stored_key_candidates`). So a policy on the camelCase field
+    /// `fkUser` names `$.fk_user`.
+    #[must_use]
+    pub fn owner_is_stored_key_of(&self, field_name: &str) -> bool {
+        let owner = self.owner_field();
+        let (snake, camel) = crate::runtime::stored_key_candidates(field_name);
+        owner == snake || camel.as_deref() == Some(owner) || owner == field_name
+    }
+
     /// Validate the policy at load time.
     ///
     /// # Errors

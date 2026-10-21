@@ -167,6 +167,7 @@ class SchemaRegistry:
         subscribable_pre_image: bool = False,
         embedded: bool = False,
         relationships: list[Relationship] | None = None,
+        subscription_policy: dict[str, Any] | None = None,
     ) -> None:
         """Register a GraphQL type.
 
@@ -253,6 +254,11 @@ class SchemaRegistry:
         # refuses any it could not follow.
         if relationships:
             type_def["relationships"] = [r.to_dict() for r in relationships]
+
+        # #1657: threaded verbatim onto `TypeDefinition.subscription_policy`; the compiler
+        # checks the owner field. Emitted only when set.
+        if subscription_policy is not None:
+            type_def["subscription_policy"] = dict(subscription_policy)
 
         cls._types[name] = type_def
 

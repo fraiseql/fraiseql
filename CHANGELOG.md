@@ -113,6 +113,18 @@ disagreed, and the promise was the part that was wrong.
   Statement-level database timing returns once query execution has a single seam to
   measure at.
 
+### Added
+
+- **`subscription_policy` is authorable (#1657).** A type's subscription row visibility
+  (#596) could only be set by patching `schema.compiled.json` after compile, out of the
+  compiler's sight. It is now a key of the authoring type: `subscription_policy=` on
+  `@fraiseql.type` in Python, `subscriptionPolicy` in TypeScript's `registerTypeFields`,
+  and a `[types.X.subscription_policy]` table in `fraiseql.toml`. `fraiseql compile`
+  refuses a policy whose `owner_path` names no field of the type, or a nested path.
+  `owner_path` names the stored row's key: under the `camelCase` convention, the field's
+  snake_case spelling (`$.fk_user` for `fkUser`). The other SDKs declare the gap in the
+  conformance manifest.
+
 ### Fixed
 
 - **The `-full` release binaries ship the REST and Arrow Flight transports, outbound CDC

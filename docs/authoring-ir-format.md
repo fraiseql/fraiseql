@@ -305,6 +305,29 @@ connection already exposes `totalCount` over the same rows.
 }
 ```
 
+## Subscription policy (#1657)
+
+A type may scope its subscription deliveries to the rows a subscriber owns. The key is
+threaded verbatim onto `TypeDefinition.subscription_policy`:
+
+```json
+{
+  "name": "Order",
+  "sql_source": "v_order",
+  "fields": [{ "name": "fkUser", "type": "ID", "nullable": false }],
+  "subscription_policy": {
+    "owner_path": "$.fk_user",
+    "identity_field": "user_id",
+    "bypass_roles": ["admin"]
+  }
+}
+```
+
+`owner_path` is a single-level `$.<key>` naming the key the stored row carries: the
+field's snake_case spelling under the `camelCase` convention, as for `foreign_key` below.
+The compiler refuses a path that names no field of the type, or a nested one.
+`bypass_roles` is optional.
+
 ## Relationships (#1266)
 
 A type may declare relationships the REST transport embeds — `?select=orders(id,total)`,

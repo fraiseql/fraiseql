@@ -106,7 +106,7 @@ impl SchemaConverter {
             internal: false,
             relationships,
             inject_params,
-            subscription_policy: None,
+            subscription_policy: intermediate.subscription_policy,
         })
     }
 

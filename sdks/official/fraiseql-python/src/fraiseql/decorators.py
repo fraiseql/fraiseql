@@ -822,6 +822,7 @@ def type(  # noqa: PLR0913 — public API; all parameters are meaningful
     subscribable_pre_image: bool = False,
     embedded: bool = False,
     relationships: list[Relationship] | None = None,
+    subscription_policy: dict[str, Any] | None = None,
 ) -> type[T] | Callable[[type[T]], type[T]]:
     """Decorator to mark a Python class as a GraphQL type.
 
@@ -879,6 +880,12 @@ def type(  # noqa: PLR0913 — public API; all parameters are meaningful
             ``?orders.status=paid`` — and published in the served OpenAPI document and
             the generated client's ``relationships`` module. A list of
             :class:`Relationship`. Emitted only when non-empty.
+        subscription_policy: Per-row visibility for this type's subscription
+            deliveries (#1657): ``{"owner_path": "$.owner_id", "identity_field":
+            "user_id", "bypass_roles": ["admin"]}`` delivers a row only to a subscriber
+            whose enriched ``identity_field`` equals the row's ``owner_path`` field,
+            unless it holds a bypass role. ``fraiseql compile`` checks that the owner
+            field is a single-level field of the type. Emitted only when set.
 
     Returns:
         The original class (unmodified)
@@ -1008,6 +1015,7 @@ def type(  # noqa: PLR0913 — public API; all parameters are meaningful
             subscribable_pre_image=subscribable_pre_image,
             embedded=embedded,
             relationships=relationships,
+            subscription_policy=subscription_policy,
         )
 
         # Generate CRUD operations if requested

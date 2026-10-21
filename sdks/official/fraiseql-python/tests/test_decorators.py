@@ -2165,3 +2165,26 @@ def test_input_field_refuses_configuration_an_input_cannot_honour(config: dict) 
         @fraiseql.input
         class OrderInput:
             note: Annotated[str, fraiseql.field(**config)]
+
+
+def test_type_subscription_policy_is_emitted() -> None:
+    """A declared subscription policy reaches the type in schema.json (#1657)."""
+    policy = {"owner_path": "$.owner_id", "identity_field": "user_id", "bypass_roles": ["admin"]}
+
+    @fraiseql.type(subscription_policy=policy)
+    class Order:
+        id: int
+        owner_id: str
+
+    order = SchemaRegistry.get_schema()["types"][0]
+    assert order["subscription_policy"] == policy
+
+
+def test_type_without_subscription_policy_omits_the_key() -> None:
+    """A type that declares no policy emits no `subscription_policy` key."""
+
+    @fraiseql.type
+    class Order:
+        id: int
+
+    assert "subscription_policy" not in SchemaRegistry.get_schema()["types"][0]

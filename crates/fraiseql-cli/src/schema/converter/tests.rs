@@ -540,6 +540,7 @@ fn test_convert_type_with_fields() {
         auth:              None,
         version:           "2.0.0".to_string(),
         types:             vec![IntermediateType {
+            subscription_policy:    None,
             name:                   "User".to_string(),
             sql_source:             None,
             fields:                 vec![
@@ -713,6 +714,7 @@ fn test_convert_query_with_arguments() {
         auth:              None,
         version:           "2.0.0".to_string(),
         types:             vec![IntermediateType {
+            subscription_policy:    None,
             name:                   "User".to_string(),
             sql_source:             None,
             fields:                 vec![],
@@ -815,6 +817,7 @@ fn test_list_query_without_auto_params_defaults_to_all() {
         auth:              None,
         version:           "2.0.0".to_string(),
         types:             vec![IntermediateType {
+            subscription_policy:    None,
             name:                   "Item".to_string(),
             sql_source:             None,
             fields:                 vec![],
@@ -905,6 +908,7 @@ fn test_single_item_query_without_auto_params_defaults_to_none() {
         auth:              None,
         version:           "2.0.0".to_string(),
         types:             vec![IntermediateType {
+            subscription_policy:    None,
             name:                   "Item".to_string(),
             sql_source:             None,
             fields:                 vec![],
@@ -997,6 +1001,7 @@ fn test_convert_field_with_deprecated_directive() {
         auth:              None,
         version:           "2.0.0".to_string(),
         types:             vec![IntermediateType {
+            subscription_policy:    None,
             name:                   "User".to_string(),
             sql_source:             None,
             fields:                 vec![
@@ -1473,6 +1478,7 @@ fn test_convert_type_implements_interface() {
         auth:              None,
         version:           "2.0.0".to_string(),
         types:             vec![IntermediateType {
+            subscription_policy:    None,
             name:                   "User".to_string(),
             sql_source:             None,
             fields:                 vec![
@@ -1600,6 +1606,7 @@ fn test_validate_unknown_interface() {
         auth:              None,
         version:           "2.0.0".to_string(),
         types:             vec![IntermediateType {
+            subscription_policy:    None,
             name:                   "User".to_string(),
             sql_source:             None,
             fields:                 vec![IntermediateField {
@@ -1680,6 +1687,7 @@ fn test_validate_missing_interface_field() {
         auth:              None,
         version:           "2.0.0".to_string(),
         types:             vec![IntermediateType {
+            subscription_policy:    None,
             name:                   "User".to_string(),
             sql_source:             None,
             fields:                 vec![
@@ -1785,6 +1793,7 @@ fn test_convert_union() {
         version:           "2.0.0".to_string(),
         types:             vec![
             IntermediateType {
+                subscription_policy:    None,
                 name:                   "User".to_string(),
                 sql_source:             None,
                 fields:                 vec![IntermediateField {
@@ -1818,6 +1827,7 @@ fn test_convert_union() {
                 relationships:          Vec::new(),
             },
             IntermediateType {
+                subscription_policy:    None,
                 name:                   "Post".to_string(),
                 sql_source:             None,
                 fields:                 vec![IntermediateField {
@@ -1908,6 +1918,7 @@ fn test_convert_field_requires_scope() {
         auth:              None,
         version:           "2.0.0".to_string(),
         types:             vec![IntermediateType {
+            subscription_policy:    None,
             name:                   "Employee".to_string(),
             sql_source:             None,
             fields:                 vec![
@@ -2125,6 +2136,7 @@ mod tenancy_tests {
 
     fn make_type(name: &str, fields: Vec<IntermediateField>) -> IntermediateType {
         IntermediateType {
+            subscription_policy: None,
             name: name.to_string(),
             sql_source: None,
             fields,
@@ -4137,6 +4149,7 @@ mod auto_params_parity_tests {
             auth:              None,
             version:           "2.0.0".to_string(),
             types:             vec![IntermediateType {
+                subscription_policy:    None,
                 name:                   "Item".to_string(),
                 sql_source:             Some("v_item".to_string()),
                 fields:                 vec![],
@@ -4658,4 +4671,35 @@ fn parse_field_type_records_each_levels_item_nullability() {
     ] {
         assert_eq!(parse(written), expected, "{written}");
     }
+}
+
+// ── #1657: subscription_policy is authorable ─────────────────────────────────
+
+/// An authoring type `Order` with an `owner_id` field and the given `subscription_policy`.
+fn order_with_policy(policy: &serde_json::Value) -> Result<IntermediateSchema, serde_json::Error> {
+    serde_json::from_value(serde_json::json!({
+        "types": [{
+            "name": "Order",
+            "sql_source": "v_order",
+            "fields": [
+                {"name": "id", "type": "ID", "nullable": false},
+                {"name": "owner_id", "type": "String", "nullable": false}
+            ],
+            "subscription_policy": policy
+        }]
+    }))
+}
+
+#[test]
+fn a_declared_subscription_policy_reaches_the_compiled_type() {
+    let policy = serde_json::json!({"owner_path": "$.owner_id", "identity_field": "user_id"});
+    let parsed = order_with_policy(&policy);
+    assert!(parsed.is_ok(), "an authoring type must accept subscription_policy: {parsed:?}");
+    let compiled = SchemaConverter::convert(parsed.unwrap()).unwrap();
+    let order = compiled.types.iter().find(|t| t.name == "Order").unwrap();
+    assert_eq!(
+        order.subscription_policy,
+        Some(serde_json::from_value(policy).unwrap()),
+        "the declared policy must reach the compiled type"
+    );
 }

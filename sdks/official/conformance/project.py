@@ -186,6 +186,7 @@ CONSTRUCTS = (
     "type_relay",
     "type_is_error",
     "type_relationships",
+    "type_subscription_policy",
     "type_crud",
     "input_types",
     "enums",
@@ -384,6 +385,14 @@ def project(compiled: dict[str, Any]) -> dict[str, Any]:
         ]
         for name in AUTHORED_TYPES
         if types.get(name, {}).get("relationships")
+    }
+
+    # `subscription_policy` is threaded verbatim onto the compiled type (#1657); the
+    # observation is the policy each authored type carries, absent ones omitted.
+    observations["type_subscription_policy"] = {
+        name: types[name]["subscription_policy"]
+        for name in AUTHORED_TYPES
+        if types.get(name, {}).get("subscription_policy")
     }
 
     # Asserted as one observation because one declaration produces all of it. The

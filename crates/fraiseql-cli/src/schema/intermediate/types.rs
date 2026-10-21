@@ -154,6 +154,14 @@ pub struct IntermediateType {
     /// #1230 was a join key the projection omitted, served as `null` under a 200.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub relationships: Vec<IntermediateRelationship>,
+
+    /// Per-row visibility for this type's subscription deliveries: a subscriber receives a
+    /// row only when the row's `owner_path` field equals its enriched `identity_field`,
+    /// unless it holds one of `bypass_roles`. Threaded verbatim to
+    /// `TypeDefinition.subscription_policy`; the owner field must be a single-level field of
+    /// this type, checked at compile.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub subscription_policy: Option<fraiseql_core::schema::SubscriptionPolicy>,
 }
 
 /// A relationship in intermediate format (#1266).

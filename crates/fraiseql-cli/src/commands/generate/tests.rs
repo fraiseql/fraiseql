@@ -157,6 +157,7 @@ fn sample_schema() -> IntermediateSchema {
     IntermediateSchema {
         version: "2.0.0".to_string(),
         types: vec![IntermediateType {
+            subscription_policy:    None,
             name:                   "Author".to_string(),
             sql_source:             None,
             fields:                 vec![

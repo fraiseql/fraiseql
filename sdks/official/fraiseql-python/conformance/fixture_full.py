@@ -78,6 +78,7 @@ class User:
             referenced_key="id",
         )
     ],
+    subscription_policy={"owner_path": "$.fk_user", "identity_field": "user_id"},
 )
 class Order:
     id: ID

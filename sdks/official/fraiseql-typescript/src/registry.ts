@@ -90,6 +90,22 @@ export interface TypeDefinition {
   requires_role?: string;
   implements?: string[];
   relationships?: Relationship[];
+  subscription_policy?: { owner_path: string; identity_field: string; bypass_roles?: string[] };
+}
+
+/**
+ * Per-row visibility for a type's subscription deliveries (#1657): a subscriber receives
+ * a row only when the row's `ownerPath` field equals its enriched `identityField`, unless
+ * it holds one of `bypassRoles`. `fraiseql compile` checks that the owner field is a
+ * single-level field of the type.
+ */
+export interface SubscriptionPolicy {
+  /** Single-level path into the row, e.g. `"$.owner_id"`. */
+  ownerPath: string;
+  /** The enriched-identity field compared against it, e.g. `"user_id"`. */
+  identityField: string;
+  /** Roles that receive every row. */
+  bypassRoles?: string[];
 }
 
 /** Cardinalities a relationship may declare. */
@@ -1013,6 +1029,7 @@ export class SchemaRegistry {
       requiresRole?: string;
       implements?: string[];
       relationships?: Relationship[];
+      subscriptionPolicy?: SubscriptionPolicy;
     }
   ): void {
     // `@Type()` registers the name with no fields, because TypeScript erases field
@@ -1050,6 +1067,15 @@ export class SchemaRegistry {
         name,
         options.relationships
       ) as unknown as Relationship[];
+    }
+    // #1657: emitted only when declared, in the compiler's snake_case spelling.
+    if (options?.subscriptionPolicy) {
+      const policy = options.subscriptionPolicy;
+      typeDef.subscription_policy = {
+        owner_path: policy.ownerPath,
+        identity_field: policy.identityField,
+        ...(policy.bypassRoles?.length ? { bypass_roles: policy.bypassRoles } : {}),
+      };
     }
     this.types.set(name, typeDef);
   }

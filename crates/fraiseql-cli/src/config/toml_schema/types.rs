@@ -9,11 +9,11 @@ use serde::{Deserialize, Serialize};
 #[serde(default, deny_unknown_fields)]
 pub struct TypeDefinition {
     /// SQL source table or view
-    pub sql_source:    String,
+    pub sql_source:          String,
     /// Human-readable type description
-    pub description:   Option<String>,
+    pub description:         Option<String>,
     /// Field definitions
-    pub fields:        BTreeMap<String, FieldDefinition>,
+    pub fields:              BTreeMap<String, FieldDefinition>,
     /// Relationships to other types, followed by REST resource embedding (#1266).
     ///
     /// Keyed by relationship name, like [`fields`](Self::fields), so the name is the
@@ -32,16 +32,26 @@ pub struct TypeDefinition {
     /// a top-level `[[relationships]]` block instead; no such block ever parsed, and no
     /// authoring surface of any kind existed until this one.
     #[serde(default)]
-    pub relationships: BTreeMap<String, RelationshipDefinition>,
+    pub relationships:       BTreeMap<String, RelationshipDefinition>,
+    /// Per-row visibility for this type's subscription deliveries (#1657):
+    ///
+    /// ```toml
+    /// [types.Order.subscription_policy]
+    /// owner_path = "$.owner_id"      # the row's stored key
+    /// identity_field = "user_id"     # the enriched-identity field
+    /// ```
+    #[serde(default)]
+    pub subscription_policy: Option<fraiseql_core::schema::SubscriptionPolicy>,
 }
 
 impl Default for TypeDefinition {
     fn default() -> Self {
         Self {
-            sql_source:    "v_entity".to_string(),
-            description:   None,
-            fields:        BTreeMap::new(),
-            relationships: BTreeMap::new(),
+            sql_source:          "v_entity".to_string(),
+            description:         None,
+            fields:              BTreeMap::new(),
+            relationships:       BTreeMap::new(),
+            subscription_policy: None,
         }
     }
 }
@@ -95,6 +105,9 @@ impl TypeDefinition {
                         .collect(),
                 ),
             ));
+        }
+        if let Some(policy) = &self.subscription_policy {
+            out.push(("subscription_policy", serde_json::json!(policy)));
         }
         out
     }

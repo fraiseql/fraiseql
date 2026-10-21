@@ -60,6 +60,43 @@ impl SchemaValidator {
             type_names.insert(type_def.name.clone());
         }
 
+        // A type's subscription policy must name a single-level field of the type, or the
+        // delivery path would match nothing (or refuse every subscriber) at runtime.
+        for (idx, type_def) in schema.types.iter().enumerate() {
+            let Some(policy) = &type_def.subscription_policy else {
+                continue;
+            };
+            let path = format!("types[{idx}].subscription_policy");
+            if let Err(reason) = policy.validate() {
+                report.errors.push(ValidationError {
+                    message: format!("Type '{}': {reason}", type_def.name),
+                    path,
+                    severity: ErrorSeverity::Error,
+                    suggestion: None,
+                });
+                continue;
+            }
+            if !type_def.fields.iter().any(|field| policy.owner_is_stored_key_of(&field.name)) {
+                report.errors.push(ValidationError {
+                    message: format!(
+                        "Type '{}': subscription_policy.owner_path `{}` names no field of the type",
+                        type_def.name, policy.owner_path
+                    ),
+                    path,
+                    severity: ErrorSeverity::Error,
+                    suggestion: Some(format!(
+                        "use one of: {}",
+                        type_def
+                            .fields
+                            .iter()
+                            .map(|f| f.name.as_str())
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    )),
+                });
+            }
+        }
+
         // Add input types — valid as mutation argument types (fraiseql/fraiseql#190)
         for input_type in &schema.input_types {
             type_names.insert(input_type.name.clone());

@@ -698,11 +698,8 @@ impl CompiledSchema {
     /// `SubscriptionPolicy::validate` had exactly one caller: the unreachable one
     /// (#1265).
     ///
-    /// It matters precisely here, because `subscription_policy` has no authoring
-    /// producer at all — the CLI hardcodes `None` at every construction site, the
-    /// intermediate schema has no field for it and no SDK emits one. The only way a
-    /// policy reaches a deployment is a hand-written compiled schema, which is exactly
-    /// the input this path accepts.
+    /// The compiler checks an authored policy too (`SchemaValidator`); this load-time check
+    /// is what a hand-written or post-processed compiled schema still meets.
     /// Every sorting query whose derived `orderBy` item names an enum that is not exactly its
     /// sort keys, or a name another kind of type also takes (#1159). An item type the author
     /// declared is their surface, and not checked.

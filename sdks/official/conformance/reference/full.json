@@ -86,7 +86,11 @@
           "foreign_key": "fk_user",
           "referenced_key": "id"
         }
-      ]
+      ],
+      "subscription_policy": {
+        "owner_path": "$.fk_user",
+        "identity_field": "user_id"
+      }
     },
     {
       "name": "SupportTicket",
