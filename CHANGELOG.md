@@ -82,6 +82,10 @@ disagreed, and the promise was the part that was wrong.
   Wasmtime and Cranelift move from 48.0.6 / 0.135.6 to 48.0.7 / 0.135.7: on aarch64 a large
   Wasm `br_table` could jump to the wrong target, and lowering a host-created component-model
   stream into a guest expecting another payload type panicked.
+- **rustls-webpki 0.103.16 and webpki-roots 1.0.10 (RUSTSEC-2026-0382,
+  RUSTSEC-2026-0381).** Outbound TLS no longer trusts the emSign ECC Root CA - G3 bundle
+  root, and certificate verification rejects paths through the distrusted emSign
+  intermediates, whose private keys are public.
 
 ## [2.17.0] - 2026-10-19
 
