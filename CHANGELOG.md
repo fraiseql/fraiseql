@@ -180,6 +180,10 @@ disagreed, and the promise was the part that was wrong.
 
   See `docs/operations/observers.md` § Tenant Scope.
 
+- **`rustls-webpki` 0.103.16 and `webpki-roots` 1.0.10**, transitive TLS dependencies, for
+  RUSTSEC-2026-0382 (certificate verification could accept distrusted intermediates) and
+  RUSTSEC-2026-0381 (the bundled roots trusted distrusted emSign intermediates).
+
 - **`wasmtime` and `wasmtime-wasi` 48.0.7** (the `fraiseql-functions` runtime), for
   RUSTSEC-2026-0378 and -0379: a host panic lowering a component-model stream into a guest
   expecting a different payload type, and Cranelift on aarch64 jumping to the wrong target
