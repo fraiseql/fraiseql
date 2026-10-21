@@ -18,10 +18,6 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
-- **`Server::with_flight_service` requires a `RelayDatabaseAdapter` (#1621).** It now
-  builds the same relay-capable executor as `Server::with_relay_pagination`. An embedder
-  calling it with an adapter that does not implement relay pagination implements the
-  trait or uses `Server::new`. `PostgresAdapter` already implements it.
 - **The observer admin API scopes every route by the token's tenant (#1625).** An
   organisation can no longer read, change, delete, enable or disable another
   organisation's observers. It no longer changes global observers, and it no longer sees
@@ -127,23 +123,6 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
-- **The `-full` release binaries ship the REST and Arrow Flight transports, outbound CDC
-  and the server half of federation (#1621).** The `fraiseql` crate's `release-full`
-  bundle and the `-full` tarball's `fraiseql-server` were built without `rest`, `arrow` or
-  `cdc-outbound`, and the crate's `federation` and `arrow` features never enabled the
-  matching `fraiseql-server` features, so `fraiseql run` compiled out the server's
-  federation routes. The crate gains `rest` and `cdc-outbound` pass-throughs, and the
-  tarball, the `fraiseql-server-platform` image and the release smoke build one feature
-  list. `tools/check-artifact-features.py` (preflight and ShellGates) holds every one of
-  those recipes to the list in `docs/releases.md`, and the release smoke now requires the
-  REST OpenAPI document and a federation `_service` answer from the binary it boots.
-
-- **An `arrow` build serves relay queries (#1621).** Every `arrow` build boots through
-  `Server::with_flight_service`, which built an executor without relay pagination, so each
-  relay query answered "Relay pagination is not supported" on an `arrow` build and worked
-  on one without it. That already affected the `fraiseql-server-full` and
-  `fraiseql-server-platform` images.
-
 - **`Server::with_relay_pagination` and `Server::with_flight_service` run every boot gate
   `Server::new` runs (#1623).** Both skipped four of them, and the binary boots through
   one of the two whenever a schema has relay queries or the build has `arrow`. A schema
@@ -192,14 +171,76 @@ disagreed, and the promise was the part that was wrong.
 
   See `docs/operations/observers.md` § Tenant Scope.
 
-- **`rustls-webpki` 0.103.16 and `webpki-roots` 1.0.10**, transitive TLS dependencies, for
-  RUSTSEC-2026-0382 (certificate verification could accept distrusted intermediates) and
-  RUSTSEC-2026-0381 (the bundled roots trusted distrusted emSign intermediates).
+## [2.17.1] - 2026-10-21
 
-- **`wasmtime` and `wasmtime-wasi` 48.0.7** (the `fraiseql-functions` runtime), for
-  RUSTSEC-2026-0378 and -0379: a host panic lowering a component-model stream into a guest
-  expecting a different payload type, and Cranelift on aarch64 jumping to the wrong target
-  on a large `br_table`.
+### Breaking
+
+- **`POST /api/v1/query/validate` is removed, and `/api/v1/query/stats` and
+  `/api/v1/federation/{subgraphs,graph,plan}` are served only with an admin token
+  (GHSA-4p85-qj4v-qhp5).** With no `admin_token` configured they answer 404. Use
+  `POST /api/v1/query/explain` (admin read token) or `fraiseql compile` to validate a query.
+- **A REST `GET` with a zero TTL is `no-store` (was `public, max-age=0`), and `Vary` lists
+  `Cookie`, `X-API-Key`, `X-Tenant-ID` and the schema's locale and session-variable
+  headers.** `fraiseql_server::routes::rest::cache_control` (`apply_cache_headers`,
+  `CacheContext`) is removed.
+- **`fraiseql_server::routes::grpc::build_grpc_service` takes a final
+  `revocation: Option<Arc<TokenRevocationManager>>` argument.** Pass the store the
+  deployment's HTTP auth checks; `None` leaves revoked tokens working on gRPC.
+- **`Authorization: Bearer ` with an empty credential is malformed everywhere.** The admin
+  bearer gate answers 401 (was 403). `fraiseql_server::middleware::auth::extract_bearer_token`
+  and `fraiseql_server::routes::studio::admin::extract_bearer_token` are removed; use
+  `fraiseql_core::security::bearer_credential`.
+- **`Server::with_flight_service` requires a `RelayDatabaseAdapter` (#1621).** It now
+  builds the same relay-capable executor as `Server::with_relay_pagination`. An embedder
+  calling it with an adapter that does not implement relay pagination implements the
+  trait or uses `Server::new`. `PostgresAdapter` already implements it.
+
+### Fixed
+
+- **The `-full` release binaries ship the REST and Arrow Flight transports, outbound CDC
+  and the server half of federation (#1621).** The `fraiseql` crate's `release-full`
+  bundle and the `-full` tarball's `fraiseql-server` were built without `rest`, `arrow` or
+  `cdc-outbound`, and the crate's `federation` and `arrow` features never enabled the
+  matching `fraiseql-server` features, so `fraiseql run` compiled out the server's
+  federation routes. The crate gains `rest` and `cdc-outbound` pass-throughs, and the
+  tarball, the `fraiseql-server-platform` image and the release smoke build one feature
+  list. `tools/check-artifact-features.py` (preflight and ShellGates) holds every one of
+  those recipes to the list in `docs/releases.md`, and the release smoke now requires the
+  REST OpenAPI document and a federation `_service` answer from the binary it boots.
+
+- **An `arrow` build serves relay queries (#1621).** Every `arrow` build boots through
+  `Server::with_flight_service`, which built an executor without relay pagination, so each
+  relay query answered "Relay pagination is not supported" on an `arrow` build and worked
+  on one without it. That already affected the `fraiseql-server-full` and
+  `fraiseql-server-platform` images.
+
+### Security
+
+- **REST reads take the same `Cache-Control` decision as `/graphql`
+  (GHSA-8x5r-mxp4-3xfh).** An anonymous REST `GET` addressed to a tenant, or selected by a
+  header the schema reads a session variable from, was answered `public` and varied only on
+  `Authorization, Accept, Prefer`, so a shared cache could serve one tenant's rows to the
+  next caller of the URL. It is now `private` and `Vary` names every header that can change
+  the answer. Streamed exports (NDJSON, CSV, XLSX), which carried no `Cache-Control`, are
+  `no-store`.
+- **MCP, the storage API and the gRPC service refuse a revoked token
+  (GHSA-7482-9g53-rj7f).** They validated bearer tokens themselves and never asked the
+  revocation store, so a token revoked by `/auth/revoke` or "revoke all sessions" kept
+  working on them until it expired.
+- **A GraphQL `@stream` request over SSE is admitted by the same stages as `/graphql`
+  (GHSA-h22c-5xf9-g5vw).** The SSE path skipped identity enrichment. Where enrichment was
+  the admission gate, a subject `/graphql` refuses was streamed rows. Where the schema reads
+  the enriched identity, every authenticated root `@stream` was refused (403).
+- **`/api/v1/query/stats` and `/api/v1/federation/*` require the admin read token
+  (GHSA-4p85-qj4v-qhp5).** They were served without authentication.
+- **Wasmtime 48.0.7 (RUSTSEC-2026-0378, RUSTSEC-2026-0379).** The functions runtime's
+  Wasmtime and Cranelift move from 48.0.6 / 0.135.6 to 48.0.7 / 0.135.7: on aarch64 a large
+  Wasm `br_table` could jump to the wrong target, and lowering a host-created component-model
+  stream into a guest expecting another payload type panicked.
+- **rustls-webpki 0.103.16 and webpki-roots 1.0.10 (RUSTSEC-2026-0382,
+  RUSTSEC-2026-0381).** Outbound TLS no longer trusts the emSign ECC Root CA - G3 bundle
+  root, and certificate verification rejects paths through the distrusted emSign
+  intermediates, whose private keys are public.
 
 ## [2.17.0] - 2026-10-19
 
@@ -22404,7 +22445,8 @@ being written.
 link for it would be a guaranteed 404. An undefined reference renders as literal
 text, which is the honest outcome; a broken link is not.
 -->
-[Unreleased]: https://github.com/fraiseql/fraiseql/compare/v2.17.0...HEAD
+[Unreleased]: https://github.com/fraiseql/fraiseql/compare/v2.17.1...HEAD
+[2.17.1]: https://github.com/fraiseql/fraiseql/compare/v2.17.0...v2.17.1
 [2.17.0]: https://github.com/fraiseql/fraiseql/compare/v2.16.0...v2.17.0
 [2.16.0]: https://github.com/fraiseql/fraiseql/compare/v2.15.0...v2.16.0
 [2.15.0]: https://github.com/fraiseql/fraiseql/compare/v2.14.1...v2.15.0

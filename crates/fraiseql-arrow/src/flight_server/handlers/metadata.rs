@@ -105,9 +105,8 @@ pub(super) async fn handshake(
     let payload_str = String::from_utf8_lossy(&handshake_request.payload);
 
     // Extract token from "Bearer <token>" format
-    let token = if let Some(t) = payload_str.strip_prefix("Bearer ") {
-        t.to_string()
-    } else {
+    let Some(token) = fraiseql_core::security::bearer_credential(&payload_str).map(str::to_owned)
+    else {
         warn!("Handshake: Missing 'Bearer' prefix in authentication payload");
         return Err(Status::unauthenticated("Invalid authentication format"));
     };

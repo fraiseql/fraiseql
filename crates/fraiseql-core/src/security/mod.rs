@@ -24,6 +24,7 @@ pub mod audit_export_syslog;
 pub mod audit_export_webhook;
 pub mod auth_middleware;
 pub mod authorizer;
+pub mod bearer;
 pub mod error_formatter;
 pub mod errors;
 pub mod field_authorizer;
@@ -70,6 +71,7 @@ pub use auth_middleware::{AuthConfig, AuthMiddleware, AuthRequest, Authenticated
 pub use authorizer::{
     Authorizer, AuthzDecision, AuthzNesting, AuthzOperation, AuthzRequest, OperationKind,
 };
+pub use bearer::bearer_credential;
 pub use error_formatter::{DetailLevel, ErrorFormatter};
 pub use errors::SecurityError;
 pub use field_authorizer::{FieldAuthorizer, FieldAuthzDecision, FieldAuthzRequest};

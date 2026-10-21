@@ -128,15 +128,13 @@ impl AuthRequest {
     /// # Errors
     ///
     /// Returns [`SecurityError::AuthRequired`] if the Authorization header is
-    /// absent or does not start with `"Bearer "`.
+    /// absent or carries no `Bearer` credential
+    /// ([`bearer_credential`](crate::security::bearer_credential)).
     pub fn extract_bearer_token(&self) -> Result<String> {
-        let header = self.authorization_header.as_ref().ok_or(SecurityError::AuthRequired)?;
-
-        if !header.starts_with("Bearer ") {
-            return Err(SecurityError::AuthRequired);
-        }
-
-        Ok(header[7..].to_string())
+        let header = self.authorization_header.as_deref().ok_or(SecurityError::AuthRequired)?;
+        crate::security::bearer_credential(header)
+            .map(ToOwned::to_owned)
+            .ok_or(SecurityError::AuthRequired)
     }
 }
 

@@ -214,7 +214,7 @@ pub struct PlanResponse {
 
 /// Get federation query plan for a given query.
 ///
-/// `GET /admin/v1/federation/plan?query=<url-encoded GraphQL query>`
+/// `GET /api/v1/federation/plan?query=<url-encoded GraphQL query>` (admin read gate)
 ///
 /// Returns the cached plan breakdown showing subgraph fetches, or
 /// `{"cached": false, "fetches": null}` if no plan is cached for the query.

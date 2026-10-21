@@ -190,3 +190,145 @@ mod mcp_host_check {
         assert_eq!(initialize_status(app, "attacker.example").await, StatusCode::FORBIDDEN);
     }
 }
+
+/// **Reproduction (GHSA-4p85-qj4v-qhp5).** The query-intelligence and federation
+/// read routes under `/api/v1` were nested with no authentication, while their sibling
+/// `/api/v1/query/explain` sat behind the admin read gate (H13). They answer the same
+/// class of question (what the schema holds, how a query plans, how the deployment is
+/// used), so they share that gate, and are absent when no admin token is configured.
+mod api_v1_intelligence_routes {
+    use super::*;
+
+    const ADMIN_TOKEN: &str = "admin-token-for-the-mount-test-32chars";
+
+    fn paths() -> Vec<&'static str> {
+        let mut paths = vec!["/api/v1/query/stats"];
+        if cfg!(feature = "federation") {
+            paths.extend([
+                "/api/v1/federation/subgraphs",
+                "/api/v1/federation/graph",
+                "/api/v1/federation/plan?query=%7B__typename%7D",
+            ]);
+        }
+        paths
+    }
+
+    async fn app(admin: bool) -> Router {
+        let config = if admin {
+            ServerConfig {
+                admin_api_enabled: true,
+                admin_token: Some(ADMIN_TOKEN.to_string()),
+                ..ServerConfig::default()
+            }
+        } else {
+            ServerConfig::default()
+        };
+        let server = server_with(config).await;
+        let state = server.build_app_state();
+        server.build_router(&state)
+    }
+
+    async fn status(app: &Router, path: &str, bearer: Option<&str>) -> StatusCode {
+        let mut request = Request::builder().method("GET").uri(path);
+        if let Some(token) = bearer {
+            request = request.header("authorization", format!("Bearer {token}"));
+        }
+        app.clone()
+            .oneshot(request.body(Body::empty()).unwrap())
+            .await
+            .unwrap()
+            .status()
+    }
+
+    #[tokio::test]
+    async fn an_anonymous_caller_is_refused() {
+        let app = app(true).await;
+        for path in paths() {
+            assert_eq!(status(&app, path, None).await, StatusCode::UNAUTHORIZED, "{path}");
+        }
+    }
+
+    /// The positive control: the gate refuses the anonymous caller, not every caller.
+    #[tokio::test]
+    async fn the_admin_read_token_is_served() {
+        let app = app(true).await;
+        for path in paths() {
+            let status = status(&app, path, Some(ADMIN_TOKEN)).await;
+            assert!(
+                status != StatusCode::UNAUTHORIZED && status != StatusCode::NOT_FOUND,
+                "{path}: {status}"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn without_an_admin_token_they_are_not_mounted() {
+        let app = app(false).await;
+        for path in paths() {
+            assert_eq!(status(&app, path, None).await, StatusCode::NOT_FOUND, "{path}");
+        }
+    }
+
+    /// `POST /api/v1/query/validate` is removed: `/api/v1/query/explain` answers the
+    /// same question behind the gate, and the compiler answers it before deployment.
+    #[tokio::test]
+    async fn query_validate_is_not_mounted() {
+        let app = app(true).await;
+        let request = Request::builder()
+            .method("POST")
+            .uri("/api/v1/query/validate")
+            .header("content-type", "application/json")
+            .header("authorization", format!("Bearer {ADMIN_TOKEN}"))
+            .body(Body::from(r#"{"query":"{ __typename }"}"#))
+            .unwrap();
+        let status = app.oneshot(request).await.unwrap().status();
+        assert_eq!(status, StatusCode::NOT_FOUND);
+    }
+}
+
+/// **Reproduction (GHSA-7482-9g53-rj7f).** The storage router validated an OIDC token's
+/// signature and expiry and never asked the revocation store, so a revoked token kept
+/// reading and writing objects until it expired.
+mod storage_revocation {
+    use super::*;
+    use crate::{
+        testing::idp::{TestIdp, token},
+        token_revocation::{InMemoryRevocationStore, RevocationStore, TokenRevocationManager},
+    };
+
+    /// The status of a storage read with `jti`'s token, against a store that revoked
+    /// `revoked`.
+    async fn status(jti: &str, revoked: &str) -> StatusCode {
+        let idp = TestIdp::start().await;
+        let store = Arc::new(InMemoryRevocationStore::new());
+        store.revoke(revoked, 3600).await.unwrap();
+        let mut server = server_with(ServerConfig::default())
+            .await
+            .with_storage_state(minimal_storage_state())
+            .with_revocation_manager(Arc::new(TokenRevocationManager::new(
+                store, false, false, 3600,
+            )));
+        server.oidc_validator = Some(idp.validator(false));
+        let state = server.build_app_state();
+        let app: Router = server.mount_extensions(Router::new(), &state);
+        let request = Request::builder()
+            .method("GET")
+            .uri("/storage/v1/object/docs/report.txt")
+            .header("authorization", format!("Bearer {}", token("alice", jti)))
+            .body(Body::empty())
+            .unwrap();
+        app.oneshot(request).await.unwrap().status()
+    }
+
+    #[tokio::test]
+    async fn a_revoked_token_is_refused() {
+        assert_eq!(status("j-revoked", "j-revoked").await, StatusCode::UNAUTHORIZED);
+    }
+
+    /// The control: the same token, not revoked, passes authentication, and the read
+    /// goes on to fail or succeed for its own reasons (no database here).
+    #[tokio::test]
+    async fn a_live_token_is_admitted() {
+        assert_ne!(status("j-live", "j-revoked").await, StatusCode::UNAUTHORIZED);
+    }
+}

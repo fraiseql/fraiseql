@@ -816,7 +816,7 @@ mod openapi_tests {
 
         // Bump deliberately when a path is added, so the addition is visible in
         // the diff rather than absorbed by a `>=`.
-        assert_eq!(count, 11, "Should document all 11 API endpoint paths");
+        assert_eq!(count, 10, "Should document all 10 API endpoint paths");
         assert!(
             paths.get("/api/v1/admin/storage/{bucket}/policies").is_some(),
             "the storage bucket-policy admin path must be documented (#974)"
@@ -940,14 +940,6 @@ mod query_tests {
         assert_eq!(response.sql.as_deref(), Some("SELECT id FROM users"));
         assert_eq!(response.complexity.depth, 2);
         assert_eq!(response.estimated_cost, 50);
-    }
-
-    #[test]
-    fn test_validate_request_structure() {
-        let request = ValidateRequest {
-            query: "query { users { id } }".to_string(),
-        };
-        assert!(!request.query.is_empty());
     }
 
     #[test]

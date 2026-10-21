@@ -134,10 +134,9 @@ pub fn extract_session_token<T>(request: &Request<T>) -> std::result::Result<Str
         .to_str()
         .map_err(|_| Status::unauthenticated("Invalid authorization header encoding"))?;
 
-    auth_str
-        .strip_prefix("Bearer ")
+    fraiseql_core::security::bearer_credential(auth_str)
         .ok_or_else(|| {
             Status::unauthenticated("Invalid authorization format, expected 'Bearer <token>'")
         })
-        .map(|s| s.to_string())
+        .map(ToOwned::to_owned)
 }

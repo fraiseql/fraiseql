@@ -678,6 +678,21 @@ impl FromRequestParts<RestState> for RestSecurityContext {
 // Axum handlers
 // ---------------------------------------------------------------------------
 
+/// A streamed export's `200`: its own headers, then `no-store`. An export is a bulk read
+/// for one caller, never a representation a cache may offer to the next one
+/// (GHSA-8x5r-mxp4-3xfh).
+fn export_response(mut headers: axum::http::HeaderMap, body: Body) -> Response {
+    crate::routes::http_cache::apply(
+        &mut headers,
+        crate::routes::http_cache::Caching::NoStore,
+        None,
+        &[],
+    );
+    let mut response = Response::new(body);
+    *response.headers_mut() = headers;
+    response
+}
+
 /// [`rest_get_handler_in_scope`], run in the request's scope (#1512, #1520).
 async fn rest_get_handler(
     State(rest): State<RestState>,
@@ -727,18 +742,7 @@ async fn rest_get_handler_in_scope(
         .await;
 
         return match result {
-            Ok(ndjson) => {
-                let mut builder = Response::builder().status(StatusCode::OK);
-                for (key, value) in &ndjson.headers {
-                    builder = builder.header(key, value);
-                }
-                builder.body(ndjson.body.into_body()).unwrap_or_else(|_| {
-                    Response::builder()
-                        .status(StatusCode::INTERNAL_SERVER_ERROR)
-                        .body(Body::empty())
-                        .expect("fallback response: Response::builder() with INTERNAL_SERVER_ERROR status and empty body is infallible")
-                })
-            },
+            Ok(ndjson) => export_response(ndjson.headers, ndjson.body.into_body()),
             Err(rest_err) => rest_result_to_response(Err(rest_err), &rest.error_sanitizer),
         };
     }
@@ -787,18 +791,7 @@ async fn rest_get_handler_in_scope(
         .await;
 
         return match result {
-            Ok(xlsx) => {
-                let mut builder = Response::builder().status(StatusCode::OK);
-                for (key, value) in &xlsx.headers {
-                    builder = builder.header(key, value);
-                }
-                builder.body(xlsx.body.into_body()).unwrap_or_else(|_| {
-                    Response::builder()
-                        .status(StatusCode::INTERNAL_SERVER_ERROR)
-                        .body(Body::empty())
-                        .expect("fallback response: Response::builder() with INTERNAL_SERVER_ERROR status and empty body is infallible")
-                })
-            },
+            Ok(xlsx) => export_response(xlsx.headers, xlsx.body.into_body()),
             Err(rest_err) => rest_result_to_response(Err(rest_err), &rest.error_sanitizer),
         };
     }
@@ -828,25 +821,15 @@ async fn rest_get_handler_in_scope(
         .await;
 
         return match result {
-            Ok(csv) => {
-                let mut builder = Response::builder().status(StatusCode::OK);
-                for (key, value) in &csv.headers {
-                    builder = builder.header(key, value);
-                }
-                builder.body(csv.body.into_body()).unwrap_or_else(|_| {
-                    Response::builder()
-                        .status(StatusCode::INTERNAL_SERVER_ERROR)
-                        .body(Body::empty())
-                        .expect("fallback response: Response::builder() with INTERNAL_SERVER_ERROR status and empty body is infallible")
-                })
-            },
+            Ok(csv) => export_response(csv.headers, csv.body.into_body()),
             Err(rest_err) => rest_result_to_response(Err(rest_err), &rest.error_sanitizer),
         };
     }
 
     let schema = scope.executor.schema();
     let config = schema.rest_config.as_ref().expect("REST config must exist: handler is only reached via a matched REST route, which requires rest_config to be present in the schema");
-    let handler = RestHandler::new(&scope.executor, schema, config, &scope.route_table);
+    let handler = RestHandler::new(&scope.executor, schema, config, &scope.route_table)
+        .with_tenant(scope.tenant.as_deref());
 
     let result = handler
         .handle_get(&relative_path, &query_refs, &parts.headers, security_ctx.as_ref())

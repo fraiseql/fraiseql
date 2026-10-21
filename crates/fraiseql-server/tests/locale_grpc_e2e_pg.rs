@@ -231,6 +231,7 @@ async fn service_bounded(
         None,
         #[cfg(feature = "auth")]
         None,
+        None,
     )
     .unwrap()
     .expect("gRPC is enabled");

@@ -15,7 +15,7 @@ use axum::{
 use fraiseql_core::{runtime::Executor, schema::CompiledSchema};
 use fraiseql_server::routes::{
     api::{
-        query::{explain_handler, stats_handler, validate_handler},
+        query::{explain_handler, stats_handler},
         schema::{export_json_handler, export_sdl_handler},
     },
     graphql::AppState,
@@ -85,7 +85,6 @@ pub fn health_router(state: AppState) -> Router {
 pub fn api_router(state: AppState) -> Router {
     Router::new()
         .route("/api/v1/query/explain", post(explain_handler))
-        .route("/api/v1/query/validate", post(validate_handler))
         .route("/api/v1/query/stats", get(stats_handler))
         .route("/api/v1/schema.graphql", get(export_sdl_handler))
         .route("/api/v1/schema.json", get(export_json_handler))

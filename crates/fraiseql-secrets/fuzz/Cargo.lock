@@ -619,7 +619,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-core"
-version = "2.17.0"
+version = "2.17.1"
 dependencies = [
  "ahash",
  "apollo-parser",
@@ -664,7 +664,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-db"
-version = "2.17.0"
+version = "2.17.1"
 dependencies = [
  "async-trait",
  "bytes",
@@ -684,7 +684,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-error"
-version = "2.17.0"
+version = "2.17.1"
 dependencies = [
  "serde",
  "serde_json",
@@ -694,7 +694,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-guard"
-version = "2.17.0"
+version = "2.17.1"
 dependencies = [
  "tokio",
  "tracing",
@@ -702,7 +702,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-jwks"
-version = "2.17.0"
+version = "2.17.1"
 dependencies = [
  "fraiseql-guard",
  "jsonwebtoken",
@@ -718,7 +718,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-secrets"
-version = "2.17.0"
+version = "2.17.1"
 dependencies = [
  "aes-gcm",
  "async-trait",
@@ -740,7 +740,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-secrets-fuzz"
-version = "2.17.0"
+version = "2.17.1"
 dependencies = [
  "fraiseql-secrets",
  "libfuzzer-sys",

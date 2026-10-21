@@ -7,7 +7,7 @@
 /// Test API query endpoint types are correctly defined.
 #[test]
 fn test_api_query_response_types_defined() {
-    use fraiseql_server::routes::api::query::{ExplainResponse, StatsResponse, ValidateResponse};
+    use fraiseql_server::routes::api::query::{ExplainResponse, StatsResponse};
 
     // Verify response types exist and are properly structured
     let explain = ExplainResponse {
@@ -25,12 +25,6 @@ fn test_api_query_response_types_defined() {
         database_plan:  None,
     };
     assert_eq!(explain.query, "test");
-
-    let validate = ValidateResponse {
-        valid:  true,
-        errors: vec![],
-    };
-    assert!(validate.valid);
 
     let stats = StatsResponse {
         total_queries:      0,

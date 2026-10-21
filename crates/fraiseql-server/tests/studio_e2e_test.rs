@@ -56,7 +56,7 @@ fn test_studio_shell_references_css() {
 #[test]
 fn test_all_admin_types_importable() {
     use fraiseql_server::routes::studio::{
-        admin::{AdminHealthResponse, AdminSchemaResponse, extract_bearer_token},
+        admin::{AdminHealthResponse, AdminSchemaResponse},
         auth_users::{UserInviteRequest, UserListResponse},
         data::{DataBrowserQuery, DataQueryResponse},
         function_ops::{FunctionListResponse, SecretSetRequest},
@@ -65,7 +65,6 @@ fn test_all_admin_types_importable() {
     };
 
     // Instantiate each type to ensure they're fully wired
-    let _ = extract_bearer_token(Some("Bearer test"));
     let _ = AdminHealthResponse {
         uptime_secs:    0,
         version:        String::new(),
