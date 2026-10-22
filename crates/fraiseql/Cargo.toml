@@ -18,11 +18,7 @@ fraiseql-wire = { workspace = true, optional = true }
 tokio = { workspace = true }
 
 [features]
-arrow = [
-  "dep:fraiseql-arrow",
-  "server",
-  "fraiseql-server?/arrow",
-]
+arrow = ["dep:fraiseql-arrow", "server", "fraiseql-server?/arrow"]
 cli = ["dep:fraiseql-cli"]
 # Outbound CDC: drains the change-log outbox to NATS JetStream.
 cdc-outbound = ["server", "fraiseql-server?/cdc-outbound"]
