@@ -10,7 +10,7 @@ Functions hook into FraiseQL through the `FunctionObserver` trait, integrating w
 - `WasmRuntime` — WASM component model executor (`runtime-wasm` feature)
 - `DenoRuntime` — JavaScript/TypeScript executor via V8 (`runtime-deno` feature)
 - `host-live` capabilities — database and HTTP access from inside functions
-- `host-storage` capabilities — object storage access from inside functions
+- Storage host ops (`storage_get`, `storage_put`) against the configured backend, in every build
 - Cron-state migrations for scheduled function execution
 
 ## Usage

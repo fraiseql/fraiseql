@@ -33,7 +33,6 @@ serde_json = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }
 tracing = "0.1"
-uuid = { workspace = true }
 zeroize = "1.8"
 
 [dev-dependencies]

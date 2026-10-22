@@ -29,7 +29,6 @@ name = "complexity"
 path = "fuzz_targets/complexity.rs"
 
 [dependencies]
-arbitrary = { version = "1", features = ["derive"] }
 libfuzzer-sys = "0.4"
 serde_json = "1"
 

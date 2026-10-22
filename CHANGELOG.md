@@ -18,6 +18,19 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **Unused dependencies and the features that only enabled them are gone (#1640).** The
+  manifests drop 24 dependencies no code names (the 22 `cargo machete` found, plus
+  `fraiseql-jwks` in fraiseql-auth and `lru` in fraiseql-core, which this release's
+  deletions orphaned). Two features did nothing else and are removed:
+  - `fraiseql-core/arrow`: it only enabled `arrow` and `arrow-array`, which core never
+    used. Arrow Flight is `fraiseql/arrow` and `fraiseql-server/arrow`, which no longer
+    forward it.
+  - `fraiseql-functions/host-storage`: it gated no code. The storage host ops are in every
+    build.
+
+  `fraiseql-server/federation` no longer pulls in the `fraiseql-federation` crate, and
+  `fraiseql-server/mcp` no longer pulls in `schemars`. Neither feature's behaviour changes.
+
 - **`fraiseql-test-utils` keeps only the helpers a test uses (#1640).** Removed: `mock_db`,
   `fixtures` and `observers` (`get_test_id`), which nothing used; the `db` re-export
   (import `database_url` and `try_database_url` from `fraiseql-test-support`); `saga`

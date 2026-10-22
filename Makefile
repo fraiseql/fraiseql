@@ -210,7 +210,7 @@ test-integration-postgres: db-up db-failover-reset
 	@echo "### toolchain: $$(rustc --version)"
 	@echo ""
 	@echo "### core/db --test '*' sweep (serialized: shared public schema)"
-	@cargo test -p fraiseql-core --features 'arrow,audit-syslog,audit-webhook,federation,kafka,postgres,redis-apq,schema-lint,test-utils,wire-backend,test-postgres' --test '*' -- --test-threads=1
+	@cargo test -p fraiseql-core --features 'audit-syslog,audit-webhook,federation,kafka,postgres,redis-apq,schema-lint,test-utils,wire-backend,test-postgres' --test '*' -- --test-threads=1
 	@cargo test -p fraiseql-db --features 'postgres,wire-backend,test-postgres' --test '*' -- --test-threads=1
 	@echo ""
 	@echo "### live-PostgreSQL lib tests"
@@ -347,10 +347,10 @@ test-leg:
 	cargo test -p fraiseql-arrow --lib
 	@echo ""
 	@echo "### fraiseql-functions (incl. runtime-deno)"
-	cargo test -p fraiseql-functions --features 'runtime-deno,runtime-wasm,host-live,host-storage' -- --skip migrations::tests
+	cargo test -p fraiseql-functions --features 'runtime-deno,runtime-wasm,host-live' -- --skip migrations::tests
 	@echo ""
 	@echo "### core/db --lib (SYNC:CORE_FEATURES / SYNC:DB_FEATURES, then default features)"
-	cargo test -p fraiseql-core --lib --features 'arrow,audit-syslog,audit-webhook,federation,kafka,postgres,redis-apq,schema-lint,test-utils,wire-backend'
+	cargo test -p fraiseql-core --lib --features 'audit-syslog,audit-webhook,federation,kafka,postgres,redis-apq,schema-lint,test-utils,wire-backend'
 	cargo test -p fraiseql-core --lib
 	cargo test -p fraiseql-db --lib --features 'postgres,wire-backend'
 	@echo ""

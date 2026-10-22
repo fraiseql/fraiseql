@@ -3,15 +3,12 @@
 async-trait = { workspace = true }
 bytes = { workspace = true }
 chrono = { workspace = true }
-dashmap = { workspace = true }
-deadpool = { workspace = true, optional = true }
 deadpool-postgres = { workspace = true, optional = true }
 # Error types
 fraiseql-error = { workspace = true }
 # Wire protocol (optional)
 fraiseql-wire = { workspace = true, optional = true }
 futures = { workspace = true }
-regex = { workspace = true }
 # PostgreSQL transport security (#801/#824). Not optional within the `postgres`
 # feature: a cfg-gated TLS stack means a build where `ssl_mode = "require"` has to
 # either fail at runtime or downgrade, and the second is the bug being fixed.
@@ -24,7 +21,6 @@ rustls = { version = "0.23", default-features = false, features = [
 rustls-native-certs = { version = "0.8.3", optional = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
-thiserror = { workspace = true }
 tokio = { workspace = true }
 # Database — PostgreSQL (optional; enabled by the "postgres" feature)
 tokio-postgres = { workspace = true, features = [
@@ -33,7 +29,6 @@ tokio-postgres = { workspace = true, features = [
 tokio-postgres-rustls = { version = "0.14", default-features = false, features = [
   "ring",
 ], optional = true }
-tokio-util = "0.7"
 tracing = { workspace = true }
 uuid = { workspace = true }
 
@@ -53,7 +48,6 @@ tracing-subscriber = { workspace = true }
 default = ["postgres"]
 postgres = [
   "dep:tokio-postgres",
-  "dep:deadpool",
   "dep:deadpool-postgres",
   "dep:rustls",
   "dep:rustls-native-certs",

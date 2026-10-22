@@ -60,7 +60,6 @@ tokio-rustls = { version = "0.26", default-features = false, features = [
 # Tracing
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-webpki-roots = "0.26"
 # User info for default values
 whoami = "1"
 # Secure password memory management

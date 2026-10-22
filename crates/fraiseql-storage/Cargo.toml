@@ -32,9 +32,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = { workspace = true }
 sha2 = "0.11"
 hex = "0.4"
-thiserror = "1"
 tracing = "0.1"
-async-trait = "0.1"
 chrono = { workspace = true }
 uuid = { workspace = true }
 walkdir = "2"
@@ -66,7 +64,6 @@ hmac = { workspace = true, optional = true }
 
 # Image transforms (feature-gated)
 image = { version = "0.25", optional = true }
-kamadak-exif = { version = "0.6", optional = true }
 # Glyph rasterisation for text watermarks (#973). The typeface itself is the
 # operator's — named by the bucket's `watermark_font` — so no font is vendored.
 ab_glyph = { version = "0.2", optional = true }
@@ -94,7 +91,7 @@ workspace = true
 default = ["postgres"]
 postgres = []
 aws-s3 = ["aws-sdk-s3", "aws-config"]
-transforms = ["image", "kamadak-exif", "ab_glyph"]
+transforms = ["image", "ab_glyph"]
 # Seam-carving retarget: opt-in because its cost is O(pixels x seams) rather
 # than O(output), and it is bounded by a wall-clock budget rather than by size.
 transforms-retarget = ["transforms"]

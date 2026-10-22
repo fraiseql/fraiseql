@@ -36,7 +36,6 @@ fraiseql-functions = { workspace = true }
 fraiseql-error = { workspace = true, optional = true }
 chrono = { workspace = true, optional = true }
 fraiseql-server = { workspace = true, optional = true, features = ["cli"] }
-axum = { workspace = true, optional = true }
 glob = "0.3"
 hex = { workspace = true }
 # CIDR parsing to validate [security.rate_limiting] trusted_proxy_cidrs at compile
@@ -84,7 +83,7 @@ tower = { workspace = true }
 [features]
 default = []
 federation = ["fraiseql-core/federation"]
-run-server = ["dep:fraiseql-server", "dep:axum"]
+run-server = ["dep:fraiseql-server"]
 # `fraiseql functions invoke` — the local V8 test harness for function authors.
 functions-invoke = [
   "fraiseql-functions/runtime-deno",

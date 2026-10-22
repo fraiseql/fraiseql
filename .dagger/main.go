@@ -51,7 +51,7 @@ const (
 
 	// SYNC:* feature sets — this file is the single authority since the legacy
 	// ci.yml was retired (#951); the SYNC tags mark every use site in this file.
-	coreTestFeatures = "arrow,audit-syslog,audit-webhook,federation,kafka,postgres,redis-apq,schema-lint,test-utils,wire-backend"
+	coreTestFeatures = "audit-syslog,audit-webhook,federation,kafka,postgres,redis-apq,schema-lint,test-utils,wire-backend"
 	dbTestFeatures   = "postgres,wire-backend"
 	// redis-pkce + redis-rate-limiting are compiled in so the #770/#777 boot-guard
 	// lib tests run here (they need no live Redis — closed ports and URL parsing);
@@ -1011,7 +1011,7 @@ func (m *FraiseqlCi) Test(
 		// whole deno suite passes in one shared process since #969.
 		// migrations::tests skipped (testcontainers).
 		"echo '### cargo test -p fraiseql-functions (all features incl. runtime-deno per #971/#969; migrations::tests skipped: testcontainers)'",
-		"cargo test -p fraiseql-functions --features 'runtime-deno,runtime-wasm,host-live,host-storage' -- --skip migrations::tests",
+		"cargo test -p fraiseql-functions --features 'runtime-deno,runtime-wasm,host-live' -- --skip migrations::tests",
 		// core/db: --lib only. Their src/ unit tests are Docker-free, but their
 		// tests/* integration binaries boot Postgres via tests/common/testcontainer.rs
 		// (and the federation/* docker tests) — those belong to Phase 04's integration

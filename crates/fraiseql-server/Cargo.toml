@@ -11,12 +11,10 @@ fraiseql-guard = { workspace = true }
 # CLI argument parsing (optional — only needed by the binary and fraiseql-cli)
 clap = { version = "4.5", features = ["derive", "env"], optional = true }
 # Encryption
-aes-gcm = "0.10"
 # Error handling
 anyhow = "1.0"
 # Atomic pointer swap (wait-free reads for schema hot-reload)
 arc-swap = { workspace = true }
-ahash.workspace = true
 async-trait = "0.1"
 aws-config = { version = "1", optional = true }
 # AWS S3 (optional)
@@ -51,7 +49,6 @@ tempfile = { workspace = true, optional = true }
 # Date/time handling
 chrono = { workspace = true }
 dashmap = { workspace = true }
-dirs = "6"
 fraiseql-arrow = { workspace = true, optional = true }
 # Authentication
 fraiseql-auth = { workspace = true, optional = true }
@@ -66,7 +63,6 @@ fraiseql-cdc-sinks = { workspace = true, features = [
   "cdc-nats-jetstream",
 ], optional = true }
 # FraiseQL observers (optional)
-fraiseql-federation = { workspace = true, optional = true }
 fraiseql-observers = { workspace = true, optional = true }
 # Secrets management and encryption
 fraiseql-secrets = { workspace = true, optional = true }
@@ -119,7 +115,6 @@ rmcp = { version = "3.5", default-features = false, features = [
   "transport-async-rw",
   "transport-streamable-http-server",
 ], optional = true }
-schemars = { version = "1", optional = true }
 # Embed static assets (studio SPA) into the binary
 rust-embed = { version = "8", features = ["interpolate-folder-path"] }
 # Serialization
@@ -290,7 +285,7 @@ grpc = [
   "dep:http-body",
   "dep:http-body-util",
 ]
-federation = ["fraiseql-core/federation", "dep:fraiseql-federation"]
+federation = ["fraiseql-core/federation"]
 # After-mutation function-trigger dispatch with a full I/O-capable host context
 # (outbound HTTP with an SSRF allowlist, secrets). Stable and semver-covered; kept
 # opt-in (not a default feature) so the stock binary stays lean — it pulls in the
@@ -351,7 +346,7 @@ sources = ["functions-runtime-deno", "observers"]
 # secrets and webhooks are opt-in: add them to your dependency features when needed.
 default = ["auth", "cli"]
 # MCP (Model Context Protocol) server
-mcp = ["dep:rmcp", "dep:schemars"]
+mcp = ["dep:rmcp"]
 metrics = ["dep:metrics-exporter-prometheus"]
 # Multi-database runtime support (#327).
 # Each flag enables the matching adapter in fraiseql-core / fraiseql-db so that

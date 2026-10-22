@@ -32,7 +32,7 @@ fraiseql (umbrella)
 | `server` | no | HTTP server | `dep:fraiseql-server` |
 | `cli` | no | CLI binary | `dep:fraiseql-cli` |
 | `observers` | no | Observer system | `dep:fraiseql-observers`, `fraiseql-server?/observers` |
-| `arrow` | no | Arrow Flight | `dep:fraiseql-arrow`, `fraiseql-core/arrow`, `server` |
+| `arrow` | no | Arrow Flight | `dep:fraiseql-arrow`, `server`, `fraiseql-server?/arrow` |
 | `wire` | no | Wire protocol streaming | `dep:fraiseql-wire`, `fraiseql-core/wire-backend` |
 | `minimal` | no | Core only, no backends | (empty) |
 
@@ -42,7 +42,6 @@ fraiseql (umbrella)
 |---------|---------|-------------|-----------|
 | `postgres` | yes | PostgreSQL backend | `fraiseql-db/postgres` |
 | `rich-filters` | yes | Rich scalar type filters (44 types) | `fraiseql-db/rich-filters` |
-| `arrow` | no | Arrow RecordBatch conversion | `dep:arrow`, `dep:arrow-array` |
 | `kafka` | no | Kafka integration | `dep:rdkafka` |
 | `redis-apq` | no | Redis-backed APQ cache | `dep:redis` |
 | `schema-lint` | no | Anti-pattern detection, cost analysis | (empty) |
@@ -59,7 +58,7 @@ fraiseql (umbrella)
 | `observers-nats` | no | NATS-backed observers | `observers`, `fraiseql-observers/nats` |
 | `observers-enterprise` | no | HA observer features | `observers`, `fraiseql-observers/enterprise`, `fraiseql-observers/nats` |
 | `arrow` | no | Arrow Flight server | `dep:fraiseql-arrow`, `dep:tonic` |
-| `mcp` | no | Model Context Protocol server | `dep:rmcp`, `dep:schemars` |
+| `mcp` | no | Model Context Protocol server | `dep:rmcp` |
 | `metrics` | no | Prometheus metrics | `dep:metrics`, `dep:metrics-exporter-prometheus` |
 | `tracing-opentelemetry` | no | OpenTelemetry tracing | `dep:opentelemetry`, `dep:opentelemetry_sdk`, `dep:opentelemetry-otlp`, `dep:tracing-opentelemetry` |
 | `redis-apq` | no | Redis APQ (pass-through) | `fraiseql-core/redis-apq` |
@@ -143,7 +142,7 @@ fraiseql (umbrella)
 | `aws-s3` | no | Amazon S3 backend | `dep:aws-sdk-s3`, `dep:aws-config` |
 | `gcs` | no | Google Cloud Storage backend | `dep:jsonwebtoken`, `dep:reqwest` |
 | `azure-blob` | no | Azure Blob Storage backend | `dep:reqwest`, `dep:hmac` |
-| `transforms` | no | Image transforms (resize, convert, EXIF) | `dep:image`, `dep:kamadak-exif` |
+| `transforms` | no | Image transforms (resize, convert) | `dep:image`, `dep:ab_glyph` |
 
 ### fraiseql-functions
 
@@ -151,8 +150,7 @@ fraiseql (umbrella)
 |---------|---------|-------------|-----------|
 | `runtime-wasm` | no | WebAssembly function runtime (Wasmtime) | `dep:wasmtime`, `dep:lru` |
 | `runtime-deno` | no | JavaScript/TypeScript runtime (Deno) | `dep:deno_core` |
-| `host-live` | no | Live SQL query host ops | `dep:fraiseql-core`, `dep:fraiseql-db` |
-| `host-storage` | no | Storage host ops | `dep:fraiseql-storage` |
+| `host-live` | no | Live SQL query host ops | `dep:fraiseql-core`, `dep:sqlparser`, `dep:reqwest` |
 | `function-secrets` | no | AES-256-GCM encrypted secrets store | `dep:aes-gcm`, `dep:rand`, `dep:base64` |
 
 ### fraiseql-webhooks
@@ -185,7 +183,7 @@ No feature flags defined. Internal crate (`publish = false`).
 
 | When you enable... | You also get... |
 |---|---|
-| `fraiseql/arrow` | `fraiseql/server`, `fraiseql-core/arrow` |
+| `fraiseql/arrow` | `fraiseql/server`, `fraiseql-server/arrow` |
 | `fraiseql/wire` | `fraiseql-core/wire-backend` |
 | `fraiseql-server/observers-enterprise` | `observers`, `fraiseql-observers/enterprise`, `fraiseql-observers/nats` |
 | `fraiseql-server/observers-nats` | `observers`, `fraiseql-observers/nats` |

@@ -205,10 +205,8 @@ var featureCombos = []featureCombo{
 
 	// ── functions: functions-matrix (cargo clippy -p fraiseql-functions --no-default-features) ──
 	{name: "functions-host-live", crate: "fraiseql-functions", noDefaultFeatures: true, clippy: true, features: []string{"host-live"}},
-	{name: "functions-host-storage", crate: "fraiseql-functions", noDefaultFeatures: true, clippy: true, features: []string{"host-storage"}},
 	{name: "functions-runtime-wasm", crate: "fraiseql-functions", noDefaultFeatures: true, clippy: true, features: []string{"runtime-wasm"}},
 	{name: "functions-runtime-deno", crate: "fraiseql-functions", noDefaultFeatures: true, clippy: true, features: []string{"runtime-deno"}},
-	{name: "functions-host-combined", crate: "fraiseql-functions", noDefaultFeatures: true, clippy: true, features: []string{"host-live", "host-storage"}},
 
 	// ── saga: the #429 orchestrator, feature-OFF arm ──────────────────────────
 	// #1354 moved this out of fraiseql-federation into its own crate and deleted the

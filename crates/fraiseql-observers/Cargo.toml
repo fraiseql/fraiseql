@@ -3,14 +3,12 @@ fraiseql-guard = { workspace = true }
 # NATS Dependencies
 async-nats = { version = "0.49", optional = true }
 async-trait = "0.1"
-base64 = "0.22"
 chrono = { workspace = true }
 dashmap = { workspace = true }
 fraiseql-error = { workspace = true }
 futures = "0.3"
 hex = { workspace = true }
 hmac = { workspace = true }
-http = "1.1"
 # SMTP for the email action (#349). rustls only — no OpenSSL (matches the
 # workspace TLS stack). Unconditional: it adds no new rustls version (reqwest
 # already pulls rustls here), and keeping it always-compiled means the
@@ -34,7 +32,6 @@ sha2 = "0.11"
 sqlx = { version = "0.8", features = ["runtime-tokio", "uuid", "chrono"] }
 thiserror = "2.0"
 tokio = { workspace = true }
-tokio-util = { version = "0.7", features = ["compat"], optional = true }
 tracing = "0.1"
 uuid = { workspace = true }
 
