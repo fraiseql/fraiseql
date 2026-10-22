@@ -18,6 +18,18 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **Studio's placeholder admin endpoints are removed (#1640).** Fifteen `/admin/v1/*` routes
+  could only ever answer `501 not_implemented`, and now answer `404`: the data browser
+  (`POST /admin/v1/data/{entity}/query`, `/mutate`), user listing, invitation and MFA status
+  (`GET /admin/v1/users`, `POST /admin/v1/users/invite`, `GET /admin/v1/users/{id}/mfa`), the
+  storage browser (`/admin/v1/storage/buckets`, `/admin/v1/storage/objects` GET and DELETE,
+  `/admin/v1/storage/objects/sign`) and function operations (`/admin/v1/functions`,
+  `/admin/v1/functions/{name}/invoke`, `/logs`, `/secrets`, `/secrets/{key}` PUT and
+  DELETE). Their request and response types in `fraiseql_server::routes::studio::{data,
+  function_ops, storage_browser, auth_users}` go with them. The Studio console stays: its
+  Auth, Storage and Functions tabs say these sections are not served yet, and
+  `/admin/v1/schema`, `/admin/v1/health/detailed`, `/admin/v1/metrics/summary` and
+  `POST /admin/v1/users/{id}/revoke` are unchanged.
 - **Unused dependencies and the features that only enabled them are gone (#1640).** The
   manifests drop 24 dependencies no code names (the 22 `cargo machete` found, plus
   `fraiseql-jwks` in fraiseql-auth and `lru` in fraiseql-core, which this release's

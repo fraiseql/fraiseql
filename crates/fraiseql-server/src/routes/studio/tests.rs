@@ -31,85 +31,6 @@ mod admin_tests {
     }
 }
 
-mod auth_users_tests {
-    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable assertions
-    use super::super::auth_users::*;
-
-    #[test]
-    fn test_user_list_response_serializes() {
-        let resp = UserListResponse {
-            users:     vec![],
-            total:     0,
-            page:      1,
-            page_size: 50,
-        };
-        let json = serde_json::to_string(&resp).unwrap();
-        assert!(json.contains("\"users\""));
-    }
-
-    #[test]
-    fn test_user_invite_request_parses() {
-        let input = r#"{"email":"a@b.com"}"#;
-        let req: UserInviteRequest = serde_json::from_str(input).unwrap();
-        assert_eq!(req.email, "a@b.com");
-    }
-}
-
-mod data_tests {
-    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable assertions
-    use super::super::data::*;
-
-    #[test]
-    fn test_data_query_response_serializes() {
-        let resp = DataQueryResponse {
-            rows:      vec![serde_json::json!({"id": 1})],
-            total:     1,
-            page:      1,
-            page_size: 50,
-        };
-        let json = serde_json::to_string(&resp).unwrap();
-        assert!(json.contains("\"rows\""));
-        assert!(json.contains("\"total\""));
-    }
-
-    #[test]
-    fn test_filter_op_round_trips() {
-        for (raw, expected) in [
-            ("\"eq\"", FilterOp::Eq),
-            ("\"contains\"", FilterOp::Contains),
-        ] {
-            let op: FilterOp = serde_json::from_str(raw).unwrap();
-            assert_eq!(op, expected);
-        }
-    }
-
-    #[test]
-    fn test_defaults() {
-        let q: DataBrowserQuery = serde_json::from_str("{}").unwrap();
-        assert_eq!(q.page, 1);
-        assert_eq!(q.page_size, 50);
-    }
-}
-
-mod function_ops_tests {
-    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable assertions
-    use super::super::function_ops::*;
-
-    #[test]
-    fn test_function_list_serializes() {
-        let resp = FunctionListResponse { functions: vec![] };
-        let json = serde_json::to_string(&resp).unwrap();
-        assert!(json.contains("\"functions\""));
-    }
-
-    #[test]
-    fn test_secret_set_request_parses() {
-        let input = r#"{"value":"s3cr3t"}"#;
-        let req: SecretSetRequest = serde_json::from_str(input).unwrap();
-        assert_eq!(req.value, "s3cr3t");
-    }
-}
-
 mod metrics_summary_tests {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable assertions
     #![allow(clippy::float_cmp)] // Reason: testing exact 0.0 from zero-division guards
@@ -230,8 +151,8 @@ mod mod_tests {
         }
     }
 
-    /// #373 — every shell tab has a renderer in the SPA source, and each of the
-    /// new tabs is wired to its real admin endpoint. `include_str!` makes a
+    /// #373 — every shell tab has a renderer in the SPA source, and each tab with
+    /// an admin API is wired to its real endpoint. `include_str!` makes a
     /// moved/renamed SPA source a build error, not a silent skip, and an
     /// endpoint rename (server-side) must be made here too or this pins it.
     #[test]
@@ -243,13 +164,25 @@ mod mod_tests {
             ("renderObservers", "/api/observers/delivery/health"),
             ("renderLogs", "/api/observers/logs"),
             ("renderData", "/admin/v1/schema"),
-            ("renderAuth", "/admin/v1/users"),
-            ("renderStorage", "/admin/v1/storage/buckets"),
-            ("renderFunctions", "/admin/v1/functions"),
             ("renderMetrics", "/admin/v1/metrics/summary"),
         ] {
             assert!(APP_TS.contains(section), "SPA must define {section}");
             assert!(APP_TS.contains(endpoint), "SPA must call {endpoint}");
+        }
+        // The tabs with no admin API say so, and call none of the removed routes.
+        for section in ["renderAuth", "renderStorage", "renderFunctions"] {
+            assert!(
+                APP_TS.contains(&format!("const {section} = notServedYet(")),
+                "SPA must render {section} as not served yet"
+            );
+        }
+        for removed in [
+            "/admin/v1/users'",
+            "/admin/v1/storage/",
+            "/admin/v1/functions",
+            "/admin/v1/data/",
+        ] {
+            assert!(!APP_TS.contains(removed), "SPA must not call the removed route {removed}");
         }
         // The DLQ retry ACTIONS are wired (the backend effect is pinned by
         // observers::dlq_handlers::tests::concurrent_retry_dispatches_at_most_once).
@@ -287,30 +220,5 @@ mod mod_tests {
     #[test]
     fn test_mime_for_css() {
         assert!(mime_for_filename("app.css").contains("css"));
-    }
-}
-
-mod storage_browser_tests {
-    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable assertions
-    use super::super::storage_browser::*;
-
-    #[test]
-    fn test_object_list_response_serializes() {
-        let resp = ObjectListResponse {
-            objects:   vec![],
-            total:     0,
-            page:      1,
-            page_size: 50,
-        };
-        let json = serde_json::to_string(&resp).unwrap();
-        assert!(json.contains("\"objects\""));
-    }
-
-    #[test]
-    fn test_presign_request_parses() {
-        let input = r#"{"bucket":"b","key":"k","expires_in_secs":60}"#;
-        let req: PresignRequest = serde_json::from_str(input).unwrap();
-        assert_eq!(req.bucket, "b");
-        assert_eq!(req.expires_in_secs, 60);
     }
 }

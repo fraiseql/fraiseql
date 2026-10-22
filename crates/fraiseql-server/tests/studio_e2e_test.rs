@@ -57,11 +57,7 @@ fn test_studio_shell_references_css() {
 fn test_all_admin_types_importable() {
     use fraiseql_server::routes::studio::{
         admin::{AdminHealthResponse, AdminSchemaResponse},
-        auth_users::{UserInviteRequest, UserListResponse},
-        data::{DataBrowserQuery, DataQueryResponse},
-        function_ops::{FunctionListResponse, SecretSetRequest},
         metrics_summary::MetricsSummary,
-        storage_browser::{ObjectListResponse, PresignRequest},
     };
 
     // Instantiate each type to ensure they're fully wired
@@ -77,43 +73,7 @@ fn test_all_admin_types_importable() {
     let _ = AdminSchemaResponse {
         schema: serde_json::Value::Null,
     };
-    let _ = UserListResponse {
-        users:     vec![],
-        total:     0,
-        page:      1,
-        page_size: 50,
-    };
-    let _ = UserInviteRequest {
-        email: String::new(),
-    };
-    let _ = DataQueryResponse {
-        rows:      vec![],
-        total:     0,
-        page:      1,
-        page_size: 50,
-    };
-    let _ = DataBrowserQuery {
-        page:      1,
-        page_size: 50,
-        filter:    vec![],
-        sort:      vec![],
-    };
-    let _ = FunctionListResponse { functions: vec![] };
-    let _ = SecretSetRequest {
-        value: String::new(),
-    };
     let _ = MetricsSummary::zero();
-    let _ = ObjectListResponse {
-        objects:   vec![],
-        total:     0,
-        page:      1,
-        page_size: 50,
-    };
-    let _ = PresignRequest {
-        bucket:          String::new(),
-        key:             String::new(),
-        expires_in_secs: 0,
-    };
 }
 
 /// Verify `GET /studio` path is distinct from `GET /studio/assets/{file}`.

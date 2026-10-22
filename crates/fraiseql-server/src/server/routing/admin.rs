@@ -124,18 +124,8 @@ impl Server {
             admin::{
                 health_handler as studio_health_handler, schema_handler as studio_schema_handler,
             },
-            auth_users::{
-                invite_user_handler, list_users_handler, mfa_status_handler, revoke_user_handler,
-            },
-            data::{mutate_handler as data_mutate_handler, query_handler as data_query_handler},
-            function_ops::{
-                delete_secret_handler, function_logs_handler, invoke_function_handler,
-                list_functions_handler, list_secrets_handler, set_secret_handler,
-            },
+            auth_users::revoke_user_handler,
             metrics_summary::summary_handler as metrics_summary_handler,
-            storage_browser::{
-                delete_object_handler, list_buckets_handler, list_objects_handler, presign_handler,
-            },
         };
         let auth = BearerAuthState::with_max_failures(
             token.to_string(),
@@ -145,28 +135,8 @@ impl Server {
             // Schema + health
             .route("/admin/v1/schema", get(studio_schema_handler))
             .route("/admin/v1/health/detailed", get(studio_health_handler))
-            // Data browser
-            .route("/admin/v1/data/{entity}/query", post(data_query_handler))
-            .route("/admin/v1/data/{entity}/mutate", post(data_mutate_handler))
-            // Auth user management
-            .route("/admin/v1/users", get(list_users_handler))
-            .route("/admin/v1/users/invite", post(invite_user_handler))
+            // Session revocation
             .route("/admin/v1/users/{id}/revoke", post(revoke_user_handler))
-            .route("/admin/v1/users/{id}/mfa", get(mfa_status_handler))
-            // Storage browser
-            .route("/admin/v1/storage/buckets", get(list_buckets_handler))
-            .route("/admin/v1/storage/objects", get(list_objects_handler))
-            .route("/admin/v1/storage/objects/sign", post(presign_handler))
-            .route("/admin/v1/storage/objects", axum::routing::delete(delete_object_handler))
-            // Function operations
-            .route("/admin/v1/functions", get(list_functions_handler))
-            .route("/admin/v1/functions/{name}/invoke", post(invoke_function_handler))
-            .route("/admin/v1/functions/{name}/logs", get(function_logs_handler))
-            .route("/admin/v1/functions/{name}/secrets", get(list_secrets_handler))
-            .route(
-                "/admin/v1/functions/{name}/secrets/{key}",
-                put(set_secret_handler).delete(delete_secret_handler),
-            )
             // Metrics summary
             .route("/admin/v1/metrics/summary", get(metrics_summary_handler))
             .route_layer(middleware::from_fn_with_state(auth, bearer_auth_middleware))
@@ -615,8 +585,8 @@ impl Server {
     /// `StorageState`, not `AppState` — but on the *same* token split as the
     /// rest of `/api/v1/admin`: reading which policy governs a bucket is a
     /// read-token operation, replacing or deleting it is a write-token one.
-    /// That separation is the reason this lives here rather than beside the
-    /// storage browser on Studio's single-token `/admin/v1/storage/*`.
+    /// That separation is the reason this lives here rather than on Studio's
+    /// single-token `/admin/v1/*`.
     ///
     /// Absent entirely when the deployment configures no storage, rather than
     /// answering 404 from a route that exists.

@@ -14,9 +14,13 @@
 //! without adding its expectation fails this test, and it cannot silently skip the
 //! way a runtime path lookup can.
 //!
-//! The two live cases (the RBAC-style ones) are here too: the revoke endpoint must
-//! perform a real revocation when a store is configured, asserted by reading the
-//! revocation table directly rather than by trusting the response body.
+//! The endpoints that could only ever answer `501` (data browser, user listing and
+//! invitation, MFA status, storage browser, function operations) were since removed;
+//! `REMOVED` pins that each of them is unmounted.
+//!
+//! The live case is here too: the revoke endpoint must perform a real revocation when
+//! a store is configured, asserted by reading the revocation table directly rather
+//! than by trusting the response body.
 //!
 //! Self-skips when no `DATABASE_URL` is set (no `#[ignore]`), so it is inert in the
 //! database-free `test` leg and runs in the Dagger `integration: server` suite.
@@ -62,25 +66,6 @@ const CORPUS: &[(&str, &str, &str, Expect)] = &[
     // (method, request path, route literal as written in the router, expectation)
     ("GET", "/admin/v1/schema", "/admin/v1/schema", Expect::Real),
     ("GET", "/admin/v1/health/detailed", "/admin/v1/health/detailed", Expect::Real),
-    (
-        "POST",
-        "/admin/v1/data/Widget/query",
-        "/admin/v1/data/{entity}/query",
-        Expect::NotImplemented,
-    ),
-    (
-        "POST",
-        "/admin/v1/data/Widget/mutate",
-        "/admin/v1/data/{entity}/mutate",
-        Expect::NotImplemented,
-    ),
-    ("GET", "/admin/v1/users", "/admin/v1/users", Expect::NotImplemented),
-    (
-        "POST",
-        "/admin/v1/users/invite",
-        "/admin/v1/users/invite",
-        Expect::NotImplemented,
-    ),
     // Real when a revocation store is configured; this server has none, so it must
     // refuse rather than report the revocation it cannot perform. The configured
     // case is asserted separately in `revoke_actually_revokes_when_a_store_is_configured`.
@@ -88,67 +73,6 @@ const CORPUS: &[(&str, &str, &str, Expect)] = &[
         "POST",
         "/admin/v1/users/u1/revoke",
         "/admin/v1/users/{id}/revoke",
-        Expect::NotImplemented,
-    ),
-    (
-        "GET",
-        "/admin/v1/users/u1/mfa",
-        "/admin/v1/users/{id}/mfa",
-        Expect::NotImplemented,
-    ),
-    (
-        "GET",
-        "/admin/v1/storage/buckets",
-        "/admin/v1/storage/buckets",
-        Expect::NotImplemented,
-    ),
-    (
-        "GET",
-        "/admin/v1/storage/objects?bucket=b",
-        "/admin/v1/storage/objects",
-        Expect::NotImplemented,
-    ),
-    (
-        "POST",
-        "/admin/v1/storage/objects/sign",
-        "/admin/v1/storage/objects/sign",
-        Expect::NotImplemented,
-    ),
-    (
-        "DELETE",
-        "/admin/v1/storage/objects",
-        "/admin/v1/storage/objects",
-        Expect::NotImplemented,
-    ),
-    ("GET", "/admin/v1/functions", "/admin/v1/functions", Expect::NotImplemented),
-    (
-        "POST",
-        "/admin/v1/functions/f/invoke",
-        "/admin/v1/functions/{name}/invoke",
-        Expect::NotImplemented,
-    ),
-    (
-        "GET",
-        "/admin/v1/functions/f/logs",
-        "/admin/v1/functions/{name}/logs",
-        Expect::NotImplemented,
-    ),
-    (
-        "GET",
-        "/admin/v1/functions/f/secrets",
-        "/admin/v1/functions/{name}/secrets",
-        Expect::NotImplemented,
-    ),
-    (
-        "PUT",
-        "/admin/v1/functions/f/secrets/K",
-        "/admin/v1/functions/{name}/secrets/{key}",
-        Expect::NotImplemented,
-    ),
-    (
-        "DELETE",
-        "/admin/v1/functions/f/secrets/K",
-        "/admin/v1/functions/{name}/secrets/{key}",
         Expect::NotImplemented,
     ),
     ("GET", "/admin/v1/metrics/summary", "/admin/v1/metrics/summary", Expect::Real),
@@ -182,6 +106,27 @@ fn body_for(path: &str) -> Option<Value> {
         None
     }
 }
+
+/// The routes that only ever answered `501` and were removed rather than kept as
+/// placeholders. Each must now be unmounted for an authenticated admin: a `404`, not a
+/// `501` from a stub that came back, and not a `401` that would hide which one it is.
+const REMOVED: &[(&str, &str)] = &[
+    ("POST", "/admin/v1/data/Widget/query"),
+    ("POST", "/admin/v1/data/Widget/mutate"),
+    ("GET", "/admin/v1/users"),
+    ("POST", "/admin/v1/users/invite"),
+    ("GET", "/admin/v1/users/u1/mfa"),
+    ("GET", "/admin/v1/storage/buckets"),
+    ("GET", "/admin/v1/storage/objects?bucket=b"),
+    ("POST", "/admin/v1/storage/objects/sign"),
+    ("DELETE", "/admin/v1/storage/objects"),
+    ("GET", "/admin/v1/functions"),
+    ("POST", "/admin/v1/functions/f/invoke"),
+    ("GET", "/admin/v1/functions/f/logs"),
+    ("GET", "/admin/v1/functions/f/secrets"),
+    ("PUT", "/admin/v1/functions/f/secrets/K"),
+    ("DELETE", "/admin/v1/functions/f/secrets/K"),
+];
 
 // ---------------------------------------------------------------------------
 // Harness
@@ -218,8 +163,9 @@ async fn drop_scratch(admin_url: &str, db: &str) {
     admin.close().await;
 }
 
-/// A compiled schema carrying one type, so `/admin/v1/data/Widget/*` reaches the
-/// handler rather than the entity-not-found guard.
+/// A compiled schema carrying one type, so a probe of the removed
+/// `/admin/v1/data/Widget/*` routes would reach a handler, were one mounted, rather
+/// than an entity-not-found guard.
 fn schema_json(token_revocation: Option<Value>) -> Value {
     let mut security = json!({});
     if let Some(cfg) = token_revocation {
@@ -449,6 +395,14 @@ async fn no_admin_endpoint_fabricates_success() {
                 "{method} {route} reported success without performing an operation: {body}"
             );
         }
+    }
+
+    for (method, path) in REMOVED {
+        let (status, body) = server.request(method, path, Some(ADMIN_TOKEN)).await;
+        assert_eq!(
+            status, 404,
+            "{method} {path} was removed and must not be mounted; got {status}: {body}"
+        );
     }
 
     server.shutdown().await;

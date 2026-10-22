@@ -113,49 +113,20 @@ async function renderData(el: HTMLElement): Promise<void> {
   }
 }
 
-async function renderAuth(el: HTMLElement): Promise<void> {
-  el.innerHTML = `<div class="section-placeholder">${skeleton(3)}</div>`;
-  try {
-    const r = await apiFetch('/admin/v1/users');
-    const data = await r.json() as {
-      users: { sub: string; email: string; provider: string; mfa_enrolled: boolean }[];
-      total: number;
-    };
+// Sections whose admin API does not exist yet. They render a statement of that
+// instead of calling an endpoint: the placeholder endpoints that answered 501 were
+// removed, and the console is rebuilt on the real admin APIs as they land.
+function notServedYet(title: string, what: string): (el: HTMLElement) => Promise<void> {
+  return async (el: HTMLElement): Promise<void> => {
     el.innerHTML = `
-      <h2>Auth Users <l-badge variant="neutral">${data.total}</l-badge></h2>
-      ${table(['sub', 'email', 'provider', 'mfa_enrolled'], data.users, 'No users found.')}`;
-  } catch {
-    el.innerHTML = emptyState('Auth management unavailable.');
-  }
+      <h2>${title}</h2>
+      ${emptyState(`${what} is not served by the admin API yet.`)}`;
+  };
 }
 
-async function renderStorage(el: HTMLElement): Promise<void> {
-  el.innerHTML = `<div class="section-placeholder">${skeleton(3)}</div>`;
-  try {
-    const r = await apiFetch('/admin/v1/storage/buckets');
-    const data = await r.json() as { buckets: { name: string; object_count: number }[] };
-    el.innerHTML = `
-      <h2>Storage Buckets</h2>
-      ${table(['name', 'object_count'], data.buckets, 'No buckets configured.')}`;
-  } catch {
-    el.innerHTML = emptyState('Storage browser unavailable.');
-  }
-}
-
-async function renderFunctions(el: HTMLElement): Promise<void> {
-  el.innerHTML = `<div class="section-placeholder">${skeleton(3)}</div>`;
-  try {
-    const r = await apiFetch('/admin/v1/functions');
-    const data = await r.json() as {
-      functions: { name: string; version: number; runtime: string; status: string }[];
-    };
-    el.innerHTML = `
-      <h2>Deployed Functions</h2>
-      ${table(['name', 'version', 'runtime', 'status'], data.functions, 'No functions deployed.')}`;
-  } catch {
-    el.innerHTML = emptyState('Function operations unavailable.');
-  }
-}
+const renderAuth = notServedYet('Auth Users', 'User management');
+const renderStorage = notServedYet('Storage', 'The storage browser');
+const renderFunctions = notServedYet('Functions', 'Function operations');
 
 async function renderMetrics(el: HTMLElement): Promise<void> {
   el.innerHTML = `<div class="section-placeholder">${skeleton(4)}</div>`;

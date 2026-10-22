@@ -1,119 +1,16 @@
-//! Auth user management endpoints for the Studio dashboard.
+//! Session revocation for the Studio dashboard.
 //!
-//! Routes under `/admin/v1/users/*` expose user listing, invitation,
-//! session revocation, and MFA status. All routes are protected by
-//! the admin bearer token middleware.
+//! `POST /admin/v1/users/{id}/revoke` revokes every active session of a user
+//! through the server's token revocation store. It is protected by the admin
+//! bearer token middleware.
 
 use axum::{
     Json,
     extract::{Path, State},
     response::{IntoResponse, Response},
 };
-use serde::{Deserialize, Serialize};
 
 use crate::routes::{graphql::app_state::AppState, studio::not_implemented};
-
-// ---------------------------------------------------------------------------
-// User record
-// ---------------------------------------------------------------------------
-
-/// A single user record in the admin user list.
-///
-/// Agreed response shape with the Luxen UI author.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AdminUser {
-    /// OIDC subject identifier.
-    pub sub:          String,
-    /// User email address.
-    pub email:        String,
-    /// Identity provider (e.g. `"google"`, `"email"`, `"github"`).
-    pub provider:     String,
-    /// Account creation timestamp (RFC 3339).
-    pub created_at:   String,
-    /// Most recent sign-in timestamp (RFC 3339), or `None` if never signed in.
-    pub last_sign_in: Option<String>,
-    /// Whether the user has enrolled a TOTP or `WebAuthn` MFA factor.
-    pub mfa_enrolled: bool,
-}
-
-// ---------------------------------------------------------------------------
-// Response types
-// ---------------------------------------------------------------------------
-
-/// Paginated user list response agreed with the Luxen UI author.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct UserListResponse {
-    /// Users on this page.
-    pub users:     Vec<AdminUser>,
-    /// Total user count across all pages.
-    pub total:     u64,
-    /// Current page number (1-indexed).
-    pub page:      u32,
-    /// Users per page.
-    pub page_size: u32,
-}
-
-// ---------------------------------------------------------------------------
-// Request types
-// ---------------------------------------------------------------------------
-
-/// Request body for `POST /admin/v1/users/invite`.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct UserInviteRequest {
-    /// Email address to send the magic-link invitation to.
-    pub email: String,
-}
-
-/// Response body for `POST /admin/v1/users/invite`.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct UserInviteResponse {
-    /// Whether the invite was successfully sent.
-    pub success: bool,
-    /// Human-readable message.
-    pub message: String,
-}
-
-// ---------------------------------------------------------------------------
-// Handlers
-// ---------------------------------------------------------------------------
-
-/// `GET /admin/v1/users` — paginated user list.
-///
-/// Answers `501`: FraiseQL has no user directory of its own — identities come from
-/// the configured identity provider — so there is nothing to enumerate. This used to answer
-/// `{"users": [], "total": 0}`, which reads as "this deployment has no users".
-///
-/// # Errors
-///
-/// Returns `401` without valid admin credentials (enforced by middleware).
-/// Returns `501` — see above.
-pub async fn list_users_handler(State(_state): State<AppState>) -> Response {
-    not_implemented(
-        "studio.users.list",
-        "FraiseQL does not maintain a user directory; identities are owned by the \
-         configured identity provider. Enumerate users there.",
-    )
-}
-
-/// `POST /admin/v1/users/invite` — send magic-link invitation.
-///
-/// Answers `501`: there is no invitation subsystem. It used to answer
-/// `{"success": true, "message": "Invitation queued for …"}` with nothing queued.
-///
-/// # Errors
-///
-/// Returns `401` without valid admin credentials (enforced by middleware).
-/// Returns `501` — see above.
-pub async fn invite_user_handler(
-    State(_state): State<AppState>,
-    Json(_req): Json<UserInviteRequest>,
-) -> Response {
-    not_implemented(
-        "studio.users.invite",
-        "No invitation subsystem is wired: FraiseQL does not send magic links. Invite \
-         users through the configured identity provider.",
-    )
-}
 
 /// `POST /admin/v1/users/{id}/revoke` — revoke all of a user's active sessions.
 ///
@@ -165,20 +62,4 @@ pub async fn revoke_user_handler(
                 .into_response()
         },
     }
-}
-
-/// `GET /admin/v1/users/{id}/mfa` — MFA enrollment details.
-///
-/// # Errors
-///
-/// Returns `401` without valid admin credentials (enforced by middleware).
-/// Returns `501` — MFA enrollment state is not exposed through the admin API.
-pub async fn mfa_status_handler(
-    Path(_user_id): Path<String>,
-    State(_state): State<AppState>,
-) -> Response {
-    not_implemented(
-        "studio.users.mfa",
-        "MFA enrollment state is not exposed through the admin API.",
-    )
 }

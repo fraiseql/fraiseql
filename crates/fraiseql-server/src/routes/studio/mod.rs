@@ -7,10 +7,7 @@
 
 pub mod admin;
 pub mod auth_users;
-pub mod data;
-pub mod function_ops;
 pub mod metrics_summary;
-pub mod storage_browser;
 
 use axum::{
     extract::Path,
@@ -158,20 +155,14 @@ pub async fn studio_asset_handler(Path(file): Path<String>) -> Response {
 
 /// The one way an admin endpoint declines to do something it cannot do.
 ///
-/// Five Studio write endpoints used to answer `{"success": true}` while performing
-/// no side effect at all — session revocation, secret set/delete, row mutation and
-/// user invitation (#749) — and six read endpoints answered with a hard-coded empty
-/// collection, which asserts "there are none" rather than "this is not wired". An
-/// operator responding to an account compromise was told every session was revoked
-/// while the attacker's tokens kept validating.
+/// Session revocation used to answer `{"success": true}` without touching the
+/// revocation store (#749): an operator responding to an account compromise was told
+/// every session was revoked while the attacker's tokens kept validating. A
+/// deployment with no revocation store answers this instead.
 ///
-/// Routing every unwired endpoint through one helper means the honest answer is the
-/// path of least resistance, and `git grep not_implemented` is the inventory of what
-/// the Studio API does not yet do.
-///
-/// `501` rather than `404`: the route exists and is documented; what is missing is
-/// the subsystem behind it. A `404` would be indistinguishable from a typo in the
-/// path.
+/// `501` rather than `404`: the route exists; what is missing is the subsystem
+/// behind it in this deployment. A `404` would be indistinguishable from a typo in
+/// the path.
 pub(crate) fn not_implemented(what: &str, detail: &str) -> Response {
     (
         StatusCode::NOT_IMPLEMENTED,

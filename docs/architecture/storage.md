@@ -328,8 +328,7 @@ that permits nothing, distinct from having no policy at all.
 `admin_readonly_token`, `PUT`/`DELETE` take `admin_token`. An operator can hand
 out the ability to inspect what governs a bucket without handing out the
 ability to change it. (This is why the endpoint lives on `/api/v1/admin/*` and
-not beside the Studio storage browser at `/admin/v1/storage/*`, which is a
-single-token surface.)
+not on Studio's `/admin/v1/*`, which is a single-token surface.)
 
 A push applies immediately on the replica that served it; other replicas pick
 it up within 30 seconds. A stored row that this server cannot parse — one

@@ -352,8 +352,8 @@ async fn put_get_delete_round_trip_reports_the_governing_source() {
 /// The token split is real in both directions: reading which policy governs is
 /// a read-token operation, changing it is not.
 ///
-/// This is the reason the endpoint lives on `/api/v1/admin` rather than beside
-/// the Studio storage browser. If the split did not hold, an operator handing
+/// This is the reason the endpoint lives on `/api/v1/admin` rather than on
+/// Studio's single-token `/admin/v1`. If the split did not hold, an operator handing
 /// out the read-only token would be handing out the ability to rewrite every
 /// bucket's access control.
 #[tokio::test]

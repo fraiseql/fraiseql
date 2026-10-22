@@ -6,11 +6,10 @@
 //! DELETE /api/v1/admin/storage/{bucket}/policies   (write token)
 //! ```
 //!
-//! # Why this surface and not `/admin/v1/storage/*`
+//! # Why this surface and not Studio's `/admin/v1/*`
 //!
-//! The storage *browser* lives at `/admin/v1/storage/*`, which is the Studio UI
-//! surface behind a single token. `/api/v1/admin/*` is the operational Admin
-//! API, where reads and writes are separately tokenable
+//! `/admin/v1/*` is the Studio UI surface behind a single token. `/api/v1/admin/*` is the
+//! operational Admin API, where reads and writes are separately tokenable
 //! (`admin_readonly_token` / `admin_token`). A bucket's access policy is a
 //! security control: an operator must be able to hand out the ability to
 //! *inspect* what governs a bucket without handing out the ability to *change*
