@@ -564,6 +564,9 @@ func (m *FraiseqlCi) ShellGates(
 		// filesystem, not `git ls-files`, which is empty in this container.
 		"make lint-module-reachability",
 		"make test-module-reachability-gate",
+		// #1640: every public library module is used by a binary or allowlisted.
+		"make lint-pub-mod-callers",
+		"make test-pub-mod-callers-gate",
 		// A published SDK's lockfile may not pin a version its manifest no longer
 		// claims (#1225): the 2.15.0 bump edited the SDK manifests and left
 		// fraiseql-python's uv.lock and fraiseql-rust's Cargo.lock at 2.14.1.

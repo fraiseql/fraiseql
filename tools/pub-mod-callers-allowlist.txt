@@ -1,0 +1,133 @@
+# Public library modules that no binary uses, and why each may stay.
+# Read by tools/check-pub-mod-callers.py. One entry per line: <module> <kind> <reason>.
+#
+#   test-support  exists for tests; some test, example or doctest must still use it
+#   api           an embedder entry point; some test, example or doctest must still use it
+#   pending       wired or deleted by the issue the reason cites (#N)
+#
+# An entry covers the module and everything under it. An entry for a module a binary
+# uses, or for one that no longer exists, fails the gate: drop the line in the commit
+# that wires or deletes the module.
+
+# ── Test support ─────────────────────────────────────────────────────────────────────
+fraiseql_test_support test-support shared fixtures, sample schemas and service doubles for the PG suites
+fraiseql_test_utils test-support assertions, schema builders and the failing adapter for the server suites
+fraiseql_observers::testing test-support observer doubles, compiled only with the `testing` feature
+fraiseql_server::testing test-support server doubles, compiled only with the `testing` feature
+fraiseql_webhooks::testing test-support webhook signing fixtures for provider tests
+fraiseql_guard::net::vectors test-support the outbound-address corpus every SSRF guard is tested against
+
+# ── Embedder entry points ────────────────────────────────────────────────────────────
+fraiseql::prelude api the facade's glob import for embedders
+fraiseql_core::prelude api the engine's glob import for embedders
+fraiseql_server::prelude api the server's glob import for embedders
+
+# ── Deleted by M1 (WP-1.2) ───────────────────────────────────────────────────────────
+fraiseql_observers::arrow_bridge pending superseded by the CDC sinks; deleted by #1640
+fraiseql_observers::cached_executor pending superseded by K3; deleted by #1640
+fraiseql_observers::dedup pending superseded by K3; deleted by #1640
+fraiseql_observers::deduped_executor pending superseded by K3; deleted by #1640
+fraiseql_observers::elasticsearch_sink pending superseded by the CDC sinks; deleted by #1640
+fraiseql_observers::factory pending superseded by the server's observer runtime; deleted by #1640
+fraiseql_observers::job_queue pending superseded by K3; deleted by #1640
+fraiseql_observers::listener::coordinator pending superseded by K3; deleted by #1640
+fraiseql_observers::listener::failover pending superseded by K3; deleted by #1640
+fraiseql_observers::queue pending superseded by K3; deleted by #1640
+fraiseql_observers::queued_executor pending superseded by K3; deleted by #1640
+fraiseql_observers::search pending superseded by the CDC sinks; deleted by #1640
+fraiseql_core::compiler::enum_validator pending superseded by the cli compiler; deleted by #1640
+fraiseql_core::compiler::ir pending superseded by the cli compiler; deleted by #1640
+fraiseql_core::compiler::parser pending superseded by the cli compiler; deleted by #1640
+fraiseql_core::compiler::validator pending superseded by the cli compiler; deleted by #1640
+fraiseql_core::cache::cascade_response_parser pending superseded by live invalidation; deleted by #1640
+fraiseql_core::cache::query_analyzer pending superseded by live invalidation; deleted by #1640
+fraiseql_core::cache::uuid_extractor pending superseded by live invalidation; deleted by #1640
+fraiseql_core::security::error_formatter pending superseded by the server's error sanitizer; deleted by #1640
+fraiseql_core::security::headers pending superseded by the server's middleware; deleted by #1640
+fraiseql_core::security::profiles pending superseded by the server's security config; deleted by #1640
+fraiseql_core::security::validation_audit pending superseded by the server's audit; deleted by #1640
+fraiseql_core::validation::async_validators pending superseded by ValidationRule; deleted by #1640
+fraiseql_core::validation::elo_rust_integration pending ELO, superseded by ValidationRule; deleted by #1640
+fraiseql_core::validation::js_codegen pending superseded by fraiseql-codegen; deleted by #1640
+fraiseql_core::validation::error_responses pending used by nothing, not even a test; deleted by #1640
+fraiseql_core::schema::introspection_types pending used by nothing, not even a test; deleted by #1640
+fraiseql_cli::schema::advanced_types pending used by nothing, not even a test; deleted by #1640
+fraiseql_server::arrow::executor_wrapper pending used by nothing, not even a test; deleted by #1640
+fraiseql_server::testing::runtime_testing pending an empty module; deleted by #1640
+fraiseql_functions::runtime::deno::tests pending a test module compiled into the library; made cfg(test) by #1640
+fraiseql_auth::error_sanitizer pending superseded by the server's sanitizer; deleted by #1640
+fraiseql_auth::jwks pending the OAuth client's JWKS view, goes with oauth; deleted by #1640
+fraiseql_auth::oauth pending superseded by oidc_provider; deleted by #1640
+fraiseql_auth::operation_rbac pending superseded by rbac_management; deleted by #1640
+fraiseql_auth::proxy pending superseded by the server's middleware; deleted by #1640
+fraiseql_test_utils::db pending a re-export of the real crate; deleted by #1640
+fraiseql_test_utils::fixtures pending superseded by the real crates; deleted by #1640
+fraiseql_test_utils::mock_db pending superseded by the real crates; deleted by #1640
+fraiseql_test_utils::observers pending superseded by the real crates; deleted by #1640
+fraiseql_test_utils::saga pending a double only its own suite tests; deleted by #1640
+
+# ── Promoted, rebuilt or deleted by a later milestone ────────────────────────────────
+fraiseql_server::routes::grpc pending not mounted in any binary; mounted through admit() by #1642
+fraiseql_wire pending removed with its db adapter by #1642
+fraiseql_db::fraiseql_wire_adapter pending removed with fraiseql-wire by #1642
+fraiseql_db::wire_pool pending removed with fraiseql-wire by #1642
+fraiseql_saga pending rebuilt as workflows on the durable-work kernel by #1645
+fraiseql_observers::resilience pending replaced by the breaker in fraiseql-guard by #1645
+fraiseql_core::validation::checksum pending a leaf check, enforced through the input walker by #1635
+fraiseql_core::validation::compile_time pending compile-time rule checks, wired into the compiler by #1635
+fraiseql_core::validation::composite pending composite rules, enforced through the input walker by #1635
+fraiseql_core::validation::cross_field pending cross-field rules, enforced through the input walker by #1635
+fraiseql_core::validation::custom_scalar pending custom scalars become rule bundles by #1635
+fraiseql_core::validation::date_validators pending a leaf check, enforced through the input walker by #1635
+fraiseql_core::validation::inheritance pending rule inheritance, enforced through the input walker by #1635
+fraiseql_core::validation::input_object pending the input-object walk, enforced by #1635
+fraiseql_core::validation::mutual_exclusivity pending a composite rule, enforced through the input walker by #1635
+fraiseql_core::validation::rich_scalars pending leaf checks, enforced through the input walker by #1635
+fraiseql_core::validation::scalar_validator pending leaf checks, enforced through the input walker by #1635
+fraiseql_core::validation::validators pending leaf checks, enforced through the input walker by #1635
+fraiseql_core::runtime::input_validator pending validate_input has no caller; replaced by the walker by #1635
+fraiseql_core::security::field_masking pending absorbed as FieldDenyPolicy::Redact by #626
+fraiseql_auth::audit::chain pending rebuilt in Postgres under an advisory lock by #1630
+fraiseql_auth::audit::logger::bounds pending part of the audit rebuild by #1630
+fraiseql_core::security::audit pending part of the audit rebuild by #1630
+fraiseql_core::security::audit_export_syslog pending becomes an audit sink by #1630
+fraiseql_core::security::audit_export_webhook pending becomes an audit sink by #1630
+fraiseql_functions::triggers::storage pending after:storage dispatch by #1654
+
+# ── No work package yet: triage in #1681 ─────────────────────────────────────────────
+fraiseql_auth::providers::auth0 pending merged into generic OIDC config; triage #1681
+fraiseql_auth::providers::azure_ad pending merged into generic OIDC config; triage #1681
+fraiseql_auth::providers::keycloak pending merged into generic OIDC config; triage #1681
+fraiseql_auth::providers::logto pending merged into generic OIDC config; triage #1681
+fraiseql_auth::providers::okta pending merged into generic OIDC config; triage #1681
+fraiseql_auth::providers::ory pending merged into generic OIDC config; triage #1681
+fraiseql_auth::monitoring pending rebuilt as auth event counters; triage #1681
+fraiseql_auth::phone_otp pending no plan names it; triage #1681
+fraiseql_core::security::kms pending moves into fraiseql-secrets as a KeyProvider; triage #1681
+fraiseql_federation::composition_validator pending a gateway-only piece; triage #1681
+fraiseql_federation::connection_manager pending a gateway-only piece; triage #1681
+fraiseql_federation::dependency_graph pending a gateway-only piece; triage #1681
+fraiseql_federation::direct_db_resolver pending a gateway-only piece; triage #1681
+fraiseql_federation::health pending a gateway-only piece; triage #1681
+fraiseql_federation::http_resolver pending a gateway-only piece fraiseql-saga imports; triage #1681
+fraiseql_federation::tls pending a gateway-only piece fraiseql-saga imports; triage #1681
+fraiseql_storage::graphql pending generated storage types, never mounted; triage #1681
+fraiseql_storage::service pending a policy wrapper, never mounted; triage #1681
+fraiseql_functions::triggers::http pending no request kind dispatches it; triage #1681
+fraiseql_arrow::clickhouse_sink pending its row mapping ports into a CDC sink kind; triage #1681
+fraiseql_arrow::event_schema pending no plan names it; triage #1681
+fraiseql_core::http pending no plan names it; triage #1681
+fraiseql_core::graphql::fragments pending no plan names it; triage #1681
+fraiseql_core::graphql::require_permission_directive pending no plan names it; triage #1681
+fraiseql_core::utils::opaque_id pending no plan names it; triage #1681
+fraiseql_core::runtime::query_tracing pending no plan names it; triage #1681
+fraiseql_core::runtime::sql_logger pending no plan names it; triage #1681
+fraiseql_core::runtime::tenant_enforcer pending no plan names it; triage #1681
+fraiseql_core::cache::cascade_metadata pending no plan names it; triage #1681
+fraiseql_core::cache::entity_key pending no plan names it; triage #1681
+fraiseql_core::tenancy pending no plan names it; triage #1681
+fraiseql_server::logging pending no plan names it; triage #1681
+fraiseql_server::observers::config pending no plan names it; triage #1681
+fraiseql_observers::logging pending no plan names it; triage #1681
+fraiseql_observers::listener::state pending no plan names it; triage #1681
+fraiseql_observers::transport::postgres_notify pending no plan names it; triage #1681
