@@ -1,6 +1,5 @@
 //! Azure Active Directory (Entra) OAuth / OIDC provider implementation.
 use async_trait::async_trait;
-use serde::Deserialize;
 use serde_json::json;
 
 use crate::{
@@ -17,28 +16,6 @@ use crate::{
 pub struct AzureADOAuth {
     oidc:   OidcProvider,
     tenant: String,
-}
-
-/// Azure AD user information
-#[derive(Debug, Clone, Deserialize)]
-pub struct AzureADUser {
-    /// Object ID — the immutable, unique user identifier in Azure AD (`oid` claim)
-    pub oid:                String,
-    /// User principal name (UPN), typically `user@domain.com`
-    pub preferred_username: Option<String>,
-    /// Primary email address (may differ from UPN in some tenants)
-    pub email:              Option<String>,
-    /// User's display name as configured in Azure AD
-    pub name:               Option<String>,
-    /// Given (first) name
-    pub given_name:         Option<String>,
-    /// Surname (family / last name)
-    pub surname:            Option<String>,
-    /// Job title from the directory
-    #[serde(rename = "jobTitle")]
-    pub job_title:          Option<String>,
-    /// Department from the directory
-    pub department:         Option<String>,
 }
 
 impl AzureADOAuth {

@@ -270,7 +270,6 @@
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
   jwt.rs                  JWT decode + verify (jsonwebtoken)
-  jwks.rs                 JWKS endpoint client + key cache
   pkce.rs                 PKCE code verifier / challenge
   state_store.rs          PKCE state store abstraction
   state_encryption.rs     PKCE state AES-GCM encryption (constant-time)
@@ -278,23 +277,12 @@
   session_postgres.rs     Postgres-backed session store
   audit/                  Audit logger (actor model)
   constant_time.rs        Timing-attack-safe comparison (subtle crate)
-  error_sanitizer.rs      Auth error message scrubbing
-  operation_rbac.rs       Operation-level RBAC enforcement
-  middleware.rs           Auth middleware composition
+  middleware.rs           AuthError → HTTP response mapping
   monitoring.rs           Auth subsystem health metrics
   provider.rs             OAuthProvider trait
   oidc_provider.rs        OIDC discovery + token endpoint
   oidc_server_client.rs   OIDC client (server-side flow)
   rate_limiting.rs        Auth-specific rate limiting (token bucket)
-
-  oauth/                  OAuth 2.0 flow
-    client.rs             HTTP client wrapper
-    pkce.rs               OAuth PKCE extension
-    failover.rs           Provider failover / retry
-    provider.rs           Provider selection
-    refresh.rs            Token refresh
-    audit.rs              OAuth event auditing
-    types.rs              OAuth token types
 
   providers/              Built-in IdP integrations
     auth0, azure_ad, github, google, keycloak, logto, okta, ory
@@ -432,7 +420,7 @@
                       db/where_clause, db/identifier            quoting, dialect coverage
 
   Auth & AuthZ        fraiseql-auth/, security/, middleware/    PKCE, constant-time,
-                      auth.rs, oidc_*, operation_rbac           RBAC, token lifecycle
+                      auth.rs, oidc_*, rbac_management          RBAC, token lifecycle
 
   Secrets             fraiseql-secrets/encryption/,             rotation, key scope,
                       secrets_manager/backends/                 audit, Vault renewal
@@ -452,8 +440,8 @@
   Observability       tracing_utils, middleware/trace,          span propagation,
                       metrics_server, config/tracing            OTLP export, sampling
 
-  Error Handling      fraiseql-error, core/security/error_fmt,  sanitization,
-                      auth/error_sanitizer                      no-leak policy
+  Error Handling      fraiseql-error,                           sanitization,
+                      server/config/error_sanitization          no-leak policy
 
   TLS / Transport     server/tls.rs, config/ (tls paths),       cert reload, cipher
                       fraiseql-wire/connection                  suites, mTLS paths

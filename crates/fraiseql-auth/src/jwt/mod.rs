@@ -216,88 +216,6 @@ impl JwtValidator {
         Ok(self)
     }
 
-    /// Validate a JWT token and extract claims
-    ///
-    /// # Arguments
-    /// * `token` - The JWT token string
-    /// * `key` - The public key bytes for signature verification
-    ///
-    /// # Errors
-    /// Returns various errors: invalid token, expired token, invalid signature, etc.
-    pub fn validate(&self, token: &str, key: &[u8]) -> Result<Claims> {
-        let decoding_key = DecodingKey::from_rsa_pem(key).map_err(|e| AuthError::InvalidToken {
-            reason: format!("Failed to parse public key: {}", e),
-        })?;
-
-        let token_data = decode::<Claims>(token, &decoding_key, &self.validation).map_err(|e| {
-            use jsonwebtoken::errors::ErrorKind;
-            let error = match e.kind() {
-                ErrorKind::ExpiredSignature => AuthError::TokenExpired,
-                ErrorKind::InvalidSignature => AuthError::InvalidSignature,
-                ErrorKind::InvalidIssuer => AuthError::InvalidToken {
-                    reason: format!("Invalid issuer, expected: {}", self.issuer),
-                },
-                ErrorKind::MissingRequiredClaim(claim) => AuthError::MissingClaim {
-                    claim: claim.clone(),
-                },
-                _ => AuthError::InvalidToken {
-                    reason: e.to_string(),
-                },
-            };
-
-            // Audit log: JWT validation failure
-            let audit_logger = get_audit_logger();
-            audit_logger.log_failure(
-                AuditEventType::JwtValidation,
-                SecretType::JwtToken,
-                None, // Subject not yet known at this point
-                "validate",
-                &e.to_string(),
-            );
-
-            error
-        })?;
-
-        let claims = token_data.claims;
-
-        // Additional validation: check if token is expired (redundant but explicit)
-        if claims.is_expired() {
-            let audit_logger = get_audit_logger();
-            audit_logger.log_failure(
-                AuditEventType::JwtValidation,
-                SecretType::JwtToken,
-                Some(claims.sub),
-                "validate",
-                "Token expired",
-            );
-            return Err(AuthError::TokenExpired);
-        }
-
-        // Temporal claims validation: iat staleness/skew and nbf not-before (S40).
-        if let Err(e) = claims.validate_temporal_claims() {
-            let audit_logger = get_audit_logger();
-            audit_logger.log_failure(
-                AuditEventType::JwtValidation,
-                SecretType::JwtToken,
-                Some(claims.sub),
-                "validate",
-                &e.to_string(),
-            );
-            return Err(e);
-        }
-
-        // Audit log: JWT validation success
-        let audit_logger = get_audit_logger();
-        audit_logger.log_success(
-            AuditEventType::JwtValidation,
-            SecretType::JwtToken,
-            Some(claims.sub.clone()),
-            "validate",
-        );
-
-        Ok(claims)
-    }
-
     /// Validate with HMAC secret (symmetric key)
     ///
     /// # Arguments
@@ -305,7 +223,8 @@ impl JwtValidator {
     /// * `secret` - The shared secret for HMAC algorithms
     ///
     /// # Errors
-    /// Returns various errors similar to `validate`
+    /// Returns `AuthError::TokenExpired`, `AuthError::InvalidSignature`,
+    /// `AuthError::MissingClaim` or `AuthError::InvalidToken`.
     pub fn validate_hmac(&self, token: &str, secret: &[u8]) -> Result<Claims> {
         let decoding_key = DecodingKey::from_secret(secret);
 
@@ -325,7 +244,7 @@ impl JwtValidator {
                 },
             };
 
-            // Audit log: JWT validation failure (parity with `validate`; L-validate-hmac).
+            // Audit log: JWT validation failure.
             let audit_logger = get_audit_logger();
             audit_logger.log_failure(
                 AuditEventType::JwtValidation,

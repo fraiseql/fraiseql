@@ -40,11 +40,8 @@ use crate::{
 /// Extract the user's roles from the (signature-verified) JWT custom claims.
 ///
 /// Reads, in order, the scalar `role` claim, the `roles` array, and the
-/// `fraiseql_roles` array, then sorts and de-duplicates. This mirrors the
-/// claim names honoured by `fraiseql_auth::operation_rbac` so the GraphQL
-/// `requires_role` gate and the observer-admin RBAC engine agree on what a
-/// token grants. Without this, `SecurityContext.roles` was always empty and
-/// every `requires_role` operation was unreachable over HTTP (#503).
+/// `fraiseql_roles` array, then sorts and de-duplicates. Without this, `SecurityContext.roles` was
+/// always empty and every `requires_role` operation was unreachable over HTTP (#503).
 fn roles_from_claims(extra_claims: &HashMap<String, serde_json::Value>) -> Vec<String> {
     let mut roles = Vec::new();
 

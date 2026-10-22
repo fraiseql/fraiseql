@@ -1,96 +1,11 @@
-//! Authentication middleware for Axum request handlers.
-use std::sync::Arc;
+//! The HTTP response every `AuthError` maps to.
 
 use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
 };
-use serde::{Deserialize, Serialize};
 
-use crate::{
-    error::{AuthError, Result},
-    jwt::{Claims, JwtValidator},
-};
-
-/// Authenticated user extracted from JWT token
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AuthenticatedUser {
-    /// User ID from token claims
-    pub user_id: String,
-    /// Full JWT claims
-    pub claims:  Claims,
-}
-
-impl AuthenticatedUser {
-    /// Get a custom claim from the JWT
-    #[must_use]
-    pub fn get_custom_claim(&self, key: &str) -> Option<&serde_json::Value> {
-        self.claims.get_custom(key)
-    }
-
-    /// Check if user has a specific role
-    #[must_use]
-    pub fn has_role(&self, role: &str) -> bool {
-        if let Some(serde_json::Value::String(user_role)) = self.claims.get_custom("role") {
-            user_role == role
-        } else if let Some(serde_json::Value::Array(roles)) = self.claims.get_custom("roles") {
-            roles.iter().any(|r| {
-                if let serde_json::Value::String(r_str) = r {
-                    r_str == role
-                } else {
-                    false
-                }
-            })
-        } else {
-            false
-        }
-    }
-}
-
-/// Authentication middleware configuration
-pub struct AuthMiddleware {
-    validator:  Arc<JwtValidator>,
-    public_key: Vec<u8>,
-}
-
-impl AuthMiddleware {
-    /// Create a new authentication middleware
-    ///
-    /// # Arguments
-    /// * `validator` - JWT validator
-    /// * `public_key` - Public key for JWT signature verification
-    ///
-    /// Note: this type validates a presented Bearer token. The previous
-    /// `session_store` and `optional` parameters were never consulted (no
-    /// session-revocation check, no optional-auth handling), so they were removed
-    /// rather than continue to advertise behavior that did not exist
-    /// (L-authmw-ignores). Optional/anonymous handling belongs at the request layer;
-    /// session-revocation checks belong on the refresh-token path.
-    #[must_use]
-    pub const fn new(validator: Arc<JwtValidator>, public_key: Vec<u8>) -> Self {
-        Self {
-            validator,
-            public_key,
-        }
-    }
-
-    /// Validate a Bearer token and extract claims.
-    ///
-    /// # Errors
-    ///
-    /// Returns `AuthError::InvalidToken` if the token signature is invalid,
-    /// expired, or does not match the expected issuer/audience.
-    /// Returns `AuthError::KeyError` if the public key cannot be used for
-    /// verification.
-    // Reason: the awaitable signature is this crate's seam for key material that
-    // has to be fetched — `fraiseql_jwks::JwksSource` refreshes over the network. Only
-    // static-public-key path resolves without I/O, and narrowing the signature to
-    // it would have to be widened again by the first JWKS-backed validator.
-    #[allow(unknown_lints, clippy::unused_async_trait_impl)]
-    pub async fn validate_token(&self, token: &str) -> Result<Claims> {
-        self.validator.validate(token, &self.public_key)
-    }
-}
+use crate::error::AuthError;
 
 impl AuthError {
     /// Map each error variant to its HTTP response parts.

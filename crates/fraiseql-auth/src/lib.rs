@@ -11,24 +11,19 @@ pub mod anonymous;
 pub mod audit;
 pub mod constant_time;
 pub mod error;
-pub mod error_sanitizer;
 pub mod handlers;
-pub mod jwks;
 pub mod jwt;
 pub mod local_password;
 pub mod middleware;
 pub mod monitoring;
 pub mod multi_provider;
-pub mod oauth;
 pub mod oidc_provider;
 pub mod oidc_server_client;
-pub mod operation_rbac;
 pub mod otp;
 pub mod phone_otp;
 pub mod pkce;
 pub mod provider;
 pub mod providers;
-pub mod proxy;
 pub mod rate_limiting;
 #[cfg(feature = "auth-saml")]
 pub mod saml;
@@ -87,9 +82,6 @@ pub use axum;
 pub use chrono;
 pub use constant_time::ConstantTimeOps;
 pub use error::{AuthError, Result};
-pub use error_sanitizer::{
-    AuthErrorSanitizer, Sanitize, SanitizedError, messages as error_messages,
-};
 pub use handlers::{
     AuthCallbackQuery, AuthLogoutRequest, AuthRefreshRequest, AuthStartRequest, AuthState,
     auth_callback, auth_logout, auth_refresh, auth_start,
@@ -99,7 +91,6 @@ pub use jsonwebtoken;
 /// `jsonwebtoken::Algorithm`, which `JwtValidator::new` takes — the crate's own
 /// documented first line needs it in scope (#1198).
 pub use jsonwebtoken::Algorithm;
-pub use jwks::{JwksError, JwksSource};
 pub use jwt::{Claims, JwtValidator, generate_hs256_token};
 pub use local_password::{
     EMAIL_VERIFICATION_SCHEMA_SQL, EMAIL_VERIFICATION_TOKEN_TTL_SECS, EmailVerified,
@@ -110,21 +101,13 @@ pub use local_password::{
         local_password_routes,
     },
 };
-pub use middleware::{AuthMiddleware, AuthenticatedUser};
 pub use monitoring::{AuthEvent, AuthMetrics, OperationTimer};
 pub use multi_provider::{
     AuthTokenResponse, AuthorizeQuery, CallbackQuery, MultiProviderAuthState, ProvidersResponse,
     authorize, callback, list_providers,
 };
-pub use oauth::{
-    AuthorizationRequest, ExternalAuthProvider, IdTokenClaims, NonceParameter, OAuth2Client,
-    OAuth2ClientConfig, OAuthAuditEvent, OAuthSession, OIDCClient, OIDCProviderConfig,
-    PKCEChallenge, ProviderFailoverManager, ProviderRegistry, ProviderType, StateParameter,
-    TokenRefreshScheduler, TokenRefreshWorker, TokenRefresher,
-};
 pub use oidc_provider::OidcProvider;
 pub use oidc_server_client::{OidcServerClient, OidcTokenResponse};
-pub use operation_rbac::{OperationPermission, RBACPolicy, Role};
 pub use otp::{
     EmailDelivery, InMemoryOtpStore, NoopEmailDelivery, OtpRequest, OtpResponse, OtpRouteState,
     OtpStore, VerifyRequest, otp_send, otp_verify,
@@ -140,7 +123,6 @@ pub use providers::{
     AppleOAuth, AzureADOAuth, DiscordOAuth, FacebookOAuth, GitHubOAuth, GoogleOAuth, KeycloakOAuth,
     create_provider,
 };
-pub use proxy::ProxyConfig;
 pub use rate_limiting::{AuthRateLimitConfig, Clock, KeyedRateLimiter, RateLimiters, SystemClock};
 /// The `redis` this crate's public API is built against (#1198).
 #[cfg(any(feature = "redis-pkce", feature = "redis-rate-limiting"))]

@@ -29,11 +29,6 @@ fraiseql_server::arrow::executor_wrapper pending used by nothing, not even a tes
 fraiseql_server::testing::runtime_testing pending an empty module; deleted by #1640
 fraiseql_server::routes::api::openapi pending a hand-written literal no route serves; rebuilt from the route table in WP-7.5, deleted by #1640
 fraiseql_functions::runtime::deno::tests pending a test module compiled into the library; made cfg(test) by #1640
-fraiseql_auth::error_sanitizer pending superseded by the server's sanitizer; deleted by #1640
-fraiseql_auth::jwks pending the OAuth client's JWKS view, goes with oauth; deleted by #1640
-fraiseql_auth::oauth pending superseded by oidc_provider; deleted by #1640
-fraiseql_auth::operation_rbac pending superseded by rbac_management; deleted by #1640
-fraiseql_auth::proxy pending superseded by the server's middleware; deleted by #1640
 fraiseql_test_utils::db pending a re-export of the real crate; deleted by #1640
 fraiseql_test_utils::fixtures pending superseded by the real crates; deleted by #1640
 fraiseql_test_utils::mock_db pending superseded by the real crates; deleted by #1640

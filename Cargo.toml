@@ -405,7 +405,7 @@ unused_variables = "warn"
 [workspace.metadata.crate-size-budget]
 fraiseql = 2_000
 fraiseql-arrow = 15_000
-fraiseql-auth = 48_000        # re-baselined #1055 (was 25_000, actual 39_201)
+fraiseql-auth = 35_000        # lowered after the superseded OAuth client, middleware, proxy, sanitizer and RBAC copies went (#1640; was 48_000, actual 33_012)
 fraiseql-cdc-sinks = 10_000
 fraiseql-cli = 58_000         # re-baselined #1055 (was 40_000, actual 48_681)
 fraiseql-codegen = 8_000      # first budget; the crate predates #1055 and had none

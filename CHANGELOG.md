@@ -18,6 +18,18 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **`fraiseql-auth` drops the copies the server and `oidc_provider` supersede (#1640).**
+  Removed: the `oauth` module (`OAuth2Client`, `OIDCClient`, `OAuthSession`, refresh,
+  failover and audit), `jwks` (re-exports of `fraiseql_jwks`, which stays), `proxy`
+  (`ProxyConfig`), `error_sanitizer` (`AuthErrorSanitizer`, `Sanitize`,
+  `SanitizedError`), `operation_rbac` (`RBACPolicy`, `OperationPermission`, `Role`),
+  `AuthMiddleware`, the crate's own `AuthenticatedUser`, and `JwtValidator::validate`, the
+  RS256 twin of `validate_hmac` that only `AuthMiddleware` called. The unused provider
+  claim structs `Auth0User`, `Auth0Roles`, `AzureADUser`, `GoogleUser`,
+  `GoogleWorkspaceGroup`, `KeycloakTokenClaims`, `ClientRoles`, `OktaUser` and
+  `OktaGroups` are removed too. `AuthError` still maps to an HTTP response through
+  `IntoResponse`.
+
 - **`fraiseql-core` drops the copies a live owner supersedes (#1640).** The CLI compiles
   schemas, the cache invalidates through `CachedDatabaseAdapter` and its cascade
   invalidator, the server owns TLS, headers, error sanitization and rate limiting, and
