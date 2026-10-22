@@ -203,9 +203,11 @@ pub struct FunctionDefinition {
     pub trigger:    String,
     /// Which runtime executes this function.
     pub runtime:    RuntimeType,
-    /// Optional timeout in milliseconds (overrides defaults).
-    /// - For `before:mutation` triggers: defaults to 500ms
-    /// - For other triggers: defaults to 5s
+    /// The function's wall-clock ceiling in milliseconds, honoured on every trigger
+    /// kind ([`ResourceLimits::for_function`], #1627). Absent: 5 s.
+    /// - A `before:mutation` hook is also capped by the chain budget (500 ms by default), which
+    ///   bounds the whole chain.
+    /// - A `request:query` function with none falls back to the request budget.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub timeout_ms: Option<u64>,
 
@@ -307,22 +309,6 @@ impl FunctionDefinition {
         self
     }
 
-    /// Get the effective timeout for this function.
-    #[must_use]
-    pub fn effective_timeout(&self) -> Duration {
-        match self.timeout_ms {
-            Some(ms) => Duration::from_millis(ms),
-            None => {
-                // before:mutation defaults to 500ms; others default to 5s
-                if self.trigger.starts_with("before:mutation") {
-                    Duration::from_millis(500)
-                } else {
-                    Duration::from_secs(5)
-                }
-            },
-        }
-    }
-
     /// The module file this definition resolves to under `module_dir`, if one is
     /// there — [`RuntimeType::resolve_module_path`] for the declared runtime and name,
     /// the one rule for where code lives (#1325, #1399).
@@ -339,42 +325,6 @@ impl FunctionDefinition {
     #[must_use]
     pub fn module_path_pattern(&self, module_dir: &Path) -> String {
         self.runtime.module_path_pattern(module_dir, &self.name)
-    }
-
-    /// Check if this function is a before:mutation trigger.
-    #[must_use]
-    pub fn is_before_mutation(&self) -> bool {
-        self.trigger.starts_with("before:mutation:")
-    }
-
-    /// Check if this function is an after:mutation trigger.
-    #[must_use]
-    pub fn is_after_mutation(&self) -> bool {
-        self.trigger.starts_with("after:mutation:")
-    }
-
-    /// Check if this function is an after:storage trigger.
-    #[must_use]
-    pub fn is_after_storage(&self) -> bool {
-        self.trigger.starts_with("after:storage:")
-    }
-
-    /// Check if this function is an after:ingest trigger.
-    #[must_use]
-    pub fn is_after_ingest(&self) -> bool {
-        self.trigger == "after:ingest" || self.trigger.starts_with("after:ingest:")
-    }
-
-    /// Check if this function is a cron trigger.
-    #[must_use]
-    pub fn is_cron(&self) -> bool {
-        self.trigger.starts_with("cron:")
-    }
-
-    /// Check if this function is an HTTP trigger.
-    #[must_use]
-    pub fn is_http(&self) -> bool {
-        self.trigger.starts_with("http:")
     }
 }
 
@@ -485,6 +435,23 @@ impl Default for ResourceLimits {
             max_memory_bytes: 128 * 1024 * 1024,      // 128 MB
             max_duration:     Duration::from_secs(5), // 5 seconds
             max_log_entries:  10_000,
+        }
+    }
+}
+
+impl ResourceLimits {
+    /// The limits a function runs under: its declared `timeout_ms` as the duration
+    /// ceiling, every other limit at its default (#1627).
+    ///
+    /// The one rule for every trigger kind. A caller with a tighter ceiling of its
+    /// own — the `before:mutation` chain budget, the `request:query` budget — lowers
+    /// `max_duration` from here, never raises it.
+    #[must_use]
+    pub fn for_function(definition: &FunctionDefinition) -> Self {
+        let default = Self::default();
+        Self {
+            max_duration: definition.timeout_ms.map_or(default.max_duration, Duration::from_millis),
+            ..default
         }
     }
 }

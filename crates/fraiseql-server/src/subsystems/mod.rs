@@ -109,6 +109,12 @@ pub struct BeforeMutationHooks {
     /// Populated from the compiled schema's function definitions.
     #[cfg(feature = "functions-runtime")]
     pub run_as: std::collections::HashMap<String, fraiseql_functions::RunAs>,
+
+    /// Per-function resource limits (#1627), keyed by function name, each derived by
+    /// [`ResourceLimits::for_function`](fraiseql_functions::ResourceLimits::for_function)
+    /// from the function's definition. Read through [`limits_for`](Self::limits_for).
+    #[cfg(feature = "functions-runtime")]
+    pub function_limits: std::collections::HashMap<String, fraiseql_functions::ResourceLimits>,
 }
 
 impl BeforeMutationHooks {
@@ -148,7 +154,19 @@ impl BeforeMutationHooks {
             idempotency_key: None,
             #[cfg(feature = "functions-runtime")]
             run_as: std::collections::HashMap::new(),
+            #[cfg(feature = "functions-runtime")]
+            function_limits: std::collections::HashMap::new(),
         }
+    }
+
+    /// The resource limits `function` runs under, whatever triggered it (#1627): its
+    /// declared limits, or the defaults for a function with no definition (a source
+    /// connector that is not also a declared function, or hooks an embedder assembled
+    /// by hand).
+    #[cfg(feature = "functions-runtime")]
+    #[must_use]
+    pub fn limits_for(&self, function: &str) -> fraiseql_functions::ResourceLimits {
+        self.function_limits.get(function).cloned().unwrap_or_default()
     }
 
     /// Attach the HMAC subkey that signs the per-dispatch idempotency token.
@@ -243,6 +261,14 @@ impl FunctionsSubsystem {
             .map(|def| (def.name.clone(), def.timeout_ms))
             .collect();
 
+        // #1627: every function's limits, whatever its trigger kind.
+        let function_limits = self
+            .config
+            .definitions
+            .iter()
+            .map(|def| (def.name.clone(), fraiseql_functions::ResourceLimits::for_function(def)))
+            .collect();
+
         BeforeMutationHooks {
             trigger_registry: self.trigger_registry,
             request_query_timeouts,
@@ -254,6 +280,7 @@ impl FunctionsSubsystem {
             email_transport: None,
             idempotency_key: None,
             run_as,
+            function_limits,
         }
     }
 }

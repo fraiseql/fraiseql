@@ -369,6 +369,47 @@ impl CronPoller {
     }
 }
 
+/// A `cron:` function the server can schedule: its trigger, parsed schedule, loaded
+/// module, and the limits it runs under (its declared `timeout_ms`, #1627).
+struct Schedulable<'a> {
+    trigger:  &'a CronTrigger,
+    schedule: CronSchedule,
+    module:   FunctionModule,
+    limits:   ResourceLimits,
+}
+
+/// The `cron:` functions in `hooks` that can be scheduled: a trigger whose expression
+/// does not parse is skipped with a warning, and one whose module never loaded is
+/// skipped. Pure, so what a poller is built from is testable without a database.
+fn schedulable(hooks: &BeforeMutationHooks) -> Vec<Schedulable<'_>> {
+    hooks
+        .trigger_registry
+        .cron_triggers
+        .iter()
+        .filter_map(|trigger| {
+            let schedule = match CronSchedule::parse(&trigger.schedule) {
+                Ok(schedule) => schedule,
+                Err(error) => {
+                    warn!(
+                        function = %trigger.function_name,
+                        expression = %trigger.schedule,
+                        %error,
+                        "invalid cron schedule — skipping function"
+                    );
+                    return None;
+                },
+            };
+            let module = hooks.module_registry.get(&trigger.function_name).cloned()?;
+            Some(Schedulable {
+                trigger,
+                schedule,
+                module,
+                limits: hooks.limits_for(&trigger.function_name),
+            })
+        })
+        .collect()
+}
+
 /// Build one [`CronPoller`] per `cron:` function in the compiled schema (#595).
 ///
 /// Each poller runs under the function's `run_as` identity (via
@@ -389,27 +430,16 @@ pub async fn build_cron_pollers(
     executor: &crate::query_bridge::ExecutorSource,
     hooks: &BeforeMutationHooks,
     host_config: &HostContextConfig,
-    limits: &ResourceLimits,
 ) -> Result<Vec<CronPoller>, sqlx::Error> {
     let cron_state = PgCronState::new(db_pool.clone());
     let mut pollers = Vec::new();
-    for trigger in &hooks.trigger_registry.cron_triggers {
-        let schedule = match CronSchedule::parse(&trigger.schedule) {
-            Ok(schedule) => schedule,
-            Err(error) => {
-                warn!(
-                    function = %trigger.function_name,
-                    expression = %trigger.schedule,
-                    %error,
-                    "invalid cron schedule — skipping function"
-                );
-                continue;
-            },
-        };
-        let Some(module) = hooks.module_registry.get(&trigger.function_name).cloned() else {
-            continue;
-        };
-
+    for Schedulable {
+        trigger,
+        schedule,
+        module,
+        limits,
+    } in schedulable(hooks)
+    {
         // The function's mutations run under its `run_as` ceiling (fail-closed
         // when absent); the request-id correlates the function in the audit
         // envelope, matching the sources pattern.
@@ -436,7 +466,7 @@ pub async fn build_cron_pollers(
             ),
             cron_state.clone(),
             host_config.clone(),
-            limits.clone(),
+            limits,
             hooks.idempotency_key.clone(),
             initial_state,
         ));

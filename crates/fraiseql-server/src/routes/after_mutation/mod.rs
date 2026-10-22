@@ -1021,7 +1021,7 @@ fn spawn_dispatch(
 }
 
 /// The durable dispatcher the plans of one trigger share, tagged with `source`, before each
-/// plan's own `run_as` ceiling is set ([`plan_dispatcher`]).
+/// plan's own `run_as` ceiling and limits are set ([`plan_dispatcher`]).
 #[cfg(feature = "functions-runtime")]
 fn base_dispatcher(
     hooks: &BeforeMutationHooks,
@@ -1032,6 +1032,7 @@ fn base_dispatcher(
     DurableDispatcher {
         observer: std::sync::Arc::clone(&hooks.observer),
         host_config: host_context_config(),
+        // Set per-plan by `plan_dispatcher`, from the function's definition (#1627).
         limits: fraiseql_functions::ResourceLimits::default(),
         dlq: std::sync::Arc::clone(&hooks.dlq),
         source,
@@ -1051,6 +1052,9 @@ fn base_dispatcher(
 /// `hooks.run_as` (#594), so its `fraiseql_query` bridge — built via the factory —
 /// writes under that function's identity (or fail-closed anonymous when the function
 /// declares none).
+///
+/// It also runs under the function's own resource limits (#1627): a declared
+/// `timeout_ms` bounds the invocation, as it does on every other trigger kind.
 #[cfg(feature = "functions-runtime")]
 fn plan_dispatcher(
     base: &DurableDispatcher,
@@ -1059,6 +1063,7 @@ fn plan_dispatcher(
 ) -> (DurableDispatcher, FunctionDispatchSetting) {
     let mut dispatcher = base.clone();
     dispatcher.run_as = hooks.run_as.get(&plan.module.name).cloned();
+    dispatcher.limits = hooks.limits_for(&plan.module.name);
     let setting = hooks.dispatch_settings.get(&plan.module.name).cloned().unwrap_or_default();
     (dispatcher, setting)
 }

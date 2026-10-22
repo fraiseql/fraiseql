@@ -1131,3 +1131,62 @@ mod after_capture {
         assert_ne!(first, other, "a different captured row derives a different token");
     }
 }
+
+// ── #1627: a function's declared `timeout_ms` bounds its after-trigger dispatch ──
+
+#[cfg(feature = "functions-runtime")]
+mod declared_limits {
+    use std::time::Duration;
+
+    use super::{
+        super::{base_dispatcher, plan_dispatcher},
+        *,
+    };
+    use crate::{schema::loader::FunctionsConfig, subsystems::FunctionsSubsystem};
+
+    /// Hooks resolved from `definitions` through the boot seam the server uses, so the
+    /// declared limits travel the same path they do in production.
+    fn hooks_from(definitions: Vec<FunctionDefinition>) -> BeforeMutationHooks {
+        let trigger_registry =
+            TriggerRegistry::load_from_definitions(&definitions).expect("valid triggers");
+        let module_registry =
+            definitions.iter().map(|def| (def.name.clone(), module(&def.name))).collect();
+        FunctionsSubsystem {
+            observer: Arc::new(FunctionObserver::new()),
+            trigger_registry,
+            module_registry,
+            config: FunctionsConfig {
+                module_dir: "/functions".into(),
+                dlq_store: None,
+                definitions,
+            },
+        }
+        .into_before_mutation_hooks()
+    }
+
+    /// The `max_duration` the after:mutation dispatcher gives `createOrder`'s function.
+    fn dispatched_max_duration(def: FunctionDefinition) -> Duration {
+        let hooks = hooks_from(vec![def]);
+        let plans = plan(&hooks, "Order", &insert("tb_order"), &json!({ "id": 1 }));
+        assert_eq!(plans.len(), 1, "the trigger matches the committed insert");
+        let base =
+            base_dispatcher(&hooks, fraiseql_observers::DispatchSource::AfterMutation, None, None);
+        let (dispatcher, _setting) = plan_dispatcher(&base, &hooks, &plans[0]);
+        dispatcher.limits.max_duration
+    }
+
+    #[test]
+    fn a_declared_timeout_bounds_the_after_mutation_dispatch() {
+        let def =
+            FunctionDefinition::new("onOrder", "after:mutation:Order:insert", RuntimeType::Wasm)
+                .with_timeout(100);
+        assert_eq!(dispatched_max_duration(def), Duration::from_millis(100));
+    }
+
+    #[test]
+    fn an_undeclared_timeout_keeps_the_default() {
+        let def =
+            FunctionDefinition::new("onOrder", "after:mutation:Order:insert", RuntimeType::Wasm);
+        assert_eq!(dispatched_max_duration(def), Duration::from_secs(5));
+    }
+}

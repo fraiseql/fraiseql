@@ -132,3 +132,22 @@ fn function_definition_round_trips_when_predicates() {
     let value = serde_json::to_value(&bare).expect("serialize");
     assert!(value.get("when").is_none(), "empty when is omitted from the wire form");
 }
+
+/// #1627: the one rule every trigger kind derives its limits from.
+#[test]
+fn resource_limits_for_a_function_take_its_declared_timeout() {
+    let declared =
+        FunctionDefinition::new("onOrder", "after:mutation:Order:insert", RuntimeType::Wasm)
+            .with_timeout(100);
+    let limits = ResourceLimits::for_function(&declared);
+    assert_eq!(limits.max_duration, Duration::from_millis(100));
+    assert_eq!(limits.max_memory_bytes, ResourceLimits::default().max_memory_bytes);
+}
+
+#[test]
+fn resource_limits_for_a_function_without_a_timeout_are_the_defaults() {
+    let undeclared =
+        FunctionDefinition::new("onOrder", "after:mutation:Order:insert", RuntimeType::Wasm);
+    let limits = ResourceLimits::for_function(&undeclared);
+    assert_eq!(limits.max_duration, ResourceLimits::default().max_duration);
+}

@@ -1522,78 +1522,6 @@ fn test_function_definition_creation() {
     );
     assert_eq!(func.name, "onUserCreated");
     assert_eq!(func.trigger, "after:mutation:createUser");
-    assert!(func.is_after_mutation());
-    assert!(!func.is_cron());
-}
-
-/// Test: function definition trigger detection
-#[test]
-fn test_function_definition_trigger_detection() {
-    use crate::{FunctionDefinition, RuntimeType};
-
-    let after_mutation =
-        FunctionDefinition::new("test", "after:mutation:createUser", RuntimeType::Deno);
-    assert!(after_mutation.is_after_mutation());
-    assert!(!after_mutation.is_before_mutation());
-
-    let before_mutation =
-        FunctionDefinition::new("test", "before:mutation:validateUser", RuntimeType::Deno);
-    assert!(before_mutation.is_before_mutation());
-    assert!(!before_mutation.is_after_mutation());
-
-    let cron = FunctionDefinition::new("test", "cron:0 * * * *", RuntimeType::Deno);
-    assert!(cron.is_cron());
-
-    let http = FunctionDefinition::new("test", "http:GET:/hello", RuntimeType::Deno);
-    assert!(http.is_http());
-
-    let storage =
-        FunctionDefinition::new("test", "after:storage:avatars:upload", RuntimeType::Deno);
-    assert!(storage.is_after_storage());
-}
-
-/// Test: function definition effective timeout
-#[test]
-fn test_function_definition_effective_timeout() {
-    use std::time::Duration;
-
-    use crate::{FunctionDefinition, RuntimeType};
-
-    let before_mutation =
-        FunctionDefinition::new("test", "before:mutation:createUser", RuntimeType::Deno);
-    assert_eq!(before_mutation.effective_timeout(), Duration::from_millis(500));
-
-    let after_mutation =
-        FunctionDefinition::new("test", "after:mutation:createUser", RuntimeType::Deno);
-    assert_eq!(after_mutation.effective_timeout(), Duration::from_secs(5));
-
-    let custom =
-        FunctionDefinition::new("test", "http:GET:/hello", RuntimeType::Deno).with_timeout(1000);
-    assert_eq!(custom.effective_timeout(), Duration::from_secs(1));
-}
-
-/// Test: trigger registry loads function definitions
-#[test]
-fn test_trigger_registry_loads_definitions() {
-    use crate::{FunctionDefinition, RuntimeType};
-
-    let functions = [
-        FunctionDefinition::new("onUserCreated", "after:mutation:createUser", RuntimeType::Deno),
-        FunctionDefinition::new(
-            "validateUserInput",
-            "before:mutation:createUser",
-            RuntimeType::Deno,
-        ),
-        FunctionDefinition::new("getUser", "http:GET:/users/:id", RuntimeType::Deno),
-        FunctionDefinition::new("dailyReport", "cron:0 2 * * *", RuntimeType::Deno),
-    ];
-
-    assert_eq!(functions.len(), 4);
-    assert_eq!(functions[0].name, "onUserCreated");
-    assert!(functions[0].is_after_mutation());
-    assert!(functions[1].is_before_mutation());
-    assert!(functions[2].is_http());
-    assert!(functions[3].is_cron());
 }
 
 /// Test: trigger registry validates trigger format
@@ -1618,20 +1546,6 @@ fn test_trigger_registry_validates_format() {
     }
 }
 
-/// Test: trigger registry identifies multiple triggers of same type
-#[test]
-fn test_trigger_registry_multiple_same_type() {
-    use crate::{FunctionDefinition, RuntimeType};
-
-    let functions = [
-        FunctionDefinition::new("onUserCreated", "after:mutation:createUser", RuntimeType::Deno),
-        FunctionDefinition::new("onUserUpdated", "after:mutation:updateUser", RuntimeType::Deno),
-        FunctionDefinition::new("onUserDeleted", "after:mutation:deleteUser", RuntimeType::Deno),
-    ];
-
-    assert_eq!(functions.iter().filter(|f| f.is_after_mutation()).count(), 3);
-}
-
 // ===== INTEGRATION TESTS =====
 // Tests that verify multiple trigger types work together in realistic scenarios
 
@@ -1653,7 +1567,6 @@ fn test_mutation_with_before_hook_validation() {
         "email": "alice@example.com"
     });
 
-    assert!(validation_hook.is_before_mutation());
     assert_eq!(validation_hook.name, "validateUserInput");
 
     // In integration: this hook would receive input, validate, return Proceed or Abort
@@ -1672,8 +1585,6 @@ fn test_mutation_with_before_and_after_hooks() {
     let after_hook =
         FunctionDefinition::new("logCreated", "after:mutation:createUser", RuntimeType::Deno);
 
-    assert!(before_hook.is_before_mutation());
-    assert!(after_hook.is_after_mutation());
     assert_eq!(before_hook.name, "validateCreate");
     assert_eq!(after_hook.name, "logCreated");
 
@@ -1696,9 +1607,6 @@ fn test_after_mutation_and_storage_trigger_cascade() {
     let storage_hook =
         FunctionDefinition::new("processAvatar", "after:storage:avatars:upload", RuntimeType::Deno);
 
-    assert!(mutation_hook.is_after_mutation());
-    assert!(storage_hook.is_after_storage());
-
     // Both hooks are properly recognized
     assert_eq!(mutation_hook.name, "onAvatarUpload");
     assert_eq!(storage_hook.name, "processAvatar");
@@ -1714,56 +1622,9 @@ fn test_cron_and_http_trigger_coexist() {
     let http_endpoint =
         FunctionDefinition::new("getMetrics", "http:GET:/metrics", RuntimeType::Deno);
 
-    assert!(cron_job.is_cron());
-    assert!(http_endpoint.is_http());
-
     // Both can coexist without conflict
     assert_ne!(cron_job.name, http_endpoint.name);
     assert_ne!(cron_job.trigger, http_endpoint.trigger);
-}
-
-/// Test: before:mutation timeout during cascade
-/// Scenario: before:mutation hook times out → mutation aborted
-#[test]
-fn test_before_mutation_timeout_during_cascade() {
-    use crate::{FunctionDefinition, RuntimeType};
-
-    let before_hook =
-        FunctionDefinition::new("slowValidation", "before:mutation:deleteUser", RuntimeType::Deno);
-
-    // Effective timeout should be 500ms default for before:mutation hooks
-    let effective_timeout = before_hook.effective_timeout();
-    assert_eq!(effective_timeout.as_millis(), 500);
-
-    // If timeout is exceeded, mutation should be aborted (fail-closed)
-    assert!(before_hook.is_before_mutation());
-}
-
-/// Test: trigger registry startup with all trigger types
-/// Scenario: load schema with all 5 trigger types → all initialized correctly
-#[test]
-fn test_trigger_registry_startup_with_all_types() {
-    use crate::{FunctionDefinition, RuntimeType};
-
-    let functions = [
-        // after:mutation
-        FunctionDefinition::new("onUserCreated", "after:mutation:createUser", RuntimeType::Deno),
-        // before:mutation
-        FunctionDefinition::new("validateUser", "before:mutation:createUser", RuntimeType::Deno),
-        // after:storage
-        FunctionDefinition::new("processFile", "after:storage:uploads:upload", RuntimeType::Deno),
-        // cron
-        FunctionDefinition::new("hourlySync", "cron:0 * * * *", RuntimeType::Deno),
-        // http
-        FunctionDefinition::new("apiHandler", "http:POST:/api/process", RuntimeType::Deno),
-    ];
-
-    // Verify all trigger types are recognized
-    assert_eq!(functions.iter().filter(|f| f.is_after_mutation()).count(), 1);
-    assert_eq!(functions.iter().filter(|f| f.is_before_mutation()).count(), 1);
-    assert_eq!(functions.iter().filter(|f| f.is_after_storage()).count(), 1);
-    assert_eq!(functions.iter().filter(|f| f.is_cron()).count(), 1);
-    assert_eq!(functions.iter().filter(|f| f.is_http()).count(), 1);
 }
 
 /// Test: graceful shutdown with all trigger types
@@ -1795,29 +1656,9 @@ fn test_trigger_error_recovery() {
 
     // Both functions are properly registered despite potential failure in one
     assert_eq!(functions.len(), 2);
-    assert!(functions[0].is_after_mutation());
-    assert!(functions[1].is_after_mutation());
 
     // Error in one should not prevent the other from executing
     // This is verified at runtime via observer pipeline
-}
-
-/// Test: http trigger enforces auth context correctly
-/// Scenario: HTTP endpoint enforces authentication requirements
-#[test]
-fn test_http_trigger_with_auth_context() {
-    use crate::{FunctionDefinition, RuntimeType};
-
-    let public_endpoint =
-        FunctionDefinition::new("publicMetrics", "http:GET:/public/metrics", RuntimeType::Deno);
-    let protected_endpoint =
-        FunctionDefinition::new("adminPanel", "http:GET:/admin/dashboard", RuntimeType::Deno);
-
-    assert!(public_endpoint.is_http());
-    assert!(protected_endpoint.is_http());
-
-    // Both endpoints are registered as HTTP triggers
-    // In runtime integration: routes would be mounted with appropriate auth middleware
 }
 
 /// Test: cron trigger with storage cascade
@@ -1829,9 +1670,6 @@ fn test_cron_with_storage_cascade() {
     let cron_job = FunctionDefinition::new("backupDaily", "cron:0 3 * * *", RuntimeType::Deno);
     let storage_trigger =
         FunctionDefinition::new("archiveBackup", "after:storage:backups:upload", RuntimeType::Deno);
-
-    assert!(cron_job.is_cron());
-    assert!(storage_trigger.is_after_storage());
 
     // Cron job can trigger storage operations, which in turn fire storage triggers
     assert_ne!(cron_job.name, storage_trigger.name);

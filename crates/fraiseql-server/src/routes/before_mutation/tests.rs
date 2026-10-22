@@ -288,3 +288,51 @@ async fn the_gate_applies_its_budget() {
         "the gate must refuse: {error:?}"
     );
 }
+
+// ---- per-hook limits (#1627) -----------------------------------------------
+
+#[cfg(feature = "functions-runtime")]
+mod hook_limits {
+    use std::time::Duration;
+
+    use fraiseql_functions::ResourceLimits;
+
+    use super::*;
+
+    /// A gate over `guarded`, whose hook `guard_guarded` declares `timeout_ms`.
+    fn gate(timeout_ms: Option<u64>, budget_ms: u64) -> FunctionChainGate {
+        let mut hooks = Arc::try_unwrap(hooks_for(&["guarded"])).ok().unwrap();
+        if let Some(ms) = timeout_ms {
+            hooks.function_limits.insert(
+                "guard_guarded".to_string(),
+                ResourceLimits {
+                    max_duration: Duration::from_millis(ms),
+                    ..ResourceLimits::default()
+                },
+            );
+        }
+        FunctionChainGate::new(Arc::new(hooks))
+            .with_budget(BeforeMutationBudget::from_millis(budget_ms))
+    }
+
+    #[test]
+    fn a_before_hook_runs_under_the_smaller_of_its_timeout_and_the_chain_budget() {
+        let limits = gate(Some(50), 500).hook_limits("guard_guarded");
+        assert_eq!(limits.max_duration, Duration::from_millis(50));
+    }
+
+    /// The other side of the `min`: a hook cannot declare its way past the chain.
+    #[test]
+    fn a_before_hook_timeout_above_the_chain_budget_is_capped_by_it() {
+        let limits = gate(Some(5_000), 500).hook_limits("guard_guarded");
+        assert_eq!(limits.max_duration, Duration::from_millis(500));
+    }
+
+    /// A disabled budget (`0`) is no ceiling, not a zero-length one: the hook keeps its
+    /// own limit. It used to hand every hook `max_duration = 0`.
+    #[test]
+    fn a_disabled_chain_budget_leaves_the_hooks_own_timeout() {
+        let limits = gate(Some(50), 0).hook_limits("guard_guarded");
+        assert_eq!(limits.max_duration, Duration::from_millis(50));
+    }
+}

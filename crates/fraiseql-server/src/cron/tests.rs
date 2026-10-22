@@ -145,3 +145,38 @@ async fn two_replicas_single_fire_under_the_advisory_lease() {
         "replica B skipped while A held the lease — single-firing"
     );
 }
+
+/// #1627: a cron function runs under its declared `timeout_ms`, not the 5 s default
+/// every poller used to get.
+#[test]
+fn a_cron_function_runs_under_its_declared_timeout() {
+    use std::{sync::Arc, time::Duration};
+
+    use fraiseql_functions::{
+        FunctionDefinition, FunctionModule, FunctionObserver, RuntimeType, TriggerRegistry,
+    };
+
+    use crate::{schema::loader::FunctionsConfig, subsystems::FunctionsSubsystem};
+
+    let definitions = vec![
+        FunctionDefinition::new("purge", "cron:0 2 * * *", RuntimeType::Wasm).with_timeout(30_000),
+    ];
+    let hooks = FunctionsSubsystem {
+        observer:         Arc::new(FunctionObserver::new()),
+        trigger_registry: TriggerRegistry::load_from_definitions(&definitions).unwrap(),
+        module_registry:  std::collections::HashMap::from([(
+            "purge".to_string(),
+            FunctionModule::from_source("purge".to_string(), String::new(), RuntimeType::Wasm),
+        )]),
+        config:           FunctionsConfig {
+            module_dir: "/functions".into(),
+            dlq_store: None,
+            definitions,
+        },
+    }
+    .into_before_mutation_hooks();
+
+    let kept = super::schedulable(&hooks);
+    assert_eq!(kept.len(), 1, "the cron function is schedulable");
+    assert_eq!(kept[0].limits.max_duration, Duration::from_secs(30));
+}

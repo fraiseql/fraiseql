@@ -107,9 +107,14 @@ pub async fn invoke(
     let host = Arc::new(RecordingHost::new(synth.payload.clone(), mocks, idempotency_token));
     let dyn_host: Arc<dyn DynHostContext> = host.clone();
 
-    // ── Run in a real isolate. ───────────────────────────────────────────────
+    // ── Run in a real isolate, under the limits the server would apply. ──────
     let result = observer
-        .invoke_with_context(&module, synth.payload, dyn_host, ResourceLimits::default())
+        .invoke_with_context(
+            &module,
+            synth.payload,
+            dyn_host,
+            ResourceLimits::for_function(definition),
+        )
         .await;
 
     let calls = host.calls();

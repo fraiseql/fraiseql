@@ -7,7 +7,7 @@
 //! `JoinSet`. [`sources_enabled`] and [`source_host_config`] resolve the `[sources]`
 //! runtime config with environment overrides (env > TOML > default).
 
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 
 use fraiseql_core::schema::SourceDefinition;
 use fraiseql_functions::{
@@ -79,8 +79,18 @@ fn source_host_config_from(
     }
 }
 
-/// The enabled sources, each with its connector module and parsed schedule. A disabled
-/// source is skipped (compiled but intentionally not scheduled).
+/// An enabled source the scheduler runs: its connector module, parsed schedule, and the
+/// limits the connector runs under (its function's declared `timeout_ms` when the
+/// connector is also a declared function, #1627).
+struct Schedulable<'a> {
+    source:   &'a SourceDefinition,
+    module:   FunctionModule,
+    schedule: CronSchedule,
+    limits:   ResourceLimits,
+}
+
+/// The enabled sources, each with its connector module, parsed schedule and limits. A
+/// disabled source is skipped (compiled but intentionally not scheduled).
 ///
 /// An enabled source that cannot run is an error, never a skip (#1399): it used to log
 /// a warning and leave the source silently unscheduled. Its connector was loaded at
@@ -89,13 +99,13 @@ fn source_host_config_from(
 /// check was weaker than this parser.
 fn schedulable<'a>(
     sources: &'a [SourceDefinition],
-    modules: &HashMap<String, FunctionModule>,
-) -> Result<Vec<(&'a SourceDefinition, FunctionModule, CronSchedule)>, ServerError> {
+    hooks: &BeforeMutationHooks,
+) -> Result<Vec<Schedulable<'a>>, ServerError> {
     sources
         .iter()
         .filter(|source| source.enabled)
         .map(|source| {
-            let module = modules.get(&source.function).ok_or_else(|| {
+            let module = hooks.module_registry.get(&source.function).ok_or_else(|| {
                 ServerError::ConfigError(format!(
                     "source {:?} runs the connector {:?}, which was not loaded — every \
                      enabled source's connector is loaded at boot from `[functions] \
@@ -109,7 +119,12 @@ fn schedulable<'a>(
                     source.name, source.schedule
                 ))
             })?;
-            Ok((source, module.clone(), schedule))
+            Ok(Schedulable {
+                source,
+                module: module.clone(),
+                schedule,
+                limits: hooks.limits_for(&source.function),
+            })
         })
         .collect()
 }
@@ -129,45 +144,48 @@ fn schedulable<'a>(
 ///
 /// Returns [`ServerError::ConfigError`] if an enabled source's connector is not in
 /// the registry or its schedule does not parse.
-// Reason: a wiring seam whose args are each a distinct runtime collaborator; a
-// params struct would relocate the same fields without reducing coupling.
-#[allow(clippy::too_many_arguments)]
 pub fn build_source_pollers(
     sources: &[SourceDefinition],
     db_pool: &sqlx::PgPool,
     executor: &crate::query_bridge::ExecutorSource,
     hooks: &BeforeMutationHooks,
     host_config: &HostContextConfig,
-    limits: &ResourceLimits,
     log_payloads: bool,
 ) -> Result<Vec<SourcePoller>, ServerError> {
-    Ok(schedulable(sources, &hooks.module_registry)?
+    Ok(schedulable(sources, hooks)?
         .into_iter()
-        .map(|(source, module, schedule)| {
-            // The source's mutations run under its run_as ceiling; the
-            // request-id correlates the source in the audit envelope.
-            let identity = source.identity(source.name.as_str());
-            let query_executor: Arc<dyn QueryExecutor> =
-                Arc::new(SourceQueryExecutor::for_source(executor.clone(), identity.clone()));
-            SourcePoller::new(
-                source.name.clone(),
-                // The declared `cursor` override, falling back to the source name. Keeps the
-                // watermark key under the author's control while the lease and metric labels
-                // below stay keyed on the source name (#868 item 4).
-                source.cursor_name().to_string(),
-                schedule,
-                module,
-                Arc::clone(&hooks.observer),
-                PostgresSourceCursorStore::new(db_pool.clone()),
-                query_executor,
-                identity,
-                LeaseGuardedRunner::postgres(db_pool.clone(), source.name.clone()),
-                host_config.clone(),
-                limits.clone(),
-                hooks.idempotency_key.clone(),
-                log_payloads,
-            )
-        })
+        .map(
+            |Schedulable {
+                 source,
+                 module,
+                 schedule,
+                 limits,
+             }| {
+                // The source's mutations run under its run_as ceiling; the
+                // request-id correlates the source in the audit envelope.
+                let identity = source.identity(source.name.as_str());
+                let query_executor: Arc<dyn QueryExecutor> =
+                    Arc::new(SourceQueryExecutor::for_source(executor.clone(), identity.clone()));
+                SourcePoller::new(
+                    source.name.clone(),
+                    // The declared `cursor` override, falling back to the source name. Keeps the
+                    // watermark key under the author's control while the lease and metric labels
+                    // below stay keyed on the source name (#868 item 4).
+                    source.cursor_name().to_string(),
+                    schedule,
+                    module,
+                    Arc::clone(&hooks.observer),
+                    PostgresSourceCursorStore::new(db_pool.clone()),
+                    query_executor,
+                    identity,
+                    LeaseGuardedRunner::postgres(db_pool.clone(), source.name.clone()),
+                    host_config.clone(),
+                    limits,
+                    hooks.idempotency_key.clone(),
+                    log_payloads,
+                )
+            },
+        )
         .collect())
 }
 

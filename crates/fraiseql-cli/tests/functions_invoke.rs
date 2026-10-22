@@ -35,6 +35,19 @@ fn cli() -> Command {
 /// the compiler and the harness read the same section was invisible to it. Now the
 /// producer is the producer.
 fn write_schema(dir: &TempDir) -> PathBuf {
+    write_schema_declaring(
+        dir,
+        &serde_json::json!([{
+            "name": "notify_approved",
+            "trigger": "after:mutation:Order:update",
+            "runtime": "Deno",
+            "when": [{"field": "status", "changed_to": "approved"}]
+        }]),
+    )
+}
+
+/// [`write_schema`]'s project, declaring `functions` instead of `notify_approved`.
+fn write_schema_declaring(dir: &TempDir, functions: &serde_json::Value) -> PathBuf {
     let module_dir = fixture_module_dir();
     let types = serde_json::json!({
         "version": "2.0.0",
@@ -55,12 +68,7 @@ fn write_schema(dir: &TempDir) -> PathBuf {
             "invalidates_views": ["v_order"],
             "arguments": []
         }],
-        "functions": [{
-            "name": "notify_approved",
-            "trigger": "after:mutation:Order:update",
-            "runtime": "Deno",
-            "when": [{"field": "status", "changed_to": "approved"}]
-        }]
+        "functions": functions
     });
     let types_path = dir.path().join("types.json");
     std::fs::write(&types_path, serde_json::to_string_pretty(&types).unwrap()).unwrap();
@@ -218,6 +226,49 @@ fn mock_query_miss_fails_loud_and_the_guest_errors() {
 
     let code = out.status.code().unwrap_or(-1);
     assert_eq!(code, 4, "an unmatched mock fails the op loud → guest error (exit 4)");
+}
+
+// ── Exit code 4: a guest past its declared `timeout_ms` is cut off (#1627) ───
+
+/// The harness runs a guest under the limits the server would: its declared
+/// `timeout_ms`, not the 5 s default. A guest that never returns is stopped at 100 ms.
+#[test]
+fn a_declared_timeout_cuts_the_guest_off() {
+    let dir = TempDir::new().unwrap();
+    let schema = write_schema_declaring(
+        &dir,
+        &serde_json::json!([{
+            "name": "spin_forever",
+            "trigger": "after:mutation:Order:update",
+            "runtime": "Deno",
+            "timeout_ms": 100
+        }]),
+    );
+    let payload = write_json(
+        &dir,
+        "payload.json",
+        &serde_json::json!({ "event_kind": "update", "old": {}, "new": { "id": "o-9" } }),
+    );
+
+    let started = std::time::Instant::now();
+    let out = cli()
+        .args(["functions", "invoke", "spin_forever"])
+        .arg("--payload")
+        .arg(&payload)
+        .arg("--schema")
+        .arg(&schema)
+        .output()
+        .unwrap();
+    let elapsed = started.elapsed();
+
+    let code = out.status.code().unwrap_or(-1);
+    assert_eq!(code, 4, "a guest cut off by its timeout is a guest error (exit 4)");
+    // Generous for the process spawn and the isolate start, and well under the 5 s
+    // default the harness used to apply whatever the function declared.
+    assert!(
+        elapsed < std::time::Duration::from_secs(3),
+        "the guest ran for {elapsed:?}, so its 100 ms timeout was not applied"
+    );
 }
 
 // ── Exit code 1: an unknown function is a config error ───────────────────────

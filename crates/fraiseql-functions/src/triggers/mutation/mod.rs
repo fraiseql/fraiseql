@@ -17,11 +17,12 @@
 //! **Timeout**: the *whole chain* runs inside a wall-clock ceiling, 500 ms by
 //! default — shorter than the general 5 s function timeout because before-hooks
 //! are on the critical mutation path. It is enforced by the caller, not here:
-//! `fraiseql-server`'s `BeforeMutationBudget` wraps this method and also passes
-//! the same ceiling down as each hook's [`ResourceLimits::max_duration`]. Until
-//! #1328 this paragraph said 500 ms and nothing enforced anything — the gate
-//! passed `ResourceLimits::default()`, so each hook got 5 s and a chain of *n*
-//! hooks got 5*n*.
+//! `fraiseql-server`'s `BeforeMutationBudget` wraps this method and also caps
+//! each hook's [`ResourceLimits::max_duration`] at it; within the cap, a hook runs
+//! under its own declared `timeout_ms` (#1627). Until #1328 this paragraph said
+//! 500 ms and nothing enforced anything — the gate passed
+//! `ResourceLimits::default()`, so each hook got 5 s and a chain of *n* hooks got
+//! 5*n*.
 //!
 //! **Host surface**: a before-hook runs on `BeforeMutationHost` — a read-only
 //! `fraiseql_query` bridge executed as the requesting principal, plus logging and
@@ -361,13 +362,16 @@ impl BeforeMutationChain {
     ///
     /// Returns `Err` if a trigger's function name is not found in `modules`, or if
     /// function execution itself returns an error.
+    ///
+    /// `limits` answers, per hook's function name, the limits that hook runs under:
+    /// each hook has its own declared `timeout_ms` (#1627).
     pub async fn execute(
         &self,
         input: serde_json::Value,
         modules: &std::collections::HashMap<String, crate::types::FunctionModule>,
         observer: &crate::observer::FunctionObserver,
         host: std::sync::Arc<dyn crate::host::dyn_context::DynHostContext>,
-        limits: crate::types::ResourceLimits,
+        limits: impl Fn(&str) -> crate::types::ResourceLimits,
     ) -> fraiseql_error::Result<BeforeMutationResult> {
         let mut current = input;
         for trigger in &self.triggers {
@@ -395,7 +399,12 @@ impl BeforeMutationChain {
             // could not read no matter what host it was handed. The read bridge
             // exists to be reachable; this is the call that makes it so.
             let result = observer
-                .invoke_with_context(module, payload, Arc::clone(&host), limits.clone())
+                .invoke_with_context(
+                    module,
+                    payload,
+                    Arc::clone(&host),
+                    limits(&trigger.function_name),
+                )
                 .await?;
 
             match interpret_guest_decision(result.value.as_ref(), current) {

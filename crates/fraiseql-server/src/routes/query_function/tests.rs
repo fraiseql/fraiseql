@@ -159,3 +159,56 @@ fn a_runtime_failure_is_attributed_to_the_field_and_keeps_its_message() {
         "and keeps the only part an author can act on: {message}"
     );
 }
+
+// ── The isolate's limits (#1627) ─────────────────────────────────────────────
+
+#[cfg(feature = "functions-runtime")]
+mod isolate_limits {
+    use std::sync::Arc;
+
+    use fraiseql_functions::{FunctionObserver, ResourceLimits, TriggerRegistry};
+
+    use super::*;
+
+    /// A resolver for `preview_quote`, a request-serving function declaring
+    /// `timeout_ms`, under `budget_ms`.
+    fn resolver(timeout_ms: Option<u64>, budget_ms: u64) -> FunctionQueryResolver {
+        let mut hooks = BeforeMutationHooks::new(
+            TriggerRegistry::new(),
+            std::collections::HashMap::new(),
+            Arc::new(FunctionObserver::new()),
+        );
+        hooks.request_query_timeouts.insert("preview_quote".to_string(), timeout_ms);
+        if let Some(ms) = timeout_ms {
+            hooks.function_limits.insert(
+                "preview_quote".to_string(),
+                ResourceLimits {
+                    max_duration: Duration::from_millis(ms),
+                    ..ResourceLimits::default()
+                },
+            );
+        }
+        FunctionQueryResolver::new(Arc::new(hooks))
+            .with_budget(QueryFunctionBudget::from_millis(budget_ms))
+    }
+
+    #[test]
+    fn a_declared_timeout_bounds_the_isolate() {
+        let limits = resolver(Some(50), 5_000).isolate_limits("preview_quote");
+        assert_eq!(limits.max_duration, Duration::from_millis(50));
+    }
+
+    #[test]
+    fn an_undeclared_timeout_takes_the_request_budget() {
+        let limits = resolver(None, 2_000).isolate_limits("preview_quote");
+        assert_eq!(limits.max_duration, Duration::from_secs(2));
+    }
+
+    /// A disabled budget (`0`) is no ceiling, not a zero-length one: the isolate keeps
+    /// the function's own limit. It used to be handed `max_duration = 0`.
+    #[test]
+    fn a_disabled_budget_leaves_the_functions_own_limit() {
+        let limits = resolver(None, 0).isolate_limits("preview_quote");
+        assert_eq!(limits.max_duration, ResourceLimits::default().max_duration);
+    }
+}

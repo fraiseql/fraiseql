@@ -122,6 +122,15 @@ disagreed, and the promise was the part that was wrong.
   and `routes::grpc::streaming::build_streaming_body` takes one after `batch_size`. Pass
   `AppState::error_sanitizer`, the instance `/graphql` uses.
 
+- **A function's limits come from one rule, `ResourceLimits::for_function` (#1627).**
+  `FunctionDefinition::effective_timeout` and its `is_before_mutation`,
+  `is_after_mutation`, `is_after_storage`, `is_after_ingest`, `is_cron` and `is_http`
+  predicates are removed: nothing in the engine called them, and `effective_timeout`
+  described a default no trigger applied. `BeforeMutationChain::execute` takes a
+  per-hook `Fn(&str) -> ResourceLimits` in place of one `ResourceLimits`.
+  `build_cron_pollers` and `build_source_pollers` drop their `limits` argument, and
+  `BeforeMutationHooks` gains `function_limits`, read through `limits_for`.
+
 ### Added
 
 - **`subscription_policy` is authorable (#1657).** A type's subscription row visibility
@@ -135,6 +144,14 @@ disagreed, and the promise was the part that was wrong.
   conformance manifest.
 
 ### Fixed
+
+- **A function's declared `timeout_ms` bounds it on every trigger kind (#1627).** Only
+  `request:query` read it: `after:mutation`, `after:ingest`, `after:capture`, `cron` and
+  source connectors always ran under the 5 s default, and `fraiseql functions invoke`
+  did too. A `before:mutation` hook got the whole chain budget. Each now runs under its
+  own `timeout_ms`, and a `before:mutation` hook under the smaller of it and the chain
+  budget. With the chain budget disabled (`FRAISEQL_FUNCTIONS_BEFORE_MUTATION_BUDGET_MS=0`)
+  every hook was handed a zero-length limit; it now keeps its own.
 
 - **`Server::with_relay_pagination` and `Server::with_flight_service` run every boot gate
   `Server::new` runs (#1623).** Both skipped four of them, and the binary boots through

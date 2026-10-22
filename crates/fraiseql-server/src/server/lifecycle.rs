@@ -578,7 +578,6 @@ impl Server {
                         &crate::query_bridge::ExecutorSource::of(&app_state),
                         hooks.as_ref(),
                         &host_config,
-                        &fraiseql_functions::ResourceLimits::default(),
                         sources_config.log_payloads,
                     )?;
                     let started = pollers.len();
@@ -644,7 +643,6 @@ impl Server {
                         &crate::query_bridge::ExecutorSource::of(&app_state),
                         hooks.as_ref(),
                         &host_config,
-                        &fraiseql_functions::ResourceLimits::default(),
                     )
                     .await
                     .map_err(|e| {

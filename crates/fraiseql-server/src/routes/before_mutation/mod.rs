@@ -187,24 +187,31 @@ impl FunctionChainGate {
             request.principal,
         );
 
-        // The per-hook isolate watchdog gets the same ceiling as the whole chain,
-        // so a single runaway guest is stopped by its own runtime rather than only
-        // by the outer timeout — which cannot reclaim a spinning isolate, only
-        // stop waiting for it.
-        let limits = fraiseql_functions::ResourceLimits {
-            max_duration: self.budget.duration(),
-            ..fraiseql_functions::ResourceLimits::default()
-        };
-
         chain
             .execute(
                 input,
                 &self.hooks.module_registry,
                 &self.hooks.observer,
                 Arc::new(host),
-                limits,
+                |function| self.hook_limits(function),
             )
             .await
+    }
+
+    /// The limits one hook of the chain runs under: the function's own (its declared
+    /// `timeout_ms`, #1627), with the duration capped by the chain budget.
+    ///
+    /// The cap gives the per-hook isolate watchdog the chain's ceiling, so a single
+    /// runaway guest is stopped by its own runtime rather than only by the outer
+    /// timeout — which cannot reclaim a spinning isolate, only stop waiting for it.
+    /// A disabled budget caps nothing: it is no ceiling, not a zero-length one.
+    #[cfg(feature = "functions-runtime")]
+    fn hook_limits(&self, function: &str) -> fraiseql_functions::ResourceLimits {
+        let mut limits = self.hooks.limits_for(function);
+        if self.budget.is_enforced() {
+            limits.max_duration = limits.max_duration.min(self.budget.duration());
+        }
+        limits
     }
 
     /// A build with no function runtime cannot run a declared chain, and must not

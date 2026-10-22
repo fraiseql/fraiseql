@@ -181,24 +181,35 @@ impl FunctionQueryResolver {
             super::after_mutation::host_context_config(),
         );
 
-        // The isolate's own watchdog gets the same ceiling as the outer budget, so a
-        // runaway guest is stopped by its own runtime rather than only by a timeout
-        // that can stop waiting but cannot reclaim a spinning isolate.
-        let limits = fraiseql_functions::ResourceLimits {
-            max_duration: self
-                .budget
-                .for_function(self.declared_timeout_ms(request.function))
-                .duration(),
-            ..fraiseql_functions::ResourceLimits::default()
-        };
-
         let result = self
             .hooks
             .observer
-            .invoke_with_context(module, payload, Arc::new(host), limits)
+            .invoke_with_context(
+                module,
+                payload,
+                Arc::new(host),
+                self.isolate_limits(request.function),
+            )
             .await
             .map_err(|error| attribute(request.field, request.function, &error))?;
         Ok(interpret_query_answer(result.value))
+    }
+
+    /// The limits the guest's isolate runs under: the function's own (#1627), with the
+    /// duration set to the outer budget's ceiling for it.
+    ///
+    /// The isolate's own watchdog gets the same ceiling as the outer budget, so a
+    /// runaway guest is stopped by its own runtime rather than only by a timeout
+    /// that can stop waiting but cannot reclaim a spinning isolate. A disabled budget
+    /// sets nothing: it is no ceiling, not a zero-length one.
+    #[cfg(feature = "functions-runtime")]
+    fn isolate_limits(&self, function: &str) -> fraiseql_functions::ResourceLimits {
+        let mut limits = self.hooks.limits_for(function);
+        let ceiling = self.budget.for_function(self.declared_timeout_ms(function));
+        if ceiling.is_enforced() {
+            limits.max_duration = ceiling.duration();
+        }
+        limits
     }
 
     /// A build with no function runtime cannot answer a field it has no runtime for,

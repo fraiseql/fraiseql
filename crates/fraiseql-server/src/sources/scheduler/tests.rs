@@ -3,21 +3,27 @@
 //! is exercised by the lifecycle integration and the poller's `build_host` composition.
 #![allow(clippy::unwrap_used)] // Reason: test module
 
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 use fraiseql_core::schema::SourceDefinition;
-use fraiseql_functions::{FunctionModule, RuntimeType};
+use fraiseql_functions::{
+    FunctionModule, FunctionObserver, ResourceLimits, RuntimeType, TriggerRegistry,
+};
 
 use super::{schedulable, source_host_config_from, sources_enabled_from};
-use crate::server_config::SourcesConfig;
+use crate::{server_config::SourcesConfig, subsystems::BeforeMutationHooks};
 
 fn module(name: &str) -> FunctionModule {
     FunctionModule::from_source(name.to_string(), String::new(), RuntimeType::Deno)
 }
 
-/// A registry with one loaded Model B module, `pollOrders`.
-fn registry() -> HashMap<String, FunctionModule> {
-    HashMap::from([("pollOrders".to_string(), module("pollOrders"))])
+/// Hooks with one loaded Model B module, `pollOrders`.
+fn hooks() -> BeforeMutationHooks {
+    BeforeMutationHooks::new(
+        TriggerRegistry::new(),
+        HashMap::from([("pollOrders".to_string(), module("pollOrders"))]),
+        Arc::new(FunctionObserver::new()),
+    )
 }
 
 #[test]
@@ -28,11 +34,11 @@ fn schedulable_keeps_every_enabled_source_and_skips_a_disabled_one() {
         // never consulted.
         SourceDefinition::new("disabled", "*/5 * * * *", "unloaded").disabled(),
     ];
-    let kept = schedulable(&sources, &registry()).unwrap();
-    let names: Vec<&str> = kept.iter().map(|(source, _, _)| source.name.as_str()).collect();
+    let kept = schedulable(&sources, &hooks()).unwrap();
+    let names: Vec<&str> = kept.iter().map(|kept| kept.source.name.as_str()).collect();
     assert_eq!(names, ["orders"]);
     // The parsed schedule rides along.
-    assert_eq!(kept[0].2.expression, "*/5 * * * *");
+    assert_eq!(kept[0].schedule.expression, "*/5 * * * *");
 }
 
 /// #1399: an enabled source whose connector is not loaded refuses, naming both. It
@@ -44,7 +50,7 @@ fn an_enabled_source_with_no_loaded_connector_is_an_error() {
         "*/5 * * * *",
         "pollInvoices",
     )];
-    let message = schedulable(&sources, &registry()).err().unwrap().to_string();
+    let message = schedulable(&sources, &hooks()).err().unwrap().to_string();
     assert!(
         message.contains("\"invoices\"") && message.contains("\"pollInvoices\""),
         "{message}"
@@ -55,7 +61,7 @@ fn an_enabled_source_with_no_loaded_connector_is_an_error() {
 #[test]
 fn an_enabled_source_with_an_invalid_schedule_is_an_error() {
     let sources = vec![SourceDefinition::new("orders", "61 * * * *", "pollOrders")];
-    let message = schedulable(&sources, &registry()).err().unwrap().to_string();
+    let message = schedulable(&sources, &hooks()).err().unwrap().to_string();
     assert!(message.contains("\"orders\"") && message.contains("61 * * * *"), "{message}");
 }
 
@@ -178,4 +184,21 @@ fn a_declared_cursor_override_is_the_key_the_poller_advances() {
         "orders_v2",
         "with no override the cursor key falls back to the source name"
     );
+}
+
+/// #1627: a connector runs under its function's declared limits, not the 5 s default
+/// every poller used to get.
+#[test]
+fn a_source_connector_runs_under_its_declared_timeout() {
+    let mut hooks = hooks();
+    hooks.function_limits.insert(
+        "pollOrders".to_string(),
+        ResourceLimits {
+            max_duration: std::time::Duration::from_secs(30),
+            ..ResourceLimits::default()
+        },
+    );
+    let sources = vec![SourceDefinition::new("orders", "*/5 * * * *", "pollOrders")];
+    let kept = schedulable(&sources, &hooks).unwrap();
+    assert_eq!(kept[0].limits.max_duration, std::time::Duration::from_secs(30));
 }

@@ -218,7 +218,7 @@ async fn test_before_mutation_chain_execute_empty_chain_proceeds() {
             &modules,
             &observer,
             std::sync::Arc::new(NoopHostContext::new(event)),
-            ResourceLimits::default(),
+            |_| ResourceLimits::default(),
         )
         .await
         .expect("execute");
@@ -273,7 +273,7 @@ async fn test_before_mutation_chain_execute_passthrough_proceeds() {
             &modules,
             &observer,
             std::sync::Arc::new(NoopHostContext::new(event)),
-            ResourceLimits::default(),
+            |_| ResourceLimits::default(),
         )
         .await
         .expect("execute");
@@ -329,7 +329,7 @@ async fn test_before_mutation_chain_execute_abort() {
             &modules,
             &observer,
             std::sync::Arc::new(NoopHostContext::new(event)),
-            ResourceLimits::default(),
+            |_| ResourceLimits::default(),
         )
         .await
         .expect("execute");
@@ -390,7 +390,7 @@ export default async (event) => ({
             &modules,
             &observer,
             std::sync::Arc::new(NoopHostContext::new(event)),
-            ResourceLimits::default(),
+            |_| ResourceLimits::default(),
         )
         .await
         .expect("execute");
@@ -460,11 +460,58 @@ async fn test_before_mutation_chain_execute_missing_module_returns_error() {
             &modules,
             &observer,
             std::sync::Arc::new(NoopHostContext::new(event)),
-            ResourceLimits::default(),
+            |_| ResourceLimits::default(),
         )
         .await;
 
     assert!(result.is_err(), "Expected error for missing module");
+}
+
+/// #1627: each hook's limits are asked for by **its own** function name, so one hook's
+/// declared `timeout_ms` cannot become another's. No runtime is registered, so the
+/// invocation fails right after the limits are resolved.
+#[tokio::test]
+async fn the_chain_asks_each_hooks_limits_by_its_function_name() {
+    use std::{collections::HashMap, sync::Mutex};
+
+    use crate::{
+        FunctionModule, FunctionObserver, ResourceLimits, RuntimeType, host::NoopHostContext,
+    };
+
+    let chain = BeforeMutationChain {
+        triggers: vec![BeforeMutationTrigger {
+            function_name: "validateUser".to_string(),
+            mutation_name: "createUser".to_string(),
+        }],
+    };
+    let modules: HashMap<String, FunctionModule> = HashMap::from([(
+        "validateUser".to_string(),
+        FunctionModule::from_source("validateUser".to_string(), String::new(), RuntimeType::Wasm),
+    )]);
+    let input = serde_json::json!({ "name": "Alice" });
+    let event = crate::types::EventPayload {
+        trigger_type: "before:mutation:createUser".to_string(),
+        entity:       "createUser".to_string(),
+        event_kind:   "before".to_string(),
+        data:         input.clone(),
+        timestamp:    chrono::Utc::now(),
+    };
+    let asked = Mutex::new(Vec::new());
+
+    let _ = BeforeMutationChain::execute(
+        &chain,
+        input,
+        &modules,
+        &FunctionObserver::new(),
+        std::sync::Arc::new(NoopHostContext::new(event)),
+        |function| {
+            asked.lock().unwrap().push(function.to_string());
+            ResourceLimits::default()
+        },
+    )
+    .await;
+
+    assert_eq!(*asked.lock().unwrap(), ["validateUser"]);
 }
 
 // ── #597: TriggerPredicate (declarative `when`) ─────────────────────────────
@@ -723,7 +770,7 @@ mod read_bridge {
         );
 
         let outcome = chain
-            .execute(input, &modules, &observer, Arc::new(host), ResourceLimits::default())
+            .execute(input, &modules, &observer, Arc::new(host), |_| ResourceLimits::default())
             .await
             .expect("the chain runs");
         let asked = reader.asked.lock().unwrap().clone();

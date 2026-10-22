@@ -482,6 +482,17 @@ It is the one name an SDK carries **verbatim** — every other name is camelCase
 way out, and recasing this one would send the compiler looking for a file the author
 never wrote. The cross-SDK conformance suite asserts the exact spelling for that reason.
 
+**`timeout_ms` bounds the invocation on every trigger kind** (#1627): `after:mutation`,
+`after:ingest`, `after:capture`, `cron`, source connectors, `before:mutation` and
+`request:query`, and `fraiseql functions invoke` applies it too. A function that declares
+none runs under 5 s. Two triggers also have a ceiling of their own:
+
+- a `before:mutation` hook runs under the smaller of its `timeout_ms` and the chain
+  budget, which bounds the whole chain (500 ms by default,
+  `FRAISEQL_FUNCTIONS_BEFORE_MUTATION_BUDGET_MS`; `0` disables it);
+- a `request:query` function with no `timeout_ms` falls back to the request budget (see
+  [Timeouts](#timeouts) below).
+
 Ten of the eleven official SDKs author functions; `fraiseql-rust` declares the gap in
 `sdks/official/conformance/manifest.json` (it is field-level-RBAC focused and ships no
 builder). See `sdks/official/README.md` for the support matrix.

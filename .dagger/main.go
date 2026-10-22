@@ -1082,7 +1082,9 @@ func (m *FraiseqlCi) Test(
 		// The function-runtime subsystem wiring: `functions = []` does not imply
 		// `functions-runtime`, so the line above compiles none of it. deno implies the
 		// base runtime, so one invocation covers both gates.
-		"cargo test -p fraiseql-server --features functions-runtime --lib routes::query_function::",
+		// `routes::before_mutation::` (#1627): the plain `--lib` lines run its budget
+		// tests, but the per-hook limits are functions-runtime-gated and ran nowhere.
+		"cargo test -p fraiseql-server --features functions-runtime --lib -- routes::query_function:: routes::before_mutation::",
 		"cargo test -p fraiseql-server --features functions-runtime-deno --lib subsystems::",
 		// #1325: the authoring round trip — the real compiler writes a `functions`
 		// section and the real loader reads it back, with the integrity hash
