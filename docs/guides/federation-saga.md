@@ -12,9 +12,9 @@
 >
 > **Authoring:** sagas are constructed **programmatically at runtime** (build
 > `SagaCoordinatorStep`s and pass them to `SagaCoordinator::create_saga`). The
-> Python-decorator authoring and the `[federation.saga]` TOML shown below are a **planned
-> convenience layer that is not yet wired** — they describe the target authoring
-> ergonomics, not current behaviour.
+> Python-decorator authoring shown below is a **planned convenience layer that is not
+> yet wired** — it describes the target authoring ergonomics, not current behaviour.
+> There is no `[federation.saga]` TOML section (see [Configuration](#configuration)).
 
 The saga pattern coordinates mutations that must write to multiple subgraphs. Each step
 has a forward action and a compensation action. If any step fails, compensation runs in
@@ -223,24 +223,12 @@ WHERE fs.id = '<saga-id>' ORDER BY step_number;
 
 ## Configuration
 
-> **Planned — not yet wired.** The `[federation.saga]` TOML keys below are the target
-> config surface. Today the equivalent knobs are set programmatically: per-step retry and
-> timeout via `RetryPolicy` (`SagaCoordinator::with_retry_policy`), the compensation
-> strategy via `CompensationStrategy`, remote dispatch via `with_http_client` /
-> `with_http_client_mtls` / `with_subgraph`, and `@requires` pre-fetch via
-> `with_entity_resolver`.
-
-```toml
-# fraiseql.toml
-[federation.saga]
-enabled = true
-# Maximum time to wait for a single step before marking it timed out
-step_timeout_secs = 30
-# Maximum time to wait for a single compensation step
-compensation_timeout_secs = 15
-# Number of retry attempts for transient step failures before giving up
-step_max_retries = 2
-```
+There is no saga section in `fraiseql.toml`: a `[federation.saga]` table is refused,
+since `[federation]` has no `saga` key. The knobs are set programmatically: per-step
+retry and timeout via `RetryPolicy` (`SagaCoordinator::with_retry_policy`), the
+compensation strategy via `CompensationStrategy`, remote dispatch via
+`with_http_client` / `with_http_client_mtls` / `with_subgraph`, and `@requires`
+pre-fetch via `with_entity_resolver`.
 
 ## Limitations
 

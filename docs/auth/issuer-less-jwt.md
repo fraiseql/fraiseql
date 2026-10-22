@@ -30,6 +30,7 @@ Pin the IdP's JWKS endpoint and set the audience to your relying-party
 identifier; omit `issuer`:
 
 ```toml
+# server.toml
 [auth]
 # issuer intentionally omitted — Hanko access tokens carry no `iss` claim.
 jwks_uri = "https://hanko.example.com/.well-known/jwks.json"
@@ -41,6 +42,7 @@ If you instead set `issuer`, `iss` becomes required and validated (and
 `jwks_uri` may be omitted to use OIDC discovery):
 
 ```toml
+# server.toml
 [auth]
 issuer   = "https://accounts.google.com"
 audience = "<your-client-id>"

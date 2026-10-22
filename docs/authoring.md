@@ -167,6 +167,7 @@ read it as, and it is the conventional `referenced_key` for a to-one. Any **othe
 must say so:
 
 ```toml
+# fraiseql.toml
 [types.User.fields.identifier]
 type = "String"
 unique = true
@@ -181,6 +182,7 @@ rows, the relationship is a `OneToMany`.
 The same declaration in `fraiseql.toml`, for a TOML-declared type:
 
 ```toml
+# fraiseql.toml
 [types.User.relationships.orders]
 target_type = "Order"
 cardinality = "OneToMany"

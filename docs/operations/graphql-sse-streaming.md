@@ -8,6 +8,7 @@ list (`@stream`, #387) and a split payload for a deferred fragment
 ## Configuration
 
 ```toml
+# server.toml
 enable_graphql_incremental = true
 
 # Rows per continuation batch after the initial payload. Optional; default 100.

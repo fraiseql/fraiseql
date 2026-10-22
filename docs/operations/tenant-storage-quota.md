@@ -13,7 +13,7 @@ over the quota its writes are refused. Its reads are served throughout.
 ```
 
 ```toml
-# fraiseql.toml (server)
+# server.toml
 [tenancy.storage_quota]
 interval_secs = 300   # how often every tenant with a quota is measured; 0 is refused
 ```

@@ -12,6 +12,7 @@ The project's `fraiseql.toml` names the locales the deployment serves, a fallbac
 them, and how a request picks one:
 
 ```toml
+# fraiseql.toml
 [locale]
 allowed = ["en-US", "fr", "fr-CA", "fr-FR", "de-DE"]
 default = "en-US"

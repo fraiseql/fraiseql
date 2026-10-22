@@ -388,6 +388,7 @@ Benefits:
 Non-essential features are opt-in via Cargo features:
 
 ```toml
+# Cargo.toml
 [dependencies]
 fraiseql = { version = "2.0", features = ["auth", "observers", "arrow"] }
 ```

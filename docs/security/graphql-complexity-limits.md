@@ -10,7 +10,6 @@ Audit of all GraphQL query complexity and abuse protections in FraiseQL.
 | **Query depth** | 10 levels | Yes (`max_query_depth` in `fraiseql.toml`) | `crates/fraiseql-server/src/validation.rs:457` |
 | **Top-level page size** | 1000 rows | Yes (`max_page_size` in `[validation]`, `FRAISEQL_MAX_PAGE_SIZE` env) | `crates/fraiseql-core/src/runtime/executor/runners/query_params.rs` (`enforce_max_page_size`) |
 | **Offset depth** | none | Yes (`max_offset` in `[validation]`, `FRAISEQL_MAX_OFFSET` env) | `crates/fraiseql-core/src/runtime/executor/runners/query_params.rs` (`enforce_max_offset`); see [pagination](../features/pagination.md#deep-offset) |
-| **Complexity error rate** | 30 errors/60s per key | Yes (`complexity_errors_max_requests`) | `crates/fraiseql-core/src/validation/rate_limiting.rs:67` |
 | **Federation batch** | 1000 representations | No (hardcoded) | `crates/fraiseql-server/src/federation/` |
 | **Fragment cycles** | refused | No | `crates/fraiseql-core/src/graphql/fragments.rs` (`FragmentGraph::detect_cycles`); the validator scores a spread cycle over its limits (`graphql/complexity.rs`) |
 
@@ -72,13 +71,10 @@ A request exceeding the ceiling is rejected with a `Validation` error
 
 ### Complexity Error Rate Limiting
 
-When queries fail complexity validation (depth/alias), the error itself is rate-limited
-to prevent probing attacks:
-
-```
-Location: crates/fraiseql-core/src/validation/rate_limiting.rs
-  Line 67: complexity_errors_max_requests: 30 (per 60-second window)
-```
+Not implemented. A query refused for its depth, complexity or alias count is not
+rate-limited as such: no limiter counts complexity refusals, and there is no key
+to configure one. The request-level rate limiter (`[rate_limiting]` in the server
+config) still counts the request like any other.
 
 ---
 
@@ -169,16 +165,9 @@ per_request_max = 10000
 # Default rolling per-minute budget for registered tenants without their own
 # cost_budget_per_minute. Omit for no default.
 per_tenant_per_minute_default = 100000
-
-[fraiseql.security]
-# Per-operation @cost weights are declared under [fraiseql.cost_weights]; per-tenant
-# cost budgets are configured via the tenant-quota admin API (cost_budget,
-# cost_budget_per_minute). (#379)
-
-[fraiseql.security.rate_limiting]
-# Rate limit for complexity error responses (default: 30 per 60s)
-complexity_errors_max_requests = 30
-complexity_errors_window_secs  = 60
+# Per-operation @cost weights are declared under [fraiseql.cost_weights] in the
+# project config read beside schema.json; per-tenant cost budgets are configured
+# via the tenant-quota admin API (cost_budget, cost_budget_per_minute). (#379)
 ```
 
 ---

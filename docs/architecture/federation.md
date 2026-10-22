@@ -238,10 +238,12 @@ fraiseql federation sdl schema.compiled.json > users.graphql
 **A gateway fetching SDL at runtime** authenticates as a
 [service account](../adr/0018-service-account-identities.md): a named identity whose
 secret lives in the environment, presented on `x-api-key`, with a ceiling that grants no
-more than reading the schema needs.
+more than reading the schema needs. It is declared in the project `fraiseql.toml` read
+beside `schema.json`:
 
 ```toml
-[service_accounts.gateway]
+# fraiseql.toml
+[fraiseql.security.service_accounts.gateway]
 secret_env = "FRAISEQL_SA_GATEWAY_SECRET"
 roles      = []
 scopes     = []

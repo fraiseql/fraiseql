@@ -35,6 +35,7 @@ Top-level `[identity]`, so it applies under **any** auth mode — HS256 and OIDC
 parity by construction. One query schema, reused by both profiles.
 
 ```toml
+# server.toml
 [identity.enrichment]              # read scoping
 enabled           = true
 query             = "SELECT actor_id, actor_role FROM tb_actor WHERE sub = $sub"
@@ -45,8 +46,8 @@ provision         = "SELECT fn_provision_actor($sub, $iss, $email, $claims)"  # 
 
 [identity.sender]                  # verified sender-identity (send path)
 enabled = true
-query   = "SELECT email_address AS sending_address FROM tb_sales_mailbox m \
-           JOIN tb_actor a ON a.mailbox_id = m.id WHERE a.sub = $sub AND m.verified"
+query   = """SELECT email_address AS sending_address FROM tb_sales_mailbox m \
+           JOIN tb_actor a ON a.mailbox_id = m.id WHERE a.sub = $sub AND m.verified"""
 map     = { sending_address = "sending_address" }
 ```
 
@@ -258,6 +259,7 @@ With `provision` set, a **zero-row** resolution runs the statement and then runs
 `query` again. The re-read decides the outcome; nothing else changes.
 
 ```toml
+# server.toml
 [identity.enrichment]
 enabled   = true
 query     = "SELECT actor_id, actor_role FROM tb_actor WHERE sub = $sub"

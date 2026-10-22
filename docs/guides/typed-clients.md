@@ -266,12 +266,14 @@ class CreateOrderResult: ...   # marker class — body ignored
 def createOrder(input: CreateOrderInput) -> CreateOrderResult: ...
 ```
 
-*Or synthesize it automatically.* Set `auto_error_union` in `fraiseql.toml` and the
+*Or synthesize it automatically.* Set `auto_error_union` in the project
+`fraiseql.toml` read beside `schema.json` (a TOML schema input has no such key) and the
 compiler generates a shared `MutationError` type and a per-mutation
 `<Mutation>Result` union for every object-returning mutation, rewriting its return
 type to that union:
 
 ```toml
+# fraiseql.toml
 [fraiseql.mutations]
 auto_error_union = true
 ```

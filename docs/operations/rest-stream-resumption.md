@@ -80,6 +80,7 @@ reconnect **without** the header and knowingly receive events from now on.
 ## Configuration
 
 ```toml
+# fraiseql.toml
 [rest]
 # How far back a resume may reach, counted in delivered events across all
 # entity types — which is what the walk through the ledger costs.

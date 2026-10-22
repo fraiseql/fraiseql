@@ -47,6 +47,7 @@ name that appears in the URL path**, and v1 supports exactly one section —
 configuring more than one is a startup error.
 
 ```toml
+# server.toml
 [storage.uploads]
 backend = "s3"                 # local | s3 | hetzner | scaleway | ovh | exoscale
                                # | backblaze | r2 | gcs | azure
@@ -65,6 +66,7 @@ Objects in this example are addressed as
 For the local backend:
 
 ```toml
+# server.toml
 [storage.uploads]
 backend = "local"
 path = "/var/lib/fraiseql/uploads"
@@ -205,6 +207,7 @@ policy — a list of **permit** rules that *replaces* the access mode for that
 bucket:
 
 ```toml
+# server.toml
 [storage.docs]
 backend = "local"
 path = "/var/lib/fraiseql/docs"
@@ -252,6 +255,11 @@ Instead, writing metadata is a separate permission — the split S3 draws betwee
 any caller who holds it:
 
 ```toml
+# server.toml
+[storage.docs]
+backend = "local"
+path = "/var/lib/fraiseql/docs"
+
 # Curators classify documents; nobody else can.
 [[storage.docs.policies]]
 methods = ["set_metadata"]
@@ -436,6 +444,7 @@ parameter.
 ### Presets
 
 ```toml
+# server.toml
 [storage.media]
 backend = "s3"
 default_resize_mode = "fill"
@@ -508,6 +517,7 @@ For Azure Blob the endpoint is the account-level base (Azurite serves the
 account as a path segment, e.g. `devstoreaccount1`):
 
 ```toml
+# server.toml
 [storage.uploads]
 backend = "azure"
 account_name = "devstoreaccount1"

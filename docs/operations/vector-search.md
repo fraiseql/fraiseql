@@ -9,6 +9,7 @@ threshold-based distance filtering via the WHERE DSL. PostgreSQL only.
 TOML:
 
 ```toml
+# fraiseql.toml
 [types.Doc.fields.embedding]
 type = "Vector"
 vector = { dimensions = 1536, index_type = "hnsw", distance_metric = "cosine" }
@@ -212,6 +213,7 @@ All three are **server** configuration — the same flat-key file as
 authoring `fraiseql.toml`:
 
 ```toml
+# server.toml
 # Leave pgvector's own defaults in place.
 vector_hnsw_iterative_scan = "off"
 vector_ivfflat_iterative_scan = "off"
@@ -304,6 +306,7 @@ page carries its count, so a cache hit answers with the same notice. `nearest` i
 GraphQL argument, so GraphQL is the only transport that carries the notice.
 
 ```toml
+# server.toml
 # Count, and say so only when a search really stopped short.
 vector_on_short_result = "verify"
 ```
@@ -337,6 +340,7 @@ A `Float` field declaring `vector_distance` carries the distance the search
 ordered by:
 
 ```toml
+# fraiseql.toml
 [types.Doc.fields.similarity]
 type = "Float"
 vector_distance = "embedding"
@@ -395,6 +399,7 @@ pgvector's `hamming_distance` (`<~>`) and `jaccard_distance` (`<%>`) are defined
 over `bit` values, not `vector` ones. Declare the field as `BitVector` (#959):
 
 ```toml
+# fraiseql.toml
 [types.Doc.fields.fingerprint]
 type = "BitVector"
 vector = { dimensions = 768, index_type = "hnsw", distance_metric = "hamming" }

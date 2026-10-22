@@ -96,6 +96,7 @@ for investigation steps, reset procedures, and escalation guidance.
 Increase `failure_threshold` and/or shorten `recovery_timeout_secs`:
 
 ```toml
+# fraiseql.toml
 [federation.circuit_breaker]
 failure_threshold = 10      # Was 5 — tolerate more transient failures
 recovery_timeout_secs = 15  # Was 30 — recover faster
@@ -107,6 +108,7 @@ success_threshold = 3       # Require more proof before closing
 Lower `failure_threshold`:
 
 ```toml
+# fraiseql.toml
 [federation.circuit_breaker]
 failure_threshold = 3       # Trip faster on repeated failures
 recovery_timeout_secs = 60  # Stay open longer to give subgraph time to recover
@@ -117,6 +119,7 @@ recovery_timeout_secs = 60  # Stay open longer to give subgraph time to recover
 For business-critical entities, you want to trip early and recover cautiously:
 
 ```toml
+# fraiseql.toml
 [federation.circuit_breaker]
 failure_threshold = 2       # Trip after just 2 failures
 recovery_timeout_secs = 120 # Wait 2 minutes before probing
@@ -128,12 +131,14 @@ success_threshold = 5       # Require 5 clean probes before fully reopening
 Disable the breaker to avoid it tripping during service restarts:
 
 ```toml
+# fraiseql.toml
 [federation.circuit_breaker]
 enabled = false
 ```
 
 Or set a very high threshold:
 ```toml
+# fraiseql.toml
 [federation.circuit_breaker]
 failure_threshold = 1000
 ```

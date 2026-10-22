@@ -11,10 +11,9 @@
 Configure clippy pedantic at **warn level** with justified suppressions:
 
 ```toml
+# Cargo.toml
 [lints.clippy]
 pedantic = "warn"  # Everything, but...
-
-[lints.clippy]
 # ... then selectively allow with // Reason: comments
 module_name_repetitions = "allow"  # Reason: consistent public API naming
 ```

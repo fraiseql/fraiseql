@@ -174,6 +174,7 @@ to verify), `email_from`, and `verification_url_template`; a config missing any 
 refused at compile time by the CLI and again at boot.
 
 ```toml
+# fraiseql.toml
 [auth.local]
 password                  = true
 email_verification        = true

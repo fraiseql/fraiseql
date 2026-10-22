@@ -172,6 +172,7 @@ S3, GCS, Azure Blob).
 An excerpt of `crates/fraiseql-server/Cargo.toml`:
 
 ```toml
+# Cargo.toml
 [features]
 default = ["auth", "cli"]
 
@@ -730,12 +731,18 @@ Server::new(config, compiled_schema, adapter, db_pool)  // Runtime
 
 ### ❌ Don't Add Required Dependencies for Optional Features
 
+Wrong:
+
 ```toml
-# Wrong
+# Cargo.toml
 [dependencies]
 redis = "0.25"  # Required even if not using observers
+```
 
-# Right
+Right:
+
+```toml
+# Cargo.toml
 [dependencies]
 redis = { version = "0.25", optional = true }
 

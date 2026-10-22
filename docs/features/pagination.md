@@ -126,6 +126,7 @@ pages: the author answered the question it asks.
 ### Deployment posture
 
 ```toml
+# fraiseql.toml
 [query_defaults]
 pagination_order = "identity"   # default | "refuse" | "allow"
 ```
@@ -182,6 +183,7 @@ walk to (see [Paging under an `orderBy`](#paging-under-an-orderby)).
 An operator can refuse deep offset pages outright:
 
 ```toml
+# fraiseql.toml
 [validation]
 max_offset = 10000   # unset by default: no ceiling
 ```

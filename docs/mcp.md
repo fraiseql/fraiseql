@@ -20,6 +20,7 @@ cargo build --release -p fraiseql-server --features mcp
 Add an `[mcp]` section to your project configuration and recompile the schema:
 
 ```toml
+# fraiseql.toml
 [mcp]
 enabled = true
 ```
@@ -256,6 +257,7 @@ error — nor report an error for a database write that did happen.
 All MCP settings live under `[mcp]` in `fraiseql.toml`:
 
 ```toml
+# fraiseql.toml
 [mcp]
 # Enable MCP server endpoint (default: false).
 enabled = true

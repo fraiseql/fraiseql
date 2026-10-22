@@ -42,6 +42,7 @@ SMTP *send* half (used by the `send_email` host op) lives under
 account only receives; a `[mailbox.<name>.smtp]`-only account only sends.
 
 ```toml
+# server.toml
 [mailbox.support.imap]
 host = "imap.example.com"        # also the TLS SNI / certificate name
 port = 993                        # default 993 (IMAPS)

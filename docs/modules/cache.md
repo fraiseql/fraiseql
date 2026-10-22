@@ -98,6 +98,7 @@ manual read-time expiry check (a deliberate perf decision — see
 `fraiseql.toml` can author per-query caching without the SDK:
 
 ```toml
+# fraiseql.toml
 [caching]
 enabled = true
 
@@ -284,7 +285,7 @@ with `cache_ttl_seconds = 0`.
 #### The feed: `cache_cross_instance = "notify"`
 
 ```toml
-# fraiseql.toml (server)
+# server.toml
 cache_cross_instance = "notify"   # default "off"
 ```
 

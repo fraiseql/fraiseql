@@ -131,6 +131,7 @@ Source-only is a statement about distribution, not quality: conformance scores a
 **Rust applications:**
 
 ```toml
+# Cargo.toml
 [dependencies]
 fraiseql = { version = "2.17.1", features = ["server"] }
 ```

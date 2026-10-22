@@ -28,6 +28,7 @@ the time a statement started uses `statement_timestamp()`.
 The stamp is on unless you turn it off, in `fraiseql.toml`:
 
 ```toml
+# fraiseql.toml
 [fraiseql.session_variables]
 inject_started_at = false
 ```

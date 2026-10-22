@@ -244,6 +244,7 @@ alone. The helpers need a UTF8 database (for `normalize`), and no extension.
 To find the failures that do not follow this shape, set the server key
 
 ```toml
+# server.toml
 mutation_error_shape_check = "warn"   # default "off"
 ```
 

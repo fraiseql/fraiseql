@@ -69,6 +69,7 @@ The `critcmp` filter patterns in CI:
 2. Register it in the crate's `Cargo.toml`:
 
 ```toml
+# Cargo.toml
 [[bench]]
 name = "my_benchmark"
 harness = false

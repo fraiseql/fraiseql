@@ -49,6 +49,7 @@ request value never reaches SQL.
 An `enrichment` source reads a field of the resolved identity (`[identity.enrichment]`):
 
 ```toml
+# server.toml
 [identity.enrichment]
 enabled = true
 query   = "SELECT coalesce(locale, '') AS locale FROM tb_user WHERE sub = $sub"

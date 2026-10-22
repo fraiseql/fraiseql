@@ -9,6 +9,7 @@ optional summarisation hook that collapses long threads.
 ## Configuration
 
 ```toml
+# server.toml
 [session_state]
 backend = "postgres"        # "memory" (volatile, dev) | "postgres" (durable)
 default_ttl_secs = 3600     # per-entry TTL

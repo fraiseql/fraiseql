@@ -7,6 +7,7 @@ while keeping every write — and everything that *could* write — on the prima
 ## Configuration
 
 ```toml
+# server.toml
 database_url = "postgres://app@primary:5432/appdb"
 
 # Read replicas: compiled queries are served from these, round-robin.

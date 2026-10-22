@@ -192,6 +192,7 @@ The fuzzer uses these as starting points and mutates them to discover new code p
 2. Register in `fuzz/Cargo.toml`:
 
    ```toml
+   # Cargo.toml
    [[bin]]
    name = "<name>"
    path = "fuzz_targets/<name>.rs"

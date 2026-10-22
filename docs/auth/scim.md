@@ -12,6 +12,7 @@ IdP — Okta, Entra, OneLogin — can create, update, deactivate and delete user
 ## Enabling it
 
 ```toml
+# server.toml
 [scim]
 enabled = true
 # Externally reachable base of the SCIM surface; provisioning clients follow the

@@ -124,6 +124,7 @@ run_as = { roles: [...], scopes: [...], tenant?: "..." }
   (env > TOML > default):
 
   ```toml
+  # server.toml
   [sources]
   enabled = true            # FRAISEQL_SOURCES_ENABLED — global on/off
   allowed_domains = [       # FRAISEQL_SOURCES_ALLOWED_DOMAINS (comma-separated)

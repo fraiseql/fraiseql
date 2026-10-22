@@ -50,11 +50,12 @@ Advisory-only is the chosen approach because:
 ## Operator Workflow
 
 1. Monitor `fraiseql_pool_tuning_recommended_size` in Grafana
-2. When recommended size diverges from actual, update `fraiseql.toml`:
+2. When recommended size diverges from actual, update `pool_max_size` in the server
+   config:
 
    ```toml
-   [fraiseql.database]
-   max_connections = 30  # was 20
+   # server.toml
+   pool_max_size = 30  # was 20
    ```
 
 3. Perform graceful restart (rolling deployment or `SIGTERM` + health check drain)
@@ -62,9 +63,10 @@ Advisory-only is the chosen approach because:
 ## Configuration
 
 ```toml
+# server.toml
 [pool_tuning]
 enabled = true
-poll_interval_secs = 30
+tuning_interval_ms = 30000
 min_pool_size = 5
 max_pool_size = 50
 scale_up_step = 5

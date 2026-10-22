@@ -22,6 +22,7 @@ authentication flow. This guide covers configuration.
 ## fraiseql.toml
 
 ```toml
+# fraiseql.toml
 [auth]
 discovery_url       = "https://your-tenant.auth0.com/"
 client_id           = "your-auth0-client-id"
@@ -64,13 +65,9 @@ In your Auth0 application settings:
 ## Custom claims mapping
 
 If you use Auth0 Actions or Rules to add custom claims (e.g. roles, permissions),
-map them in the JWT validation configuration:
-
-```toml
-# Example: Auth0 namespaced custom claims
-# Auth0 requires custom claims to use a URL namespace to avoid collision
-# with standard OIDC claims.
-```
+there is nothing to configure: FraiseQL has no claim-mapping key. Auth0 requires
+custom claims to use a URL namespace to avoid collision with standard OIDC claims,
+and they reach FraiseQL under that namespaced name.
 
 Auth0 standard claims (`sub`, `email`, `name`) are mapped automatically.
 Custom claims added via Auth0 Actions appear in the JWT payload and are
@@ -94,6 +91,7 @@ via the JWT `attributes` map.
 For service-to-service communication that bypasses Auth0, configure API keys:
 
 ```toml
+# fraiseql.toml
 [security.api_keys]
 enabled = true
 header = "X-API-Key"
@@ -139,9 +137,12 @@ For multi-tenant setups using Auth0 Organizations:
 
 ```toml
 # fraiseql.toml
-[fraiseql.tenancy]
+[tenancy]
 tenant_claim = "org_id"
 ```
+
+(In a project config read beside `schema.json`, the same key sits under
+`[fraiseql.tenancy]`.)
 
 The request's tenant (per-tenant dispatch, the default RLS policy, caches, subscriptions) is
 read from the configured `tenant_claim`, which defaults to `tenant_id`. Without this line an

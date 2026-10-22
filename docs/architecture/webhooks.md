@@ -74,6 +74,7 @@ still answered `duplicate`: recovering the dispatch is the sweep's job, not the
 redelivery's.
 
 ```toml
+# server.toml
 [inbound_dispatch]          # server configuration; these are the defaults
 lease_secs = 300            # longer than a dispatch's own retries take, or a slow one runs twice
 sweep_interval_secs = 30
@@ -154,6 +155,7 @@ than a second implementation; a sender using some third spelling is `standard-we
 plus `header_prefix`.
 
 ```toml
+# server.toml
 [webhooks.clerk]
 provider   = "clerk"
 secret_env = "CLERK_WEBHOOK_SECRET"       # the whsec_… from Clerk's dashboard
@@ -257,6 +259,7 @@ at all, and a route that demanded one would refuse every genuine delivery from s
 a provider. Set it whenever the provider sends one.
 
 ```toml
+# server.toml
 [webhooks.hanko]
 provider = "hanko"
 jwks_uri = "https://your-tenant.hanko.io/.well-known/jwks.json"
@@ -405,7 +408,7 @@ handlers. A handler that must distinguish its senders should read the payload.
 ### Configuration
 
 ```toml
-# fraiseql.toml
+# server.toml
 [webhooks.stripe]
 provider   = "stripe"                 # selects the signature verifier
 secret_env = "STRIPE_WEBHOOK_SECRET"  # NAME of the env var holding the signing secret
@@ -427,7 +430,7 @@ the provider publishes, so a `secret_env` there is key material nothing consults
 **refuses the boot in every environment**.
 
 `secret_env` is the *name of an environment variable*, not the secret. The signing
-secret never appears in `fraiseql.toml`, which is a file that gets committed.
+secret never appears in the server config file, which gets committed.
 
 Optional keys:
 
@@ -461,6 +464,7 @@ to be refused: it would have been accepted on an `hmac-sha256` route and ignored
 ### Describing a scheme yourself
 
 ```toml
+# server.toml
 [webhooks.lago]
 provider   = "hmac-sha256"
 secret_env = "LAGO_WEBHOOK_SECRET"
@@ -523,16 +527,21 @@ has_field('deleted_at')
 
 ### Configuration
 
-```toml
-# fraiseql.toml
-[[observers]]
-table = "orders"
-condition = "field_changed_to('status', 'shipped')"
+Observers are not declared in TOML. They are rows of `tb_observer`, created and edited
+through the admin API (`POST /api/observers`); the compiler refuses an
+`[[observers.handlers]]` block (#631). The TOML side only switches the runtime on
+(`[observers] enabled = true`) and tunes it (`[observers.runtime]`, see
+[Operating Observers](../operations/observers.md)).
 
-[[observers.actions]]
-type = "webhook"
-url = "https://fulfillment.example.com/notify"
-method = "POST"
+```json
+{
+  "name": "notify-fulfillment",
+  "entity_type": "Order",
+  "condition_expression": "field_changed_to('status', 'shipped')",
+  "actions": [
+    { "type": "webhook", "url": "https://fulfillment.example.com/notify", "method": "POST" }
+  ]
+}
 ```
 
 ---

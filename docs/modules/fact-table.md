@@ -188,6 +188,7 @@ column to be an `LTREE` denormalized filter.
 node lives in, declared in `fraiseql.toml`:
 
 ```toml
+# fraiseql.toml
 [hierarchies.org]
 table = "tb_org_unit"      # holds id (UUID) + path
 path_column = "path"

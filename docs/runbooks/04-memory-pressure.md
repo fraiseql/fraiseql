@@ -382,6 +382,7 @@ docker update fraiseql-server --memory="2g" --memory-reservation="1.5g"
 ```
 
 ```toml
+# server.toml
 # 2./3. Pool sizing and caching are config-file keys (server.toml, top-level):
 pool_min_size = 5
 pool_max_size = 15      # reduce if memory constrained

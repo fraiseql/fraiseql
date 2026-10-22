@@ -28,6 +28,7 @@ rows as delivered.
 ## Configuration
 
 ```toml
+# server.toml
 [cdc_outbound]
 tick_interval_secs = 5   # drain cadence (default 5)
 batch_size = 256         # rows published per tick per sink (default 256)
@@ -92,6 +93,7 @@ subscribers are getting, tagged with the subscription that matched — configure
 `[subscription_kafka]`:
 
 ```toml
+# server.toml
 [subscription_kafka]
 endpoint = "kafka+ssl://broker.internal:9093"
 default_topic = "fraiseql.subscriptions"
@@ -166,6 +168,7 @@ endpoint from a region name. The configured endpoint therefore carries only the
 region, and — as for Kafka — a scheme-less value is refused rather than guessed:
 
 ```toml
+# server.toml
 [[cdc_outbound.sinks]]
 name = "warehouse"
 kind = "kinesis"

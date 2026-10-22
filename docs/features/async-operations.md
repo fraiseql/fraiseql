@@ -10,6 +10,7 @@ a second execution path), and status is read back from the stored row.
 ## Configuration
 
 ```toml
+# server.toml
 [async_operations]
 operations = ["largeExport", "rebuildIndex"]  # required, non-empty allowlist
 workers = 2

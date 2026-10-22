@@ -97,11 +97,13 @@ capturing to its own `tb_entity_change_log` — the observer trigger writes it
 regardless of `expose` — it simply doesn't surface it over GraphQL:
 
 ```toml
-# the one subgraph that owns the change-log API
+# fraiseql.toml — the one subgraph that owns the change-log API
 [changelog]
 expose = true
+```
 
-# every other subgraph: capture, but no GraphQL surface
+```toml
+# fraiseql.toml — every other subgraph: capture, but no GraphQL surface
 [changelog]
 expose        = false   # no EntityChangeLog type / entity_change_logs query
 write_enabled = true    # default — the capture trigger still writes the log

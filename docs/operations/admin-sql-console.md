@@ -16,6 +16,7 @@ preview.
 ## Turning it on
 
 ```toml
+# server.toml
 admin_api_enabled = true
 admin_token = "…at least 32 characters…"
 admin_readonly_token = "…a different 32+ characters…"   # optional but recommended

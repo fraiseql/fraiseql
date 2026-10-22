@@ -103,6 +103,7 @@ every IdP is visible to every caller. Turning on the store adds a durable, hot-r
 per-tenant path alongside it — the config-file entries keep working unchanged.
 
 ```toml
+# server.toml
 [saml]
 store_enabled = true                     # mounts core.tb_saml_idp + /api/saml/idps
 refresh_interval_secs = 30               # how fast ANOTHER replica's change propagates
@@ -162,6 +163,7 @@ assertions. Both need an SP key pair. It is configured once for the deployment a
 to every IdP — config-file and stored alike, so no private key ever lives in a database row.
 
 ```toml
+# server.toml
 [saml.sp]
 private_key_env = "FRAISEQL_SAML_SP_KEY"   # or private_key_path = "/run/secrets/sp.key"
 certificate_path = "/etc/fraiseql/sp.crt"  # or certificate_pem = "-----BEGIN…"
@@ -276,6 +278,7 @@ docker run -d --name keycloak \
 ### 4. Configure FraiseQL
 
 ```toml
+# fraiseql.toml
 [auth]
 discovery_url       = "https://keycloak.yourdomain.com/realms/fraiseql"
 client_id           = "fraiseql"
@@ -316,6 +319,7 @@ staticClients:
 Then configure FraiseQL to point at Dex:
 
 ```toml
+# fraiseql.toml
 [auth]
 discovery_url       = "https://dex.yourdomain.com"
 client_id           = "fraiseql"
