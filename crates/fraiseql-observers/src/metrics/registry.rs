@@ -42,16 +42,11 @@ pub struct MetricsRegistry {
     pub(crate) events_processed_total:                IntCounter,
     pub(crate) events_failed_total:                   IntCounterVec,
     pub(crate) events_deserialization_failures_total: IntCounter,
-    pub(crate) events_tenant_violations_total:        IntCounter,
 
     // Cache metrics
     pub(crate) cache_hits_total:      IntCounter,
     pub(crate) cache_misses_total:    IntCounter,
     pub(crate) cache_evictions_total: IntCounter,
-
-    // Deduplication metrics
-    pub(crate) dedup_detected_total:           IntCounter,
-    pub(crate) dedup_processing_skipped_total: IntCounter,
 
     // Action execution metrics
     pub(crate) action_executed_total:   IntCounterVec,
@@ -62,15 +57,6 @@ pub struct MetricsRegistry {
     pub(crate) backlog_size:       IntGauge,
     pub(crate) dlq_items:          IntGauge,
     pub(crate) dlq_overflow_total: IntCounter,
-
-    // Job queue metrics
-    pub(crate) job_queued_total:     IntCounter,
-    pub(crate) job_executed_total:   IntCounterVec,
-    pub(crate) job_failed_total:     IntCounterVec,
-    pub(crate) job_duration_seconds: HistogramVec,
-    pub(crate) job_retry_attempts:   IntCounterVec,
-    pub(crate) job_queue_depth:      IntGauge,
-    pub(crate) job_dlq_items:        IntGauge,
 }
 
 impl MetricsRegistry {
@@ -136,12 +122,6 @@ impl MetricsRegistry {
         )?;
         registry.register(Box::new(events_deserialization_failures_total.clone()))?;
 
-        let events_tenant_violations_total = IntCounter::new(
-            "fraiseql_observer_events_tenant_violations_total",
-            "Total events rejected because the tenant_id did not match the configured scope",
-        )?;
-        registry.register(Box::new(events_tenant_violations_total.clone()))?;
-
         // Cache metrics
         let cache_hits_total =
             IntCounter::new("fraiseql_observer_cache_hits_total", "Total cache hits")?;
@@ -154,19 +134,6 @@ impl MetricsRegistry {
         let cache_evictions_total =
             IntCounter::new("fraiseql_observer_cache_evictions_total", "Total cache evictions")?;
         registry.register(Box::new(cache_evictions_total.clone()))?;
-
-        // Deduplication metrics
-        let dedup_detected_total = IntCounter::new(
-            "fraiseql_observer_dedup_detected_total",
-            "Total duplicate events detected and skipped",
-        )?;
-        registry.register(Box::new(dedup_detected_total.clone()))?;
-
-        let dedup_processing_skipped_total = IntCounter::new(
-            "fraiseql_observer_dedup_processing_skipped_total",
-            "Total processing cycles saved by deduplication",
-        )?;
-        registry.register(Box::new(dedup_processing_skipped_total.clone()))?;
 
         // Action execution metrics
         let action_executed_total = IntCounterVec::new(
@@ -210,76 +177,19 @@ impl MetricsRegistry {
         )?;
         registry.register(Box::new(dlq_overflow_total.clone()))?;
 
-        // Job queue metrics
-        let job_queued_total = IntCounter::new(
-            "fraiseql_observer_job_queued_total",
-            "Total jobs queued for async execution",
-        )?;
-        registry.register(Box::new(job_queued_total.clone()))?;
-
-        let job_executed_total = IntCounterVec::new(
-            Opts::new("fraiseql_observer_job_executed_total", "Total jobs successfully executed"),
-            &["action_type"],
-        )?;
-        registry.register(Box::new(job_executed_total.clone()))?;
-
-        let job_failed_total = IntCounterVec::new(
-            Opts::new("fraiseql_observer_job_failed_total", "Total jobs that failed"),
-            &["action_type", "error_type"],
-        )?;
-        registry.register(Box::new(job_failed_total.clone()))?;
-
-        let job_duration_seconds = HistogramVec::new(
-            HistogramOpts::new(
-                "fraiseql_observer_job_duration_seconds",
-                "Job execution duration in seconds",
-            )
-            .buckets(vec![0.001, 0.01, 0.1, 1.0, 5.0, 10.0, 30.0, 60.0, 300.0]),
-            &["action_type"],
-        )?;
-        registry.register(Box::new(job_duration_seconds.clone()))?;
-
-        let job_retry_attempts = IntCounterVec::new(
-            Opts::new("fraiseql_observer_job_retry_attempts_total", "Total job retry attempts"),
-            &["action_type"],
-        )?;
-        registry.register(Box::new(job_retry_attempts.clone()))?;
-
-        let job_queue_depth = IntGauge::new(
-            "fraiseql_observer_job_queue_depth",
-            "Current number of jobs in queue waiting to execute",
-        )?;
-        registry.register(Box::new(job_queue_depth.clone()))?;
-
-        let job_dlq_items = IntGauge::new(
-            "fraiseql_observer_job_dlq_items",
-            "Current number of jobs in job queue dead letter queue",
-        )?;
-        registry.register(Box::new(job_dlq_items.clone()))?;
-
         Ok(MetricsRegistry {
             events_processed_total,
             events_failed_total,
             events_deserialization_failures_total,
-            events_tenant_violations_total,
             cache_hits_total,
             cache_misses_total,
             cache_evictions_total,
-            dedup_detected_total,
-            dedup_processing_skipped_total,
             action_executed_total,
             action_duration_seconds,
             action_errors_total,
             backlog_size,
             dlq_items,
             dlq_overflow_total,
-            job_queued_total,
-            job_executed_total,
-            job_failed_total,
-            job_duration_seconds,
-            job_retry_attempts,
-            job_queue_depth,
-            job_dlq_items,
         })
     }
 
@@ -298,11 +208,6 @@ impl MetricsRegistry {
         self.events_deserialization_failures_total.inc();
     }
 
-    /// Record an event rejected due to tenant scope violation
-    pub fn tenant_violation(&self) {
-        self.events_tenant_violations_total.inc();
-    }
-
     /// Record a cache hit
     pub fn cache_hit(&self) {
         self.cache_hits_total.inc();
@@ -316,16 +221,6 @@ impl MetricsRegistry {
     /// Record a cache eviction
     pub fn cache_eviction(&self) {
         self.cache_evictions_total.inc();
-    }
-
-    /// Record a detected duplicate event
-    pub fn dedup_detected(&self) {
-        self.dedup_detected_total.inc();
-    }
-
-    /// Record processing cycles saved by deduplication
-    pub fn dedup_processing_skipped(&self) {
-        self.dedup_processing_skipped_total.inc();
     }
 
     /// Record an action was executed
@@ -360,41 +255,6 @@ impl MetricsRegistry {
 
     // Job queue metrics methods
 
-    /// Record a job was queued for async execution
-    pub fn job_queued(&self) {
-        self.job_queued_total.inc();
-    }
-
-    /// Record a job was successfully executed
-    pub fn job_executed(&self, action_type: &str, duration_secs: f64) {
-        self.job_executed_total.with_label_values(&[action_type]).inc();
-        self.job_duration_seconds
-            .with_label_values(&[action_type])
-            .observe(duration_secs);
-    }
-
-    /// Record a job execution failure
-    pub fn job_failed(&self, action_type: &str, error_type: &str) {
-        self.job_failed_total.with_label_values(&[action_type, error_type]).inc();
-    }
-
-    /// Record a job retry attempt
-    pub fn job_retry_attempt(&self, action_type: &str) {
-        self.job_retry_attempts.with_label_values(&[action_type]).inc();
-    }
-
-    /// Update the current job queue depth
-    #[allow(clippy::cast_possible_wrap)] // Reason: queue depth won't exceed i64::MAX
-    pub fn set_job_queue_depth(&self, depth: usize) {
-        self.job_queue_depth.set(depth as i64);
-    }
-
-    /// Update the current job DLQ item count
-    #[allow(clippy::cast_possible_wrap)] // Reason: DLQ count won't exceed i64::MAX
-    pub fn set_job_dlq_items(&self, count: usize) {
-        self.job_dlq_items.set(count as i64);
-    }
-
     /// Get cache hit rate as percentage (0-100)
     #[must_use]
     #[allow(clippy::cast_precision_loss)] // Reason: f64 precision is acceptable for metrics counters
@@ -407,21 +267,6 @@ impl MetricsRegistry {
             0.0
         } else {
             (hits / total) * 100.0
-        }
-    }
-
-    /// Get deduplication save rate (percentage of processing saved)
-    #[must_use]
-    #[allow(clippy::cast_precision_loss)] // Reason: f64 precision is acceptable for metrics counters
-    pub fn dedup_save_rate(&self) -> f64 {
-        let total_processed = self.events_processed_total.get() as f64;
-        let skipped = self.dedup_processing_skipped_total.get() as f64;
-        let total_events_encountered = total_processed + skipped;
-
-        if total_events_encountered == 0.0 {
-            0.0
-        } else {
-            (skipped / total_events_encountered) * 100.0
         }
     }
 }

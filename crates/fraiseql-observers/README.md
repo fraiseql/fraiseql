@@ -2,6 +2,11 @@
 
 A comprehensive, event-driven observer system for FraiseQL that enables post-mutation side effects through reliable, configurable action execution with built-in retry logic and dead letter queue support.
 
+To run observers in a deployment, declare them under `[observers]` in `fraiseql.toml` and
+run them inside `fraiseql-server`. See
+[`docs/operations/observers.md`](../../docs/operations/observers.md). This crate is the
+library the server builds on.
+
 ## Features
 
 - **Event-Driven Architecture**: React to database mutations (INSERT, UPDATE, DELETE) in real-time
@@ -411,11 +416,9 @@ impl DeadLetterQueue for CustomDLQ {
 
 ## Future Enhancements
 
-- [ ] Cache backends (Redis, Memcached)
 - [ ] Scheduled actions
 - [ ] Action dependencies
 - [ ] Batch actions
-- [ ] Metrics integration (Prometheus)
 - [ ] Distributed tracing (Jaeger)
 
 ## License

@@ -1,395 +1,121 @@
-# FraiseQL Observer System - Complete Documentation
+# FraiseQL Observer System Documentation
 
-Welcome to the comprehensive documentation for the FraiseQL Observer System, including Phase 8 production-grade features.
+Observers run side effects (webhooks, email, Slack, cache invalidation, database functions)
+after database mutations. In a deployment they run inside `fraiseql-server`, configured
+under `[observers]` in `fraiseql.toml`. This directory documents the `fraiseql-observers`
+library the server builds on.
 
 ## Quick Start
 
-### For New Users
-
-1. **First time?** Start here: [Architecture Overview](../../../../docs/architecture/overview.md)
-   - Understand the system architecture
-   - Learn about each Phase 8 feature
-   - See how features work together
-
-2. **Ready to set up?** Follow: [Configuration Examples](configuration-examples.md)
-   - Choose your configuration profile (Production, Development, etc.)
-   - Copy-paste ready code examples
-   - Understand tuning parameters
-
-3. **Need help?** Check: [Troubleshooting Guide](troubleshooting.md)
-   - Common issues and solutions
-   - Diagnostic procedures
-   - Performance troubleshooting
-
 ### For Operations
 
-1. **Monitoring & Debugging** → [Operating Observers](../../../docs/operations/observers.md)
+1. **Configure and run** → [Operating Observers](../../../docs/operations/observers.md)
+   - Environment overrides, admin HTTP API, scaling, metrics
    - Check runtime status: `GET /api/observers/runtime/health`
    - Inspect execution logs: `GET /api/observers/logs`
    - Manage failures: `GET /api/observers/dlq`
 
-2. **Performance Issues** → [Performance Tuning Guide](performance-tuning.md)
-   - Identify bottlenecks
-   - Apply optimizations
-   - Benchmark improvements
+2. **Something is wrong** → [Troubleshooting Guide](troubleshooting.md)
 
-3. **Production Deployment** → [Migration Guide](migration-guide.md)
-   - Gradual rollout strategies
-   - Rollback procedures
-   - Testing at each phase
+3. **Performance issues** → [Performance Tuning Guide](performance-tuning.md)
+
+4. **Moving from a library-built runtime to the server** → [Migration Guide](migration-guide.md)
 
 ### For Developers
 
-1. **Integration** → [Integration Guide](integration-guide.md)
-   - Step-by-step feature integration
-   - Code examples for each Phase 8 feature
-   - Testing procedures
+1. **Embedding the library** → [Integration Guide](integration-guide.md)
+   - Checkpointed driver loop, Redis cache actions, metrics
 
 2. **Architecture** → [Architecture Overview](../../../../docs/architecture/overview.md)
-   - Deep dive into each feature
-   - How features interact
-   - Performance characteristics
 
 ---
 
 ## Documentation Index
 
-### Core Documentation
-
-| Document | Purpose | Audience | Length |
-|----------|---------|----------|--------|
-| **[Architecture Overview](../../../../docs/architecture/overview.md)** | Understand Phase 8 design, features, and patterns | Everyone | 23 KB |
-| **[Configuration Examples](configuration-examples.md)** | Real-world configs for different scenarios | Operators, DevOps | 18 KB |
-| **[Integration Guide](integration-guide.md)** | Step-by-step feature integration | Developers | 22 KB |
-| **[Operating Observers](../../../docs/operations/observers.md)** | Admin HTTP API, environment overrides, scaling, metrics | Operators | 8 KB |
-| **[Troubleshooting](troubleshooting.md)** | Problem diagnosis and solutions | Operators, Support | 18 KB |
-| **[Performance Tuning](performance-tuning.md)** | Optimization strategies and benchmarking | DevOps, Developers | 13 KB |
-| **[Migration Guide](migration-guide.md)** | Safe Phase 1-7 → Phase 8 migration | Operators, Tech Leads | 15 KB |
-
-**Total Documentation**: 125 KB of comprehensive guides
+| Document | Purpose | Audience |
+|----------|---------|----------|
+| **[Operating Observers](../../../docs/operations/observers.md)** | Configuration, admin HTTP API, environment overrides, scaling, metrics | Operators |
+| **[Troubleshooting](troubleshooting.md)** | Problem diagnosis and solutions | Operators, Support |
+| **[Performance Tuning](performance-tuning.md)** | Optimization strategies and benchmarking | DevOps, Developers |
+| **[Migration Guide](migration-guide.md)** | Moving to the server's observer runtime | Operators, Tech Leads |
+| **[Integration Guide](integration-guide.md)** | Embedding the library | Developers |
+| **[Architecture Overview](../../../../docs/architecture/overview.md)** | System design | Everyone |
 
 ---
 
-## Phase 8 Features
-
-### Overview
-
- transforms the observer system from a functional baseline (Phases 1-7) into production-grade reliability, performance, and scalability.
+## Features
 
 ```
--7 (Foundation)
-├─ Event listening (LISTEN/NOTIFY)
-├─ Condition evaluation
-├─ Action execution (webhook, email, Slack, etc.)
-├─ Retry logic & Dead Letter Queue
-└─ Basic error handling
-
- (Excellence)
-├─ 8.1: Persistent Checkpoints (zero-event-loss)
-├─ 8.3: Event Deduplication (duplicate prevention)
-├─ 8.4: Redis Caching (100x cache hits)
-├─ 8.5: Elasticsearch Integration (searchable audit trail)
-├─ 8.6: Job Queue System (async processing)
-├─ 8.7: Prometheus Metrics (production monitoring)
-├─ 8.8: Circuit Breaker (cascading failure prevention)
-├─ 8.9: Multi-Listener Failover (high availability)
-└─ 8.10: CLI Tools (developer experience)
+Database mutation
+        ↓
+core.tb_entity_change_log (durable outbox)
+        ↓
+ChangeLogListener (one poller per listener id, by PostgreSQL advisory lock)
+        ↓
+ObserverExecutor
+  ├─ Event matching
+  ├─ Condition evaluation
+  ├─ Actions, in order (webhook, email, Slack, cache, database function, log)
+  ├─ Retry with backoff
+  └─ Dead letter queue for failures
+        ↓
+Batch recorded in the dispatch ledger, checkpoint saved (at-least-once)
 ```
 
-### Feature Selection
-
-**Choose based on your needs**:
-
-```
-For Zero Event Loss → 8.1 (Checkpoints)
-For Performance → 8.4 (Caching)
-For Reliability → 8.3 (Dedup) + 8.8 (Circuit Breaker)
-For Observability → 8.7 (Metrics) + 8.5 (Search)
-For High Availability → 8.9 (Failover)
-For Developer Experience → 8.10 (CLI)
-For Production → All (recommended)
-```
+- **Persistent checkpoints**: a restart resumes from the stored cursor.
+- **Several replicas**: one replica polls; the others stand by and take over.
+- **Transports**: PostgreSQL change log, NATS JetStream (`nats` feature), in-memory.
+- **Redis**: `cache` actions invalidate keys; the library also offers an action result cache.
+- **Prometheus metrics**: `fraiseql_observer_*` series (`metrics` feature).
+- **Circuit breaker**: `resilience` module, not installed by the executor or the server.
 
 ---
 
 ## Common Scenarios
 
-### Scenario 1: "My observer events are processing but I'm losing data on restart"
+### "I'm losing events on restart"
 
-**Issue**: No durability guarantee
+Checkpoints and the dispatch ledger make delivery at-least-once. See
+[Operating Observers - Checkpoints](../../../docs/operations/observers.md#checkpoints) and
+[Integration Guide - Persistent Checkpoints](integration-guide.md#persistent-checkpoints).
 
-**Solution**: Enable Phase 8.1 (Persistent Checkpoints)
+### "Actions take too long"
 
-**Steps**:
+The actions of one event run one after another, and no setting runs them in parallel.
+Find the slow action with `fraiseql_observer_action_duration_seconds` and lower its timeout
+or speed up its target. See
+[Operating Observers - Metrics](../../../docs/operations/observers.md#metrics) and
+[Performance Tuning](performance-tuning.md).
 
-1. Read: [Architecture Overview](../../../../docs/architecture/overview.md)
-2. Follow: [Integration Guide - 8.1](integration-guide.md#phase-81-persistent-checkpoints)
-3. Configure: [Configuration Examples](configuration-examples.md#production-setup)
+### "The same action ran twice for one event"
 
-**Expected Result**: Zero events lost on restart
+Delivery is at-least-once. Make actions idempotent where a repeat matters. See
+[Observer Idempotency](../../../docs/operations/observer-idempotency.md) and
+[Troubleshooting - Issue 4](troubleshooting.md#issue-4-duplicate-events-being-processed).
 
----
-
-### Scenario 2: "Events are processed but actions take too long"
-
-**Issue**: Sequential action execution (100ms + 100ms + 100ms = 300ms)
-
-**Solution**: The actions of one event run one after another, and no setting runs them in
-parallel (#1451 removed the keys that claimed to). Find the slow action with
-`fraiseql_observer_action_duration_seconds` and lower its timeout or speed up its target.
-
-**Steps**:
-
-1. Measure: [Operating Observers - Metrics](../../../docs/operations/observers.md#metrics)
-2. Tune: [Performance Tuning](performance-tuning.md)
-
----
-
-### Scenario 3: "Same action executed multiple times for same event"
-
-**Issue**: Duplicate processing from retries
-
-**Solution**: Enable Phase 8.3 (Event Deduplication)
-
-**Steps**:
-
-1. Read: [Architecture Overview](../../../../docs/architecture/overview.md)
-2. Follow: [Integration Guide - 8.3](integration-guide.md#phase-83-event-deduplication)
-3. Monitor: [Operating Observers - Admin HTTP API](../../../docs/operations/observers.md#admin-http-api)
-
-**Expected Result**: No duplicate side effects
-
----
-
-### Scenario 4: "System is slow and overloaded"
-
-**Issue**: Multiple performance bottlenecks
-
-**Solution**: Multi-step optimization
-
-1. Enable caching for 100x cache hits
-2. Optimize configuration with [Performance Tuning](performance-tuning.md)
-
-**Expected Result**: 10-100x overall improvement
-
----
-
-### Scenario 5: "I don't know what's happening - lots of errors"
-
-**Issue**: Poor observability
-
-**Solution**: Use the server's admin HTTP API for diagnosis
-
-**Steps**:
+### "I don't know what's happening"
 
 1. Check status: `GET /api/observers/runtime/health`
 2. View DLQ: `GET /api/observers/dlq/stats`
 3. Inspect an event's executions: `GET /api/observers/logs?event_id=<uuid>`
 4. View metrics: scrape the server's `/metrics` (`fraiseql_observer_*`)
-5. Read: [Troubleshooting Guide](troubleshooting.md)
-
-**Expected Result**: Complete visibility into system state
-
----
-
-### Scenario 6: "External service fails, cascading errors everywhere"
-
-**Issue**: No resilience to external failures
-
-**Solution**: Enable Phase 8.8 (Circuit Breaker)
-
-**Steps**:
-
-1. Read: [Architecture Overview](../../../../docs/architecture/overview.md)
-2. Follow: [Integration Guide - 8.8](integration-guide.md#phase-88-circuit-breaker)
-3. Configure: Circuit breaker thresholds in [Configuration Examples](configuration-examples.md)
-
-**Expected Result**: Fast-fail instead of cascading failures
-
----
-
-### Scenario 7: "I need to migrate from Phase 1-7 to Phase 8"
-
-**Issue**: Uncertain about migration path
-
-**Solution**: Follow [Migration Guide](migration-guide.md)
-
-**Key Points**:
-
-- Gradual rollout (4-6 weeks, low risk)
-- Feature-by-feature enablement
-- Comprehensive testing at each stage
-- Rollback procedures for safety
-
-**Expected Result**: Safe, validated Phase 8 deployment
+5. Read the [Troubleshooting Guide](troubleshooting.md)
 
 ---
 
 ## Key Concepts
 
-### What is a Listener?
+### Listener
 
-A listener is a background process that:
+The listener polls `core.tb_entity_change_log` for new rows, skipping rows already recorded
+in the dispatch ledger. It hands each batch to the executor.
 
-1. Connects to PostgreSQL with `LISTEN`
-2. Waits for events (from database mutations)
-3. Processes each event through observers
-4. Executes actions (webhooks, emails, etc.)
+### Checkpoint
 
-**Phase 8 Enhancement**: Multiple listeners for high availability
+A checkpoint stores the last processed change-log id for a listener id. On restart, the
+listener resumes from it.
 
----
+### Dispatch Ledger
 
-### What is a Checkpoint?
-
-A checkpoint is a saved marker that tracks:
-
-- Which event was last processed
-- When it was processed
-- By which listener
-
-**Why it matters**: On restart, system resumes from checkpoint (no re-processing, no data loss)
-
----
-
-### What is Deduplication?
-
-Prevents the same event from being processed twice:
-
-1. Hash each event
-2. Check Redis for recent hash
-3. Skip if already processed (within TTL)
-
-**Why it matters**: Event retries don't cause duplicate side effects
-
----
-
-### What is Caching?
-
-Stores results of expensive operations:
-
-1. User lookups from API
-2. Price calculations
-3. Permission checks
-
-**Why it matters**: Reduces latency and external API calls dramatically
-
----
-
-## Architecture Overview
-
-```
-Database Mutations
-        ↓
-PostgreSQL LISTEN/NOTIFY
-        ↓
-┌─────────────────────────────┐
-│  Listener(s) - Phase 8.9    │  ← Multiple for HA
-├─────────────────────────────┤
-│  Checkpoint Load (8.1) ────→ Event Resume
-├─────────────────────────────┤
-│  Dedup Check (8.3) ────→ Skip if Duplicate
-├─────────────────────────────┤
-│  Cache Check (8.4) ────→ Fast Path
-├─────────────────────────────┤
-│  Condition Evaluation
-├─────────────────────────────┤
-│  Actions, in order
-│  ├─ Webhook
-│  ├─ Email
-│  └─ Slack
-├─────────────────────────────┤
-│  Circuit Breaker (8.8) ────→ Fast Fail
-├─────────────────────────────┤
-│  Job Queue (8.6) ──→ Async Processing
-├─────────────────────────────┤
-│  Checkpoint Save (8.1)
-├─────────────────────────────┤
-│  Search Index (8.5) ────→ Elasticsearch
-├─────────────────────────────┤
-│  Metrics (8.7) ────→ Prometheus
-└─────────────────────────────┘
-        ↓
-Results + Dead Letter Queue (for failures)
-```
-
----
-
-## Performance Targets
-
-### What You Can Achieve with Phase 8
-
-| Metric | Without Phase 8 | With Phase 8 | Improvement |
-|--------|-----------------|--------------|-------------|
-| Event latency (P99) | 300ms | 50ms | 6x |
-| Cache hit latency | 300ms | 2ms | 150x |
-| Throughput | 100 events/sec | 10,000 events/sec | 100x |
-| Data loss on crash | Possible | Zero | 100% |
-| Cascading failure resilience | No | Yes | N/A |
-
----
-
-## Getting Help
-
-### Quick Reference
-
-**Need to...** → **Read...**
-
-- Understand the system → [Architecture Overview](../../../../docs/architecture/overview.md)
-- Set up for your scenario → [Configuration Examples](configuration-examples.md)
-- Fix a problem → [Troubleshooting Guide](troubleshooting.md)
-- Monitor/debug → [Operating Observers](../../../docs/operations/observers.md)
-- Make it faster → [Performance Tuning](performance-tuning.md)
-- Migrate safely → [Migration Guide](migration-guide.md)
-- Integrate a feature → [Integration Guide](integration-guide.md)
-
-### Support Path
-
-1. Check relevant documentation
-2. Search troubleshooting for similar issue
-3. Use the admin HTTP API for diagnosis
-4. Contact platform team if still stuck
-
----
-
-## Documentation Quality
-
-All documentation includes:
-
-- ✅ Real-world code examples
-- ✅ Complete syntax references
-- ✅ Common scenarios
-- ✅ Troubleshooting procedures
-- ✅ Performance characteristics
-- ✅ Configuration templates
-- ✅ Integration steps
-- ✅ Testing procedures
-
----
-
-## Version Information
-
-**Phase 8 Documentation Version**: 1.0
-**Last Updated**: January 22, 2026
-**Coverage**: All Phase 8 features (8.0-8.10)
-**Status**: Production-Ready
-
----
-
-## Next Steps
-
-1. **New to the system?** Start with [Architecture Overview](../../../../docs/architecture/overview.md)
-2. **Setting up?** Use [Configuration Examples](configuration-examples.md)
-3. **Running into issues?** Check [Troubleshooting Guide](troubleshooting.md)
-4. **Operating in production?** Use [Operating Observers](../../../docs/operations/observers.md) and set up [Performance Tuning](performance-tuning.md)
-
----
-
-## Credits
-
-**Documentation**: Phase 8 Excellence Documentation Suite
-**Coverage**: All 10 Phase 8 subphases with integrated examples
-**Quality**: Enterprise-grade, production-ready documentation
-**Format**: Markdown with code examples, tested configurations, and operational procedures
-
-Enjoy using FraiseQL Observer System Phase 8! 🚀
+After a batch's actions run, the batch is recorded in the ledger. A batch that ran but was
+not recorded runs again, so delivery is at-least-once.

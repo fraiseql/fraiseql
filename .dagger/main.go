@@ -1139,22 +1139,14 @@ func (m *FraiseqlCi) Test(
 		// and run in the integration legs. Previously observers was excluded from the workspace
 		// run and only its #[ignore]d/name-filtered tests ran (in integration),
 		// so these unit tests never executed in CI.
-		// arrow/checkpoint/dedup/metrics/search are pure lib features whose unit
-		// modules were compiled out of every leg before (#992).
-		// `queue` joined the list in #1297. Its eight lib tests — four in
-		// `tests` and four in `tests::queued_executor_tests` — are pure config and
-		// summary assertions that touch no service, and no leg compiled them: the
-		// only invocations enabling `queue` are the redis leg's `-- --ignored`
-		// line (they carry no #[ignore], so it runs none of them) and the
-		// `--test job_queue_integration` binaries. They ran nowhere at all.
-		"echo '### cargo test -p fraiseql-observers --lib --features caching,arrow,checkpoint,dedup,metrics,nats,postgres,queue,search (Docker-free unit tests; DB/redis/nats tests are #[ignore]d → integration legs)'",
-		"cargo test -p fraiseql-observers --lib --features 'caching,arrow,checkpoint,dedup,metrics,nats,postgres,queue,search'",
+		// checkpoint/metrics are pure lib features whose unit modules were
+		// compiled out of every leg before (#992).
+		"echo '### cargo test -p fraiseql-observers --lib --features caching,checkpoint,metrics,nats,postgres (Docker-free unit tests; DB/redis/nats tests are #[ignore]d → integration legs)'",
+		"cargo test -p fraiseql-observers --lib --features 'caching,checkpoint,metrics,nats,postgres'",
 		// #992: observers in-process test binaries — the crate is excluded from
 		// the workspace run, so these executed nowhere.
-		// queue,metrics,testing: job_queue_integration is cfg-gated on them and
-		// runs ZERO tests without (verified — a plain run reads ok. 0 passed).
 		"echo '### cargo test -p fraiseql-observers in-process test binaries (#992)'",
-		"cargo test -p fraiseql-observers --features 'queue,metrics,testing' --test job_queue_integration --test property_state_machine --test stress_tests --test transport_pipeline_test --test config_documents",
+		"cargo test -p fraiseql-observers --features 'metrics,testing' --test stress_tests --test transport_pipeline_test",
 		// #429 wired saga forward executor: the gated path is off in the workspace
 		// run above, so run its Docker-free lib tests explicitly — the pure decision
 		// helpers and the remote-dispatch/honest-failure lib tests (the real execute_step
@@ -2598,7 +2590,7 @@ func (m *FraiseqlCi) minioService() *dagger.Service {
 }
 
 // integrationRedis binds Redis + a seeded Postgres and runs the Redis-backed
-// suites: fraiseql-core APQ storage and fraiseql-observers queue/lease. Those lib
+// suites: fraiseql-core APQ storage and fraiseql-observers cache/lease. Those lib
 // tests are #[ignore]d ("requires Redis running") and read REDIS_URL / DATABASE_URL.
 func (m *FraiseqlCi) integrationRedis(ctx context.Context, source *dagger.Directory) (string, error) {
 	dbURL := fmt.Sprintf("postgresql://%s:%s@%s:5432/%s", pgUser, pgPassword, pgBindHost, pgDatabase)
@@ -2607,7 +2599,7 @@ func (m *FraiseqlCi) integrationRedis(ctx context.Context, source *dagger.Direct
 	script := strings.Join([]string{
 		"set -e",
 		"echo \"### toolchain: $(rustc --version)\"",
-		"echo '### integration: redis (core APQ + observers queue/lease + #428 cache-invalidation) — Dagger-bound redis+postgres'",
+		"echo '### integration: redis (core APQ + observers lease + #428 cache-invalidation) — Dagger-bound redis+postgres'",
 		// The filter names the module rather than the substring `redis` (#1297):
 		// `apq::tests::redis_storage_tests` is the target the coverage gate scores,
 		// and a filter longer than a module path is deliberately not credited to
@@ -2615,13 +2607,7 @@ func (m *FraiseqlCi) integrationRedis(ctx context.Context, source *dagger.Direct
 		// — the crate's other #[ignore]d lib test — out of this leg.
 		"bash tools/ci-target-canary.sh -- test -p fraiseql-core --features redis-apq --lib apq::tests::redis_storage_tests", // #880 canary
 		"cargo test -p fraiseql-core --features redis-apq --lib apq::tests::redis_storage_tests -- --ignored --test-threads=1",
-		"cargo test -p fraiseql-observers --features 'caching,queue,redis-lease' --lib -- --ignored --test-threads=1",
-		// #844: the job-queue worker's dispatch/timeout/DLQ tests. The mock-queue
-		// tests are NOT #[ignore]d (no external service) but compile only with the
-		// `queue` feature, which no workspace-level step enables — without this
-		// line they run in no leg. The #[ignore]d redis variant runs in the
-		// `--ignored` line above.
-		"cargo test -p fraiseql-observers --features queue --lib job_queue -- --test-threads=1",
+		"cargo test -p fraiseql-observers --features 'caching,redis-lease' --lib -- --ignored --test-threads=1",
 		// #428: real cache-invalidation transport. The pure glob/escaping unit
 		// tests run non-ignored (the `--ignored` lib line above skips them); the
 		// integration binary seeds the bound Redis and asserts real UNLINKs
@@ -2652,7 +2638,7 @@ func (m *FraiseqlCi) integrationRedis(ctx context.Context, source *dagger.Direct
 		// redis-rate-limiting: the whole binary is #![cfg]-gated on it and runs
 		// ZERO tests without (verified).
 		"cargo test -p fraiseql-auth --features redis-rate-limiting --test redis_failover_test -- --include-ignored --test-threads=1",
-		"cargo test -p fraiseql-observers --features 'caching,queue,redis-lease,testing' --test integration_test -- --test-threads=1",
+		"cargo test -p fraiseql-observers --features 'caching,redis-lease,testing' --test integration_test -- --test-threads=1",
 		// Unfiltered since #1297. Under `--features redis-pkce` the only #[ignore]d
 		// lib tests in this crate are the four PKCE ones — the three state-store
 		// cases below are gated on `redis-rate-limiting`, which this build does not
@@ -2929,7 +2915,6 @@ func (m *FraiseqlCi) integrationObservers(ctx context.Context, source *dagger.Di
 		// unit tests that fail under this suite's FRAISEQL_OBSERVERS_ALLOW_INSECURE.
 		// This leg binds both Postgres and Redis, so both halves execute here.
 		"cargo test -p fraiseql-observers --features 'postgres,caching,redis-lease' --lib listener::tests -- --test-threads=1",
-		"cargo test -p fraiseql-observers --features 'postgres,nats' --test bridge_integration -- --ignored --test-threads=1",
 		"cargo test -p fraiseql-server --features observers-nats --test observer_runtime_integration_test -- --ignored --test-threads=1",
 		// #928: the observer E2E suite. It had never run in any leg — none of its
 		// tests constructed a runtime, so all 8 waited for webhooks nothing could
@@ -3084,7 +3069,7 @@ func (m *FraiseqlCi) integrationObservers(ctx context.Context, source *dagger.Di
 		WithEnvVariable("FRAISEQL_ENV", "development").
 		WithEnvVariable("FRAISEQL_ALLOW_PRIVATE_WEBHOOKS", "true").
 		WithEnvVariable("FRAISEQL_OBSERVERS_ALLOW_INSECURE", "true").
-		// The bound JetStream service speaks plaintext nats:// (bridge_integration);
+		// The bound JetStream service speaks plaintext nats://;
 		// opt into plaintext for the test broker (L-nats-plaintext).
 		WithEnvVariable("FRAISEQL_NATS_ALLOW_PLAINTEXT", "true").
 		// Likewise the bound Kafka broker: PLAINTEXT listener, so the sink's

@@ -44,39 +44,23 @@
 #![allow(clippy::panic)] // Reason: test code, panics acceptable
 pub mod actions;
 pub mod cache;
-#[cfg(feature = "caching")]
-pub mod cached_executor;
 #[cfg(feature = "checkpoint")]
 pub mod checkpoint;
 pub mod condition;
 pub mod config;
-pub mod dedup;
-#[cfg(feature = "dedup")]
-pub mod deduped_executor;
 pub mod dispatch;
 pub mod insecure_guard;
 
-#[cfg(feature = "arrow")]
-pub mod arrow_bridge;
-pub mod elasticsearch_sink;
 pub mod error;
 pub mod event;
 pub mod executor;
-pub mod factory;
-#[cfg(feature = "queue")]
-pub mod job_queue;
 pub mod listener;
 pub mod logging;
 pub mod matcher;
 #[cfg(feature = "metrics")]
 pub mod metrics;
 pub mod migrations;
-pub mod queue;
-#[cfg(feature = "queue")]
-pub mod queued_executor;
 pub mod resilience;
-#[cfg(feature = "search")]
-pub mod search;
 pub mod source;
 pub(crate) mod ssrf;
 pub mod storage;
@@ -93,9 +77,6 @@ mod tests;
 
 // Re-export common types at crate level
 pub use actions::{ActionExecutionResult, EmailAction, SlackAction, WebhookAction};
-/// The `arrow` this crate's public API is built against (#1198).
-#[cfg(any(feature = "analytics", feature = "arrow"))]
-pub use arrow;
 #[cfg(feature = "caching")]
 pub use cache::redis::{RedisCacheBackend, RedisCacheInvalidator};
 pub use cache::{CacheBackend, CacheStats, CachedActionResult};
@@ -108,36 +89,21 @@ pub use checkpoint::{
 pub use chrono;
 pub use condition::{ConditionAst, ConditionParser};
 pub use config::{
-    ActionConfig, BackoffStrategy, EmailSmtpConfig, FailurePolicy, MultiListenerConfig,
-    ObserverDefinition, ObserverRuntimeConfig, RedisConfig, RetryConfig, SmtpTlsMode,
+    ActionConfig, BackoffStrategy, EmailSmtpConfig, FailurePolicy, ObserverDefinition, RedisConfig,
+    RetryConfig, SmtpTlsMode,
 };
-#[cfg(feature = "dedup")]
-pub use dedup::redis::RedisDeduplicationStore;
-pub use dedup::{DeduplicationStats, DeduplicationStore};
 pub use dispatch::{
     DispatchPolicy, DispatchSource, FunctionDispatchRecord, RetryDecision, derive_address_hash_key,
     derive_idempotency_subkey, derive_idempotency_token, hash_address, run_with_retry,
 };
-pub use elasticsearch_sink::{ElasticsearchSink, ElasticsearchSinkConfig};
 pub use error::{ObserverError, ObserverErrorCode, Result};
 pub use event::{EntityEvent, EventKind, FieldChanges};
 pub use executor::{ActionExecutionDetail, ExecutionSummary, ObserverExecutor};
 /// The `futures` this crate's public API is built against (#1198).
 pub use futures;
-#[cfg(feature = "queue")]
-pub use job_queue::dlq::{DeadLetterQueueManager, DlqStats};
-#[cfg(feature = "queue")]
-pub use job_queue::redis::RedisJobQueue as JobQueueRedisImpl;
-#[cfg(feature = "queue")]
-pub use job_queue::traits::{JobQueue as JobQueueTrait, MockJobQueue};
-#[cfg(feature = "queue")]
-pub use job_queue::{Job as JobQueueItem, JobState};
+pub use listener::CheckpointLease;
 #[cfg(feature = "postgres")]
 pub use listener::{ChangeLogEntry, ChangeLogListener, ChangeLogListenerConfig};
-pub use listener::{
-    CheckpointLease, FailoverEvent, FailoverManager, ListenerHandle, ListenerHealth, ListenerState,
-    ListenerStateMachine, MultiListenerCoordinator,
-};
 pub use logging::{
     StructuredLogger, TraceIdExtractor, correlation::TraceContext, get_current_trace_id,
     set_trace_id_context,
@@ -152,31 +118,13 @@ pub use parking_lot;
 /// The `prometheus` this crate's public API is built against (#1198).
 #[cfg(feature = "metrics")]
 pub use prometheus;
-#[cfg(feature = "queue")]
-pub use queue::redis::RedisJobQueue;
-pub use queue::{
-    ExponentialBackoffPolicy, FixedBackoffPolicy, Job, JobQueue, JobResult, JobStatus,
-    LinearBackoffPolicy, QueueStats, RetryPolicy,
-    worker::{JobWorker, JobWorkerPool},
-};
-#[cfg(feature = "queue")]
-pub use queued_executor::{QueuedExecutionSummary, QueuedObserverExecutor};
 /// The `redis` this crate's public API is built against (#1198).
-#[cfg(any(
-    feature = "caching",
-    feature = "dedup",
-    feature = "queue",
-    feature = "redis-lease"
-))]
+#[cfg(any(feature = "caching", feature = "redis-lease"))]
 pub use redis;
 pub use resilience::{
     CircuitBreaker, CircuitBreakerConfig, CircuitState, DegradationLevel, GracefulDegradation,
     PerEndpointCircuitBreaker, ResilienceStrategy, ResilientExecutor,
 };
-#[cfg(feature = "search")]
-pub use search::http::HttpSearchBackend;
-#[cfg(feature = "search")]
-pub use search::{IndexedEvent, SearchBackend, SearchStats};
 /// The `serde_json` this crate's public API is built against (#1198).
 pub use serde_json;
 pub use source::{

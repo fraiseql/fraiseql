@@ -256,17 +256,9 @@ var featureCombos = []featureCombo{
 	// `ObserverExecutor::run_listener_loop` and imported `crate::listener`, both
 	// `#[cfg(feature = "postgres")]`, with no gate of its own.
 	{name: "observers-no-default", crate: "fraiseql-observers", noDefaultFeatures: true, clippy: true},
-	// `nats` without `postgres`. `tests/bridge_integration.rs` was gated on `nats`
-	// alone while every symbol it imports lives in `transport::bridge`, which is
-	// `cfg(all(postgres, nats))`. The combo above does not reach it — the file is
-	// cfg'd out entirely with `nats` off — so this is a second combo, not a wider one.
+	// `nats` without `postgres`: the NATS transport builds without the PostgreSQL
+	// listener. The combo above has `nats` off, so it does not reach this shape.
 	{name: "observers-nats-no-postgres", crate: "fraiseql-observers", noDefaultFeatures: true, clippy: true, features: []string{"nats"}},
-	// `dedup` without `caching`. `factory.rs` imported `RedisConfig` and
-	// `RedisDeduplicationStore` under `cfg(dedup)` while their only use,
-	// `build_dedup_store`, is `cfg(all(dedup, caching))` — so they were unused imports
-	// in exactly this one configuration. `enterprise` turns both on and hides it, which
-	// is why the bundle passes and the single feature did not.
-	{name: "observers-dedup-no-caching", crate: "fraiseql-observers", noDefaultFeatures: true, clippy: true, features: []string{"dedup"}},
 }
 
 // cargoArgs builds the `cargo check|clippy` invocation for this combo, mirroring the

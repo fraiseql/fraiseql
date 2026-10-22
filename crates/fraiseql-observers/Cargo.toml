@@ -1,14 +1,11 @@
 [dependencies]
 fraiseql-guard = { workspace = true }
-arrow = { version = "59", optional = true }
 # NATS Dependencies
 async-nats = { version = "0.49", optional = true }
 async-trait = "0.1"
 base64 = "0.22"
 chrono = { workspace = true }
 dashmap = { workspace = true }
-# Arrow Flight Dependencies
-fraiseql-arrow = { workspace = true, optional = true }
 fraiseql-error = { workspace = true }
 futures = "0.3"
 hex = { workspace = true }
@@ -70,24 +67,18 @@ wiremock = "0.6"
 
 [features]
 all-db = ["postgres"]
-analytics = ["arrow"]
-# Arrow Features
-arrow = ["fraiseql-arrow", "dep:arrow"]
 caching = ["redis"]
 checkpoint = []
-dedup = ["redis"]
 # Default features (PostgreSQL for backward compatibility)
 default = ["postgres"]
 # Descriptive bundles
-enterprise = ["checkpoint", "dedup", "caching", "queue", "search", "metrics"]
+enterprise = ["checkpoint", "caching", "metrics"]
 metrics = ["prometheus"]
 # NATS Features
 nats = ["async-nats"]
 # Database backends (enable sqlx features)
 postgres = ["sqlx/postgres"]
-queue = ["redis"]
 redis-lease = ["redis"]
-search = []
 testing = []
 
 [lints]

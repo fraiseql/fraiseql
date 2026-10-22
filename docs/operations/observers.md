@@ -60,17 +60,14 @@ The server applies these over the compiled configuration at boot:
 | `FRAISEQL_REDIS_COMMAND_TIMEOUT_SECS` | `[observers.runtime.redis] command_timeout_secs` |
 
 `[observers.runtime.redis]` is used only by `cache` observer actions. The server runs
-no Redis deduplication or action-result cache, and refuses to boot when
-`FRAISEQL_REDIS_POOL_SIZE`, `FRAISEQL_REDIS_DEDUP_WINDOW_SECS` or
-`FRAISEQL_REDIS_CACHE_TTL_SECS` is set. `FRAISEQL_ENABLE_DEDUP`,
-`FRAISEQL_ENABLE_CACHING`, `FRAISEQL_JOB_QUEUE_*` and `FRAISEQL_CLICKHOUSE_*`
-configure the `fraiseql-observers` library only.
+no action-result cache. Nothing in the server reads `FRAISEQL_REDIS_POOL_SIZE`,
+`FRAISEQL_REDIS_DEDUP_WINDOW_SECS` or `FRAISEQL_REDIS_CACHE_TTL_SECS`, so the server
+refuses to boot when one of them is set.
 
-The server always runs the observer executors and runs no PostgreSQL → NATS bridge.
-`[observers.runtime.transport]` therefore takes only `transport` and `nats`: `run_bridge`,
-`run_executors` and a `[bridge]` table are refused at load, and the server refuses to boot
-when `FRAISEQL_NATS_RUN_EXECUTORS`, `FRAISEQL_NATS_ENABLE_BRIDGE` or any
-`FRAISEQL_BRIDGE_*` variable is set.
+The server always runs the observer executors. `[observers.runtime.transport]` takes only
+`transport` and `nats`. The keys `run_bridge` and `run_executors` and a `[bridge]` table
+are refused at load. The server refuses to boot when `FRAISEQL_NATS_RUN_EXECUTORS`,
+`FRAISEQL_NATS_ENABLE_BRIDGE` or any `FRAISEQL_BRIDGE_*` variable is set.
 
 The stream settings (`dedup_window_minutes`, `max_age_days`, `max_msgs`, `max_bytes`) apply
 when the server creates the stream; a stream that already exists keeps its own. The
@@ -178,8 +175,7 @@ JetStream pull consumer named `nats.consumer_name` (default
 `consumer_name` and `stream_name` share that consumer and so act as competing
 consumers: each message goes to one replica, and an unacknowledged message is
 redelivered after `ack_wait_secs`, up to `max_deliver` deliveries. The server only
-consumes the stream: it does not run the PostgreSQL → NATS bridge, so something else must
-publish change events to it.
+consumes the stream. Something else must publish change events to it.
 
 **PostgreSQL.** Replicas share one listener id (`change_log`, not configurable in
 `fraiseql.toml`), and with it one checkpoint and one dispatch ledger. Exactly one replica
@@ -232,5 +228,5 @@ Series the server's dispatch path records:
 | `fraiseql_observer_action_duration_seconds` | `action_type` |
 | `fraiseql_observer_action_errors_total` | `action_type`, `error_type` |
 
-The registry defines further `fraiseql_observer_*` series (cache, deduplication, job
-queue) that only the corresponding library components record.
+The registry also defines backlog, dead letter queue, deserialization-failure and
+action-result cache series. The server's dispatch path does not record all of them.

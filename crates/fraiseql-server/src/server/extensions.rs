@@ -266,15 +266,15 @@ impl Server {
             .with_email(observer_config.runtime.email.clone())
             .with_log_payloads(observer_config.runtime.log_payloads)
             // #985: the Redis backend that makes a `type = "cache"` action work.
-            // Same `[observers.runtime.redis]` block dedup/result-cache use.
             .with_redis(observer_redis(observer_config.runtime.redis.as_ref())?);
 
         Ok(runtime_config)
     }
 }
 
-/// Transport variables that configure a bridge or a bridge-only node. The
-/// server runs neither, so setting one is refused (#1496).
+/// Transport variables that configured the PostgreSQL → NATS bridge or a
+/// bridge-only node. Nothing reads them, so setting one is refused rather than
+/// ignored (#1496).
 #[cfg(feature = "observers")]
 const UNRUN_TRANSPORT_VARS: [&str; 6] = [
     "FRAISEQL_NATS_RUN_EXECUTORS",
@@ -285,8 +285,9 @@ const UNRUN_TRANSPORT_VARS: [&str; 6] = [
     "FRAISEQL_BRIDGE_NOTIFY_CHANNEL",
 ];
 
-/// `FRAISEQL_REDIS_*` variables that configure the library's dedup and
-/// result cache. The server runs neither, so setting one is refused.
+/// `FRAISEQL_REDIS_*` variables nothing in the server reads, among them the
+/// window of the removed Redis dedup store. Setting one is refused rather than
+/// ignored.
 #[cfg(feature = "observers")]
 const UNUSED_REDIS_VARS: [&str; 3] = [
     "FRAISEQL_REDIS_POOL_SIZE",

@@ -5,46 +5,6 @@ use super::*;
 use crate::error::ObserverError;
 
 #[test]
-fn test_max_dlq_size_defaults_to_none() {
-    let config: ObserverRuntimeConfig = serde_json::from_str("{}").unwrap();
-    assert!(config.max_dlq_size.is_none());
-    config
-        .validate()
-        .unwrap_or_else(|e| panic!("default config should be valid: {e}"));
-}
-
-#[test]
-fn test_max_dlq_size_defaults_to_none_from_json() {
-    let config: ObserverRuntimeConfig = serde_json::from_str("{}").unwrap();
-    assert!(config.max_dlq_size.is_none());
-}
-
-#[test]
-fn test_max_dlq_size_zero_is_invalid() {
-    let config: ObserverRuntimeConfig = serde_json::from_str(r#"{"max_dlq_size": 0}"#).unwrap();
-    assert_eq!(config.max_dlq_size, Some(0));
-    assert!(config.validate().is_err(), "max_dlq_size = 0 must be rejected by validate()");
-}
-
-#[test]
-fn test_max_dlq_size_positive_is_valid() {
-    let config: ObserverRuntimeConfig = serde_json::from_str(r#"{"max_dlq_size": 10000}"#).unwrap();
-    assert_eq!(config.max_dlq_size, Some(10_000));
-    config
-        .validate()
-        .unwrap_or_else(|e| panic!("max_dlq_size=10000 should be valid: {e}"));
-}
-
-#[test]
-fn test_max_dlq_size_one_is_valid() {
-    let config: ObserverRuntimeConfig = serde_json::from_str(r#"{"max_dlq_size": 1}"#).unwrap();
-    assert_eq!(config.max_dlq_size, Some(1));
-    config
-        .validate()
-        .unwrap_or_else(|e| panic!("max_dlq_size=1 should be valid: {e}"));
-}
-
-#[test]
 fn test_transport_kind_default() {
     let kind = TransportKind::default();
     assert_eq!(kind, TransportKind::Postgres);
@@ -54,8 +14,6 @@ fn test_transport_kind_default() {
 fn test_transport_config_default() {
     let config = TransportConfig::default();
     assert_eq!(config.transport, TransportKind::Postgres);
-    assert!(!config.run_bridge);
-    assert!(config.run_executors);
 }
 
 #[test]
@@ -69,28 +27,15 @@ fn test_transport_config_validation() {
     // Invalid: NATS transport without URL
     let config = TransportConfig {
         transport: TransportKind::Nats,
-        nats: NatsTransportConfig {
+        nats:      NatsTransportConfig {
             url: String::new(),
             ..Default::default()
         },
-        ..Default::default()
     };
     let result = config.validate();
     assert!(
         matches!(result, Err(ObserverError::InvalidConfig { .. })),
         "NATS without URL should fail: {result:?}"
-    );
-
-    // Invalid: run_bridge=true with postgres transport
-    let config = TransportConfig {
-        transport: TransportKind::Postgres,
-        run_bridge: true,
-        ..Default::default()
-    };
-    let result = config.validate();
-    assert!(
-        matches!(result, Err(ObserverError::InvalidConfig { .. })),
-        "bridge with postgres should fail: {result:?}"
     );
 }
 
@@ -151,68 +96,6 @@ fn test_jetstream_config_validation() {
     assert!(
         matches!(result, Err(ObserverError::InvalidConfig { .. })),
         "ack_wait=0 should fail: {result:?}"
-    );
-}
-
-#[test]
-fn test_bridge_transport_config_default() {
-    let config = BridgeTransportConfig::default();
-    assert_eq!(config.transport_name, "pg_to_nats");
-    assert_eq!(config.batch_size, 100);
-    assert_eq!(config.poll_interval_secs, 1);
-    assert_eq!(config.notify_channel, "fraiseql_events");
-}
-
-#[test]
-fn test_bridge_transport_config_validation() {
-    // Valid config
-    let config = BridgeTransportConfig::default();
-    config
-        .validate()
-        .unwrap_or_else(|e| panic!("default bridge config should be valid: {e}"));
-
-    // Invalid: empty transport_name
-    let config = BridgeTransportConfig {
-        transport_name: String::new(),
-        ..Default::default()
-    };
-    let result = config.validate();
-    assert!(
-        matches!(result, Err(ObserverError::InvalidConfig { .. })),
-        "empty transport_name should fail: {result:?}"
-    );
-
-    // Invalid: batch_size = 0
-    let config = BridgeTransportConfig {
-        batch_size: 0,
-        ..Default::default()
-    };
-    let result = config.validate();
-    assert!(
-        matches!(result, Err(ObserverError::InvalidConfig { .. })),
-        "batch_size=0 should fail: {result:?}"
-    );
-
-    // Invalid: batch_size > 10000
-    let config = BridgeTransportConfig {
-        batch_size: 10001,
-        ..Default::default()
-    };
-    let result = config.validate();
-    assert!(
-        matches!(result, Err(ObserverError::InvalidConfig { .. })),
-        "batch_size=10001 should fail: {result:?}"
-    );
-
-    // Invalid: poll_interval = 0
-    let config = BridgeTransportConfig {
-        poll_interval_secs: 0,
-        ..Default::default()
-    };
-    let result = config.validate();
-    assert!(
-        matches!(result, Err(ObserverError::InvalidConfig { .. })),
-        "poll_interval=0 should fail: {result:?}"
     );
 }
 
@@ -423,84 +306,12 @@ fn test_email_action_validation() {
 }
 
 #[test]
-fn test_multi_listener_config_defaults() {
-    let config = MultiListenerConfig::default();
-    assert!(!config.enabled);
-    assert_eq!(config.lease_duration_ms, 30000);
-    assert_eq!(config.health_check_interval_ms, 5000);
-    assert_eq!(config.failover_threshold_ms, 60000);
-    assert_eq!(config.max_listeners, 10);
-}
-
-#[test]
-fn test_multi_listener_config_validation() {
-    let valid_config = MultiListenerConfig::default();
-    valid_config
-        .validate()
-        .unwrap_or_else(|e| panic!("default multi-listener config should be valid: {e}"));
-
-    let invalid_lease = MultiListenerConfig {
-        lease_duration_ms: 0,
-        ..Default::default()
-    };
-    let result = invalid_lease.validate();
-    assert!(
-        matches!(result, Err(ObserverError::InvalidConfig { .. })),
-        "lease_duration=0 should fail: {result:?}"
-    );
-
-    let invalid_health_check = MultiListenerConfig {
-        health_check_interval_ms: 0,
-        ..Default::default()
-    };
-    let result = invalid_health_check.validate();
-    assert!(
-        matches!(result, Err(ObserverError::InvalidConfig { .. })),
-        "health_check=0 should fail: {result:?}"
-    );
-
-    let invalid_threshold = MultiListenerConfig {
-        failover_threshold_ms: 1000,
-        health_check_interval_ms: 5000,
-        ..Default::default()
-    };
-    let result = invalid_threshold.validate();
-    assert!(
-        matches!(result, Err(ObserverError::InvalidConfig { .. })),
-        "threshold < health_check should fail: {result:?}"
-    );
-
-    let invalid_max_listeners = MultiListenerConfig {
-        max_listeners: 0,
-        ..Default::default()
-    };
-    let result = invalid_max_listeners.validate();
-    assert!(
-        matches!(result, Err(ObserverError::InvalidConfig { .. })),
-        "max_listeners=0 should fail: {result:?}"
-    );
-}
-
-#[test]
-fn test_multi_listener_config_builder() {
-    let config = MultiListenerConfig::new()
-        .enable()
-        .with_listener_id("test-listener".to_string())
-        .with_lease_duration_ms(20000);
-
-    assert!(config.enabled);
-    assert_eq!(config.listener_id, "test-listener");
-    assert_eq!(config.lease_duration_ms, 20000);
-}
-
-#[test]
 fn test_redis_config_defaults() {
     let config = RedisConfig::default();
     assert!(config.url.contains("localhost:6379"));
     assert_eq!(config.pool_size, 10);
     assert_eq!(config.connect_timeout_secs, 5);
     assert_eq!(config.command_timeout_secs, 2);
-    assert_eq!(config.dedup_window_secs, 300);
     assert_eq!(config.cache_ttl_secs, 60);
 }
 
@@ -534,60 +345,16 @@ fn test_redis_config_validation() {
         "pool_size=0 should fail: {result:?}"
     );
 
-    // Invalid: dedup_window too large
+    // Invalid: cache_ttl too large
     let config = RedisConfig {
-        dedup_window_secs: 3601,
+        cache_ttl_secs: 3601,
         ..Default::default()
     };
     let result = config.validate();
     assert!(
         matches!(result, Err(ObserverError::InvalidConfig { .. })),
-        "dedup_window=3601 should fail: {result:?}"
+        "cache_ttl=3601 should fail: {result:?}"
     );
-}
-
-#[test]
-fn test_performance_config_defaults() {
-    let config = PerformanceConfig::default();
-    assert!(!config.enable_dedup);
-    assert!(!config.enable_caching);
-}
-
-#[test]
-fn test_performance_config_validation() {
-    // Valid config (no Redis features enabled)
-    let config = PerformanceConfig::default();
-    config
-        .validate(false)
-        .unwrap_or_else(|e| panic!("default perf config should be valid: {e}"));
-
-    // Invalid: enable_dedup without Redis
-    let config = PerformanceConfig {
-        enable_dedup: true,
-        ..Default::default()
-    };
-    let result = config.validate(false);
-    assert!(
-        matches!(result, Err(ObserverError::InvalidConfig { .. })),
-        "dedup without redis should fail: {result:?}"
-    );
-    config
-        .validate(true)
-        .unwrap_or_else(|e| panic!("dedup with redis should pass: {e}")); // OK with Redis
-
-    // Invalid: enable_caching without Redis
-    let config = PerformanceConfig {
-        enable_caching: true,
-        ..Default::default()
-    };
-    let result = config.validate(false);
-    assert!(
-        matches!(result, Err(ObserverError::InvalidConfig { .. })),
-        "caching without redis should fail: {result:?}"
-    );
-    config
-        .validate(true)
-        .unwrap_or_else(|e| panic!("caching with redis should pass: {e}")); // OK with Redis
 }
 
 // ========================================================================
@@ -748,95 +515,6 @@ fn jetstream_config_from_env_unset_preserves_defaults() {
 }
 
 #[test]
-fn job_queue_config_from_env_overrides_batch_size() {
-    temp_env::with_vars([("FRAISEQL_JOB_QUEUE_BATCH_SIZE", Some("200"))], || {
-        let cfg = JobQueueConfig::default().with_env_overrides();
-        assert_eq!(cfg.batch_size, 200);
-    });
-}
-
-#[test]
-fn job_queue_config_from_env_overrides_worker_concurrency() {
-    temp_env::with_vars([("FRAISEQL_JOB_QUEUE_WORKER_CONCURRENCY", Some("8"))], || {
-        let cfg = JobQueueConfig::default().with_env_overrides();
-        assert_eq!(cfg.worker_concurrency, 8);
-    });
-}
-
-#[test]
-fn job_queue_config_from_env_unset_preserves_defaults() {
-    temp_env::with_vars([("FRAISEQL_JOB_QUEUE_BATCH_SIZE", None::<&str>)], || {
-        let default = JobQueueConfig::default();
-        let cfg = JobQueueConfig::default().with_env_overrides();
-        assert_eq!(cfg.batch_size, default.batch_size);
-    });
-}
-
-#[test]
-fn performance_config_from_env_enables_dedup() {
-    temp_env::with_vars([("FRAISEQL_ENABLE_DEDUP", Some("true"))], || {
-        let cfg = PerformanceConfig::default().with_env_overrides();
-        assert!(cfg.enable_dedup, "FRAISEQL_ENABLE_DEDUP=true should enable dedup");
-    });
-}
-
-#[test]
-fn performance_config_from_env_enables_caching() {
-    temp_env::with_vars([("FRAISEQL_ENABLE_CACHING", Some("1"))], || {
-        let cfg = PerformanceConfig::default().with_env_overrides();
-        assert!(cfg.enable_caching, "FRAISEQL_ENABLE_CACHING=1 should enable caching");
-    });
-}
-
-#[test]
-fn performance_config_from_env_unset_preserves_defaults() {
-    temp_env::with_vars(
-        [
-            ("FRAISEQL_ENABLE_DEDUP", None::<&str>),
-            ("FRAISEQL_ENABLE_CACHING", None::<&str>),
-        ],
-        || {
-            let default = PerformanceConfig::default();
-            let cfg = PerformanceConfig::default().with_env_overrides();
-            assert_eq!(cfg.enable_dedup, default.enable_dedup);
-            assert_eq!(cfg.enable_caching, default.enable_caching);
-        },
-    );
-}
-
-#[test]
-fn clickhouse_config_from_env_overrides_url() {
-    temp_env::with_vars([("FRAISEQL_CLICKHOUSE_URL", Some("http://ch-server:8123"))], || {
-        let cfg = ClickHouseConfig::default().with_env_overrides();
-        assert_eq!(cfg.url, "http://ch-server:8123");
-    });
-}
-
-#[test]
-fn clickhouse_config_from_env_overrides_database() {
-    temp_env::with_vars([("FRAISEQL_CLICKHOUSE_DATABASE", Some("analytics"))], || {
-        let cfg = ClickHouseConfig::default().with_env_overrides();
-        assert_eq!(cfg.database, "analytics");
-    });
-}
-
-#[test]
-fn clickhouse_config_from_env_unset_preserves_defaults() {
-    temp_env::with_vars(
-        [
-            ("FRAISEQL_CLICKHOUSE_URL", None::<&str>),
-            ("FRAISEQL_CLICKHOUSE_DATABASE", None::<&str>),
-        ],
-        || {
-            let default = ClickHouseConfig::default();
-            let cfg = ClickHouseConfig::default().with_env_overrides();
-            assert_eq!(cfg.url, default.url);
-            assert_eq!(cfg.database, default.database);
-        },
-    );
-}
-
-#[test]
 fn transport_config_from_env_overrides_kind() {
     temp_env::with_vars([("FRAISEQL_OBSERVER_TRANSPORT", Some("nats"))], || {
         let cfg = TransportConfig::default().with_env_overrides();
@@ -845,33 +523,12 @@ fn transport_config_from_env_overrides_kind() {
 }
 
 #[test]
-fn transport_config_from_env_enables_bridge() {
-    temp_env::with_vars(
-        [
-            ("FRAISEQL_OBSERVER_TRANSPORT", Some("nats")),
-            ("FRAISEQL_NATS_ENABLE_BRIDGE", Some("true")),
-        ],
-        || {
-            let cfg = TransportConfig::default().with_env_overrides();
-            assert!(cfg.run_bridge, "FRAISEQL_NATS_ENABLE_BRIDGE=true should enable bridge");
-        },
-    );
-}
-
-#[test]
 fn transport_config_from_env_unset_preserves_defaults() {
-    temp_env::with_vars(
-        [
-            ("FRAISEQL_OBSERVER_TRANSPORT", None::<&str>),
-            ("FRAISEQL_NATS_ENABLE_BRIDGE", None::<&str>),
-        ],
-        || {
-            let default = TransportConfig::default();
-            let cfg = TransportConfig::default().with_env_overrides();
-            assert_eq!(cfg.transport, default.transport);
-            assert_eq!(cfg.run_bridge, default.run_bridge);
-        },
-    );
+    temp_env::with_vars([("FRAISEQL_OBSERVER_TRANSPORT", None::<&str>)], || {
+        let default = TransportConfig::default();
+        let cfg = TransportConfig::default().with_env_overrides();
+        assert_eq!(cfg.transport, default.transport);
+    });
 }
 
 // ── #428: SMS, push and search are not action types ──
@@ -1016,22 +673,21 @@ fn test_cache_action_config_rejects_empty_key_pattern() {
     );
 }
 
-/// The three concurrency keys were accepted and never read (#1451): `enable_concurrent =
-/// true` ran actions sequentially, without a word. They are removed, and a config that still
-/// sets one is refused rather than silently honoured by nothing.
+/// The keys that configured the removed PostgreSQL → NATS bridge and Redis dedup store
+/// are refused, not accepted and ignored.
 #[test]
-fn a_removed_concurrency_key_is_refused() {
+fn a_key_of_a_removed_subsystem_is_refused() {
     for (key, value) in [
-        ("enable_concurrent", serde_json::json!(true)),
-        ("max_concurrent_actions", serde_json::json!(20)),
-        ("concurrent_timeout_ms", serde_json::json!(30000)),
+        ("run_bridge", serde_json::json!(true)),
+        ("run_executors", serde_json::json!(true)),
+        ("bridge", serde_json::json!({})),
     ] {
-        let err = serde_json::from_value::<PerformanceConfig>(serde_json::json!({ key: value }))
-            .expect_err("a performance key nothing reads must not parse");
+        let err = serde_json::from_value::<TransportConfig>(serde_json::json!({ key: value }))
+            .expect_err(key);
         assert!(err.to_string().contains(key), "{key}: {err}");
     }
-    serde_json::from_value::<PerformanceConfig>(
-        serde_json::json!({ "enable_dedup": false, "enable_caching": false }),
-    )
-    .expect("the keys that are read still parse");
+    let err =
+        serde_json::from_value::<RedisConfig>(serde_json::json!({ "dedup_window_secs": 300 }))
+            .expect_err("dedup_window_secs");
+    assert!(err.to_string().contains("dedup_window_secs"), "{err}");
 }

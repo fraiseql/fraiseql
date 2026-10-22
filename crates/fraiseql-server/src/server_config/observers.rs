@@ -5,7 +5,7 @@ mod tests;
 
 #[cfg(feature = "observers")]
 use fraiseql_observers::config::{
-    BridgeTransportConfig, EmailSmtpConfig, NatsTransportConfig, TransportConfig, TransportKind,
+    EmailSmtpConfig, NatsTransportConfig, TransportConfig, TransportKind,
 };
 use serde::{Deserialize, Serialize};
 
@@ -219,12 +219,6 @@ pub struct ObserverRuntimeSettings {
 }
 
 /// The event transport (`[observers.runtime.transport]`): what the server runs.
-///
-/// The library's [`TransportConfig`] also carries `run_bridge`, `run_executors`
-/// and a `[bridge]` table, which configure a PostgreSQL → NATS bridge and a
-/// bridge-only node. The server always runs the observer executors and never
-/// the bridge, so this block refuses those keys rather than accepting values
-/// nothing reads (#1496).
 #[cfg(feature = "observers")]
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -242,16 +236,12 @@ pub struct ObserverTransportConfig {
 
 #[cfg(feature = "observers")]
 impl ObserverTransportConfig {
-    /// The library transport configuration the runtime takes: executors on, no
-    /// bridge.
+    /// The library transport configuration the runtime takes.
     #[must_use]
     pub fn to_runtime(&self) -> TransportConfig {
         TransportConfig {
-            transport:     self.transport,
-            run_bridge:    false,
-            run_executors: true,
-            nats:          self.nats.clone(),
-            bridge:        BridgeTransportConfig::default(),
+            transport: self.transport,
+            nats:      self.nats.clone(),
         }
     }
 }

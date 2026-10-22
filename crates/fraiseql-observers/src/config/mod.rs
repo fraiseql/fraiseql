@@ -1,10 +1,9 @@
 //! Configuration structures for the observer system.
 //!
 //! This module provides configuration for:
-//! - Observer runtime (channel capacity, concurrency, etc.)
+//! - Observer definitions, actions and retry policy
 //! - Transport selection (PostgreSQL LISTEN/NOTIFY, NATS, in-memory)
 //! - NATS `JetStream` settings (retention, deduplication, etc.)
-//! - Bridge configuration (PostgreSQL → NATS)
 //!
 //! # Configuration Sources
 //!
@@ -14,10 +13,7 @@
 //!
 //! Environment variable precedence: `FRAISEQL_*` > TOML > defaults
 
-pub mod clickhouse;
 pub mod email;
-pub mod job_queue;
-pub mod performance;
 pub mod redis;
 pub mod runtime;
 pub mod transport;
@@ -25,15 +21,7 @@ pub mod transport;
 #[cfg(test)]
 mod tests;
 
-pub use clickhouse::ClickHouseConfig;
 pub use email::{EmailSmtpConfig, SmtpTlsMode};
-pub use job_queue::JobQueueConfig;
-pub use performance::PerformanceConfig;
 pub use redis::RedisConfig;
-pub use runtime::{
-    ActionConfig, BackoffStrategy, FailurePolicy, MultiListenerConfig, ObserverDefinition,
-    ObserverRuntimeConfig, RetryConfig,
-};
-pub use transport::{
-    BridgeTransportConfig, JetStreamConfig, NatsTransportConfig, TransportConfig, TransportKind,
-};
+pub use runtime::{ActionConfig, BackoffStrategy, FailurePolicy, ObserverDefinition, RetryConfig};
+pub use transport::{JetStreamConfig, NatsTransportConfig, TransportConfig, TransportKind};

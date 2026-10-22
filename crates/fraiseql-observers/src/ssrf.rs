@@ -223,9 +223,8 @@ mod corpus {
     // right mechanism once, and stopped being it: the bypass decision now comes from
     // the injectable `insecure_guard::test_override`, which env does not reach. So
     // `engaged()` took no lock, and the `queue`/`actions` tests that pin the bypass
-    // ON with `force(true)` ran straight through it — under `--all-features`, where
-    // `job_queue` is compiled in, these rejection assertions saw the bypass active
-    // and failed (#1165).
+    // ON with `force(true)` ran straight through it — under `--all-features`, these
+    // rejection assertions saw the bypass active and failed (#1165).
     //
     // `with_ssrf_env_cleared` is the one way to call a guard from a test: it pins the
     // decision OFF and holds the same lock every other pin takes.

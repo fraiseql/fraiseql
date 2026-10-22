@@ -1,21 +1,22 @@
-# Phase 8 Feature Integration Guide
+# Observer Library Integration Guide
 
-This guide provides step-by-step integration instructions for each Phase 8 feature.
+This guide is for code that embeds the `fraiseql-observers` library directly. To run
+observers in a deployment, declare them under `[observers]` in `fraiseql.toml` and run them
+inside `fraiseql-server`. See [Operating Observers](../../../docs/operations/observers.md).
+The server already runs the checkpointed driver loop, the poll lease, cache invalidation
+and metrics described here.
 
 ## Table of Contents
 
-1. [Phase 8.1: Persistent Checkpoints](#phase-81-persistent-checkpoints)
-2. [Phase 8.3: Event Deduplication](#phase-83-event-deduplication)
-3. [Phase 8.4: Redis Caching](#phase-84-redis-caching)
-4. [Phase 8.5: Elasticsearch Integration](#phase-85-elasticsearch-integration)
-5. [Phase 8.6: Job Queue System](#phase-86-job-queue-system)
-6. [Phase 8.7: Prometheus Metrics](#phase-87-prometheus-metrics)
-7. [Phase 8.8: Circuit Breaker](#phase-88-circuit-breaker)
-8. [Phase 8.9: Multi-Listener Failover](#phase-89-multi-listener-failover)
+1. [Persistent Checkpoints](#persistent-checkpoints)
+2. [Redis Cache Actions and Result Cache](#redis-cache-actions-and-result-cache)
+3. [Prometheus Metrics](#prometheus-metrics)
+4. [Circuit Breaker](#circuit-breaker)
+5. [Running Several Replicas](#running-several-replicas)
 
 ---
 
-## Phase 8.1: Persistent Checkpoints
+## Persistent Checkpoints
 
 **Purpose**: Guarantee zero-event-loss recovery on restart
 
@@ -26,24 +27,12 @@ This guide provides step-by-step integration instructions for each Phase 8 featu
 
 ### Integration Steps
 
-#### Step 1: Create Database Migration
+#### Step 1: Create the Checkpoint Table
 
-```sql
--- checkpoint.sql
-CREATE TABLE observer_checkpoints (
-    id BIGSERIAL PRIMARY KEY,
-    listener_id VARCHAR(255) NOT NULL UNIQUE,
-    event_id BIGINT NOT NULL,
-    last_processed_at TIMESTAMP NOT NULL,
-    created_at TIMESTAMP DEFAULT NOW(),
-    updated_at TIMESTAMP DEFAULT NOW()
-);
+Apply the shipped migration `crates/fraiseql-observers/migrations/02_create_observer_checkpoints.sql`:
 
-CREATE INDEX idx_listener_id ON observer_checkpoints(listener_id);
-CREATE INDEX idx_updated_at ON observer_checkpoints(updated_at);
-
--- Run migration
-psql postgresql://user:pass@localhost/db < checkpoint.sql
+```bash
+psql "$DATABASE_URL" -f crates/fraiseql-observers/migrations/02_create_observer_checkpoints.sql
 ```
 
 #### Step 2: Add Checkpoint Feature
@@ -51,8 +40,8 @@ psql postgresql://user:pass@localhost/db < checkpoint.sql
 In `Cargo.toml`:
 
 ```toml
-[features]
-checkpoint = []
+[dependencies]
+fraiseql-observers = { version = "*", features = ["checkpoint"] }
 ```
 
 #### Step 3: Enable in Configuration
@@ -127,410 +116,72 @@ psql $DATABASE_URL -c "SELECT * FROM observer_checkpoints;"
 
 ```
 observer_checkpoints:
- id | listener_id | event_id | last_processed_at
-----+-------------+----------+-------------------
-  1 | listener-1  |      100 | 2026-01-22 12:00:00
+ listener_id | last_processed_id | last_processed_at
+-------------+-------------------+-------------------------------
+ orders      |               100 | 2026-01-22 12:00:00+00
 ```
 
 ---
 
-## Phase 8.3: Event Deduplication
+## Redis Cache Actions and Result Cache
 
-**Purpose**: Prevent duplicate side effects from event retries
+**Purpose**: Invalidate Redis keys from `cache` actions, and cache action results
 
 ### Prerequisites
 
 - Redis 6.0+
-- Network access to Redis
-- Understanding of event hashing
-
-### Integration Steps
-
-#### Step 1: Add Redis Dependency
+- The `caching` feature
 
 ```toml
 [dependencies]
-redis = { version = "0.25", features = ["aio", "connection-manager"] }
-
-[features]
-dedup = ["redis"]
+fraiseql-observers = { version = "*", features = ["caching"] }
 ```
 
-#### Step 2: Initialize Dedup Store
+### Cache Invalidation Actions
+
+A `cache` action deletes the Redis keys that match its `key_pattern`. Mount the Redis
+transport on the executor with `with_cache_invalidation`. Build the invalidator from the
+same `RedisConfig` the server reads from `[observers.runtime.redis]`:
 
 ```rust
-use fraiseql_observers::dedup::RedisDeduplicationStore;
+use std::sync::Arc;
 
-let dedup_store = Arc::new(
-    RedisDeduplicationStore::new(
-        "redis://localhost:6379",
-        300,  // 5-minute window
-    )
-    .await?
-);
+use fraiseql_observers::{ObserverExecutor, RedisCacheInvalidator};
+
+let invalidator = Arc::new(RedisCacheInvalidator::connect(&redis_config).await?);
+let executor = ObserverExecutor::new(matcher, dlq).with_cache_invalidation(invalidator);
 ```
 
-#### Step 3: Integrate with Executor
+Without a mounted invalidator, a `cache` action fails instead of reporting success.
+
+### Action Result Cache
+
+`ObserverExecutor::with_cache` takes an optional cache backend. `RedisCacheBackend` stores
+results in Redis with a fixed TTL:
 
 ```rust
-use fraiseql_observers::{ObserverExecutor, deduped_executor::DedupedObserverExecutor};
+use std::sync::Arc;
 
-let executor = DedupedObserverExecutor::new(ObserverExecutor::new(matcher, dlq), dedup_store);
+use fraiseql_observers::{ObserverExecutor, RedisCacheBackend};
+
+let client = redis::Client::open("redis://localhost:6379")?;
+let conn = redis::aio::ConnectionManager::new(client).await?;
+let backend = Arc::new(RedisCacheBackend::new(conn, 300)); // 5-minute TTL
+let executor = ObserverExecutor::with_cache(matcher, dlq, Some(backend));
 ```
 
-Deduplication wraps the executor; it is not a method on it. The example compiled in the
-rustdoc of `DedupedObserverExecutor` shows the whole construction.
+`fraiseql-server` runs no action-result cache.
 
-#### Step 4: Verify Deduplication
-
-```bash
-# 1. Send event
-INSERT INTO tb_entity_change_log (object_type, object_id, modification_type, object_data)
-VALUES ('Order', 'order-1', 'INSERT', '{"status": "new"}');
-
-# Check: Action executed (webhook called, email sent)
-
-# 2. Send duplicate
-INSERT INTO tb_entity_change_log (object_type, object_id, modification_type, object_data)
-VALUES ('Order', 'order-1', 'INSERT', '{"status": "new"}');
-
-# Check metrics ($METRICS_URL: the /metrics endpoint serving your
-# fraiseql_observer_* registry). Only the deduplicating executor you build
-# records this; fraiseql-server runs no deduplication.
-curl -s "$METRICS_URL" | grep fraiseql_observer_dedup_detected_total
-# Should show: 1 (one duplicate detected)
-```
-
-#### Step 5: Monitor Effectiveness
-
-```bash
-# Check dedup rate
-curl -s "$METRICS_URL" | grep -E "fraiseql_observer_(dedup_detected|events_processed)_total"
-
-# Calculate dedup rate
-dedup_detected / events_processed = dedup_rate
-# Expect: 10-40% depending on retry patterns
-```
-
----
-
-## Phase 8.4: Redis Caching
-
-**Purpose**: Achieve 100x performance improvement with caching
-
-### Prerequisites
-
-- Redis 6.0+
-- Understanding of cache invalidation
-- Stable query/computation patterns
-
-### Integration Steps
-
-#### Step 1: Configure Cache
-
-```toml
-[features]
-caching = ["redis"]
-```
-
-#### Step 2: Initialize Cache Backend
-
-```rust
-use fraiseql_observers::cache::RedisCacheBackend;
-
-let cache = Arc::new(
-    RedisCacheBackend::new(
-        "redis://localhost:6379",
-        Duration::from_secs(300),  // 5-minute TTL
-    )
-    .await?
-);
-```
-
-#### Step 3: Configure Cache Keys
-
-```rust
-// Cache key strategy: action_type:entity_type:entity_id
-pub fn cache_key(action: &Action, event: &EntityEvent) -> String {
-    format!(
-        "action:{}:{}:{}",
-        action.action_type,
-        event.entity_type,
-        event.entity_id
-    )
-}
-```
-
-#### Step 4: Integrate with Actions
-
-```rust
-// Before: External API call
-let result = external_api.get_user(user_id).await?;
-
-// After: With cache
-let cache_key = format!("user:{}", user_id);
-if let Some(cached) = cache.get(&cache_key).await? {
-    return Ok(cached);
-}
-
-let result = external_api.get_user(user_id).await?;
-cache.set(&cache_key, result.clone(), Duration::from_secs(300)).await?;
-Ok(result)
-```
-
-#### Step 5: Benchmark Cache Impact
-
-```bash
-# Without cache
-time cargo run --example 1000_webhook_calls
-# Output: real  0m32.450s
-
-# With cache
-time cargo run --example 1000_webhook_calls --features caching
-# Output: real  0m0.285s  (114x faster!)
-```
-
-#### Step 6: Monitor Cache Effectiveness
+### Monitor Cache Effectiveness
 
 ```promql
-# Hit rate, which should stay above 70-80%. Only the cached executor you
-# build records these; fraiseql-server runs no result cache.
 fraiseql_observer_cache_hits_total
   / (fraiseql_observer_cache_hits_total + fraiseql_observer_cache_misses_total)
 ```
 
 ---
 
-## Phase 8.5: Elasticsearch Integration
-
-**Purpose**: Enable full-text search and compliance audit trail
-
-### Prerequisites
-
-- Elasticsearch 7.0+
-- Network access to Elasticsearch
-- Understanding of document indexing
-
-### Integration Steps
-
-#### Step 1: Install Elasticsearch
-
-```bash
-# Docker
-docker run -d \
-  -p 9200:9200 \
-  -p 9300:9300 \
-  -e discovery.type=single-node \
-  docker.elastic.co/elasticsearch/elasticsearch:8.0.0
-```
-
-#### Step 2: Create Index Template
-
-```bash
-curl -X PUT "localhost:9200/_index_template/fraiseql_events" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "index_patterns": ["fraiseql_events-*"],
-    "template": {
-      "settings": {
-        "number_of_shards": 1,
-        "number_of_replicas": 0,
-        "index.lifecycle.name": "fraiseql_events_policy"
-      },
-      "mappings": {
-        "properties": {
-          "event_id": { "type": "keyword" },
-          "entity_type": { "type": "keyword" },
-          "entity_id": { "type": "keyword" },
-          "event_kind": { "type": "keyword" },
-          "timestamp": { "type": "date" },
-          "observer_id": { "type": "keyword" },
-          "action_type": { "type": "keyword" },
-          "status": { "type": "keyword" },
-          "error": { "type": "text" },
-          "data": { "type": "object", "enabled": false }
-        }
-      }
-    }
-  }'
-```
-
-#### Step 3: Configure Search Backend
-
-```toml
-[features]
-search = []
-```
-
-```rust
-use fraiseql_observers::search::HttpSearchBackend;
-
-let search = Arc::new(
-    HttpSearchBackend::new(
-        "http://localhost:9200",
-        Duration::from_secs(30),
-    )
-);
-```
-
-#### Step 4: Index Events
-
-```rust
-let event = EntityEvent::new(
-    EventKind::Created,
-    "Order".to_string(),
-    entity_id,
-    data,
-);
-
-search.index_event(&event).await?;
-```
-
-#### Step 5: Query Events
-
-```bash
-# Find all Order events in the last 24 hours
-curl -X GET "localhost:9200/fraiseql_events-*/_search" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "query": {
-      "bool": {
-        "must": [
-          { "term": { "entity_type": "Order" } },
-          { "range": { "timestamp": { "gte": "now-24h" } } }
-        ]
-      }
-    }
-  }'
-
-# Find failed webhook actions
-curl -X GET "localhost:9200/fraiseql_events-*/_search" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "query": {
-      "bool": {
-        "must": [
-          { "term": { "action_type": "webhook" } },
-          { "term": { "status": "failed" } }
-        ]
-      }
-    }
-  }'
-```
-
-#### Step 6: Set Up Index Lifecycle
-
-```bash
-# Create 30-day retention policy
-curl -X PUT "localhost:9200/_ilm/policy/fraiseql_events_policy" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "policy": "fraiseql_events_policy",
-    "phases": {
-      "hot": {
-        "min_age": "0d",
-        "actions": {
-          "rollover": {
-            "max_primary_store_size": "50gb"
-          }
-        }
-      },
-      "delete": {
-        "min_age": "30d",
-        "actions": {
-          "delete": {}
-        }
-      }
-    }
-  }'
-```
-
----
-
-## Phase 8.6: Job Queue System
-
-**Purpose**: Handle async long-running operations
-
-### Prerequisites
-
-- Redis 6.0+
-- Understanding of job processing
-- Need for async task handling
-
-### Integration Steps
-
-#### Step 1: Configure Job Queue
-
-```toml
-[features]
-queue = ["redis"]
-```
-
-#### Step 2: Initialize Job Queue
-
-```rust
-use fraiseql_observers::queue::RedisJobQueue;
-
-let job_queue = Arc::new(
-    RedisJobQueue::with_workers(
-        "redis://localhost:6379",
-        50,  // 50 worker threads
-    )
-    .await?
-);
-```
-
-#### Step 3: Enqueue Long-Running Actions
-
-```rust
-// Instead of:
-// webhook_action.execute(event).await?;  // Blocks 30 seconds
-
-// Do:
-let job = Job::new(
-    "webhook_action",
-    event_id,
-    serde_json::json!({
-        "url": "https://api.example.com/notify",
-        "body": event.data,
-    }),
-);
-
-job_queue.enqueue(job).await?;
-// Returns immediately!
-```
-
-#### Step 4: Process Jobs
-
-```rust
-// Worker loop (runs in background)
-loop {
-    if let Some(job) = job_queue.dequeue().await? {
-        match execute_job(&job).await {
-            Ok(_) => job_queue.mark_complete(&job.id).await?,
-            Err(e) => {
-                // Retry with backoff
-                job_queue.requeue_with_backoff(&job, &backoff).await?;
-            }
-        }
-    }
-}
-```
-
-#### Step 5: Monitor Job Processing
-
-```bash
-# Check job metrics (recorded by the job queue you build; fraiseql-server
-# runs no job queue)
-curl -s "$METRICS_URL" | grep fraiseql_observer_job_
-
-# Check queue depth
-curl -s "$METRICS_URL" | grep fraiseql_observer_job_queue_depth
-```
-
----
-
-## Phase 8.7: Prometheus Metrics
+## Prometheus Metrics
 
 **Purpose**: Production monitoring and alerting
 
@@ -545,8 +196,8 @@ curl -s "$METRICS_URL" | grep fraiseql_observer_job_queue_depth
 #### Step 1: Enable Metrics Feature
 
 ```toml
-[features]
-metrics = ["prometheus"]
+[dependencies]
+fraiseql-observers = { version = "*", features = ["metrics"] }
 ```
 
 #### Step 2: Initialize Metrics
@@ -570,30 +221,7 @@ scrape_configs:
       - targets: ['localhost:8000']
 ```
 
-#### Step 4: Expose Metrics Endpoint
-
-```rust
-use actix_web::{web, App, HttpServer, HttpResponse};
-
-#[actix_web::main]
-async fn main() -> std::io::Result<()> {
-    let metrics = Arc::new(ObserverMetrics::new());
-
-    HttpServer::new(move || {
-        App::new()
-            .route("/metrics", web::get().to(|| async {
-                HttpResponse::Ok()
-                    .content_type("text/plain")
-                    .body(metrics.export())
-            }))
-    })
-    .bind("127.0.0.1:8000")?
-    .run()
-    .await
-}
-```
-
-#### Step 5: Create Dashboard
+#### Step 4: Create Dashboard
 
 ```json
 // Grafana dashboard JSON
@@ -622,7 +250,7 @@ async fn main() -> std::io::Result<()> {
 }
 ```
 
-#### Step 6: Set Up Alerting
+#### Step 5: Set Up Alerting
 
 ```yaml
 # alerts.yml
@@ -641,78 +269,23 @@ groups:
 
 ---
 
-## Phase 8.8: Circuit Breaker
+## Circuit Breaker
 
 **Purpose**: Prevent cascading failures
 
-> **Not available yet.** `fraiseql_observers::resilience` (`ResilientExecutor`,
-> `CircuitBreakerConfig`) is exported but not installed by the executor or the server; there is
-> no `ObserverExecutor::with_circuit_breaker`. Tracked in
-> [#1451](https://github.com/fraiseql/fraiseql/issues/1451).
+`fraiseql_observers::resilience` (`CircuitBreaker`, `ResilientExecutor`,
+`CircuitBreakerConfig`) is exported but not installed by the executor or the server. There is
+no `ObserverExecutor::with_circuit_breaker`.
 
-## Phase 8.9: Multi-Listener Failover
+---
 
-**Purpose**: High availability with automatic failover
+## Running Several Replicas
 
-### Prerequisites
-
-- Multiple listener instances available
-- Shared checkpoint store (PostgreSQL)
-- Understanding of HA concepts
-
-### Integration Steps
-
-#### Step 1: Configure Multi-Listener Coordinator
-
-```rust
-use fraiseql_observers::listener::MultiListenerCoordinator;
-
-let coordinator = Arc::new(
-    MultiListenerCoordinator::new()
-);
-
-let config = MultiListenerConfig {
-    num_listeners: 3,
-    health_check_interval: Duration::from_secs(5),
-    failover_threshold: Duration::from_secs(60),
-};
-```
-
-#### Step 2: Register Multiple Listeners
-
-```rust
-// Each listener registers itself
-coordinator.register_listener("listener-1".to_string()).await?;
-coordinator.register_listener("listener-2".to_string()).await?;
-coordinator.register_listener("listener-3".to_string()).await?;
-
-// All use same checkpoint store
-let checkpoint_store = Arc::new(
-    PostgresCheckpointStore::new(
-        "postgresql://localhost/fraiseql",
-        "observer_checkpoints"
-    )
-    .await?
-);
-```
-
-#### Step 3: Initialize Failover Manager
-
-```rust
-use fraiseql_observers::listener::FailoverManager;
-
-let failover_manager = FailoverManager::new(coordinator.clone());
-
-// Start health monitoring
-let mut failover_rx = failover_manager.start_health_monitor().await;
-
-tokio::spawn(async move {
-    while let Some(failover_event) = failover_rx.recv().await {
-        println!("Failover occurred: {:?}", failover_event);
-        // Handle failover (update leader, notify clients, etc.)
-    }
-});
-```
+`CheckpointLease::postgres` (in `listener/lease.rs`) is a PostgreSQL advisory lock keyed on
+a listener id. Replicas that share a listener id share one checkpoint. Have the driver loop
+poll only while it holds the lease, so the others stand by and take over when the holder
+stops. [Operating Observers](../../../docs/operations/observers.md) describes how
+`fraiseql-server` uses this.
 
 ---
 
@@ -720,16 +293,13 @@ tokio::spawn(async move {
 
 After integrating each feature, verify:
 
-- [ ] Dependencies added to Cargo.toml
-- [ ] Feature flag created
+- [ ] Dependencies and features added to Cargo.toml
 - [ ] Configuration initialized
 - [ ] Integration tests passing
 - [ ] Metrics tracking enabled
 - [ ] Monitoring/alerts configured
-- [ ] Documentation updated
-- [ ] Performance verified
 - [ ] Error handling tested
-- [ ] Failover scenarios tested (for HA features)
+- [ ] Restart and takeover tested (for several replicas)
 
 ---
 
@@ -738,57 +308,19 @@ After integrating each feature, verify:
 ### Pattern 1: Minimal setup (checkpoint only)
 
 A plain `ObserverExecutor::new(matcher, dlq)`, driven by the checkpointed loop in
-[Checkpoints](#step-3-enable-in-configuration).
+[Persistent Checkpoints](#persistent-checkpoints).
 
-### Pattern 2: Production setup
+### Pattern 2: With Redis cache actions
 
-Let the factory compose the executor from the library's `ObserverRuntimeConfig`. It wraps the base executor in
-deduplication and/or result caching according to `performance.enable_dedup` and
-`performance.enable_caching`, and contacts Redis only when one of them is on. This is for
-embedders of the library: `fraiseql-server` runs neither (see
-[Operating Observers](../../../docs/operations/observers.md)):
+The same loop, with the executor built as
+`ObserverExecutor::new(matcher, dlq).with_cache_invalidation(invalidator)`.
 
-```rust
-use fraiseql_observers::factory::ExecutorFactory;
-
-let executor = ExecutorFactory::build(&runtime_config, dlq).await?;
-// Drive it with the checkpointed loop above: `executor.process_event(&event)`.
-```
-
-Search indexing, the job queue (`QueuedObserverExecutor`) and metrics are separate components,
-not builder methods on the executor. A matched observer's actions run one after another;
-there is no concurrent mode ([#1451](https://github.com/fraiseql/fraiseql/issues/1451)).
-
-### Pattern 3: Migration (add features gradually)
-
-Each step is a configuration change, not a code change, once the factory builds the executor:
-
-1. Checkpoints: drive the executor with the checkpointed loop. Verify that a restart neither
-   loses nor re-delivers events beyond one batch.
-2. Caching: set `performance.enable_caching = true` with a `redis` section in the same config.
-3. Deduplication: set `performance.enable_dedup = true`. Verify that a redelivered event inside
-   the window is skipped.
-
----
-
-## Next Steps
-
-1. Choose integration path (minimal, production, or gradual)
-2. Follow step-by-step instructions for each feature
-3. Verify integration with provided tests
-4. Configure monitoring and alerts
-5. Deploy to staging environment
-6. Run failover/stress tests
-7. Deploy to production
-8. Monitor metrics continuously
+A matched observer's actions run one after another. There is no concurrent mode.
 
 ---
 
 ## Support
 
-For integration help:
-
-- Check Architecture Guide: `../../../../docs/architecture/overview.md`
-- Review Configuration Examples: `configuration-examples.md`
-- Troubleshoot Issues: `troubleshooting.md`
-- Operate observers under `fraiseql-server`: `../../../docs/operations/observers.md`
+- Architecture: `../../../../docs/architecture/overview.md`
+- Troubleshooting: `troubleshooting.md`
+- Operating observers under `fraiseql-server`: `../../../docs/operations/observers.md`

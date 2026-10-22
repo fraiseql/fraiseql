@@ -333,37 +333,30 @@
  LAYER 8 — fraiseql-observers  (reactive business logic)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  traits.rs               Observer trait + ObserverEvent
-  executor.rs             ObserverExecutor — dispatch chain
-  factory.rs              Observer factory + registry
+  traits.rs               Testable trait seams (ActionExecutor, DeadLetterQueue, …)
   event.rs                Structured event types
-  condition.rs            Conditional observer triggering
-  matcher.rs              Event pattern matching
-  cached_executor.rs      Caching observer wrapper
-  deduped_executor.rs     Deduplication wrapper
-  queued_executor.rs      Queue-backed async observer
-  storage.rs              Observer state persistence
+  matcher.rs              Event-to-observer matching
+  storage.rs              Event storage interface
+  dispatch.rs             Shared dispatch policy + retry driver
+  ssrf.rs                 SSRF validation for outbound HTTP
+  error.rs                ObserverError + codes
 
-  actions.rs / actions/   ActionDispatcher trait + builtins
-  arrow_bridge.rs         Arrow Flight event bridge
-  elasticsearch_sink.rs   Elasticsearch event sink
-  testing.rs              MockActionDispatcher + test helpers
+  actions.rs / actions/   Webhook, Slack, email, cache invalidation actions
+  testing.rs              Mock implementations for tests
 
   Sub-systems:
-    cache/                Observer result cache
-    checkpoint/           Checkpointing for at-least-once delivery
-    concurrent/           Concurrent observer execution
+    executor/             ObserverExecutor — conditions, actions, retry, DLQ
+    cache/                Action result cache; Redis backend [feature:caching]
+    checkpoint/           Listener checkpoints [feature:checkpoint]
+    condition/            Condition DSL parser + evaluator
     config/               Observer configuration
-    dedup/                Event deduplication (Redis-backed)
-    job_queue/            Persistent job queue
-    listener/             Event listener abstraction
-    logging/              Observer audit logging
-    metrics/              Observer performance metrics
-    queue/                Queue implementations
-    resilience/           Retry + backoff
-    search/               Search event integration
-    transport/            NATS transport [feature:nats]
-    tracing/              Observer span tracking
+    listener/             ChangeLogListener, poll lease, tail, replay
+    logging/              Trace-ID correlated logging
+    metrics/              Prometheus metrics [feature:metrics]
+    migrations/           Change-log contract migrations
+    resilience/           Circuit breaker
+    source/               Scheduled-ingress cursors
+    transport/            PostgreSQL, in-memory, NATS [feature:nats]
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  LAYER 9 — fraiseql-wire  (streaming JSON query engine)
@@ -477,8 +470,8 @@
   Observer Safety     observers/executor, observers/actions,    Send+Sync, panic→error,
                       observers/resilience                      at-least-once delivery
 
-  Arrow Flight        fraiseql-arrow/, server/arrow/,           semaphore (50 streams),
-                      observers/arrow_bridge                    schema drift, backpressure
+  Arrow Flight        fraiseql-arrow/, server/arrow/            semaphore (50 streams),
+                                                                schema drift, backpressure
 
   Schema Compilation  compiler/, schema/compiled/,              IR correctness,
                       fraiseql-cli/commands/compile             SQL template safety

@@ -44,44 +44,16 @@ impl TransportKind {
 // ============================================================================
 
 /// Top-level transport configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct TransportConfig {
     /// Transport type (postgres, nats, `in_memory`)
     #[serde(default)]
     pub transport: TransportKind,
 
-    /// Run the PostgreSQL → NATS bridge in-process (default: false)
-    #[serde(default)]
-    pub run_bridge: bool,
-
-    /// Run observer executors in-process (default: true)
-    #[serde(default = "default_true")]
-    pub run_executors: bool,
-
     /// NATS-specific configuration (only used when transport = nats)
     #[serde(default)]
     pub nats: NatsTransportConfig,
-
-    /// Bridge-specific configuration (only used when `run_bridge` = true)
-    #[serde(default)]
-    pub bridge: BridgeTransportConfig,
-}
-
-const fn default_true() -> bool {
-    true
-}
-
-impl Default for TransportConfig {
-    fn default() -> Self {
-        Self {
-            transport:     TransportKind::default(),
-            run_bridge:    false,
-            run_executors: true,
-            nats:          NatsTransportConfig::default(),
-            bridge:        BridgeTransportConfig::default(),
-        }
-    }
 }
 
 impl TransportConfig {
@@ -91,14 +63,7 @@ impl TransportConfig {
         if let Some(transport) = TransportKind::from_env() {
             self.transport = transport;
         }
-        if let Ok(v) = env::var("FRAISEQL_NATS_ENABLE_BRIDGE") {
-            self.run_bridge = v.eq_ignore_ascii_case("true") || v == "1";
-        }
-        if let Ok(v) = env::var("FRAISEQL_NATS_RUN_EXECUTORS") {
-            self.run_executors = v.eq_ignore_ascii_case("true") || v == "1";
-        }
         self.nats = self.nats.with_env_overrides();
-        self.bridge = self.bridge.with_env_overrides();
         self
     }
 
@@ -107,8 +72,7 @@ impl TransportConfig {
     /// # Errors
     ///
     /// Returns [`ObserverError::InvalidConfig`] if NATS transport is selected without
-    /// a URL, if `run_bridge` is set without NATS transport, or if nested NATS or
-    /// bridge config validation fails.
+    /// a URL, or if the nested NATS config validation fails.
     pub fn validate(&self) -> Result<()> {
         // NATS transport requires NATS URL
         if self.transport == TransportKind::Nats && self.nats.url.is_empty() {
@@ -117,15 +81,7 @@ impl TransportConfig {
             });
         }
 
-        // Bridge requires NATS transport
-        if self.run_bridge && self.transport != TransportKind::Nats {
-            return Err(ObserverError::InvalidConfig {
-                message: "run_bridge=true requires transport=nats".to_string(),
-            });
-        }
-
         self.nats.validate()?;
-        self.bridge.validate()?;
         Ok(())
     }
 }
@@ -362,118 +318,5 @@ impl JetStreamConfig {
             });
         }
         Ok(())
-    }
-}
-
-// ============================================================================
-// Bridge Configuration
-// ============================================================================
-
-/// PostgreSQL → NATS bridge configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct BridgeTransportConfig {
-    /// Transport name for checkpoint storage (default: `pg_to_nats`)
-    #[serde(default = "default_bridge_transport_name")]
-    pub transport_name: String,
-
-    /// Batch size for fetching change log entries (default: 100)
-    #[serde(default = "default_bridge_batch_size")]
-    pub batch_size: usize,
-
-    /// Poll interval in seconds when no NOTIFY received (default: 1)
-    #[serde(default = "default_bridge_poll_interval_secs")]
-    pub poll_interval_secs: u64,
-
-    /// PostgreSQL NOTIFY channel name (default: `fraiseql_events`)
-    #[serde(default = "default_bridge_notify_channel")]
-    pub notify_channel: String,
-}
-
-fn default_bridge_transport_name() -> String {
-    env::var("FRAISEQL_BRIDGE_TRANSPORT_NAME").unwrap_or_else(|_| "pg_to_nats".to_string())
-}
-
-const fn default_bridge_batch_size() -> usize {
-    100
-}
-
-const fn default_bridge_poll_interval_secs() -> u64 {
-    1
-}
-
-fn default_bridge_notify_channel() -> String {
-    env::var("FRAISEQL_BRIDGE_NOTIFY_CHANNEL").unwrap_or_else(|_| "fraiseql_events".to_string())
-}
-
-impl Default for BridgeTransportConfig {
-    fn default() -> Self {
-        Self {
-            transport_name:     default_bridge_transport_name(),
-            batch_size:         default_bridge_batch_size(),
-            poll_interval_secs: default_bridge_poll_interval_secs(),
-            notify_channel:     default_bridge_notify_channel(),
-        }
-    }
-}
-
-impl BridgeTransportConfig {
-    /// Apply environment variable overrides
-    #[must_use]
-    pub fn with_env_overrides(mut self) -> Self {
-        if let Ok(name) = env::var("FRAISEQL_BRIDGE_TRANSPORT_NAME") {
-            self.transport_name = name;
-        }
-        if let Ok(v) = env::var("FRAISEQL_BRIDGE_BATCH_SIZE") {
-            if let Ok(size) = v.parse() {
-                self.batch_size = size;
-            }
-        }
-        if let Ok(v) = env::var("FRAISEQL_BRIDGE_POLL_INTERVAL_SECS") {
-            if let Ok(secs) = v.parse() {
-                self.poll_interval_secs = secs;
-            }
-        }
-        if let Ok(channel) = env::var("FRAISEQL_BRIDGE_NOTIFY_CHANNEL") {
-            self.notify_channel = channel;
-        }
-        self
-    }
-
-    /// Validate the configuration
-    ///
-    /// # Errors
-    ///
-    /// Returns [`ObserverError::InvalidConfig`] if `transport_name` is empty,
-    /// `batch_size` is 0 or exceeds 10,000, or `poll_interval_secs` is 0.
-    pub fn validate(&self) -> Result<()> {
-        if self.transport_name.is_empty() {
-            return Err(ObserverError::InvalidConfig {
-                message: "bridge.transport_name cannot be empty".to_string(),
-            });
-        }
-        if self.batch_size == 0 || self.batch_size > 10000 {
-            return Err(ObserverError::InvalidConfig {
-                message: "bridge.batch_size must be between 1 and 10000".to_string(),
-            });
-        }
-        if self.poll_interval_secs == 0 {
-            return Err(ObserverError::InvalidConfig {
-                message: "bridge.poll_interval_secs must be > 0".to_string(),
-            });
-        }
-        Ok(())
-    }
-
-    /// Convert to `BridgeConfig` for use with `PostgresNatsBridge`
-    #[cfg(all(feature = "postgres", feature = "nats"))]
-    #[must_use]
-    pub fn to_bridge_config(&self) -> crate::transport::BridgeConfig {
-        crate::transport::BridgeConfig {
-            transport_name:     self.transport_name.clone(),
-            batch_size:         self.batch_size,
-            poll_interval_secs: self.poll_interval_secs,
-            notify_channel:     self.notify_channel.clone(),
-        }
     }
 }

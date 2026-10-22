@@ -160,21 +160,6 @@ pub enum ObserverError {
         /// Human-readable reason (e.g. the `serde_json` error message)
         reason: String,
     },
-
-    /// OB021: Event tenant does not match the configured scope.
-    ///
-    /// The event carried a `tenant_id` that is not permitted by the executor's
-    /// `TenantScope`, or the event lacked a `tenant_id` when one is required.
-    #[error(
-        "OB021: Tenant violation — event tenant {event_tenant:?} not permitted by scope \
-         '{required_scope}'"
-    )]
-    TenantViolation {
-        /// The `tenant_id` carried by the event (`None` if absent)
-        event_tenant:   Option<String>,
-        /// Human-readable description of the configured scope (e.g. `"Single(acme)"`)
-        required_scope: String,
-    },
 }
 
 /// Error code with classification for retry/DLQ decisions.
@@ -221,8 +206,6 @@ pub enum ObserverErrorCode {
     StorageError,
     /// OB020: Event deserialization failed
     DeserializationError,
-    /// OB021: Tenant scope violation
-    TenantViolation,
 }
 
 impl ObserverErrorCode {
@@ -259,12 +242,7 @@ impl From<sqlx::Error> for ObserverError {
     }
 }
 
-#[cfg(any(
-    feature = "dedup",
-    feature = "caching",
-    feature = "queue",
-    feature = "redis-lease"
-))]
+#[cfg(any(feature = "caching", feature = "redis-lease"))]
 impl From<redis::RedisError> for ObserverError {
     fn from(err: redis::RedisError) -> Self {
         Self::DatabaseError {
@@ -316,7 +294,6 @@ impl ObserverError {
             },
             ObserverError::StorageError { .. } => ObserverErrorCode::StorageError,
             ObserverError::DeserializationError { .. } => ObserverErrorCode::DeserializationError,
-            ObserverError::TenantViolation { .. } => ObserverErrorCode::TenantViolation,
         }
     }
 

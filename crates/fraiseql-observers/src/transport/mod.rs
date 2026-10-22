@@ -4,8 +4,6 @@
 //! enabling FraiseQL's observer system to work with multiple event transports:
 //!
 //! - **`PostgresNotify`**: PostgreSQL LISTEN/NOTIFY (low latency, ephemeral)
-//! - **`MySQLBridge`**: MySQL polling-based bridge
-//! - **`MSSQLBridge`**: SQL Server polling-based bridge
 //! - **Nats**: NATS `JetStream` for distributed architectures
 //! - **`InMemory`**: Testing and development
 //!
@@ -16,10 +14,10 @@
 //!     ↓
 //! EventTransport trait (Arc<dyn>)
 //!     ↓
-//! ┌────────────────┬──────────────┬──────────────┬──────────────┬──────────────┐
-//! │                │              │              │              │              │
-//! PostgresNotify   MySQLBridge    MSSQLBridge    NatsTransport  InMemory
-//! (postgres)       (mysql)        (mssql)        (nats)         (testing)
+//! ┌────────────────┬──────────────┬──────────────┐
+//! │                │              │              │
+//! PostgresNotify   NatsTransport  InMemory
+//! (postgres)       (nats)         (testing)
 //! ```
 //!
 //! # Design Decisions
@@ -54,13 +52,6 @@ pub mod postgres_notify;
 #[cfg(feature = "nats")]
 pub mod nats;
 
-#[cfg(all(feature = "postgres", feature = "nats"))]
-pub mod bridge;
-
-#[cfg(all(feature = "postgres", feature = "nats"))]
-pub use bridge::{
-    BridgeConfig, ChangeLogEntry, CheckpointStore, PostgresCheckpointStore, PostgresNatsBridge,
-};
 pub use in_memory::InMemoryTransport;
 #[cfg(feature = "nats")]
 pub use nats::{NatsConfig, NatsTransport};

@@ -18,6 +18,32 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **`fraiseql-observers` drops the subsystems no binary ran (#1640).** The server runs
+  observers through its own runtime, configured under `[observers]` in `fraiseql.toml`;
+  none of the following was reachable from it, and each had a live replacement or none
+  was needed:
+  - modules `factory` (`ExecutorFactory`), `dedup`, `deduped_executor`,
+    `cached_executor`, `queue`, `job_queue`, `queued_executor`, `search`,
+    `elasticsearch_sink`, `arrow_bridge`, `transport::bridge` (the PostgreSQL → NATS
+    bridge) and `listener::{coordinator, failover, state}`;
+  - the library's `ObserverRuntimeConfig` document type and its `PerformanceConfig`,
+    `JobQueueConfig`, `ClickHouseConfig`, `MultiListenerConfig` and
+    `BridgeTransportConfig`, with the example documents built on them;
+  - `TransportConfig::{run_bridge, run_executors}` and `RedisConfig::dedup_window_secs`.
+    The keys are refused when a config sets them. The server still refuses the
+    `FRAISEQL_NATS_ENABLE_BRIDGE`, `FRAISEQL_NATS_RUN_EXECUTORS`, `FRAISEQL_BRIDGE_*`
+    and `FRAISEQL_REDIS_DEDUP_WINDOW_SECS` variables at boot;
+  - the Cargo features `dedup`, `queue`, `search`, `arrow` and `analytics`;
+    `enterprise` is now `checkpoint`, `caching` and `metrics`;
+  - the metric series `fraiseql_observer_dedup_detected_total`,
+    `fraiseql_observer_dedup_processing_skipped_total`,
+    `fraiseql_observer_events_tenant_violations_total` and every
+    `fraiseql_observer_job_*` series, whose only producers were the deleted modules;
+  - `ObserverError::TenantViolation` (OB021), produced only by `deduped_executor`;
+  - the MySQL and SQL Server migration files `04`, `05`, `09` and `10`.
+
+  Durable retries and dead letters move to the durable-work kernel (#1645).
+
 - **The observer admin API scopes every route by the token's tenant (#1625).** An
   organisation can no longer read, change, delete, enable or disable another
   organisation's observers. It no longer changes global observers, and it no longer sees

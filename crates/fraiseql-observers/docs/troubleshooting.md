@@ -304,62 +304,28 @@ Slack message posted multiple times
 
 **Root Causes**:
 
-1. Deduplication not enabled
-2. Deduplication window too short
-3. Event hash collision (rare)
-4. Database checkpoint failure
+1. Delivery is at-least-once: a batch whose actions ran but was not yet recorded in the
+   dispatch ledger runs again after a crash, a restart or a lost poll lease
+2. Two drivers poll the same change log under different listener ids
+3. A NATS message was not acknowledged within `ack_wait_secs` and was redelivered
 
 **Diagnostic Steps**:
 
 ```bash
-# 1. Check if deduplication enabled
-cargo build --features "dedup" 2>&1 | grep -i dedup
-# If not in features: that's the issue
+# 1. Inspect the executions recorded for the event
+obs "$API/logs?event_id=<uuid>"
 
-# 2. Check deduplication stats (embedders only: fraiseql-server runs no dedup)
-#    ($METRICS_URL: the /metrics endpoint serving the fraiseql_observer_* registry)
-curl -s "$METRICS_URL" | grep fraiseql_observer_dedup_detected_total
+# 2. Check which replica polls: its log says "Holding the change-log poll lease"
+docker logs <fraiseql-server container> 2>&1 | grep "poll lease"
 ```
 
 **Solutions**:
 
-#### If deduplication not enabled
-
-```toml
-# Add to features in Cargo.toml
-[features]
-dedup = ["redis"]
-
-# Then rebuild
-cargo build --release --features "dedup"
-```
-
-#### If deduplication window too short
-
-```toml
-# Increase from 5 minutes to 30 minutes (valid range: 1..=3600)
-[redis]
-dedup_window_secs = 1800   # was 300
-```
-
-#### To verify deduplication working
-
-```bash
-# 1. Send test event
-INSERT INTO fraiseql_events (entity_type, entity_id, ...)
-VALUES ('Order', 'order-123', ...);
-
-# 2. Observe first execution
-# Check: Webhook called once, email sent once
-
-# 3. Send identical event again (simulate retry)
-INSERT INTO fraiseql_events (entity_type, entity_id, ...)
-VALUES ('Order', 'order-123', ...);
-
-# 4. Verify dedup worked (embedders only: fraiseql-server runs no dedup)
-curl -s "$METRICS_URL" | grep fraiseql_observer_dedup_detected_total
-# Should have increased by 1
-```
+- Make actions idempotent where a repeat matters. See
+  [Observer Idempotency](../../../docs/operations/observer-idempotency.md).
+- Run a single driver per change log. Replicas of `fraiseql-server` share one listener id
+  and one poller.
+- For NATS, raise `nats.jetstream.ack_wait_secs` above the slowest action.
 
 ---
 
@@ -385,7 +351,7 @@ Cache hit rate declining
 
 ```bash
 # 1. Check metrics
-curl -s "$METRICS_URL" | grep -E "fraiseql_observer_(cache_|action_duration_seconds|job_queue_depth)"
+curl -s "$METRICS_URL" | grep -E "fraiseql_observer_(cache_|action_duration_seconds|backlog_size)"
 
 # 2. Check Redis memory
 redis-cli INFO memory
@@ -448,55 +414,41 @@ $$);
 
 ---
 
-### Issue 6: Failover Not Working
+### Issue 6: Standby Replica Not Taking Over
 
 **Symptoms**:
 
 ```
-Multi-listener configured with 3 listeners
-Primary listener crashes
-Other listeners not taking over
+Several fraiseql-server replicas run with observers enabled
+The polling replica stops
+No other replica resumes polling
 Events stop processing
 ```
 
 **Root Causes**:
 
-1. Health check interval too long (doesn't detect failure fast)
-2. Failover threshold too short (false positives)
-3. Listeners not sharing checkpoint store
-4. Coordinator not running
+1. The stopped replica's PostgreSQL session is still open, so it still holds the advisory lock
+2. The replicas use different databases, so they do not share a checkpoint
 
 **Diagnostic Steps**:
 
-`MultiListenerCoordinator` and `FailoverManager` are process-local: they elect among the
-listeners registered in one process and cannot fail over across processes (#872). For
-several `fraiseql-server` replicas, see
+Exactly one replica polls: the one holding a PostgreSQL advisory lock keyed on the listener
+id. The others retry the lock every second. See
 [Operating Observers - Scaling](../../../docs/operations/observers.md#scaling).
+
+```bash
+# Which replica holds the lease? Its log says:
+#   "Holding the change-log poll lease"
+
+# Is the old session still holding an advisory lock?
+psql $DATABASE_URL -c "SELECT pid, granted FROM pg_locks WHERE locktype = 'advisory';"
+```
 
 **Solutions**:
 
-#### If health check too slow
-
-```rust
-multi_listener_config: Some(MultiListenerConfig {
-    num_listeners: 3,
-    health_check_interval: Duration::from_secs(2),  // Was 5
-    failover_threshold: Duration::from_secs(30),    // Was 60
-}),
-```
-
-#### If checkpoints not shared
-
-```rust
-// Ensure ALL listeners use the same checkpoint database
-// In each listener process:
-let pool = sqlx::PgPool::connect("postgresql://user:pass@postgres:5432/fraiseql").await?;
-let checkpoint_store = PostgresCheckpointStore::new(pool);
-
-// Verify table has unique index on listener_id
-psql $DATABASE_URL -c "\d observer_checkpoints"
-# Should show: UNIQUE INDEX listener_id
-```
+- End a stuck session with `pg_terminate_backend(<pid>)`. A standby takes the lock at its
+  next retry and resumes from the stored checkpoint.
+- Point every replica at the same database.
 
 ---
 
@@ -616,7 +568,7 @@ grep -i "error\|panic" observer.log
 
 # Filter for specific component
 grep "checkpoint" observer.log  # Checkpoint issues
-grep "dedup" observer.log      # Dedup issues
+grep "poll lease" observer.log  # Poll lease issues
 grep "circuit" observer.log    # Circuit breaker issues
 ```
 
@@ -652,7 +604,7 @@ When reporting issues, include:
 5. **Configuration (redacted)**:
 
    ```bash
-   env | grep -E "DATABASE|REDIS|ELASTIC" > config.env
+   env | grep -E "DATABASE|REDIS|NATS" > config.env
    ```
 
 ---
@@ -677,7 +629,6 @@ When reporting issues, include:
 
 - Regular PostgreSQL backups
 - Redis persistence enabled
-- Elasticsearch snapshots
 - Configuration version control
 
 ### 4. Load Testing
@@ -685,12 +636,12 @@ When reporting issues, include:
 Simulate load before production with the load test script in
 [Performance Tuning](performance-tuning.md#load-test-script).
 
-### 5. Failover Testing
+### 5. Takeover Testing
 
 ```bash
-# Monthly failover drills
-# 1. Kill primary listener
-# 2. Verify automatic failover
+# Regular takeover drills
+# 1. Stop the replica holding the poll lease
+# 2. Verify a standby logs "Holding the change-log poll lease"
 # 3. Check event continuity
 # 4. Verify no data loss
 ```
@@ -731,9 +682,7 @@ Simulate load before production with the load test script in
 
 2. **Solutions**:
    - Reduce cache size
-   - Reduce queue size
    - Enable periodic cleanup
-   - Reduce dedup window
 
 3. **Monitor**:
 
@@ -746,6 +695,5 @@ Simulate load before production with the load test script in
 ## References
 
 - Architecture Guide: `../../../../docs/architecture/overview.md`
-- Configuration Examples: `configuration-examples.md`
 - Operating observers under `fraiseql-server`: `../../../docs/operations/observers.md`
 - Performance Tuning: `performance-tuning.md`

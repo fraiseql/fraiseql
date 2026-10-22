@@ -100,16 +100,11 @@ fraiseql (umbrella)
 |---------|---------|-------------|-----------|
 | `postgres` | yes | PostgreSQL backend | `sqlx/postgres` |
 | `nats` | no | NATS messaging | `dep:async-nats` |
-| `arrow` | no | Arrow integration | `dep:fraiseql-arrow`, `dep:arrow` |
-| `analytics` | no | Analytics via Arrow | `arrow` |
 | `caching` | no | Redis caching | `dep:redis` |
-| `dedup` | no | Redis deduplication | `dep:redis` |
-| `queue` | no | Redis queue | `dep:redis` |
 | `redis-lease` | no | Redis lease management | `dep:redis` |
-| `search` | no | Search capability | (empty) |
 | `checkpoint` | no | Checkpoint support | (empty) |
 | `metrics` | no | Prometheus metrics | `dep:prometheus` |
-| `enterprise` | no | HA feature bundle | `checkpoint`, `dedup`, `caching`, `queue`, `search`, `metrics` |
+| `enterprise` | no | HA feature bundle | `checkpoint`, `caching`, `metrics` |
 | `testing` | no | Test helpers | (empty) |
 
 ### fraiseql-arrow
@@ -195,7 +190,7 @@ No feature flags defined. Internal crate (`publish = false`).
 | `fraiseql-server/observers-enterprise` | `observers`, `fraiseql-observers/enterprise`, `fraiseql-observers/nats` |
 | `fraiseql-server/observers-nats` | `observers`, `fraiseql-observers/nats` |
 | `fraiseql-server/redis-pkce` | `auth`, `fraiseql-auth/redis-pkce` |
-| `fraiseql-observers/enterprise` | `checkpoint`, `dedup`, `caching`, `queue`, `search`, `metrics` |
+| `fraiseql-observers/enterprise` | `checkpoint`, `caching`, `metrics` |
 
 ## Known Constraints and Incompatibilities
 
@@ -209,7 +204,7 @@ No feature flags defined. Internal crate (`publish = false`).
 
 
 
-5. **Redis features are independent per subsystem.** `redis-apq` (APQ cache), `redis-pkce` (PKCE state), `redis-rate-limiting` (rate limiting), and observer `caching`/`dedup`/`queue` each bring their own Redis dependency. They do not share a single feature gate.
+5. **Redis features are independent per subsystem.** `redis-apq` (APQ cache), `redis-pkce` (PKCE state), `redis-rate-limiting` (rate limiting), and observer `caching`/`redis-lease` each bring their own Redis dependency. They do not share a single feature gate.
 
 6. **`arrow` in `fraiseql` (umbrella) implies `server`.** You cannot use Arrow Flight without the HTTP server.
 

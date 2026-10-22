@@ -23,18 +23,6 @@ fraiseql_core::prelude api the engine's glob import for embedders
 fraiseql_server::prelude api the server's glob import for embedders
 
 # ── Deleted by M1 (WP-1.2) ───────────────────────────────────────────────────────────
-fraiseql_observers::arrow_bridge pending superseded by the CDC sinks; deleted by #1640
-fraiseql_observers::cached_executor pending superseded by K3; deleted by #1640
-fraiseql_observers::dedup pending superseded by K3; deleted by #1640
-fraiseql_observers::deduped_executor pending superseded by K3; deleted by #1640
-fraiseql_observers::elasticsearch_sink pending superseded by the CDC sinks; deleted by #1640
-fraiseql_observers::factory pending superseded by the server's observer runtime; deleted by #1640
-fraiseql_observers::job_queue pending superseded by K3; deleted by #1640
-fraiseql_observers::listener::coordinator pending superseded by K3; deleted by #1640
-fraiseql_observers::listener::failover pending superseded by K3; deleted by #1640
-fraiseql_observers::queue pending superseded by K3; deleted by #1640
-fraiseql_observers::queued_executor pending superseded by K3; deleted by #1640
-fraiseql_observers::search pending superseded by the CDC sinks; deleted by #1640
 fraiseql_core::compiler::enum_validator pending superseded by the cli compiler; deleted by #1640
 fraiseql_core::compiler::ir pending superseded by the cli compiler; deleted by #1640
 fraiseql_core::compiler::parser pending superseded by the cli compiler; deleted by #1640
@@ -129,5 +117,4 @@ fraiseql_core::tenancy pending no plan names it; triage #1681
 fraiseql_server::logging pending no plan names it; triage #1681
 fraiseql_server::observers::config pending no plan names it; triage #1681
 fraiseql_observers::logging pending no plan names it; triage #1681
-fraiseql_observers::listener::state pending no plan names it; triage #1681
 fraiseql_observers::transport::postgres_notify pending no plan names it; triage #1681

@@ -80,8 +80,7 @@ To opt out of all defaults: `--no-default-features`.
 |-------------|--------------|
 | `--all-features` | `clippy`, `build`, `test`, `doc` steps |
 | `observers-nats` | `ci-observers` — observer runtime integration |
-| `observers/caching,queue,redis-lease` | `ci-observers` — Redis-backed observer |
-| `observers/postgres,nats` | `ci-observers` — bridge integration |
+| `observers/caching,redis-lease` | `ci-observers` — Redis-backed observer |
 | `redis-apq` | `ci-redis` — APQ cache integration |
 | TLS integration | `ci-tls` — `fraiseql-wire` TLS tests |
 | Secrets/Vault | `ci-vault` — `fraiseql-server` secrets integration |

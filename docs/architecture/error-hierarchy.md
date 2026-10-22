@@ -61,9 +61,8 @@ The central error crate. All runtime crates depend on it.
 
 | Type | File | Purpose |
 |------|------|---------|
-| `ObserverError` | `error.rs` | Operational observer errors with structured codes (OB001–OB014). Composes into `FraiseQLError::Observer(_)` via `From` (owned by this crate). |
+| `ObserverError` | `error.rs` | Operational observer errors with structured codes (OB001–OB020). Composes into `FraiseQLError::Observer(_)` via `From` (owned by this crate). |
 | `ObserverErrorCode` | `error.rs` | Stable error codes for structured logging. |
-| `JobQueueError` | `job_queue/traits.rs` | Job queue operation failures. |
 
 ### `fraiseql-webhooks` (Webhook Subsystem)
 

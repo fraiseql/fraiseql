@@ -4033,14 +4033,12 @@ dependencies = [
 name = "fraiseql-observers"
 version = "2.17.1"
 dependencies = [
- "arrow",
  "async-nats 0.49.1",
  "async-trait",
  "base64 0.22.1",
  "chrono",
  "criterion",
  "dashmap",
- "fraiseql-arrow",
  "fraiseql-error",
  "fraiseql-guard",
  "fraiseql-test-support",

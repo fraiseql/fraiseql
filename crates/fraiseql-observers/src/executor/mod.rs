@@ -256,7 +256,7 @@ impl ObserverExecutor {
     /// SMTP). Build the `invalidator` with
     /// [`RedisCacheInvalidator::connect`](crate::cache::redis::RedisCacheInvalidator::connect)
     /// from the runtime [`RedisConfig`](crate::config::RedisConfig) — the same
-    /// `[observers.runtime.redis]` config used for dedup/result-cache.
+    /// `[observers.runtime.redis]` config the server reads.
     ///
     /// Only available when the `caching` feature is enabled.
     #[cfg(feature = "caching")]
@@ -335,9 +335,6 @@ impl ObserverExecutor {
     }
 
     /// Get a shared reference to the dead letter queue.
-    ///
-    /// Used by wrappers (e.g. `DedupedObserverExecutor`) to route violation
-    /// events to the same DLQ without requiring a separate DLQ reference.
     #[must_use]
     pub fn dlq(&self) -> Arc<dyn DeadLetterQueue> {
         Arc::clone(&self.dlq)

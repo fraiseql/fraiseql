@@ -1,42 +1,36 @@
 # FraiseQL Observers Integration Tests
 
-This directory contains end-to-end integration tests for the Redis + NATS observer system.
+This directory contains integration tests for the observer library: the executor, the
+change-log listener, checkpoints, transports and actions.
 
-## Test Coverage
+## `integration_test.rs` Coverage
 
-The integration tests validate:
+1. **Cache Backend** (`test_cache_performance_improvement`)
+   - Creates the Redis-backed action result cache backend
+   - Requires Redis
 
-1. **Full Pipeline with Redis Deduplication** (`test_full_pipeline_with_deduplication`)
-   - Event processing with deduplication enabled
-   - Verifies duplicate events are skipped
-   - Measures deduplication overhead
+2. **Concurrent Execution Performance** (`test_concurrent_execution_performance`)
+   - Compares sequential and concurrent event processing
 
-2. **Cache Performance Improvement** (`test_cache_performance_improvement`)
-   - Redis-backed action result caching
-   - Validates cache backend creation
-   - Documents expected 100x performance improvement in production
-
-3. **Concurrent Execution Performance** (`test_concurrent_execution_performance`)
-   - Compares sequential vs concurrent event processing
-   - Validates parallel execution capabilities
-   - Benchmarks throughput improvements
-
-4. **Checkpoint Recovery** (`test_checkpoint_recovery`)
+3. **Checkpoint Recovery** (`test_checkpoint_recovery`)
    - Validates checkpoint-based crash recovery
-   - Requires PostgreSQL database (see deployment docs)
+   - Requires PostgreSQL
 
-5. **Full Stack with All Features** (`test_full_stack_all_features`)
-   - Tests complete executor stack (dedup + caching + concurrent)
-   - Uses ExecutorFactory for proper composition
-   - Validates end-to-end integration
+4. **Error Handling and Resilience** (`test_error_handling_resilience`)
+   - Tests behavior with no observers configured
 
-6. **Error Handling and Resilience** (`test_error_handling_resilience`)
-   - Validates graceful error handling
-   - Tests system behavior with no observers configured
+5. **Multi-Event Processing** (`test_multi_event_processing`)
+   - Processes events for several entity types
 
-7. **Multi-Event Processing** (`test_multi_event_processing`)
-   - Processes diverse event types
-   - Validates system handles multiple entity types
+6. **DLQ Failure Tracking** (`test_dlq_failure_tracking`)
+   - Checks the dead letter queue after processing
+
+7. **Concurrent Observer Processing** (`test_concurrent_observer_processing`)
+   - Processes several events from concurrent tasks
+
+8. **Event Processing with Caching** (`test_event_processing_with_caching`)
+   - Processes an event with the action result cache available
+   - Requires Redis
 
 ## Running Tests
 
@@ -44,18 +38,18 @@ The integration tests validate:
 
 **Required**:
 
-- Rust toolchain (1.70+)
-- Redis server running on `localhost:6379` (or set `REDIS_URL` env var)
+- Rust toolchain
+- Redis server on `localhost:6379` (or set `REDIS_URL`) for the cache tests
 
 **Optional**:
 
 - NATS server on `localhost:4222` (for NATS tests)
-- PostgreSQL database (for checkpoint tests)
+- PostgreSQL database (for checkpoint and change-log tests)
 
 ### Quick Start with Docker Compose
 
 ```bash
-# Start Redis (required for most tests)
+# Start Redis
 docker compose -f "$(git rev-parse --show-toplevel)/docker/docker-compose.test.yml" up -d redis-test
 
 # Or start Redis + NATS + PostgreSQL
@@ -67,25 +61,25 @@ docker compose -f "$(git rev-parse --show-toplevel)/docker/docker-compose.test.y
 **All integration tests with Redis**:
 
 ```bash
-cargo test --test integration_test --features "postgres,dedup,caching,testing"
+cargo test --test integration_test --features "postgres,caching,testing"
 ```
 
-**With NATS tests enabled**:
+**With checkpoint tests enabled**:
 
 ```bash
-cargo test --test integration_test --features "postgres,dedup,caching,nats,testing"
+cargo test --test integration_test --features "postgres,caching,checkpoint,testing"
 ```
 
-**Run specific test**:
+**Run a specific test**:
 
 ```bash
-cargo test --test integration_test test_full_pipeline_with_deduplication --features "postgres,dedup,caching,testing"
+cargo test --test integration_test test_event_processing_with_caching --features "postgres,caching,testing"
 ```
 
 **With output logging**:
 
 ```bash
-cargo test --test integration_test --features "postgres,dedup,caching,testing" -- --nocapture
+cargo test --test integration_test --features "postgres,caching,testing" -- --nocapture
 ```
 
 ### Feature Flags
@@ -93,28 +87,10 @@ cargo test --test integration_test --features "postgres,dedup,caching,testing" -
 | Feature | Description | Required For |
 |---------|-------------|--------------|
 | `postgres` | PostgreSQL database support | Most tests |
-| `dedup` | Redis deduplication | Deduplication tests |
-| `caching` | Redis caching | Cache tests |
+| `caching` | Redis action result cache | Cache tests |
 | `nats` | NATS transport | NATS tests |
 | `testing` | Test mocks and utilities | All tests |
 | `checkpoint` | Checkpoint recovery | Checkpoint tests |
-
-## Expected Results
-
-All tests should pass when Redis is running:
-
-```
-running 7 tests
-test test_cache_performance_improvement ... ok
-test test_concurrent_execution_performance ... ok
-test test_error_handling_resilience ... ok
-test test_full_pipeline_with_deduplication ... ok
-test test_full_stack_all_features ... ok
-test test_multi_event_processing ... ok
-test test_checkpoint_recovery ... ok
-
-test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.15s
-```
 
 ## Troubleshooting
 
@@ -131,8 +107,8 @@ docker compose -f "$(git rev-parse --show-toplevel)/docker/docker-compose.test.y
 # Or start Redis manually
 docker run -d -p 6379:6379 redis:7-alpine
 
-# Or use custom Redis URL
-REDIS_URL=redis://your-redis:6379 cargo test --test integration_test --features "postgres,dedup,caching,testing"
+# Or use a custom Redis URL
+REDIS_URL=redis://your-redis:6379 cargo test --test integration_test --features "postgres,caching,testing"
 ```
 
 ### Test Timeout
@@ -143,88 +119,28 @@ REDIS_URL=redis://your-redis:6379 cargo test --test integration_test --features 
 
 - Ensure Redis is responsive: `redis-cli ping` should return `PONG`
 - Check network connectivity
-- Increase test timeout: `cargo test -- --test-threads=1 --timeout=60`
+- Run tests serially: `cargo test -- --test-threads=1`
 
 ### Feature Not Enabled
 
 **Error**: `no tests to run matching...`
 
-**Solution**: Make sure to include all required features:
+**Solution**: Include the features the test is gated on:
 
 ```bash
-cargo test --test integration_test --features "postgres,dedup,caching,testing"
+cargo test --test integration_test --features "postgres,caching,testing"
 ```
 
 ## Performance Benchmarks
-
-For detailed performance benchmarking, see:
 
 ```bash
 cargo bench --bench observer_benchmarks
 ```
 
-Benchmark results:
-
-- **Event processing**: 1K-10K events/sec (without I/O)
-- **Cache hit**: <1ms (100x faster than cache miss)
-- **Dedup overhead**: ~0.1ms per event
-- **Concurrent vs Sequential**: 2-3x faster with I/O-bound actions
-
 ## Manual Testing
 
-For manual testing, see:
-
 - `docker/docker-compose.test.yml` (repository root) - Redis, NATS and PostgreSQL test services
-- `examples/*.toml` - Configuration examples
-- `docs/operations/observers.md` (repository root) - Operating observers under `fraiseql-server`
-
-## CI/CD Integration
-
-Example GitHub Actions workflow:
-
-```yaml
-name: Integration Tests
-
-on: [push, pull_request]
-
-jobs:
-  test:
-    runs-on: ubuntu-latest
-
-    services:
-      redis:
-        image: redis:7-alpine
-        ports:
-          - 6379:6379
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
-    steps:
-      - uses: actions/checkout@v3
-
-      - name: Setup Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-
-      - name: Run integration tests
-        run: cargo test --test integration_test --features "postgres,dedup,caching,testing"
-        env:
-          REDIS_URL: redis://localhost:6379
-```
-
-## Next Steps
-
-After completing integration tests:
-
-1. Review performance benchmarks: `cargo bench`
-2. Deploy to staging: see `docs/operations/observers.md` (repository root)
-3. Run production smoke tests with real workload
-4. Monitor metrics: cache hit rate, dedup hit rate, throughput
-5. Tune configuration based on observed performance
+- `docs/operations/observers.md` (repository root) - Running observers under `fraiseql-server`
 
 ## Contributing
 
@@ -233,11 +149,4 @@ When adding new integration tests:
 1. Use feature gates (`#[cfg(feature = "...")]`) for optional dependencies
 2. Clean up test resources (Redis keys, etc.)
 3. Document expected behavior and assertions
-4. Add test to this README's "Test Coverage" section
-5. Update CI/CD workflow if new dependencies required
-
-## Support
-
-- **Documentation**: See `examples/README.md` and `docs/operations/observers.md` (repository root)
-- **Issues**: https://github.com/your-org/fraiseql/issues
-- **Discussions**: https://github.com/your-org/fraiseql/discussions
+4. Add the test to this README's coverage section

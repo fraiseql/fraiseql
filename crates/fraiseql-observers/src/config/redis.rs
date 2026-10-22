@@ -1,4 +1,4 @@
-//! Redis configuration for deduplication and caching.
+//! Redis configuration for the cache-invalidation action.
 
 use std::env;
 
@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::error::{ObserverError, Result};
 
-/// Redis configuration for deduplication and caching
+/// Redis configuration for the cache-invalidation action
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct RedisConfig {
@@ -25,10 +25,6 @@ pub struct RedisConfig {
     /// Command timeout in seconds (default: 2)
     #[serde(default = "default_redis_command_timeout_secs")]
     pub command_timeout_secs: u64,
-
-    /// Deduplication window in seconds (default: 300 = 5 minutes)
-    #[serde(default = "default_dedup_window_secs")]
-    pub dedup_window_secs: u64,
 
     /// Cache TTL in seconds (default: 60)
     #[serde(default = "default_cache_ttl_secs")]
@@ -51,10 +47,6 @@ const fn default_redis_command_timeout_secs() -> u64 {
     2
 }
 
-const fn default_dedup_window_secs() -> u64 {
-    300 // 5 minutes
-}
-
 const fn default_cache_ttl_secs() -> u64 {
     60 // 1 minute
 }
@@ -66,7 +58,6 @@ impl Default for RedisConfig {
             pool_size:            default_redis_pool_size(),
             connect_timeout_secs: default_redis_connect_timeout_secs(),
             command_timeout_secs: default_redis_command_timeout_secs(),
-            dedup_window_secs:    default_dedup_window_secs(),
             cache_ttl_secs:       default_cache_ttl_secs(),
         }
     }
@@ -92,11 +83,6 @@ impl RedisConfig {
         if let Ok(v) = env::var("FRAISEQL_REDIS_COMMAND_TIMEOUT_SECS") {
             if let Ok(secs) = v.parse() {
                 self.command_timeout_secs = secs;
-            }
-        }
-        if let Ok(v) = env::var("FRAISEQL_REDIS_DEDUP_WINDOW_SECS") {
-            if let Ok(secs) = v.parse() {
-                self.dedup_window_secs = secs;
             }
         }
         if let Ok(v) = env::var("FRAISEQL_REDIS_CACHE_TTL_SECS") {
@@ -132,11 +118,6 @@ impl RedisConfig {
         if self.command_timeout_secs == 0 {
             return Err(ObserverError::InvalidConfig {
                 message: "redis.command_timeout_secs must be > 0".to_string(),
-            });
-        }
-        if self.dedup_window_secs == 0 || self.dedup_window_secs > 3600 {
-            return Err(ObserverError::InvalidConfig {
-                message: "redis.dedup_window_secs must be between 1 and 3600".to_string(),
             });
         }
         if self.cache_ttl_secs == 0 || self.cache_ttl_secs > 3600 {

@@ -1,24 +1,16 @@
 #![allow(unused_imports)]
-//! End-to-End Integration Tests for Redis + NATS Observer System
+//! End-to-end integration tests for the observer pipeline.
 //!
-//! These tests validate the complete pipeline with all features enabled:
-//! - Event deduplication via Redis
+//! These tests cover:
 //! - Action result caching via Redis
 //! - Concurrent action execution
-//! - NATS bridge publishing (when NATS feature enabled)
 //! - Checkpoint recovery after crashes
 //!
-//! **Requirements**:
-//! - Redis must be running on localhost:6379 (or use `REDIS_URL` env var)
-//! - NATS must be running on localhost:4222 for NATS tests (optional)
+//! **Requirements**: Redis on localhost:6379 (or `REDIS_URL`) for the caching tests.
 //!
 //! **Run tests**:
 //! ```bash
-//! # All integration tests with Redis
-//! cargo test --test integration_test --features "postgres,dedup,caching,testing"
-//!
-//! # Include NATS tests
-//! cargo test --test integration_test --features "postgres,dedup,caching,nats,testing"
+//! cargo test --test integration_test --features "postgres,caching,testing"
 //! ```
 
 #![allow(clippy::print_stdout, clippy::print_stderr)] // Reason: CLI / test / example / bench code prints to stdout/stderr by design
@@ -28,22 +20,12 @@ use std::{collections::HashMap, sync::Arc, time::Instant};
 use fraiseql_observers::RedisCacheBackend;
 #[cfg(feature = "testing")]
 use fraiseql_observers::testing::mocks::MockDeadLetterQueue;
-#[cfg(feature = "dedup")]
-use fraiseql_observers::{DeduplicationStore, RedisDeduplicationStore};
 use fraiseql_observers::{
     Result,
-    config::{
-        ActionConfig, ObserverRuntimeConfig, PerformanceConfig, RedisConfig, TransportConfig,
-        TransportKind,
-    },
+    config::{ActionConfig, RedisConfig, TransportConfig, TransportKind},
     event::{EntityEvent, EventKind},
     executor::ObserverExecutor,
     matcher::EventMatcher,
-};
-#[cfg(all(feature = "dedup", feature = "caching"))]
-use fraiseql_observers::{
-    cached_executor::CachedActionExecutor, deduped_executor::DedupedObserverExecutor,
-    factory::ExecutorFactory,
 };
 use serde_json::json;
 use uuid::Uuid;
@@ -64,30 +46,9 @@ fn test_redis_config() -> RedisConfig {
     RedisConfig {
         url:                  redis_url(),
         pool_size:            5,
-        dedup_window_secs:    300,
         cache_ttl_secs:       60,
         connect_timeout_secs: 5,
         command_timeout_secs: 2,
-    }
-}
-
-/// Create a test runtime config with Redis enabled
-#[allow(dead_code)] // Reason: test utility called by subset of observer tests
-fn test_runtime_config() -> ObserverRuntimeConfig {
-    ObserverRuntimeConfig {
-        transport:    TransportConfig {
-            transport: TransportKind::InMemory,
-            ..Default::default()
-        },
-        redis:        Some(test_redis_config()),
-        clickhouse:   None,
-        job_queue:    None,
-        performance:  PerformanceConfig {
-            enable_dedup:   true,
-            enable_caching: true,
-        },
-        observers:    HashMap::new(),
-        max_dlq_size: None,
     }
 }
 
@@ -117,64 +78,7 @@ fn create_http_action(url: &str) -> ActionConfig {
 }
 
 // ============================================================================
-// Integration Test 1: Full Pipeline with Redis Deduplication
-// ============================================================================
-
-#[cfg(all(feature = "dedup", feature = "testing"))]
-#[tokio::test]
-async fn test_full_pipeline_with_deduplication() -> Result<()> {
-    // Setup Redis dedup store
-    let redis_config = test_redis_config();
-    let client = redis::Client::open(redis_config.url.as_str()).map_err(|e| {
-        fraiseql_observers::error::ObserverError::InvalidConfig {
-            message: format!("Failed to create Redis client: {}", e),
-        }
-    })?;
-
-    let conn = redis::aio::ConnectionManager::new(client).await.map_err(|e| {
-        fraiseql_observers::error::ObserverError::InvalidConfig {
-            message: format!("Failed to connect to Redis: {}", e),
-        }
-    })?;
-
-    let dedup_store = RedisDeduplicationStore::new(conn, 300);
-
-    // Setup observer executor
-    let matcher = EventMatcher::new();
-    let dlq = Arc::new(MockDeadLetterQueue::new());
-    let executor = ObserverExecutor::new(matcher, dlq);
-
-    // Wrap with deduplication
-    let deduped = DedupedObserverExecutor::new(executor, dedup_store.clone());
-
-    // Create test event
-    let event = create_test_event(EventKind::Created, "User", json!({"name": "Alice"}));
-
-    // Process event first time
-    let start = Instant::now();
-    let summary1 = deduped.process_event(&event).await?;
-    let duration1 = start.elapsed();
-
-    assert!(!summary1.duplicate_skipped, "First processing should not be skipped");
-    println!("✅ First processing: {duration1:?}");
-
-    // Process same event again (duplicate)
-    let start = Instant::now();
-    let summary2 = deduped.process_event(&event).await?;
-    let duration2 = start.elapsed();
-
-    assert!(summary2.duplicate_skipped, "Second processing should be skipped as duplicate");
-    println!("✅ Duplicate skipped: {duration2:?}");
-
-    // Clean up Redis key for this test
-    let event_key = format!("event:{}", event.id);
-    dedup_store.remove(&event_key).await?;
-
-    Ok(())
-}
-
-// ============================================================================
-// Integration Test 2: Cache Performance Improvement
+// Cache Performance Improvement
 // ============================================================================
 
 #[cfg(all(feature = "caching", feature = "testing"))]
@@ -211,7 +115,7 @@ async fn test_cache_performance_improvement() -> Result<()> {
 }
 
 // ============================================================================
-// Integration Test 3: Concurrent Execution Performance
+// Concurrent Execution Performance
 // ============================================================================
 
 #[cfg(feature = "testing")]
@@ -261,7 +165,7 @@ async fn test_concurrent_execution_performance() -> Result<()> {
 }
 
 // ============================================================================
-// Integration Test 4: Checkpoint Recovery After Crash
+// Checkpoint Recovery After Crash
 // ============================================================================
 
 #[cfg(feature = "checkpoint")]
@@ -280,49 +184,7 @@ async fn test_checkpoint_recovery() -> Result<()> {
 }
 
 // ============================================================================
-// Integration Test 5: Full Stack with All Features
-// ============================================================================
-
-#[cfg(all(feature = "dedup", feature = "caching", feature = "testing"))]
-#[tokio::test]
-async fn test_full_stack_all_features() -> Result<()> {
-    // This test validates the complete executor stack with all features enabled
-    let mut config = test_runtime_config();
-
-    // Enable all performance features
-    config.performance.enable_dedup = true;
-    config.performance.enable_caching = true;
-
-    let dlq = Arc::new(MockDeadLetterQueue::new());
-
-    // Build executor stack using factory
-    let executor = ExecutorFactory::build(&config, dlq).await?;
-
-    // Create and process test event
-    let event =
-        create_test_event(EventKind::Created, "Order", json!({"total": 150.00, "items": 3}));
-
-    let summary = executor.process_event(&event).await?;
-
-    println!("✅ Full stack execution:");
-    println!("   - Duplicate skipped: {}", summary.duplicate_skipped);
-    println!("   - Successful: {}", summary.successful_actions);
-    println!("   - Failed: {}", summary.failed_actions);
-    println!("   - Cache hits: {}", summary.cache_hits);
-
-    assert!(!summary.duplicate_skipped, "First run should not be duplicate");
-
-    // Process same event again to trigger deduplication
-    let summary2 = executor.process_event(&event).await?;
-    assert!(summary2.duplicate_skipped, "Second run should be duplicate");
-
-    println!("✅ Deduplication working correctly");
-
-    Ok(())
-}
-
-// ============================================================================
-// Integration Test 6: Error Handling and Resilience
+// Error Handling and Resilience
 // ============================================================================
 
 #[cfg(feature = "testing")]
@@ -350,7 +212,7 @@ async fn test_error_handling_resilience() -> Result<()> {
 }
 
 // ============================================================================
-// Integration Test 7: Multi-Event Processing
+// Multi-Event Processing
 // ============================================================================
 
 #[cfg(feature = "testing")]
@@ -441,47 +303,6 @@ async fn test_concurrent_observer_processing() -> Result<()> {
     Ok(())
 }
 
-/// Test duplicate handling across multiple events
-#[cfg(all(feature = "dedup", feature = "testing"))]
-#[tokio::test]
-async fn test_duplicate_event_handling() -> Result<()> {
-    let redis_config = test_redis_config();
-    let client = redis::Client::open(redis_config.url.as_str()).map_err(|e| {
-        fraiseql_observers::error::ObserverError::InvalidConfig {
-            message: format!("Failed to create Redis client: {}", e),
-        }
-    })?;
-
-    let conn = redis::aio::ConnectionManager::new(client).await.map_err(|e| {
-        fraiseql_observers::error::ObserverError::InvalidConfig {
-            message: format!("Failed to connect to Redis: {}", e),
-        }
-    })?;
-
-    let dedup_store = RedisDeduplicationStore::new(conn, 300);
-    let matcher = EventMatcher::new();
-    let dlq = Arc::new(MockDeadLetterQueue::new());
-    let executor = ObserverExecutor::new(matcher, dlq);
-    let deduped = DedupedObserverExecutor::new(executor, dedup_store.clone());
-
-    // Create event and process twice
-    let event = create_test_event(EventKind::Created, "TestEntity", json!({"id": "dup-1"}));
-
-    let summary1 = deduped.process_event(&event).await?;
-    assert!(!summary1.duplicate_skipped, "First processing should not be skipped");
-
-    let summary2 = deduped.process_event(&event).await?;
-    assert!(summary2.duplicate_skipped, "Second processing should be skipped");
-
-    // Clean up
-    let event_key = format!("event:{}", event.id);
-    dedup_store.remove(&event_key).await?;
-
-    println!("✅ Duplicate event handling test passed");
-
-    Ok(())
-}
-
 /// Test event processing with caching
 #[cfg(all(feature = "caching", feature = "testing"))]
 #[tokio::test]
@@ -511,38 +332,6 @@ async fn test_event_processing_with_caching() -> Result<()> {
     assert!(Arc::strong_count(&cache_backend) > 0, "Cache backend should be available");
 
     println!("✅ Event processing with caching test passed");
-
-    Ok(())
-}
-
-/// Test executor factory with all features
-#[cfg(all(feature = "dedup", feature = "caching", feature = "testing"))]
-#[tokio::test]
-async fn test_executor_factory_all_features() -> Result<()> {
-    let mut config = test_runtime_config();
-
-    config.performance.enable_dedup = true;
-    config.performance.enable_caching = true;
-
-    let dlq = Arc::new(MockDeadLetterQueue::new());
-    let executor = ExecutorFactory::build(&config, dlq).await?;
-
-    // Create test event
-    let event = create_test_event(
-        EventKind::Created,
-        "TestEntity",
-        json!({"id": "factory-test", "data": "test"}),
-    );
-
-    // Process should work
-    let summary = executor.process_event(&event).await?;
-
-    // Summary should be valid
-    assert!(!event.id.to_string().is_empty(), "Event should process");
-    // dlq_errors is always non-negative as an unsigned type
-    let _ = summary.dlq_errors;
-
-    println!("✅ Executor factory all features test passed");
 
     Ok(())
 }

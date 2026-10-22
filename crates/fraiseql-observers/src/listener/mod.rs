@@ -14,31 +14,22 @@
 //! connected is gone, which is the property the change-log ledger exists to
 //! avoid.
 //!
-//! Multi-listener coordination for high availability (feature-independent):
-//! - `state.rs`: Listener lifecycle state machine
-//! - `lease.rs`: Distributed checkpoint leasing
-//! - `coordinator.rs`: Multi-listener coordination
-//! - `failover.rs`: Automatic failover management
+//! `lease.rs` holds the distributed checkpoint lease that keeps a second replica from
+//! claiming the same change-log cursor.
 
 #[cfg(feature = "postgres")]
 pub mod change_log;
-pub mod coordinator;
-pub mod failover;
 pub mod lease;
 #[cfg(feature = "postgres")]
 pub mod replay;
-pub mod state;
 #[cfg(feature = "postgres")]
 pub mod tail;
 
 #[cfg(feature = "postgres")]
 pub use change_log::{ChangeLogEntry, ChangeLogListener, ChangeLogListenerConfig};
-pub use coordinator::{ListenerHandle, ListenerHealth, MultiListenerCoordinator};
-pub use failover::{FailoverEvent, FailoverManager};
 pub use lease::CheckpointLease;
 #[cfg(feature = "postgres")]
 pub use replay::{ChangeLogReplayReader, ReplayScope, ReplayedEvent, ResumeAnchor, ResumePosition};
-pub use state::{ListenerState, ListenerStateMachine};
 #[cfg(feature = "postgres")]
 pub use tail::ChangeLogTail;
 
