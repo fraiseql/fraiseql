@@ -708,6 +708,8 @@ async fn query_permission_audit(
     }
 }
 
+/// The request-path reader of role assignments (#1632)
+pub mod assigned_roles;
 /// Database backend for RBAC operations
 pub mod db_backend;
 

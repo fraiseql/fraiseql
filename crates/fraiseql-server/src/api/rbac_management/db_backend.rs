@@ -2,13 +2,15 @@
 //!
 //! PostgreSQL-backed operations for role and permission management.
 
+use std::sync::Arc;
+
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use sqlx::{PgPool, Row, postgres::PgRow};
 use tracing::debug;
 use uuid::Uuid;
 
-use super::{PermissionDto, RoleDto, UserRoleDto};
+use super::{PermissionDto, RoleDto, UserRoleDto, assigned_roles::AssignedRoles};
 
 /// Error type for RBAC database operations.
 ///
@@ -96,16 +98,30 @@ fn parse_opt_uuid(what: &str, value: Option<&str>) -> Result<Option<Uuid>, RbacD
 }
 
 /// Database backend for RBAC operations.
+///
+/// Clones share one [`AssignedRoles`] reader. Assigning, revoking, renaming and deleting
+/// flush it, so the change reaches the principals it affects on their next request
+/// (#1632).
 #[derive(Clone)]
 pub struct RbacDbBackend {
-    pool: PgPool,
+    pool:     PgPool,
+    assigned: Arc<AssignedRoles>,
 }
 
 impl RbacDbBackend {
     /// Create a new RBAC database backend from a connection pool.
     #[must_use]
-    pub const fn new(pool: PgPool) -> Self {
-        Self { pool }
+    pub fn new(pool: PgPool) -> Self {
+        Self {
+            assigned: Arc::new(AssignedRoles::new(pool.clone())),
+            pool,
+        }
+    }
+
+    /// The request-path reader of the assignments this backend writes.
+    #[must_use]
+    pub fn assigned_roles(&self) -> Arc<AssignedRoles> {
+        Arc::clone(&self.assigned)
     }
 
     /// Ensure the RBAC database schema exists.
@@ -448,6 +464,8 @@ impl RbacDbBackend {
         .await?;
 
         tx.commit().await.map_err(|e| RbacDbError::TransactionError(e.to_string()))?;
+        // A principal holds a role by name.
+        self.assigned.flush_all();
 
         // Fetch the updated role to get tenant_id and timestamps
         self.get_role(role_id).await
@@ -506,6 +524,8 @@ impl RbacDbBackend {
         .await?;
 
         tx.commit().await.map_err(|e| RbacDbError::TransactionError(e.to_string()))?;
+        // The cascade removed its assignments.
+        self.assigned.flush_all();
         Ok(())
     }
 
@@ -768,6 +788,7 @@ impl RbacDbBackend {
         .await?;
 
         tx.commit().await.map_err(|e| RbacDbError::TransactionError(e.to_string()))?;
+        self.assigned.flush(user_id);
 
         Ok(UserRoleDto {
             user_id:     user_id.to_string(),
@@ -903,6 +924,7 @@ impl RbacDbBackend {
         .await?;
 
         tx.commit().await.map_err(|e| RbacDbError::TransactionError(e.to_string()))?;
+        self.assigned.flush(user_id);
         Ok(())
     }
 

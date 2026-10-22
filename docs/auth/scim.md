@@ -87,10 +87,17 @@ session — is a different identity space and is unaffected.
 
 ### Groups become permission-less roles
 
-A SCIM group is mirrored onto an RBAC role and its members onto role assignments. Creating a
-group creates a role with **no permissions**: a provisioning credential that could grant
-permissions would be an admin credential under another name. The IdP decides *who is in* a
-role; a FraiseQL admin decides *what it may do*, through `/api/roles`.
+A SCIM group is mirrored onto an RBAC role and its members onto role assignments. A
+membership is recorded under the member's SCIM `id`, the account a FraiseQL session is
+issued for, and reaches that account's next request with no new login (see the RBAC
+Management API in [the architecture overview](../architecture/overview.md)). A token from
+an external IdP carries that IdP's own subject and does not match.
+
+Creating a group creates a role with **no permissions**: a provisioning credential that could
+grant permissions would be an admin credential under another name. The IdP decides *who is
+in* a role; the schema decides *what it may do*, through the operations gated on its name
+(`requires_role`). Permissions stored on a role through `/api/roles` are not enforced yet
+([#1676](https://github.com/fraiseql/fraiseql/issues/1676)).
 
 ### Filtering is strict
 

@@ -61,32 +61,32 @@ pub struct DynamicGrpcService {
     /// `RuntimeConfig::default()`, so the `Authorizer`, the RLS policy and the
     /// `before:mutation` gate would all be absent — the transport would converge
     /// at the chokepoint and find half the gates missing, which is #1333's shape.
-    executor:          Arc<fraiseql_core::runtime::Executor>,
+    executor:       Arc<fraiseql_core::runtime::Executor>,
     /// Compiled schema (for type lookups during request processing).
-    schema:            Arc<CompiledSchema>,
+    schema:         Arc<CompiledSchema>,
     /// RPC method → operation metadata dispatch table.
-    dispatch:          Arc<RpcDispatchTable>,
+    dispatch:       Arc<RpcDispatchTable>,
     /// Protobuf descriptor pool (for decoding/encoding dynamic messages).
-    pool:              Arc<DescriptorPool>,
+    pool:           Arc<DescriptorPool>,
     /// Fully-qualified service name (e.g., `"fraiseql.v1.FraiseQLService"`).
-    service_name:      Arc<str>,
+    service_name:   Arc<str>,
     /// Optional OIDC validator for JWT authentication.
     /// When present, incoming requests must carry a valid `authorization`
     /// metadata header (`Bearer <jwt>`). The validated token is converted
     /// into a [`SecurityContext`] that drives RLS WHERE clause injection.
-    oidc_validator:    Option<Arc<OidcValidator>>,
+    oidc_validator: Option<Arc<OidcValidator>>,
     /// Optional shared rate limiter (same instance used by GraphQL/REST).
     /// When present, requests are throttled per-IP and per-user before dispatch.
-    rate_limiter:      Option<Arc<RateLimiter>>,
-    /// The enriched-identity resolver (#1336). `Some` exactly when
-    /// `[identity.enrichment].enabled`, and passed in for the same reason
-    /// `executor` is: this transport is mounted by an embedder, and anything it
-    /// builds for itself is a copy that drifts from the one the deployment configured.
+    rate_limiter:   Option<Arc<RateLimiter>>,
+    /// What a principal resolves against (#1336, #1632): `AppState::identity`, passed in
+    /// for the same reason `executor` is: this transport is mounted by an embedder, and
+    /// anything it builds for itself is a copy that drifts from the one the deployment
+    /// configured.
     #[cfg(feature = "auth")]
-    identity_resolver: Option<Arc<crate::identity::IdentityResolver>>,
+    identity:       crate::identity::RequestIdentity,
     /// The deployment's token-revocation store (GHSA-7482-9g53-rj7f), checked after a
     /// token validates, as both HTTP auth middlewares check it.
-    revocation:        Option<Arc<crate::token_revocation::TokenRevocationManager>>,
+    revocation:     Option<Arc<crate::token_revocation::TokenRevocationManager>>,
 }
 
 impl Clone for DynamicGrpcService {
@@ -100,7 +100,7 @@ impl Clone for DynamicGrpcService {
             oidc_validator: self.oidc_validator.as_ref().map(Arc::clone),
             rate_limiter: self.rate_limiter.as_ref().map(Arc::clone),
             #[cfg(feature = "auth")]
-            identity_resolver: self.identity_resolver.as_ref().map(Arc::clone),
+            identity: self.identity.clone(),
             revocation: self.revocation.as_ref().map(Arc::clone),
         }
     }
@@ -476,7 +476,7 @@ impl DynamicGrpcService {
         debug!(user_id = %user.user_id, "gRPC user authenticated");
         Self::principal_from_user(
             #[cfg(feature = "auth")]
-            self.identity_resolver.as_deref(),
+            &self.identity,
             &user,
             request_id,
             self.schema.tenant_claim(),
@@ -544,7 +544,7 @@ impl DynamicGrpcService {
     /// fails transiently — the gRPC spellings of the same two answers every other
     /// transport gives, with the same generic bodies.
     async fn principal_from_user(
-        #[cfg(feature = "auth")] identity_resolver: Option<&crate::identity::IdentityResolver>,
+        #[cfg(feature = "auth")] identity: &crate::identity::RequestIdentity,
         user: &fraiseql_core::security::AuthenticatedUser,
         request_id: String,
         tenant_claim: &str,
@@ -557,8 +557,7 @@ impl DynamicGrpcService {
         #[cfg(feature = "auth")]
         let ctx = {
             let mut ctx = ctx;
-            match crate::identity::resolve_request_identity(identity_resolver, Some(&mut ctx)).await
-            {
+            match crate::identity::resolve_request_identity(identity, Some(&mut ctx)).await {
                 crate::identity::EnrichmentOutcome::Proceed => ctx,
                 crate::identity::EnrichmentOutcome::Denied => {
                     return Err(grpc_error_response(
@@ -688,7 +687,7 @@ pub fn build_grpc_service(
     executor: Arc<fraiseql_core::runtime::Executor>,
     oidc_validator: Option<Arc<OidcValidator>>,
     rate_limiter: Option<Arc<RateLimiter>>,
-    #[cfg(feature = "auth")] identity_resolver: Option<Arc<crate::identity::IdentityResolver>>,
+    #[cfg(feature = "auth")] identity: crate::identity::RequestIdentity,
     revocation: Option<Arc<crate::token_revocation::TokenRevocationManager>>,
 ) -> Result<Option<GrpcServices>, FraiseQLError> {
     let grpc_config = match schema.grpc_config.as_ref() {
@@ -785,7 +784,7 @@ pub fn build_grpc_service(
         oidc_validator,
         rate_limiter,
         #[cfg(feature = "auth")]
-        identity_resolver,
+        identity,
         revocation,
     };
 

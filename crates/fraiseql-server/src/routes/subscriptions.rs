@@ -189,12 +189,13 @@ pub struct SubscriptionState {
     /// selection and the connection's principal (ruling AA 4). `None` in a harness that
     /// mounts no executor: subscriptions are then registered unplanned.
     pub live_executor: Option<LiveExecutor>,
-    /// Enriched-identity resolver (#539). When set, the connection's `SecurityContext`
-    /// is enriched at subscribe time (only for policy-declaring subscriptions) so the
-    /// `fraiseql.enriched.*` owner field is server-resolved, never client-asserted.
-    /// `None` disables enrichment — a policy-declaring subscription then fails closed.
+    /// What the connection's `SecurityContext` resolves against at subscribe time (only
+    /// for policy-declaring subscriptions): the enriched-identity resolver (#539), so the
+    /// `fraiseql.enriched.*` owner field is server-resolved, never client-asserted, and
+    /// the assigned roles (#1632), which a policy's bypass roles are matched against.
+    /// Without a resolver a policy-declaring subscription fails closed.
     #[cfg(feature = "auth")]
-    pub identity_resolver: Option<Arc<crate::identity::IdentityResolver>>,
+    pub identity: crate::identity::RequestIdentity,
     /// Service-account authenticator (ADR-0018). Lets a daemon authenticate the `/ws`
     /// upgrade with its secret on the api-key header — the same seam the GraphQL path
     /// uses — so a service principal can hold a policy-scoped subscription.
@@ -245,7 +246,7 @@ impl SubscriptionState {
             live_schema: None,
             live_executor: None,
             #[cfg(feature = "auth")]
-            identity_resolver: None,
+            identity: crate::identity::RequestIdentity::default(),
             service_account_authenticator: None,
             policy_reload: None,
             drain: None,
@@ -348,16 +349,13 @@ impl SubscriptionState {
         self
     }
 
-    /// Install the enriched-identity resolver (#539) used to derive row-visibility owner
-    /// boundaries at subscribe time. `None` leaves policy-declaring subscriptions
-    /// fail-closed (refused).
+    /// Install what a principal resolves against (#539, #1632) when it derives
+    /// row-visibility owner boundaries at subscribe time. Without a resolver,
+    /// policy-declaring subscriptions stay fail-closed (refused).
     #[cfg(feature = "auth")]
     #[must_use]
-    pub fn with_identity_resolver(
-        mut self,
-        resolver: Option<Arc<crate::identity::IdentityResolver>>,
-    ) -> Self {
-        self.identity_resolver = resolver;
+    pub fn with_identity(mut self, identity: crate::identity::RequestIdentity) -> Self {
+        self.identity = identity;
         self
     }
 
@@ -476,19 +474,21 @@ async fn resolve_subscription_rls(
 /// Enrich a clone of the principal's `SecurityContext` (#539). Best-effort: on a denial
 /// or resolver outage the enriched fields are simply absent, so a policy-declaring
 /// subscription fails closed at derivation. Returns `None` when there is no principal
-/// or no resolver configured.
+/// or nothing to resolve it against.
 #[cfg(feature = "auth")]
 async fn enrich_principal(
     state: &SubscriptionState,
     principal: Option<&SecurityContext>,
 ) -> Option<SecurityContext> {
-    let resolver = state.identity_resolver.as_ref()?;
+    if state.identity.is_empty() {
+        return None;
+    }
     let mut ctx = principal?.clone();
     // Through the one seam (#1336), so `/ws` cannot drift from the other transports on
     // what resolving means. The outcome is still discarded here, deliberately: a
     // subscription's fail-closed happens at derivation, where an absent enriched field
     // refuses the policy — see this function's doc comment.
-    let _ = crate::identity::resolve_request_identity(Some(resolver), Some(&mut ctx)).await;
+    let _ = crate::identity::resolve_request_identity(&state.identity, Some(&mut ctx)).await;
     Some(ctx)
 }
 

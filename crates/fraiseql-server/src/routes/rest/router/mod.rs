@@ -156,7 +156,7 @@ fn derive_rest_context(
         idempotency_store,
         error_sanitizer: Arc::clone(&state.error_sanitizer),
         #[cfg(feature = "auth")]
-        identity_resolver: state.identity_resolver.clone(),
+        identity: state.identity.clone(),
         #[cfg(feature = "observers")]
         event_fanout: state.entity_event_fanout.clone(),
         #[cfg(feature = "observers")]
@@ -521,15 +521,14 @@ struct RestState {
     /// Error sanitizer (from `compiled.security.error_sanitization`). Strips raw DB/SQL
     /// detail from 5xx response bodies before they reach the client (H7).
     error_sanitizer:   Arc<crate::config::error_sanitization::ErrorSanitizer>,
-    /// The enriched-identity resolver (#1336), forwarded from `AppState` so a REST
-    /// request resolves its DB identity exactly as a `/graphql` request does.
+    /// What a principal resolves against (#1336, #1632), forwarded from `AppState` so a
+    /// REST request resolves exactly as a `/graphql` request does.
     ///
-    /// `Some` precisely when `[identity.enrichment].enabled`. Its absence used to be
-    /// structural rather than configured — `RestState` held no resolver at all — which
-    /// is how a documented "every authenticated request" contract came to be honoured
-    /// by one transport.
+    /// Its absence used to be structural rather than configured — `RestState` held no
+    /// resolver at all — which is how a documented "every authenticated request"
+    /// contract came to be honoured by one transport.
     #[cfg(feature = "auth")]
-    identity_resolver: Option<Arc<crate::identity::IdentityResolver>>,
+    identity:          crate::identity::RequestIdentity,
     /// Export-format configuration from `[export]` in `fraiseql.toml` (#917).
     ///
     /// Carried on the state rather than rebuilt per request: the CSV, XLSX and Parquet
@@ -613,7 +612,7 @@ impl FromRequestParts<RestState> for RestSecurityContext {
     ) -> impl Future<Output = Result<Self, Self::Rejection>> + Send {
         let sanitizer = Arc::clone(&state.error_sanitizer);
         #[cfg(feature = "auth")]
-        let resolver = state.identity_resolver.clone();
+        let identity = state.identity.clone();
         let state = state.clone();
 
         async move {
@@ -625,11 +624,8 @@ impl FromRequestParts<RestState> for RestSecurityContext {
             #[cfg(feature = "auth")]
             let security_ctx = {
                 let mut security_ctx = security_ctx;
-                match crate::identity::resolve_request_identity(
-                    resolver.as_deref(),
-                    security_ctx.as_mut(),
-                )
-                .await
+                match crate::identity::resolve_request_identity(&identity, security_ctx.as_mut())
+                    .await
                 {
                     crate::identity::EnrichmentOutcome::Proceed => security_ctx,
                     crate::identity::EnrichmentOutcome::Denied => {

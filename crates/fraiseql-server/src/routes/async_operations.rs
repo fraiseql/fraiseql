@@ -138,12 +138,7 @@ async fn submit(
     #[cfg(feature = "auth")]
     let ctx = {
         let mut ctx = ctx;
-        match crate::identity::resolve_request_identity(
-            state.app.identity_resolver.as_deref(),
-            Some(&mut ctx),
-        )
-        .await
-        {
+        match crate::identity::resolve_request_identity(&state.app.identity, Some(&mut ctx)).await {
             crate::identity::EnrichmentOutcome::Proceed => ctx,
             crate::identity::EnrichmentOutcome::Denied => {
                 return error_response(

@@ -356,21 +356,46 @@ const ADMIN_TOKEN: &str = "p05-admin-token-at-least-32-chars-long";
 
 impl RbacServer {
     async fn start(admin_url: &str, db: &'static str) -> Self {
+        Self::boot(admin_url, db, false).await
+    }
+
+    /// The same server, also authenticating end users (HS256) and serving one query
+    /// gated on [`GATED_ROLE`] over a seeded view (#1632).
+    async fn start_with_principals(admin_url: &str, db: &'static str) -> Self {
+        Self::boot(admin_url, db, true).await
+    }
+
+    async fn boot(admin_url: &str, db: &'static str, principals: bool) -> Self {
         use fraiseql_core::db::postgres::PostgresAdapter;
-        use fraiseql_server::{Server, server_config::ServerConfig};
+        use fraiseql_server::{
+            Server,
+            server_config::{Hs256Config, ServerConfig},
+        };
 
         let pool = scratch_pool(admin_url, db).await;
         let scratch_url = with_database(admin_url, db);
 
-        let schema = empty_schema();
-
-        let config = ServerConfig {
+        let mut config = ServerConfig {
             // #874: production validate() refuses cors_enabled=true + empty origins
             cors_enabled: false,
             database_url: scratch_url.clone(),
             admin_api_enabled: true,
             admin_token: Some(ADMIN_TOKEN.to_string()),
             ..ServerConfig::default()
+        };
+        let schema = if principals {
+            seed_documents(&pool).await;
+            // The server reads the secret from the environment when it boots. This binary
+            // runs single-threaded, so there is no sibling to race.
+            std::env::set_var(HS256_SECRET_ENV, HS256_SECRET);
+            config.auth_hs256 = Some(Hs256Config {
+                secret_env: HS256_SECRET_ENV.to_string(),
+                issuer:     Some(HS256_ISSUER.to_string()),
+                audience:   Some(HS256_AUDIENCE.to_string()),
+            });
+            gated_schema()
+        } else {
+            empty_schema()
         };
 
         let adapter =
@@ -844,6 +869,271 @@ async fn every_declared_audit_event_type_has_a_producer() {
     server.shutdown().await;
 }
 
+// ---------------------------------------------------------------------------
+// #1632 — an assigned role reaches the principal
+// ---------------------------------------------------------------------------
+
+/// The role the gated query requires.
+const GATED_ROLE: &str = "auditor";
+/// The end user every #1632 case authenticates as.
+const SUBJECT: &str = "u-1632";
+const HS256_SECRET_ENV: &str = "FRAISEQL_TEST_P05_RBAC_HS256_SECRET";
+const HS256_SECRET: &str = "p05-rbac-principal-secret-0123456789-0123";
+const HS256_ISSUER: &str = "https://rbac.test.fraiseql";
+const HS256_AUDIENCE: &str = "rbac-test";
+const TENANT_ONE: &str = "11111111-1111-1111-1111-111111111111";
+const TENANT_TWO: &str = "22222222-2222-2222-2222-222222222222";
+/// The one gated query: `{ docs { id } }`.
+const GATED_QUERY: &str = "{ docs { id } }";
+
+/// One row behind a view, so a granted query has something to return.
+async fn seed_documents(pool: &PgPool) {
+    sqlx::raw_sql(
+        "CREATE TABLE tb_doc (id bigint PRIMARY KEY);
+         INSERT INTO tb_doc VALUES (1);
+         CREATE VIEW v_doc AS SELECT id, jsonb_build_object('id', id) AS data FROM tb_doc;",
+    )
+    .execute(pool)
+    .await
+    .expect("seed documents");
+}
+
+/// A document whose only query requires [`GATED_ROLE`].
+fn gated_schema() -> fraiseql_core::schema::CompiledSchema {
+    use fraiseql_core::schema::{
+        CompiledSchema, FieldDefinition, FieldType, QueryDefinition, TypeDefinition,
+    };
+    let mut schema = CompiledSchema::new();
+    let mut doc = TypeDefinition::new("Doc", "v_doc");
+    doc.fields = vec![FieldDefinition::new("id", FieldType::Int)];
+    schema.types.push(doc);
+    let mut docs = QueryDefinition::new("docs", "Doc").returning_list().with_sql_source("v_doc");
+    docs.requires_role = Some(GATED_ROLE.to_string());
+    schema.queries.push(docs);
+    schema.build_indexes();
+    schema
+}
+
+/// A token for [`SUBJECT`] with these claim roles, optionally in a tenant, optionally
+/// presented by a delegate (`act`).
+fn mint_principal(roles: &[&str], tenant: Option<&str>, delegated: bool) -> String {
+    use jsonwebtoken::{Algorithm, EncodingKey, Header, encode};
+    let now = chrono::Utc::now().timestamp();
+    let mut claims = serde_json::json!({
+        "sub": SUBJECT,
+        "iss": HS256_ISSUER,
+        "aud": HS256_AUDIENCE,
+        "iat": now,
+        "exp": now + 3600,
+        "roles": roles,
+    });
+    if let Some(tenant) = tenant {
+        claims["tenant_id"] = serde_json::json!(tenant);
+    }
+    if delegated {
+        claims["act"] = serde_json::json!({ "sub": "agent-1632" });
+    }
+    encode(
+        &Header::new(Algorithm::HS256),
+        &claims,
+        &EncodingKey::from_secret(HS256_SECRET.as_bytes()),
+    )
+    .expect("mint token")
+}
+
+impl RbacServer {
+    /// Run [`GATED_QUERY`] as `token`: `Ok(())` when it returned the seeded row,
+    /// `Err(body)` otherwise.
+    async fn gated_query_as(&self, token: &str) -> Result<(), serde_json::Value> {
+        let (status, body) = Self::send(
+            self.client
+                .post(format!("{}/graphql", self.base))
+                .bearer_auth(token)
+                .json(&serde_json::json!({ "query": GATED_QUERY })),
+        )
+        .await;
+        if status == 200 && body["errors"].is_null() && body["data"]["docs"][0]["id"] == 1 {
+            Ok(())
+        } else {
+            Err(serde_json::json!({ "status": status, "body": body }))
+        }
+    }
+
+    /// Assign `role_id` to [`SUBJECT`] through the API.
+    async fn assign(&self, role_id: &str, tenant: Option<&str>) {
+        let (status, body) = Self::send(self.post("/api/user-roles").json(&serde_json::json!({
+            "user_id": SUBJECT, "role_id": role_id, "tenant_id": tenant,
+        })))
+        .await;
+        assert_eq!(status, 201, "assign must succeed; got {body}");
+    }
+}
+
+/// The whole of #1632: a role assigned through the documented admin API grants, with no
+/// new token. Before the fix the assignment was written and read by nothing.
+#[tokio::test]
+async fn an_assigned_role_grants_without_a_new_token() {
+    let Some(url) = database_url_or_skip("an_assigned_role_grants_without_a_new_token") else {
+        return;
+    };
+    let server = RbacServer::start_with_principals(&url, "fraiseql_p05_grant").await;
+    let token = mint_principal(&[], None, false);
+
+    let refused = server.gated_query_as(&token).await;
+    assert!(refused.is_err(), "no role yet: the query must be refused");
+
+    let role = create_role(&server, serde_json::json!({ "name": GATED_ROLE })).await;
+    server.assign(&role, None).await;
+    if let Err(body) = server.gated_query_as(&token).await {
+        panic!("the assigned role must grant to the same token: {body}");
+    }
+
+    server.shutdown().await;
+}
+
+/// Revoking stops the grant at once on the replica that served the revoke. The query
+/// before the revoke has cached the role, so only a flush on revoke can satisfy this
+/// inside the cache lifetime.
+#[tokio::test]
+async fn a_revoked_role_stops_granting() {
+    let Some(url) = database_url_or_skip("a_revoked_role_stops_granting") else {
+        return;
+    };
+    let server = RbacServer::start_with_principals(&url, "fraiseql_p05_revoke").await;
+    let token = mint_principal(&[], None, false);
+    let role = create_role(&server, serde_json::json!({ "name": GATED_ROLE })).await;
+    server.assign(&role, None).await;
+    if let Err(body) = server.gated_query_as(&token).await {
+        panic!("precondition: the assigned role grants: {body}");
+    }
+
+    let (status, body) =
+        RbacServer::send(server.delete(&format!("/api/user-roles/{SUBJECT}/{role}"))).await;
+    assert_eq!(status, 204, "revoke must succeed; got {body}");
+    assert!(
+        server.gated_query_as(&token).await.is_err(),
+        "a revoked role must stop granting"
+    );
+
+    server.shutdown().await;
+}
+
+/// Deleting a role removes its assignments (`ON DELETE CASCADE`), and the grant with them.
+#[tokio::test]
+async fn a_deleted_role_stops_granting() {
+    let Some(url) = database_url_or_skip("a_deleted_role_stops_granting") else {
+        return;
+    };
+    let server = RbacServer::start_with_principals(&url, "fraiseql_p05_delete").await;
+    let token = mint_principal(&[], None, false);
+    let role = create_role(&server, serde_json::json!({ "name": GATED_ROLE })).await;
+    server.assign(&role, None).await;
+    if let Err(body) = server.gated_query_as(&token).await {
+        panic!("precondition: the assigned role grants: {body}");
+    }
+
+    let (status, body) = RbacServer::send(server.delete(&format!("/api/roles/{role}"))).await;
+    assert_eq!(status, 204, "delete must succeed; got {body}");
+    assert!(
+        server.gated_query_as(&token).await.is_err(),
+        "a deleted role must stop granting"
+    );
+
+    server.shutdown().await;
+}
+
+/// A principal holds a role by its name, so renaming the role ends what the old name
+/// granted.
+#[tokio::test]
+async fn a_renamed_role_stops_granting_under_its_old_name() {
+    let Some(url) = database_url_or_skip("a_renamed_role_stops_granting") else {
+        return;
+    };
+    let server = RbacServer::start_with_principals(&url, "fraiseql_p05_rename").await;
+    let token = mint_principal(&[], None, false);
+    let role = create_role(&server, serde_json::json!({ "name": GATED_ROLE })).await;
+    server.assign(&role, None).await;
+    if let Err(body) = server.gated_query_as(&token).await {
+        panic!("precondition: the assigned role grants: {body}");
+    }
+
+    let (status, body) = RbacServer::send(
+        server
+            .client
+            .put(format!("{}/api/roles/{role}", server.base))
+            .bearer_auth(ADMIN_TOKEN)
+            .json(&serde_json::json!({ "name": "former-auditor" })),
+    )
+    .await;
+    assert_eq!(status, 200, "rename must succeed; got {body}");
+    assert!(
+        server.gated_query_as(&token).await.is_err(),
+        "the old name must stop granting once the role is renamed"
+    );
+
+    server.shutdown().await;
+}
+
+/// An assignment scoped to one tenant grants nothing to the same subject in another.
+#[tokio::test]
+async fn a_role_assigned_in_another_tenant_does_not_grant() {
+    let Some(url) = database_url_or_skip("a_role_assigned_in_another_tenant") else {
+        return;
+    };
+    let server = RbacServer::start_with_principals(&url, "fraiseql_p05_tenant").await;
+    let role = create_role(&server, serde_json::json!({ "name": GATED_ROLE })).await;
+    server.assign(&role, Some(TENANT_TWO)).await;
+
+    if let Err(body) = server.gated_query_as(&mint_principal(&[], Some(TENANT_TWO), false)).await {
+        panic!("control: the assignment grants in its own tenant: {body}");
+    }
+    assert!(
+        server
+            .gated_query_as(&mint_principal(&[], Some(TENANT_ONE), false))
+            .await
+            .is_err(),
+        "an assignment in another tenant must not grant"
+    );
+
+    server.shutdown().await;
+}
+
+/// Assignments are for people. An agent presenting a token on a user's behalf (`act`)
+/// keeps only the roles the token carries, never the ones stored for the user.
+#[tokio::test]
+async fn a_delegated_agent_does_not_gain_the_users_assigned_roles() {
+    let Some(url) = database_url_or_skip("a_delegated_agent_does_not_gain") else {
+        return;
+    };
+    let server = RbacServer::start_with_principals(&url, "fraiseql_p05_agent").await;
+    let role = create_role(&server, serde_json::json!({ "name": GATED_ROLE })).await;
+    server.assign(&role, None).await;
+
+    if let Err(body) = server.gated_query_as(&mint_principal(&[], None, false)).await {
+        panic!("control: the assignment grants the user: {body}");
+    }
+    assert!(
+        server.gated_query_as(&mint_principal(&[], None, true)).await.is_err(),
+        "a delegated agent must not gain the user's assigned roles"
+    );
+
+    server.shutdown().await;
+}
+
+/// The control: a role carried in the token still grants with nothing assigned.
+#[tokio::test]
+async fn claim_roles_still_grant() {
+    let Some(url) = database_url_or_skip("claim_roles_still_grant") else {
+        return;
+    };
+    let server = RbacServer::start_with_principals(&url, "fraiseql_p05_claims").await;
+    if let Err(body) = server.gated_query_as(&mint_principal(&[GATED_ROLE], None, false)).await {
+        panic!("a claim role must grant: {body}");
+    }
+
+    server.shutdown().await;
+}
+
 /// The compiled document `RbacServer` mounts: empty, because RBAC is the server's own.
 fn empty_schema() -> fraiseql_core::schema::CompiledSchema {
     serde_json::from_value(serde_json::json!({
@@ -867,4 +1157,5 @@ fn empty_schema() -> fraiseql_core::schema::CompiledSchema {
 #[test]
 fn the_document_loads_without_a_database() {
     empty_schema();
+    gated_schema();
 }

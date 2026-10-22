@@ -109,6 +109,14 @@ disagreed, and the promise was the part that was wrong.
   Statement-level database timing returns once query execution has a single seam to
   measure at.
 
+- **Every transport takes one identity value (#1632).** `AppState::identity_resolver` is
+  now `AppState::identity`, a `fraiseql_server::identity::RequestIdentity` that also
+  carries the RBAC role assignments. `SubscriptionState::with_identity_resolver(Option<…>)`
+  is `with_identity(RequestIdentity)`, and `routes::grpc::build_grpc_service` takes a
+  `RequestIdentity` where it took an `Option<Arc<IdentityResolver>>`. An embedder mounting
+  gRPC passes `app_state.identity.clone()`, or `RequestIdentity::default()` for none.
+  `AppState::with_identity_resolver` is unchanged.
+
 ### Added
 
 - **`subscription_policy` is authorable (#1657).** A type's subscription row visibility
@@ -156,6 +164,18 @@ disagreed, and the promise was the part that was wrong.
   `POST /api/observers/runtime/reload` there. With `auto_reload = true`, the default, each
   replica now reloads `tb_observer` every `reload_interval_secs` (default 60).
   `reload_interval_secs = 0` with `auto_reload = true` is refused at boot.
+
+- **A role assigned through `/api/user-roles` or SCIM group sync grants (#1632).**
+  Assignments were written to `fraiseql_user_roles` and read by nothing, so a
+  `requires_role` operation refused the user until the role appeared in a new token, and a
+  revoke changed nothing that was enforced. Every transport now adds a human principal's
+  assigned roles to its token roles before dispatch: global assignments in every tenant, a
+  tenant's assignments in that tenant. Assign, revoke, rename and delete apply on the next
+  request served by the replica that made the change, and on the others within 30 seconds.
+  Service accounts, system jobs and delegated agents (`act`) keep only the roles they
+  carry. `user_id` is matched against `sub` under every trusted issuer. A failed lookup
+  answers `503`. The RBAC tables are now created whenever SCIM is enabled, not only in
+  builds with `observers`, so SCIM group sync no longer writes to tables that may not exist.
 
 ### Security
 

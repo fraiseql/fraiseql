@@ -38,6 +38,7 @@ pub(crate) use admin::identity_admin_router;
 // outside this module goes through `resolve_request_identity`, which is the seam the
 // transports share and the build gate pins. Re-exporting the inner function would offer
 // a second door to the same rule, which is the shape this issue was.
+pub use apply::RequestIdentity;
 pub(crate) use apply::{EnrichmentOutcome, resolve_request_identity};
 use fraiseql_core::schema::CompiledSchema;
 // Public because `ServerConfig.identity` is a public field of this type: before

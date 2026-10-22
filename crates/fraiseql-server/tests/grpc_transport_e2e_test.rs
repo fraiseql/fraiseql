@@ -41,12 +41,12 @@ const SERVICE_NAME: &str = "fraiseql.v1.FraiseqlService";
 // Helper: build a CompiledSchema with gRPC enabled and a single User type
 // ---------------------------------------------------------------------------
 
-/// `build_grpc_service` with the `#[cfg(feature = "auth")]` resolver argument supplied.
+/// `build_grpc_service` with the `#[cfg(feature = "auth")]` identity argument supplied.
 ///
-/// #1336 gave the constructor a required `identity_resolver` — required rather than a
-/// builder method, so an embedder mounting gRPC has to decide about enrichment instead
-/// of inheriting `None` by omission. These tests all pass `None`: none of them
-/// configures enrichment, and the point of each is the transport, not the resolver.
+/// #1336 gave the constructor a required identity argument — required rather than a
+/// builder method, so an embedder mounting gRPC has to decide about it instead of
+/// inheriting nothing by omission. These tests all pass an empty one: none of them
+/// configures enrichment or role assignments, and the point of each is the transport.
 #[allow(clippy::needless_pass_by_value)] // Reason: mirrors build_grpc_service's own signature
 fn build_grpc_service_for_test(
     schema: Arc<CompiledSchema>,
@@ -60,7 +60,7 @@ fn build_grpc_service_for_test(
         oidc_validator,
         rate_limiter,
         #[cfg(feature = "auth")]
-        None,
+        fraiseql_server::identity::RequestIdentity::default(),
         None,
     )
 }

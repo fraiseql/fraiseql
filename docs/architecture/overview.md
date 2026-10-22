@@ -622,6 +622,20 @@ extends to all query paths.
     tenant admin token is confined to its own tenant: other tenants' roles and assignments
     answer `404`, and it may read but not change the permission catalogue. See
     [tenant administrators](../auth/tenant-administrators.md).
+  - **Assignments grant on the next request**: a role assigned through `/api/user-roles` or
+    SCIM group sync is added to the roles a human principal's token carries, on every
+    transport, with no new token. `user_id` is the token's `sub`, matched under every
+    trusted issuer: with `[[auth.additional_issuers]]`, each issuer must use the same subject
+    for the same person. A global assignment applies in every tenant, a tenant's assignment
+    only to principals in that tenant (the schema's `tenant_claim`).
+    - Service accounts and system jobs keep exactly the roles they declare, and an agent
+      acting for a user (`act`) keeps only its token's roles.
+    - Assigning, revoking, renaming or deleting a role applies on the next request served by
+      the replica that made the change. Other replicas serve a cached answer for up to 30
+      seconds.
+    - If the lookup fails, the request is answered `503`. It never runs with fewer roles.
+    - The role's name is what is granted. Permissions stored on a role are not enforced yet
+      ([#1676](https://github.com/fraiseql/fraiseql/issues/1676)).
 - **Multi-Tenant Isolation**: Per-tenant data scoping with strict isolation
 
 ---

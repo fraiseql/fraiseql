@@ -177,11 +177,8 @@ pub(super) async fn enrich_identity(
     state: &AppState,
     security_context: &mut Option<SecurityContext>,
 ) -> Result<(), ErrorResponse> {
-    match crate::identity::resolve_request_identity(
-        state.identity_resolver.as_deref(),
-        security_context.as_mut(),
-    )
-    .await
+    match crate::identity::resolve_request_identity(&state.identity, security_context.as_mut())
+        .await
     {
         crate::identity::EnrichmentOutcome::Proceed => Ok(()),
         // Generic outward body (DESIGN §5.4): the precise DenyReason is logged

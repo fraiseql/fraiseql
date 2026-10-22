@@ -157,12 +157,12 @@ pub struct AppState {
     /// when no hooks are registered — zero overhead for mutations without hooks.
     pub before_mutation_hooks: Option<Arc<crate::subsystems::BeforeMutationHooks>>,
 
-    /// Enrichment-profile identity resolver (#539). `Some` when
-    /// `[identity.enrichment].enabled` and an auth DB pool is present; every
-    /// authenticated request then resolves its DB identity and fail-closes
-    /// before dispatch (read-scoping via the `fraiseql.enriched.*` namespace).
+    /// What every transport resolves a principal against before dispatch: the
+    /// enrichment-profile resolver (#539), present when `[identity.enrichment].enabled`
+    /// and an auth DB pool is, and the RBAC role assignments (#1632), present when the
+    /// RBAC API or SCIM can write them.
     #[cfg(feature = "auth")]
-    pub identity_resolver: Option<Arc<crate::identity::IdentityResolver>>,
+    pub identity: crate::identity::RequestIdentity,
 
     /// Token revocation manager, when `[security.token_revocation]` is configured.
     ///
@@ -261,7 +261,7 @@ impl AppState {
             usage: Arc::clone(crate::usage::aggregator::global_aggregator()),
             before_mutation_hooks: None,
             #[cfg(feature = "auth")]
-            identity_resolver: None,
+            identity: crate::identity::RequestIdentity::default(),
             revocation_manager: None,
             started_at: std::time::Instant::now(),
             policy_reload: Arc::new(tokio::sync::watch::channel(0).0),
@@ -296,7 +296,18 @@ impl AppState {
         mut self,
         resolver: Arc<crate::identity::IdentityResolver>,
     ) -> Self {
-        self.identity_resolver = Some(resolver);
+        self.identity = self.identity.with_resolver(resolver);
+        self
+    }
+
+    /// Grant human principals the roles assigned through the RBAC API and SCIM (#1632).
+    #[cfg(feature = "auth")]
+    #[must_use]
+    pub fn with_assigned_roles(
+        mut self,
+        assigned_roles: Arc<crate::api::rbac_management::assigned_roles::AssignedRoles>,
+    ) -> Self {
+        self.identity = self.identity.with_assigned_roles(assigned_roles);
         self
     }
 

@@ -218,6 +218,11 @@ pub struct Server {
     /// database pool.
     pub(super) admin_tokens: Option<std::sync::Arc<crate::api::PgAdminTokenStore>>,
 
+    /// The role-assignment store (#1632): one instance for the RBAC API, SCIM group sync
+    /// and the request-path reader, so a write flushes the cache the reader serves from.
+    /// Present when one of those writers can mount.
+    pub(super) rbac: Option<std::sync::Arc<crate::api::rbac_management::db_backend::RbacDbBackend>>,
+
     /// Outbound CDC drains built at construction (#382), spawned onto the
     /// task set at serve time. Built in the builder — where the pool is in
     /// scope unconditionally — so a broken `[cdc_outbound]` refuses to boot

@@ -60,17 +60,13 @@ impl Server {
         #[cfg(feature = "inbound")]
         self.config.inbound_dispatch.settings().map_err(ServerError::ConfigError)?;
 
-        // Ensure RBAC schema exists before the router mounts RBAC endpoints.
+        // Ensure the RBAC schema exists before the router mounts a writer of it (the RBAC
+        // API, SCIM group sync) or a request reads assignments from it (#1632).
         // Must run here (async context) rather than inside build_router() (sync).
-        #[cfg(feature = "observers")]
-        if let Some(ref db_pool) = self.db_pool {
-            if self.config.admin_token.is_some() {
-                let rbac_backend =
-                    crate::api::rbac_management::db_backend::RbacDbBackend::new(db_pool.clone());
-                rbac_backend.ensure_schema().await.map_err(|e| {
-                    ServerError::ConfigError(format!("Failed to initialize RBAC schema: {e}"))
-                })?;
-            }
+        if let Some(rbac) = self.rbac.as_ref() {
+            rbac.ensure_schema().await.map_err(|e| {
+                ServerError::ConfigError(format!("Failed to initialize RBAC schema: {e}"))
+            })?;
         }
 
         // Tenant admin credentials (#1089): the table the admin gate reads must exist before
@@ -902,9 +898,10 @@ impl Server {
             // refused outright by the engine's backstop on any enrichment-declaring
             // deployment.
             #[cfg(feature = "auth")]
-            if let Some(resolver) = app_state.identity_resolver.clone() {
-                flight_service.set_identity_enricher(resolver);
-                info!("Arrow Flight resolves enriched identity before dispatch (#1349)");
+            if !app_state.identity.is_empty() {
+                flight_service
+                    .set_identity_enricher(std::sync::Arc::new(app_state.identity.clone()));
+                info!("Arrow Flight resolves identity before dispatch (#1349)");
             }
 
             flight_service

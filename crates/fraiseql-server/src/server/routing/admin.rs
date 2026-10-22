@@ -317,13 +317,12 @@ impl Server {
                     .map(|r| Arc::clone(r) as Arc<dyn crate::routes::graphql::TenantStatusSource>),
             );
 
-        // #596/#539: hand the subscription path the enriched-identity resolver so a
-        // policy-declaring subscription derives its owner boundary server-side. Mirrors
-        // the GraphQL handler's `AppState.identity_resolver`.
+        // #596/#539: hand the subscription path what the GraphQL handler resolves a
+        // principal against (`AppState.identity`), so a policy-declaring subscription
+        // derives its owner boundary server-side.
         #[cfg(feature = "auth")]
         {
-            subscription_state =
-                subscription_state.with_identity_resolver(state.identity_resolver.clone());
+            subscription_state = subscription_state.with_identity(state.identity.clone());
         }
 
         let subscription_require_auth = self

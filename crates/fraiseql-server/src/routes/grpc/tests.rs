@@ -956,8 +956,15 @@ mod principal_production {
     use crate::{identity::tests as identity_fixtures, routes::grpc::DynamicGrpcService};
 
     /// The service type is only a carrier here: `principal_from_user` is an associated
-    /// function that takes the resolver explicitly, so `A` is never touched.
+    /// function that takes the identity explicitly, so `A` is never touched.
     type Svc = DynamicGrpcService;
+
+    /// What a deployment with only `[identity.enrichment]` resolves against.
+    fn with_resolver(
+        resolver: crate::identity::IdentityResolver,
+    ) -> crate::identity::RequestIdentity {
+        crate::identity::RequestIdentity::default().with_resolver(std::sync::Arc::new(resolver))
+    }
 
     /// A validated token's user, carrying the `org_id` claim a multi-tenant
     /// deployment scopes on.
@@ -981,9 +988,14 @@ mod principal_production {
         // leaves `tenant_id` unset and `attributes` empty, so `org_id` never became a
         // tenant and every `SessionVariableSource::Jwt` mapping resolved to nothing on
         // gRPC. Asserted without a resolver, because it is true with enrichment off.
-        let ctx = Svc::principal_from_user(None, &user(), "req-1".to_string(), "org_id")
-            .await
-            .expect("no resolver configured — nothing to refuse");
+        let ctx = Svc::principal_from_user(
+            &crate::identity::RequestIdentity::default(),
+            &user(),
+            "req-1".to_string(),
+            "org_id",
+        )
+        .await
+        .expect("no resolver configured — nothing to refuse");
 
         assert_eq!(
             ctx.tenant_id.as_ref().map(|t| t.0.as_str()),
@@ -1008,9 +1020,14 @@ mod principal_production {
             ("actor_role", json!("admin")),
         ]);
 
-        let ctx = Svc::principal_from_user(Some(&resolver), &user(), "req-2".to_string(), "org_id")
-            .await
-            .expect("a subject the actor table knows must proceed");
+        let ctx = Svc::principal_from_user(
+            &with_resolver(resolver),
+            &user(),
+            "req-2".to_string(),
+            "org_id",
+        )
+        .await
+        .expect("a subject the actor table knows must proceed");
 
         assert_eq!(
             ctx.attributes.get("fraiseql.enriched.actor_id"),
@@ -1031,10 +1048,14 @@ mod principal_production {
         // dispatched it, so an unprovisioned subject reached the data.
         let resolver = identity_fixtures::resolver_returning(&[]);
 
-        let response =
-            Svc::principal_from_user(Some(&resolver), &user(), "req-3".to_string(), "org_id")
-                .await
-                .expect_err("a subject the actor table does not know must be refused");
+        let response = Svc::principal_from_user(
+            &with_resolver(resolver),
+            &user(),
+            "req-3".to_string(),
+            "org_id",
+        )
+        .await
+        .expect_err("a subject the actor table does not know must be refused");
 
         assert_eq!(
             response.headers().get("grpc-status").map(|v| v.to_str().unwrap()),
@@ -1049,10 +1070,14 @@ mod principal_production {
         // an outage is transient and a client should.
         let resolver = identity_fixtures::resolver_unavailable();
 
-        let response =
-            Svc::principal_from_user(Some(&resolver), &user(), "req-4".to_string(), "org_id")
-                .await
-                .expect_err("a resolver outage must never fall through to an unscoped query");
+        let response = Svc::principal_from_user(
+            &with_resolver(resolver),
+            &user(),
+            "req-4".to_string(),
+            "org_id",
+        )
+        .await
+        .expect_err("a resolver outage must never fall through to an unscoped query");
 
         assert_eq!(
             response.headers().get("grpc-status").map(|v| v.to_str().unwrap()),

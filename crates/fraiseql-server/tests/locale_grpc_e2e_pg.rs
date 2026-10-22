@@ -230,7 +230,7 @@ async fn service_bounded(
         None,
         None,
         #[cfg(feature = "auth")]
-        None,
+        fraiseql_server::identity::RequestIdentity::default(),
         None,
     )
     .unwrap()

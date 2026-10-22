@@ -60,8 +60,8 @@ impl Server {
 
         // RBAC Management API (if database pool available)
         #[cfg(feature = "observers")]
-        if let Some(ref db_pool) = self.db_pool {
-            app = self.mount_rbac(app, db_pool);
+        if self.db_pool.is_some() {
+            app = self.mount_rbac(app);
         }
 
         // API-key management (#627) — mounted only when the authenticator is
@@ -127,8 +127,8 @@ impl Server {
         // nothing else, while `/api/scim/tokens` — which mints those credentials — sits
         // behind the admin bearer.
         #[cfg(feature = "auth")]
-        if let (Some(scim_cfg), Some(db_pool)) =
-            (self.config.scim.as_ref(), self.enrichment_pool.as_ref())
+        if let (Some(scim_cfg), Some(db_pool), Some(rbac)) =
+            (self.config.scim.as_ref(), self.enrichment_pool.as_ref(), self.rbac.as_ref())
         {
             if scim_cfg.enabled {
                 if let Some(ref token) = self.config.admin_token {
@@ -141,11 +141,7 @@ impl Server {
                         session_store: std::sync::Arc::new(
                             fraiseql_auth::PostgresSessionStore::new(db_pool.clone()),
                         ),
-                        rbac:          std::sync::Arc::new(
-                            crate::api::rbac_management::db_backend::RbacDbBackend::new(
-                                db_pool.clone(),
-                            ),
-                        ),
+                        rbac:          rbac.clone(),
                         base_url:      scim_cfg.base_url.clone(),
                     };
                     app = app.merge(crate::api::scim_router(scim_state));
@@ -181,7 +177,7 @@ impl Server {
         // propagate a revoke/provision immediately instead of waiting out the TTL.
         #[cfg(feature = "auth")]
         if let (Some(resolver), Some(token)) =
-            (state.identity_resolver.as_ref(), self.config.admin_token.as_ref())
+            (state.identity.resolver(), self.config.admin_token.as_ref())
         {
             let auth_state = BearerAuthState::with_max_failures(
                 token.clone(),
@@ -473,13 +469,11 @@ impl Server {
     }
 
     #[cfg(feature = "observers")]
-    fn mount_rbac(&self, mut app: Router, db_pool: &sqlx::PgPool) -> Router {
-        if let Some(ref token) = self.config.admin_token {
+    fn mount_rbac(&self, mut app: Router) -> Router {
+        // `rbac` is built whenever the admin token and a pool are set (#1632).
+        if let (Some(token), Some(rbac)) = (self.config.admin_token.as_ref(), self.rbac.as_ref()) {
             info!("RBAC Management API endpoints enabled (admin bearer token required)");
-            let rbac_backend = std::sync::Arc::new(
-                crate::api::rbac_management::db_backend::RbacDbBackend::new(db_pool.clone()),
-            );
-            let rbac_state = crate::api::RbacManagementState { db: rbac_backend };
+            let rbac_state = crate::api::RbacManagementState { db: rbac.clone() };
             // Accepts tenant administrators (#1089); the router enforces their tenant.
             let auth_state = self.admin_principal_state(token);
             let rbac_router = crate::api::rbac_management_router(rbac_state).route_layer(

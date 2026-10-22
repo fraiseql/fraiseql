@@ -236,7 +236,7 @@ impl FraiseQLMcpService {
                 // produced them, which made every enriched tool call fail and every
                 // unknown subject succeed.
                 match crate::identity::resolve_request_identity(
-                    self.state.identity_resolver.as_deref(),
+                    &self.state.identity,
                     Some(&mut ctx),
                 )
                 .await

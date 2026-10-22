@@ -200,6 +200,14 @@ impl Server {
             }
         }
 
+        // Role assignments (#1632): read through the same store the RBAC API and SCIM write
+        // through, so their writes flush what every transport reads.
+        #[cfg(feature = "auth")]
+        if let Some(rbac) = self.rbac.as_ref() {
+            state = state.with_assigned_roles(rbac.assigned_roles());
+            info!("RBAC role assignments apply to human principals on every transport (#1632)");
+        }
+
         // Attach state encryption service if configured
         #[cfg(feature = "auth")]
         match &self.state_encryption {
