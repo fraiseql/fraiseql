@@ -1,7 +1,9 @@
 # Cross-Subgraph Mutations: Saga Pattern
 
-> **Stable, behind the opt-in `saga` Cargo feature** on `fraiseql-federation` (#429).
-> The full round-trip is wired and driven by the **runtime Rust API**
+> **A library, not a server feature.** Sagas live in the `fraiseql-saga` crate, which sits
+> above the engine (#1354). No server binary depends on it and there is no `saga` Cargo
+> feature: an application that wants sagas links the crate and drives it itself. The
+> round-trip is driven by the **runtime Rust API**
 > `SagaCoordinator` + `SagaCoordinatorStep`: forward execution over local SQL or
 > remote HTTPS (with optional mTLS), automatic compensation in reverse order (local or
 > remote), concurrency-safe on-restart recovery (`SELECT … FOR UPDATE SKIP LOCKED`
@@ -172,7 +174,7 @@ retried `chargeCard` charges twice.
 ## Recovery on Restart
 
 Saga state is durable. `SagaRecoveryManager::run_iteration` /
-`start_background_loop` (the `saga` feature) re-drive sagas that a crash or restart
+`start_background_loop` (in `fraiseql-saga`) re-drive sagas that a crash or restart
 left in-flight:
 
 1. Each tick **claims** stuck sagas atomically via `UPDATE … WHERE pk_ IN

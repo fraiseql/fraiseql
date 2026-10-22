@@ -201,7 +201,7 @@ a specific ignored suite manually, export the vars below first:
 | `DATABASE_URL` | `postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql` | PostgreSQL connection |
 | `REDIS_URL` | `redis://localhost:6379` | Redis for APQ and rate-limiting |
 | `TEST_DATABASE_URL` | same as `DATABASE_URL` | Observer PostgreSQL transport |
-| `SAGA_STORE_TEST_URL` | same as `DATABASE_URL` | Saga store integration (`saga` feature) |
+| `SAGA_STORE_TEST_URL` | same as `DATABASE_URL` | Saga store integration (`fraiseql-saga`) |
 | `VAULT_ADDR` | `http://localhost:8200` | HashiCorp Vault secrets tests |
 | `VAULT_TOKEN` | `fraiseql-test-token` | Vault auth token |
 
