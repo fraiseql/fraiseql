@@ -54,7 +54,6 @@ mod graphql_type_defs;
 pub mod graphql_value;
 mod hierarchy;
 mod introspection;
-pub mod introspection_types;
 pub mod locale;
 mod observer_types;
 mod scalar_types;

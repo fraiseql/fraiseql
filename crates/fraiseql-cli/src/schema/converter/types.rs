@@ -234,7 +234,6 @@ impl SchemaConverter {
             description:      intermediate.description,
             specified_by_url: intermediate.specified_by_url,
             validation_rules: intermediate.validation_rules,
-            elo_expression:   None,
             base_type:        intermediate.base_type,
         })
     }

@@ -18,6 +18,28 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **`fraiseql-core` drops the copies a live owner supersedes (#1640).** The CLI compiles
+  schemas, the cache invalidates through `CachedDatabaseAdapter` and its cascade
+  invalidator, the server owns TLS, headers, error sanitization and rate limiting, and
+  declarative validation runs through `ValidationRule` and the input walker. Removed:
+  - `compiler::{parser, ir, validator, enum_validator}` (`SchemaParser`, `AuthoringIR`
+    and the `IR*` types, `SchemaValidator`, `compiler::EnumValidator`),
+    `AggregateTypeGenerator` and the `AggregateType`, `GroupByInput` and `HavingInput`
+    shapes only it produced;
+  - `cache::{dependency_tracker, invalidation, query_analyzer, uuid_extractor,
+    cascade_response_parser}` (`DependencyTracker`, `InvalidationContext`,
+    `InvalidationReason`, `QueryAnalyzer`, `UUIDExtractor`, `CascadeResponseParser`);
+  - `security::{tls_enforcer, headers, profiles, error_formatter, validation_audit}`
+    (`TlsEnforcer`, `SecurityHeaders`, `SecurityProfile`, `ErrorFormatter`, the
+    validation-audit logger) and the `SecurityError` variants only `TlsEnforcer` raised:
+    `TlsRequired`, `TlsVersionTooOld`, `MtlsRequired`, `InvalidClientCert`;
+  - `validation::{elo_expressions, elo_rust_integration, async_validators, js_codegen,
+    input_processor, rate_limiting, error_responses}` and `CustomTypeDef::elo_expression`,
+    which the compiler always left unset;
+  - `schema::introspection_types`.
+
+  `FieldMasker::should_mask` takes `regulated: bool` in place of a `&SecurityProfile`.
+
 - **`fraiseql-observers` drops the subsystems no binary ran (#1640).** The server runs
   observers through its own runtime, configured under `[observers]` in `fraiseql.toml`;
   none of the following was reachable from it, and each had a live replacement or none

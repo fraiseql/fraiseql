@@ -6,7 +6,7 @@ use std::{
 use super::config::{CustomTypeDef, CustomTypeRegistryConfig};
 use crate::{
     error::{FraiseQLError, Result},
-    validation::{ValidationRule, elo_expressions::EloExpressionEvaluator},
+    validation::ValidationRule,
 };
 
 /// Thread-safe registry for custom scalar type definitions.
@@ -397,11 +397,6 @@ impl CustomTypeRegistry {
         // Execute validation rules
         self.validate_rules(type_name, &def.validation_rules, value)?;
 
-        // Execute ELO expression if present
-        if let Some(expr) = &def.elo_expression {
-            self.evaluate_elo(type_name, expr, value)?;
-        }
-
         Ok(())
     }
 
@@ -548,32 +543,6 @@ impl CustomTypeRegistry {
                     path:    Some(format!("custom_scalars.{}", type_name)),
                 });
             }
-        }
-
-        Ok(())
-    }
-
-    /// Evaluate ELO expression against a value.
-    fn evaluate_elo(&self, type_name: &str, expr: &str, value: &serde_json::Value) -> Result<()> {
-        // Create context with "value" field for ELO expression evaluation
-        let context = serde_json::json!({
-            "value": value
-        });
-
-        // Create and evaluate the ELO expression
-        let evaluator = EloExpressionEvaluator::new(expr.to_string());
-        let result = evaluator.evaluate(&context)?;
-
-        if !result.valid {
-            return Err(FraiseQLError::Validation {
-                message: result.error.unwrap_or_else(|| {
-                    format!(
-                        "Custom scalar '{}' value validation failed with ELO expression",
-                        type_name
-                    )
-                }),
-                path:    Some(format!("custom_scalars.{}", type_name)),
-            });
         }
 
         Ok(())

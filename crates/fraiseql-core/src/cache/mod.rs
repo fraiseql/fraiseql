@@ -50,7 +50,7 @@
 //! │ "createUser"        │
 //! └──────────┬──────────┘
 //!            │
-//!            ↓ InvalidationContext::for_mutation()
+//!            ↓ the views the mutation wrote
 //! ┌─────────────────────┐
 //! │ Modified Views:     │
 //! │ - v_user            │
@@ -84,7 +84,7 @@
 //! # Usage Example
 //!
 //! ```no_run
-//! use fraiseql_core::cache::{CachedDatabaseAdapter, QueryResultCache, CacheConfig, InvalidationContext};
+//! use fraiseql_core::cache::{CachedDatabaseAdapter, QueryResultCache, CacheConfig};
 //! use fraiseql_core::db::{postgres::PostgresAdapter, DatabaseAdapter};
 //!
 //! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
@@ -106,17 +106,8 @@
 //!
 //! println!("Found {} users", users.len());
 //!
-//! // After mutation, invalidate
-//! let invalidation = InvalidationContext::for_mutation(
-//!     "createUser",
-//!     vec!["v_user".to_string()]
-//! );
-//! let views: Vec<fraiseql_db::ViewName> = invalidation
-//!     .modified_views
-//!     .iter()
-//!     .map(fraiseql_db::ViewName::from)
-//!     .collect();
-//! adapter.invalidate_views(&views)?;
+//! // After a mutation, invalidate the views it wrote
+//! adapter.invalidate_views(&[fraiseql_db::ViewName::from("v_user")])?;
 //! # Ok(())
 //! # }
 //! ```
@@ -193,16 +184,12 @@
 //! - **`config`**: Cache configuration with memory-safe bounds
 //! - **`key`**: Security-critical cache key generation (includes APQ integration)
 //! - **`result`**: W-TinyLFU cache storage (moka) with per-entry TTL, reverse indexes, and metrics
-//! - **`dependency_tracker`**: Bidirectional view↔cache mapping
-//! - **`invalidation`**: Public invalidation API with structured contexts
 
 mod adapter;
 mod by_id;
 mod config;
-mod dependency_tracker;
 mod fact_table_cache;
 mod fence;
-mod invalidation;
 mod invalidation_api;
 mod key;
 mod relay_cache;
@@ -213,14 +200,11 @@ pub mod cascade_invalidator;
 
 // Entity-level caching modules
 pub mod cascade_metadata;
-pub mod cascade_response_parser;
 pub mod collections;
 pub mod embedding_graph;
 pub mod entity_key;
 pub mod feed;
-pub mod query_analyzer;
 pub mod tviews_feed;
-pub mod uuid_extractor;
 
 // Fact table aggregation caching
 pub mod fact_table_version;
@@ -237,17 +221,14 @@ pub use adapter::{CachedDatabaseAdapter, view_name_to_entity_type};
 pub use by_id::read_by_id_sources;
 pub use cascade_invalidator::{CascadeInvalidator, InvalidationStats};
 pub use cascade_metadata::CascadeMetadata;
-pub use cascade_response_parser::CascadeResponseParser;
 pub use config::{CacheConfig, RlsEnforcement};
 // Export dependency tracker (used in doctests and advanced use cases)
-pub use dependency_tracker::DependencyTracker;
 pub use embedding_graph::{read_embedding_graph, swept_view_names};
 pub use entity_key::EntityKey;
 pub use fact_table_version::{
     FactTableCacheConfig, FactTableVersionProvider, FactTableVersionStrategy, VERSION_TABLE_SCHEMA,
 };
 pub use fraiseql_db::ViewName;
-pub use invalidation::{InvalidationContext, InvalidationReason};
 pub use key::{
     extract_accessed_views, generate_cache_key, generate_composed_query_key,
     generate_projection_query_key, generate_view_query_key, hash_security_context,
@@ -255,9 +236,7 @@ pub use key::{
 pub use mutation_reach::{
     declares_cacheable_views, statically_resolved_views, unattributable_mutations,
 };
-pub use query_analyzer::{QueryAnalyzer, QueryCardinality, QueryEntityProfile};
 pub use result::{CacheMetrics, CachedResult, ComposedTags, QueryResultCache};
-pub use uuid_extractor::UUIDExtractor;
 
 #[cfg(test)]
 mod tests;

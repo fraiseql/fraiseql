@@ -14,12 +14,6 @@ pub const EMAIL: &str = concat!(
     r"(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$", // one or more further labels
 );
 
-/// E.164 strict phone number pattern.
-///
-/// Requires leading `+` and country code (1–3 digits), followed by 6–14 digits total.
-/// Used by [`crate::validation::async_validators`] for strict phone validation.
-pub const PHONE_E164: &str = r"^\+[1-9]\d{6,14}$";
-
 /// Lenient phone number pattern for rich scalar validation.
 ///
 /// Accepts an optional leading `+` with 2–15 digits. Used by

@@ -1,36 +1,15 @@
-//! Compiler sub-modules for FraiseQL v2.
-//!
-//! # Overview
-//!
-//! This module contains:
-//!
-//! - **Parser / IR / Validator** — parse JSON into an intermediate representation (`AuthoringIR`)
-//!   and validate it. No production path calls the parser: the CLI compiles through its own
-//!   `IntermediateSchema` pipeline. `ir::IRQuery` is still read by `cache::query_analyzer`.
-//!
-//! - **Runtime sub-modules** — aggregate types, aggregation planning, fact tables, and window
-//!   functions, consumed by the runtime executor.
+//! Compiler sub-modules for FraiseQL v2: aggregate functions, aggregation planning, fact
+//! tables and window functions, consumed by the runtime executor. Schema compilation
+//! itself is `fraiseql-cli`'s.
 
 pub mod aggregate_types;
 pub mod aggregation;
-pub mod enum_validator;
 pub mod fact_table;
-pub mod ir;
-pub mod parser;
 pub mod time_reduction;
-pub mod validator;
 pub mod window_allowlist;
 pub mod window_functions;
 
-pub use aggregate_types::{AggregateType, AggregateTypeGenerator, GroupByInput, HavingInput};
 pub use aggregation::{AggregationPlan, AggregationPlanner, AggregationRequest};
-pub use enum_validator::EnumValidator;
-pub use ir::{
-    AuthoringIR, AutoParams, IRArgument, IRField, IRMutation, IRQuery, IRSubscription, IRType,
-    MutationOperation,
-};
-pub use parser::SchemaParser;
-pub use validator::{SchemaValidationError, SchemaValidator};
 pub use window_functions::{WindowExecutionPlan, WindowFunction, WindowPlanner};
 
 #[cfg(test)]

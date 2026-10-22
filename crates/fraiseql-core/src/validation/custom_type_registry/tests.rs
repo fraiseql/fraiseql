@@ -13,7 +13,6 @@ fn test_custom_type_def_new() {
     assert_eq!(def.description, None);
     assert_eq!(def.specified_by_url, None);
     assert_eq!(def.validation_rules.len(), 0);
-    assert_eq!(def.elo_expression, None);
     assert_eq!(def.base_type, None);
 }
 
@@ -24,14 +23,12 @@ fn test_custom_type_def_with_all_fields() {
         description:      Some("International Standard Book Number".to_string()),
         specified_by_url: Some("https://www.isbn-international.org/".to_string()),
         validation_rules: vec![],
-        elo_expression:   Some("matches(value, /^[0-9-]{10,17}$/)".to_string()),
         base_type:        Some("String".to_string()),
     };
 
     assert_eq!(def.name, "ISBN");
     assert_eq!(def.description, Some("International Standard Book Number".to_string()));
     assert_eq!(def.specified_by_url, Some("https://www.isbn-international.org/".to_string()));
-    assert_eq!(def.elo_expression, Some("matches(value, /^[0-9-]{10,17}$/)".to_string()));
     assert_eq!(def.base_type, Some("String".to_string()));
 }
 
@@ -328,183 +325,6 @@ fn test_validate_with_multiple_rules() {
     assert!(
         matches!(result, Err(FraiseQLError::Validation { ref message, .. }) if message.contains("Patient ID must be PAT-######")),
         "expected Validation error about pattern mismatch, got: {result:?}"
-    );
-}
-
-#[test]
-fn test_validate_library_code_with_elo_expression_valid() {
-    let registry = CustomTypeRegistry::new(CustomTypeRegistryConfig::default());
-    let mut def = CustomTypeDef::new("LibraryCode".to_string());
-    def.elo_expression = Some("matches(value, \"^LIB-[0-9]{4}$\")".to_string());
-
-    registry.register("LibraryCode".to_string(), def).unwrap();
-
-    let value = serde_json::json!("LIB-1234");
-    let result = registry.validate("LibraryCode", &value);
-    result.unwrap_or_else(|e| panic!("valid LibraryCode with ELO should pass: {e}"));
-}
-
-#[test]
-fn test_validate_library_code_with_elo_expression_invalid() {
-    let registry = CustomTypeRegistry::new(CustomTypeRegistryConfig::default());
-    let mut def = CustomTypeDef::new("LibraryCode".to_string());
-    def.elo_expression = Some("matches(value, \"^LIB-[0-9]{4}$\")".to_string());
-
-    registry.register("LibraryCode".to_string(), def).unwrap();
-
-    let value = serde_json::json!("INVALID-CODE");
-    let result = registry.validate("LibraryCode", &value);
-    assert!(
-        matches!(result, Err(FraiseQLError::Validation { .. })),
-        "expected Validation error for invalid ELO expression, got: {result:?}"
-    );
-}
-
-#[test]
-fn test_validate_student_id_with_elo_expression_valid() {
-    let registry = CustomTypeRegistry::new(CustomTypeRegistryConfig::default());
-    let mut def = CustomTypeDef::new("StudentID".to_string());
-    def.elo_expression = Some("matches(value, \"^STU-[0-9]{4}-[0-9]{3}$\")".to_string());
-
-    registry.register("StudentID".to_string(), def).unwrap();
-
-    let value = serde_json::json!("STU-2024-001");
-    let result = registry.validate("StudentID", &value);
-    result.unwrap_or_else(|e| panic!("valid StudentID with ELO should pass: {e}"));
-}
-
-#[test]
-fn test_validate_student_id_with_elo_expression_invalid() {
-    let registry = CustomTypeRegistry::new(CustomTypeRegistryConfig::default());
-    let mut def = CustomTypeDef::new("StudentID".to_string());
-    def.elo_expression = Some("matches(value, \"^STU-[0-9]{4}-[0-9]{3}$\")".to_string());
-
-    registry.register("StudentID".to_string(), def).unwrap();
-
-    let value = serde_json::json!("STUDENT-2024");
-    let result = registry.validate("StudentID", &value);
-    assert!(
-        matches!(result, Err(FraiseQLError::Validation { .. })),
-        "expected Validation error for invalid StudentID ELO, got: {result:?}"
-    );
-}
-
-#[test]
-fn test_validate_patient_id_with_elo_expression_valid() {
-    let registry = CustomTypeRegistry::new(CustomTypeRegistryConfig::default());
-    let mut def = CustomTypeDef::new("PatientID".to_string());
-    def.elo_expression = Some("matches(value, \"^PAT-[0-9]{6}$\")".to_string());
-
-    registry.register("PatientID".to_string(), def).unwrap();
-
-    let value = serde_json::json!("PAT-987654");
-    let result = registry.validate("PatientID", &value);
-    result.unwrap_or_else(|e| panic!("valid PatientID with ELO should pass: {e}"));
-}
-
-#[test]
-fn test_validate_patient_id_with_elo_expression_invalid() {
-    let registry = CustomTypeRegistry::new(CustomTypeRegistryConfig::default());
-    let mut def = CustomTypeDef::new("PatientID".to_string());
-    def.elo_expression = Some("matches(value, \"^PAT-[0-9]{6}$\")".to_string());
-
-    registry.register("PatientID".to_string(), def).unwrap();
-
-    let value = serde_json::json!("PATIENT123");
-    let result = registry.validate("PatientID", &value);
-    assert!(
-        matches!(result, Err(FraiseQLError::Validation { .. })),
-        "expected Validation error for invalid PatientID ELO, got: {result:?}"
-    );
-}
-
-#[test]
-fn test_validate_rules_then_elo_expression_both_valid() {
-    let registry = CustomTypeRegistry::new(CustomTypeRegistryConfig::default());
-    let mut def = CustomTypeDef::new("LibraryCode".to_string());
-    def.validation_rules = vec![ValidationRule::Length {
-        min: Some(8),
-        max: Some(8),
-    }];
-    def.elo_expression = Some("matches(value, \"^LIB-[0-9]{4}$\")".to_string());
-
-    registry.register("LibraryCode".to_string(), def).unwrap();
-
-    let value = serde_json::json!("LIB-1234");
-    let result = registry.validate("LibraryCode", &value);
-    result.unwrap_or_else(|e| panic!("both rules and ELO should pass: {e}"));
-}
-
-#[test]
-fn test_validate_rules_pass_elo_fails() {
-    let registry = CustomTypeRegistry::new(CustomTypeRegistryConfig::default());
-    let mut def = CustomTypeDef::new("LibraryCode".to_string());
-    def.validation_rules = vec![ValidationRule::Length {
-        min: Some(8),
-        max: Some(8),
-    }];
-    def.elo_expression = Some("matches(value, \"^LIB-[0-9]{4}$\")".to_string());
-
-    registry.register("LibraryCode".to_string(), def).unwrap();
-
-    // This passes the length rule but fails the ELO pattern
-    let value = serde_json::json!("NOTVALID");
-    let result = registry.validate("LibraryCode", &value);
-    assert!(
-        matches!(result, Err(FraiseQLError::Validation { .. })),
-        "expected Validation error when rules pass but ELO fails, got: {result:?}"
-    );
-}
-
-#[test]
-fn test_validate_rules_fail_elo_not_evaluated() {
-    let registry = CustomTypeRegistry::new(CustomTypeRegistryConfig::default());
-    let mut def = CustomTypeDef::new("StudentID".to_string());
-    def.validation_rules = vec![ValidationRule::Length {
-        min: Some(10),
-        max: Some(10),
-    }];
-    def.elo_expression = Some("matches(value, \"^STU-[0-9]{4}-[0-9]{3}$\")".to_string());
-
-    registry.register("StudentID".to_string(), def).unwrap();
-
-    // This fails the length rule, so ELO should not be evaluated
-    let value = serde_json::json!("STU-2024");
-    let result = registry.validate("StudentID", &value);
-    assert!(
-        matches!(result, Err(FraiseQLError::Validation { ref message, .. }) if message.contains("at least")),
-        "expected Validation error about length rule failure, got: {result:?}"
-    );
-}
-
-#[test]
-fn test_validate_complex_elo_expression_with_multiple_conditions() {
-    let registry = CustomTypeRegistry::new(CustomTypeRegistryConfig::default());
-    let mut def = CustomTypeDef::new("PatientID".to_string());
-    // Match pattern OR contains substring
-    def.elo_expression =
-        Some("matches(value, \"^PAT-[0-9]{6}$\") || contains(value, \"URGENT\")".to_string());
-
-    registry.register("PatientID".to_string(), def).unwrap();
-
-    // Valid: matches pattern
-    let value1 = serde_json::json!("PAT-123456");
-    registry
-        .validate("PatientID", &value1)
-        .unwrap_or_else(|e| panic!("pattern match should pass: {e}"));
-
-    // Valid: contains substring (even though doesn't match pattern)
-    let value2 = serde_json::json!("URGENT-CASE");
-    registry
-        .validate("PatientID", &value2)
-        .unwrap_or_else(|e| panic!("contains substring should pass: {e}"));
-
-    // Invalid: neither matches pattern nor contains substring
-    let value3 = serde_json::json!("INVALID");
-    let result = registry.validate("PatientID", &value3);
-    assert!(
-        matches!(result, Err(FraiseQLError::Validation { .. })),
-        "expected Validation error when no ELO condition matches, got: {result:?}"
     );
 }
 

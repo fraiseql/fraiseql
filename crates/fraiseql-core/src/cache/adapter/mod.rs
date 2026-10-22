@@ -156,7 +156,7 @@ impl RelationRls {
 /// # Example
 ///
 /// ```no_run
-/// use fraiseql_core::cache::{CachedDatabaseAdapter, QueryResultCache, CacheConfig, InvalidationContext};
+/// use fraiseql_core::cache::{CachedDatabaseAdapter, QueryResultCache, CacheConfig};
 /// use fraiseql_core::db::{postgres::PostgresAdapter, DatabaseAdapter};
 /// use fraiseql_db::ViewName;
 ///
@@ -171,19 +171,8 @@ impl RelationRls {
 /// // Second query - cache hit (fast!)
 /// let users2 = adapter.execute_where_query("v_user", None, None, None, None).await?;
 ///
-/// // After mutation, invalidate. `InvalidationContext` keeps its `Vec<String>`
-/// // shape for compatibility with the audit-logging facade; callers convert at
-/// // the adapter boundary.
-/// let invalidation = InvalidationContext::for_mutation(
-///     "createUser",
-///     vec!["v_user".to_string()],
-/// );
-/// let views: Vec<ViewName> = invalidation
-///     .modified_views
-///     .iter()
-///     .map(ViewName::from)
-///     .collect();
-/// adapter.invalidate_views(&views)?;
+/// // After a mutation, invalidate the views it wrote
+/// adapter.invalidate_views(&[ViewName::from("v_user")])?;
 /// # Ok(())
 /// # }
 /// ```

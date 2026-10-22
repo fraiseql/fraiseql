@@ -1,8 +1,6 @@
 //! Security features
 //!
 //! This module provides core security infrastructure:
-//! - Security profiles (STANDARD, REGULATED)
-//! - Security headers configuration
 //! - Sensitive field masking for PII/regulated data
 //! - Field selection filtering for access control
 //! - `before:mutation` enforcement at the write chokepoint
@@ -12,9 +10,7 @@
 //! - Query validation (depth, complexity)
 //! - The response-bytes ceiling (what a read delivers, not what it asks for)
 //! - Audit logging
-//! - TLS enforcement
 //! - Introspection control
-//! - Error formatting
 
 pub mod actor_type;
 pub mod audit;
@@ -25,18 +21,15 @@ pub mod audit_export_webhook;
 pub mod auth_middleware;
 pub mod authorizer;
 pub mod bearer;
-pub mod error_formatter;
 pub mod errors;
 pub mod field_authorizer;
 pub mod field_filter;
 pub mod field_masking;
 pub mod guest_query_bridge;
-pub mod headers;
 pub mod introspection_enforcer;
 pub mod kms;
 pub mod mutation_gate;
 pub mod oidc;
-pub mod profiles;
 pub mod query_validator;
 pub mod request_budget;
 pub mod response_budget;
@@ -44,8 +37,6 @@ pub mod rls_policy;
 pub mod role_gate;
 pub mod scope;
 pub mod security_context;
-pub mod tls_enforcer;
-pub mod validation_audit;
 
 /// Reserved attribute-namespace prefix for DB-resolved enriched-identity fields.
 ///
@@ -72,13 +63,11 @@ pub use authorizer::{
     Authorizer, AuthzDecision, AuthzNesting, AuthzOperation, AuthzRequest, OperationKind,
 };
 pub use bearer::bearer_credential;
-pub use error_formatter::{DetailLevel, ErrorFormatter};
 pub use errors::SecurityError;
 pub use field_authorizer::{FieldAuthorizer, FieldAuthzDecision, FieldAuthzRequest};
 pub use field_filter::{FieldAccessError, FieldFilter, FieldFilterBuilder, FieldFilterConfig};
 pub use field_masking::{FieldMasker, FieldSensitivity};
 pub use guest_query_bridge::GuestQueryBridge;
-pub use headers::SecurityHeaders;
 pub use introspection_enforcer::{IntrospectionEnforcer, IntrospectionPolicy};
 pub use kms::{
     BaseKmsProvider, DataKeyPair, EncryptedData, KeyPurpose, KeyReference, KeyState, KmsError,
@@ -86,7 +75,6 @@ pub use kms::{
 };
 pub use mutation_gate::{BeforeMutationGate, BeforeMutationOutcome, BeforeMutationRequest};
 pub use oidc::{OidcConfig, OidcValidator};
-pub use profiles::SecurityProfile;
 pub use query_validator::{QueryValidator, QueryValidatorConfig};
 pub use request_budget::{CostBudget, RequestBudget};
 pub use response_budget::{ResponseBudget, column_bytes, json_bytes};
@@ -96,10 +84,6 @@ pub use rls_policy::{
 pub use scope::scope_grants;
 pub use security_context::{
     BoxFuture, EnrichmentMark, EnrichmentOutcome, IdentityEnricher, SecurityContext,
-};
-pub use tls_enforcer::{TlsConfig, TlsConnection, TlsEnforcer, TlsVersion};
-pub use validation_audit::{
-    RedactionPolicy, ValidationAuditEntry, ValidationAuditLogger, ValidationAuditLoggerConfig,
 };
 
 pub use crate::graphql::complexity::QueryMetrics;

@@ -5,9 +5,8 @@
 
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #![allow(clippy::default_trait_access)] // Reason: test setup uses Default::default() for brevity
-use fraiseql_core::{
-    schema::{CompiledSchema, QueryDefinition, RoleDefinition, SecurityConfig, TypeDefinition},
-    security::ErrorFormatter,
+use fraiseql_core::schema::{
+    CompiledSchema, QueryDefinition, RoleDefinition, SecurityConfig, TypeDefinition,
 };
 use proptest::prelude::*;
 use serde_json::{Value, json};
@@ -192,52 +191,6 @@ proptest! {
         prop_assert!(
             message.contains(&format!("Duplicate type name: {name}")),
             "the refusal must name the duplicate: {message}"
-        );
-    }
-
-    /// Property: Production ErrorFormatter never leaks raw SQL in output.
-    /// Any input containing SQL keywords should be sanitized when using
-    /// production-level formatting.
-    #[test]
-    fn prop_error_formatter_hides_sql_in_production(
-        prefix in "[a-zA-Z ]{0,30}",
-        sql_keyword in prop_oneof![
-            Just("SELECT "),
-            Just("INSERT "),
-            Just("UPDATE "),
-            Just("DELETE "),
-        ],
-        suffix in "[a-zA-Z0-9_ ]{0,30}",
-    ) {
-        let formatter = ErrorFormatter::production();
-        let raw_error = format!("{}{}{}", prefix, sql_keyword, suffix);
-        let formatted = formatter.format_error(&raw_error);
-
-        // Production formatter should not pass through raw SQL keywords
-        prop_assert!(
-            !formatted.contains(sql_keyword.trim()),
-            "Production error should not contain SQL keyword '{}', got: {}",
-            sql_keyword.trim(),
-            formatted
-        );
-    }
-
-    /// Property: Production ErrorFormatter never leaks database URLs in output.
-    #[test]
-    fn prop_error_formatter_hides_db_urls_in_production(
-        user in "[a-zA-Z]{1,10}",
-        host in "[a-zA-Z.]{1,15}",
-        db_name in "[a-zA-Z_]{1,10}",
-    ) {
-        let formatter = ErrorFormatter::production();
-        let raw_error = format!("Connection failed: postgresql://{}:secret@{}/{}", user, host, db_name);
-        let formatted = formatter.format_error(&raw_error);
-
-        // Production formatter should not expose the database URL
-        prop_assert!(
-            !formatted.contains("postgresql://"),
-            "Production error should not contain database URL, got: {}",
-            formatted
         );
     }
 }

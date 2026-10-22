@@ -27,7 +27,6 @@
 //!     description: Some("Valid email address".to_string()),
 //!     specified_by_url: None,
 //!     validation_rules: vec![],
-//!     elo_expression: Some("matches(value, /^[a-z0-9._%+-]+@[a-z0-9.-]+\\.[a-z]{2,}$/)".to_string()),
 //!     base_type: None,
 //! };
 //! registry.register("Email".to_string(), email_def).unwrap();

@@ -32,8 +32,6 @@
 
 use std::fmt;
 
-use crate::security::SecurityProfile;
-
 /// Field sensitivity classification
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
@@ -198,12 +196,10 @@ impl FieldMasker {
         "****".to_string()
     }
 
-    /// Determine if value should be masked for this profile
+    /// Determine if a value should be masked: under a regulated deployment, every
+    /// field that is not public is masked.
     #[must_use]
-    pub fn should_mask(sensitivity: FieldSensitivity, profile: &SecurityProfile) -> bool {
-        match profile {
-            SecurityProfile::Standard => false,
-            SecurityProfile::Regulated => sensitivity != FieldSensitivity::Public,
-        }
+    pub fn should_mask(sensitivity: FieldSensitivity, regulated: bool) -> bool {
+        regulated && sensitivity != FieldSensitivity::Public
     }
 }

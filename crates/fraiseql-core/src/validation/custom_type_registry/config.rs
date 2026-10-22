@@ -30,9 +30,6 @@ pub struct CustomTypeDef {
     #[serde(default)]
     pub validation_rules: Vec<ValidationRule>,
 
-    /// ELO expression for custom validation.
-    pub elo_expression: Option<String>,
-
     /// Base type for type aliases (e.g., "String" for Email scalar).
     pub base_type: Option<String>,
 }
@@ -46,7 +43,6 @@ impl CustomTypeDef {
             description: None,
             specified_by_url: None,
             validation_rules: Vec::new(),
-            elo_expression: None,
             base_type: None,
         }
     }

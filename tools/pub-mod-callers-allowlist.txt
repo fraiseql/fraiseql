@@ -24,26 +24,6 @@ fraiseql_core::prelude api the engine's glob import for embedders
 fraiseql_server::prelude api the server's glob import for embedders
 
 # ── Deleted by M1 (WP-1.2) ───────────────────────────────────────────────────────────
-fraiseql_core::compiler::enum_validator pending superseded by the cli compiler; deleted by #1640
-fraiseql_core::compiler::ir pending superseded by the cli compiler; deleted by #1640
-fraiseql_core::compiler::parser pending superseded by the cli compiler; deleted by #1640
-fraiseql_core::compiler::validator pending superseded by the cli compiler; deleted by #1640
-fraiseql_core::cache::cascade_response_parser pending superseded by live invalidation; deleted by #1640
-fraiseql_core::cache::query_analyzer pending superseded by live invalidation; deleted by #1640
-fraiseql_core::cache::uuid_extractor pending superseded by live invalidation; deleted by #1640
-fraiseql_core::cache::dependency_tracker pending superseded by live invalidation; deleted by #1640
-fraiseql_core::cache::invalidation pending superseded by live invalidation; deleted by #1640
-fraiseql_core::security::error_formatter pending superseded by the server's error sanitizer; deleted by #1640
-fraiseql_core::security::headers pending superseded by the server's middleware; deleted by #1640
-fraiseql_core::security::profiles pending superseded by the server's security config; deleted by #1640
-fraiseql_core::security::validation_audit pending superseded by the server's audit; deleted by #1640
-fraiseql_core::validation::async_validators pending superseded by ValidationRule; deleted by #1640
-fraiseql_core::validation::elo_rust_integration pending ELO, superseded by ValidationRule; deleted by #1640
-fraiseql_core::validation::js_codegen pending superseded by fraiseql-codegen; deleted by #1640
-fraiseql_core::validation::input_processor pending superseded by the input walker; deleted by #1640
-fraiseql_core::validation::rate_limiting pending ValidationRateLimiter, superseded by the server rate limiter; deleted by #1640
-fraiseql_core::validation::error_responses pending used by nothing, not even a test; deleted by #1640
-fraiseql_core::schema::introspection_types pending used by nothing, not even a test; deleted by #1640
 fraiseql_cli::schema::advanced_types pending used by nothing, not even a test; deleted by #1640
 fraiseql_server::arrow::executor_wrapper pending used by nothing, not even a test; deleted by #1640
 fraiseql_server::testing::runtime_testing pending an empty module; deleted by #1640

@@ -19,7 +19,6 @@
 | Medium | `BaseKmsProvider` | fraiseql-core | 12 | 1 | `crates/fraiseql-core/src/security/kms/base.rs` |
 | Medium | `EventTransport` | fraiseql-observers | 4 | 3 | `crates/fraiseql-observers/src/transport/mod.rs` |
 | Low | `ApqStorage` | fraiseql-core | 6 | 2 | `crates/fraiseql-core/src/apq/storage.rs` |
-| Low | `AsyncValidator` | fraiseql-core | 1 | 5 | `crates/fraiseql-core/src/validation/async_validators.rs` |
 
 ### Why `DatabaseAdapter` is critical
 
@@ -37,7 +36,7 @@ RFC 3425 introduces Return Type Notation (`fn method(..) -> impl Send`) to solve
 
 Once RFC 3425 is stable:
 
-1. **Phase 1**: Migrate leaf traits with few impls (`AsyncValidator`, `ApqStorage`)
+1. **Phase 1**: Migrate leaf traits with few impls (`ApqStorage`)
 2. **Phase 2**: Migrate observer traits (`EventTransport`)
 3. **Phase 3**: Migrate auth traits (`OAuthProvider`)
 4. **Phase 4**: Migrate `DatabaseAdapter` (largest, most impls)

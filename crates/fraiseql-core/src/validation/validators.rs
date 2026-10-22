@@ -273,20 +273,16 @@ pub fn create_validator_from_rule(rule: &ValidationRule) -> Option<Box<dyn Valid
         },
         ValidationRule::Required => Some(Box::new(RequiredValidator) as Box<dyn Validator>),
         ValidationRule::Email => {
-            // Reuse the same regex as EmailFormatValidator in async_validators.
             PatternValidator::new(EMAIL_PATTERN, "Invalid email address format")
                 .ok()
                 .map(|v| Box::new(v) as Box<dyn Validator>)
         },
-        ValidationRule::Phone => {
-            // Reuse the same regex as PhoneE164Validator in async_validators.
-            PatternValidator::new(
-                PHONE_E164_PATTERN,
-                "Invalid E.164 phone number (expected +<country><number>)",
-            )
-            .ok()
-            .map(|v| Box::new(v) as Box<dyn Validator>)
-        },
+        ValidationRule::Phone => PatternValidator::new(
+            PHONE_E164_PATTERN,
+            "Invalid E.164 phone number (expected +<country><number>)",
+        )
+        .ok()
+        .map(|v| Box::new(v) as Box<dyn Validator>),
         _ => None, // Other validators handled separately (cross-field, composite, async)
     }
 }

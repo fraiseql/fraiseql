@@ -87,45 +87,6 @@ pub enum SecurityError {
     /// The security configuration is invalid or incomplete.
     SecurityConfigError(String),
 
-    /// TLS/HTTPS required but connection is not secure.
-    ///
-    /// The security profile requires all connections to be HTTPS/TLS,
-    /// but an HTTP connection was received.
-    TlsRequired {
-        /// Description of what was required
-        detail: String,
-    },
-
-    /// TLS version is below the minimum required version.
-    ///
-    /// The connection uses TLS but the version is too old. For example,
-    /// if TLS 1.3 is required but the connection uses TLS 1.2.
-    TlsVersionTooOld {
-        /// The TLS version actually used
-        current:  crate::security::TlsVersion,
-        /// The minimum TLS version required
-        required: crate::security::TlsVersion,
-    },
-
-    /// Mutual TLS (client certificate) required but not provided.
-    ///
-    /// The security profile requires mTLS, meaning clients must present
-    /// a valid X.509 certificate, but none was provided.
-    MtlsRequired {
-        /// Description of what was required
-        detail: String,
-    },
-
-    /// Client certificate validation failed.
-    ///
-    /// A client certificate was presented, but it failed validation.
-    /// This could be due to an invalid signature, expired certificate,
-    /// revoked certificate, or other validation errors.
-    InvalidClientCert {
-        /// Description of why validation failed
-        detail: String,
-    },
-
     /// Authentication is required but none was provided.
     ///
     /// Used in auth middleware when authentication is required
@@ -273,18 +234,6 @@ impl fmt::Display for SecurityError {
             Self::SecurityConfigError(reason) => {
                 write!(f, "Security configuration error: {reason}")
             },
-            Self::TlsRequired { detail } => {
-                write!(f, "TLS/HTTPS required: {detail}")
-            },
-            Self::TlsVersionTooOld { current, required } => {
-                write!(f, "TLS version too old: {current} (required: {required})")
-            },
-            Self::MtlsRequired { detail } => {
-                write!(f, "Mutual TLS required: {detail}")
-            },
-            Self::InvalidClientCert { detail } => {
-                write!(f, "Invalid client certificate: {detail}")
-            },
             Self::AuthRequired => {
                 write!(f, "Authentication required")
             },
@@ -402,21 +351,6 @@ impl PartialEq for SecurityError {
             (Self::CSRFSessionMismatch, Self::CSRFSessionMismatch) => true,
             (Self::AuditLogFailure(r1), Self::AuditLogFailure(r2)) => r1 == r2,
             (Self::SecurityConfigError(r1), Self::SecurityConfigError(r2)) => r1 == r2,
-            (Self::TlsRequired { detail: d1 }, Self::TlsRequired { detail: d2 }) => d1 == d2,
-            (
-                Self::TlsVersionTooOld {
-                    current: c1,
-                    required: r1,
-                },
-                Self::TlsVersionTooOld {
-                    current: c2,
-                    required: r2,
-                },
-            ) => c1 == c2 && r1 == r2,
-            (Self::MtlsRequired { detail: d1 }, Self::MtlsRequired { detail: d2 }) => d1 == d2,
-            (Self::InvalidClientCert { detail: d1 }, Self::InvalidClientCert { detail: d2 }) => {
-                d1 == d2
-            },
             (Self::AuthRequired, Self::AuthRequired) => true,
             (Self::InvalidToken, Self::InvalidToken) => true,
             (Self::JwtSignatureInvalid, Self::JwtSignatureInvalid) => true,

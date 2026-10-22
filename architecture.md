@@ -109,10 +109,7 @@
   │    scalar_types.rs    Custom scalars
   │    subscription_types, observer_types, security_config
   │
-  ├─ compiler/            schema.json → optimized IR + SQL templates
-  │    parser.rs          Schema JSON parsing
-  │    validator.rs       Schema validation
-  │    ir.rs              Intermediate representation
+  ├─ compiler/            Aggregation, fact table and window-function planning
   │    codegen.rs         SQL template generation
   │    aggregation.rs     Aggregation SQL (with allowlist injection guard)
   │    fact_table/        Fact table compilation
@@ -157,7 +154,6 @@
   │    cascade_metadata   View dependency metadata
   │    fact_table_cache   Fact table version tracking
   │    relay_cache        Cursor cache
-  │    query_analyzer.rs  Cache key extraction
   │
   ├─ security/            Field-level and query-level security
   │    security_context.rs SecurityContext (user + scopes)
@@ -166,15 +162,10 @@
   │    field_filter.rs    Field visibility enforcement
   │    field_masking.rs   PII masking
   │    query_validator.rs Query allowlist / trusted-documents gate
-  │    headers.rs         Security response headers
-  │    tls_enforcer.rs    TLS requirement enforcement
-  │    error_formatter.rs Error sanitization (hides internals)
   │    audit.rs           Security audit hooks
   │    kms/               Key Management Service integration
   │    auth_middleware/   Auth middleware hooks
   │    oidc.rs            OIDC claim mapping
-  │    profiles.rs        Security profiles (strict | permissive | custom)
-  │    validation_audit.rs Validation event logging
   │
   ├─ apq/                 Automatic Persisted Queries
   │                       (hash → stored query; Redis-backed optional)
