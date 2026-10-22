@@ -9,7 +9,7 @@
 
 **Compiled GraphQL execution engine.** Define schemas in Python or TypeScript, compile them into a validated schema bound to PostgreSQL views, and serve it from a Rust server.
 
-Where Hasura and PostGraphile interpret GraphQL at request time, FraiseQL generates deterministic SQL templates during compilation, achieving zero runtime query planning overhead for known query patterns.
+Compilation validates the schema and binds each query to the PostgreSQL view it reads. At request time the server builds the SQL for the requested selection and runs it as a prepared statement (#1557).
 
 ## Quick Start
 
@@ -34,18 +34,18 @@ fraiseql.export_schema("schema.json")
 # 2. Compile
 fraiseql-cli compile schema.json -o schema.compiled.json
 
-# 3. Run
-fraiseql-server --config fraiseql.toml --schema schema.compiled.json
+# 3. Run (binds 127.0.0.1:8000 unless --bind-addr or a --config file says otherwise)
+DATABASE_URL=postgres://localhost/mydb fraiseql-server --schema-path schema.compiled.json
 
 # 4. Query
-curl -X POST http://localhost:8080/graphql \
+curl -X POST http://localhost:8000/graphql \
   -H "Content-Type: application/json" \
   -d '{"query": "{ users(limit: 5) { id name email } }"}'
 ```
 
 ## Why FraiseQL?
 
-1. **Compile-time SQL generation.** SQL is generated at build time for deterministic queries. Your schema is analyzed once at build; queries execute without interpretation or query-planning overhead.
+1. **Schema checked before deploy.** `fraiseql compile` validates the schema and binds each query to the view or relation it reads. With `--database`, it also checks those relations against the live database and records native columns, foreign-key join columns and pagination order. SQL is not generated at compile time: each request builds its SQL from the selection set and runs it as a prepared statement (#1636, #1557).
 
 2. **Schema-as-code authoring.** Define schemas in Python or TypeScript with decorators, compile to optimized JSON. No runtime language bridge, no FFI.
 
@@ -54,11 +54,8 @@ curl -X POST http://localhost:8080/graphql \
 ## Performance
 
 ```
-Traditional GraphQL:  Schema + Query -> Parse -> Plan -> SQL -> Execute -> Serialize
-                      ~~~~~~~~~~~~~~ runtime overhead ~~~~~~~~~~~~~~
-
-FraiseQL:             Compiled Schema -> SQL Template -> Execute -> Serialize
-                      ~~~~ zero planning overhead ~~~~
+Request:  Parse query -> Match against compiled schema -> Build SQL for the selection
+          -> Execute as a prepared statement -> Serialize
 ```
 
 Benchmarks: `crates/fraiseql-core/benches/` (Criterion, reproducible).
@@ -69,7 +66,7 @@ Benchmarks: `crates/fraiseql-core/benches/` (Criterion, reproducible).
 Authoring (Python/TS)     Compilation (Rust)        Runtime (Rust)
       |                         |                        |
   schema.json    +    fraiseql.toml    ->    schema.compiled.json    ->    Server
-  (types)             (config)               (types + SQL templates)      (execute)
+  (types)             (config)               (types + config + bindings)  (builds SQL per request)
 ```
 
 Python and TypeScript are authoring languages only. The runtime is pure Rust with zero language bridge overhead.
@@ -150,18 +147,22 @@ The other eight SDKs are source-only — see the table above.
 
 **Feature flags:**
 
+The `fraiseql` crate has no default features; PostgreSQL support is always compiled in.
+The full list is in [docs/features-compatibility-matrix.md](docs/features-compatibility-matrix.md).
+
 | Feature | Use Case |
 |---------|----------|
-| `postgres` (default) | PostgreSQL only |
 | `server` | HTTP GraphQL server |
+| `cli` | The `fraiseql` command-line binary |
 | `observers` | Post-mutation event hooks |
 | `arrow` | Apache Arrow Flight for analytics |
-| `wire` | Streaming JSON over PostgreSQL wire protocol |
-| `full` | All features |
+| `wire` | The `fraiseql-wire` streaming client and its read-only adapter |
+| `full` | `server`, `cli`, `observers`, `observers-cache`, `arrow`, `wire`, `federation` |
+| `release-full` | The feature set of the published `-full` release binary |
 
 ## Security
 
-All queries are parameterized at compile time. Zero unsafe code (forbidden). Additional enterprise features:
+Queries pass user input to SQL as bind parameters. No hand-written unsafe code. Additional enterprise features:
 
 - OAuth2/OIDC authentication (7+ providers)
 - Field-level authorization
@@ -192,7 +193,7 @@ See [Security Checklist](docs/guides/production-security-checklist.md) for produ
 - 10,000+ tests (unit, integration, E2E, property-based, fuzz)
 - Cross-SDK parity suite: 5 authoring SDKs (Python, TypeScript, Go and PHP for the full schema, Rust for types) produce identical schema JSON; `make test-parity` and the SDK Schema Parity workflow run it
 - Golden fixture regression guards for every field in the compiled schema contract (protects against issue-#53-class bugs)
-- Zero unsafe code (forbidden at compile time)
+- No hand-written unsafe code (workspace lint `unsafe_code = "deny"`; only `wasmtime`-generated bindings are allowed it)
 - Clippy pedantic as deny with justified suppressions
 - Load testing infrastructure (k6)
 - 15 operational runbooks

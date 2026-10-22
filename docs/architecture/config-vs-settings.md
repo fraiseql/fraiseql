@@ -1,57 +1,74 @@
 # Config vs Settings
 
-FraiseQL uses 150+ `*Config` types and a handful of compiled `*Settings` types. The naming is intentional and encodes a semantic distinction.
+FraiseQL uses 150+ `*Config` types and a handful of `*Settings` types. The suffix says
+where a value comes from, but the split is not strict: the compiler parses some compiled
+sections into `*Config` types, and the server has a few `*Settings` types that are never
+compiled. Read the source column below, not the suffix alone.
 
 ## Definitions
 
 | Suffix | Source | Lifecycle | Example |
 |--------|--------|-----------|---------|
-| `*Config` | `fraiseql.toml`, env vars, CLI flags | Mutable during development; baked at compile time | `ServerConfig`, `OidcConfig`, `RateLimitConfig` |
-| `*Settings` | `schema.compiled.json` | Immutable after server start | `FraiseQLSettings`, `SecuritySettings` |
+| `*Config` | Project `fraiseql.toml` (read by `fraiseql compile`), the server's `--config` TOML, env vars, CLI flags | Project config is compiled into `schema.compiled.json`; server config is read at each boot | `ServerConfig`, `OidcConfig`, `RateLimitConfig` |
+| `*Settings` | Project `fraiseql.toml`, read by `fraiseql-cli` | Compiled into `schema.compiled.json` | `FraiseQLSettings`, `SecuritySettings`, `FunctionsSettings` |
 
 ## Flow
 
 ```
-fraiseql.toml                    fraiseql-cli compile           fraiseql-server start
-  [fraiseql.security]     --->     SecuritySettings      --->    loaded from compiled
-  rate_limiting = {...}            (validated, embedded          schema; immutable for
-  audit_logging = {...}             in compiled schema)          server lifetime
+fraiseql.toml                    fraiseql-cli compile               fraiseql-server start
+  [fraiseql.security]     --->   fraiseql_cli::config::      --->    CompiledSchema.security:
+  rate_limiting = {...}          SecurityConfig, or                   fraiseql_core::schema::
+  audit_logging = {...}          SecuritySettings for [security]      SecurityConfig, read once
+                                 (validated, embedded under the       at boot
+                                  compiled "security" key)
 ```
 
 ### `*Config` (Developer-Facing)
 
 Config types represent **developer intent** expressed in TOML or environment variables. They may contain raw paths, URLs, or feature toggles that need validation before use.
 
-- Defined in: `fraiseql-server/src/server_config/`, `fraiseql-core/src/config/`
-- Loaded from: `fraiseql.toml`, environment variables, CLI flags
-- Validated: at load time (parse errors) and at startup (`validate()`)
+- Defined in: `fraiseql-server/src/server_config/`, `fraiseql-server/src/config/`,
+  `fraiseql-cli/src/config/`, and next to the subsystem that uses them (for example
+  `fraiseql-server/src/middleware/rate_limit/config.rs`)
+- Loaded from: the server's `--config` TOML, the project `fraiseql.toml`, environment
+  variables, CLI flags
+- Validated: at load time (parse errors, unknown keys) and at startup
 - May change between deployments
 
-### `*Settings` (Runtime-Immutable)
+### `*Settings` (Compiled)
 
-Settings types represent **validated, compiled configuration** embedded in `schema.compiled.json` by the CLI compiler. They are loaded once at server startup and never change during the server's lifetime.
+Settings types are read from the project `fraiseql.toml` by the compiler and lowered into
+`schema.compiled.json`. The server never deserializes them: it reads the compiled result
+through `fraiseql_core` schema types.
 
-- Defined in: `fraiseql-cli/src/config/`
-- Loaded from: `schema.compiled.json` (the `"security"` key)
+- Defined in: `fraiseql-cli/src/config/` (`FraiseQLSettings` in `mod.rs`,
+  `SecuritySettings` and `FunctionsSettings` in `toml_schema/`)
+- Loaded from: project `fraiseql.toml`
 - Validated: at compile time by `fraiseql-cli compile`
-- Immutable after `Server::new()`
+- Fixed for the server's lifetime once loaded: a schema hot-reload that changes a
+  section a subsystem read at boot (such as `security`) is refused until a restart
+  (`fraiseql-server/src/routes/graphql/reload_gate.rs`, #782)
+
+`ObserverRuntimeSettings`, `LedgerSettings` and `SendSettings` in `fraiseql-server` are
+exceptions: they are server runtime configuration, not compiled.
 
 ## The Compiled Settings Types
 
 | Type | Crate | Purpose |
 |------|-------|---------|
-| `FraiseQLSettings` | `fraiseql-cli` | Top-level compiled settings container |
-| `SecuritySettings` | `fraiseql-cli` | The `[fraiseql.security]` section, compiled into the schema's `"security"` key |
-| `FunctionsSettings` | `fraiseql-cli` | The `[functions]` section |
+| `FraiseQLSettings` | `fraiseql-cli` | The `[fraiseql]` table of a project `fraiseql.toml` (`TomlProjectConfig`). Its `security` field is `fraiseql_cli::config::SecurityConfig` |
+| `SecuritySettings` | `fraiseql-cli` | The `[security]` table of a TOML-schema project (`TomlSchema`), compiled into the schema's `"security"` key |
+| `FunctionsSettings` | `fraiseql-cli` | The `[functions]` table (module directory, dead-letter store) |
 
-The server reads the compiled `"security"` key through `fraiseql_core::schema::SecurityConfig`
-only, in the subsystems that apply it: the error sanitizer, state encryption and
-`RuntimeConfig`.
+The server reads the compiled `"security"` key as `fraiseql_core::schema::SecurityConfig`
+(`CompiledSchema.security`). Many subsystems read it: the error sanitizer, state
+encryption, rate limiting, API keys, service accounts, token revocation, tenancy and
+`RuntimeConfig`, among others.
 
 ## When to Use Which
 
 - **Adding a new server knob** (bind address, pool size, feature toggle) -> `*Config` in `server_config/`
-- **Adding a new security policy** that gets baked into the compiled schema -> `*Settings` in `fraiseql-cli`
+- **Adding a new security policy** that gets baked into the compiled schema -> a field on the `fraiseql-cli` config type for its section, lowered into `fraiseql_core::schema::SecurityConfig`
 - **Adding runtime-only middleware config** (rate limiting per IP, CORS origins) -> `*Config` in `server_config/`
 
 ## Environment Variable Overrides
@@ -79,7 +96,7 @@ Rate limiting is the special case, and its precedence is implemented and pinned 
 each layer applied over the last:
 
 ```
-server [rate_limiting] table (fraiseql.toml passed via --config)
+server [rate_limiting] table (the TOML file passed via --config)
     < compiled [security.rate_limiting] (schema.compiled.json)
     < CLI flags / env vars (FRAISEQL_RATE_LIMITING_ENABLED,
       FRAISEQL_RATE_LIMIT_RPS_PER_IP, FRAISEQL_RATE_LIMIT_RPS_PER_USER,

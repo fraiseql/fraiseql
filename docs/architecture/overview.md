@@ -1,6 +1,6 @@
 # FraiseQL v2 Architecture Principles
 
-**Last Updated**: August 2, 2026
+**Last Updated**: October 22, 2026
 **Architecture**: Layered Optionality with Feature Gates
 **Status**: v2.17.1 released (core production-ready; some enterprise features experimental — see notes)
 
@@ -23,21 +23,29 @@ FraiseQL v2 achieves four goals simultaneously:
 ┌─────────────────────────────────────────────────────────────┐
 │                 Layer 1: Core (Required)                    │
 ├─────────────────────────────────────────────────────────────┤
-│  fraiseql-core/           Pure GraphQL execution engine     │
+│  fraiseql-core/           GraphQL execution engine          │
 │  ├── schema/              Compiled schema representation    │
 │  ├── runtime/             Executor (adapter-erased)         │
-│  ├── db/                  PostgreSQL adapter                │
-│  └── graphql/             Query parsing & projection        │
+│  ├── graphql/             Query parsing & fragments         │
+│  ├── cache/, apq/         Result cache, persisted queries   │
+│  └── security/            Field masking, OIDC, RLS context  │
+│                                                             │
+│  fraiseql-db/             Database layer                    │
+│  ├── traits.rs            DatabaseAdapter (+ Writer)        │
+│  ├── postgres/            PostgresAdapter (tokio-postgres,  │
+│  │                        deadpool-postgres pool)           │
+│  └── where_*, order_by,   SQL building blocks used per      │
+│      projection_generator request                          │
 └─────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────┐
 │              Layer 2: HTTP Server (Required)                │
 ├─────────────────────────────────────────────────────────────┤
-│  fraiseql-server/         Generic HTTP wrapper              │
-│  ├── Server<A>            Type-generic over DatabaseAdapter │
-│  ├── routes/              GraphQL, health, metrics          │
+│  fraiseql-server/         HTTP server (axum)                │
+│  ├── server/              Server (holds an Arc<Executor>)   │
+│  ├── routes/              GraphQL, health, metrics, REST, … │
 │  ├── middleware/          Auth, CORS, rate limiting         │
-│  └── server_config.rs     TOML configuration                │
+│  └── server_config/       ServerConfig (--config TOML)      │
 └─────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────┐
@@ -45,32 +53,34 @@ FraiseQL v2 achieves four goals simultaneously:
 ├─────────────────────────────────────────────────────────────┤
 │  fraiseql-observers       [feature = "observers"]           │
 │                                                              │
-│  A parallel event-driven runtime that runs alongside the    │
-│  GraphQL server. Enabling this feature adds a second        │
-│  execution environment with its own thread pool,            │
-│  PostgreSQL LISTEN/NOTIFY connection, and job scheduler.    │
+│  An event-driven runtime that runs alongside the GraphQL    │
+│  server, in the same process.                               │
 │                                                              │
 │  Capabilities:                                               │
-│  ├── Event listener: PostgreSQL NOTIFY → conditions → acts  │
-│  ├── Actions: webhook, email, Slack, cache-invalidate       │
-│  ├── Delivery: retry with backoff, dead letter queue, dedup │
-│  ├── Transports: in-memory, NATS, PG NOTIFY                │
-│  ├── Job queue: persistent async jobs (Redis or PG)         │
+│  ├── Listener: polls core.tb_entity_change_log → conditions │
+│  │   → actions; one replica polls, under an advisory lock   │
+│  ├── Actions: webhook, email, Slack, cache, database, log   │
+│  ├── Delivery: retry with backoff, dead letter queue        │
+│  ├── Transports: PostgreSQL (default), NATS, in-memory      │
 │  └── Admin HTTP API: DLQ, checkpoints, runtime health       │
 │                                                              │
 │  Resource budget when enabled:                               │
-│  - 1 additional PostgreSQL connection (LISTEN/NOTIFY)       │
+│  - 1 additional PostgreSQL connection (the advisory lock)   │
 │  - Memory: channel_capacity events buffered (default 1000)  │
 │             + DLQ entries up to max_dlq_size                │
-│                                                              │
-│  ~30K lines of Rust — effectively a separate service        │
-│  compiled into the same binary.                             │
 │                                                              │
 │  fraiseql-arrow           [feature = "arrow"]               │
 │  └── Arrow Flight for analytics workloads                   │
 │                                                              │
-│  fraiseql-wire            [feature = "wire"]                │
-│  └── PostgreSQL wire protocol compatibility                 │
+│  Other server features: rest, grpc, mcp, federation,        │
+│  metrics, webhooks, secrets, functions-runtime, sources,    │
+│  inbound, cdc-outbound, … (see features-compatibility-      │
+│  matrix.md)                                                 │
+│                                                              │
+│  fraiseql-wire is a library, not a server feature: a        │
+│  streaming PostgreSQL client wrapped by fraiseql-db's       │
+│  read-only FraiseWireAdapter [feature = "wire-backend"].   │
+│  The server binary does not use it (#1566).                 │
 └─────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────┐
@@ -90,19 +100,28 @@ FraiseQL v2 achieves four goals simultaneously:
 
 ### 1. Compilation Boundary
 
-**Schema compilation happens at build time, not runtime.**
+**Schema compilation happens before deploy, not at runtime. SQL is built per request.**
 
 ```
 Authoring (Python/TS) → Compilation (Rust) → Runtime (Rust)
          ↓                      ↓                    ↓
-   schema.json        schema.compiled.json    Server<DatabaseAdapter>
+   schema.json        schema.compiled.json    fraiseql-server (Server)
 ```
+
+Compiling (`fraiseql-cli compile`) validates the schema, binds each query to the view or
+relation it reads (`sql_source`), and embeds the project configuration. With
+`--database`, it also checks those relations against the live database and records native
+columns, foreign-key join columns and pagination order (`crates/fraiseql-cli/src/commands/compile.rs`).
+
+Compiling does not generate SQL. Each request builds its projection SQL and statement text
+from the selection set (`crates/fraiseql-core/src/runtime/executor/runners/query_regular.rs`,
+`crates/fraiseql-db/src/postgres/adapter/`) and runs it as a prepared statement (#1557,
+#1636).
 
 **Why:**
 
-- Zero runtime parsing overhead
-- Schema optimizations applied once
-- Type safety guaranteed at compile time
+- Schema errors are found before deploy, not on the first request
+- The server loads JSON; it runs no authoring-language code
 - Deploy compiled artifacts, not source code
 
 **Never mix authoring with runtime.** Python/TypeScript are authoring languages only.
@@ -131,14 +150,18 @@ impl DatabaseAdapter for PostgresAdapter { ... }
 
 - ✅ Easy to mock for testing (no external services needed)
 - ✅ Clear contracts (trait defines the interface)
-- ✅ Type-generic code (`Server<A: DatabaseAdapter>`)
+- ✅ Generic constructors: `Server::new` takes any `Writer` adapter, `Server::new_read_only`
+  any `DatabaseAdapter`. The `Server` type itself names no adapter; it holds an
+  adapter-erased `Executor`.
 
-**Pattern extends to all integrations:**
+**The same pattern is used for other integrations:**
 
-- `OAuthProvider` trait (Google, GitHub, Keycloak, etc.)
-- `StorageBackend` trait (S3, GCS, local filesystem)
-- `SessionStore` trait (Postgres, Redis, in-memory)
+- `OAuthProvider` trait (Google, GitHub, Keycloak, Okta, Auth0, Azure AD, generic OIDC, etc.)
+- `SessionStore` trait (Postgres, in-memory)
 - `SignatureVerifier` trait (Stripe, GitHub, Shopify, etc.)
+
+File storage is an enum rather than a trait: `fraiseql_storage::StorageBackend` (local,
+S3, GCS, Azure Blob).
 
 ---
 
@@ -146,38 +169,42 @@ impl DatabaseAdapter for PostgresAdapter { ... }
 
 **Opt-in complexity via Cargo features.**
 
+An excerpt of `crates/fraiseql-server/Cargo.toml`:
+
 ```toml
 [features]
-default = []
+default = ["auth", "cli"]
 
 # Optional subsystems
-observers = ["fraiseql-observers", "sqlx"]
-arrow = ["fraiseql-arrow", "tonic", "arrow"]
-metrics = ["prometheus"]
-wire = ["fraiseql-wire", "tokio-postgres"]
-
-# Database backend
-postgres = ["sqlx/postgres"]
+observers = ["dep:fraiseql-observers", "fraiseql-observers/checkpoint"]
+arrow = ["dep:fraiseql-arrow", "dep:tonic"]
+metrics = ["dep:metrics-exporter-prometheus"]
+mcp = ["dep:rmcp"]
+federation = ["fraiseql-core/federation"]
 ```
+
+PostgreSQL is not a feature of the server: `fraiseql-server` always depends on
+`fraiseql-core` with `postgres` enabled. The full list is in
+[features-compatibility-matrix.md](../features-compatibility-matrix.md).
 
 **Usage:**
 
 ```bash
-# Minimal build (GraphQL only)
-cargo build --no-default-features
+# Minimal server build (no auth, no CLI binary)
+cargo build -p fraiseql-server --no-default-features
 
 # With observers + metrics
-cargo build --features "observers,metrics"
+cargo build -p fraiseql-server --features "observers,metrics"
 
 # Everything
-cargo build --all-features
+cargo build -p fraiseql-server --all-features
 ```
 
 **Benefits:**
 
 - ✅ Users pay only for what they use (compilation time, binary size)
 - ✅ Clear feature boundaries
-- ✅ Independent testing (feature combinations are composable)
+- ✅ Feature combinations are checked in CI (`.dagger/feature-combos.go`)
 
 ---
 
@@ -283,29 +310,26 @@ password_env = "FRAISEQL_SMTP_PASSWORD"
 
 ### 5. Arc-Shared State
 
-**Zero-copy concurrency via Arc.**
+**Shared state via Arc.**
 
 ```rust
 // Create once
 let executor = Arc::new(Executor::new(schema, adapter));
 
-// Share across all requests (no cloning)
-let app_state = AppState {
-    executor: executor.clone(),  // Only clones Arc pointer, not data
-    subscription_manager: Arc::new(SubscriptionManager::new(...)),
-    // ...
-};
+// AppState holds the executor behind Arc<ArcSwap<Executor>>, so a schema
+// hot-reload can swap it without a lock on the request path.
+let app_state = AppState::new(executor);
 
-// Axum shares state across handlers
+// Axum shares state across handlers; cloning AppState clones Arc pointers.
 Router::new()
-    .route("/graphql", post(graphql_handler))
+    .route(&config.graphql_path, post(graphql_handler))
     .with_state(app_state)
 ```
 
 **Benefits:**
 
-- ✅ High performance (no data copying)
-- ✅ Simple concurrency model (no mutexes for read-only data)
+- ✅ Requests share the schema and executor without copying them
+- ✅ No mutex on the read path for read-only data
 - ✅ Safe across threads (Arc guarantees)
 
 ---
@@ -460,50 +484,45 @@ server.serve().await?;
 
 ## Performance Patterns
 
-### 1. Compile-Time Optimization
+### 1. Per-Request SQL, Prepared Statements
 
-**Schema compiled to SQL templates:**
+Compilation binds each query to its view; it does not produce SQL. At request time the
+executor builds the projection and `WHERE` for the selection set, with user values as
+bind parameters, and the adapter runs it as a prepared statement (#1557, #1636):
 
 ```rust
-// At build time: GraphQL → SQL template
-query { users(where: { age: { gt: 18 } }) { id name } }
-  ↓
-SELECT data FROM v_user WHERE (data->>'age')::int > $1
+// Request: query { users(where: { age: { gt: 18 } }) { id name } }
+// SQL built for this request, values bound as parameters, e.g.:
+SELECT jsonb_build_object('id', data->'id', 'name', data->'name')
+FROM v_user WHERE (data->>'age')::int > $1
 ```
 
-**At runtime:** Just bind parameters, no parsing.
+`deadpool-postgres`'s `prepare_cached` keeps the parsed statement per connection, keyed on
+the SQL text (`crates/fraiseql-db/src/postgres/adapter/database.rs`).
 
 ### 2. Connection Pooling
 
 ```rust
 pub struct PostgresAdapter {
-    pool: PgPool,  // Shared connection pool
+    pool: Pool,  // deadpool-postgres pool, shared by every request
+    // ...
 }
-
-// All requests share the same pool
-// No per-request connection overhead
 ```
 
-### 3. Query Plan Caching
+### 3. Query Result Caching
 
-```rust
-pub struct QueryPlanner {
-    cache_enabled: bool,
-    // Caches query AST → execution plan mapping
-}
-
-// First query: parse + plan
-// Subsequent queries: cached plan
-```
+`fraiseql-core/src/cache/` holds a W-TinyLFU result cache (moka) with view-based
+invalidation, enabled by `cache_enabled` in `ServerConfig`. Automatic Persisted Queries
+(`fraiseql-core/src/apq/`) let clients send a query hash instead of the query text.
+`QueryPlanner` keeps a `cache_enabled` flag but caches no plans.
 
 ### 4. Introspection Pre-computation
 
 ```rust
-// At server startup:
+// When the Executor is constructed:
 let introspection = IntrospectionResponses::build(&schema);
 
-// At runtime:
-// __schema queries return pre-built response (zero overhead)
+// At runtime: __schema / __type queries are answered from the pre-built response.
 ```
 
 ---
@@ -550,8 +569,8 @@ async fn test_graphql_query_execution() {
 
 ```bash
 # Test with and without observers
-cargo test --features observers
-cargo test --no-default-features
+cargo test -p fraiseql-server --features observers
+cargo test -p fraiseql-server --no-default-features
 ```
 
 ---
@@ -570,16 +589,16 @@ execute("SELECT data FROM v_user WHERE (data->>'id')::bigint = $1", &[user_id])
 ```
 
 **Aggregate and window queries** (updated in v2.1.0): These paths use
-`execute_parameterized_aggregate` with `$N` / `?` / `@P1` bind parameters
-throughout. Column names in `PARTITION BY` / `ORDER BY` are schema-derived and
+`execute_parameterized_aggregate` with `$N` bind parameters throughout. Column names in `PARTITION BY` / `ORDER BY` are schema-derived and
 validated against `WindowAllowlist` before SQL assembly; they are never taken
 directly from user input. The guarantee of fully parameterised execution
 extends to all query paths.
 
 ### 2. Authentication Layers
 
-- OAuth2/OIDC support with 7+ providers:
-  - GitHub, Google, Auth0, Azure AD, Keycloak, Okta, extensible provider system
+- OAuth2/OIDC support with these providers (`fraiseql-auth/src/providers/`):
+  - Apple, Auth0, Azure AD, Discord, Facebook, GitHub, Google, Keycloak, Logto, Okta,
+    Ory, and a generic OIDC provider
 - JWT token validation for sessions with automatic rotation
 - Bearer token for metrics endpoints
 - TLS/mTLS for transport security
@@ -651,21 +670,22 @@ extends to all query paths.
 
 ```rust
 // Similar pattern: schema → GraphQL execution
-// Difference: Compiled ahead of time, not interpreted
+// Difference: the schema is compiled and validated ahead of time;
+// SQL is still built per request
 ```
 
 ### From PostGraphile
 
 ```rust
 // Same: Database-centric approach
-// Difference: Compiled execution, no runtime schema introspection
+// Difference: the server reads a compiled schema; it does not introspect the
+// database at startup (`fraiseql compile --database` does, before deploy)
 ```
 
 ### From Apollo Server
 
 ```rust
-// Different: No resolvers, fully compiled
-// Benefit: 10-100x faster, deterministic behavior
+// Different: no resolvers; every operation reads a view or calls a function
 ```
 
 ---
@@ -705,7 +725,7 @@ fraiseql_core.compile_schema(python_code)  // NO!
 
 // Right: Compile separately
 fraiseql-cli compile schema.json  // Build time
-Server::new(compiled_schema)       // Runtime
+Server::new(config, compiled_schema, adapter, db_pool)  // Runtime
 ```
 
 ### ❌ Don't Add Required Dependencies for Optional Features
@@ -738,16 +758,19 @@ use fraiseql_observers::ObserverRuntime;
 
 ## Decision Log
 
-### Why Generic `Server<A>` Instead of Concrete Types?
+### Why Does `Server` Name No Adapter Type?
 
-**Decision:** Keep `Server<A: DatabaseAdapter>` generic
+**Decision:** `Server` is a concrete type. Its constructors are generic over the adapter
+(`Server::new<A: Writer>`, `Server::new_read_only<A: DatabaseAdapter>`) and hand it straight
+to the `Executor`, which erases it (`crates/fraiseql-server/src/server/mod.rs`).
 
 **Reason:**
 
-- Users can implement custom database adapters
-- Testing is easier (mock adapters)
-- Type safety enforced at compile time
-- No runtime type erasure overhead
+- Swapping backends and injecting mock adapters in tests stay possible: they are a choice
+  made at construction
+- The server and its state types do not carry a type parameter around
+- Whether a server can write is decided by the constructor: a backend that is not a
+  `Writer` is served read-only, and mutations are refused with a diagnostic
 
 ### Why Separate fraiseql-observers Crate?
 
@@ -755,16 +778,17 @@ use fraiseql_observers::ObserverRuntime;
 binary when enabled.
 
 **What it is:** fraiseql-observers is a full event-driven runtime, not a
-lightweight plugin. It includes its own transport layer, job queue, condition
-DSL, high-availability coordinator, and CLI. It adds approximately 30K lines
-of Rust and a second PostgreSQL connection to any deployment that enables it.
+lightweight plugin. It includes its own transport layer, condition DSL,
+retry and dead-letter handling, and a checkpoint lease so one replica polls at a time. It adds about 14K lines
+of non-test Rust and one more PostgreSQL connection (the advisory lock that elects the
+polling replica) to any deployment that enables it.
 
 **Reason for separation:**
 
 - Deployments that don't need event-driven behaviour pay zero cost
   (no compile time, no binary size, no runtime resources)
-- Dependencies are isolated: Redis, NATS, Elasticsearch are not pulled in
-  unless the feature is enabled
+- Dependencies are isolated: Redis and NATS are not pulled in unless the
+  feature is enabled
 - The observer runtime can be tested and versioned independently
 - Future option: deploy as a standalone sidecar if needed
 
@@ -775,13 +799,13 @@ workload. The actions of one event run one after another.
 
 ### Why Remove RuntimeServer?
 
-**Decision:** Consolidated to single `Server<A>` implementation
+**Decision:** Consolidated to a single `Server` implementation
 
 **Reason:**
 
 - RuntimeServer was never used (dead code)
 - Maintaining two server implementations confusing
-- All features can be achieved with `Server<A>` + config
+- All features can be achieved with `Server` + config
 - Simpler codebase, easier to maintain
 
 ---
@@ -791,7 +815,6 @@ workload. The actions of one event run one after another.
 ### Potential Extensions
 
 - Schema registry integration (Confluent, AWS Glue)
-- More database backends (CockroachDB, YugabyteDB)
 - Configuration management enhancements (hierarchical config, expanded observability)
 
 ### NOT Planned
@@ -807,15 +830,17 @@ workload. The actions of one event run one after another.
 ### Key Files
 
 - `fraiseql-core/src/runtime/executor/mod.rs` - Core execution engine
-- `fraiseql-server/src/server.rs` - HTTP server implementation
-- `fraiseql-server/src/server_config.rs` - Configuration schema
+- `fraiseql-db/src/traits.rs` - `DatabaseAdapter` trait
+- `fraiseql-db/src/postgres/adapter/mod.rs` - `PostgresAdapter`
+- `fraiseql-server/src/server/mod.rs` - HTTP server implementation
+- `fraiseql-server/src/server_config/mod.rs` - Configuration schema
 - `fraiseql-server/src/main.rs` - Binary entry point
 
 ### Key Traits
 
 - `DatabaseAdapter` - Database backend abstraction
 - `OAuthProvider` - Authentication provider abstraction
-- `StorageBackend` - File storage abstraction
+- `StorageBackend` - File storage backend enum (fraiseql-storage)
 - `ActionExecutor` - Observer action abstraction (fraiseql-observers)
 
 ### Configuration Guide
@@ -830,20 +855,20 @@ workload. The actions of one event run one after another.
 ### Key Commands
 
 ```bash
-# Build minimal
-cargo build --no-default-features
+# Build minimal server
+cargo build -p fraiseql-server --no-default-features
 
 # Build with all features
-cargo build --all-features
+cargo build --workspace --all-features
 
 # Run server
-cargo run -- --config server.toml
+cargo run -p fraiseql-server -- --config server.toml
 
 # Run tests
-cargo test --all-features
+cargo test --workspace --all-features
 
 # Check without building
-cargo check --all-features
+cargo check --workspace --all-features
 ```
 
 ---
@@ -853,7 +878,7 @@ cargo check --all-features
 FraiseQL v2's architecture achieves:
 
 ✅ **Best DX** through simple entry points and optional features
-✅ **Best Performance** through compilation and zero-copy sharing
+✅ **Best Performance** through prepared statements, pooling, result caching and shared state
 ✅ **Most Simple** through clean abstractions and trait-based design
 ✅ **Most Complete** through comprehensive optional subsystems
 
@@ -862,9 +887,9 @@ The layered optionality pattern allows users to start minimal and grow as needed
 ---
 
 **Architecture Status**: Core production-ready (v2.17.1 released)
-**Last Updated**: August 2, 2026 (Enterprise features: secrets, auth, RBAC available; field-level at-rest encryption not implemented)
-**Lines of Code**: ~350,000 across workspace (hand-written source; excludes generated fuzz corpus and build artefacts)
+**Last Updated**: October 22, 2026 (Enterprise features: secrets, auth, RBAC available; field-level at-rest encryption not implemented)
+**Lines of Code**: ~750,000 lines of Rust tracked under `crates/`, tests included, fuzz targets excluded (counted October 22, 2026)
 **Test Coverage**: 15,000+ tests (unit, async integration, property-based, snapshot)
-**Unsafe Code**: Zero (forbidden at compile time)
+**Unsafe Code**: No hand-written `unsafe`. The workspace lint is `unsafe_code = "deny"`, not `forbid`, so `fraiseql-functions` can allow it on `wasmtime` bindgen-generated glue
 
 **See also**: [Database Compatibility](../database-compatibility.md) — PostgreSQL is the only supported backend (non-PostgreSQL adapters were removed in v2.15.0).

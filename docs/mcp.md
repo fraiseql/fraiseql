@@ -4,12 +4,15 @@ FraiseQL includes built-in support for the [Model Context Protocol](https://mode
 
 ## Enabling MCP
 
-MCP support is compiled behind the `mcp` Cargo feature flag. It is not included in the default feature set.
+MCP support is compiled behind the `mcp` Cargo feature flag of `fraiseql-server`. It is
+not in the crate's default feature set. The `fraiseql-server` binary in the `-full` release
+archive and the `server-platform` Docker image are built with it; the lean release binary
+and the `server` image are not.
 
 ### 1. Build with the `mcp` feature
 
 ```bash
-cargo build --release --features mcp
+cargo build --release -p fraiseql-server --features mcp
 ```
 
 ### 2. Enable MCP in `fraiseql.toml`
@@ -24,12 +27,12 @@ enabled = true
 Then recompile so the MCP configuration is embedded in the compiled schema:
 
 ```bash
-fraiseql-cli compile schema.json
+fraiseql-cli compile fraiseql.toml -o schema.compiled.json
 ```
 
 ### 3. Launch in stdio mode
 
-MCP stdio mode is activated by setting the `FRAISEQL_MCP_STDIO` environment variable (any value). When this variable is present, the server reads JSON-RPC requests from **stdin** and writes responses to **stdout** instead of starting its normal HTTP listener.
+MCP stdio mode is activated by setting the `FRAISEQL_MCP_STDIO` environment variable (any value). It is the only switch for stdio: the `[mcp] transport` key does not start it. When this variable is present, the server reads JSON-RPC requests from **stdin** and writes responses to **stdout** instead of starting its normal HTTP listener.
 
 ```bash
 FRAISEQL_MCP_STDIO=1 fraiseql-server
@@ -98,7 +101,7 @@ In Claude Desktop's `claude_desktop_config.json`:
 
 ## Available Tools
 
-Every query and mutation in your compiled schema is automatically exposed as an MCP tool. The tool name matches the GraphQL operation name, and the input schema is derived from the operation's argument definitions.
+Every query and mutation in your compiled schema is exposed as an MCP tool, subject to `include`, `exclude` and `read_only`. The tool name is the operation's GraphQL name (camelCased under the default naming convention). The input schema is the operation's declared arguments plus, for a query, the auto-wired `where`, `orderBy`, `limit` and `offset` arguments its `auto_params` enable. The description is the operation's own description, or `Query: <name>` / `Mutation: <name>` when it has none.
 
 For example, given this schema:
 
@@ -109,18 +112,20 @@ class User:
     name: str
     email: str
 
-@fraiseql.query(returns=User)
-def users(limit: int = 10): ...
+@fraiseql.query(sql_source="v_user")
+def users(limit: int = 10) -> list[User]:
+    """Fetches user records."""
 
-@fraiseql.mutation(sql_source="create_user", operation="INSERT")
-def createUser(name: str, email: str): ...
+@fraiseql.mutation(sql_source="fn_create_user", operation="CREATE")
+def create_user(name: str, email: str) -> User:
+    """Creates a new user."""
 ```
 
 The following MCP tools are registered:
 
 | Tool name | Type | Arguments | Description |
 |-----------|------|-----------|-------------|
-| `users` | Query | `limit` (integer, optional) | Fetches user records |
+| `users` | Query | `limit` (integer, optional), plus the auto-wired `where`, `orderBy`, `offset` (optional) | Fetches user records |
 | `createUser` | Mutation | `name` (string, required), `email` (string, required) | Creates a new user |
 
 When an AI client calls a tool, FraiseQL builds a GraphQL query from the tool name and arguments, executes it through the standard query pipeline (including RLS, caching, and validation), and returns the JSON result.
@@ -255,8 +260,9 @@ All MCP settings live under `[mcp]` in `fraiseql.toml`:
 # Enable MCP server endpoint (default: false).
 enabled = true
 
-# Transport mode: "http", "stdio", or "both" (default: "http").
-# When using FRAISEQL_MCP_STDIO=1, the transport setting is overridden to stdio.
+# Transport: "http" (default), "stdio" or "both". The HTTP endpoint is mounted
+# only for "http" and "both". Stdio mode is started by FRAISEQL_MCP_STDIO=1 alone,
+# whatever this key says; the process then serves stdio and no HTTP listener.
 transport = "stdio"
 
 # HTTP path for the MCP endpoint, used when transport includes "http" (default: "/mcp").
@@ -367,7 +373,7 @@ fault does not hand an AI agent internal relation names or SQLSTATE codes.
 
 ## Limitations
 
-- **One transport per process.** `transport` selects `"http"` (default), `"stdio"`, or `"both"`; setting `FRAISEQL_MCP_STDIO=1` switches the process to stdio. HTTP and stdio cannot serve simultaneously in a single process.
+- **One transport per process.** `transport = "http"` (default) or `"both"` mounts the HTTP endpoint; `"stdio"` does not. Setting `FRAISEQL_MCP_STDIO=1` switches the process to stdio. HTTP and stdio cannot serve simultaneously in a single process, so `"both"` behaves like `"http"`.
 - **Prefer `read_only = true`.** Set `[mcp] read_only = true` unless you deliberately
   expose write operations — it guarantees **no mutation is ever exposed as an MCP tool**,
   regardless of `include`/`exclude`, and (critically) a mutation added to the schema later
@@ -377,6 +383,6 @@ fault does not hand an AI agent internal relation names or SQLSTATE codes.
   one is exposed. RLS and authentication still apply, but AI-initiated writes carry
   inherent risk, so default to read-only.
 - **No streaming.** MCP tool results are returned as a single JSON text block. Large result sets should be paginated using query arguments (`limit`/`offset`).
-- **Feature flag required.** MCP support is not compiled by default. You must build with `--features mcp` to include it. This keeps the binary size minimal for deployments that do not need MCP.
+- **Feature flag required.** MCP support is not in `fraiseql-server`'s default features. Build with `--features mcp`, or use the `-full` release archive or the `server-platform` image, which include it.
 - **Single session.** The stdio transport serves one MCP client at a time. For multi-client scenarios, run separate server processes.
 - **Tenant cost budgets do not apply to MCP.** An MCP document's shape is fixed by the schema, so its estimated cost is constant per tool and the check would meter nothing — it would either always pass or permanently disable that tool. Volume is bounded by the tenant's concurrency permit and per-second limiter, which do apply, and the schema-wide `[security.cost_budget] per_request_max` is enforced inside the executor for MCP as for every transport.

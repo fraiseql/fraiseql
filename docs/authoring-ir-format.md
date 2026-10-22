@@ -27,7 +27,7 @@ Your code  →  SDK  →  schema.json  →  fraiseql-cli compile  →  schema.co
 | `"Int"`      | `Int`          | 32-bit signed integer          |
 | `"Float"`    | `Float`        | Double precision               |
 | `"Boolean"`  | `Boolean`      |                                |
-| `"ID"`       | `ID`           | UUID v4 in FraiseQL            |
+| `"ID"`       | `ID`           | An argument value may be a string or an integer |
 | `"DateTime"` | `DateTime`     | ISO 8601                       |
 | `"Date"`     | `Date`         | ISO 8601 date-only             |
 | `"Time"`     | `Time`         | ISO 8601 time-only             |
@@ -39,8 +39,12 @@ Your code  →  SDK  →  schema.json  →  fraiseql-cli compile  →  schema.co
 | `"HalfVector"` | `[Float!]!`  | pgvector `halfvec` — requires `vector_config` |
 | `"SparseVector"` | `String`   | pgvector `sparsevec` — requires `vector_config` |
 
-Any unrecognized type name (e.g. `"User"`, `"Post"`) is treated as a reference
-to a GraphQL **object type** defined elsewhere in the schema.
+Any other type name is resolved against what the schema declares, in this order:
+a declared object type, enum, interface or union keeps its kind; a declared custom
+scalar, or one of the engine's built-in rich scalars (`Email`, `Hostname`, …), is a
+scalar. A name declared nowhere (a typo such as `"Strng"`) is a compile error naming
+the field (`crates/fraiseql-cli/src/schema/converter/mod.rs`,
+`schema/validator/schema_validator.rs`, #923, #1530).
 
 ### Vector fields (#386)
 
@@ -148,8 +152,13 @@ appending `!` to the type name:
 }
 ```
 
-**Do not use `"ID!"`**. While the compiler will accept it (stripping the `!`
-and emitting a warning), the canonical format omits the non-null marker entirely.
+**Do not use `"ID!"`**. The compiler accepts it and strips the trailing `!` without a
+warning; the field's nullability still comes from `nullable` alone. The canonical format
+omits the marker.
+
+A list field or argument is written as an SDL list string: `"[String!]"` is a list
+whose items are never `null`, `"[String]"` one whose items may be. Lists nest
+(`"[[Int!]]"`). The outermost `!`, if present, is stripped as above (#434, #1586).
 
 ### Common mistakes
 
@@ -157,7 +166,7 @@ and emitting a warning), the canonical format omits the non-null marker entirely
 |-------------------------------|-------------------------------|--------------------------------------|
 | `"type": "ID!"`               | `"type": "ID"`                | `!` is redundant; use `nullable`     |
 | `"type": "String!"`           | `"type": "String"`            | Same                                 |
-| `"type": "[String!]!"`        | `"type": "String"` + list     | Lists are expressed via `returns_list` on queries, not in the type string |
+| `"type": "[String!]!"`        | `"type": "[String!]"` + `"nullable": false` | The list wrapper belongs in the type string; the outer `!` is redundant |
 | `"field_type": "String"`      | `"type": "String"`            | JSON key is `"type"`, not `"field_type"` |
 | `"arg_type": "Int"`           | `"type": "Int"`               | JSON key is `"type"`, not `"arg_type"` |
 | `"default_value": 42`         | `"default": 42`               | JSON key is `"default"`, not `"default_value"` |

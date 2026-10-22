@@ -2,127 +2,129 @@
 
 ## What It Is
 
-`fraiseql-wire` is a streaming JSON query engine optimized for FraiseQL's data model. It
-connects to PostgreSQL and streams results as bounded-memory JSON chunks, making it
-suitable for large analytical result sets where buffering the entire response is
-impractical.
+`fraiseql-wire` is a streaming JSON query client for PostgreSQL. It implements the
+PostgreSQL frontend/backend protocol itself (startup, SCRAM authentication, TLS, simple
+query), connects to PostgreSQL over TCP or a Unix socket, and streams the `data` column of
+each row as JSON in bounded chunks.
 
-It is **not** a general-purpose PostgreSQL driver. It supports a narrow, purpose-built
-query shape and trades generality for throughput and memory efficiency:
+It is **not** a general-purpose PostgreSQL driver. It supports one narrow query shape:
 
-- **Memory**: O(chunk_size), not O(result_size) — 100-row chunks regardless of total row count
-- **Throughput**: 100K–500K rows/sec, comparable to `tokio-postgres` for bulk reads
-- **Time-to-first-row**: 2–5ms (results start flowing before the query completes)
+- **Memory**: rows are buffered per chunk, not per result. The default chunk size is 256
+  rows (`QueryBuilder::chunk_size`); adaptive chunking and memory soft limits are opt-in.
+- **Platform**: Unix-like systems only. The crate fails to compile elsewhere
+  (`compile_error!` in `src/lib.rs`).
 
 ## How It Differs from the Database Adapter
 
-`fraiseql-db` and `fraiseql-wire` both talk to PostgreSQL, but they serve opposite
-directions:
+`fraiseql-db` and `fraiseql-wire` are both PostgreSQL clients. They differ in what they
+can run:
 
 | | `fraiseql-db` PostgreSQL adapter | `fraiseql-wire` |
 |---|---|---|
-| **Direction** | FraiseQL connects *to* PostgreSQL as a client | Clients connect *to* the wire engine |
-| **Protocol role** | PostgreSQL client (uses `sqlx`/`tokio-postgres`) | Streaming query engine over `deadpool-postgres` |
-| **Purpose** | General query execution, mutations, introspection | Streaming large JSON result sets |
-| **Query shape** | Arbitrary SQL | `SELECT data FROM {v_*|tf_*} [WHERE …] [ORDER BY …]` |
-| **Result handling** | Buffer full result in memory | Stream row-by-row in bounded chunks |
-| **Platform** | Cross-platform | All platforms (Unix optimized) |
-| **Writes** | Full CRUD via `MutationCapable` | Read-only |
+| **Protocol role** | PostgreSQL client (`tokio-postgres` with a `deadpool-postgres` pool) | PostgreSQL client with its own protocol implementation; one connection per `FraiseClient`, no pool |
+| **Purpose** | Query execution, mutations, introspection | Streaming large JSON result sets |
+| **Query shape** | Any SQL the engine builds | `SELECT data FROM {entity} [WHERE …] [ORDER BY …] [LIMIT N] [OFFSET M]` |
+| **Platform** | Cross-platform | Unix-like systems only |
+| **Writes** | Yes, through the `Writer` trait | Read-only |
+
+`fraiseql-db` wraps this crate as `FraiseWireAdapter` behind its `wire-backend` feature.
+That adapter is not a `Writer`, so an embedder serves it with `Server::new_read_only`.
+The `fraiseql-server` binary does not use it: it boots on `PostgresAdapter` only (#1566).
 
 ## Supported Query Shape
 
-The wire engine accepts a narrow query form:
+The query builder (`FraiseClient::query::<T>(entity)`) emits this form:
 
 ```sql
-SELECT data
-FROM v_{entity} | tv_{entity}
-[WHERE predicate]
-[ORDER BY expression [COLLATE collation] [ASC|DESC]]
+SELECT data            -- or SELECT <projection> AS data, via select_projection()
+FROM {entity}
+[WHERE predicate [AND predicate ...]]
+[ORDER BY expression]
 [LIMIT N] [OFFSET M]
 ```
 
 Constraints:
 
-- Exactly one column named `data` (type `json` or `jsonb`)
+- One column named `data` (type `json` or `jsonb`)
 - No joins, no subqueries, no mutations
 - One active query per connection
+
+The type parameter `T` only controls how each row is deserialized on the consumer side. It
+does not change the SQL.
 
 ## When to Use It
 
 Use `fraiseql-wire` when:
 
-- Streaming large result sets to clients with bounded server memory
-- Integrating with tooling that expects a streaming JSON protocol
-- Building pagination-free data export pipelines
-- The query involves a `v_*` (view) or `tf_*` (fact table) with many rows
+- Streaming large result sets with bounded client memory
+- Building data export pipelines that read one view row by row
 
 Use `fraiseql-db` (the standard adapter) when:
 
 - Executing mutations
 - Running schema introspection or migrations
-- Running arbitrary queries (aggregations, joins)
-- Memory is not a concern for the result size
+- Running any query outside the shape above (aggregations, joins)
 
 ## Architecture
 
 ```
 Client application
       │
-      │  FraiseClient::query(sql, predicates)
+      │  FraiseClient::query::<T>(entity).where_sql(..).where_rust(..).execute()
       ▼
 fraiseql-wire
       │
-      ├─ SQL predicates pushed to PostgreSQL (WHERE clause)
-      ├─ Rust predicates evaluated after deserialization (hybrid filtering)
+      ├─ SQL predicates sent to PostgreSQL (WHERE clause)
+      ├─ Rust predicate evaluated on each JSON row (hybrid filtering)
       │
       ▼
-PostgreSQL (v_entity / tf_entity)
+PostgreSQL (the named view or table)
       │
-      │  Rows streamed from socket incrementally
+      │  Rows read from the socket incrementally
       ▼
-Bounded async channel (backpressure-aware)
+Bounded async channel (backpressure, pause/resume)
       │
       │  Chunks of N rows
       ▼
-Consumer (async iterator)
+Consumer (async stream of T)
 ```
 
-Dropping the stream automatically cancels the in-flight query.
+Dropping the stream stops the background reader task. The crate does not send a
+PostgreSQL cancel request.
 
 ## Hybrid Filtering
 
-The wire engine supports two-layer filtering to minimize wire traffic while allowing
-application-level refinement:
+The query builder supports two-layer filtering: SQL predicates reduce what PostgreSQL
+sends, and a Rust predicate refines rows after they arrive.
 
 ```rust
-// SQL predicate: pushed to the database (reduces network traffic)
-let sql_predicates = vec![
-    WhereClause::new("customer_id", WhereOperator::Eq, customer_id),
-];
-
-// Rust predicate: evaluated after deserialization (application logic)
-let rust_predicate = |row: &Order| row.amount > 100.0;
-
-let stream = client.query(sql, sql_predicates, Some(rust_predicate)).await?;
+let stream = client
+    .query::<Order>("v_order")
+    // SQL predicate: added to the WHERE clause, AND-ed with any others
+    .where_sql("data->>'customer_id' = 'c-42'")
+    // Rust predicate: evaluated on each row's JSON value before deserialization into T
+    .where_rust(|row| row["amount"].as_f64().is_some_and(|a| a > 100.0))
+    .execute()
+    .await?;
 ```
 
 ## Module Structure
 
 | Module | Purpose |
 |--------|---------|
-| `auth` | Connection authentication helpers |
-| `client` | `FraiseClient` — top-level entry point for queries |
-| `connection` | Connection pool management (wraps `deadpool-postgres`) |
-| `error` | `Error` and `Result` types |
-| `json` | JSON value parsing and field extraction |
-| `metrics` | `fraiseql_stream_rows_yielded`, `fraiseql_query_duration_ms`, etc. |
-| `operators` | `WhereOperator` enum for SQL predicate construction |
-| `protocol` | Wire-level PostgreSQL interaction |
-| `stream` | Bounded async channel, backpressure, pause/resume |
-| `util` | Shared utilities |
+| `auth` | SCRAM-SHA-256 authentication |
+| `client` | `FraiseClient`, connection strings, and the `QueryBuilder` |
+| `connection` | Transport (TCP or Unix socket), TLS, connection state machine |
+| `error` | `WireError` and `Result` types |
+| `json` | JSON validation of row payloads |
+| `metrics` | Counters, gauges and histograms, e.g. `fraiseql_queries_total`, `fraiseql_query_total_duration_ms`, `fraiseql_rows_processed_total` |
+| `operators` | `WhereOperator`, `Field`, `OrderByClause` for SQL predicate construction |
+| `protocol` | PostgreSQL message encoding and decoding |
+| `stream` | Chunking, adaptive chunking, filtering, typed streams, pause/resume |
+| `util` | Byte and OID helpers |
 
 ## Further Reading
 
 - `crates/fraiseql-wire/README.md` — Usage guide and configuration reference
 - `crates/fraiseql-wire/typed-streaming-guide.md` — Type-safe deserialization
-- `crates/fraiseql-wire/connection-pooling.md` — Connection pool tuning
+- `crates/fraiseql-wire/connection-pooling.md` — Using the client with an external pool

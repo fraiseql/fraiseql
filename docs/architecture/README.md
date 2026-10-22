@@ -8,7 +8,7 @@ This directory contains the authoritative architecture documentation for FraiseQ
 |-------------|------|
 | Understand the big picture (3-layer model, design principles) | [overview.md](overview.md) |
 | **Write an SDK** (understand the schema.json contract) | [intermediate-schema.md](intermediate-schema.md) |
-| Add a new database backend | [overview.md](overview.md) — "Database Abstraction" section |
+| Understand the database adapter boundary | [overview.md](overview.md) — "Trait-Based Adapters" section, and [../database-compatibility.md](../database-compatibility.md) |
 | Understand auth, RLS, and the security model | [overview.md](overview.md) — "Security Model" section |
 | Understand the test strategy | [../testing.md](../testing.md) |
 | Understand cache sharding, TTL, and invalidation | [../modules/cache.md](../modules/cache.md) |
@@ -23,8 +23,11 @@ This directory contains the authoritative architecture documentation for FraiseQ
 
 ## Summary
 
-**FraiseQL v2** is a compiled GraphQL execution engine that transforms schema definitions into
-optimized SQL at build time. The architecture has three distinct layers:
+**FraiseQL v2** is a compiled GraphQL execution engine. Compiling validates the schema,
+binds each query to the view or relation it reads and, with `--database`, records native
+columns, foreign-key join columns and pagination order from the live database. SQL is not
+generated at compile time: the server builds each request's SQL from its selection set and
+runs it as a prepared statement (#1636, #1557). The architecture has three distinct layers:
 
 ```
 Authoring               Compilation              Runtime
@@ -33,8 +36,8 @@ Authoring               Compilation              Runtime
 schema.json    +    fraiseql.toml      →    schema.compiled.json    →    GraphQL Server
 ```
 
-- **[overview.md](overview.md)** — The 3-layer model, database abstraction, security model,
-  error handling, testing strategy, and key architectural decisions.
+- **[overview.md](overview.md)** — The layered model, the adapter traits, configuration,
+  security model, testing strategy, and key architectural decisions.
 
 
 - **[intermediate-schema.md](intermediate-schema.md)** — The `schema.json` contract between

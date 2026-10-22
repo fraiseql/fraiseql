@@ -1,126 +1,141 @@
 # Apollo Federation v2 in FraiseQL
 
-FraiseQL implements Apollo Federation v2 as an optional layer (enable with the `federation`
-Cargo feature). Unlike a traditional gateway that routes at runtime, FraiseQL compiles
-the federation contract into SQL execution plans at build time, eliminating overhead for
-deterministic cross-subgraph queries.
+FraiseQL implements Apollo Federation v2 subgraph support as an optional layer (enable
+with the `federation` Cargo feature on `fraiseql-server`, `fraiseql-core` or `fraiseql-cli`).
+FraiseQL is a subgraph, not a gateway: an Apollo-compatible router composes the supergraph
+and calls this server's `_service` and `_entities` fields. Compilation validates each
+entity's `@key` and embeds the federation metadata in `schema.compiled.json`; the
+`_entities` lookup SQL is built per request.
+
+Cross-subgraph sagas live in a separate crate, `fraiseql-saga`, which no other crate in
+the workspace depends on (see [Layer 3](#layer-3--cross-subgraph-mutations-fraiseql-saga)).
 
 ## Component Map
 
 ```
 crates/fraiseql-federation/src/
-├── entity_resolver.rs        # @key entity resolution + batching (MAX_ENTITIES_BATCH_SIZE = 1000)
-├── http_resolver.rs          # HTTP subgraph client (SSRF-hardened via reqwest::Url::parse)
-├── representation.rs         # _Any scalar → EntityRepresentation parsing
-├── composition_validator.rs  # @key / @requires / @provides compile-time validation
-├── requires_provides_validator.rs
-├── dependency_graph.rs       # Cross-entity dependency ordering
-├── mutation_executor.rs      # Cross-subgraph mutation dispatch
-├── mutation_http_client.rs   # HTTP client for subgraph mutations (SSRF-protected)
-├── saga_coordinator.rs       # SagaCoordinator facade (`saga` feature)
-├── saga_compensator.rs       # Compensation (rollback) executor (`saga` feature)
-├── saga_executor/            # Forward phase: step execution + @requires pre-fetch (`saga` feature)
-├── saga_recovery_manager.rs  # On-restart recovery w/ SKIP LOCKED leasing (`saga` feature)
-├── saga_store.rs             # PostgreSQL persistence for saga state
-└── circuit_breaker (server)  # In fraiseql-server/src/federation/circuit_breaker.rs
+├── entity_resolver.rs             # _entities batch resolution from the local database (MAX_ENTITIES_BATCH_SIZE = 1000)
+├── representation.rs              # _Any scalar → EntityRepresentation parsing (same 1000 cap)
+├── database_resolver.rs           # Per-type lookup against the entity's backing relation
+├── query_builder.rs, sql_utils.rs # Lookup SQL construction
+├── selection_parser.rs            # Field selection for the lookup
+├── service_sdl.rs                 # _service { sdl } rendering
+├── http_resolver.rs               # HttpEntityResolver: _entities over HTTPS (SSRF-hardened); used by fraiseql-saga
+├── composition_validator.rs       # CompositionValidator: library API (not called by the compiler)
+├── requires_provides_validator.rs # @requires / @provides validation
+├── dependency_graph.rs            # Cross-entity dependency ordering
+├── connection_manager.rs          # Gateway-mode connections (`unstable` feature)
+├── direct_db_resolver.rs          # Direct-DB federation (`unstable`; stub)
+├── observability.rs               # Subgraph latency histogram, entity resolution counters
+└── health.rs, logging.rs, tracing.rs, tls.rs, types.rs, metadata_helpers.rs, query_plan_cache.rs
+
+crates/fraiseql-saga/src/
+├── saga_coordinator.rs            # SagaCoordinator facade
+├── saga_executor/                 # Forward phase: step execution + @requires pre-fetch
+├── saga_compensator.rs            # Compensation (rollback) executor
+├── saga_recovery_manager.rs       # On-restart recovery with SKIP LOCKED leasing
+├── saga_store.rs                  # PostgreSQL persistence for saga state
+├── mutation_executor.rs           # Local step dispatch through the core mutation path
+└── mutation_http_client.rs        # HTTPS client for remote steps (SSRF-protected)
+
+crates/fraiseql-server/src/federation/
+├── circuit_breaker.rs             # Per-entity-type circuit breaker
+└── health_checker.rs
 ```
 
 ## Architecture Layers
 
-### Layer 1 — Schema Composition (compile time)
+### Layer 1 — Schema Validation (compile time)
 
-The FraiseQL CLI validates the composed supergraph before producing
-`schema.compiled.json`:
+`fraiseql compile` reads the `[federation]` section of `fraiseql.toml` and:
 
-1. Parse subgraph schemas and `@key` directives
-2. `CompositionValidator` checks for conflicts, missing keys, invalid `@requires`
-3. `DependencyGraph` resolves cross-entity reference ordering
-4. Compiled schema embeds the `federation` section with entity metadata and
-   circuit breaker configuration
+1. Checks each entity's `key_fields` against the type it names: every field must exist,
+   spelled as published, and an `embedded` type cannot be an entity
+   (`crates/fraiseql-core/src/schema/compiled/federation_keys.rs`, #1395)
+2. Checks `federation.circuit_breaker.per_database` entries name a declared entity and
+   carry non-zero thresholds
+3. Embeds the `federation` section (entities, keys, circuit breaker configuration) in
+   `schema.compiled.json`
+
+Loading a compiled schema runs the same key check, so a hand-edited artifact with a bad
+key cannot reach a server.
 
 ```bash
-fraiseql compile schema/ -o schema.compiled.json
+fraiseql compile fraiseql.toml -o schema.compiled.json
+fraiseql federation check schema.compiled.json --against other.compiled.json
 ```
 
 ### Layer 2 — Entity Resolution (runtime)
 
-When a federated query contains `_entities`, FraiseQL:
+When a request selects `_entities`, the executor
+(`crates/fraiseql-core/src/runtime/executor/support/federation.rs`):
 
 1. Parses `_Any` scalars into typed `EntityRepresentation` objects
-2. Groups representations by `__typename`
-3. Chooses a resolution strategy per entity type:
-   - **Local**: Entity lives in this subgraph's database — resolved via SQL
-   - **HTTP**: Entity lives in a remote subgraph — fetched via `HttpEntityResolver`
-4. Batches requests (up to `MAX_ENTITIES_BATCH_SIZE = 1000` per batch)
-5. Merges results and applies field projection
+2. Refuses the batch if it holds more than `MAX_ENTITIES_BATCH_SIZE = 1000` representations
+3. Applies the type's authorization and row filters
+4. Groups representations by `__typename`
+5. Resolves each group from this subgraph's database, through the executor's adapter
+6. Returns results in input order and projects each entity against the requested selection
+
+Every entity is resolved locally. Fields marked `@override(from: …)` are owned by this
+subgraph and resolved here too; routing across subgraphs is the router's job.
 
 ```text
 _entities(representations: [...])
     │
-    ▼ EntityResolver
-    ├── Local entities → SQL via CachedDatabaseAdapter
-    └── Remote entities → HttpEntityResolver → subgraph HTTP endpoint
-                              ↑
-                         CircuitBreaker (per entity type)
+    ▼ CircuitBreaker check (per entity type, fraiseql-server)
+    │
+    ▼ batch_load_entities_enforced (fraiseql-federation)
+    └── SQL lookup per __typename → this subgraph's database
 ```
 
-### Layer 3 — Cross-Subgraph Mutations (saga pattern)
+### Layer 3 — Cross-Subgraph Mutations (fraiseql-saga)
 
-> **Stable, behind the opt-in `saga` Cargo feature** on `fraiseql-federation`. The full
-> round-trip is wired: forward execution over **local SQL** or **remote HTTPS**
-> (`SagaCoordinator` / `execute_saga`, with optional mTLS), automatic
-> **compensation** in reverse order (local or remote), concurrency-safe on-restart
-> **recovery** (`SELECT … FOR UPDATE SKIP LOCKED` leasing), per-step **retry with
-> backoff + timeout**, and cross-subgraph **`@requires` pre-fetch**. The public handle
-> is `SagaCoordinator`; when the `saga` feature is off, the saga types are not compiled.
+Saga orchestration is the `fraiseql-saga` crate. It is a library: `fraiseql-server`,
+`fraiseql-core` and the umbrella `fraiseql` crate do not depend on it, and there is no
+`saga` Cargo feature. Adding the crate is the opt-in.
 
-Cross-subgraph mutations use a saga orchestrator. Each saga step has a forward action and
-a compensation action; on failure, compensation runs in reverse order (N→1) for
-best-effort rollback.
+It provides forward execution over **local SQL** or **remote HTTPS**
+(`SagaCoordinator` / `execute_saga`, with optional mTLS), **compensation** in reverse
+order, on-restart **recovery** (`SELECT … FOR UPDATE SKIP LOCKED` leasing), per-step
+**retry with backoff and timeout**, and cross-subgraph **`@requires` pre-fetch** through
+`HttpEntityResolver`. A local step runs through
+`Executor::execute_mutation_with_security`, so it passes the same authorization and
+validation gates as any other mutation (#1354).
 
 See [federation-saga.md](../guides/federation-saga.md) for the developer guide.
 
 ### Layer 4 — Circuit Breaker
 
-Each entity type has an independent circuit breaker in `fraiseql-server`.
-The breaker protects against cascading failures when a subgraph becomes slow or
-unavailable.
+Each entity type has an independent circuit breaker in `fraiseql-server`, configured from
+the compiled `federation.circuit_breaker` section. While a type's breaker is open, an
+`_entities` request naming that type is refused with a `circuit_breaker_open` error
+carrying a retry hint.
 
 See [circuit-breaker.md](../guides/circuit-breaker.md) for configuration and tuning.
 
-## Data Flow: Cross-Subgraph Query
+## Data Flow: `_entities` Request
 
 ```
-Client → POST /graphql
+Router → POST /graphql  { _entities(representations: [...]) { ... } }
     │
-    ▼ GraphQL Handler
+    ▼ GraphQL handler
     │  Parse + validate query
     │
-    ▼ FederationExecutor
-    │  Detect federated entity references
+    ├── Circuit breaker open for a named type → refused (circuit_breaker_open, retry hint)
     │
-    ├─ Local fields → SQL (zero overhead, compiled at build time)
+    ▼ Executor: execute_federation_query
     │
-    └─ Remote entities → EntityResolver
-           │
-           ▼ CircuitBreaker.try_request()
-           │
-           ├── CLOSED → HttpEntityResolver.resolve_batch()
-           │       └── POST {subgraph_url}/_entities
-           │
-           └── OPEN → 503 Service Unavailable + Retry-After header
+    └── Lookup SQL per __typename, built for this request → PostgreSQL
 ```
 
 ## Data Flow: Cross-Subgraph Mutation (Saga)
 
-> Wired behind the opt-in `saga` feature via `SagaCoordinator`: forward steps run
-> over local SQL or remote HTTPS, and on failure the completed steps are compensated in
-> reverse order.
+> Available to an embedder that uses `fraiseql-saga` directly. The `fraiseql-server`
+> binary does not run sagas.
 
 ```
-Client → mutation { createOrder(...) }
-    │
-    ▼ SagaCoordinator.execute_saga()
+Embedder code → SagaCoordinator.execute_saga()
     │
     ├── Step 1: inventory-service.reserveInventory  ← forward
     │     └── OK → persist step result to tb_federation_saga_steps
@@ -144,30 +159,31 @@ Client → mutation { createOrder(...) }
   anonymous caller for a scoped type, and the per-row predicate builder. A type and its
   query declaring one column from two different sources is refused at load. `requires_role`
   has been read from the type since #1030.
-- **SSRF protection**: `http_resolver.rs` and `mutation_http_client.rs` use
-  `reqwest::Url::parse()` + private-IP rejection. IPv6 brackets are stripped before
+- **SSRF protection**: `fraiseql-federation/src/http_resolver.rs` and
+  `fraiseql-saga/src/mutation_http_client.rs` use `reqwest::Url::parse()` + private-IP
+  rejection. IPv6 brackets are stripped before
   `IpAddr::parse()` to prevent bypass via `[::1]` notation.
-- **Batch size cap**: `MAX_ENTITIES_BATCH_SIZE = 1000` in `representation.rs`
-  prevents memory exhaustion from oversized `_entities` queries.
-- **State isolation**: saga state persists to the `tb_federation_saga*` tables before each
-  step, enabling on-restart recovery. `SagaRecoveryManager::run_iteration` /
-  `start_background_loop` (the `saga` feature) re-drive crash-interrupted sagas,
+- **Batch size cap**: `MAX_ENTITIES_BATCH_SIZE = 1000` in `representation.rs` and
+  `entity_resolver.rs` refuses oversized `_entities` batches.
+- **State isolation** (`fraiseql-saga`): saga state persists to the
+  `tb_federation_sagas`, `tb_federation_saga_steps` and `tb_federation_saga_recovery`
+  tables before each step, enabling on-restart recovery.
+  `SagaRecoveryManager::run_iteration` / `start_background_loop` re-drive crash-interrupted sagas,
   claiming stuck sagas under a lease via `SELECT … FOR UPDATE SKIP LOCKED` so concurrent
   recovery workers never double-drive one.
 
 ## Observability
 
-Prometheus metrics emitted by the federation layer:
+Prometheus metrics the server's `/metrics` endpoint adds when built with `federation`
+(`crates/fraiseql-server/src/routes/metrics.rs`, `crates/fraiseql-federation/src/observability.rs`):
 
 | Metric | Description |
 |--------|-------------|
 | `fraiseql_federation_circuit_breaker_state{entity}` | 0=closed, 1=open, 2=half-open |
-| `fraiseql_federation_circuit_breaker_opens_total{entity}` | How often the breaker trips |
-| `fraiseql_federation_circuit_breaker_rejections_total{entity}` | Requests rejected while open |
-| `fraiseql_saga_steps_total{subgraph, status}` | Saga step outcomes (planned — saga metrics not yet emitted) |
-| `fraiseql_saga_duration_seconds` | End-to-end saga duration histogram (planned) |
-| `fraiseql_saga_compensations_total` | Compensation phases triggered (planned) |
-| `fraiseql_entity_resolution_duration_seconds{entity, strategy}` | Resolution latency |
+| `fraiseql_federation_subgraph_latency_seconds{subgraph}` | Subgraph request latency histogram (`_bucket`, `_sum`, `_count`) |
+| `fraiseql_federation_entity_resolution_total{outcome}` | Entity resolutions, `outcome="success"` or `"failure"` |
+
+`fraiseql-saga` emits no metrics.
 
 ## Enabling Federation
 
