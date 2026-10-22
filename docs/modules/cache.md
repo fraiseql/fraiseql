@@ -295,7 +295,7 @@ Each server then opens one more connection to `database_url`, of its own, and:
 - **applies** every other server's announcements, expanding swept views through its own
   embedding graph, as if the write had run through it.
 
-Measured on one host, another server serves the write's result 0.4 ms after the write
+Measured on one host (#1577), another server serves the write's result 0.4 ms after the write
 answers when idle, and 3.7 ms (p50) / 20 ms (p99) under 40 concurrent writers; the writers
 lose under 2% of their throughput to the feed.
 

@@ -37,10 +37,10 @@ A list query whose `auto_params` enable `limit` or `offset` is ordered by the
 
 The identity is never read out of the document (`data->>'id'`): no index serves it,
 and sorting by it detoasts every row of the relation, whatever the page. On 2.17.0 it
-measured 10× slower than `pk_<type>` on a lean offset page end to end, and fat pages
+(#1569) measured 10× slower than `pk_<type>` on a lean offset page end to end, and fat pages
 timed out under load.
 
-The cost is worth stating plainly. Measured against PostgreSQL 16, 200 000 rows,
+The cost is worth stating plainly (#1303). Measured against PostgreSQL 16, 200 000 rows,
 a deep-offset page, relative to the same read with no ordering at all:
 
 | ordering | planner cost | plan | vs unordered |

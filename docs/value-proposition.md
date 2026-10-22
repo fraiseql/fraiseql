@@ -163,7 +163,7 @@ FraiseQL provides a layered architecture where features are opt-in via Cargo fea
 
 **Apache Arrow Flight Integration**
 
-- Columnar format for analytical queries (10-100x faster than row-oriented JSON)
+- Columnar format for analytical queries
 - Integration with Arrow-native tools: DuckDB, Polars, Pandas, Apache Spark
 - Fact tables with predefined measures and dimensions
 - OLAP-style aggregation queries
@@ -291,7 +291,7 @@ JVM language users should use the Java SDK with interop libraries (Kotlin, Cloju
 
 **Best for PostGraphile**: PostgreSQL-only shops, rapid development, minimal infrastructure.
 
-**Best for FraiseQL**: Multi-database deployments, performance-critical applications, security-first architectures.
+**Best for FraiseQL**: PostgreSQL deployments, performance-critical applications, security-first architectures.
 
 ---
 
@@ -316,8 +316,6 @@ JVM language users should use the Java SDK with interop libraries (Kotlin, Cloju
 
 **Choose FraiseQL if your application requires:**
 
-- Multi-database support with schema consistency
-- Predictable sub-100ms query latency
 - Automatic N+1 query prevention
 - Field-level authorization without runtime overhead
 - SQL injection protection guaranteed at compile time

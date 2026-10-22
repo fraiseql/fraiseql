@@ -23,7 +23,7 @@ clean_root() {
     local r="$1"
     mkdir -p "$r/docs/adr" "$r/crates/fraiseql-observers/src" "$r/crates/x/src/real_dir" \
              "$r/sdks/official/tests" "$r/sdks/official/fraiseql-a" "$r/sdks/official/fraiseql-b"
-    printf '# guide\nPostgreSQL only.\n' > "$r/docs/guide.md"
+    printf '# guide\nPostgreSQL only.\n\n## Speed\nA cached read measured 0.2 ms (#1234).\n' > "$r/docs/guide.md"
     printf '# changelog\nMySQL support\n' > "$r/CHANGELOG.md"
     printf 'crates/x/src/real.rs   thing\nreal_dir.rs   moved into a directory\n' > "$r/architecture.md"
     : > "$r/crates/x/src/real.rs"
@@ -134,6 +134,48 @@ assert_gate "rule 6: citing the issue is not naming the ledger" 1 "rule 6" "$r"
 
 r="$WORK/ingest_none"; clean_root "$r"; rm "$r/crates/fraiseql-functions/src/spine.rs"
 assert_gate "rule 6: no after:ingest doc to check is red" 1 "rule 6: no document" "$r"
+
+# Rule 8: each figure form is red with no citation in its section.
+for case in 'ratio:Reads are 4.2× faster than before.' \
+            'rate:It serves 5,000 req/s on one core.' \
+            'time:Measured at 3 ms per page.' \
+            'pct:The new path is 30% faster.' \
+            'x:Columnar reads are 10x faster.' \
+            'cell:| native `id` | **4.2×** |' \
+            'p99:Expected: P99 < 200ms for moderate queries'; do
+    r="$WORK/perf_${case%%:*}"; clean_root "$r"
+    printf '\n## Claim\n%s\n' "${case#*:}" >> "$r/docs/guide.md"
+    assert_gate "rule 8: an uncited ${case%%:*} figure is red" 1 "rule 8: performance figures" "$r"
+done
+
+r="$WORK/perf_readme"; clean_root "$r"
+printf 'Execute with predictable sub-10ms latency.\n' >> "$r/README.md"
+assert_gate "rule 8: README.md is scanned" 1 "README.md:2:" "$r"
+
+r="$WORK/perf_positional"; clean_root "$r"
+printf '\n## Claim\nReads are 4.2× faster.\n\n## Notes\nSee #1636.\n' >> "$r/docs/guide.md"
+assert_gate "rule 8: a citation in another section does not count" 1 "rule 8: performance figures" "$r"
+
+r="$WORK/perf_cited"; clean_root "$r"
+printf '\n## Claim\nReads are 4.2× faster.\n\nThe harness is in `benches/full_pipeline.rs`.\n' >> "$r/docs/guide.md"
+printf '\n## Other\nIt serves 5,000 req/s (#1587).\n' >> "$r/docs/guide.md"
+printf '\n## Third\nMeasured at 3 ms with velocitybench.\n' >> "$r/docs/guide.md"
+assert_gate "rule 8: an issue, a bench file or a harness in the section passes" 0 "doc claims: ok" "$r"
+
+r="$WORK/perf_not_figures"; clean_root "$r"
+printf '\n## Words\nNeeds thiserror 2.x and a 500×500 render. The budget defaults to 5 000 ms.\n' >> "$r/docs/guide.md"
+printf '\n```text\nReads are 4.2× faster.\n```\n' >> "$r/docs/guide.md"
+assert_gate "rule 8: versions, dimensions, config defaults and code fences are not figures" 0 "doc claims: ok" "$r"
+
+r="$WORK/perf_exempt"; clean_root "$r"; mkdir -p "$r/docs/runbooks" "$r/docs/history"
+printf '# Latency\nAlert when p99 > 500ms.\n' > "$r/docs/runbooks/latency.md"
+printf '# Old\nA 3-5× rebuild speedup.\n' > "$r/docs/history/old.md"
+printf '# ADR\nReads were 4.2× faster.\n' > "$r/docs/adr/0001.md"
+assert_gate "rule 8: runbooks, history and ADRs are not scanned" 0 "doc claims: ok" "$r"
+
+r="$WORK/perf_none"; clean_root "$r"
+printf '# guide\nPostgreSQL only.\n' > "$r/docs/guide.md"
+assert_gate "rule 8: no figure anywhere is red" 1 "rule 8: no performance figure" "$r"
 
 r="$WORK/no_md"; mkdir -p "$r"
 assert_gate "empty tree is red on every rule, not green" 1 "rule 1: no markdown" "$r"

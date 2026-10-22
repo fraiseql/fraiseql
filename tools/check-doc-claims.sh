@@ -36,6 +36,16 @@
 #      read as a negative ("not yet", "does not", "#1630", ...). Positional, per line. The rule
 #      stands down once crates/ holds both a `CREATE TABLE ... fraiseql_audit_logs` (an INSERT
 #      alone does not count) and the CLI ships `fraiseql audit verify`.
+#   8. A performance figure in README.md or docs/ names its evidence (#1636): the markdown
+#      section it sits in (heading to heading) cites an issue (`#NNN`) or a bench file or
+#      harness (`benches/`, `benchmarks/`, `*bench*.rs`, velocitybench). A figure is a speed
+#      ratio (`4.2×`, `10x faster`, `30% slower`), a rate (`req/s`, `rps`, `ops/s`, `qps`), or a
+#      time (`ms`, `µs`, `ns`) on a line that presents it as measured or as latency (measured,
+#      p50, p95, p99, latency, faster, slower, per page, per row, a cell, on a N-row ...).
+#      Positional: a citation in another section does not count. Code fences are skipped.
+#      History (the rule 1 paths, docs/history/) and docs/runbooks/, whose figures are alert
+#      thresholds for an operator to set rather than claims about FraiseQL, are not scanned. No
+#      figure anywhere is a failure: the rule would be checking nothing.
 #
 # A rule with nothing to check is a failure, not a pass: no markdown, no architecture.md, no
 # names in it, no observers crate, no roadmap, no README sentence.
@@ -173,8 +183,45 @@ elif [ -n "$md_files" ]; then
   fi
 fi
 
+# --- Rule 8: performance figures name their evidence (#1636) -------------------------------
+perf_docs=$(printf '%s\n' "$md_files" | grep -E '^\./(README\.md|docs/)' \
+            | grep -vE "$historical_paths" | grep -vE '^\./docs/(history|runbooks)/' || true)
+if [ -z "$perf_docs" ]; then
+  fail "rule 8: no README.md or docs/ markdown to check"
+else
+  perf=$(printf '%s\n' "$perf_docs" | xargs -d '\n' awk '
+    function flush() {
+      if (nfig > 0 && !cited) for (i = 1; i <= nfig; i++) print "UNCITED " fig[i]
+      nfig = 0; cited = 0
+    }
+    FNR == 1 { flush(); fence = 0; file = substr(FILENAME, 3) }
+    /^[[:space:]]*```/ { fence = !fence; next }
+    fence { next }
+    /^#{1,6} / { flush() }
+    /#[0-9][0-9][0-9]+([^0-9]|$)|benches\/|benchmarks\/|velocitybench|[a-z_]*bench[a-z_]*\.rs/ { cited = 1 }
+    {
+      l = $0
+      ratio = l ~ /[0-9][0-9.]*[[:space:]]*×([[:space:]]*(faster|slower|the|cheaper|speedup)|\*\*|\)|[[:space:]]*\||[[:space:]]*$)/ \
+           || l ~ /[0-9][0-9.]*x[[:space:]]+(faster|slower|cheaper|speedup)/ \
+           || l ~ /[0-9]+%[[:space:]]+(faster|slower)/
+      rate = l ~ /[0-9][0-9,.]*[[:space:]]*(req\/s|rps|ops\/s|qps)([^A-Za-z0-9]|$)/
+      tm   = l ~ /[0-9][0-9,.]*[[:space:]]*(ms|µs|ns)([^A-Za-z0-9]|$)/ \
+          && tolower(l) ~ /measured|p50|p9[59]|latency|faster|slower|per page|per row|a cell|on a [0-9]/
+      if (ratio || rate || tm) { total++; nfig++; fig[nfig] = file ":" FNR ": " l }
+    }
+    END { flush(); print "TOTAL " total + 0 }' 2>/dev/null || true)
+  if [ "$(printf '%s\n' "$perf" | sed -n 's/^TOTAL //p')" = "0" ]; then
+    fail "rule 8: no performance figure found in README.md or docs/, so there is nothing to check"
+  fi
+  uncited=$(printf '%s\n' "$perf" | sed -n 's/^UNCITED //p')
+  if [ -n "$uncited" ]; then
+    fail "rule 8: performance figures whose section cites no issue or bench (#1636):"
+    printf '%s\n' "$uncited" | report
+  fi
+fi
+
 if [ "$failures" -gt 0 ]; then
   echo "doc claims: $failures rule failure(s)" >&2
   exit 1
 fi
-echo "doc claims: ok — backends, architecture names, observer actions, roadmap status, the parity count, the after:ingest guarantee and the audit chain all match the tree"
+echo "doc claims: ok — backends, architecture names, observer actions, roadmap status, the parity count, the after:ingest guarantee, the audit chain and the performance citations all match the tree"

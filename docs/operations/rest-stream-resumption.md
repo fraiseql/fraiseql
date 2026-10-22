@@ -52,7 +52,7 @@ a missing feature.
 resume query needs — `idx_entity_log_id` on the change log and
 `idx_observer_dispatch_dispatched` on the ledger. Without them the query still returns
 the right answer, but it hash-joins the whole ledger against every row of the entity
-type: 13 ms on a 60 000-row log, and linear in the log from there. The ledger index is
+type: 13 ms on a 60 000-row log, and linear in the log from there (#1310). The ledger index is
 installed automatically on the poller's first run; the change-log one comes with
 migration 08.
 

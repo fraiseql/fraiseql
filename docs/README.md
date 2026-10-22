@@ -21,7 +21,6 @@
 | See the PostgreSQL 18 feature measurements (uuidv7, SQL/JSON, RETURNING) | [`docs/benchmarks/pg18-evaluations.md`](benchmarks/pg18-evaluations.md) |
 | Check database feature compatibility | [`docs/database-compatibility.md`](database-compatibility.md) |
 | Review the threat model | [`docs/security/`](security/) |
-| Check SLA commitments | [`docs/sla.md`](sla.md) |
 | Understand the test strategy | [`docs/testing.md`](testing.md) |
 | Why FraiseQL exists | [`docs/value-proposition.md`](value-proposition.md) |
 
@@ -59,7 +58,6 @@ docs/
 ├── database-compatibility.md    ← Feature matrix by database backend
 ├── fuzzing.md                   ← Fuzzing setup and targets
 ├── linting.md                   ← Lint policy and rationale
-├── sla.md                       ← Service level commitments
 ├── testing.md                   ← Testing strategy overview
 └── value-proposition.md         ← Why FraiseQL exists
 ```

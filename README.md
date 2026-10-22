@@ -7,7 +7,7 @@
 [![preflight](https://github.com/fraiseql/fraiseql/actions/workflows/dagger-preflight.yml/badge.svg?branch=dev)](https://github.com/fraiseql/fraiseql/actions/workflows/dagger-preflight.yml)
 [![security](https://github.com/fraiseql/fraiseql/actions/workflows/dagger-security.yml/badge.svg?branch=dev)](https://github.com/fraiseql/fraiseql/actions/workflows/dagger-security.yml)
 
-**Compiled GraphQL execution engine.** Define schemas in Python or TypeScript, compile to optimized SQL at build time, execute with predictable sub-10ms latency.
+**Compiled GraphQL execution engine.** Define schemas in Python or TypeScript, compile them into a validated schema bound to PostgreSQL views, and serve it from a Rust server.
 
 Where Hasura and PostGraphile interpret GraphQL at request time, FraiseQL generates deterministic SQL templates during compilation, achieving zero runtime query planning overhead for known query patterns.
 
@@ -183,7 +183,6 @@ See [Security Checklist](docs/guides/production-security-checklist.md) for produ
 - [Value Proposition](docs/value-proposition.md) -- What FraiseQL does and does not do
 - [Roadmap](roadmap.md) -- Prioritized next steps
 - [Changelog](CHANGELOG.md) -- User-facing changes per version
-- [SLA/SLO Targets](docs/sla.md) -- Availability and latency objectives
 - [Operational Runbooks](docs/runbooks/) -- Incident response procedures
 - [Security Checklist](docs/guides/production-security-checklist.md) -- Production hardening
 - [Migration from v1](docs/guides/v1-to-v2-migration.md) -- Upgrade path

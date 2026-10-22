@@ -57,7 +57,7 @@ from thread contention:
 ### Cache Concurrency (`fraiseql-core/benches/cache_concurrent_bench.rs`)
 
 Measures read, write, and mixed (90/10) throughput under 1–32 concurrent threads to demonstrate
-concurrency scaling of the sharded LRU:
+concurrency scaling of the moka store:
 
 | Benchmark | Description |
 |-----------|-------------|
@@ -95,11 +95,14 @@ merge on them. Use `critcmp` locally to investigate before pushing.
 
 ## Performance Design Notes
 
-- **Zero-cost abstractions**: `impl Trait` preferred over `Box<dyn Trait>` in hot paths.
-- **Compile-time schema optimization**: SQL is generated at compile time, not at request time.
+- **What the compiler does, and what it does not**: compiling validates the schema and binds
+  each query to the view it reads. The SQL itself is built per request from the selection
+  set (`runners/query_regular.rs`, `fraiseql-db/src/postgres/adapter/`) and run as a
+  prepared statement (#1557). Building it once per operation is the compiled-operation work
+  tracked in #1646.
 - **Connection pooling**: `deadpool-postgres` provides bounded async connection pools.
-- **Single-lock LRU cache**: `QueryResultCache` uses one `Mutex<LruCache>` with atomic metric
-  counters to avoid double-lock contention in the read path.
+- **Result cache**: `QueryResultCache` is a moka (W-TinyLFU) store with two `DashMap` reverse
+  indexes for invalidation, so a read takes no global lock (`fraiseql-core/src/cache/result.rs`).
 - **Arc result sharing**: Cache hits return `Arc<Vec<JsonbValue>>` — zero-copy clones.
 
 ## Filtering Large Documents: Use a Native Column
@@ -203,5 +206,5 @@ view), a relationship on columns no `FOREIGN KEY` links, or a type reading a pla
 the document keys. The proof is checked again when the server starts: a database without
 those columns refuses to start, asking for a recompile.
 
-Measured with pg_tviews' read-path harness (PostgreSQL 18.4, 20 posts of 100,000 comments):
+Measured with pg_tviews' read-path harness (#1587; PostgreSQL 18.4, 20 posts of 100,000 comments):
 about 180 ms per page on the document keys, 0.24 ms on the column.

@@ -64,4 +64,3 @@ A checklist for hardening FraiseQL deployments. Review each item before going li
 - [ ] Configure connection pool sizes appropriate for your database
 - [ ] Enable health check endpoint monitoring (`GET /health`)
 - [ ] Set up automated credential rotation if using Vault
-- [ ] Review SLA/SLO targets in `docs/sla.md`

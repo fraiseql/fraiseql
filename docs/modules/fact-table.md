@@ -231,7 +231,6 @@ bucket levels:
 
 **Why pre-compute?** `DATE_TRUNC('month', occurred_at)` at query time applies a function
 to every row. Indexes on `date_info->>'month'` are text comparisons — cheap and indexable.
-This can yield 10–20× faster temporal aggregations on large tables.
 
 ---
 
@@ -293,7 +292,7 @@ account's balance as it stood at the end of each month, whether or not the accou
   planner counts the cells (buckets in range by entities under the request's other
   filters, at least one, reading no measure) and refuses a request over `[validation]
   max_semi_additive_cells` (default 250,000: about 3 µs a cell on PostgreSQL 18, so near
-  one second). It never truncates. 0 is refused.
+  one second; #1459). It never truncates. 0 is refused.
 - **The index** that makes each seek cheap is `(entity…, over)`:
 
   ```sql
