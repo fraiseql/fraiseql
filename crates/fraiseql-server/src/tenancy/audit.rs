@@ -184,22 +184,3 @@ impl TenantAuditLog for InMemoryAuditLog {
 
 /// Type-erased audit log handle for use in `AppState`.
 pub type AuditLogHandle = Arc<dyn TenantAuditLog>;
-
-/// SQL DDL for the tenant events table in the control plane database.
-///
-/// This migration creates an append-only audit trail for tenant lifecycle events.
-/// The table is designed for the control plane database (not tenant databases).
-pub const TENANT_EVENTS_DDL: &str = "\
-CREATE TABLE IF NOT EXISTS _fraiseql_tenant_events (
-    id                  BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    tenant_key          TEXT NOT NULL,
-    event               TEXT NOT NULL,
-    actor               TEXT,
-    actor_type          TEXT,
-    acting_for_user_id  UUID,
-    payload             JSONB,
-    occurred_at         TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-CREATE INDEX IF NOT EXISTS idx_tenant_events_key
-    ON _fraiseql_tenant_events (tenant_key, occurred_at);
-";

@@ -24,8 +24,6 @@
 //!
 //! - [`FlightDatabaseAdapter`]: Wraps fraiseql-core adapters (Postgres, Wire) to implement
 //!   `fraiseql_arrow::ArrowDatabaseAdapter`
-//! - [`ExecutorQueryAdapter`]: Wraps `Executor` to implement `fraiseql_arrow::QueryExecutor` (type
-//!   erasure)
 //! - [`create_flight_service`]: Factory that assembles a configured `FraiseQLFlightService` from
 //!   core adapters
 //!
@@ -36,7 +34,6 @@
 #[cfg(feature = "arrow")]
 pub mod database_adapter;
 #[cfg(feature = "arrow")]
-pub mod executor_wrapper;
 #[cfg(feature = "arrow")]
 pub mod policy_seam;
 #[cfg(all(test, feature = "arrow"))]
@@ -51,7 +48,6 @@ use std::sync::Arc;
 #[cfg(feature = "arrow")]
 pub use database_adapter::FlightDatabaseAdapter;
 #[cfg(feature = "arrow")]
-pub use executor_wrapper::ExecutorQueryAdapter;
 #[cfg(feature = "arrow")]
 use fraiseql_arrow::FraiseQLFlightService;
 #[cfg(feature = "arrow")]
@@ -67,9 +63,9 @@ pub use policy_seam::PolicyGatedExecutor;
 /// GraphQL paths run through tenant resolution, the suspended-tenant gate,
 /// per-tenant quotas and trusted documents like every other transport (#954).
 /// A service that never reaches `serve()` keeps refusing GraphQL fail-closed
-/// ("no executor configured"). Do **not** attach a bare
-/// [`ExecutorQueryAdapter`] instead: that is precisely the shape that makes
-/// Flight the one transport skipping all of the above.
+/// ("no executor configured"). Do **not** attach a bare executor instead: that
+/// is precisely the shape that makes Flight the one transport skipping all of
+/// the above.
 ///
 /// `upload_tables` is the operator's `flight_upload_tables` allow-list (#953). An
 /// empty slice leaves `Upload` **disabled**, which is the default and the only safe

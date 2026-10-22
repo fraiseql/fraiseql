@@ -1,8 +1,7 @@
 //! #954 — the policy seam the Flight GraphQL path executes through.
 //!
 //! The Flight `do_get` GraphQL path and the `do_exchange` `Query` arm both run
-//! through a [`QueryExecutor`]. Attaching a **bare** executor — which
-//! [`ExecutorQueryAdapter`](super::ExecutorQueryAdapter) is — would make Flight the
+//! through a [`QueryExecutor`]. Attaching a **bare** executor would make Flight the
 //! one transport that skips tenant resolution, the suspended-tenant gate, per-tenant
 //! concurrency/RPS/cost quotas and trusted documents. Those are not executor-level
 //! concerns: they live in `AppState`, which the executor does not have.
@@ -140,7 +139,7 @@ impl QueryExecutor for PolicyGatedExecutor {
 /// Build the Flight service's policy-gated executor from a server's state.
 ///
 /// This is the wiring #954 exists for: the shipped binary attaches **this**, and
-/// never a bare `ExecutorQueryAdapter`.
+/// never a bare executor.
 pub(crate) fn policy_gated_executor(state: AppState) -> Arc<dyn QueryExecutor> {
     Arc::new(PolicyGatedExecutor::new(state))
 }

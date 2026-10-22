@@ -18,6 +18,13 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **`fraiseql-server` drops four unwired items (#1640).** `routes::api::openapi`
+  (`get_openapi_spec`), a hand-written OpenAPI document for `/api/v1` that no route served
+  (REST still serves the OpenAPI it generates); `arrow::ExecutorQueryAdapter`, the bare
+  Flight executor the policy seam exists to keep out of the binary; the empty
+  `testing::runtime_testing`; and `tenancy::audit::TENANT_EVENTS_DDL`, a table definition
+  nothing created or wrote. The tenant audit log the admin API records to is unchanged.
+
 - **`fraiseql-auth` drops the copies the server and `oidc_provider` supersede (#1640).**
   Removed: the `oauth` module (`OAuth2Client`, `OIDCClient`, `OAuthSession`, refresh,
   failover and audit), `jwks` (re-exports of `fraiseql_jwks`, which stays), `proxy`

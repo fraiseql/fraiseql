@@ -8,7 +8,7 @@
 //!
 //! So these assert on **which** refusal happens. A test that accepted any error
 //! would have passed before this seam existed, and would keep passing if the seam
-//! were replaced by a bare `ExecutorQueryAdapter` tomorrow.
+//! were replaced by a bare executor tomorrow.
 
 #![allow(clippy::unwrap_used, clippy::expect_used)] // Reason: test code, panics acceptable
 

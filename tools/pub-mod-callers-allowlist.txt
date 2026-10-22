@@ -25,9 +25,6 @@ fraiseql_server::prelude api the server's glob import for embedders
 
 # ── Deleted by M1 (WP-1.2) ───────────────────────────────────────────────────────────
 fraiseql_cli::schema::advanced_types pending used by nothing, not even a test; deleted by #1640
-fraiseql_server::arrow::executor_wrapper pending used by nothing, not even a test; deleted by #1640
-fraiseql_server::testing::runtime_testing pending an empty module; deleted by #1640
-fraiseql_server::routes::api::openapi pending a hand-written literal no route serves; rebuilt from the route table in WP-7.5, deleted by #1640
 fraiseql_functions::runtime::deno::tests pending a test module compiled into the library; made cfg(test) by #1640
 fraiseql_test_utils::db pending a re-export of the real crate; deleted by #1640
 fraiseql_test_utils::fixtures pending superseded by the real crates; deleted by #1640
