@@ -82,7 +82,9 @@ impl Server {
 
         if let Some(ref validator) = self.oidc_validator {
             info!(transport, "transport protected by OIDC authentication");
-            let auth_state = self.oidc_auth_state(Arc::clone(validator));
+            let auth_state = self
+                .oidc_auth_state(Arc::clone(validator))
+                .with_service_accounts(self.service_account_authenticator.clone());
             return router.route_layer(from_fn_with_state(auth_state, oidc_auth_middleware));
         }
 
@@ -94,8 +96,6 @@ impl Server {
                 .as_ref()
                 .and_then(|h| h.issuer.clone())
                 .unwrap_or_else(|| "fraiseql".to_string());
-            // #934: without the authenticator, this layer refuses a bearer-less
-            // service-account request before the handler's ADR-0018 seam runs.
             let auth_state = self
                 .hs256_auth_state(Arc::clone(validator), realm)
                 .with_service_accounts(self.service_account_authenticator.clone());
@@ -107,7 +107,15 @@ impl Server {
             "no authentication configured — transport serves anonymous callers; row-scoping \
              guards must fail closed on an absent security context"
         );
-        router
+        // #1650: the auth layer is where a service account is resolved, so a deployment
+        // with service accounts and no JWT authentication still gets one.
+        match self.service_account_authenticator {
+            Some(ref accounts) => router.route_layer(from_fn_with_state(
+                Arc::clone(accounts),
+                crate::service_account::service_account_middleware,
+            )),
+            None => router,
+        }
     }
 }
 

@@ -14,8 +14,17 @@
 //! `Bearer <secret>` in the value), NOT on `Authorization: Bearer`. The original ADR said
 //! `Authorization: Bearer`, but that header is consumed by the JWT auth middleware before
 //! any api-key seam runs, so a bearer secret would be 401'd as an invalid JWT whenever
-//! OIDC/HS256 is configured. Reusing the api-key header keeps this on the existing seam
-//! with **no change to the security-critical auth middleware** (ADR decision 3's intent).
+//! OIDC/HS256 is configured.
+//!
+//! # Where it is resolved (#1650)
+//!
+//! Once per request, by the auth layer every transport mounts (`admit`): the OIDC or
+//! HS256 middleware, or [`service_account_middleware`] on a deployment with no JWT
+//! authentication. The layer inserts a [`ServicePrincipal`], which
+//! [`OptionalSecurityContext`](crate::extractors::OptionalSecurityContext) serves to
+//! every handler. Resolving it in a handler left every other transport serving the
+//! account as anonymous, and under OIDC with `required = true` the layer refused the
+//! request before any handler ran.
 //!
 //! # Fail-closed
 //!
@@ -28,7 +37,13 @@
 
 use std::{collections::HashMap, sync::Arc};
 
-use axum::http::{HeaderMap, HeaderName};
+use axum::{
+    body::Body,
+    extract::State,
+    http::{HeaderMap, HeaderName, Request, StatusCode, header},
+    middleware::Next,
+    response::{IntoResponse, Response},
+};
 use fraiseql_core::security::{ENRICHED_NAMESPACE_PREFIX, SecurityContext};
 use subtle::ConstantTimeEq;
 use tracing::{debug, warn};
@@ -132,9 +147,8 @@ impl ServiceAccountAuthenticator {
     }
 
     /// Resolve a service-account principal from `headers`, honoring the JWT-collision
-    /// rule (ADR-0018 amendment / rider 2). `jwt_present` is whether the request already
-    /// carries a JWT-derived principal. The same logic backs every entry point (GraphQL,
-    /// `/ws`, REST) so they cannot drift.
+    /// rule (ADR-0018 amendment / rider 2). `jwt_present` is whether the request carries
+    /// a bearer token. Called by `admit`, the auth layer's one resolution.
     #[must_use]
     pub fn resolve(&self, headers: &HeaderMap, jwt_present: bool) -> SaAuth {
         if !self.header_present(headers) {
@@ -213,6 +227,73 @@ fn build_context(account: &ResolvedServiceAccount) -> SecurityContext {
             .insert(format!("{ENRICHED_NAMESPACE_PREFIX}{field}"), value.clone());
     }
     ctx
+}
+
+/// The body of the refusal for a request carrying both a bearer token and a
+/// service-account secret: one request, two identities, and no rule to pick one.
+pub const AMBIGUOUS_CREDENTIALS: &str = "Ambiguous credentials: a bearer token and an API-key / \
+                                         service-account secret were presented on the same \
+                                         request";
+
+/// Request extension: the service account the auth layer admitted the request as
+/// (#1650).
+///
+/// Inserted by the auth layer, which is the one place a service-account secret is
+/// resolved, and read by [`OptionalSecurityContext`](crate::extractors::OptionalSecurityContext),
+/// so every transport behind the layer is served the same principal.
+#[derive(Debug, Clone)]
+pub struct ServicePrincipal(pub SecurityContext);
+
+/// Decide a request's service-account credential, before any bearer token is
+/// validated (#1650).
+///
+/// `token_presented` is whether the request carries a bearer token (header or
+/// cookie). Returns `Ok(true)` when the secret matched an account (the
+/// [`ServicePrincipal`] is inserted), `Ok(false)` when there is no secret or it
+/// matched no account (the layer's own rules decide), and `Err` with a 401 when a
+/// secret arrives beside a token, before either is trusted.
+///
+/// # Errors
+///
+/// The 401 response for ambiguous credentials.
+// Reason: a `Response` is what axum middleware returns; boxing it would only move
+// the allocation into every caller.
+#[allow(clippy::result_large_err)]
+pub(crate) fn admit(
+    accounts: Option<&ServiceAccountAuthenticator>,
+    request: &mut Request<Body>,
+    token_presented: bool,
+) -> Result<bool, Response> {
+    let Some(accounts) = accounts else {
+        return Ok(false);
+    };
+    match accounts.resolve(request.headers(), token_presented) {
+        SaAuth::Authenticated(context) => {
+            request.extensions_mut().insert(ServicePrincipal(*context));
+            Ok(true)
+        },
+        SaAuth::Ambiguous => Err((
+            StatusCode::UNAUTHORIZED,
+            [(header::WWW_AUTHENTICATE, "Bearer error=\"invalid_request\"")],
+            AMBIGUOUS_CREDENTIALS,
+        )
+            .into_response()),
+        SaAuth::NoSecret | SaAuth::Unmatched => Ok(false),
+    }
+}
+
+/// Auth layer for a deployment with service accounts and no JWT authentication:
+/// admits a service account as itself and leaves every other request as it was.
+pub async fn service_account_middleware(
+    State(accounts): State<Arc<ServiceAccountAuthenticator>>,
+    mut request: Request<Body>,
+    next: Next,
+) -> Response {
+    // No bearer is validated here, so none can make the secret ambiguous.
+    match admit(Some(&accounts), &mut request, false) {
+        Ok(_) => next.run(request).await,
+        Err(response) => response,
+    }
 }
 
 /// Build a [`ServiceAccountAuthenticator`] from the compiled schema's

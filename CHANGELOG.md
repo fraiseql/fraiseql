@@ -131,6 +131,15 @@ disagreed, and the promise was the part that was wrong.
   `build_cron_pollers` and `build_source_pollers` drop their `limits` argument, and
   `BeforeMutationHooks` gains `function_limits`, read through `limits_for`.
 
+- **The auth layer resolves a service account; the handlers no longer do (#1650).** A
+  request carrying a bearer token beside an `x-api-key` service-account secret is
+  refused by the layer with a plain-text 401 (`Ambiguous credentials`) on every
+  transport behind it. `/graphql` answered it with a GraphQL error, and REST under
+  `[auth_hs256]` served the bearer's user. `subscription_handler` no longer resolves the
+  secret: an embedder mounting it by hand puts `service_account_middleware` (or an auth
+  layer built `with_service_accounts`) in front of it. `OidcAuthState` gains a
+  `service_accounts` field.
+
 ### Added
 
 - **`subscription_policy` is authorable (#1657).** A type's subscription row visibility
@@ -144,6 +153,15 @@ disagreed, and the promise was the part that was wrong.
   conformance manifest.
 
 ### Fixed
+
+- **A service account is admitted as itself under OIDC, and served as itself on every
+  transport (#1650).** Under `[auth]` with `required = true`, the default, a request with
+  a valid `x-api-key` service-account secret and no bearer token was refused before
+  anything resolved the secret, as was the `/ws` upgrade. Under `[auth_hs256]`, and with
+  no JWT authentication at all, it was let through, but only `/graphql` and `/ws`
+  resolved the secret, so REST and async operations served the account as anonymous.
+  The auth layer now resolves it once and every handler is served the account. A secret
+  that matches no account, and a request with no credentials, are refused as before.
 
 - **A function's declared `timeout_ms` bounds it on every trigger kind (#1627).** Only
   `request:query` read it: `after:mutation`, `after:ingest`, `after:capture`, `cron` and

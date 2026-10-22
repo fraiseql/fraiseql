@@ -27,11 +27,8 @@ pub struct Hs256AuthState {
     pub validator:        Arc<AuthMiddleware>,
     /// Realm advertised in `WWW-Authenticate` challenges.
     pub realm:            String,
-    /// Service-account authenticator, when `[security.service_accounts]` declares any.
-    ///
-    /// Consulted only to decide whether a **bearer-less** request may proceed to the
-    /// handler, which is where the principal is actually resolved (ADR-0018). This
-    /// layer never builds a `SecurityContext` from it — it decides pass or refuse.
+    /// Service-account authenticator, when `[security.service_accounts]` declares any:
+    /// a bearer-less request whose secret matches an account is admitted as it.
     pub service_accounts: Option<Arc<crate::service_account::ServiceAccountAuthenticator>>,
     /// Token-revocation manager, when `[security.token_revocation]` is configured.
     ///
@@ -61,8 +58,8 @@ impl Hs256AuthState {
         }
     }
 
-    /// Attach the service-account authenticator so bearer-less service-account
-    /// requests reach the handler's seam instead of being refused here (#934).
+    /// Attach the service-account authenticator, so a service account presenting its
+    /// secret on `x-api-key` with no bearer token is admitted as itself (#934, #1650).
     #[must_use]
     pub fn with_service_accounts(
         mut self,
@@ -109,32 +106,18 @@ pub async fn hs256_auth_middleware(
         .and_then(|value| value.to_str().ok())
         .map(ToOwned::to_owned);
 
-    // #934: a service account presents its secret on `x-api-key` and carries NO
-    // bearer, because the seam that resolves it lives in the GraphQL handler
-    // (ADR-0018). This layer is a `route_layer`, so it ran first and refused the
-    // request before that seam was reached — service accounts worked under `[auth]`
-    // and were unreachable under `[auth_hs256]`.
-    //
-    // The deferral is deliberately narrower than the OIDC layer's pass-through: it
-    // applies only when there is no `Authorization` header AND the secret presented
-    // resolves to a declared account. A bearer that is present but invalid still
-    // 401s here, and a request with no credentials at all still 401s here — so this
-    // cannot become an anonymous door into an authenticated transport. The handler
-    // re-resolves the same secret to build the principal; this layer only decides
-    // whether the request may reach it.
-    if auth_header.is_none() {
-        if let Some(ref sa) = auth_state.service_accounts {
-            if matches!(
-                sa.resolve(request.headers(), false),
-                crate::service_account::SaAuth::Authenticated(_)
-            ) {
-                tracing::debug!(
-                    "bearer-less request carries a valid service-account secret — deferring \
-                     to the handler's ADR-0018 seam"
-                );
-                return next.run(request).await;
-            }
-        }
+    // #934, #1650: a service account presents its secret on `x-api-key` and no bearer,
+    // and is admitted here as itself. A secret that matches no account, a bearer that
+    // is present but invalid, and a request with no credentials all still 401 below,
+    // so this cannot become an anonymous door into an authenticated transport.
+    match crate::service_account::admit(
+        auth_state.service_accounts.as_deref(),
+        &mut request,
+        auth_header.is_some(),
+    ) {
+        Ok(true) => return next.run(request).await,
+        Ok(false) => {},
+        Err(response) => return response,
     }
 
     let auth_req = AuthRequest::new(auth_header);

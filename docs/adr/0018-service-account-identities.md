@@ -125,6 +125,18 @@ This is required, not optional: the ADR's own conformance test has a service pri
 **read via a policy-scoped subscription**, which is the `/ws` path; a handler-local seam
 could never authenticate it.
 
+**Resolved by the auth layer (amendment, 2026-10-22, #1650).** The paragraph above was
+not true of the code: the handler-local seam ran in `/graphql` and `/ws` only, so REST
+and async operations served a service account as **anonymous**, and under OIDC with
+`required = true` the JWT layer refused the request before any seam ran. The secret is
+now resolved once per request, by the auth layer every transport mounts: the OIDC or
+HS256 layer, or, on a deployment with no JWT authentication, a service-account-only
+layer. It inserts the principal, and every handler reads it through
+`OptionalSecurityContext`. The collision rule below moved with it: the layer refuses a
+secret presented beside a bearer token before validating either. This is the
+middleware change the amendment to decision 1 avoided; what it adds to the middleware
+is the existing constant-time hash compare, called once.
+
 **Header collision → reject-as-ambiguous (fail-closed).** A single request that carries
 **both** a valid JWT *and* an `x-api-key` secret has two candidate principals. Rather than
 silently pick one, every entry point **rejects it (401)** — identity confusion between two

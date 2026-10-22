@@ -300,7 +300,7 @@ impl Server {
             .with_policy_reload(Some(state.subscribe_policy_reload()))
             // #571: complete + close live streams gracefully when shutdown begins.
             .with_drain_signal(Some(self.subscription_drain.subscribe()))
-            // ADR-0018: let a service account authenticate the /ws upgrade with its secret.
+            // ADR-0018: an upgrade presenting a secret no account matched is refused.
             .with_service_account_authenticator(state.service_account_authenticator.clone())
             // #771: authorization for the life of the stream — periodic expiry +
             // revocation re-check, driven by the same revocation manager the HTTP
@@ -336,7 +336,9 @@ impl Server {
                     subscription_path = %self.config.subscription_path,
                     "GraphQL subscriptions enabled (graphql-transport-ws + graphql-ws protocols, OIDC auth required)"
                 );
-                let auth_state = self.oidc_auth_state(validator.clone());
+                let auth_state = self
+                    .oidc_auth_state(validator.clone())
+                    .with_service_accounts(self.service_account_authenticator.clone());
                 let subscription_router = Router::new()
                     .route(&self.config.subscription_path, get(subscription_handler))
                     .route_layer(middleware::from_fn_with_state(auth_state, oidc_auth_middleware))
@@ -353,10 +355,17 @@ impl Server {
                 subscription_path = %self.config.subscription_path,
                 "GraphQL subscriptions enabled (graphql-transport-ws + graphql-ws protocols)"
             );
-            let subscription_router = Router::new()
-                .route(&self.config.subscription_path, get(subscription_handler))
-                .with_state(subscription_state);
-            app = app.merge(subscription_router);
+            let mut subscription_router =
+                Router::new().route(&self.config.subscription_path, get(subscription_handler));
+            // #1650: the auth layer resolves a service account, here as on every transport.
+            if let Some(ref accounts) = self.service_account_authenticator {
+                subscription_router =
+                    subscription_router.route_layer(middleware::from_fn_with_state(
+                        Arc::clone(accounts),
+                        crate::service_account::service_account_middleware,
+                    ));
+            }
+            app = app.merge(subscription_router.with_state(subscription_state));
         }
         app
     }

@@ -78,41 +78,21 @@ pub(super) async fn admit(
 
 /// Resolve the request's principal from the credentials it presents.
 ///
-/// Order is load-bearing: a service account's `run_as` ceiling takes precedence
-/// over the scopes-only static API key on the same header (ADR-0018). A JWT
-/// principal presented *alongside* a secret header is rejected as ambiguous
-/// (#602) rather than silently resolved to one of the two identities.
-///
-/// `security_context` carries whatever the JWT/OIDC extractor already resolved.
+/// `security_context` carries what the auth layer already resolved: a JWT principal,
+/// or a service account it admitted as itself (#1650), which also refused a bearer
+/// presented beside a service-account secret as ambiguous (#602). What is left is the
+/// scopes-only static API key on the same header, which a service account's `run_as`
+/// ceiling takes precedence over (ADR-0018): it is tried only for a request the layer
+/// resolved to no one.
 ///
 /// # Errors
 ///
-/// Returns a 401 response for ambiguous credentials or an invalid API key.
+/// Returns a 401 response for an invalid API key.
 pub(super) async fn authenticate(
     state: &AppState,
     headers: &HeaderMap,
     mut security_context: Option<SecurityContext>,
 ) -> Result<Option<SecurityContext>, ErrorResponse> {
-    if let Some(ref sa_auth) = state.service_account_authenticator {
-        match sa_auth.resolve(headers, security_context.is_some()) {
-            crate::service_account::SaAuth::Authenticated(ctx) => {
-                debug!("Authenticated via service account");
-                security_context = Some(*ctx);
-            },
-            crate::service_account::SaAuth::Ambiguous => {
-                return Err(ErrorResponse::from_error(GraphQLError::new(
-                    "Ambiguous credentials: a bearer token and an API-key / service-account \
-                     secret were presented on the same request",
-                    crate::error::ErrorCode::Unauthenticated,
-                )));
-            },
-            // No secret header, or present-but-unmatched — fall through to the static
-            // API-key check (which 401s if it also fails to match).
-            crate::service_account::SaAuth::NoSecret
-            | crate::service_account::SaAuth::Unmatched => {},
-        }
-    }
-
     // API key auth: if configured, try it before falling through to JWT/OIDC.
     if security_context.is_none() {
         if let Some(ref api_key_auth) = state.api_key_authenticator {

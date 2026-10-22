@@ -2145,8 +2145,8 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		// #934 service accounts under [auth_hs256]: the bearer-less x-api-key request
 		// must reach the handler's ADR-0018 seam, while a credential-less request, an
 		// invalid bearer and an unmatched secret all still 401 at the layer.
-		"echo '### cargo test -p fraiseql-server --test hs256_service_account_e2e_pg (#934)'",
-		"cargo test -p fraiseql-server --features '" + serverTestFeatures + "' --test hs256_service_account_e2e_pg -- --test-threads=1",
+		"echo '### cargo test -p fraiseql-server --test service_account_auth_layers_e2e_pg (#934, #1650)'",
+		"cargo test -p fraiseql-server --features '" + serverTestFeatures + "' --test service_account_auth_layers_e2e_pg -- --test-threads=1",
 		// #1112 token revocation under [auth_hs256]: only the OIDC layer ever consulted
 		// the revocation store, so a configured [security.token_revocation] was inert and
 		// Studio's "revoke all sessions" reported success over tokens that kept working.

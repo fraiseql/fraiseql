@@ -79,6 +79,13 @@ where
         _state: &S,
     ) -> impl Future<Output = Result<Self, Self::Rejection>> + Send {
         async move {
+            // #1650: a service account the auth layer admitted is served as itself.
+            if let Some(crate::service_account::ServicePrincipal(context)) =
+                parts.extensions.get().cloned()
+            {
+                return Ok(OptionalSecurityContext(Some(context)));
+            }
+
             // Try to extract AuthUser from extensions
             let auth_user: Option<AuthUser> = parts.extensions.get::<AuthUser>().cloned();
             let tenant_claim = parts.extensions.get::<TenantClaim>().cloned();

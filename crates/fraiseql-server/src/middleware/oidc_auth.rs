@@ -53,14 +53,16 @@ impl TenantClaim {
 #[derive(Clone)]
 pub struct OidcAuthState {
     /// The OIDC validator.
-    pub validator:    Arc<OidcValidator>,
+    pub validator:        Arc<OidcValidator>,
     /// The claim that names the caller's tenant, inserted as a [`TenantClaim`] extension.
-    pub tenant_claim: TenantClaim,
+    pub tenant_claim:     TenantClaim,
     /// Optional token-revocation manager. When present, every authenticated request is
     /// checked against the revocation store (single-`jti` revocation **and** the caller's
     /// `revoke-all` epoch) after token validation succeeds — closing H8, where revoked
     /// tokens were accepted until their natural `exp`.
-    pub revocation:   Option<Arc<TokenRevocationManager>>,
+    pub revocation:       Option<Arc<TokenRevocationManager>>,
+    /// Service-account authenticator, when `[security.service_accounts]` declares any.
+    pub service_accounts: Option<Arc<crate::service_account::ServiceAccountAuthenticator>>,
 }
 
 impl OidcAuthState {
@@ -75,7 +77,19 @@ impl OidcAuthState {
             validator,
             tenant_claim,
             revocation: None,
+            service_accounts: None,
         }
+    }
+
+    /// Attach the service-account authenticator, so a service account presenting its
+    /// secret on `x-api-key` with no bearer token is admitted as itself (#1650).
+    #[must_use]
+    pub fn with_service_accounts(
+        mut self,
+        authenticator: Option<Arc<crate::service_account::ServiceAccountAuthenticator>>,
+    ) -> Self {
+        self.service_accounts = authenticator;
+        self
     }
 
     /// Attach a token-revocation manager so authenticated requests are checked against
@@ -282,6 +296,18 @@ pub async fn oidc_auth_middleware(
             None => extract_access_token_cookie(request.headers()),
         }
     };
+
+    // #1650: a service account presents its secret on `x-api-key` and no bearer token.
+    // It is resolved here, before the `required` check, or it never reaches anything.
+    match crate::service_account::admit(
+        auth_state.service_accounts.as_deref(),
+        &mut request,
+        token_string.is_some(),
+    ) {
+        Ok(true) => return next.run(request).await,
+        Ok(false) => {},
+        Err(response) => return response,
+    }
 
     match token_string {
         None => {

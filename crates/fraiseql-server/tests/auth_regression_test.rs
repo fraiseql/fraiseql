@@ -186,3 +186,128 @@ async fn get_graphql_without_auth_passes_when_auth_is_optional() {
         "When auth is optional, unauthenticated GET /graphql must be allowed"
     );
 }
+
+// ---------------------------------------------------------------------------
+// #1650: a service account is admitted by the auth layer itself, as itself
+// ---------------------------------------------------------------------------
+
+mod service_accounts {
+    use std::collections::HashMap;
+
+    use axum::body::to_bytes;
+    use fraiseql_core::security::{AuthConfig, AuthMiddleware};
+    use fraiseql_server::{
+        extractors::OptionalSecurityContext,
+        middleware::{Hs256AuthState, TenantClaim, hs256_auth_middleware},
+        service_account::{ServiceAccountAuthenticator, ServiceAccountConfig},
+    };
+
+    use super::*;
+
+    const SECRET: &str = "s3cr3t-reconciler";
+
+    fn accounts() -> Option<Arc<ServiceAccountAuthenticator>> {
+        let config = HashMap::from([(
+            "reconciler".to_string(),
+            ServiceAccountConfig {
+                secret_env:      "SA_RECONCILER".to_string(),
+                roles:           vec!["ledger:write".to_string()],
+                scopes:          vec![],
+                tenant:          None,
+                static_enriched: HashMap::new(),
+            },
+        )]);
+        ServiceAccountAuthenticator::from_config(&config, |_| Some(SECRET.to_string()))
+    }
+
+    /// The principal a handler behind the layer is served as — what the REST
+    /// transport's extractor and every `OptionalSecurityContext` handler see.
+    async fn principal(OptionalSecurityContext(context): OptionalSecurityContext) -> String {
+        context.map_or_else(|| "anonymous".to_string(), |context| context.user_id.0)
+    }
+
+    fn oidc_router() -> Router {
+        Router::new()
+            .route("/data", get(principal))
+            .route_layer(middleware::from_fn_with_state(
+                required_oidc_state().with_service_accounts(accounts()),
+                oidc_auth_middleware,
+            ))
+    }
+
+    fn hs256_router() -> Router {
+        let state = Hs256AuthState::new(
+            Arc::new(AuthMiddleware::from_config(AuthConfig::with_hs256(
+                "hs256-signing-key-of-at-least-32-bytes",
+            ))),
+            "fraiseql".to_string(),
+            TenantClaim(Arc::from("tenant_id")),
+        )
+        .with_service_accounts(accounts());
+        Router::new()
+            .route("/data", get(principal))
+            .route_layer(middleware::from_fn_with_state(state, hs256_auth_middleware))
+    }
+
+    async fn call(router: Router, headers: &[(&str, &str)]) -> (StatusCode, String) {
+        let mut request = Request::builder().uri("/data");
+        for (name, value) in headers {
+            request = request.header(*name, *value);
+        }
+        let response = router.oneshot(request.body(Body::empty()).unwrap()).await.unwrap();
+        let status = response.status();
+        let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        (status, String::from_utf8_lossy(&body).into_owned())
+    }
+
+    #[tokio::test]
+    async fn a_service_account_key_is_admitted_under_required_oidc() {
+        let (status, body) = call(oidc_router(), &[("x-api-key", SECRET)]).await;
+        assert_eq!(status, StatusCode::OK, "{body}");
+        assert_eq!(body, "service_account:reconciler");
+    }
+
+    /// The ambiguity is decided before the token is validated: this bearer is not even
+    /// a JWT, and the validator's JWKS is unreachable, so a validation-first layer
+    /// would answer "Token is invalid" instead.
+    #[tokio::test]
+    async fn a_bearer_plus_service_account_key_is_refused_as_ambiguous() {
+        let (status, body) =
+            call(oidc_router(), &[("authorization", "Bearer not-a-jwt"), ("x-api-key", SECRET)])
+                .await;
+        assert_eq!(status, StatusCode::UNAUTHORIZED);
+        assert!(body.contains("Ambiguous credentials"), "{body}");
+    }
+
+    #[tokio::test]
+    async fn no_credentials_are_refused_under_required_oidc() {
+        let (status, _) = call(oidc_router(), &[]).await;
+        assert_eq!(status, StatusCode::UNAUTHORIZED);
+    }
+
+    /// The admission is not an anonymous door: a secret that matches no account is
+    /// refused like no credential at all.
+    #[tokio::test]
+    async fn an_unknown_service_account_key_is_refused_under_required_oidc() {
+        let (status, _) = call(oidc_router(), &[("x-api-key", "not-the-secret")]).await;
+        assert_eq!(status, StatusCode::UNAUTHORIZED);
+    }
+
+    /// Under `[auth_hs256]` the layer let the request through (#934), but the handler
+    /// behind it was served as anonymous: only `/graphql` and `/ws` resolved the secret.
+    #[tokio::test]
+    async fn a_service_account_key_is_served_as_itself_under_hs256() {
+        let (status, body) = call(hs256_router(), &[("x-api-key", SECRET)]).await;
+        assert_eq!(status, StatusCode::OK, "{body}");
+        assert_eq!(body, "service_account:reconciler");
+    }
+
+    #[tokio::test]
+    async fn a_bearer_plus_service_account_key_is_refused_as_ambiguous_under_hs256() {
+        let (status, body) =
+            call(hs256_router(), &[("authorization", "Bearer not-a-jwt"), ("x-api-key", SECRET)])
+                .await;
+        assert_eq!(status, StatusCode::UNAUTHORIZED);
+        assert!(body.contains("Ambiguous credentials"), "{body}");
+    }
+}

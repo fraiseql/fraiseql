@@ -22,7 +22,9 @@ use fraiseql_core::{
 };
 use fraiseql_server::{
     routes::subscriptions::{SubscriptionState, build_subscription_policies, subscription_handler},
-    service_account::{ServiceAccountAuthenticator, ServiceAccountConfig},
+    service_account::{
+        ServiceAccountAuthenticator, ServiceAccountConfig, service_account_middleware,
+    },
 };
 use futures::{SinkExt, StreamExt};
 use serde_json::json;
@@ -84,9 +86,15 @@ fn state() -> (Arc<SubscriptionManager>, SubscriptionState) {
     (manager, state)
 }
 
+/// Serve `/ws` behind the service-account auth layer, as the server mounts it on a
+/// deployment with no JWT authentication (#1650).
 async fn spawn(state: SubscriptionState) -> String {
     let app = axum::Router::new()
         .route("/ws", axum::routing::get(subscription_handler))
+        .route_layer(axum::middleware::from_fn_with_state(
+            sa_authenticator(),
+            service_account_middleware,
+        ))
         .with_state(state);
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
