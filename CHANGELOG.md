@@ -18,6 +18,13 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **`fraiseql-test-utils` keeps only the helpers a test uses (#1640).** Removed: `mock_db`,
+  `fixtures` and `observers` (`get_test_id`), which nothing used; the `db` re-export
+  (import `database_url` and `try_database_url` from `fraiseql-test-support`); `saga`
+  (`TestSagaExecutor` and its step types), a saga double only its own server suite
+  exercised; and the no-op `setup_test_env` and unused `create_temp_dir`. The crate is
+  `publish = false`, so this only touches in-workspace tests.
+
 - **`fraiseql-server` drops four unwired items (#1640).** `routes::api::openapi`
   (`get_openapi_spec`), a hand-written OpenAPI document for `/api/v1` that no route served
   (REST still serves the OpenAPI it generates); `arrow::ExecutorQueryAdapter`, the bare

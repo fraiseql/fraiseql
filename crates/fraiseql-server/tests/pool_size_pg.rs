@@ -9,7 +9,7 @@ use fraiseql_server::{
     ServerArgs,
     server_config::{ServerConfig, build_postgres_adapter},
 };
-use fraiseql_test_utils::try_database_url;
+use fraiseql_test_support::try_database_url;
 
 /// One test, so nothing else in this binary reads the variable while it is set.
 #[tokio::test]

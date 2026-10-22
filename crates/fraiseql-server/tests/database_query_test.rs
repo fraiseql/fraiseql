@@ -33,7 +33,7 @@
 
 use std::time::Instant;
 
-use fraiseql_test_utils::try_database_url;
+use fraiseql_test_support::try_database_url;
 use sqlx::postgres::PgPool;
 
 /// Test database connection

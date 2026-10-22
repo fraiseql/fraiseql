@@ -23,7 +23,7 @@ use fraiseql_observers::{
     listener::{ChangeLogListener, ChangeLogListenerConfig},
     migrations::{ENTITY_CHANGE_LOG_CONTRACT_COLUMNS, entity_change_log_contract_sql},
 };
-use fraiseql_test_utils::database_url;
+use fraiseql_test_support::database_url;
 use sqlx::{PgPool, Row, postgres::PgPoolOptions};
 
 async fn pool() -> PgPool {

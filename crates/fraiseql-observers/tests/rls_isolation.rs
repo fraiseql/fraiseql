@@ -36,7 +36,7 @@ use fraiseql_observers::migrations::{
     entity_change_log_capture_trigger_sql, entity_change_log_contract_sql,
     entity_change_log_rls_sql,
 };
-use fraiseql_test_utils::database_url;
+use fraiseql_test_support::database_url;
 use sqlx::{
     PgPool, Row,
     postgres::{PgConnectOptions, PgPoolOptions},

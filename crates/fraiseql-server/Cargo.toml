@@ -474,10 +474,6 @@ required-features = ["federation"]
 name = "federation_integration_test"
 required-features = ["federation"]
 
-[[test]]
-name = "federation_saga_validation_test"
-required-features = ["federation"]
-
 # The two suites that reach `crate::auth` for `PkceStateStore` and friends. Undeclared until
 # #1277, which cost nothing while no gate built a `fraiseql-server` test target
 # without the crate defaults — `auth` is one of them — and cost a compile the

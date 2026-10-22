@@ -16,7 +16,7 @@
 #![allow(clippy::unwrap_used, clippy::print_stdout)] // Reason: integration test file
 
 use fraiseql_observers::migrations::entity_change_log_contract_sql;
-use fraiseql_test_utils::database_url;
+use fraiseql_test_support::database_url;
 use sqlx::{PgPool, Row, postgres::PgPoolOptions};
 
 const MIGRATION: &str = include_str!("../migrations/07_create_changelog_views.sql");

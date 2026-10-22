@@ -32,7 +32,7 @@ use fraiseql_observers::{
     listener::{ChangeLogListener, ChangeLogListenerConfig},
     migrations::{entity_change_log_capture_trigger_sql, entity_change_log_contract_sql},
 };
-use fraiseql_test_utils::database_url;
+use fraiseql_test_support::database_url;
 use serde_json::Value;
 use sqlx::{PgPool, Row, postgres::PgPoolOptions};
 

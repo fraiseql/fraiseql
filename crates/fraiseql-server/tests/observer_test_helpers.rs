@@ -31,7 +31,7 @@
 
 use std::{sync::Arc, time::Duration};
 
-use fraiseql_test_utils::database_url;
+use fraiseql_test_support::database_url;
 use serde_json::json;
 use sqlx::PgPool;
 use tokio::sync::Mutex;

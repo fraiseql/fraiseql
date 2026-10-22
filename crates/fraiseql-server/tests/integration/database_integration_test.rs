@@ -27,7 +27,7 @@ use std::{path::PathBuf, sync::Arc};
 
 use fraiseql_core::db::postgres::PostgresAdapter;
 use fraiseql_server::{CompiledSchemaLoader, ServerConfig};
-use fraiseql_test_utils::try_database_url;
+use fraiseql_test_support::try_database_url;
 
 /// Test PostgreSQL adapter initialization with default configuration.
 #[tokio::test]

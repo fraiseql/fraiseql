@@ -6,7 +6,6 @@
 //!
 //! | Helper | Module | Purpose |
 //! |--------|--------|---------|
-//! | `database_url()` | `db` | Resolve `DATABASE_URL` or panic with actionable message |
 //! | `assert_graphql_success()` | `assertions` | Assert response has no errors |
 //! | `assert_no_graphql_errors()` | `assertions` | Assert `errors` field is absent |
 //! | `assert_has_data()` | `assertions` | Assert `data` field is present and non-null |
@@ -14,30 +13,21 @@
 //! | `assert_graphql_error_code()` | `assertions` | Assert error extension code |
 //! | `assert_field_path()` | `assertions` | Assert value at nested field path |
 //! | `ManualClock` | (re-export) | Injectable clock for time-controlled tests |
-//! | `get_test_id()` | `observers` | Unique UUID string for test data namespacing |
-//! | `TestSagaExecutor` | `saga` | Execute saga steps in tests |
+//! | `FailingAdapter` | `failing_adapter` | A `DatabaseAdapter` that fails on demand |
+//! | `TestSchemaBuilder` | `schema_builder` | Build compiled schemas in tests |
 //!
 //! ## Quick start
 //!
-//! ```no_run
-//! // Requires: DATABASE_URL environment variable pointing to a PostgreSQL database.
-//! use fraiseql_test_utils::{database_url, assert_graphql_success};
-//!
-//! #[tokio::test]
-//! #[ignore = "requires DATABASE_URL"]
-//! async fn my_integration_test() {
-//!     let url = database_url();
-//!     // ...
-//! }
 //! ```
+//! use fraiseql_test_utils::assert_graphql_success;
+//!
+//! assert_graphql_success(&serde_json::json!({ "data": { "ok": true } }));
+//! ```
+//!
+//! Database URLs come from `fraiseql_test_support::{database_url, try_database_url}`.
 
 pub mod assertions;
-pub mod db;
 pub mod failing_adapter;
-pub mod fixtures;
-pub mod mock_db;
-pub mod observers;
-pub mod saga;
 pub mod schema_builder;
 
 // Re-export assertion helpers for direct use
@@ -45,50 +35,9 @@ pub use assertions::{
     assert_field_path, assert_graphql_error_code, assert_graphql_error_contains,
     assert_graphql_success, assert_has_data, assert_no_graphql_errors,
 };
-// Re-export database URL helper
-pub use db::{database_url, try_database_url};
 // Re-export clock utilities for time-controlled testing
 pub use fraiseql_core::utils::clock::{Clock, ManualClock, SystemClock};
-// Re-export observer helpers
-pub use observers::get_test_id;
-// Re-export saga types for convenience
-pub use saga::{SagaStepDef, SagaStepResult, StepStatusEnum, TestSagaExecutor};
 // Re-export schema builder types for convenience
 pub use schema_builder::{
     TestFieldBuilder, TestMutationBuilder, TestQueryBuilder, TestSchemaBuilder, TestTypeBuilder,
 };
-
-/// Setup test environment
-///
-/// # Example
-///
-/// ```rust
-/// use fraiseql_test_utils::setup_test_env;
-///
-/// setup_test_env();
-/// ```
-pub const fn setup_test_env() {
-    // Test environment setup hook (extensible for future use)
-}
-
-/// Create a temporary directory for test files
-///
-/// # Panics
-///
-/// Panics if the OS fails to create a temporary directory.
-///
-/// # Example
-///
-/// ```rust
-/// use fraiseql_test_utils::create_temp_dir;
-///
-/// let temp_dir = create_temp_dir();
-/// let file_path = temp_dir.path().join("test.json");
-/// ```
-#[must_use]
-pub fn create_temp_dir() -> tempfile::TempDir {
-    tempfile::tempdir().expect("failed to create temp directory")
-}
-
-#[cfg(test)]
-mod tests;

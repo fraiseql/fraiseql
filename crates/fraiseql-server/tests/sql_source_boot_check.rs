@@ -16,7 +16,7 @@ use fraiseql_core::{
     schema::{CompiledSchema, MutationDefinition, QueryDefinition, SourceProbe},
 };
 use fraiseql_server::sql_source_check::find_unbacked_sources as server_find_unbacked;
-use fraiseql_test_utils::try_database_url;
+use fraiseql_test_support::try_database_url;
 use tokio_postgres::NoTls;
 
 const SETUP: &str = "\

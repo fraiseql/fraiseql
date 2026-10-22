@@ -87,7 +87,7 @@ async fn test_postgres_connection() {
     // machine is what made the failure invisible.
     let Some(url) = std::env::var("SAGA_STORE_TEST_URL")
         .ok()
-        .or_else(fraiseql_test_utils::try_database_url)
+        .or_else(fraiseql_test_support::try_database_url)
     else {
         eprintln!("Skipping: neither SAGA_STORE_TEST_URL nor DATABASE_URL is set");
         return;
