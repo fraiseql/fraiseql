@@ -4281,6 +4281,7 @@ dependencies = [
  "async-trait",
  "fraiseql-core",
  "fraiseql-test-support",
+ "futures",
  "serde_json",
  "tempfile",
  "tokio",

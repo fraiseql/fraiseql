@@ -318,7 +318,7 @@ mod middleware_fn_tests {
         let addr = socket_addr([203, 0, 113, 1]);
         let req = req_with_xff("1.2.3.4");
 
-        let ip = extract_real_ip(&req, true, &cidrs, &addr);
+        let ip = extract_real_ip(req.headers(), true, &cidrs, Some(addr.ip()));
         assert_eq!(ip, "203.0.113.1", "Should use direct IP, not spoofed X-Forwarded-For");
     }
 
@@ -328,7 +328,7 @@ mod middleware_fn_tests {
         let addr = socket_addr([10, 0, 1, 5]);
         let req = req_with_xff("5.6.7.8");
 
-        let ip = extract_real_ip(&req, true, &cidrs, &addr);
+        let ip = extract_real_ip(req.headers(), true, &cidrs, Some(addr.ip()));
         assert_eq!(ip, "5.6.7.8", "Should use X-Forwarded-For from trusted proxy");
     }
 
@@ -338,7 +338,7 @@ mod middleware_fn_tests {
         let addr = socket_addr([203, 0, 113, 1]);
         let req = req_with_xff("9.9.9.9");
 
-        let ip = extract_real_ip(&req, true, &cidrs, &addr);
+        let ip = extract_real_ip(req.headers(), true, &cidrs, Some(addr.ip()));
         assert_eq!(ip, "9.9.9.9", "Empty CIDRs: all proxies trusted");
     }
 }
@@ -768,7 +768,7 @@ fn test_extract_real_ip_without_proxy_returns_peer() {
     use axum::{body::Body, http::Request};
     let req = Request::builder().body(Body::empty()).unwrap();
     let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(1, 2, 3, 4)), 1234);
-    assert_eq!(extract_real_ip(&req, false, &[], &addr), "1.2.3.4");
+    assert_eq!(extract_real_ip(req.headers(), false, &[], Some(addr.ip())), "1.2.3.4");
 }
 
 #[test]
@@ -782,7 +782,7 @@ fn test_extract_real_ip_with_proxy_prefers_x_real_ip() {
         .body(Body::empty())
         .unwrap();
     let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 80);
-    assert_eq!(extract_real_ip(&req, true, &[], &addr), "10.20.30.40");
+    assert_eq!(extract_real_ip(req.headers(), true, &[], Some(addr.ip())), "10.20.30.40");
 }
 
 #[test]
@@ -795,7 +795,7 @@ fn test_extract_real_ip_with_proxy_falls_back_to_xff() {
         .body(Body::empty())
         .unwrap();
     let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 80);
-    assert_eq!(extract_real_ip(&req, true, &[], &addr), "203.0.113.7");
+    assert_eq!(extract_real_ip(req.headers(), true, &[], Some(addr.ip())), "203.0.113.7");
 }
 
 #[test]
@@ -809,7 +809,7 @@ fn test_extract_real_ip_trust_disabled_ignores_headers() {
         .body(Body::empty())
         .unwrap();
     let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(1, 2, 3, 4)), 5678);
-    assert_eq!(extract_real_ip(&req, false, &[], &addr), "1.2.3.4");
+    assert_eq!(extract_real_ip(req.headers(), false, &[], Some(addr.ip())), "1.2.3.4");
 }
 
 #[tokio::test]

@@ -118,6 +118,8 @@ pub struct FailingAdapter {
     query_log:          Arc<Mutex<Vec<String>>>,
     /// Log of WHERE clauses passed to row queries.
     where_clause_log:   Arc<Mutex<Vec<Option<String>>>>,
+    /// A row stream that fails after this many rows, with this error.
+    stream_failure:     Arc<Mutex<Option<(usize, FailError)>>>,
 }
 
 impl FailingAdapter {
@@ -132,7 +134,20 @@ impl FailingAdapter {
             query_count:        Arc::new(AtomicU64::new(0)),
             query_log:          Arc::new(Mutex::new(Vec::new())),
             where_clause_log:   Arc::new(Mutex::new(Vec::new())),
+            stream_failure:     Arc::new(Mutex::new(None)),
         }
+    }
+
+    /// Make a streamed row read fail after delivering `rows` rows, the way a driver
+    /// error part-way through a cursor arrives: after the call returned `Ok`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the internal mutex is poisoned.
+    #[must_use]
+    pub fn fail_stream_after(self, rows: usize, err: FailError) -> Self {
+        *self.stream_failure.lock().unwrap() = Some((rows, err));
+        self
     }
 
     /// Set a canned response for a specific view.
@@ -440,6 +455,31 @@ impl DatabaseAdapter for FailingAdapter {
             return Ok(data.clone());
         }
         Ok(vec![])
+    }
+
+    async fn stream_row_query(
+        &self,
+        view_name: &str,
+        columns: &[ColumnSpec],
+        where_sql: Option<&str>,
+        order_by: Option<&str>,
+        limit: Option<u32>,
+        offset: Option<u32>,
+    ) -> Result<fraiseql_core::db::traits::ColumnRowStream> {
+        let rows = self
+            .execute_row_query(view_name, columns, where_sql, order_by, limit, offset)
+            .await?;
+        let failure = self.stream_failure.lock().unwrap().clone();
+        let items: Vec<Result<Vec<ColumnValue>>> = match failure {
+            Some((after, err)) => rows
+                .into_iter()
+                .take(after)
+                .map(Ok)
+                .chain(std::iter::once(Err(err.into_error())))
+                .collect(),
+            None => rows.into_iter().map(Ok).collect(),
+        };
+        Ok(Box::pin(futures::stream::iter(items)))
     }
 }
 

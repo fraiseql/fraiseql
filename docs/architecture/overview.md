@@ -373,6 +373,11 @@ trusted_proxy_cidrs = []
 max_buckets = 100000          # memory ceiling per tracking map, ~200 bytes a bucket
 ```
 
+Every transport keys its per-IP limit by the same rule, an embedder-mounted gRPC service
+included: `X-Real-IP` and `X-Forwarded-For` count only when `trust_proxy_headers = true`
+and, if `trusted_proxy_cidrs` is set, the connection comes from one of them. Otherwise
+the bucket is the connecting peer's address, whatever the headers claim.
+
 The Rust entry point remains the same few substantive lines — `ServerConfig::from_file`
 loads TLS, auth, rate limiting, and pool sizing from the TOML file:
 

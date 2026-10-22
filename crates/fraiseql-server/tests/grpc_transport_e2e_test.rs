@@ -54,6 +54,24 @@ fn build_grpc_service_for_test(
     oidc_validator: Option<Arc<fraiseql_core::security::OidcValidator>>,
     rate_limiter: Option<Arc<fraiseql_server::middleware::RateLimiter>>,
 ) -> Result<Option<grpc::GrpcServices>, fraiseql_core::error::FraiseQLError> {
+    build_grpc_service_sanitizing(
+        schema,
+        executor,
+        oidc_validator,
+        rate_limiter,
+        fraiseql_server::config::ErrorSanitizer::disabled(),
+    )
+}
+
+/// [`build_grpc_service_for_test`] with the deployment's error sanitizer.
+#[allow(clippy::needless_pass_by_value)] // Reason: mirrors build_grpc_service's own signature
+fn build_grpc_service_sanitizing(
+    schema: Arc<CompiledSchema>,
+    executor: Arc<Executor>,
+    oidc_validator: Option<Arc<fraiseql_core::security::OidcValidator>>,
+    rate_limiter: Option<Arc<fraiseql_server::middleware::RateLimiter>>,
+    error_sanitizer: fraiseql_server::config::ErrorSanitizer,
+) -> Result<Option<grpc::GrpcServices>, fraiseql_core::error::FraiseQLError> {
     grpc::build_grpc_service(
         schema,
         executor,
@@ -62,6 +80,7 @@ fn build_grpc_service_for_test(
         #[cfg(feature = "auth")]
         fraiseql_server::identity::RequestIdentity::default(),
         None,
+        Arc::new(error_sanitizer),
     )
 }
 
@@ -1711,6 +1730,7 @@ async fn a_streaming_read_refuses_when_its_rls_policy_fails() {
         &req_msg,
         Some(&ctx),
         10,
+        Arc::new(fraiseql_server::config::ErrorSanitizer::disabled()),
     )
     .await;
 
@@ -1766,6 +1786,7 @@ async fn a_streaming_read_applies_a_working_rls_policy() {
         &req_msg,
         Some(&ctx),
         10,
+        Arc::new(fraiseql_server::config::ErrorSanitizer::disabled()),
     )
     .await;
 
@@ -1971,6 +1992,7 @@ async fn a_denied_operation_never_reaches_the_database_on_the_streaming_arm() {
         &list_users_request(None),
         Some(&ctx),
         10,
+        Arc::new(fraiseql_server::config::ErrorSanitizer::disabled()),
     )
     .await;
     let frames = drain(body).await;
@@ -2010,6 +2032,7 @@ async fn the_same_operation_a_permitted_principal_makes_is_read_on_the_streaming
         &list_users_request(None),
         Some(&ctx),
         10,
+        Arc::new(fraiseql_server::config::ErrorSanitizer::disabled()),
     )
     .await;
     drain(body).await;
@@ -2119,6 +2142,7 @@ async fn a_page_over_the_compiled_ceiling_is_refused_on_the_streaming_arm() {
         &list_users_request(Some(5000)),
         None,
         10,
+        Arc::new(fraiseql_server::config::ErrorSanitizer::disabled()),
     )
     .await;
     let frames = drain(body).await;
@@ -2157,6 +2181,7 @@ async fn a_page_under_the_compiled_ceiling_is_read_on_the_streaming_arm() {
         &list_users_request(Some(10)),
         None,
         10,
+        Arc::new(fraiseql_server::config::ErrorSanitizer::disabled()),
     )
     .await;
     drain(body).await;
@@ -2209,5 +2234,238 @@ async fn a_wrong_typed_grpc_mutation_argument_is_refused_before_the_function() {
         !adapter.recorded_queries().iter().any(|q| q.contains("fn_create_user")),
         "the function never ran: {:?}",
         adapter.recorded_queries()
+    );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// #1638 — the client IP follows proxy trust; engine text never reaches a status
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// The peer every rate-limit case connects from.
+const PEER: &str = "198.51.100.7:40000";
+
+/// A limiter of one request per window, trusting proxy headers or not.
+fn one_request_limiter(trust_proxy_headers: bool) -> Arc<fraiseql_server::middleware::RateLimiter> {
+    use fraiseql_server::middleware::rate_limit::RateLimitConfig;
+    Arc::new(fraiseql_server::middleware::RateLimiter::new(RateLimitConfig {
+        enabled: true,
+        rps_per_ip: 1,
+        rps_per_user: 1,
+        burst_size: 1,
+        cleanup_interval_secs: 300,
+        trust_proxy_headers,
+        trusted_proxy_cidrs: Vec::new(),
+        max_buckets: 100_000,
+    }))
+}
+
+/// An anonymous `GetUser` from [`PEER`], as axum delivers it, claiming `forwarded_for`.
+async fn get_user_forwarded_for(svc: &DynamicGrpcService, forwarded_for: &str) -> Option<String> {
+    let fds = build_descriptor_set();
+    let pool = prost_reflect::DescriptorPool::decode(fds.encode_to_vec().as_slice()).unwrap();
+    let req_desc = pool.get_message_by_name("fraiseql.v1.GetUserRequest").unwrap();
+    let mut req =
+        grpc_request("GetUser", &prost_reflect::DynamicMessage::new(req_desc).encode_to_vec());
+    req.headers_mut().insert("x-forwarded-for", forwarded_for.parse().unwrap());
+    req.extensions_mut()
+        .insert(axum::extract::ConnectInfo::<std::net::SocketAddr>(PEER.parse().unwrap()));
+    let response = svc.clone().oneshot(req).await.expect("service call should not error");
+    response
+        .headers()
+        .get("grpc-status")
+        .and_then(|v| v.to_str().ok())
+        .map(String::from)
+}
+
+/// Without proxy trust the bucket is the peer's, so a client cannot mint a fresh bucket
+/// per request by varying `X-Forwarded-For`.
+#[tokio::test]
+async fn a_spoofed_forwarded_for_does_not_move_the_rate_limit_key() {
+    let tmp = tempfile::tempdir().unwrap();
+    let schema = build_grpc_schema(&write_descriptor(tmp.path()));
+    let adapter = FailingAdapter::new().with_row_response("vr_tb_users", vec![alice_row()]);
+    let svc = build_service_with_rate_limiter(adapter, schema, one_request_limiter(false));
+
+    assert_eq!(get_user_forwarded_for(&svc, "1.1.1.1").await.as_deref(), Some("0"));
+    assert_eq!(
+        get_user_forwarded_for(&svc, "2.2.2.2").await.as_deref(),
+        Some("8"),
+        "the same peer is one bucket whatever X-Forwarded-For claims (RESOURCE_EXHAUSTED)"
+    );
+}
+
+/// The control: behind a trusted proxy the forwarded client is the bucket, so two
+/// clients behind one proxy are not one client.
+#[tokio::test]
+async fn a_forwarded_for_from_a_trusted_proxy_keys_the_rate_limit() {
+    let tmp = tempfile::tempdir().unwrap();
+    let schema = build_grpc_schema(&write_descriptor(tmp.path()));
+    let adapter = FailingAdapter::new().with_row_response("vr_tb_users", vec![alice_row()]);
+    let svc = build_service_with_rate_limiter(adapter, schema, one_request_limiter(true));
+
+    assert_eq!(get_user_forwarded_for(&svc, "1.1.1.1").await.as_deref(), Some("0"));
+    assert_eq!(
+        get_user_forwarded_for(&svc, "2.2.2.2").await.as_deref(),
+        Some("0"),
+        "a second forwarded client behind a trusted proxy has its own bucket"
+    );
+}
+
+/// Database text an engine error may carry, which no status message may echo.
+const LEAKED: &str = "relation \"secret_tbl\" does not exist";
+/// What the enabled sanitizer says instead, after the error kind (as Flight renders it).
+const SANITIZED_DATABASE: &str = "Database error: An internal error occurred";
+const SANITIZED_INTERNAL: &str = "Internal error: An internal error occurred";
+
+/// A service whose engine fails its first statement with [`LEAKED`] (or serves `rows`),
+/// behind a sanitizer that is enabled, as a production deployment's is.
+fn sanitizing_service(adapter: FailingAdapter) -> (DynamicGrpcService, tempfile::TempDir) {
+    let tmp = tempfile::tempdir().unwrap();
+    let schema = Arc::new(build_grpc_schema(&write_descriptor(tmp.path())));
+    let sanitizer = fraiseql_server::config::ErrorSanitizer::new(
+        fraiseql_server::config::ErrorSanitizationConfig {
+            enabled: true,
+            ..fraiseql_server::config::ErrorSanitizationConfig::default()
+        },
+    );
+    let services = build_grpc_service_sanitizing(
+        Arc::clone(&schema),
+        Arc::new(Executor::new((*schema).clone(), Arc::new(adapter))),
+        None,
+        None,
+        sanitizer,
+    )
+    .unwrap()
+    .unwrap();
+    (services.service, tmp)
+}
+
+fn failing_with_leak() -> FailingAdapter {
+    FailingAdapter::new().fail_on_query(0).fail_with_error(
+        fraiseql_test_utils::failing_adapter::FailError::Database {
+            message:   LEAKED.to_string(),
+            sql_state: Some("42P01".to_string()),
+        },
+    )
+}
+
+/// A `User` row whose non-null `name` is `NULL`: a row the schema forbids.
+fn row_missing_a_non_null_field() -> Vec<ColumnValue> {
+    vec![
+        ColumnValue::Text("a1b2c3".into()),
+        ColumnValue::Null,
+        ColumnValue::Text("alice@example.com".into()),
+        ColumnValue::Int32(30),
+    ]
+}
+
+/// The status message of a unary call, read from the response headers.
+async fn unary_message(svc: &DynamicGrpcService, method: &str, request: &str) -> Option<String> {
+    let fds = build_descriptor_set();
+    let pool = prost_reflect::DescriptorPool::decode(fds.encode_to_vec().as_slice()).unwrap();
+    let desc = pool.get_message_by_name(request).unwrap();
+    let mut msg = prost_reflect::DynamicMessage::new(desc.clone());
+    if let Some(field) = desc.get_field_by_name("name") {
+        msg.set_field(&field, prost_reflect::Value::String("Charlie".into()));
+    }
+    let response = svc
+        .clone()
+        .oneshot(grpc_request(method, &msg.encode_to_vec()))
+        .await
+        .expect("service call should not error");
+    response
+        .headers()
+        .get("grpc-message")
+        .and_then(|v| v.to_str().ok())
+        .map(String::from)
+}
+
+/// The status message of a server-streaming call, read from its trailers.
+async fn streaming_message(svc: &DynamicGrpcService) -> Option<String> {
+    let fds = build_descriptor_set();
+    let pool = prost_reflect::DescriptorPool::decode(fds.encode_to_vec().as_slice()).unwrap();
+    let msg = prost_reflect::DynamicMessage::new(
+        pool.get_message_by_name("fraiseql.v1.ListUsersRequest").unwrap(),
+    );
+    let response = svc
+        .clone()
+        .oneshot(grpc_request("ListUsers", &msg.encode_to_vec()))
+        .await
+        .expect("service call should not error");
+    let collected = response.into_body().collect().await.expect("collect body");
+    collected
+        .trailers()
+        .and_then(|t| t.get("grpc-message"))
+        .and_then(|v| v.to_str().ok())
+        .map(String::from)
+}
+
+/// One assertion for every site: the sanitized text, positively, so a dropped
+/// `grpc-message` cannot pass for a sanitized one.
+fn assert_sanitized(site: &str, message: Option<&str>, expected: &str) {
+    assert_eq!(message, Some(expected), "{site}: the status must carry the sanitized text");
+}
+
+#[tokio::test]
+async fn a_failed_unary_read_does_not_echo_engine_text() {
+    let (svc, _tmp) = sanitizing_service(failing_with_leak());
+    let message = unary_message(&svc, "GetUser", "fraiseql.v1.GetUserRequest").await;
+    assert_sanitized("unary read", message.as_deref(), SANITIZED_DATABASE);
+}
+
+#[tokio::test]
+async fn a_failed_mutation_does_not_echo_engine_text() {
+    let (svc, _tmp) = sanitizing_service(failing_with_leak());
+    let message = unary_message(&svc, "CreateUser", "fraiseql.v1.CreateUserRequest").await;
+    assert_sanitized("mutation", message.as_deref(), SANITIZED_DATABASE);
+}
+
+#[tokio::test]
+async fn a_failed_streaming_read_does_not_echo_engine_text() {
+    let (svc, _tmp) = sanitizing_service(failing_with_leak());
+    assert_sanitized(
+        "streaming read",
+        streaming_message(&svc).await.as_deref(),
+        SANITIZED_DATABASE,
+    );
+}
+
+#[tokio::test]
+async fn a_forbidden_unary_row_does_not_echo_its_diagnosis() {
+    let adapter = FailingAdapter::new()
+        .with_row_response("vr_tb_users", vec![row_missing_a_non_null_field()]);
+    let (svc, _tmp) = sanitizing_service(adapter);
+    let message = unary_message(&svc, "GetUser", "fraiseql.v1.GetUserRequest").await;
+    assert_sanitized("unary incomplete row", message.as_deref(), SANITIZED_INTERNAL);
+}
+
+#[tokio::test]
+async fn a_forbidden_streamed_row_does_not_echo_its_diagnosis() {
+    let adapter = FailingAdapter::new()
+        .with_row_response("vr_tb_users", vec![row_missing_a_non_null_field()]);
+    let (svc, _tmp) = sanitizing_service(adapter);
+    assert_sanitized(
+        "streamed incomplete row",
+        streaming_message(&svc).await.as_deref(),
+        SANITIZED_INTERNAL,
+    );
+}
+
+#[tokio::test]
+async fn a_stream_that_fails_part_way_does_not_echo_engine_text() {
+    let adapter = FailingAdapter::new()
+        .with_row_response("vr_tb_users", vec![alice_row(), bob_row()])
+        .fail_stream_after(
+            1,
+            fraiseql_test_utils::failing_adapter::FailError::Database {
+                message:   LEAKED.to_string(),
+                sql_state: Some("08006".to_string()),
+            },
+        );
+    let (svc, _tmp) = sanitizing_service(adapter);
+    assert_sanitized(
+        "stream failing part-way",
+        streaming_message(&svc).await.as_deref(),
+        SANITIZED_DATABASE,
     );
 }

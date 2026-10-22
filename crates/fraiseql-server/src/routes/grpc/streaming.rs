@@ -11,7 +11,9 @@
 use std::sync::Arc;
 
 use bytes::Bytes;
-use fraiseql_core::{db::types::ColumnSpec, schema::TypeDefinition, security::SecurityContext};
+use fraiseql_core::{
+    db::types::ColumnSpec, error::FraiseQLError, schema::TypeDefinition, security::SecurityContext,
+};
 use futures::{StreamExt as _, stream};
 use http_body::Frame;
 use prost::Message as _;
@@ -35,17 +37,19 @@ fn grpc_frame(msg_bytes: &[u8]) -> Bytes {
 /// Internal state carried through the framing unfold loop.
 struct StreamState {
     /// Row groups from the RPC's single statement (#958).
-    chunks:         futures::stream::ReadyChunks<fraiseql_core::db::traits::ColumnRowStream>,
-    columns:        Vec<ColumnSpec>,
+    chunks:          futures::stream::ReadyChunks<fraiseql_core::db::traits::ColumnRowStream>,
+    columns:         Vec<ColumnSpec>,
     /// Which of `columns` are published non-null (#1522).
-    non_null:       Vec<bool>,
+    non_null:        Vec<bool>,
     /// The valued enum each of `columns` is typed as, if any (#1580).
-    enums:          Vec<Option<fraiseql_core::schema::EnumDefinition>>,
+    enums:           Vec<Option<fraiseql_core::schema::EnumDefinition>>,
     /// The streamed type, for a refusal's message.
-    type_name:      String,
-    row_descriptor: MessageDescriptor,
+    type_name:       String,
+    row_descriptor:  MessageDescriptor,
     /// Set once trailers have been emitted, so the next poll ends the body.
-    sent_trailers:  bool,
+    sent_trailers:   bool,
+    /// The deployment's error sanitizer, for a failure's trailers (#1638).
+    error_sanitizer: Arc<crate::config::ErrorSanitizer>,
 }
 
 /// The whole response as a single error-trailers frame, for a failure before any row.
@@ -99,6 +103,7 @@ pub async fn build_streaming_body(
     request_msg: &prost_reflect::DynamicMessage,
     security_context: Option<&SecurityContext>,
     batch_size: u32,
+    error_sanitizer: Arc<crate::config::ErrorSanitizer>,
 ) -> impl futures::Stream<Item = Result<Frame<Bytes>, std::convert::Infallible>> + Send {
     let query_match = match handler::grpc_query_match(
         executor.schema(),
@@ -109,7 +114,11 @@ pub async fn build_streaming_body(
         type_def,
     ) {
         Ok(qm) => qm,
-        Err(e) => return futures::future::Either::Left(error_body(e.to_string())),
+        Err(e) => {
+            return futures::future::Either::Left(error_body(
+                error_sanitizer.sanitize_error(e).to_string(),
+            ));
+        },
     };
 
     debug!(query = %query_name, batch_size, "Opening gRPC streaming read through the engine");
@@ -123,7 +132,9 @@ pub async fn build_streaming_body(
         Ok(read) => (read.columns, read.stream),
         Err(e) => {
             // The read never started, so the whole response is one trailers frame.
-            return futures::future::Either::Left(error_body(e.to_string()));
+            return futures::future::Either::Left(error_body(
+                error_sanitizer.sanitize_error(e).to_string(),
+            ));
         },
     };
 
@@ -136,6 +147,7 @@ pub async fn build_streaming_body(
             columns,
             row_descriptor,
             sent_trailers: false,
+            error_sanitizer,
         },
         |mut state| async move {
             if state.sent_trailers {
@@ -158,7 +170,9 @@ pub async fn build_streaming_body(
                             &state.type_name,
                         ) {
                             state.sent_trailers = true;
-                            return Some((Ok(error_trailers(&e)), state));
+                            let e =
+                                state.error_sanitizer.sanitize_error(FraiseQLError::internal(e));
+                            return Some((Ok(error_trailers(&e.to_string())), state));
                         }
                         // A row the schema forbids ends the stream, as a failed read does.
                         if let Some(e) = handler::incomplete_row(
@@ -168,6 +182,7 @@ pub async fn build_streaming_body(
                             &state.type_name,
                         ) {
                             state.sent_trailers = true;
+                            let e = state.error_sanitizer.sanitize_error(e);
                             return Some((Ok(error_trailers(&e.to_string())), state));
                         }
                         let row_msg =
@@ -180,10 +195,9 @@ pub async fn build_streaming_body(
                         // the unary arm codes the same error: a read over
                         // `max_response_bytes` is cut here, as it is charged (#1543).
                         state.sent_trailers = true;
-                        return Some((
-                            Ok(error_trailers_coded(super::grpc_code_for(&e), &e.to_string())),
-                            state,
-                        ));
+                        let code = super::grpc_code_for(&e);
+                        let e = state.error_sanitizer.sanitize_error(e);
+                        return Some((Ok(error_trailers_coded(code, &e.to_string())), state));
                     },
                 }
             }

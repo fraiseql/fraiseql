@@ -63,36 +63,49 @@ impl IntoResponse for RateLimitExceeded {
 static PROXY_WARNING_LOGGED: std::sync::atomic::AtomicBool =
     std::sync::atomic::AtomicBool::new(false);
 
-/// Extract the real client IP from request headers when behind a trusted reverse proxy.
+/// The client IP a request is rate-limited as: the forwarded client when the peer is a
+/// trusted proxy, the peer otherwise.
 ///
 /// Checks `X-Real-IP` first, then the first address in `X-Forwarded-For` (set by
 /// the proxy to the original client).  Falls back to the TCP peer address when
 /// neither header is present or `trust_proxy` is false.
 ///
+/// Every transport keys its IP limit by this one rule (#1638): it takes the headers
+/// and the peer rather than an axum request so gRPC, which never has one, can call it.
+/// A request whose peer is unknown and whose headers are not trusted is keyed
+/// `unknown`, one bucket for all such requests.
+///
 /// **Security**: only enable `trust_proxy` when the server is guaranteed to sit
 /// behind a proxy that sets these headers; otherwise clients can spoof the IP.
-pub(super) fn extract_real_ip(
-    req: &Request<Body>,
+pub fn extract_real_ip(
+    headers: &axum::http::HeaderMap,
     trust_proxy: bool,
     trusted_cidrs: &[ipnet::IpNet],
-    addr: &SocketAddr,
+    peer: Option<IpAddr>,
 ) -> String {
+    // The peer always parses; `normalise_ip_key` still applies the IPv6 /64 collapse, so
+    // a direct IPv6 client cannot mint a bucket per address either.
+    let peer_key = || {
+        peer.map_or_else(
+            || "unknown".to_string(),
+            |ip| normalise_ip_key(&ip.to_string()).unwrap_or_else(|| ip.to_string()),
+        )
+    };
     if trust_proxy {
         // If trusted_cidrs is non-empty, verify the direct connection IP is a known proxy.
         if !trusted_cidrs.is_empty() {
-            let direct: IpAddr = addr.ip();
-            let from_trusted_proxy = trusted_cidrs.iter().any(|cidr| cidr.contains(&direct));
+            let from_trusted_proxy =
+                peer.is_some_and(|direct| trusted_cidrs.iter().any(|cidr| cidr.contains(&direct)));
             if !from_trusted_proxy {
                 tracing::debug!(
-                    %direct,
+                    direct = ?peer,
                     "Connection not from a trusted proxy CIDR; ignoring X-Forwarded-For"
                 );
-                return direct.to_string();
+                return peer_key();
             }
         }
 
-        if let Some(real_ip) = req
-            .headers()
+        if let Some(real_ip) = headers
             .get("x-real-ip")
             .and_then(|v| v.to_str().ok())
             .map(str::trim)
@@ -102,27 +115,25 @@ pub(super) fn extract_real_ip(
                 return key;
             }
         }
-        if let Some(xff) = req.headers().get("x-forwarded-for").and_then(|v| v.to_str().ok()) {
+        if let Some(xff) = headers.get("x-forwarded-for").and_then(|v| v.to_str().ok()) {
             if let Some(first) = xff.split(',').next().map(str::trim).filter(|s| !s.is_empty()) {
                 if let Some(key) = normalise_ip_key(first) {
                     return key;
                 }
             }
         }
-    } else if is_private_or_loopback(addr.ip())
+    } else if peer.is_some_and(is_private_or_loopback)
         && !PROXY_WARNING_LOGGED.load(std::sync::atomic::Ordering::Relaxed)
         && !PROXY_WARNING_LOGGED.swap(true, std::sync::atomic::Ordering::Relaxed)
     {
         warn!(
-            peer_ip = %addr.ip(),
+            peer_ip = ?peer,
             "Rate limiter: peer address is loopback/RFC-1918 — server appears to be \
              behind a reverse proxy. All requests will share a single rate-limit bucket \
              unless you set `trust_proxy_headers = true` in [security.rate_limiting]."
         );
     }
-    // The peer address always parses; `normalise_ip_key` still applies the IPv6 /64
-    // collapse, so a direct IPv6 client cannot mint a bucket per address either.
-    normalise_ip_key(&addr.ip().to_string()).unwrap_or_else(|| addr.ip().to_string())
+    peer_key()
 }
 
 /// Rate limiting middleware for GraphQL requests.
@@ -154,10 +165,10 @@ pub async fn rate_limit_middleware(
         .unwrap_or_else(|| Arc::new(RateLimiter::new(RateLimitConfig::default())));
 
     let ip = extract_real_ip(
-        &req,
+        req.headers(),
         limiter.config().trust_proxy_headers,
         &limiter.config().trusted_proxy_cidrs,
-        &addr,
+        Some(addr.ip()),
     );
     let path = req.uri().path().to_string();
 

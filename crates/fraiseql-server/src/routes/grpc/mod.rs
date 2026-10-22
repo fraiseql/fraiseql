@@ -61,32 +61,35 @@ pub struct DynamicGrpcService {
     /// `RuntimeConfig::default()`, so the `Authorizer`, the RLS policy and the
     /// `before:mutation` gate would all be absent — the transport would converge
     /// at the chokepoint and find half the gates missing, which is #1333's shape.
-    executor:       Arc<fraiseql_core::runtime::Executor>,
+    executor:        Arc<fraiseql_core::runtime::Executor>,
     /// Compiled schema (for type lookups during request processing).
-    schema:         Arc<CompiledSchema>,
+    schema:          Arc<CompiledSchema>,
     /// RPC method → operation metadata dispatch table.
-    dispatch:       Arc<RpcDispatchTable>,
+    dispatch:        Arc<RpcDispatchTable>,
     /// Protobuf descriptor pool (for decoding/encoding dynamic messages).
-    pool:           Arc<DescriptorPool>,
+    pool:            Arc<DescriptorPool>,
     /// Fully-qualified service name (e.g., `"fraiseql.v1.FraiseQLService"`).
-    service_name:   Arc<str>,
+    service_name:    Arc<str>,
     /// Optional OIDC validator for JWT authentication.
     /// When present, incoming requests must carry a valid `authorization`
     /// metadata header (`Bearer <jwt>`). The validated token is converted
     /// into a [`SecurityContext`] that drives RLS WHERE clause injection.
-    oidc_validator: Option<Arc<OidcValidator>>,
+    oidc_validator:  Option<Arc<OidcValidator>>,
     /// Optional shared rate limiter (same instance used by GraphQL/REST).
     /// When present, requests are throttled per-IP and per-user before dispatch.
-    rate_limiter:   Option<Arc<RateLimiter>>,
+    rate_limiter:    Option<Arc<RateLimiter>>,
     /// What a principal resolves against (#1336, #1632): `AppState::identity`, passed in
     /// for the same reason `executor` is: this transport is mounted by an embedder, and
     /// anything it builds for itself is a copy that drifts from the one the deployment
     /// configured.
     #[cfg(feature = "auth")]
-    identity:       crate::identity::RequestIdentity,
+    identity:        crate::identity::RequestIdentity,
     /// The deployment's token-revocation store (GHSA-7482-9g53-rj7f), checked after a
     /// token validates, as both HTTP auth middlewares check it.
-    revocation:     Option<Arc<crate::token_revocation::TokenRevocationManager>>,
+    revocation:      Option<Arc<crate::token_revocation::TokenRevocationManager>>,
+    /// The deployment's error sanitizer (#1638): the instance `/graphql` uses, passed in
+    /// rather than built here, so a status message carries what a GraphQL error would.
+    error_sanitizer: Arc<crate::config::ErrorSanitizer>,
 }
 
 impl Clone for DynamicGrpcService {
@@ -102,6 +105,7 @@ impl Clone for DynamicGrpcService {
             #[cfg(feature = "auth")]
             identity: self.identity.clone(),
             revocation: self.revocation.as_ref().map(Arc::clone),
+            error_sanitizer: Arc::clone(&self.error_sanitizer),
         }
     }
 }
@@ -149,17 +153,16 @@ impl DynamicGrpcService {
             .unwrap_or("grpc")
             .to_string();
 
-        // Extract client IP for rate limiting (x-forwarded-for → x-real-ip → fallback).
-        let client_ip = req
-            .headers()
-            .get("x-forwarded-for")
-            .and_then(|v| v.to_str().ok())
-            .and_then(|v| v.split(',').next())
-            .map(|s| s.trim().to_string())
-            .or_else(|| {
-                req.headers().get("x-real-ip").and_then(|v| v.to_str().ok()).map(String::from)
-            })
-            .unwrap_or_else(|| "unknown".to_string());
+        // The client IP by the HTTP transports' rule (#1638): proxy headers count only
+        // when the limiter trusts them, and the peer otherwise.
+        let client_ip = self.rate_limiter.as_ref().map(|limiter| {
+            crate::middleware::rate_limit::extract_real_ip(
+                req.headers(),
+                limiter.config().trust_proxy_headers,
+                &limiter.config().trusted_proxy_cidrs,
+                peer_ip(&req),
+            )
+        });
 
         let security_context: Option<SecurityContext> =
             match self.authenticate(auth_header, request_id).await {
@@ -173,12 +176,13 @@ impl DynamicGrpcService {
         }
 
         // ── Rate limiting ─────────────────────────────────────────────
-        if let Some(ref limiter) = self.rate_limiter {
+        if let (Some(limiter), Some(client_ip)) = (self.rate_limiter.as_ref(), client_ip.as_deref())
+        {
             // Per-user limit if authenticated, per-IP otherwise.
             let result = if let Some(ref ctx) = security_context {
                 limiter.check_user_limit(ctx.user_id.as_str()).await
             } else {
-                limiter.check_ip_limit(&client_ip).await
+                limiter.check_ip_limit(client_ip).await
             };
 
             if !result.allowed {
@@ -205,7 +209,12 @@ impl DynamicGrpcService {
             security_context.as_ref(),
         ) {
             Ok(scope) => scope,
-            Err(e) => return grpc_error_response(tonic::Code::InvalidArgument, &e.to_string()),
+            Err(e) => {
+                return grpc_error_response(
+                    tonic::Code::InvalidArgument,
+                    &self.error_sanitizer.sanitize_error(e).to_string(),
+                );
+            },
         };
         crate::request_scope::scoped(
             scope,
@@ -293,6 +302,7 @@ impl DynamicGrpcService {
                 &request_msg,
                 security_context.as_ref(),
                 batch_size,
+                Arc::clone(&self.error_sanitizer),
             )
             .await;
 
@@ -330,7 +340,7 @@ impl DynamicGrpcService {
                 .await
                 {
                     Ok(read) => read,
-                    Err(e) => return grpc_error_response(grpc_code_for(&e), &e.to_string()),
+                    Err(e) => return self.engine_error(e),
                 };
 
                 debug!(
@@ -346,7 +356,7 @@ impl DynamicGrpcService {
                 if let Some(e) = read.rows.iter().find_map(|row| {
                     handler::incomplete_row(row, &read.columns, &non_null, &op.type_name)
                 }) {
-                    return grpc_error_response(tonic::Code::Internal, &e.to_string());
+                    return self.engine_error(e);
                 }
                 let enums = handler::enum_columns(&read.columns, type_def, &self.schema);
                 let mut rows = read.rows;
@@ -354,7 +364,7 @@ impl DynamicGrpcService {
                     if let Err(e) =
                         handler::serve_enum_members(row, &enums, &read.columns, &op.type_name)
                     {
-                        return grpc_error_response(tonic::Code::Internal, &e);
+                        return self.engine_error(FraiseQLError::internal(e));
                     }
                 }
                 handler::encode_response(
@@ -397,7 +407,7 @@ impl DynamicGrpcService {
                 .await
                 {
                     Ok(r) => r,
-                    Err(e) => return grpc_error_response(grpc_code_for(&e), &e.to_string()),
+                    Err(e) => return self.engine_error(e),
                 };
 
                 debug!(method = %method, success = result.success, "gRPC mutation completed");
@@ -604,6 +614,29 @@ pub(crate) const fn grpc_code_for(error: &FraiseQLError) -> tonic::Code {
     }
 }
 
+impl DynamicGrpcService {
+    /// The status for an engine error: its code, and its text as the deployment's
+    /// sanitizer lets a client see it (#1638).
+    fn engine_error(&self, error: FraiseQLError) -> http::Response<TonicBody> {
+        let code = grpc_code_for(&error);
+        grpc_error_response(code, &self.error_sanitizer.sanitize_error(error).to_string())
+    }
+}
+
+/// The connecting peer's address: tonic's when it serves the service, axum's when an
+/// embedder mounts it in a router served with `ConnectInfo`.
+fn peer_ip<B>(req: &http::Request<B>) -> Option<std::net::IpAddr> {
+    req.extensions()
+        .get::<tonic::transport::server::TcpConnectInfo>()
+        .and_then(tonic::transport::server::TcpConnectInfo::remote_addr)
+        .or_else(|| {
+            req.extensions()
+                .get::<axum::extract::ConnectInfo<std::net::SocketAddr>>()
+                .map(|info| info.0)
+        })
+        .map(|addr| addr.ip())
+}
+
 fn grpc_error_response(code: tonic::Code, message: &str) -> http::Response<TonicBody> {
     let mut response = http::Response::new(TonicBody::empty());
     response
@@ -689,6 +722,7 @@ pub fn build_grpc_service(
     rate_limiter: Option<Arc<RateLimiter>>,
     #[cfg(feature = "auth")] identity: crate::identity::RequestIdentity,
     revocation: Option<Arc<crate::token_revocation::TokenRevocationManager>>,
+    error_sanitizer: Arc<crate::config::ErrorSanitizer>,
 ) -> Result<Option<GrpcServices>, FraiseQLError> {
     let grpc_config = match schema.grpc_config.as_ref() {
         Some(cfg) if cfg.enabled => cfg,
@@ -786,6 +820,7 @@ pub fn build_grpc_service(
         #[cfg(feature = "auth")]
         identity,
         revocation,
+        error_sanitizer,
     };
 
     Ok(Some(GrpcServices {

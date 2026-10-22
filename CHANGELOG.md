@@ -117,6 +117,11 @@ disagreed, and the promise was the part that was wrong.
   gRPC passes `app_state.identity.clone()`, or `RequestIdentity::default()` for none.
   `AppState::with_identity_resolver` is unchanged.
 
+- **The gRPC service takes the deployment's error sanitizer (#1638).**
+  `routes::grpc::build_grpc_service` takes an `Arc<ErrorSanitizer>` after `revocation`,
+  and `routes::grpc::streaming::build_streaming_body` takes one after `batch_size`. Pass
+  `AppState::error_sanitizer`, the instance `/graphql` uses.
+
 ### Added
 
 - **`subscription_policy` is authorable (#1657).** A type's subscription row visibility
@@ -190,6 +195,15 @@ disagreed, and the promise was the part that was wrong.
   - failed queries returned the database's error text.
 
   See `docs/operations/observers.md` § Tenant Scope.
+
+- **gRPC keys its rate limit on the peer and sanitizes its status messages (#1638).**
+  The embedder-mounted gRPC service took the client IP from the first `X-Forwarded-For`
+  hop with no proxy-trust check, so a client could claim a fresh address, and a fresh
+  rate-limit bucket, on every call. It now uses the HTTP transports' rule:
+  `X-Real-IP`/`X-Forwarded-For` count only under `trust_proxy_headers`, and otherwise the
+  bucket is the peer's address (tonic's `TcpConnectInfo`, or axum's `ConnectInfo`). Its
+  status messages carried engine text verbatim, database errors included; they now pass
+  through the deployment's error sanitizer, as `/graphql` and Arrow Flight do.
 
 ## [2.17.1] - 2026-10-21
 

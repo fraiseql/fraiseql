@@ -232,6 +232,7 @@ async fn service_bounded(
         #[cfg(feature = "auth")]
         fraiseql_server::identity::RequestIdentity::default(),
         None,
+        Arc::new(fraiseql_server::config::ErrorSanitizer::disabled()),
     )
     .unwrap()
     .expect("gRPC is enabled");
