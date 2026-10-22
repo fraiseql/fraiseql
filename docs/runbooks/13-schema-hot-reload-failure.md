@@ -60,7 +60,7 @@ Compare with the expected compiled schema version.
 
 Hot-reload failures are logged at `ERROR` level with structured fields:
 
-```
+```text
 ERROR Schema reload failed via SIGUSR1 — keeping previous schema
   error="<error message here>"
   path="/etc/fraiseql/schema.compiled.json"
@@ -68,7 +68,7 @@ ERROR Schema reload failed via SIGUSR1 — keeping previous schema
 
 Or from the admin endpoint:
 
-```
+```text
 ERROR Schema reload failed
   operation="admin.reload_schema"
   schema_path="/etc/fraiseql/schema.compiled.json"
@@ -131,7 +131,7 @@ a reload via SIGUSR1 or the admin endpoint.
 
 Monitor the logs for the success message:
 
-```
+```text
 INFO Schema reloaded successfully via SIGUSR1
   schema_hash="abc123..."
 ```

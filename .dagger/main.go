@@ -575,6 +575,9 @@ func (m *FraiseqlCi) ShellGates(
 		"make test-prose-ratchet-gate",
 		// #1636: the perf comparator's self-test (the gate runs in PerfInstructions).
 		"make test-perf-instructions-gate",
+		// #1640: docs with a ```rust block are doctests, and no doc fence is bare.
+		"make lint-docs-rust-examples",
+		"make test-docs-rust-examples-gate",
 		// A published SDK's lockfile may not pin a version its manifest no longer
 		// claims (#1225): the 2.15.0 bump edited the SDK manifests and left
 		// fraiseql-python's uv.lock and fraiseql-rust's Cargo.lock at 2.14.1.

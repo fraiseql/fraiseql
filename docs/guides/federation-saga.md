@@ -69,7 +69,7 @@ decorator above is the planned authoring layer; today you build the equivalent
 
 ## Execution Flow
 
-```
+```text
 mutation createOrder($input: OrderInput!) { ... }
     │
     ▼ SagaCoordinator (fraiseql-federation)
@@ -91,7 +91,7 @@ debugging.
 
 ## State Machine
 
-```
+```text
 Pending ──► Executing ──► Completed
                 │
                 ▼

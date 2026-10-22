@@ -85,7 +85,7 @@ compatibility analysis and rollback procedure in detail.
 
 The default for Kubernetes `Deployment` / Nomad / most PaaS:
 
-```
+```text
 expand DB  →  start new pods (new schema)  →  readiness gate  →  LB shifts traffic
            →  old pods receive SIGTERM  →  drain (≤ shutdown_timeout_secs)  →  exit
 ```
@@ -106,7 +106,7 @@ Requirements:
 Two complete fleets — **blue** (v1) and **green** (v2) — point at the same Postgres and
 Redis. The gateway flips traffic blue → green atomically once green is healthy.
 
-```
+```text
 expand DB  →  bring up green fleet (v2)  →  health-gate green
            →  gateway flips blue → green (atomic)  →  drain blue  →  tear down blue
 ```
@@ -141,7 +141,7 @@ Route a fraction of traffic to v2, watch error rates and latency, then widen.
 workflow. Every deploy is a **saga** — an ordered list of compensable steps that commit as a
 whole or roll back in reverse, across one host or many:
 
-```
+```text
 preflight → fetch → migrate → activate → restart → health → verify
 ```
 

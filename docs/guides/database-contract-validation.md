@@ -103,7 +103,7 @@ Measured on 200 000 rows, `ORDER BY status, pk_invoice`:
 
 Two findings, both warnings — the query is correct, so this never fails a run:
 
-```
+```text
 [!] Pagination index   invoices: status indexed on 'tb_invoice' without pk_invoice
                        following — an incremental sort per page
      → CREATE INDEX ON tb_invoice (status, pk_invoice);

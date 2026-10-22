@@ -1,31 +1,22 @@
-//! # FraiseQL v2 - Compiled GraphQL Execution Engine
+//! # FraiseQL v2: a compiled GraphQL execution engine over PostgreSQL
 //!
-//! FraiseQL compiles GraphQL schemas into optimized SQL at build time,
-//! eliminating runtime overhead for deterministic, high-performance query execution.
+//! Schemas are authored in Python or `TypeScript` and exported as `schema.json`.
+//! `fraiseql-cli compile` validates them and binds each query to the PostgreSQL view
+//! it reads, producing `schema.compiled.json`. The server loads that file and, per
+//! request, builds the SQL for the requested selection and runs it as a prepared
+//! statement.
 //!
-//! ## Quick Start
+//! This crate re-exports the workspace crates behind features.
 //!
-//! ```text
-//! use fraiseql::prelude::*;
-//! use std::sync::Arc;
+//! ## Quick start
 //!
-//! // 1. Load compiled schema
-//! let schema_json = std::fs::read_to_string("schema.compiled.json")?;
-//! let schema = CompiledSchema::from_json(&schema_json, true)?;
+//! ```rust
+//! use fraiseql::CompiledSchema;
 //!
-//! // 2. Create database adapter
-//! let adapter = Arc::new(
-//!     fraiseql::db::PostgresAdapter::new("postgresql://localhost/mydb").await?
-//! );
-//!
-//! // 3. Create and run server (requires 'server' feature)
-//! #[cfg(feature = "server")]
-//! {
-//!     use fraiseql::server::{Server, ServerConfig};
-//!     let config = ServerConfig::from_file("server.toml")?;
-//!     let server = Server::new(config, schema, adapter, None).await?;
-//!     server.serve().await?;
-//! }
+//! let json = r#"{"types": [], "queries": [], "mutations": [], "subscriptions": []}"#;
+//! let schema = CompiledSchema::from_json(json, false)?;
+//! assert!(schema.queries.is_empty());
+//! # Ok::<(), fraiseql::FraiseQLError>(())
 //! ```
 //!
 //! ## Architecture
@@ -35,27 +26,23 @@
 //! (Python/TS)            (Rust)                   (Rust)
 //!     ↓                      ↓                        ↓
 //! schema.json    +    fraiseql.toml      →    schema.compiled.json    →    GraphQL Server
-//! (types)                 (config)           (types + config + SQL)        (Axum HTTP server)
+//! (types)                 (config)           (types + config + bindings)   (builds SQL per request)
 //! ```
 //!
-//! ## Feature Flags
+//! ## Features
 //!
-//! - **Database backends:**
-//!   - `postgres` (default) - PostgreSQL support
-//!   - `mysql` - MySQL support
-//!   - `sqlite` - SQLite support
-//!   - `sqlserver` - SQL Server support
+//! PostgreSQL support is always compiled in; there are no default features.
 //!
-//! - **Optional components:**
-//!   - `server` - HTTP server with auth, webhooks, file uploads
-//!   - `observers` - Reactive business logic system
-//!   - `arrow` - Apache Arrow Flight integration
-//!   - `wire` - Streaming JSON query engine
-//!   - `cli` - Compiler CLI tools
-//!
-//! - **Bundles:**
-//!   - `full` - All features enabled
-//!   - `minimal` - Core only, no database backends
+//! - `server`: the HTTP server (`fraiseql-server`); `rest`, `mcp`, `metrics`, `sources`, `inbound`,
+//!   `inbound-email`, `cdc-outbound` and the `functions-*` features enable its optional transports
+//!   and subsystems.
+//! - `observers`, `observers-cache`: post-mutation observers.
+//! - `arrow`: Apache Arrow Flight.
+//! - `wire`: the `fraiseql-wire` streaming client.
+//! - `federation`: Apollo Federation subgraph support.
+//! - `cli`: the compiler CLI.
+//! - `full`: `server`, `observers`, `observers-cache`, `arrow`, `wire`, `cli`, `federation`;
+//!   `release-full` is the feature set of the published `-full` binary.
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
@@ -129,3 +116,43 @@ pub mod prelude {
 
 /// FraiseQL version string
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+
+// The documentation's Rust examples are compiled as doctests: a ```rust block in one
+// of these files claims to compile, and `cargo test --doc` holds it to that. A block
+// that only illustrates is fenced ```rust,ignore or ```text. `tools/check-docs-rust-
+// examples.py` fails when a file with a ```rust block is missing from this list.
+#[cfg(doctest)]
+mod docs_examples {
+    #[doc = include_str!("../../../docs/architecture/functions.md")]
+    struct ArchitectureFunctions;
+    #[doc = include_str!("../../../docs/architecture/mutation-response.md")]
+    struct ArchitectureMutationResponse;
+    #[doc = include_str!("../../../docs/architecture/overview.md")]
+    struct ArchitectureOverview;
+    #[doc = include_str!("../../../docs/architecture/wire-protocol.md")]
+    struct ArchitectureWireProtocol;
+    #[doc = include_str!("../../../docs/auth/identity-store.md")]
+    struct AuthIdentityStore;
+    #[doc = include_str!("../../../docs/auth/local-password.md")]
+    struct AuthLocalPassword;
+    #[doc = include_str!("../../../docs/auth/saml-sso.md")]
+    struct AuthSamlSso;
+    #[doc = include_str!("../../../docs/features/mutation-timing.md")]
+    struct FeaturesMutationTiming;
+    #[doc = include_str!("../../../docs/fuzzing.md")]
+    struct Fuzzing;
+    #[doc = include_str!("../../../docs/guides/field-authorization.md")]
+    struct GuidesFieldAuthorization;
+    #[doc = include_str!("../../../docs/guides/operation-authorization.md")]
+    struct GuidesOperationAuthorization;
+    #[doc = include_str!("../../../docs/guides/typed-clients.md")]
+    struct GuidesTypedClients;
+    #[doc = include_str!("../../../docs/linting.md")]
+    struct Linting;
+    #[doc = include_str!("../../../docs/modules/fact-table.md")]
+    struct ModulesFactTable;
+    #[doc = include_str!("../../../docs/modules/window-functions.md")]
+    struct ModulesWindowFunctions;
+    #[doc = include_str!("../../../docs/value-proposition.md")]
+    struct ValueProposition;
+}

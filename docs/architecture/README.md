@@ -29,7 +29,7 @@ columns, foreign-key join columns and pagination order from the live database. S
 generated at compile time: the server builds each request's SQL from its selection set and
 runs it as a prepared statement (#1636, #1557). The architecture has three distinct layers:
 
-```
+```text
 Authoring               Compilation              Runtime
 (Python/TS/C#/etc.)    (Rust CLI)               (Rust Server)
       ↓                      ↓                        ↓

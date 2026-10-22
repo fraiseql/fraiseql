@@ -13,11 +13,13 @@ expects, and it is the prerequisite for the password-reset flow (#367).
 
 ## Usage
 
-```rust
+```rust,no_run
+# use fraiseql::server::{auth as fraiseql_auth, sqlx};
 use std::sync::Arc;
 use fraiseql_auth::{AccountStore, LocalPasswordAuthenticator, PostgresAccountStore};
 use sqlx::postgres::PgPoolOptions;
 
+# async fn example(database_url: String) -> Result<(), Box<dyn std::error::Error>> {
 let pool = PgPoolOptions::new().connect(&database_url).await?;
 let accounts: Arc<dyn AccountStore> = Arc::new(PostgresAccountStore::new(pool.clone()));
 let auth = LocalPasswordAuthenticator::new(pool, accounts);
@@ -26,6 +28,9 @@ auth.init().await?; // idempotent; ensures the #411 identity tables + the creden
 // Signup and login both return the stable `user_id`; mint a session from it as usual.
 let user_id = auth.signup("alice@example.com", "correct horse battery staple").await?;
 let user_id = auth.login("alice@example.com", "correct horse battery staple").await?;
+# drop(user_id);
+# Ok(())
+# }
 ```
 
 The connecting `PgPool` role must **own** (or carry `BYPASSRLS` for) the `core` tables —
@@ -110,8 +115,18 @@ non-enumerable reset on top of the same credential store. Like signup/login they
 library primitive: you construct the authenticator and wire your own routes — no HTTP
 endpoint or SMTP client is built in.
 
-```rust
+```rust,no_run
+# use fraiseql::server::{auth as fraiseql_auth, sqlx};
 use fraiseql_auth::{ResetEmailSender, SessionStore};
+# use std::sync::Arc;
+# use fraiseql_auth::{AccountStore, LocalPasswordAuthenticator};
+# async fn example(
+#     pool: sqlx::PgPool,
+#     accounts: Arc<dyn AccountStore>,
+#     email_sender: Arc<dyn ResetEmailSender>,
+#     session_store: Arc<dyn SessionStore>,
+#     token: String,
+# ) -> Result<(), Box<dyn std::error::Error>> {
 
 let auth = LocalPasswordAuthenticator::new(pool, accounts)
     .with_email_sender(email_sender)    // Arc<dyn ResetEmailSender>: delivers the link
@@ -122,6 +137,8 @@ auth.init().await?; // also creates core.tb_password_reset_token
 auth.start_password_reset("alice@example.com").await?;
 // The user clicks the emailed link; your route hands the token back here.
 auth.confirm_password_reset(&token, "a brand new passphrase!").await?;
+# Ok(())
+# }
 ```
 
 ### Token design: selector + verifier

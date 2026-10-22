@@ -345,7 +345,7 @@ JVM language users should use the Java SDK with interop libraries (Kotlin, Cloju
 
 FraiseQL's core differentiation is the **compilation boundary**:
 
-```
+```text
 Input:        schema.json (type definitions) + fraiseql.toml (configuration)
               ↓
 Compiler:     fraiseql-cli validates, optimizes, generates SQL templates
@@ -367,9 +367,9 @@ This boundary enables:
 
 Every integration (databases, authentication, storage) is abstraction behind a trait:
 
-```rust
+```rust,ignore
 pub trait DatabaseAdapter: Send + Sync {
-    async fn execute_query(...) -> Result<JsonbValue>;
+    async fn execute_where_query(...) -> Result<Vec<JsonbValue>>;
     fn database_type(&self) -> DatabaseType;
 }
 

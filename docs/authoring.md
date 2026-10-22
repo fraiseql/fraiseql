@@ -9,7 +9,7 @@ file that the FraiseQL runtime loads at startup.
 
 No Python or TypeScript code runs at request time — the runtime is pure Rust.
 
-```
+```text
 Python/TypeScript decorators
          ↓  fraiseql generate-schema
     schema.json
@@ -761,7 +761,7 @@ reports missing types with their location.
 ### Schema format version mismatch at runtime
 
 If the server logs:
-```
+```text
 Schema format version mismatch: compiled schema has version X, but this runtime expects version Y.
 ```
 

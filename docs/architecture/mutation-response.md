@@ -326,7 +326,9 @@ via the `operation` parameter passed in).
 
 ## Rust struct
 
-```rust
+An excerpt of `crates/fraiseql-core/src/runtime/mutation_result.rs`:
+
+```rust,ignore
 /// Typed `app.mutation_response` row.
 ///
 /// Fields map 1:1 to the PostgreSQL composite columns.

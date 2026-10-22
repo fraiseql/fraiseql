@@ -67,7 +67,7 @@ Use `fraiseql-db` (the standard adapter) when:
 
 ## Architecture
 
-```
+```text
 Client application
       │
       │  FraiseClient::query::<T>(entity).where_sql(..).where_rust(..).execute()
@@ -97,7 +97,10 @@ PostgreSQL cancel request.
 The query builder supports two-layer filtering: SQL predicates reduce what PostgreSQL
 sends, and a Rust predicate refines rows after they arrive.
 
-```rust
+```rust,no_run
+# use fraiseql::wire::{FraiseClient, serde_json};
+# type Order = serde_json::Value;
+# async fn example(client: FraiseClient) -> fraiseql::wire::Result<()> {
 let stream = client
     .query::<Order>("v_order")
     // SQL predicate: added to the WHERE clause, AND-ed with any others
@@ -106,6 +109,9 @@ let stream = client
     .where_rust(|row| row["amount"].as_f64().is_some_and(|a| a > 100.0))
     .execute()
     .await?;
+# drop(stream);
+# Ok(())
+# }
 ```
 
 ## Module Structure

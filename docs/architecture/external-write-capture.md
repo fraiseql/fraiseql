@@ -8,7 +8,7 @@ through FraiseQL's mutation executor.
 This is the Change Spine's fallback producer. It complements, and never
 duplicates, the app-mediated [in-transaction outbox](./change-log-contract.md):
 
-```
+```text
                           core.tb_entity_change_log
                                     │
    GraphQL mutation ── executor outbox row (full envelope) ──┐

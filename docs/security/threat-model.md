@@ -26,7 +26,7 @@
 
 ## 3. Data Flow Diagram
 
-```
+```text
 Internet
    │ TLS (rustls 0.23)
    ▼

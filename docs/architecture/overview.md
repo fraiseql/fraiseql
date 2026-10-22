@@ -19,7 +19,7 @@ FraiseQL v2 achieves four goals simultaneously:
 
 ## Architectural Pattern: Layered Optionality
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────┐
 │                 Layer 1: Core (Required)                    │
 ├─────────────────────────────────────────────────────────────┤
@@ -102,7 +102,7 @@ FraiseQL v2 achieves four goals simultaneously:
 
 **Schema compilation happens before deploy, not at runtime. SQL is built per request.**
 
-```
+```text
 Authoring (Python/TS) → Compilation (Rust) → Runtime (Rust)
          ↓                      ↓                    ↓
    schema.json        schema.compiled.json    fraiseql-server (Server)
@@ -132,7 +132,7 @@ from the selection set (`crates/fraiseql-core/src/runtime/executor/runners/query
 
 **Every external dependency is abstracted behind a trait.**
 
-```rust
+```rust,ignore
 // Core abstraction
 pub trait DatabaseAdapter: Send + Sync {
     async fn execute_where_query(...) -> Result<Vec<JsonbValue>>;
@@ -213,7 +213,14 @@ cargo build -p fraiseql-server --all-features
 
 **All behavior controlled by configuration, not code.**
 
-```rust
+```rust,no_run
+# use std::sync::Arc;
+# use fraiseql::{CompiledSchema, db::PostgresAdapter, server::{Server, ServerConfig}};
+# async fn example(
+#     schema: CompiledSchema,
+#     adapter: Arc<PostgresAdapter>,
+#     db_pool: Option<fraiseql::server::sqlx::PgPool>,
+# ) -> Result<(), Box<dyn std::error::Error>> {
 // Construct config — always load from file in production.
 // `from_file` reads the TOML only; it applies no env-var layer. The
 // `fraiseql-server` binary additionally applies its explicit CLI/env
@@ -223,6 +230,8 @@ let config = ServerConfig::from_file("server.toml")?;
 // Start server
 let server = Server::new(config, schema, adapter, db_pool).await?;
 server.serve().await?;
+# Ok(())
+# }
 ```
 
 > **Never use `ServerConfig::default()` in production.** It disables TLS,
@@ -313,7 +322,7 @@ password_env = "FRAISEQL_SMTP_PASSWORD"
 
 **Shared state via Arc.**
 
-```rust
+```rust,ignore
 // Create once
 let executor = Arc::new(Executor::new(schema, adapter));
 
@@ -341,13 +350,18 @@ Router::new()
 
 For local development and testing:
 
-```rust
+```rust,no_run
+# use std::sync::Arc;
+# use fraiseql::{CompiledSchema, db::PostgresAdapter, server::{Server, ServerConfig}};
+# async fn example(db_url: String) -> Result<(), Box<dyn std::error::Error>> {
 let schema_json = std::fs::read_to_string("schema.compiled.json")?;
 let schema = CompiledSchema::from_json(&schema_json, true)?;
 let adapter = Arc::new(PostgresAdapter::new(&db_url).await?);
 let config = ServerConfig::default();   // sensible dev defaults, no TLS
 let server = Server::new(config, schema, adapter, None).await?;
 server.serve().await?;
+# Ok(())
+# }
 ```
 
 This starts a fully functional GraphQL server on `127.0.0.1:8000` (the `ServerConfig::default()` bind address) suitable for development.
@@ -404,20 +418,22 @@ and, if `trusted_proxy_cidrs` is set, the connection comes from one of them. Oth
 the bucket is the connecting peer's address, whatever the headers claim.
 
 The Rust entry point remains the same few substantive lines — `ServerConfig::from_file`
-loads TLS, auth, rate limiting, and pool sizing from the TOML file:
+loads TLS, auth, rate limiting, and pool sizing from the TOML file. Initialise your own
+tracing subscriber first (for JSON logs filtered by `RUST_LOG`, e.g.
+`tracing_subscriber::fmt().json().with_env_filter(EnvFilter::from_default_env()).init()`):
 
-```rust
-tracing_subscriber::fmt()
-    .json()
-    .with_env_filter(tracing_subscriber::EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| "info".into()))   // RUST_LOG
-    .init();
+```rust,no_run
+# use std::sync::Arc;
+# use fraiseql::{CompiledSchema, db::PostgresAdapter, server::{Server, ServerConfig, anyhow}};
+# async fn example() -> anyhow::Result<()> {
 let config = ServerConfig::from_file("server.toml").map_err(anyhow::Error::msg)?;
 let schema_json = std::fs::read_to_string(&config.schema_path)?;
 let schema = CompiledSchema::from_json(&schema_json, true)?;
 let adapter = Arc::new(PostgresAdapter::new(&config.database_url).await?);
 let server = Server::new(config, schema, adapter, None).await?;
 server.serve().await?;
+# Ok(())
+# }
 ```
 
 **Minimum production checklist:**
@@ -491,9 +507,9 @@ Compilation binds each query to its view; it does not produce SQL. At request ti
 executor builds the projection and `WHERE` for the selection set, with user values as
 bind parameters, and the adapter runs it as a prepared statement (#1557, #1636):
 
-```rust
-// Request: query { users(where: { age: { gt: 18 } }) { id name } }
-// SQL built for this request, values bound as parameters, e.g.:
+```sql
+-- Request: query { users(where: { age: { gt: 18 } }) { id name } }
+-- SQL built for this request, values bound as parameters, e.g.:
 SELECT jsonb_build_object('id', data->'id', 'name', data->'name')
 FROM v_user WHERE (data->>'age')::int > $1
 ```
@@ -503,7 +519,7 @@ the SQL text (`crates/fraiseql-db/src/postgres/adapter/database.rs`).
 
 ### 2. Connection Pooling
 
-```rust
+```rust,ignore
 pub struct PostgresAdapter {
     pool: Pool,  // deadpool-postgres pool, shared by every request
     // ...
@@ -520,10 +536,14 @@ invalidation, enabled by `cache_enabled` in `ServerConfig`. Automatic Persisted 
 ### 4. Introspection Pre-computation
 
 ```rust
+# use fraiseql::{CompiledSchema, schema::IntrospectionResponses};
+# fn example(schema: CompiledSchema) {
 // When the Executor is constructed:
 let introspection = IntrospectionResponses::build(&schema);
 
 // At runtime: __schema / __type queries are answered from the pre-built response.
+# let _ = introspection;
+# }
 ```
 
 ---
@@ -534,7 +554,7 @@ let introspection = IntrospectionResponses::build(&schema);
 
 **Pattern:** Mock all external dependencies via traits
 
-```rust
+```rust,ignore
 #[cfg(test)]
 struct MockDatabaseAdapter {
     responses: Vec<Vec<JsonbValue>>,
@@ -584,7 +604,7 @@ Standard queries and mutations use prepared statement parameters exclusively.
 User input (variables, WHERE operators, inject values) is never concatenated
 into SQL strings:
 
-```rust
+```rust,ignore
 // Standard path — always parameterized
 execute("SELECT data FROM v_user WHERE (data->>'id')::bigint = $1", &[user_id])
 ```
@@ -703,14 +723,22 @@ see [Database Compatibility](../database-compatibility.md) for the record.
 ### Adding Optional Middleware
 
 ```rust
+# use fraiseql::server::axum;
+use axum::{Router, extract::Request, middleware::{self, Next}, response::Response};
+
 // In fraiseql-server/src/middleware/
-pub fn my_middleware<B>() -> Middleware<B> {
+pub async fn my_middleware(request: Request, next: Next) -> Response {
     // Implementation
+    next.run(request).await
 }
 
-// In server.rs, conditionally apply:
-if config.my_feature_enabled {
-    app = app.layer(my_middleware());
+// Where the router is assembled (fraiseql-server/src/server/routing/), apply it
+// conditionally:
+fn apply_optional_layers(mut app: Router, my_feature_enabled: bool) -> Router {
+    if my_feature_enabled {
+        app = app.layer(middleware::from_fn(my_middleware));
+    }
+    app
 }
 ```
 
@@ -720,7 +748,7 @@ if config.my_feature_enabled {
 
 ### ❌ Don't Mix Authoring and Runtime
 
-```rust
+```text
 // Wrong: Authoring in runtime
 fraiseql_core.compile_schema(python_code)  // NO!
 
@@ -752,13 +780,13 @@ observers = ["redis"]
 
 ### ❌ Don't Create Tight Coupling
 
-```rust
+```rust,ignore
 // Wrong: Direct dependency
-use fraiseql_observers::ObserverRuntime;
+use fraiseql_observers::ObserverExecutor;
 
 // Right: Optional + feature-gated
 #[cfg(feature = "observers")]
-use fraiseql_observers::ObserverRuntime;
+use fraiseql_observers::ObserverExecutor;
 ```
 
 ---

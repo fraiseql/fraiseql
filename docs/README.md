@@ -26,7 +26,7 @@
 
 ## Directory Map
 
-```
+```text
 docs/
 ├── README.md                    ← this file
 ├── adr/                         ← Architecture Decision Records (14 ADRs)

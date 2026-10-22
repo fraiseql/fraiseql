@@ -6,7 +6,7 @@ Cloud Storage, Azure Blob Storage, or the local filesystem.
 
 ## Overview
 
-```
+```text
 HTTP request → Storage Router → key validation → ownership check (RLS)
                                                         ↓
                                    object-metadata table (PostgreSQL)
@@ -300,7 +300,7 @@ it bypasses the access mode.
 
 A policy can also be pushed over the Admin API, without a config deploy:
 
-```
+```http
 GET    /api/v1/admin/storage/{bucket}/policies    # read token
 PUT    /api/v1/admin/storage/{bucket}/policies    # write token
 DELETE /api/v1/admin/storage/{bucket}/policies    # write token
@@ -387,7 +387,7 @@ wildcard (`image/*`), or `*/*`. Omitting the key means no restriction; an
 
 Build the server with `--features storage-transforms` to mount
 
-```
+```http
 GET /storage/v1/render/{bucket}/{key}?w=&h=&mode=&gravity=&background=&crop=
                                      &blur=&sharpen=&watermark=&format=&quality=&preset=
 ```
@@ -553,7 +553,7 @@ fake-gcs round-trips) run in the `storage` integration suite and need
 
 ## Crate dependencies
 
-```
+```text
 fraiseql-storage
 ├── fraiseql-error
 ├── sqlx (object metadata, PostgreSQL)

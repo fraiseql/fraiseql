@@ -12,7 +12,7 @@
 
 Check startup logs for:
 
-```
+```text
 OTLP tracing export enabled: endpoint=http://otel-collector:4317, service_name=fraiseql
 ```
 

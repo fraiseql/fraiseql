@@ -22,7 +22,7 @@ The `fraiseql-core` and `fraiseql-db` integration suites provision their fixture
 with `CREATE TABLE` / `CREATE TYPE` in the **same `public` schema of the same
 database**. Run in parallel they collide on PostgreSQL's catalog uniqueness:
 
-```
+```text
 duplicate key value violates unique constraint "pg_type_typname_nsp_index"
 ```
 

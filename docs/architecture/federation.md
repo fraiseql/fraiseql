@@ -12,7 +12,7 @@ the workspace depends on (see [Layer 3](#layer-3--cross-subgraph-mutations-frais
 
 ## Component Map
 
-```
+```text
 crates/fraiseql-federation/src/
 ├── entity_resolver.rs             # _entities batch resolution from the local database (MAX_ENTITIES_BATCH_SIZE = 1000)
 ├── representation.rs              # _Any scalar → EntityRepresentation parsing (same 1000 cap)
@@ -116,7 +116,7 @@ See [circuit-breaker.md](../guides/circuit-breaker.md) for configuration and tun
 
 ## Data Flow: `_entities` Request
 
-```
+```text
 Router → POST /graphql  { _entities(representations: [...]) { ... } }
     │
     ▼ GraphQL handler
@@ -134,7 +134,7 @@ Router → POST /graphql  { _entities(representations: [...]) { ... } }
 > Available to an embedder that uses `fraiseql-saga` directly. The `fraiseql-server`
 > binary does not run sagas.
 
-```
+```text
 Embedder code → SagaCoordinator.execute_saga()
     │
     ├── Step 1: inventory-service.reserveInventory  ← forward

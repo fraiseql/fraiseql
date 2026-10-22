@@ -7,7 +7,7 @@ The implementation lives in `fraiseql-server/src/federation/circuit_breaker.rs`.
 
 ## State Machine
 
-```
+```text
                ≥ failure_threshold consecutive failures
     CLOSED ──────────────────────────────────────────► OPEN
       ▲                                                  │

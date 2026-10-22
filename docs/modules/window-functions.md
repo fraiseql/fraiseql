@@ -20,7 +20,7 @@ translates user-facing semantic requests into database-specific SQL.
 
 ## 3-Stage Pipeline
 
-```
+```text
 GraphQL query arguments
       ↓ parse_window_request()
 WindowRequest { fn_type, partition_by, order_by, frame, … }  ← semantic names
@@ -34,7 +34,7 @@ WindowExecutionPlan { sql_expressions, … }                    ← SQL expressi
 
 User-facing API. Field names are semantic (`"revenue"`, `"category"`) — not SQL.
 
-```rust
+```rust,ignore
 pub struct WindowRequest {
     pub table_name: String,
     pub select: Vec<WindowSelectColumn>,     // Measure | Dimension | Filter
@@ -57,7 +57,7 @@ pub enum WindowSelectColumn {
 Semantic names are resolved to SQL expressions against `FactTableMetadata`. The planner
 validates that every referenced measure/dimension exists on the target table.
 
-```rust
+```rust,ignore
 pub struct WindowExecutionPlan {
     pub table: String,
     pub select: Vec<SelectColumn>,    // SQL expressions like "dimensions->>'category'"
@@ -142,7 +142,7 @@ FROM tf_sales;
 
 SQL snapshots for window function SQL generation live in:
 
-```
+```text
 crates/fraiseql-core/tests/sql_snapshots.rs  — section: window_functions
 ```
 

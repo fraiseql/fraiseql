@@ -64,10 +64,15 @@ $$ LANGUAGE plpgsql;
 An embedder constructing the adapter directly can stamp an additional variable, under a
 name of its choosing, with the `with_mutation_timing` builder method:
 
-```rust
+```rust,no_run
+# use fraiseql::db::PostgresAdapter;
+# async fn example(db_url: String) -> Result<(), Box<dyn std::error::Error>> {
 let adapter = PostgresAdapter::new(&db_url)
     .await?
     .with_mutation_timing("fraiseql.started_at");
+# drop(adapter);
+# Ok(())
+# }
 ```
 
 ## Performance

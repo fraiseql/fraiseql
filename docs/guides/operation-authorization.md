@@ -61,10 +61,18 @@ Register the authorizer on `RuntimeConfig`, exactly parallel to `with_rls_policy
 `with_field_authorizer`:
 
 ```rust
+# use fraiseql_core::security::{Authorizer, AuthzRequest, AuthzDecision};
+# struct WritesNeedAuth;
+# impl Authorizer for WritesNeedAuth {
+#     fn authorize(&self, _req: &AuthzRequest<'_>) -> fraiseql_core::error::Result<AuthzDecision> {
+#         Ok(AuthzDecision::Allow)
+#     }
+# }
 use fraiseql_core::runtime::RuntimeConfig;
 use std::sync::Arc;
 
 let config = RuntimeConfig::default().with_authorizer(Arc::new(WritesNeedAuth));
+# drop(config);
 ```
 
 When no authorizer is configured (the default), the gate is a single `Option::is_some`
@@ -116,12 +124,18 @@ query — or the type name if it has none. A type with several list queries (`or
 **To gate operations only**, allow every request whose `nesting` is set:
 
 ```rust
+# use fraiseql_core::security::{Authorizer, AuthzRequest, AuthzDecision};
+# use fraiseql_core::error::Result;
+# struct OperationRulesOnly;
+# impl Authorizer for OperationRulesOnly {
 fn authorize(&self, req: &AuthzRequest<'_>) -> Result<AuthzDecision> {
     if req.nesting.is_some() {
         return Ok(AuthzDecision::Allow); // operation-level rules only
     }
     // … your operation rules …
+#   Ok(AuthzDecision::Allow)
 }
+# }
 ```
 
 A deny at a nested level is a 403 naming the level: *"Read of 'Order' at 'User.orders'

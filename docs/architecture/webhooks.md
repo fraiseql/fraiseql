@@ -331,7 +331,7 @@ second gets two actor rows — after which every resolution for them is
 
 ### Processing Flow
 
-```
+```text
 Provider (Stripe, GitHub, …)
          │
          │ POST /webhooks/{segment}
@@ -500,7 +500,7 @@ the condition is true.
 
 ### Condition DSL
 
-```
+```text
 # Field comparisons
 status == 'shipped'
 total > 100
@@ -550,7 +550,7 @@ through the admin API (`POST /api/observers`); the compiler refuses an
 
 The two subsystems are independent and can be used together:
 
-```
+```text
 External event (Stripe)
        │
        │ inbound webhook

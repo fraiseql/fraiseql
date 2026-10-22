@@ -73,7 +73,7 @@ CREATE INDEX ON tf_sales(occurred_at);
 
 ## Introspection Flow
 
-```
+```text
 DatabaseIntrospector::list_fact_tables()
       ↓ finds all tables starting with "tf_"
 For each table:
@@ -104,7 +104,7 @@ and measure names in window function requests actually exist on the table.
 Instead of requiring explicit dimension declarations, FraiseQL samples the JSONB column
 to discover dimension key paths:
 
-```rust
+```rust,ignore
 pub fn extract_dimension_paths(
     sample: &serde_json::Value,
     column_name: &str,
@@ -410,7 +410,7 @@ version-aware key strategy. Source: `cache/fact_table_cache.rs` and
 
 ### Cache Key
 
-```
+```text
 agg:<SHA256(sql + schema_version + version_component)>
 ```
 
@@ -482,7 +482,7 @@ config.set_strategy(
 
 ### Execution Flow
 
-```
+```text
 execute_aggregation_query(sql)
   ↓ Extract table name (regex: "FROM tf_xxx")
   ↓ If not a fact table → execute without cache

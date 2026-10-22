@@ -43,7 +43,7 @@ relationships). Protect access similarly to how you protect database schema migr
 
 ### Option A: Compile in CI, deploy as artifact (recommended)
 
-```
+```text
 Developer pushes schema changes
      ↓
 CI: fraiseql compile fraiseql.toml

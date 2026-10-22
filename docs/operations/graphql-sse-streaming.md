@@ -45,7 +45,7 @@ Any operation without `@stream` (including mutations over POST) executes
 through the ordinary buffered pipeline once and is delivered as one `next`
 event carrying the standard execution result, followed by `complete`:
 
-```
+```text
 event: next
 data: {"data":{"items":[…]}}
 
@@ -99,7 +99,7 @@ The immediate payload carries the fields the client did not defer, with
 `hasNext: true`; each deferred fragment then arrives as an `incremental` entry
 addressed by its response path, one per list element:
 
-```
+```text
 {"data":{"items":[{"id":1},{"id":2}]},"hasNext":true}
 {"incremental":[{"data":{"label":"one"},"path":["items",0],"label":"detail"}],"hasNext":true}
 {"incremental":[{"data":{"label":"two"},"path":["items",1],"label":"detail"}],"hasNext":false}
@@ -154,7 +154,7 @@ is supported, and is a different mechanism from the root-field form above. It sp
 the *delivery* of a list the query already produced, exactly as `@defer` splits the
 delivery of a deferred fragment:
 
-```
+```text
 event: next
 data: {"data":{"users":[{"id":1,"posts":["p1","p2"]}]},"hasNext":true}
 
@@ -246,7 +246,7 @@ that event did not deliver**. Reconnect with the same document and
 repeated, none skipped. A browser `EventSource` sends the header automatically;
 other clients set it themselves.
 
-```
+```text
 id: 2
 event: next
 data: {"data":{"items":[{"id":1},{"id":2}]},"hasNext":true}

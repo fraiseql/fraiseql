@@ -53,7 +53,7 @@ curl -X POST http://localhost:8000/graphql \
 
 ## Performance
 
-```
+```text
 Request:  Parse query -> Match against compiled schema -> Build SQL for the selection
           -> Execute as a prepared statement -> Serialize
 ```
@@ -62,7 +62,7 @@ Benchmarks: `crates/fraiseql-core/benches/` (Criterion, reproducible).
 
 ## Architecture
 
-```
+```text
 Authoring (Python/TS)     Compilation (Rust)        Runtime (Rust)
       |                         |                        |
   schema.json    +    fraiseql.toml    ->    schema.compiled.json    ->    Server
@@ -201,7 +201,7 @@ See [Security Checklist](docs/guides/production-security-checklist.md) for produ
 
 ## Repository Layout
 
-```
+```text
 crates/               # Rust engine crates (fraiseql-core, fraiseql-server, fraiseql-cli, …)
 sdks/official/        # Official authoring SDKs (Python, TypeScript, Java, Go, Rust, PHP, …)
 sdks/community/       # Community-maintained SDKs

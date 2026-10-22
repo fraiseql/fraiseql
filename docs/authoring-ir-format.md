@@ -11,7 +11,7 @@ Language SDKs (Python, TypeScript, Go, etc.) emit this file from decorator-based
 definitions. The FraiseQL compiler reads it and produces `schema.compiled.json`
 for the runtime server.
 
-```
+```text
 Your code  →  SDK  →  schema.json  →  fraiseql-cli compile  →  schema.compiled.json
 ```
 

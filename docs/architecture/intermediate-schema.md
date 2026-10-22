@@ -5,7 +5,7 @@ The intermediate schema is the **contract between SDK authoring tools and the Fr
 Language SDKs (Python, TypeScript, C#, Go, Rust) emit a `schema.json` file in this format.
 `fraiseql-cli compile schema.json` reads it, validates it, and produces `schema.compiled.json`.
 
-```
+```text
 Python/TS/C#/Go/Rust decorators
           │
           ▼

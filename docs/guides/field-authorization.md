@@ -50,10 +50,21 @@ key on columns the client never selected, like `owner_id`), and the field `argum
 Register the authorizer on `RuntimeConfig`, exactly parallel to `with_rls_policy`:
 
 ```rust
+# use fraiseql_core::security::{FieldAuthorizer, FieldAuthzRequest, FieldAuthzDecision};
+# struct OwnerOnly;
+# impl FieldAuthorizer for OwnerOnly {
+#     fn authorize_field(
+#         &self,
+#         _req: &FieldAuthzRequest<'_>,
+#     ) -> fraiseql_core::error::Result<FieldAuthzDecision> {
+#         Ok(FieldAuthzDecision::Allow)
+#     }
+# }
 use fraiseql_core::runtime::RuntimeConfig;
 use std::sync::Arc;
 
 let config = RuntimeConfig::default().with_field_authorizer(Arc::new(OwnerOnly));
+# drop(config);
 ```
 
 Mark the field policy-gated in the schema. The authoring contract is the `authorize`

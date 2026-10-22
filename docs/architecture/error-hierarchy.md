@@ -7,7 +7,7 @@ clarifies the remaining intentional name collisions across crates.
 
 ## Error Flow
 
-```
+```text
 Crate-internal errors
     |
     v  impl From<X> for FraiseQLError  (owned by the subsystem crate; sqlx pattern)

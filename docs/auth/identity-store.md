@@ -78,17 +78,22 @@ is refused. `_system.sessions.tenant_id` records the tenant for revocation and a
 
 ## Usage
 
-```rust
+```rust,no_run
+# use fraiseql::server::{auth as fraiseql_auth, sqlx};
 use std::sync::Arc;
 use fraiseql_auth::{AccountStore, PostgresAccountStore};
 use sqlx::postgres::PgPoolOptions;
 
+# async fn example(database_url: String) -> Result<(), Box<dyn std::error::Error>> {
 let pool = PgPoolOptions::new().connect(&database_url).await?;
 let store = PostgresAccountStore::new(pool);
 store.init().await?; // idempotent; creates core.tb_user / core.tb_auth_identity
 
 // Hand it to the auth flows in place of InMemoryAccountStore:
 let store: Arc<dyn AccountStore> = Arc::new(store);
+# drop(store);
+# Ok(())
+# }
 ```
 
 The connecting role must **own** (or carry `BYPASSRLS` for) the two tables — calling

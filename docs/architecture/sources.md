@@ -92,7 +92,7 @@ A scheduled source has no request and no JWT, yet its Model B connector's
 operation/field authorization, RLS, and the change-log tenant stamp. A source therefore
 runs under an explicit, per-source, least-privilege **authority ceiling**:
 
-```
+```text
 run_as = { roles: [...], scopes: [...], tenant?: "..." }
 ```
 

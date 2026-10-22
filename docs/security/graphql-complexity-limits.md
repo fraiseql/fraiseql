@@ -15,7 +15,7 @@ Audit of all GraphQL query complexity and abuse protections in FraiseQL.
 
 ### Alias Amplification (Hardcoded at 30)
 
-```
+```text
 Location: crates/fraiseql-server/src/validation.rs
   Line 459: max_aliases_per_query: 30 (default in RequestValidator)
   Line 179: if alias_count > self.max_aliases_per_query → 429 TooManyRequests
@@ -26,7 +26,7 @@ forcing the server to resolve the same field 1000+ times via aliasing.
 
 ### Query Depth (Default 11, Configurable)
 
-```
+```text
 Default: fraiseql_core::schema::DEFAULT_MAX_QUERY_DEPTH = 11
 
 fraiseql.toml override:
@@ -56,7 +56,7 @@ JSONB, and the response buffer — an arbitrarily large value is an unbounded-pa
 denial-of-service lever. (Nested `first`/`limit` is an in-memory slice of an already-fetched
 JSONB array in FraiseQL's view model, so it is not a separate cap.)
 
-```
+```text
 Location: crates/fraiseql-core/src/runtime/executor/runners/query_params.rs (enforce_max_page_size)
   Enforced in the regular runner (query_regular.rs) and the relay runner (query_relay.rs).
 

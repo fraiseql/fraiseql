@@ -4,7 +4,7 @@ Frontend and backend-to-backend callers of a FraiseQL API can be fully typed fro
 the same `schema.compiled.json` the server runs on — no hand-maintained interfaces,
 no silent drift.
 
-```
+```bash
 fraiseql generate-client typescript \
   --schema ./schema.compiled.json \
   --out ./src/generated
@@ -182,7 +182,7 @@ on `serde` (with `derive`) and `serde_json`, and on nothing else.
 | `client.rs` | `FraiseqlClient<T: Transport>`, the `Transport` trait, and `Error` |
 | `mod.rs` | submodule declarations and the data-type re-exports |
 
-```rust
+```rust,ignore
 use generated::{CreateUserInput, CreateUserResult, Error, FraiseqlClient, UserRole, mutations, queries};
 
 // std has no HTTP client, so the transport is yours — any

@@ -78,7 +78,10 @@ This applies to stored IdPs exactly as it does to config-file ones: the per-tena
 
 ### Minimal configuration
 
-```rust
+This needs `fraiseql-auth` with its `auth-saml` feature as a direct dependency; the
+`fraiseql` umbrella crate does not expose SAML.
+
+```rust,ignore
 use fraiseql_auth::{SamlAuthState, SamlIdpConfig};
 
 let idp = SamlIdpConfig::builder(
@@ -213,7 +216,7 @@ refusing loudly.
 The proxy pattern needs no build features and is the right choice when you already run an
 IdP broker or want SAML handled out-of-process.
 
-```
+```text
 Browser → SAML IdP (Okta, Azure AD, ADFS)
               ↓
         Identity Proxy (Keycloak / Dex / Auth0)

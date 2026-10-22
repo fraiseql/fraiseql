@@ -14,7 +14,7 @@ compiled. Read the source column below, not the suffix alone.
 
 ## Flow
 
-```
+```text
 fraiseql.toml                    fraiseql-cli compile               fraiseql-server start
   [fraiseql.security]     --->   fraiseql_cli::config::      --->    CompiledSchema.security:
   rate_limiting = {...}          SecurityConfig, or                   fraiseql_core::schema::
@@ -95,7 +95,7 @@ Rate limiting is the special case, and its precedence is implemented and pinned 
 (`server::tests::rate_limit_boot_guard_tests`). Resolution order, **lowest to highest**,
 each layer applied over the last:
 
-```
+```text
 server [rate_limiting] table (the TOML file passed via --config)
     < compiled [security.rate_limiting] (schema.compiled.json)
     < CLI flags / env vars (FRAISEQL_RATE_LIMITING_ENABLED,

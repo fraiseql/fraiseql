@@ -152,7 +152,7 @@ Every exposed **query** is a readable Resource. Mutations are not: `resources/re
 is a read verb in every MCP client, and a mutation behind it would be a write
 under a verb that promises otherwise.
 
-```
+```text
 resources/list  → [{ "uri": "fraiseql://query/users", "name": "users",
                      "description": "Fetches user records",
                      "mimeType": "application/json" }, …]
@@ -182,7 +182,7 @@ Every exposed operation — queries **and** mutations — is advertised as a Pro
 the operation's own `description` rendered as an instruction, with one argument
 per operation argument and required-ness taken from nullability.
 
-```
+```text
 prompts/list → [{ "name": "createUser", "description": "Creates a new user",
                   "arguments": [{ "name": "name", "required": true }, …] }, …]
 prompts/get  → the instruction, with the supplied arguments substituted

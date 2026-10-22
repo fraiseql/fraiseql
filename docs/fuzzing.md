@@ -180,7 +180,7 @@ The fuzzer uses these as starting points and mutates them to discover new code p
 
 1. Create `fuzz/fuzz_targets/<name>.rs`:
 
-   ```rust
+   ```rust,ignore
    #![no_main]
    use libfuzzer_sys::fuzz_target;
 

@@ -158,7 +158,7 @@ would be the hole the extractor exists to close.
 One entry per request, emitted as a structured security log event, like the credential
 events (there is no tamper-evident chain yet, #1630):
 
-```
+```text
 event_type   = admin_sql_execution
 secret_type  = admin_token
 subject      = admin_token | admin_readonly_token

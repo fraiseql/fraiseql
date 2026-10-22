@@ -74,7 +74,7 @@ internal Rust types are refactored.
 
 ## Per-Entry TTL
 
-```
+```text
 QueryDefinition.cache_ttl_seconds: Option<u64>   (from compiled schema)
       ↓ (loaded at server startup)
 CachedDatabaseAdapter.view_ttl_overrides: HashMap<ViewName, u64>
@@ -404,7 +404,7 @@ stored at all (#1605).
 
 **Memory estimation**:
 
-```
+```text
 cache capacity × average entry size
 Example: 10,000 × 10KB = ~100MB
 ```
@@ -412,7 +412,7 @@ Example: 10,000 × 10KB = ~100MB
 **Metrics** exposed on `/metrics`, read from the cache itself (the same counts
 `GET /api/v1/admin/cache/stats` reports), and absent when the server runs no result cache:
 
-```
+```text
 fraiseql_cache_hits_total            counter
 fraiseql_cache_misses_total          counter
 fraiseql_cache_hit_ratio             gauge (0-1)

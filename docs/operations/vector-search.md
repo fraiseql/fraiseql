@@ -181,7 +181,7 @@ two matched".
 
 **FraiseQL sets this GUC** (#1116). Every connection its pools open carries
 
-```
+```text
 -c hnsw.iterative_scan=strict_order -c ivfflat.iterative_scan=relaxed_order
 ```
 

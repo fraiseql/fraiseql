@@ -84,7 +84,7 @@ Run two Jails per tenant: `api-{tenant}` for FraiseQL and `db-{tenant}`
 for PostgreSQL. The DB Jail has no network interface; the API Jail sees
 the Postgres Unix socket via a nullfs mount.
 
-```
+```text
 # /usr/local/etc/jail.conf
 
 api-acme {
@@ -106,14 +106,14 @@ db-acme {
 The nullfs mount makes the DB Jail's `/sockets/postgres` directory
 visible at the same path inside the API Jail:
 
-```
+```text
 # /usr/local/etc/jail.acme.fstab
 /zroot/jails/db-acme/sockets/postgres /zroot/jails/api-acme/sockets/postgres nullfs ro 0 0
 ```
 
 FraiseQL then connects over the Unix socket — no TCP, no exposed port:
 
-```
+```text
 postgresql:///acme?host=/sockets/postgres
 ```
 
@@ -134,7 +134,7 @@ Cloning is copy-on-write, so a new tenant costs only its diff on disk.
 
 Front each API Jail with a Caddy vhost over its Unix socket:
 
-```
+```text
 acme.example.com {
     reverse_proxy unix//zroot/jails/api-acme/run/fraiseql.sock
 }

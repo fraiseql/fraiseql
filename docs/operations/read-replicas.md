@@ -94,7 +94,7 @@ configuration and secrets, not schema.
   everyone *else's* writes rather than the client's own. A background probe reads
   each replica's replay lag; a replica is eligible while
 
-  ```
+  ```text
   lag_at_last_probe + age_of_that_probe  <=  read_replica_max_lag_ms
   ```
 

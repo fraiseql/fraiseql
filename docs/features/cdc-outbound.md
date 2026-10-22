@@ -14,7 +14,7 @@ write it through the executor, and external writes are captured by the
 per configured sink reads it, publishes to the broker, and records what it
 published in `core.tb_cdc_sink_state` — which the server creates at boot.
 
-```
+```text
 mutation / external write → core.tb_entity_change_log → drain → broker
                                                           ↕
                                               core.tb_cdc_sink_state

@@ -11,7 +11,7 @@ PostgreSQL is the only database backend. No crate has a feature that selects ano
 
 Workspace crates only. `?` marks an optional dependency, enabled by a feature.
 
-```
+```text
 fraiseql (umbrella)  -> fraiseql-core, fraiseql-error,
                         fraiseql-server?, fraiseql-cli?, fraiseql-observers?, fraiseql-arrow?, fraiseql-wire?
 fraiseql-server      -> fraiseql-core, fraiseql-error, fraiseql-functions, fraiseql-storage,

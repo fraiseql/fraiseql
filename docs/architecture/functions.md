@@ -6,7 +6,7 @@ execution alongside the GraphQL engine.
 
 ## Overview
 
-```
+```text
 Mutation → Observer Event → Trigger Registry → Function Execution
                                     ↓
                               Cron Scheduler → Periodic Function Execution
@@ -425,9 +425,9 @@ downloads a prebuilt static archive via `curl`, which the Dockerfile's builder s
 installs for exactly this reason.
 
 The embedder assembles the `FunctionsSubsystem` and registers the runtime(s) it
-built with on the observer, e.g.:
+built with on the observer, e.g. (with `fraiseql-functions` as a direct dependency):
 
-```rust
+```rust,ignore
 observer.register_runtime(RuntimeType::Deno, DenoRuntime::new(&DenoConfig::default())?);
 ```
 
@@ -681,7 +681,7 @@ cannot serve.
 
 ## Crate Dependencies
 
-```
+```text
 fraiseql-functions
 ├── fraiseql-error
 ├── fraiseql-core (optional)
