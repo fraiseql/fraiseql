@@ -27,6 +27,42 @@ cargo bench --workspace -- --save-baseline my-feature
 critcmp before after
 ```
 
+## The instruction-count gate (required)
+
+The `perf (instructions)` check is the one benchmark that can stop a merge (#1636). It
+runs `crates/fraiseql-core/benches/executor_instructions.rs` (`Executor::execute`: root
+list, by-id, nested; lean and fat rows) and
+`crates/fraiseql-server/benches/rest_instructions.rs` (REST list and by-id `GET`) under
+callgrind, nine times. It then compares each bench's mean instruction count with
+`benchmarks/instructions-baseline.json`.
+
+The check fails if a bench moves more than 3% in either direction.
+
+- **Up 3% or more:** the change made the engine do more work per request.
+- **Down 3% or more:** the baseline has to come down with it. Otherwise it would hide
+  the next regression, up to the size of the improvement.
+
+Counts are deterministic only per binary and container. Re-bless the baseline only with
+the leg itself, never with a local run:
+
+```bash
+# Run the leg locally (needs the Dagger engine); compare against the committed baseline
+dagger call perf-instructions --source=.
+
+# Print the measured counts as a new baseline file
+dagger call perf-instructions --source=. --print > benchmarks/instructions-baseline.json
+```
+
+When a change is *meant* to move a bench past 3%, for example an engine optimisation:
+
+1. Commit the new baseline in the same commit as the change. A change that moves the
+   counts and leaves the baseline does not pass.
+2. In the commit body, list each bench's old and new counts and say why they moved.
+
+The gate measures nothing without its symbols, so `[profile.bench]` keeps
+`strip = false`. The comparator (`tools/check-perf-instructions.py`) refuses a count of
+0 rather than write it into a baseline.
+
 ## CI Regression Detection
 
 `.github/workflows/bench.yml` is **dispatch-only**. Run it from the Actions tab, or:

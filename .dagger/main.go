@@ -846,8 +846,9 @@ func (m *FraiseqlCi) PerfInstructions(
 		// because std's per-process hash seed moves a single count by up to 2.6%.
 		"for run in $(seq 1 9); do",
 		"  export IAI_CALLGRIND_HOME=/src/target/iai/run$run",
-		"  cargo bench -p fraiseql-core --bench executor_instructions -- --save-summary=json",
-		"  cargo bench -p fraiseql-server --features rest --bench rest_instructions -- --save-summary=json",
+		// Bench output goes to stderr, so that with --print stdout is the baseline file alone.
+		"  cargo bench -p fraiseql-core --bench executor_instructions -- --save-summary=json >&2",
+		"  cargo bench -p fraiseql-server --features rest --bench rest_instructions -- --save-summary=json >&2",
 		"done",
 		check,
 	}, "\n")
