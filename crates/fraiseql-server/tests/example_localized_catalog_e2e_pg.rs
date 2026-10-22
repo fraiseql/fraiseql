@@ -317,7 +317,19 @@ fn the_localization_guide_quotes_the_example() {
     let mut lines = guide.lines();
     while let Some(line) = lines.next() {
         if line.starts_with("```") {
-            let block: Vec<&str> = lines.by_ref().take_while(|l| !l.starts_with("```")).collect();
+            let mut block: Vec<&str> =
+                lines.by_ref().take_while(|l| !l.starts_with("```")).collect();
+            // A TOML block's first line names its file for the docs' TOML gate
+            // (`# fraiseql.toml`); the line is the guide's, not the example's.
+            let names_its_file = block.first().is_some_and(|l| {
+                l.starts_with('#')
+                    && std::path::Path::new(l.trim_end())
+                        .extension()
+                        .is_some_and(|e| e.eq_ignore_ascii_case("toml"))
+            });
+            if names_its_file {
+                block.remove(0);
+            }
             blocks.push(block.join("\n"));
         }
     }
