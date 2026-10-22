@@ -1,0 +1,104 @@
+{
+  "types": [
+    {
+      "name": "User",
+      "sql_source": "v_user",
+      "jsonb_column": "data",
+      "fields": [
+        {
+          "name": "id",
+          "field_type": "ID"
+        },
+        {
+          "name": "name",
+          "field_type": "String"
+        },
+        {
+          "name": "email",
+          "field_type": "String"
+        },
+        {
+          "name": "bio",
+          "field_type": "String",
+          "nullable": true
+        },
+        {
+          "name": "createdAt",
+          "field_type": "DateTime"
+        },
+        {
+          "name": "posts",
+          "field_type": {
+            "List": {
+              "item": {
+                "Object": "Post"
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Post",
+      "sql_source": "v_post",
+      "jsonb_column": "data",
+      "fields": [
+        {
+          "name": "id",
+          "field_type": "ID"
+        },
+        {
+          "name": "title",
+          "field_type": "String"
+        },
+        {
+          "name": "published",
+          "field_type": "Boolean"
+        }
+      ]
+    }
+  ],
+  "queries": [
+    {
+      "name": "users",
+      "return_type": "User",
+      "returns_list": true,
+      "nullable": false,
+      "sql_source": "v_user",
+      "jsonb_column": "data",
+      "arguments": [],
+      "auto_params": {
+        "has_where": false,
+        "has_order_by": false,
+        "has_limit": true,
+        "has_offset": false
+      }
+    },
+    {
+      "name": "user",
+      "return_type": "User",
+      "returns_list": false,
+      "nullable": true,
+      "sql_source": "v_user",
+      "jsonb_column": "data",
+      "arguments": [
+        {
+          "name": "id",
+          "arg_type": "ID",
+          "nullable": false
+        }
+      ]
+    }
+  ],
+  "mutations": [],
+  "subscriptions": [],
+  "enums": [],
+  "input_types": [],
+  "interfaces": [],
+  "unions": [],
+  "directives": [],
+  "rest_config": {
+    "enabled": true,
+    "require_auth": false
+  }
+}

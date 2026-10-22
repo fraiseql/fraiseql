@@ -38,6 +38,9 @@ const (
 	unwrapAllowLimit = "3"
 	// sccacheVersion pins the prebuilt sccache binary fetched into rustBase.
 	sccacheVersion = "v0.8.2"
+	// iaiCallgrindVersion pins iai-callgrind-runner to the iai-callgrind library version
+	// in crates/fraiseql-core/Cargo.toml; the runner refuses a library of another version.
+	iaiCallgrindVersion = "0.16.1"
 	// rustMsrv mirrors Cargo.toml workspace rust-version and rust-toolchain.toml channel.
 	rustMsrv = "1.95.0"
 	// fmtNightly pins the nightly rustfmt this workspace is formatted with, because
@@ -570,6 +573,8 @@ func (m *FraiseqlCi) ShellGates(
 		// #1640: issue numbers in non-test code comments only go down, per crate.
 		"make lint-prose-ratchet",
 		"make test-prose-ratchet-gate",
+		// #1636: the perf comparator's self-test (the gate runs in PerfInstructions).
+		"make test-perf-instructions-gate",
 		// A published SDK's lockfile may not pin a version its manifest no longer
 		// claims (#1225): the 2.15.0 bump edited the SDK manifests and left
 		// fraiseql-python's uv.lock and fraiseql-rust's Cargo.lock at 2.14.1.
@@ -803,6 +808,50 @@ func (m *FraiseqlCi) ShellGates(
 	return m.shellBase().
 		WithMountedDirectory("/src", source).
 		WithWorkdir("/src").
+		WithExec([]string{"bash", "-c", script}).
+		Stdout(ctx)
+}
+
+// PerfInstructions is the performance gate (#1636): it runs `Executor::execute` and a REST
+// GET under callgrind (crates/fraiseql-core/benches/executor_instructions.rs,
+// crates/fraiseql-server/benches/rest_instructions.rs) and compares each
+// bench's instruction count with benchmarks/instructions-baseline.json, failing above 3%
+// either way (tools/check-perf-instructions.py). Instruction counts are deterministic for
+// a binary, so the gate needs no repetitions and no quiet machine, but they depend on the
+// binary: the baseline is only valid as measured in this container, and
+// `dagger call perf-instructions --source=. --print` is how it is refreshed.
+//
+// IAI_CALLGRIND_ALLOW_ASLR: the runner otherwise disables ASLR with setarch, which needs
+// the personality syscall the engine's seccomp profile refuses.
+func (m *FraiseqlCi) PerfInstructions(
+	ctx context.Context,
+	// +ignore=["target", "**/target", ".git"]
+	source *dagger.Directory,
+	// Print the measured counts as a baseline file instead of comparing.
+	// +optional
+	print bool,
+) (string, error) {
+	check := "python3 tools/check-perf-instructions.py"
+	if print {
+		check += " --print"
+	}
+	script := strings.Join([]string{
+		"set -euo pipefail",
+		"rm -rf /src/target/iai",
+		"export IAI_CALLGRIND_ALLOW_ASLR=yes",
+		// Nine runs, each in its own home: the comparator takes each bench's mean,
+		// because std's per-process hash seed moves a single count by up to 2.6%.
+		"for run in $(seq 1 9); do",
+		"  export IAI_CALLGRIND_HOME=/src/target/iai/run$run",
+		"  cargo bench -p fraiseql-core --bench executor_instructions -- --save-summary=json",
+		"  cargo bench -p fraiseql-server --features rest --bench rest_instructions -- --save-summary=json",
+		"done",
+		check,
+	}, "\n")
+	base := m.rustBase().
+		WithExec(aptInstall("valgrind")).
+		WithExec([]string{"bash", "-c", "cargo install iai-callgrind-runner --version " + iaiCallgrindVersion + " --locked"})
+	return rustSource(base, source, "fraiseql-rust-target-perf").
 		WithExec([]string{"bash", "-c", script}).
 		Stdout(ctx)
 }

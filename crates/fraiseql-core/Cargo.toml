@@ -8,6 +8,10 @@ name = "cache"
 
 [[bench]]
 harness = false
+name = "executor_instructions"
+
+[[bench]]
+harness = false
 name = "adapter_comparison"
 required-features = ["postgres"]
 
@@ -99,6 +103,7 @@ deadpool-postgres.workspace = true
 
 [dev-dependencies]
 criterion = { version = "0.5", features = ["async_tokio"] }
+iai-callgrind = "=0.16.1"
 moka = { workspace = true }
 fraiseql-test-utils = { path = "../fraiseql-test-utils" }
 fraiseql-test-support = { path = "../fraiseql-test-support" }

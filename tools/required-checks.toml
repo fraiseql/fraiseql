@@ -80,6 +80,10 @@ required = [
   # left on 2026-10-06: the MSRV build is gated by preflight, feature matrix and
   # integration, which all compile on the pinned 1.95.0 (see dagger-test.yml).
   "test (stable)",
+  # dagger-test.yml:perf — instruction counts of the engine's read path against the
+  # committed baseline, failing above 3% either way (#1636). The first gate that
+  # can stop a merge on performance.
+  "perf (instructions)",
   # dagger-integration.yml:integration — the service-bound suites, one context per
   # matrix entry. Required as of #1289; the matrix in that workflow and this list
   # must name the same suites, and check-suite-coverage.py fails when they do not.

@@ -4,6 +4,9 @@
 [profile.bench]
 lto = "thin"
 opt-level = 3
+# Callgrind finds the measured function by its symbol; release strips them, which
+# makes every instruction count 0.
+strip = false
 
 [profile.dev]
 # line-tables-only keeps symbol names + file:line in backtraces (what test

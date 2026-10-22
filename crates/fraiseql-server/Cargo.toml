@@ -6,6 +6,11 @@ required-features = ["cli"]
 harness = false
 name = "performance_benchmarks"
 
+[[bench]]
+harness = false
+name = "rest_instructions"
+required-features = ["rest"]
+
 [dependencies]
 fraiseql-guard = { workspace = true }
 # CLI argument parsing (optional — only needed by the binary and fraiseql-cli)
@@ -197,6 +202,7 @@ samael = { version = "0.0.22" }
 totp-rs = { version = "5", features = ["gen_secret", "otpauth"] }
 # Performance testing
 criterion = { version = "0.5", features = ["async_tokio"] }
+iai-callgrind = "=0.16.1"
 # Test-only: construct an AuthenticatedUser (expires_at) for the introspection
 # gate e2e (#453). chrono is already a normal dependency; pinned by the workspace.
 chrono = { workspace = true }

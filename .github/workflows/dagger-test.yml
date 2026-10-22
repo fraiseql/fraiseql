@@ -83,3 +83,25 @@ jobs:
           export PATH="$HOME/.local/bin:$PATH"
           dagger version
           dagger call test --source=. --rust=stable
+
+  # The performance gate (#1636): instruction counts of `Executor::execute` under
+  # callgrind against benchmarks/instructions-baseline.json, failing above 3% either
+  # way. archbox only, like the test leg: the baseline is the count this container
+  # measures, and one runner keeps it one binary.
+  perf:
+    needs: already-passed
+    if: ${{ !cancelled() && needs.already-passed.outputs.passed != 'true' }}
+    name: perf (instructions)
+    runs-on: [self-hosted, archbox]
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+
+      - name: Log in to ghcr.io (private base-image mirror)
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: dagger call perf-instructions
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          dagger version
+          dagger call perf-instructions --source=.
