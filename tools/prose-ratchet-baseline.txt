@@ -1,0 +1,25 @@
+# Issue references (#NNN) in non-test code comments, per crate. Only goes down.
+# Maintained by tools/check-prose-ratchet.py (make lint-prose-ratchet); regenerate a line with --print.
+fraiseql 0
+fraiseql-arrow 28
+fraiseql-auth 29
+fraiseql-cdc-sinks 1
+fraiseql-cli 248
+fraiseql-codegen 17
+fraiseql-core 477
+fraiseql-db 88
+fraiseql-error 1
+fraiseql-federation 9
+fraiseql-functions 26
+fraiseql-guard 2
+fraiseql-jwks 2
+fraiseql-kafka 0
+fraiseql-observers 32
+fraiseql-saga 20
+fraiseql-secrets 4
+fraiseql-server 601
+fraiseql-storage 47
+fraiseql-test-support 1
+fraiseql-test-utils 1
+fraiseql-webhooks 21
+fraiseql-wire 14
