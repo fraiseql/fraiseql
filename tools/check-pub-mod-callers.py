@@ -10,7 +10,8 @@ duplicate RBAC layer.
 
 The rule
 --------
-Every `pub mod` reachable through public modules of a library target must be *used*
+Every module on a library's public surface (declared `pub mod`, or re-exported from
+with `pub use`, all the way up to the crate root) must be *used*
 from a binary target (`src/main.rs`, `src/bin/*`, `[[bin]] path`), directly or through
 other used modules, counting only non-test code. A module that may stay without a
 binary caller has a line in `tools/pub-mod-callers-allowlist.txt`:
@@ -40,7 +41,9 @@ the commit that wires or deletes a module also drops its line.
   in. A module is used if it implements a used workspace trait for a used type, an
   external trait for a used type, or adds methods to a used type that some used
   module calls by name. An impl of a dead trait keeps nothing alive.
-* `macro_rules!` invocations are edges to the module defining the macro.
+* `macro_rules!` invocations are edges to the module defining the macro. A module
+  with an item-position macro call (`wasmtime::component::bindgen!`) may define
+  names no text shows, so a lookup in it that finds nothing lands on it.
 * Code under `#[cfg(test)]`, `#[test]` and `#[…::test]`, and the Rust blocks of doc
   comments, are test code: they count for the allowlist's test-use check only.
 
@@ -74,6 +77,7 @@ _spec.loader.exec_module(reach)
 IDENT = r"(?:r#)?[A-Za-z_][A-Za-z0-9_]*"
 PATH_RE = re.compile(rf"(?<![\w$])(?:\$crate|{IDENT})(?:\s*::\s*{IDENT})+")
 BARE_IDENT = re.compile(rf"(?<![\w$:])({IDENT})(?!\s*::)")
+ITEM_MACRO = re.compile(rf"(?<![\w$])(?:{IDENT}\s*::\s*)*({IDENT})\s*!\s*[(\[{{]")
 MOD_NAME = re.compile(rf"(?<![\w$])mod\s+{IDENT}")
 CALLED = re.compile(rf"(?:\.|::)\s*({IDENT})")
 MACRO_CALL = re.compile(rf"(?<![\w:$])({IDENT})\s*!\s*[(\[{{]")
@@ -113,6 +117,7 @@ class Module:
     test_macros: set[str] = field(default_factory=set)
     impls: list[tuple[list[str], list[str] | None, set[str]]] = field(default_factory=list)
     called: set[str] = field(default_factory=set)
+    item_macros: bool = False  # an item-position macro call may define any name
 
 
 @dataclass
@@ -253,6 +258,16 @@ def parse_use_tree(text: str, prefix: list[str], out: list[tuple[list[str], str 
         return
     path = prefix + segs
     out.append((path, alias or (path[-1] if path else None)))
+
+
+def is_declared_pub(text: str, mod_at: int) -> bool:
+    """Whether the `mod` at `mod_at` is declared exactly `pub` (not `pub(crate)` and kin).
+
+    Only the declaration's own text counts: back to the end of the previous item or
+    attribute, so a `pub(crate) mod` on the line above cannot leak into this one.
+    """
+    start = max(text.rfind(c, 0, mod_at) for c in ";{}]") + 1
+    return re.search(r"\bpub\b(?!\s*\()", text[start:mod_at]) is not None
 
 
 def first_path(text: str) -> list[str] | None:
@@ -457,9 +472,7 @@ class Graph:
                 i += 1
                 continue
             name, term = clean(m.group(1)), m.group(2)
-            decl_start = self._decl_start(text, i)
-            pub = re.match(r"pub\s", text[decl_start:i].lstrip()) is not None or re.search(r"\bpub\s+$", text[max(0, i - 12) : i]) is not None
-            pub = pub and not re.search(r"\bpub\s*\(", text[max(0, i - 40) : i])
+            pub = is_declared_pub(text, i)
             child_test = is_test or mask[i]
             child_key = key + (name,)
             attr = reach._path_attr_before(text, i)
@@ -512,11 +525,6 @@ class Graph:
     def _path_dir(self, file_dir: Path) -> Path:
         return self._dirs[-1] if self._dirs else file_dir
 
-    @staticmethod
-    def _decl_start(text: str, i: int) -> int:
-        j = text.rfind("\n", 0, i)
-        return j + 1
-
     def collect(self, mod: Module, prod: str, test: str, raw: str) -> None:
         top = top_level(prod)
         for m in DEF_RE.finditer(top):
@@ -555,6 +563,7 @@ class Graph:
         for m in ATTR_STRING_PATH.finditer(raw):
             mod.prod_refs.append(m.group(1).split("::"))
         mod.impls = impl_headers(top, prod)
+        mod.item_macros = any(m.group(1) != "macro_rules" for m in ITEM_MACRO.finditer(top))
         mod.called = {clean(n) for n in CALLED.findall(prod_code)}
 
     def take_uses(self, mod: Module, text: str, record: bool) -> str:
@@ -664,6 +673,9 @@ class Graph:
             ident = self.target(cur).externs.get(name)
             if ident and ident in self.lib_root:
                 return [self.lib_root[ident]]
+        if not scope and mod.item_macros:
+            # `bindgen!`, `include!` and their kind define names no text shows.
+            touched.append(("owner", cur))
         return []
 
     # liveness
@@ -763,13 +775,30 @@ def dotted(graph: Graph, key: tuple) -> str:
 
 
 def public_path(graph: Graph, key: tuple) -> bool:
-    """Declared `pub mod` all the way up to the crate root."""
+    """Part of the crate's public surface, all the way up to the crate root.
+
+    A module is on it when it is declared `pub mod`, or when its parent re-exports
+    something from it with `pub use`: `mod tracker; pub use tracker::Tracker;` is as
+    public as `pub mod tracker;`, and as invisible to rustc's dead_code lint.
+    """
     while len(key) > 1:
         mod = graph.modules[key]
-        if not mod.declared_pub or mod.is_test:
+        if mod.is_test or not (mod.declared_pub or reexported_from(graph, mod.parent, key)):
             return False
         key = mod.parent
     return True
+
+
+def reexported_from(graph: Graph, parent: tuple, child: tuple) -> bool:
+    """Whether a `pub use` in `parent` resolves into `child`."""
+    mod = graph.modules[parent]
+    paths = [p for entries in mod.bindings.values() for p, reexport in entries if reexport]
+    paths += [p for p, reexport in mod.globs if reexport]
+    for path in paths:
+        touched, ends = graph.resolve(parent, path)
+        if child in ends or any(k == child for _, k in touched):
+            return True
+    return False
 
 
 def subtree_lines(graph: Graph, key: tuple) -> int:

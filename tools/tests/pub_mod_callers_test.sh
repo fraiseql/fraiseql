@@ -273,6 +273,49 @@ mk "${lib}/src/declared_only.rs" 'pub fn never() {}'
 run_gate
 expect_red "✗ lib::declared_only (" "a pub mod line is not a reference, even beside a glob"
 
+# ── 27. A private module re-exported with `pub use` is public surface too ───────────
+new_case 27 'mod tracker;
+mod used_tracker;
+mod internal;
+pub use tracker::Tracker;
+pub use used_tracker::Used;
+pub fn api() { internal::go(); }' 'fn main() { lib::api(); let _ = lib::Used; }'
+mk "${lib}/src/tracker.rs" 'pub struct Tracker;'
+mk "${lib}/src/used_tracker.rs" 'pub struct Used;'
+mk "${lib}/src/internal.rs" 'pub fn go() {}'
+run_gate
+expect_red "✗ lib::tracker (" "mod x; pub use x::Y; with no caller is checked and fails"
+if grep -F "lib::used_tracker" "${tmp}/out" >/dev/null || grep -F "lib::internal" "${tmp}/out" >/dev/null; then
+  fail "a used re-exported module and a private module are not named"
+else
+  pass "a used re-exported module and a private module are not named"
+fi
+
+# ── 28. Names an item-position macro generates resolve to its module ────────────────
+new_case 28 'mod generated { some_crate::bindgen!({ path: "x.wit" }); }
+pub use generated::*;
+pub mod plain { pub struct P; }' 'fn main() { let _ = lib::host::Thing; }'
+run_gate
+if grep -F "lib::generated" "${tmp}/out" >/dev/null; then
+  fail "a name a macro generates reaches the module calling the macro"
+else
+  pass "a name a macro generates reaches the module calling the macro"
+fi
+expect_red "✗ lib::plain (" "a module with no macro still needs a real caller"
+
+# ── 29. One declaration's visibility does not leak into the next ────────────────────
+new_case 29 'pub(crate) mod scoped;
+pub mod after_scoped;
+#[cfg(feature = "x")]
+pub mod after_attr;
+pub fn api() { scoped::s(); }' 'fn main() { lib::api(); }'
+mk "${lib}/src/scoped.rs" 'pub fn s() {}'
+mk "${lib}/src/after_scoped.rs" 'pub fn never() {}'
+mk "${lib}/src/after_attr.rs" 'pub fn never() {}'
+run_gate
+expect_red "✗ lib::after_scoped (" "a pub mod after a pub(crate) mod is still checked"
+expect_red "✗ lib::after_attr (" "a pub mod behind an attribute is still checked"
+
 # ── 24. Vacuity: no crates, or no binary, is refused ────────────────────────────────
 root="${tmp}/empty"
 mkdir -p "$root"
