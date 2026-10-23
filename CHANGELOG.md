@@ -303,6 +303,14 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **`fraiseql run` runs the functions, `cron:` functions and scheduled sources its build
+  compiled in.** `run` built its server with no database pool and none of the
+  `fraiseql-server` binary's setup. So under the `-full` release, which compiles the
+  function runtime into `fraiseql`, it refused every schema that declared a function, and a
+  scheduled source or `cron:` function could never start. Both binaries now build the
+  server through one assembly (`fraiseql_server::boot`): the pool, object storage, token
+  revocation, the tenancy runtime and the REST write surface. A build without the function runtime still refuses declared
+  functions, now naming the feature and the release that has it.
 - **`Server::serve_on_listener` and the MCP stdio transport start what the binary
   starts.** The background capabilities (the observer runtime, poll-IMAP mailboxes,
   scheduled sources, `cron:` functions, outbound CDC drains, the subscription Kafka

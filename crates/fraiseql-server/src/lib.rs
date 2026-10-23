@@ -23,6 +23,8 @@
 
 #![forbid(unsafe_code)]
 
+// The PostgreSQL server assembly the binary and `fraiseql run` share.
+pub mod boot;
 // CLI argument parsing (shared with fraiseql-cli) — requires `cli` feature
 #[cfg(feature = "cli")]
 pub mod cli;

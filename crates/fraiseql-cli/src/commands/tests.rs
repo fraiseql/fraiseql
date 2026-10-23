@@ -2624,14 +2624,15 @@ mod run_tests {
     use tempfile::TempDir;
 
     use super::super::run::{
-        auto_detect_input, build_config_from, compile_schema, refuse_declared_functions,
-        resolve_input, resolve_runtime_config,
+        auto_detect_input, build_config_from, compile_schema, resolve_input, resolve_runtime_config,
     };
     use crate::config::runtime::{DatabaseRuntimeConfig, ServerRuntimeConfig};
 
-    /// #1339, at the call site: `fraiseql run`'s own compile step refuses the schema.
+    /// #1339, at the call site: `fraiseql run`'s own compile step refuses declared functions
+    /// when, and only when, its build has no function runtime. With one, it carries them to
+    /// the server, which runs them.
     #[tokio::test]
-    async fn runs_compile_step_refuses_declared_functions() {
+    async fn runs_compile_step_refuses_functions_its_build_cannot_run() {
         let dir = TempDir::new().unwrap();
         std::fs::create_dir(dir.path().join(".git")).unwrap();
         let schema = dir.path().join("schema.json");
@@ -2652,8 +2653,26 @@ mod run_tests {
         )
         .unwrap();
 
-        let message = format!("{:#}", compile_schema(&schema).await.unwrap_err());
-        assert!(message.contains("notify"), "{message}");
+        let functions_compiled_in = fraiseql_server::capability::REGISTRY
+            .iter()
+            .any(|r| r.meta.name == "functions" && r.compiled_in);
+        let result = compile_schema(&schema).await;
+        if functions_compiled_in {
+            let compiled = result.expect("a build with a function runtime serves functions");
+            let names: Vec<_> = compiled
+                .functions
+                .iter()
+                .flat_map(|f| &f.definitions)
+                .map(|d| d.name.as_str())
+                .collect();
+            assert_eq!(names, ["notify"], "the functions reach the server, not dropped");
+        } else {
+            let message = format!("{:#}", result.unwrap_err());
+            assert!(
+                message.contains("notify") && message.contains("`functions-runtime` feature"),
+                "the refusal names the function and the feature: {message}"
+            );
+        }
     }
 
     /// `fraiseql capabilities --json` is a command, available wherever the CLI
@@ -2734,51 +2753,6 @@ mod run_tests {
                 );
             }
         }
-    }
-
-    /// #1339: `fraiseql run` has no function runtime, so a schema declaring functions is
-    /// refused rather than served with them silently dropped.
-    #[test]
-    fn run_refuses_a_schema_that_declares_functions() {
-        refuse_declared_functions(None, &[]).expect("no functions declared: nothing to refuse");
-
-        let functions: fraiseql_functions::FunctionsConfig =
-            serde_json::from_value(serde_json::json!({
-                "module_dir": "functions",
-                "definitions": [
-                    {"name": "notify", "trigger": "after:mutation:Order:update", "runtime": "Deno"}
-                ]
-            }))
-            .unwrap();
-        let message = refuse_declared_functions(Some(&functions), &[]).unwrap_err().to_string();
-        assert!(
-            message.contains("notify") && message.contains("fraiseql-server"),
-            "the refusal must name the function and where it can run: {message}"
-        );
-    }
-
-    /// #1399: a connector-only schema compiles to a `functions` section with no
-    /// definitions; `run` refuses it for its source, naming the source and connector, and
-    /// ignores a disabled one.
-    #[test]
-    fn run_refuses_an_enabled_source_naming_its_connector() {
-        use fraiseql_core::schema::SourceDefinition;
-        let functions: fraiseql_functions::FunctionsConfig = serde_json::from_value(
-            serde_json::json!({"module_dir": "functions", "definitions": []}),
-        )
-        .unwrap();
-        let enabled = [SourceDefinition::new("orders", "*/5 * * * *", "pollOrders")];
-        let message =
-            refuse_declared_functions(Some(&functions), &enabled).unwrap_err().to_string();
-        assert!(
-            message.contains("source `orders` (connector `pollOrders`)")
-                && !message.contains("function `"),
-            "{message}"
-        );
-
-        let disabled = [SourceDefinition::new("orders", "*/5 * * * *", "pollOrders").disabled()];
-        refuse_declared_functions(Some(&functions), &disabled)
-            .expect("a disabled source runs nothing, and the section declares no function");
     }
 
     #[test]

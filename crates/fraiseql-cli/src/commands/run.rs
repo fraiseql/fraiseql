@@ -24,9 +24,10 @@ use std::{
 };
 
 use anyhow::{Context, Result};
-use fraiseql_core::{db::postgres::PostgresAdapter, schema::CompiledSchema};
+use fraiseql_core::schema::CompiledSchema;
 use fraiseql_server::{
     Server, ServerConfig,
+    schema::loader::FunctionsConfig,
     server_config::{DatabaseTlsConfig, TlsServerConfig},
     url_guard::{DatabaseScheme, parse_database_url},
 };
@@ -106,14 +107,14 @@ async fn run_once(
     db_cfg: &DatabaseRuntimeConfig,
 ) -> Result<()> {
     let scheme = parse_database_url(db_url)?;
-    let schema = compile_schema(input_path).await?;
+    let compiled = compile_schema(input_path).await?;
     let config = build_config_from(db_url, bind_addr, server_cfg, db_cfg, introspection)?;
 
     println!("Server ready at http://{bind_addr}/graphql");
     println!("   Press Ctrl+C to stop");
     println!();
 
-    Box::pin(dispatch_serve(scheme, config, schema, None)).await
+    Box::pin(dispatch_serve(scheme, config, compiled, None)).await
 }
 
 /// Watch-loop: compile -> serve -> detect file change -> restart.
@@ -128,7 +129,7 @@ async fn run_watch_loop(
     let scheme = parse_database_url(db_url)?;
 
     loop {
-        let schema = compile_schema(input_path).await?;
+        let compiled = compile_schema(input_path).await?;
         let config = build_config_from(db_url, bind_addr, server_cfg, db_cfg, introspection)?;
 
         println!("Server ready at http://{bind_addr}/graphql");
@@ -152,7 +153,7 @@ async fn run_watch_loop(
         Box::pin(dispatch_serve(
             scheme,
             config,
-            schema,
+            compiled,
             Some(Box::pin(async move {
                 tokio::select! {
                     () = sigint_signal() => {},
@@ -197,54 +198,37 @@ type ShutdownFuture =
 async fn dispatch_serve(
     scheme: DatabaseScheme,
     config: ServerConfig,
-    schema: CompiledSchema,
+    compiled: Compiled,
     shutdown: ShutdownFuture,
 ) -> Result<()> {
     // Box::pin: the adapter-init future exceeds clippy's `large_futures`
     // 16-KiB stack threshold. Heap-allocating once at server startup is free.
     match scheme {
-        DatabaseScheme::Postgres => Box::pin(serve_postgres(config, schema, shutdown)).await,
+        DatabaseScheme::Postgres => Box::pin(serve_postgres(config, compiled, shutdown)).await,
     }
 }
 
 async fn serve_postgres(
     config: ServerConfig,
-    schema: CompiledSchema,
+    compiled: Compiled,
     shutdown: ShutdownFuture,
 ) -> Result<()> {
-    let tls = config.postgres_tls().map_err(|e| anyhow::anyhow!(e))?;
-    tls.warn_if_unverified();
-
-    let adapter = Arc::new(
-        PostgresAdapter::with_pool_config(
-            &config.database_url,
-            fraiseql_core::db::postgres::PoolPrewarmConfig {
-                min_size:            config.pool_min_size,
-                max_size:            config.pool_max_size,
-                timeout_secs:        Some(config.pool_timeout_secs),
-                search_path:         None,
-                // `[database] ssl_mode` arrives here through `ServerConfig.database_tls`,
-                // the single seam both binaries read. It used to stop at `validate()`
-                // (#824).
-                tls:                 tls.clone(),
-                read_replicas:       config.read_replicas(),
-                max_streaming_reads: config.pool_max_streaming_reads,
-                // The same accessor the server binary reads (#1116).
-                vector_scan:         config.vector_scan(),
-            },
-        )
-        .await
-        .with_context(|| {
-            format!("Failed to connect to database (ssl_mode = {})", tls.effective_mode())
-        })?,
-    );
-    let server: Server =
-        // Box the server-init future: it exceeds clippy's `large_futures` stack
-        // threshold once the platform features are compiled in (`--all-features`).
-        Box::pin(Server::new(config, schema, adapter, None))
-            .await
-            .context("Failed to initialize server")?;
+    let server = Box::pin(build_server(config, compiled.schema, compiled.functions)).await?;
     Box::pin(finish_serve(server, shutdown)).await
+}
+
+/// Build the server `fraiseql run` serves: the same assembly the `fraiseql-server` binary
+/// runs, so `run` starts every capability its build compiled in.
+pub(crate) async fn build_server(
+    config: ServerConfig,
+    schema: CompiledSchema,
+    functions: Option<FunctionsConfig>,
+) -> Result<Server> {
+    // Box the assembly future: it exceeds clippy's `large_futures` stack threshold once
+    // the platform features are compiled in (`--all-features`).
+    Box::pin(fraiseql_server::boot::build_postgres_server(config, schema, functions))
+        .await
+        .context("Failed to initialize server")
 }
 
 async fn finish_serve(server: Server, shutdown: ShutdownFuture) -> Result<()> {
@@ -403,8 +387,19 @@ fn build_tls_config(tls: &TlsRuntimeConfig) -> TlsServerConfig {
     }
 }
 
+/// A compiled schema and the `functions` section the compiler emits beside it.
+#[derive(Debug)]
+pub(crate) struct Compiled {
+    pub(crate) schema:    CompiledSchema,
+    pub(crate) functions: Option<FunctionsConfig>,
+}
+
 /// Compile the schema at `path`, printing progress to stdout.
-pub(crate) async fn compile_schema(path: &Path) -> Result<fraiseql_core::schema::CompiledSchema> {
+///
+/// Refuses a section the linked server was built without before connecting to the
+/// database: `fraiseql run` hands the compiled schema to the server in memory, past the
+/// loader's boot refusal.
+pub(crate) async fn compile_schema(path: &Path) -> Result<Compiled> {
     let input = path.to_str().ok_or_else(|| anyhow::anyhow!("Input path is not valid UTF-8"))?;
 
     println!("Compiling schema...");
@@ -412,11 +407,8 @@ pub(crate) async fn compile_schema(path: &Path) -> Result<fraiseql_core::schema:
     let (artifact, _report) = compile_to_schema(CompileOptions::new(input))
         .await
         .context("Schema compilation failed")?;
-    refuse_declared_functions(artifact.functions.as_ref(), &artifact.schema.sources)?;
+    fraiseql_server::boot::refuse_functions_this_build_cannot_run(artifact.functions.as_ref())?;
     let schema = artifact.schema;
-    // The server's boot refusal sits in its loader, which `fraiseql run` bypasses
-    // by handing the schema over in memory: a section the linked server was built without
-    // would be served with its capability silently missing.
     let raw = serde_json::to_value(&schema).context("Failed to serialize the compiled schema")?;
     fraiseql_server::schema::loader::refuse_unservable(&raw)?;
 
@@ -428,46 +420,10 @@ pub(crate) async fn compile_schema(path: &Path) -> Result<fraiseql_core::schema:
     );
     println!();
 
-    Ok(schema)
-}
-
-/// Refuse a schema that declares functions or enabled sources: `fraiseql run` has no
-/// function runtime (#1339), and a source's connector is a Deno module (#1399).
-///
-/// The rule the server applies at boot (#1326), at the seam that bypasses its loader:
-/// `fraiseql run` hands the compiled schema straight to the server, so the server's
-/// refusal never sees the `functions` section, and the section used to be dropped here —
-/// the server started clean and every declared function silently never ran. A declared
-/// section a build cannot serve is a misconfiguration, not a note.
-///
-/// # Errors
-///
-/// When the schema declares a function, or an enabled source whose connector would
-/// never run.
-pub(crate) fn refuse_declared_functions(
-    functions: Option<&fraiseql_functions::FunctionsConfig>,
-    sources: &[fraiseql_core::schema::SourceDefinition],
-) -> Result<()> {
-    let unrunnable: Vec<String> =
-        functions
-            .iter()
-            .flat_map(|functions| &functions.definitions)
-            .map(|definition| format!("function `{}`", definition.name))
-            .chain(sources.iter().filter(|source| source.enabled).map(|source| {
-                format!("source `{}` (connector `{}`)", source.name, source.function)
-            }))
-            .collect();
-    if unrunnable.is_empty() {
-        return Ok(());
-    }
-    anyhow::bail!(
-        "this schema declares code that `fraiseql run` cannot run: {}. It has no function \
-         runtime, so none of it would ever run — the server would start clean and drop it. To \
-         run it, serve the compiled schema with `fraiseql-server` built with the \
-         `functions-runtime` feature (`sources` for a source; the `-full` release tarball). To \
-         run without it, remove the functions and disable the sources.",
-        unrunnable.join(", ")
-    )
+    Ok(Compiled {
+        schema,
+        functions: artifact.functions,
+    })
 }
 
 /// Spawn a file watcher that calls `on_change` once when a write event is detected.
