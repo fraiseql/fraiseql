@@ -4703,3 +4703,136 @@ fn a_declared_subscription_policy_reaches_the_compiled_type() {
         "the declared policy must reach the compiled type"
     );
 }
+
+/// An `is_input` type's fields are rebuilt as input fields. Every attribute an output
+/// field can carry either has an input-field slot and is carried, or is refused by name:
+/// none is dropped.
+mod is_input_field_attributes {
+    use serde_json::{Value, json};
+
+    use super::*;
+
+    /// A schema whose input type `CreateUserInput` has one field, `email`, with `extra`
+    /// merged into its declaration.
+    fn schema_with_input_field(extra: &Value) -> IntermediateSchema {
+        let mut field = json!({"name": "email", "type": "String", "nullable": false});
+        for (key, value) in extra.as_object().unwrap() {
+            field[key] = value.clone();
+        }
+        serde_json::from_value(json!({
+            "types": [
+                {"name": "User", "sql_source": "v_user",
+                 "fields": [{"name": "id", "type": "ID", "nullable": false}]},
+                {"name": "CreateUserInput", "is_input": true, "fields": [field]}
+            ],
+            "queries": [{"name": "users", "return_type": "User", "returns_list": true,
+                         "sql_source": "v_user"}],
+            "mutations": [{"name": "createUser", "return_type": "User",
+                           "sql_source": "fn_create_user", "operation": "INSERT",
+                           "arguments": [{"name": "input", "type": "CreateUserInput",
+                                          "nullable": false}]}]
+        }))
+        .unwrap()
+    }
+
+    fn refusal(extra: &Value) -> String {
+        format!(
+            "{:#}",
+            SchemaConverter::convert(schema_with_input_field(extra))
+                .expect_err("the attribute must be refused, not dropped")
+        )
+    }
+
+    fn compiled_email(extra: &Value) -> fraiseql_core::schema::InputFieldDefinition {
+        let compiled = SchemaConverter::convert(schema_with_input_field(extra))
+            .expect("the attribute must compile");
+        let input = compiled.input_types.iter().find(|i| i.name == "CreateUserInput").unwrap();
+        input.fields.iter().find(|f| f.name == "email").unwrap().clone()
+    }
+
+    #[test]
+    fn each_output_only_attribute_is_refused_by_name() {
+        let cases = [
+            ("requires_scope", json!("read:User.email")),
+            ("on_deny", json!("mask")),
+            ("authorize", json!(true)),
+            ("function", json!("fn_email")),
+            ("hierarchy", json!("parent_id")),
+            ("unique", json!(true)),
+            ("vector_config", json!({"dimensions": 3})),
+            ("vector_distance", json!("embedding")),
+        ];
+        for (key, value) in cases {
+            let message = refusal(&json!({key: value}));
+            assert!(message.contains("CreateUserInput"), "{key}: names the type: {message}");
+            assert!(message.contains("'email'"), "{key}: names the field: {message}");
+            assert!(message.contains(&format!("`{key}`")), "{key}: names the key: {message}");
+        }
+    }
+
+    #[test]
+    fn a_directive_with_no_input_field_slot_is_refused_by_name() {
+        for name in ["pattern", "inaccessible", "tag"] {
+            let message = refusal(&json!({"directives": [{"name": name}]}));
+            assert!(message.contains("'email'"), "@{name}: names the field: {message}");
+            assert!(message.contains(&format!("@{name}")), "names the directive: {message}");
+        }
+    }
+
+    #[test]
+    fn the_deprecated_key_is_carried() {
+        let field = compiled_email(&json!({"deprecated": {"reason": "use contact"}}));
+        assert_eq!(field.deprecation.and_then(|d| d.reason).as_deref(), Some("use contact"));
+    }
+
+    #[test]
+    fn a_deprecated_directive_is_carried() {
+        let field = compiled_email(
+            &json!({"directives": [{"name": "deprecated", "arguments": {"reason": "old"}}]}),
+        );
+        assert_eq!(field.deprecation.and_then(|d| d.reason).as_deref(), Some("old"));
+    }
+
+    /// As on an output field, the first-class key wins over the directive.
+    #[test]
+    fn the_deprecated_key_wins_over_the_directive() {
+        let field = compiled_email(&json!({
+            "deprecated": {"reason": "key"},
+            "directives": [{"name": "deprecated", "arguments": {"reason": "directive"}}]
+        }));
+        assert_eq!(field.deprecation.and_then(|d| d.reason).as_deref(), Some("key"));
+    }
+
+    /// `false` declares nothing, so there is nothing to refuse.
+    #[test]
+    fn a_flag_set_to_false_compiles() {
+        compiled_email(&json!({"authorize": false, "unique": false}));
+    }
+
+    #[test]
+    fn an_input_field_with_no_extra_attribute_compiles_undeprecated() {
+        assert!(compiled_email(&json!({})).deprecation.is_none());
+    }
+
+    #[test]
+    fn each_output_only_type_attribute_is_refused_by_name() {
+        let cases = [
+            ("sql_source", json!("v_x")),
+            ("implements", json!(["Node"])),
+            ("requires_role", json!("admin")),
+            ("is_error", json!(true)),
+            ("relay", json!(true)),
+            ("subscribable_tables", json!(["tb_x"])),
+        ];
+        for (key, value) in cases {
+            let mut schema = serde_json::to_value(schema_with_input_field(&json!({}))).unwrap();
+            schema["types"][1][key] = value;
+            let message = format!(
+                "{:#}",
+                SchemaConverter::convert(serde_json::from_value(schema).unwrap())
+                    .expect_err("an output-only type attribute must be refused")
+            );
+            assert!(message.contains(&format!("`{key}`")), "{key}: {message}");
+        }
+    }
+}

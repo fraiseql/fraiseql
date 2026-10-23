@@ -18,6 +18,19 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **`fraiseql compile` refuses what an input field cannot carry, instead of dropping it
+  (#1692).** A type marked `is_input: true` compiled each field as an input field and
+  silently discarded `on_deny`, `authorize`, `function`, `hierarchy`, `unique`,
+  `vector_config`, `vector_distance`, `deprecated` and every directive. A field declaring
+  `directives: [{"name": "pattern", ...}]` compiled clean and no check ever ran. Each of
+  these is now refused, naming the type, the field and the attribute or directive.
+  Deprecation, by the `deprecated` key or `@deprecated`, is carried onto the input field.
+  `false` for `authorize` or `unique` declares nothing and still compiles. Separately,
+  `validation_rules` on an input field or an operation argument was already refused, but
+  only by serde as an unknown field. It is now refused naming the value and each rule: the
+  server does not enforce input validation rules yet (#1635), and the check belongs in the
+  mutation's SQL function. A compiled schema whose input fields carry `validation_rules`
+  is refused at load, so introspection never publishes a rule that does not run.
 - **`fraiseql run` refuses a schema declaring a section its build cannot serve (#1644).**
   `run` hands its in-memory schema straight to the server, past the loader's boot refusal
   (#1326). An enabled `mcp_config`, `rest_config`, `grpc_config`, `federation` or

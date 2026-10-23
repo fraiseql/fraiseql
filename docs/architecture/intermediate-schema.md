@@ -220,10 +220,10 @@ A single field within a type or input type.
 | `requires_scope` | `string?` | no | JWT scope required to access this field. **Exactly one** — there is no `requires_scopes`; a multi-scope declaration cannot be honoured and is refused by the SDKs |
 | `on_deny` | `string?` | no | `"reject"` (default) or `"mask"` when scope check fails |
 
-There is **no** `computed` and **no** `deprecated` on a field. `computed` is an
-authoring-time flag that an SDK's own CRUD generator consumes before export; field
-deprecation has no member here (only enum values and input fields carry one). Emitting
-either now fails the compile.
+There is **no** `computed` on a field: it is an authoring-time flag that an SDK's own
+CRUD generator consumes before export, and emitting it fails the compile. Deprecation is
+the `deprecated` key (`IntermediateDeprecation`); a `@deprecated` entry in `directives` is
+the older spelling and still works, and the key wins when both are present.
 
 ### `IntermediateEnum` / `IntermediateEnumValue`
 
@@ -253,7 +253,7 @@ Custom GraphQL scalar type.
 |-------|------|----------|-------------|
 | `name` | `string` | yes | Scalar name, e.g. `"DateTime"` |
 | `description` | `string?` | no | Description |
-| `validation_rules` | `ValidationRule[]?` | no | Server-side validation rules |
+| `validation_rules` | `ValidationRule[]?` | no | **Refused** when non-empty: no compiled schema carries a scalar's rules, so none would run |
 | `coerce_from` | `string[]?` | no | Accepted source types for coercion |
 | `serialize_as` | `string?` | no | Wire representation type |
 
@@ -341,8 +341,19 @@ Never present in `schema.json` — populated at compile time.
 
 ### `IntermediateInputObject` / `IntermediateInputField`
 
-Input objects are used as mutation arguments. `IntermediateInputField` is identical
-to `IntermediateField` but for input types.
+Input objects are used as mutation arguments. `IntermediateInputField` carries `name`,
+`type`, `nullable`, `description`, `default`, `deprecated` and `localized`.
+
+A type in `types` marked `is_input: true` compiles to the same input object. Its fields are
+`IntermediateField`s, and every output-only member is **refused** by name rather than
+dropped: `requires_scope`, `on_deny`, `authorize: true`, `function`, `hierarchy`,
+`unique: true`, `vector_config`, `vector_distance`, and any directive other than
+`@deprecated`. Deprecation is carried.
+
+There is **no** `validation_rules` on an input field (either form) or an
+`IntermediateArgument`. The server does not enforce input validation rules yet (#1635), so
+a declared one is refused with a message naming the value and each rule; check the value
+in the mutation's SQL function instead.
 
 ---
 

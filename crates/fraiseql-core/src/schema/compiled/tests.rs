@@ -2964,3 +2964,29 @@ fn every_serialized_section_participates_in_equality() {
         .collect();
     assert!(ignored.is_empty(), "equality ignores these serialized sections: {ignored:?}");
 }
+
+/// No execution path applies an input field's validation rules, so an artifact that
+/// declares them is refused at load: introspection would otherwise publish a check the
+/// server never runs.
+#[test]
+fn input_field_validation_rules_are_refused_at_load() {
+    let json = r#"{"input_types": [{"name": "CreateUserInput", "fields": [
+        {"name": "email", "field_type": "String", "validation_rules": [{"type": "email"}]}
+    ]}]}"#;
+
+    let message = CompiledSchema::from_json(json, false)
+        .expect_err("a rule nothing enforces must not load")
+        .to_string();
+
+    assert!(message.contains("CreateUserInput.email"), "names the field: {message}");
+    assert!(message.contains("#1635"), "points to the enforcement issue: {message}");
+}
+
+#[test]
+fn input_fields_without_validation_rules_load() {
+    let json = r#"{"input_types": [{"name": "CreateUserInput", "fields": [
+        {"name": "email", "field_type": "String"}
+    ]}]}"#;
+
+    CompiledSchema::from_json(json, false).expect("an input field with no rules loads");
+}

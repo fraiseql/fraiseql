@@ -10,9 +10,9 @@ use fraiseql_core::{
 
 use super::{DeclaredTypeNames, SchemaConverter};
 use crate::schema::intermediate::{
-    IntermediateEnum, IntermediateEnumValue, IntermediateField, IntermediateInputField,
-    IntermediateInputObject, IntermediateInterface, IntermediateRest, IntermediateScalar,
-    IntermediateType, IntermediateUnion,
+    IntermediateAppliedDirective, IntermediateDeprecation, IntermediateEnum, IntermediateEnumValue,
+    IntermediateField, IntermediateInputField, IntermediateInputObject, IntermediateInterface,
+    IntermediateRest, IntermediateScalar, IntermediateType, IntermediateUnion,
 };
 
 impl SchemaConverter {
@@ -289,33 +289,92 @@ impl SchemaConverter {
         let fields = intermediate
             .fields
             .into_iter()
-            .map(|field| {
-                if let Some(scope) = field.requires_scope {
-                    anyhow::bail!(
-                        "Input object '{name}' field '{}' declares `requires_scope` \
-                         ({scope:?}). Field-level scopes gate values the server *returns*; an \
-                         input field carries a value the client *sends*, so the gate would \
-                         never run. Remove it, and validate the argument in the SQL function \
-                         instead.",
-                        field.name
-                    );
-                }
-                Ok(IntermediateInputField {
-                    name:        field.name,
-                    field_type:  field.field_type,
-                    nullable:    field.nullable,
-                    description: field.description,
-                    default:     None,
-                    deprecated:  None,
-                    localized:   field.localized,
-                })
-            })
+            .map(|field| Self::input_field_from_marked_field(&name, field))
             .collect::<Result<Vec<_>>>()?;
 
         Ok(IntermediateInputObject {
             name,
             fields,
             description: intermediate.description,
+        })
+    }
+
+    /// Rebuild one field of an `is_input` type as an input field.
+    ///
+    /// The destructuring is exhaustive, so an attribute added to `IntermediateField` fails
+    /// to compile here until it is either carried or refused. Deprecation has an input-field
+    /// slot and is carried; every other output attribute is refused by name, since dropping
+    /// it would compile a declaration the server never honours.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error naming the input type, the field and the attribute or directive.
+    fn input_field_from_marked_field(
+        type_name: &str,
+        field: IntermediateField,
+    ) -> Result<IntermediateInputField> {
+        let IntermediateField {
+            name,
+            field_type,
+            nullable,
+            description,
+            directives,
+            function,
+            deprecated,
+            requires_scope,
+            on_deny,
+            vector_config,
+            vector_distance,
+            authorize,
+            hierarchy,
+            unique,
+            localized,
+        } = field;
+
+        if let Some(scope) = requires_scope {
+            anyhow::bail!(
+                "Input object '{type_name}' field '{name}' declares `requires_scope` \
+                 ({scope:?}). Field-level scopes gate values the server *returns*; an input \
+                 field carries a value the client *sends*, so the gate would never run. Remove \
+                 it, and validate the argument in the SQL function instead."
+            );
+        }
+        // (attribute is set, attribute name), in declaration order so the message is stable.
+        let rejected: [(bool, &str); 7] = [
+            (function.is_some(), "function"),
+            (on_deny.is_some(), "on_deny"),
+            (vector_config.is_some(), "vector_config"),
+            (vector_distance.is_some(), "vector_distance"),
+            (authorize == Some(true), "authorize"),
+            (hierarchy.is_some(), "hierarchy"),
+            (unique == Some(true), "unique"),
+        ];
+        if let Some((_, attribute)) = rejected.into_iter().find(|(set, _)| *set) {
+            anyhow::bail!(
+                "Input object '{type_name}' field '{name}' declares `{attribute}`, which only \
+                 applies to a field the server returns. An input field is a value the client \
+                 sends, so the compiled schema has nowhere to carry it. Remove `{attribute}`."
+            );
+        }
+        let directives = directives.unwrap_or_default();
+        if let Some(directive) = directives.iter().find(|d| d.name != "deprecated") {
+            anyhow::bail!(
+                "Input object '{type_name}' field '{name}' applies `@{}`, which an input field \
+                 cannot carry: only `@deprecated` (or the `deprecated` key) compiles onto an \
+                 input field. Remove the directive; a check on the value belongs in the \
+                 mutation's SQL function.",
+                directive.name
+            );
+        }
+
+        Ok(IntermediateInputField {
+            name,
+            field_type,
+            nullable,
+            description,
+            default: None,
+            deprecated: declared_deprecation(deprecated, &directives),
+            localized,
         })
     }
 
@@ -454,19 +513,11 @@ impl SchemaConverter {
         // directive. The key is what every sibling construct uses and what the
         // SDKs emit; the directive is the older spelling and keeps working, so a
         // schema already using it is unaffected (#1025).
-        let deprecation = intermediate
-            .deprecated
-            .map(|d| fraiseql_core::schema::DeprecationInfo { reason: d.reason })
-            .or_else(|| {
-                intermediate.directives.as_ref().and_then(|directives| {
-                    directives.iter().find(|d| d.name == "deprecated").map(|d| {
-                        let reason = d.arguments.as_ref().and_then(|args| {
-                            args.get("reason").and_then(|v| v.as_str()).map(String::from)
-                        });
-                        fraiseql_core::schema::DeprecationInfo { reason }
-                    })
-                })
-            });
+        let deprecation = declared_deprecation(
+            intermediate.deprecated,
+            intermediate.directives.as_deref().unwrap_or_default(),
+        )
+        .map(|d| fraiseql_core::schema::DeprecationInfo { reason: d.reason });
 
         Ok(FieldDefinition {
             name: intermediate.name.into(),
@@ -634,4 +685,24 @@ impl SchemaConverter {
 
         Ok((Some(rest.path), method))
     }
+}
+
+/// A field's deprecation: the first-class `deprecated` key wins, falling back to a
+/// `@deprecated` directive. The key is what every sibling construct uses and what the SDKs
+/// emit; the directive is the older spelling and keeps working.
+fn declared_deprecation(
+    deprecated: Option<IntermediateDeprecation>,
+    directives: &[IntermediateAppliedDirective],
+) -> Option<IntermediateDeprecation> {
+    deprecated.or_else(|| {
+        directives
+            .iter()
+            .find(|d| d.name == "deprecated")
+            .map(|d| IntermediateDeprecation {
+                reason: d
+                    .arguments
+                    .as_ref()
+                    .and_then(|args| args.get("reason").and_then(|v| v.as_str()).map(String::from)),
+            })
+    })
 }

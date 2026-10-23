@@ -522,6 +522,22 @@ impl CompiledSchema {
                 path:    Some("validation_config.max_semi_additive_cells".to_string()),
             });
         }
+        // No execution path applies an input field's validation rules, and introspection
+        // publishes what the artifact carries: a rule here would be advertised and never run.
+        // The compiler never writes one, so only a hand-written artifact reaches this.
+        if let Some((input, field)) = self.input_types.iter().find_map(|input| {
+            input.fields.iter().find(|f| !f.validation_rules.is_empty()).map(|f| (input, f))
+        }) {
+            return Err(FraiseQLError::Validation {
+                message: format!(
+                    "input field `{}.{}` declares validation_rules, which the server does not \
+                     enforce on input yet (#1635); remove them and check the value in the \
+                     mutation's SQL function",
+                    input.name, field.name
+                ),
+                path:    Some(format!("input_types.{}.{}", input.name, field.name)),
+            });
+        }
         // #1512: a tag reaches SQL text, so the compiled `[locale]` is checked again here,
         // where a hand-written artifact passes too, and its chains are derived (never read).
         self.validate_locale()?;

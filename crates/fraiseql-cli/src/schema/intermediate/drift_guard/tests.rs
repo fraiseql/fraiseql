@@ -116,3 +116,73 @@ fn an_unrelated_unknown_key_is_ignored() {
 
     assert!(reject_drifted_keys(&raw).is_ok());
 }
+
+/// A rule declared on an input value names where it sits, which rule, and where the check
+/// belongs instead: serde's own `unknown field` message says none of that.
+fn assert_rules_refused(raw: &serde_json::Value, site: &str) {
+    let err = reject_drifted_keys(raw).expect_err("input validation rules must be refused");
+
+    assert!(err.contains(site), "must name {site}: {err}");
+    assert!(err.contains("`email`"), "must name the rule: {err}");
+    assert!(err.contains("#1635"), "must point to the enforcement issue: {err}");
+    assert!(err.contains("SQL function"), "must say where the check belongs: {err}");
+}
+
+#[test]
+fn validation_rules_on_an_input_type_field_are_refused_by_name() {
+    let raw = json!({"input_types": [{"name": "CreateUserInput", "fields": [
+        {"name": "email", "type": "String", "validation_rules": [{"type": "email"}]}
+    ]}]});
+    assert_rules_refused(&raw, "'CreateUserInput.email'");
+}
+
+#[test]
+fn validation_rules_on_an_is_input_type_field_are_refused_by_name() {
+    let raw = json!({"types": [{"name": "CreateUserInput", "is_input": true, "fields": [
+        {"name": "email", "type": "String", "validation_rules": [{"type": "email"}]}
+    ]}]});
+    assert_rules_refused(&raw, "'CreateUserInput.email'");
+}
+
+#[test]
+fn validation_rules_on_an_operation_argument_are_refused_by_name() {
+    for collection in ["queries", "mutations", "subscriptions"] {
+        let raw = json!({collection: [{"name": "op", "arguments": [
+            {"name": "email", "type": "String", "validation_rules": [{"type": "email"}]}
+        ]}]});
+        assert_rules_refused(&raw, "'op(email)'");
+    }
+}
+
+/// Every rule is named, not only the first: the author removes them all in one pass.
+#[test]
+fn every_declared_rule_is_named() {
+    let raw = json!({"input_types": [{"name": "I", "fields": [{"name": "code", "type": "String",
+        "validation_rules": [{"type": "email"}, {"type": "pattern", "value": {"pattern": "^a"}}]}]}]});
+
+    let err = reject_drifted_keys(&raw).expect_err("input validation rules must be refused");
+
+    assert!(err.contains("`email`") && err.contains("`pattern`"), "must name both: {err}");
+}
+
+/// The key is not part of the input-field format, so even an empty list is refused here,
+/// by name, rather than by serde's `unknown field` a step later.
+#[test]
+fn an_empty_validation_rules_list_is_refused_by_name_too() {
+    let raw = json!({"input_types": [{"name": "I", "fields": [
+        {"name": "email", "type": "String", "validation_rules": []}
+    ]}]});
+
+    let err = reject_drifted_keys(&raw).expect_err("the key does not bind on an input value");
+
+    assert!(err.contains("'I.email'") && err.contains("#1635"), "{err}");
+}
+
+/// A type that is not an input keeps serde's refusal: the guard reads input values only.
+#[test]
+fn validation_rules_on_an_output_type_field_are_left_to_serde() {
+    let raw = json!({"types": [{"name": "User", "fields": [
+        {"name": "email", "type": "String", "validation_rules": [{"type": "email"}]}
+    ]}]});
+    assert!(reject_drifted_keys(&raw).is_ok());
+}

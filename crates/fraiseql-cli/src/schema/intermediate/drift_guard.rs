@@ -116,7 +116,74 @@ pub fn reject_drifted_keys(raw: &Value) -> Result<(), String> {
         }
     }
 
+    reject_input_validation_rules(raw)
+}
+
+/// Refuse `validation_rules` on an input value: an input type's field, an `is_input`
+/// type's field, or an operation argument.
+///
+/// No input-value format carries the key, so serde would refuse it too, but with an
+/// `unknown field` that says neither which rule nor what to do. The server does not
+/// enforce input rules yet, so the honest answer is a refusal that names the value and
+/// each rule and says where the check belongs.
+fn reject_input_validation_rules(raw: &Value) -> Result<(), String> {
+    let mut input_types: Vec<&Value> =
+        raw.get("input_types").and_then(Value::as_array).into_iter().flatten().collect();
+    input_types.extend(
+        raw.get("types")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter(|t| t.get("is_input").and_then(Value::as_bool) == Some(true)),
+    );
+    for input in input_types {
+        for field in input.get("fields").and_then(Value::as_array).into_iter().flatten() {
+            refuse_rules(field, &format!("input field '{}.{}'", named(input), named(field)))?;
+        }
+    }
+
+    for collection in ["queries", "mutations", "subscriptions"] {
+        for operation in raw.get(collection).and_then(Value::as_array).into_iter().flatten() {
+            for argument in
+                operation.get("arguments").and_then(Value::as_array).into_iter().flatten()
+            {
+                refuse_rules(
+                    argument,
+                    &format!("argument '{}({})'", named(operation), named(argument)),
+                )?;
+            }
+        }
+    }
     Ok(())
+}
+
+fn named(value: &Value) -> &str {
+    value.get("name").and_then(Value::as_str).unwrap_or("<unnamed>")
+}
+
+fn refuse_rules(value: &Value, site: &str) -> Result<(), String> {
+    let Some(rules) = value.get("validation_rules") else {
+        return Ok(());
+    };
+    let names: Vec<String> = rules
+        .as_array()
+        .into_iter()
+        .flatten()
+        .map(|rule| match rule.get("type").and_then(Value::as_str) {
+            Some(kind) => format!("`{kind}`"),
+            None => rule.to_string(),
+        })
+        .collect();
+    let declared = if names.is_empty() {
+        "an empty `validation_rules` list".to_string()
+    } else {
+        format!("`validation_rules` ({})", names.join(", "))
+    };
+    Err(format!(
+        "{site} declares {declared}, which the server does not enforce on input yet (#1635). \
+         The compiler refuses them rather than publish a check that never runs. Remove \
+         `validation_rules` and check the value in the mutation's SQL function instead."
+    ))
 }
 
 #[cfg(test)]
