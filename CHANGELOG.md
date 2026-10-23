@@ -43,6 +43,14 @@ disagreed, and the promise was the part that was wrong.
   compiled into the schema and enforced by `run`. `[enrichment]` and `[storage]` are not
   keys of `fraiseql.toml` and already failed its parse. A `schema.json` project config
   never reached the warning.
+- **A database that refuses the server's boot DDL fails the boot with
+  `ServerError::Database`, not `ServerError::ConfigError`.** The tables each configured
+  subsystem needs (RBAC, admin tokens, API keys, every `[auth]` login surface, SCIM, inbound
+  webhooks) are provisioned from one ordered table, and an embedder matching on the error
+  could not tell an unreachable database from a configuration mistake. A script several
+  subsystems need, such as the session table, now runs once per boot instead of up to five
+  times. The change-feed listeners and the SAML and storage refreshers start after every
+  table is in place, so a boot that fails provisioning starts none of them.
 - **Studio's placeholder admin endpoints are removed (#1640).** Fifteen `/admin/v1/*` routes
   could only ever answer `501 not_implemented`, and now answer `404`: the data browser
   (`POST /admin/v1/data/{entity}/query`, `/mutate`), user listing, invitation and MFA status

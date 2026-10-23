@@ -128,6 +128,11 @@ pub struct PgApiKeyStore {
 }
 
 impl PgApiKeyStore {
+    /// The pool the key table lives in.
+    pub(crate) const fn pool(&self) -> &PgPool {
+        &self.pool
+    }
+
     /// Create a store over an existing pool.
     #[must_use]
     pub const fn new(pool: PgPool) -> Self {

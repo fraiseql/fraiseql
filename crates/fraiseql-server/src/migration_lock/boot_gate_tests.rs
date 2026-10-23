@@ -6,8 +6,10 @@
 //!
 //! 1. a `sqlx::raw_sql` / `sqlx::query` whose argument is DDL text, anywhere but
 //!    `migration_lock.rs`, or a schema constant or migration function (`*_SCHEMA_SQL`,
-//!    `*_MIGRATION_SQL`, `*_sql()`) used anywhere but as a `run_migration` argument — which also
-//!    catches a script split on `;` and run statement by statement;
+//!    `*_MIGRATION_SQL`, `*_sql()`) used anywhere but as a `run_migration` or `ProvisionStep::new`
+//!    argument — which also catches a script split on `;` and run statement by statement. Macro
+//!    bodies are opaque to the scan, so a schema constant inside `vec![…]` or `format!(…)` is not
+//!    seen: pass slices;
 //! 2. a call to another crate's DDL method that the server must not run unlocked
 //!    (`init_dispatch_ledger`, `run_storage_migration`);
 //! 3. an `.init()` call beyond the per-file allowance below, so a new crate store's `init` cannot
@@ -141,7 +143,10 @@ impl<'ast> Visit<'ast> for Scan<'_> {
             if last == "init" {
                 self.inits.push(line);
             }
-            if last == "run_migration" || last == "run_migrations" {
+            let sanctioned = last == "run_migration"
+                || last == "run_migrations"
+                || (last == "new" && p.path.segments.iter().any(|s| s.ident == "ProvisionStep"));
+            if sanctioned {
                 self.visit_expr(&call.func);
                 self.in_migration_args += 1;
                 for arg in &call.args {

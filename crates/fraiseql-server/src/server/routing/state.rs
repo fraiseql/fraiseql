@@ -19,10 +19,14 @@ impl Server {
     ///
     /// # Errors
     ///
-    /// Returns [`ServerError::ConfigError`](crate::ServerError::ConfigError) if a
-    /// configured subsystem cannot be provisioned.
+    /// Returns [`ServerError::Database`](crate::ServerError::Database) if a configured
+    /// subsystem's tables cannot be created, and
+    /// [`ServerError::ConfigError`](crate::ServerError::ConfigError) if its configuration
+    /// cannot be honoured.
     pub(in crate::server) async fn provisioned_app_state(&mut self) -> crate::Result<AppState> {
         self.provision_persistent_schemas().await?;
+        // After every table is in place, so a boot that fails provisioning starts nothing.
+        self.start_provisioned_tasks()?;
         let state = self.assemble_app_state();
         // The dispatched functions' query bridge runs against the executor this state
         // serves, so the observer learns it here, the one place every entry point's state

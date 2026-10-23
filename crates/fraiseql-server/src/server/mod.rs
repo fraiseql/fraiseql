@@ -40,6 +40,7 @@ mod functions_setup;
 pub(crate) mod initialization;
 mod lifecycle;
 mod notify_session;
+mod provision;
 mod routing;
 pub(crate) mod tviews_feed;
 
@@ -47,6 +48,8 @@ pub(crate) mod tviews_feed;
 mod after_mutation_wiring_tests;
 #[cfg(test)]
 mod parity_tests;
+#[cfg(test)]
+mod provision_tests;
 #[cfg(test)]
 mod storage_quota_sweep_tests;
 

@@ -50,331 +50,19 @@ impl Server {
     ///
     /// # Errors
     ///
-    /// Returns [`ServerError::ConfigError`] if any subsystem's schema cannot be
-    /// created. Usage persistence is the one deliberate exception: it degrades to
-    /// in-memory counters with a warning, because losing metering is not worth
-    /// refusing to serve traffic.
+    /// Returns [`ServerError::Database`] if any subsystem's schema cannot be created,
+    /// and [`ServerError::ConfigError`] if a setting cannot be honoured. Usage
+    /// persistence is the one deliberate exception: it degrades to in-memory counters
+    /// with a warning, because losing metering is not worth refusing to serve traffic.
     pub(super) async fn provision_persistent_schemas(&mut self) -> Result<()> {
         // #1175: refused before anything mounts, so the router, the email pollers and the
         // dispatch sweep can read the ledger settings without failing.
         #[cfg(feature = "inbound")]
         self.config.inbound_dispatch.settings().map_err(ServerError::ConfigError)?;
 
-        // Ensure the RBAC schema exists before the router mounts a writer of it (the RBAC
-        // API, SCIM group sync) or a request reads assignments from it (#1632).
-        // Must run here (async context) rather than inside build_router() (sync).
-        if let Some(rbac) = self.rbac.as_ref() {
-            rbac.ensure_schema().await.map_err(|e| {
-                ServerError::ConfigError(format!("Failed to initialize RBAC schema: {e}"))
-            })?;
-        }
-
-        // Tenant admin credentials (#1089): the table the admin gate reads must exist before
-        // the first request reaches a tenant-aware admin router.
-        if let Some(tokens) = self.admin_tokens.as_ref() {
-            tokens.ensure_schema().await.map_err(|e| {
-                ServerError::ConfigError(format!("Failed to initialize admin-token schema: {e}"))
-            })?;
-        }
-
-        // Ensure the API-key table exists before any request can resolve a
-        // Postgres-stored key (#627). Fail loud: a configured postgres store
-        // whose DDL cannot run must refuse to serve, not authenticate nothing.
-        if let Some(store) = self.api_key_authenticator.as_ref().and_then(|a| a.postgres_store()) {
-            store.ensure_schema().await.map_err(|e| {
-                ServerError::ConfigError(format!("Failed to initialize API-key schema: {e}"))
-            })?;
-            info!("API-key schema ready (core.tb_api_key)");
-        }
-
-        // Ensure the SAML session + account tables exist before the router
-        // mounts /auth/saml/acs (#381): the first verified assertion mints a
-        // Postgres session and resolves an account — a missing table there
-        // would 500 the login instead of failing the boot.
-        #[cfg(feature = "auth-saml")]
-        if self.saml_state.is_some() {
-            // auth-saml implies auth, so the enrichment_pool field exists and
-            // carries the same pool the constructor validated as present.
-            if let Some(ref pool) = self.enrichment_pool {
-                crate::migration_lock::run_migration(
-                    pool,
-                    fraiseql_auth::session_postgres::SESSIONS_SCHEMA_SQL,
-                )
-                .await
-                .map_err(|e| {
-                    ServerError::ConfigError(format!(
-                        "Failed to initialize SAML session schema: {e}"
-                    ))
-                })?;
-                crate::migration_lock::run_migration(
-                    pool,
-                    fraiseql_auth::account_linking::SCHEMA_SQL,
-                )
-                .await
-                .map_err(|e| {
-                    ServerError::ConfigError(format!(
-                        "Failed to initialize SAML account schema: {e}"
-                    ))
-                })?;
-                info!("SAML session + account schema ready");
-            }
-        }
-
-        // SCIM provisioning schema (#946). Fail loud: a mounted provisioning surface whose
-        // tables do not exist would 500 on the IdP's first call, which reads to an operator
-        // as "FraiseQL's SCIM is broken" rather than "the boot skipped a migration".
-        #[cfg(feature = "auth")]
-        if let (Some(scim), Some(pool)) = (self.config.scim.as_ref(), self.enrichment_pool.as_ref())
-        {
-            if scim.enabled {
-                crate::migration_lock::run_migration(
-                    pool,
-                    fraiseql_auth::account_linking::SCHEMA_SQL,
-                )
-                .await
-                .map_err(|e| {
-                    ServerError::ConfigError(format!(
-                        "Failed to initialize the SCIM identity schema: {e}"
-                    ))
-                })?;
-                // Deactivation revokes through the session store, so `_system.sessions`
-                // has to exist even on a deployment that mounts SCIM and no login route:
-                // otherwise the revoke half of offboarding fails on a missing relation and
-                // only the "block new sessions" half works.
-                crate::migration_lock::run_migration(
-                    pool,
-                    fraiseql_auth::session_postgres::SESSIONS_SCHEMA_SQL,
-                )
-                .await
-                .map_err(|e| {
-                    ServerError::ConfigError(format!(
-                        "Failed to initialize the session schema SCIM revokes through: {e}"
-                    ))
-                })?;
-                crate::migration_lock::run_migration(pool, fraiseql_auth::scim::PG_SCIM_SCHEMA_SQL)
-                    .await
-                    .map_err(|e| {
-                        ServerError::ConfigError(format!(
-                            "Failed to initialize the SCIM schema: {e}"
-                        ))
-                    })?;
-                info!("SCIM schema ready (core.tb_scim_group, core.tb_scim_token)");
-            }
-        }
-
-        // #1577: the result cache's feed to every other server. Here, like the refreshers
-        // below, so every serve entry point starts it and a built-but-never-served Server
-        // leaves no task (and no connection) behind; its cache stays suspended.
-        if let Some(parts) = self.cache_feed.take() {
-            let tls = self.config.postgres_tls().map_err(ServerError::ConfigError)?;
-            let connector =
-                fraiseql_core::db::postgres::NotifyConnector::new(&self.config.database_url, tls)
-                    .map_err(|e| ServerError::ConfigError(e.to_string()))?;
-            let instance = uuid::Uuid::new_v4().to_string();
-            info!(%instance, "Query result cache: starting the feed to other servers");
-            self.tasks.spawn(super::cache_feed::run(connector, parts, instance));
-        }
-
-        // #1589: the listener on pg_tviews' change feed, here for the same reason.
-        if let Some(listener) = self.tviews_feed.take() {
-            let tls = self.config.postgres_tls().map_err(ServerError::ConfigError)?;
-            let connector =
-                fraiseql_core::db::postgres::NotifyConnector::new(&self.config.database_url, tls)
-                    .map_err(|e| ServerError::ConfigError(e.to_string()))?
-                    .serving(fraiseql_core::cache::tviews_feed::CHANNEL);
-            let instance = uuid::Uuid::new_v4().to_string();
-            info!(%instance, "Query result cache: starting the listener on pg_tviews' changes");
-            self.tasks.spawn(super::tviews_feed::run(connector, listener, instance));
-        }
-
-        // Keep stored IdPs current (#947). Writes through this server's own admin API
-        // refresh synchronously, so the ticker exists to pick up another replica's changes
-        // and to keep the certificate-expiry warning honest. Spawned here rather than at
-        // construction so a built-but-never-served Server leaves no task behind.
-        #[cfg(feature = "auth-saml")]
-        if let (Some(saml), Some(cfg)) = (self.saml_state.as_ref(), self.config.saml.as_ref()) {
-            if cfg.store_enabled {
-                let registry = saml.registry().clone();
-                let interval = std::time::Duration::from_secs(cfg.refresh_interval_secs);
-                let warning_days = cfg.certificate_expiry_warning_days;
-                self.tasks.spawn(registry.refresh_loop(interval, warning_days));
-                info!(
-                    refresh_interval_secs = cfg.refresh_interval_secs,
-                    "SAML IdP store refresher started"
-                );
-            }
-        }
-
-        // Keep stored bucket policies current (#974), for the same reason the
-        // IdP refresher above exists: a policy pushed at one replica applies
-        // there immediately, and an access control that reached one replica out
-        // of three is not an access control. This bounds how long the rest of
-        // the deployment lags.
-        if let Some(ref storage_state) = self.storage_state {
-            let state = storage_state.clone();
-            self.tasks.spawn(
-                state.policy_refresh_loop(fraiseql_storage::DEFAULT_POLICY_REFRESH_INTERVAL),
-            );
-            info!(
-                refresh_interval_secs = fraiseql_storage::DEFAULT_POLICY_REFRESH_INTERVAL.as_secs(),
-                "Storage bucket policy refresher started"
-            );
-        }
-
-        // Ensure the [auth.local] tables exist before the router mounts their
-        // endpoints (#367). Every one of these would otherwise 500 on the first
-        // real request against a fresh database; failing the boot is the loud
-        // version of the same problem.
-        #[cfg(feature = "auth")]
-        if let Some(ref pool) = self.enrichment_pool {
-            let mut provisioned: Vec<&str> = Vec::new();
-            if self.otp_state.is_some() || self.mfa_state.is_some() {
-                // Sessions and accounts back every local method.
-                crate::migration_lock::run_migration(
-                    pool,
-                    fraiseql_auth::session_postgres::SESSIONS_SCHEMA_SQL,
-                )
-                .await
-                .map_err(|e| {
-                    ServerError::ConfigError(format!(
-                        "Failed to initialize [auth.local] session schema: {e}"
-                    ))
-                })?;
-                crate::migration_lock::run_migration(
-                    pool,
-                    fraiseql_auth::account_linking::SCHEMA_SQL,
-                )
-                .await
-                .map_err(|e| {
-                    ServerError::ConfigError(format!(
-                        "Failed to initialize [auth.local] account schema: {e}"
-                    ))
-                })?;
-            }
-            if self.otp_state.is_some() {
-                crate::migration_lock::run_migration(pool, fraiseql_auth::PG_OTP_SCHEMA_SQL)
-                    .await
-                    .map_err(|e| {
-                        ServerError::ConfigError(format!("Failed to initialize OTP schema: {e}"))
-                    })?;
-                provisioned.push("otp");
-            }
-            if self.mfa_state.is_some() {
-                crate::migration_lock::run_migration(pool, fraiseql_auth::PG_MFA_SCHEMA_SQL)
-                    .await
-                    .map_err(|e| {
-                        ServerError::ConfigError(format!("Failed to initialize MFA schema: {e}"))
-                    })?;
-                provisioned.push("mfa");
-            }
-            if self.local_password_state.is_some() {
-                // The identity, credential, reset-token and verification DDL that
-                // `LocalPasswordAuthenticator::init` would run unlocked.
-                crate::migration_lock::run_migrations(
-                    pool,
-                    &[
-                        fraiseql_auth::account_linking::SCHEMA_SQL,
-                        fraiseql_auth::PASSWORD_SCHEMA_SQL,
-                        fraiseql_auth::PASSWORD_RESET_SCHEMA_SQL,
-                        fraiseql_auth::EMAIL_VERIFICATION_SCHEMA_SQL,
-                    ],
-                )
-                .await
-                .map_err(|e| {
-                    ServerError::ConfigError(format!(
-                        "Failed to initialize local-password schema: {e}"
-                    ))
-                })?;
-                crate::migration_lock::run_migration(
-                    pool,
-                    fraiseql_auth::session_postgres::SESSIONS_SCHEMA_SQL,
-                )
-                .await
-                .map_err(|e| {
-                    ServerError::ConfigError(format!(
-                        "Failed to initialize [auth.local] session schema: {e}"
-                    ))
-                })?;
-                provisioned.push("password");
-            }
-            if self.anon_signup_state.is_some() {
-                crate::migration_lock::run_migration(
-                    pool,
-                    fraiseql_auth::session_postgres::SESSIONS_SCHEMA_SQL,
-                )
-                .await
-                .map_err(|e| {
-                    ServerError::ConfigError(format!(
-                        "Failed to initialize [auth.local] session schema: {e}"
-                    ))
-                })?;
-                provisioned.push("anonymous");
-            }
-            if !provisioned.is_empty() {
-                info!(methods = ?provisioned, "[auth.local] schema ready");
-            }
-        }
-
-        // Ensure the session + account tables exist before the router mounts
-        // /auth/v1/callback (#368): a successful OAuth callback mints a
-        // Postgres session and resolves an account through the account store —
-        // a missing table there would 500 the first login instead of failing
-        // the boot.
-        #[cfg(feature = "auth")]
-        if self.social_login.is_some() {
-            if let Some(ref pool) = self.enrichment_pool {
-                crate::migration_lock::run_migration(
-                    pool,
-                    fraiseql_auth::session_postgres::SESSIONS_SCHEMA_SQL,
-                )
-                .await
-                .map_err(|e| {
-                    ServerError::ConfigError(format!(
-                        "Failed to initialize social-login session schema: {e}"
-                    ))
-                })?;
-                crate::migration_lock::run_migration(
-                    pool,
-                    fraiseql_auth::account_linking::SCHEMA_SQL,
-                )
-                .await
-                .map_err(|e| {
-                    ServerError::ConfigError(format!(
-                        "Failed to initialize social-login account schema: {e}"
-                    ))
-                })?;
-                info!("Social-login session + account schema ready");
-            }
-        }
-
-        // Ensure the inbound-ingestion tables exist before the router mounts
-        // POST /webhooks/{provider}. Like RBAC, this must run here (async context)
-        // rather than in the sync build_router(). The spine holds normalized
-        // messages; the idempotency ledger backs the pipeline's atomic claim.
-        #[cfg(feature = "inbound")]
-        if let Some(ref db_pool) = self.db_pool {
-            if !self.config.webhooks.is_empty() {
-                crate::inbound::WebhookInboundState::init_spine(db_pool).await.map_err(|e| {
-                    ServerError::ConfigError(format!(
-                        "Failed to initialize inbound spine schema: {e}"
-                    ))
-                })?;
-                crate::migration_lock::run_migration(
-                    db_pool,
-                    fraiseql_webhooks::idempotency::SCHEMA_SQL,
-                )
-                .await
-                .map_err(|e| {
-                    ServerError::ConfigError(format!(
-                        "Failed to initialize webhook idempotency schema: {e}"
-                    ))
-                })?;
-                info!(
-                    routes = self.config.webhooks.len(),
-                    "Inbound ingestion schema ready (spine + idempotency ledger)"
-                );
-            }
-        }
+        // Every table a mounted route depends on, one ordered step per configured
+        // subsystem, each under the migration lock.
+        super::provision::run(self.provision_steps()).await?;
 
         // Initialize usage persistence backend if configured.
         // Must run before build_router() so the aggregator is populated before
@@ -471,6 +159,78 @@ impl Server {
         // mounting no functions at all.
         #[cfg(feature = "functions-runtime")]
         self.prepare_functions_runtime().await?;
+
+        Ok(())
+    }
+
+    /// Start the background tasks every serve entry point runs once provisioning is done.
+    ///
+    /// Spawned here rather than at construction so a built-but-never-served `Server`
+    /// leaves no task (and no connection) behind.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ServerError::ConfigError`] if a change-feed connector cannot be built
+    /// from the configured database URL and TLS settings.
+    pub(super) fn start_provisioned_tasks(&mut self) -> Result<()> {
+        // #1577: the result cache's feed to every other server. Here, like the refreshers
+        // below, so every serve entry point starts it and a built-but-never-served Server
+        // leaves no task (and no connection) behind; its cache stays suspended.
+        if let Some(parts) = self.cache_feed.take() {
+            let tls = self.config.postgres_tls().map_err(ServerError::ConfigError)?;
+            let connector =
+                fraiseql_core::db::postgres::NotifyConnector::new(&self.config.database_url, tls)
+                    .map_err(|e| ServerError::ConfigError(e.to_string()))?;
+            let instance = uuid::Uuid::new_v4().to_string();
+            info!(%instance, "Query result cache: starting the feed to other servers");
+            self.tasks.spawn(super::cache_feed::run(connector, parts, instance));
+        }
+
+        // #1589: the listener on pg_tviews' change feed, here for the same reason.
+        if let Some(listener) = self.tviews_feed.take() {
+            let tls = self.config.postgres_tls().map_err(ServerError::ConfigError)?;
+            let connector =
+                fraiseql_core::db::postgres::NotifyConnector::new(&self.config.database_url, tls)
+                    .map_err(|e| ServerError::ConfigError(e.to_string()))?
+                    .serving(fraiseql_core::cache::tviews_feed::CHANNEL);
+            let instance = uuid::Uuid::new_v4().to_string();
+            info!(%instance, "Query result cache: starting the listener on pg_tviews' changes");
+            self.tasks.spawn(super::tviews_feed::run(connector, listener, instance));
+        }
+
+        // Keep stored IdPs current (#947). Writes through this server's own admin API
+        // refresh synchronously, so the ticker exists to pick up another replica's changes
+        // and to keep the certificate-expiry warning honest. Spawned here rather than at
+        // construction so a built-but-never-served Server leaves no task behind.
+        #[cfg(feature = "auth-saml")]
+        if let (Some(saml), Some(cfg)) = (self.saml_state.as_ref(), self.config.saml.as_ref()) {
+            if cfg.store_enabled {
+                let registry = saml.registry().clone();
+                let interval = std::time::Duration::from_secs(cfg.refresh_interval_secs);
+                let warning_days = cfg.certificate_expiry_warning_days;
+                self.tasks.spawn(registry.refresh_loop(interval, warning_days));
+                info!(
+                    refresh_interval_secs = cfg.refresh_interval_secs,
+                    "SAML IdP store refresher started"
+                );
+            }
+        }
+
+        // Keep stored bucket policies current (#974), for the same reason the
+        // IdP refresher above exists: a policy pushed at one replica applies
+        // there immediately, and an access control that reached one replica out
+        // of three is not an access control. This bounds how long the rest of
+        // the deployment lags.
+        if let Some(ref storage_state) = self.storage_state {
+            let state = storage_state.clone();
+            self.tasks.spawn(
+                state.policy_refresh_loop(fraiseql_storage::DEFAULT_POLICY_REFRESH_INTERVAL),
+            );
+            info!(
+                refresh_interval_secs = fraiseql_storage::DEFAULT_POLICY_REFRESH_INTERVAL.as_secs(),
+                "Storage bucket policy refresher started"
+            );
+        }
 
         Ok(())
     }

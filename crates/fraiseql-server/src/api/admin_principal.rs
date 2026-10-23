@@ -156,6 +156,11 @@ fn hash_token(token: &str) -> String {
 }
 
 impl PgAdminTokenStore {
+    /// The pool the token table lives in.
+    pub(crate) const fn pool(&self) -> &PgPool {
+        &self.db
+    }
+
     /// Create a store over an existing pool.
     #[must_use]
     pub const fn new(db: PgPool) -> Self {

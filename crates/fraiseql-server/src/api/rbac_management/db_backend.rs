@@ -172,6 +172,11 @@ CREATE INDEX IF NOT EXISTS idx_fraiseql_permission_audit_role
     ON fraiseql_permission_audit(role_id);";
 
 impl RbacDbBackend {
+    /// The pool the role tables live in.
+    pub(crate) const fn pool(&self) -> &PgPool {
+        &self.pool
+    }
+
     /// Create a new RBAC database backend from a connection pool.
     #[must_use]
     pub fn new(pool: PgPool) -> Self {
