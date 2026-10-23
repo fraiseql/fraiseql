@@ -31,7 +31,7 @@ const INIT_ALLOWANCE: &[(&str, usize, &str)] = &[
     ("src/server/builder.rs", 1, "AsyncOperationStore::init"),
     ("src/server/functions_setup.rs", 2, "PgFunctionDlq::init, PgSendTracker::init"),
     (
-        "src/server/lifecycle.rs",
+        "src/server/start.rs",
         3,
         "PostgresInboundSpine, PgSendTracker and PgCronState init",
     ),

@@ -1236,8 +1236,8 @@ impl Server {
     /// Start every lifecycle task a serving state needs: the async-operation workers, the
     /// `after:ingest` dispatch sweep, and the tenant storage-quota sweep.
     ///
-    /// The one call each serve entry point makes (#858's construction-path rule), so the
-    /// entry points cannot start different sets.
+    /// Reached only through `start_capabilities`, which every serve entry point calls
+    /// (#858's construction-path rule), so the entry points cannot start different sets.
     pub(crate) fn spawn_lifecycle_tasks(&mut self, state: &crate::routes::graphql::AppState) {
         self.spawn_async_operation_workers(state);
         #[cfg(feature = "inbound")]
@@ -1878,9 +1878,11 @@ impl Server {
         // function is loaded, so an MCP client's mutation skips its before-mutation
         // chain and fires no after-mutation function.
         let app_state = self.provisioned_app_state().await?;
-        // An MCP write is tenant-dispatched like an HTTP one, so a tenant over its storage
-        // quota is refused here too, which needs the quota measured (#633).
-        self.spawn_storage_quota_sweep(&app_state);
+        // The workers this transport's own requests need: async operations it submits,
+        // the inbound dispatch sweep, and the storage quota sweep (an MCP write is
+        // tenant-dispatched like an HTTP one, so a tenant over its storage quota is
+        // refused here too, which needs the quota measured, #633).
+        Box::pin(self.start_capabilities(&app_state, super::start::EntryPoint::McpStdio)).await?;
 
         // Built from the same `AppState` the HTTP mount uses (#858): stdio carries
         // no headers, but the tenant registry, the suspended-tenant gate and the

@@ -303,6 +303,18 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **`Server::serve_on_listener` and the MCP stdio transport start what the binary
+  starts.** The background capabilities (the observer runtime, poll-IMAP mailboxes,
+  scheduled sources, `cron:` functions, outbound CDC drains, the subscription Kafka
+  mirror and the SIGUSR1 schema reload) were started inline in `serve_with_shutdown`. A
+  server served on a caller's listener mounted their routes and ran none of them. The MCP
+  stdio transport also skipped the async-operation workers and the inbound dispatch sweep,
+  so work it submitted waited for another process to run it. All three entry points now
+  call one start function. Arrow Flight stays binary-only, because it binds its own port.
+  stdio does not start the deployment-wide consumers, which its HTTP server already runs.
+  The event bridge runs on the server's task set, and the observer runtime stops within
+  the shutdown timeout whether or not `arrow` is compiled in. An enabled `[tls]` is
+  refused before any schema is provisioned.
 - **Two server replicas booting together against one database no longer fail on their own
   schema setup (#1677).** About twenty startup DDL scripts ran without the migration advisory
   lock that six others already took (#1286): async operations, RBAC, admin tokens, API keys,

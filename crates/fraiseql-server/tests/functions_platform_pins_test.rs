@@ -69,15 +69,15 @@ fn code_occurrences(src: &str, needle: &str) -> usize {
 
 #[test]
 fn cron_pollers_are_built_at_server_startup() {
-    let lifecycle = read_ws("crates/fraiseql-server/src/server/lifecycle.rs");
+    let start = read_ws("crates/fraiseql-server/src/server/start.rs");
     assert!(
-        code_occurrences(&lifecycle, "build_cron_pollers") > 0,
-        "expected the server lifecycle to construct cron pollers at startup (#595). If the \
+        code_occurrences(&start, "build_cron_pollers") > 0,
+        "expected server startup to construct cron pollers at startup (#595). If the \
          wiring moved, update this invariant to the new construction site."
     );
     // And the pollers must be spawned (fired), not merely built.
     assert!(
-        code_occurrences(&lifecycle, "run_forever") > 0,
+        code_occurrences(&start, "run_forever") > 0,
         "expected each cron poller to be spawned (run_forever) on the server JoinSet."
     );
 }

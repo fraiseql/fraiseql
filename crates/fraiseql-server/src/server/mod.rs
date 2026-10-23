@@ -42,10 +42,13 @@ mod lifecycle;
 mod notify_session;
 mod provision;
 mod routing;
+mod start;
 pub(crate) mod tviews_feed;
 
 #[cfg(all(test, feature = "functions-runtime"))]
 mod after_mutation_wiring_tests;
+#[cfg(all(test, feature = "observers"))]
+mod entry_point_parity_tests;
 #[cfg(test)]
 mod parity_tests;
 #[cfg(test)]
