@@ -76,7 +76,9 @@ mod ssrf_test_env;
 mod tests;
 
 // Re-export common types at crate level
-pub use actions::{ActionExecutionResult, EmailAction, SlackAction, WebhookAction};
+pub use actions::{
+    ActionExecutionResult, EmailAction, SlackAction, WebhookAction, body_template_placeholders,
+};
 #[cfg(feature = "caching")]
 pub use cache::redis::{RedisCacheBackend, RedisCacheInvalidator};
 pub use cache::{CacheBackend, CacheStats, CachedActionResult};

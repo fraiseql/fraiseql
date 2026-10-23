@@ -194,6 +194,15 @@ disagreed, and the promise was the part that was wrong.
   `{{ entity_id }}` (not a field of the row) are refused. Put the value in the row, or
   drop the placeholder.
 
+- **The observers admin API refuses a webhook `body_template` the entity cannot fill
+  (#1670).** `POST /api/observers` and `PATCH /api/observers/{id}` answer `422`, naming the
+  placeholder, when the compiled schema declares the observer's `entity_type` and a
+  placeholder's dotted path does not resolve against its fields (object fields are
+  followed; a path into a JSON field, a custom scalar, an interface or a union is left to
+  delivery). They used to accept the observer, and every event then dead-lettered. An
+  update is checked as the observer it leaves: a new `entity_type` against the stored
+  actions, and new actions against the stored `entity_type`.
+
 - **Feature names that enabled nothing of their own are removed (#1662).**
   - The `fraiseql` crate drops `minimal` (it enabled nothing) and `postgres` (it only
     forwarded to `fraiseql-core/postgres`, which the crate now always enables). Its

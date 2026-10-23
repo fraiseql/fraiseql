@@ -226,7 +226,7 @@ impl Server {
         // Observer routes (if enabled and compiled with feature)
         #[cfg(feature = "observers")]
         {
-            app = self.add_observer_routes(app);
+            app = self.add_observer_routes(app, state);
         }
 
         // Object storage routes (legacy backend)

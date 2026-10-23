@@ -478,6 +478,14 @@ fn unmatched(path: &str) -> ObserverError {
     }
 }
 
+/// The first `{{ path }}` in `text`: the text before it, the trimmed path, and the text
+/// after it. `None` when `text` holds no complete placeholder.
+fn next_placeholder(text: &str) -> Option<(&str, &str, &str)> {
+    let open = text.find("{{")?;
+    let close = text[open..].find("}}")?;
+    Some((&text[..open], text[open + 2..open + close].trim(), &text[open + close + 2..]))
+}
+
 /// Replace every `{{ path }}` in `text` by `render(value at path)`.
 fn substitute(
     text: &str,
@@ -486,18 +494,46 @@ fn substitute(
 ) -> Result<String> {
     let mut out = String::with_capacity(text.len());
     let mut rest = text;
-    while let Some(open) = rest.find("{{") {
-        let Some(close) = rest[open..].find("}}") else {
-            break;
-        };
-        let path = rest[open + 2..open + close].trim();
+    while let Some((before, path, after)) = next_placeholder(rest) {
         let value = lookup(data, path).ok_or_else(|| unmatched(path))?;
-        out.push_str(&rest[..open]);
+        out.push_str(before);
         out.push_str(&render(value)?);
-        rest = &rest[open + close + 2..];
+        rest = after;
     }
     out.push_str(rest);
     Ok(out)
+}
+
+/// The dotted paths a webhook body template reads from the event's data, in order of
+/// appearance: the placeholders `WebhookAction` looks up when it renders the template.
+///
+/// A template that parses as JSON is read as a tree, so only its string values are
+/// templates (its keys are left as written); any other template is read as text. A path
+/// the event cannot fill refuses the delivery, so a caller that knows the entity's fields
+/// can refuse the template before any event fires.
+#[must_use]
+pub fn body_template_placeholders(template: &str) -> Vec<String> {
+    fn scan(text: &str, paths: &mut Vec<String>) {
+        let mut rest = text;
+        while let Some((_, path, after)) = next_placeholder(rest) {
+            paths.push(path.to_string());
+            rest = after;
+        }
+    }
+    fn walk(node: &Value, paths: &mut Vec<String>) {
+        match node {
+            Value::String(s) => scan(s, paths),
+            Value::Array(items) => items.iter().for_each(|item| walk(item, paths)),
+            Value::Object(map) => map.values().for_each(|value| walk(value, paths)),
+            _ => {},
+        }
+    }
+    let mut paths = Vec::new();
+    match serde_json::from_str::<Value>(template) {
+        Ok(tree) => walk(&tree, &mut paths),
+        Err(_) => scan(template, &mut paths),
+    }
+    paths
 }
 
 /// Render a JSON template tree: whole-placeholder strings take the typed value, strings with

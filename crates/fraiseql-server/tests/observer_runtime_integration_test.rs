@@ -1533,6 +1533,12 @@ async fn test_admin_create_reloads_matcher() {
     let state = ObserverState {
         repository: ObserverRepository::new(pool.clone()),
         runtime:    Some(Arc::clone(&runtime)),
+        executor:   Arc::new(arc_swap::ArcSwap::from_pointee(
+            fraiseql_core::runtime::Executor::read_only(
+                fraiseql_core::schema::CompiledSchema::new(),
+                Arc::new(fraiseql_test_utils::failing_adapter::FailingAdapter::new()),
+            ),
+        )),
     };
 
     let entity_type = format!("Order_{test_id}");

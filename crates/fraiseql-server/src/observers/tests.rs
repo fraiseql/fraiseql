@@ -392,6 +392,9 @@ mod router_construction {
 
     use std::sync::Arc;
 
+    use arc_swap::ArcSwap;
+    use fraiseql_core::{runtime::Executor, schema::CompiledSchema};
+    use fraiseql_test_utils::failing_adapter::FailingAdapter;
     use sqlx::PgPool;
     use tokio::sync::RwLock;
 
@@ -414,6 +417,10 @@ mod router_construction {
         let state = ObserverState {
             repository: ObserverRepository::new(lazy_pool()),
             runtime:    None,
+            executor:   Arc::new(ArcSwap::from_pointee(Executor::read_only(
+                CompiledSchema::new(),
+                Arc::new(FailingAdapter::new()),
+            ))),
         };
         let _ = observer_routes(state);
     }
@@ -567,5 +574,121 @@ mod action_type_dispatch {
             reject_undispatchable_actions(&actions).is_none(),
             "a webhook-only action set is accepted"
         );
+    }
+}
+
+mod template_paths {
+    //! A webhook `body_template` placeholder the observed entity cannot fill is
+    //! refused at create/update (422) rather than dead-lettering every event at delivery.
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
+    use axum::http::StatusCode;
+    use fraiseql_core::schema::{CompiledSchema, FieldDefinition, FieldType, TypeDefinition};
+
+    use super::super::{ActionConfig, handlers::reject_unfillable_templates};
+
+    /// `Order { id, total, tags: [String], meta: JSON, customer: Customer }`,
+    /// `Customer { email, address: Address }`, `Address { city }`.
+    fn schema() -> CompiledSchema {
+        let mut schema = CompiledSchema::new();
+        let mut order = TypeDefinition::new("Order", "v_order");
+        order.fields = vec![
+            FieldDefinition::new("id", FieldType::Int),
+            FieldDefinition::new("total", FieldType::Float),
+            FieldDefinition::new("tags", FieldType::list(FieldType::String)),
+            FieldDefinition::new("meta", FieldType::Json),
+            FieldDefinition::new("customer", FieldType::Object("Customer".to_string())),
+        ];
+        let mut customer = TypeDefinition::new("Customer", "v_customer");
+        customer.fields = vec![
+            FieldDefinition::new("email", FieldType::String),
+            FieldDefinition::new("address", FieldType::Object("Address".to_string())),
+        ];
+        let mut address = TypeDefinition::new("Address", "v_address");
+        address.fields = vec![FieldDefinition::new("city", FieldType::String)];
+        schema.types = vec![order, customer, address];
+        schema.build_indexes();
+        schema
+    }
+
+    fn webhook(template: &str) -> ActionConfig {
+        serde_json::from_value(serde_json::json!({
+            "type": "webhook", "url": "https://h/x", "body_template": template,
+        }))
+        .unwrap()
+    }
+
+    fn refused(entity: Option<&str>, template: &str) -> Option<String> {
+        let response = reject_unfillable_templates(&schema(), entity, &[webhook(template)])?;
+        assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+        let body = futures::executor::block_on(axum::body::to_bytes(response.into_body(), 1 << 16))
+            .unwrap();
+        let body: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        Some(body["error"].as_str().unwrap().to_string())
+    }
+
+    #[test]
+    fn an_unknown_field_is_refused_by_name() {
+        let error = refused(Some("Order"), r#"{"x": "{{ nope }}"}"#).unwrap();
+        assert!(error.contains("`{{ nope }}`") && error.contains("'Order'"), "{error}");
+    }
+
+    #[test]
+    fn declared_fields_are_accepted_at_every_depth() {
+        assert_eq!(
+            refused(
+                Some("Order"),
+                r#"{"id": "{{ id }}", "to": "{{ customer.email }}", "c": "{{ customer.address.city }}", "t": "{{ tags }}"}"#
+            ),
+            None
+        );
+    }
+
+    #[test]
+    fn an_unknown_field_of_a_nested_object_is_refused() {
+        let error = refused(Some("Order"), r#"{"c": "{{ customer.address.zip }}"}"#).unwrap();
+        assert!(error.contains("customer.address.zip"), "{error}");
+    }
+
+    #[test]
+    fn a_path_into_a_scalar_or_a_list_is_refused() {
+        assert!(refused(Some("Order"), r#"{"x": "{{ total.amount }}"}"#).is_some());
+        assert!(refused(Some("Order"), r#"{"x": "{{ tags.first }}"}"#).is_some());
+    }
+
+    /// The schema cannot say what a JSON field holds, so a path into it is left to delivery.
+    #[test]
+    fn a_path_into_json_is_left_to_delivery() {
+        assert_eq!(refused(Some("Order"), r#"{"x": "{{ meta.anything }}"}"#), None);
+    }
+
+    #[test]
+    fn a_text_template_is_checked_too() {
+        assert!(refused(Some("Order"), r#"{"n": {{ nope }}}"#).is_some());
+        assert_eq!(refused(Some("Order"), r#"{"n": {{ total }}}"#), None);
+    }
+
+    /// The JSON template's keys are not rendered, so they are not checked.
+    #[test]
+    fn a_placeholder_in_a_key_is_not_a_path() {
+        assert_eq!(refused(Some("Order"), r#"{"{{ nope }}": "{{ id }}"}"#), None);
+    }
+
+    /// An observer on every entity, or on one the schema does not declare, has no fields to
+    /// check against.
+    #[test]
+    fn an_undeclared_or_absent_entity_type_is_not_checked() {
+        assert_eq!(refused(None, r#"{"x": "{{ nope }}"}"#), None);
+        assert_eq!(refused(Some("Invoice"), r#"{"x": "{{ nope }}"}"#), None);
+    }
+
+    /// Every webhook of the observer is checked, not only the first.
+    #[test]
+    fn a_later_webhook_is_checked() {
+        let actions = [
+            webhook(r#"{"id": "{{ id }}"}"#),
+            webhook(r#"{"x": "{{ nope }}"}"#),
+        ];
+        assert!(reject_unfillable_templates(&schema(), Some("Order"), &actions).is_some());
     }
 }

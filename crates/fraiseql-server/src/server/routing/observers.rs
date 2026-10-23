@@ -4,7 +4,7 @@ use axum::{Router, middleware};
 use tracing::info;
 
 use super::super::Server;
-use crate::middleware::admin_auth_middleware;
+use crate::{middleware::admin_auth_middleware, routes::graphql::AppState};
 
 impl Server {
     /// Add observer-related routes to the router.
@@ -32,7 +32,7 @@ impl Server {
     /// at startup, rather than mounting them open.  This closes the FW-21 class
     /// anonymous-write primitive (issue #348).
     #[cfg(feature = "observers")]
-    pub(super) fn add_observer_routes(&self, app: Router) -> Router {
+    pub(super) fn add_observer_routes(&self, app: Router, state: &AppState) -> Router {
         use std::sync::Arc;
 
         use crate::observers::{
@@ -68,6 +68,7 @@ impl Server {
             // matcher without a manual `…/runtime/reload` (#466). `None` when no
             // background runtime is mounted (control-plane-only deployments).
             runtime:    self.observer_runtime.clone(),
+            executor:   state.executor.clone(),
         };
 
         let changelog_state = ChangelogState { pool: db_pool };

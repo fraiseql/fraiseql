@@ -24,13 +24,14 @@ mod observer_test_helpers;
 
 use std::{collections::HashMap, sync::Arc};
 
+use arc_swap::ArcSwap;
 use axum::{
     Router,
     body::Body,
     http::{Method, Request, StatusCode},
 };
 use chrono::{Duration, Utc};
-use fraiseql_core::security::AuthenticatedUser;
+use fraiseql_core::{runtime::Executor, schema::CompiledSchema, security::AuthenticatedUser};
 use fraiseql_server::{
     middleware::{AuthUser, TenantClaim},
     observers::{
@@ -38,6 +39,7 @@ use fraiseql_server::{
         observer_routes,
     },
 };
+use fraiseql_test_utils::failing_adapter::FailingAdapter;
 use observer_test_helpers::setup_observer_schema;
 use serde_json::{Value, json};
 use sqlx::PgPool;
@@ -97,6 +99,10 @@ fn admin_api(pool: &PgPool, caller: Caller) -> Router {
     let observers = observer_routes(ObserverState {
         repository: ObserverRepository::new(pool.clone()),
         runtime:    None,
+        executor:   Arc::new(ArcSwap::from_pointee(Executor::read_only(
+            CompiledSchema::new(),
+            Arc::new(FailingAdapter::new()),
+        ))),
     });
     let changelog = observer_changelog_routes(ChangelogState { pool: pool.clone() });
     Router::new()

@@ -155,6 +155,42 @@ mod actions_tests {
         assert_eq!(rendered, json!({"to": "a@b", "n": 3, "z": null}));
     }
 
+    /// The paths a template reads, as `render_body_template` reads them: string values of a
+    /// JSON template (never its keys), or every placeholder of a text one.
+    #[test]
+    fn body_template_placeholders_lists_the_paths_rendering_reads() {
+        assert_eq!(
+            body_template_placeholders(
+                r#"{"{{ key }}": "{{ a }}", "n": ["x {{ b.c }} y", {"d": "{{d}}"}], "k": 1}"#
+            ),
+            vec!["a", "b.c", "d"]
+        );
+        assert_eq!(
+            body_template_placeholders("{\"n\": {{ total }}, {{ id }}"),
+            vec!["total", "id"]
+        );
+        assert!(
+            body_template_placeholders(r#"{"plain": "text", "open": "{{ unclosed"}"#).is_empty()
+        );
+    }
+
+    /// Each listed path is one rendering looks up: data that fills them all renders, and data
+    /// missing any one refuses naming it.
+    #[test]
+    fn body_template_placeholders_agrees_with_rendering() {
+        let template = r#"{"to": "{{ customer.email }}", "msg": "Order {{ id }} of {{ total }}"}"#;
+        let paths = body_template_placeholders(template);
+        assert_eq!(paths, vec!["customer.email", "id", "total"]);
+        let full = json!({"customer": {"email": "a@b"}, "id": 7, "total": 3});
+        WebhookAction::new().render_body_template(template, &full).unwrap();
+        for missing in ["id", "total"] {
+            let mut data = full.clone();
+            data.as_object_mut().unwrap().remove(missing);
+            let result = WebhookAction::new().render_body_template(template, &data);
+            assert_refused_as_unmatched(&result, missing);
+        }
+    }
+
     #[test]
     fn an_unmatched_placeholder_is_a_delivery_error() {
         let result =

@@ -1904,6 +1904,9 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		// #1625: every observer admin route acts only on the caller's organisation, driven
 		// through the real routers against the stats view and tables the API reads.
 		"cargo test -p fraiseql-server --features observers --test observer_admin_scope_pg -- --test-threads=1",
+		// #1670: a webhook body_template is checked against the observed entity's fields at
+		// create and update; an update reads the stored observer it leaves.
+		"cargo test -p fraiseql-server --features observers --test observer_admin_templates_pg -- --test-threads=1",
 		// #751: the inbound webhook replay defence is only provable against a real
 		// idempotency claim — the defect it guards lived precisely where no
 		// real-system test reached.
