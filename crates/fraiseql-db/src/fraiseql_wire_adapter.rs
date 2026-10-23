@@ -12,7 +12,7 @@ use futures::stream::StreamExt;
 use super::{
     order_by::{Tiebreak, render_order_by_columns},
     traits::DatabaseAdapter,
-    types::{DatabaseType, JsonbValue, PoolMetrics, sql_hints::OrderByClause},
+    types::{DatabaseType, JsonbValue, PoolMetrics, SqlProjectionHint, sql_hints::OrderByClause},
     where_clause::WhereClause,
     where_sql_generator::WhereSqlGenerator,
     wire_pool::WireClientFactory,
@@ -162,6 +162,7 @@ impl FraiseWireAdapter {
     async fn execute_manual_query(
         &self,
         view: &str,
+        projection: Option<&SqlProjectionHint>,
         where_clause: Option<&WhereClause>,
         limit: Option<u32>,
         offset: Option<u32>,
@@ -177,6 +178,10 @@ impl FraiseWireAdapter {
         // Pass view name directly - fraiseql-wire now uses entity names as-is (fixed in commit
         // 6c78e30)
         let mut builder = client.query::<serde_json::Value>(view).chunk_size(self.chunk_size);
+
+        if let Some(projection) = projection {
+            builder = builder.select_projection(projection.projection_template.clone());
+        }
 
         if let Some(clause) = where_clause {
             let where_sql = WhereSqlGenerator::to_sql(clause)?;
@@ -236,15 +241,17 @@ impl DatabaseAdapter for FraiseWireAdapter {
     async fn execute_with_projection(
         &self,
         view: &str,
-        _projection: Option<&crate::types::SqlProjectionHint>,
+        projection: Option<&SqlProjectionHint>,
         where_clause: Option<&WhereClause>,
         limit: Option<u32>,
         offset: Option<u32>,
         order_by: Option<&[OrderByClause]>,
     ) -> Result<Vec<JsonbValue>> {
-        // FraiseWire uses streaming, so projection is handled by field selection
-        // Fall back to standard query for now
-        self.execute_where_query(view, where_clause, limit, offset, order_by).await
+        // The projection is applied, not advisory: on its ungated read path the executor
+        // takes these rows as the selection, aliases applied, and shapes nested objects no
+        // further — a stored document returned whole here is served whole.
+        self.execute_manual_query(view, projection, where_clause, limit, offset, order_by)
+            .await
     }
 
     /// # Errors
@@ -267,7 +274,9 @@ impl DatabaseAdapter for FraiseWireAdapter {
         // Note: fraiseql-wire QueryBuilder doesn't expose limit/offset, so these cases
         // collect-and-slice in memory (order_by is pushed down there too).
         if limit.is_some() || offset.is_some() {
-            return self.execute_manual_query(view, where_clause, limit, offset, order_by).await;
+            return self
+                .execute_manual_query(view, None, where_clause, limit, offset, order_by)
+                .await;
         }
 
         // Create fresh client
@@ -333,6 +342,9 @@ impl DatabaseAdapter for FraiseWireAdapter {
         let client = self.factory.create_client().await?;
         let mut builder =
             client.query::<serde_json::Value>(request.view).chunk_size(self.chunk_size);
+        if let Some(projection) = request.projection {
+            builder = builder.select_projection(projection.projection_template.clone());
+        }
         if let Some(clause) = request.where_clause {
             builder = builder.where_sql(WhereSqlGenerator::to_sql(clause)?);
         }

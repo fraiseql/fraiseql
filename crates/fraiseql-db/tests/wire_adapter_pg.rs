@@ -14,7 +14,7 @@ use fraiseql_db::{
     DatabaseAdapter, FraiseWireAdapter, OrderByClause, OrderDirection, PostgresAdapter,
     ProjectionRequest, ScalarFieldType, WhereClause, WhereOperator,
     dialect::RowViewColumnType,
-    types::{ColumnSpec, ReadRouting},
+    types::{ColumnSpec, DatabaseType, ReadRouting, SqlProjectionHint},
 };
 use futures::StreamExt as _;
 use serde_json::{Value, json};
@@ -200,4 +200,42 @@ async fn the_streaming_read_streams() {
         .collect()
         .await;
     assert_eq!(window, vec![json!(11), json!(12), json!(13)], "offset and limit");
+}
+
+/// A projection hint is applied, by the collecting read and by the streaming read alike: each
+/// row is the projected object, the stored keys it does not name absent (#1680). The executor
+/// takes these rows as the selection and shapes them no further.
+#[tokio::test]
+async fn a_projection_hint_is_applied() {
+    let Some((_, wire)) = adapter().await else {
+        return;
+    };
+    let hint = SqlProjectionHint::new(
+        DatabaseType::PostgreSQL,
+        "jsonb_build_object('key', data->'id')".to_string(),
+        0,
+    );
+    let mut by_id = OrderByClause::new("id".to_string(), OrderDirection::Asc);
+    by_id.field_type = ScalarFieldType::Integer;
+    let order = [by_id];
+    let mut request = ProjectionRequest::new(VIEW);
+    request.projection = Some(&hint);
+    let group = in_group(3);
+    request.where_clause = Some(&group);
+    request.order_by = Some(&order);
+    request.limit = Some(2);
+    let expected = vec![json!({"key": 3}), json!({"key": 13})];
+
+    let collected = wire.execute_with_projection_arc(&request).await.unwrap();
+    let collected: Vec<Value> = collected.iter().map(|r| r.as_value().clone()).collect();
+    assert_eq!(collected, expected, "collecting read");
+
+    let streamed: Vec<Value> = wire
+        .stream_with_projection(&request, &[], ReadRouting::Any)
+        .await
+        .unwrap()
+        .map(|r| r.unwrap().as_value().clone())
+        .collect()
+        .await;
+    assert_eq!(streamed, expected, "streaming read");
 }

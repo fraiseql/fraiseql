@@ -503,6 +503,14 @@ disagreed, and the promise was the part that was wrong.
   keys, under their aliases, `null` for a selected key the function omitted, and masked
   fields nulled. Function-backed fields are served over GraphQL, MCP and Arrow Flight; REST
   and gRPC never exposed them.
+- **`FraiseWireAdapter` applies the projection the executor asks for (#1680).** It ignored
+  the hint and returned each row's whole stored document. An embedder serving it through
+  `Executor::read_only` therefore received a nested object whole, at any depth, including
+  its unselected fields and any `requires_scope` field masked from the caller; an aliased
+  selection failed with non-null errors. Both the collecting and the streaming reads now
+  select the projected object. `PostgresAdapter` and the `fraiseql-server` binary were not
+  affected.
+
 - **The observer admin API acts only on the caller's organisation (#1625).** Behind the
   `fraiseql:admin` scope:
   - get, delete, enable, disable, statistics and logs ignored the caller's tenant, so an
