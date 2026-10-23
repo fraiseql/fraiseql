@@ -1215,6 +1215,7 @@ mod flight_bind_addr_874 {
         );
     }
 
+    #[cfg(feature = "cli")]
     #[test]
     fn malformed_env_value_is_a_hard_error() {
         // Unique var name: race-free under the parallel runner.
@@ -1229,6 +1230,7 @@ mod flight_bind_addr_874 {
         );
     }
 
+    #[cfg(feature = "cli")]
     #[test]
     fn env_override_applies_over_config_file_value() {
         // A VALID value on the real var name (a concurrent clap parse reading

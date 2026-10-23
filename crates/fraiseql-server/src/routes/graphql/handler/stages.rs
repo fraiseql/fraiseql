@@ -421,15 +421,24 @@ pub(super) fn validate_request(
 /// two copies of the same block, which is one edit away from only one of them
 /// counting.
 fn check_validation_error_budget(state: &AppState, peer_ip: &str) -> Result<(), ErrorResponse> {
-    #[cfg(feature = "auth")]
-    if state.graphql_rate_limiter.check(peer_ip).is_err() {
+    if validation_error_budget_spent(state, peer_ip) {
         return Err(ErrorResponse::from_error(GraphQLError::rate_limited(
             "Too many validation errors. Please reduce query complexity and try again.",
         )));
     }
-    #[cfg(not(feature = "auth"))]
-    let _ = (state, peer_ip);
     Ok(())
+}
+
+/// Whether the peer has spent its validation-error budget: the GraphQL rate limiter,
+/// which only a build with `auth` carries. Without it there is no budget to spend.
+#[cfg(feature = "auth")]
+fn validation_error_budget_spent(state: &AppState, peer_ip: &str) -> bool {
+    state.graphql_rate_limiter.check(peer_ip).is_err()
+}
+
+#[cfg(not(feature = "auth"))]
+const fn validation_error_budget_spent(_state: &AppState, _peer_ip: &str) -> bool {
+    false
 }
 
 /// Refuse an `_entities` request for any entity type whose circuit breaker is

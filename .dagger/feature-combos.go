@@ -100,7 +100,16 @@ var featureCombos = []featureCombo{
 	// updated the non-arrow call site and left this one uncompilable, and
 	// `with_flight_service`'s `cfg(not(auth))` OIDC drift (#783) had no build that
 	// would have shown it.
-	{name: "server-arrow-no-auth", crate: "fraiseql-server", noDefaultFeatures: true, features: []string{"cli", "arrow"}},
+	// #1668: clippied, not checked. With `auth` off, the stubs and the validation-error
+	// budget have bodies a pedantic lint (`missing_const_for_fn`, `must_use_candidate`)
+	// only sees in this arm, so `--all-features` clippy never fires them.
+	{name: "server-arrow-no-auth", crate: "fraiseql-server", clippy: true, noDefaultFeatures: true, features: []string{"cli", "arrow"}},
+	// #1668: `arrow` without `cli`, test binaries included: a test naming `crate::cli`
+	// compiled only because every other combo carried the crate defaults.
+	{name: "server-arrow-no-cli", crate: "fraiseql-server", noDefaultFeatures: true, allTargets: true, features: []string{"arrow"}},
+	// #1668: gRPC without `auth`, clippied with its tests: a test module calling the
+	// auth-only identity layer was ungated.
+	{name: "server-grpc-no-auth", crate: "fraiseql-server", clippy: true, noDefaultFeatures: true, features: []string{"grpc"}},
 	{name: "server-mcp-auth", crate: "fraiseql-server", features: []string{"mcp", "auth"}},
 	{name: "server-observers-enterprise-redis", crate: "fraiseql-server", features: []string{"observers-enterprise", "redis-apq", "redis-pkce"}},
 	{name: "server-federation", crate: "fraiseql-server", features: []string{"federation"}},

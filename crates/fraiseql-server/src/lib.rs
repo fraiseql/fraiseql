@@ -231,7 +231,7 @@ pub mod auth {
             ///
             /// Currently infallible — always returns `Ok(None)`.
             /// Errors may be returned when the `auth` feature is enabled.
-            pub fn from_compiled_schema(
+            pub const fn from_compiled_schema(
                 _s: &serde_json::Value,
             ) -> crate::Result<Option<std::sync::Arc<Self>>> {
                 Ok(None)
@@ -243,7 +243,8 @@ pub mod auth {
     pub struct PkceStateStore;
     impl PkceStateStore {
         /// Stub: always returns `true` (in-memory).
-        pub fn is_in_memory(&self) -> bool {
+        #[must_use]
+        pub const fn is_in_memory(&self) -> bool {
             true
         }
 
@@ -255,7 +256,8 @@ pub mod auth {
     pub struct OidcServerClient;
     impl OidcServerClient {
         /// Stub: always returns `None`.
-        pub fn from_compiled_schema(_schema_json: &serde_json::Value) -> Option<Arc<Self>> {
+        #[must_use]
+        pub const fn from_compiled_schema(_schema_json: &serde_json::Value) -> Option<Arc<Self>> {
             None
         }
     }

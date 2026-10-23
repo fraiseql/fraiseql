@@ -55,3 +55,4 @@
 #1467  CI: one unfiltered, required `SDK suites` workflow replaces the paths-filtered per-SDK test workflows; CI gating only, no shipped artifact changes
 #1468  evaluation: RETURNING OLD/NEW measured and recorded (docs/benchmarks/pg18-evaluations.md); the engine issues no UPDATE, nothing adopted
 #1470  evaluation: SQL/JSON measured slower in every shape and recorded (docs/benchmarks/pg18-evaluations.md); compiler SQL unchanged
+#1668  clippy clean with the auth feature off (const/must_use on the auth stubs, test cfg gates) plus feature-matrix combos that keep it so; lint and CI only, no behaviour change

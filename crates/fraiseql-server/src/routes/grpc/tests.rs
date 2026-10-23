@@ -949,6 +949,7 @@ mod revocation {
     }
 }
 
+#[cfg(feature = "auth")]
 mod principal_production {
     use fraiseql_core::{security::AuthenticatedUser, types::UserId};
     use serde_json::json;
