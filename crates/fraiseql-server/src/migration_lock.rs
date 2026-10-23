@@ -72,6 +72,18 @@ pub async fn run_migration(pool: &PgPool, ddl: &str) -> Result<(), sqlx::Error> 
     sqlx::raw_sql(&lock_prefixed(ddl)).execute(pool).await.map(|_| ())
 }
 
+/// Run several server-owned migration scripts, in order, each under [`MIGRATION_LOCK_KEY`].
+///
+/// # Errors
+///
+/// The first script's `sqlx::Error`; the scripts after it are not run.
+pub async fn run_migrations(pool: &PgPool, scripts: &[&str]) -> Result<(), sqlx::Error> {
+    for ddl in scripts {
+        run_migration(pool, ddl).await?;
+    }
+    Ok(())
+}
+
 /// `ddl` with the advisory-lock acquisition as its first statement.
 ///
 /// Separate from `run_migration` so a test can assert the composed script's shape
@@ -83,3 +95,6 @@ fn lock_prefixed(ddl: &str) -> String {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod boot_gate_tests;

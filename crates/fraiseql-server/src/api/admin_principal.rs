@@ -168,7 +168,7 @@ impl PgAdminTokenStore {
     ///
     /// The database error if the DDL fails.
     pub async fn ensure_schema(&self) -> Result<(), sqlx::Error> {
-        sqlx::raw_sql(SCHEMA_SQL).execute(&self.db).await.map(|_| ())
+        crate::migration_lock::run_migration(&self.db, SCHEMA_SQL).await
     }
 
     /// Mint a credential for `tenant_id`. Returns the record and the token, which is shown

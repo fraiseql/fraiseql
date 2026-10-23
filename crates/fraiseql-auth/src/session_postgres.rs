@@ -33,6 +33,33 @@ pub struct PostgresSessionStore {
     tenant_claim:   String,
 }
 
+/// Idempotent DDL for `_system.sessions`.
+///
+/// [`PostgresSessionStore::init`] applies it on its own connection, which is not safe
+/// against a concurrent boot; `fraiseql-server` applies this text under its migration
+/// lock instead.
+pub const SESSIONS_SCHEMA_SQL: &str = r"
+CREATE SCHEMA IF NOT EXISTS _system;
+
+CREATE TABLE IF NOT EXISTS _system.sessions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id TEXT NOT NULL,
+    refresh_token_hash TEXT NOT NULL UNIQUE,
+    issued_at BIGINT NOT NULL,
+    expires_at BIGINT NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    revoked_at TIMESTAMPTZ
+);
+
+-- The account's tenant when the session was minted (#1450), for revocation and
+-- audit. NULL for a platform account or a principal with no account row.
+ALTER TABLE _system.sessions ADD COLUMN IF NOT EXISTS tenant_id UUID;
+
+CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON _system.sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON _system.sessions(expires_at);
+CREATE INDEX IF NOT EXISTS idx_sessions_revoked_at ON _system.sessions(revoked_at);
+";
+
 impl PostgresSessionStore {
     /// Create a new PostgreSQL session store **without** JWT signing configured.
     ///
@@ -105,33 +132,10 @@ impl PostgresSessionStore {
     pub async fn init(&self) -> Result<()> {
         // raw_sql: this is a multi-statement DDL batch, which the prepared-
         // statement path (`sqlx::query`) refuses at the protocol level.
-        sqlx::raw_sql(
-            r"
-            CREATE SCHEMA IF NOT EXISTS _system;
-
-            CREATE TABLE IF NOT EXISTS _system.sessions (
-                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                user_id TEXT NOT NULL,
-                refresh_token_hash TEXT NOT NULL UNIQUE,
-                issued_at BIGINT NOT NULL,
-                expires_at BIGINT NOT NULL,
-                created_at TIMESTAMPTZ DEFAULT NOW(),
-                revoked_at TIMESTAMPTZ
-            );
-
-            -- The account's tenant when the session was minted (#1450), for revocation and
-            -- audit. NULL for a platform account or a principal with no account row.
-            ALTER TABLE _system.sessions ADD COLUMN IF NOT EXISTS tenant_id UUID;
-
-            CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON _system.sessions(user_id);
-            CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON _system.sessions(expires_at);
-            CREATE INDEX IF NOT EXISTS idx_sessions_revoked_at ON _system.sessions(revoked_at);
-            ",
-        )
-        .execute(&self.db)
-        .await
-        .map_err(|e| AuthError::DatabaseError {
-            message: format!("Failed to initialize sessions table: {}", e),
+        sqlx::raw_sql(SESSIONS_SCHEMA_SQL).execute(&self.db).await.map_err(|e| {
+            AuthError::DatabaseError {
+                message: format!("Failed to initialize sessions table: {}", e),
+            }
         })?;
 
         Ok(())

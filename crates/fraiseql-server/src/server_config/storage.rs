@@ -218,9 +218,12 @@ pub async fn build_storage_state(config: &ServerConfig) -> Result<Option<Storage
     // Serialized against concurrent runners (#1286): the DDL is idempotent under repetition
     // but not under concurrency, and two instances booting at once against a database that has
     // not been migrated yet would race — one of them failing to start on a catalogue error.
-    fraiseql_storage::migrations::run_storage_migration(&pool)
-        .await
-        .map_err(|e| format!("storage: failed to ensure the object-metadata table exists: {e}"))?;
+    crate::migration_lock::run_migration(
+        &pool,
+        fraiseql_storage::migrations::storage_migration_sql(),
+    )
+    .await
+    .map_err(|e| format!("storage: failed to ensure the object-metadata table exists: {e}"))?;
 
     let backend = fraiseql_storage::create_backend(&resolved.backend).await.map_err(|e| {
         format!("storage: failed to create backend for bucket '{bucket_name}': {e}")

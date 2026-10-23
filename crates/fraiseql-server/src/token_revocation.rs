@@ -279,7 +279,7 @@ const REVOCATION_POOL_MAX: u32 = 5;
 /// `fraiseql_revoked_tokens` holds single-JTI revocations; `fraiseql_revoked_users`
 /// holds per-user `revoke-all` epochs (`revoked_after` unix seconds, retained until
 /// `expires_at`).
-const REVOKED_TOKENS_SCHEMA_SQL: &str = "\
+pub const REVOKED_TOKENS_SCHEMA_SQL: &str = "\
 CREATE TABLE IF NOT EXISTS fraiseql_revoked_tokens (
     jti TEXT PRIMARY KEY,
     sub TEXT,
@@ -317,8 +317,7 @@ impl PostgresRevocationStore {
     ///
     /// Returns [`RevocationError::Backend`] if the schema cannot be created.
     pub async fn new(pool: sqlx::PgPool) -> Result<Self, RevocationError> {
-        sqlx::raw_sql(REVOKED_TOKENS_SCHEMA_SQL)
-            .execute(&pool)
+        crate::migration_lock::run_migration(&pool, REVOKED_TOKENS_SCHEMA_SQL)
             .await
             .map_err(|e| RevocationError::Backend(format!("schema creation failed: {e}")))?;
         Ok(Self { pool })

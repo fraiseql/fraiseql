@@ -140,11 +140,7 @@ impl PgApiKeyStore {
     ///
     /// Returns [`ApiKeyStoreError::Database`] when a statement fails.
     pub async fn ensure_schema(&self) -> Result<(), ApiKeyStoreError> {
-        // One statement per execute — the adapter contract from P22 holds for
-        // sqlx simple queries with multiple statements too; split defensively.
-        for stmt in PG_API_KEY_SCHEMA_SQL.split(';').map(str::trim).filter(|s| !s.is_empty()) {
-            sqlx::query(stmt).execute(&self.pool).await?;
-        }
+        crate::migration_lock::run_migration(&self.pool, PG_API_KEY_SCHEMA_SQL).await?;
         Ok(())
     }
 

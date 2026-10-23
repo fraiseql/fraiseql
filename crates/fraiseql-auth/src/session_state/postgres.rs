@@ -26,6 +26,28 @@ fn db_err(what: &str, e: &sqlx::Error) -> AuthError {
     }
 }
 
+/// Idempotent DDL for `_system.session_state`.
+///
+/// [`PostgresSessionStateStore::init`] applies it on its own connection, which is not
+/// safe against a concurrent boot; `fraiseql-server` applies this text under its
+/// migration lock instead.
+pub const SESSION_STATE_SCHEMA_SQL: &str = r"
+CREATE SCHEMA IF NOT EXISTS _system;
+
+CREATE TABLE IF NOT EXISTS _system.session_state (
+    session_id  UUID        NOT NULL,
+    thread_id   TEXT        NOT NULL,
+    key         TEXT        NOT NULL,
+    value       JSONB       NOT NULL,
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    expires_at  TIMESTAMPTZ NOT NULL,
+    PRIMARY KEY (session_id, thread_id, key)
+);
+
+CREATE INDEX IF NOT EXISTS idx_session_state_expiry
+    ON _system.session_state (expires_at);
+";
+
 impl PostgresSessionStateStore {
     /// Create a store over an existing pool. Call [`init`](Self::init) before use.
     #[must_use]
@@ -43,27 +65,10 @@ impl PostgresSessionStateStore {
     ///
     /// Returns [`AuthError::DatabaseError`] when the DDL cannot be applied.
     pub async fn init(&self) -> Result<()> {
-        sqlx::raw_sql(
-            r"
-            CREATE SCHEMA IF NOT EXISTS _system;
-
-            CREATE TABLE IF NOT EXISTS _system.session_state (
-                session_id  UUID        NOT NULL,
-                thread_id   TEXT        NOT NULL,
-                key         TEXT        NOT NULL,
-                value       JSONB       NOT NULL,
-                updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
-                expires_at  TIMESTAMPTZ NOT NULL,
-                PRIMARY KEY (session_id, thread_id, key)
-            );
-
-            CREATE INDEX IF NOT EXISTS idx_session_state_expiry
-                ON _system.session_state (expires_at);
-            ",
-        )
-        .execute(&self.db)
-        .await
-        .map_err(|e| db_err("initialize _system.session_state", &e))?;
+        sqlx::raw_sql(SESSION_STATE_SCHEMA_SQL)
+            .execute(&self.db)
+            .await
+            .map_err(|e| db_err("initialize _system.session_state", &e))?;
         Ok(())
     }
 

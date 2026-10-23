@@ -103,6 +103,44 @@ pub struct AsyncOperationStore {
     db: PgPool,
 }
 
+/// Idempotent DDL for `_system.async_operations`, applied under the server's migration
+/// lock: two replicas booting together race on `IF NOT EXISTS` without it.
+pub const ASYNC_OPERATIONS_SCHEMA_SQL: &str = r"
+CREATE SCHEMA IF NOT EXISTS _system;
+
+CREATE TABLE IF NOT EXISTS _system.async_operations (
+    op_id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_key             TEXT,
+    submitter              TEXT        NOT NULL,
+    operation              TEXT        NOT NULL,
+    document               TEXT        NOT NULL,
+    variables              JSONB,
+    security_context       JSONB       NOT NULL,
+    state                  TEXT        NOT NULL DEFAULT 'queued'
+        CHECK (state IN ('queued','running','succeeded','failed','cancelled')),
+    cancellation_requested BOOLEAN     NOT NULL DEFAULT false,
+    claim_token            UUID,
+    attempts               INTEGER     NOT NULL DEFAULT 0,
+    max_attempts           INTEGER     NOT NULL,
+    result                 JSONB,
+    error                  TEXT,
+    created_at             TIMESTAMPTZ NOT NULL DEFAULT now(),
+    heartbeat_at           TIMESTAMPTZ NOT NULL DEFAULT now(),
+    started_at             TIMESTAMPTZ,
+    finished_at            TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS idx_async_operations_claim
+    ON _system.async_operations (state, heartbeat_at);
+
+-- #1512: the request locale, resolved at submission. Added in place so a table
+-- created by an earlier release gains it.
+ALTER TABLE _system.async_operations ADD COLUMN IF NOT EXISTS locale TEXT;
+-- #1520: the headers session variables name, read at submission.
+ALTER TABLE _system.async_operations
+    ADD COLUMN IF NOT EXISTS session_headers JSONB NOT NULL DEFAULT '{}'::jsonb;
+";
+
 impl AsyncOperationStore {
     /// Create a store over an existing pool. Call [`init`](Self::init) at boot.
     #[must_use]
@@ -117,46 +155,9 @@ impl AsyncOperationStore {
     ///
     /// Returns [`ServerError::Database`] when the DDL cannot be applied.
     pub async fn init(&self) -> Result<()> {
-        sqlx::raw_sql(
-            r"
-            CREATE SCHEMA IF NOT EXISTS _system;
-
-            CREATE TABLE IF NOT EXISTS _system.async_operations (
-                op_id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                tenant_key             TEXT,
-                submitter              TEXT        NOT NULL,
-                operation              TEXT        NOT NULL,
-                document               TEXT        NOT NULL,
-                variables              JSONB,
-                security_context       JSONB       NOT NULL,
-                state                  TEXT        NOT NULL DEFAULT 'queued'
-                    CHECK (state IN ('queued','running','succeeded','failed','cancelled')),
-                cancellation_requested BOOLEAN     NOT NULL DEFAULT false,
-                claim_token            UUID,
-                attempts               INTEGER     NOT NULL DEFAULT 0,
-                max_attempts           INTEGER     NOT NULL,
-                result                 JSONB,
-                error                  TEXT,
-                created_at             TIMESTAMPTZ NOT NULL DEFAULT now(),
-                heartbeat_at           TIMESTAMPTZ NOT NULL DEFAULT now(),
-                started_at             TIMESTAMPTZ,
-                finished_at            TIMESTAMPTZ
-            );
-
-            CREATE INDEX IF NOT EXISTS idx_async_operations_claim
-                ON _system.async_operations (state, heartbeat_at);
-
-            -- #1512: the request locale, resolved at submission. Added in place so a table
-            -- created by an earlier release gains it.
-            ALTER TABLE _system.async_operations ADD COLUMN IF NOT EXISTS locale TEXT;
-            -- #1520: the headers session variables name, read at submission.
-            ALTER TABLE _system.async_operations
-                ADD COLUMN IF NOT EXISTS session_headers JSONB NOT NULL DEFAULT '{}'::jsonb;
-            ",
-        )
-        .execute(&self.db)
-        .await
-        .map_err(|e| db_err("initialize _system.async_operations", &e))?;
+        crate::migration_lock::run_migration(&self.db, ASYNC_OPERATIONS_SCHEMA_SQL)
+            .await
+            .map_err(|e| db_err("initialize _system.async_operations", &e))?;
         Ok(())
     }
 
@@ -441,3 +442,6 @@ impl AsyncOperationStore {
         Ok(done.rows_affected())
     }
 }
+
+#[cfg(test)]
+mod tests;

@@ -26,7 +26,7 @@ use std::sync::Arc;
 
 use chrono::{Duration as ChronoDuration, Utc};
 pub use memory::InMemorySessionStateStore;
-pub use postgres::PostgresSessionStateStore;
+pub use postgres::{PostgresSessionStateStore, SESSION_STATE_SCHEMA_SQL};
 pub use store::{MAX_SESSION_VALUE_BYTES, SUMMARY_KEY, SessionStateEntry};
 pub use summarizer::{NoOpSummarizer, SummarizeFuture, Summarizer};
 use uuid::Uuid;

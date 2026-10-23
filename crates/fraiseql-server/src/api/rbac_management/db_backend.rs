@@ -108,6 +108,69 @@ pub struct RbacDbBackend {
     assigned: Arc<AssignedRoles>,
 }
 
+/// Idempotent DDL for the RBAC tables, applied under the server's migration lock.
+pub const RBAC_SCHEMA_SQL: &str = "\
+CREATE TABLE IF NOT EXISTS fraiseql_roles (
+    id UUID PRIMARY KEY,
+    name TEXT NOT NULL,
+    description TEXT,
+    tenant_id UUID,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_fraiseql_roles_name_per_space
+    ON fraiseql_roles (name, tenant_id) NULLS NOT DISTINCT;
+DROP INDEX IF EXISTS idx_fraiseql_roles_name_tenant;
+
+CREATE TABLE IF NOT EXISTS fraiseql_permissions (
+    id UUID PRIMARY KEY,
+    resource TEXT NOT NULL,
+    action TEXT NOT NULL,
+    description TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE(resource, action)
+);
+
+CREATE TABLE IF NOT EXISTS fraiseql_role_permissions (
+    role_id UUID REFERENCES fraiseql_roles(id) ON DELETE CASCADE,
+    permission_id UUID REFERENCES fraiseql_permissions(id) ON DELETE CASCADE,
+    PRIMARY KEY (role_id, permission_id)
+);
+
+CREATE TABLE IF NOT EXISTS fraiseql_user_roles (
+    user_id TEXT NOT NULL,
+    role_id UUID REFERENCES fraiseql_roles(id) ON DELETE CASCADE,
+    tenant_id UUID,
+    assigned_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (user_id, role_id)
+);
+
+CREATE TABLE IF NOT EXISTS fraiseql_permission_audit (
+    id UUID PRIMARY KEY,
+    occurred_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    event_type TEXT NOT NULL,
+    role_id UUID,
+    role_name TEXT,
+    user_id TEXT,
+    permission_id UUID,
+    tenant_id UUID,
+    details JSONB NOT NULL DEFAULT '{}'::jsonb
+);
+
+CREATE INDEX IF NOT EXISTS idx_fraiseql_roles_tenant
+    ON fraiseql_roles(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_fraiseql_user_roles_user
+    ON fraiseql_user_roles(user_id);
+CREATE INDEX IF NOT EXISTS idx_fraiseql_user_roles_role
+    ON fraiseql_user_roles(role_id);
+CREATE INDEX IF NOT EXISTS idx_fraiseql_permission_audit_time
+    ON fraiseql_permission_audit(occurred_at DESC);
+CREATE INDEX IF NOT EXISTS idx_fraiseql_permission_audit_user
+    ON fraiseql_permission_audit(user_id);
+CREATE INDEX IF NOT EXISTS idx_fraiseql_permission_audit_role
+    ON fraiseql_permission_audit(role_id);";
+
 impl RbacDbBackend {
     /// Create a new RBAC database backend from a connection pool.
     #[must_use]
@@ -140,71 +203,9 @@ impl RbacDbBackend {
     ///
     /// Returns `RbacDbError::QueryError` if the schema creation SQL fails.
     pub async fn ensure_schema(&self) -> Result<(), RbacDbError> {
-        sqlx::raw_sql(
-            "CREATE TABLE IF NOT EXISTS fraiseql_roles (
-                id UUID PRIMARY KEY,
-                name TEXT NOT NULL,
-                description TEXT,
-                tenant_id UUID,
-                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-            );
-
-            CREATE UNIQUE INDEX IF NOT EXISTS uq_fraiseql_roles_name_per_space
-                ON fraiseql_roles (name, tenant_id) NULLS NOT DISTINCT;
-            DROP INDEX IF EXISTS idx_fraiseql_roles_name_tenant;
-
-            CREATE TABLE IF NOT EXISTS fraiseql_permissions (
-                id UUID PRIMARY KEY,
-                resource TEXT NOT NULL,
-                action TEXT NOT NULL,
-                description TEXT,
-                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                UNIQUE(resource, action)
-            );
-
-            CREATE TABLE IF NOT EXISTS fraiseql_role_permissions (
-                role_id UUID REFERENCES fraiseql_roles(id) ON DELETE CASCADE,
-                permission_id UUID REFERENCES fraiseql_permissions(id) ON DELETE CASCADE,
-                PRIMARY KEY (role_id, permission_id)
-            );
-
-            CREATE TABLE IF NOT EXISTS fraiseql_user_roles (
-                user_id TEXT NOT NULL,
-                role_id UUID REFERENCES fraiseql_roles(id) ON DELETE CASCADE,
-                tenant_id UUID,
-                assigned_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                PRIMARY KEY (user_id, role_id)
-            );
-
-            CREATE TABLE IF NOT EXISTS fraiseql_permission_audit (
-                id UUID PRIMARY KEY,
-                occurred_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                event_type TEXT NOT NULL,
-                role_id UUID,
-                role_name TEXT,
-                user_id TEXT,
-                permission_id UUID,
-                tenant_id UUID,
-                details JSONB NOT NULL DEFAULT '{}'::jsonb
-            );
-
-            CREATE INDEX IF NOT EXISTS idx_fraiseql_roles_tenant
-                ON fraiseql_roles(tenant_id);
-            CREATE INDEX IF NOT EXISTS idx_fraiseql_user_roles_user
-                ON fraiseql_user_roles(user_id);
-            CREATE INDEX IF NOT EXISTS idx_fraiseql_user_roles_role
-                ON fraiseql_user_roles(role_id);
-            CREATE INDEX IF NOT EXISTS idx_fraiseql_permission_audit_time
-                ON fraiseql_permission_audit(occurred_at DESC);
-            CREATE INDEX IF NOT EXISTS idx_fraiseql_permission_audit_user
-                ON fraiseql_permission_audit(user_id);
-            CREATE INDEX IF NOT EXISTS idx_fraiseql_permission_audit_role
-                ON fraiseql_permission_audit(role_id);",
-        )
-        .execute(&self.pool)
-        .await
-        .map_err(|e| RbacDbError::QueryError(format!("Schema creation failed: {e}")))?;
+        crate::migration_lock::run_migration(&self.pool, RBAC_SCHEMA_SQL)
+            .await
+            .map_err(|e| RbacDbError::QueryError(format!("Schema creation failed: {e}")))?;
 
         debug!("RBAC schema ensured");
         Ok(())

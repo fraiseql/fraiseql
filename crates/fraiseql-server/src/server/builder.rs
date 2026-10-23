@@ -785,11 +785,13 @@ impl Server {
                 // against a replica that has never seen its ID — the signature is valid
                 // and nothing else would stop it. Postgres because `[saml]` already
                 // requires this pool, so it adds no infrastructure.
+                crate::migration_lock::run_migration(
+                    &pool,
+                    fraiseql_auth::saml::PG_SAML_REPLAY_SCHEMA_SQL,
+                )
+                .await
+                .map_err(|e| ServerError::ConfigError(format!("[saml] replay store: {e}")))?;
                 let replay_store = Arc::new(fraiseql_auth::PgSamlReplayStore::new(pool.clone()));
-                replay_store
-                    .init()
-                    .await
-                    .map_err(|e| ServerError::ConfigError(format!("[saml] replay store: {e}")))?;
                 let state = fraiseql_auth::saml::SamlAuthState::new(state_store, session_store)
                     .with_user_store(account_store)
                     .with_replay_store(replay_store);
@@ -882,11 +884,13 @@ impl Server {
                 // The durable per-tenant store (#947). Attached before the first refresh so
                 // stored IdPs serve from the first request, not from the first tick.
                 if saml_cfg.store_enabled {
+                    crate::migration_lock::run_migration(
+                        &pool,
+                        fraiseql_auth::saml::PG_SAML_IDP_SCHEMA_SQL,
+                    )
+                    .await
+                    .map_err(|e| ServerError::ConfigError(format!("[saml] IdP store: {e}")))?;
                     let idp_store = Arc::new(fraiseql_auth::saml::PgSamlIdpStore::new(pool));
-                    idp_store
-                        .init()
-                        .await
-                        .map_err(|e| ServerError::ConfigError(format!("[saml] IdP store: {e}")))?;
                     registry = registry.with_store(idp_store);
                     registry.refresh().await.map_err(|e| {
                         // Fail loud: booting with an unreadable IdP store would serve only
@@ -1406,14 +1410,19 @@ impl Server {
                             .to_string(),
                     )
                 })?;
-                let store = PostgresSessionStateStore::new(pool);
-                store.init().await.map_err(|e| {
+                crate::migration_lock::run_migration(
+                    &pool,
+                    fraiseql_auth::session_state::SESSION_STATE_SCHEMA_SQL,
+                )
+                .await
+                .map_err(|e| {
                     ServerError::ConfigError(format!(
                         "[session_state] backend = \"postgres\" could not initialise \
                          _system.session_state: {e}. Refusing to boot rather than silently \
                          downgrading to the volatile in-memory backend."
                     ))
                 })?;
+                let store = PostgresSessionStateStore::new(pool);
                 info!("Session state enabled (postgres-backed, durable)");
                 SessionStateBackend::Postgres(store)
             },

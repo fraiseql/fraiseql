@@ -96,20 +96,26 @@ impl Server {
             // auth-saml implies auth, so the enrichment_pool field exists and
             // carries the same pool the constructor validated as present.
             if let Some(ref pool) = self.enrichment_pool {
-                fraiseql_auth::PostgresSessionStore::new(pool.clone()).init().await.map_err(
-                    |e| {
-                        ServerError::ConfigError(format!(
-                            "Failed to initialize SAML session schema: {e}"
-                        ))
-                    },
-                )?;
-                fraiseql_auth::PostgresAccountStore::new(pool.clone()).init().await.map_err(
-                    |e| {
-                        ServerError::ConfigError(format!(
-                            "Failed to initialize SAML account schema: {e}"
-                        ))
-                    },
-                )?;
+                crate::migration_lock::run_migration(
+                    pool,
+                    fraiseql_auth::session_postgres::SESSIONS_SCHEMA_SQL,
+                )
+                .await
+                .map_err(|e| {
+                    ServerError::ConfigError(format!(
+                        "Failed to initialize SAML session schema: {e}"
+                    ))
+                })?;
+                crate::migration_lock::run_migration(
+                    pool,
+                    fraiseql_auth::account_linking::SCHEMA_SQL,
+                )
+                .await
+                .map_err(|e| {
+                    ServerError::ConfigError(format!(
+                        "Failed to initialize SAML account schema: {e}"
+                    ))
+                })?;
                 info!("SAML session + account schema ready");
             }
         }
@@ -121,32 +127,37 @@ impl Server {
         if let (Some(scim), Some(pool)) = (self.config.scim.as_ref(), self.enrichment_pool.as_ref())
         {
             if scim.enabled {
-                fraiseql_auth::PostgresAccountStore::new(pool.clone()).init().await.map_err(
-                    |e| {
-                        ServerError::ConfigError(format!(
-                            "Failed to initialize the SCIM identity schema: {e}"
-                        ))
-                    },
-                )?;
+                crate::migration_lock::run_migration(
+                    pool,
+                    fraiseql_auth::account_linking::SCHEMA_SQL,
+                )
+                .await
+                .map_err(|e| {
+                    ServerError::ConfigError(format!(
+                        "Failed to initialize the SCIM identity schema: {e}"
+                    ))
+                })?;
                 // Deactivation revokes through the session store, so `_system.sessions`
                 // has to exist even on a deployment that mounts SCIM and no login route:
                 // otherwise the revoke half of offboarding fails on a missing relation and
                 // only the "block new sessions" half works.
-                fraiseql_auth::PostgresSessionStore::new(pool.clone()).init().await.map_err(
-                    |e| {
-                        ServerError::ConfigError(format!(
-                            "Failed to initialize the session schema SCIM revokes through: {e}"
-                        ))
-                    },
-                )?;
-                fraiseql_auth::scim::ScimStore::init(&fraiseql_auth::scim::PgScimStore::new(
-                    pool.clone(),
-                    None,
-                ))
+                crate::migration_lock::run_migration(
+                    pool,
+                    fraiseql_auth::session_postgres::SESSIONS_SCHEMA_SQL,
+                )
                 .await
                 .map_err(|e| {
-                    ServerError::ConfigError(format!("Failed to initialize the SCIM schema: {e}"))
+                    ServerError::ConfigError(format!(
+                        "Failed to initialize the session schema SCIM revokes through: {e}"
+                    ))
                 })?;
+                crate::migration_lock::run_migration(pool, fraiseql_auth::scim::PG_SCIM_SCHEMA_SQL)
+                    .await
+                    .map_err(|e| {
+                        ServerError::ConfigError(format!(
+                            "Failed to initialize the SCIM schema: {e}"
+                        ))
+                    })?;
                 info!("SCIM schema ready (core.tb_scim_group, core.tb_scim_token)");
             }
         }
@@ -219,58 +230,84 @@ impl Server {
             let mut provisioned: Vec<&str> = Vec::new();
             if self.otp_state.is_some() || self.mfa_state.is_some() {
                 // Sessions and accounts back every local method.
-                fraiseql_auth::PostgresSessionStore::new(pool.clone()).init().await.map_err(
-                    |e| {
-                        ServerError::ConfigError(format!(
-                            "Failed to initialize [auth.local] session schema: {e}"
-                        ))
-                    },
-                )?;
-                fraiseql_auth::PostgresAccountStore::new(pool.clone()).init().await.map_err(
-                    |e| {
-                        ServerError::ConfigError(format!(
-                            "Failed to initialize [auth.local] account schema: {e}"
-                        ))
-                    },
-                )?;
+                crate::migration_lock::run_migration(
+                    pool,
+                    fraiseql_auth::session_postgres::SESSIONS_SCHEMA_SQL,
+                )
+                .await
+                .map_err(|e| {
+                    ServerError::ConfigError(format!(
+                        "Failed to initialize [auth.local] session schema: {e}"
+                    ))
+                })?;
+                crate::migration_lock::run_migration(
+                    pool,
+                    fraiseql_auth::account_linking::SCHEMA_SQL,
+                )
+                .await
+                .map_err(|e| {
+                    ServerError::ConfigError(format!(
+                        "Failed to initialize [auth.local] account schema: {e}"
+                    ))
+                })?;
             }
             if self.otp_state.is_some() {
-                fraiseql_auth::PgOtpStore::new(pool.clone()).init().await.map_err(|e| {
-                    ServerError::ConfigError(format!("Failed to initialize OTP schema: {e}"))
-                })?;
+                crate::migration_lock::run_migration(pool, fraiseql_auth::PG_OTP_SCHEMA_SQL)
+                    .await
+                    .map_err(|e| {
+                        ServerError::ConfigError(format!("Failed to initialize OTP schema: {e}"))
+                    })?;
                 provisioned.push("otp");
             }
             if self.mfa_state.is_some() {
-                fraiseql_auth::PgMfaStore::new(pool.clone()).init().await.map_err(|e| {
-                    ServerError::ConfigError(format!("Failed to initialize MFA schema: {e}"))
-                })?;
+                crate::migration_lock::run_migration(pool, fraiseql_auth::PG_MFA_SCHEMA_SQL)
+                    .await
+                    .map_err(|e| {
+                        ServerError::ConfigError(format!("Failed to initialize MFA schema: {e}"))
+                    })?;
                 provisioned.push("mfa");
             }
-            if let Some(ref pw) = self.local_password_state {
-                // `LocalPasswordAuthenticator::init` runs the identity, credential
-                // and reset-token DDL, so it also covers sessions/accounts.
-                pw.authenticator.init().await.map_err(|e| {
+            if self.local_password_state.is_some() {
+                // The identity, credential, reset-token and verification DDL that
+                // `LocalPasswordAuthenticator::init` would run unlocked.
+                crate::migration_lock::run_migrations(
+                    pool,
+                    &[
+                        fraiseql_auth::account_linking::SCHEMA_SQL,
+                        fraiseql_auth::PASSWORD_SCHEMA_SQL,
+                        fraiseql_auth::PASSWORD_RESET_SCHEMA_SQL,
+                        fraiseql_auth::EMAIL_VERIFICATION_SCHEMA_SQL,
+                    ],
+                )
+                .await
+                .map_err(|e| {
                     ServerError::ConfigError(format!(
                         "Failed to initialize local-password schema: {e}"
                     ))
                 })?;
-                fraiseql_auth::PostgresSessionStore::new(pool.clone()).init().await.map_err(
-                    |e| {
-                        ServerError::ConfigError(format!(
-                            "Failed to initialize [auth.local] session schema: {e}"
-                        ))
-                    },
-                )?;
+                crate::migration_lock::run_migration(
+                    pool,
+                    fraiseql_auth::session_postgres::SESSIONS_SCHEMA_SQL,
+                )
+                .await
+                .map_err(|e| {
+                    ServerError::ConfigError(format!(
+                        "Failed to initialize [auth.local] session schema: {e}"
+                    ))
+                })?;
                 provisioned.push("password");
             }
             if self.anon_signup_state.is_some() {
-                fraiseql_auth::PostgresSessionStore::new(pool.clone()).init().await.map_err(
-                    |e| {
-                        ServerError::ConfigError(format!(
-                            "Failed to initialize [auth.local] session schema: {e}"
-                        ))
-                    },
-                )?;
+                crate::migration_lock::run_migration(
+                    pool,
+                    fraiseql_auth::session_postgres::SESSIONS_SCHEMA_SQL,
+                )
+                .await
+                .map_err(|e| {
+                    ServerError::ConfigError(format!(
+                        "Failed to initialize [auth.local] session schema: {e}"
+                    ))
+                })?;
                 provisioned.push("anonymous");
             }
             if !provisioned.is_empty() {
@@ -286,20 +323,26 @@ impl Server {
         #[cfg(feature = "auth")]
         if self.social_login.is_some() {
             if let Some(ref pool) = self.enrichment_pool {
-                fraiseql_auth::PostgresSessionStore::new(pool.clone()).init().await.map_err(
-                    |e| {
-                        ServerError::ConfigError(format!(
-                            "Failed to initialize social-login session schema: {e}"
-                        ))
-                    },
-                )?;
-                fraiseql_auth::PostgresAccountStore::new(pool.clone()).init().await.map_err(
-                    |e| {
-                        ServerError::ConfigError(format!(
-                            "Failed to initialize social-login account schema: {e}"
-                        ))
-                    },
-                )?;
+                crate::migration_lock::run_migration(
+                    pool,
+                    fraiseql_auth::session_postgres::SESSIONS_SCHEMA_SQL,
+                )
+                .await
+                .map_err(|e| {
+                    ServerError::ConfigError(format!(
+                        "Failed to initialize social-login session schema: {e}"
+                    ))
+                })?;
+                crate::migration_lock::run_migration(
+                    pool,
+                    fraiseql_auth::account_linking::SCHEMA_SQL,
+                )
+                .await
+                .map_err(|e| {
+                    ServerError::ConfigError(format!(
+                        "Failed to initialize social-login account schema: {e}"
+                    ))
+                })?;
                 info!("Social-login session + account schema ready");
             }
         }
@@ -316,14 +359,16 @@ impl Server {
                         "Failed to initialize inbound spine schema: {e}"
                     ))
                 })?;
-                fraiseql_webhooks::PostgresIdempotencyStore::new(db_pool.clone())
-                    .init()
-                    .await
-                    .map_err(|e| {
-                        ServerError::ConfigError(format!(
-                            "Failed to initialize webhook idempotency schema: {e}"
-                        ))
-                    })?;
+                crate::migration_lock::run_migration(
+                    db_pool,
+                    fraiseql_webhooks::idempotency::SCHEMA_SQL,
+                )
+                .await
+                .map_err(|e| {
+                    ServerError::ConfigError(format!(
+                        "Failed to initialize webhook idempotency schema: {e}"
+                    ))
+                })?;
                 info!(
                     routes = self.config.webhooks.len(),
                     "Inbound ingestion schema ready (spine + idempotency ledger)"
@@ -563,14 +608,16 @@ impl Server {
                     );
                 } else if let Some(hooks) = app_state.before_mutation_hooks.as_ref() {
                     // The shared durable source-cursor table (idempotent DDL).
-                    fraiseql_observers::PostgresSourceCursorStore::new(db_pool.clone())
-                        .init()
-                        .await
-                        .map_err(|e| {
-                            ServerError::ConfigError(format!(
-                                "Failed to initialize source cursor schema: {e}"
-                            ))
-                        })?;
+                    crate::migration_lock::run_migration(
+                        db_pool,
+                        fraiseql_observers::migrations::source_cursor_sql(),
+                    )
+                    .await
+                    .map_err(|e| {
+                        ServerError::ConfigError(format!(
+                            "Failed to initialize source cursor schema: {e}"
+                        ))
+                    })?;
                     let host_config = crate::sources::source_host_config(&sources_config);
                     let pollers = crate::sources::build_source_pollers(
                         &sources,

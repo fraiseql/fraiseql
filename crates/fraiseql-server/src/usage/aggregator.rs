@@ -530,6 +530,17 @@ pub struct PostgresBackend {
     pool: sqlx::PgPool,
 }
 
+/// Idempotent DDL for the usage counters, applied under the server's migration lock.
+pub const USAGE_SCHEMA_SQL: &str = "\
+CREATE TABLE IF NOT EXISTS fraiseql_usage_counters (
+    tenant_id   TEXT NOT NULL,
+    period      TEXT NOT NULL,
+    entity_type TEXT NOT NULL,
+    count       BIGINT NOT NULL DEFAULT 0,
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (tenant_id, period, entity_type)
+)";
+
 impl PostgresBackend {
     /// Create a new PostgreSQL backend, ensuring the schema exists.
     ///
@@ -537,19 +548,9 @@ impl PostgresBackend {
     ///
     /// Returns an error if the schema migration fails.
     pub async fn new(pool: sqlx::PgPool) -> Result<Self, String> {
-        sqlx::query(
-            "CREATE TABLE IF NOT EXISTS fraiseql_usage_counters (
-                tenant_id   TEXT NOT NULL,
-                period      TEXT NOT NULL,
-                entity_type TEXT NOT NULL,
-                count       BIGINT NOT NULL DEFAULT 0,
-                updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                PRIMARY KEY (tenant_id, period, entity_type)
-            )",
-        )
-        .execute(&pool)
-        .await
-        .map_err(|e| format!("PostgresBackend schema migration failed: {e}"))?;
+        crate::migration_lock::run_migration(&pool, USAGE_SCHEMA_SQL)
+            .await
+            .map_err(|e| format!("PostgresBackend schema migration failed: {e}"))?;
 
         Ok(Self { pool })
     }

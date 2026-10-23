@@ -295,6 +295,16 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **Two server replicas booting together against one database no longer fail on their own
+  schema setup (#1677).** About twenty startup DDL scripts ran without the migration advisory
+  lock that six others already took (#1286): async operations, RBAC, admin tokens, API keys,
+  token revocation, usage counters, every `[auth]` store (sessions, accounts, local password,
+  OTP, MFA, SCIM, SAML replay and IdP), session state, the webhook idempotency ledger and the
+  source cursor. `IF NOT EXISTS` is not atomic, so concurrent boots lost on the catalogue's
+  unique indexes (three of four in a measured cold start) or deadlocked on `ACCESS
+  EXCLUSIVE`. Every boot script now runs under the one lock. Object storage used its own lock
+  key, which never serialised it against the others; it now takes the same lock. A source scan
+  fails the build on any boot DDL that bypasses it.
 - **A server config naming a compiled-out section always says which build feature it
   needs (#1644).** Under `deny_unknown_fields`, a binary built without a feature refuses a
   config that declares that feature's key. The refusal names the missing feature only for

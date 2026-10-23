@@ -82,8 +82,7 @@ use crate::subsystems::BeforeMutationHooks;
 /// Returns [`FraiseQLError::Database`](fraiseql_error::FraiseQLError::Database) if
 /// the DDL fails.
 pub async fn init_cursor_store(pool: &sqlx::PgPool) -> fraiseql_error::Result<()> {
-    fraiseql_observers::PostgresSourceCursorStore::new(pool.clone())
-        .init()
+    crate::migration_lock::run_migration(pool, fraiseql_observers::migrations::source_cursor_sql())
         .await
         .map_err(|error| fraiseql_error::FraiseQLError::database(error.to_string()))
 }
