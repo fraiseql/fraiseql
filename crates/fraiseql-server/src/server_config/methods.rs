@@ -2,26 +2,6 @@ use fraiseql_core::db::postgres::PostgresTlsConfig;
 
 use super::{DatabaseTlsConfig, ServerConfig};
 
-/// `ServerConfig` sections that only exist when their build feature is compiled in.
-///
-/// With `deny_unknown_fields` (#839), a binary built without a feature refuses a
-/// config that declares the feature's section. serde's "unknown field" message
-/// cannot say *why* the field is unknown, so [`ServerConfig::from_file`] appends
-/// the build-feature hint for any of these keys found in the raw TOML.
-const FEATURE_GATED_SECTIONS: &[(&str, &str, bool)] = &[
-    ("flight_bind_addr", "arrow", cfg!(feature = "arrow")),
-    ("flight_views", "arrow", cfg!(feature = "arrow")),
-    ("observers", "observers", cfg!(feature = "observers")),
-    ("sources", "sources", cfg!(feature = "sources")),
-    ("webhooks", "inbound", cfg!(feature = "inbound")),
-    ("inbound_dispatch", "inbound", cfg!(feature = "inbound")),
-    ("mailbox", "inbound-email", cfg!(feature = "inbound-email")),
-    ("send", "inbound-email", cfg!(feature = "inbound-email")),
-    ("export", "rest", cfg!(feature = "rest")),
-    ("identity", "auth", cfg!(feature = "auth")),
-    ("saml", "auth-saml", cfg!(feature = "auth-saml")),
-];
-
 /// Grouping tables `ServerConfig` has never had, mapped to the keys that do the job.
 ///
 /// These are the sections of the deleted `fraiseql_core::config::FraiseQLConfig`
@@ -108,7 +88,7 @@ impl ServerConfig {
             .map_err(|e| format!("Cannot read config file: {e}"))?;
         toml::from_str(&content).map_err(|e| {
             enrich_parse_error(
-                FEATURE_GATED_SECTIONS,
+                &crate::capability::feature_gated_keys(),
                 &content,
                 format!("Invalid TOML config: {e}"),
             )

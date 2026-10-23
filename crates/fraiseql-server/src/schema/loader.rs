@@ -2,7 +2,7 @@
 
 use std::path::{Path, PathBuf};
 
-use fraiseql_core::schema::CompiledSchema;
+use fraiseql_core::{capability::SectionActivity, schema::CompiledSchema};
 use tracing::{debug, info, warn};
 
 /// Error loading schema.
@@ -252,51 +252,11 @@ impl CompiledSchemaLoader {
     }
 }
 
-/// How to tell whether a declared section actually asks for something to RUN.
-///
-/// A section that is present but switched off is **not** a misconfiguration — the
-/// operator turned it off, and refusing to boot on it would break a working deployment
-/// that simply carries a fuller schema than its binary serves. Every predicate here
-/// mirrors the one the serving subsystem itself applies: `if cfg.enabled`,
-/// `if definitions.is_empty() { return }`, `if !sources.is_empty()`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum Activity {
-    /// An object carrying `enabled: bool`. Active when it is `true`.
-    EnabledFlag,
-    /// An object carrying a `definitions` array. Active when it is non-empty —
-    /// the same test `prepare_functions_runtime` makes before doing any work.
-    NonEmptyDefinitions,
-    /// A top-level array of declarations, each with its own `enabled`. Active when at
-    /// least one entry is enabled, which is what the source scheduler starts pollers for.
-    AnyEntryEnabled,
-}
-
-impl Activity {
-    /// Whether `value` — the section as it appears in the compiled schema — asks for
-    /// something to run.
-    fn is_active(self, value: &serde_json::Value) -> bool {
-        match self {
-            Activity::EnabledFlag => {
-                value.get("enabled").and_then(serde_json::Value::as_bool).unwrap_or(false)
-            },
-            Activity::NonEmptyDefinitions => value
-                .get("definitions")
-                .and_then(|d| d.as_array())
-                .is_some_and(|d| !d.is_empty()),
-            Activity::AnyEntryEnabled => value.as_array().is_some_and(|entries| {
-                entries
-                    .iter()
-                    .any(|e| e.get("enabled").and_then(serde_json::Value::as_bool).unwrap_or(false))
-            }),
-        }
-    }
-}
-
 /// A compiled-schema section that only a feature-gated subsystem can serve (#1326).
 ///
 /// `compiled_in` is evaluated with `cfg!`, not `#[cfg]`, so both arms type-check in
 /// every build and the OFF arm is never a branch nothing compiles.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct GatedSection {
     /// The top-level key in `schema.compiled.json`.
     pub name:        &'static str,
@@ -305,85 +265,34 @@ pub(crate) struct GatedSection {
     /// Whether this build has that feature.
     pub compiled_in: bool,
     /// What an operator should do — a published image tag, or the build flag.
-    pub remedy:      &'static str,
+    pub remedy:      String,
     /// Whether a present declaration is actually asking for something to run.
-    pub activity:    Activity,
+    pub activity:    SectionActivity,
 }
 
 /// Every compiled-schema section whose *only* consumers sit behind a
 /// `fraiseql-server` Cargo feature, and whether this build has that feature.
 ///
-/// Each entry was verified by reading the consumer, not by assuming from the name:
-///
-/// | section | serving site | gate |
-/// |---|---|---|
-/// | `functions` | `main.rs` `LoadedSchema.functions` → `prepare_functions_runtime` | `#[cfg(feature = "functions-runtime")]` |
-/// | `sources` | `lifecycle.rs` source scheduler | `#[cfg(feature = "sources")]` |
-/// | `mcp_config` | `builder.rs` `apply_compiled_config` | `#[cfg(feature = "mcp")]` |
-/// | `rest_config` | `routes::rest` | `#[cfg(feature = "rest")]` |
-/// | `grpc_config` | `routes::grpc` | `#[cfg(feature = "grpc")]` |
-/// | `federation` | `builder.rs` `schema_subsystems` circuit breaker, `routes::api::federation` | `#[cfg(feature = "federation")]` |
-/// | `observers_config` | the observer runtime | `#[cfg(feature = "observers")]` |
+/// Derived from [`crate::capability::REGISTRY`]: a capability's `compiled_sections`
+/// are exactly the sections nothing outside it can serve. The manifest tests hold the
+/// registry to `CompiledSchema`, so a new section has to be classified there or as
+/// servable by every build.
 ///
 /// `reload_gate.rs` also names most of these, but it only *compares* them across a hot
 /// reload — it does not serve them, so it is not a consumer for this purpose.
-///
-/// A new feature-gated section belongs here. `tools/check-gated-sections.py` fails when
-/// the compiled-schema surface grows one that is not listed.
 pub(crate) fn gated_sections() -> Vec<GatedSection> {
-    vec![
-        GatedSection {
-            name:        "functions",
-            feature:     "functions-runtime",
-            compiled_in: cfg!(feature = "functions-runtime"),
-            remedy:      "pull the `-platform` image tag, or rebuild with \
-                          `--features functions-runtime`",
-            activity:    Activity::NonEmptyDefinitions,
-        },
-        GatedSection {
-            name:        "sources",
-            feature:     "sources",
-            compiled_in: cfg!(feature = "sources"),
-            remedy:      "pull the `-platform` image tag, or rebuild with \
-                          `--features sources`",
-            activity:    Activity::AnyEntryEnabled,
-        },
-        GatedSection {
-            name:        "mcp_config",
-            feature:     "mcp",
-            compiled_in: cfg!(feature = "mcp"),
-            remedy:      "rebuild with `--features mcp`",
-            activity:    Activity::EnabledFlag,
-        },
-        GatedSection {
-            name:        "rest_config",
-            feature:     "rest",
-            compiled_in: cfg!(feature = "rest"),
-            remedy:      "rebuild with `--features rest`",
-            activity:    Activity::EnabledFlag,
-        },
-        GatedSection {
-            name:        "grpc_config",
-            feature:     "grpc",
-            compiled_in: cfg!(feature = "grpc"),
-            remedy:      "rebuild with `--features grpc`",
-            activity:    Activity::EnabledFlag,
-        },
-        GatedSection {
-            name:        "federation",
-            feature:     "federation",
-            compiled_in: cfg!(feature = "federation"),
-            remedy:      "rebuild with `--features federation`",
-            activity:    Activity::EnabledFlag,
-        },
-        GatedSection {
-            name:        "observers_config",
-            feature:     "observers",
-            compiled_in: cfg!(feature = "observers"),
-            remedy:      "rebuild with `--features observers`",
-            activity:    Activity::EnabledFlag,
-        },
-    ]
+    crate::capability::REGISTRY
+        .iter()
+        .flat_map(|r| {
+            r.meta.compiled_sections.iter().map(|section| GatedSection {
+                name:        section.key,
+                feature:     r.meta.feature,
+                compiled_in: r.compiled_in,
+                remedy:      r.meta.remedy(),
+                activity:    section.activity,
+            })
+        })
+        .collect()
 }
 
 /// Refuse a compiled schema that declares a section this build cannot serve.

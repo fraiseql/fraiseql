@@ -12,6 +12,7 @@
 
 use std::io::Write as _;
 
+use fraiseql_core::capability::SectionActivity;
 use tempfile::NamedTempFile;
 
 use super::loader::{CompiledSchemaLoader, SchemaLoadError};
@@ -425,15 +426,15 @@ fn probe(name: &'static str, compiled_in: bool) -> super::loader::GatedSection {
         name,
         feature: "some-feature",
         compiled_in,
-        remedy: "pull the `-platform` image tag",
-        activity: super::loader::Activity::NonEmptyDefinitions,
+        remedy: "pull the `-platform` image tag".to_string(),
+        activity: SectionActivity::NonEmptyDefinitions,
     }
 }
 
 fn probe_with(
     name: &'static str,
     compiled_in: bool,
-    activity: super::loader::Activity,
+    activity: SectionActivity,
 ) -> super::loader::GatedSection {
     super::loader::GatedSection {
         activity,
@@ -491,7 +492,7 @@ fn a_section_switched_off_is_not_refused() {
             &[probe_with(
                 "rest_config",
                 false,
-                super::loader::Activity::EnabledFlag
+                SectionActivity::EnabledFlag
             )]
         )
         .is_ok(),
@@ -508,7 +509,7 @@ fn a_section_switched_on_is_refused() {
             &[probe_with(
                 "rest_config",
                 false,
-                super::loader::Activity::EnabledFlag
+                SectionActivity::EnabledFlag
             )]
         )
         .is_err(),
@@ -538,31 +539,15 @@ fn sources_are_refused_only_when_one_is_enabled() {
         "types": [],
         "sources": [{ "name": "a", "enabled": false }, { "name": "b", "enabled": true }]
     });
-    let section = probe_with("sources", false, super::loader::Activity::AnyEntryEnabled);
+    let section = probe_with("sources", false, SectionActivity::AnyEntryEnabled);
     assert!(
-        super::loader::refuse_unservable_sections(&off, &[section]).is_ok(),
+        super::loader::refuse_unservable_sections(&off, std::slice::from_ref(&section)).is_ok(),
         "all-disabled sources start no poller"
     );
     assert!(
         super::loader::refuse_unservable_sections(&on, &[section]).is_err(),
         "one enabled source among disabled ones must still be refused"
     );
-}
-
-/// Every section in the real table must name a feature that exists in this crate's
-/// `Cargo.toml`, or its remedy tells an operator to pass a flag that does nothing.
-#[test]
-fn every_gated_section_names_a_real_feature() {
-    let manifest = include_str!("../../Cargo.toml");
-    for section in super::loader::gated_sections() {
-        assert!(
-            manifest.contains(&format!("\n{} = [", section.feature))
-                || manifest.contains(&format!("\n{} = {{", section.feature)),
-            "`{}` names feature `{}`, which is not declared in fraiseql-server/Cargo.toml",
-            section.name,
-            section.feature
-        );
-    }
 }
 
 /// The refusal names the first unservable section it finds, and every section is
@@ -574,7 +559,7 @@ fn every_listed_section_is_checked_not_only_the_first() {
         &raw,
         &[
             probe("functions", false),
-            probe_with("sources", false, super::loader::Activity::AnyEntryEnabled),
+            probe_with("sources", false, SectionActivity::AnyEntryEnabled),
         ],
     )
     .expect_err("the second entry must be checked too");

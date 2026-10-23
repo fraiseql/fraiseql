@@ -189,6 +189,9 @@ xxhash-rust = { workspace = true }
 zeroize = "1.8"
 
 [dev-dependencies]
+# Test-only: the capability manifest tests read `ServerConfig`/`CompiledSchema` from source
+# to find every feature-gated field. Already in the tree through the derive macros.
+syn = { version = "2", features = ["full"] }
 # The #382 outbound-CDC mount e2e reads back from a real NATS JetStream.
 async-nats = "0.47"
 # The #1102 subscription-mirror e2e reads back from a real Kafka. Through the egress

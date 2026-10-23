@@ -38,6 +38,7 @@ pub mod token_revocation;
 // Original fraiseql-server modules
 pub mod api;
 pub mod async_operations;
+pub mod capability;
 #[cfg(feature = "cdc-outbound")]
 pub mod cdc_outbound;
 /// Server-side `cron:` function scheduling (#595): one leased poller per cron

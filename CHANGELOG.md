@@ -253,6 +253,22 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **A server config naming a compiled-out section always says which build feature it
+  needs (#1644).** Under `deny_unknown_fields`, a binary built without a feature refuses a
+  config that declares that feature's key. The refusal names the missing feature only for
+  keys on a hand-kept list, and four keys were missing from it: `cdc_outbound`,
+  `subscription_kafka`, `flight_upload_tables` and `session_state`. Those got serde's bare
+  "unknown field". Every optional capability is now described once, in
+  `fraiseql_server::capability::REGISTRY`. That entry gives its feature, its config keys, its
+  compiled-schema sections, its docs page, its maturity and the smallest published
+  artifact that ships it. The build-feature hint and the boot refusal for an unservable
+  compiled-schema section are both derived from it. Manifest tests read `ServerConfig` and
+  `CompiledSchema` from source, so a field added behind a `#[cfg(feature)]`, or an
+  unclassified compiled-schema section, fails the build. These tests replace
+  `tools/check-gated-sections.py`. The boot refusal's remedy now names the published tag
+  that has the feature (`-full` for REST, `-platform` for MCP, federation and observers),
+  not only the rebuild flag.
+
 - **A service account is admitted as itself under OIDC, and served as itself on every
   transport (#1650).** Under `[auth]` with `required = true`, the default, a request with
   a valid `x-api-key` service-account secret and no bearer token was refused before

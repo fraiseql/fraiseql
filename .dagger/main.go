@@ -633,11 +633,6 @@ func (m *FraiseqlCi) ShellGates(
 		// without a word — `[auth] require_jti`, `[tls] require_client_cert` and
 		// `[rate_limiting] enabled` among them.
 		"python3 tools/check-config-deny-unknown.py",
-		// A refusal list is only worth having while nothing can be added outside it
-		// (#1326): a new top-level section whose only consumer sits behind a Cargo
-		// feature would go straight back to being dropped in silence by every lean
-		// build, and the silent drop is the ABSENCE of code, so review cannot see it.
-		"python3 tools/check-gated-sections.py",
 		"bash tools/check-audit-lockstep.sh",
 		"bash tools/check-audit-ledger.sh",
 		"bash tools/check-doc-claims.sh",

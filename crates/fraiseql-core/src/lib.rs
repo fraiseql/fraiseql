@@ -69,6 +69,7 @@
 #![forbid(unsafe_code)]
 
 // Core modules
+pub mod capability;
 pub mod error;
 pub mod http;
 pub mod schema;

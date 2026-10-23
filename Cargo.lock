@@ -4192,6 +4192,7 @@ dependencies = [
  "sha2 0.11.0",
  "sqlx",
  "subtle",
+ "syn 2.0.117",
  "temp-env",
  "tempfile",
  "thiserror 2.0.18",
