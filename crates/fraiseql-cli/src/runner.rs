@@ -444,6 +444,9 @@ pub async fn run() {
         },
 
         #[cfg(feature = "run-server")]
+        Commands::Capabilities => commands::capabilities::run(cli.json, cli.quiet),
+
+        #[cfg(feature = "run-server")]
         Commands::Run {
             input,
             database,

@@ -253,6 +253,14 @@ disagreed, and the promise was the part that was wrong.
 
 ### Added
 
+- **`fraiseql capabilities` (#1644).** Lists every optional capability of the server the
+  `fraiseql` binary links: name, maturity (`stable`, or `preview` when no published
+  artifact compiles it), whether this build has it, its Cargo feature, its config keys and
+  compiled-schema sections, the smallest published artifact that ships it, and its docs
+  page. `--json` prints the same as data. `docs/features-compatibility-matrix.md` gains a
+  capability table generated from the same registry (`make gen-matrix`). Tests hold the
+  registry to the release recipes (the default image, `-full`, and the `release-full`
+  bundle) and to the `fraiseql` facade's feature forwarding.
 - **`subscription_policy` is authorable (#1657).** A type's subscription row visibility
   (#596) could only be set by patching `schema.compiled.json` after compile, out of the
   compiler's sight. It is now a key of the authoring type: `subscription_policy=` on

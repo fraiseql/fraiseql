@@ -1159,6 +1159,14 @@ lint-internal-flag:
 # Gate: the third-party GraphQL parser is called from exactly one seam (#976). It
 # panics on a client-controlled block string, so every parse must go through
 # `parse_graphql_document`, which rejects the input the parser cannot handle.
+# Regenerate the capability table of docs/features-compatibility-matrix.md from
+# fraiseql_server::capability::REGISTRY. The same test, without the variable, fails
+# when the table is stale.
+.PHONY: gen-matrix
+gen-matrix:
+	@FRAISEQL_GEN_MATRIX=1 cargo test -p fraiseql-server --lib --all-features \
+		capability::manifest_tests::the_capability_matrix_is_generated_from_the_registry
+
 .PHONY: lint-graphql-parse
 lint-graphql-parse:
 	@bash tools/check-graphql-parse-sites.sh

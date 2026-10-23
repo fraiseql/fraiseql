@@ -408,3 +408,209 @@ fn every_registered_compiled_section_is_authorable() {
         }
     }
 }
+
+/// The `fraiseql-server` features a build compiles, given the features it is asked for:
+/// the closure through the manifest's `[features]` table, plus the default set.
+fn server_feature_closure(requested: &[String]) -> BTreeSet<String> {
+    let manifest: toml::Table = toml::from_str(include_str!("../../Cargo.toml"))
+        .expect("fraiseql-server/Cargo.toml parses");
+    let table = manifest["features"].as_table().expect("[features] table");
+    let mut closure = BTreeSet::new();
+    let mut pending: Vec<String> = requested.to_vec();
+    pending.push("default".to_string());
+    while let Some(feature) = pending.pop() {
+        if !closure.insert(feature.clone()) {
+            continue;
+        }
+        let entries = table
+            .get(&feature)
+            .and_then(toml::Value::as_array)
+            .unwrap_or_else(|| panic!("`{feature}` is not a fraiseql-server feature"));
+        pending.extend(
+            entries
+                .iter()
+                .filter_map(toml::Value::as_str)
+                .filter(|e| !e.starts_with("dep:") && !e.contains('/'))
+                .map(ToString::to_string),
+        );
+    }
+    closure
+}
+
+/// The `fraiseql-server` features an umbrella (`fraiseql`) feature forwards, followed
+/// through the umbrella's own feature table.
+fn umbrella_forwards(feature: &str) -> Vec<String> {
+    let manifest: toml::Table = toml::from_str(
+        &std::fs::read_to_string(repo_path("crates/fraiseql/Cargo.toml")).expect("read"),
+    )
+    .expect("crates/fraiseql/Cargo.toml parses");
+    let table = manifest["features"].as_table().expect("[features] table");
+    let mut seen = BTreeSet::new();
+    let mut forwarded = Vec::new();
+    let mut pending = vec![feature.to_string()];
+    while let Some(f) = pending.pop() {
+        if !seen.insert(f.clone()) {
+            continue;
+        }
+        for entry in table[&f]
+            .as_array()
+            .expect("feature list")
+            .iter()
+            .filter_map(toml::Value::as_str)
+        {
+            if let Some(server) = entry.strip_prefix("fraiseql-server?/") {
+                forwarded.push(server.to_string());
+            } else if !entry.starts_with("dep:") && !entry.contains('/') {
+                pending.push(entry.to_string());
+            }
+        }
+    }
+    forwarded
+}
+
+/// The `CARGO_FEATURES` build argument of an image variant in `.dagger/image.go`, the
+/// table `check-image-parity.py` holds `docker-build.yml` to.
+fn image_features(variant: &str) -> Vec<String> {
+    let src = std::fs::read_to_string(repo_path(".dagger/image.go")).expect("read image.go");
+    let line = src
+        .lines()
+        .find(|l| l.contains(&format!("name: \"{variant}\"")))
+        .unwrap_or_else(|| panic!("no `{variant}` row in .dagger/image.go"));
+    let args = line
+        .split("buildArgs: \"")
+        .nth(1)
+        .expect("buildArgs")
+        .split('"')
+        .next()
+        .expect("value");
+    args.strip_prefix("CARGO_FEATURES=")
+        .map(|list| list.split(',').map(ToString::to_string).collect())
+        .unwrap_or_default()
+}
+
+/// Each registration's `release` is the smallest published artifact that compiles it,
+/// measured against the recipes, in both directions: no artifact below it has it, and
+/// every artifact from it up does. The default image builds the default features, `-full`
+/// is the `fraiseql-server-full` image row, and `-platform` is the umbrella's
+/// `release-full` bundle, which `check-artifact-features.py` holds the platform image and
+/// the release tarball builds to.
+#[test]
+fn every_registration_ships_in_the_artifacts_its_release_names() {
+    use fraiseql_core::capability::Release;
+    let default = server_feature_closure(&image_features("fraiseql-server"));
+    let full = server_feature_closure(&image_features("fraiseql-server-full"));
+    let platform = server_feature_closure(&umbrella_forwards("release-full"));
+    for r in REGISTRY {
+        let shipped = [&default, &full, &platform].map(|set| set.contains(r.meta.feature));
+        let expected = match r.meta.release {
+            Release::Default => [true, true, true],
+            Release::Full => [false, true, true],
+            Release::Platform => [false, false, true],
+            Release::Source => [false, false, false],
+            _ => panic!("no artifact mapping for {:?}", r.meta.release),
+        };
+        assert_eq!(
+            shipped, expected,
+            "`{}` ({}) is registered as {:?}, but [default, -full, -platform] compile it as \
+             {shipped:?}",
+            r.meta.name, r.meta.feature, r.meta.release
+        );
+    }
+}
+
+/// A Stable capability above the default set is reachable from the `fraiseql` facade
+/// crate: some umbrella feature forwards its server feature. Without it, an embedder
+/// depending on `fraiseql` cannot turn the capability on.
+#[test]
+fn every_stable_registration_is_forwarded_by_the_facade() {
+    use fraiseql_core::capability::{Maturity, Release};
+    let manifest: toml::Table = toml::from_str(
+        &std::fs::read_to_string(repo_path("crates/fraiseql/Cargo.toml")).expect("read"),
+    )
+    .expect("crates/fraiseql/Cargo.toml parses");
+    let forwarded: BTreeSet<String> = manifest["features"]
+        .as_table()
+        .expect("[features] table")
+        .keys()
+        .flat_map(|f| umbrella_forwards(f))
+        .collect();
+    for r in REGISTRY {
+        if r.meta.maturity == Maturity::Stable && r.meta.release != Release::Default {
+            assert!(
+                forwarded.contains(r.meta.feature),
+                "`{}` is Stable but no `fraiseql` feature forwards `fraiseql-server?/{}`",
+                r.meta.name,
+                r.meta.feature
+            );
+        }
+    }
+}
+
+const MATRIX_DOC: &str = "docs/features-compatibility-matrix.md";
+const MATRIX_BEGIN: &str = "<!-- capabilities:begin -->";
+const MATRIX_END: &str = "<!-- capabilities:end -->";
+
+/// The capability table of the features matrix, rendered from the registry.
+fn render_matrix() -> String {
+    use std::fmt::Write as _;
+
+    use fraiseql_core::capability::Release;
+    let code = |items: &mut dyn Iterator<Item = &str>| {
+        let joined = items.map(|i| format!("`{i}`")).collect::<Vec<_>>().join(", ");
+        if joined.is_empty() {
+            "—".to_string()
+        } else {
+            joined
+        }
+    };
+    let mut out = String::from(
+        "| Capability | Feature | Maturity | Published in | Config keys | Compiled-schema sections | Docs |\n\
+         |---|---|---|---|---|---|---|\n",
+    );
+    for r in REGISTRY {
+        let m = &r.meta;
+        let published = match m.release {
+            Release::Default => "every image and tarball",
+            Release::Full => "`-full`, `-platform`",
+            Release::Platform => "`-platform`",
+            Release::Source => "none: build from source",
+            _ => panic!("no matrix wording for {:?}", m.release),
+        };
+        let maturity = serde_json::to_value(m.maturity).expect("serialize");
+        let docs = m.docs.map_or_else(
+            || "—".to_string(),
+            |d| format!("[{}]({})", d.trim_start_matches("docs/"), d.trim_start_matches("docs/")),
+        );
+        let _ = writeln!(
+            out,
+            "| `{}` | `{}` | {} | {published} | {} | {} | {docs} |",
+            m.name,
+            m.feature,
+            maturity.as_str().expect("string"),
+            code(&mut m.runtime_keys.iter().copied()),
+            code(&mut m.compiled_sections.iter().map(|s| s.key)),
+        );
+    }
+    out
+}
+
+/// The capability table in `docs/features-compatibility-matrix.md` is the registry,
+/// byte for byte. `make gen-matrix` rewrites it (this test, with `FRAISEQL_GEN_MATRIX=1`).
+#[test]
+fn the_capability_matrix_is_generated_from_the_registry() {
+    let path = repo_path(MATRIX_DOC);
+    let doc = std::fs::read_to_string(&path).expect("read the matrix");
+    let begin = doc.find(MATRIX_BEGIN).expect("the matrix has a capabilities:begin marker")
+        + MATRIX_BEGIN.len();
+    let end = doc.find(MATRIX_END).expect("the matrix has a capabilities:end marker");
+    let expected = format!("\n{}", render_matrix());
+    if std::env::var_os("FRAISEQL_GEN_MATRIX").is_some() {
+        std::fs::write(&path, format!("{}{expected}{}", &doc[..begin], &doc[end..]))
+            .expect("write the matrix");
+        return;
+    }
+    assert!(
+        doc[begin..end] == expected,
+        "{MATRIX_DOC} is stale against the capability registry; run `make gen-matrix`"
+    );
+}

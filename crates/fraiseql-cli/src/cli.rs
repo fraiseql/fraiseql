@@ -512,6 +512,19 @@ EXAMPLES:
         output: Option<String>,
     },
 
+    /// List every optional capability and whether this build has it
+    ///
+    /// Reports the server this binary links (the one `fraiseql run` starts): each
+    /// capability's maturity, whether it is compiled in, its Cargo feature, its config
+    /// keys and compiled-schema sections, the smallest published artifact that ships it,
+    /// and its documentation page.
+    #[cfg(feature = "run-server")]
+    #[command(after_help = "\
+EXAMPLES:
+    fraiseql capabilities
+    fraiseql capabilities --json")]
+    Capabilities,
+
     /// Compile schema and immediately start the GraphQL server
     ///
     /// Compiles the schema in-memory (no disk artifact) and starts the HTTP server.

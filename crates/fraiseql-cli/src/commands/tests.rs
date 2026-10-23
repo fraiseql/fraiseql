@@ -2656,6 +2656,37 @@ mod run_tests {
         assert!(message.contains("notify"), "{message}");
     }
 
+    /// `fraiseql capabilities --json` is a command, available wherever the CLI
+    /// links the server (it reports that server's build).
+    #[test]
+    fn capabilities_json_is_a_command() {
+        use clap::Parser as _;
+        let parsed = crate::cli::Cli::try_parse_from(["fraiseql", "capabilities", "--json"]);
+        assert!(parsed.is_ok(), "{}", parsed.err().map(|e| e.to_string()).unwrap_or_default());
+    }
+
+    /// The capabilities report carries every registration, in registry order, with the fields an
+    /// operator or an agent needs to decide what a build can serve.
+    #[test]
+    fn capabilities_report_lists_every_registration() {
+        let report = super::super::capabilities::report();
+        let entries = report["capabilities"].as_array().expect("a `capabilities` array");
+        let registry = fraiseql_server::capability::REGISTRY;
+        assert_eq!(entries.len(), registry.len());
+        for (entry, r) in entries.iter().zip(registry) {
+            assert_eq!(entry["name"], r.meta.name);
+            assert_eq!(entry["feature"], r.meta.feature);
+            assert_eq!(entry["compiled_in"], r.compiled_in);
+            assert_eq!(entry["docs"], serde_json::json!(r.meta.docs));
+            for field in ["maturity", "release"] {
+                assert!(entry[field].is_string(), "`{field}` of {}: {entry}", r.meta.name);
+            }
+            for field in ["runtime_keys", "compiled_sections"] {
+                assert!(entry[field].is_array(), "`{field}` of {}: {entry}", r.meta.name);
+            }
+        }
+    }
+
     /// `fraiseql run` hands its in-memory schema straight to the server, past the
     /// loader's boot refusal, so a section the linked server was built without used to be
     /// served with its capability silently missing. It is refused when, and only when,
