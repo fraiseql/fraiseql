@@ -401,6 +401,11 @@ disagreed, and the promise was the part that was wrong.
   PostgreSQL client's SCRAM authentication and AWS request signing use. Its mask
   generation and `u128` comparisons could compile to non-constant-time code.
 
+- **tokio 1.54.1 (RUSTSEC-2026-0386).** tokio's safe `AsyncFd` constructors accepted a
+  file descriptor the caller did not own, which could end in a use-after-free in the I/O
+  driver. FraiseQL constructs no `AsyncFd` itself; the lock no longer carries the unsound
+  version.
+
 ## [2.17.1] - 2026-10-21
 
 ### Breaking
