@@ -375,6 +375,10 @@ disagreed, and the promise was the part that was wrong.
   status messages carried engine text verbatim, database errors included; they now pass
   through the deployment's error sanitizer, as `/graphql` and Arrow Flight do.
 
+- **ctutils 0.4.5 (RUSTSEC-2026-0385).** `ctutils` sits under `digest`/`hmac`, which the
+  PostgreSQL client's SCRAM authentication and AWS request signing use. Its mask
+  generation and `u128` comparisons could compile to non-constant-time code.
+
 ## [2.17.1] - 2026-10-21
 
 ### Breaking
