@@ -571,8 +571,8 @@ export default async function (event) {
 Everything except the value. The function is asked for the field's **data**; the
 engine still enforces `requires_role` and `requires_actor` before asking, applies
 field-level RBAC — both the static `requires_scope` gate and the per-row dynamic
-authorizer (#423) — to what comes back, projects the selection set, stamps
-and stamps `__typename`. That is the whole
+authorizer (#423) — to what comes back, projects the selection set at every depth
+(nested objects as well as nested lists) and stamps `__typename`. That is the whole
 argument for resolving inside the engine: a field resolved beside it would have to
 re-implement each of those and would be wrong about one within a release.
 

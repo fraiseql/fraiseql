@@ -17,8 +17,9 @@
 //! - enforces `requires_role` and `requires_actor`, before asking;
 //! - applies field-level RBAC to what comes back, so a function-backed field is not a hole in the
 //!   scope gates every other field passes through;
-//! - projects the selection set, recases, and stamps `__typename` with the same projector the SQL
-//!   path uses.
+//! - projects the selection set at every depth, recases, and stamps `__typename`, with the
+//!   projector a gated read applies to its stored documents: the SQL path's projector trusts the
+//!   database to have projected nested objects already, which a function's document never is.
 //!
 //! That list is the argument for option A in #1329. A field that resolved outside
 //! the engine would have to re-implement every one of them, and would be wrong about

@@ -376,6 +376,18 @@ disagreed, and the promise was the part that was wrong.
 
 ### Security
 
+- **A function-backed query projects and gates its nested objects (#1693).** Affects
+  2.15.0, 2.16.0, 2.17.0 and 2.17.1. A `request:query` root field projected its top-level
+  fields and the items of nested lists, but returned each nested single object as the
+  function built it, at any depth. A field the caller did not select came back anyway,
+  `requires_scope` fields included: a reader without `read:salary` who selected
+  `category { code }` received the masked `salary`, and a `Reject` field rode along as well.
+  A nested object the function left out was missing rather than `null`, and an aliased
+  nested object came back `null`. The function's result is now projected through the
+  selection at every level, as a gated read's stored documents are: only the selected
+  keys, under their aliases, `null` for a selected key the function omitted, and masked
+  fields nulled. Function-backed fields are served over GraphQL, MCP and Arrow Flight; REST
+  and gRPC never exposed them.
 - **The observer admin API acts only on the caller's organisation (#1625).** Behind the
   `fraiseql:admin` scope:
   - get, delete, enable, disable, statistics and logs ignored the caller's tenant, so an

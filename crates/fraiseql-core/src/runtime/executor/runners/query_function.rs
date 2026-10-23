@@ -184,27 +184,16 @@ impl QueryRunner {
             &declared,
         )?;
 
-        // The same projector the SQL path uses, over documents that came from a
-        // function instead of a `data` column. Reused rather than re-implemented so
-        // a function-backed field recases, stamps `__typename` and honours declared
-        // scalars identically — the alternative is two projections that agree until
-        // one of them is changed.
-        let projector = ResultProjector::new(access.projected.clone())
-            .with_declared_scalars(&self.ctx.schema, &query_def.return_type)
-            .configure_typename_from_selections(&query_match.selections, &query_def.return_type);
-        let mut projected = projector.project_results(&rows, query_def.returns_list)?;
-
-        crate::runtime::project_nested_lists(
-            &mut projected,
+        // A function's documents were never projected by SQL, at any depth: each is
+        // projected whole through the selection, as a gated read's stored documents are.
+        // The SQL path's projector trusts nested single objects to arrive projected, so
+        // over a guest's document it served every key of them, scope-gated ones included.
+        let mut projected = super::query_nested::project_documents(
+            &rows,
             &query_def.return_type,
             root_fields,
             &self.ctx.schema,
-        );
-        crate::runtime::stamp_nested_typenames(
-            &mut projected,
-            &query_def.return_type,
-            root_fields,
-            &self.ctx.schema,
+            query_def.returns_list,
         );
         selection_access.null_masked(
             &mut projected,
