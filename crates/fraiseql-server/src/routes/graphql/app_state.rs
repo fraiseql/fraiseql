@@ -22,6 +22,8 @@ use crate::{
 /// Server state containing executor and configuration.
 #[derive(Clone)]
 pub struct AppState {
+    /// What the serve entry point started, for `/health`.
+    pub capability_starts: Arc<crate::capability::CapabilityStarts>,
     /// Query executor (atomically swappable for schema hot-reload).
     pub executor: Arc<ArcSwap<Executor>>,
     /// Metrics collector.
@@ -208,6 +210,7 @@ impl AppState {
     #[must_use]
     pub fn new(executor: Arc<Executor>) -> Self {
         Self {
+            capability_starts: Arc::default(),
             executor: Arc::new(ArcSwap::from(executor)),
             metrics: Arc::new(MetricsCollector::new()),
             #[cfg(feature = "arrow")]

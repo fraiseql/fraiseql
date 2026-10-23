@@ -7,6 +7,8 @@
 //! The manifest tests hold it to the structs it describes, so a section added behind a
 //! `#[cfg(feature = …)]` without an entry here fails the build.
 
+use std::{collections::BTreeMap, sync::RwLock};
+
 use fraiseql_core::capability::{
     CapabilityMeta, CompiledSection, Maturity, Release, SectionActivity,
 };
@@ -204,3 +206,58 @@ pub fn feature_gated_keys() -> Vec<(&'static str, &'static str, bool)> {
 
 #[cfg(test)]
 mod manifest_tests;
+
+/// What the serve entry point started, by capability name.
+///
+/// Recorded by the start loop for the capabilities that run background work, and read by
+/// `/health`. A capability with nothing to start is never recorded.
+#[derive(Debug, Default)]
+pub struct CapabilityStarts(RwLock<BTreeMap<&'static str, bool>>);
+
+impl CapabilityStarts {
+    /// Record whether `name` started. `false` is a configured capability that did not.
+    ///
+    /// # Panics
+    ///
+    /// In debug builds, if `name` is not a [`REGISTRY`] name: a misspelt record would
+    /// leave the real entry reporting nothing.
+    pub fn record(&self, name: &'static str, started: bool) {
+        debug_assert!(
+            REGISTRY.iter().any(|entry| entry.meta.name == name),
+            "`{name}` is not a registered capability"
+        );
+        self.0
+            .write()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .insert(name, started);
+    }
+
+    /// Every registered capability, as `/health` reports it.
+    #[must_use]
+    pub fn health(&self) -> BTreeMap<&'static str, CapabilityHealth> {
+        let starts = self.0.read().unwrap_or_else(std::sync::PoisonError::into_inner);
+        REGISTRY
+            .iter()
+            .map(|entry| {
+                (
+                    entry.meta.name,
+                    CapabilityHealth {
+                        compiled_in: entry.compiled_in,
+                        started:     starts.get(entry.meta.name).copied(),
+                    },
+                )
+            })
+            .collect()
+    }
+}
+
+/// One capability, as `/health` reports it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+pub struct CapabilityHealth {
+    /// Whether this build has the capability's feature.
+    pub compiled_in: bool,
+    /// For a capability with background work this server was configured to run: whether
+    /// it started. Absent when there was nothing to start.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub started:     Option<bool>,
+}

@@ -50,6 +50,7 @@ impl Server {
     fn assemble_app_state(&self) -> AppState {
         let mut state = AppState::new(self.executor.clone())
             .with_reload_config(self.config.schema_path.clone());
+        state.capability_starts = std::sync::Arc::clone(&self.capability_starts);
 
         // Attach secrets manager if configured
         #[cfg(feature = "secrets")]

@@ -283,6 +283,13 @@ disagreed, and the promise was the part that was wrong.
 
 ### Added
 
+- **`/health` reports every capability.** A new `capabilities` map names each registered
+  capability with `compiled_in` and, for one with background work this server was
+  configured to run (the observer runtime, functions, poll-IMAP mailboxes, scheduled
+  sources, outbound CDC, the subscription Kafka mirror, Arrow Flight), whether it
+  `started`. An observer runtime that failed to start in development reports
+  `started: false`, where `/health` used to say nothing. The field is additive.
+
 - **`fraiseql capabilities` (#1644).** Lists every optional capability of the server the
   `fraiseql` binary links: name, maturity (`stable`, or `preview` when no published
   artifact compiles it), whether this build has it, its Cargo feature, its config keys and

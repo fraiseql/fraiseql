@@ -1065,6 +1065,7 @@ impl Server {
             storage_max_upload_bytes: 100 * 1024 * 1024, // 100 MiB default
             usage: Arc::clone(crate::usage::aggregator::global_aggregator()),
             tasks,
+            capability_starts: Arc::default(),
         })
     }
 

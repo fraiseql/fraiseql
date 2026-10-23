@@ -24,6 +24,10 @@ pub struct HealthResponse {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub observers: Option<ObserverHealth>,
 
+    /// Every registered capability: whether this build has it and, for one with
+    /// background work this server was configured to run, whether it started.
+    pub capabilities: std::collections::BTreeMap<&'static str, crate::capability::CapabilityHealth>,
+
     /// Cache / Redis health (present when a Redis cache backend is configured).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cache: Option<CacheHealth>,
@@ -246,6 +250,7 @@ pub async fn health_handler(State(state): State<AppState>) -> impl IntoResponse 
         status: status.to_string(),
         database,
         observers,
+        capabilities: state.capability_starts.health(),
         cache,
         secrets,
         #[cfg(feature = "federation")]

@@ -56,6 +56,11 @@ impl Server {
         // aborted execution's row goes stale and is reclaimed after the staleness
         // threshold — the P19 recovery path, exercised on every deploy).
         self.spawn_lifecycle_tasks(app_state);
+        // The function runtime was prepared during provisioning; its hooks are what runs.
+        #[cfg(feature = "functions-runtime")]
+        if app_state.before_mutation_hooks.is_some() {
+            self.capability_starts.record("functions", true);
+        }
         if entry == EntryPoint::McpStdio {
             return Ok(());
         }
@@ -149,6 +154,7 @@ impl Server {
                     self.tasks.spawn(async move { poller.poll_forever(interval).await });
                 }
                 info!(mailboxes = started, "poll-IMAP email sources started");
+                self.capability_starts.record("inbound_email", true);
             }
         }
 
@@ -195,6 +201,7 @@ impl Server {
                         self.tasks.spawn(async move { poller.run_forever().await });
                     }
                     info!(sources = started, "source scheduler started");
+                    self.capability_starts.record("sources", true);
                 } else if let Some(source) = sources.iter().find(|source| source.enabled) {
                     // Provisioning refuses this case first (#1399); a backstop, so an
                     // enabled source can never be left silently unscheduled.
@@ -220,6 +227,7 @@ impl Server {
                 let started = drains.len();
                 crate::cdc_outbound::spawn_all(drains, &mut self.tasks);
                 info!(sinks = started, "cdc outbound drains started");
+                self.capability_starts.record("cdc_outbound", true);
             }
         }
 
@@ -229,6 +237,7 @@ impl Server {
         #[cfg(feature = "subscription-kafka")]
         if let Some(mirror) = self.subscription_kafka.take() {
             crate::subscription_kafka::spawn(mirror, &self.subscription_manager, &mut self.tasks);
+            self.capability_starts.record("subscription_kafka", true);
         }
 
         // Start the `cron:` function scheduler (#595): one leased poller per cron
@@ -378,6 +387,7 @@ impl Server {
             match guard.start().await {
                 Ok(()) => {
                     info!("Observer runtime started");
+                    self.capability_starts.record("observers", true);
                     // The bridge runs on the server's JoinSet, so shutdown stops it
                     // with every other task instead of leaving it detached.
                     self.tasks.spawn(bridge.run());
@@ -403,6 +413,7 @@ impl Server {
                     }
                     error!("Failed to start observer runtime: {}", e);
                     warn!("Server will continue without observers");
+                    self.capability_starts.record("observers", false);
                 },
             }
             drop(guard);
@@ -443,6 +454,7 @@ impl Server {
                 );
 
                 info!("Arrow Flight server listening on grpc://{}", flight_addr);
+                self.capability_starts.record("arrow_flight", true);
 
                 // Spawn Flight server in background, registered on the server's
                 // JoinSet. The set's `shutdown` step abort-then-awaits the gRPC

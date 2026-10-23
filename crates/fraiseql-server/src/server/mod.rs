@@ -50,6 +50,8 @@ mod after_mutation_wiring_tests;
 #[cfg(all(test, feature = "observers"))]
 mod entry_point_parity_tests;
 #[cfg(test)]
+mod health_capabilities_tests;
+#[cfg(test)]
 mod parity_tests;
 #[cfg(test)]
 mod provision_tests;
@@ -371,4 +373,7 @@ pub struct Server {
     /// this [`tokio::task::JoinSet`]. On graceful shutdown the server aborts and
     /// awaits the set so per-process state is not abandoned mid-flight.
     pub(super) tasks: tokio::task::JoinSet<()>,
+
+    /// What the start loop started, read by `/health`.
+    pub(super) capability_starts: Arc<crate::capability::CapabilityStarts>,
 }

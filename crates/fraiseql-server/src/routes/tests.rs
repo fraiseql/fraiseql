@@ -694,6 +694,7 @@ mod health_tests {
                 idle_connections:   Some(8),
             },
             observers: None,
+            capabilities: std::collections::BTreeMap::new(),
             cache: None,
             secrets: None,
             #[cfg(feature = "federation")]
@@ -711,19 +712,20 @@ mod health_tests {
     #[test]
     fn test_health_response_omits_federation_when_none() {
         let response = HealthResponse {
-            status:      "healthy".to_string(),
-            database:    DatabaseStatus {
+            status:       "healthy".to_string(),
+            database:     DatabaseStatus {
                 connected:          true,
                 database_type:      "PostgreSQL".to_string(),
                 active_connections: None,
                 idle_connections:   None,
             },
-            observers:   None,
-            cache:       None,
-            secrets:     None,
-            federation:  None,
-            version:     "2.0.0".to_string(),
-            schema_hash: None,
+            observers:    None,
+            capabilities: std::collections::BTreeMap::new(),
+            cache:        None,
+            secrets:      None,
+            federation:   None,
+            version:      "2.0.0".to_string(),
+            schema_hash:  None,
         };
 
         let json = serde_json::to_string(&response).unwrap();
@@ -736,25 +738,26 @@ mod health_tests {
         use crate::federation::circuit_breaker::{CircuitHealthState, SubgraphCircuitHealth};
 
         let response = HealthResponse {
-            status:      "healthy".to_string(),
-            database:    DatabaseStatus {
+            status:       "healthy".to_string(),
+            database:     DatabaseStatus {
                 connected:          true,
                 database_type:      "PostgreSQL".to_string(),
                 active_connections: None,
                 idle_connections:   None,
             },
-            observers:   None,
-            cache:       None,
-            secrets:     None,
-            federation:  Some(FederationHealth {
+            observers:    None,
+            capabilities: std::collections::BTreeMap::new(),
+            cache:        None,
+            secrets:      None,
+            federation:   Some(FederationHealth {
                 configured: true,
                 subgraphs:  vec![SubgraphCircuitHealth {
                     subgraph: "Product".to_string(),
                     state:    CircuitHealthState::Open,
                 }],
             }),
-            version:     "2.0.0".to_string(),
-            schema_hash: None,
+            version:      "2.0.0".to_string(),
+            schema_hash:  None,
         };
 
         let json = serde_json::to_string(&response).unwrap();
