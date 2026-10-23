@@ -344,3 +344,67 @@ fn a_config_naming_a_compiled_out_key_gets_the_build_feature_hint() {
     let err = crate::ServerConfig::from_file(file.path()).expect_err("unknown in this build");
     assert!(err.contains("`arrow` feature"), "the hint must name the feature: {err}");
 }
+
+/// A minimal declaration of `key` that its registration's activity rule reads as
+/// asking for something to run.
+fn active_declaration(activity: fraiseql_core::capability::SectionActivity) -> serde_json::Value {
+    use fraiseql_core::capability::SectionActivity;
+    match activity {
+        SectionActivity::EnabledFlag => serde_json::json!({ "enabled": true }),
+        SectionActivity::AnyEntryEnabled => serde_json::json!([
+            { "name": "s", "schedule": "*/5 * * * *", "function": "f" }
+        ]),
+        SectionActivity::NonEmptyDefinitions => serde_json::json!({ "definitions": [{}] }),
+        _ => panic!("no fixture for {activity:?}"),
+    }
+}
+
+/// A capability's compiled section is read once, by the subsystem it starts at boot, so
+/// a hot reload changing it must be refused rather than half-applied. Every registered
+/// section that is a `CompiledSchema` field is classified boot-frozen by the reload gate.
+#[test]
+fn every_registered_compiled_section_is_boot_frozen() {
+    use fraiseql_core::schema::CompiledSchema;
+    let empty = serde_json::to_value(CompiledSchema::default()).expect("serialize");
+    for r in REGISTRY {
+        for section in r.meta.compiled_sections {
+            if LOADER_ONLY_KEYS.contains(&section.key) {
+                continue; // not a `CompiledSchema` field: the reload gate never sees it
+            }
+            let mut next = empty.clone();
+            next[section.key] = active_declaration(section.activity);
+            let next: CompiledSchema = serde_json::from_value(next)
+                .unwrap_or_else(|e| panic!("`{}` fixture does not parse: {e}", section.key));
+            let drift = crate::routes::graphql::reload_gate::boot_frozen_drift(
+                &CompiledSchema::default(),
+                &next,
+            );
+            assert!(
+                drift.contains(&section.key),
+                "`{}` ({}) changed across a reload, but the reload gate let it through: \
+                 {drift:?}",
+                section.key,
+                r.meta.name
+            );
+        }
+    }
+}
+
+/// Every registered compiled section can be authored: the multi-file loader and merger
+/// carry exactly the sections `seam.rs` lists, so one missing there would be dropped on
+/// the TOML workflow paths before the capability ever saw it.
+#[test]
+fn every_registered_compiled_section_is_authorable() {
+    use fraiseql_cli::schema::seam::{AUTHORABLE_ARRAY_SECTIONS, AUTHORABLE_SINGLETON_SECTIONS};
+    for r in REGISTRY {
+        for section in r.meta.compiled_sections {
+            assert!(
+                AUTHORABLE_ARRAY_SECTIONS.contains(&section.key)
+                    || AUTHORABLE_SINGLETON_SECTIONS.contains(&section.key),
+                "`{}` ({}) is not an authorable section in fraiseql-cli's seam.rs",
+                section.key,
+                r.meta.name
+            );
+        }
+    }
+}
