@@ -33,7 +33,7 @@ use fraiseql_server::{
 use notify::{
     Config as NotifyConfig, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher,
 };
-use tracing::{info, warn};
+use tracing::info;
 
 use super::compile::{CompileOptions, compile_to_schema};
 use crate::config::{
@@ -323,7 +323,6 @@ fn load_runtime_config_from_toml(
                 format!("Failed to load runtime config from {}", input_path.display())
             })?;
         info!("Loaded [server] and [database] config from {}", input_path.display());
-        warn_ignored_config_sections(input_path);
         return Ok((schema.server, schema.database));
     }
 
@@ -336,71 +335,7 @@ fn load_runtime_config_from_toml(
     let cfg = TomlProjectConfig::from_file(toml_path.to_str().unwrap_or_default())
         .with_context(|| format!("Failed to load runtime config from {}", toml_path.display()))?;
     info!("Loaded [server] and [database] config from {}", toml_path.display());
-    warn_ignored_config_sections(toml_path);
     Ok((cfg.server, cfg.database))
-}
-
-/// Config-file sections that a full `server.toml` deployment relies on but that
-/// `fraiseql run` does not consume. `run` is a development quick-launcher: it reads
-/// only `[server]` and `[database]` (see [`load_runtime_config_from_toml`]) and builds
-/// the rest of the server from `ServerConfig::default()`, so every table below is
-/// dropped. The production entrypoint that honors them is the `fraiseql-server` binary
-/// (shipped in the `-full` release tarball) run with `--config`.
-const RUN_IGNORED_CONFIG_SECTIONS: &[&str] = &[
-    "auth",
-    "federation",
-    "observers",
-    "enrichment",
-    "tenancy",
-    "storage",
-    "security",
-];
-
-/// Return the ignored platform sections that are present in a raw TOML config, in
-/// [`RUN_IGNORED_CONFIG_SECTIONS`] order (stable for a testable/greppable message).
-///
-/// The typed `[server]`/`[database]` structs cannot see the other tables, so this
-/// re-parses the raw contents into a generic [`toml::Table`] — the same technique the
-/// server binary uses to surface a `[observers]` section built without the feature. A
-/// parse failure yields an empty list: the config was already loaded for
-/// `[server]`/`[database]`, so this stays a best-effort advisory, never a second hard
-/// parse gate.
-pub(crate) fn ignored_config_sections(contents: &str) -> Vec<&'static str> {
-    let Ok(table) = toml::from_str::<toml::Table>(contents) else {
-        return Vec::new();
-    };
-    RUN_IGNORED_CONFIG_SECTIONS
-        .iter()
-        .copied()
-        .filter(|section| table.contains_key(*section))
-        .collect()
-}
-
-/// Warn (never fail) when the loaded config declares sections `fraiseql run` ignores.
-///
-/// Pointing the dev quick-launcher at a full `server.toml` is legitimate
-/// quick-iteration, so this is a warning rather than a boot refusal — but silently
-/// dropping the sections would be the same class of defect as #612 (config accepted
-/// then ignored). Naming each dropped section and the entrypoint that honors it keeps
-/// the behavior honest and loud.
-fn warn_ignored_config_sections(config_path: &Path) {
-    let Ok(contents) = std::fs::read_to_string(config_path) else {
-        return;
-    };
-    let present = ignored_config_sections(&contents);
-    if present.is_empty() {
-        return;
-    }
-    let named = present.iter().map(|s| format!("[{s}]")).collect::<Vec<_>>().join(", ");
-    warn!(
-        ignored_sections = %present.join(", "),
-        "`fraiseql run` is a development quick-launcher that consumes only [server] and \
-         [database]; the config section(s) {named} in {} are ignored. For a deployment \
-         that honors them, run the `fraiseql-server` binary (shipped in the -full release \
-         tarball) with `--config {}`.",
-        config_path.display(),
-        config_path.display(),
-    );
 }
 
 /// Build a `ServerConfig` from resolved runtime parameters.
@@ -479,6 +414,11 @@ pub(crate) async fn compile_schema(path: &Path) -> Result<fraiseql_core::schema:
         .context("Schema compilation failed")?;
     refuse_declared_functions(artifact.functions.as_ref(), &artifact.schema.sources)?;
     let schema = artifact.schema;
+    // The server's boot refusal sits in its loader, which `fraiseql run` bypasses
+    // by handing the schema over in memory: a section the linked server was built without
+    // would be served with its capability silently missing.
+    let raw = serde_json::to_value(&schema).context("Failed to serialize the compiled schema")?;
+    fraiseql_server::schema::loader::refuse_unservable(&raw)?;
 
     println!(
         "   Schema compiled ({} types, {} queries, {} mutations)",

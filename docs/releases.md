@@ -14,8 +14,9 @@ The `-full` tarball contains **two** binaries:
 
 - **`fraiseql`** — the umbrella binary (`--package fraiseql`): the compiler CLI plus
   `fraiseql run`, a development quick-launcher that compiles a schema in memory and serves
-  it. `fraiseql run` reads only the `[server]` and `[database]` config sections (it warns
-  and names any other section it is handed), so it is for local iteration, not production.
+  it. Of the server's runtime settings it reads only `[server]` and `[database]`, and it
+  refuses a schema declaring a section its build cannot serve, naming each section and the
+  feature it needs. It is for local iteration, not production.
 - **`fraiseql-server`** — the standalone production server, driven by `--config server.toml`.
   This is the entrypoint for a real deployment: it honors the full config surface
   (`[auth]`, `[observers]`, `[tenancy]`, `[storage]`, `[rate_limiting]`, `[tls]`, …),

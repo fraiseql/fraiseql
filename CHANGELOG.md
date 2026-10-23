@@ -18,6 +18,18 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **`fraiseql run` refuses a schema declaring a section its build cannot serve (#1644).**
+  `run` hands its in-memory schema straight to the server, past the loader's boot refusal
+  (#1326). An enabled `mcp_config`, `rest_config`, `grpc_config`, `federation` or
+  `observers_config` was served with its capability silently missing when the `fraiseql`
+  binary was built without the feature. It is now refused, naming every such section and
+  the feature, or published tag, that serves it. The server's own boot refusal names every
+  unservable section too, not only the first. The warning `run` printed for
+  `[auth]`, `[federation]`, `[observers]`, `[enrichment]`, `[tenancy]`, `[storage]` and
+  `[security]` is removed: it named the wrong sections. `security` and `tenancy` are
+  compiled into the schema and enforced by `run`. `[enrichment]` and `[storage]` are not
+  keys of `fraiseql.toml` and already failed its parse. A `schema.json` project config
+  never reached the warning.
 - **Studio's placeholder admin endpoints are removed (#1640).** Fifteen `/admin/v1/*` routes
   could only ever answer `501 not_implemented`, and now answer `404`: the data browser
   (`POST /admin/v1/data/{entity}/query`, `/mutate`), user listing, invitation and MFA status

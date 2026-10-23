@@ -234,7 +234,7 @@ impl CompiledSchemaLoader {
 
         // #1326: a build that cannot RUN a declared section refuses to boot, rather
         // than loading it and dropping it. See `refuse_unservable_sections`.
-        refuse_unservable_sections(&raw, &gated_sections())?;
+        refuse_unservable(&raw)?;
 
         info!(
             path = %self.path.display(),
@@ -313,37 +313,52 @@ pub(crate) fn gated_sections() -> Vec<GatedSection> {
 ///
 /// # Errors
 ///
-/// Returns [`SchemaLoadError::ValidationError`] naming the section, the missing feature
-/// and the remedy.
+/// Returns [`SchemaLoadError::ValidationError`] naming every unservable section, the
+/// feature each needs and the remedy.
 pub(crate) fn refuse_unservable_sections(
     raw: &serde_json::Value,
     sections: &[GatedSection],
 ) -> Result<(), SchemaLoadError> {
-    for section in sections {
-        if section.compiled_in {
-            continue;
-        }
-        // A `null` is not a declaration — the same rule the `storage` refusal uses, so a
-        // serializer that emits every key with an empty value does not fail the boot.
-        let Some(value) = raw.get(section.name).filter(|v| !v.is_null()) else {
-            continue;
-        };
-        // Nor is a section that is switched off, or carries nothing to run.
-        if !section.activity.is_active(value) {
-            continue;
-        }
-        return Err(SchemaLoadError::ValidationError(format!(
-            "the compiled schema declares a `{name}` section, but this build was compiled \
-             without the `{feature}` feature, so nothing can run it. It would otherwise be \
-             loaded, validated and then silently dropped — the server would boot clean and \
-             every declared entry would never fire. To run it: {remedy}. To run without it: \
-             remove the `{name}` section and recompile the schema.",
-            name = section.name,
-            feature = section.feature,
-            remedy = section.remedy,
-        )));
+    let unservable: Vec<&GatedSection> = sections
+        .iter()
+        .filter(|section| !section.compiled_in)
+        .filter(|section| {
+            // A `null` is not a declaration — the same rule the `storage` refusal uses, so
+            // a serializer that emits every key with an empty value does not fail the boot.
+            // Nor is a section that is switched off, or carries nothing to run.
+            raw.get(section.name)
+                .filter(|v| !v.is_null())
+                .is_some_and(|value| section.activity.is_active(value))
+        })
+        .collect();
+    if unservable.is_empty() {
+        return Ok(());
     }
-    Ok(())
+    let named = unservable
+        .iter()
+        .map(|s| format!("`{}` (needs the `{}` feature: {})", s.name, s.feature, s.remedy))
+        .collect::<Vec<_>>()
+        .join("; ");
+    Err(SchemaLoadError::ValidationError(format!(
+        "the compiled schema declares sections this build was compiled without, so nothing \
+         can run them: {named}. They would otherwise be loaded, validated and then silently \
+         dropped — the server would boot clean and every declared entry would never fire. To \
+         run without them, remove the sections and recompile the schema."
+    )))
+}
+
+/// Refuse a compiled schema, as JSON, that declares a section whose capability this
+/// build was compiled without, naming every such section and the feature it needs.
+///
+/// The boot path calls it from [`CompiledSchemaLoader::load_extended`]; a caller that
+/// builds the schema in memory and so bypasses the loader (`fraiseql run`) calls it
+/// directly. The sections come from [`crate::capability::REGISTRY`].
+///
+/// # Errors
+///
+/// Returns [`SchemaLoadError::ValidationError`] naming each unservable section.
+pub fn refuse_unservable(raw: &serde_json::Value) -> Result<(), SchemaLoadError> {
+    refuse_unservable_sections(raw, &gated_sections())
 }
 
 /// Validate the compiled function definitions.

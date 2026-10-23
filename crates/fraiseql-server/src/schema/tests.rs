@@ -572,6 +572,31 @@ fn every_listed_section_is_checked_not_only_the_first() {
     );
 }
 
+/// Every unservable section is named in one refusal, not only the first: an operator
+/// fixing a lean build learns every feature it lacks at once.
+#[test]
+fn every_unservable_section_is_named_in_one_refusal() {
+    let raw = serde_json::json!({
+        "functions": { "definitions": [{ "name": "f" }] },
+        "sources": [{ "name": "s", "enabled": true }],
+    });
+    let err = super::loader::refuse_unservable_sections(
+        &raw,
+        &[
+            probe("functions", false),
+            probe_with("sources", false, SectionActivity::AnyEntryEnabled),
+        ],
+    )
+    .expect_err("both sections are unservable");
+    let SchemaLoadError::ValidationError(message) = err else {
+        panic!("expected ValidationError")
+    };
+    assert!(
+        message.contains("`functions`") && message.contains("`sources`"),
+        "the refusal must name both sections: {message}"
+    );
+}
+
 // ── Realtime config (removed in #605 — warn-and-ignore posture) ─────────────────
 
 #[tokio::test]

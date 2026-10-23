@@ -2624,8 +2624,8 @@ mod run_tests {
     use tempfile::TempDir;
 
     use super::super::run::{
-        auto_detect_input, build_config_from, compile_schema, ignored_config_sections,
-        refuse_declared_functions, resolve_input, resolve_runtime_config,
+        auto_detect_input, build_config_from, compile_schema, refuse_declared_functions,
+        resolve_input, resolve_runtime_config,
     };
     use crate::config::runtime::{DatabaseRuntimeConfig, ServerRuntimeConfig};
 
@@ -2654,6 +2654,55 @@ mod run_tests {
 
         let message = format!("{:#}", compile_schema(&schema).await.unwrap_err());
         assert!(message.contains("notify"), "{message}");
+    }
+
+    /// `fraiseql run` hands its in-memory schema straight to the server, past the
+    /// loader's boot refusal, so a section the linked server was built without used to be
+    /// served with its capability silently missing. It is refused when, and only when,
+    /// the registry says this build lacks the capability, and every such section is named.
+    #[tokio::test]
+    async fn runs_compile_step_refuses_every_section_this_build_cannot_serve() {
+        let dir = TempDir::new().unwrap();
+        std::fs::create_dir(dir.path().join(".git")).unwrap();
+        let schema = dir.path().join("schema.json");
+        std::fs::write(
+            &schema,
+            serde_json::json!({
+                "types": [{"name": "Order", "sql_source": "v_order", "is_input": false,
+                           "fields": [{"name": "id", "type": "ID", "nullable": false}]}],
+                "queries": [{"name": "orders", "return_type": "Order", "returns_list": true,
+                             "sql_source": "v_order"}],
+                "mcp_config": {"enabled": true},
+                "rest_config": {"enabled": true}
+            })
+            .to_string(),
+        )
+        .unwrap();
+        let compiled_in = |name: &str| {
+            fraiseql_server::capability::REGISTRY
+                .iter()
+                .find(|r| r.meta.name == name)
+                .unwrap_or_else(|| panic!("`{name}` is registered"))
+                .compiled_in
+        };
+
+        let result = compile_schema(&schema).await;
+        let unservable: Vec<_> = [("mcp", "mcp_config"), ("rest", "rest_config")]
+            .into_iter()
+            .filter(|(name, _)| !compiled_in(name))
+            .collect();
+        if unservable.is_empty() {
+            result.expect("this build serves both sections");
+        } else {
+            let message = format!("{:#}", result.unwrap_err());
+            for (feature, section) in unservable {
+                assert!(
+                    message.contains(&format!("`{section}`"))
+                        && message.contains(&format!("`{feature}` feature")),
+                    "the refusal must name `{section}` and its feature: {message}"
+                );
+            }
+        }
     }
 
     /// #1339: `fraiseql run` has no function runtime, so a schema declaring functions is
@@ -2699,32 +2748,6 @@ mod run_tests {
         let disabled = [SourceDefinition::new("orders", "*/5 * * * *", "pollOrders").disabled()];
         refuse_declared_functions(Some(&functions), &disabled)
             .expect("a disabled source runs nothing, and the section declares no function");
-    }
-
-    #[test]
-    fn test_ignored_config_sections_detects_platform_tables() {
-        // A config `fraiseql run` cannot fully honor: [server]/[database] are consumed,
-        // the rest are dropped. Detection drives the loud warning (#643).
-        let toml = "\
-[server]\nhost = \"127.0.0.1\"\n\
-[database]\nurl = \"postgres://x\"\n\
-[observers]\n\
-[auth]\n\
-[tenancy]\n";
-        // Stable order follows RUN_IGNORED_CONFIG_SECTIONS, not the file order.
-        assert_eq!(ignored_config_sections(toml), vec!["auth", "observers", "tenancy"]);
-    }
-
-    #[test]
-    fn test_ignored_config_sections_empty_for_server_database_only() {
-        let toml = "[server]\nhost = \"127.0.0.1\"\n[database]\nurl = \"postgres://x\"\n";
-        assert!(ignored_config_sections(toml).is_empty());
-    }
-
-    #[test]
-    fn test_ignored_config_sections_empty_on_unparseable_toml() {
-        // Best-effort advisory: a parse failure must not fail the run path.
-        assert!(ignored_config_sections("this is = = not [[[ toml").is_empty());
     }
 
     #[test]
