@@ -58,11 +58,8 @@ impl Server {
             info!("Tenant admin credentials managed at /api/admin-tokens (admin bearer token)");
         }
 
-        // RBAC Management API (if database pool available)
-        #[cfg(feature = "observers")]
-        if self.db_pool.is_some() {
-            app = self.mount_rbac(app);
-        }
+        // RBAC Management API: core, on every build with the admin token and a pool.
+        app = self.mount_rbac(app);
 
         // API-key management (#627) — mounted only when the authenticator is
         // Postgres-backed, behind the same admin bearer gate as RBAC. Operates
@@ -459,7 +456,6 @@ impl Server {
 
     /// The gate for admin routers that accept tenant administrators (#1089): `admin_token`
     /// as the platform, plus tenant admin tokens when a database pool exists.
-    #[cfg(any(feature = "auth", feature = "observers"))]
     fn admin_principal_state(&self, admin_token: &str) -> crate::middleware::AdminPrincipalState {
         crate::middleware::AdminPrincipalState::new(
             admin_token.to_string(),
@@ -468,7 +464,6 @@ impl Server {
         )
     }
 
-    #[cfg(feature = "observers")]
     fn mount_rbac(&self, mut app: Router) -> Router {
         // `rbac` is built whenever the admin token and a pool are set (#1632).
         if let (Some(token), Some(rbac)) = (self.config.admin_token.as_ref(), self.rbac.as_ref()) {
@@ -483,10 +478,10 @@ impl Server {
                 ),
             );
             app = app.merge(rbac_router);
-        } else {
-            tracing::error!(
-                "RBAC Management API disabled — admin_token is not set. \
-                 Set admin_token in server configuration to enable RBAC management endpoints."
+        } else if self.config.admin_token.is_some() {
+            tracing::warn!(
+                "RBAC Management API not mounted: admin_token is set but the server has no \
+                 database pool to hold role assignments."
             );
         }
         app

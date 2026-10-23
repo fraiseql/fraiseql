@@ -54,6 +54,8 @@ mod parity_tests;
 #[cfg(test)]
 mod provision_tests;
 #[cfg(test)]
+mod rbac_mount_tests;
+#[cfg(test)]
 mod storage_quota_sweep_tests;
 
 #[cfg(test)]

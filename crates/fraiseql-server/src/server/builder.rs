@@ -974,21 +974,14 @@ impl Server {
             .and(db_pool.as_ref())
             .map(|pool| std::sync::Arc::new(crate::api::PgAdminTokenStore::new(pool.clone())));
 
-        // Role assignments (#1632) are written by the RBAC API (observers) and by SCIM group
-        // sync, both behind the admin token, and read on every request once either can mount.
-        let rbac_writer = cfg!(feature = "observers")
-            || (cfg!(feature = "auth") && config.scim.as_ref().is_some_and(|scim| scim.enabled));
-        let rbac =
-            config
-                .admin_token
-                .as_ref()
-                .and(db_pool.as_ref())
-                .filter(|_| rbac_writer)
-                .map(|pool| {
-                    std::sync::Arc::new(
-                        crate::api::rbac_management::db_backend::RbacDbBackend::new(pool.clone()),
-                    )
-                });
+        // Role assignments (#1632) are written by the RBAC API and by SCIM group sync, both
+        // behind the admin token, and read on every request. The RBAC API is core: it mounts
+        // on every build that has the token and a pool.
+        let rbac = config.admin_token.as_ref().and(db_pool.as_ref()).map(|pool| {
+            std::sync::Arc::new(crate::api::rbac_management::db_backend::RbacDbBackend::new(
+                pool.clone(),
+            ))
+        });
 
         Ok(Self {
             config,

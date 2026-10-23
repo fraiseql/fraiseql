@@ -303,6 +303,13 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **The RBAC management API is mounted on every build with an `admin_token` and a database
+  pool.** `/api/roles`, `/api/permissions`, `/api/user-roles` and `/api/audit/permissions`
+  were mounted only when the `observers` feature was compiled in, although role
+  assignments are read on every request (#1632). A build without observers provisioned
+  the role tables and offered no way to write them, short of SCIM group sync. A server
+  with an `admin_token` and no pool now warns that the API is not mounted. A server with
+  no `admin_token` no longer logs an error at every boot.
 - **`fraiseql run` runs the functions, `cron:` functions and scheduled sources its build
   compiled in.** `run` built its server with no database pool and none of the
   `fraiseql-server` binary's setup. So under the `-full` release, which compiles the
