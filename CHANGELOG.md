@@ -22,6 +22,11 @@ disagreed, and the promise was the part that was wrong.
   source's `run_as` was dropped without a word, so `{"claims": {...}}` or a misspelt
   `tenant` compiled clean and granted nothing. It now fails the compile, and a compiled
   schema carrying one fails the boot.
+- **`fraiseql_server::cdc_outbound::build_drains` no longer creates
+  `core.tb_cdc_sink_state` (#1644).** The server provisions it before it builds the drains.
+  An embedder calling `build_drains` directly applies
+  `fraiseql_cdc_sinks::outbox_sink_state_migration_sql()` through
+  `fraiseql_server::migration_lock::run_migration` first.
 - **`fraiseql compile` refuses what an input field cannot carry, instead of dropping it
   (#1692).** A type marked `is_input: true` compiled each field as an input field and
   silently discarded `on_deny`, `authorize`, `function`, `hierarchy`, `unique`,
@@ -53,8 +58,12 @@ disagreed, and the promise was the part that was wrong.
   webhooks) are provisioned from one ordered table, and an embedder matching on the error
   could not tell an unreachable database from a configuration mistake. A script several
   subsystems need, such as the session table, now runs once per boot instead of up to five
-  times. The change-feed listeners and the SAML and storage refreshers start after every
-  table is in place, so a boot that fails provisioning starts none of them.
+  times. The constructor runs no DDL at all: async operations, session state, SAML, outbound
+  CDC, inbound email, sources and `cron:` scheduling provision their tables in the same
+  table, when the server is served, and a `Server` built and never served leaves the
+  database untouched. The change-feed listeners, the SAML store's first load and refresher,
+  the storage refresher and the usage flush start after every table is in place, so a boot
+  that fails provisioning starts none of them.
 - **Studio's placeholder admin endpoints are removed (#1640).** Fifteen `/admin/v1/*` routes
   could only ever answer `501 not_implemented`, and now answer `404`: the data browser
   (`POST /admin/v1/data/{entity}/query`, `/mutate`), user listing, invitation and MFA status
@@ -294,19 +303,22 @@ disagreed, and the promise was the part that was wrong.
   step. `run_as.user_id` sets what those injects, and session variables mapped from those
   claims, receive: a service principal's id. The actor recorded in the change log stays
   `system_job:<name>`. A blank `user_id` fails `fraiseql compile` and the boot.
-- **`/health` reports every capability.** A new `capabilities` map names each registered
-  capability with `compiled_in` and, for one with background work this server was
-  configured to run (the observer runtime, functions, poll-IMAP mailboxes, scheduled
-  sources, outbound CDC, the subscription Kafka mirror, Arrow Flight), whether it
-  `started`. An observer runtime that failed to start in development reports
-  `started: false`, where `/health` used to say nothing. The field is additive.
+- **`/health` reports every capability (#1644).** A new `capabilities` map names each
+  registered capability with `compiled_in`; for one this server is configured to run,
+  whether it `started`; `serving: true` when it mounted routes; and `healthy` where the
+  capability can tell (the observer runtime's `running`). `started: false` covers an
+  observer runtime that failed to start in development, where `/health` used to say
+  nothing, and a capability this way of serving does not start, such as Arrow Flight on
+  `Server::serve_on_listener`. The field is additive.
 
 - **`fraiseql capabilities` (#1644).** Lists every optional capability of the server the
   `fraiseql` binary links: name, maturity (`stable`, or `preview` when no published
   artifact compiles it), whether this build has it, its Cargo feature, its config keys and
   compiled-schema sections, the smallest published artifact that ships it, and its docs
-  page. `--json` prints the same as data. `docs/features-compatibility-matrix.md` gains a
-  capability table generated from the same registry (`make gen-matrix`). Tests hold the
+  page, and which ways of serving start it (the binary, `fraiseql run`, an in-process
+  listener, the MCP stdio sidecar). `--json` prints the same as data.
+  `docs/features-compatibility-matrix.md` gains a capability table generated from the same
+  registry (`make gen-matrix`). Tests hold the
   registry to the release recipes (the default image, `-full`, and the `release-full`
   bundle) and to the `fraiseql` facade's feature forwarding.
 - **`subscription_policy` is authorable (#1657).** A type's subscription row visibility

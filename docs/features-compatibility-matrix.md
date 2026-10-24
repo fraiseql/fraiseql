@@ -19,24 +19,32 @@ did not start, or when this entry point does not start it); `serving: true` when
 routes; and `healthy`, for a capability that can tell whether it is working right now (the
 observer runtime).
 
+"Started by" is each capability's `entry_points`: which ways of serving start it once it is
+configured. `fraiseql run` assembles and serves its server the way the binary does, so it
+starts the same set. A listener (`Server::serve_on_listener`, the in-process harness) binds
+no port its caller did not choose, so it serves no Arrow Flight. The MCP stdio sidecar runs
+beside the deployment's HTTP server and starts no deployment-wide work of its own: no
+observers, pollers or drains, and no `cron:` scheduler, although it serves functions to its
+own requests.
+
 <!-- capabilities:begin -->
-| Capability | Feature | Maturity | Published in | Config keys | Compiled-schema sections | Docs |
-|---|---|---|---|---|---|---|
-| `functions` | `functions-runtime` | stable | `-platform` | — | `functions` | [architecture/functions.md](architecture/functions.md) |
-| `sources` | `sources` | stable | `-platform` | `sources` | `sources` | [architecture/sources.md](architecture/sources.md) |
-| `mcp` | `mcp` | stable | `-platform` | — | `mcp_config` | [mcp.md](mcp.md) |
-| `rest` | `rest` | stable | `-full`, `-platform` | `export` | `rest_config` | — |
-| `grpc` | `grpc` | preview | none: build from source | — | `grpc_config` | — |
-| `federation` | `federation` | stable | `-platform` | — | `federation` | [architecture/federation.md](architecture/federation.md) |
-| `observers` | `observers` | stable | `-platform` | `observers` | `observers_config` | [operations/observers.md](operations/observers.md) |
-| `arrow_flight` | `arrow` | stable | `-full`, `-platform` | `flight_bind_addr`, `flight_upload_tables`, `flight_views` | — | — |
-| `inbound_webhooks` | `inbound` | stable | `-platform` | `webhooks`, `inbound_dispatch` | — | [architecture/webhooks.md](architecture/webhooks.md) |
-| `inbound_email` | `inbound-email` | stable | `-platform` | `mailbox`, `send` | — | [architecture/inbound-email.md](architecture/inbound-email.md) |
-| `identity` | `auth` | stable | every image and tarball | `identity` | — | [auth/identity-store.md](auth/identity-store.md) |
-| `session_state` | `auth` | stable | every image and tarball | `session_state` | — | [features/session-state.md](features/session-state.md) |
-| `saml` | `auth-saml` | preview | none: build from source | `saml` | — | [auth/saml-sso.md](auth/saml-sso.md) |
-| `cdc_outbound` | `cdc-outbound` | stable | `-platform` | `cdc_outbound` | — | [features/cdc-outbound.md](features/cdc-outbound.md) |
-| `subscription_kafka` | `subscription-kafka` | preview | none: build from source | `subscription_kafka` | — | [features/cdc-outbound.md](features/cdc-outbound.md) |
+| Capability | Feature | Maturity | Published in | Started by | Config keys | Compiled-schema sections | Docs |
+|---|---|---|---|---|---|---|---|
+| `functions` | `functions-runtime` | stable | `-platform` | binary, `fraiseql run`, listener, MCP stdio | — | `functions` | [architecture/functions.md](architecture/functions.md) |
+| `sources` | `sources` | stable | `-platform` | binary, `fraiseql run`, listener | `sources` | `sources` | [architecture/sources.md](architecture/sources.md) |
+| `mcp` | `mcp` | stable | `-platform` | binary, `fraiseql run`, listener, MCP stdio | — | `mcp_config` | [mcp.md](mcp.md) |
+| `rest` | `rest` | stable | `-full`, `-platform` | binary, `fraiseql run`, listener | `export` | `rest_config` | — |
+| `grpc` | `grpc` | preview | none: build from source | none yet | — | `grpc_config` | — |
+| `federation` | `federation` | stable | `-platform` | binary, `fraiseql run`, listener | — | `federation` | [architecture/federation.md](architecture/federation.md) |
+| `observers` | `observers` | stable | `-platform` | binary, `fraiseql run`, listener | `observers` | `observers_config` | [operations/observers.md](operations/observers.md) |
+| `arrow_flight` | `arrow` | stable | `-full`, `-platform` | binary, `fraiseql run` | `flight_bind_addr`, `flight_upload_tables`, `flight_views` | — | — |
+| `inbound_webhooks` | `inbound` | stable | `-platform` | binary, `fraiseql run`, listener | `webhooks`, `inbound_dispatch` | — | [architecture/webhooks.md](architecture/webhooks.md) |
+| `inbound_email` | `inbound-email` | stable | `-platform` | binary, `fraiseql run`, listener | `mailbox`, `send` | — | [architecture/inbound-email.md](architecture/inbound-email.md) |
+| `identity` | `auth` | stable | every image and tarball | binary, `fraiseql run`, listener | `identity` | — | [auth/identity-store.md](auth/identity-store.md) |
+| `session_state` | `auth` | stable | every image and tarball | binary, `fraiseql run`, listener, MCP stdio | `session_state` | — | [features/session-state.md](features/session-state.md) |
+| `saml` | `auth-saml` | preview | none: build from source | binary, `fraiseql run`, listener | `saml` | — | [auth/saml-sso.md](auth/saml-sso.md) |
+| `cdc_outbound` | `cdc-outbound` | stable | `-platform` | binary, `fraiseql run`, listener | `cdc_outbound` | — | [features/cdc-outbound.md](features/cdc-outbound.md) |
+| `subscription_kafka` | `subscription-kafka` | preview | none: build from source | binary, `fraiseql run`, listener | `subscription_kafka` | — | [features/cdc-outbound.md](features/cdc-outbound.md) |
 <!-- capabilities:end -->
 
 ## Crate Dependency Graph

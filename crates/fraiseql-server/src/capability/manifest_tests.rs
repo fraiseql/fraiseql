@@ -564,8 +564,8 @@ fn render_matrix() -> String {
         }
     };
     let mut out = String::from(
-        "| Capability | Feature | Maturity | Published in | Config keys | Compiled-schema sections | Docs |\n\
-         |---|---|---|---|---|---|---|\n",
+        "| Capability | Feature | Maturity | Published in | Started by | Config keys | Compiled-schema sections | Docs |\n\
+         |---|---|---|---|---|---|---|---|\n",
     );
     for r in REGISTRY {
         let m = &r.meta;
@@ -577,13 +577,29 @@ fn render_matrix() -> String {
             _ => panic!("no matrix wording for {:?}", m.release),
         };
         let maturity = serde_json::to_value(m.maturity).expect("serialize");
+        let entry = m.entry_points;
+        let started_by = [
+            (entry.binary, "binary"),
+            (entry.run, "`fraiseql run`"),
+            (entry.listener, "listener"),
+            (entry.mcp_stdio, "MCP stdio"),
+        ]
+        .into_iter()
+        .filter_map(|(declared, name)| declared.then_some(name))
+        .collect::<Vec<_>>()
+        .join(", ");
+        let started_by = if started_by.is_empty() {
+            "none yet".to_string()
+        } else {
+            started_by
+        };
         let docs = m.docs.map_or_else(
             || "—".to_string(),
             |d| format!("[{}]({})", d.trim_start_matches("docs/"), d.trim_start_matches("docs/")),
         );
         let _ = writeln!(
             out,
-            "| `{}` | `{}` | {} | {published} | {} | {} | {docs} |",
+            "| `{}` | `{}` | {} | {published} | {started_by} | {} | {} | {docs} |",
             m.name,
             m.feature,
             maturity.as_str().expect("string"),

@@ -201,6 +201,25 @@ cargo build -p fraiseql-server --features "observers,metrics"
 cargo build -p fraiseql-server --all-features
 ```
 
+**One registration per capability.** Each optional subsystem is one entry of
+`fraiseql_server::capability::REGISTRY`. Its metadata (`fraiseql_core::capability::CapabilityMeta`)
+names the feature, its config keys and compiled-schema sections, the published artifacts that
+ship it, and the ways of serving that start it. Its `Capability` impl
+(`crates/fraiseql-server/src/server/capabilities/`) holds the code: the tables it provisions,
+the routes it mounts, what it starts, and how it reports its health. Every serve path walks the
+same table in the same order:
+
+1. **Provision.** The core steps and each compiled-in capability's steps form one table. Each
+   step runs under the boot migration lock, before anything is mounted or started. The
+   constructor runs no DDL.
+2. **Mount.** The router merges each capability's routes before the admission layer.
+3. **Start.** Each configured capability starts if this way of serving is one its metadata
+   declares; otherwise `/health` reports it `started: false`.
+
+`fraiseql capabilities` and the generated table in
+[features-compatibility-matrix.md](../features-compatibility-matrix.md) print the same
+registry.
+
 **Benefits:**
 
 - ✅ Users pay only for what they use (compilation time, binary size)
