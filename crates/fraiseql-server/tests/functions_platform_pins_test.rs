@@ -69,7 +69,8 @@ fn code_occurrences(src: &str, needle: &str) -> usize {
 
 #[test]
 fn cron_pollers_are_built_at_server_startup() {
-    let start = read_ws("crates/fraiseql-server/src/server/start.rs");
+    // The function runtime's `Capability::start` owns the scheduler since #1644.
+    let start = read_ws("crates/fraiseql-server/src/server/capabilities/functions.rs");
     assert!(
         code_occurrences(&start, "build_cron_pollers") > 0,
         "expected server startup to construct cron pollers at startup (#595). If the \

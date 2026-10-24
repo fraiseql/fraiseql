@@ -61,9 +61,13 @@ async fn health_lists_every_registered_capability_and_whether_it_is_compiled_in(
     for entry in REGISTRY {
         let reported = &capabilities[entry.meta.name];
         assert_eq!(reported["compiled_in"], entry.compiled_in, "{}: {reported}", entry.meta.name);
-        assert!(
-            reported.get("started").is_none(),
-            "nothing is configured, so nothing reports a start: {}: {reported}",
+        // Nothing is configured but Flight, which every `arrow` build serves, and which
+        // a listener does not start.
+        let started = (entry.meta.name == "arrow_flight" && entry.compiled_in).then_some(false);
+        assert_eq!(
+            reported.get("started").and_then(serde_json::Value::as_bool),
+            started,
+            "{}: {reported}",
             entry.meta.name
         );
     }
@@ -77,6 +81,7 @@ async fn health_reports_a_started_observer_runtime() {
         return;
     };
     let pool = sqlx::PgPool::connect(svc.url()).await.unwrap();
+    crate::observers::install_runtime_schema_for_tests(&pool).await;
     let config = ServerConfig {
         observers: Some(serde_json::from_value(serde_json::json!({ "enabled": true })).unwrap()),
         cors_enabled: false,

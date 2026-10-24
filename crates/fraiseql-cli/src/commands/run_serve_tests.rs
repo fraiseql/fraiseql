@@ -31,6 +31,19 @@ async fn run_starts_a_compiled_in_observer_runtime() {
         eprintln!("SKIP run_starts_a_compiled_in_observer_runtime: no DATABASE_URL");
         return;
     };
+    // The tables the observer runtime reads; a deployment applies these migrations.
+    let pool = fraiseql_server::sqlx::PgPool::connect(&url).await.unwrap();
+    fraiseql_server::migration_lock::run_migrations(
+        &pool,
+        &[
+            fraiseql_observers::migrations::observer_management_sql(),
+            fraiseql_observers::migrations::entity_change_log_contract_sql(),
+            fraiseql_observers::migrations::observer_dispatch_sql(),
+        ],
+    )
+    .await
+    .unwrap();
+    pool.close().await;
     let config: ServerConfig = serde_json::from_value(serde_json::json!({
         "database_url": url,
         "cors_enabled": false,
@@ -69,4 +82,20 @@ async fn run_starts_a_compiled_in_observer_runtime() {
         "the server `fraiseql run` builds holds no database pool: a compiled-in observer \
          runtime never started"
     );
+}
+
+/// `fraiseql run` builds through the binary's assembly ([`build_server`] above) and serves
+/// through `serve_with_shutdown`, the binary's entry point, so it starts what the binary
+/// starts. The registry must not declare otherwise for any capability.
+#[test]
+fn run_is_declared_to_start_what_the_binary_starts() {
+    for entry in REGISTRY {
+        let declared = entry.meta.entry_points;
+        assert_eq!(
+            declared.run, declared.binary,
+            "`{}` declares `fraiseql run` and the binary differently, but they share one \
+             assembly and one entry point",
+            entry.meta.name
+        );
+    }
 }

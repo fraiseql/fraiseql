@@ -236,6 +236,8 @@ test-integration-postgres: db-up db-failover-reset
 	@cargo test -p fraiseql-server --features inbound-email --test inbound_email_dedup_scope_pg -- --test-threads=1
 	@cargo test -p fraiseql-server --features sources --lib sources:: -- --test-threads=1
 	@cargo test -p fraiseql-server --features functions-runtime,observers,auth --lib -- cron:: routes::after_mutation:: server::after_mutation_wiring_tests:: query_bridge:: subsystems::loader:: schema::tests:: function_metrics:: observers::pg_function_dlq:: identity:: observers::changelog_handlers:: --test-threads=1
+	@cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks' --lib -- server::entry_point_parity_tests:: server::health_capabilities_tests:: --test-threads=1
+	@cargo test -p fraiseql-cli --features run-server,fraiseql-server/observers --lib commands::run_serve_tests:: -- --test-threads=1
 	@cargo test -p fraiseql-saga --lib saga_store::tests -- --test-threads=1
 	@cargo test -p fraiseql-server --features functions-runtime,mcp --test functions_schema_seam_test
 	@cargo test -p fraiseql-server --features functions-runtime --test functions_query_bridge_pin_test

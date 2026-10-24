@@ -10,26 +10,71 @@
 use std::{collections::BTreeMap, sync::RwLock};
 
 use fraiseql_core::capability::{
-    CapabilityMeta, CompiledSection, Maturity, Release, SectionActivity,
+    CapabilityMeta, CompiledSection, EntryPoints, Maturity, Release, SectionActivity,
 };
 use serde::Serialize;
 
+use crate::server::capabilities::{self as impls, RunCx, ServeCx};
+
 /// A capability and whether this build compiled it in.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, Serialize)]
 pub struct Registration {
     /// What the capability is and where it is configured.
     #[serde(flatten)]
-    pub meta:        CapabilityMeta,
+    pub meta:              CapabilityMeta,
     /// Whether this build has the capability's feature.
-    pub compiled_in: bool,
+    pub compiled_in:       bool,
+    /// The code that runs it.
+    #[serde(skip)]
+    pub(crate) capability: &'static dyn Capability,
+}
+
+/// What a capability's start left running.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Started {
+    /// Everything it was configured to run.
+    Running,
+    /// The server serves on without it: `/health` reports it not started.
+    #[cfg_attr(
+        not(any(feature = "observers", feature = "sources")),
+        allow(dead_code) // Reason: only those two capabilities can serve on without starting
+    )]
+    Degraded,
+}
+
+/// The code behind one [`REGISTRY`] entry.
+///
+/// The serve entry points never name a capability: each asks every compiled-in one
+/// whether it is configured and, where the entry point is one its metadata declares,
+/// starts it. A method whose capability is not compiled in keeps its default body.
+#[async_trait::async_trait]
+pub(crate) trait Capability: Send + Sync + std::fmt::Debug {
+    /// Whether this server's configuration asks for the capability.
+    fn configured(&self, _cx: &ServeCx<'_>) -> bool {
+        false
+    }
+
+    /// Start its background work on the server's task set, once the router is built.
+    ///
+    /// Called only when [`Self::configured`] and the entry point is one the metadata
+    /// declares. A capability that only serves routes has nothing to start.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`crate::ServerError`] when a configured capability cannot start and the
+    /// server must not serve without it.
+    async fn start(&self, _cx: &mut RunCx<'_>) -> crate::Result<Started> {
+        Ok(Started::Running)
+    }
 }
 
 /// Build a [`Registration`] whose `compiled_in` is the `cfg!` of the same feature
 /// literal as `meta.feature`, so the two cannot name different features.
 macro_rules! register {
     (
-        name: $name:literal,feature: $feature:literal,compiled_sections: $compiled:expr,runtime_keys:
-        $runtime:expr,docs: $docs:expr,maturity: $maturity:expr,release: $release:expr $(,)?
+        capability: $capability:expr,name: $name:literal,feature: $feature:literal,compiled_sections: $compiled:expr,runtime_keys:
+        $runtime:expr,docs: $docs:expr,maturity: $maturity:expr,release: $release:expr,entry_points:
+        $entry_points:expr $(,)?
     ) => {
         Registration {
             meta:        CapabilityMeta {
@@ -40,8 +85,10 @@ macro_rules! register {
                 docs:              $docs,
                 maturity:          $maturity,
                 release:           $release,
+                entry_points:      $entry_points,
             },
             compiled_in: cfg!(feature = $feature),
+            capability:  &$capability,
         }
     };
 }
@@ -53,6 +100,7 @@ const fn section(key: &'static str, activity: SectionActivity) -> CompiledSectio
 /// Every optional capability, in the order `fraiseql capabilities` lists them.
 pub static REGISTRY: &[Registration] = &[
     register! {
+        capability: impls::Functions,
         name: "functions",
         feature: "functions-runtime",
         compiled_sections: &[section("functions", SectionActivity::NonEmptyDefinitions)],
@@ -60,8 +108,10 @@ pub static REGISTRY: &[Registration] = &[
         docs: Some("docs/architecture/functions.md"),
         maturity: Maturity::Stable,
         release: Release::Platform,
+        entry_points: EntryPoints::ALL,
     },
     register! {
+        capability: impls::Sources,
         name: "sources",
         feature: "sources",
         compiled_sections: &[section("sources", SectionActivity::AnyEntryEnabled)],
@@ -69,8 +119,10 @@ pub static REGISTRY: &[Registration] = &[
         docs: Some("docs/architecture/sources.md"),
         maturity: Maturity::Stable,
         release: Release::Platform,
+        entry_points: EntryPoints::HTTP,
     },
     register! {
+        capability: impls::Mcp,
         name: "mcp",
         feature: "mcp",
         compiled_sections: &[section("mcp_config", SectionActivity::EnabledFlag)],
@@ -78,8 +130,10 @@ pub static REGISTRY: &[Registration] = &[
         docs: Some("docs/mcp.md"),
         maturity: Maturity::Stable,
         release: Release::Platform,
+        entry_points: EntryPoints::ALL,
     },
     register! {
+        capability: impls::Rest,
         name: "rest",
         feature: "rest",
         compiled_sections: &[section("rest_config", SectionActivity::EnabledFlag)],
@@ -87,8 +141,10 @@ pub static REGISTRY: &[Registration] = &[
         docs: None,
         maturity: Maturity::Stable,
         release: Release::Full,
+        entry_points: EntryPoints::HTTP,
     },
     register! {
+        capability: impls::Grpc,
         name: "grpc",
         feature: "grpc",
         compiled_sections: &[section("grpc_config", SectionActivity::EnabledFlag)],
@@ -96,8 +152,10 @@ pub static REGISTRY: &[Registration] = &[
         docs: None,
         maturity: Maturity::Preview,
         release: Release::Source,
+        entry_points: EntryPoints::NONE,
     },
     register! {
+        capability: impls::Federation,
         name: "federation",
         feature: "federation",
         compiled_sections: &[section("federation", SectionActivity::EnabledFlag)],
@@ -105,8 +163,10 @@ pub static REGISTRY: &[Registration] = &[
         docs: Some("docs/architecture/federation.md"),
         maturity: Maturity::Stable,
         release: Release::Platform,
+        entry_points: EntryPoints::HTTP,
     },
     register! {
+        capability: impls::Observers,
         name: "observers",
         feature: "observers",
         compiled_sections: &[section("observers_config", SectionActivity::EnabledFlag)],
@@ -114,8 +174,10 @@ pub static REGISTRY: &[Registration] = &[
         docs: Some("docs/operations/observers.md"),
         maturity: Maturity::Stable,
         release: Release::Platform,
+        entry_points: EntryPoints::HTTP,
     },
     register! {
+        capability: impls::ArrowFlight,
         name: "arrow_flight",
         feature: "arrow",
         compiled_sections: &[],
@@ -123,8 +185,13 @@ pub static REGISTRY: &[Registration] = &[
         docs: None,
         maturity: Maturity::Stable,
         release: Release::Full,
+        entry_points: EntryPoints {
+            listener: false,
+            ..EntryPoints::HTTP
+        },
     },
     register! {
+        capability: impls::InboundWebhooks,
         name: "inbound_webhooks",
         feature: "inbound",
         compiled_sections: &[],
@@ -132,8 +199,10 @@ pub static REGISTRY: &[Registration] = &[
         docs: Some("docs/architecture/webhooks.md"),
         maturity: Maturity::Stable,
         release: Release::Platform,
+        entry_points: EntryPoints::HTTP,
     },
     register! {
+        capability: impls::InboundEmail,
         name: "inbound_email",
         feature: "inbound-email",
         compiled_sections: &[],
@@ -141,8 +210,10 @@ pub static REGISTRY: &[Registration] = &[
         docs: Some("docs/architecture/inbound-email.md"),
         maturity: Maturity::Stable,
         release: Release::Platform,
+        entry_points: EntryPoints::HTTP,
     },
     register! {
+        capability: impls::Identity,
         name: "identity",
         feature: "auth",
         compiled_sections: &[],
@@ -150,8 +221,10 @@ pub static REGISTRY: &[Registration] = &[
         docs: Some("docs/auth/identity-store.md"),
         maturity: Maturity::Stable,
         release: Release::Default,
+        entry_points: EntryPoints::HTTP,
     },
     register! {
+        capability: impls::SessionState,
         name: "session_state",
         feature: "auth",
         compiled_sections: &[],
@@ -159,8 +232,10 @@ pub static REGISTRY: &[Registration] = &[
         docs: Some("docs/features/session-state.md"),
         maturity: Maturity::Stable,
         release: Release::Default,
+        entry_points: EntryPoints::ALL,
     },
     register! {
+        capability: impls::Saml,
         name: "saml",
         feature: "auth-saml",
         compiled_sections: &[],
@@ -168,8 +243,10 @@ pub static REGISTRY: &[Registration] = &[
         docs: Some("docs/auth/saml-sso.md"),
         maturity: Maturity::Preview,
         release: Release::Source,
+        entry_points: EntryPoints::HTTP,
     },
     register! {
+        capability: impls::CdcOutbound,
         name: "cdc_outbound",
         feature: "cdc-outbound",
         compiled_sections: &[],
@@ -177,8 +254,10 @@ pub static REGISTRY: &[Registration] = &[
         docs: Some("docs/features/cdc-outbound.md"),
         maturity: Maturity::Stable,
         release: Release::Platform,
+        entry_points: EntryPoints::HTTP,
     },
     register! {
+        capability: impls::SubscriptionKafka,
         name: "subscription_kafka",
         feature: "subscription-kafka",
         compiled_sections: &[],
@@ -186,6 +265,7 @@ pub static REGISTRY: &[Registration] = &[
         docs: Some("docs/features/cdc-outbound.md"),
         maturity: Maturity::Preview,
         release: Release::Source,
+        entry_points: EntryPoints::HTTP,
     },
 ];
 

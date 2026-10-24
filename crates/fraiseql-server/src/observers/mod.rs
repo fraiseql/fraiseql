@@ -642,3 +642,23 @@ const fn default_page() -> i64 {
 const fn default_page_size() -> i64 {
     20
 }
+
+/// Install the tables a running observer runtime reads, for a suite that boots one: the
+/// observer definitions it loads at start, the change log it consumes, and its dispatch
+/// ledger. The server does not provision them; a deployment applies these migrations.
+#[cfg(test)]
+pub(crate) async fn install_runtime_schema_for_tests(pool: &sqlx::PgPool) {
+    use fraiseql_observers::migrations::{
+        entity_change_log_contract_sql, observer_dispatch_sql, observer_management_sql,
+    };
+    crate::migration_lock::run_migrations(
+        pool,
+        &[
+            observer_management_sql(),
+            entity_change_log_contract_sql(),
+            observer_dispatch_sql(),
+        ],
+    )
+    .await
+    .expect("install the observer runtime's tables");
+}

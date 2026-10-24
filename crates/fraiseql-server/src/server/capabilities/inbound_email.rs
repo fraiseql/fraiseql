@@ -1,0 +1,109 @@
+//! Poll-IMAP inbound email.
+
+#[cfg(feature = "inbound-email")]
+use tracing::info;
+
+#[cfg(feature = "inbound-email")]
+use super::{RunCx, ServeCx};
+use crate::capability::Capability;
+#[cfg(feature = "inbound-email")]
+use crate::{capability::Started, server::ServerError};
+
+/// A `[mailbox.<name>.imap]` half, on a server with a database pool.
+#[derive(Debug)]
+pub struct InboundEmail;
+
+#[async_trait::async_trait]
+impl Capability for InboundEmail {
+    #[cfg(feature = "inbound-email")]
+    fn configured(&self, cx: &ServeCx<'_>) -> bool {
+        cx.server.db_pool.is_some()
+            && cx.server.config.mailbox.values().any(|mailbox| mailbox.imap.is_some())
+    }
+
+    /// One background poll loop per IMAP mailbox, on the server's task set so graceful
+    /// shutdown aborts them. The workers reuse the durable inbound spine and the
+    /// `after:ingest` dispatch path; attachments stream into the configured storage
+    /// backend.
+    #[cfg(feature = "inbound-email")]
+    async fn start(&self, cx: &mut RunCx<'_>) -> crate::Result<Started> {
+        use crate::inbound::{email, spine::PostgresInboundSpine};
+
+        let app_state = cx.app;
+        let server = &mut *cx.server;
+        let Some(db_pool) = server.db_pool.as_ref() else {
+            return Ok(Started::Running);
+        };
+
+        // The email path shares the inbound spine; create it here too in
+        // case only `[mailbox.*.imap]` (no `[webhooks.*]`) is configured.
+        // Both DDLs are idempotent.
+        PostgresInboundSpine::new(db_pool.clone()).init().await.map_err(|e| {
+            ServerError::ConfigError(format!("Failed to initialize inbound spine schema: {e}"))
+        })?;
+        email::init_cursor_store(db_pool).await.map_err(|e| {
+            ServerError::ConfigError(format!(
+                "Failed to initialize inbound email cursor schema: {e}"
+            ))
+        })?;
+
+        // The correlator transitions send-status and suppression from
+        // inbound signals; its tables are also created by the send path,
+        // but a receive-only deployment needs them here too (idempotent).
+        let tracker = std::sync::Arc::new(email::PgSendTracker::new(db_pool.clone()));
+        tracker.init().await.map_err(|e| {
+            ServerError::ConfigError(format!("Failed to initialize send-tracking schema: {e}"))
+        })?;
+        let correlator =
+            std::sync::Arc::clone(&tracker) as std::sync::Arc<dyn email::SendCorrelator>;
+        let address_hash_key = server.build_address_hash_key();
+
+        // The attachment sink is the server's one configured storage
+        // backend. It used to hang off a separate `with_storage` builder
+        // method that no binary ever called, so `[mailbox]
+        // attachment_bucket` was unreachable from the shipped server and
+        // attachments were dropped with a warning.
+        let sink = server.storage_state.as_ref().map(|state| {
+            std::sync::Arc::new(email::StorageAttachmentSink::new(state.backend.clone()))
+                as std::sync::Arc<dyn fraiseql_functions::host::live::storage::StorageBackend>
+        });
+        // Opt-in Return-Path probe: verify the provider preserves
+        // plus-addressing before trusting VERP correlation. Blocks startup
+        // up to the probe window per eligible mailbox; off by default.
+        if server.config.send.verp_probe_on_start {
+            email::run_startup_probes(&server.config.mailbox, |name| std::env::var(name).ok())
+                .await;
+        }
+
+        let hooks = app_state.before_mutation_hooks.clone();
+        // #594: the after:ingest `fraiseql_query` bridge factory, built over the
+        // app's hot-reloadable executor (same one the route handlers use); only
+        // meaningful when function-dispatch hooks are present.
+        let query_executor_factory = hooks.as_ref().map(|_| {
+            crate::routes::after_mutation::make_query_executor_factory(
+                crate::query_bridge::ExecutorSource::of(app_state),
+            )
+        });
+        let pollers = email::build_pollers(
+            &server.config.mailbox,
+            db_pool,
+            hooks.as_ref(),
+            query_executor_factory.as_ref(),
+            sink.as_ref(),
+            Some(&correlator),
+            address_hash_key.as_ref(),
+            server.config.send.challenge_suppress_after,
+            server.config.inbound_dispatch.settings().map_or(
+                crate::inbound::dispatch_ledger::LedgerSettings::default().lease,
+                |settings| settings.lease,
+            ),
+            |name| std::env::var(name).ok(),
+        );
+        let started = pollers.len();
+        for (poller, interval) in pollers {
+            server.tasks.spawn(async move { poller.poll_forever(interval).await });
+        }
+        info!(mailboxes = started, "poll-IMAP email sources started");
+        Ok(Started::Running)
+    }
+}

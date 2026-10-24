@@ -1,6 +1,6 @@
 //! Tests for capability metadata.
 
-use super::{CapabilityMeta, Maturity, Release};
+use super::{CapabilityMeta, EntryPoints, Maturity, Release};
 
 fn meta(release: Release) -> CapabilityMeta {
     CapabilityMeta {
@@ -11,6 +11,7 @@ fn meta(release: Release) -> CapabilityMeta {
         docs: None,
         maturity: Maturity::Stable,
         release,
+        entry_points: EntryPoints::ALL,
     }
 }
 

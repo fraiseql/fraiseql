@@ -30,10 +30,11 @@ const INIT_ALLOWANCE: &[(&str, usize, &str)] = &[
     ("src/inbound/webhook.rs", 1, "PostgresInboundSpine::init"),
     ("src/server/builder.rs", 1, "AsyncOperationStore::init"),
     ("src/server/functions_setup.rs", 2, "PgFunctionDlq::init, PgSendTracker::init"),
+    ("src/server/capabilities/functions.rs", 1, "PgCronState::init"),
     (
-        "src/server/start.rs",
-        3,
-        "PostgresInboundSpine, PgSendTracker and PgCronState init",
+        "src/server/capabilities/inbound_email.rs",
+        2,
+        "PostgresInboundSpine, PgSendTracker init",
     ),
 ];
 

@@ -90,6 +90,48 @@ pub struct CompiledSection {
     pub activity: SectionActivity,
 }
 
+/// The serve entry points that start a capability when its configuration asks for it.
+///
+/// An entry point not listed here leaves a configured capability unstarted on purpose,
+/// and says so: `/health` reports it `started: false`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[allow(clippy::struct_excessive_bools)] // Reason: one independent yes/no per entry point
+pub struct EntryPoints {
+    /// The `fraiseql-server` binary.
+    pub binary:    bool,
+    /// An in-process server on a caller-bound listener (`Server::serve_on_listener`).
+    pub listener:  bool,
+    /// The MCP stdio sidecar (`Server::serve_mcp_stdio`). It serves one client's
+    /// requests next to the deployment's HTTP server, so it starts no deployment-wide
+    /// work of its own: no poller, scheduler or consumer the HTTP server already runs.
+    pub mcp_stdio: bool,
+    /// `fraiseql run`. It assembles and serves its server the way the binary does, so it
+    /// starts what the binary starts.
+    pub run:       bool,
+}
+
+impl EntryPoints {
+    /// Every entry point.
+    pub const ALL: Self = Self {
+        mcp_stdio: true,
+        ..Self::HTTP
+    };
+    /// Every entry point that serves HTTP: the binary, `fraiseql run` and a listener.
+    pub const HTTP: Self = Self {
+        binary:    true,
+        listener:  true,
+        mcp_stdio: false,
+        run:       true,
+    };
+    /// None: the capability is built but no entry point serves it yet.
+    pub const NONE: Self = Self {
+        binary:    false,
+        listener:  false,
+        mcp_stdio: false,
+        run:       false,
+    };
+}
+
 /// One optional capability.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 pub struct CapabilityMeta {
@@ -107,6 +149,8 @@ pub struct CapabilityMeta {
     pub maturity:          Maturity,
     /// The smallest published artifact that has it.
     pub release:           Release,
+    /// The serve entry points that start it.
+    pub entry_points:      EntryPoints,
 }
 
 impl CapabilityMeta {

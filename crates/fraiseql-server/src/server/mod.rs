@@ -34,6 +34,7 @@ use crate::{
 
 mod builder;
 pub(crate) mod cache_feed;
+pub(crate) mod capabilities;
 mod extensions;
 #[cfg(feature = "functions-runtime")]
 mod functions_setup;

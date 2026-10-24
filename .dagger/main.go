@@ -1646,6 +1646,14 @@ func (m *FraiseqlCi) integrationPostgres(ctx context.Context, source *dagger.Dir
 		// leg compiling them was the service-less workspace run, where every
 		// DB-backed case returned early and read exactly like a pass.
 		"cargo test -p fraiseql-server --features functions-runtime,observers,auth --lib -- cron:: routes::after_mutation:: server::after_mutation_wiring_tests:: query_bridge:: subsystems::loader:: schema::tests:: function_metrics:: observers::pg_function_dlq:: identity:: observers::changelog_handlers:: --test-threads=1",
+		// The entry-point parity and `/health` capability suites boot a server with the
+		// observer runtime and Flight, through a skip-clean `postgres()` getter. The
+		// `Test` leg compiles them with no database, where they returned early and read
+		// as a pass. The feature set is the `Test` leg's, already built here.
+		"cargo test -p fraiseql-server --features '" + serverTestFeatures + "' --lib -- server::entry_point_parity_tests:: server::health_capabilities_tests:: --test-threads=1",
+		// `fraiseql run` boots through the binary's assembly; the observer runtime is
+		// what proves it holds the pool, so the server's `observers` is switched on.
+		"cargo test -p fraiseql-cli --features run-server,fraiseql-server/observers --lib commands::run_serve_tests:: -- --test-threads=1",
 		// #1297: saga_store's Postgres orchestration proof, same shape — skip-clean
 		// on `try_database_url()`, compiled only by the DB-less `Test` leg.
 		"cargo test -p fraiseql-saga --lib saga_store::tests -- --test-threads=1",
