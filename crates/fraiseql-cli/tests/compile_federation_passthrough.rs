@@ -411,3 +411,182 @@ fn the_converter_reports_an_unknown_key_field_with_the_other_schema_problems() {
     assert!(err.contains("'Order'") && err.contains("'region'"), "{err}");
     assert!(err.contains("'Ordr'"), "{err}");
 }
+
+/// An output field of the federated `Order` declaring `extra` alongside its name.
+fn order_with_card_field(extra: &str) -> String {
+    SDK_SCHEMA_WITH_FEDERATION.replace(
+        r#"{"name": "total", "type": "Float", "nullable": false}"#,
+        &format!(
+            r#"{{"name": "total", "type": "Float", "nullable": false}},
+        {{"name": "card_number", "type": "String", "nullable": false, {extra}}}"#
+        ),
+    )
+}
+
+/// What the compile does with `card_number`: refuses it, or the line the supergraph SDL
+/// renders for it.
+fn card_number_outcome(doc: &str) -> Result<String, String> {
+    let intermediate: IntermediateSchema =
+        serde_json::from_str(doc).map_err(|e| format!("refused at parse: {e}"))?;
+    let compiled = SchemaConverter::convert(intermediate).map_err(|e| format!("{e:#}"))?;
+    let sdl = compiled.federation_service_sdl().expect("federation is enabled");
+    Ok(sdl
+        .lines()
+        .find(|l| l.trim_start().starts_with("card_number"))
+        .unwrap_or_else(|| panic!("card_number is not in the SDL:\n{sdl}"))
+        .trim()
+        .to_string())
+}
+
+const INACCESSIBLE: &str = r#""directives": [{"name": "inaccessible"}]"#;
+
+/// An `@inaccessible` output field is hidden from the supergraph, or the compile refuses
+/// it. Rendering it without the directive publishes a field the author hid.
+#[test]
+fn an_inaccessible_output_field_is_never_rendered_visible() {
+    match card_number_outcome(&order_with_card_field(INACCESSIBLE)) {
+        Ok(line) => assert!(line.contains("@inaccessible"), "rendered `{line}`"),
+        Err(refusal) => assert!(refusal.contains("inaccessible"), "refused, but: {refusal}"),
+    }
+}
+
+/// The hidden field reaches what the introspection filter and `_entities` read, and
+/// survives the compiled artifact's own round trip.
+#[test]
+fn an_inaccessible_field_is_carried_to_the_federation_metadata_through_the_artifact() {
+    let intermediate: IntermediateSchema =
+        serde_json::from_str(&order_with_card_field(INACCESSIBLE)).unwrap();
+    let compiled = SchemaConverter::convert(intermediate).unwrap();
+    let reloaded =
+        fraiseql_core::schema::CompiledSchema::from_json(&compiled.to_json().unwrap(), false)
+            .expect("the compiler's own output loads");
+
+    let metadata = reloaded.federation_metadata().expect("federation metadata");
+    let order = metadata.types.iter().find(|t| t.name == "Order").expect("Order is federated");
+    assert_eq!(order.inaccessible_fields, ["card_number"]);
+    assert!(order.field_is_inaccessible("card_number"));
+    assert!(!order.keys.is_empty(), "the entity keeps its @key");
+}
+
+/// On a type that is not an entity, the field is hidden too, and the type does not
+/// become one.
+#[test]
+fn an_inaccessible_field_of_a_non_entity_type_is_hidden() {
+    let doc = SDK_SCHEMA_WITH_FEDERATION.replace(
+        r#"      "sql_source": "v_orders",
+      "is_input": false
+    }
+  ],"#,
+        r#"      "sql_source": "v_orders",
+      "is_input": false
+    },
+    {
+      "name": "Receipt",
+      "fields": [
+        {"name": "id", "type": "ID", "nullable": false},
+        {"name": "card_number", "type": "String", "nullable": false,
+         "directives": [{"name": "inaccessible"}]}
+      ],
+      "sql_source": "v_receipts",
+      "is_input": false
+    }
+  ],"#,
+    );
+    let compiled = SchemaConverter::convert(serde_json::from_str(&doc).unwrap()).unwrap();
+    let sdl = compiled.federation_service_sdl().unwrap();
+    let receipt_block: String = sdl
+        .split("type Receipt")
+        .nth(1)
+        .unwrap_or_else(|| panic!("Receipt is rendered:\n{sdl}"))
+        .lines()
+        .take_while(|l| !l.starts_with('}'))
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(receipt_block.contains("card_number: String! @inaccessible"), "{receipt_block}");
+    assert!(!receipt_block.lines().next().unwrap().contains("@key"), "{receipt_block}");
+    assert!(sdl.contains("union _Entity = Order\n"), "Receipt is no entity:\n{sdl}");
+}
+
+/// Without federation there is no supergraph to hide the field from, so the directive
+/// would hide nothing: refused, naming the field.
+#[test]
+fn an_inaccessible_field_without_federation_is_refused() {
+    let doc =
+        order_with_card_field(INACCESSIBLE).replace(r#""enabled": true"#, r#""enabled": false"#);
+    let error = SchemaConverter::convert(serde_json::from_str(&doc).unwrap()).unwrap_err();
+    let chain = format!("{error:#}");
+    assert!(chain.contains("Order.card_number") && chain.contains("federation"), "{chain}");
+}
+
+/// On an interface field nothing compiled carries `@inaccessible`: refused, not dropped.
+#[test]
+fn an_inaccessible_interface_field_is_refused() {
+    let doc = SDK_SCHEMA_WITH_FEDERATION.replace(
+        r#"  "mutations": [],"#,
+        r#"  "mutations": [],
+  "interfaces": [{"name": "Payable", "fields": [
+    {"name": "card_number", "type": "String", "nullable": false,
+     "directives": [{"name": "inaccessible"}]}]}],"#,
+    );
+    let error = SchemaConverter::convert(serde_json::from_str(&doc).unwrap()).unwrap_err();
+    let chain = format!("{error:#}");
+    assert!(chain.contains("card_number") && chain.contains("@inaccessible"), "{chain}");
+}
+
+/// A `@tag` on an output field reaches the SDL, or the compile refuses it.
+#[test]
+fn a_tagged_output_field_is_never_rendered_untagged() {
+    let extra = r#""directives": [{"name": "tag", "arguments": {"name": "pci"}}]"#;
+    match card_number_outcome(&order_with_card_field(extra)) {
+        Ok(line) => assert!(line.contains("@tag"), "rendered `{line}`"),
+        Err(refusal) => assert!(refusal.contains("tag"), "refused, but: {refusal}"),
+    }
+}
+
+/// The served schema's introspection omits the hidden field: the filter the executor
+/// applies is fed from what the compiler now carries.
+#[tokio::test]
+async fn introspection_omits_an_inaccessible_field() {
+    use std::sync::Arc;
+
+    use fraiseql_core::runtime::Executor;
+    use fraiseql_test_utils::failing_adapter::FailingAdapter;
+
+    let intermediate: IntermediateSchema =
+        serde_json::from_str(&order_with_card_field(INACCESSIBLE)).unwrap();
+    let executor = Executor::new(
+        SchemaConverter::convert(intermediate).unwrap(),
+        Arc::new(FailingAdapter::new()),
+    );
+
+    let result = executor
+        .execute(r#"{ __type(name: "Order") { fields { name } } }"#, None)
+        .await
+        .expect("introspection runs");
+    let names: Vec<&str> = result["data"]["__type"]["fields"]
+        .as_array()
+        .unwrap_or_else(|| panic!("{result}"))
+        .iter()
+        .map(|f| f["name"].as_str().unwrap())
+        .collect();
+    assert!(names.contains(&"total"), "{names:?}");
+    assert!(!names.contains(&"card_number"), "{names:?}");
+}
+
+/// `@tenant_id` on an object type's field is read by tenancy validation before
+/// conversion, so it compiles; on an interface field nothing reads it, so it is refused.
+#[test]
+fn tenant_id_compiles_on_an_object_type_field_and_is_refused_on_an_interface_field() {
+    let on_type = order_with_card_field(r#""directives": [{"name": "tenant_id"}]"#);
+    assert!(SchemaConverter::convert(serde_json::from_str(&on_type).unwrap()).is_ok());
+
+    let on_interface = SDK_SCHEMA_WITH_FEDERATION.replace(
+        r#"  "mutations": [],"#,
+        r#"  "mutations": [],
+  "interfaces": [{"name": "Owned", "fields": [
+    {"name": "tenant_id", "type": "String", "nullable": false,
+     "directives": [{"name": "tenant_id"}]}]}],"#,
+    );
+    let error = SchemaConverter::convert(serde_json::from_str(&on_interface).unwrap()).unwrap_err();
+    assert!(format!("{error:#}").contains("@tenant_id"), "{error:#}");
+}

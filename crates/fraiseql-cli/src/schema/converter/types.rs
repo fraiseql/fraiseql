@@ -16,6 +16,32 @@ use crate::schema::intermediate::{
 };
 
 impl SchemaConverter {
+    /// Lift every `@inaccessible` off the fields of `types`, returning the hidden
+    /// fields by type name.
+    ///
+    /// The directive is a federation fact, carried by the compiled `federation` block
+    /// rather than by the field, so it is removed here and `convert_field` refuses any
+    /// that remains (on an interface or a mutation's fields, where nothing carries it).
+    pub(super) fn take_inaccessible_fields(
+        types: &mut [IntermediateType],
+    ) -> std::collections::BTreeMap<String, Vec<String>> {
+        let mut hidden: std::collections::BTreeMap<String, Vec<String>> =
+            std::collections::BTreeMap::new();
+        for ty in types {
+            for field in &mut ty.fields {
+                let Some(directives) = field.directives.as_mut() else {
+                    continue;
+                };
+                let applied = directives.len();
+                directives.retain(|d| d.name != "inaccessible");
+                if directives.len() != applied {
+                    hidden.entry(ty.name.clone()).or_default().push(field.name.clone());
+                }
+            }
+        }
+        hidden
+    }
+
     /// Convert an `IntermediateType` to a compiled `TypeDefinition`.
     ///
     /// # Errors
@@ -25,10 +51,20 @@ impl SchemaConverter {
         intermediate: IntermediateType,
         declared: &DeclaredTypeNames,
     ) -> Result<TypeDefinition> {
+        // `@tenant_id` on an object type's field is read off the authored schema by the
+        // tenancy validation that runs before conversion (`AnnotatedTypeIndex`), and it
+        // drives the operation's tenant inject. It has done its work by the time the field
+        // is converted, so it is dropped here; on any other field nothing reads it and
+        // `convert_field` refuses it.
         let fields = intermediate
             .fields
             .into_iter()
-            .map(|f| Self::convert_field(f, declared))
+            .map(|mut f| {
+                if let Some(directives) = f.directives.as_mut() {
+                    directives.retain(|d| d.name != "tenant_id");
+                }
+                Self::convert_field(f, declared)
+            })
             .collect::<Result<Vec<_>>>()
             .context(format!("Failed to convert type '{}'", intermediate.name))?;
 
@@ -477,6 +513,24 @@ impl SchemaConverter {
                  the function, or compute the field inside the function that already produces \
                  the row.",
                 intermediate.name
+            );
+        }
+
+        // `@deprecated` compiles onto the field. On an object type's field,
+        // `@inaccessible` was lifted into the federation metadata before conversion
+        // (`take_inaccessible_fields`) and `@tenant_id` was consumed by tenancy
+        // validation (`convert_type`). Anything left would compile as a field without
+        // it, so it is refused by name.
+        if let Some(directive) =
+            intermediate.directives.iter().flatten().find(|d| d.name != "deprecated")
+        {
+            anyhow::bail!(
+                "Field '{}' applies `@{}`, which the compiled schema cannot carry. An output \
+                 field compiles `@deprecated` (or the `deprecated` key); a field of an object \
+                 type also takes `@tenant_id`, and `@inaccessible` in a federated schema. \
+                 Remove the directive.",
+                intermediate.name,
+                directive.name
             );
         }
 
