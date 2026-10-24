@@ -6,8 +6,8 @@ use fraiseql_error::FraiseQLError;
 
 use super::{
     HnswIterativeScan, IvfflatIterativeScan, PoolPrewarmConfig, PostgresAdapter, PostgresTlsConfig,
-    SearchPath, VectorScanConfig, build_projection_select_sql, build_where_select_sql,
-    build_where_select_sql_ordered, compose_startup_options,
+    ReadFrom, SearchPath, VectorScanConfig, build_projection_select_sql, build_where_select_sql,
+    build_where_select_sql_ordered, compose_startup_options, with_matched_count,
 };
 
 // ── build_where_select_sql ─────────────────────────────────────────────────
@@ -568,8 +568,14 @@ fn build_where_select_sql_ordered_appends_the_identity() {
         "status".to_string(),
         OrderDirection::Asc,
     )];
-    let (sql, _) =
-        build_where_select_sql_ordered("v_user", None, Some(10), Some(20), Some(&clauses)).unwrap();
+    let (sql, _) = build_where_select_sql_ordered(
+        ReadFrom::relation("v_user"),
+        None,
+        Some(10),
+        Some(20),
+        Some(&clauses),
+    )
+    .unwrap();
     assert!(
         sql.contains("ORDER BY data->>'status' ASC, data->>'id' ASC"),
         "a paginated read must order totally: {sql}"
@@ -591,8 +597,15 @@ fn build_projection_select_sql_appends_the_identity() {
         "status".to_string(),
         OrderDirection::Asc,
     )];
-    let (sql, _) =
-        build_projection_select_sql(&hint, "v_user", None, Some(10), None, Some(&clauses)).unwrap();
+    let (sql, _) = build_projection_select_sql(
+        &hint,
+        ReadFrom::relation("v_user"),
+        None,
+        Some(10),
+        None,
+        Some(&clauses),
+    )
+    .unwrap();
     assert!(
         sql.contains("ORDER BY data->>'status' ASC, data->>'id' ASC"),
         "the projection path pages the same way and needs the same order: {sql}"
@@ -605,6 +618,109 @@ fn an_unordered_paginated_read_is_still_unordered() {
     // no ordering is not a sequence to begin with, and manufacturing one would
     // turn every unordered list read into a sort. `warn_auto_params` reports that
     // case at compile time.
-    let (sql, _) = build_where_select_sql_ordered("v_user", None, Some(10), None, None).unwrap();
+    let (sql, _) =
+        build_where_select_sql_ordered(ReadFrom::relation("v_user"), None, Some(10), None, None)
+            .unwrap();
     assert!(!sql.contains("ORDER BY"), "{sql}");
+}
+
+// ── a function source ──────────────────────────────────────────────────────────
+
+fn label_is(value: &str) -> crate::where_clause::WhereClause {
+    crate::where_clause::WhereClause::Field {
+        path:     vec!["label".to_string()],
+        operator: crate::where_clause::WhereOperator::Eq,
+        value:    serde_json::json!(value),
+    }
+}
+
+#[test]
+fn a_function_source_is_called_with_its_parameters_first() {
+    let (sql, params) = build_where_select_sql_ordered(
+        ReadFrom::function("app.fn_line_items", 2),
+        Some(&label_is("Rental")),
+        Some(10),
+        Some(5),
+        None,
+    )
+    .unwrap();
+    assert!(
+        sql.starts_with(r#"SELECT data FROM "app"."fn_line_items"($1, $2) WHERE "#),
+        "{sql}"
+    );
+    assert!(sql.contains("= $3"), "{sql}");
+    assert!(sql.ends_with("LIMIT $4 OFFSET $5"), "{sql}");
+    assert_eq!(params.len(), 3, "the function's own arguments are bound by the caller");
+}
+
+#[test]
+fn a_function_of_no_parameters_is_still_called() {
+    let (sql, _) = build_where_select_sql_ordered(
+        ReadFrom::function("app.fn_today", 0),
+        None,
+        None,
+        None,
+        None,
+    )
+    .unwrap();
+    assert_eq!(sql, r#"SELECT data FROM "app"."fn_today"()"#);
+}
+
+#[test]
+fn a_projected_function_source_numbers_its_filter_after_the_parameters() {
+    let hint = SqlProjectionHint::new(
+        DatabaseType::PostgreSQL,
+        "jsonb_build_object('id', data->>'id')".to_string(),
+        50,
+    );
+    let clauses = [OrderByClause::new("label".to_string(), OrderDirection::Asc)];
+    let (sql, _) = build_projection_select_sql(
+        &hint,
+        ReadFrom::function("app.fn_line_items", 1),
+        Some(&label_is("Rental")),
+        Some(10),
+        None,
+        Some(&clauses),
+    )
+    .unwrap();
+    assert!(sql.contains(r#"FROM "app"."fn_line_items"($1) WHERE "#), "{sql}");
+    assert!(sql.contains("= $2"), "{sql}");
+    assert!(sql.contains("LIMIT $3"), "{sql}");
+}
+
+#[test]
+fn a_page_first_function_source_numbers_its_filter_after_the_parameters() {
+    let mut hint = SqlProjectionHint::new(
+        DatabaseType::PostgreSQL,
+        "jsonb_build_object('id', data->>'id')".to_string(),
+        50,
+    );
+    hint.reads_only_document = true;
+    let (sql, _) = build_projection_select_sql(
+        &hint,
+        ReadFrom::function("app.fn_line_items", 1),
+        Some(&label_is("Rental")),
+        Some(10),
+        None,
+        None,
+    )
+    .unwrap();
+    assert!(sql.contains(r#"FROM "app"."fn_line_items"($1) WHERE "#), "{sql}");
+    assert!(sql.contains("= $2"), "{sql}");
+    assert!(sql.contains("LIMIT $3"), "{sql}");
+}
+
+#[test]
+fn a_counted_function_source_counts_the_same_call() {
+    let from = ReadFrom::function("app.fn_line_items", 1);
+    let clause = label_is("Rental");
+    let (page, params) =
+        build_where_select_sql_ordered(from, Some(&clause), Some(10), None, None).unwrap();
+    let (sql, params) = with_matched_count(&page, params, from, Some(&clause), 50).unwrap();
+    assert!(
+        sql.contains(r#"FROM (SELECT 1 FROM "app"."fn_line_items"($1) WHERE "#),
+        "the count reads the call the page reads: {sql}"
+    );
+    assert!(sql.contains("LIMIT $4"), "the bound follows the page's placeholders: {sql}");
+    assert_eq!(params.len(), 3);
 }

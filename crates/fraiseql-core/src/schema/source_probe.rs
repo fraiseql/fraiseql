@@ -20,15 +20,29 @@ use crate::{
     schema::{CompiledSchema, MutationOperation},
 };
 
-/// Whether a `sql_source` names a relation (query backing) or a function
-/// (mutation backing). They are resolved differently: a relation via
-/// `to_regclass` / the relation catalog, a function via `pg_proc`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Whether a `sql_source` names a relation or a function. They are resolved
+/// differently: a relation via `to_regclass` / the relation catalog, a function via
+/// `pg_proc`.
+///
+/// A mutation's source is always a function. A query's is a relation unless it declares
+/// `sql_source_kind: "function"`: a `STABLE` set-returning function the query's
+/// arguments bind to, read like the relation it returns.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum SourceKind {
     /// A table / view / materialized view a query reads from.
+    #[default]
     Relation,
-    /// A SQL function a mutation calls.
+    /// A SQL function a mutation calls, or a function-backed query reads from.
     Function,
+}
+
+impl SourceKind {
+    /// Whether this is [`SourceKind::Relation`], the default a compiled query omits.
+    #[must_use]
+    pub const fn is_relation(&self) -> bool {
+        matches!(self, Self::Relation)
+    }
 }
 
 /// One database object a schema declares it depends on, parsed from a `sql_source`.
@@ -108,8 +122,9 @@ const fn mutation_source(mutation: &crate::schema::MutationDefinition) -> Option
 
 /// Build the work-list of database objects a compiled schema must be backed by.
 ///
-/// Queries contribute a [`SourceKind::Relation`] probe (their `sql_source` view),
-/// mutations a [`SourceKind::Function`] probe (their `sql_source`, or operation
+/// Queries contribute a [`SourceKind::Relation`] probe (their `sql_source` view) or, for a
+/// function root, a [`SourceKind::Function`] one; mutations a [`SourceKind::Function`]
+/// probe (their `sql_source`, or operation
 /// table). Operations with no SQL source (federation / non-SQL) are skipped — they
 /// have nothing to probe. This is the single definition both the CLI existence
 /// gate (#485) and the server fail-fast boot check (#487) consume.
@@ -123,7 +138,7 @@ pub fn sql_source_probes(schema: &CompiledSchema) -> Vec<SourceProbe> {
             probes.push(SourceProbe {
                 schema: schema_part,
                 name,
-                kind: SourceKind::Relation,
+                kind: query.sql_source_kind,
             });
         }
     }

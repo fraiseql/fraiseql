@@ -1719,6 +1719,10 @@ func (m *FraiseqlCi) integrationPostgres(ctx context.Context, source *dagger.Dir
 		"cargo test -p fraiseql-cli --features test-postgres --test mutation_contract_against_db -- --test-threads=1",
 		"cargo test -p fraiseql-cli --features test-postgres --test doctor_against_db -- --test-threads=1",
 		"cargo test -p fraiseql-cli --features test-postgres --test source_probe_against_db -- --test-threads=1",
+		// #1690 — a function root's function is checked against pg_proc: it binds the
+		// query's parameters, returns a set, and is not VOLATILE.
+		"echo '### cargo test -p fraiseql-cli --test function_root_against_db (#1690 function-root contract)'",
+		"cargo test -p fraiseql-cli --features test-postgres --test function_root_against_db -- --test-threads=1",
 		// #960 — the cascade RLS conformance proof (2-tenant isolation incl. the
 		// default-privilege-view LEAK proof) had never executed its assertions in
 		// CI: it self-skips without DATABASE_URL and only the DB-less test leg

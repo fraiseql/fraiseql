@@ -226,9 +226,9 @@ impl CompiledSchema {
 
         // (1) Query-sourced — owned entities. First-wins per return_type.
         for q in &self.queries {
-            if let Some(relation) = &q.sql_source {
+            if let Some(relation) = q.reads_relation() {
                 sources.entry(q.return_type.clone()).or_insert_with(|| EntitySource {
-                    relation:     relation.clone(),
+                    relation:     relation.to_string(),
                     jsonb_column: (!q.jsonb_column.is_empty()).then(|| q.jsonb_column.clone()),
                 });
             }

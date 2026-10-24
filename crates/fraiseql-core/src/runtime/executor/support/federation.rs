@@ -469,7 +469,7 @@ impl Executor {
                 .schema
                 .queries
                 .iter()
-                .find(|q| q.return_type == rep.typename && q.sql_source.is_some());
+                .find(|q| q.return_type == rep.typename && q.reads_relation().is_some());
 
             // requires_role: deny unless the request holds the role (anonymous or not).
             //
@@ -562,7 +562,7 @@ impl Executor {
             .schema
             .queries
             .iter()
-            .find(|q| q.return_type == typename && q.sql_source.is_some())
+            .find(|q| q.return_type == typename && q.reads_relation().is_some())
             .map(|q| q.inject_params.clone())
             .unwrap_or_default();
         if let Some(t) = self.ctx.schema.types.iter().find(|t| t.name.as_str() == typename) {
@@ -617,7 +617,7 @@ impl Executor {
                 .schema
                 .queries
                 .iter()
-                .find(|q| q.return_type == rep.typename && q.sql_source.is_some());
+                .find(|q| q.return_type == rep.typename && q.reads_relation().is_some());
             let inject_params = self.effective_inject_params(&rep.typename);
             if inject_params.is_empty() {
                 continue;

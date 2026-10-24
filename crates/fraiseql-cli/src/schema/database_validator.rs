@@ -806,8 +806,9 @@ pub async fn validate_schema_against_database(
     let relations = introspector.list_relations().await?;
     let (schema_qualified, unqualified) = build_relation_maps(&relations);
 
-    // Validate queries
-    for query in &schema.queries {
+    // Validate queries. A function root reads no relation: its function is checked
+    // by `function_root_contract`.
+    for query in schema.queries.iter().filter(|q| q.sql_source_kind.is_relation()) {
         if let Some(ref source) = query.sql_source {
             // L1: Check relation exists (qualified → to_regclass verbatim, bare → map).
             if !relation_source_exists(introspector, &schema_qualified, &unqualified, source)

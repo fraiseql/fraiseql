@@ -544,6 +544,7 @@ mod entities_authz {
             nullable: false,
             arguments: Vec::new(),
             sql_source: Some("v_user".to_string()),
+            sql_source_kind: crate::schema::SourceKind::Relation,
             description: None,
             auto_params: AutoParams::default(),
             deprecation: None,
@@ -776,6 +777,89 @@ mod entities_authz {
         );
     }
 
+    // ── a function root is no backing query of its entity ───────────────────────
+
+    /// `entities_user_schema` with a function root returning `User` listed first, so a
+    /// lookup that took the first query returning the type would take it.
+    fn with_a_function_root_first(
+        mut schema: CompiledSchema,
+        edit: impl FnOnce(&mut QueryDefinition),
+    ) -> CompiledSchema {
+        let mut root =
+            QueryDefinition::new("userScore", "User").with_sql_source_function("app.fn_user_score");
+        edit(&mut root);
+        schema.queries.insert(0, root);
+        schema
+    }
+
+    #[tokio::test]
+    async fn entities_are_gated_by_the_backing_query_not_a_function_root() {
+        let schema = with_a_function_root_first(entities_user_schema(None, IndexMap::new()), |q| {
+            q.requires_role = Some("auditor".to_string());
+        });
+        let adapter = Arc::new(CapturingMockAdapter::new(mock_user_results()));
+        let executor = Executor::new(schema, adapter.clone());
+        let result = executor
+            .execute_with_security(
+                entities_query(),
+                Some(&representations()),
+                &ctx_with_roles(&["viewer"]),
+            )
+            .await
+            .expect("the backing query admits a viewer");
+        assert!(result["data"].get("_entities").is_some(), "{result}");
+    }
+
+    #[tokio::test]
+    async fn entities_are_scoped_by_the_backing_querys_inject_params_not_a_function_roots() {
+        let mut tenant = IndexMap::new();
+        tenant.insert("tenant_id".to_string(), InjectedParamSource::Jwt("tenant_id".to_string()));
+        let schema = with_a_function_root_first(entities_user_schema(None, tenant), |q| {
+            q.inject_params
+                .insert("owner_id".to_string(), InjectedParamSource::Jwt("sub".to_string()));
+        });
+        let adapter = Arc::new(CapturingMockAdapter::new(mock_user_results()));
+        let executor = Executor::new(schema, adapter.clone());
+        executor
+            .execute_with_security(
+                entities_query(),
+                Some(&representations()),
+                &ctx_with_roles(&["viewer"]),
+            )
+            .await
+            .expect("a tenant-scoped entity read");
+        let sql = adapter.captured_aggregate_sql().expect("resolver must run");
+        assert!(sql.contains("tenant_id") && !sql.contains("owner_id"), "{sql}");
+    }
+
+    #[tokio::test]
+    async fn an_entitys_scoping_column_is_typed_by_the_backing_query_not_a_function_root() {
+        let mut tenant = IndexMap::new();
+        tenant.insert("tenant_id".to_string(), InjectedParamSource::Jwt("tenant_id".to_string()));
+        let schema = with_a_function_root_first(entities_user_schema(None, tenant.clone()), |q| {
+            q.inject_params = tenant;
+            q.native_columns.insert(
+                "tenant_id".to_string(),
+                crate::schema::NativeColumn {
+                    pg_type:  "uuid".to_string(),
+                    not_null: true,
+                },
+            );
+        });
+        let adapter = Arc::new(CapturingMockAdapter::new(mock_user_results()));
+        let executor = Executor::new(schema, adapter.clone());
+        executor
+            .execute_with_security(
+                entities_query(),
+                Some(&representations()),
+                &ctx_with_roles(&["viewer"]),
+            )
+            .await
+            .expect("a tenant-scoped entity read");
+        let sql = adapter.captured_aggregate_sql().expect("resolver must run");
+        assert!(!sql.contains("::uuid"), "the backing query declares no native column: {sql}");
+    }
+
     // ── #1142: a queryless federation entity can declare its own scoping ────
     //
     // `inject_params` lived only on an operation, so an entity no query returns — relation
@@ -888,6 +972,7 @@ mod entities_authz {
                 nullable:            false,
                 arguments:           Vec::new(),
                 sql_source:          Some("v_employee".to_string()),
+                sql_source_kind:     crate::schema::SourceKind::Relation,
                 description:         None,
                 auto_params:         AutoParams::default(),
                 deprecation:         None,
@@ -1597,6 +1682,7 @@ mod inject {
             nullable: false,
             arguments: Vec::new(),
             sql_source: Some("v_org_items".to_string()),
+            sql_source_kind: crate::schema::SourceKind::Relation,
             description: None,
             auto_params: AutoParams::default(),
             deprecation: None,
@@ -2049,6 +2135,7 @@ mod field_rbac {
             nullable:            false,
             arguments:           Vec::new(),
             sql_source:          Some("v_user".to_string()),
+            sql_source_kind:     crate::schema::SourceKind::Relation,
             description:         None,
             auto_params:         AutoParams::default(),
             deprecation:         None,
@@ -2782,6 +2869,7 @@ mod field_authz {
             nullable:            false,
             arguments:           Vec::new(),
             sql_source:          Some("v_user".to_string()),
+            sql_source_kind:     crate::schema::SourceKind::Relation,
             description:         None,
             auto_params:         AutoParams::default(),
             deprecation:         None,

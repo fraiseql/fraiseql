@@ -3,23 +3,12 @@
 //! Pure functions that build `WhereClause` values from inject params and
 //! explicit query arguments.
 
+pub use crate::schema::AUTO_PARAM_NAMES;
 use crate::{
     backend::{WhereClause, WhereOperator},
     error::{FraiseQLError, Result},
     schema::PaginationOrder,
 };
-
-/// Auto-wired argument names that are handled by the `auto_params` system.
-/// These are never treated as explicit WHERE filters.
-///
-/// A name added here must also be added to
-/// [`QueryDefinition::accepted_argument_names`](crate::schema::QueryDefinition::accepted_argument_names)
-/// unless the query declares it: since #1154 an argument no query accepts is a
-/// validation error, so a runtime-only name that is not in the accepted set is
-/// refused before the code reading it here ever runs.
-pub const AUTO_PARAM_NAMES: &[&str] = &[
-    "where", "limit", "offset", "orderBy", "first", "last", "after", "before", "nearest",
-];
 
 /// Parse the `nearest` similarity-search argument (#386).
 ///

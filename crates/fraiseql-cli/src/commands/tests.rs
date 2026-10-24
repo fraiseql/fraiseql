@@ -493,6 +493,25 @@ mod compile_tests {
         );
     }
 
+    /// A function root binds its arguments to the call, never to a column.
+    #[test]
+    fn a_function_roots_id_argument_infers_no_native_column() {
+        let mut root = make_query(
+            "lineItems",
+            Some("fn_line_items"),
+            "data",
+            vec![("assetId", FieldType::Id)],
+            std::collections::HashMap::new(),
+        );
+        root.sql_source_kind = fraiseql_core::schema::SourceKind::Function;
+        let mut schema = CompiledSchema {
+            queries: vec![root],
+            ..Default::default()
+        };
+        infer_native_columns_from_arg_types(&mut schema);
+        assert!(schema.queries[0].native_columns.is_empty());
+    }
+
     #[test]
     fn test_infer_uuid_arg_becomes_uuid_native_column() {
         let mut schema = CompiledSchema {

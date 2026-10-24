@@ -163,6 +163,7 @@ mod database_validator_tests {
             nullable:            false,
             arguments:           vec![],
             sql_source:          Some(sql_source.to_string()),
+            sql_source_kind:     fraiseql_core::schema::SourceKind::Relation,
             description:         None,
             auto_params:         AutoParams::default(),
             deprecation:         None,
@@ -256,6 +257,19 @@ mod database_validator_tests {
             "Expected no warnings, got: {:?}",
             report.warnings.len()
         );
+    }
+
+    /// A function root has no relation to find: `function_root_contract` checks the
+    /// function it reads instead.
+    #[tokio::test]
+    async fn a_function_root_is_not_looked_up_as_a_relation() {
+        let introspector = MockIntrospector::new(DatabaseType::PostgreSQL);
+        let mut root = make_query("lineItems", "LineItem", "fn_line_items");
+        root.sql_source_kind = fraiseql_core::schema::SourceKind::Function;
+        let schema = make_schema(vec![], vec![root]);
+
+        let report = validate_schema_against_database(&schema, &introspector).await.unwrap();
+        assert!(report.warnings.is_empty(), "{:?}", report.warnings);
     }
 
     #[tokio::test]
@@ -2198,6 +2212,7 @@ mod optimizer_tests {
                     localized:     false,
                 }],
                 sql_source:          Some("users".to_string()),
+                sql_source_kind:     fraiseql_core::schema::SourceKind::Relation,
                 description:         None,
                 auto_params:         AutoParams::default(),
                 deprecation:         None,
@@ -2257,6 +2272,7 @@ mod optimizer_tests {
                 nullable:            false,
                 arguments:           vec![],
                 sql_source:          Some("products".to_string()),
+                sql_source_kind:     fraiseql_core::schema::SourceKind::Relation,
                 description:         None,
                 auto_params:         AutoParams {
                     has_where:    false,

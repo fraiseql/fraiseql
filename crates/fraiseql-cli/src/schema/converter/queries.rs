@@ -3,7 +3,7 @@ use std::collections::{HashMap, HashSet};
 use anyhow::{Context, Result, bail};
 use fraiseql_core::schema::{
     ArgumentDefinition, AutoParams, CursorType, InjectedParamSource, PaginationOrder,
-    QueryDefinition,
+    QueryDefinition, SourceKind,
 };
 use tracing::warn;
 
@@ -107,6 +107,7 @@ impl SchemaConverter {
         // query that deliberately has none — a true statement about the wrong
         // mistake.
         Self::refuse_sql_settings_on_a_function_backed_query(&intermediate)?;
+        Self::refuse_reads_a_function_root_cannot_serve(&intermediate)?;
 
         // Validate relay constraints before conversion.
         if intermediate.relay {
@@ -203,6 +204,12 @@ impl SchemaConverter {
             intermediate.relay,
             defaults.pagination_order,
         )?;
+        let pagination_order = Self::function_root_pagination_order(
+            &intermediate.name,
+            intermediate.sql_source_kind,
+            pagination_order,
+            defaults.pagination_order,
+        )?;
 
         if intermediate.returns_list && !intermediate.relay {
             Self::warn_auto_params(&intermediate.name, &auto_params, pagination_order.as_ref());
@@ -264,6 +271,7 @@ impl SchemaConverter {
             nullable: intermediate.nullable,
             arguments,
             sql_source: intermediate.sql_source,
+            sql_source_kind: intermediate.sql_source_kind,
             function: intermediate.function,
             description: intermediate.description,
             auto_params,
@@ -415,6 +423,80 @@ impl SchemaConverter {
             }
         }
         Ok(())
+    }
+
+    /// Refuse the reads a function root cannot serve, naming the query and the
+    /// setting.
+    ///
+    /// A function root's rows exist only as the result of one call bound to the request's
+    /// arguments. Every read below issues a statement of its own over the query's relation —
+    /// a keyset page, a `COUNT(*)`, a streamed export — so each would have nothing to read.
+    /// The server refuses those three too; refusing here says so before the first request does.
+    /// A REST block is refused here only: the surface derives a detail route by id over the
+    /// relation, which the server refuses as a row-shaped read.
+    fn refuse_reads_a_function_root_cannot_serve(query: &IntermediateQuery) -> Result<()> {
+        if query.sql_source_kind.is_relation() {
+            return Ok(());
+        }
+        let name = &query.name;
+        let Some(source) = query.sql_source.as_deref() else {
+            bail!(
+                "Query '{name}': sql_source_kind = \"function\" names no function. Set \
+                 sql_source to the set-returning function this query reads from."
+            );
+        };
+        let refused = if query.relay {
+            Some((
+                "relay = true",
+                "a Relay connection pages by keyset over a cursor column of the relation",
+            ))
+        } else if query.count {
+            Some(("count = true", "the count sibling is a SELECT COUNT(*) over the relation"))
+        } else if query.rest_stream {
+            Some(("rest_stream = true", "a streamed export reads the relation by a cursor"))
+        } else if query.rest.is_some() {
+            Some((
+                "a rest block",
+                "the REST surface derives list and detail routes over the relation",
+            ))
+        } else {
+            None
+        };
+        if let Some((setting, why)) = refused {
+            bail!(
+                "Query '{name}': {setting} cannot be combined with sql_source_kind = \
+                 \"function\" (sql_source '{source}'): {why}, and this query reads the rows \
+                 of one call. Return what it needs from the function, or read a view instead."
+            );
+        }
+        Ok(())
+    }
+
+    /// The page order of a function root: only one its author declared.
+    ///
+    /// The order a relation's pages fall back to is derived from the entity identity
+    /// (`pk_<type>`, else `id`), a column a function returning `data` has not got. So a function
+    /// root derives none, and pages in the order its function returns rows unless the client
+    /// orders them; under `[query_defaults] pagination_order = "refuse"` its author declares
+    /// the column instead.
+    fn function_root_pagination_order(
+        name: &str,
+        kind: SourceKind,
+        resolved: Option<PaginationOrder>,
+        posture: PaginationPosture,
+    ) -> Result<Option<PaginationOrder>> {
+        if kind.is_relation() || resolved != Some(PaginationOrder::Identity) {
+            return Ok(resolved);
+        }
+        if posture == PaginationPosture::Refuse {
+            bail!(
+                "Query '{name}': sql_source_kind = \"function\" has no entity identity to \
+                 derive a page order from, and [query_defaults] pagination_order = \"refuse\" \
+                 needs a total order for every paginated read. Declare pagination_order = \
+                 \"<column>\", a unique column the function returns."
+            );
+        }
+        Ok(None)
     }
 
     /// Convert `IntermediateArgument` to `ArgumentDefinition`

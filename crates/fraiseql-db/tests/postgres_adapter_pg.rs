@@ -3212,6 +3212,7 @@ async fn a_counted_page_keeps_its_documents_key_order() {
                 limit:         Some(3),
                 offset:        None,
                 matched_up_to: Some(100),
+                source_args:   None,
             },
             &[],
             ReadRouting::Any,

@@ -63,6 +63,7 @@ fn pg_function(in_types: &[&str], in_names: &[Option<&str>], out: Vec<OutColumn>
         in_names:    in_names.iter().map(|n| n.map(str::to_string)).collect(),
         out_columns: out,
         returns_set: true,
+        volatility:  "v".to_string(),
         language:    "plpgsql".to_string(),
         source:      String::new(),
     }

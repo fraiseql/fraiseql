@@ -285,6 +285,55 @@ wasted on any list not rendered with page numbers. Refused at compile time when
 `returns_list` is false, when `sql_source` is absent, and when `relay` is true — a Relay
 connection already exposes `totalCount` over the same rows.
 
+## Query Read From a Function
+
+Some reads are computed per request, not stored: the lines a pricing rule produces for one
+asset, or the check of an identifier the client typed. `"sql_source_kind": "function"` says the
+query's `sql_source` names a `STABLE` set-returning function, called with the query's arguments,
+rather than a view (#1690):
+
+```json
+{
+  "name": "lineItems",
+  "return_type": "LineItem",
+  "returns_list": true,
+  "sql_source": "billing.fn_line_items",
+  "sql_source_kind": "function",
+  "arguments": [{"name": "assetId", "type": "ID", "nullable": false}],
+  "inject_params": {"tenant_id": "jwt:tenant_id"}
+}
+```
+
+```sql
+CREATE FUNCTION billing.fn_line_items(p_asset_id uuid, p_tenant_id text)
+RETURNS TABLE(data jsonb) LANGUAGE sql STABLE AS $$ … $$;
+```
+
+The server reads it as `SELECT data FROM billing.fn_line_items($1, $2)`, binding by position:
+the declared arguments in order, auto-params (`where`, `orderBy`, `limit`, `offset`, …) left out,
+then one parameter per `inject_params` entry in order. An argument the request omits is bound
+as its default, else `NULL`. The function's rows are then read like a view's: `where`,
+`orderBy`, `limit` and `offset` apply to them, the type's row policy applies, and the result is
+cached when the query declares `cache_ttl_seconds`, keyed by the bound arguments. A function
+root is not cached without a TTL, because nothing evicts it: no write names the rows a call
+computes. List `additional_views` to evict it when a view it reads changes.
+
+An `inject_params` entry is a parameter of the call here, not a `WHERE` condition, so a
+tenant-bound function must filter on it itself. An anonymous read of a query with inject params
+is refused, as for a view.
+
+The compiler derives no page order for a function root: the entity identity it falls back to
+(`pk_<type>`, else `id`) is a column a function returning `data` has not got. A page without
+`orderBy` comes in the order the function returns rows. Declare `pagination_order` to name a
+unique column the function returns; `[query_defaults] pagination_order = "refuse"` requires it.
+
+Refused at compile time beside `relay`, `count`, `rest_stream` and a `rest` block, and when
+`sql_source` is absent. Each of those reads the relation's rows with a statement of its own,
+and a function root's rows exist only as the result of one call. The server refuses a Relay
+connection, a count, a streamed export and a composed or row-shaped read of one, and the node
+lookup never picks a function root as "the query that reads" a type. `compile --database` and `validate --against-db` check the function against the
+catalog ([database contract](guides/database-contract-validation.md#the-function-a-query-reads-1690)).
+
 ## Mutation with Cache Invalidation
 
 ```json

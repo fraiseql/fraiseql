@@ -481,10 +481,7 @@ pub(in super::super) fn own_read<'a>(
     type_name: &str,
 ) -> Option<&'a QueryDefinition> {
     let reads = |q: &&QueryDefinition| {
-        q.return_type == type_name
-            && q.function.is_none()
-            && q.sql_source.is_some()
-            && !q.returns_count
+        q.return_type == type_name && q.reads_relation().is_some() && !q.returns_count
     };
     schema
         .queries

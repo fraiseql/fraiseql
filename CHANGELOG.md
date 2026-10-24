@@ -296,6 +296,20 @@ disagreed, and the promise was the part that was wrong.
 
 ### Added
 
+- **A query can read from a `STABLE` set-returning function (#1690).** `"sql_source_kind":
+  "function"` says the query's `sql_source` names a function called with the query's
+  arguments, for reads computed per request rather than stored: the lines a rule produces
+  for one row, or the check of a value the client typed. The server reads `SELECT data FROM
+  fn($1, …)`, binding the declared arguments in order (auto-params left out), then each
+  inject param. `where`, `orderBy`, `limit`, `offset`, the row policy and field projection
+  apply to the function's rows as to a view's. The result is cached only when the query
+  declares `cache_ttl_seconds`, keyed by the bound arguments and evicted through
+  `additional_views`. `compile --database` and `validate --against-db` refuse a function that
+  does not exist, takes another number of parameters, returns one value, lacks a `json`/`jsonb`
+  `data` column, or is `VOLATILE`. A Relay connection, a count sibling, a streamed export and
+  a REST route are refused beside a function root at compile time; the server refuses the first
+  three, and a composed or row-shaped read of one, and the node lookup never resolves a type
+  through one.
 - **`run_as.user_id`: a function's or a source's background identity can call a mutation
   that injects its caller's id (#1700).** Under `run_as`, `jwt:sub` and `jwt:user_id`
   resolved to `system_job:<name>`, so a mutation injecting `p_user_id` from `jwt:sub` into

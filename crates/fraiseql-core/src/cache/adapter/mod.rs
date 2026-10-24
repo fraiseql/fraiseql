@@ -878,6 +878,7 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
     ) -> Result<Vec<JsonbValue>> {
         let request = crate::backend::ProjectionRequest {
             view,
+            source_args: None,
             projection,
             where_clause,
             order_by,

@@ -569,7 +569,7 @@ impl QueryRunner {
             .schema
             .queries
             .iter()
-            .find(|q| q.return_type == type_name && q.sql_source.is_some())
+            .find(|q| q.return_type == type_name && q.reads_relation().is_some())
             .ok_or_else(|| FraiseQLError::Validation {
                 message: format!("node query: no registered SQL view for type '{type_name}'"),
                 path:    Some("node.id".to_string()),
@@ -671,6 +671,7 @@ impl QueryRunner {
                 .execute_with_projection_arc_with_session(
                     &crate::backend::ProjectionRequest {
                         view:          &sql_source,
+                        source_args:   None,
                         projection:    Some(&projection_hint),
                         where_clause:  Some(&where_clause),
                         order_by:      None,
@@ -801,7 +802,7 @@ impl QueryRunner {
                 .schema
                 .queries
                 .iter()
-                .find(|q| q.return_type == type_name && q.sql_source.is_some())
+                .find(|q| q.return_type == type_name && q.reads_relation().is_some())
             else {
                 continue;
             };

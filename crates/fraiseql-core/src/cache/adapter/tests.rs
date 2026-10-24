@@ -45,6 +45,26 @@ impl DatabaseAdapter for MockAdapter {
         true
     }
 
+    // A test double: a function source is answered like a relation, so a test
+    // counts what reaches the database.
+    async fn execute_with_projection_arc_with_session(
+        &self,
+        request: &crate::backend::ProjectionRequest<'_>,
+        _session_vars: &[(&str, &str)],
+        _routing: ReadRouting,
+    ) -> Result<Arc<Vec<JsonbValue>>> {
+        self.execute_with_projection(
+            request.view,
+            request.projection,
+            request.where_clause,
+            request.limit,
+            request.offset,
+            request.order_by,
+        )
+        .await
+        .map(Arc::new)
+    }
+
     // A measurement the wrapper must pass through, not answer with the trait's `None` (#633).
     async fn schema_storage_bytes(&self, schema: &str) -> Result<Option<u64>> {
         Ok(Some(schema.len() as u64))
@@ -1808,4 +1828,84 @@ async fn a_composed_fill_straddling_a_write_is_refused_only_when_its_collection_
 
     assert!(cache.get(1).unwrap().is_none(), "p1's fill read the list before the comment");
     assert!(cache.get(2).unwrap().is_some(), "p2's fill is not stale");
+}
+
+// ── a function source ──────────────────────────────────────────────────────────
+
+fn function_read(args: &[serde_json::Value]) -> crate::backend::ProjectionRequest<'_> {
+    crate::backend::ProjectionRequest {
+        source_args: Some(args),
+        ..crate::backend::ProjectionRequest::new("app.fn_line_items")
+    }
+}
+
+/// A function reads tables no mutation names it by, so nothing would ever evict it: it is
+/// cached only when its query declared how stale it may be.
+#[tokio::test]
+async fn an_unannotated_function_source_is_not_cached_even_without_a_schema() {
+    let adapter = CachedDatabaseAdapter::new(
+        MockAdapter::new(),
+        QueryResultCache::new(CacheConfig::enabled()),
+        "1.0.0".to_string(),
+    );
+    let args = [json!("a1")];
+    for _ in 0..2 {
+        adapter.execute_with_projection_impl(&function_read(&args), &[]).await.unwrap();
+    }
+    assert_eq!(adapter.inner().call_count(), 2);
+}
+
+#[tokio::test]
+async fn an_annotated_function_source_is_served_from_the_cache_for_the_same_arguments() {
+    let adapter = CachedDatabaseAdapter::new(
+        MockAdapter::new(),
+        QueryResultCache::new(CacheConfig::enabled()),
+        "1.0.0".to_string(),
+    )
+    .with_view_ttl_overrides(HashMap::from([("app.fn_line_items".to_string(), 60)]));
+    let args = [json!("a1")];
+    for _ in 0..2 {
+        adapter.execute_with_projection_impl(&function_read(&args), &[]).await.unwrap();
+    }
+    assert_eq!(adapter.inner().call_count(), 1);
+}
+
+#[tokio::test]
+async fn a_cached_function_source_is_keyed_on_its_arguments() {
+    let adapter = CachedDatabaseAdapter::new(
+        MockAdapter::new(),
+        QueryResultCache::new(CacheConfig::enabled()),
+        "1.0.0".to_string(),
+    )
+    .with_view_ttl_overrides(HashMap::from([("app.fn_line_items".to_string(), 60)]));
+    for args in [[json!("ab"), json!("c")], [json!("a"), json!("bc")]] {
+        adapter.execute_with_projection_impl(&function_read(&args), &[]).await.unwrap();
+    }
+    assert_eq!(adapter.inner().call_count(), 2, "two calls are two reads");
+}
+
+/// A function root's rows come from tables no write names it by: the views its query lists in
+/// `additional_views` are what evicts it, as for a view.
+#[tokio::test]
+async fn a_cached_function_source_is_evicted_by_the_views_its_query_lists() {
+    let mut root = crate::schema::QueryDefinition::new("lineItems", "LineItem")
+        .returning_list()
+        .with_sql_source_function("app.fn_line_items");
+    root.cache_ttl_seconds = Some(60);
+    root.additional_views = vec!["v_price".to_string()];
+    let schema = CompiledSchema {
+        queries: vec![root],
+        ..Default::default()
+    };
+    let adapter = CachedDatabaseAdapter::new(
+        MockAdapter::new(),
+        QueryResultCache::new(CacheConfig::enabled()),
+        "1.0.0".to_string(),
+    )
+    .with_cache_metadata_from_schema(&schema);
+    let args = [json!("a1")];
+    adapter.execute_with_projection_impl(&function_read(&args), &[]).await.unwrap();
+    adapter.invalidate_views(&[ViewName::from("v_price")]).unwrap();
+    adapter.execute_with_projection_impl(&function_read(&args), &[]).await.unwrap();
+    assert_eq!(adapter.inner().call_count(), 2, "a write to v_price re-reads the call");
 }

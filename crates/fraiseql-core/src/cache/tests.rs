@@ -843,6 +843,7 @@ mod key_tests {
             nullable:            false,
             arguments:           vec![],
             sql_source:          Some("v_user".to_string()),
+            sql_source_kind:     crate::schema::SourceKind::Relation,
             description:         None,
             auto_params:         AutoParams {
                 has_where:    true,
@@ -886,6 +887,7 @@ mod key_tests {
             nullable:            false,
             arguments:           vec![],
             sql_source:          None, // No SQL source (custom resolver)
+            sql_source_kind:     crate::schema::SourceKind::Relation,
             description:         None,
             auto_params:         AutoParams {
                 has_where:    false,
@@ -929,6 +931,7 @@ mod key_tests {
             nullable:            false,
             arguments:           vec![],
             sql_source:          Some("v_user_with_posts".to_string()),
+            sql_source_kind:     crate::schema::SourceKind::Relation,
             description:         None,
             auto_params:         AutoParams::default(),
             deprecation:         None,

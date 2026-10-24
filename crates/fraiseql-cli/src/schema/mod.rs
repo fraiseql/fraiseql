@@ -7,6 +7,7 @@ pub mod advanced_types;
 pub mod artifact;
 pub mod converter;
 pub mod database_validator;
+pub mod function_root_contract;
 pub mod intermediate;
 pub mod merger;
 pub mod multi_file_loader;

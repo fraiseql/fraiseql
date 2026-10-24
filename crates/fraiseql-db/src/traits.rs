@@ -656,6 +656,7 @@ pub trait DatabaseAdapter: Send + Sync + 'static {
         &self,
         request: &ProjectionRequest<'_>,
     ) -> Result<Arc<Vec<JsonbValue>>> {
+        refuse_function_source(self, request)?;
         self.execute_with_projection(
             request.view,
             request.projection,
@@ -1494,6 +1495,27 @@ pub(crate) fn refuse_session_variables<A: DatabaseAdapter + ?Sized>(
              would ignore every policy that reads them; refused rather than read unscoped",
             std::any::type_name::<A>(),
             adapter.database_type()
+        ),
+    })
+}
+
+/// Refuse a function source on a read that would hand `request.view` to a
+/// relation-only method: the function's name read as a relation fails at best, and reads
+/// a same-named relation unscoped by the function's arguments at worst.
+pub(crate) fn refuse_function_source<A: DatabaseAdapter + ?Sized>(
+    adapter: &A,
+    request: &ProjectionRequest<'_>,
+) -> Result<()> {
+    if request.source_args.is_none() {
+        return Ok(());
+    }
+    Err(fraiseql_error::FraiseQLError::Unsupported {
+        message: format!(
+            "the {} adapter ({}) cannot read the set-returning function `{}` as a query \
+             source; refused rather than read it as a relation",
+            std::any::type_name::<A>(),
+            adapter.database_type(),
+            request.view
         ),
     })
 }

@@ -41,6 +41,14 @@ pub async fn each_write<W: Writer + ?Sized>(
     Ok(answers)
 }
 
+/// The source a projected read named: a relation (`args: None`) or a function and
+/// the arguments bound to it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CapturedSource {
+    pub view: String,
+    pub args: Option<Vec<serde_json::Value>>,
+}
+
 /// Capturing mock that records the WHERE clause and limit/offset it receives.
 /// Used to verify parameter threading from executor to adapter.
 pub struct CapturingMockAdapter {
@@ -75,6 +83,8 @@ pub struct CapturingMockAdapter {
     pub captured_composed:         std::sync::Mutex<Option<crate::backend::ComposedLevel>>,
     /// The projection hint the last projected read carried.
     pub captured_projection:       std::sync::Mutex<Option<crate::schema::SqlProjectionHint>>,
+    /// The source the last projected read named, with its function arguments.
+    pub captured_source:           std::sync::Mutex<Option<CapturedSource>>,
     /// What `supports_composed_reads` answers; `true` unless built
     /// [`without_composed_reads`](Self::without_composed_reads).
     pub composes_reads:            bool,
@@ -114,6 +124,7 @@ impl CapturingMockAdapter {
             captured_row_read: std::sync::Mutex::new(None),
             captured_composed: std::sync::Mutex::new(None),
             captured_projection: std::sync::Mutex::new(None),
+            captured_source: std::sync::Mutex::new(None),
             composes_reads: true,
         }
     }
@@ -188,6 +199,10 @@ impl CapturingMockAdapter {
     pub fn captured_composed(&self) -> Option<crate::backend::ComposedLevel> {
         self.captured_composed.lock().unwrap().clone()
     }
+
+    pub fn captured_source(&self) -> Option<CapturedSource> {
+        self.captured_source.lock().unwrap().clone()
+    }
 }
 
 // Reason: DatabaseAdapter is defined with #[async_trait]; all implementations must match
@@ -238,7 +253,22 @@ impl DatabaseAdapter for CapturingMockAdapter {
         routing: crate::backend::types::ReadRouting,
     ) -> Result<std::sync::Arc<Vec<JsonbValue>>> {
         *self.captured_routing.lock().unwrap() = Some(routing);
-        self.execute_with_projection_arc(request).await
+        *self.captured_source.lock().unwrap() = Some(CapturedSource {
+            view: request.view.to_string(),
+            args: request.source_args.map(<[serde_json::Value]>::to_vec),
+        });
+        // The trait's default refuses a function source; this double answers it as it
+        // answers a relation, so a test sees what the executor asked for.
+        self.execute_with_projection(
+            request.view,
+            request.projection,
+            request.where_clause,
+            request.limit,
+            request.offset,
+            request.order_by,
+        )
+        .await
+        .map(std::sync::Arc::new)
     }
 
     async fn execute_composed_with_session(
@@ -639,6 +669,7 @@ pub fn test_schema() -> CompiledSchema {
         nullable:            false,
         arguments:           Vec::new(),
         sql_source:          Some("v_user".to_string()),
+        sql_source_kind:     crate::schema::SourceKind::Relation,
         description:         None,
         // The fixtures built on this schema paginate and filter (`users(limit: 100)`),
         // and since #1154 an argument the query does not accept is a validation error
