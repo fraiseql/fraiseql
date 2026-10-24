@@ -336,8 +336,9 @@ impl SchemaConverter {
         // is its only route. Routing it here rather than converting it as an object type is
         // what keeps the compiled schema GraphQL-legal: an argument may only be typed with
         // an input type (§3.10).
-        let (input_marked_types, object_types): (Vec<_>, Vec<_>) =
+        let (input_marked_types, mut object_types): (Vec<_>, Vec<_>) =
             intermediate.types.into_iter().partition(|t| t.is_input);
+        let inaccessible_fields = Self::take_inaccessible_fields(&mut object_types);
 
         let types = object_types
             .into_iter()
@@ -496,11 +497,14 @@ impl SchemaConverter {
             sources: intermediate.sources.clone().unwrap_or_default(), /* #573 scheduled ingress
                                                                         * sources */
             subscribable, // @subscribable capture-trigger declarations (#366)
-            federation: intermediate
-                .federation_config
-                .map(serde_json::from_value)
-                .transpose()
-                .context("federation_config: invalid JSON structure")?,
+            federation: Self::with_inaccessible_fields(
+                intermediate
+                    .federation_config
+                    .map(serde_json::from_value)
+                    .transpose()
+                    .context("federation_config: invalid JSON structure")?,
+                inaccessible_fields,
+            )?,
             security: intermediate
                 .security
                 .map(serde_json::from_value)
@@ -646,6 +650,40 @@ impl SchemaConverter {
 
         info!("Schema conversion successful");
         Ok(compiled)
+    }
+
+    /// Merge the `@inaccessible` fields lifted off the authored types into the
+    /// compiled `federation` block.
+    ///
+    /// # Errors
+    ///
+    /// Refuses `@inaccessible` in a schema with no enabled `federation` section: the
+    /// directive hides a field from a supergraph, and without one it would hide nothing
+    /// while reading as if it did.
+    fn with_inaccessible_fields(
+        federation: Option<fraiseql_core::schema::FederationConfig>,
+        hidden: std::collections::BTreeMap<String, Vec<String>>,
+    ) -> Result<Option<fraiseql_core::schema::FederationConfig>> {
+        if hidden.is_empty() {
+            return Ok(federation);
+        }
+        let Some(mut federation) = federation.filter(|f| f.enabled) else {
+            let named: Vec<String> = hidden
+                .iter()
+                .flat_map(|(ty, fields)| fields.iter().map(move |f| format!("{ty}.{f}")))
+                .collect();
+            anyhow::bail!(
+                "`@inaccessible` on {} needs federation: it hides a field from the \
+                 supergraph, and this schema has no enabled `federation` section, so the \
+                 field would stay visible. Enable federation, or remove the directive and \
+                 the field.",
+                named.join(", ")
+            );
+        };
+        for (ty, fields) in hidden {
+            federation.inaccessible_fields.entry(ty).or_default().extend(fields);
+        }
+        Ok(Some(federation))
     }
 
     /// Rewrite mutation/query argument types of the form `Object(name)` (and lists

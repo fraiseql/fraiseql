@@ -216,7 +216,7 @@ A single field within a type or input type.
 | `type` | `string` | yes | Field type name (serialised as `"type"`, not `"field_type"`) |
 | `nullable` | `bool` | yes | Whether the field is nullable |
 | `description` | `string?` | no | From docstring |
-| `directives` | `IntermediateAppliedDirective[]?` | no | Applied directives |
+| `directives` | `IntermediateAppliedDirective[]?` | no | Applied directives: `@deprecated`; on an object type's field also `@tenant_id`, and `@inaccessible` in a federated schema. Any other directive fails the compile |
 | `requires_scope` | `string?` | no | JWT scope required to access this field. **Exactly one** — there is no `requires_scopes`; a multi-scope declaration cannot be honoured and is refused by the SDKs |
 | `on_deny` | `string?` | no | `"reject"` (default) or `"mask"` when scope check fails |
 
@@ -224,6 +224,12 @@ There is **no** `computed` on a field: it is an authoring-time flag that an SDK'
 CRUD generator consumes before export, and emitting it fails the compile. Deprecation is
 the `deprecated` key (`IntermediateDeprecation`); a `@deprecated` entry in `directives` is
 the older spelling and still works, and the key wins when both are present.
+
+`@inaccessible` hides the field from the supergraph. The compiler moves it into the
+compiled `federation.inaccessible_fields` (type name → field names), from which the
+`_service` SDL renders the directive, introspection omits the field and `_entities` never
+selects it. In a schema without an enabled `federation` section it is refused, since it
+would hide nothing. On an interface field it is refused too.
 
 ### `IntermediateEnum` / `IntermediateEnumValue`
 

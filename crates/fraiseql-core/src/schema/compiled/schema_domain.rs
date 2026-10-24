@@ -187,6 +187,31 @@ impl CompiledSchema {
                 });
             }
 
+            // `@inaccessible` fields, on an entity, a shared value type or any other
+            // object type: the SDL renders the directive from `field_directives`, and
+            // the introspection filter and `_entities` read `inaccessible_fields`.
+            for (name, fields) in &fed.inaccessible_fields {
+                let index = types.iter().position(|t| &t.name == name).unwrap_or_else(|| {
+                    types.push(FederatedType {
+                        name:                name.clone(),
+                        keys:                Vec::new(),
+                        is_extends:          false,
+                        external_fields:     Vec::new(),
+                        shareable_fields:    Vec::new(),
+                        inaccessible_fields: Vec::new(),
+                        field_directives:    HashMap::new(),
+                        type_shareable:      false,
+                    });
+                    types.len() - 1
+                });
+                let federated = &mut types[index];
+                for field in fields {
+                    federated.field_directives.entry(field.clone()).or_default().inaccessible =
+                        true;
+                    federated.inaccessible_fields.push(field.clone());
+                }
+            }
+
             crate::federation::FederationMetadata {
                 enabled: fed.enabled,
                 version: fed.version.clone().unwrap_or_else(|| "v2".to_string()),

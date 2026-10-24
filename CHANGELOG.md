@@ -27,6 +27,11 @@ disagreed, and the promise was the part that was wrong.
   An embedder calling `build_drains` directly applies
   `fraiseql_cdc_sinks::outbox_sink_state_migration_sql()` through
   `fraiseql_server::migration_lock::run_migration` first.
+- **`fraiseql compile` refuses a directive an output field cannot carry (#1706).** Any
+  directive on an output field other than `@deprecated`, `@tenant_id` (object types) and,
+  in a federated schema, `@inaccessible` (`@tag` included) compiled clean and was dropped.
+  It is now refused, naming the field and the directive. `@tenant_id` on an interface field,
+  where tenancy validation never read it, is refused too.
 - **`fraiseql compile` refuses what an input field cannot carry, instead of dropping it
   (#1692).** A type marked `is_input: true` compiled each field as an input field and
   silently discarded `on_deny`, `authorize`, `function`, `hierarchy`, `unique`,
@@ -478,6 +483,14 @@ disagreed, and the promise was the part that was wrong.
 
 ### Security
 
+- **An `@inaccessible` output field is hidden from the supergraph (#1706).** An output
+  field's `directives` were dropped at compile, except `@deprecated`. A field declaring
+  `@inaccessible` compiled clean and the `_service` SDL rendered it without the
+  directive, so a field the author hid stayed visible in the supergraph and in
+  introspection. The compiled `federation` block now carries `inaccessible_fields`. The
+  SDL renders `@inaccessible`, introspection omits the field, and `_entities` never
+  selects it. `@inaccessible` in a schema without enabled federation, or on an interface
+  field, fails the compile.
 - **A function-backed query projects and gates its nested objects (#1693).** Affects
   2.15.0, 2.16.0, 2.17.0 and 2.17.1. A `request:query` root field projected its top-level
   fields and the items of nested lists, but returned each nested single object as the
