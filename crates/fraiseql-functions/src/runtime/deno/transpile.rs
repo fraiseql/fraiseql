@@ -14,9 +14,12 @@
 //! set (the default); with it off the `JavaScript` is executed byte-for-byte
 //! unchanged.
 
+use std::ops::Range;
+
 use deno_ast::{
-    EmitOptions, MediaType, ModuleSpecifier, ParseParams, SourceMapOption, TranspileModuleOptions,
-    TranspileOptions,
+    EmitOptions, MediaType, ModuleSpecifier, ParseParams, SourceMapOption, SourceRangedForSpanned,
+    TranspileModuleOptions, TranspileOptions,
+    swc::ast::{ModuleDecl, ModuleItem},
 };
 
 /// The synthetic specifier the guest source is parsed under. It surfaces in
@@ -66,4 +69,52 @@ pub fn transpile_typescript(source: &str) -> Result<String, String> {
         .into_source();
 
     Ok(emitted.text)
+}
+
+/// Where the module's `export default` item is, and the expression or declaration it
+/// exports, as byte ranges of `source`.
+///
+/// Found by parsing the `JavaScript` the isolate will run, so the words `export default`
+/// in a comment or a string literal are not mistaken for the entry point.
+///
+/// # Errors
+///
+/// Returns a `SyntaxError: …`-prefixed string when the source does not parse or has no
+/// default export: either way there is no function to call.
+pub fn default_export(source: &str) -> Result<(Range<usize>, Range<usize>), String> {
+    let specifier = ModuleSpecifier::parse(GUEST_SPECIFIER)
+        .map_err(|e| format!("SyntaxError: invalid guest specifier: {e}"))?;
+
+    let parsed = deno_ast::parse_module(ParseParams {
+        specifier,
+        text: source.into(),
+        media_type: MediaType::JavaScript,
+        capture_tokens: false,
+        scope_analysis: false,
+        maybe_syntax: None,
+    })
+    .map_err(|diagnostic| diagnostic.to_string())?;
+
+    let start = parsed.text_info_lazy().range().start;
+    parsed
+        .program_ref()
+        .unwrap_module()
+        .body
+        .iter()
+        .find_map(|item| match item {
+            ModuleItem::ModuleDecl(ModuleDecl::ExportDefaultExpr(export)) => Some((
+                export.range().as_byte_range(start),
+                export.expr.range().as_byte_range(start),
+            )),
+            ModuleItem::ModuleDecl(ModuleDecl::ExportDefaultDecl(export)) => Some((
+                export.range().as_byte_range(start),
+                export.decl.range().as_byte_range(start),
+            )),
+            _ => None,
+        })
+        .ok_or_else(|| {
+            "SyntaxError: the function module has no default export, so there is no function \
+             to call. Export it with `export default`."
+                .to_string()
+        })
 }

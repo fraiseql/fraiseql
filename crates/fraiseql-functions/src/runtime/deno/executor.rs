@@ -21,7 +21,7 @@ use std::{
 use deno_core::{Extension, JsRuntime, JsRuntimeForSnapshot, OpState, RuntimeOptions, op2, v8};
 use serde_json::Value;
 
-use super::{ops::DenoHostContext, watchdog};
+use super::{ops::DenoHostContext, transpile, watchdog};
 use crate::{
     host::dyn_context::DynHostContext,
     types::{LogEntry, LogLevel, ResourceLimits},
@@ -158,26 +158,39 @@ fn make_fraiseql_extension(
 /// Wrap the user-provided source so the default-exported function is called with
 /// the event data and the result stored in `globalThis.__fraiseql_result`.
 ///
-/// Handles both:
+/// The default export is bound in place as `const __fn = <expression>;`, for every form:
 ///   `export default async (event) => { ... };`
-///   `export default async function(event) { ... }`
+///   `export default async function name(event) { ... }`
+///
+/// The binding is always terminated. Without the `;`, a declaration ending in `}` is
+/// followed by the appended `(async () => ...)()`, and the parser reads that as a call
+/// of the function with the invocation as its argument. The item is located by
+/// [`transpile::default_export`], not by matching text, so the same words in a comment
+/// or a string are left alone; and it is rewritten on its own line, so a stack trace
+/// still points into the author's source.
 ///
 /// The wrapped code also catches any thrown exception and stores it in
 /// `globalThis.__fraiseql_error`.
-fn wrap_source(source: &str, event_json: &str) -> String {
-    // Convert "export default <expr>" to "const __fn = <expr>"
-    let inner = source
-        .replace("export default async function", "const __fn = async function")
-        .replace("export default async", "const __fn = async")
-        .replace("export default function", "const __fn = function")
-        .replace("export default", "const __fn =");
+///
+/// # Errors
+///
+/// Returns a `SyntaxError: …` string when the source does not parse or has no default
+/// export.
+fn wrap_source(source: &str, event_json: &str) -> Result<String, String> {
+    let (item, exported) = transpile::default_export(source)?;
+    let inner = format!(
+        "{}const __fn = {};{}",
+        &source[..item.start],
+        &source[exported],
+        &source[item.end..]
+    );
 
     // Injected so a guest can mark a thrown error permanent structurally
     // (`throw Object.assign(new Error(msg), {{ fraiseqlPermanent: true }})`) and the
     // runtime dead-letters it immediately. Host-op errors already carry the marker
     // in their message; this folds the property form into the same signal.
     let marker = crate::types::PERMANENT_ERROR_MARKER;
-    format!(
+    Ok(format!(
         r#"
 {inner}
 (async () => {{
@@ -193,7 +206,7 @@ fn wrap_source(source: &str, event_json: &str) -> String {
     }}
 }})();
 "#
-    )
+    ))
 }
 
 // ── Execution result ────────────────────────────────────────────────────────────
@@ -293,7 +306,7 @@ pub fn run_in_dedicated_thread(
     let event_json = serde_json::to_string(event_value).map_err(|e| e.to_string())?;
 
     // Build the wrapper script
-    let wrapped = wrap_source(source, &event_json);
+    let wrapped = wrap_source(source, &event_json)?;
 
     // Extract before async move to avoid partial-move into the closure.
     let max_duration = limits.max_duration;

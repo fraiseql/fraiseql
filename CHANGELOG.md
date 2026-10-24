@@ -105,6 +105,14 @@ disagreed, and the promise was the part that was wrong.
   document that carries its own `observers_config` must state the same values: a
   disagreement is refused, naming both sources and the first key they differ on.
   `[[observers.handlers]]` is refused there as it is in a TOML schema.
+- **A Deno function written as `export default async function name(event) { ... }` runs
+  (#1702).** The default export was rewritten as an unterminated `const __fn = ...`, so the
+  invocation appended after it parsed as a call of the function, and every dispatch failed
+  with `TypeError: (intermediate value)(...) is not a function`. Only an arrow function
+  ending in `;` worked, though the functions documentation's own example is a declaration.
+  The binding is now always terminated. The default export is found by parsing the module,
+  so `export default` in a comment or a string literal is no longer rewritten too, and a
+  module with no default export fails as a `SyntaxError` naming the cause.
 
 ## [2.18.0] - 2026-10-25
 
