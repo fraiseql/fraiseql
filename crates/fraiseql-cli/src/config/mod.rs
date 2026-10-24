@@ -48,6 +48,12 @@ pub struct TomlProjectConfig {
     /// The request locale (`[locale]`, #1512): `default`, `allowed`, `fallback`, `resolve`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub locale: Option<fraiseql_core::schema::LocaleConfig>,
+
+    /// The functions subsystem's deployment settings (`[functions]`: `module_dir`,
+    /// `dlq_store`), for a schema document an SDK authored; see
+    /// [`toml_schema::FunctionsSettings`].
+    #[serde(default)]
+    pub functions: toml_schema::FunctionsSettings,
 }
 
 /// Project metadata

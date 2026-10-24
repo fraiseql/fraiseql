@@ -91,6 +91,12 @@ disagreed, and the promise was the part that was wrong.
 - **An allowlist pattern with capitals matched nothing.** A guest's outbound host is
   lowercase, and patterns were compared as written, so `allowed_domains = ["API.Example.com"]`
   refused `api.example.com`. Patterns now compare without regard to case.
+- **`[functions]` in the `fraiseql.toml` beside an SDK `schema.json` compiles (#1701).** The
+  project config refused the table as an unknown field, so `module_dir` and `dlq_store` could
+  be set only through a TOML-schema project, and an SDK project always got `functions/`. The
+  table is now read, as the functions documentation says. A schema document that carries its
+  own `functions_config` must state the same settings: a disagreement is refused, naming both
+  sources and the first key they differ on.
 
 ## [2.18.0] - 2026-10-25
 

@@ -324,6 +324,11 @@ pub async fn compile_to_schema(
                     intermediate.locale = Some(locale);
                 }
 
+                // `[functions]` holds deployment settings, so it lives in fraiseql.toml
+                // beside an SDK schema; a copy in the schema document must agree with it.
+                intermediate.functions_config =
+                    config.functions.reconcile(intermediate.functions_config.take())?;
+
                 // `[inject_defaults]` lives in the config the SDK loaders read (#1384); a
                 // copy the SDK emitted into the schema must agree with it.
                 intermediate.inject_defaults =

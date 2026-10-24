@@ -464,6 +464,10 @@ and rejects unknown keys, so a schema cannot set a setting; and `[functions]` ha
 to declare a function. Configuring the table with no function declared is a compile
 error: there would be nothing for the settings to apply to.
 
+The table is read in both workflows: from a TOML schema, and from the `fraiseql.toml`
+beside an SDK's `schema.json`. A `schema.json` that carries its own `functions_config`
+must agree with `[functions]`; the compile refuses a disagreement and names the key.
+
 ```python
 # schema.py
 @fraiseql.function(
