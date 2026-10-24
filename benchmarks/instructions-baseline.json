@@ -1,18 +1,18 @@
 {
   "_comment": [
-    "Instruction counts (callgrind Ir) of the engine benches, the mean of 15 runs as measured by `dagger call perf-instructions` (#1636). The gate compares the mean of 9.",
+    "Instruction counts (callgrind Ir) of the engine benches, the mean of 18 runs as measured by `dagger call perf-instructions` (#1636). The gate compares the mean of 9.",
     "Only valid for that container: refresh with `dagger call perf-instructions --source=. --print` and commit the result."
   ],
   "benchmarks": {
-    "executor_instructions::executor::execute.by_id_fat": 190583,
-    "executor_instructions::executor::execute.by_id_lean": 121201,
-    "executor_instructions::executor::execute.nested_fat": 5280120,
-    "executor_instructions::executor::execute.nested_lean": 342945,
-    "executor_instructions::executor::execute.root_list_fat": 1758588,
-    "executor_instructions::executor::execute.root_list_lean": 433466,
-    "rest_instructions::rest::rest_get.by_id_fat": 904767,
-    "rest_instructions::rest::rest_get.by_id_lean": 166152,
-    "rest_instructions::rest::rest_get.list_fat": 15638644,
-    "rest_instructions::rest::rest_get.list_lean": 1063608
+    "executor_instructions::executor::execute.by_id_fat": 190216,
+    "executor_instructions::executor::execute.by_id_lean": 125244,
+    "executor_instructions::executor::execute.nested_fat": 5256258,
+    "executor_instructions::executor::execute.nested_lean": 337018,
+    "executor_instructions::executor::execute.root_list_fat": 1783367,
+    "executor_instructions::executor::execute.root_list_lean": 426819,
+    "rest_instructions::rest::rest_get.by_id_fat": 924656,
+    "rest_instructions::rest::rest_get.by_id_lean": 168596,
+    "rest_instructions::rest::rest_get.list_fat": 16278492,
+    "rest_instructions::rest::rest_get.list_lean": 1086586
   }
 }

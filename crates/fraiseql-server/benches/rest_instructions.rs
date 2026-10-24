@@ -5,6 +5,7 @@
 //! and schema with. A request goes through `rest_router` with `tower::ServiceExt::oneshot`,
 //! so routing, extraction, the engine and the response body are measured, and the socket
 //! is not. Each shape runs once in setup first, so the measured request is a warm one.
+//! glibc's fastbins are off for the reason the GraphQL half gives.
 #![allow(missing_docs)] // Reason: library_benchmark!/main! macros generate undocumented items
 #![allow(clippy::expect_used)] // Reason: benchmark setup code, a panic is the right failure
 
@@ -17,7 +18,7 @@ use fraiseql_server::routes::{
     rest::{RestMountConfig, rest_router},
 };
 use http::{Request, StatusCode};
-use iai_callgrind::{library_benchmark, library_benchmark_group, main};
+use iai_callgrind::{LibraryBenchmarkConfig, library_benchmark, library_benchmark_group, main};
 use tower::ServiceExt;
 
 #[path = "../../fraiseql-core/benches/support/fixed_rows.rs"]
@@ -82,4 +83,7 @@ fn rest_get(f: Fixture) -> (Fixture, axum::body::Bytes) {
 }
 
 library_benchmark_group!(name = rest; benchmarks = rest_get);
-main!(library_benchmark_groups = rest);
+main!(
+    config = LibraryBenchmarkConfig::default().env("GLIBC_TUNABLES", "glibc.malloc.mxfast=0");
+    library_benchmark_groups = rest
+);

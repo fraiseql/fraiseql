@@ -12,13 +12,18 @@
 //!
 //! Shapes: a root list, a by-id read, and a list with a nested list, each over lean rows
 //! (about 200 bytes) and fat rows (about 4.5 KB).
+//!
+//! glibc's fastbins are off (`glibc.malloc.mxfast=0`). With them on, `malloc_consolidate`
+//! runs inside the measured call or not depending on the heap state setup leaves, which
+//! moves a count by about 4,400 instructions (3.5% of `by_id_lean`) with no code change.
+//! The tunable is set in the bench config because the runner clears the environment.
 #![allow(missing_docs)] // Reason: library_benchmark!/main! macros generate undocumented items
 #![allow(clippy::expect_used)] // Reason: benchmark setup code, a panic is the right failure
 
 use std::{hint::black_box, sync::Arc};
 
 use fraiseql_core::{runtime::Executor, schema::CompiledSchema};
-use iai_callgrind::{library_benchmark, library_benchmark_group, main};
+use iai_callgrind::{LibraryBenchmarkConfig, library_benchmark, library_benchmark_group, main};
 use serde_json::Value;
 
 #[path = "support/fixed_rows.rs"]
@@ -74,4 +79,7 @@ fn execute(f: Fixture) -> (Fixture, Value) {
 }
 
 library_benchmark_group!(name = executor; benchmarks = execute);
-main!(library_benchmark_groups = executor);
+main!(
+    config = LibraryBenchmarkConfig::default().env("GLIBC_TUNABLES", "glibc.malloc.mxfast=0");
+    library_benchmark_groups = executor
+);
