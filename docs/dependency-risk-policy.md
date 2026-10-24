@@ -67,6 +67,7 @@ that reason.
 | Advisory | Crate | Path | Exposure | Mitigation | Deadline |
 |----------|-------|------|----------|------------|---------|
 | RUSTSEC-2023-0071 | `rsa@0.9.10` | `jsonwebtoken` 10.4 (`rust_crypto`) → `fraiseql-auth` | `default-build` | Used to VERIFY RS256/384/512 tokens, a public-key operation the advisory does not affect. The one private-key operation is the opt-in `gcs` backend signing its own service-account assertion (Google requires RS256): server-initiated, cached, neither triggerable nor timeable by a caller. `tools/check-crypto-providers.sh` fails on any RSA private key outside `gcs.rs` (#1110) | 2027-01-31 |
+| RUSTSEC-2026-0387 | `crypto-bigint@0.5.5` | `elliptic-curve` 0.13 (`ecdsa`, `p256`, `p384`) → `jsonwebtoken` 10.4, `fraiseql-webhooks`, `aws-sigv4` | `default-build` | Verifying ES256/384 tokens and SendGrid webhook signatures works on public values, which the advisory does not affect. Secret-key use: Apple sign-in's `client_secret` (server-initiated, cached for an hour, neither triggerable nor timeable by a caller) and S3 SigV4a for multi-region access points, whose removal is #1711. Fixed only in 0.7.6, which no elliptic-curve 0.13 release accepts | 2027-01-31 |
 
 ⚠ This row was corrected twice. On 2026-08-16 it claimed `sqlx-mysql` (gone since #374); `rsa`
 in fact arrives via `jsonwebtoken` in the **default** build. That correction then claimed an
@@ -75,6 +76,21 @@ server builds signs HS256. It was re-argued on 2026-10-04 (#1110), and the unuse
 API was removed.
 
 ## Resolution Tracking
+
+### RUSTSEC-2026-0387 (crypto-bigint constant-time operations)
+
+**Root cause**: in `crypto-bigint` before 0.7.6, subtraction, zero counting, division and
+Montgomery multiplication can compile to secret-dependent branches.
+
+**Status** (2026-10-24): `crypto-bigint@0.5.5` is in the default build through
+`elliptic-curve 0.13`, which no release moves to 0.7. FraiseQL verifies ES256/384 tokens and
+SendGrid webhook signatures, both public-key operations. It signs with an EC private key in two
+places: Apple sign-in's `client_secret`, which the server mints and caches for an hour, and
+SigV4a requests to S3 multi-region access points (`aws-sdk-s3`'s `sigv4a` feature). Whether to
+drop `sigv4a` is #1711.
+
+**Exit**: an `elliptic-curve` / `ecdsa` / `p256` release on `crypto-bigint` 0.7.6 or later,
+picked up by `jsonwebtoken` and `aws-sigv4`.
 
 ### RUSTSEC-2023-0071 (RSA Marvin Attack)
 

@@ -469,6 +469,13 @@ disagreed, and the promise was the part that was wrong.
   file descriptor the caller did not own, which could end in a use-after-free in the I/O
   driver. FraiseQL constructs no `AsyncFd` itself; the lock no longer carries the unsound
   version.
+- **RUSTSEC-2026-0387 (crypto-bigint) is accepted, with a 2027-01-31 deadline.** Operations
+  in crypto-bigint before 0.7.6 that are meant to be constant-time can branch on secret
+  values. 0.5.5 is pinned by elliptic-curve 0.13, and no release of that line moves. FraiseQL
+  verifies ES256/384 tokens and webhook signatures with it, which uses public values only. It
+  signs with an EC private key for Apple sign-in's cached `client_secret` and for S3 SigV4a
+  requests to multi-region access points. Whether to drop `sigv4a` is #1711. See
+  `docs/dependency-risk-policy.md`.
 
 ## [2.17.1] - 2026-10-21
 

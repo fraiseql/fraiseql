@@ -20,6 +20,11 @@ ignore = [
   # API was removed; tools/check-crypto-providers.sh confines RSA private keys to gcs.rs.
   # deadline: 2027-01-31 — matches deny.toml.
   "RUSTSEC-2023-0071",
+  # crypto-bigint 0.5.5: constant-time operations can branch on secrets; fixed only in 0.7.6,
+  # pinned by elliptic-curve 0.13. Verification is public-key; the secret-key sites are
+  # Apple's cached client_secret and S3 SigV4a (#1711).
+  # deadline: 2027-01-31 — matches deny.toml.
+  "RUSTSEC-2026-0387",
 ]
 # Surface unsound + unmaintained advisories as warnings so new soundness issues are visible
 # in `cargo audit` output.

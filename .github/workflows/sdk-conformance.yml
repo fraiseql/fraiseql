@@ -35,7 +35,10 @@ concurrency:
 jobs:
   conformance:
     name: Author → export → compile → observe
-    runs-on: ubuntu-latest
+    # Pinned, not ubuntu-latest: erlef/setup-beam maps the runner image to an OTP build
+    # and has none for ubuntu26 ("Tried to map a target OS from env. variable 'ImageOS'"),
+    # so every BEAM job failed when ubuntu-latest moved. Unpin once setup-beam knows it.
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
 
     steps:

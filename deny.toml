@@ -32,6 +32,14 @@ ignore = [
   # outside gcs.rs. Not fixed by switching jsonwebtoken to `aws_lc_rs`: M-dual-crypto keeps
   # the default build on ring alone.
   # deadline: 2027-01-31 — check for a constant-time rsa release (0.10, crypto-bigint) and move to it.
+  # crypto-bigint 0.5.5: operations meant to be constant-time can branch on secrets. Fixed
+  # only in 0.7.6; 0.5.5 is pinned by elliptic-curve 0.13 (ecdsa 0.16, p256, p384) under
+  # jsonwebtoken 10.4, fraiseql-webhooks and aws-sigv4. Verifying ES256/384 tokens and
+  # SendGrid signatures works on public values only. The secret-key sites: Apple sign-in's
+  # client_secret (server-initiated, cached an hour, not caller-triggerable or timeable) and
+  # S3 SigV4a for multi-region access points (whether to drop `sigv4a` is #1711).
+  # deadline: 2027-01-31 — move to an elliptic-curve release on crypto-bigint 0.7.
+  { id = "RUSTSEC-2026-0387", reason = "crypto-bigint 0.5 under elliptic-curve 0.13: ES256/384 and webhook verification are public-key; secret-key use is Apple's cached client_secret and S3 SigV4a (#1711). No 0.5-series fix. Deadline 2027-01-31." },
   { id = "RUSTSEC-2023-0071", reason = "rsa used for RS256 public-key verification (unaffected) and GCS service-account signing only; no caller-triggerable private-key operation (#1110, gated by check-crypto-providers.sh). Deadline 2027-01-31." },
 ]
 unmaintained = "workspace"
