@@ -4006,6 +4006,7 @@ dependencies = [
 name = "fraiseql-guard"
 version = "2.18.0"
 dependencies = [
+ "fraiseql-test-support",
  "temp-env",
  "tokio",
  "tracing",
@@ -4275,6 +4276,7 @@ dependencies = [
  "testcontainers",
  "testcontainers-modules",
  "tokio",
+ "tracing",
 ]
 
 [[package]]

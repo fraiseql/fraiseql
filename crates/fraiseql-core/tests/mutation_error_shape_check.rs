@@ -162,7 +162,7 @@ async fn a_malformed_failure_is_warned_and_counted_only_when_the_check_is_on() {
         .with_ansi(false)
         .with_max_level(tracing::Level::WARN)
         .finish();
-    let _guard = tracing::subscriber::set_default(subscriber);
+    let _guard = fraiseql_test_support::tracing_capture::set_default(subscriber);
 
     let checked = Executor::with_config(
         schema(),

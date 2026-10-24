@@ -574,7 +574,7 @@ mod dispatch_632_tests {
             events: Arc::clone(&events),
         };
 
-        let result = tracing::subscriber::with_default(collector, || {
+        let result = fraiseql_test_support::tracing_capture::with_default(collector, || {
             dispatch_log("warn", "order {{ id }} is now {{ status }}", &test_event())
         });
 
@@ -600,7 +600,7 @@ mod dispatch_632_tests {
             events: Arc::clone(&events),
         };
 
-        tracing::subscriber::with_default(collector, || {
+        fraiseql_test_support::tracing_capture::with_default(collector, || {
             dispatch_log("verbose", "m", &test_event());
         });
 

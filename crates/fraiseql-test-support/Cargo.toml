@@ -18,6 +18,7 @@ version.workspace = true
 # and must be dev-dependable by every workspace crate (down to fraiseql-db) without
 # creating a dependency cycle. It pulls NO workspace crates.
 [dependencies]
+tracing = { workspace = true }
 testcontainers = { version = "0.27", features = ["watchdog"], optional = true }
 testcontainers-modules = { version = "0.15", features = [
   "postgres",

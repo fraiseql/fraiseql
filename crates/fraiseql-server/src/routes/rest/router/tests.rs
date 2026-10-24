@@ -403,7 +403,7 @@ fn mounting_over_an_adapter_that_cannot_compose_warns() {
     let state = make_app_state(TestSchemaBuilder::new().build());
 
     assert!(!state.executor().supports_composed_reads());
-    tracing::subscriber::with_default(subscriber, || {
+    fraiseql_test_support::tracing_capture::with_default(subscriber, || {
         super::warn_if_embeds_are_refused(&state.executor());
     });
 

@@ -8,6 +8,7 @@ tracing = "0.1"
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros", "rt"] }
 temp-env = { workspace = true }
+fraiseql-test-support = { path = "../fraiseql-test-support" }
 tracing-subscriber = { workspace = true }
 
 [lints]

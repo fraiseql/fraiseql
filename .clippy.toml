@@ -40,3 +40,19 @@ too-many-lines-threshold = 300
 type-complexity-threshold = 500
 # Verbose bit mask
 verbose-bit-mask-threshold = 1
+# A test capturing `tracing` output installs its subscriber through
+# `fraiseql_test_support::tracing_capture`, never `tracing::subscriber` directly (#1703).
+#
+# `tracing` caches each callsite's interest process-wide when the callsite is first
+# reached. While exactly one dispatcher is registered (tracing-core's `has_just_one`),
+# that interest is computed from the REACHING thread's default, not from the registered
+# dispatchers. So when a test's scoped subscriber is the only one alive, another test's
+# thread with no subscriber (one booting a server, say) can reach the same `warn!` first
+# and cache `Interest::never` for it: the capturing test then receives nothing and fails
+# with an empty capture, at random, only in a shared-process `cargo test` run. The
+# wrappers keep a second dispatcher alive for the life of the process, so the registered
+# dispatchers, the capture among them, are always the ones asked.
+disallowed-methods = [
+  { path = "tracing::subscriber::with_default", reason = "use fraiseql_test_support::tracing_capture::with_default, which a parallel test cannot blind" },
+  { path = "tracing::subscriber::set_default", reason = "use fraiseql_test_support::tracing_capture::set_default, which a parallel test cannot blind" },
+]

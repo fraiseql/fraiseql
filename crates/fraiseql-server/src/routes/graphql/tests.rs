@@ -459,7 +459,7 @@ mod app_state_tests {
 
         let capture = WarnCapture::default();
         let subscriber = tracing_subscriber::registry().with(capture.clone());
-        let _guard = tracing::subscriber::set_default(subscriber);
+        let _guard = fraiseql_test_support::tracing_capture::set_default(subscriber);
 
         let state = make_state();
         let params = crate::routes::graphql::GraphQLGetParams {

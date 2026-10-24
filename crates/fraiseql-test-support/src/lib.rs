@@ -38,6 +38,7 @@ pub mod changelog;
 pub mod db;
 pub mod sample_schema;
 pub mod services;
+pub mod tracing_capture;
 pub mod wire;
 
 pub use db::{

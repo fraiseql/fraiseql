@@ -378,7 +378,7 @@ mod layer_tests {
         let aggregator = Arc::new(UsageAggregator::new());
         let layer = MutationAuditLayer::new(Arc::clone(&aggregator));
         let subscriber = Registry::default().with(layer);
-        let _guard = tracing::subscriber::set_default(subscriber);
+        let _guard = fraiseql_test_support::tracing_capture::set_default(subscriber);
 
         tracing::info!(
             target: "fraiseql::mutation_audit",
@@ -400,7 +400,7 @@ mod layer_tests {
         let aggregator = Arc::new(UsageAggregator::new());
         let layer = MutationAuditLayer::new(Arc::clone(&aggregator));
         let subscriber = Registry::default().with(layer);
-        let _guard = tracing::subscriber::set_default(subscriber);
+        let _guard = fraiseql_test_support::tracing_capture::set_default(subscriber);
 
         tracing::info!(
             target: "fraiseql::other",
@@ -421,7 +421,7 @@ mod layer_tests {
         let aggregator = Arc::new(UsageAggregator::new());
         let layer = MutationAuditLayer::new(Arc::clone(&aggregator));
         let subscriber = Registry::default().with(layer);
-        let _guard = tracing::subscriber::set_default(subscriber);
+        let _guard = fraiseql_test_support::tracing_capture::set_default(subscriber);
 
         let period = current_period();
 
@@ -462,7 +462,7 @@ mod layer_tests {
         let aggregator = Arc::new(UsageAggregator::new());
         let layer = MutationAuditLayer::new(Arc::clone(&aggregator));
         let subscriber = Registry::default().with(layer);
-        let _guard = tracing::subscriber::set_default(subscriber);
+        let _guard = fraiseql_test_support::tracing_capture::set_default(subscriber);
 
         tracing::info!(
             target: "fraiseql::mutation_audit",

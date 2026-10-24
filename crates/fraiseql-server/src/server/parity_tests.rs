@@ -1020,7 +1020,7 @@ async fn boot_log(schema: CompiledSchema) -> String {
     let captured = Captured::default();
     let writer = captured.clone();
     let subscriber = tracing_subscriber::fmt().json().with_writer(move || writer.clone()).finish();
-    let guard = tracing::subscriber::set_default(subscriber);
+    let guard = fraiseql_test_support::tracing_capture::set_default(subscriber);
     let config = ServerConfig {
         cache_enabled: true,
         cors_enabled: false,

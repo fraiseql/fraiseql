@@ -82,7 +82,7 @@ impl<S: tracing::Subscriber> tracing_subscriber::Layer<S> for SqlCapture {
 async fn executed_sql(executor: &Executor, locale: &str, query: &str) -> String {
     let captured = Arc::new(Mutex::new(Vec::new()));
     let subscriber = tracing_subscriber::registry().with(SqlCapture(Arc::clone(&captured)));
-    let _guard = tracing::subscriber::set_default(subscriber);
+    let _guard = fraiseql_test_support::tracing_capture::set_default(subscriber);
     with_request_locale(locale, executor.execute(query, None))
         .await
         .unwrap_or_else(|e| panic!("{query}: {e}"));

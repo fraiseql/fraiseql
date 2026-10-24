@@ -214,7 +214,7 @@ async fn test_audit_layer_records_tracing_events() {
 
     // Emit a mutation audit event within this subscriber scope. The layer derives the
     // period from the current month (`Utc::now`), not from any `period` field.
-    tracing::subscriber::with_default(subscriber, || {
+    fraiseql_test_support::tracing_capture::with_default(subscriber, || {
         tracing::info!(
             target: "fraiseql::mutation_audit",
             mutation_name = "create_user",
@@ -244,7 +244,7 @@ async fn test_audit_layer_ignores_non_mutation_events() {
     let layer = MutationAuditLayer::new(Arc::clone(&aggregator));
     let subscriber = Registry::default().with(layer);
 
-    tracing::subscriber::with_default(subscriber, || {
+    fraiseql_test_support::tracing_capture::with_default(subscriber, || {
         // This event uses the wrong target and should NOT be captured
         tracing::info!(
             target: "app::some_other_target",
@@ -275,7 +275,7 @@ async fn test_audit_pipeline_emit_then_query_via_http() {
     let subscriber = Registry::default().with(layer);
 
     // Emit 2 events via tracing (the layer derives the period from the current month).
-    tracing::subscriber::with_default(subscriber, || {
+    fraiseql_test_support::tracing_capture::with_default(subscriber, || {
         for _ in 0..2_u8 {
             tracing::info!(
                 target: "fraiseql::mutation_audit",

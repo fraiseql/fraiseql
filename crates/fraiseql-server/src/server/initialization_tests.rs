@@ -85,7 +85,7 @@ fn log_events(emit: impl FnOnce()) -> Vec<serde_json::Value> {
     let captured = Captured::default();
     let writer = captured.clone();
     let subscriber = tracing_subscriber::fmt().json().with_writer(move || writer.clone()).finish();
-    tracing::subscriber::with_default(subscriber, emit);
+    fraiseql_test_support::tracing_capture::with_default(subscriber, emit);
     let log = String::from_utf8(captured.0.lock().unwrap().clone()).unwrap();
     log.lines().map(|line| serde_json::from_str(line).unwrap()).collect()
 }

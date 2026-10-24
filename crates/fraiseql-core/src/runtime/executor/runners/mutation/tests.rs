@@ -3358,7 +3358,7 @@ mod mutation_audit {
             events: captured.clone(),
         };
         let subscriber = Registry::default().with(layer);
-        let _guard = tracing::subscriber::set_default(subscriber);
+        let _guard = fraiseql_test_support::tracing_capture::set_default(subscriber);
 
         let config = RuntimeConfig {
             audit_mutations: true,
@@ -3384,7 +3384,7 @@ mod mutation_audit {
             events: captured.clone(),
         };
         let subscriber = Registry::default().with(layer);
-        let _guard = tracing::subscriber::set_default(subscriber);
+        let _guard = fraiseql_test_support::tracing_capture::set_default(subscriber);
 
         let schema = schema_with_insert_mutation();
         let config = RuntimeConfig {
@@ -3413,7 +3413,7 @@ mod mutation_audit {
             events: captured.clone(),
         };
         let subscriber = Registry::default().with(layer);
-        let _guard = tracing::subscriber::set_default(subscriber);
+        let _guard = fraiseql_test_support::tracing_capture::set_default(subscriber);
 
         let schema = schema_with_insert_mutation();
         // Default config: audit_mutations=false

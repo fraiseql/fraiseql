@@ -324,9 +324,11 @@ mod capture {
         });
 
         let events: Events = Arc::default();
-        let guard = tracing::subscriber::set_default(Registry::default().with(CapturingLayer {
-            events: Arc::clone(&events),
-        }));
+        let guard = fraiseql_test_support::tracing_capture::set_default(Registry::default().with(
+            CapturingLayer {
+                events: Arc::clone(&events),
+            },
+        ));
         Captured {
             events,
             _guard: guard,

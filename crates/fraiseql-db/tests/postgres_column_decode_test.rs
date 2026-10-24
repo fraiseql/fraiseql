@@ -290,7 +290,7 @@ async fn a_null_cell_of_any_type_decodes_to_null_without_a_warning() {
         .with_ansi(false)
         .with_max_level(tracing::Level::WARN)
         .finish();
-    let _guard = tracing::subscriber::set_default(subscriber);
+    let _guard = fraiseql_test_support::tracing_capture::set_default(subscriber);
 
     let columns = [
         ("t", "text"),

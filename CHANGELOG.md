@@ -113,6 +113,12 @@ disagreed, and the promise was the part that was wrong.
   The binding is now always terminated. The default export is found by parsing the module,
   so `export default` in a comment or a string literal is no longer rewritten too, and a
   module with no default export fails as a `SyntaxError` naming the cause.
+- **Tests that capture log output no longer miss their event at random (#1703).** `tracing`
+  caches a callsite's interest process-wide, and while one dispatcher is registered it asks
+  the thread that first reaches the callsite. A parallel test thread with no subscriber could
+  cache the callsite as uninteresting, and a test's captured event was then dropped. Tests
+  install their capture through `fraiseql_test_support::tracing_capture`, which keeps a
+  second dispatcher alive, and clippy refuses the direct `tracing::subscriber` calls.
 
 ## [2.18.0] - 2026-10-25
 

@@ -385,7 +385,7 @@ async fn a_failed_progress_acknowledgement_is_logged_and_counted() {
         .with_ansi(false)
         .with_max_level(tracing::Level::WARN)
         .finish();
-    let _guard = tracing::subscriber::set_default(subscriber);
+    let _guard = fraiseql_test_support::tracing_capture::set_default(subscriber);
 
     let router = metrics_router(make_metrics_state());
     let name = "fraiseql_observer_progress_ack_failures_total";
