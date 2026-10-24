@@ -116,12 +116,14 @@ impl FederationConfig {
         use fraiseql_core::schema as core;
 
         core::FederationConfig {
-            enabled:         self.enabled,
-            version:         self.effective_version(),
-            service_name:    self.service_name.clone(),
-            schema_url:      self.schema_url.clone(),
-            shareable_types: self.shareable_types.clone(),
-            entities:        self
+            enabled:             self.enabled,
+            version:             self.effective_version(),
+            service_name:        self.service_name.clone(),
+            schema_url:          self.schema_url.clone(),
+            shareable_types:     self.shareable_types.clone(),
+            // Lifted off the types' fields by the converter, never authored here.
+            inaccessible_fields: std::collections::BTreeMap::new(),
+            entities:            self
                 .entities
                 .iter()
                 .map(|e| core::FederationEntity {
@@ -132,21 +134,23 @@ impl FederationConfig {
                     shareable_fields: e.shareable_fields.clone(),
                 })
                 .collect(),
-            circuit_breaker: self.circuit_breaker.as_ref().map(|cb| core::CircuitBreakerConfig {
-                enabled:               cb.enabled,
-                failure_threshold:     cb.failure_threshold,
-                recovery_timeout_secs: cb.recovery_timeout_secs,
-                success_threshold:     cb.success_threshold,
-                per_entity:            cb
-                    .per_database
-                    .iter()
-                    .map(|o| core::EntityCircuitBreakerOverride {
-                        entity:            o.database.clone(),
-                        failure_threshold: o.failure_threshold,
-                        recovery_timeout:  o.recovery_timeout_secs,
-                        success_threshold: o.success_threshold,
-                    })
-                    .collect(),
+            circuit_breaker:     self.circuit_breaker.as_ref().map(|cb| {
+                core::CircuitBreakerConfig {
+                    enabled:               cb.enabled,
+                    failure_threshold:     cb.failure_threshold,
+                    recovery_timeout_secs: cb.recovery_timeout_secs,
+                    success_threshold:     cb.success_threshold,
+                    per_entity:            cb
+                        .per_database
+                        .iter()
+                        .map(|o| core::EntityCircuitBreakerOverride {
+                            entity:            o.database.clone(),
+                            failure_threshold: o.failure_threshold,
+                            recovery_timeout:  o.recovery_timeout_secs,
+                            success_threshold: o.success_threshold,
+                        })
+                        .collect(),
+                }
             }),
         }
     }

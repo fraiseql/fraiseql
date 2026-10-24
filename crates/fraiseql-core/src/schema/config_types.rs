@@ -11,29 +11,34 @@ use serde::{Deserialize, Serialize};
 pub struct FederationConfig {
     /// Enable Apollo federation.
     #[serde(default)]
-    pub enabled:         bool,
+    pub enabled:             bool,
     /// Federation specification version (e.g., "v2").
     #[serde(default)]
-    pub version:         Option<String>,
+    pub version:             Option<String>,
     /// Subgraph service name (used in Apollo Studio).
     #[serde(default)]
-    pub service_name:    Option<String>,
+    pub service_name:        Option<String>,
     /// Subgraph SDL URL (exposed at `/__subgraph_schema`).
     #[serde(default)]
-    pub schema_url:      Option<String>,
+    pub schema_url:          Option<String>,
     /// Federated entities defined in this subgraph.
     #[serde(default)]
-    pub entities:        Vec<FederationEntity>,
+    pub entities:            Vec<FederationEntity>,
     /// Non-entity object types that are `@shareable` across subgraphs (e.g. a shared
     /// `MutationError` value type). Unlike `entities`, these carry no `@key` and are
     /// not members of the `_Entity` union — they only receive a type-level
     /// `@shareable` directive so two subgraphs can both define the identical type
     /// without an Apollo Federation `INVALID_FIELD_SHARING` composition error.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub shareable_types: Vec<String>,
+    pub shareable_types:     Vec<String>,
+    /// Fields hidden from the supergraph with `@inaccessible`, by object type name.
+    /// They render with the directive in the `_service` SDL, are filtered out of
+    /// introspection, and are never selected by `_entities`.
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub inaccessible_fields: std::collections::BTreeMap<String, Vec<String>>,
     /// Circuit breaker configuration for federation fan-out requests.
     #[serde(default)]
-    pub circuit_breaker: Option<CircuitBreakerConfig>,
+    pub circuit_breaker:     Option<CircuitBreakerConfig>,
 }
 
 /// Federated entity configuration.
