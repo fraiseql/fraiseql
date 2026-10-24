@@ -522,6 +522,27 @@ async fn a_nested_level_carries_its_types_predicate_over_the_embedded_documents(
     );
 }
 
+/// The same nested level, read through the direct-read door (REST): it is composed with
+/// `Order`'s predicate exactly as the GraphQL document's is.
+#[tokio::test]
+async fn a_direct_reads_nested_level_carries_its_types_predicate() {
+    let adapter = Arc::new(CapturingMockAdapter::new(vec![]));
+    let executor = Executor::read_only_with_config(
+        schema(),
+        adapter.clone(),
+        with_policy(OwnerPolicy::declared(&["Order"])),
+    );
+    let query_match =
+        executor.matcher().match_query("{ users { id orders { id } } }", None).unwrap();
+    executor
+        .execute_query_direct(&query_match, None, Some(&principal()), None)
+        .await
+        .unwrap();
+
+    let read = adapter.captured_composed().expect("a composed read");
+    assert_eq!(only_embed(&read).level.where_clause, Some(owner_is("u-alice")));
+}
+
 /// An opaque policy is read over `Order`'s own view, joined by the relationship.
 #[tokio::test]
 async fn an_opaque_policy_joins_the_nested_types_view_through_its_relationship() {

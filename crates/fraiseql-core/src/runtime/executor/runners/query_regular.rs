@@ -2682,3 +2682,7 @@ mod query_nested_gates_tests;
 #[cfg(test)]
 #[path = "query_nested_authz_tests.rs"]
 mod query_nested_authz_tests;
+
+#[cfg(test)]
+#[path = "root_read_guard_tests.rs"]
+mod root_read_guard_tests;

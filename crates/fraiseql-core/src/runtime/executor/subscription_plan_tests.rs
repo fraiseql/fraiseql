@@ -317,6 +317,24 @@ fn an_anonymous_subscription_under_a_row_policy_is_refused() {
     assert!(res.is_err(), "{res:?}");
 }
 
+// The same refusal for a type with a read of its own, whose predicate the plan composes
+// from that read (`query_nested::row_predicate`) rather than from the subscription's name.
+#[test]
+fn an_anonymous_subscription_to_a_type_with_its_own_read_under_a_row_policy_is_refused() {
+    let mut schema = schema();
+    schema.queries.push(
+        crate::schema::QueryDefinition::new("orders", "Order")
+            .returning_list()
+            .with_sql_source("v_order"),
+    );
+    schema.build_indexes();
+    let config = RuntimeConfig::default()
+        .with_rls_policy(Arc::new(crate::security::DefaultRLSPolicy::new()));
+    let exec = executor(schema, config);
+    let res = plan(&exec, "subscription { orderCreated { id } }", &json!({}), None);
+    assert!(res.is_err(), "{res:?}");
+}
+
 // A policy that reads a key the type does not declare cannot be evaluated over the
 // after-image: refused at subscribe, never delivered unfiltered.
 #[test]

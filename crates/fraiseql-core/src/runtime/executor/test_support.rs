@@ -536,6 +536,26 @@ impl RelayDatabaseAdapter for MockAdapter {
     }
 }
 
+/// Relay dispatch over the capturing mock: the page's predicate is recorded where every other
+/// read's is, so a test can see what a connection was scoped by. The page itself is empty.
+impl RelayDatabaseAdapter for CapturingMockAdapter {
+    async fn execute_relay_page<'a>(
+        &'a self,
+        _view: &'a str,
+        _cursor_column: &'a str,
+        _after: Option<RelayCursor>,
+        _before: Option<RelayCursor>,
+        _limit: u32,
+        _forward: bool,
+        where_clause: Option<&'a WhereClause>,
+        _order_by: Option<&'a [OrderByClause]>,
+        _include_total_count: bool,
+    ) -> Result<RelayPageResult> {
+        *self.captured_where.lock().unwrap() = where_clause.cloned();
+        Ok(RelayPageResult::new(Vec::new(), None))
+    }
+}
+
 /// Read-only adapter: not a `Writer`, so an executor over it is built read-only and refuses
 /// every mutation.
 pub struct ReadOnlyMockAdapter;
