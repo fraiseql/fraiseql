@@ -131,11 +131,16 @@ run_as = { roles: [...], scopes: [...], tenant?: "...", user_id?: "..." }
   # server.toml
   [sources]
   enabled = true            # FRAISEQL_SOURCES_ENABLED — global on/off
-  allowed_domains = [       # FRAISEQL_SOURCES_ALLOWED_DOMAINS (comma-separated)
-    "api.example.com",      # SSRF allowlist for connectors' outbound fetches;
-  ]                         # deny-by-default — empty permits no outbound host
   log_payloads = false      # log each firing's trigger payload at debug (opt-in)
+
+  [egress]
+  allowed_domains = [       # FRAISEQL_EGRESS_ALLOWED_DOMAINS (comma-separated)
+    "api.example.com",      # the hosts connectors and functions may call;
+  ]                         # deny-by-default — empty permits no outbound host
   ```
+
+  A connector's outbound calls go through `[egress]`, the one list functions share.
+  `[sources] allowed_domains` is refused, naming `[egress]`.
 
 - **Per-source definitions come from the compiled schema** (authoring), mirroring the
   observers split: `name`, `schedule` (cron), `function`, `enabled`, `cursor`, and

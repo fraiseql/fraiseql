@@ -43,7 +43,7 @@ ROOT_STRUCT = "ServerConfig"
 
 # The discovered-struct count, asserted so the walk cannot quietly measure less.
 # Bump it deliberately, with the section that was added.
-EXPECTED_REACHABLE = 49  # +1: [tenancy.storage_quota], the storage-quota sweep interval (#633)
+EXPECTED_REACHABLE = 50  # +1: [egress], the hosts functions and source connectors may call
 
 # Types that are not config structs of ours.
 LEAF_TYPES = {

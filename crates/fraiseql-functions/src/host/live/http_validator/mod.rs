@@ -81,7 +81,7 @@ pub async fn validate_outbound_url(url: &str, config: &HttpClientConfig) -> Resu
     })?;
 
     // Check if host matches allowlist
-    if !is_domain_allowed(host, &config.allowed_domains) {
+    if !fraiseql_guard::net::allowlist::allows(host, &config.allowed_domains) {
         return Err(FraiseQLError::Authorization {
             message:  format!("domain '{}' not in allowlist", host),
             action:   Some("http_request".to_string()),
@@ -118,44 +118,6 @@ pub async fn validate_outbound_url(url: &str, config: &HttpClientConfig) -> Resu
             })
         },
     }
-}
-
-/// Check if a host (domain or IP) is in the allowlist.
-/// Supports glob patterns: "*" matches all, "*.example.com" matches subdomains.
-/// Also supports IP addresses (with or without port).
-fn is_domain_allowed(host: &str, allowlist: &[String]) -> bool {
-    for pattern in allowlist {
-        if pattern == "*" {
-            return true;
-        }
-
-        // Extract IP from host (remove port if present)
-        let host_for_comparison = if let Some(colon_pos) = host.rfind(':') {
-            // Only strip port if this looks like host:port (not IPv6)
-            if !host.starts_with('[') {
-                &host[..colon_pos]
-            } else {
-                host
-            }
-        } else {
-            host
-        };
-
-        // Exact match (including IP addresses)
-        if host_for_comparison == pattern || host == pattern {
-            return true;
-        }
-
-        // Simple glob matching: "*.example.com" matches "api.example.com" but NOT "example.com"
-        if let Some(domain) = pattern.strip_prefix("*.") {
-            // Only match if there's a subdomain (must have a dot before the domain)
-            if host_for_comparison.ends_with(&format!(".{}", domain)) {
-                return true;
-            }
-        }
-    }
-
-    false
 }
 
 #[cfg(test)]

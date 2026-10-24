@@ -13,6 +13,7 @@ mod cache;
 #[cfg(feature = "cdc-outbound")]
 pub mod cdc_outbound;
 pub(crate) mod defaults;
+pub mod egress;
 pub mod hs256;
 mod methods;
 pub mod observers;
@@ -93,6 +94,7 @@ use defaults::{
     default_shutdown_timeout_secs, default_subscription_auth_recheck_secs,
     default_subscription_path,
 };
+pub use egress::EgressConfig;
 use fraiseql_core::{
     db::postgres::{HnswIterativeScan, IvfflatIterativeScan},
     security::OidcConfig,
@@ -1133,6 +1135,11 @@ pub struct ServerConfig {
     #[serde(default)]
     pub async_operations: Option<AsyncOperationsConfig>,
 
+    /// `[egress]`: the hosts functions and source connectors may call (deny-all when
+    /// empty, the default).
+    #[serde(default)]
+    pub egress: EgressConfig,
+
     /// Outbound change-data-capture to external brokers (#382).
     ///
     /// Present ⇒ the server drains the change-log outbox to the configured
@@ -1176,7 +1183,6 @@ pub struct ServerConfig {
 /// tune without recompiling:
 ///
 /// - `FRAISEQL_SOURCES_ENABLED` — global on/off (`false`/`0`/`no`/`off` disables).
-/// - `FRAISEQL_SOURCES_ALLOWED_DOMAINS` — comma-separated SSRF allowlist.
 /// - `FRAISEQL_SOURCES_ALLOWED_ENV_VARS` — comma-separated env-var allowlist (#840).
 #[cfg(feature = "sources")]
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1188,10 +1194,11 @@ pub struct SourcesConfig {
     #[serde(default = "defaults::default_true")]
     pub enabled: bool,
 
-    /// SSRF allowlist (glob patterns) for source connectors' outbound fetches.
-    /// Deny-by-default: empty permits no outbound host.
-    #[serde(default)]
-    pub allowed_domains: Vec<String>,
+    /// Refused: the hosts a connector may call are `[egress] allowed_domains`, the
+    /// list functions share. Held only so the boot can name where the key went
+    /// ([`ServerConfig::validate`]) instead of failing on an unknown key.
+    #[serde(default, rename = "allowed_domains", skip_serializing)]
+    pub(crate) replaced_allowed_domains: Option<toml::Value>,
 
     /// Environment variables source connectors may read via `fraiseql_env_var`
     /// (#840). Deny-by-default: empty grants no variable. Overridable by
@@ -1213,10 +1220,10 @@ pub struct SourcesConfig {
 impl Default for SourcesConfig {
     fn default() -> Self {
         Self {
-            enabled:          true,
-            allowed_domains:  Vec::new(),
-            allowed_env_vars: Vec::new(),
-            log_payloads:     false,
+            enabled:                  true,
+            replaced_allowed_domains: None,
+            allowed_env_vars:         Vec::new(),
+            log_payloads:             false,
         }
     }
 }
@@ -1547,6 +1554,7 @@ impl Default for ServerConfig {
             #[cfg(feature = "auth")]
             session_state: None, // Session-state subsystem off by default
             async_operations: None, // Async-operations surface off by default
+            egress: EgressConfig::default(),
             // Outbound CDC drains only when [cdc_outbound] is configured (#382).
             #[cfg(feature = "cdc-outbound")]
             cdc_outbound: None,

@@ -178,7 +178,7 @@ impl FunctionQueryResolver {
             payload.clone(),
             Some(Arc::clone(&request.reader)),
             request.principal,
-            super::after_mutation::host_context_config(),
+            super::after_mutation::host_context_config(&self.hooks.egress),
         );
 
         let result = self

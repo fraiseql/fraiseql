@@ -59,6 +59,11 @@ const MANIFEST: &[(&str, &str)] = &[
     ("introspection_require_auth", "introspection auth gate"),
     ("validate_sql_sources", "compile-time SQL-source validation"),
     (
+        "egress.allowed_domains",
+        "EgressConfig::resolve in Server::prepare_functions_runtime: the hosts every function \
+         and source connector may call",
+    ),
+    (
         "mutation_error_shape_check",
         "executor_runtime_config → RuntimeConfig.mutation_error_shape_check (#1425 errors[] check)",
     ),

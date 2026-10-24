@@ -18,6 +18,16 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **`[egress] allowed_domains` is the one list of hosts functions and source connectors
+  may call (#1644).** A function's list came only from `FRAISEQL_FUNCTIONS_ALLOWED_DOMAINS`,
+  and a connector's from `[sources] allowed_domains` or `FRAISEQL_SOURCES_ALLOWED_DOMAINS`,
+  so a host could be allowed for one and refused for the other. A server config that
+  still sets `[sources] allowed_domains` is refused, naming `[egress]`, and so is a server
+  started with either of the two variables set, naming `FRAISEQL_EGRESS_ALLOWED_DOMAINS`,
+  which replaces the configured list. Neither has an alias. Move the hosts to `[egress]`;
+  the list is still deny-by-default. Observer webhooks, whose destinations are written in
+  configuration rather than chosen by guest code, keep their address checks and are not
+  governed by it.
 - **A `cron:` function whose expression does not parse refuses the compile and the boot
   (#1658).** The server used to log a warning and run without it. A source's schedule was
   already refused this way. A `timezone` that is not an IANA name, or a `timezone` on a
@@ -50,6 +60,12 @@ disagreed, and the promise was the part that was wrong.
   modules somewhere else, with no recompile per host. A relative `module_dir` still
   resolves against the server's working directory, and a module missing from the
   resolved directory still refuses the boot.
+
+### Fixed
+
+- **An allowlist pattern with capitals matched nothing.** A guest's outbound host is
+  lowercase, and patterns were compared as written, so `allowed_domains = ["API.Example.com"]`
+  refused `api.example.com`. Patterns now compare without regard to case.
 
 ## [2.18.0] - 2026-10-25
 

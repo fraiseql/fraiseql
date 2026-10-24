@@ -93,6 +93,11 @@ pub struct BeforeMutationHooks {
     #[cfg(feature = "functions-runtime")]
     pub idempotency_key: Option<std::sync::Arc<[u8]>>,
 
+    /// The hosts a function or source connector may call, resolved from `[egress]` at
+    /// boot. Empty, the default, permits none. Set via [`with_egress`](Self::with_egress).
+    #[cfg(feature = "functions-runtime")]
+    pub egress: std::sync::Arc<[String]>,
+
     /// Per-function declared `timeout_ms` for `request:query` functions (#1329),
     /// keyed by function name.
     ///
@@ -153,6 +158,8 @@ impl BeforeMutationHooks {
             #[cfg(feature = "functions-runtime")]
             idempotency_key: None,
             #[cfg(feature = "functions-runtime")]
+            egress: std::sync::Arc::from([]),
+            #[cfg(feature = "functions-runtime")]
             run_as: std::collections::HashMap::new(),
             #[cfg(feature = "functions-runtime")]
             function_limits: std::collections::HashMap::new(),
@@ -179,6 +186,14 @@ impl BeforeMutationHooks {
     #[must_use]
     pub fn with_idempotency_key(mut self, key: Option<std::sync::Arc<[u8]>>) -> Self {
         self.idempotency_key = key;
+        self
+    }
+
+    /// Set the hosts functions and source connectors may call ([`egress`](Self::egress)).
+    #[cfg(feature = "functions-runtime")]
+    #[must_use]
+    pub fn with_egress(mut self, allowed_domains: Vec<String>) -> Self {
+        self.egress = allowed_domains.into();
         self
     }
 
@@ -279,6 +294,7 @@ impl FunctionsSubsystem {
             sender_resolver: None,
             email_transport: None,
             idempotency_key: None,
+            egress: std::sync::Arc::from([]),
             run_as,
             function_limits,
         }

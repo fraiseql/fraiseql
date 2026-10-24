@@ -74,7 +74,7 @@ impl Capability for Sources {
                 source.name, source.function
             )));
         };
-        let host_config = crate::sources::source_host_config(&sources_config);
+        let host_config = crate::sources::source_host_config(&sources_config, &hooks.egress);
         let pollers = crate::sources::build_source_pollers(
             &sources,
             db_pool,

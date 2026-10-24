@@ -96,7 +96,7 @@ export default async function pollOrders(): Promise<void> {
   const since = (await ctx.cursor<{ lastId: string }>())?.lastId ?? "0";
 
   // 2. Fetch the world. The host enforces the SSRF allowlist
-  //    (`FRAISEQL_SOURCES_ALLOWED_DOMAINS`); an un-allowlisted host is rejected.
+  //    (`[egress] allowed_domains`); an un-allowlisted host is rejected.
   const orders = await ctx.fetchJson<Order[]>(
     `https://orders.example.com/api/orders?since=${since}`
   );

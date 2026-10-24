@@ -37,6 +37,7 @@
 
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 
+pub mod allowlist;
 pub mod resolve;
 pub mod vectors;
 

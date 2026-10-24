@@ -18,7 +18,7 @@ design-in-the-open output of the beta migration. The workloads migrated:
   `QONTO_API_KEY`, `MAIL_API_KEY`) is a one-liner, and deny-by-default keeps a
   function from reaching a secret it was not granted. No change wanted.
 - **Outbound HTTP via `http_request`.** The SSRF allowlist
-  (`FRAISEQL_FUNCTIONS_ALLOWED_DOMAINS`), disabled redirects, and DNS-rebinding
+  (`[egress] allowed_domains`), disabled redirects, and DNS-rebinding
   checks are exactly the guardrails the sidecar hand-rolled. Calling an LLM, the
   Qonto API, and a mail provider all go through the same op.
 - **Write-back via `query`.** Persisting a result (a score + next action, a Qonto

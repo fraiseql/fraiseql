@@ -40,29 +40,22 @@ fn sources_enabled_from(config: &SourcesConfig, get: impl Fn(&str) -> Option<Str
     }
 }
 
-/// The host config for source connectors, deny-by-default.
+/// The host config a source connector runs on.
 ///
-/// The SSRF allowlist comes from `FRAISEQL_SOURCES_ALLOWED_DOMAINS` and the
-/// env-var allowlist from `FRAISEQL_SOURCES_ALLOWED_ENV_VARS` (both
-/// comma-separated), each overriding its `[sources]` config key.
+/// It may call `allowed_domains` (the `[egress]` list functions share, deny-all when
+/// empty), and read the variables `[sources] allowed_env_vars` names, which
+/// `FRAISEQL_SOURCES_ALLOWED_ENV_VARS` (comma-separated) overrides.
 #[must_use]
-pub fn source_host_config(config: &SourcesConfig) -> HostContextConfig {
-    source_host_config_from(config, |key| std::env::var(key).ok())
+pub fn source_host_config(config: &SourcesConfig, allowed_domains: &[String]) -> HostContextConfig {
+    source_host_config_from(config, allowed_domains, |key| std::env::var(key).ok())
 }
 
 fn source_host_config_from(
     config: &SourcesConfig,
+    allowed_domains: &[String],
     get: impl Fn(&str) -> Option<String>,
 ) -> HostContextConfig {
-    let allowed_domains = match get("FRAISEQL_SOURCES_ALLOWED_DOMAINS") {
-        Some(value) => value
-            .split(',')
-            .map(str::trim)
-            .filter(|domain| !domain.is_empty())
-            .map(String::from)
-            .collect(),
-        None => config.allowed_domains.clone(),
-    };
+    let allowed_domains = allowed_domains.to_vec();
     // #840: the env-var allowlist producer — without one, `allowed_env_vars`
     // was empty in every shipped process and the documented `fraiseql_env_var`
     // capability could never return a value.

@@ -216,6 +216,16 @@ impl ServerConfig {
             ao.validate()?;
         }
 
+        // `[egress]` replaced the sources-only list, with no alias: two lists were how a
+        // host came to be allowed for one guest and refused for another.
+        #[cfg(feature = "sources")]
+        if self.sources.as_ref().is_some_and(|s| s.replaced_allowed_domains.is_some()) {
+            return Err("[sources] allowed_domains moved to [egress] allowed_domains, the one \
+                        list functions and source connectors call out under. Move the list \
+                        there"
+                .to_string());
+        }
+
         // #633: a zero interval would measure in a busy loop.
         if self.tenancy.storage_quota.interval_secs == 0 {
             return Err("[tenancy.storage_quota] interval_secs must be at least 1".to_string());

@@ -271,3 +271,119 @@ fn after_mutation_when_predicates_gate_firing() {
         "does NOT fire on an unrelated re-save (approved→approved) — the #597 fix"
     );
 }
+
+// ── `[egress]`: one list for every guest host ────────────────────────────────
+//
+// A function's or a source connector's outbound call is checked against the
+// `HostContextConfig` its host was built with. The server builds those in two
+// constructors, from the `[egress]` list it resolved at boot into the functions hooks.
+// A host built anywhere else, or a constructor handed some other list, is how a host
+// came to be allowed for one guest and refused for another.
+
+/// Every non-test source file of this crate, workspace-relative, with its contents.
+fn server_sources() -> Vec<(String, String)> {
+    fn walk(dir: &Path, out: &mut Vec<PathBuf>) {
+        for entry in std::fs::read_dir(dir).unwrap() {
+            let path = entry.unwrap().path();
+            if path.is_dir() {
+                walk(&path, out);
+            } else if path.extension().is_some_and(|e| e == "rs") {
+                out.push(path);
+            }
+        }
+    }
+    let root = workspace_root();
+    let mut files = Vec::new();
+    walk(&root.join("crates/fraiseql-server/src"), &mut files);
+    files
+        .into_iter()
+        .filter(|path| {
+            let name = path.file_name().unwrap().to_string_lossy();
+            name != "tests.rs" && !name.ends_with("_tests.rs")
+        })
+        .map(|path| {
+            let rel = path.strip_prefix(&root).unwrap().to_string_lossy().into_owned();
+            (rel, std::fs::read_to_string(&path).unwrap())
+        })
+        .collect()
+}
+
+/// `src` without comment lines or whitespace, so a call rustfmt wraps reads as one token.
+fn compact(src: &str) -> String {
+    src.lines()
+        .filter(|line| !line.trim_start().starts_with("//"))
+        .flat_map(str::chars)
+        .filter(|c| !c.is_whitespace())
+        .collect()
+}
+
+#[test]
+fn every_guest_host_is_built_from_the_egress_list() {
+    let mut built = std::collections::BTreeMap::new();
+    let mut misfed = Vec::new();
+    for (rel, src) in server_sources() {
+        let code = compact(&src);
+        // A struct literal, not a return type: `-> HostContextConfig {` compacts the same.
+        let literals = code
+            .match_indices("HostContextConfig{")
+            .filter(|(at, _)| {
+                !code[..*at]
+                    .trim_end_matches(|c: char| c.is_alphanumeric() || c == '_' || c == ':')
+                    .ends_with("->")
+            })
+            .count();
+        let constructions = literals + code.matches("HostContextConfig::default()").count();
+        if constructions > 0 {
+            built.insert(rel.clone(), constructions);
+        }
+        // Each call (or the definition itself) of the two constructors.
+        for (constructor, accepted) in [
+            (
+                "host_context_config(",
+                &[
+                    "&hooks.egress)",
+                    "&self.hooks.egress)",
+                    "allowed_domains:&[String]",
+                ][..],
+            ),
+            (
+                "host_context_config_from(",
+                &["allowed_domains,|key|", "allowed_domains:&[String]"][..],
+            ),
+            (
+                "source_host_config(",
+                &["&sources_config,&hooks.egress)", "config:&SourcesConfig"][..],
+            ),
+            (
+                "source_host_config_from(",
+                &["config,allowed_domains,|key|", "config:&SourcesConfig"][..],
+            ),
+        ] {
+            for (at, _) in code.match_indices(constructor) {
+                // `host_context_config(` is also the tail of `..._from(`'s name prefix; skip it.
+                if code[..at].ends_with('_')
+                    || code[at..].starts_with("host_context_config_from")
+                        && constructor == "host_context_config("
+                {
+                    continue;
+                }
+                let args = &code[at + constructor.len()..];
+                if !accepted.iter().any(|ok| args.starts_with(ok)) {
+                    misfed.push(format!("{rel}: {constructor}{}", &args[..args.len().min(40)]));
+                }
+            }
+        }
+    }
+    assert_eq!(
+        built,
+        std::collections::BTreeMap::from([
+            ("crates/fraiseql-server/src/routes/after_mutation/mod.rs".to_owned(), 2),
+            ("crates/fraiseql-server/src/sources/scheduler.rs".to_owned(), 2),
+        ]),
+        "a guest host built outside the two `[egress]` constructors"
+    );
+    assert!(
+        misfed.is_empty(),
+        "a guest host built from a list other than `[egress]`: {misfed:#?}"
+    );
+}

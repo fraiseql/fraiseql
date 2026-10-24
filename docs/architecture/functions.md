@@ -250,8 +250,10 @@ Both reach the same **I/O-capable host surface** through
 `FunctionObserver::invoke_with_context`, which dispatches by the module's runtime.
 The host surface (`HostContext`) exposes:
 
-- `http_request` — outbound HTTP, **deny-by-default SSRF allowlist**
-  (`FRAISEQL_FUNCTIONS_ALLOWED_DOMAINS`), redirects disabled, DNS-rebind checks.
+- `http_request` — outbound HTTP to the hosts `[egress] allowed_domains` permits
+  (**deny-by-default**; `FRAISEQL_EGRESS_ALLOWED_DOMAINS` replaces the list), the same
+  list source connectors call out under. Redirects are disabled, and DNS-rebind checks
+  apply.
 - `query` (`fraiseql_query`) — execute a GraphQL query or mutation back into the
   engine, under the function's **`run_as`** ceiling (see below). Wired for
   `after:mutation` and scheduled sources; `after:ingest` is a tracked follow-up.

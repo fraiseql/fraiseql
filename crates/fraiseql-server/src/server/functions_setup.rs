@@ -76,8 +76,15 @@ impl Server {
         if idempotency_key.is_some() {
             tracing::info!("idempotency tokens are HMAC-signed (VERP-ready send-ids)");
         }
-        let mut hooks =
-            subsystem.into_before_mutation_hooks().with_idempotency_key(idempotency_key);
+        let egress = self
+            .config
+            .egress
+            .resolve(|key| std::env::var(key).ok())
+            .map_err(ServerError::ConfigError)?;
+        let mut hooks = subsystem
+            .into_before_mutation_hooks()
+            .with_idempotency_key(idempotency_key)
+            .with_egress(egress);
 
         // Select the durable Postgres-backed DLQ when requested and a pool exists;
         // otherwise the in-memory store (the default) stays. A postgres request

@@ -32,7 +32,7 @@ The host surface it uses:
 | Op | Purpose |
 |----|---------|
 | `fraiseql_env_var(name)` | read the LLM API key (allowlisted secret) |
-| `fraiseql_http_request(method, url, headers, body?)` | call the LLM (deny-by-default SSRF allowlist via `FRAISEQL_FUNCTIONS_ALLOWED_DOMAINS`) |
+| `fraiseql_http_request(method, url, headers, body?)` | call the LLM (deny-by-default SSRF allowlist via `[egress] allowed_domains`) |
 | `fraiseql_query(graphql, variablesJson)` | write the score + next action back |
 
 ## `qonto-sync.ts`
@@ -102,7 +102,7 @@ observer.register_runtime(RuntimeType::Deno, DenoRuntime::new(&DenoConfig::defau
 Grant the LLM host in the SSRF allowlist and provide the key:
 
 ```bash
-export FRAISEQL_FUNCTIONS_ALLOWED_DOMAINS="api.llm.test"
+export FRAISEQL_EGRESS_ALLOWED_DOMAINS="api.llm.test"
 export LLM_API_KEY="sk-…"
 ```
 

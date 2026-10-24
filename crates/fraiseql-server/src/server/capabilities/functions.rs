@@ -69,7 +69,7 @@ impl Capability for Functions {
         if hooks.trigger_registry.cron_triggers.is_empty() {
             return Ok(Started::Running);
         }
-        let host_config = crate::routes::after_mutation::host_context_config();
+        let host_config = crate::routes::after_mutation::host_context_config(&hooks.egress);
         let pollers = crate::cron::build_cron_pollers(
             db_pool,
             &crate::query_bridge::ExecutorSource::of(app_state),

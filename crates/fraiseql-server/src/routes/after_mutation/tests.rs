@@ -272,7 +272,7 @@ mod durable_dispatch {
     ) -> DurableDispatcher {
         DurableDispatcher {
             observer: std::sync::Arc::new(FunctionObserver::new()),
-            host_config: host_context_config(),
+            host_config: host_context_config(&[]),
             limits: ResourceLimits::default(),
             dlq,
             source: fraiseql_observers::DispatchSource::AfterMutation,
@@ -577,7 +577,7 @@ mod query_bridge_wiring {
     ) -> DurableDispatcher {
         DurableDispatcher {
             observer: Arc::new(FunctionObserver::new()),
-            host_config: host_context_config(),
+            host_config: host_context_config(&[]),
             limits: ResourceLimits::default(),
             dlq: Arc::new(InMemoryDlq::new_with_max(None)),
             source: fraiseql_observers::DispatchSource::AfterMutation,
@@ -645,19 +645,18 @@ mod query_bridge_wiring {
         assert_eq!(identity.request_id, "tok-2", "identity correlates the dispatch token");
     }
 
-    /// #840: the after:mutation host config has an env-var allowlist producer —
-    /// `FRAISEQL_FUNCTIONS_ALLOWED_ENV_VARS`, mirroring the sibling
-    /// `FRAISEQL_FUNCTIONS_ALLOWED_DOMAINS` escape hatch.
+    /// #840: the after:mutation host config has an env-var allowlist producer:
+    /// `FRAISEQL_FUNCTIONS_ALLOWED_ENV_VARS`.
     #[test]
     fn host_context_config_reads_the_env_var_allowlist() {
         use super::super::host_context_config_from;
 
         // No producer key set → deny-by-default (empty).
-        let config = host_context_config_from(|_| None);
+        let config = host_context_config_from(&[], |_| None);
         assert!(config.allowed_env_vars.is_empty());
 
         // Comma-split and trimmed.
-        let config = host_context_config_from(|key| {
+        let config = host_context_config_from(&[], |key| {
             (key == "FRAISEQL_FUNCTIONS_ALLOWED_ENV_VARS")
                 .then(|| " LLM_API_KEY, QONTO_API_KEY ".to_string())
         });

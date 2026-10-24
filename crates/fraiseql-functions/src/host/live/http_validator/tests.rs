@@ -1,38 +1,5 @@
 use super::*;
 
-#[test]
-fn test_is_domain_allowed_with_wildcard() {
-    let config = HttpClientConfig {
-        allowed_domains: vec!["*".to_string()],
-        ..Default::default()
-    };
-    assert!(is_domain_allowed("example.com", &config.allowed_domains));
-    assert!(is_domain_allowed("any.domain.anywhere", &config.allowed_domains));
-}
-
-#[test]
-fn test_is_domain_allowed_exact_match() {
-    let config = HttpClientConfig {
-        allowed_domains: vec!["example.com".to_string(), "safe.io".to_string()],
-        ..Default::default()
-    };
-    assert!(is_domain_allowed("example.com", &config.allowed_domains));
-    assert!(is_domain_allowed("safe.io", &config.allowed_domains));
-    assert!(!is_domain_allowed("other.com", &config.allowed_domains));
-}
-
-#[test]
-fn test_is_domain_allowed_glob_pattern() {
-    let config = HttpClientConfig {
-        allowed_domains: vec!["*.example.com".to_string()],
-        ..Default::default()
-    };
-    assert!(is_domain_allowed("api.example.com", &config.allowed_domains));
-    assert!(is_domain_allowed("sub.api.example.com", &config.allowed_domains));
-    assert!(!is_domain_allowed("example.com", &config.allowed_domains));
-    assert!(!is_domain_allowed("other.com", &config.allowed_domains));
-}
-
 #[tokio::test]
 async fn test_validate_outbound_url_valid() {
     let config = HttpClientConfig {
@@ -102,8 +69,8 @@ fn test_default_allowlist_is_deny_by_default() {
     // The default allowlist is empty: no host is permitted.
     let config = HttpClientConfig::default();
     assert!(config.allowed_domains.is_empty());
-    assert!(!is_domain_allowed("example.com", &config.allowed_domains));
-    assert!(!is_domain_allowed("8.8.8.8", &config.allowed_domains));
+    assert!(!fraiseql_guard::net::allowlist::allows("example.com", &config.allowed_domains));
+    assert!(!fraiseql_guard::net::allowlist::allows("8.8.8.8", &config.allowed_domains));
 }
 
 #[tokio::test]

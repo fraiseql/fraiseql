@@ -354,7 +354,7 @@ impl Default for FunctionDispatchSetting {
 /// settings from the compiled schema.
 ///
 /// Built from the environment so production can tune durability without
-/// recompiling the schema (mirroring `FRAISEQL_FUNCTIONS_ALLOWED_DOMAINS`):
+/// recompiling the schema:
 ///
 /// - `FRAISEQL_FUNCTIONS_RETRY_MAX_ATTEMPTS` — default retry attempts.
 /// - `FRAISEQL_FUNCTIONS_RETRY_INITIAL_DELAY_MS` — default initial backoff.
@@ -833,8 +833,8 @@ impl DurableDispatcher {
 /// Spawn each planned after:mutation invocation as a background task.
 ///
 /// Each task runs its module on a [`LiveHostContext`] so the function can perform
-/// outbound I/O (HTTP, with the SSRF allowlist from
-/// `FRAISEQL_FUNCTIONS_ALLOWED_DOMAINS`). Dispatch is durable by default —
+/// outbound I/O (HTTP, to the hosts `[egress] allowed_domains` permits). Dispatch is
+/// durable by default —
 /// transient failures are retried and exhausted ones are dead-lettered
 /// (`hooks.dlq`) — unless the function is marked `re_runnable`, in which case it
 /// stays fire-and-forget. Either way the mutation response has already been sent,
@@ -1031,7 +1031,7 @@ fn base_dispatcher(
 ) -> DurableDispatcher {
     DurableDispatcher {
         observer: std::sync::Arc::clone(&hooks.observer),
-        host_config: host_context_config(),
+        host_config: host_context_config(&hooks.egress),
         // Set per-plan by `plan_dispatcher`, from the function's definition (#1627).
         limits: fraiseql_functions::ResourceLimits::default(),
         dlq: std::sync::Arc::clone(&hooks.dlq),
@@ -1068,34 +1068,30 @@ fn plan_dispatcher(
     (dispatcher, setting)
 }
 
-/// Build the host-context config for after:mutation functions.
+/// The host config a function runs on.
 ///
-/// Outbound HTTP is deny-by-default; the SSRF allowlist is sourced from the
-/// comma-separated `FRAISEQL_FUNCTIONS_ALLOWED_DOMAINS` environment variable so
-/// production can grant outbound access without recompiling the schema. The
-/// env-var allowlist (#840) comes from `FRAISEQL_FUNCTIONS_ALLOWED_ENV_VARS`
-/// the same way — without a producer, `fraiseql_env_var` could never return a
-/// value on any deployment.
+/// It may call `allowed_domains` (the `[egress]` list the server resolved at boot,
+/// deny-all when empty), and read the variables `FRAISEQL_FUNCTIONS_ALLOWED_ENV_VARS`
+/// names (comma-separated). Without a producer for the second, `fraiseql_env_var` could
+/// never return a value on any deployment.
 #[cfg(feature = "functions-runtime")]
-pub fn host_context_config() -> fraiseql_functions::host::live::HostContextConfig {
-    host_context_config_from(|key| std::env::var(key).ok())
+pub fn host_context_config(
+    allowed_domains: &[String],
+) -> fraiseql_functions::host::live::HostContextConfig {
+    host_context_config_from(allowed_domains, |key| std::env::var(key).ok())
 }
 
 /// [`host_context_config`] with an injected env getter (testable without
 /// touching process-global environment state).
 #[cfg(feature = "functions-runtime")]
 fn host_context_config_from(
+    allowed_domains: &[String],
     get: impl Fn(&str) -> Option<String>,
 ) -> fraiseql_functions::host::live::HostContextConfig {
-    let mut config = fraiseql_functions::host::live::HostContextConfig::default();
-    if let Some(domains) = get("FRAISEQL_FUNCTIONS_ALLOWED_DOMAINS") {
-        config.allowed_domains = domains
-            .split(',')
-            .map(str::trim)
-            .filter(|domain| !domain.is_empty())
-            .map(String::from)
-            .collect();
-    }
+    let mut config = fraiseql_functions::host::live::HostContextConfig {
+        allowed_domains: allowed_domains.to_vec(),
+        ..fraiseql_functions::host::live::HostContextConfig::default()
+    };
     if let Some(names) = get("FRAISEQL_FUNCTIONS_ALLOWED_ENV_VARS") {
         config.allowed_env_vars = names
             .split(',')
