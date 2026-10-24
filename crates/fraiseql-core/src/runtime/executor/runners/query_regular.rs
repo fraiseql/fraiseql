@@ -426,7 +426,7 @@ impl QueryRunner {
             authorizer_rows = Some(results);
             projected
         } else {
-            let projector = ResultProjector::new(read.access.projected.clone())
+            let projector = ResultProjector::new(read.access().projected.clone())
                 // #1192: a `String` field whose text parses as JSON must stay a string.
                 .with_declared_scalars(&self.ctx.schema, return_type)
                 .configure_typename_from_selections(&query_match.selections, return_type);
@@ -473,7 +473,7 @@ impl QueryRunner {
             self.apply_dynamic_field_authorizer(
                 &query_match,
                 principal,
-                &read.access,
+                read.access(),
                 &rows,
                 &mut projected,
             )?;
@@ -756,7 +756,7 @@ impl QueryRunner {
         // #886: read only what this principal may see. `allowed()` excludes the
         // masked fields, which on the JSON path are projected and then nulled —
         // a column-shaped row has no key to null, so the column is not read.
-        let allowed = resolved.access.allowed();
+        let allowed = resolved.access().allowed();
         let narrowed: Vec<fraiseql_db::types::ColumnSpec> = columns
             .iter()
             .filter(|c| allowed.iter().any(|a| a == &c.name))

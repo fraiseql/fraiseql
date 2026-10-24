@@ -586,7 +586,7 @@ pub(super) fn correlation_keys(
 /// The keys an embedded level may return: every projected field's stored spellings,
 /// with the masked fields' written as `NULL`.
 fn level_keys(resolved: &RootRead) -> LevelKeys {
-    let access = &resolved.access;
+    let access = resolved.access();
     let mut kept = Vec::new();
     let mut masked = Vec::new();
     for field in &access.projected {

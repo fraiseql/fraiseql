@@ -338,9 +338,8 @@ pub(in super::super) struct RootRead {
     /// How many fields the read projects — what the cost estimate counts as this
     /// level's scalars.
     pub(super) leaf_fields:    usize,
-    /// Field-level RBAC classification for the projection (#886): the root level.
-    pub access:                FieldAccessResult,
-    /// The same classification at every level of the selection (`query_nested`).
+    /// Field-level RBAC classification at every level of the selection (#886,
+    /// `query_nested`); [`access`](Self::access) is its root level.
     pub(super) selection:      SelectionAccess,
     /// Projection for the read, or `None` to read the stored document whole.
     pub(super) projection:     Option<SqlProjectionHint>,
@@ -368,6 +367,11 @@ pub(in super::super) struct RootRead {
 }
 
 impl RootRead {
+    /// The field-level RBAC classification of the root level, the one the projection reads.
+    pub(super) const fn access(&self) -> &FieldAccessResult {
+        &self.selection.root
+    }
+
     /// Borrow the session variables in the shape the adapter takes.
     pub(super) fn session_pairs(&self) -> Vec<(&str, &str)> {
         self.session_vars.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect()
@@ -617,7 +621,6 @@ impl QueryRunner {
                 offset: None,
                 session_vars,
                 leaf_fields: 0,
-                access: selection.root.clone(),
                 selection,
                 projection: None,
                 nested,
@@ -746,7 +749,6 @@ impl QueryRunner {
             offset,
             session_vars,
             leaf_fields: plan.projection_fields.len(),
-            access: selection.root.clone(),
             selection,
             projection,
             nested,
