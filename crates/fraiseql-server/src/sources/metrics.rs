@@ -11,7 +11,7 @@
 //! themselves are cheap no-ops when no recorder is installed, so this module needs
 //! no feature gate of its own.
 //!
-//! Three metrics, all driven from [`SourcePoller::fire_once`](super::SourcePoller):
+//! Three metrics, all driven from `ScheduledPoller::fire_once` for a source:
 //!
 //! - `fraiseql_source_fires_total{source, result}` — a source firing that ran to completion
 //!   (`result="ok"`) or whose connector returned an error (`result="error"`). A failed firing

@@ -982,6 +982,59 @@ fn a_schedule_that_can_never_fire_is_rejected() {
 }
 
 #[test]
+fn a_source_timezone_that_is_not_iana_is_rejected_by_name() {
+    use fraiseql_core::schema::SourceDefinition;
+    let mut source = SourceDefinition::new("orders", "*/5 * * * *", "pollOrders");
+    source.timezone = Some("Europe/Pariss".to_string());
+    let schema = IntermediateSchema {
+        sources: Some(vec![source]),
+        ..Default::default()
+    };
+    let report = SchemaValidator::validate(&schema).unwrap();
+    let error = report
+        .errors
+        .iter()
+        .find(|e| e.path == "sources[0].schedule")
+        .expect("the timezone is reported");
+    assert!(error.message.contains("Europe/Pariss"), "{}", error.message);
+}
+
+#[test]
+fn a_source_with_an_iana_timezone_validates() {
+    use fraiseql_core::schema::SourceDefinition;
+    let mut source = SourceDefinition::new("orders", "*/5 * * * *", "pollOrders");
+    source.timezone = Some("Europe/Paris".to_string());
+    let schema = IntermediateSchema {
+        sources: Some(vec![source]),
+        ..Default::default()
+    };
+    let report = SchemaValidator::validate(&schema).unwrap();
+    assert!(report.is_valid(), "{:?}", report.errors);
+}
+
+/// A source's lease is keyed on its bare name and a cron function's on `cron:<name>`, so
+/// a source named `cron:x` would share the lease of the cron function `x`.
+#[test]
+fn a_source_name_with_a_colon_is_rejected() {
+    use fraiseql_core::schema::SourceDefinition;
+    let schema = IntermediateSchema {
+        sources: Some(vec![SourceDefinition::new(
+            "cron:nightly",
+            "*/5 * * * *",
+            "pollA",
+        )]),
+        ..Default::default()
+    };
+    let report = SchemaValidator::validate(&schema).unwrap();
+    let error = report
+        .errors
+        .iter()
+        .find(|e| e.path == "sources[0].name")
+        .expect("the name is reported");
+    assert!(error.message.contains("cron:nightly"), "{}", error.message);
+}
+
+#[test]
 fn duplicate_source_cursor_is_rejected() {
     use fraiseql_core::schema::SourceDefinition;
     // Two sources sharing a cursor name would clobber each other's watermark.

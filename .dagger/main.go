@@ -1615,7 +1615,7 @@ func (m *FraiseqlCi) integrationPostgres(ctx context.Context, source *dagger.Dir
 		// suppress a genuine, differently-bodied message.
 		"cargo test -p fraiseql-server --features inbound-email --test inbound_email_dedup_scope_pg -- --test-threads=1",
 		// #573 source scheduler (Model B): the SourceQueryExecutor identity/tenant
-		// seam, the SourcePoller build_host composition (cursor round-trip vs PG +
+		// seam, the source poller build_host composition (cursor round-trip vs PG +
 		// executor reachable via host.query), and the scheduler's schedulable/config
 		// resolution. `--features sources` pulls the Deno path (compiled only). The
 		// The fires_a_model_b_connector_end_to_end name-skip is lifted (#971):

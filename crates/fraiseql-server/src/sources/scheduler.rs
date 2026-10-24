@@ -1,7 +1,7 @@
 //! Assembling the source scheduler from the compiled schema (#573).
 //!
 //! [`build_source_pollers`] turns the compiled `sources` array into one
-//! [`SourcePoller`] per enabled source, resolving each source's connector
+//! `ScheduledPoller` per enabled source, resolving each source's connector
 //! module, `run_as` identity ([`SourceQueryExecutor`]), durable cursor, and
 //! single-firing lease. The lifecycle spawns the returned pollers on the server's
 //! `JoinSet`. [`sources_enabled`] and [`source_host_config`] resolve the `[sources]`
@@ -13,12 +13,15 @@ use fraiseql_core::schema::SourceDefinition;
 use fraiseql_functions::{
     FunctionModule, ResourceLimits,
     host::live::{HostContextConfig, QueryExecutor},
-    triggers::CronSchedule,
+    triggers::Schedule,
 };
 use fraiseql_observers::{LeaseGuardedRunner, PostgresSourceCursorStore};
 
-use super::{SourcePoller, SourceQueryExecutor};
-use crate::{ServerError, server_config::SourcesConfig, subsystems::BeforeMutationHooks};
+use super::SourceQueryExecutor;
+use crate::{
+    ServerError, cron::ScheduledPoller, server_config::SourcesConfig,
+    subsystems::BeforeMutationHooks,
+};
 
 /// Whether the source scheduler runs: `FRAISEQL_SOURCES_ENABLED` overrides the
 /// `[sources] enabled` config (env > TOML > default `true`). Any of
@@ -85,7 +88,7 @@ fn source_host_config_from(
 struct Schedulable<'a> {
     source:   &'a SourceDefinition,
     module:   FunctionModule,
-    schedule: CronSchedule,
+    schedule: Schedule,
     limits:   ResourceLimits,
 }
 
@@ -105,6 +108,15 @@ fn schedulable<'a>(
         .iter()
         .filter(|source| source.enabled)
         .map(|source| {
+            // A cron function's lease is `cron:<name>`, so a source named `cron:x` would
+            // share the lease of the cron function `x`. The compiler refuses the name too.
+            if source.name.contains(':') {
+                return Err(ServerError::ConfigError(format!(
+                    "source {:?} has a ':' in its name, which the scheduler reserves for \
+                     cron functions' leases; rename the source",
+                    source.name
+                )));
+            }
             let module = hooks.module_registry.get(&source.function).ok_or_else(|| {
                 ServerError::ConfigError(format!(
                     "source {:?} runs the connector {:?}, which was not loaded — every \
@@ -113,12 +125,13 @@ fn schedulable<'a>(
                     source.name, source.function
                 ))
             })?;
-            let schedule = CronSchedule::parse(&source.schedule).map_err(|error| {
-                ServerError::ConfigError(format!(
-                    "source {:?} has an invalid cron schedule {:?}: {error}",
-                    source.name, source.schedule
-                ))
-            })?;
+            let schedule =
+                Schedule::parse(&source.schedule, source.timezone.as_deref()).map_err(|error| {
+                    ServerError::ConfigError(format!(
+                        "source {:?} has an invalid schedule {:?}: {error}",
+                        source.name, source.schedule
+                    ))
+                })?;
             Ok(Schedulable {
                 source,
                 module: module.clone(),
@@ -129,21 +142,21 @@ fn schedulable<'a>(
         .collect()
 }
 
-/// Build one [`SourcePoller`] per enabled Model B source in the compiled schema.
+/// Build one [`ScheduledPoller`] per enabled Model B source in the compiled schema.
 ///
 /// Each poller runs under the source's `run_as` identity (via
 /// [`SourceQueryExecutor`] over the server's executor source: the serving executor, or a
 /// message's tenant's under the tenancy runtime, #1550), reads/advances the
 /// shared durable cursor store, and single-fires across replicas on a
 /// `PostgreSQL` advisory lease keyed on the source name. The caller spawns each
-/// returned poller's [`run_forever`](SourcePoller::run_forever) on the server's
+/// returned poller's [`run_forever`](ScheduledPoller::run_forever) on the server's
 /// `JoinSet`; the shared `_fraiseql_source_cursor` table must already be
 /// initialized.
 ///
 /// # Errors
 ///
 /// Returns [`ServerError::ConfigError`] if an enabled source's connector is not in
-/// the registry or its schedule does not parse.
+/// the registry, or its schedule or timezone does not parse.
 pub fn build_source_pollers(
     sources: &[SourceDefinition],
     db_pool: &sqlx::PgPool,
@@ -151,7 +164,7 @@ pub fn build_source_pollers(
     hooks: &BeforeMutationHooks,
     host_config: &HostContextConfig,
     log_payloads: bool,
-) -> Result<Vec<SourcePoller>, ServerError> {
+) -> Result<Vec<ScheduledPoller>, ServerError> {
     Ok(schedulable(sources, hooks)?
         .into_iter()
         .map(
@@ -166,7 +179,7 @@ pub fn build_source_pollers(
                 let identity = source.identity(source.name.as_str());
                 let query_executor: Arc<dyn QueryExecutor> =
                     Arc::new(SourceQueryExecutor::for_source(executor.clone(), identity.clone()));
-                SourcePoller::new(
+                ScheduledPoller::source(
                     source.name.clone(),
                     // The declared `cursor` override, falling back to the source name. Keeps the
                     // watermark key under the author's control while the lease and metric labels

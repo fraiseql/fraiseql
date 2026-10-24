@@ -373,6 +373,7 @@ async fn a_polled_message_records_its_dispatch_and_the_dispatch_settles_it() {
         when:        Vec::new(),
         re_runnable: true,
         retry:       None,
+        timezone:    None,
     }];
     let module = fraiseql_functions::FunctionModule {
         name:        "triage".to_string(),

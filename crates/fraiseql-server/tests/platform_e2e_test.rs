@@ -104,27 +104,9 @@ fn test_platform_e2e_functions_subsystem_full_construction() {
     assert_eq!(subsystem.trigger_registry.cron_trigger_count(), 1);
 }
 
-/// Verify that the registry → `CronScheduler` pipeline works end-to-end.
+/// Verify that a registry with no cron function holds no cron trigger.
 #[test]
-fn test_platform_e2e_registry_to_cron_scheduler_pipeline() {
-    let defs = vec![
-        FunctionDefinition::new("dailyCleanup", "cron:0 2 * * *", RuntimeType::Deno),
-        FunctionDefinition::new("hourlySync", "cron:0 * * * *", RuntimeType::Deno),
-        // Non-cron trigger must coexist without interfering
-        FunctionDefinition::new("validate", "before:mutation:createUser", RuntimeType::Deno),
-    ];
-    let registry = TriggerRegistry::load_from_definitions(&defs).unwrap();
-
-    // Fast path: 2 cron triggers → scheduler is Some
-    let scheduler = registry.cron_scheduler();
-    assert!(scheduler.is_some(), "should build a scheduler when cron triggers exist");
-    let scheduler = scheduler.unwrap();
-    assert_eq!(scheduler.trigger_count(), 2);
-}
-
-/// Verify that a registry with no cron triggers returns None from `cron_scheduler()`.
-#[test]
-fn test_platform_e2e_registry_no_cron_returns_none() {
+fn test_platform_e2e_registry_no_cron_has_no_cron_trigger() {
     let defs = vec![FunctionDefinition::new(
         "validate",
         "before:mutation:createUser",
@@ -132,10 +114,7 @@ fn test_platform_e2e_registry_no_cron_returns_none() {
     )];
     let registry = TriggerRegistry::load_from_definitions(&defs).unwrap();
 
-    assert!(
-        registry.cron_scheduler().is_none(),
-        "no cron triggers → cron_scheduler() returns None (zero-overhead fast path)"
-    );
+    assert_eq!(registry.cron_trigger_count(), 0, "no cron function, no cron trigger");
 }
 
 /// Verify that `BeforeMutationHooks` correctly exposes the before:mutation chain
@@ -180,37 +159,6 @@ fn test_platform_e2e_all_trigger_types_coexist() {
     assert_eq!(registry.function_count, 3);
     assert_eq!(registry.before_mutation_count(), 1);
     assert_eq!(registry.cron_trigger_count(), 1);
-
-    // Cron scheduler builds from cron triggers only
-    let scheduler = registry.cron_scheduler().unwrap();
-    assert_eq!(scheduler.trigger_count(), 1);
-}
-
-// ── Tier 2: CronScheduler lifecycle (tokio runtime, no DB) ───────────────────
-
-/// Verify the full lifecycle: registry → scheduler → start → stop.
-///
-/// This test does not execute any functions; it only verifies the scheduler
-/// lifecycle under a tokio runtime.
-#[tokio::test]
-async fn test_platform_e2e_cron_scheduler_starts_on_server_start() {
-    let defs = vec![
-        // Use a schedule that will never match in the test window (Feb 31)
-        FunctionDefinition::new("neverFires", "cron:0 0 31 2 *", RuntimeType::Deno),
-    ];
-    let registry = TriggerRegistry::load_from_definitions(&defs).unwrap();
-
-    let observer = Arc::new(FunctionObserver::new());
-    let scheduler = registry.cron_scheduler().expect("should have scheduler");
-
-    // Simulates server startup: build and start the scheduler
-    let handle = scheduler.start(observer, HashMap::new());
-
-    // Simulates server shutdown: stop the scheduler
-    handle.stop();
-
-    // Yield to allow the background task to process the shutdown signal
-    tokio::task::yield_now().await;
 }
 
 // ── Tier 3: Full platform E2E (requires PostgreSQL + Deno) ───────────────────

@@ -1,0 +1,17 @@
+# A `cron:` function declared with a timezone fires on its schedule and writes through the
+# GraphQL bridge. The first tick comes a minute after boot.
+capability = "functions"
+deadline_secs = 150
+
+[env]
+FRAISEQL_FUNCTIONS_MODULE_DIR = "$FIXTURE/modules"
+
+[[stimulus]]
+wait = { secs = 0 }
+
+[effect]
+row = { query = "SELECT DISTINCT zone FROM app.tb_tick", expect = [
+  [
+    "Europe/Paris",
+  ],
+] }

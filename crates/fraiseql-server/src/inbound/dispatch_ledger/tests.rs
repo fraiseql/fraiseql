@@ -238,6 +238,7 @@ fn a_replayed_dispatch_carries_the_first_dispatchs_token() {
         when:        Vec::new(),
         re_runnable: false,
         retry:       None,
+        timezone:    None,
     }];
     let module = fraiseql_functions::FunctionModule {
         name:        "classify".to_string(),
@@ -337,6 +338,7 @@ async fn the_server_starts_the_sweep_where_an_inbound_path_records_dispatches() 
         when:        Vec::new(),
         re_runnable: false,
         retry:       None,
+        timezone:    None,
     }];
     let hooks = Arc::new(crate::subsystems::BeforeMutationHooks::new(
         fraiseql_functions::TriggerRegistry::load_from_definitions(&definitions).unwrap(),

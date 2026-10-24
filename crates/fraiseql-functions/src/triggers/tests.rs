@@ -958,7 +958,7 @@ fn next_jitter_micros(rng: &mut u64) -> i64 {
     i64::try_from(*rng % 1_000_000).expect("micros < 1e6 fits i64")
 }
 
-/// Replay `CronPoller::run_forever`'s tick loop: one tick per simulated minute
+/// Replay `ScheduledPoller::run_forever`'s tick loop: one tick per simulated minute
 /// with sub-second jitter, `record_execution` only when `should_execute` says
 /// fire. Returns `(fires, expected)` where `expected` is the number of
 /// tick-minutes the schedule matches (computed from `CronSchedule::matches` on
@@ -1676,7 +1676,7 @@ fn test_cron_with_storage_cascade() {
 }
 
 // ============================================================================
-// Cycle 5: CronScheduler and TriggerRegistry cron support (GREEN — infrastructure)
+// TriggerRegistry cron support
 // ============================================================================
 
 /// Test: `TriggerRegistry` loads cron trigger definitions
@@ -1698,131 +1698,6 @@ fn test_registry_loads_cron_triggers() {
     assert_eq!(registry.cron_triggers[0].schedule, "0 2 * * *");
     assert_eq!(registry.cron_triggers[1].function_name, "hourlySync");
     assert_eq!(registry.cron_triggers[1].schedule, "0 * * * *");
-}
-
-/// Test: `TriggerRegistry.cron_scheduler()` returns Some when triggers exist
-#[test]
-fn test_registry_cron_scheduler_returns_some_when_triggers_exist() {
-    use crate::{FunctionDefinition, RuntimeType, triggers::registry::TriggerRegistry};
-
-    let functions = vec![FunctionDefinition::new(
-        "dailyJob",
-        "cron:0 3 * * *",
-        RuntimeType::Deno,
-    )];
-    let registry = TriggerRegistry::load_from_definitions(&functions).expect("load registry");
-
-    let scheduler = registry.cron_scheduler();
-    assert!(scheduler.is_some(), "should return a scheduler when cron triggers exist");
-    assert_eq!(
-        scheduler
-            .expect("cron_scheduler should return Some when triggers exist")
-            .trigger_count(),
-        1
-    );
-}
-
-/// Test: `TriggerRegistry.cron_scheduler()` returns None when no cron triggers exist
-#[test]
-fn test_registry_cron_scheduler_returns_none_when_no_triggers() {
-    use crate::{FunctionDefinition, RuntimeType, triggers::registry::TriggerRegistry};
-
-    let functions = vec![
-        FunctionDefinition::new("onUserCreated", "after:mutation:User:insert", RuntimeType::Deno),
-        FunctionDefinition::new("validate", "before:mutation:createUser", RuntimeType::Deno),
-    ];
-    let registry = TriggerRegistry::load_from_definitions(&functions).expect("load registry");
-
-    assert!(
-        registry.cron_scheduler().is_none(),
-        "no cron triggers → cron_scheduler() should return None (fast path)"
-    );
-}
-
-/// Test: `CronScheduler` can be constructed with triggers
-#[test]
-fn test_cron_scheduler_new_creates_with_triggers() {
-    use crate::triggers::cron::{CronScheduler, CronTrigger};
-
-    let triggers = vec![
-        CronTrigger {
-            function_name: "dailyCleanup".to_string(),
-            schedule:      "0 2 * * *".to_string(),
-            timezone:      "UTC".to_string(),
-        },
-        CronTrigger {
-            function_name: "hourlySync".to_string(),
-            schedule:      "0 * * * *".to_string(),
-            timezone:      "UTC".to_string(),
-        },
-    ];
-
-    let scheduler = CronScheduler::new(triggers);
-    assert_eq!(scheduler.trigger_count(), 2);
-}
-
-/// Test: `CronScheduler` can be started and returns a handle
-#[tokio::test]
-async fn test_cron_scheduler_starts_and_provides_handle() {
-    use std::{collections::HashMap, sync::Arc};
-
-    use crate::{
-        observer::FunctionObserver,
-        triggers::cron::{CronScheduler, CronTrigger},
-    };
-
-    let triggers = vec![CronTrigger {
-        function_name: "dailyCleanup".to_string(),
-        schedule:      "0 2 * * *".to_string(), // 2 AM — won't fire during test
-        timezone:      "UTC".to_string(),
-    }];
-
-    let observer = Arc::new(FunctionObserver::new());
-    let handle = CronScheduler::new(triggers).start(observer, HashMap::new());
-
-    // Immediately stop so we don't leave a dangling task
-    handle.stop();
-}
-
-/// Test: `CronSchedulerHandle` stops gracefully without panic
-#[tokio::test]
-async fn test_cron_scheduler_handle_stops_gracefully() {
-    use std::{collections::HashMap, sync::Arc};
-
-    use crate::{
-        observer::FunctionObserver,
-        triggers::cron::{CronScheduler, CronTrigger},
-    };
-
-    let triggers = vec![CronTrigger {
-        function_name: "neverFires".to_string(),
-        schedule:      "0 0 31 2 *".to_string(), // Feb 31 — never matches
-        timezone:      "UTC".to_string(),
-    }];
-
-    let observer = Arc::new(FunctionObserver::new());
-    let handle = CronScheduler::new(triggers).start(observer, HashMap::new());
-
-    // stop() must complete without panic
-    handle.stop();
-
-    // Yield to give the spawned task a chance to process the shutdown signal
-    tokio::task::yield_now().await;
-}
-
-/// Test: `CronScheduler` with no triggers starts and stops cleanly
-#[tokio::test]
-async fn test_cron_scheduler_empty_starts_cleanly() {
-    use std::{collections::HashMap, sync::Arc};
-
-    use crate::{observer::FunctionObserver, triggers::cron::CronScheduler};
-
-    let scheduler = CronScheduler::new(vec![]);
-    assert_eq!(scheduler.trigger_count(), 0);
-
-    let observer = Arc::new(FunctionObserver::new());
-    let handle = scheduler.start(observer, HashMap::new());
-    handle.stop();
 }
 
 /// Test: #1399 — a schedule that can never fire is refused, not parsed into a
@@ -1858,5 +1733,119 @@ fn test_cron_accepts_every_field_at_its_bounds() {
         "*/1 * * * *",
     ] {
         assert!(CronSchedule::parse(expression).is_ok(), "`{expression}`");
+    }
+}
+
+// ── Cron in a timezone (#1658) ───────────────────────────────────────────────
+
+mod cron_in_a_timezone {
+    use chrono::{DateTime, TimeZone as _, Utc};
+
+    use crate::triggers::cron::{CronDecision, CronExecutionState, Schedule};
+
+    fn utc(y: i32, mo: u32, d: u32, h: u32, mi: u32) -> DateTime<Utc> {
+        Utc.with_ymd_and_hms(y, mo, d, h, mi, 0).single().expect("a valid UTC instant")
+    }
+
+    fn paris(expression: &str) -> Schedule {
+        Schedule::parse(expression, Some("Europe/Paris")).expect("the schedule parses")
+    }
+
+    /// The minutes in `[from, to)` at which `schedule` fires, recording each fire.
+    fn fires(schedule: &Schedule, from: DateTime<Utc>, to: DateTime<Utc>) -> Vec<DateTime<Utc>> {
+        let mut state = CronExecutionState::new();
+        let mut fired = Vec::new();
+        let mut now = from;
+        while now < to {
+            if schedule.decide(&state, &now) == CronDecision::Fire {
+                state.record_execution(now);
+                fired.push(now);
+            }
+            now += chrono::Duration::minutes(1);
+        }
+        fired
+    }
+
+    #[test]
+    fn a_schedule_without_a_timezone_runs_on_utc() {
+        let schedule = Schedule::parse("30 9 * * *", None).expect("the schedule parses");
+        let day = fires(&schedule, utc(2026, 1, 15, 0, 0), utc(2026, 1, 16, 0, 0));
+        assert_eq!(day, vec![utc(2026, 1, 15, 9, 30)]);
+    }
+
+    #[test]
+    fn a_paris_schedule_fires_on_paris_time_in_winter_and_summer() {
+        let schedule = paris("30 9 * * *");
+        let winter = fires(&schedule, utc(2026, 1, 15, 0, 0), utc(2026, 1, 16, 0, 0));
+        let summer = fires(&schedule, utc(2026, 7, 15, 0, 0), utc(2026, 7, 16, 0, 0));
+        assert_eq!(winter, vec![utc(2026, 1, 15, 8, 30)], "CET is UTC+1");
+        assert_eq!(summer, vec![utc(2026, 7, 15, 7, 30)], "CEST is UTC+2");
+    }
+
+    /// 2026-10-25: Paris goes from 03:00 CEST back to 02:00 CET, so 02:30 happens twice.
+    #[test]
+    fn a_fixed_time_in_the_repeated_hour_fires_once() {
+        let fired = fires(&paris("30 2 * * *"), utc(2026, 10, 24, 22, 0), utc(2026, 10, 25, 4, 0));
+        assert_eq!(fired, vec![utc(2026, 10, 25, 0, 30)], "the first 02:30, CEST");
+    }
+
+    #[test]
+    fn a_wildcard_hour_keeps_firing_through_the_repeated_hour() {
+        let fired = fires(&paris("15 * * * *"), utc(2026, 10, 24, 23, 0), utc(2026, 10, 25, 2, 0));
+        assert_eq!(
+            fired,
+            vec![
+                utc(2026, 10, 24, 23, 15),
+                utc(2026, 10, 25, 0, 15),
+                utc(2026, 10, 25, 1, 15)
+            ],
+            "01:15, 02:15 CEST, 02:15 CET"
+        );
+    }
+
+    /// cron counts a stepped minute (`*/30`) as a wildcard, so the job runs on both passes.
+    #[test]
+    fn a_stepped_minute_is_a_wildcard_through_the_repeated_hour() {
+        let fired =
+            fires(&paris("*/30 2 * * *"), utc(2026, 10, 24, 23, 0), utc(2026, 10, 25, 3, 0));
+        assert_eq!(
+            fired,
+            vec![
+                utc(2026, 10, 25, 0, 0),
+                utc(2026, 10, 25, 0, 30),
+                utc(2026, 10, 25, 1, 0),
+                utc(2026, 10, 25, 1, 30)
+            ],
+            "02:00 and 02:30, CEST then CET"
+        );
+    }
+
+    /// 2026-03-29: Paris goes from 02:00 CET to 03:00 CEST, so 02:30 never happens.
+    #[test]
+    fn a_fixed_time_skipped_by_the_clock_change_fires_right_after_it() {
+        let fired = fires(&paris("30 2 * * *"), utc(2026, 3, 28, 23, 0), utc(2026, 3, 29, 4, 0));
+        assert_eq!(fired, vec![utc(2026, 3, 29, 1, 0)], "03:00 CEST, the first minute after");
+    }
+
+    #[test]
+    fn a_wildcard_hour_does_not_replay_the_skipped_hour() {
+        let fired = fires(&paris("30 * * * *"), utc(2026, 3, 28, 23, 0), utc(2026, 3, 29, 3, 0));
+        assert_eq!(
+            fired,
+            vec![
+                utc(2026, 3, 28, 23, 30),
+                utc(2026, 3, 29, 0, 30),
+                utc(2026, 3, 29, 1, 30),
+                utc(2026, 3, 29, 2, 30)
+            ],
+            "00:30, 01:30 CET, then 03:30 and 04:30 CEST"
+        );
+    }
+
+    #[test]
+    fn an_unknown_timezone_is_refused_by_name() {
+        let error = Schedule::parse("30 9 * * *", Some("Europe/Pariss"))
+            .expect_err("the timezone is refused");
+        assert!(error.contains("Europe/Pariss"), "{error}");
     }
 }

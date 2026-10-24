@@ -1767,9 +1767,10 @@ def subscription(  # noqa: PLR0913 — public API; all parameters are meaningful
     return decorator(func)
 
 
-def source(
+def source(  # noqa: PLR0913 — public API; all parameters are meaningful
     *,
     schedule: str,
+    timezone: str | None = None,
     function: str | None = None,
     cursor: str | None = None,
     enabled: bool = True,
@@ -1788,6 +1789,8 @@ def source(
 
     Args:
         schedule: POSIX cron expression the source polls on (e.g. ``"*/5 * * * *"``).
+        timezone: The IANA timezone ``schedule`` is read in (e.g. ``"Europe/Paris"``).
+            Absent: UTC.
         function: The bound Deno connector name; defaults to the source name.
         cursor: Optional distinct cursor name (defaults to the source name).
         enabled: Whether the source is scheduled (default ``True``).
@@ -1809,6 +1812,7 @@ def source(
         SchemaRegistry.register_source(
             name=f.__name__,
             schedule=schedule,
+            timezone=timezone,
             function=function,
             cursor=cursor,
             enabled=enabled,
@@ -1829,6 +1833,7 @@ def function(  # noqa: PLR0913 — public API; all parameters are meaningful
     when: list[dict[str, Any]] | None = None,
     re_runnable: bool = False,
     retry: dict[str, Any] | None = None,
+    timezone: str | None = None,
 ) -> Callable[[F], F]:
     """Decorator to register a serverless function (#1325).
 
@@ -1860,6 +1865,8 @@ def function(  # noqa: PLR0913 — public API; all parameters are meaningful
             e.g. ``[{"field": "status", "changed_to": "approved"}]``.
         re_runnable: Opt out of durable dispatch for work that is safe to re-run.
         retry: Optional per-function retry policy.
+        timezone: The IANA timezone a ``cron:`` trigger's schedule is read in (e.g.
+            ``"Europe/Paris"``). Absent: UTC. Refused on any other trigger.
 
     Returns:
         The original function (unmodified).
@@ -1883,6 +1890,7 @@ def function(  # noqa: PLR0913 — public API; all parameters are meaningful
             when=when,
             re_runnable=re_runnable,
             retry=retry,
+            timezone=timezone,
         )
         return f
 

@@ -201,31 +201,40 @@ Durable dispatch requires the `functions-runtime` feature, which enables the
 
 ### Cron Scheduler (#595)
 
-A `cron:` function fires from a running server: at startup the lifecycle builds one
-leased `CronPoller` per cron function (server-side, `crate::cron`) and spawns it on
-the server's task set. A cron function is **"a scheduled source without a cursor"** —
-the poller reuses the sources' machinery:
+A `cron:` function fires from a running server. At startup the lifecycle builds one
+leased `ScheduledPoller` per cron function (server-side, `crate::cron`) and spawns it on
+the server's task set. A cron function is **"a scheduled source without a cursor"**: a
+source runs on the same poller, which owns the tick, the lease and the invocation.
 
-- **Cron expressions parsed at startup**; each poller ticks once a minute.
-- **Single-firing across replicas** via the sources' PostgreSQL advisory lease
-  (`LeaseGuardedRunner`, keyed `cron:<function>`): N replicas → exactly one firing per
-  scheduled window. This is the "leader election" the docs previously claimed but did
-  not implement.
-- **State persisted** to `_fraiseql_cron_state` (`last_fired_at`, `fire_count`) — a
-  durable fire record + a cross-restart "already fired this window" guard.
-- **Authority:** the function runs on the phase-02 I/O host, so `fraiseql_query` works
-  under the function's `run_as` ceiling (fail-closed when absent) — a purge/report job
-  can query and mutate.
+- **Checked at compile and at boot.** A bad expression or timezone fails `fraiseql
+  compile`, and the boot, naming the function. A server that is handed a schedule it
+  cannot read does not run without it. Each poller ticks once a minute.
+- **`timezone`** (an IANA name such as `"Europe/Paris"`, UTC when absent) is the wall
+  clock the expression is read on. It is allowed on a `cron:` function and on a source,
+  and refused on every other trigger. Around a daylight-saving change, a job at a fixed
+  time of day (neither its minute nor its hour is `*` or `*/n`) follows cron's
+  convention:
+  - a local time that happens twice fires once, on its first occurrence;
+  - a local time the clocks skip fires at the first minute after the gap.
+
+  A job with a wildcard minute or hour runs on the wall clock as it is.
+- **Single-firing across replicas** via a PostgreSQL advisory lease
+  (`LeaseGuardedRunner`, keyed `cron:<function>`; a source's is keyed on its name, which
+  may not contain `:`). N replicas give exactly one firing per scheduled window.
+- **State persisted** to `_fraiseql_cron_state` (`last_fired_at`, `fire_count`): a
+  durable fire record, and a cross-restart "already fired this window" guard.
+- **Authority:** the function runs on the I/O host, so `fraiseql_query` works under the
+  function's `run_as` ceiling (fail-closed when absent). A purge or report job can query
+  and mutate.
 - **Missed-tick policy: skip.** A server down over a scheduled instant does not replay
-  on next boot; the next matching window fires normally (cron has no cursor/backlog to
-  resume, unlike a source).
+  on next boot; the next matching window fires normally (cron has no cursor or backlog
+  to resume, unlike a source).
 
 > **Design note (A vs B).** We *implemented* `cron:` (variant A) rather than retiring it
 > in favor of cron-scheduled sources (variant B): the `_fraiseql_cron_state` migration
-> and the sources' lease were already in place, so the delta was small and the "a
-> scheduled job is just a `cron:` function" authoring story is cleaner. The requires
-> a DB pool (the lease + state table). The legacy in-process `CronScheduler` firing
-> path (`NoopHostContext`, no lease) is superseded by `CronPoller` for production.
+> and the sources' lease were already in place, so the delta was small, and the "a
+> scheduled job is just a `cron:` function" authoring story is cleaner. It requires a
+> DB pool (the lease and the state table).
 
 ### Function runtimes
 

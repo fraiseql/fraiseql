@@ -595,3 +595,61 @@ fn test_registry_rejects_a_blank_run_as_user_id() {
         error.message
     );
 }
+
+// ── `timezone` on a cron function (#1658) ────────────────────────────────────
+
+/// The registry over one definition read from JSON, as the compiler and the server read
+/// it, with the deserialization error as the failure when the JSON does not load.
+fn load_one(definition: serde_json::Value) -> Result<TriggerRegistry, String> {
+    let definition: FunctionDefinition =
+        serde_json::from_value(definition).map_err(|e| format!("does not load: {e}"))?;
+    TriggerRegistry::load_from_definitions(&[definition]).map_err(|e| e.message)
+}
+
+#[test]
+fn a_cron_function_runs_in_its_declared_timezone() {
+    let registry = load_one(serde_json::json!({
+        "name": "nightly", "trigger": "cron:30 2 * * *", "runtime": "Deno",
+        "timezone": "Europe/Paris",
+    }))
+    .expect("the definition loads");
+    assert_eq!(registry.cron_triggers[0].timezone, "Europe/Paris");
+}
+
+#[test]
+fn a_cron_function_without_a_timezone_runs_on_utc() {
+    let registry = load_one(serde_json::json!({
+        "name": "nightly", "trigger": "cron:30 2 * * *", "runtime": "Deno",
+    }))
+    .expect("the definition loads");
+    assert_eq!(registry.cron_triggers[0].timezone, "UTC");
+}
+
+#[test]
+fn an_unknown_timezone_is_refused_naming_the_function_and_the_value() {
+    let error = load_one(serde_json::json!({
+        "name": "nightly", "trigger": "cron:30 2 * * *", "runtime": "Deno",
+        "timezone": "Europe/Pariss",
+    }))
+    .expect_err("the definition is refused");
+    assert!(error.contains("`nightly`") && error.contains("Europe/Pariss"), "{error}");
+}
+
+#[test]
+fn a_timezone_on_a_trigger_that_is_not_cron_is_refused() {
+    let error = load_one(serde_json::json!({
+        "name": "on_order", "trigger": "after:mutation:Order", "runtime": "Deno",
+        "timezone": "Europe/Paris",
+    }))
+    .expect_err("the definition is refused");
+    assert!(error.contains("`on_order`") && error.contains("timezone"), "{error}");
+}
+
+#[test]
+fn an_invalid_cron_expression_is_refused_naming_the_function() {
+    let error = load_one(serde_json::json!({
+        "name": "nightly", "trigger": "cron:61 2 * * *", "runtime": "Deno",
+    }))
+    .expect_err("the definition is refused");
+    assert!(error.contains("`nightly`") && error.contains("minute"), "{error}");
+}

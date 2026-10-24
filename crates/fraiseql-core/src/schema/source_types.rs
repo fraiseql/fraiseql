@@ -36,6 +36,11 @@ pub struct SourceDefinition {
     /// POSIX cron expression the source polls on (e.g. `"*/5 * * * *"`).
     pub schedule: String,
 
+    /// The IANA timezone [`schedule`](Self::schedule) is read in, such as
+    /// `"Europe/Paris"`. Absent: UTC.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub timezone: Option<String>,
+
     /// The durable cursor this source advances. Defaults to [`name`](Self::name)
     /// when absent, so most sources need not set it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -142,6 +147,7 @@ impl SourceDefinition {
         Self {
             name:     name.into(),
             schedule: schedule.into(),
+            timezone: None,
             cursor:   None,
             function: function.into(),
             enabled:  true,

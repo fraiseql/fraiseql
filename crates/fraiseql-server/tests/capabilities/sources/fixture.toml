@@ -1,0 +1,18 @@
+# A source's connector, loaded through `FRAISEQL_FUNCTIONS_MODULE_DIR`, is polled on its
+# schedule, writes through the GraphQL bridge, and advances its durable cursor.
+capability = "sources"
+deadline_secs = 150
+
+[env]
+FRAISEQL_FUNCTIONS_MODULE_DIR = "$FIXTURE/modules"
+
+[[stimulus]]
+wait = { secs = 0 }
+
+[effect]
+row = { query = "SELECT p.page::text, c.cursor_value->>'page' FROM app.tb_pulled p JOIN _fraiseql_source_cursor c ON c.source_name = 'orders_feed' WHERE p.page = 1", expect = [
+  [
+    "1",
+    "1",
+  ],
+] }

@@ -61,7 +61,7 @@ fn code_occurrences(src: &str, needle: &str) -> usize {
 
 // ── #595: `cron:` functions are wired into server startup (phase 03) ─────────
 //
-// Phase 03 wired a leased `CronPoller` per cron function into the server lifecycle
+// Phase 03 wired a leased poller (`ScheduledPoller`) per cron function into the server lifecycle
 // (a cron function is "a scheduled source without a cursor"). The functional
 // single-firing + `_fraiseql_cron_state` persistence are verified in-crate at
 // `cron::tests`; this pin guards the *wiring* — that server startup builds the cron
@@ -201,8 +201,8 @@ fn function_dispatch_paths_are_instrumented_with_function_metrics() {
         "M-598: a false `when` predicate must be metered (#598)."
     );
 
-    // Cron firings are metered too (its own path, not the durable dispatcher).
-    let cron = read_ws("crates/fraiseql-server/src/cron/mod.rs");
+    // Cron firings are metered too (the scheduled poller, not the durable dispatcher).
+    let cron = read_ws("crates/fraiseql-server/src/cron/scheduled.rs");
     assert!(
         code_occurrences(&cron, "function_metrics::record_dispatch") > 0,
         "M-598: cron firings must record a dispatch outcome (#598)."

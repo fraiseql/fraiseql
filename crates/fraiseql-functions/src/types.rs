@@ -259,6 +259,12 @@ pub struct FunctionDefinition {
     /// [`RetryConfig`]: fraiseql_observers::RetryConfig
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub retry: Option<fraiseql_observers::RetryConfig>,
+
+    /// The IANA timezone a `cron:` trigger's schedule is read in, such as
+    /// `"Europe/Paris"`. Absent: UTC. Refused on every other trigger kind, where it
+    /// would mean nothing.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub timezone: Option<String>,
 }
 
 impl FunctionDefinition {
@@ -274,6 +280,7 @@ impl FunctionDefinition {
             when: Vec::new(),
             re_runnable: false,
             retry: None,
+            timezone: None,
         }
     }
 

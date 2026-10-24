@@ -17,7 +17,7 @@ use fraiseql_functions::{
     FunctionModule, FunctionObserver, ResourceLimits, RuntimeType,
     host::live::{HostContextConfig, QueryExecutor},
     runtime::deno::{DenoConfig, DenoRuntime},
-    triggers::CronSchedule,
+    triggers::Schedule,
 };
 use fraiseql_observers::{
     LeaseGuardedRunner, PostgresSourceCursorStore, RunOutcome, SourceCursorStore,
@@ -25,11 +25,12 @@ use fraiseql_observers::{
 use serde_json::{Value, json};
 use sqlx::PgPool;
 
-use super::{SourcePoller, build_source_payload};
+use super::build_source_payload;
+use crate::cron::ScheduledPoller;
 
 #[test]
 fn source_payload_carries_the_trigger_context() {
-    let payload = build_source_payload("orders", "*/5 * * * *", Utc::now());
+    let payload = build_source_payload("orders", "*/5 * * * *", "UTC", Utc::now());
     assert_eq!(payload.trigger_type, "source:orders");
     assert_eq!(payload.entity, "source");
     assert_eq!(payload.event_kind, "scheduled");
@@ -46,10 +47,10 @@ fn source_payload_carries_the_trigger_context() {
 async fn idempotency_token_is_signed_when_a_key_is_configured() {
     let pool = PgPool::connect_lazy("postgres://localhost/unused").unwrap();
     let build = |key: Option<Arc<[u8]>>| {
-        SourcePoller::new(
+        ScheduledPoller::source(
             "orders",
             "orders",
-            CronSchedule::parse("*/5 * * * *").unwrap(),
+            Schedule::parse("*/5 * * * *", None).unwrap(),
             FunctionModule::from_source("connector".to_string(), String::new(), RuntimeType::Deno),
             Arc::new(FunctionObserver::new()),
             PostgresSourceCursorStore::new(pool.clone()),
@@ -68,7 +69,7 @@ async fn idempotency_token_is_signed_when_a_key_is_configured() {
             false,
         )
     };
-    let payload = build_source_payload("orders", "*/5 * * * *", Utc::now());
+    let payload = build_source_payload("orders", "*/5 * * * *", "UTC", Utc::now());
 
     let unsigned = build(None).idempotency_token(&payload);
     let secret: Arc<[u8]> = Arc::from(b"server-hmac-secret".as_slice());
@@ -126,11 +127,11 @@ async fn connect_pool() -> Option<(PgPool, fraiseql_test_support::Service)> {
 /// Build a poller whose collaborators are all scoped to `source`, with `executor`
 /// as its query bridge. The module/observer are inert here — `build_host` does not
 /// invoke the guest.
-fn poller(pool: &PgPool, source: &str, executor: Arc<dyn QueryExecutor>) -> SourcePoller {
-    SourcePoller::new(
+fn poller(pool: &PgPool, source: &str, executor: Arc<dyn QueryExecutor>) -> ScheduledPoller {
+    ScheduledPoller::source(
         source,
         source,
-        CronSchedule::parse("*/5 * * * *").unwrap(),
+        Schedule::parse("*/5 * * * *", None).unwrap(),
         FunctionModule::from_source("noop".to_string(), String::new(), RuntimeType::Deno),
         Arc::new(FunctionObserver::new()),
         PostgresSourceCursorStore::new(pool.clone()),
@@ -167,7 +168,8 @@ async fn build_host_binds_both_the_cursor_and_the_executor() {
 
     let executor = StubExecutor::new(json!({ "data": { "createOrder": { "status": "ok" } } }));
     let poller = poller(&pool, source, executor.clone());
-    let host = poller.build_host(build_source_payload(source, "*/5 * * * *", Utc::now()), "tok");
+    let host =
+        poller.build_host(build_source_payload(source, "*/5 * * * *", "UTC", Utc::now()), "tok");
 
     // The cursor is bound: it round-trips through the host against real Postgres.
     assert!(host.cursor().await.unwrap().is_none(), "a fresh source has no cursor");
@@ -239,10 +241,10 @@ async fn fires_a_model_b_connector_end_to_end() {
         RuntimeType::Deno,
     );
 
-    let poller = SourcePoller::new(
+    let poller = ScheduledPoller::source(
         source,
         source,
-        CronSchedule::parse("*/5 * * * *").unwrap(),
+        Schedule::parse("*/5 * * * *", None).unwrap(),
         module,
         Arc::new(observer),
         PostgresSourceCursorStore::new(pool.clone()),
@@ -317,7 +319,7 @@ async fn wait_for_cursor_page(
 /// happened once per process start and then never again, and the unit suite stayed
 /// green because zero-second synthetic timestamps made the broken window
 /// computation coincide with the correct one. Real wall-clock instants are
-/// therefore load-bearing: this drives the real [`SourcePoller::run_forever`]
+/// therefore load-bearing: this drives the real [`ScheduledPoller::run_forever`]
 /// ticker (60 s interval, `Utc::now()` windows) end to end, so it takes ~4 minutes.
 ///
 /// LOCAL-ONLY and `#[ignore]`d: it invokes a real Deno guest (V8 SIGSEGVs in the
@@ -349,10 +351,10 @@ async fn ingests_across_schedule_windows_and_a_restart() {
         let mut observer = FunctionObserver::new();
         observer
             .register_runtime(RuntimeType::Deno, DenoRuntime::new(&DenoConfig::default()).unwrap());
-        SourcePoller::new(
+        ScheduledPoller::source(
             source,
             source,
-            CronSchedule::parse("* * * * *").unwrap(),
+            Schedule::parse("* * * * *", None).unwrap(),
             FunctionModule::from_source(
                 "connector".to_string(),
                 CONNECTOR_TS.to_string(),
@@ -447,10 +449,10 @@ async fn the_poller_advances_the_declared_cursor_not_the_source_name() {
             .unwrap();
     }
 
-    let poller = SourcePoller::new(
+    let poller = ScheduledPoller::source(
         source_name,
         declared_cursor,
-        CronSchedule::parse("*/5 * * * *").unwrap(),
+        Schedule::parse("*/5 * * * *", None).unwrap(),
         FunctionModule::from_source("connector".to_string(), String::new(), RuntimeType::Deno),
         Arc::new(FunctionObserver::new()),
         PostgresSourceCursorStore::new(pool.clone()),
@@ -469,8 +471,8 @@ async fn the_poller_advances_the_declared_cursor_not_the_source_name() {
         false,
     );
 
-    let host =
-        poller.build_host(build_source_payload(source_name, "*/5 * * * *", Utc::now()), "tok");
+    let host = poller
+        .build_host(build_source_payload(source_name, "*/5 * * * *", "UTC", Utc::now()), "tok");
     host.advance_cursor(json!({ "page": 7 })).await.unwrap();
 
     assert_eq!(
@@ -483,5 +485,42 @@ async fn the_poller_advances_the_declared_cursor_not_the_source_name() {
         None,
         "nothing may be written under the source name when an override is declared — that is \
          the row a rename-with-cursor-preservation was trying to avoid creating"
+    );
+}
+
+/// The poller fires through its lease: while another replica holds the source's lease,
+/// a firing is skipped and the connector does not run. The lease test in `cron::tests`
+/// drives two runners directly; this one drives the poller, so a poller that invoked
+/// its module around the runner would fail here.
+#[tokio::test]
+async fn a_firing_is_skipped_while_another_replica_holds_the_lease() {
+    let Some((pool, _svc)) = connect_pool().await else {
+        eprintln!("SKIP a_firing_is_skipped_while_another_replica_holds_the_lease: no postgres");
+        return;
+    };
+    let source = format!("test-poller-lease-{}", std::process::id());
+    let mut poller = poller(&pool, &source, StubExecutor::new(json!(null)));
+    poller.runner = LeaseGuardedRunner::postgres(pool.clone(), source.clone());
+    let other_replica = LeaseGuardedRunner::postgres(pool.clone(), source.clone());
+
+    let (held, holding) = tokio::sync::oneshot::channel::<()>();
+    let (release, released) = tokio::sync::oneshot::channel::<()>();
+    let leader = tokio::spawn(async move {
+        other_replica
+            .run(|| async move {
+                let _ = held.send(());
+                let _ = released.await;
+            })
+            .await
+    });
+    holding.await.expect("the other replica holds the lease");
+
+    let outcome = poller.fire_once(chrono::Utc::now()).await;
+    let _ = release.send(());
+    leader.await.expect("the leader joined").expect("the leader's lease attempt");
+
+    assert!(
+        matches!(outcome, RunOutcome::SkippedNotLeader),
+        "a firing while another replica leads must be skipped, not run"
     );
 }

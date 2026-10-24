@@ -2,12 +2,11 @@
 //!
 //! Handles `cron:<expression>` triggers that fire on a schedule using POSIX cron expressions.
 //!
-//! ## Features
-//!
-//! - **Stateful**: Last execution time is persisted to `_fraiseql_cron_state` table
-//! - **Missed Fire Detection**: Detects missed executions on restart
-//! - **Configurable Replay**: Optionally replay missed fires on startup
-//! - **Timezone Support**: Execute in specific timezone (defaults to UTC)
+//! - [`CronSchedule`] matches a 5-field POSIX expression against a date and time.
+//! - [`Schedule`] reads one on a timezone's wall clock (UTC by default), with cron's
+//!   daylight-saving convention for jobs at a fixed time of day.
+//! - [`CronExecutionState`] keeps a window from firing twice. The server seeds it from
+//!   `_fraiseql_cron_state` at boot, so a restart mid-window does not fire again.
 //!
 //! ## Example Expressions
 //!
@@ -37,6 +36,12 @@ enum CronField {
 }
 
 impl CronField {
+    /// `*` or `*/n`: the field names no particular value. cron's daylight-saving rules
+    /// treat a job with such a minute or hour field as running "all the time".
+    const fn is_wildcard(&self) -> bool {
+        matches!(self, Self::Any | Self::Step { base: None, .. })
+    }
+
     /// Check if this field matches the given value.
     fn matches(&self, value: u32) -> bool {
         match self {
@@ -194,9 +199,17 @@ impl CronSchedule {
         })
     }
 
-    /// Check if a given datetime matches this cron schedule.
+    /// Whether the job runs at a fixed time of day: neither its minute nor its hour is a
+    /// wildcard. Only such jobs get cron's daylight-saving treatment (see [`Schedule`]).
     #[must_use]
-    pub fn matches(&self, datetime: &chrono::DateTime<chrono::Utc>) -> bool {
+    pub const fn is_fixed_time(&self) -> bool {
+        !self.minute.is_wildcard() && !self.hour.is_wildcard()
+    }
+
+    /// Check if a given date and time (in whatever zone it is expressed) matches this
+    /// cron schedule.
+    #[must_use]
+    pub fn matches<T: Datelike + Timelike>(&self, datetime: &T) -> bool {
         let minute = datetime.minute();
         let hour = datetime.hour();
         let day = datetime.day();
@@ -214,6 +227,98 @@ impl CronSchedule {
             && self.day.matches(day)
             && self.month.matches(month)
             && weekday_matches
+    }
+}
+
+/// A cron expression evaluated in a timezone.
+///
+/// The expression is matched against the wall clock of `tz`. Around a daylight-saving
+/// change, a job at a fixed time of day ([`CronSchedule::is_fixed_time`]) follows cron's
+/// convention:
+///
+/// - a local time that occurs twice (the clocks go back) fires on its first occurrence only;
+/// - a local time the clocks skip (they go forward) fires at the first minute after the gap.
+///
+/// A job whose minute or hour is a wildcard runs on the wall clock as it is: through both
+/// passes of a repeated hour, and not at all in a skipped one.
+#[derive(Debug, Clone)]
+pub struct Schedule {
+    /// The cron expression.
+    pub expr: CronSchedule,
+    /// The timezone whose wall clock the expression is read on.
+    pub tz:   chrono_tz::Tz,
+}
+
+impl Schedule {
+    /// Parse `expression`, to be evaluated in the IANA `timezone` (UTC when `None`).
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the expression is invalid or the timezone is not an IANA
+    /// name.
+    pub fn parse(expression: &str, timezone: Option<&str>) -> Result<Self, String> {
+        let tz = match timezone {
+            None => chrono_tz::Tz::UTC,
+            Some(name) => name.parse().map_err(|_| {
+                format!("unknown timezone {name:?}: expected an IANA name such as \"Europe/Paris\"")
+            })?,
+        };
+        Ok(Self {
+            expr: CronSchedule::parse(expression)?,
+            tz,
+        })
+    }
+
+    /// Decide whether the tick at `now` fires, given what `state` last fired.
+    #[must_use]
+    pub fn decide(
+        &self,
+        state: &CronExecutionState,
+        now: &chrono::DateTime<chrono::Utc>,
+    ) -> CronDecision {
+        if self.is_due(now) {
+            state.decide_window(now)
+        } else {
+            CronDecision::NotDue
+        }
+    }
+
+    fn is_due(&self, now: &chrono::DateTime<chrono::Utc>) -> bool {
+        let local = now.with_timezone(&self.tz).naive_local();
+        if !self.expr.is_fixed_time() {
+            return self.expr.matches(&local);
+        }
+        if self.is_second_pass(now, &local) {
+            return false;
+        }
+        self.expr.matches(&local)
+            || self.skipped_minutes(now, &local).any(|m| self.expr.matches(&m))
+    }
+
+    /// Whether `now` is the second occurrence of the local time `local`.
+    fn is_second_pass(
+        &self,
+        now: &chrono::DateTime<chrono::Utc>,
+        local: &chrono::NaiveDateTime,
+    ) -> bool {
+        use chrono::TimeZone as _;
+        match self.tz.from_local_datetime(local) {
+            chrono::LocalResult::Ambiguous(first, _) => first < *now,
+            chrono::LocalResult::Single(_) | chrono::LocalResult::None => false,
+        }
+    }
+
+    /// The local minutes the clocks skipped since the previous tick, a minute ago.
+    fn skipped_minutes(
+        &self,
+        now: &chrono::DateTime<chrono::Utc>,
+        local: &chrono::NaiveDateTime,
+    ) -> impl Iterator<Item = chrono::NaiveDateTime> {
+        let minute = chrono::Duration::minutes(1);
+        let previous = (*now - minute).with_timezone(&self.tz).naive_local();
+        let local = *local;
+        std::iter::successors(Some(previous + minute), move |m| Some(*m + minute))
+            .take_while(move |m| *m < local)
     }
 }
 
@@ -295,14 +400,18 @@ impl CronExecutionState {
         if !schedule.matches(exec_time) {
             return CronDecision::NotDue;
         }
+        self.decide_window(exec_time)
+    }
 
+    /// Decide a tick the schedule is due at: it fires unless its window already did.
+    fn decide_window(&self, exec_time: &chrono::DateTime<chrono::Utc>) -> CronDecision {
         // If no prior execution, always execute
         let Some(last_executed) = self.last_executed else {
             return CronDecision::Fire;
         };
 
         // The start of the window CONTAINING exec_time (not the previous one).
-        let window_start = Self::find_schedule_window(schedule, exec_time);
+        let window_start = Self::find_schedule_window(exec_time);
 
         if last_executed < window_start {
             CronDecision::Fire
@@ -320,17 +429,9 @@ impl CronExecutionState {
     /// start is that instant truncated to its minute: for `"0 2 * * *"` the
     /// window for 2024-03-15 02:00:07.312 starts at 2024-03-15 02:00:00.
     ///
-    /// Callers must pass a `time` the schedule matches (checked by
-    /// `debug_assert`); truncation never moves the instant across a minute
-    /// boundary, so the returned window start matches the schedule too.
-    fn find_schedule_window(
-        schedule: &CronSchedule,
-        time: &chrono::DateTime<chrono::Utc>,
-    ) -> chrono::DateTime<chrono::Utc> {
-        debug_assert!(
-            schedule.matches(time),
-            "find_schedule_window called for a non-matching instant"
-        );
+    /// Truncation never moves the instant across a minute boundary, so the window
+    /// start is due exactly when the tick is.
+    fn find_schedule_window(time: &chrono::DateTime<chrono::Utc>) -> chrono::DateTime<chrono::Utc> {
         // Truncating seconds + nanos to zero cannot fail.
         time.with_second(0).and_then(|t| t.with_nanosecond(0)).unwrap_or(*time)
     }
@@ -398,224 +499,6 @@ impl CronTrigger {
             event_kind: "scheduled".to_string(),
             data,
             timestamp: chrono::Utc::now(),
-        }
-    }
-}
-
-// ── CronScheduler ─────────────────────────────────────────────────────────────
-
-/// Service that drives scheduled function execution.
-///
-/// Each registered [`CronTrigger`] is checked once per minute. When a trigger's
-/// schedule matches the current time and it has not already fired in this
-/// scheduling window, the function is invoked via the provided
-/// [`FunctionObserver`](crate::FunctionObserver).
-///
-/// # Lifecycle
-///
-/// 1. Build a scheduler with [`CronScheduler::new`].
-/// 2. Call [`CronScheduler::start`] to spawn the background task; this returns a
-///    [`CronSchedulerHandle`] that can be used to stop the task.
-/// 3. On server shutdown, drop (or explicitly call `stop()` on) the handle.
-pub struct CronScheduler {
-    /// Triggers paired with their per-trigger execution state.
-    triggers: Vec<(CronTrigger, CronExecutionState)>,
-}
-
-impl CronScheduler {
-    /// Create a new scheduler for the given cron triggers.
-    ///
-    /// Each trigger is paired with a fresh [`CronExecutionState`] (no prior
-    /// executions recorded). Call [`Self::start`] to begin scheduling.
-    #[must_use]
-    pub fn new(triggers: Vec<CronTrigger>) -> Self {
-        let triggers = triggers.into_iter().map(|t| (t, CronExecutionState::new())).collect();
-        Self { triggers }
-    }
-
-    /// Returns the number of cron triggers registered.
-    #[must_use]
-    pub const fn trigger_count(&self) -> usize {
-        self.triggers.len()
-    }
-
-    /// Start the scheduler as a background tokio task.
-    ///
-    /// Spawns a task that ticks once per minute. On each tick, triggers whose
-    /// schedule matches the current time and have not fired in the current
-    /// window are dispatched via `observer.invoke()` (fire-and-forget).
-    ///
-    /// Returns a [`CronSchedulerHandle`] — drop it (or call `stop()`) to
-    /// cancel the background task.
-    ///
-    /// # Panics
-    ///
-    /// Panics if called outside a tokio runtime context.
-    #[must_use]
-    pub fn start(
-        self,
-        observer: std::sync::Arc<crate::observer::FunctionObserver>,
-        module_registry: std::collections::HashMap<String, crate::types::FunctionModule>,
-    ) -> CronSchedulerHandle {
-        let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
-        tokio::spawn(cron_scheduler_task(self, observer, module_registry, shutdown_rx));
-        CronSchedulerHandle {
-            shutdown_tx: Some(shutdown_tx),
-        }
-    }
-}
-
-/// Inner async loop for the cron scheduler.
-async fn cron_scheduler_task(
-    mut scheduler: CronScheduler,
-    observer: std::sync::Arc<crate::observer::FunctionObserver>,
-    module_registry: std::collections::HashMap<String, crate::types::FunctionModule>,
-    mut shutdown_rx: tokio::sync::oneshot::Receiver<()>,
-) {
-    let mut interval = tokio::time::interval(tokio::time::Duration::from_mins(1));
-    interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
-    // Skip the initial immediate tick so the scheduler doesn't fire on startup.
-    interval.tick().await;
-
-    loop {
-        tokio::select! {
-            _ = interval.tick() => {
-                let now = chrono::Utc::now();
-                for (trigger, state) in &mut scheduler.triggers {
-                    let schedule = match CronSchedule::parse(&trigger.schedule) {
-                        Ok(s) => s,
-                        Err(e) => {
-                            tracing::warn!(
-                                function = %trigger.function_name,
-                                expression = %trigger.schedule,
-                                error = %e,
-                                "Invalid cron expression — skipping trigger"
-                            );
-                            continue;
-                        }
-                    };
-                    match state.decide(&schedule, &now) {
-                        CronDecision::Fire => {},
-                        // The normal idle tick — the schedule is simply not due.
-                        CronDecision::NotDue => continue,
-                        // Never silent (#796): the window guard suppressing a
-                        // matching tick is expected at most once per window.
-                        CronDecision::AlreadyFired {
-                            window_start,
-                            last_executed,
-                        } => {
-                            tracing::warn!(
-                                function = %trigger.function_name,
-                                expression = %trigger.schedule,
-                                %window_start,
-                                %last_executed,
-                                "cron tick skipped — this window already fired"
-                            );
-                            continue;
-                        },
-                    }
-                    state.record_execution(now);
-
-                    // Look up the function module; log and skip if not found.
-                    let Some(module) = module_registry.get(&trigger.function_name) else {
-                        tracing::warn!(
-                            function = %trigger.function_name,
-                            "Cron trigger fired but function module not found — skipping"
-                        );
-                        continue;
-                    };
-
-                    let payload = trigger.build_payload(&now);
-                    let observer_clone = std::sync::Arc::clone(&observer);
-                    let module_clone = module.clone();
-                    let fn_name = trigger.function_name.clone();
-
-                    // Invoke fire-and-forget; failures are logged but don't stop the scheduler.
-                    tokio::spawn(async move {
-                        let host = crate::host::NoopHostContext::new(payload.clone());
-                        match observer_clone
-                            .invoke(
-                                &module_clone,
-                                payload,
-                                &host,
-                                crate::types::ResourceLimits::default(),
-                            )
-                            .await
-                        {
-                            Ok(_) => {
-                                tracing::debug!(function = %fn_name, "Cron function completed");
-                            }
-                            Err(e) => {
-                                // F047: walk the source chain and concatenate the
-                                // causes so the log carries the whole `std::error::Error`
-                                // hierarchy, not just the top-level Display.
-                                let chain = error_source_chain(&e);
-                                tracing::error!(
-                                    function = %fn_name,
-                                    error = %e,
-                                    error.debug = ?e,
-                                    error.chain = %chain,
-                                    "Cron function invocation failed"
-                                );
-                            }
-                        }
-                    });
-                }
-            }
-            _ = &mut shutdown_rx => {
-                tracing::debug!("Cron scheduler received shutdown signal — stopping");
-                break;
-            }
-        }
-    }
-}
-
-/// Walk an `std::error::Error`'s source chain and concatenate the causes
-/// into a single string. Used by the cron-task error log so that wrapped
-/// transport / WASM / engine errors keep their context in observability
-/// (F047).
-fn error_source_chain(err: &(dyn std::error::Error + 'static)) -> String {
-    use std::fmt::Write as _;
-    let mut chain = String::new();
-    let mut current: Option<&dyn std::error::Error> = err.source();
-    while let Some(source) = current {
-        if !chain.is_empty() {
-            chain.push_str(" → ");
-        }
-        // `write!` into a `String` is infallible.
-        let _ = write!(chain, "{source}");
-        current = source.source();
-    }
-    if chain.is_empty() {
-        "<no source>".to_string()
-    } else {
-        chain
-    }
-}
-
-/// Handle for a running [`CronScheduler`] background task.
-///
-/// Drop this handle (or call [`stop`][Self::stop]) to cancel the scheduler.
-pub struct CronSchedulerHandle {
-    shutdown_tx: Option<tokio::sync::oneshot::Sender<()>>,
-}
-
-impl CronSchedulerHandle {
-    /// Stop the cron scheduler.
-    ///
-    /// Sends a shutdown signal to the background task. The task stops at its
-    /// next scheduling boundary.
-    pub fn stop(mut self) {
-        if let Some(tx) = self.shutdown_tx.take() {
-            let _ = tx.send(());
-        }
-    }
-}
-
-impl Drop for CronSchedulerHandle {
-    fn drop(&mut self) {
-        if let Some(tx) = self.shutdown_tx.take() {
-            let _ = tx.send(());
         }
     }
 }

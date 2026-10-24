@@ -16,8 +16,35 @@ disagreed, and the promise was the part that was wrong.
 
 ## [Unreleased]
 
+### Breaking
+
+- **A `cron:` function whose expression does not parse refuses the compile and the boot
+  (#1658).** The server used to log a warning and run without it. A source's schedule was
+  already refused this way. A `timezone` that is not an IANA name, or a `timezone` on a
+  trigger other than `cron:`, is refused the same way, naming the function.
+- **A source's name may not contain `:`.** A cron function's lease is keyed
+  `cron:<function>`, so a source named `cron:x` shared the lease of the cron function `x`,
+  and one of them never fired. The compiler and the boot refuse such a name.
+- **`fraiseql-functions` no longer has `CronScheduler`, `CronSchedulerHandle` or
+  `TriggerRegistry::cron_scheduler`.** They fired with no lease and no I/O host and were
+  used only by tests; the server's poller replaced them. **`fraiseql-server`'s
+  `cron::CronPoller` and `sources::SourcePoller` are now one `cron::ScheduledPoller`,**
+  built by `ScheduledPoller::cron` or `ScheduledPoller::source`. A schedule is a
+  `triggers::Schedule` (an expression and a timezone) instead of a `CronSchedule`.
+  `FunctionDefinition` and `SourceDefinition` gain a `timezone` field, so a struct
+  literal of either needs it.
+
 ### Added
 
+- **A `cron:` function and a source can run on a timezone's wall clock (#1658).**
+  `timezone = "Europe/Paris"` (any IANA name; UTC when absent) on a function definition
+  or a source, and `timezone=` / `timezone:` in the Python and TypeScript SDKs. Around a
+  daylight-saving change, a job at a fixed time of day follows cron's convention: a time
+  that happens twice fires once, and a time the clocks skip fires at the first minute
+  after the gap. A job with a wildcard minute or hour runs on the wall clock as it is.
+  Every cron function used to fire on UTC, whatever its trigger said. The cron trigger
+  payload's `timezone`, which always read `"UTC"`, is now the one the schedule is read
+  in, and a source's payload carries it too.
 - **`FRAISEQL_FUNCTIONS_MODULE_DIR` overrides the compiled `[functions] module_dir`
   (#1715).** One compiled schema can be deployed to hosts that keep their function
   modules somewhere else, with no recompile per host. A relative `module_dir` still

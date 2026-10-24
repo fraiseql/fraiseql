@@ -38,7 +38,7 @@ fn schedulable_keeps_every_enabled_source_and_skips_a_disabled_one() {
     let names: Vec<&str> = kept.iter().map(|kept| kept.source.name.as_str()).collect();
     assert_eq!(names, ["orders"]);
     // The parsed schedule rides along.
-    assert_eq!(kept[0].schedule.expression, "*/5 * * * *");
+    assert_eq!(kept[0].schedule.expr.expression, "*/5 * * * *");
 }
 
 /// #1399: an enabled source whose connector is not loaded refuses, naming both. It
@@ -63,6 +63,27 @@ fn an_enabled_source_with_an_invalid_schedule_is_an_error() {
     let sources = vec![SourceDefinition::new("orders", "61 * * * *", "pollOrders")];
     let message = schedulable(&sources, &hooks()).err().unwrap().to_string();
     assert!(message.contains("\"orders\"") && message.contains("61 * * * *"), "{message}");
+}
+
+/// A compiled schema is input the server did not produce, so the boot refuses what the
+/// compiler refuses: an unknown timezone, and a `:` in a source's name.
+#[test]
+fn an_enabled_source_with_an_unknown_timezone_is_an_error() {
+    let mut source = SourceDefinition::new("orders", "*/5 * * * *", "pollOrders");
+    source.timezone = Some("Europe/Pariss".to_string());
+    let message = schedulable(&[source], &hooks()).err().unwrap().to_string();
+    assert!(message.contains("\"orders\"") && message.contains("Europe/Pariss"), "{message}");
+}
+
+#[test]
+fn a_source_named_with_a_colon_is_an_error() {
+    let sources = vec![SourceDefinition::new(
+        "cron:nightly",
+        "*/5 * * * *",
+        "pollOrders",
+    )];
+    let message = schedulable(&sources, &hooks()).err().unwrap().to_string();
+    assert!(message.contains("\"cron:nightly\"") && message.contains("':'"), "{message}");
 }
 
 #[test]
@@ -163,6 +184,7 @@ fn a_declared_cursor_override_is_the_key_the_poller_advances() {
     let declared = SourceDefinition {
         name:     "orders_v2".to_string(),
         schedule: "*/5 * * * *".to_string(),
+        timezone: None,
         cursor:   Some("orders".to_string()),
         function: "connector".to_string(),
         enabled:  true,

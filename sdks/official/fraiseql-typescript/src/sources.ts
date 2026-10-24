@@ -27,6 +27,8 @@ import { SchemaRegistry, SourceRunAs } from "./registry";
 interface SourceConfig {
   /** POSIX cron expression the source polls on (e.g. `"*\/5 * * * *"`). */
   schedule: string;
+  /** The IANA timezone `schedule` is read in (e.g. `"Europe/Paris"`). Absent: UTC. */
+  timezone?: string;
   /** The bound Deno connector function name; defaults to the decorated method name. */
   function?: string;
   /** Distinct durable-cursor name; defaults to the source name. */
@@ -63,7 +65,8 @@ export function Source(config: SourceConfig) {
       config.cursor,
       config.enabled ?? true,
       config.runAs,
-      config.options
+      config.options,
+      config.timezone
     );
   };
 }

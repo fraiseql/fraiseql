@@ -22,6 +22,8 @@ pub mod types;
 pub use bytes;
 /// The `chrono` this crate's public API is built against (#1198).
 pub use chrono;
+/// The `chrono-tz` this crate's public API is built against.
+pub use chrono_tz;
 pub use host::{HostContext, NoopHostContext};
 pub use observer::FunctionObserver;
 pub use outbound::{
@@ -35,7 +37,7 @@ pub use runtime::{FunctionRuntime, SendFunctionRuntime};
 /// The `serde_json` this crate's public API is built against (#1198).
 pub use serde_json;
 pub use triggers::{
-    cron::{CronScheduler, CronSchedulerHandle, CronTrigger},
+    cron::CronTrigger,
     ingest::{
         Attachment, Classification, InboundMessage, InboundRouting, IngestError, IngestSelector,
         IngestSource, IngestTrigger, PullBatch, PullContext, PullSource, PushSource, RawDelivery,

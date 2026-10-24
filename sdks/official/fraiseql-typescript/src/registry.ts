@@ -480,6 +480,7 @@ export interface SourceRunAs {
 export interface SourceDefinition {
   name: string;
   schedule: string;
+  timezone?: string;
   function: string;
   cursor?: string;
   enabled: boolean;
@@ -505,6 +506,7 @@ export interface FunctionDefinition {
   when?: FunctionPredicate[];
   re_runnable?: boolean;
   retry?: Record<string, unknown>;
+  timezone?: string;
 }
 
 /**
@@ -1340,6 +1342,7 @@ export class SchemaRegistry {
    * @param enabled - Whether the source is scheduled (default true).
    * @param runAs - Optional least-privilege authority ceiling (#573).
    * @param options - Optional connector-specific options, opaque to the framework.
+   * @param timezone - Optional IANA timezone the schedule is read in (default UTC).
    */
   static registerSource(
     name: string,
@@ -1348,9 +1351,13 @@ export class SchemaRegistry {
     cursor?: string,
     enabled: boolean = true,
     runAs?: SourceRunAs,
-    options?: Record<string, unknown>
+    options?: Record<string, unknown>,
+    timezone?: string
   ): void {
     const definition: SourceDefinition = { name, schedule, function: fn, enabled };
+    if (timezone !== undefined) {
+      definition.timezone = timezone;
+    }
     if (cursor !== undefined) {
       definition.cursor = cursor;
     }

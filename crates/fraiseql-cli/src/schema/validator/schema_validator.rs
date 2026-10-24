@@ -593,6 +593,20 @@ impl SchemaValidator {
                     });
                 }
 
+                // A cron function's lease is `cron:<name>`; a source named `cron:x` would
+                // share the lease of the cron function `x`, and one would starve the other.
+                if source.name.contains(':') {
+                    report.errors.push(ValidationError {
+                        message:    format!(
+                            "Source '{}' has a ':' in its name, which the scheduler reserves",
+                            source.name
+                        ),
+                        path:       format!("sources[{idx}].name"),
+                        severity:   ErrorSeverity::Error,
+                        suggestion: Some("Name the source without ':'".to_string()),
+                    });
+                }
+
                 // A shared cursor name would let two sources clobber each other's watermark.
                 let cursor = source.cursor_name().to_string();
                 if !cursor_names.insert(cursor.clone()) {
@@ -612,18 +626,21 @@ impl SchemaValidator {
 
                 // The schedule must parse as the runtime parses it: the same parser, so
                 // a schedule the compiler approves is one the scheduler can run (#1399).
-                if let Err(error) =
-                    fraiseql_functions::triggers::CronSchedule::parse(&source.schedule)
-                {
+                if let Err(error) = fraiseql_functions::triggers::Schedule::parse(
+                    &source.schedule,
+                    source.timezone.as_deref(),
+                ) {
                     report.errors.push(ValidationError {
                         message:    format!(
-                            "Source '{}' has an invalid cron schedule '{}': {error}",
+                            "Source '{}' has an invalid schedule '{}': {error}",
                             source.name, source.schedule
                         ),
                         path:       format!("sources[{idx}].schedule"),
                         severity:   ErrorSeverity::Error,
                         suggestion: Some(
-                            "Use a 5-field cron expression, e.g. '*/5 * * * *'".to_string(),
+                            "Use a 5-field cron expression, e.g. '*/5 * * * *', and an IANA \
+                             timezone, e.g. 'Europe/Paris'"
+                                .to_string(),
                         ),
                     });
                 }

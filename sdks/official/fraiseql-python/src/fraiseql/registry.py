@@ -527,6 +527,7 @@ class SchemaRegistry:
         schedule: str,
         function: str | None = None,
         cursor: str | None = None,
+        timezone: str | None = None,
         enabled: bool = True,
         run_as: dict[str, Any] | None = None,
         options: dict[str, Any] | None = None,
@@ -546,6 +547,7 @@ class SchemaRegistry:
                 ``{"roles": [...], "scopes": [...], "tenant": "...", "user_id": "..."}``.
                 ``user_id`` is what ``jwt:sub`` injects receive (#1700).
             options: Optional connector-specific options, opaque to the framework.
+            timezone: The IANA timezone ``schedule`` is read in. Absent: UTC.
         """
         camel_name = _snake_to_camel(name)
         if camel_name in cls._sources:
@@ -559,6 +561,8 @@ class SchemaRegistry:
             "function": function or camel_name,
             "enabled": enabled,
         }
+        if timezone is not None:
+            definition["timezone"] = timezone
         if cursor is not None:
             definition["cursor"] = cursor
         if run_as is not None:
@@ -578,6 +582,7 @@ class SchemaRegistry:
         when: list[dict[str, Any]] | None = None,
         re_runnable: bool = False,
         retry: dict[str, Any] | None = None,
+        timezone: str | None = None,
     ) -> None:
         """Register a serverless function definition (#1325).
 
@@ -601,6 +606,7 @@ class SchemaRegistry:
             when: Optional ``when`` predicates (#597), each ``{"field": ..., <op>: ...}``.
             re_runnable: Fire-and-forget opt-out of durable dispatch (ADR 0015).
             retry: Optional per-function retry policy.
+            timezone: The IANA timezone a ``cron:`` trigger is read in. Absent: UTC.
         """
         if name in cls._functions:
             raise ValueError(
@@ -622,6 +628,8 @@ class SchemaRegistry:
             definition["re_runnable"] = re_runnable
         if retry is not None:
             definition["retry"] = retry
+        if timezone is not None:
+            definition["timezone"] = timezone
         cls._functions[name] = definition
 
     @classmethod

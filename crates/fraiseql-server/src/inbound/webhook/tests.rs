@@ -1135,6 +1135,7 @@ mod the_event_is_what_the_scheme_authenticated {
             when:        Vec::new(),
             re_runnable: true,
             retry:       None,
+            timezone:    None,
         }];
         let module = fraiseql_functions::FunctionModule {
             name:        "classify".to_string(),

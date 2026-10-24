@@ -453,6 +453,16 @@ impl TriggerRegistry {
                 message: format!("function `{}`: {}", func.name, error.message),
             })?;
 
+            if func.timezone.is_some() && !matches!(parsed, ParsedTrigger::Cron { .. }) {
+                return Err(RegistryError {
+                    message: format!(
+                        "function `{}`: `timezone` applies only to a `cron:` trigger, and this \
+                         one is `{}`. Remove the key",
+                        func.name, func.trigger
+                    ),
+                });
+            }
+
             // A blank `run_as.user_id` would reach a `jwt:sub` inject as `''`.
             if func
                 .run_as
@@ -633,10 +643,16 @@ impl TriggerRegistry {
                     registry.request_query_functions.push(func.name.clone());
                 },
                 ParsedTrigger::Cron { expression } => {
+                    // Parsed here so a bad expression or timezone fails the compile and
+                    // the boot, naming the function, rather than a schedule never firing.
+                    crate::triggers::cron::Schedule::parse(&expression, func.timezone.as_deref())
+                        .map_err(|error| RegistryError {
+                        message: format!("function `{}`: {error}", func.name),
+                    })?;
                     let trigger = crate::triggers::cron::CronTrigger {
                         function_name: func.name.clone(),
                         schedule:      expression,
-                        timezone:      "UTC".to_string(),
+                        timezone:      func.timezone.clone().unwrap_or_else(|| "UTC".to_owned()),
                     };
                     registry.cron_triggers.push(trigger);
                 },
@@ -683,21 +699,6 @@ impl TriggerRegistry {
             .filter(|trigger| trigger.matches(message))
             .cloned()
             .collect()
-    }
-
-    /// Build a [`CronScheduler`] from all registered cron triggers.
-    ///
-    /// Returns `None` when no cron triggers are registered (the fast path —
-    /// avoids spawning a background task when no schedules exist).
-    ///
-    /// [`CronScheduler`]: crate::triggers::cron::CronScheduler
-    #[must_use]
-    pub fn cron_scheduler(&self) -> Option<crate::triggers::cron::CronScheduler> {
-        if self.cron_triggers.is_empty() {
-            None
-        } else {
-            Some(crate::triggers::cron::CronScheduler::new(self.cron_triggers.clone()))
-        }
     }
 
     /// Get all before:mutation triggers for a specific mutation.

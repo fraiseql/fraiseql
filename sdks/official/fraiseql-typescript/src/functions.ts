@@ -54,6 +54,11 @@ interface FunctionConfig {
   reRunnable?: boolean;
   /** Per-function retry policy for durable dispatch. */
   retry?: Record<string, unknown>;
+  /**
+   * The IANA timezone a `cron:` trigger's schedule is read in (e.g. `"Europe/Paris"`).
+   * Absent: UTC. Refused on any other trigger.
+   */
+  timezone?: string;
 }
 
 /**
@@ -83,6 +88,7 @@ export function FraiseFunction(config: FunctionConfig) {
       ...(config.when !== undefined ? { when: config.when } : {}),
       ...(config.reRunnable !== undefined ? { re_runnable: config.reRunnable } : {}),
       ...(config.retry !== undefined ? { retry: config.retry } : {}),
+      ...(config.timezone !== undefined ? { timezone: config.timezone } : {}),
     });
   };
 }

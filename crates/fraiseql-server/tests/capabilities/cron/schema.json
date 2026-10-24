@@ -1,0 +1,33 @@
+{
+  "types": [
+    {
+      "name": "Tick", "sql_source": "app.v_tick", "is_input": false,
+      "fields": [
+        { "name": "id", "type": "ID", "nullable": false },
+        { "name": "zone", "type": "String", "nullable": false }
+      ]
+    }
+  ],
+  "queries": [
+    {
+      "name": "ticks", "return_type": "Tick", "returns_list": true, "nullable": false,
+      "sql_source": "app.v_tick", "arguments": []
+    }
+  ],
+  "mutations": [
+    {
+      "name": "recordTick", "return_type": "Tick", "operation": "insert",
+      "sql_source": "app.fn_record_tick",
+      "arguments": [{ "name": "zone", "type": "String", "nullable": false }]
+    }
+  ],
+  "functions": [
+    {
+      "name": "every_minute",
+      "trigger": "cron:* * * * *",
+      "timezone": "Europe/Paris",
+      "runtime": "Deno",
+      "run_as": { "roles": ["ticker"] }
+    }
+  ]
+}

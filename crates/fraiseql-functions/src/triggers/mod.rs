@@ -51,9 +51,7 @@ pub mod storage;
 #[cfg(test)]
 mod tests;
 
-pub use cron::{
-    CronDecision, CronExecutionState, CronSchedule, CronScheduler, CronSchedulerHandle, CronTrigger,
-};
+pub use cron::{CronDecision, CronExecutionState, CronSchedule, CronTrigger, Schedule};
 pub use http::{HttpTriggerMatcher, HttpTriggerPayload, HttpTriggerResponse, HttpTriggerRoute};
 pub use ingest::{
     Attachment, Classification, InboundMessage, InboundRouting, IngestError, IngestSelector,

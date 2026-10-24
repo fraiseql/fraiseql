@@ -65,3 +65,22 @@ def test_duplicate_source_name_raises():
         @fraiseql.source(schedule="0 * * * *")
         def poll_orders() -> None:
             pass
+
+
+def test_source_carries_its_timezone():
+    @fraiseql.source(schedule="30 2 * * *", timezone="Europe/Paris")
+    def nightly_pull() -> None:
+        pass
+
+    source = SchemaRegistry.get_schema()["sources"][0]
+    assert source["timezone"] == "Europe/Paris"
+    # Before `timezone` was a parameter, it fell into the connector's opaque options.
+    assert "options" not in source
+
+
+def test_source_without_a_timezone_omits_it():
+    @fraiseql.source(schedule="30 2 * * *")
+    def nightly_pull() -> None:
+        pass
+
+    assert "timezone" not in SchemaRegistry.get_schema()["sources"][0]

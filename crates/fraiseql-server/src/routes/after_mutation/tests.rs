@@ -29,6 +29,7 @@ fn hooks(triggers: &[(&str, &str)], modules: &[&str]) -> BeforeMutationHooks {
             when:        Vec::new(),
             re_runnable: false,
             retry:       None,
+            timezone:    None,
         })
         .collect();
     let trigger_registry =
@@ -464,6 +465,7 @@ mod dispatch_config {
             when: Vec::new(),
             re_runnable,
             retry,
+            timezone: None,
         }
     }
 
