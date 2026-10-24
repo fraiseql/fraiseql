@@ -16,6 +16,7 @@ use crate::{
     output::CommandResult,
     schema::{
         database_validator::{create_introspector, find_unbacked_sources},
+        function_root_contract::validate_function_roots,
         mutation_contract::validate_mutation_contract,
         pg_catalog::PgCatalog,
     },
@@ -255,12 +256,31 @@ pub async fn run_against_db(input: &str, db_url: &str, json: bool) -> Result<()>
         }
     }
 
+    // The function each function root reads binds, returns a set and is not VOLATILE.
+    let function_roots = validate_function_roots(&schema, &catalog).await?;
+    if !function_roots.is_empty() {
+        if json {
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&serde_json::json!({
+                    "functionRootErrors": function_roots
+                }))?
+            );
+        } else {
+            eprintln!("\nFunction root(s) whose function cannot serve the read:");
+            for problem in &function_roots {
+                eprintln!("  - {problem}");
+            }
+        }
+    }
+
     let mutation_errors = report.error_count();
-    if mutation_errors > 0 || !unbacked.is_empty() {
+    if mutation_errors > 0 || !unbacked.is_empty() || !function_roots.is_empty() {
         anyhow::bail!(
             "validate --against-db failed: {mutation_errors} mutation-contract error(s), \
-             {} unbacked sql_source(s)",
-            unbacked.len()
+             {} unbacked sql_source(s), {} function-root error(s)",
+            unbacked.len(),
+            function_roots.len()
         );
     }
     Ok(())

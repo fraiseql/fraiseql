@@ -1,7 +1,10 @@
 //! Query/mutation structs: `IntermediateQuery`, `IntermediateMutation`,
 //! `IntermediateArgument`, `IntermediateAutoParams`, `IntermediateQueryDefaults`.
 
-use fraiseql_core::{db::types::ReadRouting, schema::InputStyle};
+use fraiseql_core::{
+    db::types::ReadRouting,
+    schema::{InputStyle, SourceKind},
+};
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 
@@ -346,6 +349,16 @@ pub struct IntermediateQuery {
     /// SQL source (table/view name)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sql_source: Option<String>,
+
+    /// What [`sql_source`](Self::sql_source) names: `"relation"` (the default) or
+    /// `"function"`, a `STABLE` set-returning function the query reads from.
+    ///
+    /// The function is called with the query's own arguments, in declaration order and
+    /// auto-params left out, then its `inject_params`; its rows are filtered, ordered and
+    /// paged like a view's. A Relay connection, a count sibling and a streamed export are
+    /// refused beside it: each reads the relation's rows by a statement of its own.
+    #[serde(default, skip_serializing_if = "SourceKind::is_relation")]
+    pub sql_source_kind: SourceKind,
 
     /// Back this root field with a declared function instead of a relation (#1329).
     ///

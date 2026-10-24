@@ -225,13 +225,21 @@ impl RowScope {
                 message: format!("Query '{query}' not found in schema"),
                 path:    None,
             }),
-            Self::Hidden(HiddenBy::InjectParams) => Err(FraiseQLError::Validation {
-                message: format!(
-                    "Type '{target}' is scoped by the inject params of query '{query}', which \
-                     a request without a security context cannot resolve"
-                ),
-                path:    None,
-            }),
+            Self::Hidden(HiddenBy::InjectParams) => Err(HiddenBy::inject_refusal(query, target)),
+        }
+    }
+}
+
+impl HiddenBy {
+    /// The refusal of a read of `target` through `query`, whose inject params a request
+    /// without a security context cannot resolve.
+    fn inject_refusal(query: &str, target: &str) -> FraiseQLError {
+        FraiseQLError::Validation {
+            message: format!(
+                "Type '{target}' is scoped by the inject params of query '{query}', which a \
+                 request without a security context cannot resolve"
+            ),
+            path:    None,
         }
     }
 }
@@ -273,7 +281,11 @@ pub(in super::super) fn row_predicate(
         (Some(_), None) => return Ok(RowScope::Hidden(HiddenBy::Policy)),
         (None, _) => {},
     }
-    if let (false, Some(principal)) = (read.inject_params.is_empty(), principal) {
+    // A function root binds its inject params to the function's parameters, so
+    // they scope the call, not its rows.
+    if let (false, true, Some(principal)) =
+        (read.inject_params.is_empty(), read.sql_source_kind.is_relation(), principal)
+    {
         let in_documents = std::collections::HashMap::new();
         let native_columns = match over {
             Over::Rows => &read.native_columns,
@@ -290,6 +302,45 @@ pub(in super::super) fn row_predicate(
         }
     }
     Ok(RowScope::Scoped(and_all(conditions)))
+}
+
+/// A function root's arguments, bound to its parameters the way a mutation's are:
+/// each explicit argument in declaration order (its default, else `NULL`, when omitted),
+/// then each inject param in map order.
+///
+/// The auto-params (`where`, `limit`, `orderBy`, …) are not arguments of the function: they
+/// shape the rows it returns.
+fn function_source_args(
+    query: &QueryDefinition,
+    provided: &std::collections::HashMap<String, serde_json::Value>,
+    principal: Option<&SecurityContext>,
+    tenant_claim: &str,
+) -> Result<Vec<serde_json::Value>> {
+    let mut args = Vec::with_capacity(query.function_arity());
+    args.extend(query.function_arguments().map(|arg| {
+        provided.get(&arg.name).cloned().unwrap_or_else(|| {
+            arg.default_value.as_ref().map_or(serde_json::Value::Null, |v| v.to_json())
+        })
+    }));
+    if !query.inject_params.is_empty() {
+        // `row_predicate` refuses an anonymous read of an injected query before this.
+        let principal =
+            principal.ok_or_else(|| HiddenBy::inject_refusal(&query.name, &query.return_type))?;
+        for (column, source) in &query.inject_params {
+            args.push(super::super::resolve_inject_value(column, source, principal, tenant_claim)?);
+        }
+    }
+    Ok(args)
+}
+
+/// The refusal of `what` for the function root `query`.
+pub(super) fn refuse_function_root(query: &str, what: &str) -> FraiseQLError {
+    FraiseQLError::Unsupported {
+        message: format!(
+            "Query '{query}' reads a set-returning function, which cannot serve {what}: only \
+             the rows of its call are read"
+        ),
+    }
 }
 
 /// `None`, the one clause, or their conjunction.
@@ -321,8 +372,11 @@ pub(in super::super) enum RootRoute {
 /// the count. Owned rather than borrowed from the `QueryMatch`, because the streaming path
 /// outlives the call that built it.
 pub(in super::super) struct RootRead {
-    /// The view to read.
+    /// The view to read, or the set-returning function when `source_args` is set.
     pub(super) sql_source:     String,
+    /// A function root's arguments, bound to its parameters in order; `None` for a
+    /// relation.
+    pub(super) source_args:    Option<Vec<serde_json::Value>>,
     /// The row scope, the server's parent scoping, the client's filter and the explicit
     /// arguments, AND-ed in that order: the security conditions first, so nothing a
     /// client sends can widen them.
@@ -390,6 +444,7 @@ impl RootRead {
     pub(super) fn projection_request(&self) -> crate::backend::ProjectionRequest<'_> {
         crate::backend::ProjectionRequest {
             view:          &self.sql_source,
+            source_args:   self.source_args.as_deref(),
             projection:    self.projection.as_ref(),
             where_clause:  self.composed_where.as_ref(),
             order_by:      self.order_by.as_deref(),
@@ -473,6 +528,26 @@ impl QueryRunner {
 
         // 2. A document's root that is not a plain read goes to its own runner, gated above and
         //    before anything composes a statement for it.
+        // A function root is read only as the rows of its call: what would read it as a
+        // relation of its name, or number its rows across requests, is refused.
+        if !query_def.sql_source_kind.is_relation() {
+            let refused = match door {
+                Door::Count => Some("a count"),
+                Door::Direct {
+                    cost: DirectReadCost::Composed,
+                    ..
+                } => Some("an embedded level"),
+                Door::Direct {
+                    gated: GatedFieldHandling::AdjudicatePerRow,
+                    ..
+                } => Some("a row-shaped read"),
+                Door::Document if query_def.relay => Some("a Relay connection"),
+                Door::Document | Door::Direct { .. } => None,
+            };
+            if let Some(what) = refused {
+                return Err(refuse_function_root(&query_def.name, what));
+            }
+        }
         if matches!(door, Door::Document) {
             if query_def.function.is_some() {
                 return Ok(RootRoute::Function);
@@ -591,6 +666,12 @@ impl QueryRunner {
         } else {
             Vec::new()
         };
+        if !nested.is_empty() && !query_def.sql_source_kind.is_relation() {
+            return Err(refuse_function_root(
+                &query_def.name,
+                "a composed read of its nested levels",
+            ));
+        }
 
         // 8. The composed `WHERE`: the row scope, then the server's own parent scoping (#1170),
         //    then the client's filter — refused, never dropped, where the query does not accept one
@@ -604,17 +685,31 @@ impl QueryRunner {
             self.ctx.config.rls_policy.as_deref(),
             principal,
         )?;
-        let composed_where = combine_explicit_arg_where(
-            and_all(scoped.into_iter().chain(client).collect()),
-            &query_def.arguments,
-            &query_match.arguments,
-            &query_def.native_columns,
-        );
+        let scoped_and_filtered = and_all(scoped.into_iter().chain(client).collect());
+        let (composed_where, source_args) = if query_def.sql_source_kind.is_relation() {
+            let composed_where = combine_explicit_arg_where(
+                scoped_and_filtered,
+                &query_def.arguments,
+                &query_match.arguments,
+                &query_def.native_columns,
+            );
+            (composed_where, None)
+        } else {
+            // A function root's explicit arguments and inject params are the call's.
+            let args = function_source_args(
+                query_def,
+                &query_match.arguments,
+                principal,
+                schema.tenant_claim(),
+            )?;
+            (scoped_and_filtered, Some(args))
+        };
 
         let session_vars = self.resolve_session_vars(principal)?;
         let Some(plan) = plan else {
             return Ok(RootRoute::Rows(Box::new(RootRead {
                 sql_source: sql_source.clone(),
+                source_args,
                 composed_where,
                 order_by: None,
                 limit: None,
@@ -743,6 +838,7 @@ impl QueryRunner {
 
         Ok(RootRoute::Rows(Box::new(RootRead {
             sql_source: sql_source.clone(),
+            source_args,
             composed_where,
             order_by,
             limit,
@@ -788,3 +884,7 @@ impl QueryRunner {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "function_root_tests.rs"]
+mod function_root_tests;

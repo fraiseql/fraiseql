@@ -371,7 +371,7 @@ impl Executor {
         // (consistent with the previous linear-scan behaviour).
         let mut node_type_index: HashMap<String, Arc<str>> = HashMap::new();
         for q in &schema.queries {
-            if let Some(src) = q.sql_source.as_deref() {
+            if let Some(src) = q.reads_relation() {
                 node_type_index.entry(q.return_type.clone()).or_insert_with(|| Arc::from(src));
             }
         }

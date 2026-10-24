@@ -329,6 +329,7 @@ impl DatabaseAdapter for FraiseWireAdapter {
         _routing: crate::types::ReadRouting,
     ) -> Result<crate::traits::JsonbRowStream> {
         crate::traits::refuse_session_variables(self, session_vars)?;
+        crate::traits::refuse_function_source(self, request)?;
         let client = self.factory.create_client().await?;
         let mut builder =
             client.query::<serde_json::Value>(request.view).chunk_size(self.chunk_size);

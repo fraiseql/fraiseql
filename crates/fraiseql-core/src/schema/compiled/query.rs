@@ -3,13 +3,14 @@ use std::collections::HashMap;
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 
-use super::argument::{ArgumentDefinition, AutoParams};
+use super::argument::{AUTO_PARAM_NAMES, ArgumentDefinition, AutoParams};
 use crate::{
     backend::types::ReadRouting,
     schema::{
         field_type::{DeprecationInfo, FieldType},
         graphql_type_defs::default_jsonb_column,
         security_config::InjectedParamSource,
+        source_probe::SourceKind,
     },
 };
 
@@ -144,9 +145,26 @@ pub struct QueryDefinition {
     #[serde(default)]
     pub arguments: Vec<ArgumentDefinition>,
 
-    /// SQL source table/view (for direct table queries).
+    /// SQL source table/view (for direct table queries), or the set-returning function
+    /// this query reads when [`sql_source_kind`](Self::sql_source_kind) says so.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sql_source: Option<String>,
+
+    /// What [`sql_source`](Self::sql_source) names.
+    ///
+    /// A relation by default. A [`SourceKind::Function`] source is a `STABLE` or
+    /// `IMMUTABLE` set-returning function returning the rows a view would (`data jsonb`,
+    /// plus any declared native column). Its parameters bind positionally the way a
+    /// mutation's do: the query's own arguments in declaration order, then its
+    /// [`inject_params`](Self::inject_params) in map order. The executor reads
+    /// `FROM fn($1, …)`, so RLS, the client's `where`, ordering, pagination and
+    /// projection apply to the function's rows as they would to a view's.
+    ///
+    /// A function root reads nothing another operation could identify: it is not an
+    /// entity source, so no Relay connection, `node(id:)`, `_entities`, count sibling,
+    /// stream or row-shaped read is served from it.
+    #[serde(default, skip_serializing_if = "SourceKind::is_relation")]
+    pub sql_source_kind: SourceKind,
 
     /// The declared function that answers this root field, in place of reading a
     /// relation (#1329).
@@ -442,6 +460,7 @@ impl QueryDefinition {
             nullable:            false,
             arguments:           Vec::new(),
             sql_source:          None,
+            sql_source_kind:     SourceKind::Relation,
             function:            None,
             description:         None,
             auto_params:         AutoParams::default(),
@@ -475,6 +494,48 @@ impl QueryDefinition {
     #[must_use]
     pub fn with_sql_source(mut self, source: impl Into<String>) -> Self {
         self.sql_source = Some(source.into());
+        self
+    }
+
+    /// The relation this query reads, or `None` for a function root, a declared
+    /// function (`function`) or a query with no source.
+    ///
+    /// What a lookup of "the query that reads type `T`" asks — the node lookup, the
+    /// `_entities` resolver, a nested level's own read: a function root computes its rows
+    /// from its arguments, so it is no relation of `T` to look a row up in.
+    #[must_use]
+    pub fn reads_relation(&self) -> Option<&str> {
+        match (self.sql_source_kind, self.function.as_ref()) {
+            (SourceKind::Relation, None) => self.sql_source.as_deref(),
+            _ => None,
+        }
+    }
+
+    /// The arguments a function root binds to its function's parameters, in declaration
+    /// order: every argument but the auto-params, which shape the read of the call
+    /// rather than the call. The query's `inject_params` follow them, one parameter each.
+    pub fn function_arguments(&self) -> impl Iterator<Item = &ArgumentDefinition> {
+        self.arguments
+            .iter()
+            .filter(|arg| !AUTO_PARAM_NAMES.contains(&arg.name.as_str()))
+    }
+
+    /// How many parameters a function root's function takes: its
+    /// [`function_arguments`](Self::function_arguments), then one per inject param.
+    #[must_use]
+    pub fn function_arity(&self) -> usize {
+        self.function_arguments().count() + self.inject_params.len()
+    }
+
+    /// Read this query from the set-returning function `function`, its arguments bound to
+    /// the function's parameters.
+    ///
+    /// See [`sql_source_kind`](Self::sql_source_kind) for the binding and what a function
+    /// root does not serve.
+    #[must_use]
+    pub fn with_sql_source_function(mut self, function: impl Into<String>) -> Self {
+        self.sql_source = Some(function.into());
+        self.sql_source_kind = SourceKind::Function;
         self
     }
 

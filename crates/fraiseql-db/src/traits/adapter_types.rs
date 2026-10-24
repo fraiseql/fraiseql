@@ -138,8 +138,14 @@ impl RelayCursor {
 /// field is a hard compile error.
 #[derive(Debug, Clone, Copy)]
 pub struct ProjectionRequest<'a> {
-    /// View or table name (e.g. `"v_user"`).
+    /// View or table name (e.g. `"v_user"`), or the set-returning function read when
+    /// [`source_args`](Self::source_args) is set.
     pub view:          &'a str,
+    /// The arguments of a function source: `Some` reads
+    /// `FROM view($1, …, $n)` with these bound first, in order, each written for the
+    /// parameter type the server resolves; `None` reads the relation `view`. `Some(&[])`
+    /// is a function of no parameters, not a relation.
+    pub source_args:   Option<&'a [serde_json::Value]>,
     /// Projection hint (`SELECT` shape). `None` falls back to `SELECT data`.
     pub projection:    Option<&'a SqlProjectionHint>,
     /// WHERE clause AST. `None` means no filter.
@@ -194,6 +200,7 @@ impl<'a> ProjectionRequest<'a> {
     pub const fn new(view: &'a str) -> Self {
         Self {
             view,
+            source_args: None,
             projection: None,
             where_clause: None,
             order_by: None,

@@ -17,6 +17,7 @@ use crate::{
         CompiledArtifact, ConvertOptions, IntermediateSchema, OptimizationReport, SchemaConverter,
         SchemaOptimizer, SchemaValidator,
         database_validator::validate_schema_against_database,
+        function_root_contract::validate_function_roots,
         mutation_contract::{Severity, validate_mutation_contract},
         pg_catalog::PgCatalog,
     },
@@ -521,6 +522,9 @@ pub async fn compile_to_schema(
                  document keys"
             ),
         }
+
+        // The function each function root reads binds, returns a set and is not VOLATILE.
+        drift_errors.extend(validate_function_roots(&schema, &catalog).await?);
 
         let contract = validate_mutation_contract(&schema, &catalog).await?;
         let mut caused_by_default: std::collections::BTreeMap<String, Vec<String>> =
@@ -1411,7 +1415,11 @@ pub(crate) fn apply_database_report(
 /// Arguments already present in `native_columns` are not overridden.
 pub(crate) fn infer_native_columns_from_arg_types(schema: &mut CompiledSchema) {
     for query in &mut schema.queries {
-        if query.sql_source.is_none() || query.jsonb_column.is_empty() {
+        // A function root binds its arguments to the call, never to a column.
+        if query.sql_source.is_none()
+            || query.jsonb_column.is_empty()
+            || !query.sql_source_kind.is_relation()
+        {
             continue;
         }
         for arg in &query.arguments {

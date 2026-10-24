@@ -1149,6 +1149,14 @@ impl QueryRunner {
                 nesting: None,
             },
         )?;
+        // A function root is read as the rows of one call, which a stream does not
+        // bind.
+        if resolved.source_args.is_some() {
+            return Err(super::root_read::refuse_function_root(
+                &query_match.query_def.name,
+                "a stream",
+            ));
+        }
         // A nested level its type scopes needs a composed statement, which a stream does
         // not read: refused rather than streamed ungated.
         if !resolved.nested.is_empty() {

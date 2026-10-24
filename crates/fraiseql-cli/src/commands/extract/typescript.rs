@@ -70,6 +70,7 @@ impl SchemaExtractor for TypeScriptExtractor {
                     arguments,
                     description: None,
                     sql_source,
+                    sql_source_kind: fraiseql_core::schema::SourceKind::Relation,
                     // `extract` scrapes source text and produces no `functions` section, so it
                     // cannot produce the declaration a `function = "<name>"` binding must pair
                     // with (#1329). Authoring a function-backed field goes through the SDK.

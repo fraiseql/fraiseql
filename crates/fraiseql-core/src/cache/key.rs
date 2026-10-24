@@ -244,6 +244,7 @@ pub fn generate_projection_query_key(
 ) -> u64 {
     let ProjectionRequest {
         view,
+        source_args,
         projection,
         where_clause,
         order_by,
@@ -254,6 +255,23 @@ pub fn generate_projection_query_key(
     let mut h = new_hasher();
     h.write(b"p:");
     h.write(view.as_bytes());
+    // A function source answers per argument, so its arguments are the read as much
+    // as its name is. A relation and a function of no arguments differ too.
+    h.write(b"\0a:");
+    match source_args {
+        Some(args) => {
+            h.write_u8(1);
+            h.write_usize(args.len());
+            for arg in args {
+                // Length-prefixed JSON text, so the boundary between two arguments is in the
+                // key: `("ab", "c")` and `("a", "bc")` are different reads.
+                let text = arg.to_string();
+                h.write_usize(text.len());
+                h.write(text.as_bytes());
+            }
+        },
+        None => h.write_u8(0),
+    }
     h.write(b"\0j:");
     match projection {
         Some(p) => {

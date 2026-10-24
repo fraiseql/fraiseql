@@ -1724,8 +1724,14 @@ impl PostgresAdapter {
 
         let projection = projection.expect("projection is Some; None was returned above");
 
-        let (sql, typed_params) =
-            build_projection_select_sql(projection, view, where_clause, limit, offset, order_by)?;
+        let (sql, typed_params) = build_projection_select_sql(
+            projection,
+            ReadFrom::relation(view),
+            where_clause,
+            limit,
+            offset,
+            order_by,
+        )?;
 
         tracing::debug!("SQL with projection = {}", sql);
         tracing::debug!("typed_params = {:?}", typed_params);
@@ -1775,7 +1781,7 @@ pub(super) fn build_where_select_sql(
     limit: Option<u32>,
     offset: Option<u32>,
 ) -> Result<(String, Vec<QueryParam>)> {
-    build_where_select_sql_ordered(view, where_clause, limit, offset, None)
+    build_where_select_sql_ordered(ReadFrom::relation(view), where_clause, limit, offset, None)
 }
 
 /// Build a parameterized `SELECT data FROM {view}` SQL string with optional ORDER BY.
@@ -1814,6 +1820,59 @@ pub(super) fn build_count_sql(
     Ok((sql, typed_params))
 }
 
+/// What a read selects `FROM`: a relation, or a set-returning function whose
+/// `arity` parameters are bound first, as `$1 … $arity`, every later placeholder of the
+/// statement numbered after them.
+#[derive(Debug, Clone, Copy)]
+pub(super) struct ReadFrom<'a> {
+    name:  &'a str,
+    arity: Option<usize>,
+}
+
+impl<'a> ReadFrom<'a> {
+    /// The relation `name`.
+    pub(super) const fn relation(name: &'a str) -> Self {
+        Self { name, arity: None }
+    }
+
+    /// The set-returning function `name`, called with `arity` bound parameters.
+    pub(super) const fn function(name: &'a str, arity: usize) -> Self {
+        Self {
+            name,
+            arity: Some(arity),
+        }
+    }
+
+    /// What `request` reads.
+    pub(super) const fn of(request: &crate::traits::ProjectionRequest<'a>) -> Self {
+        match request.source_args {
+            Some(args) => Self::function(request.view, args.len()),
+            None => Self::relation(request.view),
+        }
+    }
+
+    /// The `FROM` target as SQL: the quoted relation, or the quoted function called with
+    /// its placeholders.
+    fn sql(self) -> String {
+        let name = quote_postgres_identifier(self.name);
+        match self.arity {
+            Some(arity) => {
+                let placeholders: Vec<String> = (1..=arity).map(|i| format!("${i}")).collect();
+                format!("{name}({})", placeholders.join(", "))
+            },
+            None => name,
+        }
+    }
+
+    /// How many placeholders the target binds before the rest of the statement.
+    const fn bound(self) -> usize {
+        match self.arity {
+            Some(arity) => arity,
+            None => 0,
+        }
+    }
+}
+
 /// `page` (a page's `SELECT`, its parameters `params`) widened to count, in the same
 /// statement and so the same snapshot, how many rows of `view` match `where_clause` (every
 /// row, without one), up to `bound` (#1314). Each document carries the count under
@@ -1829,19 +1888,20 @@ pub(super) fn build_count_sql(
 pub(super) fn with_matched_count(
     page: &str,
     mut params: Vec<QueryParam>,
-    view: &str,
+    from: ReadFrom<'_>,
     where_clause: Option<&WhereClause>,
     bound: u32,
 ) -> Result<(String, Vec<QueryParam>)> {
     let where_sql = match where_clause {
         Some(clause) => {
-            let (sql, _) = PostgresWhereGenerator::new(PostgresDialect).generate(clause)?;
+            let (sql, _) = PostgresWhereGenerator::new(PostgresDialect)
+                .generate_with_param_offset(clause, from.bound())?;
             format!(" WHERE {sql}")
         },
         None => String::new(),
     };
     params.push(QueryParam::BigInt(i64::from(bound)));
-    let bound_index = params.len();
+    let bound_index = from.bound() + params.len();
     let matched = crate::traits::MATCHED_KEY;
     let empty = crate::traits::EMPTY_PAGE_KEY;
     // The count is appended as the document's last key without leaving `json`: a projection
@@ -1860,25 +1920,26 @@ pub(super) fn with_matched_count(
          LIMIT ${bound_index}) _s) _m \
          LEFT JOIN LATERAL (SELECT _q.data, row_number() OVER () AS _o FROM ({page}) AS _q(data)) \
          _p ON true ORDER BY _p._o",
-        view = quote_postgres_identifier(view),
+        view = from.sql(),
     );
     Ok((sql, params))
 }
 
 pub(super) fn build_where_select_sql_ordered(
-    view: &str,
+    from: ReadFrom<'_>,
     where_clause: Option<&WhereClause>,
     limit: Option<u32>,
     offset: Option<u32>,
     order_by: Option<&[OrderByClause]>,
 ) -> Result<(String, Vec<QueryParam>)> {
     // Build base query
-    let mut sql = format!("SELECT data FROM {}", quote_postgres_identifier(view));
+    let mut sql = format!("SELECT data FROM {}", from.sql());
 
     // Collect WHERE clause params (if any)
     let mut typed_params: Vec<QueryParam> = if let Some(clause) = where_clause {
         let generator = PostgresWhereGenerator::new(PostgresDialect);
-        let (where_sql, where_params) = generator.generate(clause)?;
+        let (where_sql, where_params) =
+            generator.generate_with_param_offset(clause, from.bound())?;
         sql.push_str(" WHERE ");
         sql.push_str(&where_sql);
 
@@ -1887,7 +1948,7 @@ pub(super) fn build_where_select_sql_ordered(
     } else {
         Vec::new()
     };
-    let mut param_count = typed_params.len();
+    let mut param_count = from.bound() + typed_params.len();
 
     // ORDER BY must come before LIMIT/OFFSET in SQL — and so must its
     // parameters. A relevance ordering (#1284) binds the search text, so the
@@ -1951,7 +2012,7 @@ pub(super) fn build_where_select_sql_ordered(
 ///   copy back into each reference to `data`.
 fn build_page_first_select_sql(
     projection: &SqlProjectionHint,
-    view: &str,
+    from: ReadFrom<'_>,
     where_clause: Option<&WhereClause>,
     limit: Option<u32>,
     offset: Option<u32>,
@@ -1960,13 +2021,14 @@ fn build_page_first_select_sql(
     let mut typed_params: Vec<QueryParam> = Vec::new();
     let where_sql = if let Some(clause) = where_clause {
         let generator = PostgresWhereGenerator::new(PostgresDialect);
-        let (where_sql, where_params) = generator.generate(clause)?;
+        let (where_sql, where_params) =
+            generator.generate_with_param_offset(clause, from.bound())?;
         typed_params.extend(where_params.into_iter().map(QueryParam::from));
         format!(" WHERE {where_sql}")
     } else {
         String::new()
     };
-    let mut param_count = typed_params.len();
+    let mut param_count = from.bound() + typed_params.len();
 
     // `Tiebreak::Identity`, as the single-`SELECT` read: a paged order must be total (#1287).
     let rendered = render_order_by_columns(
@@ -1990,10 +2052,7 @@ fn build_page_first_select_sql(
         None => (String::new(), String::new(), ""),
     };
 
-    let mut page = format!(
-        "SELECT data{ordinal} FROM {}{where_sql}{inner_order}",
-        quote_postgres_identifier(view)
-    );
+    let mut page = format!("SELECT data{ordinal} FROM {}{where_sql}{inner_order}", from.sql());
     // Reason (expect below): fmt::Write for String is infallible.
     if let Some(lim) = limit {
         param_count += 1;
@@ -2031,7 +2090,7 @@ fn build_page_first_select_sql(
 /// Returns `FraiseQLError` if WHERE clause generation fails.
 pub(super) fn build_projection_select_sql(
     projection: &SqlProjectionHint,
-    view: &str,
+    from: ReadFrom<'_>,
     where_clause: Option<&WhereClause>,
     limit: Option<u32>,
     offset: Option<u32>,
@@ -2040,7 +2099,7 @@ pub(super) fn build_projection_select_sql(
     if projection.reads_only_document {
         return build_page_first_select_sql(
             projection,
-            view,
+            from,
             where_clause,
             limit,
             offset,
@@ -2049,22 +2108,19 @@ pub(super) fn build_projection_select_sql(
     }
     // The projection_template is the SELECT clause with projection SQL,
     // e.g. "jsonb_build_object('id', data->>'id', 'email', data->>'email')".
-    let mut sql = format!(
-        "SELECT {} FROM {}",
-        projection.projection_template,
-        quote_postgres_identifier(view)
-    );
+    let mut sql = format!("SELECT {} FROM {}", projection.projection_template, from.sql());
 
     let mut typed_params: Vec<QueryParam> = if let Some(clause) = where_clause {
         let generator = PostgresWhereGenerator::new(PostgresDialect);
-        let (where_sql, where_params) = generator.generate(clause)?;
+        let (where_sql, where_params) =
+            generator.generate_with_param_offset(clause, from.bound())?;
         sql.push_str(" WHERE ");
         sql.push_str(&where_sql);
         where_params.into_iter().map(QueryParam::from).collect()
     } else {
         Vec::new()
     };
-    let mut param_count = typed_params.len();
+    let mut param_count = from.bound() + typed_params.len();
 
     // ORDER BY must come before LIMIT/OFFSET in SQL — and so must its
     // parameters (#1284); see `build_where_select_sql_ordered`.

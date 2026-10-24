@@ -70,6 +70,28 @@ error_class IS NULL`, `¬succeeded ⇒ error_class IS NOT NULL ∧ ¬state_chang
 are only observable by invoking the mutation — which would have side effects.
 This static check verifies the *shape*, not the *behaviour*.
 
+## The function a query reads (#1690)
+
+A query declaring `"sql_source_kind": "function"` reads `SELECT data FROM fn($1, …)`
+([authoring](../authoring-ir-format.md#query-read-from-a-function)). `compile --database`
+(failing the build) and `validate --against-db` check, against `pg_proc`:
+
+- the function exists, as an overload taking exactly the parameters the server binds: the
+  query's arguments without the auto-params, then one per inject param. Two overloads of that
+  arity are refused, because the parameters are bound untyped and the call would be ambiguous;
+- it returns a set (`RETURNS TABLE(…)` or `RETURNS SETOF …`);
+- it returns the query's `jsonb_column` (`data` by default) as `json` or `jsonb`;
+- it is not `VOLATILE`. A read may be cached, retried or served from a replica, so a function
+  that writes belongs in a mutation.
+
+The boot check (`validate_sql_sources`) and `validate --against-db` also report a missing function
+root as an unbacked function, with the `EXECUTE` privilege checked like a mutation's.
+
+**Out of scope.** Parameter types are not compared with argument types, nor parameter names with
+argument names. The binding is positional, so declare the arguments in the function's parameter
+order. The replica readability check (#1390) follows a view to the tables it reads; it cannot
+follow a function's body, so an UNLOGGED table read by a function root is not reported.
+
 ## `doctor --against-db` — internal-call resolution (#409)
 
 ```bash

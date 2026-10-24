@@ -58,6 +58,21 @@ fn query_relation_probe_schema_qualified() {
 }
 
 #[test]
+fn a_function_root_is_probed_as_the_function_it_reads() {
+    let root = QueryDefinition::new("lineItems", "LineItem")
+        .with_sql_source_function("billing.fn_line_items");
+    let probes = sql_source_probes(&schema_with(vec![root], vec![]));
+    assert_eq!(
+        probes,
+        vec![SourceProbe {
+            schema: Some("billing".to_string()),
+            name:   "fn_line_items".to_string(),
+            kind:   SourceKind::Function,
+        }]
+    );
+}
+
+#[test]
 fn mutation_function_probe_schema_qualified() {
     let s = schema_with(
         vec![],

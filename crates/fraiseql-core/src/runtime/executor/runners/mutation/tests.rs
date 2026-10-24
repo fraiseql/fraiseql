@@ -6526,6 +6526,7 @@ mod before_mutation_read_bridge {
             nullable:            false,
             arguments:           Vec::new(),
             sql_source:          Some("v_user".to_string()),
+            sql_source_kind:     crate::schema::SourceKind::Relation,
             description:         None,
             auto_params:         AutoParams::all(),
             deprecation:         None,

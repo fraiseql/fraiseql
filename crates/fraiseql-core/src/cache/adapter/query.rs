@@ -78,8 +78,11 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
         let view = request.view;
         // Short-circuit when cache is disabled, or when opt-in mode is active and
         // the view has no explicit `cache_ttl_seconds` annotation.  This eliminates
-        // key-generation allocations entirely for un-annotated views.
-        if !self.cache.is_enabled() || (self.opt_in_mode && !self.cacheable_views.contains(view)) {
+        // key-generation allocations entirely for un-annotated views. A function source
+        // reads tables no mutation names it by, so nothing evicts it: it is
+        // cached only under an annotation, opt-in mode or not.
+        let opted_in = self.opt_in_mode || request.source_args.is_some();
+        if !self.cache.is_enabled() || (opted_in && !self.cacheable_views.contains(view)) {
             return self
                 .adapter
                 .execute_with_projection_arc_with_session(request, session_vars, ReadRouting::Any)

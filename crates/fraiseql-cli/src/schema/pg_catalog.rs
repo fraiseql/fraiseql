@@ -58,8 +58,13 @@ pub struct PgFunction {
     /// function returns a scalar / `record` the catalog cannot expand.
     pub out_columns: Vec<OutColumn>,
     /// Whether the function returns a set (`RETURNS SETOF …` / `RETURNS
-    /// TABLE(…)`). Informational only.
+    /// TABLE(…)`). A function a query reads from must.
     pub returns_set: bool,
+    /// `pg_proc.provolatile`: `"i"` (`IMMUTABLE`), `"s"` (`STABLE`) or `"v"` (`VOLATILE`).
+    /// A function a query reads from may not be `VOLATILE`: a read may be cached,
+    /// retried or served from a replica, and none of those is safe for a function that
+    /// writes.
+    pub volatility:  String,
     /// Implementation language (`pg_language.lanname`, e.g. `plpgsql`, `sql`,
     /// `c`). The payload-key consumption scan (#384) only reads `plpgsql`/`sql`
     /// bodies — for other languages `source` is a symbol, not scannable text.
@@ -257,7 +262,7 @@ impl PgCatalog {
         // only — OUT/TABLE columns are excluded so the count matches what the
         // server binds positionally) plus oid + proretset for follow-up.
         const BASE: &str = "\
-            SELECT p.oid, n.nspname, p.proname, p.proretset, \
+            SELECT p.oid, n.nspname, p.proname, p.proretset, p.provolatile::text AS provolatile, \
               l.lanname, COALESCE(p.prosrc, '') AS prosrc, \
               COALESCE((SELECT array_agg(format_type(t, NULL) ORDER BY ord) \
                 FROM unnest(COALESCE(p.proallargtypes, p.proargtypes::oid[])) \
@@ -310,6 +315,7 @@ impl PgCatalog {
                     .collect(),
                 out_columns: self.out_columns(oid).await?,
                 returns_set: row.get("proretset"),
+                volatility:  row.get("provolatile"),
                 language:    row.get("lanname"),
                 source:      row.get("prosrc"),
             });

@@ -107,6 +107,19 @@ impl ArgumentDefinition {
     }
 }
 
+/// Auto-wired argument names that are handled by the `auto_params` system.
+/// These are never treated as explicit WHERE filters, nor bound to a function root's
+/// parameters.
+///
+/// A name added here must also be added to
+/// [`QueryDefinition::accepted_argument_names`](crate::schema::QueryDefinition::accepted_argument_names)
+/// unless the query declares it: since #1154 an argument no query accepts is a
+/// validation error, so a runtime-only name that is not in the accepted set is
+/// refused before the code reading it ever runs.
+pub const AUTO_PARAM_NAMES: &[&str] = &[
+    "where", "limit", "offset", "orderBy", "first", "last", "after", "before", "nearest",
+];
+
 /// Auto-wired query parameters.
 ///
 /// These are standard parameters automatically added to list queries.

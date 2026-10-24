@@ -128,6 +128,7 @@ fn function_backed_query() -> QueryDefinition {
             localized:     false,
         }],
         sql_source:          None,
+        sql_source_kind:     crate::schema::SourceKind::Relation,
         description:         None,
         auto_params:         AutoParams::default(),
         deprecation:         None,

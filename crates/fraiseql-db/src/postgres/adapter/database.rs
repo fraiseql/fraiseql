@@ -585,7 +585,13 @@ enum FlexParam {
 /// bound as `QueryParam`, whose number is text bytes sent under the binary format, which a
 /// `numeric` parameter cannot read (`insufficient data left in message`).
 fn aggregate_params(params: &[serde_json::Value]) -> Vec<FlexParam> {
-    params
+    bound_values(params)
+}
+
+/// `values`, each written for the type the server resolves its parameter to: a function
+/// source's arguments and an aggregate's parameters.
+fn bound_values(values: &[serde_json::Value]) -> Vec<FlexParam> {
+    values
         .iter()
         .map(|v| match v {
             serde_json::Value::Null => FlexParam::Null,
@@ -1158,8 +1164,13 @@ impl DatabaseAdapter for PostgresAdapter {
         offset: Option<u32>,
         order_by: Option<&[OrderByClause]>,
     ) -> Result<Vec<JsonbValue>> {
-        let (sql, typed_params) =
-            build_where_select_sql_ordered(view, where_clause, limit, offset, order_by)?;
+        let (sql, typed_params) = build_where_select_sql_ordered(
+            super::ReadFrom::relation(view),
+            where_clause,
+            limit,
+            offset,
+            order_by,
+        )?;
 
         let param_refs = crate::types::as_sql_param_refs(&typed_params);
 
@@ -1452,8 +1463,13 @@ impl DatabaseAdapter for PostgresAdapter {
         session_vars: &[(&str, &str)],
         routing: ReadRouting,
     ) -> Result<Arc<Vec<JsonbValue>>> {
-        let (sql, typed_params) =
-            build_where_select_sql_ordered(view, where_clause, limit, offset, order_by)?;
+        let (sql, typed_params) = build_where_select_sql_ordered(
+            super::ReadFrom::relation(view),
+            where_clause,
+            limit,
+            offset,
+            order_by,
+        )?;
         let param_refs = crate::types::as_sql_param_refs(&typed_params);
 
         // No session variables => no transaction wrapper, but still this query's
@@ -1538,46 +1554,12 @@ impl DatabaseAdapter for PostgresAdapter {
         session_vars: &[(&str, &str)],
         routing: ReadRouting,
     ) -> Result<Arc<Vec<JsonbValue>>> {
-        // #1314: a page that also counts what its filter matches, in one statement so the
-        // count and the page see the same snapshot.
-        if let Some(bound) = request.matched_up_to {
-            let (page, params) = match request.projection {
-                Some(projection) => build_projection_select_sql(
-                    projection,
-                    request.view,
-                    request.where_clause,
-                    request.limit,
-                    request.offset,
-                    request.order_by,
-                )?,
-                None => super::build_where_select_sql_ordered(
-                    request.view,
-                    request.where_clause,
-                    request.limit,
-                    request.offset,
-                    request.order_by,
-                )?,
-            };
-            let (sql, typed_params) = super::with_matched_count(
-                &page,
-                params,
-                request.view,
-                request.where_clause,
-                bound,
-            )?;
-            let param_refs = crate::types::as_sql_param_refs(&typed_params);
-            if session_vars.is_empty() {
-                return self.execute_raw(&sql, &param_refs, routing).await.map(Arc::new);
-            }
-            return self
-                .execute_raw_with_session(&sql, &param_refs, session_vars, routing)
-                .await
-                .map(Arc::new);
-        }
-
-        // No projection => behave like a plain WHERE query, matching
-        // execute_with_projection_impl's fallback.
-        let Some(projection) = request.projection else {
+        // No projection, no count and a relation => behave like a plain WHERE query,
+        // matching execute_with_projection_impl's fallback.
+        if request.projection.is_none()
+            && request.matched_up_to.is_none()
+            && request.source_args.is_none()
+        {
             return self
                 .execute_where_query_arc_with_session(
                     request.view,
@@ -1589,18 +1571,43 @@ impl DatabaseAdapter for PostgresAdapter {
                     routing,
                 )
                 .await;
-        };
+        }
 
-        let (sql, typed_params) = build_projection_select_sql(
-            projection,
-            request.view,
-            request.where_clause,
-            request.limit,
-            request.offset,
-            request.order_by,
-        )?;
+        let from = super::ReadFrom::of(request);
+        let (page, params) = match request.projection {
+            Some(projection) => build_projection_select_sql(
+                projection,
+                from,
+                request.where_clause,
+                request.limit,
+                request.offset,
+                request.order_by,
+            )?,
+            None => super::build_where_select_sql_ordered(
+                from,
+                request.where_clause,
+                request.limit,
+                request.offset,
+                request.order_by,
+            )?,
+        };
+        // #1314: a page that also counts what its filter matches, in one statement so the
+        // count and the page see the same snapshot.
+        let (sql, typed_params) = match request.matched_up_to {
+            Some(bound) => {
+                super::with_matched_count(&page, params, from, request.where_clause, bound)?
+            },
+            None => (page, params),
+        };
         tracing::debug!("SQL with projection = {}", sql);
-        let param_refs = crate::types::as_sql_param_refs(&typed_params);
+        // A function source's arguments are `$1 … $n`, each written for the type of
+        // the parameter it binds, as a write function's are.
+        let source_params = request.source_args.map_or_else(Vec::new, bound_values);
+        let param_refs: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> = source_params
+            .iter()
+            .map(|p| p as &(dyn tokio_postgres::types::ToSql + Sync))
+            .chain(typed_params.iter().map(|p| p as &(dyn tokio_postgres::types::ToSql + Sync)))
+            .collect();
 
         // See `execute_where_query_arc_with_session`: the session-free path has to
         // carry the routing too.
@@ -1645,17 +1652,19 @@ impl DatabaseAdapter for PostgresAdapter {
         session_vars: &[(&str, &str)],
         routing: ReadRouting,
     ) -> Result<JsonbRowStream> {
+        // A function root is not streamed; the executor refuses one first.
+        crate::traits::refuse_function_source(self, request)?;
         let (sql, typed_params) = match request.projection {
             Some(projection) => build_projection_select_sql(
                 projection,
-                request.view,
+                super::ReadFrom::relation(request.view),
                 request.where_clause,
                 request.limit,
                 request.offset,
                 request.order_by,
             )?,
             None => build_where_select_sql_ordered(
-                request.view,
+                super::ReadFrom::relation(request.view),
                 request.where_clause,
                 request.limit,
                 request.offset,

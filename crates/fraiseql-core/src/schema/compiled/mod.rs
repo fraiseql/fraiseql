@@ -25,7 +25,7 @@ mod federation_keys_tests;
 #[cfg(test)]
 mod tests;
 
-pub use argument::{ArgumentDefinition, AutoParams};
+pub use argument::{AUTO_PARAM_NAMES, ArgumentDefinition, AutoParams};
 pub use directive::{DirectiveDefinition, DirectiveLocationKind};
 pub use fact_table_links::fact_field;
 pub use federation_keys::FederationKeyProblem;
