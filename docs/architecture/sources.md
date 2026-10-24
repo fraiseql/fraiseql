@@ -93,7 +93,7 @@ operation/field authorization, RLS, and the change-log tenant stamp. A source th
 runs under an explicit, per-source, least-privilege **authority ceiling**:
 
 ```text
-run_as = { roles: [...], scopes: [...], tenant?: "..." }
+run_as = { roles: [...], scopes: [...], tenant?: "...", user_id?: "..." }
 ```
 
 - **Fail-closed.** A source with **no** `run_as` runs with no authority — the anonymous
@@ -107,6 +107,10 @@ run_as = { roles: [...], scopes: [...], tenant?: "..." }
 - Built on `SecurityContext::system_job(...)` (`ActorType::SystemJob`) — an audit-only,
   never-token-derived background principal. The `SystemJob` actor is not itself an
   authorization input; authority comes solely from the configured roles/scopes.
+- `run_as.user_id` (#1700) is what the identity answers to `jwt:sub` / `jwt:user_id`
+  injects, so a source can call a mutation that takes its caller's id as a `UUID`. Unset,
+  those injects receive `system_job:<source>`, the provenance the change log records
+  either way.
 
 ---
 

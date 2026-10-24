@@ -453,6 +453,22 @@ impl TriggerRegistry {
                 message: format!("function `{}`: {}", func.name, error.message),
             })?;
 
+            // A blank `run_as.user_id` would reach a `jwt:sub` inject as `''`.
+            if func
+                .run_as
+                .as_ref()
+                .and_then(|r| r.user_id.as_deref())
+                .is_some_and(|u| u.trim().is_empty())
+            {
+                return Err(RegistryError {
+                    message: format!(
+                        "function `{}`: run_as.user_id is blank. Set the service principal's \
+                         id, or remove the key",
+                        func.name
+                    ),
+                });
+            }
+
             match parsed {
                 ParsedTrigger::AfterMutation {
                     entity_type,

@@ -1854,7 +1854,8 @@ def function(  # noqa: PLR0913 — public API; all parameters are meaningful
         timeout_ms: Optional timeout override; defaults to 500ms for
             ``before:mutation`` and 5s otherwise.
         run_as: Optional authority ceiling for the function's ``fraiseql_query``
-            writes (#594). Absent ⇒ fail-closed.
+            writes (#594). Absent ⇒ fail-closed. ``{"user_id": "<uuid>"}`` sets what
+            a mutation's ``jwt:sub`` inject receives (#1700).
         when: Optional predicates (#597) evaluated on the row images before firing,
             e.g. ``[{"field": "status", "changed_to": "approved"}]``.
         re_runnable: Opt out of durable dispatch for work that is safe to re-run.

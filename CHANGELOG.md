@@ -18,6 +18,10 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **`run_as` refuses a key it does not define.** An unknown key in a function's or a
+  source's `run_as` was dropped without a word, so `{"claims": {...}}` or a misspelt
+  `tenant` compiled clean and granted nothing. It now fails the compile, and a compiled
+  schema carrying one fails the boot.
 - **`fraiseql compile` refuses what an input field cannot carry, instead of dropping it
   (#1692).** A type marked `is_input: true` compiled each field as an input field and
   silently discarded `on_deny`, `authorize`, `function`, `hierarchy`, `unique`,
@@ -283,6 +287,13 @@ disagreed, and the promise was the part that was wrong.
 
 ### Added
 
+- **`run_as.user_id`: a function's or a source's background identity can call a mutation
+  that injects its caller's id (#1700).** Under `run_as`, `jwt:sub` and `jwt:user_id`
+  resolved to `system_job:<name>`, so a mutation injecting `p_user_id` from `jwt:sub` into
+  a `UUID` parameter could not be called from a function, a scheduled source or a saga
+  step. `run_as.user_id` sets what those injects, and session variables mapped from those
+  claims, receive: a service principal's id. The actor recorded in the change log stays
+  `system_job:<name>`. A blank `user_id` fails `fraiseql compile` and the boot.
 - **`/health` reports every capability.** A new `capabilities` map names each registered
   capability with `compiled_in` and, for one with background work this server was
   configured to run (the observer runtime, functions, poll-IMAP mailboxes, scheduled

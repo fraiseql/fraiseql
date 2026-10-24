@@ -572,3 +572,26 @@ fn a_timeout_on_a_request_query_function_is_allowed() {
     TriggerRegistry::validate_definitions(&[definition])
         .expect("a declared timeout is the author's own ceiling, not a dispatch setting");
 }
+
+/// Test: #1700 — a blank `run_as.user_id` is a load error, not an empty `jwt:sub`.
+#[test]
+fn test_registry_rejects_a_blank_run_as_user_id() {
+    let defs = vec![
+        crate::FunctionDefinition::new(
+            "approveOrder",
+            "after:mutation:Order:insert",
+            crate::RuntimeType::Deno,
+        )
+        .with_run_as(crate::RunAs {
+            roles: vec!["order_approver".to_string()],
+            user_id: Some("  ".to_string()),
+            ..crate::RunAs::default()
+        }),
+    ];
+    let error = TriggerRegistry::load_from_definitions(&defs).expect_err("a blank user_id");
+    assert!(
+        error.message.contains("approveOrder") && error.message.contains("run_as.user_id"),
+        "the error names the function and the key, got: {}",
+        error.message
+    );
+}

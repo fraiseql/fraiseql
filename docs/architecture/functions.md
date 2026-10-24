@@ -354,6 +354,13 @@ compiled schema:
 - **Audited.** A function-authored write is stamped `system_job:<function-name>`
   under `ActorType::SystemJob` in the change log — the same audit envelope a source
   write carries — so a bridge write is attributable to the function that issued it.
+- **What it answers to `jwt:sub` (#1700).** A mutation that injects its caller's id
+  (`inject_params: {p_user_id: "jwt:sub"}`) receives `system_job:<function-name>`, which
+  a `UUID` parameter refuses. `run_as.user_id` sets what the identity presents to
+  `jwt:sub` and `jwt:user_id` injects, and to session variables mapped from them: a
+  service principal's id, e.g. `"run_as": {"roles": ["order_approver"], "user_id":
+  "6f1c2a9e-…"}`. The change log still records `system_job:<function-name>`. A blank
+  `user_id`, or any key `run_as` does not define, fails the compile and the boot.
 - **Bridge-write asymmetry (deliberate).** A write a function or a scheduled source issues
   through `fraiseql_query` does **not** fire `after:mutation` functions. So a bridge-written
   `Order` update does **not** fire `notify_approved`, and a function that writes the entity

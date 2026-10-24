@@ -12,11 +12,14 @@ type FunctionPredicate struct {
 }
 
 // FunctionRunAs is the least-privilege authority ceiling a function's
-// fraiseql_query writes run under (#594). Absent means fail-closed.
+// fraiseql_query writes run under (#594). Absent means fail-closed. UserID is what
+// the identity answers to jwt:sub / jwt:user_id injects (#1700): a service
+// principal's id.
 type FunctionRunAs struct {
 	Roles  []string `json:"roles,omitempty"`
 	Scopes []string `json:"scopes,omitempty"`
 	Tenant string   `json:"tenant,omitempty"`
+	UserID string   `json:"user_id,omitempty"`
 }
 
 // FunctionDefinition is a serverless function (#1325) — an out-of-band handler the

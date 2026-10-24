@@ -65,9 +65,10 @@ fn saga_over(
     );
     let engine = Arc::new(Executor::new(schema, Arc::clone(&adapter)));
     let run_as = RunAs {
-        roles:  roles.iter().map(|r| (*r).to_string()).collect(),
-        scopes: vec![],
-        tenant: None,
+        roles:   roles.iter().map(|r| (*r).to_string()).collect(),
+        scopes:  vec![],
+        tenant:  None,
+        user_id: None,
     };
     (
         FederationMutationExecutor::new(engine, FederationMetadata::default(), "test-saga", run_as),
@@ -174,4 +175,26 @@ async fn an_extended_mutation_still_fails_loud() {
         err.to_string().contains("not \nimplemented")
             || err.to_string().contains("not implemented")
     );
+}
+
+/// #1700: a saga step's identity answers `jwt:sub` with its `run_as.user_id`, so a
+/// step can call a mutation that injects the caller's id; the provenance stays the
+/// saga's system job.
+#[test]
+fn a_saga_steps_identity_answers_sub_with_the_run_as_user_id() {
+    let principal = "6f1c2a9e-3b4d-4e5f-8a7b-9c0d1e2f3a4b";
+    let adapter = Arc::new(FailingAdapter::new());
+    let engine = Arc::new(Executor::new(schema(None), adapter));
+    let run_as = RunAs {
+        roles: vec!["saga_writer".to_string()],
+        user_id: Some(principal.to_string()),
+        ..RunAs::default()
+    };
+    let saga =
+        FederationMutationExecutor::new(engine, FederationMetadata::default(), "test-saga", run_as);
+
+    let identity = saga.identity("step-1");
+
+    assert_eq!(identity.jwt_claim("sub", "tenant_id"), Some(json!(principal)));
+    assert_eq!(identity.user_id.0, "system_job:test-saga", "provenance is unchanged");
 }

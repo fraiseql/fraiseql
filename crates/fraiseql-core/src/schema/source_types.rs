@@ -74,7 +74,12 @@ pub struct SourceDefinition {
 /// `tenant` scopes writes for a single-tenant or global source; a multi-tenant
 /// source leaves it unset and re-scopes each write per message at runtime (only the
 /// handler knows which tenant a given payload belongs to).
+///
+/// `user_id` is what the identity answers to `jwt:sub` and `jwt:user_id` (#1700), so
+/// a mutation that injects the caller's id can be called from a source. Its
+/// provenance stays `system_job:<name>`.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct RunAs {
     /// Roles granted to the source's background identity (the RBAC ceiling).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -89,6 +94,35 @@ pub struct RunAs {
     /// message.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tenant: Option<String>,
+
+    /// The id this identity presents to `jwt:sub` / `jwt:user_id` injects (#1700) —
+    /// a service principal's id. Unset ⇒ they receive `system_job:<name>`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub user_id: Option<String>,
+}
+
+impl RunAs {
+    /// The background [`SecurityContext`](crate::security::SecurityContext) this
+    /// ceiling grants, identified as `system_job:<job_id>` and correlated by
+    /// `request_id`; it answers `jwt:sub` with [`user_id`](Self::user_id) when set.
+    #[must_use]
+    pub fn identity(
+        &self,
+        job_id: impl Into<String>,
+        request_id: impl Into<String>,
+    ) -> crate::security::SecurityContext {
+        let identity = crate::security::SecurityContext::system_job(
+            job_id,
+            request_id,
+            self.roles.clone(),
+            self.scopes.clone(),
+            self.tenant.clone().map(crate::types::TenantId::from),
+        );
+        match &self.user_id {
+            Some(user_id) => identity.with_subject(user_id.as_str()),
+            None => identity,
+        }
+    }
 }
 
 /// A source is enabled unless explicitly disabled.
@@ -154,21 +188,7 @@ impl SourceDefinition {
     /// of the source (typically its per-fire idempotency token).
     #[must_use]
     pub fn identity(&self, request_id: impl Into<String>) -> crate::security::SecurityContext {
-        let (roles, scopes, tenant) = match &self.run_as {
-            Some(run_as) => (
-                run_as.roles.clone(),
-                run_as.scopes.clone(),
-                run_as.tenant.clone().map(crate::types::TenantId::from),
-            ),
-            None => (Vec::new(), Vec::new(), None),
-        };
-        crate::security::SecurityContext::system_job(
-            self.name.as_str(),
-            request_id,
-            roles,
-            scopes,
-            tenant,
-        )
+        self.run_as.clone().unwrap_or_default().identity(self.name.as_str(), request_id)
     }
 
     /// Mark the source disabled (compiled, but not scheduled).

@@ -458,7 +458,7 @@ trigger and runs in a WASM or Deno sandbox.
 | `trigger` | `string` | **yes** | e.g. `after:mutation:Order:update` |
 | `runtime` | `"Deno" \| "Wasm"` | **yes** | Which sandbox runs the module |
 | `timeout_ms` | `number?` | no | Wall-clock ceiling on every trigger kind (default 5 s); a `before:mutation` hook is also capped by the chain budget (500 ms by default) |
-| `run_as` | `object?` | no | `{roles, scopes, tenant}` authority ceiling (#594); absent ⇒ fail-closed |
+| `run_as` | `object?` | no | `{roles, scopes, tenant, user_id}` authority ceiling (#594); `user_id` answers `jwt:sub` injects (#1700); absent ⇒ fail-closed |
 | `when` | `FunctionPredicate[]?` | no | Conjunction evaluated before firing (#597) |
 | `re_runnable` | `boolean?` | no | Opt out of durable dispatch (ADR 0015) |
 | `retry` | `object?` | no | Per-function retry policy |

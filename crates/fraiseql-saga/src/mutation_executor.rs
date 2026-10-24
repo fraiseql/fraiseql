@@ -6,7 +6,7 @@
 
 use std::sync::Arc;
 
-use fraiseql_core::{runtime::Executor, schema::RunAs, security::SecurityContext, types::TenantId};
+use fraiseql_core::{runtime::Executor, schema::RunAs, security::SecurityContext};
 use fraiseql_error::Result;
 use fraiseql_federation::types::FederationMetadata;
 use serde_json::Value;
@@ -80,13 +80,7 @@ impl FederationMutationExecutor {
     /// is the step's id, so each write correlates to the step that issued it and
     /// a crash-recovery replay carries the same correlation as the original.
     fn identity(&self, request_id: &str) -> SecurityContext {
-        SecurityContext::system_job(
-            self.job_id.as_str(),
-            request_id,
-            self.run_as.roles.clone(),
-            self.run_as.scopes.clone(),
-            self.run_as.tenant.clone().map(TenantId::from),
-        )
+        self.run_as.identity(self.job_id.as_str(), request_id)
     }
 
     /// Execute a locally-owned step's mutation **through the engine**.

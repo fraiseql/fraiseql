@@ -543,7 +543,8 @@ class SchemaRegistry:
             cursor: Optional distinct cursor name (defaults to the source name).
             enabled: Whether the source is scheduled (default ``True``).
             run_as: Optional least-privilege authority ceiling (#573):
-                ``{"roles": [...], "scopes": [...], "tenant": "..."}``.
+                ``{"roles": [...], "scopes": [...], "tenant": "...", "user_id": "..."}``.
+                ``user_id`` is what ``jwt:sub`` injects receive (#1700).
             options: Optional connector-specific options, opaque to the framework.
         """
         camel_name = _snake_to_camel(name)
@@ -594,7 +595,8 @@ class SchemaRegistry:
             runtime: ``"Deno"`` or ``"Wasm"``.
             timeout_ms: Optional timeout override in milliseconds.
             run_as: Optional least-privilege authority ceiling (#594):
-                ``{"roles": [...], "scopes": [...], "tenant": "..."}``. Absent ⇒
+                ``{"roles": [...], "scopes": [...], "tenant": "...", "user_id": "..."}``.
+                ``user_id`` is what ``jwt:sub`` injects receive (#1700). Absent ⇒
                 fail-closed.
             when: Optional ``when`` predicates (#597), each ``{"field": ..., <op>: ...}``.
             re_runnable: Fire-and-forget opt-out of durable dispatch (ADR 0015).

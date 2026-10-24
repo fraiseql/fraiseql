@@ -462,11 +462,14 @@ export interface UnionDefinition {
  * under (#573). Absent ⇒ the source runs fail-closed (no roles/scopes/tenant →
  * RLS/authz deny). `tenant` scopes a single-tenant or global source; a multi-tenant
  * source leaves it unset and re-scopes each write per message at runtime.
+ * `user_id` is what the identity answers to `jwt:sub` / `jwt:user_id` injects
+ * (#1700): a service principal's id.
  */
 export interface SourceRunAs {
   roles?: string[];
   scopes?: string[];
   tenant?: string;
+  user_id?: string;
 }
 
 /**

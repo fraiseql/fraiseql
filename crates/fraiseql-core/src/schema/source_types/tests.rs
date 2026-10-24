@@ -59,9 +59,10 @@ fn run_as_round_trips_and_is_omitted_when_absent() {
 
     // A populated run_as survives a serde round-trip.
     let with = source.with_run_as(RunAs {
-        roles:  vec!["ingest_writer".to_string()],
-        scopes: vec!["write:order".to_string()],
-        tenant: Some("acme".to_string()),
+        roles:   vec!["ingest_writer".to_string()],
+        scopes:  vec!["write:order".to_string()],
+        tenant:  Some("acme".to_string()),
+        user_id: None,
     });
     let round_tripped: SourceDefinition =
         serde_json::from_value(serde_json::to_value(&with).unwrap()).unwrap();
@@ -71,15 +72,54 @@ fn run_as_round_trips_and_is_omitted_when_absent() {
 #[test]
 fn identity_maps_run_as_to_a_system_job_context() {
     let source = SourceDefinition::new("orders", "*/5 * * * *", "pollOrders").with_run_as(RunAs {
-        roles:  vec!["ingest_writer".to_string()],
-        scopes: vec!["write:order".to_string()],
-        tenant: Some("acme".to_string()),
+        roles:   vec!["ingest_writer".to_string()],
+        scopes:  vec!["write:order".to_string()],
+        tenant:  Some("acme".to_string()),
+        user_id: None,
     });
     let ctx = source.identity("fire-1");
     assert_eq!(ctx.actor_type(), ActorType::SystemJob);
     assert!(ctx.has_role("ingest_writer"));
     assert!(ctx.has_scope("write:order"));
     assert_eq!(ctx.tenant_id.as_ref().map(|t| t.as_str()), Some("acme"));
+}
+
+/// #1700: `run_as.user_id` answers `jwt:sub` and `jwt:user_id`; the provenance stays
+/// the source's system job.
+#[test]
+fn identity_answers_sub_with_the_run_as_user_id() {
+    let principal = "6f1c2a9e-3b4d-4e5f-8a7b-9c0d1e2f3a4b";
+    let source = SourceDefinition::new("orders", "*/5 * * * *", "pollOrders").with_run_as(RunAs {
+        roles: vec!["ingest_writer".to_string()],
+        user_id: Some(principal.to_string()),
+        ..RunAs::default()
+    });
+    let ctx = source.identity("fire-1");
+    for claim in ["sub", "user_id"] {
+        assert_eq!(
+            ctx.jwt_claim(claim, "tenant_id"),
+            Some(serde_json::json!(principal)),
+            "{claim}"
+        );
+    }
+    assert_eq!(ctx.user_id.0, "system_job:orders", "provenance is unchanged");
+    assert_eq!(ctx.actor_type(), ActorType::SystemJob);
+}
+
+/// #1700: without `user_id`, `jwt:sub` answers the provenance, as before.
+#[test]
+fn identity_answers_sub_with_its_provenance_without_a_user_id() {
+    let source = SourceDefinition::new("orders", "*/5 * * * *", "pollOrders");
+    let ctx = source.identity("fire-1");
+    assert_eq!(ctx.jwt_claim("sub", "tenant_id"), Some(serde_json::json!("system_job:orders")));
+}
+
+/// #1700: a `run_as` key the ceiling does not carry is refused, never dropped.
+#[test]
+fn run_as_refuses_an_unknown_key() {
+    let error = serde_json::from_value::<RunAs>(serde_json::json!({ "roles": ["r"], "sub": "x" }))
+        .expect_err("unknown key");
+    assert!(error.to_string().contains("sub"), "{error}");
 }
 
 #[test]

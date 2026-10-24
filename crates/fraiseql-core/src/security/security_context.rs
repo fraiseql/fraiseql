@@ -679,6 +679,22 @@ impl SecurityContext {
         self
     }
 
+    /// Present `subject` as this principal's `sub` and `user_id` claims (#1700).
+    ///
+    /// A machine principal's [`user_id`](Self::user_id) is its provenance
+    /// (`system_job:<name>`), recorded in the change log and the audit envelope, and
+    /// no SQL parameter typed as a user id can receive it. This sets what the
+    /// principal *answers* when a mutation injects `jwt:sub` or `jwt:user_id`, or a
+    /// session variable is mapped from either: [`jwt_claim`](Self::jwt_claim) reads
+    /// `attributes` first. The provenance and the [`ActorType`] are unchanged.
+    #[must_use]
+    pub fn with_subject(mut self, subject: impl Into<String>) -> Self {
+        let subject = serde_json::Value::String(subject.into());
+        self.attributes.insert("user_id".to_string(), subject.clone());
+        self.attributes.insert("sub".to_string(), subject);
+        self
+    }
+
     /// Set a custom attribute (for testing or runtime attribute addition).
     #[must_use]
     pub fn with_attribute(mut self, key: String, value: serde_json::Value) -> Self {

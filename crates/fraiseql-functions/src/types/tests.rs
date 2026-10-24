@@ -96,15 +96,55 @@ fn identity_carries_the_granted_ceiling() {
     let def =
         FunctionDefinition::new("recordApproval", "after:mutation:Order:update", RuntimeType::Deno)
             .with_run_as(RunAs {
-                roles:  vec!["order_writer".to_string()],
-                scopes: vec!["write:order".to_string()],
-                tenant: Some("acme".to_string()),
+                roles:   vec!["order_writer".to_string()],
+                scopes:  vec!["write:order".to_string()],
+                tenant:  Some("acme".to_string()),
+                user_id: None,
             });
     let identity = def.identity("token-2");
     assert_eq!(identity.roles, vec!["order_writer"]);
     assert_eq!(identity.scopes, vec!["write:order"]);
     assert_eq!(identity.tenant_id.as_ref().map(|t| t.0.as_str()), Some("acme"));
     assert_eq!(identity.user_id.0, "system_job:recordApproval");
+}
+
+/// #1700: `run_as.user_id` is what the identity answers to `jwt:sub` and
+/// `jwt:user_id`; the provenance stays the function's system job.
+#[cfg(feature = "host-live")]
+#[test]
+fn identity_answers_sub_with_the_run_as_user_id() {
+    let principal = "6f1c2a9e-3b4d-4e5f-8a7b-9c0d1e2f3a4b";
+    let def =
+        FunctionDefinition::new("approveOrder", "after:mutation:Order:insert", RuntimeType::Deno)
+            .with_run_as(RunAs {
+                roles: vec!["order_approver".to_string()],
+                user_id: Some(principal.to_string()),
+                ..RunAs::default()
+            });
+    let identity = def.identity("token-3");
+    for claim in ["sub", "user_id"] {
+        assert_eq!(
+            identity.jwt_claim(claim, "tenant_id"),
+            Some(serde_json::json!(principal)),
+            "jwt:{claim}"
+        );
+    }
+    assert_eq!(identity.user_id.0, "system_job:approveOrder", "provenance is unchanged");
+    assert_eq!(identity.actor_type(), fraiseql_core::security::ActorType::SystemJob);
+}
+
+/// #1700: a `run_as` key the ceiling does not carry is refused, never dropped: an
+/// ignored `user_id` was how an inject silently kept receiving `system_job:<name>`.
+#[test]
+fn run_as_refuses_an_unknown_key() {
+    let json = serde_json::json!({
+        "name": "approveOrder",
+        "trigger": "after:mutation:Order:insert",
+        "runtime": "Deno",
+        "run_as": { "roles": ["order_approver"], "claims": { "sub": "x" } }
+    });
+    let error = serde_json::from_value::<FunctionDefinition>(json).expect_err("unknown key");
+    assert!(error.to_string().contains("claims"), "{error}");
 }
 
 #[test]

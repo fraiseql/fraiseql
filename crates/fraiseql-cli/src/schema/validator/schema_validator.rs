@@ -647,17 +647,19 @@ impl SchemaValidator {
                         .iter()
                         .chain(run_as.scopes.iter())
                         .any(|grant| grant.trim().is_empty())
-                        || run_as.tenant.as_ref().is_some_and(|t| t.trim().is_empty());
+                        || [&run_as.tenant, &run_as.user_id]
+                            .into_iter()
+                            .any(|v| v.as_ref().is_some_and(|v| v.trim().is_empty()));
                     if has_blank {
                         report.errors.push(ValidationError {
                             message:    format!(
-                                "Source '{}' has a blank role, scope, or tenant in run_as",
+                                "Source '{}' has a blank role, scope, tenant, or user_id in run_as",
                                 source.name
                             ),
                             path:       format!("sources[{idx}].run_as"),
                             severity:   ErrorSeverity::Error,
                             suggestion: Some(
-                                "Remove empty entries; each role/scope/tenant must be non-blank"
+                                "Remove empty entries; each role/scope/tenant/user_id must be non-blank"
                                     .to_string(),
                             ),
                         });

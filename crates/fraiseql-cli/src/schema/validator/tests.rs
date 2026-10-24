@@ -1042,9 +1042,10 @@ fn run_as_with_blank_grant_is_rejected() {
     let schema = IntermediateSchema {
         sources: Some(vec![
             SourceDefinition::new("orders", "*/5 * * * *", "pollOrders").with_run_as(RunAs {
-                roles:  vec!["  ".to_string()],
-                scopes: vec![],
-                tenant: None,
+                roles:   vec!["  ".to_string()],
+                scopes:  vec![],
+                tenant:  None,
+                user_id: None,
             }),
         ]),
         ..Default::default()
@@ -1057,6 +1058,32 @@ fn run_as_with_blank_grant_is_rejected() {
             .iter()
             .any(|e| e.path.contains("run_as") && e.severity == ErrorSeverity::Error),
         "the blank role is rejected"
+    );
+}
+
+#[test]
+fn run_as_with_a_blank_user_id_is_rejected() {
+    use fraiseql_core::schema::{RunAs, SourceDefinition};
+
+    use crate::schema::validator::types::ErrorSeverity;
+    // #1700: a blank user_id would reach a `jwt:sub` inject as an empty string.
+    let schema = IntermediateSchema {
+        sources: Some(vec![
+            SourceDefinition::new("orders", "*/5 * * * *", "pollOrders").with_run_as(RunAs {
+                roles: vec!["ingest_writer".to_string()],
+                user_id: Some(" ".to_string()),
+                ..RunAs::default()
+            }),
+        ]),
+        ..Default::default()
+    };
+    let report = SchemaValidator::validate(&schema).unwrap();
+    assert!(
+        report.errors.iter().any(|e| e.path.contains("run_as")
+            && e.message.contains("user_id")
+            && e.severity == ErrorSeverity::Error),
+        "the blank user_id is rejected: {:?}",
+        report.errors
     );
 }
 

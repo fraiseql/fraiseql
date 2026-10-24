@@ -151,6 +151,7 @@ pub struct EventPayload {
 /// `fraiseql-core`; they are named rather than linked so this page resolves in the
 /// default build, which is the one a bare `cargo doc` produces (#1199).
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct RunAs {
     /// Roles granted to the function's background write identity (the RBAC ceiling).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -164,6 +165,13 @@ pub struct RunAs {
     /// ⇒ global/system (NULL tenant).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tenant: Option<String>,
+
+    /// The id this identity presents to `jwt:sub` / `jwt:user_id` injects (#1700), so
+    /// the function can call a mutation that takes its caller's id. A service
+    /// principal's id; the actor stays `system_job:<function>`. Unset ⇒ those
+    /// injects receive `system_job:<function>`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub user_id: Option<String>,
 }
 
 #[cfg(feature = "host-live")]
@@ -173,7 +181,8 @@ impl RunAs {
     /// `request_id`. Mirrors
     /// [`SourceDefinition::identity`](fraiseql_core::schema::SourceDefinition::identity):
     /// the roles/scopes/tenant are the ceiling, the [`ActorType::SystemJob`] is
-    /// recorded for audit, never an authorization input.
+    /// recorded for audit, never an authorization input. A set
+    /// [`user_id`](Self::user_id) is what the identity answers to `jwt:sub`.
     ///
     /// [`ActorType::SystemJob`]: fraiseql_core::security::ActorType::SystemJob
     #[must_use]
@@ -182,13 +191,17 @@ impl RunAs {
         job_id: impl Into<String>,
         request_id: impl Into<String>,
     ) -> fraiseql_core::security::SecurityContext {
-        fraiseql_core::security::SecurityContext::system_job(
+        let identity = fraiseql_core::security::SecurityContext::system_job(
             job_id,
             request_id,
             self.roles.clone(),
             self.scopes.clone(),
             self.tenant.clone().map(fraiseql_core::types::TenantId::from),
-        )
+        );
+        match &self.user_id {
+            Some(user_id) => identity.with_subject(user_id.as_str()),
+            None => identity,
+        }
     }
 }
 
