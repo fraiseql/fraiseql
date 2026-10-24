@@ -16,6 +16,14 @@ disagreed, and the promise was the part that was wrong.
 
 ## [Unreleased]
 
+### Added
+
+- **`FRAISEQL_FUNCTIONS_MODULE_DIR` overrides the compiled `[functions] module_dir`
+  (#1715).** One compiled schema can be deployed to hosts that keep their function
+  modules somewhere else, with no recompile per host. A relative `module_dir` still
+  resolves against the server's working directory, and a module missing from the
+  resolved directory still refuses the boot.
+
 ## [2.18.0] - 2026-10-25
 
 ### Breaking

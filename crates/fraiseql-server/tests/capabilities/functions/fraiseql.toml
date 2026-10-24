@@ -1,0 +1,6 @@
+# The compiled `module_dir` is the default, `functions`, relative to the server's working
+# directory, where it does not exist. The server finds the modules through
+# `FRAISEQL_FUNCTIONS_MODULE_DIR` (fixture.toml), as a deployment that keeps them elsewhere
+# does.
+[project]
+name = "capability-functions"

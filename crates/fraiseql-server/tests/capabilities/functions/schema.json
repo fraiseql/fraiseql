@@ -1,0 +1,44 @@
+{
+  "types": [
+    {
+      "name": "Order", "sql_source": "app.v_order", "is_input": false,
+      "fields": [
+        { "name": "id", "type": "ID", "nullable": false },
+        { "name": "label", "type": "String", "nullable": false }
+      ]
+    },
+    {
+      "name": "Receipt", "sql_source": "app.v_receipt", "is_input": false,
+      "fields": [
+        { "name": "id", "type": "ID", "nullable": false },
+        { "name": "orderLabel", "type": "String", "nullable": false }
+      ]
+    }
+  ],
+  "queries": [
+    {
+      "name": "orders", "return_type": "Order", "returns_list": true, "nullable": false,
+      "sql_source": "app.v_order", "arguments": []
+    }
+  ],
+  "mutations": [
+    {
+      "name": "createOrder", "return_type": "Order", "operation": "insert",
+      "sql_source": "app.fn_create_order",
+      "arguments": [{ "name": "label", "type": "String", "nullable": false }]
+    },
+    {
+      "name": "recordReceipt", "return_type": "Receipt", "operation": "insert",
+      "sql_source": "app.fn_record_receipt",
+      "arguments": [{ "name": "orderLabel", "type": "String", "nullable": false }]
+    }
+  ],
+  "functions": [
+    {
+      "name": "record_receipt",
+      "trigger": "after:mutation:Order:insert",
+      "runtime": "Deno",
+      "run_as": { "roles": ["receipts"] }
+    }
+  ]
+}

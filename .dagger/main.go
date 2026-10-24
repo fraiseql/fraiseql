@@ -1645,12 +1645,15 @@ func (m *FraiseqlCi) integrationPostgres(ctx context.Context, source *dagger.Dir
 		// (`fraiseql_test_support::postgres()`, `try_database_url()`) and the only
 		// leg compiling them was the service-less workspace run, where every
 		// DB-backed case returned early and read exactly like a pass.
-		"cargo test -p fraiseql-server --features functions-runtime,observers,auth --lib -- cron:: routes::after_mutation:: server::after_mutation_wiring_tests:: query_bridge:: subsystems::loader:: schema::tests:: function_metrics:: observers::pg_function_dlq:: identity:: observers::changelog_handlers:: --test-threads=1",
+		"cargo test -p fraiseql-server --features functions-runtime,observers,auth --lib -- cron:: routes::after_mutation:: server::after_mutation_wiring_tests:: server::functions_setup:: query_bridge:: subsystems::loader:: schema::tests:: function_metrics:: observers::pg_function_dlq:: identity:: observers::changelog_handlers:: --test-threads=1",
 		// The entry-point parity and `/health` capability suites boot a server with the
 		// observer runtime and Flight, through a skip-clean `postgres()` getter. The
 		// `Test` leg compiles them with no database, where they returned early and read
 		// as a pass. The feature set is the `Test` leg's, already built here.
 		"cargo test -p fraiseql-server --features '" + serverTestFeatures + "' --lib -- server::entry_point_parity_tests:: server::health_capabilities_tests:: --test-threads=1",
+		// 04c: every capability fixture boots the `fraiseql-server` binary (`cli`) on a database
+		// of its own and must reach its effect. The feature set is every Stable capability.
+		"cargo test -p fraiseql-server --features '" + serverTestFeatures + ",export-csv,export-xlsx,sources,inbound,inbound-email,auth-saml,cdc-outbound,subscription-kafka,cli' --test capability_fixtures_e2e_pg -- --test-threads=1",
 		// `fraiseql run` boots through the binary's assembly; the observer runtime is
 		// what proves it holds the pool, so the server's `observers` is switched on.
 		"cargo test -p fraiseql-cli --features run-server,fraiseql-server/observers --lib commands::run_serve_tests:: -- --test-threads=1",

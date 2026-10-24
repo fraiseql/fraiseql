@@ -49,6 +49,10 @@ impl Server {
         if functions_config.definitions.is_empty() && connectors.is_empty() {
             return Ok(());
         }
+        // One compiled schema deploys to hosts that keep their modules elsewhere.
+        let mut functions_config = functions_config;
+        functions_config.module_dir =
+            resolve_module_dir(functions_config.module_dir, |key| std::env::var(key).ok());
         let connectors: Vec<SourceConnector<'_>> = connectors
             .iter()
             .map(|(source, function)| SourceConnector { source, function })
@@ -358,3 +362,19 @@ const SENDING_ADDRESS_FIELD: &str = "sending_address";
 /// The resolved sender query's field holding the sender display name.
 #[cfg(all(feature = "inbound-email", feature = "auth"))]
 const DISPLAY_NAME_FIELD: &str = "display_name";
+
+/// The directory function modules load from: `FRAISEQL_FUNCTIONS_MODULE_DIR` when it is
+/// set and not empty, the compiled `[functions] module_dir` otherwise (env wins, as for
+/// `FRAISEQL_FUNCTIONS_DLQ_STORE`).
+fn resolve_module_dir(
+    compiled: std::path::PathBuf,
+    get_env: impl Fn(&str) -> Option<String>,
+) -> std::path::PathBuf {
+    get_env("FRAISEQL_FUNCTIONS_MODULE_DIR")
+        .filter(|dir| !dir.trim().is_empty())
+        .map_or(compiled, std::path::PathBuf::from)
+}
+
+#[cfg(test)]
+#[path = "functions_setup_tests.rs"]
+mod functions_setup_tests;

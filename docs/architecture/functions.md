@@ -489,6 +489,10 @@ It is the one name an SDK carries **verbatim** — every other name is camelCase
 way out, and recasing this one would send the compiler looking for a file the author
 never wrote. The cross-SDK conformance suite asserts the exact spelling for that reason.
 
+**`FRAISEQL_FUNCTIONS_MODULE_DIR` overrides `module_dir` at serve time** (#1715). One
+compiled schema can then be deployed to hosts that keep the modules somewhere else. A
+relative `module_dir` resolves against the server's working directory.
+
 **`timeout_ms` bounds the invocation on every trigger kind** (#1627): `after:mutation`,
 `after:ingest`, `after:capture`, `cron`, source connectors, `before:mutation` and
 `request:query`, and `fraiseql functions invoke` applies it too. A function that declares

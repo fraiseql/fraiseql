@@ -1,0 +1,12 @@
+# A mutation served over HTTP fires an `after:mutation` function, which writes a second row
+# through the GraphQL bridge.
+capability = "functions"
+
+[env]
+FRAISEQL_FUNCTIONS_MODULE_DIR = "$FIXTURE/modules"
+
+[[stimulus]]
+http = { method = "POST", path = "/graphql", body = '{"query":"mutation { createOrder(label: \"A-1\") { id } }"}' }
+
+[effect]
+row = { query = "SELECT order_label FROM app.tb_receipt", expect = [["A-1"]] }
