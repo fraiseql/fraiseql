@@ -18,3 +18,4 @@ pub(super) mod query_projection;
 pub(super) mod query_regular;
 pub(super) mod query_relay;
 pub(super) mod read_plan;
+pub(super) mod root_read;

@@ -13,7 +13,7 @@ use super::*;
 /// The whole point of the type: two reads that each fit are refused together.
 ///
 /// A `CostBudget` rebuilt per read passes this at the second charge, which is the
-/// defect `per_request_max` had while it was scored in `resolve_direct_read` from the
+/// defect `per_request_max` had while it was scored in `resolve_root_read` from the
 /// configuration rather than charged against a total.
 #[test]
 fn two_reads_of_one_request_charge_one_running_total() {

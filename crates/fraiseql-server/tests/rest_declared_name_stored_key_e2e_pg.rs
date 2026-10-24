@@ -237,7 +237,7 @@ async fn graphql_and_rest_serve_the_same_row() {
     // GraphQL runner builds an SQL projection hint, so `jsonb_build_object`
     // resolved the snake_case key and emitted the camelCase response key — and
     // GraphQL was right. The REST runner "reads the whole `data` document and
-    // projects in Rust" (`ResolvedDirectRead::projection_request`), so it took
+    // projects in Rust" (`RootRead::projection_request`), so it took
     // the projector that read the declared name verbatim — and REST was wrong.
     //
     // Asserting REST against GraphQL rather than against a literal is what

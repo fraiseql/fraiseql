@@ -4125,7 +4125,7 @@ fn auto_param_warnings_state_each_rule_on_the_configuration_that_earns_it() {
 /// The direction mattered: all-false is the *permissive* shape for an assertion about
 /// filtering. A `?field=value` sent to a query without `has_where` was accepted by the
 /// extractor, validated against the return type, built into `arguments["where"]` and
-/// dropped by `resolve_direct_read` — answering `200` with the whole relation. Three
+/// dropped by `resolve_root_read` — answering `200` with the whole relation. Three
 /// tests passed that way, one of them (`an_export_without_a_dotted_parameter_still_streams`)
 /// existing precisely to show that a plain filter survives a gate it was not surviving.
 ///

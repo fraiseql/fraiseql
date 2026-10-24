@@ -507,7 +507,7 @@ async fn rest_refuses_the_same_restricted_query() {
 /// at the same gate as the rows.
 ///
 /// `count_rows` is a second REST chokepoint, not a step inside
-/// `resolve_direct_read`: the embedding path calls it alone. It carried the #422
+/// `resolve_root_read`: the embedding path calls it alone. It carried the #422
 /// authorizer and the #1122 role gate and not this one, so
 /// `?select=id,lockedSecrets.count` reported the cardinality of a set the caller
 /// is forbidden to select from — an oracle over a gated relation.
@@ -709,7 +709,7 @@ async fn rest_serves_a_role_gated_query_to_a_token_carrying_only_the_role() {
 /// The other direction, and the sharper one: a scope is not a role. A token
 /// carrying `scope: "reader"` and no roles at all must not reach the rows.
 ///
-/// This is not symmetry for its own sake. `resolve_direct_read` — the REST
+/// This is not symmetry for its own sake. `resolve_root_read` — the REST
 /// chokepoint that enforces `requires_actor` (#966), field RBAC (#423) and RLS
 /// (#784) — has no role gate, so whatever `resolve_get_query` lets past is
 /// served. A pre-check keyed on the wrong field is the only thing standing here.

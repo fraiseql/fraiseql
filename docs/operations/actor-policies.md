@@ -85,11 +85,10 @@ write passes through on its way to the database:
 
 | Path | Gate |
 |---|---|
-| GraphQL query | `execute_regular_query_with_security` |
+| GraphQL query, REST read, `Prefer: count=exact`, streaming exports | `OperationGate`, run by `resolve_root_read` |
 | GraphQL mutation | the universal mutation chokepoint |
-| REST read, `Prefer: count=exact`, streaming exports | `resolve_direct_read` |
 | MCP `tools/call` | reaches the GraphQL gate |
-| Relay `node(id:)` | the node lookup |
+| Relay `node(id:)` | `OperationGate`, run by the node lookup |
 | Federation `_entities` | the entity resolver |
 
 That is a deliberate choice over per-transport checks. A predicate advertised on

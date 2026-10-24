@@ -234,12 +234,7 @@ impl Executor {
                 // would look for that name in a document that has no named
                 // operation at all and fail every multi-root request. Operation
                 // selection already happened upstream, in classification.
-                runner.execute_regular_query_maybe_security(
-                    query.as_str(),
-                    variables,
-                    security_context,
-                    None,
-                )
+                runner.execute_regular_query(query.as_str(), variables, security_context, None)
             })
             .collect();
 

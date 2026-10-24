@@ -1,7 +1,7 @@
 //! The #422 operation authorizer at every level of a read.
 //!
 //! REST has put each embedded level to the authorizer since embeds were composed: each
-//! level resolves through `resolve_direct_read` against its target's list query. A GraphQL
+//! level resolves through `resolve_root_read` against its target's list query. A GraphQL
 //! nested level never reached it, so an authorizer's rule for reading `Order` held for
 //! `{ orders }` and not for `{ users { orders } }`. Now every level on either transport is
 //! asked once per request per path, never per row, with `target_type` on every call and

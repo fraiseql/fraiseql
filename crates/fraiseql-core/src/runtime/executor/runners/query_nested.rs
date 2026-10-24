@@ -803,7 +803,8 @@ fn level_predicate(
 }
 
 /// [`level_predicate`] over a schema and a policy, for a caller that holds no executor
-/// context (the client-filter chokepoint).
+/// context (the client-filter chokepoint): [`row_predicate`](super::root_read::row_predicate)
+/// for the query named `query`, a predicate with no principal to evaluate it for refused.
 fn row_predicate(
     schema: &CompiledSchema,
     policy: Option<&dyn RLSPolicy>,
@@ -815,59 +816,8 @@ fn row_predicate(
     let Some(read) = schema.queries.iter().find(|q| q.name == query) else {
         return Ok(None);
     };
-    let mut conditions = Vec::new();
-    match (policy, security_context) {
-        (Some(policy), Some(principal)) => {
-            if let Some(clause) =
-                policy.evaluate(principal, &RlsTarget::query(&read.name, target))?
-            {
-                conditions.push(clause.into_where_clause());
-            }
-        },
-        // Fail closed (#784), as a root read with a policy and no principal does.
-        (Some(_), None) => {
-            return Err(FraiseQLError::Validation {
-                message: format!("Query '{}' not found in schema", read.name),
-                path:    None,
-            });
-        },
-        (None, _) => {},
-    }
-    if !read.inject_params.is_empty() {
-        let Some(principal) = security_context else {
-            return Err(FraiseQLError::Validation {
-                message: format!(
-                    "Type '{target}' is scoped by the inject params of query '{}', which a \
-                     request without a security context cannot resolve",
-                    read.name
-                ),
-                path:    None,
-            });
-        };
-        let in_documents = std::collections::HashMap::new();
-        let native_columns = match over {
-            Over::Rows => &read.native_columns,
-            Over::Documents => &in_documents,
-        };
-        for (column, source) in &read.inject_params {
-            let value = super::super::resolve_inject_value(
-                column,
-                source,
-                principal,
-                schema.tenant_claim(),
-            )?;
-            conditions.push(super::query_params::inject_param_where_clause(
-                column,
-                value,
-                native_columns,
-            ));
-        }
-    }
-    Ok(match conditions.len() {
-        0 => None,
-        1 => conditions.pop(),
-        _ => Some(WhereClause::And(conditions)),
-    })
+    super::root_read::row_predicate(schema, policy, read, target, over, security_context)?
+        .or_refuse(&read.name, target)
 }
 
 /// A client filter over `root_type`, rewritten so that every path through a to-one relation

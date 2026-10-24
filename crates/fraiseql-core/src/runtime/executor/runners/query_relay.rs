@@ -3,11 +3,10 @@
 use std::sync::Arc;
 
 use super::{
-    super::resolve_inject_value,
     query::QueryRunner,
     query_params::{
         client_where_argument, coerce_pagination_arg, compute_projection_reduction,
-        enforce_max_page_size, inject_param_where_clause,
+        enforce_max_page_size,
     },
     query_projection::{
         build_typed_projection_fields, enrich_order_by_clauses, selections_contain_field,
@@ -19,7 +18,7 @@ use crate::{
     graphql::FieldSelection,
     runtime::ResultProjector,
     schema::SqlProjectionHint,
-    security::{RlsWhereClause, SecurityContext, rls_policy::RlsTarget},
+    security::SecurityContext,
 };
 
 impl QueryRunner {
@@ -81,17 +80,6 @@ impl QueryRunner {
 
         let query_def = &query_match.query_def;
 
-        // Guard: queries with inject params require a security context.
-        if !query_def.inject_params.is_empty() && security_context.is_none() {
-            return Err(FraiseQLError::Validation {
-                message: format!(
-                    "Query '{}' has inject params but was called without a security context",
-                    query_def.name
-                ),
-                path:    None,
-            });
-        }
-
         let sql_source =
             query_def.sql_source.as_deref().ok_or_else(|| FraiseQLError::Validation {
                 message: format!("Relay query '{}' has no sql_source configured", query_def.name),
@@ -122,54 +110,18 @@ impl QueryRunner {
             path:    None,
         })?;
 
-        // --- RLS + inject_params evaluation (same logic as execute_from_match) ---
-        // Evaluate RLS policy to generate security WHERE clause.
-        let rls_where_clause: Option<RlsWhereClause> =
-            match (&self.ctx.config.rls_policy, security_context) {
-                (Some(rls_policy), Some(ctx)) => rls_policy
-                    .evaluate(ctx, &RlsTarget::query(&query_def.name, &query_def.return_type))?,
-                (Some(_), None) => {
-                    // Fail closed: an RLS-protected deployment must not serve a relay page to an
-                    // anonymous caller. Previously this fell through to `None` (no RLS clause),
-                    // leaking every row to unauthenticated relay queries.
-                    return Err(FraiseQLError::Validation {
-                        message: format!("Query '{}' not found in schema", query_def.name),
-                        path:    None,
-                    });
-                },
-                (None, _) => None,
-            };
-
-        // Resolve inject_params from JWT claims and compose with RLS.
-        let security_where: Option<WhereClause> = if query_def.inject_params.is_empty() {
-            rls_where_clause.map(RlsWhereClause::into_where_clause)
-        } else {
-            let ctx = security_context.ok_or_else(|| FraiseQLError::Validation {
-                message: format!(
-                    "Query '{}' has inject params but was called without a security context",
-                    query_def.name
-                ),
-                path:    None,
-            })?;
-            let mut conditions: Vec<WhereClause> = query_def
-                .inject_params
-                .iter()
-                .map(|(col, source)| {
-                    let value =
-                        resolve_inject_value(col, source, ctx, self.ctx.schema.tenant_claim())?;
-                    Ok(inject_param_where_clause(col, value, &query_def.native_columns))
-                })
-                .collect::<Result<Vec<_>>>()?;
-
-            if let Some(rls) = rls_where_clause {
-                conditions.insert(0, rls.into_where_clause());
-            }
-            match conditions.len() {
-                0 => None,
-                1 => Some(conditions.remove(0)),
-                _ => Some(WhereClause::And(conditions)),
-            }
-        };
+        // The page's row scope: the policy's predicate AND-ed with `inject_params`, and an
+        // anonymous caller refused under either (#784) — the same composition every root read
+        // carries (`root_read::row_predicate`).
+        let security_where = super::root_read::row_predicate(
+            &self.ctx.schema,
+            self.ctx.config.rls_policy.as_deref(),
+            query_def,
+            &query_def.return_type,
+            super::query_nested::Over::Rows,
+            security_context,
+        )?
+        .or_refuse(&query_def.name, &query_def.return_type)?;
 
         // Field-level RBAC over what each edge's `node` selects, at every level, each
         // against its own type — and each nested level's `requires_role` /
@@ -623,22 +575,20 @@ impl QueryRunner {
                 path:    Some("node.id".to_string()),
             })?;
 
-        // requires_role: invisible (enumeration-hiding "not found") unless the context holds it.
-        crate::security::role_gate::enforce_requires_role(
-            "Query",
-            &node_qdef.name,
-            node_qdef.requires_role.as_deref(),
+        // The backing query's operation gate (`root_read::OperationGate`): `requires_role`
+        // (an enumeration-hiding "not found"), `requires_actor` (#966) — the lookup is a
+        // second door onto the rows that query guards — and, #422, the authorizer: `node`
+        // was put to it at dispatch before the id was decoded; now the type is known, the
+        // read is asked again as what it is.
+        super::root_read::OperationGate::new(&self.ctx).check(
+            super::root_read::Ask::Now(crate::security::AuthzOperation::root(
+                crate::security::OperationKind::Query,
+                "node",
+                Some(type_name.as_str()),
+            )),
+            node_qdef,
             security_context,
-        )?;
-
-        // requires_actor (#966): the `node(id:)` lookup is a second door onto the
-        // rows its backing query guards, so it inherits that query's actor
-        // allow-list exactly as it inherits `requires_role` above.
-        crate::security::actor_type::enforce_requires_actor(
-            "Query",
-            &node_qdef.name,
-            &node_qdef.requires_actor,
-            security_context,
+            variables,
         )?;
 
         // Build the security WHERE (RLS ∧ inject_params). Fail closed when a policy is
@@ -655,22 +605,6 @@ impl QueryRunner {
         //     and each nested level's `requires_role` / `requires_actor` — the classifier
         //     the GraphQL root runs (`query_nested`). Before the read, so a `Reject`
         //     anywhere never reaches the database.
-        //
-        //     #422: `node` was put to the authorizer at the operation gate, before the id
-        //     was decoded. Now the type is known, the read is asked again as what it is.
-        if let Some(authorizer) = self.ctx.config.authorizer.as_ref() {
-            let op = crate::security::AuthzOperation::root(
-                crate::security::OperationKind::Query,
-                "node",
-                Some(type_name.as_str()),
-            );
-            crate::security::authorizer::enforce_authz(
-                authorizer.as_ref(),
-                security_context,
-                &[op],
-                variables,
-            )?;
-        }
         let selection_access = super::query_nested::SelectionAccess::classify(
             &self.ctx.schema,
             &type_name,
@@ -813,42 +747,20 @@ impl QueryRunner {
         node_qdef: &crate::schema::QueryDefinition,
         security_context: Option<&SecurityContext>,
     ) -> Result<NodeScope> {
-        use crate::backend::WhereClause;
-
-        let scope: Option<WhereClause> = match security_context {
-            Some(sc) => {
-                let rls = if let Some(ref rls_policy) = self.ctx.config.rls_policy {
-                    rls_policy
-                        .evaluate(sc, &RlsTarget::query(&node_qdef.name, &node_qdef.return_type))?
-                        .map(RlsWhereClause::into_where_clause)
-                } else {
-                    None
-                };
-                let mut conditions: Vec<WhereClause> = node_qdef
-                    .inject_params
-                    .iter()
-                    .map(|(col, source)| {
-                        let value =
-                            resolve_inject_value(col, source, sc, self.ctx.schema.tenant_claim())?;
-                        Ok(inject_param_where_clause(col, value, &node_qdef.native_columns))
-                    })
-                    .collect::<Result<Vec<_>>>()?;
-                if let Some(rls) = rls {
-                    conditions.insert(0, rls);
-                }
-                match conditions.len() {
-                    0 => None,
-                    1 => Some(conditions.remove(0)),
-                    _ => Some(WhereClause::And(conditions)),
-                }
+        // Fail closed: an anonymous lookup of a policy-gated type yields nothing.
+        Ok(
+            match super::root_read::row_predicate(
+                &self.ctx.schema,
+                self.ctx.config.rls_policy.as_deref(),
+                node_qdef,
+                &node_qdef.return_type,
+                super::query_nested::Over::Rows,
+                security_context,
+            )? {
+                super::root_read::RowScope::Scoped(scope) => NodeScope::Readable(scope),
+                super::root_read::RowScope::Hidden(_) => NodeScope::Hidden,
             },
-            None if self.ctx.config.rls_policy.is_some() || !node_qdef.inject_params.is_empty() => {
-                // Fail closed: anonymous lookup of a policy-gated type yields nothing.
-                return Ok(NodeScope::Hidden);
-            },
-            None => None,
-        };
-        Ok(NodeScope::Readable(scope))
+        )
     }
 
     /// The Node type a bare UUID belongs to, among those this caller may read (#1398).

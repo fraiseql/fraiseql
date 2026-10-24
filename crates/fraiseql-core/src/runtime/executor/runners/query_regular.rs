@@ -5,150 +5,21 @@ use std::sync::Arc;
 use futures::StreamExt as _;
 
 use super::{
-    super::resolve_inject_value,
     query::QueryRunner,
-    query_params::{
-        apply_pagination_order, client_where_argument, coerce_pagination_arg,
-        combine_explicit_arg_where, compute_projection_reduction, enforce_max_offset,
-        enforce_max_page_size, inject_param_where_clause, nearest_order_and_limit,
-    },
+    query_params::compute_projection_reduction,
     query_projection::{
-        build_typed_projection_fields, enrich_order_by_clauses, merge_computed_fields,
-        vector_distance_projection_fields, where_field_types,
+        build_typed_projection_fields, merge_computed_fields, vector_distance_projection_fields,
+        where_field_types,
     },
+    root_read::{DirectReadCost, Door, GatedFieldHandling, RootRoute},
 };
 use crate::{
     backend::{WhereClause, projection_generator::PostgresProjectionGenerator},
     error::{FraiseQLError, Result},
     runtime::{JsonbStrategy, ResultProjector},
     schema::{FieldType, SqlProjectionHint},
-    security::{
-        RlsWhereClause, SecurityContext,
-        authorizer::{AuthzNesting, AuthzOperation, OperationKind, enforce_authz},
-        rls_policy::RlsTarget,
-    },
+    security::SecurityContext,
 };
-
-/// What a direct read's caller can do with a selected policy-gated field (#423, #1351).
-///
-/// #423 is a per-row decision, so where it is enforced depends on whether the caller
-/// still has the rows in hand when it can be asked. This names that capability instead
-/// of letting `resolve_direct_read` test which transport is calling — a transport check
-/// is what a new transport gets wrong, and #1351 exists because one did.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) enum GatedFieldHandling {
-    /// Refuse the read outright when a gated field is selected.
-    ///
-    /// The JSON projection path: it resolves before the read and projects afterwards
-    /// through a path that does not carry the authorizer, so a gated field has never
-    /// been servable there. Fail-closed, unchanged since #423.
-    RefuseAsUnsupported,
-    /// Adjudicate each row against the authorizer after the read.
-    ///
-    /// The row-shaped path. The caller **must** apply the [`RowReadPlan::gate`] the
-    /// resolve hands back; the gate is on the plan rather than rebuilt per arm so that
-    /// obligation travels with the thing it applies to.
-    ///
-    /// [`RowReadPlan::gate`]: RowReadPlan#structfield.gate
-    AdjudicatePerRow,
-}
-
-/// Who scores a direct read against `[security.cost_budget] per_request_max`, and when.
-///
-/// A read is either a statement of its own, scored flat and charged as it resolves, or
-/// one level of a composed statement — which is scored as the tree it is part of, once,
-/// by whoever composes it. Charging each level flat as well would charge the composed
-/// statement twice, and charging it only per level would score a nested level without
-/// the page it is multiplied by (`DirectReadProjection`).
-#[derive(Debug, Clone, Copy)]
-pub(super) enum DirectReadCost<'a> {
-    /// Score this read flat and charge it: against the caller's request budget when it
-    /// lends one, against a budget of this read's own otherwise.
-    Flat(Option<&'a crate::security::RequestBudget>),
-    /// This read is one level of a composed statement. Its composer scores the whole
-    /// tree and charges it once, before the statement is sent.
-    Composed,
-}
-
-/// A direct read resolved down to the statement it will run (#958).
-///
-/// Produced by [`QueryRunner::resolve_direct_read`] and consumed by both the
-/// buffered and the streamed execution of the same read. Owned rather than
-/// borrowed from the `QueryMatch`, because the streaming path outlives the call
-/// that built it.
-pub(in super::super) struct ResolvedDirectRead {
-    /// The view to read.
-    pub(super) sql_source:     String,
-    /// Security conditions (RLS + `inject_params`) AND-ed with the client filter.
-    pub(super) composed_where: Option<WhereClause>,
-    /// Enriched ORDER BY, or `None` for the view's own order.
-    pub(super) order_by:       Option<Vec<crate::backend::OrderByClause>>,
-    /// Page size, already capped by `max_page_size` (#421).
-    pub(super) limit:          Option<u32>,
-    /// Page offset.
-    pub(super) offset:         Option<u32>,
-    /// Session variables to pin to the read's connection (#329).
-    pub(super) session_vars:   Vec<(String, String)>,
-    /// How many fields the read projects — what the cost estimate counts as this
-    /// level's scalars.
-    pub(super) leaf_fields:    usize,
-    /// Field-level RBAC classification for the projection (#886): the root level.
-    pub access:                crate::runtime::field_filter::FieldAccessResult,
-    /// The same classification at every level of the selection (`query_nested`).
-    pub(super) selection:      super::query_nested::SelectionAccess,
-    /// Projection for the computed fields this read selects (#959), or `None`
-    /// when it selects none — see [`Self::projection_request`].
-    pub(super) projection:     Option<crate::backend::SqlProjectionHint>,
-    /// The `[validation] max_response_bytes` ceiling in force for this read, or
-    /// `None` when the operator declared none.
-    ///
-    /// Resolved here, with every other decision that belongs to the read rather
-    /// than to its delivery, and charged by whichever arm delivers the rows. The
-    /// value cannot be checked at this point — what a read weighs is not knowable
-    /// until it has run — so what travels is the ceiling, not a verdict.
-    response_bytes:            Option<u64>,
-    /// A `nearest` search's `k` (#1314), or `None` for any other read.
-    pub(super) nearest_k:      Option<u32>,
-    /// The bound a `nearest` search counts its filter's matches up to, in the same
-    /// statement (`verify` / `refuse`), or `None`.
-    pub(super) nearest_count:  Option<u32>,
-}
-
-impl ResolvedDirectRead {
-    /// Borrow the session variables in the shape the adapter takes.
-    pub(super) fn session_pairs(&self) -> Vec<(&str, &str)> {
-        self.session_vars.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect()
-    }
-
-    /// A fresh budget for this read, or `None` when no ceiling is configured.
-    ///
-    /// One per read, not one per frame: a streamed arm keeps the returned value for
-    /// the whole stream so the ceiling bounds the response rather than each frame
-    /// independently.
-    pub(super) const fn budget(&self) -> Option<crate::security::ResponseBudget> {
-        crate::security::ResponseBudget::new(self.response_bytes)
-    }
-
-    /// The adapter call shape for this read.
-    ///
-    /// The projection is `None` unless the read selects a computed field: this
-    /// runner reads the whole `data` document and projects in Rust, because the
-    /// REST selection may name fields the SQL projection generator does not
-    /// model. A vector distance (#959) is not in the document at all, so it is
-    /// projected as `data || jsonb_build_object(…)` — additive, so the reason
-    /// for reading the whole row still holds.
-    fn projection_request(&self) -> crate::backend::ProjectionRequest<'_> {
-        crate::backend::ProjectionRequest {
-            view:          &self.sql_source,
-            projection:    self.projection.as_ref(),
-            where_clause:  self.composed_where.as_ref(),
-            order_by:      self.order_by.as_deref(),
-            limit:         self.limit,
-            offset:        self.offset,
-            matched_up_to: self.nearest_count,
-        }
-    }
-}
 
 /// A row-shaped read resolved down to the arguments the column-shaped adapter
 /// methods take (#1351).
@@ -159,7 +30,7 @@ impl ResolvedDirectRead {
 /// field is harder to pass in the wrong position than the fourth element of a tuple.
 struct RowReadPlan {
     /// Everything resolved before the database — gates, RLS, limit, field access.
-    resolved:  ResolvedDirectRead,
+    resolved:  super::root_read::RootRead,
     /// The row-shaped view this read targets.
     view:      String,
     /// The projection, after field-level RBAC narrowed it.
@@ -173,7 +44,7 @@ struct RowReadPlan {
     /// Carried on the plan rather than recomputed by each row entry, so the buffered
     /// and streamed arms cannot disagree about whether a read is gated — the drift
     /// #1348 found between exactly these two arms, and the reason
-    /// `resolve_direct_read` is a function.
+    /// `resolve_root_read` is a function.
     gate:      Option<crate::security::field_authorizer::RowFieldGate>,
     /// The localized columns and the request locale's chain (#1513), or `None` when the
     /// read has none. Carried on the plan for the reason `gate` is: one decision for
@@ -305,7 +176,7 @@ impl QueryRunner {
     /// Returns [`FraiseQLError::Validation`] if the predicate does not parse as a
     /// `where` document — loudly, because the alternative is dropping it, which
     /// is the defect.
-    fn and_scope_where(
+    pub(super) fn and_scope_where(
         &self,
         security: Option<WhereClause>,
         query_match: &crate::runtime::matcher::QueryMatch,
@@ -367,7 +238,7 @@ impl QueryRunner {
     /// when a projection cannot be built at all — never a silent fallback to
     /// "select everything", which is how a `node(id:)` lookup once served every
     /// column in its view (#827).
-    fn build_projection_hint(
+    pub(super) fn build_projection_hint(
         &self,
         query_match: &crate::runtime::matcher::QueryMatch,
         plan: &crate::runtime::planner::ExecutionPlan,
@@ -434,355 +305,71 @@ impl QueryRunner {
         }))
     }
 
-    /// Execute a regular query with row-level security (RLS) filtering.
+    /// Execute a regular (non-aggregate) GraphQL query root, for an authenticated caller or
+    /// an anonymous one.
     ///
-    /// This method:
-    /// 1. Validates the user's security context (token expiration, etc.)
-    /// 2. Evaluates RLS policies to determine what rows the user can access
-    /// 3. Composes RLS filters with user-provided WHERE clauses
-    /// 4. Passes the composed filter to the database adapter for SQL-level filtering
-    ///
-    /// RLS filtering happens at the database level, not in Rust, ensuring:
-    /// - High performance (database can optimize filters)
-    /// - Correct handling of pagination (LIMIT applied after RLS filtering)
-    /// - Type-safe composition via `WhereClause` enum
+    /// The unified dispatcher and the multi-root fan-out both call this single entry, and
+    /// every decision it makes before the database is
+    /// [`resolve_root_read`](Self::resolve_root_read)'s, so the authenticated and the
+    /// anonymous read cannot drift (H19). It is an `async fn`, so it has one opaque future
+    /// type: callers collect homogeneous futures across roots without boxing.
     ///
     /// # Errors
     ///
-    /// * [`FraiseQLError::Validation`] — security token expired, role check failed, or query not
-    ///   found in schema.
-    /// * [`FraiseQLError::Database`] — the database adapter returned an error.
-    pub(in super::super) async fn execute_regular_query_with_security(
+    /// Everything [`resolve_root_read`](Self::resolve_root_read) returns, the function,
+    /// Relay and count runners' errors for those roots, the response ceiling's refusal and
+    /// the field authorizer's (#423), and `FraiseQLError::Database` from the adapter.
+    pub(in super::super) async fn execute_regular_query(
         &self,
         query: &str,
         variables: Option<&serde_json::Value>,
-        security_context: &SecurityContext,
+        security_context: Option<&SecurityContext>,
         operation_name: Option<&str>,
     ) -> Result<serde_json::Value> {
-        // 1. Validate security context (check expiration, etc.)
-        if security_context.is_expired() {
-            return Err(FraiseQLError::Validation {
-                message: "Security token has expired".to_string(),
-                path:    Some("request.authorization".to_string()),
-            });
-        }
-
-        // 2. Match query to compiled template — for the operation the request selected, not the
-        //    document's first one (§ 6.1).
+        // The operation the request selected, not the document's first one (§ 6.1).
         let query_match =
             self.ctx
                 .matcher
                 .match_query_with_operation_name(query, variables, operation_name)?;
 
-        // 2b. Enforce requires_role — "not found" (not "forbidden") to prevent enumeration.
-        crate::security::role_gate::enforce_requires_role(
-            "Query",
-            &query_match.query_def.name,
-            query_match.query_def.requires_role.as_deref(),
-            Some(security_context),
-        )?;
-
-        // 2c. Enforce requires_actor (#966), after the role gate so a caller
-        //     lacking the role learns nothing here that "not found" did not
-        //     already tell them.
-        crate::security::actor_type::enforce_requires_actor(
-            "Query",
-            &query_match.query_def.name,
-            &query_match.query_def.requires_actor,
-            Some(security_context),
-        )?;
-
-        // #1329: a function-backed field, on the same terms as the anonymous path —
-        // after the role and actor gates, before anything that composes a statement.
-        // Both entry points branch here rather than in
-        // `execute_regular_query_maybe_security`, which would have to match the query
-        // a second time to see the binding; one function, two call sites.
-        if query_match.query_def.function.is_some() {
-            return self
-                .execute_function_backed_query(&query_match, variables, Some(security_context))
-                .await;
-        }
-
-        // Resolve session variables once. They are applied transaction-locally
-        // on the same connection as the read (fixes #329) by passing them into
-        // the connection-affine adapter call below, so PostgreSQL RLS policies
-        // that read `current_setting()` (e.g. `app.tenant_id`) are effective.
-        let resolved_session_vars = self.resolve_session_vars(Some(security_context))?;
-        let session_pairs: Vec<(&str, &str)> =
-            resolved_session_vars.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
-
-        // Route relay queries to dedicated handler with security context.
-        if query_match.query_def.relay {
-            return self
-                .execute_relay_query(
-                    &query_match,
-                    variables,
-                    Some(security_context),
-                    &session_pairs,
-                )
-                .await;
-        }
-
-        // Count siblings (#938) return a scalar, so none of the projection,
-        // response-cache or field-RBAC machinery below applies — there is no row
-        // to strip a field from. Routed after the `requires_role` guard above, so
-        // a count is exactly as visible as the list it counts.
-        if query_match.query_def.returns_count {
-            return self.execute_count_query(&query_match, variables, Some(security_context)).await;
-        }
-
-        // 0a. Detect whether a policy-gated field (#423) is selected (top-level or
-        //     nested). When so, the per-row dynamic authorizer decision is not
-        //     compatible with a selection-stripped row, so the SQL projection hint is
-        //     bypassed below.
-        let root_fields: &[crate::graphql::FieldSelection] =
-            query_match.selections.first().map_or(&[], |r| r.nested_fields.as_slice());
-        let gated_present = crate::security::field_authorizer::selection_set_selects_gated_field(
-            &self.ctx.schema,
-            &query_match.query_def.return_type,
-            root_fields,
-        );
-
-        // 0b. #1612: a read typed as an interface or a union is a read of each object type
-        //     its rows may be (`query_abstract`).
-        let abstract_read =
-            super::query_abstract::AbstractRead::of(&self.ctx.schema, &query_match.query_def);
-        if let Some(read) = &abstract_read {
-            read.refuse_gated_fields(&self.ctx.schema, root_fields)?;
-        }
-
-        // 3. Create execution plan
-        let plan = self.ctx.planner.plan(&query_match)?;
-
-        // 3a. Field-level RBAC at every level of the selection, each against its own type
-        //     and by field name (`query_nested`). Before the read, so a `Reject` anywhere
-        //     in the tree never reaches the database.
-        let selection_access = match &abstract_read {
-            Some(read) => read.classify(
-                &self.ctx.schema,
-                root_fields,
-                Some(security_context),
-                super::query_nested::LevelAuthz::from_config(&self.ctx.config, variables),
-            )?,
-            None => super::query_nested::SelectionAccess::classify(
-                &self.ctx.schema,
-                &query_match.query_def.return_type,
-                root_fields,
-                plan.projection_fields.clone(),
-                Some(security_context),
-                super::query_nested::LevelAuthz::from_config(&self.ctx.config, variables),
-            )?,
-        };
-
-        // 3b. The nested levels whose type scopes its rows, each read with that type's
-        //     predicate (`query_nested`). None: the read is flat, as it always was.
-        let nested_reads = self.plan_nested_reads(
-            &query_match.query_def.return_type,
-            root_fields,
-            Some(security_context),
-            &selection_access,
-        )?;
-
-        // 4. Evaluate RLS policy and build WHERE clause filter. The return type is
-        //    Option<RlsWhereClause> — a compile-time proof that the clause passed through RLS
-        //    evaluation.
-        let rls_where_clause: Option<RlsWhereClause> = if let Some(ref rls_policy) =
-            self.ctx.config.rls_policy
-        {
-            // Evaluate RLS policy with user's security context
-            rls_policy.evaluate(
-                security_context,
-                &RlsTarget::query(&query_match.query_def.name, &query_match.query_def.return_type),
-            )?
-        } else {
-            // No RLS policy configured, allow all access
-            None
-        };
-
-        // 5. Get SQL source from query definition
-        let sql_source =
-            query_match
-                .query_def
-                .sql_source
-                .as_ref()
-                .ok_or_else(|| FraiseQLError::Validation {
-                    message: "Query has no SQL source".to_string(),
-                    path:    None,
-                })?;
-
-        // 7. AND inject conditions onto the RLS WHERE clause. Inject conditions always come after
-        //    RLS so they cannot bypass it.
-        let combined_where: Option<WhereClause> = if query_match.query_def.inject_params.is_empty()
-        {
-            // Common path: unwrap RlsWhereClause into WhereClause for the adapter
-            rls_where_clause.map(RlsWhereClause::into_where_clause)
-        } else {
-            let mut conditions: Vec<WhereClause> = query_match
-                .query_def
-                .inject_params
-                .iter()
-                .map(|(col, source)| {
-                    let value = resolve_inject_value(
-                        col,
-                        source,
-                        security_context,
-                        self.ctx.schema.tenant_claim(),
-                    )?;
-                    Ok(inject_param_where_clause(col, value, &query_match.query_def.native_columns))
-                })
-                .collect::<Result<Vec<_>>>()?;
-
-            if let Some(rls) = rls_where_clause {
-                conditions.insert(0, rls.into_where_clause());
-            }
-            match conditions.len() {
-                0 => None,
-                1 => Some(conditions.remove(0)),
-                _ => Some(WhereClause::And(conditions)),
-            }
-        };
-
-        // 5b. Compose the client's WHERE onto the security conditions, which are always
-        //     first so they cannot be bypassed. A filter this query does not accept is
-        //     refused by `client_where_argument`, never dropped (#1283).
-        // #1170: the server's own parent scoping is composed here, with RLS and
-        //     inject and *before* the client-filter gate below — it is not client
-        //     input and must not ride on the client filter surface.
-        let combined_where = self.and_scope_where(combined_where, &query_match)?;
-
-        let user_where = client_where_argument(
-            &self.ctx.schema,
-            &query_match.query_def,
-            &query_match.arguments,
-            self.ctx.config.rls_policy.as_deref(),
-            Some(security_context),
-        )?;
-        let combined_where: Option<WhereClause> = match (combined_where, user_where) {
-            (None, None) => None,
-            (Some(sec), None) => Some(sec),
-            (None, Some(user)) => Some(user),
-            (Some(sec), Some(user)) => Some(WhereClause::And(vec![sec, user])),
-        };
-
-        // 5c. Convert explicit query arguments (e.g. id, slug) to WHERE conditions.
-        //     This handles single-entity lookups like `user(id: "...")` where the
-        //     arguments are direct equality filters, not the structured `where` argument.
-        let combined_where = combine_explicit_arg_where(
-            combined_where,
-            &query_match.query_def.arguments,
-            &query_match.arguments,
-            &query_match.query_def.native_columns,
-        );
-
-        // 8. Extract limit/offset from query arguments when auto_params are enabled
-        // The top-level page size is capped (#421: unbounded-pagination DoS guard).
-        let limit = enforce_max_page_size(
-            if query_match.query_def.auto_params.has_limit {
-                coerce_pagination_arg("limit", query_match.arguments.get("limit"))?
-            } else {
-                None
-            },
-            self.ctx.config.max_page_size,
-            "limit",
-        )?;
-
-        // #1306: held to `[validation] max_offset` before any statement.
-        let offset = enforce_max_offset(
-            if query_match.query_def.auto_params.has_offset {
-                coerce_pagination_arg("offset", query_match.arguments.get("offset"))?
-            } else {
-                None
-            },
-            self.ctx.config.max_offset,
-            "offset",
-        )?;
-
-        // 8b. Extract order_by from query arguments when has_order_by is enabled,
-        //     then enrich each clause with the schema field type so the SQL generator
-        //     emits correct type casts (e.g., `(data->>'amount')::numeric`).
-        let order_by_clauses = if query_match.query_def.auto_params.has_order_by {
-            query_match
-                .arguments
-                .get("orderBy")
-                .map(crate::backend::OrderByClause::from_graphql_json)
-                .transpose()?
-                .map(|clauses| {
-                    enrich_order_by_clauses(
-                        clauses,
-                        &self.ctx.schema,
-                        &query_match.query_def.return_type,
-                        &query_match.query_def.native_columns,
-                        Some(security_context),
-                    )
-                })
-                .transpose()?
-        } else {
-            None
-        };
-
-        // `nearest` similarity search (#386): lowers to a vector-distance
-        // ORDER BY + LIMIT k. Conflicts with limit/orderBy error inside the
-        // helper, so overriding both here cannot discard a client value.
-        let (limit, order_by_clauses, nearest_k) = if let Some((clause, k)) =
-            nearest_order_and_limit(
-                &query_match.arguments,
-                &self.ctx.schema,
-                &query_match.query_def,
-                Some(security_context),
-            )? {
-            (
-                enforce_max_page_size(Some(k), self.ctx.config.max_page_size, "nearest.k")?,
-                Some(vec![clause]),
-                Some(k),
-            )
-        } else {
-            (limit, order_by_clauses, None)
-        };
-
-        // 8c. Generate the SQL projection for the requested fields, after the
-        //     `nearest` lowering so a selected distance field can be projected
-        //     from the clause that ordered the rows.
-        // A composed read returns the stored document whole and is projected in Rust,
-        // below, because its nested levels are merged into it first.
-        let projection_hint = self.build_projection_hint(
+        let mut read = match self.resolve_root_read(
             &query_match,
-            &plan,
-            gated_present || !nested_reads.is_empty() || abstract_read.is_some(),
-            order_by_clauses.as_ref().and_then(|c| c.first()),
-        )?;
-
-        // 8d. #1303: and the total order this query declares, when the request is
-        //     actually paged. After the projection hint, which reads the ordering's
-        //     FIRST clause to project a `nearest` distance — the identity is
-        //     appended, so it can only become that clause on a read that had no
-        //     ordering at all, which has no distance to project either.
-        let order_by_clauses =
-            apply_pagination_order(order_by_clauses, &query_match.query_def, limit, offset);
-
-        // 9. Execute query with combined WHERE clause filter, pinning session variables to the
-        //    read's connection (fixes #329 for RLS). With nested levels to gate, the same read is
-        //    the root of a composed statement carrying them.
-        let composed = !nested_reads.is_empty();
-        // #1314: a composed read has no counting statement; its short result is signalled
-        // unverified.
-        let nearest_count = if composed {
-            None
-        } else {
-            self.nearest_count_bound(nearest_k)
+            variables,
+            security_context,
+            Door::Document,
+        )? {
+            RootRoute::Function => {
+                return self
+                    .execute_function_backed_query(&query_match, variables, security_context)
+                    .await;
+            },
+            RootRoute::Relay => {
+                let session_vars = self.resolve_session_vars(security_context)?;
+                let session_pairs: Vec<(&str, &str)> =
+                    session_vars.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
+                return self
+                    .execute_relay_query(&query_match, variables, security_context, &session_pairs)
+                    .await;
+            },
+            // A count sibling returns a scalar: no projection, cache or field RBAC applies.
+            RootRoute::Count => {
+                return self.execute_count_query(&query_match, variables, security_context).await;
+            },
+            RootRoute::Rows(read) => *read,
         };
+        let root_fields =
+            query_match.selections.first().map_or(&[][..], |r| r.nested_fields.as_slice());
+        let return_type = &query_match.query_def.return_type;
+
+        // The read, with the session variables pinned to its connection (#329). With nested
+        // levels to gate, the same read is the root of a composed statement carrying them.
+        let session_vars = std::mem::take(&mut read.session_vars);
+        let session_pairs: Vec<(&str, &str)> =
+            session_vars.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
+        let composed = !read.nested.is_empty();
         let results = if composed {
             self.execute_composed_document_read(
-                crate::backend::ComposedLevel {
-                    view: sql_source.clone(),
-                    projection: projection_hint.as_ref().map(|h| h.projection_template.clone()),
-                    where_clause: combined_where,
-                    order_by: order_by_clauses,
-                    limit,
-                    offset,
-                    keyset: None,
-                    keys: super::query_nested::root_keys(&nested_reads),
-                    embeds: nested_reads,
-                },
+                read.composed_level(),
                 &session_pairs,
                 query_match.query_def.read_routing,
             )
@@ -791,58 +378,47 @@ impl QueryRunner {
             self.ctx
                 .adapter
                 .execute_with_projection_arc_with_session(
-                    &crate::backend::ProjectionRequest {
-                        view: sql_source,
-                        projection: projection_hint.as_ref(),
-                        where_clause: combined_where.as_ref(),
-                        order_by: order_by_clauses.as_deref(),
-                        limit,
-                        offset,
-                        matched_up_to: nearest_count,
-                    },
+                    &read.projection_request(),
                     &session_pairs,
                     query_match.query_def.read_routing,
                 )
                 .await?
         };
-        let results =
-            self.settle_nearest(&query_match, nearest_k, nearest_count.is_some(), results)?;
+        let results = self.settle_nearest(
+            &query_match,
+            read.nearest_k,
+            read.nearest_count.is_some(),
+            results,
+        )?;
 
-        // The response-bytes ceiling (`[validation] max_response_bytes`), on the
-        // document path. GATE-1 already scored this request's depth and complexity,
-        // but neither knows what a row weighs: a materialised read is one fetch
-        // whatever its nesting, and its cost is the bytes it returns. Charged here so
-        // the same ceiling means the same thing whether the request arrived as a
-        // document or as a REST read.
-        if let Some(budget) =
-            crate::security::ResponseBudget::new(self.ctx.config.max_response_bytes)
-        {
+        // The response-bytes ceiling (`[validation] max_response_bytes`). GATE-1 scored the
+        // document's depth and complexity, but neither knows what a row weighs: a
+        // materialised read is one fetch whatever its nesting, and its cost is its bytes.
+        if let Some(budget) = read.budget() {
             budget.charge_jsonb_rows(&results)?;
         }
 
-        // 10. Field-level RBAC, classified at 3a.
-        let access = &selection_access.root;
-
-        // 11. Project results. Masked fields stay in the projection, in their requested position,
-        //     and are nulled below — GraphQL requires the response's field order to follow the
-        //     query's.
-        // The rows the dynamic field authorizer (11c) reads: kept only on the branch that needs
-        // them, so the other can give its rows up to the projector instead of cloning them.
+        // Project. Masked fields stay in the projection, in their requested position, and are
+        // nulled below — GraphQL requires the response's field order to follow the query's.
+        // The rows the field authorizer reads are kept only on the branch that needs them, so
+        // the other can give its rows up to the projector instead of cloning them.
+        let abstract_read = if read.abstract_read {
+            super::query_abstract::AbstractRead::of(&self.ctx.schema, &query_match.query_def)
+        } else {
+            None
+        };
         let mut authorizer_rows = None;
-        let mut projected = if let Some(read) = &abstract_read {
+        let mut projected = if let Some(abstract_read) = &abstract_read {
             // Each row as the object type it is, its own masks applied (#1612).
-            read.project(&results, root_fields, &self.ctx.schema, &selection_access)?
-        } else if composed || gated_present {
+            abstract_read.project(&results, root_fields, &self.ctx.schema, &read.selection)?
+        } else if composed || read.gated_present {
             // Stored documents with their gated levels merged in, or read whole because a
-            // policy-gated field bypassed the SQL projection: projected the way a nested
-            // list element always was, at every depth — aliases, recasing, `__typename`, a
-            // localized field in its selection's locale and its translations sibling
-            // included. The mapper below reads stored keys by name, so it dropped a
-            // sibling and read a localized field in the request locale whatever its
-            // `locale:` argument asked.
+            // policy-gated field bypassed the SQL projection: projected the way a nested list
+            // element is, at every depth — aliases, recasing, `__typename`, a localized field
+            // in its selection's locale and its translations sibling included.
             let projected = super::query_nested::project_documents(
                 &results,
-                &query_match.query_def.return_type,
+                return_type,
                 root_fields,
                 &self.ctx.schema,
                 query_match.query_def.returns_list,
@@ -850,73 +426,60 @@ impl QueryRunner {
             authorizer_rows = Some(results);
             projected
         } else {
-            let projector = ResultProjector::new(access.projected.clone())
+            let projector = ResultProjector::new(read.access.projected.clone())
                 // #1192: a `String` field whose text parses as JSON must stay a string.
-                .with_declared_scalars(&self.ctx.schema, &query_match.query_def.return_type)
-                .configure_typename_from_selections(
-                    &query_match.selections,
-                    &query_match.query_def.return_type,
-                );
+                .with_declared_scalars(&self.ctx.schema, return_type)
+                .configure_typename_from_selections(&query_match.selections, return_type);
             // #1556: the rows are this request's alone unless the row cache holds them too, so
-            //       their values are moved into the response rather than cloned.
+            // their values are moved into the response rather than cloned.
             let mut projected =
                 projector.project_results_owned(results, query_match.query_def.returns_list)?;
-
-            // 11a. #489: recase + project nested list-of-object fields the SQL projection
-            //      left as the raw stored sub-blob (snake_case keys, unselected keys). The
-            //      SQL side already projected top-level fields and nested single objects.
+            // #489: recase + project nested list-of-object fields the SQL projection left as
+            // the raw stored sub-blob (snake_case keys, unselected keys).
             crate::runtime::project_nested_lists(
                 &mut projected,
-                &query_match.query_def.return_type,
+                return_type,
                 root_fields,
                 &self.ctx.schema,
             );
-
-            // #912: `__typename` is stripped from the SQL projection at every depth (it
-            //       is a meta-field, not a JSONB key — projecting it emits a literal
-            //       NULL). The root object is stamped by the projector and list elements
-            //       by `project_entity`; nested single objects have no other owner.
+            // #912: `__typename` is stripped from the SQL projection at every depth; the root
+            // object is stamped by the projector and list elements by `project_entity`, and
+            // nested single objects have no other owner.
             crate::runtime::stamp_nested_typenames(
                 &mut projected,
-                &query_match.query_def.return_type,
+                return_type,
                 root_fields,
                 &self.ctx.schema,
             );
             projected
         };
 
-        // 11. Null out masked fields in the projected result, at every level.
-        selection_access.null_masked(
-            &mut projected,
-            &query_match.query_def.return_type,
-            root_fields,
-            &self.ctx.schema,
-        );
+        // Null the masked fields, at every level.
+        read.selection
+            .null_masked(&mut projected, return_type, root_fields, &self.ctx.schema);
 
-        // 11c. Apply the dynamic field authorizer (#423) per row. The static gate (step
-        //      10) ran first — AND-composition: a field shown only if both allow. Fail-closed:
-        //      a Reject decision or any policy error returns 403; the value is never served.
-        if gated_present {
-            let rows = authorizer_rows.ok_or_else(|| FraiseQLError::Internal {
-                message: "a gated read reached the field authorizer without its rows — this is a \
-                          bug"
-                .to_string(),
-                source:  None,
-            })?;
+        // The dynamic field authorizer (#423), per row, after the static gate —
+        // AND-composition: a field is shown only if both allow. Fail-closed: a `Reject` or any
+        // policy error refuses the read; the value is never served.
+        if read.gated_present {
+            let (Some(principal), Some(rows)) = (security_context, authorizer_rows) else {
+                return Err(FraiseQLError::Internal {
+                    message: "a gated read reached the field authorizer without its principal \
+                              or its rows — this is a bug"
+                        .to_string(),
+                    source:  None,
+                });
+            };
             self.apply_dynamic_field_authorizer(
                 &query_match,
-                security_context,
-                access,
+                principal,
+                &read.access,
                 &rows,
                 &mut projected,
             )?;
         }
 
-        // 12. Wrap in GraphQL data envelope
-        let response =
-            ResultProjector::wrap_in_data_envelope(projected, query_match.response_key());
-
-        Ok(response)
+        Ok(ResultProjector::wrap_in_data_envelope(projected, query_match.response_key()))
     }
 
     /// Apply the dynamic field authorizer (#423) to a projected result.
@@ -994,384 +557,6 @@ impl QueryRunner {
         authz::apply_field_authorizer(&pass, rows, projected, query_match.query_def.returns_list)
     }
 
-    /// Execute a regular query, applying RLS/role/inject enforcement when a
-    /// [`SecurityContext`] is present and the anonymous fail-closed path otherwise.
-    ///
-    /// The unified dispatcher and the multi-root fan-out both call this single
-    /// entry so the authenticated and anonymous regular-query paths cannot drift
-    /// (H19). It is an `async fn`, so it has one opaque future type — callers can
-    /// collect homogeneous futures across roots without boxing.
-    ///
-    /// # Errors
-    ///
-    /// Propagates the errors of
-    /// [`execute_regular_query`](Self::execute_regular_query) or
-    /// [`execute_regular_query_with_security`](Self::execute_regular_query_with_security).
-    pub(in super::super) async fn execute_regular_query_maybe_security(
-        &self,
-        query: &str,
-        variables: Option<&serde_json::Value>,
-        security_context: Option<&SecurityContext>,
-        operation_name: Option<&str>,
-    ) -> Result<serde_json::Value> {
-        match security_context {
-            Some(ctx) => {
-                self.execute_regular_query_with_security(query, variables, ctx, operation_name)
-                    .await
-            },
-            None => self.execute_regular_query(query, variables, operation_name).await,
-        }
-    }
-
-    /// Execute a regular (non-aggregate, non-relay) GraphQL query.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`FraiseQLError::Validation`] if the query does not match a compiled
-    /// template or requires a security context that is not present.
-    /// Returns [`FraiseQLError::Database`] if the SQL execution or result projection fails.
-    pub(in super::super) async fn execute_regular_query(
-        &self,
-        query: &str,
-        variables: Option<&serde_json::Value>,
-        operation_name: Option<&str>,
-    ) -> Result<serde_json::Value> {
-        // 1. Match query to compiled template — for the operation the request selected, not the
-        //    document's first one (§ 6.1).
-        let query_match =
-            self.ctx
-                .matcher
-                .match_query_with_operation_name(query, variables, operation_name)?;
-
-        // Guard: role-restricted queries are invisible to unauthenticated users
-        if query_match.query_def.requires_role.is_some() {
-            return Err(FraiseQLError::Validation {
-                message: format!("Query '{}' not found in schema", query_match.query_def.name),
-                path:    None,
-            });
-        }
-
-        // The same guard for the actor allow-list (#966): an unauthenticated
-        // request has no classification, so it belongs to no class.
-        crate::security::actor_type::enforce_requires_actor(
-            "Query",
-            &query_match.query_def.name,
-            &query_match.query_def.requires_actor,
-            None,
-        )?;
-
-        // Guard: queries with inject params require a security context.
-        if !query_match.query_def.inject_params.is_empty() {
-            return Err(FraiseQLError::Validation {
-                message: format!(
-                    "Query '{}' has inject params but was called without a security context",
-                    query_match.query_def.name
-                ),
-                path:    None,
-            });
-        }
-
-        // #1329: a function-backed field, after the role and actor gates — which
-        // decide who may reach a function at all — and **before** the RLS guard
-        // below, which governs this query's own read. This one issues none: what the
-        // function reads goes through the caller-scoped bridge, where that same guard
-        // applies to that read, anonymously. See `query_function` for why that is the
-        // honest behaviour rather than an exemption.
-        if query_match.query_def.function.is_some() {
-            return self.execute_function_backed_query(&query_match, variables, None).await;
-        }
-
-        // Guard (#784): an RLS-protected deployment must not serve unauthenticated
-        // regular queries — the policy cannot be evaluated without a principal.
-        // Fail closed exactly as the relay and node paths do.
-        if self.ctx.config.rls_policy.is_some() {
-            return Err(FraiseQLError::Validation {
-                message: format!("Query '{}' not found in schema", query_match.query_def.name),
-                path:    None,
-            });
-        }
-
-        // Route relay queries to dedicated handler. With no principal, the page still reads
-        // with the request's session variables: its `literal` and `header` ones and the
-        // request locale (#1520), as an anonymous list read does.
-        if query_match.query_def.relay {
-            let resolved_session_vars = self.resolve_session_vars(None)?;
-            let session_pairs: Vec<(&str, &str)> =
-                resolved_session_vars.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
-            return self.execute_relay_query(&query_match, variables, None, &session_pairs).await;
-        }
-
-        // Count siblings (#938), after the three guards above — a count of rows an
-        // anonymous caller may not read is still a disclosure about those rows,
-        // so it is refused on exactly the conditions the list is.
-        if query_match.query_def.returns_count {
-            return self.execute_count_query(&query_match, variables, None).await;
-        }
-
-        // #423: the unauthenticated path has no principal, so a selected policy-gated
-        // field cannot be authorized — fail closed.
-        let root_fields =
-            query_match.selections.first().map_or(&[][..], |r| r.nested_fields.as_slice());
-        crate::security::field_authorizer::deny_if_gated_field_selected(
-            &self.ctx.schema,
-            &query_match.query_def.return_type,
-            root_fields,
-            "unauthenticated query",
-        )?;
-        // #1612: a read typed as an interface or a union is a read of each object type its
-        // rows may be (`query_abstract`), gated fields through any of them refused as above.
-        let abstract_read =
-            super::query_abstract::AbstractRead::of(&self.ctx.schema, &query_match.query_def);
-        if let Some(read) = &abstract_read {
-            read.refuse_gated_fields(&self.ctx.schema, root_fields)?;
-        }
-
-        // 2. Create execution plan
-        let plan = self.ctx.planner.plan(&query_match)?;
-
-        // 2a. #743: static field-level RBAC. An anonymous caller has no roles, so any
-        //     selected field carrying `requires_scope` is denied per its own on_deny
-        //     policy — exactly what an authenticated-but-unscoped principal gets from
-        //     apply_field_rbac_filtering. Classifying here (not after the read) means a
-        //     Reject never reaches the database. At every level, as the authenticated
-        //     path does (`query_nested`).
-        let selection_access = match &abstract_read {
-            Some(read) => read.classify(
-                &self.ctx.schema,
-                root_fields,
-                None,
-                super::query_nested::LevelAuthz::from_config(&self.ctx.config, variables),
-            )?,
-            None => super::query_nested::SelectionAccess::classify(
-                &self.ctx.schema,
-                &query_match.query_def.return_type,
-                root_fields,
-                plan.projection_fields.clone(),
-                None,
-                super::query_nested::LevelAuthz::from_config(&self.ctx.config, variables),
-            )?,
-        };
-        let access = &selection_access.root;
-
-        // No nested level can need its type's predicate here: a policy refused this
-        // request above, and a nested type scoped by `inject_params` is refused by the
-        // planner for want of a principal. Planned anyway, for that refusal.
-        let nested_reads = self.plan_nested_reads(
-            &query_match.query_def.return_type,
-            root_fields,
-            None,
-            &selection_access,
-        )?;
-        if !nested_reads.is_empty() {
-            return Err(FraiseQLError::Internal {
-                message: format!(
-                    "an unauthenticated read of '{}' planned a gated nested level",
-                    query_match.query_def.name
-                ),
-                source:  None,
-            });
-        }
-
-        // 3. Execute SQL query
-        let sql_source = query_match.query_def.sql_source.as_ref().ok_or_else(|| {
-            crate::error::FraiseQLError::Validation {
-                message: "Query has no SQL source".to_string(),
-                path:    None,
-            }
-        })?;
-
-        // 3b. Extract auto_params (limit, offset, where, order_by) from arguments
-        let user_where = client_where_argument(
-            &self.ctx.schema,
-            &query_match.query_def,
-            &query_match.arguments,
-            self.ctx.config.rls_policy.as_deref(),
-            None,
-        )?;
-
-        // 3c. Convert explicit query arguments (e.g. id, slug) to WHERE conditions.
-        let user_where = combine_explicit_arg_where(
-            user_where,
-            &query_match.query_def.arguments,
-            &query_match.arguments,
-            &query_match.query_def.native_columns,
-        );
-
-        // #1170: and the server's own parent scoping, which is deliberately NOT
-        //     gated on `has_where` above — that flag governs the client's filter
-        //     surface, not whether a relation is scoped to its parent.
-        let user_where = self.and_scope_where(user_where, &query_match)?;
-
-        // The top-level page size is capped (#421: unbounded-pagination DoS guard).
-        let limit = enforce_max_page_size(
-            if query_match.query_def.auto_params.has_limit {
-                coerce_pagination_arg("limit", query_match.arguments.get("limit"))?
-            } else {
-                None
-            },
-            self.ctx.config.max_page_size,
-            "limit",
-        )?;
-
-        // #1306: held to `[validation] max_offset` before any statement.
-        let offset = enforce_max_offset(
-            if query_match.query_def.auto_params.has_offset {
-                coerce_pagination_arg("offset", query_match.arguments.get("offset"))?
-            } else {
-                None
-            },
-            self.ctx.config.max_offset,
-            "offset",
-        )?;
-
-        let order_by_clauses = if query_match.query_def.auto_params.has_order_by {
-            query_match
-                .arguments
-                .get("orderBy")
-                .map(crate::backend::OrderByClause::from_graphql_json)
-                .transpose()?
-                .map(|clauses| {
-                    enrich_order_by_clauses(
-                        clauses,
-                        &self.ctx.schema,
-                        &query_match.query_def.return_type,
-                        &query_match.query_def.native_columns,
-                        None,
-                    )
-                })
-                .transpose()?
-        } else {
-            None
-        };
-
-        // `nearest` similarity search (#386): lowers to a vector-distance
-        // ORDER BY + LIMIT k. Conflicts with limit/orderBy error inside the
-        // helper, so overriding both here cannot discard a client value.
-        let (limit, order_by_clauses, nearest_k) = if let Some((clause, k)) =
-            nearest_order_and_limit(
-                &query_match.arguments,
-                &self.ctx.schema,
-                &query_match.query_def,
-                None,
-            )? {
-            (
-                enforce_max_page_size(Some(k), self.ctx.config.max_page_size, "nearest.k")?,
-                Some(vec![clause]),
-                Some(k),
-            )
-        } else {
-            (limit, order_by_clauses, None)
-        };
-
-        // 3b. Generate the SQL projection, after the `nearest` lowering so a
-        //     selected distance field can be projected from the clause that
-        //     ordered the rows.
-        let projection_hint = self.build_projection_hint(
-            &query_match,
-            &plan,
-            abstract_read.is_some(),
-            order_by_clauses.as_ref().and_then(|c| c.first()),
-        )?;
-
-        // 3c. #1303: the declared page ordering, on the same terms as the
-        //     authenticated path. Both runners read the same query definition, and
-        //     a read that is ordered on one entry point and not the other is the
-        //     #739 shape.
-        let order_by_clauses =
-            apply_pagination_order(order_by_clauses, &query_match.query_def, limit, offset);
-
-        // The unauthenticated entrypoint has no principal to resolve session variables
-        // from, but it still runs in the request locale (#1512): the same one builder.
-        let resolved_session_vars = self.resolve_session_vars(None)?;
-        let session_pairs: Vec<(&str, &str)> =
-            resolved_session_vars.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
-        let nearest_count = self.nearest_count_bound(nearest_k);
-        let results = self
-            .ctx
-            .adapter
-            .execute_with_projection_arc_with_session(
-                &crate::backend::ProjectionRequest {
-                    view: sql_source,
-                    projection: projection_hint.as_ref(),
-                    where_clause: user_where.as_ref(),
-                    order_by: order_by_clauses.as_deref(),
-                    limit,
-                    offset,
-                    matched_up_to: nearest_count,
-                },
-                &session_pairs,
-                query_match.query_def.read_routing,
-            )
-            .await?;
-        let results =
-            self.settle_nearest(&query_match, nearest_k, nearest_count.is_some(), results)?;
-
-        // The response-bytes ceiling, on the anonymous document entry.
-        //
-        // Charged on this arm as well as the authenticated one for the reason the
-        // whole ceiling exists: a control that binds on one entry point and not its
-        // twin is the defect this closes, one level down. An unauthenticated read is
-        // also the one a deployment most wants bounded.
-        if let Some(budget) =
-            crate::security::ResponseBudget::new(self.ctx.config.max_response_bytes)
-        {
-            budget.charge_jsonb_rows(&results)?;
-        }
-
-        // 4. Project results — masked fields stay in the projection so the response still carries
-        //    the key in its requested position, then get nulled below (same as the authenticated
-        //    path). A read typed as an interface or a union projects each row as its type, its
-        //    masks applied (#1612).
-        let mut projected = if let Some(read) = &abstract_read {
-            read.project(&results, root_fields, &self.ctx.schema, &selection_access)?
-        } else {
-            let projector = ResultProjector::new(access.projected.clone())
-                // #1192: a `String` field whose text parses as JSON must stay a string.
-                .with_declared_scalars(&self.ctx.schema, &query_match.query_def.return_type)
-                .configure_typename_from_selections(
-                    &query_match.selections,
-                    &query_match.query_def.return_type,
-                );
-            // #1556: moved, not cloned, unless the row cache holds the rows too.
-            let mut projected =
-                projector.project_results_owned(results, query_match.query_def.returns_list)?;
-            // #489: recase + project nested list-of-object fields left raw by SQL projection.
-            crate::runtime::project_nested_lists(
-                &mut projected,
-                &query_match.query_def.return_type,
-                query_match.selections.first().map_or(&[][..], |r| r.nested_fields.as_slice()),
-                &self.ctx.schema,
-            );
-
-            // #912: `__typename` is stripped from the SQL projection at every depth (it
-            //       is a meta-field, not a JSONB key — projecting it emits a literal
-            //       NULL). The root object is stamped by the projector and list elements
-            //       by `project_entity`; nested single objects have no other owner.
-            crate::runtime::stamp_nested_typenames(
-                &mut projected,
-                &query_match.query_def.return_type,
-                query_match.selections.first().map_or(&[][..], |r| r.nested_fields.as_slice()),
-                &self.ctx.schema,
-            );
-            projected
-        };
-
-        // 4a. #743: null out fields denied to the anonymous caller under on_deny=Mask.
-        selection_access.null_masked(
-            &mut projected,
-            &query_match.query_def.return_type,
-            root_fields,
-            &self.ctx.schema,
-        );
-
-        // 5. Wrap in GraphQL data envelope
-        let response =
-            ResultProjector::wrap_in_data_envelope(projected, query_match.response_key());
-
-        // 6. Serialize to JSON string
-        Ok(response)
-    }
-
     /// Execute a pre-built `QueryMatch` directly, bypassing GraphQL string parsing.
     ///
     /// Used by the REST transport for embedded sub-queries and NDJSON streaming
@@ -1397,13 +582,15 @@ impl QueryRunner {
         // A leaf selection of an object field is the whole object, read as its type.
         let expanded = super::query_nested::expand_leaf_objects(&self.ctx.schema, query_match)?;
         let query_match = &*expanded;
-        let mut resolved = self.resolve_direct_read(
+        let mut resolved = self.resolve_rows(
             query_match,
             variables,
             security_context,
-            GatedFieldHandling::RefuseAsUnsupported,
-            DirectReadCost::Flat(request_budget),
-            None,
+            Door::Direct {
+                gated:   GatedFieldHandling::RefuseAsUnsupported,
+                cost:    DirectReadCost::Flat(request_budget),
+                nesting: None,
+            },
         )?;
         if let Some(bound) = act_on {
             resolved.limit = Some(resolved.limit.map_or(bound, |page| page.min(bound)));
@@ -1413,18 +600,13 @@ impl QueryRunner {
         } else {
             query_match.query_def.read_routing
         };
-        let session_pairs = resolved.session_pairs();
-
         // A nested level its type scopes is read with that type's predicate, as for
         // GraphQL: the same read, as the root of a composed statement carrying it.
-        let nested_reads = self.plan_nested_reads(
-            &query_match.query_def.return_type,
-            query_match.selections.first().map_or(&[][..], |r| r.nested_fields.as_slice()),
-            security_context,
-            &resolved.selection,
-        )?;
-        let counted = nested_reads.is_empty() && resolved.nearest_count.is_some();
-        let results = if nested_reads.is_empty() {
+        let session_vars = std::mem::take(&mut resolved.session_vars);
+        let session_pairs: Vec<(&str, &str)> =
+            session_vars.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
+        let counted = resolved.nested.is_empty() && resolved.nearest_count.is_some();
+        let results = if resolved.nested.is_empty() {
             self.ctx
                 .adapter
                 .execute_with_projection_arc_with_session(
@@ -1434,25 +616,8 @@ impl QueryRunner {
                 )
                 .await?
         } else {
-            self.execute_composed_document_read(
-                crate::backend::ComposedLevel {
-                    view:         resolved.sql_source.clone(),
-                    projection:   resolved
-                        .projection
-                        .as_ref()
-                        .map(|h| h.projection_template.clone()),
-                    where_clause: resolved.composed_where.clone(),
-                    order_by:     resolved.order_by.clone(),
-                    limit:        resolved.limit,
-                    offset:       resolved.offset,
-                    keyset:       None,
-                    keys:         super::query_nested::root_keys(&nested_reads),
-                    embeds:       nested_reads,
-                },
-                &session_pairs,
-                routing,
-            )
-            .await?
+            self.execute_composed_document_read(resolved.composed_level(), &session_pairs, routing)
+                .await?
         };
         let results = self.settle_nearest(query_match, resolved.nearest_k, counted, results)?;
 
@@ -1496,7 +661,7 @@ impl QueryRunner {
     ///
     /// The row shape is the gRPC transport's: a `Vec<Vec<ColumnValue>>` projected
     /// through protobuf `ColumnSpec`s, not GraphQL-shaped JSON against a selection
-    /// set. It resolves through [`resolve_direct_read`](Self::resolve_direct_read)
+    /// set. It resolves through [`resolve_root_read`](Self::resolve_root_read)
     /// like every other read — that is the whole point of the entry — and then
     /// lowers the resolved clause to the `Option<&str>` pair
     /// [`execute_row_query`](DatabaseAdapter::execute_row_query) accepts.
@@ -1508,7 +673,7 @@ impl QueryRunner {
     ///
     /// # Errors
     ///
-    /// Everything [`resolve_direct_read`](Self::resolve_direct_read) returns, plus
+    /// Everything [`resolve_root_read`](Self::resolve_root_read) returns, plus
     /// `FraiseQLError::Unsupported` for the two resolved shapes the row path cannot
     /// carry — a parameterised ordering (`?search=` relevance, #1284) and a SQL
     /// projection hint (a `nearest` vector distance, #959). Both are refused rather
@@ -1521,13 +686,15 @@ impl QueryRunner {
         security_context: Option<&SecurityContext>,
         columns: &[fraiseql_db::types::ColumnSpec],
     ) -> Result<RowReadPlan> {
-        let resolved = self.resolve_direct_read(
+        let resolved = self.resolve_rows(
             query_match,
             variables,
             security_context,
-            GatedFieldHandling::AdjudicatePerRow,
-            DirectReadCost::Flat(None),
-            None,
+            Door::Direct {
+                gated:   GatedFieldHandling::AdjudicatePerRow,
+                cost:    DirectReadCost::Flat(None),
+                nesting: None,
+            },
         )?;
 
         // The **row-shaped** view, not the query's own `sql_source`.
@@ -1539,7 +706,7 @@ impl QueryRunner {
         // silent wrong answer, which is worse than an error.
         //
         // The convention lives here rather than in the transport because the engine
-        // owns which object a read targets, exactly as `resolve_direct_read` does for
+        // owns which object a read targets, exactly as `resolve_root_read` does for
         // the JSON path. A transport that names a database object is the leak this
         // work removes.
         let type_def =
@@ -1786,7 +953,7 @@ impl QueryRunner {
     ///
     /// The gRPC server-streaming arm's source. It resolves through the same
     /// function as the collecting arm for the reason
-    /// [`resolve_direct_read`](Self::resolve_direct_read) exists at all: the two
+    /// [`resolve_root_read`](Self::resolve_root_read) exists at all: the two
     /// gRPC read arms had already drifted apart once (#1348 found one fail-closed
     /// and the other fail-open on the same RLS failure), and a streaming arm is
     /// where a missing ceiling costs the most.
@@ -1869,7 +1036,7 @@ impl QueryRunner {
 
     /// The bound a `nearest` search of `k` counts its matches up to, in the same statement
     /// (#1314): only under `verify` / `refuse`.
-    fn nearest_count_bound(&self, nearest_k: Option<u32>) -> Option<u32> {
+    pub(super) fn nearest_count_bound(&self, nearest_k: Option<u32>) -> Option<u32> {
         nearest_k.filter(|_| {
             self.ctx.config.nearest_short_result
                 != crate::runtime::notices::ShortResultPolicy::Signal
@@ -1882,7 +1049,7 @@ impl QueryRunner {
     /// # Errors
     ///
     /// `FraiseQLError::Unsupported` for a verified truncation under `refuse`.
-    fn settle_nearest(
+    pub(super) fn settle_nearest(
         &self,
         query_match: &crate::runtime::matcher::QueryMatch,
         nearest_k: Option<u32>,
@@ -1942,394 +1109,10 @@ impl QueryRunner {
         Ok(())
     }
 
-    /// Resolve a direct read down to the SQL it will run and the field access it
-    /// will project with — everything that happens *before* the database, in one
-    /// place (#958).
-    ///
-    /// # Why this is a function and not a comment saying "keep these in sync"
-    ///
-    /// The buffered read and the streamed read differ only in how rows arrive. Every
-    /// security decision — operation authorization, the field-authorization gate, the
-    /// RLS policy, the `inject_params` tenant filter, the field-level RBAC
-    /// classification — belongs to the *read*, not to its delivery, and the last time
-    /// two paths resolved a read separately, one of them composed the tenant filter
-    /// and the other did not (#739: a `count=exact` header that contradicted its own
-    /// body). A streaming path is a second such reader, so it resolves through this
-    /// function or it does not exist.
-    ///
-    /// # Errors
-    ///
-    /// Returns `FraiseQLError::Authorization` when the operation, a gated field, or a
-    /// scope-restricted field is refused; `FraiseQLError::Validation` when the query
-    /// has no SQL source, when a policy or `inject_params` is configured but there is
-    /// no principal to evaluate it for (fail closed, #784), or when an argument does
-    /// not parse.
-    ///
-    /// `nesting` is where the read sits when it is an embedded level (`None` for a root
-    /// read): the authorizer is told, as it is for a GraphQL nested level.
-    pub(super) fn resolve_direct_read(
-        &self,
-        query_match: &crate::runtime::matcher::QueryMatch,
-        variables: Option<&serde_json::Value>,
-        security_context: Option<&SecurityContext>,
-        gated_fields: GatedFieldHandling,
-        cost: DirectReadCost<'_>,
-        nesting: Option<&AuthzNesting>,
-    ) -> Result<ResolvedDirectRead> {
-        // #422: operation-level authorization for the REST direct-read chokepoint.
-        //       Every REST read (GET/count/streaming/embedding) and the in-core
-        //       bulk-by-filter lookup funnel through this runner method, so gating
-        //       here (not the `core.rs` wrapper) is leak-proof. Fail-closed → 403.
-        //       An embedded level is asked as a nested read of its type.
-        if let Some(authorizer) = self.ctx.config.authorizer.as_ref() {
-            let (name, target) = (&query_match.query_def.name, &query_match.query_def.return_type);
-            let ops = [match nesting {
-                Some(nesting) => AuthzOperation::nested(name, target, nesting.clone()),
-                None => AuthzOperation::root(OperationKind::Query, name, Some(target.as_str())),
-            }];
-            enforce_authz(authorizer.as_ref(), security_context, &ops, variables)?;
-        }
-
-        // #1122: `requires_role`, for exactly the reason #966 is here. The role gate
-        // lived only in `execute_regular_query_with_security` — a GraphQL entry point
-        // this path never enters — plus a pre-check in the REST resolver that read
-        // `scopes` instead of `roles`. So a token carrying `scope: "reader"` and no
-        // roles at all was served every row of a query gated on the `reader` *role*.
-        // Enforced before the actor gate to keep the GraphQL ordering, which
-        // `the_role_gate_still_runs_first` pins: the role gate's enumeration-hiding
-        // "not found" must not be pre-empted by the actor gate's message.
-        crate::security::role_gate::enforce_requires_role(
-            "Query",
-            &query_match.query_def.name,
-            query_match.query_def.requires_role.as_deref(),
-            security_context,
-        )?;
-
-        // #966: the actor allow-list, for the same reason and in the same place.
-        // The GraphQL entry points gate before dispatching; this path does not go
-        // through them — `execute_query_direct`, `count_rows` and the streaming
-        // reader all enter here — so a gate placed only there served every
-        // restricted row over REST. Caught by `actor_predicate_e2e_pg`'s REST
-        // case, which is precisely the #808 shape the issue warns about: a
-        // predicate enforced on one transport is not enforced.
-        crate::security::actor_type::enforce_requires_actor(
-            "Query",
-            &query_match.query_def.name,
-            &query_match.query_def.requires_actor,
-            security_context,
-        )?;
-
-        // #423: what happens to a selected policy-gated field, which depends on what
-        // the caller can encode rather than on which transport it is.
-        //
-        // The JSON projection path cannot adjudicate here — the decision is per row and
-        // the rows are not read yet — so it fails closed, as it has since #423. The
-        // row-shaped path *can*: it adjudicates after the read, against the row it is
-        // about to encode, so it declares `AdjudicatePerRow` and this refusal is skipped
-        // for it. The choice is a parameter and not a transport check because a second
-        // shape that can adjudicate should say so, not be recognised by name.
-        if matches!(gated_fields, GatedFieldHandling::RefuseAsUnsupported) {
-            let root_fields =
-                query_match.selections.first().map_or(&[][..], |r| r.nested_fields.as_slice());
-            crate::security::field_authorizer::deny_if_gated_field_selected(
-                &self.ctx.schema,
-                &query_match.query_def.return_type,
-                root_fields,
-                "REST",
-            )?;
-        }
-
-        // Evaluate RLS policy if present. Fail closed (#784) when a policy is
-        // configured but there is no principal to evaluate it for — the same
-        // posture as the relay and node runners.
-        let rls_where_clause: Option<RlsWhereClause> =
-            match (&self.ctx.config.rls_policy, security_context) {
-                (Some(rls_policy), Some(ctx)) => rls_policy.evaluate(
-                    ctx,
-                    &RlsTarget::query(
-                        &query_match.query_def.name,
-                        &query_match.query_def.return_type,
-                    ),
-                )?,
-                (Some(_), None) => {
-                    return Err(FraiseQLError::Validation {
-                        message: format!(
-                            "Query '{}' not found in schema",
-                            query_match.query_def.name
-                        ),
-                        path:    None,
-                    });
-                },
-                (None, _) => None,
-            };
-
-        // Get SQL source.
-        let sql_source =
-            query_match
-                .query_def
-                .sql_source
-                .as_ref()
-                .ok_or_else(|| FraiseQLError::Validation {
-                    message: "Query has no SQL source".to_string(),
-                    path:    None,
-                })?;
-
-        // Build execution plan.
-        let plan = self.ctx.planner.plan(query_match)?;
-
-        // #886: static field-level RBAC, the same classification both GraphQL paths
-        // apply. This runner previously applied none — it projected
-        // `plan.projection_fields` verbatim — so a field carrying `requires_scope` was
-        // served in full over REST to a caller without the scope. Classifying *before*
-        // the read means a `Reject` never reaches the database.
-        //
-        // At every level of the selection, by field name (`query_nested`): a REST leaf
-        // selection of an object field reaches here expanded to its type's fields.
-        let selection = super::query_nested::SelectionAccess::classify(
-            &self.ctx.schema,
-            &query_match.query_def.return_type,
-            query_match.selections.first().map_or(&[][..], |r| r.nested_fields.as_slice()),
-            plan.projection_fields.clone(),
-            security_context,
-            super::query_nested::LevelAuthz::from_config(&self.ctx.config, variables),
-        )?;
-        let access = selection.root.clone();
-
-        // The client's filter, refused rather than dropped when this query does not
-        // accept one (#1283). Every REST read arrives here — the GET resolver, the
-        // three exports, the embedding sub-query and the bulk row selection — and none
-        // of them passes through the GraphQL argument validation that refuses the same
-        // argument on the same query (#1154).
-        let user_where = client_where_argument(
-            &self.ctx.schema,
-            &query_match.query_def,
-            &query_match.arguments,
-            self.ctx.config.rls_policy.as_deref(),
-            security_context,
-        )?;
-
-        // The top-level page size is capped (#421: unbounded-pagination DoS guard).
-        let limit = enforce_max_page_size(
-            coerce_pagination_arg("limit", query_match.arguments.get("limit"))?,
-            self.ctx.config.max_page_size,
-            "limit",
-        )?;
-
-        let offset = enforce_max_offset(
-            coerce_pagination_arg("offset", query_match.arguments.get("offset"))?,
-            self.ctx.config.max_offset,
-            "offset",
-        )?;
-
-        let order_by_clauses = query_match
-            .arguments
-            .get("orderBy")
-            .map(crate::backend::OrderByClause::from_graphql_json)
-            .transpose()?
-            .map(|clauses| {
-                enrich_order_by_clauses(
-                    clauses,
-                    &self.ctx.schema,
-                    &query_match.query_def.return_type,
-                    &query_match.query_def.native_columns,
-                    security_context,
-                )
-            })
-            .transpose()?;
-
-        // `nearest` similarity search (#386) — same lowering as the two
-        // GraphQL runners above, so the direct path cannot drift (#739's class).
-        let (limit, order_by_clauses, nearest_k) = if let Some((clause, k)) =
-            nearest_order_and_limit(
-                &query_match.arguments,
-                &self.ctx.schema,
-                &query_match.query_def,
-                security_context,
-            )? {
-            (
-                enforce_max_page_size(Some(k), self.ctx.config.max_page_size, "nearest.k")?,
-                Some(vec![clause]),
-                Some(k),
-            )
-        } else {
-            (limit, order_by_clauses, None)
-        };
-
-        // #379: the compiled `[security.cost_budget] per_request_max`, on a read that
-        // never had a document.
-        //
-        // The ceiling used to be enforced in exactly one place — `run_gate1`, which
-        // takes a query *string*, parses it and scores the AST. `run_gate1` has two
-        // callers and both are document entries, so every read arriving through this
-        // function reached the database without it: the whole REST direct-read surface
-        // (the GET resolver, the three exports, the embedding sub-query, the bulk row
-        // selection) and, since #1351 routed them here, both gRPC read arms.
-        //
-        // #1351 filed this as a gRPC gap and marked the engine read path ✅. That was
-        // wrong, and it mattered: moving the gRPC arms onto the engine could not have
-        // delivered this gate, because the engine's direct-read path did not have it
-        // either. `RuntimeConfig::max_operation_cost` says as much — "binds on every
-        // transport that executes a GraphQL document".
-        //
-        // Enforced here rather than at each entry for the reason `resolve_direct_read`
-        // exists: a control attached to an entry point is one a new transport can
-        // forget, and this codebase has paid for that four times (#1336, #1348, #1351,
-        // #1359). Scored *before* the database, so an over-budget read never runs.
-        //
-        // Charged against a running total rather than compared to the ceiling, because
-        // `per_request_max` is a bound on a *request* and a `?select=` embed answers one
-        // request with the parent read plus one sub-read per parent row per level. Scored
-        // one read at a time, a request made of ten thousand individually cheap sub-reads
-        // passed the ceiling ten thousand times and crossed it never — the same defect
-        // `a09bc0dae` fixed for `max_response_bytes`, which is the other half of what
-        // `request_budget` carries.
-        //
-        // `request_budget` is the caller's, and it is present when the caller is a
-        // transport that issues several reads to answer one request. Absent one, this
-        // read *is* the request and resolves a budget of its own from the same compiled
-        // ceiling — one charge site either way, so the two cases cannot come to mean
-        // different things.
-        //
-        // Still scored before the database, so the read that crosses the ceiling is
-        // refused without running. Only which reads count against it has changed.
-        //
-        // A level of a composed statement is not charged here: the statement is scored
-        // as the tree it is, once, by `resolve_composed_read` — see `DirectReadCost`.
-        if let DirectReadCost::Flat(request_budget) = cost {
-            self.charge_direct_read_cost(
-                &query_match.query_def.name,
-                &crate::graphql::DirectReadProjection::flat(plan.projection_fields.len(), limit),
-                request_budget,
-            )?;
-        }
-
-        // Full-text relevance (#1284): a `?search=` request with no sort of its
-        // own is ranked by `ts_rank`, which is what the OpenAPI document this
-        // server generates has always told clients it does.
-        //
-        // Lowered here rather than parsed out of `arguments["orderBy"]` because
-        // it is not a client value: `QueryMatch::search_relevance` is a typed
-        // field for the same reason `scope_where` is one (#1170). The previous
-        // spelling — a `{"_relevance": "desc"}` entry the transport wrote into
-        // the argument map — is why the default path answered 400.
-        //
-        // `order_by_clauses.is_none()` is a second lock, not the rule: the
-        // transport already declines to set this when the client named a sort.
-        // A clause list that exists wins, so a client's `?sort=` can never be
-        // silently replaced by a ranking it did not ask for.
-        let order_by_clauses = match (order_by_clauses, query_match.search_relevance.as_ref()) {
-            (None, Some(relevance)) => Some(vec![crate::backend::OrderByClause::by_relevance(
-                relevance.clone(),
-            )]),
-            (existing, _) => existing,
-        };
-
-        // Convert explicit arguments to WHERE conditions.
-        let user_where = combine_explicit_arg_where(
-            user_where,
-            &query_match.query_def.arguments,
-            &query_match.arguments,
-            &query_match.query_def.native_columns,
-        );
-
-        // #1170: and the server's own parent scoping, which is deliberately NOT
-        //     gated on `has_where` above — that flag governs the client's filter
-        //     surface, not whether a relation is scoped to its parent.
-        let user_where = self.and_scope_where(user_where, query_match)?;
-
-        // Compose the security conditions — RLS **and** inject — then AND the
-        // user-supplied WHERE onto them. Security first, so a client-supplied filter can
-        // only ever narrow the result set, never widen it.
-        //
-        // #739: this block previously resolved each inject value into `let _value = …`
-        // and threw it away, with a comment claiming the params were "applied at the SQL
-        // level via WHERE clauses". They were not — no predicate was built and nothing
-        // was AND-ed on. Every other execution path (`execute_regular_query_with_security`,
-        // `count_rows`, `execute_relay_query`, `execute_node_query`) composed them
-        // correctly; this one, the runner behind the entire REST read surface, did not.
-        // The observable symptom was a `Prefer: count=exact` response whose header
-        // (filtered, from `count_rows`) contradicted its own body (unfiltered, from here).
-        let mut security_conditions: Vec<WhereClause> = Vec::new();
-        if let Some(ref rls) = rls_where_clause {
-            security_conditions.push(rls.as_where_clause().clone());
-        }
-        if !query_match.query_def.inject_params.is_empty() {
-            // Fail closed, mirroring `count_rows`: a query that declares row scoping has
-            // no safe reading without a principal to scope it to. Silently skipping the
-            // filter — the previous behaviour for an anonymous caller — returns every
-            // tenant's rows.
-            let ctx = security_context.ok_or_else(|| FraiseQLError::Validation {
-                message: format!(
-                    "Query '{}' has inject params but no security context is available",
-                    query_match.query_def.name
-                ),
-                path:    None,
-            })?;
-            for (param_name, source) in &query_match.query_def.inject_params {
-                let value =
-                    resolve_inject_value(param_name, source, ctx, self.ctx.schema.tenant_claim())?;
-                security_conditions.push(inject_param_where_clause(
-                    param_name,
-                    value,
-                    &query_match.query_def.native_columns,
-                ));
-            }
-        }
-
-        let security_where = match security_conditions.len() {
-            0 => None,
-            1 => Some(security_conditions.remove(0)),
-            _ => Some(WhereClause::And(security_conditions)),
-        };
-
-        let composed_where = match (security_where, &user_where) {
-            (Some(sec), Some(user)) => Some(WhereClause::And(vec![sec, user.clone()])),
-            (Some(sec), None) => Some(sec),
-            (None, Some(user)) => Some(user.clone()),
-            (None, None) => None,
-        };
-
-        // Session variables pin to the read's connection (#329).
-        let session_vars = self.resolve_session_vars(security_context)?;
-
-        // The direct read projects in Rust, so the only SQL projection it needs
-        // is for values that are not in the document — the vector distance a
-        // `nearest` search computed (#959).
-        let projection = self.build_projection_hint(
-            query_match,
-            &plan,
-            true,
-            order_by_clauses.as_ref().and_then(|c| c.first()),
-        )?;
-
-        // #1303: the declared page ordering. Every REST read resolves through this
-        // function — the GET resolver, the three exports, the embedding sub-query
-        // and the bulk row selection — so an ordering applied here is applied to
-        // all of them, and one applied in the resolver above them would not be.
-        let order_by_clauses =
-            apply_pagination_order(order_by_clauses, &query_match.query_def, limit, offset);
-
-        Ok(ResolvedDirectRead {
-            sql_source: sql_source.clone(),
-            composed_where,
-            order_by: order_by_clauses,
-            limit,
-            offset,
-            session_vars,
-            leaf_fields: plan.projection_fields.len(),
-            access,
-            selection,
-            projection,
-            response_bytes: self.ctx.config.max_response_bytes,
-            nearest_count: self.nearest_count_bound(nearest_k),
-            nearest_k,
-        })
-    }
-
     /// The same read as [`execute_query_direct`](Self::execute_query_direct),
     /// delivered one projected row at a time (#958).
     ///
-    /// Every row is resolved through [`resolve_direct_read`](Self::resolve_direct_read)
+    /// Every row is resolved through [`resolve_root_read`](Self::resolve_root_read)
     /// and projected through [`project_direct_rows`](Self::project_direct_rows), so an
     /// export sees exactly the rows, fields and masking a buffered read of the same
     /// query would return — the streaming path adds no second interpretation of the
@@ -2345,7 +1128,7 @@ impl QueryRunner {
     ///
     /// # Errors
     ///
-    /// Returns everything [`resolve_direct_read`](Self::resolve_direct_read) does,
+    /// Returns everything [`resolve_root_read`](Self::resolve_root_read) does,
     /// plus `FraiseQLError::Database` for a read that fails before its first row. A
     /// failure after that arrives as an `Err` item in the stream.
     pub(in super::super) async fn stream_query_direct(
@@ -2356,25 +1139,19 @@ impl QueryRunner {
     ) -> Result<crate::runtime::JsonRowStream> {
         let query_match =
             super::query_nested::expand_leaf_objects(&self.ctx.schema, &query_match)?.into_owned();
-        let resolved = self.resolve_direct_read(
+        let resolved = self.resolve_rows(
             &query_match,
             variables.as_ref(),
             security_context.as_ref(),
-            GatedFieldHandling::RefuseAsUnsupported,
-            DirectReadCost::Flat(None),
-            None,
+            Door::Direct {
+                gated:   GatedFieldHandling::RefuseAsUnsupported,
+                cost:    DirectReadCost::Flat(None),
+                nesting: None,
+            },
         )?;
         // A nested level its type scopes needs a composed statement, which a stream does
         // not read: refused rather than streamed ungated.
-        if !self
-            .plan_nested_reads(
-                &query_match.query_def.return_type,
-                query_match.selections.first().map_or(&[][..], |r| r.nested_fields.as_slice()),
-                security_context.as_ref(),
-                &resolved.selection,
-            )?
-            .is_empty()
-        {
+        if !resolved.nested.is_empty() {
             return Err(FraiseQLError::Unsupported {
                 message: format!(
                     "a streamed read of '{}' selects a nested object whose type scopes its \
@@ -2523,152 +1300,21 @@ impl QueryRunner {
         variables: Option<&serde_json::Value>,
         security_context: Option<&SecurityContext>,
     ) -> Result<u64> {
-        // #422: operation-level authorization for the REST count path (called alone by
-        //       the embedding path, and alongside `execute_query_direct` for
-        //       `Prefer: count=exact`). Fail-closed → 403.
-        if let Some(authorizer) = self.ctx.config.authorizer.as_ref() {
-            let ops = [AuthzOperation::root(
-                OperationKind::Query,
-                &query_match.query_def.name,
-                Some(query_match.query_def.return_type.as_str()),
-            )];
-            enforce_authz(authorizer.as_ref(), security_context, &ops, variables)?;
-        }
+        // The same resolution as the rows it counts (#739, #938): the operation gate, the
+        // row scope, the parent scoping, the client's filter and the explicit arguments. A
+        // count is a read — it reports the cardinality of a set the caller may not select
+        // from — so a door that counted on fewer conditions than its list is an oracle.
+        let read = self.resolve_rows(query_match, variables, security_context, Door::Count)?;
 
-        // #1122: the role gate, here as well as in `resolve_direct_read`, because this
-        // is a second chokepoint rather than a step inside the first — the embedding
-        // path (`rest/embedding/executor.rs`) calls it alone. A count is a read: it
-        // reports the cardinality of a set the caller may not select from.
-        crate::security::role_gate::enforce_requires_role(
-            "Query",
-            &query_match.query_def.name,
-            query_match.query_def.requires_role.as_deref(),
-            security_context,
-        )?;
-
-        // #1166: the actor gate, for precisely the reason the role gate above is here,
-        // and missing for as long as that one was. `resolve_direct_read` carried both;
-        // this peer carried only the role half, so `?select=id,rel.count` reported how
-        // many rows a `requires_actor`-gated relation reaches to a caller of the wrong
-        // actor class. The rows never leaked — the row path is gated — but a count over
-        // a filtered relation is an oracle over it.
-        //
-        // Ordered after the role gate to match `resolve_direct_read`, so the role
-        // gate's enumeration-hiding "not found" is not pre-empted by the actor gate's
-        // message on either chokepoint (`the_role_gate_still_runs_first`).
-        crate::security::actor_type::enforce_requires_actor(
-            "Query",
-            &query_match.query_def.name,
-            &query_match.query_def.requires_actor,
-            security_context,
-        )?;
-
-        // 1. Evaluate RLS policy. Fail closed (#784) when a policy is configured but there is no
-        //    principal — the count must not disagree with the (equally refused) body it describes.
-        let rls_where_clause: Option<RlsWhereClause> =
-            match (&self.ctx.config.rls_policy, security_context) {
-                (Some(rls_policy), Some(ctx)) => rls_policy.evaluate(
-                    ctx,
-                    &RlsTarget::query(
-                        &query_match.query_def.name,
-                        &query_match.query_def.return_type,
-                    ),
-                )?,
-                (Some(_), None) => {
-                    return Err(FraiseQLError::Validation {
-                        message: format!(
-                            "Query '{}' not found in schema",
-                            query_match.query_def.name
-                        ),
-                        path:    None,
-                    });
-                },
-                (None, _) => None,
-            };
-
-        // 2. Get SQL source
-        let sql_source =
-            query_match
-                .query_def
-                .sql_source
-                .as_ref()
-                .ok_or_else(|| FraiseQLError::Validation {
-                    message: "Query has no SQL source".to_string(),
-                    path:    None,
-                })?;
-
-        // 3. Build combined WHERE clause (RLS + inject)
-        let combined_where: Option<WhereClause> = if query_match.query_def.inject_params.is_empty()
-        {
-            rls_where_clause.map(RlsWhereClause::into_where_clause)
-        } else {
-            let ctx = security_context.ok_or_else(|| FraiseQLError::Validation {
-                message: format!(
-                    "Query '{}' has inject params but no security context is available",
-                    query_match.query_def.name
-                ),
-                path:    None,
-            })?;
-            let mut conditions: Vec<WhereClause> = query_match
-                .query_def
-                .inject_params
-                .iter()
-                .map(|(col, source)| {
-                    let value =
-                        resolve_inject_value(col, source, ctx, self.ctx.schema.tenant_claim())?;
-                    Ok(inject_param_where_clause(col, value, &query_match.query_def.native_columns))
-                })
-                .collect::<Result<Vec<_>>>()?;
-
-            if let Some(rls) = rls_where_clause {
-                conditions.insert(0, rls.into_where_clause());
-            }
-            match conditions.len() {
-                0 => None,
-                1 => Some(conditions.remove(0)),
-                _ => Some(WhereClause::And(conditions)),
-            }
-        };
-
-        // 3b. Compose the client's WHERE (same as `execute_regular_query_with_security`).
-        // #1170: the server's own parent scoping is composed here, with RLS and
-        //     inject and *before* the client-filter gate below — it is not client
-        //     input and must not ride on the client filter surface.
-        let combined_where = self.and_scope_where(combined_where, query_match)?;
-
-        let user_where = client_where_argument(
-            &self.ctx.schema,
-            &query_match.query_def,
-            &query_match.arguments,
-            self.ctx.config.rls_policy.as_deref(),
-            security_context,
-        )?;
-        let combined_where: Option<WhereClause> = match (combined_where, user_where) {
-            (None, None) => None,
-            (Some(sec), None) => Some(sec),
-            (None, Some(user)) => Some(user),
-            (Some(sec), Some(user)) => Some(WhereClause::And(vec![sec, user])),
-        };
-
-        // 4. Execute COUNT query via adapter, pinning session variables to the read's connection so
-        //    RLS counts match the filtered rows (#329).
-        //
-        //    This used to fetch every matching row and take `.len()`: correct, but
-        //    it materialised the whole filtered set to produce one integer, so
-        //    `GET /rest/users?limit=10` with `Prefer: count=exact` pulled the
-        //    entire table into memory. `count_where_query` pushes it into
-        //    `SELECT COUNT(*)`, and is the same method the GraphQL `<name>Count`
-        //    sibling uses — one count path, so the two surfaces cannot disagree
-        //    about what a filtered total means (#938).
-        let resolved_session_vars = self.resolve_session_vars(security_context)?;
-        let session_pairs: Vec<(&str, &str)> =
-            resolved_session_vars.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
+        // `SELECT COUNT(*)`, pinning the session variables to the read's connection so a
+        // policy counts the rows it filters (#329). The same method the GraphQL `<name>Count`
+        // sibling uses: one count path, so the two surfaces cannot disagree.
         self.ctx
             .adapter
             .count_where_query(
-                sql_source,
-                combined_where.as_ref(),
-                &session_pairs,
+                &read.sql_source,
+                read.composed_where.as_ref(),
+                &read.session_pairs(),
                 query_match.query_def.read_routing,
             )
             .await

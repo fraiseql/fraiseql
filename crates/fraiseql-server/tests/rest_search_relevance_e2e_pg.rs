@@ -105,7 +105,7 @@ async fn seed(adapter: &PostgresAdapter) {
 /// A streamable route whose query declares `auto_params.has_where`.
 ///
 /// That flag is what lets a client filter — and therefore lets the full-text
-/// clause `?search=` builds reach the SQL at all (`resolve_direct_read` reads
+/// clause `?search=` builds reach the SQL at all (`resolve_root_read` reads
 /// `arguments["where"]` only when it is set). It arrives from the builder: a list
 /// query gets all four auto-params, the way the compiler resolves one. The flag
 /// used to be written out below, because `TestQueryBuilder` left `AutoParams` at

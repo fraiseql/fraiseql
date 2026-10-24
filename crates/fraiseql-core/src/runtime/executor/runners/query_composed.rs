@@ -9,7 +9,7 @@
 //!
 //! Composing moves the embedded levels out of reads of their own and into the parent's
 //! statement, which is exactly where a gate attached to a *read* stops seeing them. So
-//! each level is resolved through [`QueryRunner::resolve_direct_read`] — the function
+//! each level is resolved through [`QueryRunner::resolve_root_read`] — the function
 //! every direct read goes through — against the **target's** list query, before anything
 //! is sent:
 //!
@@ -50,7 +50,7 @@ use std::collections::HashMap;
 use super::{
     query::QueryRunner,
     query_projection::field_type_to_where_type,
-    query_regular::{DirectReadCost, GatedFieldHandling, ResolvedDirectRead},
+    root_read::{DirectReadCost, Door, GatedFieldHandling, RootRead},
 };
 use crate::{
     backend::{
@@ -70,7 +70,7 @@ pub(super) struct ComposedPlan {
     /// The level's read, as built for its query.
     query_match: QueryMatch,
     /// The level's read, resolved: its predicate, page, ordering and field access.
-    resolved:    ResolvedDirectRead,
+    resolved:    RootRead,
     /// What is embedded into each of its rows.
     embeds:      Vec<PlannedEmbed>,
 }
@@ -90,7 +90,7 @@ enum EmbedTarget {
     /// The related rows, as a level of their own.
     Rows(Box<ComposedPlan>),
     /// The number of related rows.
-    Count(Box<ResolvedDirectRead>),
+    Count(Box<RootRead>),
     /// The target type has no SQL-backed list query, so there is nothing to read and
     /// the relationship is answered empty — `[]`, `null` or `0` — as it always was.
     Unreadable,
@@ -101,7 +101,7 @@ impl QueryRunner {
     ///
     /// # Errors
     ///
-    /// Everything `resolve_direct_read` returns, for the root read and for every embedded
+    /// Everything `resolve_root_read` returns, for the root read and for every embedded
     /// level; `FraiseQLError::Validation` for a relationship the parent type does not
     /// declare; the cost and response-bytes ceilings' refusals; and the adapter's errors,
     /// including `FraiseQLError::Unsupported` from an adapter that cannot compose.
@@ -175,13 +175,15 @@ impl QueryRunner {
         security_context: Option<&SecurityContext>,
         request_budget: Option<&crate::security::RequestBudget>,
     ) -> Result<ComposedPlan> {
-        let resolved = self.resolve_direct_read(
+        let resolved = self.resolve_rows(
             query_match,
             variables,
             security_context,
-            GatedFieldHandling::RefuseAsUnsupported,
-            DirectReadCost::Composed,
-            None,
+            Door::Direct {
+                gated:   GatedFieldHandling::RefuseAsUnsupported,
+                cost:    DirectReadCost::Composed,
+                nesting: None,
+            },
         )?;
         let embeds = self.plan_embeds(
             &query_match.query_def.return_type,
@@ -241,13 +243,15 @@ impl QueryRunner {
                         selection.filter.as_ref(),
                         selection.limit,
                     )?;
-                    let resolved = self.resolve_direct_read(
+                    let resolved = self.resolve_rows(
                         &query_match,
                         variables,
                         security_context,
-                        GatedFieldHandling::RefuseAsUnsupported,
-                        DirectReadCost::Composed,
-                        Some(&nesting),
+                        Door::Direct {
+                            gated:   GatedFieldHandling::RefuseAsUnsupported,
+                            cost:    DirectReadCost::Composed,
+                            nesting: Some(&nesting),
+                        },
                     )?;
                     let embeds = self.plan_embeds(
                         &relationship.target_type,
@@ -284,13 +288,15 @@ impl QueryRunner {
                         selection.filter.as_ref(),
                         None,
                     )?;
-                    EmbedTarget::Count(Box::new(self.resolve_direct_read(
+                    EmbedTarget::Count(Box::new(self.resolve_rows(
                         &query_match,
                         variables,
                         security_context,
-                        GatedFieldHandling::RefuseAsUnsupported,
-                        DirectReadCost::Composed,
-                        Some(&nesting),
+                        Door::Direct {
+                            gated:   GatedFieldHandling::RefuseAsUnsupported,
+                            cost:    DirectReadCost::Composed,
+                            nesting: Some(&nesting),
+                        },
                     )?))
                 },
             };
@@ -579,7 +585,7 @@ pub(super) fn correlation_keys(
 
 /// The keys an embedded level may return: every projected field's stored spellings,
 /// with the masked fields' written as `NULL`.
-fn level_keys(resolved: &ResolvedDirectRead) -> LevelKeys {
+fn level_keys(resolved: &RootRead) -> LevelKeys {
     let access = &resolved.access;
     let mut kept = Vec::new();
     let mut masked = Vec::new();

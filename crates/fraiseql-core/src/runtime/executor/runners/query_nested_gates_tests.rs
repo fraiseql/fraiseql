@@ -543,6 +543,22 @@ async fn a_direct_reads_nested_level_carries_its_types_predicate() {
     assert_eq!(only_embed(&read).level.where_clause, Some(owner_is("u-alice")));
 }
 
+/// A stream reads no composed statement, so the same nested level is refused on it rather
+/// than streamed with `Order`'s predicate missing.
+#[tokio::test]
+async fn a_streamed_read_of_a_row_scoped_nested_level_is_refused() {
+    let adapter = Arc::new(CapturingMockAdapter::new(vec![]));
+    let executor = Executor::read_only_with_config(
+        schema(),
+        adapter.clone(),
+        with_policy(OwnerPolicy::declared(&["Order"])),
+    );
+    let query_match =
+        executor.matcher().match_query("{ users { id orders { id } } }", None).unwrap();
+    let result = executor.stream_query_direct(query_match, None, Some(principal())).await;
+    assert!(matches!(result, Err(FraiseQLError::Unsupported { .. })), "a stream must refuse");
+}
+
 /// An opaque policy is read over `Order`'s own view, joined by the relationship.
 #[tokio::test]
 async fn an_opaque_policy_joins_the_nested_types_view_through_its_relationship() {

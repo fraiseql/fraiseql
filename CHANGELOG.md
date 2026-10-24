@@ -333,6 +333,19 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **A count applies the explicit arguments its list query applies.** A count sibling
+  (`usersCount(name: "Alice")`) and a REST `Prefer: count=exact` total composed the row
+  scope and the `where` argument, but not the query's declared arguments, so
+  `usersCount(name: "Alice")` counted every user. The documentation of `count_sibling`
+  already said it counted the rows its list returns. Every root read (the GraphQL
+  document, the direct read under REST, gRPC and exports, the count and Relay
+  `node(id:)`) now resolves through one gate and one row predicate, which is how the gap
+  surfaced.
+- **An expired security context is refused on every root-read door.** The GraphQL
+  document refused a `SecurityContext` past its `expires_at`. A direct read, a count and a
+  Relay `node(id:)` lookup did not check, and relied on the transport having checked
+  first. They now run the same gate. The node lookup also asks the operation authorizer
+  before the role and actor gates, in the order every other door uses.
 - **The RBAC management API is mounted on every build with an `admin_token` and a database
   pool.** `/api/roles`, `/api/permissions`, `/api/user-roles` and `/api/audit/permissions`
   were mounted only when the `observers` feature was compiled in, although role

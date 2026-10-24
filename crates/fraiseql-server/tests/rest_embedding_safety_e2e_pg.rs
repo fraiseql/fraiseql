@@ -510,7 +510,7 @@ async fn the_same_embeds_are_scoped_when_the_target_does_accept_a_client_where()
 /// #1283 settles what happens instead. This case used to assert the filter was
 /// **inert** — `200`, and author 1's `a-one` *and* `a-two` — which is the answer that
 /// cannot be told apart from a filter that matched both rows. The embed sub-query
-/// reaches `resolve_direct_read` with the client's filter in `arguments["where"]`
+/// reaches `resolve_root_read` with the client's filter in `arguments["where"]`
 /// exactly as a top-level read does, so it is refused there for the same reason, and
 /// the refusal names the *target* query whose configuration produced it.
 ///

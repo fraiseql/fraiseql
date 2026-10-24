@@ -7,7 +7,7 @@
 //! ceiling therefore bounded every read and bounded their sum never.
 //!
 //! `[security.cost_budget] per_request_max` is the same control with the same defect —
-//! its name says *per request* and `resolve_direct_read` scores each read alone. This
+//! its name says *per request* and `resolve_root_read` scores each read alone. This
 //! module holds the running total that fixes it ([`CostBudget`]) and the object a
 //! transport builds once per request and lends to each of its reads
 //! ([`RequestBudget`]).
@@ -33,7 +33,7 @@
 //! computed in advance.
 //!
 //! So it is accumulated — charged by each read as that read resolves. The property the
-//! gate exists for survives: the charge happens in `resolve_direct_read`, *before* the
+//! gate exists for survives: the charge happens in `resolve_root_read`, *before* the
 //! statement is sent, so the read that crosses the ceiling is refused without reaching
 //! the database. What changes is only which reads count against it.
 //!

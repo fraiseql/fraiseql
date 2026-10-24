@@ -67,7 +67,7 @@ fn build_introspection(schema: &CompiledSchema) -> IntrospectionResponses {
 /// It does **not** bind on a read that never had a document: the REST direct-read
 /// surface (the GET resolver, the three exports, the embedding sub-query, the bulk
 /// row selection) and both gRPC read arms resolve through
-/// `QueryRunner::resolve_direct_read`, which does not call `run_gate1` and cannot
+/// `QueryRunner::resolve_root_read`, which does not call `run_gate1` and cannot
 /// — there is no query string to score.
 ///
 /// This doc previously said the derived gate binds on "every transport that
@@ -79,7 +79,7 @@ fn build_introspection(schema: &CompiledSchema) -> IntrospectionResponses {
 /// | control | GraphQL document | REST direct read | gRPC row read |
 /// |---|---|---|---|
 /// | `[validation] max_query_depth` / `max_query_complexity` | yes — `run_gate1` | no | no |
-/// | `[security.cost_budget] per_request_max` | yes — `run_gate1`, whole document | yes — `resolve_direct_read`, summed over the request's reads | yes — via `resolve_direct_read` |
+/// | `[security.cost_budget] per_request_max` | yes — `run_gate1`, whole document | yes — `resolve_root_read`, summed over the request's reads | yes — via `resolve_root_read` |
 /// | `[validation] max_page_size` | yes — `enforce_max_page_size` | yes | yes |
 /// | `[validation] max_response_bytes` | yes — charged on the returned rows | yes | yes, per frame when streamed |
 /// | `[rest] max_embedding_depth` | n/a | yes — `parse_select_with_embeddings` | n/a |
@@ -1002,7 +1002,7 @@ impl Executor {
     ///
     /// The read resolves through the same authorization, RLS, `inject_params` and
     /// field-RBAC path as the buffered call — see
-    /// `QueryRunner::resolve_direct_read`.
+    /// `QueryRunner::resolve_root_read`.
     ///
     /// ⚠ On PostgreSQL the returned stream holds a pooled connection until it is
     /// dropped. Consume it promptly and drop it when the response ends.

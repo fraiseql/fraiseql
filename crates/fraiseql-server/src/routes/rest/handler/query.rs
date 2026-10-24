@@ -509,7 +509,7 @@ impl RestHandler<'_> {
 
         // `requires_role` is NOT checked here (#1122). It used to be, against
         // `ctx.scopes` — the wrong field — and answering `403`, which the field's
-        // own contract forbids. It now runs in `resolve_direct_read` and
+        // own contract forbids. It now runs in `resolve_root_read` and
         // `count_rows`, the two chokepoints every REST read passes through,
         // alongside `requires_actor` (#966) and field RBAC (#423). A gate in this
         // resolver would be a fourth place for the rule to drift, and would still

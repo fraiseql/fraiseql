@@ -153,7 +153,7 @@ A PEP is only as strong as its least-guarded entry path. The authorizer is enfor
 | MCP tool calls (auth + anon) | Route through the GraphQL chokepoints |
 | Mutations — GraphQL, MCP, **authenticated and anonymous REST**, the direct API | The universal mutation chokepoint (`execute_mutation_impl`), covering the anonymous-REST write path that bypasses the `execute*`/`execute_with_security` chokepoints |
 | REST reads — GET, count, streaming (NDJSON/CSV/XLSX), embedding sub-queries, bulk-by-filter lookup | The shared read runner methods (`execute_query_direct` / `count_rows`) |
-| Nested levels — GraphQL selections (root, `node`, Relay, `_entities`, function-backed), REST embeds and leaf object selections | Where each level is classified: `SelectionAccess` for GraphQL, the per-level `resolve_direct_read` for REST (`nesting = Some`) |
+| Nested levels — GraphQL selections (root, `node`, Relay, `_entities`, function-backed), REST embeds and leaf object selections | Where each level is classified: `SelectionAccess` for GraphQL, the per-level `resolve_root_read` for REST (`Door::Direct` with `nesting = Some`) |
 | Subscriptions (`graphql-transport-ws` / `graphql-ws`) | At subscribe-time, with the connection's principal — a deny rejects with a `FORBIDDEN` error frame, a policy error with `SERVICE_UNAVAILABLE` |
 | **Tenant-keyed requests**, on every path above | The tenant's own executor, built from the **server's** `RuntimeConfig` (#1333) |
 

@@ -777,7 +777,7 @@ async fn a_relay_route_refuses_an_export_that_asked_for_a_page() {
 /// them, which is why the term carries its prefix.)
 ///
 /// **Why the route is `/searchable`.** The clause reaches the SQL only on a query declaring
-/// `auto_params.has_where` (`resolve_direct_read`). Every list route here declares it now that
+/// `auto_params.has_where` (`resolve_root_read`). Every list route here declares it now that
 /// the fixture builder follows the compiler (#1290), so `/exports` would serve this case just
 /// as well; `/searchable` is kept because this test and the refusal control below name it, and
 /// moving them would change what two suites are about for no gain. The one route that would
@@ -870,7 +870,7 @@ async fn a_relay_export_is_bounded_by_the_count_the_client_sent() {
 
 /// #1283: a client filter a route cannot apply is **refused**, not dropped.
 ///
-/// `resolve_direct_read` composes `arguments["where"]` only when the query declares
+/// `resolve_root_read` composes `arguments["where"]` only when the query declares
 /// `auto_params.has_where`. The REST extractor has already confirmed the field exists on
 /// the return type and coerced the value to its type by then, so on a query without the
 /// flag a filter passes every check a client can observe and is discarded by one it

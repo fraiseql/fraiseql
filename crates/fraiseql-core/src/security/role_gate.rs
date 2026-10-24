@@ -11,7 +11,7 @@
 //! instead of `roles` and answered `403`. It got both halves wrong in opposite
 //! directions: a token holding the *role* was refused a query it is entitled to,
 //! and a token holding a same-named *scope* was served one it is not — the REST
-//! read chokepoints (`resolve_direct_read`, `count_rows`) carried no role gate of
+//! read chokepoints (`resolve_root_read`, `count_rows`) carried no role gate of
 //! their own, so nothing downstream caught it.
 //!
 //! Hence a function rather than a convention. A gate that means different things

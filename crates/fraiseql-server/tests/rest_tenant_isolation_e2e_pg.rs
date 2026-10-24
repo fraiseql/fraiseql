@@ -694,7 +694,7 @@ fn ndjson_tenants(body: &str) -> Vec<String> {
 /// #958: the streaming export applies the tenant filter, like every other read.
 ///
 /// The export is a **second** execution route to the same rows — it resolves through
-/// `resolve_direct_read` and then streams rather than collecting. #739 is the standing
+/// `resolve_root_read` and then streams rather than collecting. #739 is the standing
 /// proof that "the other reader of the same query" is exactly where a row filter goes
 /// missing, and it went missing silently: the rows were right-looking, just too many
 /// of them. This asserts the filter on the surface rather than inferring it from the

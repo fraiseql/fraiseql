@@ -558,12 +558,7 @@ impl Executor {
                     Ok(serde_json::json!({ "data": data }))
                 } else {
                     self.query_runner()
-                        .execute_regular_query_maybe_security(
-                            query,
-                            variables,
-                            security_context,
-                            operation_name,
-                        )
+                        .execute_regular_query(query, variables, security_context, operation_name)
                         .await
                 }
             },

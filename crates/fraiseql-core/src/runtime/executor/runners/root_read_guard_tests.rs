@@ -500,6 +500,21 @@ async fn a_connection_composes_the_tenant_filter() {
     assert!(where_text(&adapter).contains("tenant-abc"), "{}", where_text(&adapter));
 }
 
+/// A query both injected and under a row policy is refused for its missing context, not
+/// hidden: every door answered the inject refusal before the policy's.
+#[tokio::test]
+async fn an_anonymous_connection_to_an_injected_query_under_a_row_policy_names_the_missing_context()
+{
+    let config = RuntimeConfig::default().with_rls_policy(Arc::new(OwnerPolicy));
+    let (executor, adapter) = relay_executor(relay_schema(tenant_scoped), config);
+    let err = executor
+        .execute(CONNECTION, None)
+        .await
+        .expect_err("neither the policy nor the inject params can be resolved anonymously");
+    assert!(err.to_string().contains("security context"), "{err}");
+    assert!(adapter.captured_where().is_none());
+}
+
 // ── the node lookup ───────────────────────────────────────────────────────────────────
 
 fn node_document() -> String {
@@ -543,4 +558,41 @@ async fn a_node_lookup_is_put_to_the_authorizer_as_a_read_of_its_type() {
         .expect_err("a read of User is denied once the id names it");
     assert!(matches!(err, FraiseQLError::Authorization { .. }), "{err}");
     assert!(adapter.captured_where().is_none());
+}
+
+// ── what a door inherits from the one pipeline ────────────────────────────────────────
+
+/// A `<name>Count` sibling inherits its list's explicit arguments because they lower into
+/// the same `WHERE` (`QueryDefinition::count_sibling`). The count used to resolve its read
+/// in a copy that composed the row scope, the parent scoping and the client filter but not
+/// the explicit arguments, so `usersCount(name: "Alice")` counted every user.
+#[tokio::test]
+async fn a_count_sibling_counts_only_the_rows_its_explicit_arguments_select() {
+    let mut schema = schema_with(|q| {
+        q.arguments
+            .push(crate::schema::ArgumentDefinition::optional("name", FieldType::String));
+    });
+    let count = schema.queries[0].count_sibling();
+    schema.queries.push(count);
+    let (executor, adapter) = executor(schema, RuntimeConfig::default());
+    executor
+        .execute_with_security(r#"{ usersCount(name: "Alice") }"#, None, &principal())
+        .await
+        .expect("a count");
+    assert!(where_text(&adapter).contains("Alice"), "{}", where_text(&adapter));
+}
+
+/// The expired-token gate is the operation gate's, so it binds on every door, not only on
+/// the document read that used to carry it.
+#[tokio::test]
+async fn a_direct_read_and_a_count_refuse_an_expired_principal() {
+    let (executor, adapter) = executor(plain_schema(), RuntimeConfig::default());
+    let qm = direct_match(&executor, "{ users { id } }");
+    let mut expired = principal();
+    expired.expires_at = Utc::now() - chrono::Duration::minutes(1);
+    let read = executor.execute_query_direct(&qm, None, Some(&expired), None).await;
+    assert!(read.is_err_and(|e| e.to_string().contains("expired")));
+    let count = executor.count_rows(&qm, None, Some(&expired)).await;
+    assert!(count.is_err_and(|e| e.to_string().contains("expired")));
+    assert!(adapter.captured_where().is_none() && adapter.captured_limit().is_none());
 }
