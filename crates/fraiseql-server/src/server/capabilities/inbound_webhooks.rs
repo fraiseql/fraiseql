@@ -14,4 +14,11 @@ impl Capability for InboundWebhooks {
     fn configured(&self, cx: &ServeCx<'_>) -> bool {
         cx.server.db_pool.is_some() && !cx.server.webhook_routes.is_empty()
     }
+
+    /// `POST /webhooks/{provider}`.
+    #[cfg(feature = "inbound")]
+    fn routes(&self, cx: &ServeCx<'_>) -> Option<axum::Router> {
+        Some(cx.server.add_inbound_routes(axum::Router::new(), cx.app))
+            .filter(axum::Router::has_routes)
+    }
 }

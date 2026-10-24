@@ -7,14 +7,20 @@
 //! The manifest tests hold it to the structs it describes, so a section added behind a
 //! `#[cfg(feature = …)]` without an entry here fails the build.
 
-use std::{collections::BTreeMap, sync::RwLock};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    sync::RwLock,
+};
 
 use fraiseql_core::capability::{
     CapabilityMeta, CompiledSection, EntryPoints, Maturity, Release, SectionActivity,
 };
 use serde::Serialize;
 
-use crate::server::capabilities::{self as impls, RunCx, ServeCx};
+use crate::{
+    routes::graphql::AppState,
+    server::capabilities::{self as impls, RunCx, ServeCx},
+};
 
 /// A capability and whether this build compiled it in.
 #[derive(Debug, Clone, Copy, Serialize)]
@@ -65,6 +71,19 @@ pub(crate) trait Capability: Send + Sync + std::fmt::Debug {
     /// server must not serve without it.
     async fn start(&self, _cx: &mut RunCx<'_>) -> crate::Result<Started> {
         Ok(Started::Running)
+    }
+
+    /// The routes it serves, built for this server, or `None` when it serves none here.
+    ///
+    /// Merged before the admission layer, so every capability route is under it. Each
+    /// route carries its own authentication: `route_layer` does not cross a merge.
+    fn routes(&self, _cx: &ServeCx<'_>) -> Option<axum::Router> {
+        None
+    }
+
+    /// Whether it is working right now, for a capability that can tell; `None` otherwise.
+    async fn health(&self, _app: &AppState) -> Option<bool> {
+        None
     }
 }
 
@@ -287,47 +306,69 @@ pub fn feature_gated_keys() -> Vec<(&'static str, &'static str, bool)> {
 #[cfg(test)]
 mod manifest_tests;
 
-/// What the serve entry point started, by capability name.
+/// What the serve entry point started and mounted, by capability name.
 ///
-/// Recorded by the start loop for the capabilities that run background work, and read by
-/// `/health`. A capability with nothing to start is never recorded.
+/// Recorded by the start loop and the route mount, and read by `/health`.
 #[derive(Debug, Default)]
-pub struct CapabilityStarts(RwLock<BTreeMap<&'static str, bool>>);
+pub struct CapabilityStarts(RwLock<Recorded>);
+
+#[derive(Debug, Default)]
+struct Recorded {
+    started: BTreeMap<&'static str, bool>,
+    serving: BTreeSet<&'static str>,
+}
 
 impl CapabilityStarts {
-    /// Record whether `name` started. `false` is a configured capability that did not.
-    ///
-    /// # Panics
-    ///
-    /// In debug builds, if `name` is not a [`REGISTRY`] name: a misspelt record would
-    /// leave the real entry reporting nothing.
-    pub fn record(&self, name: &'static str, started: bool) {
-        debug_assert!(
-            REGISTRY.iter().any(|entry| entry.meta.name == name),
-            "`{name}` is not a registered capability"
-        );
+    fn write(&self) -> std::sync::RwLockWriteGuard<'_, Recorded> {
+        self.0.write().unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+
+    /// Record whether `name`, a configured capability, started. `false` is one that did
+    /// not, or that this entry point does not start.
+    pub(crate) fn record(&self, name: &'static str, started: bool) {
+        self.write().started.insert(name, started);
+    }
+
+    /// What was recorded for `name`: whether it started, if it is configured.
+    #[cfg(all(test, feature = "observers"))]
+    pub(crate) fn started(&self, name: &str) -> Option<bool> {
         self.0
-            .write()
+            .read()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .insert(name, started);
+            .started
+            .get(name)
+            .copied()
+    }
+
+    /// Record that `name` mounted routes.
+    pub(crate) fn record_serving(&self, name: &'static str) {
+        self.write().serving.insert(name);
     }
 
     /// Every registered capability, as `/health` reports it.
-    #[must_use]
-    pub fn health(&self) -> BTreeMap<&'static str, CapabilityHealth> {
-        let starts = self.0.read().unwrap_or_else(std::sync::PoisonError::into_inner);
-        REGISTRY
-            .iter()
-            .map(|entry| {
-                (
-                    entry.meta.name,
-                    CapabilityHealth {
-                        compiled_in: entry.compiled_in,
-                        started:     starts.get(entry.meta.name).copied(),
-                    },
-                )
-            })
-            .collect()
+    pub async fn health(&self, app: &AppState) -> BTreeMap<&'static str, CapabilityHealth> {
+        let (started, serving) = {
+            let recorded = self.0.read().unwrap_or_else(std::sync::PoisonError::into_inner);
+            (recorded.started.clone(), recorded.serving.clone())
+        };
+        let mut report = BTreeMap::new();
+        for entry in REGISTRY {
+            let healthy = if entry.compiled_in {
+                entry.capability.health(app).await
+            } else {
+                None
+            };
+            report.insert(
+                entry.meta.name,
+                CapabilityHealth {
+                    compiled_in: entry.compiled_in,
+                    started: started.get(entry.meta.name).copied(),
+                    serving: serving.contains(entry.meta.name),
+                    healthy,
+                },
+            );
+        }
+        report
     }
 }
 
@@ -336,8 +377,14 @@ impl CapabilityStarts {
 pub struct CapabilityHealth {
     /// Whether this build has the capability's feature.
     pub compiled_in: bool,
-    /// For a capability with background work this server was configured to run: whether
-    /// it started. Absent when there was nothing to start.
+    /// For a capability this server is configured to run: whether this entry point
+    /// started it. Absent when it is not configured.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub started:     Option<bool>,
+    /// Whether it mounted routes on this server.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub serving:     bool,
+    /// Whether it is working right now, for a capability that can tell.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub healthy:     Option<bool>,
 }

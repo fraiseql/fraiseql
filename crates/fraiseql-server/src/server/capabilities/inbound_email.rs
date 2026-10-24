@@ -106,4 +106,35 @@ impl Capability for InboundEmail {
         info!(mailboxes = started, "poll-IMAP email sources started");
         Ok(Started::Running)
     }
+
+    /// The suppression admin API (append + query): the operator surface for manual
+    /// do-not-contact entries (support removals, GDPR requests), behind the admin bearer
+    /// gate. Mounted only with a database pool, the admin token and the address-hash key
+    /// (the server HMAC secret), since an address is hashed server-side before it touches
+    /// the store. A send-only deployment has it too: it does not need a polled mailbox.
+    #[cfg(feature = "inbound-email")]
+    fn routes(&self, cx: &ServeCx<'_>) -> Option<axum::Router> {
+        let server = cx.server;
+        let (Some(pool), Some(token), Some(key)) = (
+            server.db_pool.as_ref(),
+            server.config.admin_token.as_ref(),
+            server.build_address_hash_key(),
+        ) else {
+            return None;
+        };
+        let tracker = std::sync::Arc::new(crate::inbound::email::PgSendTracker::new(pool.clone()));
+        let suppression_state =
+            std::sync::Arc::new(crate::inbound::email::SuppressionAdminState::new(tracker, key));
+        let auth_state = crate::server::BearerAuthState::with_max_failures(
+            token.clone(),
+            server.config.admin_auth_max_failures,
+        );
+        info!(
+            "Suppression admin API enabled (POST /api/email/suppress, POST \
+             /api/email/suppression; admin bearer token required)"
+        );
+        Some(crate::inbound::email::suppression_admin_router(suppression_state).route_layer(
+            axum::middleware::from_fn_with_state(auth_state, crate::server::bearer_auth_middleware),
+        ))
+    }
 }

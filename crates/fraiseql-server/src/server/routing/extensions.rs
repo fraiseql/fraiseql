@@ -1,24 +1,16 @@
-//! Extension route mounting: MCP, API, RBAC, observers, storage, functions, REST,
+//! Extension route mounting: the core admin APIs, every capability's routes, storage,
 //! and admission control.
 
 use axum::{Router, middleware};
 use tracing::info;
 
 use super::super::{BearerAuthState, Server, bearer_auth_middleware};
-#[cfg(feature = "rest")]
-use super::AuthPosture;
-use crate::routes::graphql::AppState;
+use crate::{capability::REGISTRY, routes::graphql::AppState};
 
 impl Server {
-    /// Mount MCP, API routes, RBAC, observer hooks, storage, functions, REST,
-    /// and admission control.
+    /// Mount the core admin APIs, every capability's routes, storage, and admission
+    /// control.
     pub(super) fn mount_extensions(&self, mut app: Router, state: &AppState) -> Router {
-        // MCP (Model Context Protocol) route
-        #[cfg(feature = "mcp")]
-        if let Some(ref mcp_cfg) = self.mcp_config {
-            app = self.mount_mcp(app, state, mcp_cfg);
-        }
-
         // Async operations (#391): mounted only when `[async_operations]` is
         // configured (boot already refused a config with no usable table), and
         // behind the deployment's auth layer like every data-serving transport
@@ -87,38 +79,6 @@ impl Server {
             }
         }
 
-        // SAML IdP management (#947) — mounted only when `[saml] store_enabled = true`,
-        // behind the same admin bearer gate as RBAC. Writes go through the live registry,
-        // so a created IdP serves and a deleted one stops without a restart.
-        #[cfg(feature = "auth-saml")]
-        if let Some(ref saml) = self.saml_state {
-            if saml.registry().has_store() {
-                if let Some(ref token) = self.config.admin_token {
-                    info!(
-                        "SAML IdP management endpoints enabled at /api/saml/idps (admin bearer \
-                         token required)"
-                    );
-                    let mgmt_state = crate::api::SamlIdpManagementState {
-                        registry: saml.registry().clone(),
-                    };
-                    // Accepts tenant administrators (#1089); the router enforces their tenant.
-                    let auth_state = self.admin_principal_state(token);
-                    let mgmt_router = crate::api::saml_idp_management_router(mgmt_state)
-                        .route_layer(middleware::from_fn_with_state(
-                            auth_state,
-                            crate::middleware::admin_principal_middleware,
-                        ));
-                    app = app.merge(mgmt_router);
-                } else {
-                    tracing::error!(
-                        "SAML IdP management disabled — [saml] store_enabled = true but \
-                         admin_token is not set. Stored IdPs are served but cannot be managed \
-                         over HTTP; set admin_token to enable the management endpoints."
-                    );
-                }
-            }
-        }
-
         // SCIM 2.0 provisioning (#946). Two surfaces, two credentials, on purpose: the
         // `/scim/v2/*` routes take a provisioning token that grants provisioning and
         // nothing else, while `/api/scim/tokens` — which mints those credentials — sits
@@ -169,108 +129,10 @@ impl Server {
             }
         }
 
-        // Identity-cache admin API (flush) — same admin bearer gate as RBAC,
-        // mounted only when an enrichment resolver exists (#539). Lets an operator
-        // propagate a revoke/provision immediately instead of waiting out the TTL.
-        #[cfg(feature = "auth")]
-        if let (Some(resolver), Some(token)) =
-            (state.identity.resolver(), self.config.admin_token.as_ref())
-        {
-            let auth_state = BearerAuthState::with_max_failures(
-                token.clone(),
-                self.config.admin_auth_max_failures,
-            );
-            let identity_router = crate::identity::identity_admin_router(resolver.clone())
-                .route_layer(middleware::from_fn_with_state(auth_state, bearer_auth_middleware));
-            app = app.merge(identity_router);
-            info!(
-                "Identity-cache admin API enabled (POST /api/identity/flush[-all]; admin bearer \
-                 token required)"
-            );
-        }
-
-        // Suppression admin API (append + query) — the operator surface for manual
-        // do-not-contact entries (support removals, GDPR requests). Same admin
-        // bearer gate; mounted only when a database pool, the admin token, and the
-        // address-hash key (the server HMAC secret) are all present, since the
-        // address must be hashed server-side before it touches the store.
-        #[cfg(feature = "inbound-email")]
-        if let (Some(pool), Some(token), Some(key)) = (
-            self.db_pool.as_ref(),
-            self.config.admin_token.as_ref(),
-            self.build_address_hash_key(),
-        ) {
-            let tracker =
-                std::sync::Arc::new(crate::inbound::email::PgSendTracker::new(pool.clone()));
-            let suppression_state = std::sync::Arc::new(
-                crate::inbound::email::SuppressionAdminState::new(tracker, key),
-            );
-            let auth_state = BearerAuthState::with_max_failures(
-                token.clone(),
-                self.config.admin_auth_max_failures,
-            );
-            let suppression_router = crate::inbound::email::suppression_admin_router(
-                suppression_state,
-            )
-            .route_layer(middleware::from_fn_with_state(auth_state, bearer_auth_middleware));
-            app = app.merge(suppression_router);
-            info!(
-                "Suppression admin API enabled (POST /api/email/suppress, POST \
-                 /api/email/suppression; admin bearer token required)"
-            );
-        }
-
-        // Observer routes (if enabled and compiled with feature)
-        #[cfg(feature = "observers")]
-        {
-            app = self.add_observer_routes(app, state);
-        }
-
-        // Object storage routes (legacy backend)
-
-        // Inbound webhook receiver (POST /webhooks/{provider})
-        #[cfg(feature = "inbound")]
-        {
-            app = self.add_inbound_routes(app, state);
-        }
-
-        // REST transport.
-        //
-        // #812: this merge previously attached no authentication at all, so every
-        // `/rest/v1/**` request reached the handlers with `security_context = None` —
-        // disabling RLS-policy evaluation and session-variable tenant stamping — even
-        // when the caller presented a valid bearer token. `route_layer` does not
-        // propagate across `Router::merge`, so the layer must go on the REST router
-        // itself, before it is merged.
-        //
-        // #865: the write half is mounted here too, when the boot path installed a
-        // `rest_router_builder` — which it can only do for an adapter that implements
-        // `SupportsMutations`. Read and write share this **one** mount site precisely so
-        // they cannot diverge in auth posture: whichever router comes back goes through
-        // the same `attach_auth` call below. `rest_router` previously had no production
-        // caller at all, so every write path the served OpenAPI advertised answered 405.
-        #[cfg(feature = "rest")]
-        {
-            use crate::routes::rest::rest_query_router;
-            // Whether an auth layer will actually be attached below. Passed into the
-            // router so the served OpenAPI advertises the security the server enforces
-            // rather than a static template (#810).
-            let authenticated = self.oidc_validator.is_some() || self.hs256_auth.is_some();
-            let mount = crate::routes::rest::RestMountConfig {
-                compression_enabled: self.config.compression_enabled,
-                auth_layer_attached: authenticated,
-                // #917: the operator's `[export]` table finally reaches the transport.
-                // Every consumer used to build its own `ExportConfig::default()`.
-                export:              std::sync::Arc::new(self.config.export.clone()),
-            };
-            let rest_app = match self.rest_router_builder.as_ref() {
-                Some(build_with_writes) => build_with_writes(state, &mount),
-                None => rest_query_router(state, &mount),
-            };
-            if let Some(rest_app) = rest_app {
-                app = app.merge(self.attach_auth(rest_app, AuthPosture::Authenticated, "rest"));
-            }
-        }
+        // Every capability's routes (MCP, the SAML IdP admin API, the identity-cache flush,
+        // the email suppression API, the observer admin API, the inbound webhook receiver,
+        // REST), before the admission layer below, which wraps whatever is merged by then.
+        app = self.mount_capability_routes(app, state);
 
         // Mount storage routes when StorageState was pre-built during server construction.
         if let Some(ref storage_state) = self.storage_state {
@@ -309,6 +171,22 @@ impl Server {
         app
     }
 
+    /// Merge the routes of every compiled-in capability that has some, recording each
+    /// one `/health` reports as serving.
+    fn mount_capability_routes(&self, mut app: Router, state: &AppState) -> Router {
+        let cx = crate::server::capabilities::ServeCx {
+            server: self,
+            app:    state,
+        };
+        for registration in REGISTRY.iter().filter(|registration| registration.compiled_in) {
+            if let Some(routes) = registration.capability.routes(&cx) {
+                app = app.merge(routes);
+                self.capability_starts.record_serving(registration.meta.name);
+            }
+        }
+        app
+    }
+
     /// Mount the inbound webhook receiver at `POST /webhooks/{provider}`.
     ///
     /// Requires a database pool (the receiver pipeline is Postgres-backed) and at
@@ -318,7 +196,7 @@ impl Server {
     /// hooks from `state` are attached so a persisted message fires its
     /// `after:ingest` functions.
     #[cfg(feature = "inbound")]
-    fn add_inbound_routes(&self, app: Router, state: &AppState) -> Router {
+    pub(in crate::server) fn add_inbound_routes(&self, app: Router, state: &AppState) -> Router {
         let Some(ref db_pool) = self.db_pool else {
             if !self.webhook_routes.is_empty() {
                 tracing::error!(
@@ -363,7 +241,7 @@ impl Server {
     }
 
     #[cfg(feature = "mcp")]
-    fn mount_mcp(
+    pub(in crate::server) fn mount_mcp(
         &self,
         mut app: Router,
         state: &AppState,
@@ -456,7 +334,10 @@ impl Server {
 
     /// The gate for admin routers that accept tenant administrators (#1089): `admin_token`
     /// as the platform, plus tenant admin tokens when a database pool exists.
-    fn admin_principal_state(&self, admin_token: &str) -> crate::middleware::AdminPrincipalState {
+    pub(in crate::server) fn admin_principal_state(
+        &self,
+        admin_token: &str,
+    ) -> crate::middleware::AdminPrincipalState {
         crate::middleware::AdminPrincipalState::new(
             admin_token.to_string(),
             self.admin_tokens.clone(),

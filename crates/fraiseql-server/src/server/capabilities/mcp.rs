@@ -14,4 +14,11 @@ impl Capability for Mcp {
     fn configured(&self, cx: &ServeCx<'_>) -> bool {
         cx.server.mcp_config.is_some()
     }
+
+    #[cfg(feature = "mcp")]
+    fn routes(&self, cx: &ServeCx<'_>) -> Option<axum::Router> {
+        let config = cx.server.mcp_config.as_ref()?;
+        Some(cx.server.mount_mcp(axum::Router::new(), cx.app, config))
+            .filter(axum::Router::has_routes)
+    }
 }

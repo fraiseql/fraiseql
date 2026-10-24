@@ -250,7 +250,7 @@ pub async fn health_handler(State(state): State<AppState>) -> impl IntoResponse 
         status: status.to_string(),
         database,
         observers,
-        capabilities: state.capability_starts.health(),
+        capabilities: state.capability_starts.health(&state).await,
         cache,
         secrets,
         #[cfg(feature = "federation")]

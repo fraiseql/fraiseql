@@ -129,10 +129,9 @@ async fn recorded_starts(
     starts: &crate::capability::CapabilityStarts,
 ) -> BTreeMap<&'static str, Option<bool>> {
     let read = || -> BTreeMap<&'static str, Option<bool>> {
-        starts
-            .health()
-            .into_iter()
-            .map(|(name, health)| (name, health.started))
+        REGISTRY
+            .iter()
+            .map(|entry| (entry.meta.name, starts.started(entry.meta.name)))
             .collect()
     };
     let configured = configured_by_the_fixture();

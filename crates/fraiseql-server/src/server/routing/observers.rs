@@ -32,7 +32,7 @@ impl Server {
     /// at startup, rather than mounting them open.  This closes the FW-21 class
     /// anonymous-write primitive (issue #348).
     #[cfg(feature = "observers")]
-    pub(super) fn add_observer_routes(&self, app: Router, state: &AppState) -> Router {
+    pub(in crate::server) fn add_observer_routes(&self, app: Router, state: &AppState) -> Router {
         use std::sync::Arc;
 
         use crate::observers::{

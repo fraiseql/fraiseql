@@ -116,4 +116,18 @@ impl Capability for Observers {
             },
         }
     }
+
+    /// The observer admin API under `/api/observers`.
+    #[cfg(feature = "observers")]
+    fn routes(&self, cx: &ServeCx<'_>) -> Option<axum::Router> {
+        Some(cx.server.add_observer_routes(axum::Router::new(), cx.app))
+            .filter(axum::Router::has_routes)
+    }
+
+    /// Whether the runtime is running.
+    #[cfg(feature = "observers")]
+    async fn health(&self, app: &crate::routes::graphql::AppState) -> Option<bool> {
+        let runtime = app.observer_runtime.as_ref()?;
+        Some(runtime.read().await.health().running)
+    }
 }
