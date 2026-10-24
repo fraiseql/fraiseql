@@ -10,7 +10,11 @@ use crate::capability::Capability;
 #[cfg(feature = "functions-runtime")]
 use crate::capability::Started;
 #[cfg(feature = "functions-runtime")]
-use crate::server::{ServerError, start::EntryPoint};
+use crate::server::{
+    ServerError,
+    provision::{BootCx, ProvisionStep},
+    start::EntryPoint,
+};
 
 /// Declared functions. Their runtime is prepared during provisioning, so the hooks every
 /// route dispatches through exist before the router is built.
@@ -22,6 +26,26 @@ impl Capability for Functions {
     #[cfg(feature = "functions-runtime")]
     fn configured(&self, cx: &ServeCx<'_>) -> bool {
         cx.app.before_mutation_hooks.is_some()
+    }
+
+    /// `_fraiseql_cron_state`, the cross-restart fire guard, when a function is scheduled.
+    #[cfg(feature = "functions-runtime")]
+    fn provision(&self, cx: &BootCx<'_>) -> Vec<ProvisionStep> {
+        let server = cx.server;
+        let scheduled = server.functions_config.as_ref().is_some_and(|functions| {
+            functions.definitions.iter().any(|definition| {
+                fraiseql_functions::triggers::ParsedTrigger::parse(&definition.trigger)
+                    .is_ok_and(|trigger| trigger.is_cron())
+            })
+        });
+        match server.db_pool.as_ref() {
+            Some(pool) if scheduled => vec![ProvisionStep::new(
+                "cron state",
+                pool,
+                &[fraiseql_functions::migrations::cron_migration_sql()],
+            )],
+            _ => Vec::new(),
+        }
     }
 
     /// Start the `cron:` scheduler: one leased poller per cron function in the compiled
@@ -45,10 +69,6 @@ impl Capability for Functions {
         if hooks.trigger_registry.cron_triggers.is_empty() {
             return Ok(Started::Running);
         }
-        let cron_state = crate::cron::PgCronState::new(db_pool.clone());
-        cron_state.init().await.map_err(|e| {
-            ServerError::ConfigError(format!("Failed to initialize cron state schema: {e}"))
-        })?;
         let host_config = crate::routes::after_mutation::host_context_config();
         let pollers = crate::cron::build_cron_pollers(
             db_pool,

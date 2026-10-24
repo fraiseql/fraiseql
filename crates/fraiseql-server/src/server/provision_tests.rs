@@ -142,3 +142,190 @@ async fn replicas_booting_together_all_provision() {
         .await
         .unwrap();
 }
+
+/// A database of its own: the probe needs every table absent.
+const CTOR_SCRATCH_DB: &str = "server_ctor_runs_no_ddl";
+
+/// Tables outside the system catalogues.
+async fn user_tables(pool: &sqlx::PgPool) -> Vec<String> {
+    sqlx::query_scalar(
+        "SELECT schemaname || '.' || tablename FROM pg_tables \
+         WHERE schemaname NOT IN ('pg_catalog', 'information_schema') ORDER BY 1",
+    )
+    .fetch_all(pool)
+    .await
+    .unwrap()
+}
+
+/// Constructing a server creates no table: every boot script is a provisioning step, so
+/// it runs under the boot lock when the server is served, and a server that is built and
+/// never served leaves the database as it found it. Provisioning then creates them.
+#[tokio::test]
+async fn tables_are_created_by_provisioning_not_by_the_constructor() {
+    let Some(svc) = fraiseql_test_support::postgres().await else {
+        eprintln!("SKIP tables_are_created_by_provisioning_not_by_the_constructor: no postgres");
+        return;
+    };
+    let base = svc.url();
+    let (prefix, tail) = base.rsplit_once('/').expect("a PostgreSQL URL carries a database path");
+    let query = tail.find('?').map_or("", |i| &tail[i..]);
+    let admin = sqlx::PgPool::connect(base).await.unwrap();
+    for ddl in [
+        format!("DROP DATABASE IF EXISTS {CTOR_SCRATCH_DB} WITH (FORCE)"),
+        format!("CREATE DATABASE {CTOR_SCRATCH_DB}"),
+    ] {
+        sqlx::query(&ddl).execute(&admin).await.unwrap();
+    }
+    let pool = sqlx::PgPool::connect(&format!("{prefix}/{CTOR_SCRATCH_DB}{query}"))
+        .await
+        .unwrap();
+    let config: ServerConfig = serde_json::from_value(serde_json::json!({
+        "cors_enabled": false,
+        "session_state": { "backend": "postgres" },
+        "async_operations": { "operations": ["largeExport"] },
+    }))
+    .unwrap();
+
+    let mut server = Box::pin(Server::new(
+        config,
+        CompiledSchema::new(),
+        Arc::new(FailingAdapter::new()),
+        Some(pool.clone()),
+    ))
+    .await
+    .unwrap();
+    let constructed = user_tables(&pool).await;
+    let provisioned = server.provisioned_app_state().await.map(|_| ());
+    let served = user_tables(&pool).await;
+
+    drop(server);
+    pool.close().await;
+    sqlx::query(&format!("DROP DATABASE IF EXISTS {CTOR_SCRATCH_DB} WITH (FORCE)"))
+        .execute(&admin)
+        .await
+        .unwrap();
+    assert_eq!(constructed, Vec::<String>::new(), "the constructor ran DDL");
+    provisioned.unwrap();
+    for table in ["_system.async_operations", "_system.session_state"] {
+        assert!(
+            served.iter().any(|t| t == table),
+            "provisioning did not create {table}: {served:?}"
+        );
+    }
+}
+
+/// The steps `server` plans, by name.
+fn planned(server: &Server) -> Vec<(&'static str, Vec<&'static str>)> {
+    server
+        .provision_steps()
+        .into_iter()
+        .map(|step| (step.name, step.scripts))
+        .collect()
+}
+
+async fn server_over(schema: CompiledSchema) -> Server {
+    Box::pin(Server::new(
+        ServerConfig {
+            cors_enabled: false,
+            ..ServerConfig::default()
+        },
+        schema,
+        Arc::new(FailingAdapter::new()),
+        Some(unreachable_pool()),
+    ))
+    .await
+    .unwrap()
+}
+
+/// Each configured capability plans its own tables. A shared test database already holds
+/// them, created by whichever suite ran first, so a step that went missing would still
+/// boot there: the plan is what can be checked.
+#[tokio::test]
+async fn each_configured_capability_plans_its_own_tables() {
+    let nothing = planned(&server_over(CompiledSchema::new()).await);
+    assert_eq!(nothing, Vec::new(), "nothing configured, nothing planned");
+
+    #[cfg(feature = "inbound")]
+    {
+        let mut server = server_over(CompiledSchema::new()).await;
+        server.config.webhooks = serde_json::from_value(serde_json::json!({
+            "stripe": { "provider": "stripe", "secret_env": "STRIPE_SECRET" }
+        }))
+        .unwrap();
+        assert_eq!(
+            planned(&server),
+            vec![(
+                "inbound webhook",
+                vec![
+                    fraiseql_functions::migrations::inbound_migration_sql(),
+                    fraiseql_webhooks::idempotency::SCHEMA_SQL,
+                ]
+            )]
+        );
+    }
+
+    #[cfg(feature = "inbound-email")]
+    {
+        let mut server = server_over(CompiledSchema::new()).await;
+        server.config.mailbox = serde_json::from_value(serde_json::json!({
+            "support": { "imap": {
+                "host": "imap.example.com", "username": "support", "password_env": "IMAP_PASSWORD"
+            } }
+        }))
+        .unwrap();
+        assert_eq!(
+            planned(&server),
+            vec![(
+                "inbound email",
+                vec![
+                    fraiseql_functions::migrations::inbound_migration_sql(),
+                    fraiseql_observers::migrations::source_cursor_sql(),
+                    fraiseql_functions::migrations::send_tracking_migration_sql(),
+                ]
+            )]
+        );
+    }
+
+    #[cfg(feature = "sources")]
+    {
+        let mut schema = CompiledSchema::new();
+        schema.sources = vec![
+            serde_json::from_value(serde_json::json!({
+                "name": "orders", "schedule": "*/5 * * * *", "function": "pullOrders"
+            }))
+            .unwrap(),
+        ];
+        assert_eq!(
+            planned(&server_over(schema).await),
+            vec![("source cursor", vec![fraiseql_observers::migrations::source_cursor_sql()])]
+        );
+    }
+
+    #[cfg(feature = "functions-runtime")]
+    {
+        let functions: crate::schema::loader::FunctionsConfig =
+            serde_json::from_value(serde_json::json!({
+                "module_dir": "functions",
+                "definitions": [
+                    { "name": "nightly", "trigger": "cron:0 3 * * *", "runtime": "Wasm" }
+                ]
+            }))
+            .unwrap();
+        let server =
+            server_over(CompiledSchema::new()).await.with_functions_config(Some(functions));
+        assert_eq!(
+            planned(&server),
+            vec![("cron state", vec![fraiseql_functions::migrations::cron_migration_sql()])]
+        );
+    }
+
+    #[cfg(feature = "cdc-outbound")]
+    {
+        let mut server = server_over(CompiledSchema::new()).await;
+        server.config.cdc_outbound = Some(crate::server_config::CdcOutboundConfig::default());
+        assert_eq!(
+            planned(&server),
+            vec![("cdc outbound", vec![fraiseql_cdc_sinks::outbox_sink_state_migration_sql()])]
+        );
+    }
+}

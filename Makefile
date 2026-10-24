@@ -230,11 +230,11 @@ test-integration-postgres: db-up db-failover-reset
 	@echo ""
 	@echo "### inbound spine, storage policy admin, sources, functions runtime"
 	@cargo test -p fraiseql-webhooks --test inbound_pipeline_pg -- --test-threads=1
-	@cargo test -p fraiseql-server --features inbound,inbound-email --lib inbound:: -- --test-threads=1
+	@cargo test -p fraiseql-server --features inbound,inbound-email --lib -- inbound:: server::provision_tests:: --test-threads=1
 	@cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks' --lib server::routing::storage_policy_admin_tests -- --test-threads=1
 	@cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks' --lib tenancy::tests::runtime_config_drift -- --test-threads=1
 	@cargo test -p fraiseql-server --features inbound-email --test inbound_email_dedup_scope_pg -- --test-threads=1
-	@cargo test -p fraiseql-server --features sources --lib sources:: -- --test-threads=1
+	@cargo test -p fraiseql-server --features sources --lib -- sources:: server::provision_tests::each_configured_capability_plans_its_own_tables --test-threads=1
 	@cargo test -p fraiseql-server --features functions-runtime,observers,auth --lib -- cron:: routes::after_mutation:: server::after_mutation_wiring_tests:: query_bridge:: subsystems::loader:: schema::tests:: function_metrics:: observers::pg_function_dlq:: identity:: observers::changelog_handlers:: --test-threads=1
 	@cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks' --lib -- server::entry_point_parity_tests:: server::health_capabilities_tests:: --test-threads=1
 	@cargo test -p fraiseql-cli --features run-server,fraiseql-server/observers --lib commands::run_serve_tests:: -- --test-threads=1
@@ -369,10 +369,10 @@ test-leg:
 	@echo ""
 	@echo "### feature-gated --lib modules that SYNC:SERVER_FEATURES compiles out"
 	cargo test -p fraiseql-server --features rest,export-csv,export-xlsx --lib -- routes::rest::streaming:: routes::rest::openapi::
-	cargo test -p fraiseql-server --features functions-runtime --lib -- routes::query_function:: routes::before_mutation::
+	cargo test -p fraiseql-server --features functions-runtime --lib -- routes::query_function:: routes::before_mutation:: server::provision_tests::each_configured_capability_plans_its_own_tables
 	cargo test -p fraiseql-server --features functions-runtime-deno --lib subsystems::
 	cargo test -p fraiseql-server --features functions-runtime --test functions_authoring_round_trip_test --test function_backed_query_seam_test
-	cargo test -p fraiseql-server --features cdc-outbound --lib cdc_outbound::
+	cargo test -p fraiseql-server --features cdc-outbound --lib -- cdc_outbound:: server::provision_tests::each_configured_capability_plans_its_own_tables
 	cargo test -p fraiseql-server --features cdc-kafka --lib cdc_outbound::
 	cargo test -p fraiseql-server --features cdc-kinesis --lib cdc_outbound::
 	cargo test -p fraiseql-cdc-sinks --features cdc-kafka --lib kafka::

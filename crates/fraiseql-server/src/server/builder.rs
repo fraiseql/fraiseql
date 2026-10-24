@@ -591,7 +591,7 @@ impl Server {
         // Build the async-operations subsystem (#391) here, where `db_pool` is
         // in scope. A configured surface whose table cannot be initialised
         // refuses to boot — the routes and workers must never half-mount.
-        let async_operations = Self::build_async_operations(&config, db_pool.as_ref()).await?;
+        let async_operations = Self::build_async_operations(&config, db_pool.as_ref())?;
 
         // Build the outbound CDC drains (#382) here, where `db_pool` is in
         // scope: a configured section whose broker is unreachable or whose
@@ -619,7 +619,7 @@ impl Server {
         // cannot be initialised, must refuse to boot — never downgrade to the
         // volatile in-memory backend (the P21 backend rule).
         #[cfg(feature = "auth")]
-        let session_state = Self::build_session_state(&config, db_pool.as_ref()).await?;
+        let session_state = Self::build_session_state(&config, db_pool.as_ref())?;
 
         // Initialize OIDC validator if auth is configured.
         //
@@ -784,13 +784,8 @@ impl Server {
                 // default holds only within one server, so a captured assertion replays
                 // against a replica that has never seen its ID — the signature is valid
                 // and nothing else would stop it. Postgres because `[saml]` already
-                // requires this pool, so it adds no infrastructure.
-                crate::migration_lock::run_migration(
-                    &pool,
-                    fraiseql_auth::saml::PG_SAML_REPLAY_SCHEMA_SQL,
-                )
-                .await
-                .map_err(|e| ServerError::ConfigError(format!("[saml] replay store: {e}")))?;
+                // requires this pool, so it adds no infrastructure. Its table is the SAML
+                // capability's provisioning step.
                 let replay_store = Arc::new(fraiseql_auth::PgSamlReplayStore::new(pool.clone()));
                 let state = fraiseql_auth::saml::SamlAuthState::new(state_store, session_store)
                     .with_user_store(account_store)
@@ -881,29 +876,11 @@ impl Server {
                     registry = registry.with_config_idp(idp);
                 }
 
-                // The durable per-tenant store (#947). Attached before the first refresh so
-                // stored IdPs serve from the first request, not from the first tick.
+                // The durable per-tenant store (#947). Its table is provisioned, and its
+                // first load runs when SAML starts, before the first request is served.
                 if saml_cfg.store_enabled {
-                    crate::migration_lock::run_migration(
-                        &pool,
-                        fraiseql_auth::saml::PG_SAML_IDP_SCHEMA_SQL,
-                    )
-                    .await
-                    .map_err(|e| ServerError::ConfigError(format!("[saml] IdP store: {e}")))?;
                     let idp_store = Arc::new(fraiseql_auth::saml::PgSamlIdpStore::new(pool));
                     registry = registry.with_store(idp_store);
-                    registry.refresh().await.map_err(|e| {
-                        // Fail loud: booting with an unreadable IdP store would serve only
-                        // the config-file IdPs while reporting the store as enabled.
-                        ServerError::ConfigError(format!("[saml] initial IdP store load: {e}"))
-                    })?;
-                    registry.log_expiry_report(saml_cfg.certificate_expiry_warning_days);
-                    info!(
-                        stored_idps = registry.idp_names().len() - saml_cfg.idps.len(),
-                        refresh_interval_secs = saml_cfg.refresh_interval_secs,
-                        "SAML per-tenant IdP store enabled (core.tb_saml_idp, admin CRUD at \
-                         /api/saml/idps)"
-                    );
                 }
 
                 info!(
@@ -1042,7 +1019,6 @@ impl Server {
             rbac,
             #[cfg(feature = "auth")]
             enrichment_pool: db_pool.clone(),
-            #[cfg(feature = "observers")]
             db_pool,
             storage_state: None,
             #[cfg(feature = "functions-runtime")]
@@ -1066,6 +1042,7 @@ impl Server {
             usage: Arc::clone(crate::usage::aggregator::global_aggregator()),
             tasks,
             capability_starts: Arc::default(),
+            usage_flush_interval: None,
         })
     }
 
@@ -1321,7 +1298,7 @@ impl Server {
     ///
     /// Returns [`ServerError::ConfigError`] on a missing pool or failed init.
     #[doc(hidden)]
-    pub async fn build_async_operations(
+    pub fn build_async_operations(
         config: &ServerConfig,
         db_pool: Option<&sqlx::PgPool>,
     ) -> std::result::Result<Option<crate::async_operations::AsyncOperationsRuntime>, ServerError>
@@ -1337,14 +1314,10 @@ impl Server {
                     .to_string(),
             )
         })?;
+        // `_system.async_operations` is a provisioning step: a server that cannot create
+        // it refuses to serve rather than mount a surface whose submissions nothing could
+        // execute.
         let store = crate::async_operations::AsyncOperationStore::new(pool);
-        store.init().await.map_err(|e| {
-            ServerError::ConfigError(format!(
-                "[async_operations] could not initialise _system.async_operations: {e}. \
-                 Refusing to boot rather than mounting a surface whose submissions nothing \
-                 could execute."
-            ))
-        })?;
         info!(
             operations = ?cfg.operations,
             workers = cfg.workers,
@@ -1374,7 +1347,7 @@ impl Server {
     /// missing pool, or a failed table initialisation.
     #[cfg(feature = "auth")]
     #[doc(hidden)]
-    pub async fn build_session_state(
+    pub fn build_session_state(
         config: &ServerConfig,
         db_pool: Option<&sqlx::PgPool>,
     ) -> std::result::Result<Option<Arc<fraiseql_auth::session_state::SessionState>>, ServerError>
@@ -1404,18 +1377,9 @@ impl Server {
                             .to_string(),
                     )
                 })?;
-                crate::migration_lock::run_migration(
-                    &pool,
-                    fraiseql_auth::session_state::SESSION_STATE_SCHEMA_SQL,
-                )
-                .await
-                .map_err(|e| {
-                    ServerError::ConfigError(format!(
-                        "[session_state] backend = \"postgres\" could not initialise \
-                         _system.session_state: {e}. Refusing to boot rather than silently \
-                         downgrading to the volatile in-memory backend."
-                    ))
-                })?;
+                // `_system.session_state` is a provisioning step: a server that cannot
+                // create it refuses to serve rather than silently downgrade to the volatile
+                // in-memory backend.
                 let store = PostgresSessionStateStore::new(pool);
                 info!("Session state enabled (postgres-backed, durable)");
                 SessionStateBackend::Postgres(store)

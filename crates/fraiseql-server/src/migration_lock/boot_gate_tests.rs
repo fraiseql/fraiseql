@@ -14,6 +14,11 @@
 //!    (`init_dispatch_ledger`, `run_storage_migration`);
 //! 3. an `.init()` call beyond the per-file allowance below, so a new crate store's `init` cannot
 //!    slip into a boot path next to the allowed ones.
+//!
+//! A second scan holds the boot path itself to provisioning: the constructor, the serve
+//! entry points, the start loop, the capability impls and the router run no DDL of their
+//! own, locked or not. Every boot script is a step in the provisioning table, which runs
+//! before anything is started or mounted.
 
 #![allow(clippy::panic)] // Reason: test module — a scan that cannot read the source must fail loudly
 
@@ -28,7 +33,6 @@ use syn::visit::Visit;
 const INIT_ALLOWANCE: &[(&str, usize, &str)] = &[
     ("src/main.rs", 2, "the tracing subscriber, not DDL"),
     ("src/inbound/webhook.rs", 1, "PostgresInboundSpine::init"),
-    ("src/server/builder.rs", 1, "AsyncOperationStore::init"),
     ("src/server/functions_setup.rs", 2, "PgFunctionDlq::init, PgSendTracker::init"),
     ("src/server/capabilities/functions.rs", 1, "PgCronState::init"),
     (
@@ -37,6 +41,26 @@ const INIT_ALLOWANCE: &[(&str, usize, &str)] = &[
         "PostgresInboundSpine, PgSendTracker init",
     ),
 ];
+
+/// The boot path outside provisioning: files, or directories ending `/`, that may run no
+/// DDL at all. A store constructed here is constructed without its tables; the
+/// provisioning table creates them.
+const BOOT_PATH: &[&str] = &[
+    // `build_drains`, which the constructor calls.
+    "src/cdc_outbound/mod.rs",
+    "src/server/builder.rs",
+    "src/server/initialization.rs",
+    "src/server/lifecycle.rs",
+    "src/server/start.rs",
+    "src/server/capabilities/",
+    "src/server/routing/",
+];
+
+/// `init_…` functions the boot path calls that run no DDL.
+///
+/// `init_observer_runtime` builds the runtime; the table it checkpoints into is created
+/// when the runtime starts.
+const INIT_FN_EXEMPT: &[&str] = &["init_observer_runtime"];
 
 /// Methods of other crates that execute DDL on their own connection.
 const BANNED_METHODS: &[&str] = &["init_dispatch_ledger", "run_storage_migration"];
@@ -108,6 +132,7 @@ struct Scan<'a> {
     in_migration_args: usize,
     violations:        Vec<String>,
     inits:             Vec<usize>,
+    migrations:        Vec<usize>,
 }
 
 impl Scan<'_> {
@@ -147,6 +172,12 @@ impl<'ast> Visit<'ast> for Scan<'_> {
             let sanctioned = last == "run_migration"
                 || last == "run_migrations"
                 || (last == "new" && p.path.segments.iter().any(|s| s.ident == "ProvisionStep"));
+            // A free function named `init…` (`init_cursor_store`) wraps a store's DDL as
+            // surely as its `init()` method does.
+            let init_fn = last.starts_with("init_") && !INIT_FN_EXEMPT.contains(&last.as_str());
+            if last == "run_migration" || last == "run_migrations" || init_fn {
+                self.migrations.push(line);
+            }
             if sanctioned {
                 self.visit_expr(&call.func);
                 self.in_migration_args += 1;
@@ -204,6 +235,7 @@ fn the_server_runs_boot_ddl_only_through_run_migration() {
             in_migration_args: 0,
             violations:        Vec::new(),
             inits:             Vec::new(),
+            migrations:        Vec::new(),
         };
         scan.visit_file(&parsed);
         violations.append(&mut scan.violations);
@@ -225,6 +257,67 @@ fn the_server_runs_boot_ddl_only_through_run_migration() {
         violations.len(),
         violations.join("\n  ")
     );
+}
+
+fn on_boot_path(relative: &str) -> bool {
+    BOOT_PATH.iter().any(|entry| {
+        if entry.ends_with('/') {
+            relative.starts_with(entry)
+        } else {
+            relative == *entry
+        }
+    })
+}
+
+#[test]
+fn the_boot_path_runs_no_ddl_outside_provisioning() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let mut files = Vec::new();
+    rust_files(&root.join("src"), &mut files);
+    files.sort();
+
+    let mut violations = Vec::new();
+    for path in &files {
+        let relative =
+            path.strip_prefix(root).expect("under the crate").to_string_lossy().into_owned();
+        if !on_boot_path(&relative) {
+            continue;
+        }
+        let src = std::fs::read_to_string(path).unwrap_or_else(|e| panic!("read {relative}: {e}"));
+        let parsed = syn::parse_file(&src).unwrap_or_else(|e| panic!("parse {relative}: {e}"));
+        let mut scan = Scan {
+            file:              &relative,
+            in_lock:           false,
+            in_migration_args: 0,
+            violations:        Vec::new(),
+            inits:             Vec::new(),
+            migrations:        Vec::new(),
+        };
+        scan.visit_file(&parsed);
+        for line in scan.migrations {
+            violations.push(format!("{relative}:{line}: run_migration"));
+        }
+        for line in scan.inits {
+            violations.push(format!("{relative}:{line}: `.init()`"));
+        }
+    }
+    assert!(
+        violations.is_empty(),
+        "boot DDL outside the provisioning table ({}); make it a `Capability::provision` step \
+         or a core step in `provision_steps`:\n  {}",
+        violations.len(),
+        violations.join("\n  ")
+    );
+}
+
+/// Every boot-path entry names a real file or directory, so a moved file does not leave the
+/// rule covering nothing.
+#[test]
+fn every_boot_path_entry_exists() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    for entry in BOOT_PATH {
+        assert!(root.join(entry).exists(), "BOOT_PATH names `{entry}`, which does not exist");
+    }
 }
 
 /// Every allowance names a file that exists, so a moved file does not leave a stale

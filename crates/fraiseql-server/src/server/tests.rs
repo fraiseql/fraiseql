@@ -1450,7 +1450,6 @@ mod session_state_boot_tests {
     #[tokio::test]
     async fn absent_section_builds_none() {
         let built = TestServer::build_session_state(&ServerConfig::default(), None)
-            .await
             .expect("absent section is not an error");
         assert!(built.is_none());
     }
@@ -1459,7 +1458,6 @@ mod session_state_boot_tests {
     #[tokio::test]
     async fn memory_backend_builds_without_a_pool() {
         let built = TestServer::build_session_state(&config_with("memory"), None)
-            .await
             .expect("memory backend builds");
         assert!(built.is_some());
     }
@@ -1469,7 +1467,6 @@ mod session_state_boot_tests {
     #[tokio::test]
     async fn postgres_backend_without_a_pool_refuses_to_boot() {
         let err = TestServer::build_session_state(&config_with("postgres"), None)
-            .await
             .expect_err("must refuse");
         let msg = err.to_string();
         assert!(msg.contains("[session_state]"), "error names the section: {msg}");
@@ -1541,7 +1538,6 @@ mod async_operations_boot_tests {
     #[tokio::test]
     async fn absent_section_builds_none() {
         let built = TestServer::build_async_operations(&ServerConfig::default(), None)
-            .await
             .expect("absent section is not an error");
         assert!(built.is_none());
     }
@@ -1550,9 +1546,8 @@ mod async_operations_boot_tests {
     /// alternative is routes accepting submissions no worker can execute.
     #[tokio::test]
     async fn configured_without_a_pool_refuses_to_boot() {
-        let err = TestServer::build_async_operations(&config_with_ops(), None)
-            .await
-            .expect_err("must refuse");
+        let err =
+            TestServer::build_async_operations(&config_with_ops(), None).expect_err("must refuse");
         let msg = err.to_string();
         assert!(msg.contains("[async_operations]"), "error names the section: {msg}");
         assert!(msg.contains("database pool"), "error names the missing piece: {msg}");

@@ -79,7 +79,6 @@ impl Server {
             use std::time::Duration;
 
             use sqlx::postgres::PgPoolOptions;
-            use tokio::time::MissedTickBehavior;
 
             use crate::usage::aggregator::{PostgresBackend, global_aggregator};
 
@@ -114,26 +113,9 @@ impl Server {
                                 ));
                             } else {
                                 info!("Usage persistence: loaded counters from PostgreSQL");
-                                // Spawn background flush task on the server's JoinSet
-                                // so graceful shutdown can await its termination.
-                                let flush_interval =
-                                    Duration::from_secs(usage_cfg.flush_interval_secs);
-                                let agg = std::sync::Arc::clone(global_aggregator());
-                                self.tasks.spawn(async move {
-                                    let mut ticker = tokio::time::interval(flush_interval);
-                                    ticker.set_missed_tick_behavior(MissedTickBehavior::Skip);
-                                    ticker.tick().await; // skip immediate first tick
-                                    loop {
-                                        ticker.tick().await;
-                                        if let Err(e) = agg.flush_to_backend().await {
-                                            warn!(error = %e, "Usage persistence: background flush failed");
-                                        }
-                                    }
-                                });
-                                info!(
-                                    flush_interval_secs = usage_cfg.flush_interval_secs,
-                                    "Usage persistence: PostgreSQL backend active"
-                                );
+                                // The flush loop starts with the other provisioned tasks.
+                                self.usage_flush_interval =
+                                    Some(Duration::from_secs(usage_cfg.flush_interval_secs));
                             }
                         },
                         Err(e) => {
@@ -206,26 +188,31 @@ impl Server {
             self.tasks.spawn(super::tviews_feed::run(connector, listener, instance));
         }
 
-        // Keep stored IdPs current (#947). Writes through this server's own admin API
-        // refresh synchronously, so the ticker exists to pick up another replica's changes
-        // and to keep the certificate-expiry warning honest. Spawned here rather than at
-        // construction so a built-but-never-served Server leaves no task behind.
-        #[cfg(feature = "auth-saml")]
-        if let (Some(saml), Some(cfg)) = (self.saml_state.as_ref(), self.config.saml.as_ref()) {
-            if cfg.store_enabled {
-                let registry = saml.registry().clone();
-                let interval = std::time::Duration::from_secs(cfg.refresh_interval_secs);
-                let warning_days = cfg.certificate_expiry_warning_days;
-                self.tasks.spawn(registry.refresh_loop(interval, warning_days));
-                info!(
-                    refresh_interval_secs = cfg.refresh_interval_secs,
-                    "SAML IdP store refresher started"
-                );
-            }
+        // Flush usage counters to the backend provisioning loaded them from, on the
+        // server's JoinSet so graceful shutdown can await its termination.
+        if let Some(flush_interval) = self.usage_flush_interval.take() {
+            use tokio::time::MissedTickBehavior;
+
+            let agg = std::sync::Arc::clone(crate::usage::aggregator::global_aggregator());
+            self.tasks.spawn(async move {
+                let mut ticker = tokio::time::interval(flush_interval);
+                ticker.set_missed_tick_behavior(MissedTickBehavior::Skip);
+                ticker.tick().await; // skip immediate first tick
+                loop {
+                    ticker.tick().await;
+                    if let Err(e) = agg.flush_to_backend().await {
+                        warn!(error = %e, "Usage persistence: background flush failed");
+                    }
+                }
+            });
+            info!(
+                flush_interval_secs = flush_interval.as_secs(),
+                "Usage persistence: PostgreSQL backend active"
+            );
         }
 
         // Keep stored bucket policies current (#974), for the same reason the
-        // IdP refresher above exists: a policy pushed at one replica applies
+        // SAML IdP refresher exists: a policy pushed at one replica applies
         // there immediately, and an access control that reached one replica out
         // of three is not an access control. This bounds how long the rest of
         // the deployment lags.

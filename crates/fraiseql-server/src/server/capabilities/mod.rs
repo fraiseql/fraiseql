@@ -41,6 +41,7 @@ use super::{Server, start::EntryPoint};
 use crate::routes::graphql::AppState;
 
 /// What a capability reads to decide whether this server is configured to run it.
+#[allow(dead_code)] // Reason: read by the impls of compiled-in capabilities; a build with none reads none
 pub struct ServeCx<'a> {
     /// The server being served.
     pub server: &'a Server,
@@ -49,27 +50,12 @@ pub struct ServeCx<'a> {
 }
 
 /// What a capability's start reads and writes.
-#[cfg_attr(
-    not(any(
-        feature = "functions-runtime",
-        feature = "sources",
-        feature = "observers",
-        feature = "arrow",
-        feature = "inbound-email",
-        feature = "cdc-outbound",
-        feature = "subscription-kafka"
-    )),
-    allow(dead_code) // Reason: read only by the starts of capabilities this build lacks
-)]
+#[allow(dead_code)] // Reason: read by the impls of compiled-in capabilities; a build with none reads none
 pub struct RunCx<'a> {
     /// The server being served. Its `tasks` are where a started capability runs.
     pub server: &'a mut Server,
     /// The state its routes serve from.
     pub app:    &'a AppState,
     /// The entry point serving it.
-    #[cfg_attr(
-        not(feature = "functions-runtime"),
-        allow(dead_code) // Reason: read only by the function runtime's start
-    )]
     pub entry:  EntryPoint,
 }

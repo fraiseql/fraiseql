@@ -696,3 +696,133 @@ fn sp_key_pair() -> (Vec<u8>, Vec<u8>, Vec<u8>) {
 fn the_document_loads_without_a_database() {
     empty_schema();
 }
+
+/// An identity-provider store that cannot be read refuses the boot. Serving would answer
+/// only the config-file providers while reporting the store as enabled, and the refresh
+/// ticker, which keeps serving the last good generation on a read error, would never say
+/// so.
+#[tokio::test]
+async fn an_unreadable_idp_store_refuses_to_serve() {
+    let Some(url) = database_url_or_skip("an_unreadable_idp_store_refuses_to_serve") else {
+        return;
+    };
+    std::env::set_var(SECRET_ENV, HS256_SECRET);
+
+    let db = "fraiseql_saml_idp_store_unreadable";
+    let pool = scratch_pool(&url, db).await;
+    let scratch_url = with_database(&url, db);
+    let mut config = store_config();
+    config.database_url.clone_from(&scratch_url);
+
+    // A first server provisions the store; then a column every read selects is renamed.
+    let (_, stop, serving) = serve_saml(config.clone(), &scratch_url, &pool).await;
+    let _ = stop.send(());
+    serving.await.expect("first server");
+    sqlx::query("ALTER TABLE core.tb_saml_idp RENAME COLUMN metadata_xml TO metadata_xml_moved")
+        .execute(&pool)
+        .await
+        .expect("rename");
+
+    let adapter = Arc::new(PostgresAdapter::new(&scratch_url).await.expect("PostgresAdapter::new"));
+    let server = Box::pin(Server::new(config, empty_schema(), adapter, Some(pool.clone())))
+        .await
+        .expect("construction reads no table");
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.expect("bind ephemeral port");
+    let served = tokio::time::timeout(
+        std::time::Duration::from_secs(10),
+        server.serve_on_listener(listener, std::future::pending()),
+    )
+    .await;
+    drop_scratch(&url, db).await;
+
+    let error = match served {
+        Ok(Err(error)) => error.to_string(),
+        Ok(Ok(())) => panic!("the server stopped without an error"),
+        Err(tokio::time::error::Elapsed { .. }) => {
+            panic!("the server served over an IdP store it could not read")
+        },
+    };
+    assert!(error.contains("initial IdP store load"), "{error}");
+}
+
+/// Serve `config` over `pool` until the returned sender fires; the base URL comes back.
+async fn serve_saml(
+    config: ServerConfig,
+    url: &str,
+    pool: &PgPool,
+) -> (String, tokio::sync::oneshot::Sender<()>, tokio::task::JoinHandle<()>) {
+    let adapter = Arc::new(PostgresAdapter::new(url).await.expect("PostgresAdapter::new"));
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.expect("bind ephemeral port");
+    let port = listener.local_addr().expect("local addr").port();
+    let server = Box::pin(Server::new(config, empty_schema(), adapter, Some(pool.clone())))
+        .await
+        .expect("[saml] store_enabled with a pool must boot");
+    let (tx, rx) = tokio::sync::oneshot::channel::<()>();
+    let handle = tokio::spawn(async move {
+        server
+            .serve_on_listener(listener, async {
+                let _ = rx.await;
+            })
+            .await
+            .expect("serve");
+    });
+    tokio::time::sleep(std::time::Duration::from_millis(150)).await;
+    (format!("http://127.0.0.1:{port}"), tx, handle)
+}
+
+/// An identity provider stored before a server starts serves from that server's first
+/// request (#947).
+#[tokio::test]
+async fn an_idp_stored_before_boot_serves_from_the_first_request() {
+    let Some(url) = database_url_or_skip("an_idp_stored_before_boot_serves") else {
+        return;
+    };
+    std::env::set_var(SECRET_ENV, HS256_SECRET);
+
+    let db = "fraiseql_saml_idp_stored_before_boot";
+    let pool = scratch_pool(&url, db).await;
+    let scratch_url = with_database(&url, db);
+    let mut config = store_config();
+    config.database_url.clone_from(&scratch_url);
+    let client = reqwest::Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .build()
+        .expect("client");
+
+    // One server stores the IdP, then stops.
+    let (base, stop, serving) = serve_saml(config.clone(), &scratch_url, &pool).await;
+    let resp = client
+        .post(format!("{base}/api/saml/idps"))
+        .bearer_auth(ADMIN_TOKEN)
+        .json(&serde_json::json!({
+            "idp_name":     "acme-okta",
+            "tenant_id":    TENANT_A,
+            "sp_entity_id": "https://sp.example.com/metadata",
+            "acs_url":      "https://sp.example.com/auth/saml/acs",
+            "metadata_xml": idp_metadata_xml(),
+        }))
+        .send()
+        .await
+        .expect("create idp");
+    assert_eq!(resp.status(), 201, "create must succeed: {:?}", resp.text().await);
+    let _ = stop.send(());
+    serving.await.expect("first server");
+
+    // A second server, booted afterwards, serves it at once: its refresh ticker is 30s.
+    let (base, stop, serving) = serve_saml(config, &scratch_url, &pool).await;
+    let status = client
+        .get(format!("{base}/auth/saml/login?idp=acme-okta&tenant={TENANT_A}"))
+        .send()
+        .await
+        .expect("login request")
+        .status();
+    let _ = stop.send(());
+    serving.await.expect("second server");
+    drop_scratch(&url, db).await;
+
+    assert_eq!(
+        status.as_u16(),
+        303,
+        "a stored IdP must serve from the first request after boot"
+    );
+}

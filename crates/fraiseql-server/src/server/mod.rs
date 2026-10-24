@@ -41,7 +41,7 @@ mod functions_setup;
 pub(crate) mod initialization;
 mod lifecycle;
 mod notify_session;
-mod provision;
+pub(crate) mod provision;
 mod routing;
 mod start;
 pub(crate) mod tviews_feed;
@@ -222,7 +222,8 @@ pub struct Server {
     pub(super) stream_replay:
         Option<std::sync::Arc<fraiseql_observers::listener::ChangeLogReplayReader>>,
 
-    #[cfg(feature = "observers")]
+    /// The database pool the server was constructed with: what every pool-backed
+    /// capability provisions its tables in and runs against.
     pub(super) db_pool: Option<sqlx::PgPool>,
 
     /// Tenant admin credentials (#1089): `Some` when `admin_token` is set and the server has a
@@ -377,4 +378,8 @@ pub struct Server {
 
     /// What the start loop started, read by `/health`.
     pub(super) capability_starts: Arc<crate::capability::CapabilityStarts>,
+
+    /// The usage flush interval, once provisioning has loaded the persisted counters; the
+    /// flush loop starts with the other provisioned tasks.
+    pub(super) usage_flush_interval: Option<std::time::Duration>,
 }

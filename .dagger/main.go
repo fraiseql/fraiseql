@@ -1138,7 +1138,7 @@ func (m *FraiseqlCi) Test(
 		// base runtime, so one invocation covers both gates.
 		// `routes::before_mutation::` (#1627): the plain `--lib` lines run its budget
 		// tests, but the per-hook limits are functions-runtime-gated and ran nowhere.
-		"cargo test -p fraiseql-server --features functions-runtime --lib -- routes::query_function:: routes::before_mutation::",
+		"cargo test -p fraiseql-server --features functions-runtime --lib -- routes::query_function:: routes::before_mutation:: server::provision_tests::each_configured_capability_plans_its_own_tables",
 		"cargo test -p fraiseql-server --features functions-runtime-deno --lib subsystems::",
 		// #1325: the authoring round trip — the real compiler writes a `functions`
 		// section and the real loader reads it back, with the integrity hash
@@ -1149,7 +1149,7 @@ func (m *FraiseqlCi) Test(
 		// it on any line without the feature builds an empty binary that reports
 		// "0 passed" and reads as covered (#1082).
 		"cargo test -p fraiseql-server --features functions-runtime --test functions_authoring_round_trip_test --test function_backed_query_seam_test",
-		"cargo test -p fraiseql-server --features cdc-outbound --lib cdc_outbound::",
+		"cargo test -p fraiseql-server --features cdc-outbound --lib -- cdc_outbound:: server::provision_tests::each_configured_capability_plans_its_own_tables",
 		// #975: the same module again with the Kafka sink compiled in. Both runs
 		// are needed and neither substitutes for the other — validate_kind's
 		// accept-kafka and refuse-kafka-by-name halves are `cfg`-gated against
@@ -1596,7 +1596,7 @@ func (m *FraiseqlCi) integrationPostgres(ctx context.Context, source *dagger.Dir
 		// probe/warming and the spine/webhook modules executing in NO leg, and
 		// the tracking suite's fixture-clock time bomb sat unobserved until it
 		// crossed its 30-day TTL.
-		"cargo test -p fraiseql-server --features inbound,inbound-email --lib inbound:: -- --test-threads=1",
+		"cargo test -p fraiseql-server --features inbound,inbound-email --lib -- inbound:: server::provision_tests:: --test-threads=1",
 		// #974: the storage bucket-policy admin API (PUT/GET/DELETE) against a
 		// real policy store — the split-token separation, the request-time
 		// refusal that leaves the running policy in place, and the wholesale
@@ -1622,7 +1622,7 @@ func (m *FraiseqlCi) integrationPostgres(ctx context.Context, source *dagger.Dir
 		// the "V8 SIGSEGVs in the exec sandbox" diagnosis was #969's
 		// second-isolate-per-process crash, fixed there — this run is the
 		// sandbox re-test the issue asked for.
-		"cargo test -p fraiseql-server --features sources --lib sources:: -- --test-threads=1",
+		"cargo test -p fraiseql-server --features sources --lib -- sources:: server::provision_tests::each_configured_capability_plans_its_own_tables --test-threads=1",
 		// P16 functions-runtime gate (#796/#803/#840/#841/#842): the cron
 		// fire-window + cross-restart guard vs real PG (`cron::tests` reads
 		// back `_fraiseql_cron_state`), and the dispatched host's identity /

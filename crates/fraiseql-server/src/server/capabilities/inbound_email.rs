@@ -7,7 +7,10 @@ use tracing::info;
 use super::{RunCx, ServeCx};
 use crate::capability::Capability;
 #[cfg(feature = "inbound-email")]
-use crate::{capability::Started, server::ServerError};
+use crate::{
+    capability::Started,
+    server::provision::{BootCx, ProvisionStep},
+};
 
 /// A `[mailbox.<name>.imap]` half, on a server with a database pool.
 #[derive(Debug)]
@@ -21,13 +24,33 @@ impl Capability for InboundEmail {
             && cx.server.config.mailbox.values().any(|mailbox| mailbox.imap.is_some())
     }
 
+    /// The inbound spine (shared with webhooks, so a mailbox-only deployment has it too),
+    /// the mailbox cursors, and the send-tracking tables the correlator writes.
+    #[cfg(feature = "inbound-email")]
+    fn provision(&self, cx: &BootCx<'_>) -> Vec<ProvisionStep> {
+        let server = cx.server;
+        let polled = server.config.mailbox.values().any(|mailbox| mailbox.imap.is_some());
+        match server.db_pool.as_ref() {
+            Some(pool) if polled => vec![ProvisionStep::new(
+                "inbound email",
+                pool,
+                &[
+                    fraiseql_functions::migrations::inbound_migration_sql(),
+                    fraiseql_observers::migrations::source_cursor_sql(),
+                    fraiseql_functions::migrations::send_tracking_migration_sql(),
+                ],
+            )],
+            _ => Vec::new(),
+        }
+    }
+
     /// One background poll loop per IMAP mailbox, on the server's task set so graceful
     /// shutdown aborts them. The workers reuse the durable inbound spine and the
     /// `after:ingest` dispatch path; attachments stream into the configured storage
     /// backend.
     #[cfg(feature = "inbound-email")]
     async fn start(&self, cx: &mut RunCx<'_>) -> crate::Result<Started> {
-        use crate::inbound::{email, spine::PostgresInboundSpine};
+        use crate::inbound::email;
 
         let app_state = cx.app;
         let server = &mut *cx.server;
@@ -35,25 +58,8 @@ impl Capability for InboundEmail {
             return Ok(Started::Running);
         };
 
-        // The email path shares the inbound spine; create it here too in
-        // case only `[mailbox.*.imap]` (no `[webhooks.*]`) is configured.
-        // Both DDLs are idempotent.
-        PostgresInboundSpine::new(db_pool.clone()).init().await.map_err(|e| {
-            ServerError::ConfigError(format!("Failed to initialize inbound spine schema: {e}"))
-        })?;
-        email::init_cursor_store(db_pool).await.map_err(|e| {
-            ServerError::ConfigError(format!(
-                "Failed to initialize inbound email cursor schema: {e}"
-            ))
-        })?;
-
-        // The correlator transitions send-status and suppression from
-        // inbound signals; its tables are also created by the send path,
-        // but a receive-only deployment needs them here too (idempotent).
+        // The correlator transitions send-status and suppression from inbound signals.
         let tracker = std::sync::Arc::new(email::PgSendTracker::new(db_pool.clone()));
-        tracker.init().await.map_err(|e| {
-            ServerError::ConfigError(format!("Failed to initialize send-tracking schema: {e}"))
-        })?;
         let correlator =
             std::sync::Arc::clone(&tracker) as std::sync::Arc<dyn email::SendCorrelator>;
         let address_hash_key = server.build_address_hash_key();

@@ -145,12 +145,15 @@ impl SinkDrain {
 /// Build one drain per configured sink, or `Ok(None)` when `[cdc_outbound]` is
 /// absent.
 ///
+/// The delivery-state table the drains write is not created here: the server
+/// provisions it before it serves, and an embedder applies
+/// `fraiseql_cdc_sinks::outbox_sink_state_migration_sql()` itself.
+///
 /// # Errors
 ///
 /// Returns a message when the section is invalid, no database pool is
-/// available, the delivery-state DDL cannot be applied, or a sink cannot
-/// connect to its broker — each a boot refusal rather than a server that
-/// silently replicates nothing.
+/// available, or a sink cannot connect to its broker — each a boot refusal
+/// rather than a server that silently replicates nothing.
 pub async fn build_drains(
     config: Option<&CdcOutboundConfig>,
     db_pool: Option<&PgPool>,
@@ -165,19 +168,6 @@ pub async fn build_drains(
          delivery state are database-resident. The binary provides one when database_url is \
          set; library embedders must pass a PgPool to Server::new."
             .to_string()
-    })?;
-
-    crate::migration_lock::run_migration(
-        &pool,
-        fraiseql_cdc_sinks::outbox_sink_state_migration_sql(),
-    )
-    .await
-    .map_err(|e| {
-        format!(
-            "[cdc_outbound] could not create the delivery-state table \
-             (core.tb_cdc_sink_state): {e}. Refusing to boot rather than draining without \
-             durable delivery state, which would re-publish every event on restart."
-        )
     })?;
 
     let tick = Duration::from_secs(cfg.tick_interval_secs);

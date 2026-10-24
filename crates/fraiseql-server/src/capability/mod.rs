@@ -19,7 +19,10 @@ use serde::Serialize;
 
 use crate::{
     routes::graphql::AppState,
-    server::capabilities::{self as impls, RunCx, ServeCx},
+    server::{
+        capabilities::{self as impls, RunCx, ServeCx},
+        provision::{BootCx, ProvisionStep},
+    },
 };
 
 /// A capability and whether this build compiled it in.
@@ -50,14 +53,21 @@ pub(crate) enum Started {
 
 /// The code behind one [`REGISTRY`] entry.
 ///
-/// The serve entry points never name a capability: each asks every compiled-in one
-/// whether it is configured and, where the entry point is one its metadata declares,
-/// starts it. A method whose capability is not compiled in keeps its default body.
+/// The serve entry points never name a capability: every compiled-in one adds its steps to
+/// the provisioning table and merges its routes, and each one that is configured starts
+/// where the entry point is one its metadata declares. A method whose capability is not compiled in
+/// keeps its default body.
 #[async_trait::async_trait]
 pub(crate) trait Capability: Send + Sync + std::fmt::Debug {
     /// Whether this server's configuration asks for the capability.
     fn configured(&self, _cx: &ServeCx<'_>) -> bool {
         false
+    }
+
+    /// The tables it needs before anything is mounted or started, as steps of the one
+    /// provisioning table, which runs each under the boot lock.
+    fn provision(&self, _cx: &BootCx<'_>) -> Vec<ProvisionStep> {
+        Vec::new()
     }
 
     /// Start its background work on the server's task set, once the router is built.

@@ -166,8 +166,14 @@ async fn configured_sinks_drain_the_outbox_to_the_broker() {
         batch_size:         64,
     };
 
-    // The build path the server uses: it applies the delivery-state DDL and
-    // connects the sink, or refuses.
+    // The server provisions the delivery-state table before it builds anything that
+    // drains into it; the build connects the sink, or refuses.
+    fraiseql_server::migration_lock::run_migration(
+        &pool,
+        fraiseql_cdc_sinks::outbox_sink_state_migration_sql(),
+    )
+    .await
+    .unwrap();
     let drains = build_drains(Some(&config), Some(&pool))
         .await
         .expect("a valid section must build")

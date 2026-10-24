@@ -7,7 +7,13 @@ use tracing::info;
 use super::{RunCx, ServeCx};
 use crate::capability::Capability;
 #[cfg(feature = "sources")]
-use crate::{capability::Started, server::ServerError};
+use crate::{
+    capability::Started,
+    server::{
+        ServerError,
+        provision::{BootCx, ProvisionStep},
+    },
+};
 
 /// Enabled sources in the compiled schema, on a server with a database pool.
 #[derive(Debug)]
@@ -19,6 +25,21 @@ impl Capability for Sources {
     fn configured(&self, cx: &ServeCx<'_>) -> bool {
         cx.server.db_pool.is_some()
             && cx.app.executor().schema().sources.iter().any(|source| source.enabled)
+    }
+
+    /// The durable source-cursor table every poller resumes from.
+    #[cfg(feature = "sources")]
+    fn provision(&self, cx: &BootCx<'_>) -> Vec<ProvisionStep> {
+        let server = cx.server;
+        let any_enabled = server.executor.schema().sources.iter().any(|source| source.enabled);
+        match server.db_pool.as_ref() {
+            Some(pool) if any_enabled => vec![ProvisionStep::new(
+                "source cursor",
+                pool,
+                &[fraiseql_observers::migrations::source_cursor_sql()],
+            )],
+            _ => Vec::new(),
+        }
     }
 
     /// One poller per enabled Model B (Deno) source, each firing its connector on its cron
@@ -53,15 +74,6 @@ impl Capability for Sources {
                 source.name, source.function
             )));
         };
-        // The shared durable source-cursor table (idempotent DDL).
-        crate::migration_lock::run_migration(
-            db_pool,
-            fraiseql_observers::migrations::source_cursor_sql(),
-        )
-        .await
-        .map_err(|e| {
-            ServerError::ConfigError(format!("Failed to initialize source cursor schema: {e}"))
-        })?;
         let host_config = crate::sources::source_host_config(&sources_config);
         let pollers = crate::sources::build_source_pollers(
             &sources,

@@ -12,9 +12,17 @@ use std::collections::HashSet;
 use tracing::info;
 
 use super::{Result, Server, ServerError};
+use crate::capability::REGISTRY;
+
+/// What a capability reads to decide which provisioning steps it needs.
+#[allow(dead_code)] // Reason: read by the impls of compiled-in capabilities; a build with none reads none
+pub struct BootCx<'a> {
+    /// The server about to be served.
+    pub server: &'a Server,
+}
 
 /// One boot provisioning step: the scripts one configured subsystem needs.
-pub(super) struct ProvisionStep {
+pub struct ProvisionStep {
     /// The subsystem, as the boot log and the error name it.
     pub(super) name:    &'static str,
     /// The pool the scripts run against.
@@ -26,7 +34,7 @@ pub(super) struct ProvisionStep {
 impl ProvisionStep {
     /// A step running `scripts` against `pool`. The boot-DDL gate accepts a schema
     /// constant here and in a `run_migration` argument, nowhere else.
-    pub(super) fn new(name: &'static str, pool: &sqlx::PgPool, scripts: &[&'static str]) -> Self {
+    pub fn new(name: &'static str, pool: &sqlx::PgPool, scripts: &[&'static str]) -> Self {
         Self {
             name,
             pool: pool.clone(),
@@ -105,18 +113,19 @@ impl Server {
         #[cfg(feature = "auth")]
         self.push_auth_steps(&mut steps);
 
-        // Inbound ingestion: the spine holds normalized messages; the idempotency ledger
-        // backs the pipeline's atomic claim.
-        #[cfg(feature = "inbound")]
-        if let Some(pool) = self.db_pool.as_ref().filter(|_| !self.config.webhooks.is_empty()) {
+        // Durable async operations (#391): the table submissions are written to.
+        if let (Some(_), Some(pool)) = (self.async_operations.as_ref(), self.db_pool.as_ref()) {
             steps.push(ProvisionStep::new(
-                "inbound webhook",
+                "async operations",
                 pool,
-                &[
-                    fraiseql_functions::migrations::inbound_migration_sql(),
-                    fraiseql_webhooks::idempotency::SCHEMA_SQL,
-                ],
+                &[crate::async_operations::store::ASYNC_OPERATIONS_SCHEMA_SQL],
             ));
+        }
+
+        // Then every compiled-in capability's own steps, in registry order.
+        let cx = BootCx { server: self };
+        for registration in REGISTRY.iter().filter(|registration| registration.compiled_in) {
+            steps.extend(registration.capability.provision(&cx));
         }
 
         steps
