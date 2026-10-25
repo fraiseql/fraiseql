@@ -90,7 +90,38 @@ pub fn filter(
     selections: &[FieldSelection],
     variables: &HashMap<String, JsonValue>,
 ) -> Result<Vec<FieldSelection>, SelectionError> {
-    Ok(DirectiveEvaluator::filter_selections(selections, variables)?)
+    Ok(merge_by_response_key(DirectiveEvaluator::filter_selections(
+        selections, variables,
+    )?))
+}
+
+/// Merge the selections that share a response key into one, at every level (GraphQL
+/// § 6.3.2, CollectFields): the first occurrence keeps its position and takes the later
+/// ones' sub-selections.
+///
+/// Runs after `@skip`/`@include`, which apply to each occurrence on its own. Only
+/// occurrences of the same field with the same arguments merge. Two that differ are a
+/// § 5.3.2 conflict, which is decided per parent type, and named spreads lose their type
+/// condition at expansion, so they are left as written.
+fn merge_by_response_key(selections: Vec<FieldSelection>) -> Vec<FieldSelection> {
+    let mut merged: Vec<FieldSelection> = Vec::with_capacity(selections.len());
+    for selection in selections {
+        let same_field = merged.iter_mut().find(|m| {
+            m.response_key() == selection.response_key()
+                && m.name == selection.name
+                && m.arguments == selection.arguments
+        });
+        match same_field {
+            Some(first) => first.nested_fields.extend(selection.nested_fields),
+            None => merged.push(selection),
+        }
+    }
+    for field in &mut merged {
+        if !field.nested_fields.is_empty() {
+            field.nested_fields = merge_by_response_key(std::mem::take(&mut field.nested_fields));
+        }
+    }
+    merged
 }
 
 /// Expand spreads and evaluate directives in one step — the field set the client

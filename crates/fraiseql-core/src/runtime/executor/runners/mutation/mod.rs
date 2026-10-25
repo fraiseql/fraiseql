@@ -23,7 +23,7 @@ use super::{
 };
 use crate::{
     error::{FraiseQLError, Result},
-    graphql::{DirectiveEvaluator, FieldSelection},
+    graphql::FieldSelection,
     runtime::{
         ResultProjector,
         mutation_result::{MutationOutcome, parse_mutation_row},
@@ -1961,17 +1961,10 @@ async fn prepare_write<'a>(
     // conditional fields are honoured exactly as on the query path. (Named fragment
     // spreads were already resolved at classification time, where the document's
     // fragment definitions are available.)
-    let variables_map: std::collections::HashMap<String, serde_json::Value> = match variables {
-        Some(serde_json::Value::Object(map)) => {
-            map.iter().map(|(k, v)| (k.clone(), v.clone())).collect()
-        },
-        _ => std::collections::HashMap::new(),
-    };
-    let filtered_selections = DirectiveEvaluator::filter_selections(selections, &variables_map)
-        .map_err(|e| FraiseQLError::Validation {
-            message: e.to_string(),
-            path:    Some("directives".to_string()),
-        })?;
+    // Through the shared routine, so a selection of one response key written twice
+    // merges here as on the query path (§ 6.3.2).
+    let variables_map = crate::graphql::selection_set::variables_map(variables);
+    let filtered_selections = crate::graphql::selection_set::filter(selections, &variables_map)?;
     let selections: &[FieldSelection] = &filtered_selections;
 
     // 4a. The payload selection meets the read gates a query of the same entities meets —
