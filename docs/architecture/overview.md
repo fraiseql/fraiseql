@@ -2,7 +2,7 @@
 
 **Last Updated**: October 22, 2026
 **Architecture**: Layered Optionality with Feature Gates
-**Status**: v2.17.1 released (core production-ready; some enterprise features experimental — see notes)
+**Status**: v2.18.0 released (core production-ready; some enterprise features experimental — see notes)
 
 ---
 
@@ -940,7 +940,7 @@ The layered optionality pattern allows users to start minimal and grow as needed
 
 ---
 
-**Architecture Status**: Core production-ready (v2.17.1 released)
+**Architecture Status**: Core production-ready (v2.18.0 released)
 **Last Updated**: October 22, 2026 (Enterprise features: secrets, auth, RBAC available; field-level at-rest encryption not implemented)
 **Lines of Code**: ~750,000 lines of Rust tracked under `crates/`, tests included, fuzz targets excluded (counted October 22, 2026)
 **Test Coverage**: 15,000+ tests (unit, async integration, property-based, snapshot)

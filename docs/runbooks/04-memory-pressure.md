@@ -163,7 +163,7 @@ fi
      -e FRAISEQL_BIND_ADDR="0.0.0.0:8000" \
      -e RUST_LOG=info \
      -v /etc/fraiseql:/etc/fraiseql:ro \
-     ghcr.io/fraiseql/server:2.17.1 --config /etc/fraiseql/server.toml
+     ghcr.io/fraiseql/server:2.18.0 --config /etc/fraiseql/server.toml
 
    # Wait for startup
    sleep 5
@@ -458,7 +458,7 @@ docker run -d \
   -e FRAISEQL_BIND_ADDR="0.0.0.0:8000" \
   -e FRAISEQL_ENV=production \
   -v /etc/fraiseql:/etc/fraiseql:ro \
-  ghcr.io/fraiseql/server:2.17.1 --config /etc/fraiseql/server.toml
+  ghcr.io/fraiseql/server:2.18.0 --config /etc/fraiseql/server.toml
 ```
 
 ### Regular Maintenance
