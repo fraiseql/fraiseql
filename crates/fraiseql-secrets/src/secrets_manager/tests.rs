@@ -191,7 +191,7 @@ async fn test_create_secrets_manager_env_backend() {
 
 #[test]
 fn vault_tls_verify_off_is_refused_in_production() {
-    let err = vault_tls_verify_check(false, true)
+    let err = vault_tls_verify_check(false, Deployment::Production)
         .expect_err("tls_verify = false must refuse to boot in production");
     assert!(
         err.to_string().contains("tls_verify"),
@@ -201,11 +201,11 @@ fn vault_tls_verify_off_is_refused_in_production() {
 
 #[test]
 fn vault_tls_verify_off_is_a_warning_in_development() {
-    assert!(vault_tls_verify_check(false, false).is_ok());
+    assert!(vault_tls_verify_check(false, Deployment::Development).is_ok());
 }
 
 #[test]
 fn vault_tls_verify_on_is_always_ok() {
-    assert!(vault_tls_verify_check(true, true).is_ok());
-    assert!(vault_tls_verify_check(true, false).is_ok());
+    assert!(vault_tls_verify_check(true, Deployment::Production).is_ok());
+    assert!(vault_tls_verify_check(true, Deployment::Development).is_ok());
 }

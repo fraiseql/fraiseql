@@ -26,6 +26,7 @@ use axum::{
     http::{Request, StatusCode},
 };
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
+use fraiseql_guard::deployment::Deployment;
 use fraiseql_server::{
     ServerConfig,
     config::WebhookRouteConfig,
@@ -44,7 +45,7 @@ use tower::ServiceExt as _;
 /// to one (#1321) — which is the point: the router serves what boot accepted, not a
 /// second set built from the same configuration.
 fn built(routes: &HashMap<String, WebhookRouteConfig>) -> WebhookRoutes {
-    webhook_routes_check(routes, |_| Some("configured".to_string()), false)
+    webhook_routes_check(routes, |_| Some("configured".to_string()), Deployment::Development)
         .expect("these fixtures are valid configurations")
 }
 
@@ -423,22 +424,22 @@ async fn a_tampered_slack_delivery_is_rejected() {
 
 #[test]
 fn a_route_with_unset_secret_refuses_to_boot_in_production() {
-    let err = webhook_routes_check(&routes(), |_| None, true)
+    let err = webhook_routes_check(&routes(), |_| None, Deployment::Production)
         .expect_err("an unset signing-secret env must refuse to boot in production");
     assert!(err.to_string().contains("secret_env"), "must name the knob; got: {err}");
 }
 
 #[test]
 fn a_route_with_unset_secret_is_skipped_with_a_warning_in_development() {
-    assert!(webhook_routes_check(&routes(), |_| None, false).is_ok());
+    assert!(webhook_routes_check(&routes(), |_| None, Deployment::Development).is_ok());
 }
 
 #[test]
 fn an_unknown_provider_refuses_to_boot_in_every_environment() {
     let mut routes = routes();
     routes.get_mut("slack").unwrap().provider = "slak".to_string();
-    for is_production in [true, false] {
-        let err = webhook_routes_check(&routes, |_| Some(SECRET.to_string()), is_production)
+    for deployment in [Deployment::Production, Deployment::Development] {
+        let err = webhook_routes_check(&routes, |_| Some(SECRET.to_string()), deployment)
             .expect_err("a provider the registry does not know can never verify anything");
         assert!(err.to_string().contains("slak"), "must name the bad value; got: {err}");
     }
@@ -448,8 +449,8 @@ fn an_unknown_provider_refuses_to_boot_in_every_environment() {
 fn a_url_signing_provider_without_public_url_refuses_to_boot() {
     let mut routes = routes();
     routes.get_mut("twilio").unwrap().public_url = None;
-    for is_production in [true, false] {
-        let err = webhook_routes_check(&routes, |_| Some(SECRET.to_string()), is_production)
+    for deployment in [Deployment::Production, Deployment::Development] {
+        let err = webhook_routes_check(&routes, |_| Some(SECRET.to_string()), deployment)
             .expect_err("Twilio signs the URL; a route without public_url cannot verify");
         assert!(err.to_string().contains("public_url"), "must name the knob; got: {err}");
     }
@@ -466,8 +467,9 @@ fn a_url_signing_provider_without_public_url_refuses_to_boot() {
 /// redden when a second construction is reinstated at mount time.
 #[test]
 fn boot_validation_hands_back_every_route_it_built() {
-    let validated = webhook_routes_check(&routes(), |_| Some(SECRET.to_string()), true)
-        .expect("a fully configured route set boots");
+    let validated =
+        webhook_routes_check(&routes(), |_| Some(SECRET.to_string()), Deployment::Production)
+            .expect("a fully configured route set boots");
 
     assert_eq!(
         validated.len(),
@@ -480,7 +482,10 @@ fn boot_validation_hands_back_every_route_it_built() {
 
 #[test]
 fn a_fully_configured_route_set_boots() {
-    assert!(webhook_routes_check(&routes(), |_| Some(SECRET.to_string()), true).is_ok());
+    assert!(
+        webhook_routes_check(&routes(), |_| Some(SECRET.to_string()), Deployment::Production)
+            .is_ok()
+    );
 }
 
 // ── #1321: a route's verification scheme is its configuration ────────────────
@@ -560,7 +565,7 @@ fn boot(config_toml: &str) -> Result<HashMap<String, WebhookRouteConfig>, String
     std::fs::write(file.path(), config_toml).unwrap();
     let config = ServerConfig::from_file(file.path())?;
     let routes = config.webhooks;
-    webhook_routes_check(&routes, |_| Some(SECRET.to_string()), true)
+    webhook_routes_check(&routes, |_| Some(SECRET.to_string()), Deployment::Production)
         .map_err(|error| error.to_string())?;
     Ok(routes)
 }
@@ -754,14 +759,15 @@ header_prefix = "svix"
         std::fs::write(file.path(), config_toml).unwrap();
         let config = ServerConfig::from_file(file.path())?;
         let routes = config.webhooks;
-        webhook_routes_check(&routes, |_| Some(SW_SECRET.to_string()), true)
+        webhook_routes_check(&routes, |_| Some(SW_SECRET.to_string()), Deployment::Production)
             .map_err(|error| error.to_string())?;
         Ok(routes)
     }
 
     fn sw_router(pool: PgPool, routes: &HashMap<String, WebhookRouteConfig>) -> Router {
-        let built = webhook_routes_check(routes, |_| Some(SW_SECRET.to_string()), false)
-            .expect("these fixtures are valid configurations");
+        let built =
+            webhook_routes_check(routes, |_| Some(SW_SECRET.to_string()), Deployment::Development)
+                .expect("these fixtures are valid configurations");
         webhook_router(WebhookInboundState::new(pool, &built, |_| Some(SW_SECRET.to_string())))
     }
 
@@ -1081,10 +1087,11 @@ header_prefix = "svix"
             ("asymmetric v1a key material", "whpk_C2FVsBQIhrscChlQIMV+b5sSYspob7oD", "v1a"),
             ("a secret that is not base64", "whsec_not base64 at all", "decode"),
         ] {
-            let error = webhook_routes_check(&routes, |_| Some(secret.to_string()), true)
-                .map(|_| ())
-                .expect_err(label)
-                .to_string();
+            let error =
+                webhook_routes_check(&routes, |_| Some(secret.to_string()), Deployment::Production)
+                    .map(|_| ())
+                    .expect_err(label)
+                    .to_string();
             assert!(
                 error.contains(must_say),
                 "{label}: the refusal must say what is wrong with the key, not just that \
@@ -1106,7 +1113,7 @@ header_prefix = "svix"
         }
 
         // The guard against over-reach: a usable secret still boots.
-        webhook_routes_check(&routes, |_| Some(SW_SECRET.to_string()), true)
+        webhook_routes_check(&routes, |_| Some(SW_SECRET.to_string()), Deployment::Production)
             .expect("a real whsec_ secret must boot");
     }
 
@@ -1122,10 +1129,11 @@ header_prefix = "svix"
 
         for prefix in ["whpk_", "whsk_"] {
             let secret = format!("{prefix}C2FVsBQIhrscChlQIMV+b5sSYspob7oD");
-            let error = webhook_routes_check(&routes, |_| Some(secret.clone()), true)
-                .map(|_| ())
-                .expect_err("asymmetric v1a material is not verifiable here")
-                .to_string();
+            let error =
+                webhook_routes_check(&routes, |_| Some(secret.clone()), Deployment::Production)
+                    .map(|_| ())
+                    .expect_err("asymmetric v1a material is not verifiable here")
+                    .to_string();
             assert!(
                 error.contains(prefix),
                 "the refusal must name the prefix the operator pasted; got: {error}"
@@ -1153,7 +1161,7 @@ header_prefix = "svix"
             // #1045: set but empty is unset for every purpose that matters.
             ("empty", |_: &str| Some(String::new())),
         ] {
-            let error = webhook_routes_check(&routes, reader, true)
+            let error = webhook_routes_check(&routes, reader, Deployment::Production)
                 .map(|_| ())
                 .expect_err("production refuses a route that cannot verify anything")
                 .to_string();
@@ -1170,9 +1178,9 @@ header_prefix = "svix"
 
             // Development downgrades it to a warning and skips the route, exactly as it
             // does for every secret-bearing scheme.
-            webhook_routes_check(&routes, reader, false).unwrap_or_else(|error| {
-                panic!("{label}: development must warn, not refuse: {error}")
-            });
+            webhook_routes_check(&routes, reader, Deployment::Development).unwrap_or_else(
+                |error| panic!("{label}: development must warn, not refuse: {error}"),
+            );
         }
     }
 }

@@ -37,6 +37,7 @@ use axum::{
     body::Body,
     http::{Request, StatusCode},
 };
+use fraiseql_guard::deployment::Deployment;
 use fraiseql_server::{
     config::WebhookRouteConfig,
     inbound::{WebhookInboundState, WebhookRoutes, webhook_router, webhook_routes_check},
@@ -52,7 +53,7 @@ use tower::ServiceExt as _;
 /// to one (#1321) — which is the point: the router serves what boot accepted, not a
 /// second set built from the same configuration.
 fn built(routes: &HashMap<String, WebhookRouteConfig>) -> WebhookRoutes {
-    webhook_routes_check(routes, |_| Some("configured".to_string()), false)
+    webhook_routes_check(routes, |_| Some("configured".to_string()), Deployment::Development)
         .expect("these fixtures are valid configurations")
 }
 

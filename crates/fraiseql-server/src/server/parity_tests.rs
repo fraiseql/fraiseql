@@ -166,6 +166,18 @@ impl RelayDatabaseAdapter for NoopRelayAdapter {
 
 /// A compiled schema that sets **every** setting a constructor is supposed to
 /// carry, each to a value distinguishable from the runtime default.
+/// Runs `f` holding `temp_env`'s lock, setting nothing.
+///
+/// A constructor reads `Deployment::current()`, and a sibling in this binary sets
+/// `FRAISEQL_ENV` inside a `temp_env` window: a read that skips the lock races it. The
+/// caller boxes `f`: a server constructor's future is tens of kilobytes.
+// Reason: `temp_env`'s lock guard is not `Send`; a `#[tokio::test]` runs on one thread.
+#[allow(clippy::future_not_send)]
+pub(super) async fn under_the_env_lock<F: std::future::Future>(f: F) -> F::Output {
+    let nothing: [(&str, Option<&str>); 0] = [];
+    temp_env::async_with_vars(nothing, f).await
+}
+
 fn fully_configured_schema() -> CompiledSchema {
     let security = SecurityConfig {
         enterprise: Some(fraiseql_core::schema::EnterpriseSecurityConfig {
@@ -273,30 +285,36 @@ async fn server_new_carries_the_full_compiled_config() {
 
 #[tokio::test]
 async fn with_relay_pagination_carries_the_full_compiled_config() {
-    let server = Server::with_relay_pagination(
-        fully_configured_server_config(),
-        fully_configured_schema(),
-        Arc::new(NoopRelayAdapter::default()),
-        None,
-    )
-    .await
-    .expect("with_relay_pagination must boot the fixture schema");
-    assert_carries_full_config(&server, "Server::with_relay_pagination").await;
+    under_the_env_lock(Box::pin(async {
+        let server = Server::with_relay_pagination(
+            fully_configured_server_config(),
+            fully_configured_schema(),
+            Arc::new(NoopRelayAdapter::default()),
+            None,
+        )
+        .await
+        .expect("with_relay_pagination must boot the fixture schema");
+        assert_carries_full_config(&server, "Server::with_relay_pagination").await;
+    }))
+    .await;
 }
 
 #[cfg(feature = "arrow")]
 #[tokio::test]
 async fn with_flight_service_carries_the_full_compiled_config() {
-    let server = Server::with_flight_service(
-        fully_configured_server_config(),
-        fully_configured_schema(),
-        Arc::new(NoopRelayAdapter::default()),
-        None,
-        None,
-    )
-    .await
-    .expect("with_flight_service must boot the fixture schema");
-    assert_carries_full_config(&server, "Server::with_flight_service").await;
+    under_the_env_lock(Box::pin(async {
+        let server = Server::with_flight_service(
+            fully_configured_server_config(),
+            fully_configured_schema(),
+            Arc::new(NoopRelayAdapter::default()),
+            None,
+            None,
+        )
+        .await
+        .expect("with_flight_service must boot the fixture schema");
+        assert_carries_full_config(&server, "Server::with_flight_service").await;
+    }))
+    .await;
 }
 
 // ── #1621: an arrow build serves relay queries ───────────────────────────────
@@ -309,19 +327,22 @@ async fn with_flight_service_carries_the_full_compiled_config() {
 #[cfg(feature = "arrow")]
 #[tokio::test]
 async fn with_flight_service_builds_a_relay_capable_executor() {
-    let server = Server::with_flight_service(
-        fully_configured_server_config(),
-        fully_configured_schema(),
-        Arc::new(NoopRelayAdapter::default()),
-        None,
-        None,
-    )
-    .await
-    .expect("with_flight_service must boot the fixture schema");
-    assert!(
-        server.executor.relay_enabled(),
-        "the arrow boot path must answer relay queries as the non-arrow binary does"
-    );
+    under_the_env_lock(Box::pin(async {
+        let server = Server::with_flight_service(
+            fully_configured_server_config(),
+            fully_configured_schema(),
+            Arc::new(NoopRelayAdapter::default()),
+            None,
+            None,
+        )
+        .await
+        .expect("with_flight_service must boot the fixture schema");
+        assert!(
+            server.executor.relay_enabled(),
+            "the arrow boot path must answer relay queries as the non-arrow binary does"
+        );
+    }))
+    .await;
 }
 
 // ── Every constructor runs the same boot gates ───────────────────────────────
@@ -528,41 +549,44 @@ fn offline_oidc_config() -> fraiseql_core::security::OidcConfig {
 #[cfg(all(feature = "arrow", feature = "auth"))]
 #[tokio::test]
 async fn with_flight_service_wires_the_oidc_validator_into_the_passed_service() {
-    use fraiseql_arrow::FraiseQLFlightService;
+    under_the_env_lock(Box::pin(async {
+        use fraiseql_arrow::FraiseQLFlightService;
 
-    let config = ServerConfig {
-        auth: Some(offline_oidc_config()),
-        ..fully_configured_server_config()
-    };
-    // Exactly what `main.rs` does: build the service (validator `None`) and pass it in.
-    let flight_service = FraiseQLFlightService::new();
-    assert!(
-        !flight_service.has_oidc_validator(),
-        "precondition: create_flight_service builds the service without a validator"
-    );
+        let config = ServerConfig {
+            auth: Some(offline_oidc_config()),
+            ..fully_configured_server_config()
+        };
+        // Exactly what `main.rs` does: build the service (validator `None`) and pass it in.
+        let flight_service = FraiseQLFlightService::new();
+        assert!(
+            !flight_service.has_oidc_validator(),
+            "precondition: create_flight_service builds the service without a validator"
+        );
 
-    let server = Server::with_flight_service(
-        config,
-        fully_configured_schema(),
-        Arc::new(NoopRelayAdapter::default()),
-        None,
-        Some(flight_service),
-    )
-    .await
-    .expect("with_flight_service must boot with [auth] configured");
+        let server = Server::with_flight_service(
+            config,
+            fully_configured_schema(),
+            Arc::new(NoopRelayAdapter::default()),
+            None,
+            Some(flight_service),
+        )
+        .await
+        .expect("with_flight_service must boot with [auth] configured");
 
-    assert!(
-        server.oidc_validator.is_some(),
-        "precondition: [auth] must produce an OIDC validator on the server"
-    );
-    assert!(
-        server
-            .flight_service
-            .as_ref()
-            .is_some_and(FraiseQLFlightService::has_oidc_validator),
-        "#783: with_flight_service must install the OIDC validator into the Flight service; \
-         without it every Flight handshake fails closed with 'Authentication not configured'"
-    );
+        assert!(
+            server.oidc_validator.is_some(),
+            "precondition: [auth] must produce an OIDC validator on the server"
+        );
+        assert!(
+            server
+                .flight_service
+                .as_ref()
+                .is_some_and(FraiseQLFlightService::has_oidc_validator),
+            "#783: with_flight_service must install the OIDC validator into the Flight service; \
+             without it every Flight handshake fails closed with 'Authentication not configured'"
+        );
+    }))
+    .await;
 }
 
 // ── #750 / #782: hot-reload is a construction path too ───────────────────────
@@ -621,30 +645,33 @@ async fn hot_reload_preserves_the_full_runtime_config() {
 
 #[tokio::test]
 async fn hot_reload_preserves_relay_dispatch() {
-    let server = Server::with_relay_pagination(
-        fully_configured_server_config(),
-        fully_configured_schema(),
-        Arc::new(NoopRelayAdapter::default()),
-        None,
-    )
-    .await
-    .expect("with_relay_pagination must boot the fixture schema");
-    let state = server.build_app_state();
-    assert!(
-        state.executor.load().relay_enabled(),
-        "precondition: with_relay_pagination builds a relay-capable executor"
-    );
+    under_the_env_lock(Box::pin(async {
+        let server = Server::with_relay_pagination(
+            fully_configured_server_config(),
+            fully_configured_schema(),
+            Arc::new(NoopRelayAdapter::default()),
+            None,
+        )
+        .await
+        .expect("with_relay_pagination must boot the fixture schema");
+        let state = server.build_app_state();
+        assert!(
+            state.executor.load().relay_enabled(),
+            "precondition: with_relay_pagination builds a relay-capable executor"
+        );
 
-    let dir = tempfile::tempdir().expect("tempdir");
-    let path = write_schema(dir.path(), &hot_reloadable_variant()).await;
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = write_schema(dir.path(), &hot_reloadable_variant()).await;
 
-    state.reload_schema(&path).await.expect("a config-identical schema must reload");
+        state.reload_schema(&path).await.expect("a config-identical schema must reload");
 
-    assert!(
-        state.executor.load().relay_enabled(),
-        "#750: reload must preserve relay dispatch; without it every relay query fails \
-         validation until the process restarts"
-    );
+        assert!(
+            state.executor.load().relay_enabled(),
+            "#750: reload must preserve relay dispatch; without it every relay query fails \
+             validation until the process restarts"
+        );
+    }))
+    .await;
 }
 
 #[tokio::test]
@@ -1036,4 +1063,140 @@ async fn server_new_names_a_query_cached_without_expiry() {
         .filter_map(|line| serde_json::from_str::<serde_json::Value>(line).ok())
         .any(|event| event["level"] == "WARN" && event["fields"]["queries"] == "[\"users\"]");
     assert!(named, "{log}");
+}
+
+/// Build the server `config` and `schema` describe, for `deployment`.
+///
+/// Through `new_inner` with the deployment named, because the parallel runner must not
+/// touch `FRAISEQL_ENV`.
+async fn build_for(
+    config: ServerConfig,
+    schema: CompiledSchema,
+    deployment: fraiseql_guard::deployment::Deployment,
+) -> crate::Result<Server> {
+    Box::pin(Server::new_inner(
+        config,
+        schema,
+        Arc::new(NoopRelayAdapter::default()),
+        None,
+        deployment,
+        fraiseql_core::runtime::Executor::with_config,
+        #[cfg(feature = "arrow")]
+        None,
+    ))
+    .await
+}
+
+/// `fully_configured_schema` with `section` set under `security` as `key`.
+fn schema_with_security(key: &str, section: serde_json::Value) -> CompiledSchema {
+    let mut schema = fully_configured_schema();
+    let mut security = serde_json::to_value(schema.security.take().unwrap_or_default())
+        .expect("security serialises");
+    security[key] = section;
+    schema.security = Some(serde_json::from_value(security).expect("valid security section"));
+    schema
+}
+
+/// The deployment a server is built for is the one its boot guards judge.
+///
+/// A server reads its deployment once, at construction, and hands that answer to each
+/// guard. Each case is a configuration one guard refuses in production and lets boot in
+/// development, built both ways: a guard handed a deployment other than the server's
+/// boots the production build or refuses the development one.
+#[tokio::test]
+async fn every_boot_guard_judges_the_deployment_the_server_was_built_for() {
+    use fraiseql_guard::deployment::Deployment;
+
+    // Each case: the guard, then the configuration that trips it.
+    // Reason: with none of the features below on, nothing is pushed after the first case.
+    #[cfg_attr(
+        not(any(feature = "auth", feature = "redis-rate-limiting", feature = "inbound")),
+        allow(unused_mut)
+    )]
+    let mut cases: Vec<(&str, ServerConfig, CompiledSchema)> = vec![(
+        "rate limiting: proxy headers trusted with no trusted proxy",
+        fully_configured_server_config(),
+        schema_with_security(
+            "rate_limiting",
+            serde_json::json!({
+                "enabled": true,
+                "requests_per_second": 100,
+                "burst_size": 50,
+                "trust_proxy_headers": true,
+                "trusted_proxy_cidrs": [],
+            }),
+        ),
+    )];
+    #[cfg(feature = "auth")]
+    cases.push((
+        "PKCE without state encryption",
+        fully_configured_server_config(),
+        schema_with_security("pkce", serde_json::json!({ "enabled": true })),
+    ));
+    #[cfg(feature = "redis-rate-limiting")]
+    cases.push((
+        "token revocation on a malformed Redis URL",
+        fully_configured_server_config(),
+        schema_with_security(
+            "token_revocation",
+            serde_json::json!({
+                "enabled": true,
+                "backend": "redis",
+                "redis_url": "rediss//cache:6379",
+                "fail_open": false,
+            }),
+        ),
+    ));
+    #[cfg(feature = "inbound")]
+    cases.push((
+        "an inbound webhook route whose secret is unset",
+        ServerConfig {
+            webhooks: [(
+                "slack".to_string(),
+                crate::config::WebhookRouteConfig {
+                    provider: "slack".to_string(),
+                    secret_env: Some("__FRAISEQL_TEST_DEPLOYMENT_UNSET_SECRET__".to_string()),
+                    ..Default::default()
+                },
+            )]
+            .into(),
+            ..fully_configured_server_config()
+        },
+        fully_configured_schema(),
+    ));
+
+    for (guard, config, schema) in cases {
+        for (deployment, refused) in [
+            (Deployment::Production, true),
+            (Deployment::Development, false),
+        ] {
+            let outcome = build_for(config.clone(), schema.clone(), deployment)
+                .await
+                .err()
+                .map(|error| error.to_string());
+            assert_eq!(
+                outcome.is_some(),
+                refused,
+                "{guard}: built for {deployment:?}, the server must {}boot; got {outcome:?}",
+                if refused { "refuse to " } else { "" },
+            );
+        }
+    }
+
+    // The error sanitizer refuses nothing: its default is what the deployment decides.
+    for (deployment, sanitized) in [
+        (Deployment::Production, true),
+        (Deployment::Development, false),
+    ] {
+        let server =
+            build_for(fully_configured_server_config(), CompiledSchema::default(), deployment)
+                .await
+                .expect("a bare schema boots");
+        assert_eq!(
+            server.error_sanitizer.is_enabled(),
+            sanitized,
+            "built for {deployment:?}, the default error sanitizer must be {}",
+            if sanitized { "on" } else { "off" },
+        );
+    }
 }

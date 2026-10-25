@@ -143,7 +143,7 @@ impl Capability for Observers {
                 // default PostgreSQL transport keeps the resilient
                 // log-and-continue behaviour (and development downgrades the
                 // NATS failure to the same warning).
-                if guard.transport_requires_broker() && crate::ServerConfig::is_production_mode() {
+                if guard.transport_requires_broker() && server.deployment.is_production() {
                     error!(
                         error = %e,
                         "Observer runtime failed to start on its configured \

@@ -29,6 +29,7 @@ use axum::{
 use fraiseql_functions::{
     InboundMessage, IngestError, IngestSource, PushSource, RawDelivery, Source, Transport,
 };
+use fraiseql_guard::deployment::Deployment;
 use fraiseql_jwks::JwksSource;
 use fraiseql_webhooks::{
     Authenticated, Delivery, Disposition, EventHandler, Handled, InboundRequest,
@@ -586,7 +587,7 @@ impl WebhookInboundState {
 pub fn webhook_routes_check<S: std::hash::BuildHasher>(
     routes: &std::collections::HashMap<String, WebhookRouteConfig, S>,
     get_env: impl Fn(&str) -> Option<String>,
-    is_production: bool,
+    deployment: Deployment,
 ) -> crate::Result<WebhookRoutes> {
     let built = build_routes(routes)?;
     for route in built.by_segment.values() {
@@ -625,7 +626,7 @@ pub fn webhook_routes_check<S: std::hash::BuildHasher>(
         // #787: an operator who simply has not set the variable yet gets a warning
         // and a skipped route in development — the route answers 404 like any
         // unknown path rather than 500ing with the variable's name in the body.
-        if !is_production {
+        if !deployment.is_production() {
             tracing::warn!(
                 route = %route.name,
                 secret_env = ?route.secret_name,

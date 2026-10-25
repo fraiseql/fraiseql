@@ -12,6 +12,7 @@
 #![allow(clippy::expect_used, clippy::unwrap_used, clippy::print_stderr)] // Reason: test code.
 
 use fraiseql_core::schema::{CompiledSchema, SecurityConfig};
+use fraiseql_guard::deployment::Deployment;
 use fraiseql_server::token_revocation::{TokenRejection, revocation_manager_from_schema_in};
 
 fn schema_with_redis_revocation(redis_url: &str) -> CompiledSchema {
@@ -52,11 +53,11 @@ async fn a_token_revoked_on_one_replica_is_rejected_on_every_replica() {
     let schema = schema_with_redis_revocation(&url);
     // Production mode: with Redis actually reachable this must boot, proving the
     // fail-loud guard refuses only what is genuinely unavailable.
-    let replica_a = revocation_manager_from_schema_in(&schema, true)
+    let replica_a = revocation_manager_from_schema_in(&schema, Deployment::Production)
         .await
         .expect("replica A boots against reachable Redis in production mode")
         .expect("token_revocation is enabled, so a manager is built");
-    let replica_b = revocation_manager_from_schema_in(&schema, true)
+    let replica_b = revocation_manager_from_schema_in(&schema, Deployment::Production)
         .await
         .expect("replica B boots against reachable Redis in production mode")
         .expect("token_revocation is enabled, so a manager is built");
@@ -98,11 +99,11 @@ async fn a_revoke_all_epoch_recorded_on_one_replica_holds_on_every_replica() {
     };
 
     let schema = schema_with_redis_revocation(&url);
-    let replica_a = revocation_manager_from_schema_in(&schema, true)
+    let replica_a = revocation_manager_from_schema_in(&schema, Deployment::Production)
         .await
         .expect("replica A boots")
         .expect("manager built");
-    let replica_b = revocation_manager_from_schema_in(&schema, true)
+    let replica_b = revocation_manager_from_schema_in(&schema, Deployment::Production)
         .await
         .expect("replica B boots")
         .expect("manager built");

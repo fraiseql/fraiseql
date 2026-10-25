@@ -268,6 +268,12 @@ pub struct Server {
     #[cfg(feature = "arrow")]
     pub(super) flight_service: Option<FraiseQLFlightService>,
 
+    /// The deployment this server's boot guards were judged against, read once at
+    /// construction so a later guard cannot answer differently.
+    // Reason: read after construction only by the observer runtime's start.
+    #[cfg_attr(not(feature = "observers"), allow(dead_code))]
+    pub(crate) deployment: fraiseql_guard::deployment::Deployment,
+
     #[cfg(feature = "mcp")]
     pub(super) mcp_config: Option<fraiseql_core::schema::McpConfig>,
 

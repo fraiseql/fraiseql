@@ -318,6 +318,72 @@ RS
 run_gate "$root"
 expect 0 "OK:" "13. a uniquely named helper in another file still holds the lock"
 
+# ── 14. `Deployment::current()` is a read, though no chokepoint name is called ───────
+# A boot guard takes the `Deployment` its caller read. Keyed on the four free-function
+# names alone, a constructor that reads `Deployment::current()` encloses no read at all.
+root="${tmp}/c14"; seed_guard "$root"
+mkf "${root}/crates/fraiseql-x/src/boot.rs" <<'RS'
+pub fn boot_the_thing() -> fraiseql_guard::deployment::Deployment {
+    fraiseql_guard::deployment::Deployment::current()
+}
+RS
+mkf "${root}/crates/fraiseql-x/src/tests.rs" <<'RS'
+#[test]
+fn hatch_is_refused_in_production() {
+    temp_env::with_vars([("FRAISEQL_ENV", Some("production"))], || {
+        assert!(guard_thing("https://example.com"));
+    });
+}
+
+#[test]
+fn boot_reads_the_deployment() {
+    assert_eq!(boot_the_thing(), Deployment::Production);
+}
+RS
+run_gate "$root"
+expect 1 "::boot_reads_the_deployment" "14. a Deployment::current() read is a guard entry point"
+
+# ── 15. …and a method on a `Deployment` value reads nothing ──────────────────────────
+root="${tmp}/c15"; seed_guard "$root"
+mkf "${root}/crates/fraiseql-x/src/judge.rs" <<'RS'
+pub fn judge(deployment: fraiseql_guard::deployment::Deployment) -> bool {
+    deployment.is_production()
+}
+RS
+mkf "${root}/crates/fraiseql-x/src/tests.rs" <<'RS'
+#[test]
+fn hatch_is_refused_in_production() {
+    temp_env::with_vars([("FRAISEQL_ENV", Some("production"))], || {
+        assert!(guard_thing("https://example.com"));
+    });
+}
+
+#[test]
+fn production_is_judged_production() {
+    assert!(judge(fraiseql_guard::deployment::Deployment::Production));
+}
+RS
+run_gate "$root"
+expect 0 "OK:" "15. deployment.is_production() on a passed value is not a read"
+
+# ── 16. An UNKEYABLE row whose function no longer reads is a hole, and says so ───────
+root="${tmp}/c16"; seed_guard "$root"
+mkf "${root}/crates/fraiseql-server/src/server/builder.rs" <<'RS'
+pub fn new(config: Config) -> Server {
+    Server { config }
+}
+RS
+mkf "${root}/crates/fraiseql-x/src/tests.rs" <<'RS'
+#[test]
+fn hatch_is_refused_in_production() {
+    temp_env::with_vars([("FRAISEQL_ENV", Some("production"))], || {
+        assert!(guard_thing("https://example.com"));
+    });
+}
+RS
+run_gate "$root"
+expect 2 "encloses no read" "16. a rotted UNKEYABLE row exits 2"
+
 # ── 11. The live repo is clean ───────────────────────────────────────────────────────
 run_gate "$repo_root"
 expect 0 "OK:" "11. the live repository passes"

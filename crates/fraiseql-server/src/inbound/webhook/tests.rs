@@ -3,6 +3,7 @@
 use std::collections::{BTreeMap, HashMap};
 
 use fraiseql_functions::{IngestSource, PushSource, RawDelivery, Source, Transport};
+use fraiseql_guard::deployment::Deployment;
 use sqlx::PgPool;
 
 use super::{
@@ -13,7 +14,7 @@ use crate::config::WebhookRouteConfig;
 /// to one (#1321) — which is the point: what the router serves is what boot
 /// accepted, not a second set built from the same configuration.
 fn built(routes: &HashMap<String, WebhookRouteConfig>) -> WebhookRoutes {
-    webhook_routes_check(routes, |_| Some("configured".to_string()), false)
+    webhook_routes_check(routes, |_| Some("configured".to_string()), Deployment::Development)
         .expect("these fixtures are valid configurations")
 }
 
@@ -494,6 +495,7 @@ mod empty_secret_is_not_configured {
     //! Empty is treated as unset in all three places that ask: the boot check refuses
     //! it in production, and the mount path skips the route rather than serving one
     //! that cannot verify anything.
+    use fraiseql_guard::deployment::Deployment;
 
     use super::{super::webhook_routes_check, HashMap, WebhookInboundState, built, lazy_pool};
     use crate::config::WebhookRouteConfig;
@@ -518,8 +520,11 @@ mod empty_secret_is_not_configured {
 
     #[test]
     fn production_refuses_a_route_whose_secret_env_is_empty() {
-        let error = webhook_routes_check(&one_route(), |_| Some(String::new()), true)
-            .expect_err("an empty signing secret cannot verify a delivery, so it must not boot");
+        let error =
+            webhook_routes_check(&one_route(), |_| Some(String::new()), Deployment::Production)
+                .expect_err(
+                    "an empty signing secret cannot verify a delivery, so it must not boot",
+                );
 
         let message = error.to_string();
         assert!(
@@ -532,7 +537,12 @@ mod empty_secret_is_not_configured {
     fn a_non_empty_secret_still_boots() {
         // The guard against overshooting: the check must still accept a real secret.
         assert!(
-            webhook_routes_check(&one_route(), |_| Some("s3cret".to_string()), true).is_ok(),
+            webhook_routes_check(
+                &one_route(),
+                |_| Some("s3cret".to_string()),
+                Deployment::Production
+            )
+            .is_ok(),
             "a configured, non-empty secret is exactly the case that must boot"
         );
     }
@@ -562,6 +572,7 @@ mod colliding_path_segments {
     //! `webhook_routes_check` validated each entry independently and never compared
     //! segments, so nothing refused, warned, or documented the constraint. The fix
     //! mirrors the duplicate-sink-name guard in `server_config/cdc_outbound.rs`.
+    use fraiseql_guard::deployment::Deployment;
 
     use super::{super::webhook_routes_check, HashMap, WebhookInboundState, built, lazy_pool};
     use crate::config::WebhookRouteConfig;
@@ -597,8 +608,12 @@ mod colliding_path_segments {
 
     #[test]
     fn two_routes_on_one_segment_are_refused_at_boot() {
-        let error = webhook_routes_check(&both_overridden(), |_| Some("s".to_string()), true)
-            .expect_err("a shadowed route can never receive a delivery, so this must not boot");
+        let error = webhook_routes_check(
+            &both_overridden(),
+            |_| Some("s".to_string()),
+            Deployment::Production,
+        )
+        .expect_err("a shadowed route can never receive a delivery, so this must not boot");
 
         let message = error.to_string();
         assert!(
@@ -615,9 +630,12 @@ mod colliding_path_segments {
 
     #[test]
     fn an_override_colliding_with_another_routes_name_is_refused() {
-        let error =
-            webhook_routes_check(&override_collides_with_a_name(), |_| Some("s".to_string()), true)
-                .expect_err("a collision does not require two explicit overrides");
+        let error = webhook_routes_check(
+            &override_collides_with_a_name(),
+            |_| Some("s".to_string()),
+            Deployment::Production,
+        )
+        .expect_err("a collision does not require two explicit overrides");
 
         let message = error.to_string();
         assert!(
@@ -632,13 +650,21 @@ mod colliding_path_segments {
         // boot would only move the problem. Each call builds a fresh `HashMap`, and
         // `RandomState` is per-instance, so iteration order genuinely varies across
         // these iterations — the deterministic sort is what keeps the message stable.
-        let first = webhook_routes_check(&both_overridden(), |_| Some("s".to_string()), true)
+        let first = webhook_routes_check(
+            &both_overridden(),
+            |_| Some("s".to_string()),
+            Deployment::Production,
+        )
+        .unwrap_err()
+        .to_string();
+        for _ in 0..64 {
+            let again = webhook_routes_check(
+                &both_overridden(),
+                |_| Some("s".to_string()),
+                Deployment::Production,
+            )
             .unwrap_err()
             .to_string();
-        for _ in 0..64 {
-            let again = webhook_routes_check(&both_overridden(), |_| Some("s".to_string()), true)
-                .unwrap_err()
-                .to_string();
             assert_eq!(again, first, "the collision refusal must not vary between runs");
         }
     }
@@ -652,7 +678,8 @@ mod colliding_path_segments {
         routes.insert("partner_b".to_string(), route("hmac-sha256", "B_SECRET", None));
 
         assert!(
-            webhook_routes_check(&routes, |_| Some("s".to_string()), true).is_ok(),
+            webhook_routes_check(&routes, |_| Some("s".to_string()), Deployment::Production)
+                .is_ok(),
             "distinct segments are not a collision, even on a shared provider"
         );
 
@@ -1486,6 +1513,8 @@ mod the_credential_need_not_be_a_header_and_the_body_need_not_be_json {
 /// and a configured route answering 404 is exactly what that skip exists to make
 /// loud rather than quiet.
 mod token_scheme_boot {
+    use fraiseql_guard::deployment::Deployment;
+
     use super::{super::webhook_routes_check, HashMap, WebhookInboundState, lazy_pool};
     use crate::config::WebhookRouteConfig;
 
@@ -1513,14 +1542,15 @@ mod token_scheme_boot {
     async fn a_token_route_with_no_secret_boots_and_is_mounted() {
         // In BOTH environments, and this is the assertion that matters: the absence
         // of a secret is correct here, not an unfinished setup.
-        for is_production in [false, true] {
-            let built = webhook_routes_check(&route(hanko()), |_| None, is_production)
-                .unwrap_or_else(|error| {
+        for deployment in [Deployment::Development, Deployment::Production] {
+            let built = webhook_routes_check(&route(hanko()), |_| None, deployment).unwrap_or_else(
+                |error| {
                     panic!(
                         "a hanko route needs no secret_env, so it must boot with \
-                         is_production={is_production}: {error}"
+                         deployment={deployment:?}: {error}"
                     )
-                });
+                },
+            );
             let state = WebhookInboundState::new(lazy_pool(), &built, |_| None);
             assert_eq!(
                 state.mounted_segments(),
@@ -1536,15 +1566,15 @@ mod token_scheme_boot {
     fn a_token_route_carrying_a_secret_is_refused_in_every_environment() {
         let mut config = hanko();
         config.secret_env = Some("HANKO_SECRET".to_string());
-        for is_production in [false, true] {
+        for deployment in [Deployment::Development, Deployment::Production] {
             let error = webhook_routes_check(
                 &route(config.clone()),
                 |_| Some("s3cret".to_string()),
-                is_production,
+                deployment,
             )
             .err()
             .unwrap_or_else(|| {
-                panic!("unused key material must be refused (is_production={is_production})")
+                panic!("unused key material must be refused (deployment={deployment:?})")
             });
             let message = error.to_string();
             assert!(
@@ -1558,8 +1588,8 @@ mod token_scheme_boot {
     fn a_token_route_with_no_key_set_is_refused_in_every_environment() {
         let mut config = hanko();
         config.jwks_uri = None;
-        for is_production in [false, true] {
-            let error = webhook_routes_check(&route(config.clone()), |_| None, is_production)
+        for deployment in [Deployment::Development, Deployment::Production] {
+            let error = webhook_routes_check(&route(config.clone()), |_| None, deployment)
                 .err()
                 .unwrap_or_else(|| panic!("a route with nowhere to look a key up must be refused"));
             assert!(
@@ -1574,7 +1604,7 @@ mod token_scheme_boot {
         for uri in ["http://tenant.hanko.io/jwks", "not a url", "ftp://idp/jwks"] {
             let mut config = hanko();
             config.jwks_uri = Some(uri.to_string());
-            let error = webhook_routes_check(&route(config), |_| None, true)
+            let error = webhook_routes_check(&route(config), |_| None, Deployment::Production)
                 .err()
                 .unwrap_or_else(|| panic!("{uri} must be refused at boot"));
             let _ = error;
@@ -1582,7 +1612,7 @@ mod token_scheme_boot {
         // Loopback http is accepted, for a local fixture or a development IdP.
         let mut config = hanko();
         config.jwks_uri = Some("http://localhost:9999/jwks".to_string());
-        webhook_routes_check(&route(config), |_| None, true)
+        webhook_routes_check(&route(config), |_| None, Deployment::Production)
             .expect("a loopback key set is how a development IdP is reached");
     }
 
@@ -1600,9 +1630,11 @@ mod token_scheme_boot {
             let mut route_config = hanko();
             config(&mut route_config);
             let error =
-                webhook_routes_check(&route(route_config), |_| None, true).err().unwrap_or_else(
-                    || panic!("`{key}` is fixed by the hanko preset, so it must be refused"),
-                );
+                webhook_routes_check(&route(route_config), |_| None, Deployment::Production)
+                    .err()
+                    .unwrap_or_else(|| {
+                        panic!("`{key}` is fixed by the hanko preset, so it must be refused")
+                    });
             let message = error.to_string();
             assert!(
                 message.contains(key),
@@ -1626,7 +1658,7 @@ mod token_scheme_boot {
             max_age_secs: Some(600),
             ..Default::default()
         };
-        webhook_routes_check(&route(config), |_| None, true)
+        webhook_routes_check(&route(config), |_| None, Deployment::Production)
             .expect("the operator owns the generic scheme's signing details");
     }
 
@@ -1641,7 +1673,8 @@ mod token_scheme_boot {
             event_type_claim: Some("kind".to_string()),
             ..Default::default()
         };
-        let Err(error) = webhook_routes_check(&route(config), |_| None, true) else {
+        let Err(error) = webhook_routes_check(&route(config), |_| None, Deployment::Production)
+        else {
             panic!("the two are contradictory, not merely redundant, so this must be refused")
         };
         assert!(error.to_string().contains("event_type_claim"), "got {error}");
@@ -1658,7 +1691,7 @@ mod token_scheme_boot {
             provider: "hmac-sha256".to_string(),
             ..Default::default()
         };
-        let built = webhook_routes_check(&route(config.clone()), |_| None, false)
+        let built = webhook_routes_check(&route(config.clone()), |_| None, Deployment::Development)
             .expect("development downgrades this to a warning");
         let state = WebhookInboundState::new(lazy_pool(), &built, |_| None);
         assert!(
@@ -1667,7 +1700,8 @@ mod token_scheme_boot {
              500ing with the variable's name in the body"
         );
 
-        let Err(error) = webhook_routes_check(&route(config), |_| None, true) else {
+        let Err(error) = webhook_routes_check(&route(config), |_| None, Deployment::Production)
+        else {
             panic!("production must refuse a route whose signing secret is unset")
         };
         assert!(
@@ -1700,7 +1734,9 @@ fn the_three_key_material_refusals_stay_distinguishable() {
     };
 
     // 1. The variable is named but the environment does not hold it.
-    let Err(error) = super::webhook_routes_check(&route(hmac_with_env), |_| None, true) else {
+    let Err(error) =
+        super::webhook_routes_check(&route(hmac_with_env), |_| None, Deployment::Production)
+    else {
         panic!("production refuses a route whose secret is unset")
     };
     let message = error.to_string();
@@ -1716,7 +1752,8 @@ fn the_three_key_material_refusals_stay_distinguishable() {
         provider: "hmac-sha256".to_string(),
         ..Default::default()
     };
-    let Err(error) = super::webhook_routes_check(&route(no_env), |_| None, true) else {
+    let Err(error) = super::webhook_routes_check(&route(no_env), |_| None, Deployment::Production)
+    else {
         panic!("a shared-secret scheme with no secret_env cannot verify anything")
     };
     let message = error.to_string();
@@ -1735,7 +1772,7 @@ fn the_three_key_material_refusals_stay_distinguishable() {
     let Err(error) = super::webhook_routes_check(
         &route(clerk),
         |_| Some("whpk_C2FVsBQIhrscChlQIMV+b5sSYspob7oD".to_string()),
-        true,
+        Deployment::Production,
     ) else {
         panic!("asymmetric v1a material is not verifiable here")
     };

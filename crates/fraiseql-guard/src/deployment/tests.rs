@@ -6,8 +6,8 @@
 //! assertions the whole workspace now shares.
 
 use super::{
-    BypassDecision, declares_development, declares_production, env_opt_in, insecure_bypass,
-    insecure_bypass_allowed, is_production,
+    BypassDecision, Deployment, declares_development, declares_production, env_opt_in,
+    insecure_bypass, insecure_bypass_allowed, is_production,
 };
 
 /// Every variable this module reads, cleared, then overlaid with `overrides`.
@@ -33,6 +33,27 @@ fn unset_means_production() {
              have to set anything to be treated as production"
         );
     });
+}
+
+#[test]
+fn the_current_deployment_is_the_one_the_environment_declares() {
+    with_env(&[], || assert_eq!(Deployment::current(), Deployment::Production));
+    with_env(&[("FRAISEQL_ENV", Some("development"))], || {
+        assert_eq!(Deployment::current(), Deployment::Development);
+    });
+    with_env(
+        &[
+            ("FRAISEQL_ENV", Some("development")),
+            ("KUBERNETES_SERVICE_HOST", Some("10.0.0.1")),
+        ],
+        || assert_eq!(Deployment::current(), Deployment::Production),
+    );
+}
+
+#[test]
+fn only_production_is_production() {
+    assert!(Deployment::Production.is_production());
+    assert!(!Deployment::Development.is_production());
 }
 
 #[test]

@@ -8,6 +8,7 @@
 use std::{fmt, path::PathBuf, sync::Arc, time::Duration};
 
 use chrono::{DateTime, Utc};
+use fraiseql_guard::deployment::Deployment;
 use tracing::{info, warn};
 use zeroize::Zeroizing;
 
@@ -103,7 +104,7 @@ pub async fn create_secrets_manager(
             // property that keeps the Vault token from a man-in-the-middle. A
             // production deployment must not reach that state from a config knob;
             // development downgrades to a loud warning.
-            vault_tls_verify_check(tls_verify, fraiseql_guard::deployment::is_production())?;
+            vault_tls_verify_check(tls_verify, Deployment::current())?;
 
             info!(addr = %addr, "Initializing Vault secrets backend");
             let is_approle = matches!(auth, VaultAuth::AppRole { .. });
@@ -145,12 +146,15 @@ pub async fn create_secrets_manager(
 /// # Errors
 ///
 /// Returns [`SecretsError::ValidationError`] when `tls_verify` is `false` and
-/// `is_production` is true. In development it degrades to a loud warning.
-pub fn vault_tls_verify_check(tls_verify: bool, is_production: bool) -> Result<(), SecretsError> {
+/// `deployment` is production. In development it degrades to a loud warning.
+pub fn vault_tls_verify_check(
+    tls_verify: bool,
+    deployment: Deployment,
+) -> Result<(), SecretsError> {
     if tls_verify {
         return Ok(());
     }
-    if is_production {
+    if deployment.is_production() {
         return Err(SecretsError::ValidationError(
             "[secrets.vault] tls_verify = false disables TLS certificate verification,              exposing the Vault token and every secret in transit to interception. This is              refused in production. Fix the Vault TLS trust chain instead, or set              FRAISEQL_ENV=development for local runs against a self-signed Vault."
                 .into(),

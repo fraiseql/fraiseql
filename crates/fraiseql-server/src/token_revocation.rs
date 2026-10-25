@@ -26,6 +26,7 @@ use dashmap::DashMap;
 /// The compiled `[security.token_revocation]` shape — the schema seam owns it
 /// (#977), so the CLI, the compiled artefact and this server share one type.
 pub use fraiseql_core::schema::TokenRevocationSecurityConfig as TokenRevocationConfig;
+use fraiseql_guard::deployment::Deployment;
 use tracing::{debug, info, warn};
 
 // ───────────────────────────────────────────────────────────────
@@ -596,12 +597,12 @@ pub enum TokenRejection {
 ///
 /// # Errors
 ///
-/// Returns `ServerError::ConfigError` when `is_production` is true.
+/// Returns `ServerError::ConfigError` when `deployment` is production.
 pub(crate) fn redis_revocation_unavailable_check(
     cause: &str,
-    is_production: bool,
+    deployment: Deployment,
 ) -> crate::Result<()> {
-    if is_production {
+    if deployment.is_production() {
         return Err(crate::ServerError::ConfigError(format!(
             "FraiseQL failed to start\n\n  \
              [security.token_revocation] backend = \"redis\" but the Redis store is \
@@ -643,20 +644,20 @@ pub(crate) fn redis_revocation_unavailable_check(
 pub async fn revocation_manager_from_schema(
     schema: &fraiseql_core::schema::CompiledSchema,
 ) -> crate::Result<Option<Arc<TokenRevocationManager>>> {
-    revocation_manager_from_schema_in(schema, crate::ServerConfig::is_production_mode()).await
+    revocation_manager_from_schema_in(schema, Deployment::current()).await
 }
 
 /// [`revocation_manager_from_schema`] with the deployment mode passed in.
 ///
 /// Split out so tests can drive the production/development split without
-/// mutating process environment (mirrors `resolve_rate_limiter_in`).
+/// mutating process environment (mirrors `resolve_rate_limiter`).
 ///
 /// # Errors
 ///
 /// See [`revocation_manager_from_schema`].
 pub async fn revocation_manager_from_schema_in(
     schema: &fraiseql_core::schema::CompiledSchema,
-    is_production: bool,
+    deployment: Deployment,
 ) -> crate::Result<Option<Arc<TokenRevocationManager>>> {
     let Some(security) = schema.security.as_ref() else {
         return Ok(None);
@@ -679,7 +680,7 @@ pub async fn revocation_manager_from_schema_in(
                     Arc::new(s)
                 },
                 Err(e) => {
-                    redis_revocation_unavailable_check(&e.to_string(), is_production)?;
+                    redis_revocation_unavailable_check(&e.to_string(), deployment)?;
                     Arc::new(InMemoryRevocationStore::new())
                 },
             }
@@ -688,7 +689,7 @@ pub async fn revocation_manager_from_schema_in(
         "redis" => {
             redis_revocation_unavailable_check(
                 "the `redis-rate-limiting` Cargo feature is not compiled into this binary",
-                is_production,
+                deployment,
             )?;
             Arc::new(InMemoryRevocationStore::new())
         },

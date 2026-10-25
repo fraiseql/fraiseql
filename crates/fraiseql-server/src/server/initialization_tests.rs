@@ -41,18 +41,21 @@ fn a_schema_needing_session_variables_is_refused_on_the_wire_adapter() {
 /// The same refusal, through the constructor an embedder serving it would use.
 #[tokio::test]
 async fn a_server_over_the_wire_adapter_refuses_to_boot_with_locale() {
-    let wire = std::sync::Arc::new(fraiseql_core::db::FraiseWireAdapter::new(
-        "postgres://localhost/unused",
-    ));
-    let config = crate::server_config::ServerConfig {
-        database_url: "postgres://localhost/unused".to_string(),
-        ..crate::server_config::ServerConfig::default()
-    };
-    let err = Box::pin(crate::Server::new_read_only(config, with_locale(), wire, None))
-        .await
-        .err()
-        .expect("a server over the wire adapter with [locale] must not boot");
-    assert!(err.to_string().contains("cannot apply session variables"), "{err}");
+    crate::server::parity_tests::under_the_env_lock(Box::pin(async {
+        let wire = std::sync::Arc::new(fraiseql_core::db::FraiseWireAdapter::new(
+            "postgres://localhost/unused",
+        ));
+        let config = crate::server_config::ServerConfig {
+            database_url: "postgres://localhost/unused".to_string(),
+            ..crate::server_config::ServerConfig::default()
+        };
+        let err = Box::pin(crate::Server::new_read_only(config, with_locale(), wire, None))
+            .await
+            .err()
+            .expect("a server over the wire adapter with [locale] must not boot");
+        assert!(err.to_string().contains("cannot apply session variables"), "{err}");
+    }))
+    .await;
 }
 
 // ── #1555: the row cache is opt-in, and a deployment that turned it on is told so ──

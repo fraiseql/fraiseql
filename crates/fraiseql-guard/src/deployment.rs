@@ -52,6 +52,37 @@ pub fn is_production() -> bool {
     !declares_development(&std::env::var(ENV_VAR).unwrap_or_default())
 }
 
+/// The deployment a process runs in, as [`is_production`] answers it.
+///
+/// A gate takes this rather than a `bool`, so the answer cannot be passed in another
+/// flag's place: `observer_transport_check(kind, compiled_in, nats_url_present, ..)`
+/// took four arguments, three of them `bool`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Deployment {
+    /// Anything not positively declared development.
+    Production,
+    /// `FRAISEQL_ENV` declares development, and nothing forces production on.
+    Development,
+}
+
+impl Deployment {
+    /// The deployment the environment declares now.
+    #[must_use]
+    pub fn current() -> Self {
+        if is_production() {
+            Self::Production
+        } else {
+            Self::Development
+        }
+    }
+
+    /// Whether this is [`Production`](Self::Production).
+    #[must_use]
+    pub const fn is_production(self) -> bool {
+        matches!(self, Self::Production)
+    }
+}
+
 /// Returns `true` if `value` explicitly declares a development environment.
 ///
 /// The empty string — an unset variable — is not a declaration.

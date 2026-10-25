@@ -4,6 +4,7 @@
 use std::sync::Arc;
 
 use fraiseql_core::{db::traits::DatabaseAdapter, schema::CompiledSchema};
+use fraiseql_guard::deployment::Deployment;
 use tracing::{info, warn};
 
 use super::{RateLimiter, Server, ServerError};
@@ -123,7 +124,7 @@ fn schema_error_sanitizer(
     schema: &CompiledSchema,
 ) -> crate::config::error_sanitization::ErrorSanitizer {
     let compiled = schema.security.as_ref().and_then(|s| s.error_sanitization.clone());
-    build_error_sanitizer(compiled, crate::ServerConfig::is_production_mode())
+    build_error_sanitizer(compiled, Deployment::current())
 }
 
 /// Which per-replica-capable subsystems are running on per-process state (#874).
@@ -254,8 +255,10 @@ impl Server {
     /// verbose-error ergonomics. An explicit compiled config overrides either way.
     pub(super) fn error_sanitizer_from_schema(
         schema: &CompiledSchema,
+        deployment: Deployment,
     ) -> Arc<crate::config::error_sanitization::ErrorSanitizer> {
-        Arc::new(schema_error_sanitizer(schema))
+        let compiled = schema.security.as_ref().and_then(|s| s.error_sanitization.clone());
+        Arc::new(build_error_sanitizer(compiled, deployment))
     }
 
     /// Build a `TrustedDocumentStore` from `security.trusted_documents` in the
@@ -464,12 +467,12 @@ pub(super) const fn effective_trusted_doc_mode(
 /// server boot seam, so it does not change compile-time/authoring behavior.
 pub(super) fn build_error_sanitizer(
     compiled: Option<crate::config::error_sanitization::ErrorSanitizationConfig>,
-    is_production: bool,
+    deployment: Deployment,
 ) -> crate::config::error_sanitization::ErrorSanitizer {
     use crate::config::error_sanitization::{ErrorSanitizationConfig, ErrorSanitizer};
     match compiled {
         Some(cfg) => ErrorSanitizer::new(cfg),
-        None if is_production => ErrorSanitizer::new(ErrorSanitizationConfig {
+        None if deployment.is_production() => ErrorSanitizer::new(ErrorSanitizationConfig {
             enabled: true,
             ..Default::default()
         }),
@@ -490,16 +493,16 @@ pub(super) fn build_error_sanitizer(
 /// # Errors
 ///
 /// Returns `ServerError::ConfigError` when `has_state_encryption` is false and
-/// `is_production` is true.
+/// `deployment` is production.
 #[cfg(feature = "auth")]
 pub(super) fn pkce_state_encryption_check(
     has_state_encryption: bool,
-    is_production: bool,
+    deployment: Deployment,
 ) -> crate::Result<()> {
     if has_state_encryption {
         return Ok(());
     }
-    if is_production {
+    if deployment.is_production() {
         return Err(ServerError::ConfigError(
             concat!(
                 "FraiseQL failed to start\n\n",
@@ -551,18 +554,18 @@ pub(super) fn pkce_state_encryption_check(
 /// # Errors
 ///
 /// Returns `ServerError::ConfigError` when the values are non-default and
-/// `is_production` is true.
+/// `deployment` is production.
 pub(super) fn failed_login_lockout_check(
     max_attempts: u32,
     lockout_secs: u64,
-    is_production: bool,
+    deployment: Deployment,
 ) -> crate::Result<()> {
     let tuned = max_attempts != crate::middleware::rate_limit::DEFAULT_FAILED_LOGIN_MAX_ATTEMPTS
         || lockout_secs != crate::middleware::rate_limit::DEFAULT_FAILED_LOGIN_LOCKOUT_SECS;
     if !tuned {
         return Ok(());
     }
-    if is_production {
+    if deployment.is_production() {
         return Err(crate::ServerError::ConfigError(
             concat!(
                 "FraiseQL failed to start\n\n",
@@ -610,15 +613,15 @@ pub(super) fn failed_login_lockout_check(
 /// # Errors
 ///
 /// Returns `ServerError::ConfigError` when `trust_proxy_headers = true`, the resolved CIDR
-/// list is empty, and `is_production` is true.
+/// list is empty, and `deployment` is production.
 /// Build a `PkceStateStore` from the compiled schema if `security.pkce.enabled = true`.
 ///
 /// When `redis_url` is set and the `redis-pkce` feature is compiled in, initialises
 /// a Redis-backed distributed store.
 ///
-/// `is_production` is a parameter rather than an `env::var` read so the guards can
+/// `deployment` is a parameter rather than an `env::var` read so the guards can
 /// be exercised for both modes without mutating process-global state (mirrors
-/// [`resolve_rate_limiter_in`]).
+/// [`resolve_rate_limiter`]).
 ///
 /// # Errors
 ///
@@ -626,20 +629,20 @@ pub(super) fn failed_login_lockout_check(
 ///
 /// * the `pkce` section is present but does not deserialize — a malformed section used to be a
 ///   warning that silently disabled PKCE, the #778 fail-open;
-/// * `pkce.enabled = true` but `[security.state_encryption]` is missing or disabled while
-///   `is_production` (#360) — PKCE state tokens would otherwise be sent to the OIDC provider as the
-///   raw, unencrypted lookup key;
+/// * `pkce.enabled = true` but `[security.state_encryption]` is missing or disabled in production
+///   (#360) — PKCE state tokens would otherwise be sent to the OIDC provider as the raw,
+///   unencrypted lookup key;
 /// * `pkce.redis_url` is configured but the Redis store cannot be built — the URL is malformed, the
-///   connection fails, or the `redis-pkce` feature is not compiled in — while `is_production`
-///   (#777). The operator asked for distributed PKCE state; an in-memory store is not a degraded
-///   version of that behind a load balancer, it is a broken login flow. Development mode downgrades
-///   this to a warning.
+///   connection fails, or the `redis-pkce` feature is not compiled in — in production (#777). The
+///   operator asked for distributed PKCE state; an in-memory store is not a degraded version of
+///   that behind a load balancer, it is a broken login flow. Development mode downgrades this to a
+///   warning.
 #[cfg(feature = "auth")]
 #[allow(clippy::cognitive_complexity)] // Reason: conditional backend selection (Redis vs in-memory) with feature-gated branches
 pub(super) async fn pkce_store_from_schema_in(
     schema: &CompiledSchema,
     state_encryption: Option<&Arc<crate::auth::state_encryption::StateEncryptionService>>,
-    is_production: bool,
+    deployment: Deployment,
 ) -> crate::Result<Option<Arc<crate::auth::PkceStateStore>>> {
     let Some(security) = schema.security.as_ref() else {
         return Ok(None);
@@ -655,7 +658,7 @@ pub(super) async fn pkce_store_from_schema_in(
     // [security.state_encryption] they travel as the raw 32-byte lookup key. Refuse
     // to boot in production rather than serve /auth/start with a false "state
     // encryption is enforced" posture; development mode downgrades this to a warning.
-    pkce_state_encryption_check(state_encryption.is_some(), is_production)?;
+    pkce_state_encryption_check(state_encryption.is_some(), deployment)?;
 
     if matches!(cfg.code_challenge_method, fraiseql_core::schema::CodeChallengeMethod::Plain) {
         warn!(
@@ -679,7 +682,7 @@ pub(super) async fn pkce_store_from_schema_in(
                     "[security.pkce] redis_url",
                     &e.to_string(),
                     PKCE_REDIS_CONSEQUENCE,
-                    is_production,
+                    deployment,
                 )?;
             },
         }
@@ -691,7 +694,7 @@ pub(super) async fn pkce_store_from_schema_in(
             "[security.pkce] redis_url",
             "the `redis-pkce` Cargo feature is not compiled into this binary",
             PKCE_REDIS_CONSEQUENCE,
-            is_production,
+            deployment,
         )?;
     }
 
@@ -734,22 +737,13 @@ const PKCE_REDIS_CONSEQUENCE: &str = "PKCE login state would live only in this p
 ///
 /// Returns `ServerError::ConfigError` when the compiled section is malformed, a
 /// CIDR does not parse, or a boot guard refuses the effective configuration.
+///
+/// `deployment` is a parameter rather than an `env::var` read: the server reads it once,
+/// and a test exercises both deployments without mutating process-global state.
 pub(super) async fn resolve_rate_limiter(
     schema: &CompiledSchema,
     config: &crate::ServerConfig,
-) -> crate::Result<Option<Arc<RateLimiter>>> {
-    resolve_rate_limiter_in(schema, config, crate::ServerConfig::is_production_mode()).await
-}
-
-/// [`resolve_rate_limiter`] with the deployment mode passed in.
-///
-/// `is_production` is a parameter rather than an `env::var` read so the guards can be
-/// exercised for both modes without mutating process-global state — the same shape
-/// `proxy_trust_check` and `failed_login_lockout_check` already use.
-pub(super) async fn resolve_rate_limiter_in(
-    schema: &CompiledSchema,
-    config: &crate::ServerConfig,
-    is_production: bool,
+    deployment: Deployment,
 ) -> crate::Result<Option<Arc<RateLimiter>>> {
     let schema_sec = rate_limiting_from_schema(schema);
     let overrides = &config.rate_limit_overrides;
@@ -757,12 +751,12 @@ pub(super) async fn resolve_rate_limiter_in(
     // Base: compiled schema first, then the server's own table. Both are checked, so
     // whichever supplies the values also faces the guards.
     let (mut effective, path_rules_source) = match (&schema_sec, &config.rate_limiting) {
-        (Some(sec), _) => (rate_limit_config_checked(sec, is_production)?, Some(sec)),
+        (Some(sec), _) => (rate_limit_config_checked(sec, deployment)?, Some(sec)),
         (None, Some(server_cfg)) => {
             proxy_trust_check_parsed(
                 server_cfg.trust_proxy_headers,
                 &server_cfg.trusted_proxy_cidrs,
-                is_production,
+                deployment,
             )?;
             (server_cfg.clone(), None)
         },
@@ -800,10 +794,10 @@ pub(super) async fn resolve_rate_limiter_in(
     proxy_trust_check_parsed(
         effective.trust_proxy_headers,
         &effective.trusted_proxy_cidrs,
-        is_production,
+        deployment,
     )?;
 
-    let limiter = build_rate_limiter(effective, path_rules_source, is_production).await?;
+    let limiter = build_rate_limiter(effective, path_rules_source, deployment).await?;
     Ok(Some(Arc::new(limiter)))
 }
 
@@ -812,13 +806,13 @@ pub(super) async fn resolve_rate_limiter_in(
 /// # Errors
 ///
 /// Returns `ServerError::ConfigError` when `redis_url` is configured but the Redis
-/// backend cannot be built and `is_production` is true (#770/#777 class): the
+/// backend cannot be built and `deployment` is production (#770/#777 class): the
 /// operator asked for one shared budget across replicas, and an in-memory fallback
 /// enforces N times the configured rate while the startup log reads healthy.
 async fn build_rate_limiter(
     config: crate::middleware::RateLimitConfig,
     sec: Option<&crate::middleware::RateLimitingSecurityConfig>,
-    is_production: bool,
+    deployment: Deployment,
 ) -> crate::Result<RateLimiter> {
     let with_rules = |limiter: RateLimiter| match sec {
         Some(sec) => limiter.with_path_rules_from_security(sec),
@@ -844,7 +838,7 @@ async fn build_rate_limiter(
                     "[security.rate_limiting] redis_url",
                     &e.to_string(),
                     RATE_LIMIT_REDIS_CONSEQUENCE,
-                    is_production,
+                    deployment,
                 )?;
             },
         }
@@ -856,7 +850,7 @@ async fn build_rate_limiter(
             "[security.rate_limiting] redis_url",
             "the `redis-rate-limiting` Cargo feature is not compiled into this binary",
             RATE_LIMIT_REDIS_CONSEQUENCE,
-            is_production,
+            deployment,
         )?;
     }
 
@@ -901,7 +895,7 @@ fn rate_limiting_from_schema(
 /// the `failed_login_*` settings are tuned away from their defaults in production.
 fn rate_limit_config_checked(
     sec: &crate::middleware::RateLimitingSecurityConfig,
-    is_production: bool,
+    deployment: Deployment,
 ) -> crate::Result<crate::middleware::RateLimitConfig> {
     // SECURITY (#356): the binary performs no first-factor login, so it cannot
     // honour failed_login_max_attempts / failed_login_lockout_secs. Refuse to
@@ -910,7 +904,7 @@ fn rate_limit_config_checked(
     failed_login_lockout_check(
         sec.failed_login_max_attempts,
         sec.failed_login_lockout_secs,
-        is_production,
+        deployment,
     )?;
 
     // Parse before checking. `proxy_trust_check` reads the *string* list, so an
@@ -923,11 +917,7 @@ fn rate_limit_config_checked(
     // restricting which IPs are trusted proxies — any client could then spoof
     // X-Forwarded-For and bypass per-IP rate limits (#609/#618). Explicit
     // ["0.0.0.0/0"] opts into trust-all deliberately; development downgrades to a warning.
-    proxy_trust_check_parsed(
-        config.trust_proxy_headers,
-        &config.trusted_proxy_cidrs,
-        is_production,
-    )?;
+    proxy_trust_check_parsed(config.trust_proxy_headers, &config.trusted_proxy_cidrs, deployment)?;
 
     Ok(config)
 }
@@ -936,23 +926,23 @@ fn rate_limit_config_checked(
 pub(super) fn proxy_trust_check_parsed(
     trust_proxy_headers: bool,
     trusted_proxy_cidrs: &[ipnet::IpNet],
-    is_production: bool,
+    deployment: Deployment,
 ) -> crate::Result<()> {
     let as_strings: Vec<String> = trusted_proxy_cidrs.iter().map(ToString::to_string).collect();
-    proxy_trust_check(trust_proxy_headers, Some(&as_strings), is_production)
+    proxy_trust_check(trust_proxy_headers, Some(&as_strings), deployment)
 }
 
 pub(super) fn proxy_trust_check(
     trust_proxy_headers: bool,
     trusted_proxy_cidrs: Option<&[String]>,
-    is_production: bool,
+    deployment: Deployment,
 ) -> crate::Result<()> {
     let trust_all_by_omission =
         trust_proxy_headers && trusted_proxy_cidrs.is_none_or(<[String]>::is_empty);
     if !trust_all_by_omission {
         return Ok(());
     }
-    if is_production {
+    if deployment.is_production() {
         return Err(crate::ServerError::ConfigError(
             concat!(
                 "FraiseQL failed to start\n\n",
@@ -1000,14 +990,14 @@ pub(super) fn proxy_trust_check(
 ///
 /// # Errors
 ///
-/// Returns `ServerError::ConfigError` when `is_production` is true.
+/// Returns `ServerError::ConfigError` when `deployment` is production.
 pub fn redis_backend_unavailable_check(
     config_key: &str,
     cause: &str,
     consequence: &str,
-    is_production: bool,
+    deployment: Deployment,
 ) -> crate::Result<()> {
-    if is_production {
+    if deployment.is_production() {
         return Err(crate::ServerError::ConfigError(format!(
             "FraiseQL failed to start\n\n  \
              {config_key} is configured but the Redis backend is unavailable: {cause}.\n\n  \
@@ -1058,13 +1048,13 @@ pub fn redis_backend_unavailable_check(
 /// # Errors
 ///
 /// Returns `ServerError::ConfigError` when a non-Postgres transport cannot run
-/// and `is_production` is true.
+/// and `deployment` is production.
 #[cfg(feature = "observers")]
 pub(super) fn observer_transport_check(
     kind: fraiseql_observers::config::TransportKind,
     compiled_in: bool,
     nats_url_present: bool,
-    is_production: bool,
+    deployment: Deployment,
 ) -> crate::Result<()> {
     use fraiseql_observers::config::TransportKind;
 
@@ -1076,7 +1066,7 @@ pub(super) fn observer_transport_check(
         // this binary was not built to drive: refuse it rather than guess.
         _ => {
             return refuse_or_warn_transport(
-                is_production,
+                deployment,
                 UNKNOWN_TRANSPORT_MSG,
                 UNKNOWN_TRANSPORT_WARN,
             );
@@ -1084,14 +1074,10 @@ pub(super) fn observer_transport_check(
     }
 
     if !compiled_in {
-        return refuse_or_warn_transport(
-            is_production,
-            NATS_NOT_COMPILED_MSG,
-            NATS_NOT_COMPILED_WARN,
-        );
+        return refuse_or_warn_transport(deployment, NATS_NOT_COMPILED_MSG, NATS_NOT_COMPILED_WARN);
     }
     if !nats_url_present {
-        return refuse_or_warn_transport(is_production, NATS_NO_URL_MSG, NATS_NO_URL_WARN);
+        return refuse_or_warn_transport(deployment, NATS_NO_URL_MSG, NATS_NO_URL_WARN);
     }
     Ok(())
 }
@@ -1153,11 +1139,11 @@ const UNKNOWN_TRANSPORT_WARN: &str = "observer transport selection is not suppor
 /// Either refuse to boot (production) or warn and continue on PostgreSQL (dev).
 #[cfg(feature = "observers")]
 fn refuse_or_warn_transport(
-    is_production: bool,
+    deployment: Deployment,
     prod_msg: &'static str,
     dev_warn: &'static str,
 ) -> crate::Result<()> {
-    if is_production {
+    if deployment.is_production() {
         return Err(crate::ServerError::ConfigError(prod_msg.into()));
     }
     warn!("{dev_warn}");

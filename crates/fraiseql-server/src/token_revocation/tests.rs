@@ -2,14 +2,15 @@
 #![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code, panics acceptable
 
 use fraiseql_core::schema::{CompiledSchema, SecurityConfig};
+use fraiseql_guard::deployment::Deployment;
 use serde_json::json;
 
 use super::revocation_manager_from_schema_in;
 
 /// Deployment modes, named so call sites read as the scenario they test.
-const PRODUCTION: bool = true;
+const PRODUCTION: Deployment = Deployment::Production;
 #[cfg(feature = "redis-rate-limiting")]
-const DEVELOPMENT: bool = false;
+const DEVELOPMENT: Deployment = Deployment::Development;
 
 fn schema_with_revocation(value: serde_json::Value) -> CompiledSchema {
     // JSON in, typed field out: a null section means "absent" (the compiler's
@@ -108,7 +109,7 @@ fn redis_backend_refuses_in_production_when_it_cannot_be_provided() {
     assert!(
         super::redis_revocation_unavailable_check(
             "the `redis-rate-limiting` feature is not compiled in",
-            true
+            Deployment::Production
         )
         .is_err(),
         "an unusable Redis revocation store must refuse to boot in production rather than \
@@ -121,7 +122,7 @@ fn redis_backend_downgrades_with_a_warning_in_development() {
     assert!(
         super::redis_revocation_unavailable_check(
             "the `redis-rate-limiting` feature is not compiled in",
-            false
+            Deployment::Development
         )
         .is_ok(),
         "development must still boot on the in-memory fallback"
@@ -130,8 +131,9 @@ fn redis_backend_downgrades_with_a_warning_in_development() {
 
 #[test]
 fn the_refusal_names_the_cause_and_the_way_out() {
-    let err = super::redis_revocation_unavailable_check("connection refused", true)
-        .expect_err("production refuses");
+    let err =
+        super::redis_revocation_unavailable_check("connection refused", Deployment::Production)
+            .expect_err("production refuses");
     let msg = err.to_string();
     assert!(msg.contains("connection refused"), "the refusal must name the cause: {msg}");
     assert!(

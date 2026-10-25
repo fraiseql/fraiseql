@@ -18,6 +18,15 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **A boot guard takes a `Deployment`, not an `is_production: bool`.**
+  `fraiseql_server::token_revocation::revocation_manager_from_schema_in`,
+  `fraiseql_server::inbound::webhook_routes_check` and
+  `fraiseql_secrets::secrets_manager::vault_tls_verify_check` take
+  `fraiseql_guard::deployment::Deployment` where they took a `bool`. Pass
+  `Deployment::current()` for the environment's answer, or name the variant. A `bool`
+  could be passed in another flag's place without a word from the compiler: one guard
+  took four arguments, three of them `bool`. The server reads its deployment once, at
+  construction, and every boot guard judges that one answer.
 - **An enabled observer runtime with no change log refuses the boot (#1710).** The
   runtime reads `core.tb_entity_change_log`, which belongs to the application and which
   `fraiseql setup` installs. A server started with `[observers]` enabled and no such

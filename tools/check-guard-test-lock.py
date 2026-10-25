@@ -49,13 +49,13 @@ through a helper in the same binary that does.
 
 Nothing here is hardcoded that can be discovered instead. The guard entry points are
 the enclosing functions of every `insecure_bypass` / `insecure_bypass_allowed` /
-`env_opt_in` / `is_production` call in non-test source, recomputed on each run, so a new
+`env_opt_in` / `is_production` / `Deployment::current` call in non-test source, recomputed on each run, so a new
 guard is covered the day it is written rather than the day someone remembers this file.
 
 Known approximation
 -------------------
 Entry points are resolved per *function*, not per branch. `create_secrets_manager` reads
-`is_production()` only in its `Vault` arm, so a test that drives its `File` arm is
+`Deployment::current()` only in its `Vault` arm, so a test that drives its `File` arm is
 flagged although it can never reach the read. That case is exempted below by name, with
 its reason, and the exemption is verified to still resolve — an exemption that has
 rotted into naming nothing is a gate hole, so it aborts rather than passing quietly.
@@ -83,7 +83,12 @@ ROOT = Path(os.environ.get("GUARD_TEST_LOCK_ROOT", REPO))
 
 # The chokepoint: every deployment-posture read in the workspace resolves here.
 CHOKEPOINT = ("insecure_bypass", "insecure_bypass_allowed", "env_opt_in", "is_production")
-CHOKEPOINT_RE = re.compile(r"\b(" + "|".join(CHOKEPOINT) + r")\s*\(")
+# `Deployment::current()` is the same read behind a type: a boot guard takes the
+# `Deployment` it returns. `deployment.is_production()` is a method on that value and
+# reads nothing, so a call preceded by `.` is not a read; the free function, called
+# bare or by path, is.
+CHOKEPOINT_CALL = r"(?<![.\w])(?:" + "|".join(CHOKEPOINT) + r")\s*\(|\bDeployment::current\s*\("
+CHOKEPOINT_RE = re.compile(CHOKEPOINT_CALL)
 
 # Where the chokepoint is *defined*. Its own callers inside this file are the
 # implementation, not entry points.
@@ -112,11 +117,25 @@ EXEMPTIONS = [
     (
         "fraiseql-secrets/src/secrets_manager/tests.rs",
         "test_create_secrets_manager_file_backend",
-        "drives create_secrets_manager's File arm; the is_production() read is in the "
+        "drives create_secrets_manager's File arm; the Deployment::current() read is in the "
         "Vault arm and is unreachable from this config",
     ),
 ]
 
+
+# Entry-point names too common to key a call on. `Server::new` reads the deployment
+# once for the server it builds, but `new` is a constructor in every crate: keyed by
+# name, every test that constructs anything becomes a violation (2 787 of them,
+# measured when `Deployment::current()` joined the chokepoint). Like an exemption, a
+# row is verified to still resolve, so it cannot outlive the read it excuses.
+UNKEYABLE = [
+    (
+        "fraiseql-server/src/server/builder.rs",
+        "new",
+        "`Server::new` reads `Deployment::current()`; `new` is a constructor name in "
+        "every crate",
+    ),
+]
 
 def iter_fns(text: str):
     """Yield (name, body, start_offset) for each `fn name(…) { … }`, by brace matching.
@@ -231,12 +250,34 @@ def main() -> int:
         print(f"       Looked for {'/'.join(CHOKEPOINT)} under {ROOT}/crates.")
         return 2
 
+    # Checked, like an exemption, whenever the file a row names exists under ROOT.
+    rotted = [
+        (path, name)
+        for path, name, _ in UNKEYABLE
+        if (ROOT / "crates" / path).is_file()
+        and not any(
+            fn == name and CHOKEPOINT_RE.search(body)
+            for fn, body, _ in iter_fns((ROOT / "crates" / path).read_text(errors="replace"))
+        )
+    ]
+    if rotted:
+        print("ERROR: an UNKEYABLE row in check-guard-test-lock.py encloses no read:")
+        for path, name in rotted:
+            print(f"  {path}::{name}")
+        print("\n  Drop the row — leaving it un-keys a name that may come back as a guard.")
+        return 2
+    for _, name, _ in UNKEYABLE:
+        entries.pop(name, None)
+
     # A test may also call the chokepoint directly rather than through a named guard.
     # Added after the emptiness check above, so they cannot mask a broken scan.
     for name in CHOKEPOINT:
         entries.setdefault(name, CHOKEPOINT_DEFN)
 
-    entry_re = re.compile(r"\b(" + "|".join(map(re.escape, sorted(entries))) + r")\s*\(")
+    derived = sorted(set(entries) - set(CHOKEPOINT))
+    entry_re = re.compile(
+        r"\b(?:" + "|".join(map(re.escape, derived)) + r")\s*\(|" + CHOKEPOINT_CALL
+    )
 
     checked = 0
     binaries_with_mutators = 0

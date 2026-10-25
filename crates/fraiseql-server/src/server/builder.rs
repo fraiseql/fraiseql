@@ -11,6 +11,7 @@ use fraiseql_core::{
     schema::CompiledSchema,
     security::{AuthConfig, AuthMiddleware, OidcValidator},
 };
+use fraiseql_guard::deployment::Deployment;
 use tracing::info;
 
 use super::{RateLimiter, Result, Server, ServerConfig, ServerError};
@@ -128,6 +129,8 @@ pub(super) fn build_hs256_auth(config: &ServerConfig) -> Result<Option<Arc<AuthM
 /// lean arrow build silently discarded `[auth]` and served every request
 /// anonymously (#783).
 pub(super) struct SchemaSubsystems {
+    /// The deployment every boot guard above was judged against, read once.
+    pub deployment: Deployment,
     #[cfg(feature = "federation")]
     pub circuit_breaker:
         Option<Arc<crate::federation::circuit_breaker::FederationCircuitBreakerManager>>,
@@ -211,6 +214,7 @@ impl Server {
             schema,
             adapter,
             db_pool,
+            Deployment::current(),
             Executor::with_config,
             #[cfg(feature = "arrow")]
             None,
@@ -244,6 +248,7 @@ impl Server {
             schema,
             adapter,
             db_pool,
+            Deployment::current(),
             Executor::read_only_with_config,
             #[cfg(feature = "arrow")]
             None,
@@ -261,6 +266,7 @@ impl Server {
         schema: CompiledSchema,
         adapter: Arc<A>,
         db_pool: Option<sqlx::PgPool>,
+        deployment: Deployment,
         make_executor: fn(
             CompiledSchema,
             Arc<CachedDatabaseAdapter<A>>,
@@ -307,7 +313,7 @@ impl Server {
         crate::server::initialization::locale_collations_check(&schema, adapter.as_ref()).await?;
 
         // Read every schema-derived subsystem through the one shared seam.
-        let subsystems = Self::schema_subsystems(&schema, &config).await?;
+        let subsystems = Self::schema_subsystems(&schema, &config, deployment).await?;
 
         // Build the result cache and wrap the adapter — the one seam every
         // constructor shares, so `cache_enabled` cannot mean three different
@@ -365,26 +371,28 @@ impl Server {
     pub(super) async fn schema_subsystems(
         schema: &CompiledSchema,
         config: &ServerConfig,
+        deployment: Deployment,
     ) -> Result<SchemaSubsystems> {
         #[cfg(feature = "federation")]
         let circuit_breaker = schema.federation.as_ref().and_then(
             crate::federation::circuit_breaker::FederationCircuitBreakerManager::from_config,
         );
-        let error_sanitizer = Self::error_sanitizer_from_schema(schema);
+        let error_sanitizer = Self::error_sanitizer_from_schema(schema, deployment);
         #[cfg(feature = "auth")]
         let state_encryption = Self::state_encryption_from_schema(schema)?;
         #[cfg(feature = "auth")]
         let pkce_store = super::initialization::pkce_store_from_schema_in(
             schema,
             state_encryption.as_ref(),
-            crate::ServerConfig::is_production_mode(),
+            deployment,
         )
         .await?;
         #[cfg(feature = "auth")]
         let oidc_server_client = Self::oidc_server_client_from_schema(schema).await;
         // Both configuration sources resolved together, so the boot guards run on
         // whatever actually takes effect (#837) and CLI/env overrides win (#774).
-        let rate_limiter = super::initialization::resolve_rate_limiter(schema, config).await?;
+        let rate_limiter =
+            super::initialization::resolve_rate_limiter(schema, config, deployment).await?;
         // #787/#781: a configured inbound webhook route must be servable — known
         // provider, its secret env set (production), and a public_url when the
         // provider signs the request URL — or the server refuses to boot instead
@@ -393,7 +401,7 @@ impl Server {
         let webhook_routes = crate::inbound::webhook_routes_check(
             &config.webhooks,
             |name| std::env::var(name).ok(),
-            crate::ServerConfig::is_production_mode(),
+            deployment,
         )?;
         let api_key_config = crate::api_key::api_key_config_from_schema(schema);
         let service_account_authenticator =
@@ -402,7 +410,7 @@ impl Server {
             info!("Service-account authentication enabled");
         }
         let revocation_manager =
-            crate::token_revocation::revocation_manager_from_schema(schema).await?;
+            crate::token_revocation::revocation_manager_from_schema_in(schema, deployment).await?;
         if revocation_manager.is_some() {
             info!("Token revocation enabled");
         }
@@ -412,6 +420,7 @@ impl Server {
         let trusted_docs = Self::trusted_docs_from_schema(schema, &mut tasks);
 
         Ok(SchemaSubsystems {
+            deployment,
             #[cfg(feature = "federation")]
             circuit_breaker,
             error_sanitizer,
@@ -529,6 +538,7 @@ impl Server {
         config.validate().map_err(ServerError::ConfigError)?;
 
         let SchemaSubsystems {
+            deployment,
             #[cfg(feature = "federation")]
             circuit_breaker,
             error_sanitizer,
@@ -646,7 +656,8 @@ impl Server {
 
         // Initialize observer runtime
         #[cfg(feature = "observers")]
-        let observer_runtime = Self::init_observer_runtime(&config, db_pool.as_ref()).await?;
+        let observer_runtime =
+            Self::init_observer_runtime(&config, db_pool.as_ref(), deployment).await?;
 
         // The REST stream's fan-out (#1309), created iff there will be a producer for
         // it. `serve` hands this exact handle to the `EventBridge`; `build_router` hands
@@ -962,6 +973,7 @@ impl Server {
 
         Ok(Self {
             config,
+            deployment,
             #[cfg(feature = "inbound")]
             webhook_routes,
             executor,

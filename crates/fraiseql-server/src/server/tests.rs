@@ -299,6 +299,8 @@ mod runtime_ceiling_tests {
 // ── initialization_tests ──────────────────────────────────────────────────────
 
 mod initialization_tests {
+    use fraiseql_guard::deployment::Deployment;
+
     use super::super::initialization::is_manifest_url_ssrf_blocked;
 
     /// H12: a field marked for at-rest encryption must refuse to boot — the write path does
@@ -525,8 +527,8 @@ mod initialization_tests {
         use super::super::initialization::pkce_state_encryption_check;
         let result = pkce_state_encryption_check(
             // has_state_encryption
-            false, // is_production
-            true,
+            false,
+            Deployment::Production,
         );
         assert!(
             result.is_err(),
@@ -539,7 +541,7 @@ mod initialization_tests {
     fn pkce_without_state_encryption_is_a_warning_in_development() {
         use super::super::initialization::pkce_state_encryption_check;
         assert!(
-            pkce_state_encryption_check(false, false).is_ok(),
+            pkce_state_encryption_check(false, Deployment::Development).is_ok(),
             "development mode downgrades the missing-state-encryption error to a warning"
         );
     }
@@ -548,8 +550,8 @@ mod initialization_tests {
     #[test]
     fn pkce_with_state_encryption_is_always_ok() {
         use super::super::initialization::pkce_state_encryption_check;
-        assert!(pkce_state_encryption_check(true, true).is_ok());
-        assert!(pkce_state_encryption_check(true, false).is_ok());
+        assert!(pkce_state_encryption_check(true, Deployment::Production).is_ok());
+        assert!(pkce_state_encryption_check(true, Deployment::Development).is_ok());
     }
 
     // H7: error sanitization defaults to ON in production when the schema declares
@@ -561,11 +563,11 @@ mod initialization_tests {
 
         // No explicit config: production sanitizes, development stays verbose.
         assert!(
-            build_error_sanitizer(None, true).is_enabled(),
+            build_error_sanitizer(None, Deployment::Production).is_enabled(),
             "production must sanitize 5xx by default (H7)"
         );
         assert!(
-            !build_error_sanitizer(None, false).is_enabled(),
+            !build_error_sanitizer(None, Deployment::Development).is_enabled(),
             "development keeps verbose errors by default"
         );
     }
@@ -580,14 +582,14 @@ mod initialization_tests {
             enabled: false,
             ..ErrorSanitizationConfig::default()
         };
-        assert!(!build_error_sanitizer(Some(off), true).is_enabled());
+        assert!(!build_error_sanitizer(Some(off), Deployment::Production).is_enabled());
 
         // Operator explicitly enables in development → respected.
         let on = ErrorSanitizationConfig {
             enabled: true,
             ..ErrorSanitizationConfig::default()
         };
-        assert!(build_error_sanitizer(Some(on), false).is_enabled());
+        assert!(build_error_sanitizer(Some(on), Deployment::Development).is_enabled());
     }
 
     // #356: the binary cannot enforce failed_login_* lockout (no first-factor login).
@@ -604,7 +606,7 @@ mod initialization_tests {
             failed_login_lockout_check(
                 DEFAULT_FAILED_LOGIN_MAX_ATTEMPTS,
                 DEFAULT_FAILED_LOGIN_LOCKOUT_SECS,
-                true,
+                Deployment::Production
             )
             .is_ok()
         );
@@ -613,14 +615,28 @@ mod initialization_tests {
     #[test]
     fn failed_login_tuned_value_is_fatal_in_production() {
         // A tuned max_attempts expects a control the binary cannot provide.
-        assert!(failed_login_lockout_check(5, DEFAULT_FAILED_LOGIN_LOCKOUT_SECS, true).is_err());
+        assert!(
+            failed_login_lockout_check(
+                5,
+                DEFAULT_FAILED_LOGIN_LOCKOUT_SECS,
+                Deployment::Production
+            )
+            .is_err()
+        );
         // A tuned lockout window is equally fatal.
-        assert!(failed_login_lockout_check(DEFAULT_FAILED_LOGIN_MAX_ATTEMPTS, 60, true).is_err());
+        assert!(
+            failed_login_lockout_check(
+                DEFAULT_FAILED_LOGIN_MAX_ATTEMPTS,
+                60,
+                Deployment::Production
+            )
+            .is_err()
+        );
     }
 
     #[test]
     fn failed_login_tuned_value_is_a_warning_in_development() {
-        assert!(failed_login_lockout_check(5, 60, false).is_ok());
+        assert!(failed_login_lockout_check(5, 60, Deployment::Development).is_ok());
     }
 
     // #618: trusting X-Forwarded-For from all proxies (empty CIDR list) now REFUSES to
@@ -631,7 +647,8 @@ mod initialization_tests {
     #[test]
     fn proxy_trust_all_by_omission_refuses_boot_in_production() {
         // trust + no CIDRs (None) → refuse in production, with an actionable message.
-        let err = proxy_trust_check(true, None, true).expect_err("must refuse to boot");
+        let err =
+            proxy_trust_check(true, None, Deployment::Production).expect_err("must refuse to boot");
         let msg = format!("{err}");
         assert!(msg.contains("trusted_proxy_cidrs"), "names the fix: {msg}");
         assert!(msg.contains("0.0.0.0/0"), "names the explicit trust-all opt-in: {msg}");
@@ -640,14 +657,14 @@ mod initialization_tests {
     #[test]
     fn proxy_trust_empty_list_refuses_boot_in_production() {
         // An explicitly empty list is the same permissive posture as omission.
-        assert!(proxy_trust_check(true, Some(&[]), true).is_err());
+        assert!(proxy_trust_check(true, Some(&[]), Deployment::Production).is_err());
     }
 
     #[test]
     fn proxy_trust_all_by_omission_is_a_warning_in_development() {
         // Development downgrades to a warning (boot proceeds), matching failed_login.
-        assert!(proxy_trust_check(true, None, false).is_ok());
-        assert!(proxy_trust_check(true, Some(&[]), false).is_ok());
+        assert!(proxy_trust_check(true, None, Deployment::Development).is_ok());
+        assert!(proxy_trust_check(true, Some(&[]), Deployment::Development).is_ok());
     }
 
     #[test]
@@ -655,27 +672,28 @@ mod initialization_tests {
         // ["0.0.0.0/0"] is the sanctioned explicit opt-in — a deliberate, non-empty list,
         // so it neither errors nor warns, in production or development.
         let cidrs = vec!["0.0.0.0/0".to_string()];
-        assert!(proxy_trust_check(true, Some(&cidrs), true).is_ok());
-        assert!(proxy_trust_check(true, Some(&cidrs), false).is_ok());
+        assert!(proxy_trust_check(true, Some(&cidrs), Deployment::Production).is_ok());
+        assert!(proxy_trust_check(true, Some(&cidrs), Deployment::Development).is_ok());
     }
 
     #[test]
     fn proxy_trust_restricted_cidrs_are_ok_in_production() {
         let cidrs = vec!["10.0.0.0/8".to_string()];
-        assert!(proxy_trust_check(true, Some(&cidrs), true).is_ok());
+        assert!(proxy_trust_check(true, Some(&cidrs), Deployment::Production).is_ok());
     }
 
     #[test]
     fn proxy_trust_disabled_is_ok() {
         // trust_proxy_headers = false → the CIDR list is irrelevant; never errors/warns.
-        assert!(proxy_trust_check(false, None, true).is_ok());
-        assert!(proxy_trust_check(false, None, false).is_ok());
+        assert!(proxy_trust_check(false, None, Deployment::Production).is_ok());
+        assert!(proxy_trust_check(false, None, Deployment::Development).is_ok());
     }
 
     // #350: a configured non-Postgres observer transport that cannot run must fail
     // loud (refuse boot in production), never silently fall back to PostgreSQL.
     #[cfg(feature = "observers")]
     mod observer_transport {
+        use fraiseql_guard::deployment::Deployment;
         use fraiseql_observers::config::TransportKind;
 
         use crate::server::initialization::observer_transport_check;
@@ -683,40 +701,79 @@ mod initialization_tests {
         #[test]
         fn postgres_is_always_ok() {
             // The default transport needs no broker and never blocks boot.
-            assert!(observer_transport_check(TransportKind::Postgres, false, false, true).is_ok());
-            assert!(observer_transport_check(TransportKind::Postgres, false, false, false).is_ok());
+            assert!(
+                observer_transport_check(
+                    TransportKind::Postgres,
+                    false,
+                    false,
+                    Deployment::Production
+                )
+                .is_ok()
+            );
+            assert!(
+                observer_transport_check(
+                    TransportKind::Postgres,
+                    false,
+                    false,
+                    Deployment::Development
+                )
+                .is_ok()
+            );
         }
 
         #[test]
         fn in_memory_is_always_ok() {
             // The in-memory transport is always compiled and needs no broker.
-            assert!(observer_transport_check(TransportKind::InMemory, false, false, true).is_ok());
+            assert!(
+                observer_transport_check(
+                    TransportKind::InMemory,
+                    false,
+                    false,
+                    Deployment::Production
+                )
+                .is_ok()
+            );
         }
 
         #[test]
         fn nats_not_compiled_in_is_fatal_in_production() {
             // transport = "nats" without the observers-nats feature cannot run.
-            assert!(observer_transport_check(TransportKind::Nats, false, true, true).is_err());
+            assert!(
+                observer_transport_check(TransportKind::Nats, false, true, Deployment::Production)
+                    .is_err()
+            );
         }
 
         #[test]
         fn nats_not_compiled_in_is_a_warning_in_development() {
-            assert!(observer_transport_check(TransportKind::Nats, false, true, false).is_ok());
+            assert!(
+                observer_transport_check(TransportKind::Nats, false, true, Deployment::Development)
+                    .is_ok()
+            );
         }
 
         #[test]
         fn nats_without_url_is_fatal_in_production() {
-            assert!(observer_transport_check(TransportKind::Nats, true, false, true).is_err());
+            assert!(
+                observer_transport_check(TransportKind::Nats, true, false, Deployment::Production)
+                    .is_err()
+            );
         }
 
         #[test]
         fn nats_without_url_is_a_warning_in_development() {
-            assert!(observer_transport_check(TransportKind::Nats, true, false, false).is_ok());
+            assert!(
+                observer_transport_check(TransportKind::Nats, true, false, Deployment::Development)
+                    .is_ok()
+            );
         }
 
         #[test]
         fn nats_compiled_with_url_is_ok() {
-            assert!(observer_transport_check(TransportKind::Nats, true, true, true).is_ok());
+            assert!(
+                observer_transport_check(TransportKind::Nats, true, true, Deployment::Production)
+                    .is_ok()
+            );
         }
     }
 }
@@ -795,18 +852,18 @@ mod lifecycle_tests {
 /// yielded an empty trust list — the trust-everyone posture the guard exists to refuse.
 mod rate_limit_boot_guard_tests {
     #![allow(clippy::unwrap_used, clippy::expect_used)] // Reason: test code.
-
     use fraiseql_core::schema::CompiledSchema;
+    use fraiseql_guard::deployment::Deployment;
     use serde_json::json;
 
-    use super::super::initialization::resolve_rate_limiter_in;
+    use super::super::initialization::resolve_rate_limiter;
     use crate::{
         ServerConfig,
         middleware::{RateLimitConfig, RateLimitOverrides},
     };
 
-    const PRODUCTION: bool = true;
-    const DEVELOPMENT: bool = false;
+    const PRODUCTION: Deployment = Deployment::Production;
+    const DEVELOPMENT: Deployment = Deployment::Development;
 
     fn schema_with_rate_limiting(section: serde_json::Value) -> CompiledSchema {
         // Null spells "absent", as the compiler serialises an unset section; a
@@ -846,7 +903,7 @@ mod rate_limit_boot_guard_tests {
     //
     // Since #977 the refusal happens at schema **load**: `rate_limiting` is a
     // typed `deny_unknown_fields` field on `SecurityConfig`, so a malformed
-    // section can never reach `resolve_rate_limiter_in` at all.
+    // section can never reach `resolve_rate_limiter` at all.
 
     #[test]
     fn a_malformed_compiled_section_is_refused_at_load() {
@@ -872,7 +929,7 @@ mod rate_limit_boot_guard_tests {
 
     #[tokio::test]
     async fn an_absent_section_is_not_an_error() {
-        let limiter = resolve_rate_limiter_in(&bare_schema(), &ServerConfig::default(), PRODUCTION)
+        let limiter = resolve_rate_limiter(&bare_schema(), &ServerConfig::default(), PRODUCTION)
             .await
             .expect("no rate-limit configuration anywhere is a valid deployment");
         assert!(limiter.is_none());
@@ -882,7 +939,7 @@ mod rate_limit_boot_guard_tests {
     async fn an_explicit_json_null_section_is_not_an_error() {
         // The compiler serialises an absent `SecurityConfig.rate_limiting` as null.
         let schema = schema_with_rate_limiting(serde_json::Value::Null);
-        let limiter = resolve_rate_limiter_in(&schema, &ServerConfig::default(), PRODUCTION)
+        let limiter = resolve_rate_limiter(&schema, &ServerConfig::default(), PRODUCTION)
             .await
             .expect("a null section means absent, not malformed");
         assert!(limiter.is_none());
@@ -894,7 +951,7 @@ mod rate_limit_boot_guard_tests {
     async fn the_proxy_trust_guard_runs_when_the_compiled_schema_configures_it() {
         let schema = schema_with_rate_limiting(trust_all_by_omission());
         assert!(
-            resolve_rate_limiter_in(&schema, &ServerConfig::default(), PRODUCTION)
+            resolve_rate_limiter(&schema, &ServerConfig::default(), PRODUCTION)
                 .await
                 .is_err()
         );
@@ -915,7 +972,7 @@ mod rate_limit_boot_guard_tests {
         };
 
         assert!(
-            resolve_rate_limiter_in(&bare_schema(), &config, PRODUCTION).await.is_err(),
+            resolve_rate_limiter(&bare_schema(), &config, PRODUCTION).await.is_err(),
             "trust_proxy_headers = true with no trusted CIDRs must refuse to boot in production \
              regardless of which source declares it (#837)"
         );
@@ -939,14 +996,14 @@ mod rate_limit_boot_guard_tests {
             ..ServerConfig::default()
         };
 
-        assert!(resolve_rate_limiter_in(&bare_schema(), &config, PRODUCTION).await.is_err());
+        assert!(resolve_rate_limiter(&bare_schema(), &config, PRODUCTION).await.is_err());
     }
 
     #[tokio::test]
     async fn the_proxy_trust_guard_is_a_warning_in_development() {
         let schema = schema_with_rate_limiting(trust_all_by_omission());
         assert!(
-            resolve_rate_limiter_in(&schema, &ServerConfig::default(), DEVELOPMENT)
+            resolve_rate_limiter(&schema, &ServerConfig::default(), DEVELOPMENT)
                 .await
                 .is_ok(),
             "development downgrades the guard to a warning"
@@ -966,7 +1023,7 @@ mod rate_limit_boot_guard_tests {
             "trusted_proxy_cidrs": ["10.0.0.0/8", "not-a-cidr"],
         }));
 
-        let err = resolve_rate_limiter_in(&schema, &ServerConfig::default(), PRODUCTION)
+        let err = resolve_rate_limiter(&schema, &ServerConfig::default(), PRODUCTION)
             .await
             .err()
             .expect("an entry that is not a CIDR must refuse to boot, not be skipped");
@@ -986,7 +1043,7 @@ mod rate_limit_boot_guard_tests {
             "trusted_proxy_cidrs": ["10.0.0.0/8"],
         }));
 
-        let limiter = resolve_rate_limiter_in(&schema, &ServerConfig::default(), PRODUCTION)
+        let limiter = resolve_rate_limiter(&schema, &ServerConfig::default(), PRODUCTION)
             .await
             .expect("a restricted trusted-proxy list is the sanctioned configuration");
         assert!(limiter.is_some());
@@ -1007,7 +1064,7 @@ mod rate_limit_boot_guard_tests {
             ..ServerConfig::default()
         };
 
-        let limiter = resolve_rate_limiter_in(&schema, &config, PRODUCTION).await.unwrap();
+        let limiter = resolve_rate_limiter(&schema, &config, PRODUCTION).await.unwrap();
         assert!(
             limiter.is_none(),
             "FRAISEQL_RATE_LIMITING_ENABLED=false is the documented off-switch; the compiled \
@@ -1029,7 +1086,7 @@ mod rate_limit_boot_guard_tests {
             ..ServerConfig::default()
         };
 
-        let limiter = resolve_rate_limiter_in(&schema, &config, PRODUCTION)
+        let limiter = resolve_rate_limiter(&schema, &config, PRODUCTION)
             .await
             .unwrap()
             .expect("enabled");
@@ -1052,7 +1109,7 @@ mod rate_limit_boot_guard_tests {
             ..ServerConfig::default()
         };
 
-        let limiter = resolve_rate_limiter_in(&schema, &config, PRODUCTION).await.unwrap().unwrap();
+        let limiter = resolve_rate_limiter(&schema, &config, PRODUCTION).await.unwrap().unwrap();
         assert_eq!(limiter.config().rps_per_ip, 1000);
         assert_eq!(limiter.config().burst_size, 9, "an unset override must not clobber the schema");
     }
@@ -1073,7 +1130,7 @@ mod rate_limit_boot_guard_tests {
             ..ServerConfig::default()
         };
 
-        let limiter = resolve_rate_limiter_in(&schema, &config, PRODUCTION).await.unwrap().unwrap();
+        let limiter = resolve_rate_limiter(&schema, &config, PRODUCTION).await.unwrap().unwrap();
         assert_eq!(limiter.config().rps_per_ip, 42);
     }
 
@@ -1088,7 +1145,7 @@ mod rate_limit_boot_guard_tests {
             ..ServerConfig::default()
         };
 
-        let limiter = resolve_rate_limiter_in(&bare_schema(), &config, PRODUCTION)
+        let limiter = resolve_rate_limiter(&bare_schema(), &config, PRODUCTION)
             .await
             .unwrap()
             .unwrap();
@@ -1122,7 +1179,7 @@ mod rate_limit_boot_guard_tests {
 
     #[tokio::test]
     async fn an_unreachable_redis_rate_limiter_refuses_to_boot_in_production() {
-        let err = resolve_rate_limiter_in(
+        let err = resolve_rate_limiter(
             &schema_with_redis_rate_limiting(),
             &ServerConfig::default(),
             PRODUCTION,
@@ -1142,7 +1199,7 @@ mod rate_limit_boot_guard_tests {
 
     #[tokio::test]
     async fn an_unreachable_redis_rate_limiter_downgrades_only_in_development() {
-        let limiter = resolve_rate_limiter_in(
+        let limiter = resolve_rate_limiter(
             &schema_with_redis_rate_limiting(),
             &ServerConfig::default(),
             DEVELOPMENT,
@@ -1163,7 +1220,7 @@ mod rate_limit_boot_guard_tests {
     /// test mutates the real env var (the parallel runner would race it).
     #[tokio::test]
     async fn a_downgraded_limiter_violates_the_require_redis_assertion() {
-        let limiter = resolve_rate_limiter_in(
+        let limiter = resolve_rate_limiter(
             &schema_with_redis_rate_limiting(),
             &ServerConfig::default(),
             DEVELOPMENT,
@@ -1192,14 +1249,14 @@ mod rate_limit_boot_guard_tests {
 #[cfg(feature = "redis-rate-limiting")]
 mod redis_rate_limit_downgrade_tests {
     #![allow(clippy::unwrap_used, clippy::expect_used)] // Reason: test code.
-
     use fraiseql_core::schema::CompiledSchema;
+    use fraiseql_guard::deployment::Deployment;
 
-    use super::super::initialization::resolve_rate_limiter_in;
+    use super::super::initialization::resolve_rate_limiter;
     use crate::ServerConfig;
 
-    const PRODUCTION: bool = true;
-    const DEVELOPMENT: bool = false;
+    const PRODUCTION: Deployment = Deployment::Production;
+    const DEVELOPMENT: Deployment = Deployment::Development;
 
     fn schema_with_redis_rate_limiting() -> CompiledSchema {
         let security = fraiseql_core::schema::SecurityConfig {
@@ -1221,7 +1278,7 @@ mod redis_rate_limit_downgrade_tests {
 
     #[tokio::test]
     async fn an_unreachable_redis_limiter_refuses_to_boot_in_production() {
-        let err = resolve_rate_limiter_in(
+        let err = resolve_rate_limiter(
             &schema_with_redis_rate_limiting(),
             &ServerConfig::default(),
             PRODUCTION,
@@ -1240,7 +1297,7 @@ mod redis_rate_limit_downgrade_tests {
 
     #[tokio::test]
     async fn an_unreachable_redis_limiter_downgrades_with_a_warning_in_development() {
-        let limiter = resolve_rate_limiter_in(
+        let limiter = resolve_rate_limiter(
             &schema_with_redis_rate_limiting(),
             &ServerConfig::default(),
             DEVELOPMENT,
@@ -1257,10 +1314,10 @@ mod redis_rate_limit_downgrade_tests {
 #[cfg(feature = "auth")]
 mod pkce_boot_guard_tests {
     #![allow(clippy::unwrap_used, clippy::expect_used)] // Reason: test code.
-
     use std::sync::Arc;
 
     use fraiseql_core::schema::CompiledSchema;
+    use fraiseql_guard::deployment::Deployment;
     // The only bare `json!` users in this module are the redis-pkce tests, so an
     // ungated import is an unused-import error in every combo that enables `auth`
     // without `redis-pkce` (e.g. the server-inbound-email matrix leg).
@@ -1270,9 +1327,9 @@ mod pkce_boot_guard_tests {
     use super::super::initialization::pkce_store_from_schema_in;
     use crate::auth::state_encryption::StateEncryptionService;
 
-    const PRODUCTION: bool = true;
+    const PRODUCTION: Deployment = Deployment::Production;
     #[cfg(feature = "redis-pkce")]
-    const DEVELOPMENT: bool = false;
+    const DEVELOPMENT: Deployment = Deployment::Development;
 
     fn schema_with_pkce(section: serde_json::Value) -> CompiledSchema {
         // Null spells "absent"; a non-null section must parse as the typed
@@ -1597,6 +1654,7 @@ mod async_operations_boot_tests {
 
 #[cfg(feature = "observers")]
 mod observer_redis_env_tests {
+    use fraiseql_guard::deployment::Deployment;
     use sqlx::PgPool;
 
     use crate::{Server, observers::ObserverRuntimeConfig, server_config::ObserverConfig};
@@ -1635,7 +1693,9 @@ mod observer_redis_env_tests {
 
     fn resolve(toml_src: &str, env: &[(&str, &str)]) -> crate::Result<ObserverRuntimeConfig> {
         let pool = lazy_pool();
-        with_redis_env(env, || Server::observer_runtime_config(&observers(toml_src), &pool))
+        with_redis_env(env, || {
+            Server::observer_runtime_config(&observers(toml_src), &pool, Deployment::current())
+        })
     }
 
     #[tokio::test]
@@ -1749,6 +1809,7 @@ mod observer_redis_env_tests {
 
 #[cfg(feature = "observers")]
 mod observer_transport_tests {
+    use fraiseql_guard::deployment::Deployment;
     use sqlx::PgPool;
 
     use crate::{Server, observers::ObserverRuntimeConfig, server_config::ObserverConfig};
@@ -1779,7 +1840,7 @@ mod observer_transport_tests {
         temp_env::with_vars(vars, || {
             let observers: ObserverConfig = toml::from_str(toml_src)
                 .map_err(|e| crate::ServerError::ConfigError(e.to_string()))?;
-            Server::observer_runtime_config(&observers, &pool)
+            Server::observer_runtime_config(&observers, &pool, Deployment::current())
         })
     }
 

@@ -10,6 +10,7 @@ use fraiseql_core::{
     runtime::Executor,
     schema::CompiledSchema,
 };
+use fraiseql_guard::deployment::Deployment;
 #[cfg(feature = "observers")]
 use tokio::sync::RwLock;
 #[cfg(feature = "observers")]
@@ -63,6 +64,7 @@ impl Server {
             schema,
             adapter,
             db_pool,
+            Deployment::current(),
             Executor::with_config_and_relay,
             #[cfg(feature = "arrow")]
             None,
@@ -149,6 +151,7 @@ impl Server {
             schema,
             adapter,
             db_pool,
+            Deployment::current(),
             Executor::with_config_and_relay,
             flight_service,
         ))
@@ -173,6 +176,7 @@ impl Server {
     pub(super) async fn init_observer_runtime(
         config: &ServerConfig,
         pool: Option<&sqlx::PgPool>,
+        deployment: Deployment,
     ) -> crate::Result<Option<Arc<RwLock<ObserverRuntime>>>> {
         // Check if enabled
         let observer_config = match &config.observers {
@@ -190,7 +194,7 @@ impl Server {
 
         info!("Initializing observer runtime");
 
-        let runtime_config = Self::observer_runtime_config(observer_config, pool)?;
+        let runtime_config = Self::observer_runtime_config(observer_config, pool, deployment)?;
         let runtime = ObserverRuntime::new(runtime_config);
         Ok(Some(Arc::new(RwLock::new(runtime))))
     }
@@ -206,6 +210,7 @@ impl Server {
     pub(super) fn observer_runtime_config(
         observer_config: &crate::server_config::ObserverConfig,
         pool: &sqlx::PgPool,
+        deployment: Deployment,
     ) -> crate::Result<ObserverRuntimeConfig> {
         use fraiseql_observers::config::TransportKind;
 
@@ -227,7 +232,7 @@ impl Server {
             transport.transport,
             compiled_in,
             nats_url_present,
-            crate::ServerConfig::is_production_mode(),
+            deployment,
         )?;
 
         // In production an unrunnable selection already returned above; the only

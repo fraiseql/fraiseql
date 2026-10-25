@@ -31,6 +31,7 @@ use axum::{
     body::Body,
     http::{Request, StatusCode},
 };
+use fraiseql_guard::deployment::Deployment;
 use fraiseql_server::{
     config::WebhookRouteConfig,
     inbound::{WebhookInboundState, webhook_router, webhook_routes_check},
@@ -104,9 +105,10 @@ fn router(pool: PgPool, jwks_uri: &str) -> Router {
             ..Default::default()
         },
     );
-    let built = webhook_routes_check(&routes, |_| None, true).unwrap_or_else(|error| {
-        panic!("a hanko route needs no secret_env and must boot in production: {error}")
-    });
+    let built =
+        webhook_routes_check(&routes, |_| None, Deployment::Production).unwrap_or_else(|error| {
+            panic!("a hanko route needs no secret_env and must boot in production: {error}")
+        });
     webhook_router(WebhookInboundState::new(pool, &built, |_| None))
 }
 
