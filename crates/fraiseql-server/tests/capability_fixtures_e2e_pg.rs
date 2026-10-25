@@ -29,6 +29,7 @@ use std::{
     collections::BTreeMap,
     path::{Path, PathBuf},
     process::{Child, Command, Stdio},
+    sync::{Arc, Mutex},
     time::{Duration, Instant},
 };
 
@@ -49,19 +50,27 @@ const BOOT_DEADLINE: Duration = Duration::from_mins(1);
 #[serde(deny_unknown_fields)]
 struct Fixture {
     /// The registry entry this fixture exercises.
-    capability:    String,
+    capability:     String,
     /// How long the effect may take to appear once the stimuli are sent.
     #[serde(default = "default_deadline_secs")]
-    deadline_secs: u64,
+    deadline_secs:  u64,
+    /// Whether the database is prepared with `fraiseql setup` before `setup.sql` (default
+    /// `true`). Off for a fixture about what the server does without it.
+    #[serde(default = "default_true")]
+    fraiseql_setup: bool,
     /// Environment for the server process. `$FIXTURE` expands to the fixture's directory.
     #[serde(default)]
-    env:           BTreeMap<String, String>,
-    stimulus:      Vec<Stimulus>,
-    effect:        Effect,
+    env:            BTreeMap<String, String>,
+    stimulus:       Vec<Stimulus>,
+    effect:         Effect,
 }
 
 const fn default_deadline_secs() -> u64 {
     30
+}
+
+const fn default_true() -> bool {
+    true
 }
 
 #[derive(Debug, Deserialize)]
@@ -143,6 +152,11 @@ enum Effect {
         subject_prefix: String,
         count:          usize,
     },
+    /// The harness's receiver (`$RECEIVER_URL`) was sent at least `count` requests for
+    /// `path`, as an observer's webhook action sends them.
+    Received { path: String, count: usize },
+    /// The server refuses to serve: it exits before answering, saying `message`.
+    Refused { message: String },
     /// `/health` reports the capability `started` and `serving` as given.
     Health {
         capability: String,
@@ -178,7 +192,12 @@ fn with_database(url: &str, db: &str) -> String {
 }
 
 /// A fresh `db`, prepared as a deployment prepares one: `fraiseql setup`, then `setup.sql`.
-async fn prepare_database(admin_url: &str, db: &str, setup_sql: &str) -> Result<String, String> {
+async fn prepare_database(
+    admin_url: &str,
+    db: &str,
+    setup_sql: &str,
+    fraiseql_setup: bool,
+) -> Result<String, String> {
     let admin = PgPool::connect(admin_url).await.map_err(|e| format!("connect: {e}"))?;
     for statement in [
         format!("DROP DATABASE IF EXISTS {db} WITH (FORCE)"),
@@ -191,13 +210,15 @@ async fn prepare_database(admin_url: &str, db: &str, setup_sql: &str) -> Result<
     }
     admin.close().await;
     let url = with_database(admin_url, db);
-    fraiseql_cli::commands::setup::run(
-        Some(&url),
-        false,
-        &fraiseql_cli::output::OutputFormatter::new(false, true),
-    )
-    .await
-    .map_err(|e| format!("fraiseql setup: {e:#}"))?;
+    if fraiseql_setup {
+        fraiseql_cli::commands::setup::run(
+            Some(&url),
+            false,
+            &fraiseql_cli::output::OutputFormatter::new(false, true),
+        )
+        .await
+        .map_err(|e| format!("fraiseql setup: {e:#}"))?;
+    }
     let pool = PgPool::connect(&url).await.map_err(|e| format!("connect to {db}: {e}"))?;
     sqlx::raw_sql(setup_sql)
         .execute(&pool)
@@ -251,11 +272,43 @@ fn nats_url() -> Result<String, String> {
         .map_err(|_| "this fixture needs NATS, and NATS_URL is not set".to_owned())
 }
 
-/// The fixture's `server.toml` with `$FIXTURE` and `$NATS_URL` expanded, written to
-/// `scratch`.
-fn render_server_toml(dir: &Path, scratch: &Path) -> Result<PathBuf, String> {
+/// An HTTP endpoint of the harness's own, at `$RECEIVER_URL`, recording the path of every
+/// request it is sent: where a fixture points an observer's webhook.
+struct Receiver {
+    url:   String,
+    paths: Arc<Mutex<Vec<String>>>,
+}
+
+impl Receiver {
+    async fn start() -> Self {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("http://{}", listener.local_addr().unwrap());
+        let paths = Arc::new(Mutex::new(Vec::new()));
+        let seen = Arc::clone(&paths);
+        let app = axum::Router::new().fallback(move |uri: axum::http::Uri| {
+            let seen = Arc::clone(&seen);
+            async move {
+                seen.lock().unwrap().push(uri.path().to_owned());
+                axum::http::StatusCode::OK
+            }
+        });
+        tokio::spawn(async move {
+            let _ = axum::serve(listener, app).await;
+        });
+        Self { url, paths }
+    }
+
+    /// `text` with `$RECEIVER_URL` expanded.
+    fn expand(&self, text: &str) -> String {
+        text.replace("$RECEIVER_URL", &self.url)
+    }
+}
+
+/// The fixture's `server.toml` with `$FIXTURE`, `$NATS_URL` and `$RECEIVER_URL` expanded,
+/// written to `scratch`.
+fn render_server_toml(dir: &Path, scratch: &Path, receiver: &Receiver) -> Result<PathBuf, String> {
     let mut text = std::fs::read_to_string(dir.join("server.toml")).map_err(|e| e.to_string())?;
-    text = text.replace("$FIXTURE", &dir.to_string_lossy());
+    text = receiver.expand(&text.replace("$FIXTURE", &dir.to_string_lossy()));
     if text.contains("$NATS_URL") {
         text = text.replace("$NATS_URL", &nats_url()?);
     }
@@ -298,9 +351,10 @@ async fn stream_subjects(stream: &str) -> Result<Vec<String>, String> {
 
 /// A served fixture: the server process, and where its output goes.
 struct Served {
-    child: Child,
-    base:  String,
-    log:   PathBuf,
+    child:    Child,
+    base:     String,
+    log:      PathBuf,
+    receiver: Receiver,
 }
 
 impl Served {
@@ -338,6 +392,7 @@ async fn serve(
     schema: &Path,
     database_url: &str,
     scratch: &Path,
+    receiver: Receiver,
 ) -> Result<Served, String> {
     let port = free_port();
     let log = scratch.join("server.log");
@@ -346,7 +401,7 @@ async fn serve(
     let mut command = Command::new(env!("CARGO_BIN_EXE_fraiseql-server"));
     command
         .current_dir(&cwd)
-        .env("FRAISEQL_CONFIG", render_server_toml(dir, scratch)?)
+        .env("FRAISEQL_CONFIG", render_server_toml(dir, scratch, &receiver)?)
         .env("FRAISEQL_SCHEMA_PATH", schema)
         .env("DATABASE_URL", database_url)
         .env("FRAISEQL_BIND_ADDR", format!("127.0.0.1:{port}"))
@@ -362,6 +417,7 @@ async fn serve(
         child,
         base: format!("http://127.0.0.1:{port}"),
         log,
+        receiver,
     };
     let started = Instant::now();
     loop {
@@ -401,7 +457,7 @@ async fn send(served: &Served, database_url: &str, stimulus: &Stimulus) -> Resul
                     .header(signature.header.as_str(), signature.of(body.as_deref().unwrap_or("")));
             }
             if let Some(body) = body {
-                request = request.body(body.clone());
+                request = request.body(served.receiver.expand(body));
             }
             let response = request.send().await.map_err(|e| format!("{path}: {e}"))?;
             let status = response.status();
@@ -473,7 +529,7 @@ async fn send(served: &Served, database_url: &str, stimulus: &Stimulus) -> Resul
         },
         Stimulus::Sql { statement } => {
             let pool = PgPool::connect(database_url).await.map_err(|e| format!("connect: {e}"))?;
-            sqlx::raw_sql(statement)
+            sqlx::raw_sql(&served.receiver.expand(statement))
                 .execute(&pool)
                 .await
                 .map_err(|e| format!("stimulus `{statement}`: {e}"))?;
@@ -547,6 +603,18 @@ async fn observe(served: &Served, database_url: &str, effect: &Effect) -> Result
                 ))
             }
         },
+        Effect::Received { path, count } => {
+            let paths = served.receiver.paths.lock().unwrap().clone();
+            let hits = paths.iter().filter(|p| *p == path).count();
+            if hits >= *count {
+                Ok(())
+            } else {
+                Err(format!(
+                    "the receiver was sent {hits} request(s) for {path}, not {count}: {paths:?}"
+                ))
+            }
+        },
+        Effect::Refused { .. } => Err("a refusal is judged before the server serves".to_owned()),
         Effect::Health {
             capability,
             started,
@@ -597,13 +665,33 @@ async fn run_fixture(admin_url: &str, name: &str, dir: &Path) -> Result<(), Stri
     compile(dir, &schema).await?;
     let db = format!("cap_{name}");
     let setup_sql = std::fs::read_to_string(dir.join("setup.sql")).unwrap();
-    let database_url = prepare_database(admin_url, &db, &setup_sql).await?;
+    let database_url = prepare_database(admin_url, &db, &setup_sql, fixture.fraiseql_setup).await?;
 
     if let Effect::Nats { stream, .. } = &fixture.effect {
         reset_stream(stream).await?;
     }
+    if let Effect::Refused { message } = &fixture.effect {
+        let outcome = match serve(
+            dir,
+            &fixture,
+            &schema,
+            &database_url,
+            scratch.path(),
+            Receiver::start().await,
+        )
+        .await
+        {
+            Ok(_) => Err(format!("the server served; it should have refused: {message}")),
+            Err(refusal) if refusal.contains(message.as_str()) => Ok(()),
+            Err(other) => Err(format!("the server failed without saying {message:?}: {other}")),
+        };
+        drop_database(admin_url, &db).await;
+        return outcome;
+    }
     let outcome = async {
-        let mut served = serve(dir, &fixture, &schema, &database_url, scratch.path()).await?;
+        let mut served =
+            serve(dir, &fixture, &schema, &database_url, scratch.path(), Receiver::start().await)
+                .await?;
         for stimulus in &fixture.stimulus {
             send(&served, &database_url, stimulus).await?;
         }

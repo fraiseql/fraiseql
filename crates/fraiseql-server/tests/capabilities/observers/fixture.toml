@@ -1,0 +1,21 @@
+# An observer declared in `tb_observer` (the table provisioning creates) fires a webhook
+# action when a matching row lands on the change log.
+capability = "observers"
+
+# The receiver is the harness's, on loopback: the documented dev bypass of the SSRF guard.
+[env]
+FRAISEQL_ENV = "development"
+FRAISEQL_OBSERVERS_ALLOW_INSECURE = "true"
+
+[[stimulus]]
+sql = { statement = "INSERT INTO tb_observer (name, entity_type, event_type, actions) VALUES ('notify_orders', 'Order', 'INSERT', '[{\"type\": \"webhook\", \"url\": \"$RECEIVER_URL/orders\", \"method\": \"POST\"}]')" }
+
+# One reload interval, so the runtime has read the new observer.
+[[stimulus]]
+wait = { secs = 3 }
+
+[[stimulus]]
+sql = { statement = "INSERT INTO core.tb_entity_change_log (object_type, modification_type, object_id, tenant_id, object_data) VALUES ('Order', 'INSERT', gen_random_uuid(), gen_random_uuid(), '{\"id\": 1}')" }
+
+[effect]
+received = { path = "/orders", count = 1 }

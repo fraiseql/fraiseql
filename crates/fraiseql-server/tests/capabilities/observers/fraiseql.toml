@@ -1,0 +1,11 @@
+[schema]
+name = "capability-observers"
+
+[types.Order]
+sql_source = "app.v_order"
+fields.id = { type = "ID" }
+
+[queries.orders]
+return_type = "Order"
+return_array = true
+sql_source = "app.v_order"

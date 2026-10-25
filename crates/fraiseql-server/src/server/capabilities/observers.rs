@@ -9,6 +9,7 @@ use crate::capability::Capability;
 #[cfg(feature = "observers")]
 use crate::{
     capability::Started,
+    server::provision::{BootCx, ProvisionStep},
     subscriptions::event_bridge::{EventBridge, EventBridgeConfig},
 };
 
@@ -23,6 +24,29 @@ impl Capability for Observers {
         cx.server.observer_runtime.is_some()
     }
 
+    /// The runtime's own tables: the observer definitions and their execution log, the
+    /// dispatch ledger, and the listener checkpoints. Without them an enabled runtime
+    /// failed loading `tb_observer` and the server served on without observers. The
+    /// change log it reads is the application's (`fraiseql setup` installs it), so it
+    /// is not created here.
+    #[cfg(feature = "observers")]
+    fn provision(&self, cx: &BootCx<'_>) -> Vec<ProvisionStep> {
+        let server = cx.server;
+        let enabled = server.config.observers.as_ref().is_some_and(|o| o.enabled);
+        match server.db_pool.as_ref() {
+            Some(pool) if enabled => vec![ProvisionStep::new(
+                "observers",
+                pool,
+                &[
+                    fraiseql_observers::migrations::observer_management_sql(),
+                    fraiseql_observers::migrations::observer_dispatch_sql(),
+                    fraiseql_observers::checkpoint::migration_sql(),
+                ],
+            )],
+            _ => Vec::new(),
+        }
+    }
+
     /// Start the runtime and the event bridge that forwards its events to subscriptions.
     ///
     /// A broker-backed transport (NATS) that fails to start refuses the boot in
@@ -35,6 +59,24 @@ impl Capability for Observers {
         let Some(ref runtime) = server.observer_runtime else {
             return Ok(Started::Running);
         };
+        // The runtime reads the application's change log, which this server does not own
+        // and so does not create. Without it the runtime would fail to read and the server
+        // would serve on with no observer firing.
+        if let Some(pool) = server.db_pool.as_ref() {
+            let exists: bool =
+                sqlx::query_scalar("SELECT to_regclass('core.tb_entity_change_log') IS NOT NULL")
+                    .fetch_one(pool)
+                    .await
+                    .map_err(|e| crate::ServerError::Database(e.to_string()))?;
+            if !exists {
+                return Err(crate::ServerError::ConfigError(
+                    "[observers] is enabled, but core.tb_entity_change_log does not exist: it \
+                     is the application's change log the observer runtime reads. Install it \
+                     with `fraiseql setup`, or disable [observers]"
+                        .to_string(),
+                ));
+            }
+        }
         info!("Starting observer runtime...");
 
         // Create EventBridge to forward CDC events to GraphQL subscriptions,

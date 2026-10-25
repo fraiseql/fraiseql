@@ -286,6 +286,26 @@ async fn each_configured_capability_plans_its_own_tables() {
         );
     }
 
+    // #1710: the observer runtime's own tables. The change log it reads belongs to the
+    // application (`fraiseql setup` installs it), so it is checked at start, not created.
+    #[cfg(feature = "observers")]
+    {
+        let mut server = server_over(CompiledSchema::new()).await;
+        server.config.observers =
+            Some(serde_json::from_value(serde_json::json!({ "enabled": true })).unwrap());
+        assert_eq!(
+            planned(&server),
+            vec![(
+                "observers",
+                vec![
+                    fraiseql_observers::migrations::observer_management_sql(),
+                    fraiseql_observers::migrations::observer_dispatch_sql(),
+                    fraiseql_observers::checkpoint::migration_sql(),
+                ]
+            )]
+        );
+    }
+
     #[cfg(feature = "sources")]
     {
         let mut schema = CompiledSchema::new();

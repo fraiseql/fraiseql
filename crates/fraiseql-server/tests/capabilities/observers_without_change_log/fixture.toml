@@ -1,0 +1,11 @@
+# The observer runtime reads the application's change log, which `fraiseql setup`
+# installs and the server does not create. Without it the boot is refused, naming the
+# table, instead of serving on with no observer firing (#1710).
+capability = "observers"
+fraiseql_setup = false
+
+[[stimulus]]
+wait = { secs = 0 }
+
+[effect]
+refused = { message = "core.tb_entity_change_log does not exist" }

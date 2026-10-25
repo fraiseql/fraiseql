@@ -18,6 +18,11 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **An enabled observer runtime with no change log refuses the boot (#1710).** The
+  runtime reads `core.tb_entity_change_log`, which belongs to the application and which
+  `fraiseql setup` installs. A server started with `[observers]` enabled and no such
+  table used to log an error and serve on, with no observer ever firing. It now refuses,
+  naming the table and `fraiseql setup`.
 - **`[mcp] transport` must be `"http"`, `"stdio"` or `"both"` (#1644).** It was a free
   string: `transport = "htpp"` compiled, and the server mounted no MCP endpoint for it. A
   misspelt transport now fails `fraiseql compile`, naming the three, and a compiled schema
@@ -69,6 +74,11 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **The observer runtime's tables are provisioned at boot (#1710).** Nothing created
+  `tb_observer`, `tb_observer_log`, `core.tb_observer_dispatch` or the listener
+  checkpoints. On a fresh database an enabled runtime failed loading `tb_observer`, and
+  the server served on without observers. They are now the observers capability's
+  provisioning step, run under the boot migration lock.
 - **An allowlist pattern with capitals matched nothing.** A guest's outbound host is
   lowercase, and patterns were compared as written, so `allowed_domains = ["API.Example.com"]`
   refused `api.example.com`. Patterns now compare without regard to case.
