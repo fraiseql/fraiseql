@@ -329,6 +329,14 @@ pub async fn compile_to_schema(
                 intermediate.functions_config =
                     config.functions.reconcile(intermediate.functions_config.take())?;
 
+                // `[observers]` names the backend and its URLs, deployment settings too; a
+                // copy in the schema document must agree with it.
+                intermediate.observers_config =
+                    crate::config::toml_schema::ObserversConfig::reconcile(
+                        config.observers.as_ref(),
+                        intermediate.observers_config.take(),
+                    )?;
+
                 // `[inject_defaults]` lives in the config the SDK loaders read (#1384); a
                 // copy the SDK emitted into the schema must agree with it.
                 intermediate.inject_defaults =

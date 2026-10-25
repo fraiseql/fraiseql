@@ -54,6 +54,13 @@ pub struct TomlProjectConfig {
     /// [`toml_schema::FunctionsSettings`].
     #[serde(default)]
     pub functions: toml_schema::FunctionsSettings,
+
+    /// The observer backend's deployment settings (`[observers]`: `enabled`, `backend`,
+    /// `redis_url`, `nats_url`), for a schema document an SDK authored; see
+    /// [`toml_schema::ObserversConfig::reconcile`]. The server's `[observers.runtime]`
+    /// sub-table is accepted and left to the server.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub observers: Option<toml_schema::ObserversConfig>,
 }
 
 /// Project metadata

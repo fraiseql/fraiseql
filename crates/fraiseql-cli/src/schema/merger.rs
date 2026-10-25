@@ -727,10 +727,7 @@ impl SchemaMerger {
         .context("Failed to serialize [security] into the compiled schema")?;
 
         // Embed observers configuration if enabled or if any backend URL is set
-        if toml_schema.observers.enabled
-            || toml_schema.observers.redis_url.is_some()
-            || toml_schema.observers.nats_url.is_some()
-        {
+        if toml_schema.observers.is_configured() {
             if toml_schema.observers.backend == "nats" && toml_schema.observers.nats_url.is_none() {
                 tracing::warn!(
                     "observers.backend is \"nats\" but observers.nats_url is not set; \
@@ -741,12 +738,8 @@ impl SchemaMerger {
             // runtime concept — TOML validation has already rejected a non-empty
             // `[[observers.handlers]]`, and the compiled `ObserversConfig` is
             // `deny_unknown_fields` so the key cannot be represented.
-            merged["observers_config"] = json!({
-                "enabled": toml_schema.observers.enabled,
-                "backend": toml_schema.observers.backend,
-                "redis_url": toml_schema.observers.redis_url,
-                "nats_url": toml_schema.observers.nats_url,
-            });
+            merged["observers_config"] = serde_json::to_value(toml_schema.observers.to_compiled())
+                .context("Failed to serialize observers config")?;
         }
 
         // Embed the `[functions]` settings when the project configures any (#1325).

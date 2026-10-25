@@ -97,6 +97,14 @@ disagreed, and the promise was the part that was wrong.
   table is now read, as the functions documentation says. A schema document that carries its
   own `functions_config` must state the same settings: a disagreement is refused, naming both
   sources and the first key they differ on.
+- **`[observers]` in the `fraiseql.toml` beside an SDK `schema.json` compiles (#1719).** The
+  project config refused the table as an unknown field, so an SDK project could set the
+  observer backend and its URLs only through the `schema.json` copy. The table is now read,
+  `[observers.runtime]` included (it stays the server's). A declared table owns `enabled`,
+  `backend`, `redis_url` and `nats_url`, even when it says only `enabled = false`. A schema
+  document that carries its own `observers_config` must state the same values: a
+  disagreement is refused, naming both sources and the first key they differ on.
+  `[[observers.handlers]]` is refused there as it is in a TOML schema.
 
 ## [2.18.0] - 2026-10-25
 

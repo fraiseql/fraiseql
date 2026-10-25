@@ -19,7 +19,11 @@ The observer runtime is compiled into `fraiseql-server` by Cargo features:
 | `observers-enterprise` | `observers-metrics` + `observers-nats` + the library's `enterprise` feature |
 
 Configuration lives in `fraiseql.toml`. `[observers]` is shared with the compiler
-(`enabled`, `backend`, `handlers`); the server's own tuning lives under
+(`enabled`, `backend`, `redis_url`, `nats_url`; `[[observers.handlers]]` is refused, since
+observers come from `tb_observer`). The compiler reads it in both workflows: from a TOML
+schema, and from the `fraiseql.toml` beside an SDK's `schema.json`. A `schema.json` that
+carries its own `observers_config` must agree with `[observers]`; the compile refuses a
+disagreement and names the key. The server's own tuning lives under
 `[observers.runtime]` (`poll_interval_ms`, `batch_size`, `channel_capacity`,
 `auto_reload`, `reload_interval_secs`, `max_dlq_size`, `log_payloads`) with the
 sub-tables `[observers.runtime.transport]`, `[observers.runtime.email]`,
