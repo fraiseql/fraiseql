@@ -1651,9 +1651,6 @@ func (m *FraiseqlCi) integrationPostgres(ctx context.Context, source *dagger.Dir
 		// `Test` leg compiles them with no database, where they returned early and read
 		// as a pass. The feature set is the `Test` leg's, already built here.
 		"cargo test -p fraiseql-server --features '" + serverTestFeatures + "' --lib -- server::entry_point_parity_tests:: server::health_capabilities_tests:: --test-threads=1",
-		// 04c: every capability fixture boots the `fraiseql-server` binary (`cli`) on a database
-		// of its own and must reach its effect. The feature set is every Stable capability.
-		"cargo test -p fraiseql-server --features '" + serverTestFeatures + ",export-csv,export-xlsx,sources,inbound,inbound-email,auth-saml,cdc-outbound,subscription-kafka,cli' --test capability_fixtures_e2e_pg -- --test-threads=1",
 		// `fraiseql run` boots through the binary's assembly; the observer runtime is
 		// what proves it holds the pool, so the server's `observers` is switched on.
 		"cargo test -p fraiseql-cli --features run-server,fraiseql-server/observers --lib commands::run_serve_tests:: -- --test-threads=1",
@@ -3066,6 +3063,10 @@ func (m *FraiseqlCi) integrationObservers(ctx context.Context, source *dagger.Di
 		// unreachable broker refuses to boot. Before this the drain engine was
 		// library-only: nothing in the shipped server constructed a DrainWorker.
 		"cargo test -p fraiseql-server --features cdc-outbound --test cdc_outbound_mount_pg -- --ignored --test-threads=1",
+		// 04c: every capability fixture boots the `fraiseql-server` binary (`cli`) on a database
+		// of its own and must reach its effect. It runs here because this leg binds every
+		// service a fixture names (NATS for CDC). The feature set is every Stable capability.
+		"cargo test -p fraiseql-server --features '" + serverTestFeatures + ",export-csv,export-xlsx,sources,inbound,inbound-email,auth-saml,cdc-outbound,subscription-kafka,cli' --test capability_fixtures_e2e_pg -- --test-threads=1",
 		// #715/#717 arrow executed-SQL suite: the generated INSERT (every Arrow
 		// type, specials, pre-epoch timestamps, NULLs) EXECUTED vs the bound
 		// Postgres, and the batched-queries schema-mismatch guard. This is the

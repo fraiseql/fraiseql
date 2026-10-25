@@ -1,0 +1,15 @@
+# A row on the change-log outbox is drained to a NATS JetStream subject rendered from the
+# sink's template.
+capability = "cdc_outbound"
+
+# The broker in CI and locally is plaintext. A production server refuses a nats://
+# endpoint; this is the documented dev/CI bypass.
+[env]
+FRAISEQL_ENV = "development"
+FRAISEQL_NATS_ALLOW_PLAINTEXT = "true"
+
+[[stimulus]]
+sql = { statement = "INSERT INTO core.tb_entity_change_log (object_type, modification_type, object_id, tenant_id, object_data) VALUES ('tb_order', 'INSERT', gen_random_uuid(), gen_random_uuid(), '{\"id\": 1}')" }
+
+[effect]
+nats = { stream = "CAP_CDC", subject_prefix = "orders.", count = 1 }

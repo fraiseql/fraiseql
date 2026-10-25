@@ -1,0 +1,11 @@
+cors_enabled = false
+
+[cdc_outbound]
+tick_interval_secs = 1
+
+[[cdc_outbound.sinks]]
+name = "orders"
+kind = "nats-jetstream"
+endpoint = "$NATS_URL"
+subject_template = "orders.{tenant_id}.{table}"
+ensure_stream = "CAP_CDC"

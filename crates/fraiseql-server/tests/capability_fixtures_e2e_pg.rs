@@ -8,7 +8,9 @@
 //!   `schema.json` is TOML-only: `fraiseql.toml` declares the schema itself, as `fraiseql compile
 //!   fraiseql.toml` reads it.
 //! - `setup.sql`: the application's tables, views and functions.
-//! - `server.toml`: the server's `ServerConfig`.
+//! - `server.toml`: the server's `ServerConfig`. `$FIXTURE` expands to the fixture's directory, and
+//!   `$NATS_URL` to the broker this run was given; a fixture that names a service the run lacks
+//!   fails, naming it.
 //! - `fixture.toml`: the capability it exercises, the environment the server runs with, the stimuli
 //!   it receives, and the effect that must follow.
 //!
@@ -17,8 +19,9 @@
 //! suite created. The server is a child process with an empty working directory: an
 //! environment variable is set on the process that reads it, as in a deployment.
 //!
-//! **Execution engine:** `PostgreSQL` · **Infrastructure:** `DATABASE_URL` ·
-//! **Parallelism:** one scratch database per fixture, fixtures run in turn.
+//! **Execution engine:** `PostgreSQL` · **Infrastructure:** `DATABASE_URL`, and
+//! `NATS_URL` for a fixture that names NATS · **Leg:** `integration (observers)`, which
+//! binds them · **Parallelism:** one scratch database per fixture, fixtures run in turn.
 #![cfg(feature = "cli")]
 #![allow(clippy::unwrap_used, clippy::panic, clippy::print_stderr)] // Reason: test code
 
@@ -132,6 +135,14 @@ enum Effect {
         query:  String,
         expect: Vec<Vec<String>>,
     },
+    /// At least `count` messages whose subject starts with `subject_prefix` are on the
+    /// NATS `JetStream` stream `stream`. The harness deletes the stream before booting, so
+    /// a message an earlier run left cannot satisfy it.
+    Nats {
+        stream:         String,
+        subject_prefix: String,
+        count:          usize,
+    },
     /// `/health` reports the capability `started` and `serving` as given.
     Health {
         capability: String,
@@ -234,6 +245,57 @@ async fn compile(dir: &Path, out: &Path) -> Result<(), String> {
     .map_err(|e| format!("fraiseql compile: {e:#}"))
 }
 
+/// The broker a fixture that needs NATS is given (`NATS_URL`).
+fn nats_url() -> Result<String, String> {
+    std::env::var("NATS_URL")
+        .map_err(|_| "this fixture needs NATS, and NATS_URL is not set".to_owned())
+}
+
+/// The fixture's `server.toml` with `$FIXTURE` and `$NATS_URL` expanded, written to
+/// `scratch`.
+fn render_server_toml(dir: &Path, scratch: &Path) -> Result<PathBuf, String> {
+    let mut text = std::fs::read_to_string(dir.join("server.toml")).map_err(|e| e.to_string())?;
+    text = text.replace("$FIXTURE", &dir.to_string_lossy());
+    if text.contains("$NATS_URL") {
+        text = text.replace("$NATS_URL", &nats_url()?);
+    }
+    let rendered = scratch.join("server.toml");
+    std::fs::write(&rendered, text).map_err(|e| e.to_string())?;
+    Ok(rendered)
+}
+
+/// Delete the stream a `nats` effect reads, so it starts empty.
+async fn reset_stream(stream: &str) -> Result<(), String> {
+    let client = async_nats::connect(nats_url()?)
+        .await
+        .map_err(|e| format!("connect to NATS: {e}"))?;
+    let _ = async_nats::jetstream::new(client).delete_stream(stream).await;
+    Ok(())
+}
+
+/// The subjects of every message on `stream`, read through a fresh consumer.
+async fn stream_subjects(stream: &str) -> Result<Vec<String>, String> {
+    use futures::StreamExt as _;
+    let client = async_nats::connect(nats_url()?)
+        .await
+        .map_err(|e| format!("connect to NATS: {e}"))?;
+    let consumer = async_nats::jetstream::new(client)
+        .create_consumer_on_stream(
+            async_nats::jetstream::consumer::pull::Config::default(),
+            stream.to_owned(),
+        )
+        .await
+        .map_err(|e| format!("stream {stream}: {e}"))?;
+    let mut messages = consumer.messages().await.map_err(|e| e.to_string())?;
+    let mut subjects = Vec::new();
+    while let Ok(Some(Ok(message))) =
+        tokio::time::timeout(Duration::from_millis(500), messages.next()).await
+    {
+        subjects.push(message.subject.to_string());
+    }
+    Ok(subjects)
+}
+
 /// A served fixture: the server process, and where its output goes.
 struct Served {
     child: Child,
@@ -284,7 +346,7 @@ async fn serve(
     let mut command = Command::new(env!("CARGO_BIN_EXE_fraiseql-server"));
     command
         .current_dir(&cwd)
-        .env("FRAISEQL_CONFIG", dir.join("server.toml"))
+        .env("FRAISEQL_CONFIG", render_server_toml(dir, scratch)?)
         .env("FRAISEQL_SCHEMA_PATH", schema)
         .env("DATABASE_URL", database_url)
         .env("FRAISEQL_BIND_ADDR", format!("127.0.0.1:{port}"))
@@ -468,6 +530,23 @@ async fn observe(served: &Served, database_url: &str, effect: &Effect) -> Result
                 Err(format!("`{query}` returned {got:?}, not {expect:?}"))
             }
         },
+        Effect::Nats {
+            stream,
+            subject_prefix,
+            count,
+        } => {
+            let subjects = stream_subjects(stream).await?;
+            let matching =
+                subjects.iter().filter(|s| s.starts_with(subject_prefix.as_str())).count();
+            if matching >= *count {
+                Ok(())
+            } else {
+                Err(format!(
+                    "{matching} message(s) under `{subject_prefix}` on {stream}, not {count}: \
+                     {subjects:?}"
+                ))
+            }
+        },
         Effect::Health {
             capability,
             started,
@@ -520,6 +599,9 @@ async fn run_fixture(admin_url: &str, name: &str, dir: &Path) -> Result<(), Stri
     let setup_sql = std::fs::read_to_string(dir.join("setup.sql")).unwrap();
     let database_url = prepare_database(admin_url, &db, &setup_sql).await?;
 
+    if let Effect::Nats { stream, .. } = &fixture.effect {
+        reset_stream(stream).await?;
+    }
     let outcome = async {
         let mut served = serve(dir, &fixture, &schema, &database_url, scratch.path()).await?;
         for stimulus in &fixture.stimulus {
