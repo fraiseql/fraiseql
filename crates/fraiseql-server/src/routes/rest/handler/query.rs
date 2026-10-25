@@ -1,6 +1,6 @@
 //! GET query handler and query response building.
 
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 use axum::http::{HeaderMap, HeaderValue};
 use fraiseql_core::{runtime::QueryMatch, security::SecurityContext};
@@ -502,9 +502,12 @@ impl RestHandler<'_> {
             },
         };
 
+        // The matcher's shared definition: the one the executor will run, from the same
+        // executor (and so the same schema snapshot) as `self.schema`, not a copy of it.
         let query_def = self
-            .schema
-            .find_query(query_name)
+            .executor
+            .matcher()
+            .definition(query_name)
             .ok_or_else(|| RestError::not_found(format!("Query not found: {query_name}")))?;
 
         // `requires_role` is NOT checked here (#1122). It used to be, against
@@ -522,7 +525,7 @@ impl RestHandler<'_> {
         // honoured on one representation and ignored on another.
         let lenient = PreferHeader::from_headers(headers).handling
             == Some(super::prefer::HandlingPreference::Lenient);
-        let extractor = RestParamExtractor::new(self.config, query_def, type_def)
+        let extractor = RestParamExtractor::new(self.config, &query_def, type_def)
             .with_lenient_handling(lenient);
         let path_pairs: Vec<(&str, &str)> =
             resolved.path_params.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
@@ -647,7 +650,7 @@ impl RestHandler<'_> {
 
         // Build QueryMatch
         let mut query_match =
-            QueryMatch::from_operation(query_def.clone(), field_names, arguments, type_def)?
+            QueryMatch::from_operation(Arc::clone(&query_def), field_names, arguments, type_def)?
                 .with_client_arguments(self.schema)?;
         if let Some(relevance) = relevance {
             query_match = query_match.with_search_relevance(relevance);

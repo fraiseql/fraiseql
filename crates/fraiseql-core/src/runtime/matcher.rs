@@ -267,6 +267,17 @@ impl QueryMatcher {
         }
     }
 
+    /// The definition of the query `name` reads, shared rather than copied, resolving
+    /// `name` as [`CompiledSchema::find_query`] does. A transport that resolves its own
+    /// definition here validates the request against the object the match executes.
+    #[must_use]
+    pub fn definition(&self, name: &str) -> Option<Arc<QueryDefinition>> {
+        // Query names are unique (a schema with a duplicate is refused at load), so the
+        // definition `find_query` resolves is the one stored under its name.
+        let found = self.schema.find_query(name)?;
+        self.definitions.get(&found.name).map(Arc::clone)
+    }
+
     /// The same matcher, refusing a selection nested deeper than `max_depth`.
     #[must_use]
     pub const fn with_max_depth(mut self, max_depth: u32) -> Self {
@@ -361,7 +372,7 @@ impl QueryMatcher {
         let mut final_selections = selection_set::filter(&written_selections, &variables_map)?;
 
         // 5. Find matching query definition using root field
-        let query_def = self.schema.find_query(&parsed.root_field).ok_or_else(|| {
+        let query_def = self.definition(&parsed.root_field).ok_or_else(|| {
             let display_names: Vec<String> =
                 self.schema.queries.iter().map(|q| self.schema.display_name(&q.name)).collect();
             let candidate_refs: Vec<&str> = display_names.iter().map(String::as_str).collect();
@@ -386,10 +397,6 @@ impl QueryMatcher {
                 path: None,
             }
         })?;
-        let query_def = self
-            .definitions
-            .get(&query_def.name)
-            .map_or_else(|| Arc::new(query_def.clone()), Arc::clone);
 
         // 5b. #939: the selected fields must exist on the type being queried
         //     (GraphQL § 5.3.1). An undeclared name used to be lowered into the

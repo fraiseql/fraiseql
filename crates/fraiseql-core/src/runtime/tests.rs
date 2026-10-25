@@ -1647,6 +1647,31 @@ mod matcher_tests {
     }
 
     #[test]
+    fn a_match_shares_the_matchers_definition_instead_of_copying_it() {
+        let matcher = QueryMatcher::new(test_schema());
+        let matched = matcher.match_query("{ users { id } }", None).unwrap();
+        let shared = matcher.definition("users").unwrap();
+        assert!(
+            std::sync::Arc::ptr_eq(&matched.query_def, &shared),
+            "a match and a transport asking `definition` must hold the one stored definition"
+        );
+    }
+
+    #[test]
+    fn definition_resolves_a_name_as_find_query_does() {
+        let mut schema = test_schema();
+        schema.queries[0].name = "all_users".to_string();
+        let matcher = QueryMatcher::new(schema);
+        assert_eq!(
+            matcher.definition("allUsers").map(|d| d.name.clone()).as_deref(),
+            matcher.schema().find_query("allUsers").map(|d| d.name.as_str()),
+            "the camelCase spelling resolves to the snake_case query, as in `find_query`"
+        );
+        assert!(matcher.definition("allUsers").is_some());
+        assert!(matcher.definition("nope").is_none());
+    }
+
+    #[test]
     fn test_match_query_with_operation_name() {
         let schema = test_schema();
         let matcher = QueryMatcher::new(schema);
