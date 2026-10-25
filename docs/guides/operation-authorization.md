@@ -4,11 +4,15 @@ FraiseQL has two layers of operation-level access control:
 
 | Layer | Question it answers | Where it's declared |
 |-------|--------------------|---------------------|
-| **Static** — `requires_role` | "Does this principal hold role `X`?" (and hide the operation's existence otherwise) | `query`/`mutation(requires_role="admin")` in the compiled schema |
+| **Static** — `requires_role` | "Does this principal hold role `X`?" (refused as *"not found in schema"* otherwise) | `query`/`mutation(requires_role="admin")` in the compiled schema |
 | **Dynamic** — `Authorizer` | "May *this* principal run *this* operation, given its input?" | An app-supplied `Authorizer` on `RuntimeConfig` |
 
 The static layer is a compile-time role check that returns *"not found in schema"*
-(enumeration-hiding). The **dynamic** layer (this guide, issue #422) is a pluggable
+to a principal without the role. It refuses the call; it does not hide the operation's
+shape. GraphQL introspection (`__schema`, `__type`) and the federation `_service { sdl }`
+list a gated query or mutation, its arguments and its types to every caller who may
+introspect. Only the REST debug route `GET /introspection` drops what the caller's roles
+do not reach. The **dynamic** layer (this guide, issue #422) is a pluggable
 Policy Enforcement Point (PEP): the engine *enforces*, but the *decision* is delegated
 to an app-supplied trait object, so authorization can be backed by in-process rules, a
 DB query, or an external service. It is the operation-level counterpart of the
@@ -98,7 +102,7 @@ one policy type can serve operation- and field-level checks.
   on *any* root fails the whole request **before any root is dispatched** (no partial data).
 - **AND-composition with `requires_role`.** The authorizer does **not** replace the static
   `requires_role` gate; both must allow. The authorizer runs first (a `Deny` is a 403); the
-  `requires_role` gate keeps its enumeration-hiding *"not found in schema"* response for a
+  `requires_role` gate keeps its *"not found in schema"* response for a
   principal that lacks the role. An allowing authorizer never bypasses `requires_role`.
 - **Result cache.** The operation gate runs **before** the result cache is consulted, so it
   is *always* evaluated — a warm cache never replays an allow past a later deny.
@@ -202,4 +206,4 @@ A PEP is only as strong as its least-guarded entry path. The authorizer is enfor
 
 - [Dynamic field-level authorization](field-authorization.md) — the field-level counterpart (`FieldAuthorizer`).
 - [`RLSPolicy`](../architecture/overview.md) — row-level (whole-row) security.
-- `query/mutation(requires_role=…)` — static, enumeration-hiding role gates.
+- `query/mutation(requires_role=…)` — static role gates, refused as *"not found in schema"*.

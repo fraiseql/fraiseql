@@ -228,6 +228,12 @@ to the principals the subgraph serves anything to, and refused to an anonymous o
 caller. There is no setting that makes it public, by design (ADR-0016 §6: a permissive
 case is named and opted into, and the subgraph's SDL lists every type, field and entity key).
 
+The SDL is one document, the same for every caller, so it lists every operation the
+subgraph declares, `requires_role`-gated queries and mutations included. A supergraph
+composed from it shows those operations' names, arguments and types to every client of the
+gateway. The subgraph still refuses a call from a principal without the role. Treat the
+supergraph as the subgraph's full surface.
+
 **Composing offline** (a CI composition gate, `rover supergraph compose`) needs no running
 subgraph and no principal: print exactly what `_service { sdl }` serves, from the artifact.
 
