@@ -666,7 +666,7 @@ impl Executor {
             self.ctx.output_types.complete(
                 &mut response,
                 target.root_type,
-                &target.selections,
+                target.selections.written(),
                 variables,
             );
         }

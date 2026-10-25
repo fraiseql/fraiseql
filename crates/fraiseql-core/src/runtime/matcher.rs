@@ -21,8 +21,9 @@ pub struct QueryMatch {
     /// Requested fields (selection set) - now includes full field info.
     pub fields: Vec<String>,
 
-    /// Parsed and processed field selections (after fragment/directive resolution).
-    pub selections: Vec<FieldSelection>,
+    /// Parsed and processed field selections (after fragment/directive resolution),
+    /// shared with every request of the same document that collected the same fields.
+    pub selections: Arc<[FieldSelection]>,
 
     /// Query arguments/variables.
     pub arguments: HashMap<String, serde_json::Value>,
@@ -147,7 +148,7 @@ impl QueryMatch {
         Ok(Self {
             query_def,
             fields,
-            selections,
+            selections: selections.into(),
             arguments,
             operation_name: None,
             scope_where: None,
@@ -364,19 +365,19 @@ impl QueryMatcher {
         //     entry point can answer this question differently (#826, #827).
         let written_selections =
             selection_set::resolve(&parsed.selections, &parsed.fragments, self.max_depth)?;
-        self.match_resolved(Arc::new(parsed), &written_selections, variables)
+        let selections = selection_set::CollectedFields::new(written_selections);
+        self.match_resolved(Arc::new(parsed), &selections, variables)
     }
 
     /// [`match_query_with_operation_name`](Self::match_query_with_operation_name) for an
     /// operation already parsed and resolved: `parsed` as
-    /// [`parse_query_with_operation_name`] returns it, and `written_selections` its root
-    /// selection set with fragment spreads expanded to this matcher's depth and directives
-    /// not yet evaluated.
+    /// [`parse_query_with_operation_name`] returns it, and `selections` its root selection
+    /// set with fragment spreads expanded to this matcher's depth.
     ///
     /// Both depend on the document alone, so a caller that keeps them per document matches
-    /// a repeated one without parsing or resolving it again. Everything that depends on
-    /// `variables` (`@skip`/`@include`, argument values, their validation) runs here, on
-    /// every call.
+    /// a repeated one without parsing or resolving it again, and `selections` collects its
+    /// fields once per set of `@skip`/`@include` outcomes. Everything else that depends on
+    /// `variables` (argument values, their validation) runs here, on every call.
     ///
     /// # Errors
     ///
@@ -385,7 +386,7 @@ impl QueryMatcher {
     pub fn match_resolved(
         &self,
         parsed: Arc<ParsedQuery>,
-        written_selections: &[FieldSelection],
+        selections: &selection_set::CollectedFields,
         variables: Option<&serde_json::Value>,
     ) -> Result<QueryMatch> {
         // 2. Build the variables map once. The same map is used for `@skip`/`@include` directive
@@ -395,7 +396,9 @@ impl QueryMatcher {
 
         // 3b. Reduce the written set to the fields the client asked for: evaluate
         //     `@skip`/`@include` against this request's variables.
-        let mut final_selections = selection_set::filter(written_selections, &variables_map)?;
+        let written_selections = selections.written();
+        let collected = selections.collect(&variables_map)?;
+        let mut final_selections = Arc::clone(collected.fields());
 
         // 5. Find matching query definition using root field
         let query_def = self.definition(&parsed.root_field).ok_or_else(|| {
@@ -528,15 +531,29 @@ impl QueryMatcher {
 
         // 5f. #1513: a localized field's `locale:` names an allowed locale, checked here
         //     before any statement and rewritten to that tag for the projectors.
+        //     Without a `locale:` argument the pass rewrites nothing and its verdict
+        //     depends on the collected fields alone, so it runs once per collected set,
+        //     on a copy it discards.
         if !query_def.returns_count {
-            if let Some(root) = final_selections.first_mut() {
-                crate::runtime::resolve_locale_arguments(
+            let resolve = |fields: &mut [FieldSelection]| match fields.first_mut() {
+                Some(root) => crate::runtime::resolve_locale_arguments(
                     &self.schema,
                     &query_def.return_type,
                     &mut root.nested_fields,
                     &variables_map,
                     query_def.relay,
-                )?;
+                ),
+                None => Ok(()),
+            };
+            let rewrites = final_selections
+                .first()
+                .is_some_and(|root| crate::runtime::mentions_locale_argument(&root.nested_fields));
+            if rewrites {
+                let mut fields = final_selections.to_vec();
+                resolve(&mut fields)?;
+                final_selections = fields.into();
+            } else {
+                collected.check_once(|fields| resolve(&mut fields.to_vec()))?;
             }
         }
 

@@ -62,12 +62,13 @@ impl CachedClassification {
 /// its root selection set, fragment spreads expanded. Computed once per document, with its
 /// classification, for every operation type; `None` when the spreads cannot be expanded
 /// (the document is refused elsewhere).
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub(in crate::runtime::executor) struct CompletionTarget {
     /// `Query`, `Mutation` or `Subscription`.
     pub(in crate::runtime::executor) root_type:  &'static str,
-    /// The root selection set, spreads expanded, directives not yet evaluated.
-    pub(in crate::runtime::executor) selections: Vec<crate::graphql::FieldSelection>,
+    /// The root selection set, spreads expanded, and the fields it collects per set of
+    /// directive outcomes.
+    pub(in crate::runtime::executor) selections: crate::graphql::selection_set::CollectedFields,
 }
 
 impl Executor {
@@ -149,7 +150,7 @@ impl Executor {
         .map(|selections| {
             std::sync::Arc::new(CompletionTarget {
                 root_type,
-                selections,
+                selections: crate::graphql::selection_set::CollectedFields::new(selections),
             })
         });
         let (query_type, parsed) = self.classify_parsed(parsed)?;

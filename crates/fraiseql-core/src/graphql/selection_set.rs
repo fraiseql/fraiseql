@@ -156,6 +156,146 @@ pub fn variables_map(variables: Option<&JsonValue>) -> HashMap<String, JsonValue
     }
 }
 
+/// A document's expanded root selection set, and the fields it collects under each set
+/// of `@skip`/`@include` outcomes a request has produced.
+///
+/// What [`filter`] returns depends on the written set and on which fields its directives
+/// keep, nothing else: the walk below takes the same path `filter` does and records each
+/// directive-bearing field's outcome, so two requests recording the same outcomes collect
+/// the same fields and the first one's result answers both. A document with no directives
+/// has one outcome set, the empty one, and collects its fields once.
+#[derive(Debug)]
+pub struct CollectedFields {
+    written:   Vec<FieldSelection>,
+    collected: std::sync::Mutex<Vec<(Outcomes, std::sync::Arc<Collected>)>>,
+}
+
+/// The fields one set of directive outcomes collects, and whether a check that depends on
+/// those fields alone has passed on them.
+#[derive(Debug)]
+pub struct Collected {
+    fields:  std::sync::Arc<[FieldSelection]>,
+    checked: std::sync::OnceLock<()>,
+}
+
+impl Collected {
+    fn new(fields: Vec<FieldSelection>) -> std::sync::Arc<Self> {
+        std::sync::Arc::new(Self {
+            fields:  fields.into(),
+            checked: std::sync::OnceLock::new(),
+        })
+    }
+
+    /// The collected fields.
+    #[must_use]
+    pub const fn fields(&self) -> &std::sync::Arc<[FieldSelection]> {
+        &self.fields
+    }
+
+    /// Run `check` on these fields unless it has passed on them before. Only for a check
+    /// whose verdict depends on the fields alone: a failure is not kept, so a refused
+    /// request is refused again.
+    ///
+    /// # Errors
+    ///
+    /// Whatever `check` returns.
+    pub fn check_once<E>(
+        &self,
+        check: impl FnOnce(&[FieldSelection]) -> Result<(), E>,
+    ) -> Result<(), E> {
+        if self.checked.get().is_none() {
+            check(&self.fields)?;
+            let _ = self.checked.set(());
+        }
+        Ok(())
+    }
+}
+
+/// The `@skip`/`@include` outcomes of one request, in the order [`filter`] evaluates
+/// them: bit `i` is whether the `i`th directive-bearing field it reached is kept.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct Outcomes {
+    bits:  u64,
+    count: u32,
+}
+
+impl CollectedFields {
+    /// Outcome sets kept per document; a request producing another one collects afresh.
+    const KEPT: usize = 16;
+
+    /// A document's root selection set, spreads expanded, directives not yet evaluated.
+    #[must_use]
+    pub const fn new(written: Vec<FieldSelection>) -> Self {
+        Self {
+            written,
+            collected: std::sync::Mutex::new(Vec::new()),
+        }
+    }
+
+    /// The root selection set as written, spreads expanded.
+    #[must_use]
+    pub fn written(&self) -> &[FieldSelection] {
+        &self.written
+    }
+
+    /// The fields this request collects: [`filter`] over the written set, shared with
+    /// every earlier request whose directives had the same outcomes.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SelectionError::Directive`] exactly when [`filter`] would.
+    #[allow(clippy::implicit_hasher)]
+    // Reason: as on `filter`, which this answers for.
+    pub fn collect(
+        &self,
+        variables: &HashMap<String, JsonValue>,
+    ) -> Result<std::sync::Arc<Collected>, SelectionError> {
+        let mut outcomes = Some(Outcomes { bits: 0, count: 0 });
+        record_outcomes(&self.written, variables, &mut outcomes)?;
+        let Some(outcomes) = outcomes else {
+            return Ok(Collected::new(filter(&self.written, variables)?));
+        };
+        let mut collected =
+            self.collected.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        if let Some((_, entry)) = collected.iter().find(|(kept, _)| *kept == outcomes) {
+            return Ok(entry.clone());
+        }
+        let entry = Collected::new(filter(&self.written, variables)?);
+        if collected.len() < Self::KEPT {
+            collected.push((outcomes, entry.clone()));
+        }
+        Ok(entry)
+    }
+}
+
+/// Walk `selections` as [`DirectiveEvaluator::filter_selections`] does, evaluating the
+/// same directives in the same order and descending only into kept fields, and append
+/// each directive-bearing field's outcome. `None` once there are more than fit.
+fn record_outcomes(
+    selections: &[FieldSelection],
+    variables: &HashMap<String, JsonValue>,
+    outcomes: &mut Option<Outcomes>,
+) -> Result<(), DirectiveError> {
+    for selection in selections {
+        if !selection.directives.is_empty() {
+            let kept = DirectiveEvaluator::evaluate_directives(selection, variables)?;
+            if let Some(o) = outcomes {
+                if o.count == u64::BITS {
+                    *outcomes = None;
+                } else {
+                    o.bits |= u64::from(kept) << o.count;
+                    o.count += 1;
+                }
+            }
+            if !kept {
+                continue;
+            }
+        }
+        record_outcomes(&selection.nested_fields, variables, outcomes)?;
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 #[path = "selection_set_tests.rs"]
 mod selection_set_tests;

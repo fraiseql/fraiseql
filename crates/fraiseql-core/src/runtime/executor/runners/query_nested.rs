@@ -1161,7 +1161,8 @@ pub(super) fn expand_leaf_objects<'a>(
     }
 
     let mut expanded = query_match.clone();
-    if let Some(root) = expanded.selections.first_mut() {
+    let mut selections = expanded.selections.to_vec();
+    if let Some(root) = selections.first_mut() {
         for sel in &mut root.nested_fields {
             if is_leaf_object(sel) {
                 let child = type_def
@@ -1175,6 +1176,7 @@ pub(super) fn expand_leaf_objects<'a>(
             }
         }
     }
+    expanded.selections = selections.into();
     Ok(std::borrow::Cow::Owned(expanded))
 }
 

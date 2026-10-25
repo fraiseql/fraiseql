@@ -185,7 +185,7 @@ async fn accepts(executor: &Executor, query: &str, key: &str) -> bool {
     let direct = fraiseql_core::runtime::QueryMatch {
         query_def: query_def.into(),
         fields: vec!["id".to_string()],
-        selections: vec![],
+        selections: std::sync::Arc::default(),
         arguments,
         operation_name: None,
         scope_where: None,

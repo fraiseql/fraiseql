@@ -252,3 +252,120 @@ fn two_fields_under_one_alias_are_not_merged() {
         tree(&[("a", &[]), ("a", &[])])
     );
 }
+
+fn written(query: &str) -> CollectedFields {
+    let parsed = parse_query(query).expect("query must parse");
+    CollectedFields::new(
+        resolve(&parsed.selections, &parsed.fragments, DEFAULT_MAX_QUERY_DEPTH).unwrap(),
+    )
+}
+
+/// `collect` answers as `filter` does, as a `Debug` rendering of the fields or of the error.
+fn collect_and_filter(fields: &CollectedFields, variables: &serde_json::Value) -> (String, String) {
+    let vars = variables_map(Some(variables));
+    let collected = fields.collect(&vars).map(|c| format!("{:?}", c.fields()));
+    let filtered = filter(fields.written(), &vars).map(|f| format!("{:?}", &f[..]));
+    (format!("{collected:?}"), format!("{filtered:?}"))
+}
+
+/// One document, requests whose directives keep different fields: each collects what it
+/// keeps, not what the first request sharing the document kept, whichever order they come in.
+#[test]
+fn each_set_of_directive_outcomes_collects_its_own_fields() {
+    let fields = written(
+        "query Q($a: Boolean!, $b: Boolean!) { users { id name @include(if: $a) \
+                 email @skip(if: $b) } }",
+    );
+    for vars in [
+        json!({"a": true, "b": true}),
+        json!({"a": false, "b": false}),
+        json!({"a": true, "b": true}),
+        json!({"a": false, "b": true}),
+        json!({"a": true, "b": false}),
+        json!({"a": false, "b": false}),
+    ] {
+        let (collected, filtered) = collect_and_filter(&fields, &vars);
+        assert_eq!(collected, filtered, "{vars}");
+    }
+}
+
+/// A condition `filter` never evaluates (after a deciding `@skip`, or under a skipped
+/// field) cannot refuse the request here either; one it does evaluate refuses it the same.
+#[test]
+fn collecting_refuses_exactly_what_filtering_refuses() {
+    for (query, vars) in [
+        ("{ users { id name @skip(if: true) @include(if: $missing) } }", json!({})),
+        (
+            "{ users { id posts @skip(if: true) { title @include(if: $missing) } } }",
+            json!({}),
+        ),
+        ("query Q($s: Boolean!) { users { id name @skip(if: $s) } }", json!({})),
+        ("query Q($s: Boolean!) { users { id name @skip(if: $s) } }", json!({"s": "yes"})),
+    ] {
+        let fields = written(query);
+        let first = collect_and_filter(&fields, &vars);
+        assert_eq!(first.0, first.1, "{query} {vars}");
+        let again = collect_and_filter(&fields, &vars);
+        assert_eq!(again, first, "a second request: {query} {vars}");
+    }
+}
+
+/// Outcomes that a parent decides: a nested field's outcome is recorded only when its parent
+/// is kept, so `{a}` kept with its child skipped and `{a}` skipped cannot share an answer.
+#[test]
+fn a_nested_outcome_is_recorded_under_its_parents() {
+    let fields = written(
+        "query Q($p: Boolean!, $c: Boolean!) { users { id posts @include(if: $p) { title \
+         @include(if: $c) body } } }",
+    );
+    for vars in [
+        json!({"p": true, "c": false}),
+        json!({"p": false, "c": true}),
+        json!({"p": true, "c": true}),
+        json!({"p": false, "c": false}),
+    ] {
+        let (collected, filtered) = collect_and_filter(&fields, &vars);
+        assert_eq!(collected, filtered, "{vars}");
+    }
+}
+
+/// More directive-bearing fields than outcomes fit: the request still collects what
+/// `filter` keeps.
+#[test]
+fn a_document_with_more_outcomes_than_fit_still_collects_its_fields() {
+    use std::fmt::Write as _;
+    let mut many = String::new();
+    for i in 0..70 {
+        let _ = write!(many, "f{i}: name @include(if: $v{}) ", i % 2);
+    }
+    let fields =
+        written(&format!("query Q($v0: Boolean!, $v1: Boolean!) {{ users {{ {many} }} }}"));
+    for vars in [
+        json!({"v0": true, "v1": false}),
+        json!({"v0": false, "v1": true}),
+    ] {
+        let (collected, filtered) = collect_and_filter(&fields, &vars);
+        assert_eq!(collected, filtered, "{vars}");
+    }
+}
+
+/// A check that passed on collected fields is not run on them again; one that failed is.
+#[test]
+fn a_check_on_collected_fields_is_kept_only_once_it_passes() {
+    let fields = written("{ users { id } }");
+    let vars = variables_map(None);
+    let runs = std::cell::Cell::new(0);
+    let refuse = |_: &[FieldSelection]| {
+        runs.set(runs.get() + 1);
+        Err(())
+    };
+    assert!(fields.collect(&vars).unwrap().check_once(refuse).is_err());
+    assert!(fields.collect(&vars).unwrap().check_once(refuse).is_err());
+    let pass = |_: &[FieldSelection]| {
+        runs.set(runs.get() + 1);
+        Ok::<(), ()>(())
+    };
+    fields.collect(&vars).unwrap().check_once(pass).unwrap();
+    fields.collect(&vars).unwrap().check_once(pass).unwrap();
+    assert_eq!(runs.get(), 3);
+}

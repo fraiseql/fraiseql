@@ -1487,7 +1487,7 @@ async fn the_rest_filter_surface_enforces_the_same_rule() {
     let rest_match = QueryMatch {
         query_def: query_def.into(),
         fields: vec!["id".to_string()],
-        selections: vec![],
+        selections: std::sync::Arc::default(),
         arguments,
         operation_name: None,
         scope_where: None,
@@ -1526,7 +1526,7 @@ async fn the_rest_filter_surface_still_serves_a_declared_key() {
     let rest_match = QueryMatch {
         query_def: query_def.into(),
         fields: vec!["id".to_string()],
-        selections: vec![],
+        selections: std::sync::Arc::default(),
         arguments,
         operation_name: None,
         scope_where: None,
@@ -1653,7 +1653,7 @@ async fn the_rest_sort_surface_enforces_the_same_rule() {
     let rest_match = QueryMatch {
         query_def: query_def.into(),
         fields: vec!["id".to_string()],
-        selections: vec![],
+        selections: std::sync::Arc::default(),
         arguments,
         operation_name: None,
         scope_where: None,

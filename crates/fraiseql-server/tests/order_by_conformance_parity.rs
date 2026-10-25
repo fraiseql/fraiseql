@@ -64,7 +64,7 @@ async fn accepts(executor: &Executor, query: &str, key: &str) -> bool {
             .clone()
             .into(),
         fields: vec![],
-        selections: vec![],
+        selections: std::sync::Arc::default(),
         arguments,
         operation_name: None,
         scope_where: None,

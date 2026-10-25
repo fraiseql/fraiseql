@@ -2651,7 +2651,8 @@ mod planner_tests {
                     },
                 ],
                 directives:    vec![],
-            }],
+            }]
+            .into(),
             arguments:        HashMap::new(),
             operation_name:   Some("users".to_string()),
             scope_where:      None,
@@ -2730,13 +2731,15 @@ mod planner_tests {
         let mut query_match = test_query_match();
 
         // Add __typename to the nested fields of the root selection
-        query_match.selections[0].nested_fields.push(FieldSelection {
+        let mut selections = query_match.selections.to_vec();
+        selections[0].nested_fields.push(FieldSelection {
             name:          "__typename".to_string(),
             alias:         None,
             arguments:     vec![],
             nested_fields: vec![],
             directives:    vec![],
         });
+        query_match.selections = selections.into();
 
         let plan = planner.plan(&query_match).unwrap();
 

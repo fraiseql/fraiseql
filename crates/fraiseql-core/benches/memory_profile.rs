@@ -205,3 +205,28 @@ fn a_warm_read_does_not_parse_its_document_again() {
         );
     }
 }
+
+/// A repeated document is compiled once per set of `@skip`/`@include` outcomes: a warm read
+/// allocates the same whether its selection is written once or repeats fields that merge
+/// into it (§ 6.3.2), because no per-request stage collects the written fields again.
+#[test]
+fn a_warm_read_does_not_collect_its_fields_again() {
+    #[cfg(feature = "dhat-heap")]
+    {
+        let _profiler = dhat::Profiler::builder().testing().build();
+        let plain = warm_allocations(None, "{ users { id name email } }");
+        let repeated =
+            warm_allocations(None, &format!("{{ users {{ {} }} }}", "id name email ".repeat(10)));
+        assert_eq!(repeated.2, plain.2, "both documents select the same fields");
+        eprintln!(
+            "warm read: plain {} B / {} blocks, fields written 10 times {} B / {} blocks",
+            plain.0, plain.1, repeated.0, repeated.1
+        );
+        assert_eq!(
+            (repeated.0, repeated.1),
+            (plain.0, plain.1),
+            "a warm read of the same selection allocated more for a document that repeats its \
+             fields: a per-request stage still collects the fields as written"
+        );
+    }
+}

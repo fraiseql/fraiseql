@@ -136,7 +136,8 @@ pub use field_filter::{
 pub use jsonb_strategy::{JsonbOptimizationOptions, JsonbStrategy};
 pub use locale_argument::translations;
 pub(crate) use locale_argument::{
-    LOCALE_ARGUMENT, resolve_locale_arguments, selection_chain, translations_read,
+    LOCALE_ARGUMENT, mentions_locale_argument, resolve_locale_arguments, selection_chain,
+    translations_read,
 };
 pub(crate) use localized_input::coerce_localized_arguments;
 pub use matcher::{QueryMatch, QueryMatcher, suggest_similar};

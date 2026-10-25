@@ -57,6 +57,16 @@ pub fn resolve_locale_arguments(
     Ok(())
 }
 
+/// Whether any selection in `selections`, at any depth, carries a `locale:` argument: the
+/// one thing [`resolve_locale_arguments`] rewrites, and the one way a variable reaches it.
+#[must_use]
+pub fn mentions_locale_argument(selections: &[FieldSelection]) -> bool {
+    selections.iter().any(|sel| {
+        sel.arguments.iter().any(|a| a.name == LOCALE_ARGUMENT)
+            || mentions_locale_argument(&sel.nested_fields)
+    })
+}
+
 fn resolve_at(
     schema: &CompiledSchema,
     type_name: &str,
