@@ -472,7 +472,7 @@ fi
 # Have team review schema.json changes
 
 # 2. Automated validation
-fraiseql-cli validate schema.json
+fraiseql-cli compile schema.json --check
 
 # 3. Database compatibility
 # Verify all referenced tables exist in database

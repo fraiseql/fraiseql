@@ -520,8 +520,8 @@ The `fraiseql-cli compile` command performs:
 # Compile with custom config
 fraiseql compile schema.json --config fraiseql.toml --output schema.compiled.json
 
-# Validate without compiling
-fraiseql validate schema.json
+# Check without writing output
+fraiseql compile schema.json --check
 ```
 
 **Which `fraiseql.toml` applies.** A `schema.json` compiles with the nearest

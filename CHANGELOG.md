@@ -119,6 +119,13 @@ disagreed, and the promise was the part that was wrong.
   cache the callsite as uninteresting, and a test's captured event was then dropped. Tests
   install their capture through `fraiseql_test_support::tracing_capture`, which keeps a
   second dispatcher alive, and clippy refuses the direct `tracing::subscriber` calls.
+- **`fraiseql validate` says it checks a compiled schema, and refuses an authoring one
+  by name (#1694).** Its help and examples said `fraiseql validate schema.json`, but it
+  reads a `schema.compiled.json`, so an authoring schema that compiles clean was refused
+  with a serde error about a key its author never wrote (`missing field field_type`). The
+  help, the examples and the docs now name `schema.compiled.json`. An authoring schema,
+  with or without `--against-db`, is refused before anything else runs, with a pointer to
+  `fraiseql compile schema.json --check`.
 
 ## [2.18.0] - 2026-10-25
 

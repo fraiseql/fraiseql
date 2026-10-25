@@ -1,6 +1,6 @@
 //! Schema validation command
 //!
-//! Validates schema.json with comprehensive checks including:
+//! Validates a compiled schema (`schema.compiled.json`) with checks including:
 //! - JSON structure validation
 //! - Type reference validation
 //! - Circular dependency detection
@@ -17,10 +17,34 @@ use crate::{
     schema::{
         database_validator::{create_introspector, find_unbacked_sources},
         function_root_contract::validate_function_roots,
+        intermediate::IntermediateSchema,
         mutation_contract::validate_mutation_contract,
         pg_catalog::PgCatalog,
     },
 };
+
+/// Read `input` as a compiled schema.
+///
+/// An authoring `schema.json` is refused by name, with the command that checks one: the
+/// compiler's refusals run on the authoring schema, and they are gone by the time it is
+/// compiled.
+fn load_compiled_schema(input: &str) -> Result<CompiledSchema> {
+    let content = fs::read_to_string(input)
+        .with_context(|| format!("failed to read compiled schema `{input}`"))?;
+    serde_json::from_str(&content).map_err(|e| {
+        if serde_json::from_str::<IntermediateSchema>(&content).is_ok() {
+            anyhow::anyhow!(
+                "`{input}` is an authoring schema, and fraiseql validate checks a compiled \
+                 schema.\nCheck an authoring schema with `fraiseql compile {input} --check`, or \
+                 compile it and validate the schema.compiled.json it writes."
+            )
+        } else {
+            anyhow::Error::new(e).context(format!(
+                "`{input}` is not a valid compiled schema (run `fraiseql compile` first)"
+            ))
+        }
+    })
+}
 
 /// Options for schema validation
 #[derive(Debug, Clone, Default)]
@@ -98,9 +122,7 @@ pub struct TypeAnalysis {
 /// Returns an error if the schema file cannot be read, cannot be deserialized as
 /// a `CompiledSchema`, or if JSON serialization of the result fails.
 pub fn run_with_options(input: &str, opts: ValidateOptions) -> Result<CommandResult> {
-    // Load and parse schema
-    let schema_content = fs::read_to_string(input)?;
-    let schema: CompiledSchema = serde_json::from_str(&schema_content)?;
+    let schema = load_compiled_schema(input)?;
 
     // Build dependency graph
     let graph = SchemaDependencyGraph::build(&schema);
@@ -202,11 +224,7 @@ pub fn run_with_options(input: &str, opts: ValidateOptions) -> Result<CommandRes
 /// Returns an error if the schema cannot be read or parsed, the database cannot
 /// be reached, or any mutation violates the contract.
 pub async fn run_against_db(input: &str, db_url: &str, json: bool) -> Result<()> {
-    let schema_content = fs::read_to_string(input)
-        .with_context(|| format!("failed to read compiled schema `{input}`"))?;
-    let schema: CompiledSchema = serde_json::from_str(&schema_content).with_context(|| {
-        format!("`{input}` is not a valid compiled schema (run `fraiseql compile` first)")
-    })?;
+    let schema = load_compiled_schema(input)?;
 
     let catalog =
         PgCatalog::connect(db_url, &fraiseql_db::postgres::PostgresTlsConfig::default()).await?;

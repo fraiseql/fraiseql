@@ -110,8 +110,8 @@ jq '{types: (.types | length), queries: (.queries | length), mutations: (.mutati
 # Regenerate from source
 fraiseql generate-schema schema.py > schema.json
 
-# Validate before compiling
-fraiseql validate schema.json
+# Check before compiling
+fraiseql compile schema.json --check
 
 # Compile
 fraiseql compile schema.json --output /etc/fraiseql/schema.compiled.json
@@ -212,7 +212,7 @@ mutations, SQL templates). The following require a full process restart:
 
 1. **Always validate before deploying:**
    ```bash
-   fraiseql validate schema.json && fraiseql compile schema.json
+   fraiseql compile schema.json -o schema.compiled.json && fraiseql validate schema.compiled.json
    ```
 
 2. **Add `fraiseql validate` to CI:** the pipeline should reject invalid schemas

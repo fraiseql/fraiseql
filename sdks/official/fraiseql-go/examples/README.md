@@ -147,10 +147,10 @@ fraiseql.NewAggregateQueryConfig("salesByCategory").
 
 After generating a `schema.json` file:
 
-1. **Validate the schema:**
+1. **Check the schema:**
 
    ```bash
-   fraiseql-cli validate schema.json
+   fraiseql-cli compile schema.json --check
    ```
 
 2. **Compile the schema:**

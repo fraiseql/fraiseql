@@ -349,24 +349,26 @@ EXAMPLES:
         no_function: bool,
     },
 
-    /// Validate schema.json or fact tables
+    /// Validate a compiled schema (schema.compiled.json) or fact tables
     ///
-    /// Performs comprehensive schema validation including:
+    /// Checks the schema `fraiseql compile` wrote, including:
     /// - JSON structure validation
     /// - Type reference validation
     /// - Circular dependency detection (with --check-cycles)
     /// - Unused type detection (with --check-unused)
+    ///
+    /// An authoring schema.json is checked by `fraiseql compile schema.json --check`.
     #[command(after_help = "\
 EXAMPLES:
-    fraiseql validate schema.json
-    fraiseql validate schema.json --check-unused
-    fraiseql validate schema.json --strict
+    fraiseql validate schema.compiled.json
+    fraiseql validate schema.compiled.json --check-unused
+    fraiseql validate schema.compiled.json --strict
     fraiseql validate facts -s schema.json --database postgres://localhost/db")]
     Validate {
         #[command(subcommand)]
         command: Option<ValidateCommands>,
 
-        /// Schema.json file path to validate (if no subcommand)
+        /// Compiled schema (schema.compiled.json) to validate (if no subcommand)
         #[arg(value_name = "INPUT")]
         input: Option<String>,
 
