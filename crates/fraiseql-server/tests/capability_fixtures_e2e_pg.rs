@@ -69,6 +69,10 @@ enum Stimulus {
         /// A bearer token sent as `Authorization`.
         #[serde(default)]
         auth:   Option<String>,
+        /// An HMAC-SHA256 signature of `body`, sent in a header, as a webhook provider
+        /// signs a delivery.
+        #[serde(default)]
+        sign:   Option<Signature>,
     },
     Sql {
         statement: String,
@@ -76,6 +80,28 @@ enum Stimulus {
     Wait {
         secs: u64,
     },
+}
+
+/// How an `http` stimulus signs its body.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Signature {
+    /// The header carrying the signature.
+    header: String,
+    /// The shared secret.
+    secret: String,
+    /// Written before the hex digest, such as `sha256=`.
+    #[serde(default)]
+    prefix: String,
+}
+
+impl Signature {
+    fn of(&self, body: &str) -> String {
+        use hmac::{KeyInit as _, Mac as _};
+        let mut mac = hmac::Hmac::<sha2::Sha256>::new_from_slice(self.secret.as_bytes()).unwrap();
+        mac.update(body.as_bytes());
+        format!("{}{}", self.prefix, hex::encode(mac.finalize().into_bytes()))
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -280,6 +306,7 @@ async fn send(served: &Served, database_url: &str, stimulus: &Stimulus) -> Resul
             path,
             body,
             auth,
+            sign,
         } => {
             let method = reqwest::Method::from_bytes(method.as_bytes())
                 .map_err(|e| format!("method {method}: {e}"))?;
@@ -288,6 +315,10 @@ async fn send(served: &Served, database_url: &str, stimulus: &Stimulus) -> Resul
                 .header("content-type", "application/json");
             if let Some(token) = auth {
                 request = request.bearer_auth(token);
+            }
+            if let Some(signature) = sign {
+                request = request
+                    .header(signature.header.as_str(), signature.of(body.as_deref().unwrap_or("")));
             }
             if let Some(body) = body {
                 request = request.body(body.clone());

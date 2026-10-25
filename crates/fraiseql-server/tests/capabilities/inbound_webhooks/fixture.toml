@@ -1,0 +1,14 @@
+# A signed webhook delivery lands on the inbound spine and fires an `after:ingest`
+# function, which writes through the GraphQL bridge. The trigger names the route's
+# provider (`after:ingest:webhook:<provider>`), not the route.
+capability = "inbound_webhooks"
+
+[env]
+FRAISEQL_FUNCTIONS_MODULE_DIR = "$FIXTURE/modules"
+FIXTURE_ORDERS_WEBHOOK_SECRET = "fixture-secret"
+
+[[stimulus]]
+http = { method = "POST", path = "/webhooks/orders", body = '{"id":"evt_1","type":"order.created"}', sign = { header = "X-Signature", secret = "fixture-secret", prefix = "sha256=" } }
+
+[effect]
+row = { query = "SELECT source FROM app.tb_delivery", expect = [["orders"]] }
