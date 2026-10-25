@@ -48,11 +48,7 @@ pub type DocumentParse = Result<SharedDocument, ComplexityValidationError>;
 pub fn parse_graphql_document(query: &str) -> DocumentParse {
     let in_scope = REQUEST_DOCUMENT.try_with(|slot| {
         let scope = slot.borrow();
-        let kept = scope
-            .kept
-            .as_ref()
-            .filter(|(source, _)| **source == *query)
-            .map(|(_, parse)| parse.clone());
+        let kept = scope.kept.as_ref().and_then(|kept| kept.parse_of(query));
         (kept, scope.documents.clone())
     });
     let documents = match in_scope {
@@ -60,19 +56,20 @@ pub fn parse_graphql_document(query: &str) -> DocumentParse {
         Ok((None, documents)) => documents,
         Err(_) => None,
     };
-    let parse = if let Some(document) = documents.as_ref().and_then(|d| d.get(query)) {
-        Ok(document)
+    let kept = if let Some(entry) = documents.as_ref().and_then(|d| d.get(query)) {
+        Kept::Cached(entry)
     } else {
         let parse = parse_uncached(query).map(SharedDocument::new);
-        if let (Some(documents), Ok(document)) = (&documents, &parse) {
-            documents.insert(query, document);
+        match (&documents, parse) {
+            (Some(documents), Ok(document)) => Kept::Cached(documents.insert(query, document)),
+            (_, parse) => Kept::Parsed(query.into(), parse),
         }
-        parse
     };
+    let parse = kept.parse();
     let _ = REQUEST_DOCUMENT.try_with(|slot| {
         let mut scope = slot.borrow_mut();
         if scope.kept.is_none() {
-            scope.kept = Some((query.into(), parse.clone()));
+            scope.kept = Some(kept);
         }
     });
     parse
@@ -82,8 +79,33 @@ pub fn parse_graphql_document(query: &str) -> DocumentParse {
 /// executor's [`DocumentCache`] when the scope was opened with one.
 #[derive(Default)]
 struct RequestScope {
-    kept:      Option<(Box<str>, DocumentParse)>,
+    kept:      Option<Kept>,
     documents: Option<DocumentCache>,
+}
+
+/// The first document a request parsed, with the source it was parsed from.
+enum Kept {
+    /// The executor's cache entry, shared rather than copied.
+    Cached(std::sync::Arc<(Box<str>, SharedDocument)>),
+    /// A parse no cache holds: outside one, or a source that did not parse.
+    Parsed(Box<str>, DocumentParse),
+}
+
+impl Kept {
+    fn parse(&self) -> DocumentParse {
+        match self {
+            Self::Cached(entry) => Ok(entry.1.clone()),
+            Self::Parsed(_, parse) => parse.clone(),
+        }
+    }
+
+    fn parse_of(&self, query: &str) -> Option<DocumentParse> {
+        let source = match self {
+            Self::Cached(entry) => &entry.0,
+            Self::Parsed(source, _) => source,
+        };
+        (**source == *query).then(|| self.parse())
+    }
 }
 
 tokio::task_local! {
@@ -148,14 +170,19 @@ impl DocumentCache {
         xxhash_rust::xxh3::xxh3_64(source.as_bytes())
     }
 
-    fn get(&self, source: &str) -> Option<SharedDocument> {
+    fn get(&self, source: &str) -> Option<std::sync::Arc<(Box<str>, SharedDocument)>> {
         let entry = self.0.get(&Self::key(source))?;
-        (*entry.0 == *source).then(|| entry.1.clone())
+        (*entry.0 == *source).then_some(entry)
     }
 
-    fn insert(&self, source: &str, document: &SharedDocument) {
-        self.0
-            .insert(Self::key(source), std::sync::Arc::new((source.into(), document.clone())));
+    fn insert(
+        &self,
+        source: &str,
+        document: SharedDocument,
+    ) -> std::sync::Arc<(Box<str>, SharedDocument)> {
+        let entry = std::sync::Arc::new((source.into(), document));
+        self.0.insert(Self::key(source), entry.clone());
+        entry
     }
 
     /// Run `future` as one request (see [`document_scope`]) whose parses read and fill
@@ -241,6 +268,13 @@ impl Default for ComplexityConfig {
             max_aliases:    DEFAULT_MAX_ALIASES,
         }
     }
+}
+
+/// A document's [`QueryMetrics`] under the depth and complexity limits it was scored by.
+#[derive(Debug, Clone)]
+pub(super) struct Scored {
+    limits:  (usize, usize),
+    metrics: QueryMetrics,
 }
 
 /// Metrics returned by the AST-based analyzer.
@@ -409,11 +443,20 @@ impl RequestValidator {
     /// fragment-spread topology — without it, B-way branching across D chained
     /// spreads costs B^D walks and the validation step itself becomes the `DoS`
     /// (audit H4).
+    ///
+    /// The score is a function of the document and the two limits unless a
+    /// variable-valued page decided part of it. A score no variable decided is kept on
+    /// the document, so a later request sharing the document reads it instead of
+    /// walking again.
     fn document_metrics<'a>(
         &self,
         document: &'a Document,
         variables: Option<&'a serde_json::Value>,
     ) -> QueryMetrics {
+        let limits = (self.max_depth, self.max_complexity);
+        if let Some(scored) = document.scored.get().filter(|scored| scored.limits == limits) {
+            return scored.metrics.clone();
+        }
         let fragments = collect_fragments(document);
         let mut analyzer = DocumentAnalyzer::new(
             document,
@@ -422,7 +465,14 @@ impl RequestValidator {
             self.max_complexity,
             variables,
         );
-        analyzer.analyze_document(document)
+        let metrics = analyzer.analyze_document(document);
+        if !analyzer.read_a_variable {
+            let _ = document.scored.set(Scored {
+                limits,
+                metrics: metrics.clone(),
+            });
+        }
+        metrics
     }
 
     /// Returns true when every configured validation knob is disabled and the
@@ -566,19 +616,22 @@ struct SelectionMetrics {
 /// and aliases hidden inside spread fragments were never counted, bypassing the
 /// alias-amplification limit (audit H4, alias counter).
 struct DocumentAnalyzer<'a> {
-    by_name:        HashMap<&'a str, &'a FragmentDefinition>,
-    memo:           HashMap<&'a str, SelectionMetrics>,
-    visiting:       HashSet<&'a str>,
-    max_depth:      usize,
-    max_complexity: usize,
+    by_name:         HashMap<&'a str, &'a FragmentDefinition>,
+    memo:            HashMap<&'a str, SelectionMetrics>,
+    visiting:        HashSet<&'a str>,
+    max_depth:       usize,
+    max_complexity:  usize,
     /// Request variables for resolving variable-valued pagination arguments
     /// (#869). `None` means unavailable: a variable-valued `first`/`limit`/
     /// `take`/`last` then scores the clamp ceiling (fail closed), never 1.
-    variables:      Option<&'a serde_json::Map<String, serde_json::Value>>,
+    variables:       Option<&'a serde_json::Map<String, serde_json::Value>>,
     /// Integer defaults the document's operations declare for their variables: an
     /// omitted pagination variable takes its default (§ 6.4.1, #1504), so it scores
     /// that value. Two operations declaring the same name keep the larger default.
-    defaults:       HashMap<&'a str, i64>,
+    defaults:        HashMap<&'a str, i64>,
+    /// Whether a variable-valued page decided part of the score, which makes the score
+    /// the request's rather than the document's.
+    read_a_variable: bool,
 }
 
 impl<'a> DocumentAnalyzer<'a> {
@@ -614,6 +667,7 @@ impl<'a> DocumentAnalyzer<'a> {
             max_complexity,
             variables: variables.and_then(serde_json::Value::as_object),
             defaults,
+            read_a_variable: false,
         }
     }
 
@@ -708,11 +762,7 @@ impl<'a> DocumentAnalyzer<'a> {
                         }
                     } else {
                         let nested = self.selection_metrics(&sel.nested_fields, budget);
-                        let multiplier = extract_limit_multiplier(
-                            &sel.arguments,
-                            self.variables,
-                            &self.defaults,
-                        );
+                        let multiplier = self.limit_multiplier(&sel.arguments);
                         SelectionMetrics {
                             depth:      nested.depth,
                             // Saturating: the multiplier compounds per nesting
@@ -745,6 +795,15 @@ impl<'a> DocumentAnalyzer<'a> {
         }
     }
 
+    /// The pagination multiplier of a field's arguments, noting whether a variable
+    /// decided it.
+    fn limit_multiplier(&mut self, arguments: &'a [GraphQLArgument]) -> usize {
+        let (multiplier, from_a_variable) =
+            extract_limit_multiplier(arguments, self.variables, &self.defaults);
+        self.read_a_variable |= from_a_variable;
+        multiplier
+    }
+
     /// Complexity contribution of a single field — `1` for a leaf, else
     /// `1 + nested_complexity * pagination_multiplier`. This is exactly the
     /// per-field score [`selection_metrics`](Self::selection_metrics) assigns, so
@@ -754,8 +813,7 @@ impl<'a> DocumentAnalyzer<'a> {
             1
         } else {
             let nested = self.selection_metrics(&field.nested_fields, budget);
-            let multiplier =
-                extract_limit_multiplier(&field.arguments, self.variables, &self.defaults);
+            let multiplier = self.limit_multiplier(&field.arguments);
             1usize.saturating_add(nested.complexity.saturating_mul(multiplier))
         }
     }
@@ -985,11 +1043,12 @@ fn collect_fragments(document: &Document) -> Vec<&FragmentDefinition> {
 /// number whether or not the request arrived as a GraphQL document.
 const PAGINATION_MULTIPLIER_CEILING: usize = 100;
 
+/// The pagination multiplier of a field's arguments, and whether a variable decided it.
 fn extract_limit_multiplier(
     arguments: &[GraphQLArgument],
     variables: Option<&serde_json::Map<String, serde_json::Value>>,
     defaults: &HashMap<&str, i64>,
-) -> usize {
+) -> (usize, bool) {
     for argument in arguments {
         if !matches!(argument.name.as_str(), "first" | "limit" | "take" | "last") {
             continue;
@@ -1001,7 +1060,7 @@ fn extract_limit_multiplier(
             // A supplied value wins, `null` included (it scores the ceiling);
             // an omitted variable takes its declared default.
             let supplied = variables.and_then(|vars| vars.get(var));
-            return supplied
+            let multiplier = supplied
                 .map_or_else(|| defaults.get(var).copied(), serde_json::Value::as_i64)
                 .map_or(PAGINATION_MULTIPLIER_CEILING, |n| {
                     #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
@@ -1010,6 +1069,7 @@ fn extract_limit_multiplier(
                     let limit = n as usize;
                     limit.clamp(1, PAGINATION_MULTIPLIER_CEILING)
                 });
+            return (multiplier, true);
         }
         if argument.value_type == "int" {
             if let Some(n) = value.as_i64() {
@@ -1017,11 +1077,11 @@ fn extract_limit_multiplier(
                 // Reason: value is clamped to [1, 100] immediately after; truncation and
                 // sign loss are safe
                 let limit = n as usize;
-                return limit.clamp(1, PAGINATION_MULTIPLIER_CEILING);
+                return (limit.clamp(1, PAGINATION_MULTIPLIER_CEILING), false);
             }
         }
     }
-    1
+    (1, false)
 }
 
 #[cfg(test)]

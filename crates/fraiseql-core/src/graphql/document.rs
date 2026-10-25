@@ -30,9 +30,12 @@ const RECURSION_LIMIT: usize = 500;
 #[derive(Debug, Clone)]
 pub struct Document {
     /// Every operation the document defines.
-    pub operations: Vec<Operation>,
+    pub operations:    Vec<Operation>,
     /// Every fragment the document defines.
-    pub fragments:  Vec<FragmentDefinition>,
+    pub fragments:     Vec<FragmentDefinition>,
+    /// The request validator's score, once a request computed one that no variable
+    /// decided: a document the executor's cache shares is then scored once.
+    pub(super) scored: std::sync::OnceLock<super::complexity::Scored>,
 }
 
 /// The kind of an operation (§ 2.3).
@@ -101,6 +104,7 @@ pub fn parse(source: &str) -> Result<Document, DocumentError> {
     let mut document = Document {
         operations: Vec::new(),
         fragments:  Vec::new(),
+        scored:     std::sync::OnceLock::new(),
     };
     let reader = Reader { at: &at };
     for definition in tree.document().definitions() {

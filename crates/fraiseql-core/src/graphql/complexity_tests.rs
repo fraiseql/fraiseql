@@ -228,3 +228,37 @@ fn a_variable_defaulted_differently_by_two_operations_scores_the_larger() {
         .unwrap();
     assert_eq!(both.complexity, literal.complexity);
 }
+
+fn validator_with_depth(max_depth: usize) -> RequestValidator {
+    RequestValidator::from_config(&ComplexityConfig {
+        max_depth,
+        ..ComplexityConfig::default()
+    })
+}
+
+/// A document the executor's cache shares between requests keeps its score, but a
+/// variable-valued page is the request's: each one scores what it supplied, not what
+/// the first request sharing the document did.
+#[test]
+fn a_shared_document_scores_each_requests_pagination_variable() {
+    let validator = RequestValidator::new();
+    let document =
+        crate::graphql::document::parse("query Q($n: Int) { items(limit: $n) { id name } }")
+            .unwrap();
+    let three = validator.document_metrics(&document, Some(&serde_json::json!({"n": 3})));
+    let fifty = validator.document_metrics(&document, Some(&serde_json::json!({"n": 50})));
+    let literal = validator.analyze("{ items(limit: 50) { id name } }").unwrap();
+    assert!(three.complexity < fifty.complexity, "{three:?} then {fifty:?}");
+    assert_eq!(fifty, literal);
+}
+
+/// A shared document scored under one validator's limits is scored again under
+/// another's: a refused spread scores relative to the limit it is refused by.
+#[test]
+fn a_shared_document_scores_again_under_other_limits() {
+    let document = crate::graphql::document::parse("{ items { ...Missing } }").unwrap();
+    let wide = validator_with_depth(10).document_metrics(&document, None);
+    let narrow = validator_with_depth(4).document_metrics(&document, None);
+    let fresh = crate::graphql::document::parse("{ items { ...Missing } }").unwrap();
+    assert_eq!(narrow, validator_with_depth(4).document_metrics(&fresh, None), "after {wide:?}");
+}
