@@ -63,6 +63,13 @@ disagreed, and the promise was the part that was wrong.
   `triggers::Schedule` (an expression and a timezone) instead of a `CronSchedule`.
   `FunctionDefinition` and `SourceDefinition` gain a `timezone` field, so a struct
   literal of either needs it.
+- **`QueryMatch` shares what a repeated document compiled instead of copying it per
+  request.** `query_def` is `Arc<QueryDefinition>`, `selections` is
+  `Arc<[FieldSelection]>` and `parsed_query` is `Arc<ParsedQuery>`. A struct literal
+  wraps them (`.into()`, `Arc::default()`); every read derefs as before. A warm read no
+  longer copies the query's definition, parses or expands its document, or collects its
+  fields again: those are kept per document, and its fields per set of
+  `@skip`/`@include` outcomes.
 
 ### Added
 
@@ -80,6 +87,11 @@ disagreed, and the promise was the part that was wrong.
   modules somewhere else, with no recompile per host. A relative `module_dir` still
   resolves against the server's working directory, and a module missing from the
   resolved directory still refuses the boot.
+- **`QueryMatcher::definition` and `QueryMatcher::match_resolved`.** `definition`
+  resolves a query name as `find_query` does and returns the matcher's shared
+  definition. `match_resolved` matches an operation already parsed, against a
+  `selection_set::CollectedFields` that holds its expanded root set and the fields each
+  set of directive outcomes collects.
 
 ### Fixed
 
@@ -126,6 +138,11 @@ disagreed, and the promise was the part that was wrong.
   help, the examples and the docs now name `schema.compiled.json`. An authoring schema,
   with or without `--against-db`, is refused before anything else runs, with a pointer to
   `fraiseql compile schema.json --check`.
+- **Selections sharing a response key merge into one field (#1722).** `posts { id }
+  posts { title }`, two fragments each selecting `posts`, and `a: posts { id } a: posts
+  { title }` each read one `posts` with both sub-selections, as § 6.3.2 CollectFields
+  requires, at the first occurrence's position and at every depth. Only the same field
+  with the same arguments merges; `posts` and `p: posts` stay two fields.
 
 ## [2.18.0] - 2026-10-25
 
