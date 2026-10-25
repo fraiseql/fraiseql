@@ -1,0 +1,6 @@
+# A gateway resolves an entity this subgraph owns by its key. The variable is named
+# `$representations`, as a gateway names it: another name is refused (#1724).
+capability = "federation"
+
+[effect]
+http = { method = "POST", path = "/graphql", body = '{"query":"query($representations: [_Any!]!) { _entities(representations: $representations) { ... on Note { title } } }","variables":{"representations":[{"__typename":"Note","id":"00000000-0000-4000-8000-000000000001"}]}}', status = 200, json_pointer = "/data/_entities/0/title", equals = "seeded" }

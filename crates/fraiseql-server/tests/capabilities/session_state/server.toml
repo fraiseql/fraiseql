@@ -1,0 +1,9 @@
+cors_enabled = false
+
+[auth_hs256]
+secret_env = "FRAISEQL_HS256_SECRET"
+issuer = "capability-fixtures"
+audience = "fraiseql"
+
+[session_state]
+backend = "postgres"

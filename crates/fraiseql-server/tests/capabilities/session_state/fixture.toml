@@ -1,0 +1,15 @@
+# An authenticated agent's tool call is remembered on its thread.
+capability = "session_state"
+
+[env]
+FRAISEQL_HS256_SECRET = "capability-fixture-hs256-secret-32b"
+
+[[stimulus]]
+mcp = { path = "/mcp", tool = "createNote", arguments = { title = "remembered" }, auth = { hs256 = { secret_env = "FRAISEQL_HS256_SECRET", sub = "agent-1", iss = "capability-fixtures", aud = "fraiseql" } } }
+
+[effect]
+row = { query = "SELECT count(*)::text FROM _system.session_state", expect = [
+  [
+    "1",
+  ],
+] }

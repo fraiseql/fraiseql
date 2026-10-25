@@ -1,0 +1,22 @@
+[schema]
+name = "capability-rest"
+
+[types.Note]
+sql_source = "app.v_note"
+fields.id = { type = "ID" }
+fields.title = { type = "String" }
+
+[queries.notes]
+return_type = "Note"
+return_array = true
+sql_source = "app.v_note"
+
+[mutations.createNote]
+return_type = "Note"
+operation = "INSERT"
+sql_source = "app.fn_create_note"
+args = [{ name = "title", type = "String", required = true }]
+
+[rest]
+enabled = true
+path = "/rest/v1"

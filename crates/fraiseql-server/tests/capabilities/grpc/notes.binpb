@@ -1,0 +1,11 @@
+
+‘
+notes.protofraiseql.fixture",
+Note
+id (	Rid
+title (	Rtitle"
+ListNotesRequest"A
+ListNotesResponse,
+notes (2.fraiseql.fixture.NoteRnotes2c
+NoteServiceT
+	ListNotes".fraiseql.fixture.ListNotesRequest#.fraiseql.fixture.ListNotesResponsebproto3

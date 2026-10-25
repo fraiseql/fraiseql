@@ -1,0 +1,12 @@
+cors_enabled = false
+
+[auth_hs256]
+secret_env = "FRAISEQL_HS256_SECRET"
+issuer = "capability-fixtures"
+audience = "fraiseql"
+
+[identity.enrichment]
+enabled = true
+query = "SELECT actor_id::text AS actor_id FROM app.tb_actor WHERE sub = $sub"
+map = { actor_id = "actor_id" }
+provision = "INSERT INTO app.tb_actor (sub) VALUES ($sub) ON CONFLICT (sub) DO NOTHING"

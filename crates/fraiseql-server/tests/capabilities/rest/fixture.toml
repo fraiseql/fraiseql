@@ -1,0 +1,8 @@
+# A REST `POST` on a resource runs its insert mutation.
+capability = "rest"
+
+[[stimulus]]
+http = { method = "POST", path = "/rest/v1/notes", body = '{"title":"over rest"}' }
+
+[effect]
+row = { query = "SELECT title FROM app.tb_note", expect = [["over rest"]] }

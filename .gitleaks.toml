@@ -123,6 +123,13 @@ id = "generic-api-key"
   description = "FraiseQL env var names, not values"
   regexes = ['''^FRAISEQL_[A-Z0-9_]+$''']
 
+  # The capability fixtures configure a server with secrets they invent in the same
+  # file; the literals say so. Pinned to the prefix rather than to the fixtures'
+  # paths, so a real key pasted into a fixture still fires.
+  [[rules.allowlists]]
+  description = "The capability fixtures' self-declared throwaway secrets"
+  regexes = ['''^capability-fixture-''']
+
   [[rules.allowlists]]
   description = "Test vectors, fixtures and documentation placeholders"
   paths = [

@@ -1,0 +1,11 @@
+# A subject the actor table has never seen is provisioned on its first request.
+capability = "identity"
+
+[env]
+FRAISEQL_HS256_SECRET = "capability-fixture-hs256-secret-32b"
+
+[[stimulus]]
+http = { method = "POST", path = "/graphql", body = '{"query":"{ notes { id } }"}', auth = { hs256 = { secret_env = "FRAISEQL_HS256_SECRET", sub = "agent-1", iss = "capability-fixtures", aud = "fraiseql" } } }
+
+[effect]
+row = { query = "SELECT sub FROM app.tb_actor", expect = [["agent-1"]] }

@@ -1,0 +1,20 @@
+// The service the `grpc` fixture's descriptor set describes. Regenerate the set with
+// `protoc --include_imports --descriptor_set_out=notes.binpb notes.proto`.
+syntax = "proto3";
+
+package fraiseql.fixture;
+
+message Note {
+  string id = 1;
+  string title = 2;
+}
+
+message ListNotesRequest {}
+
+message ListNotesResponse {
+  repeated Note notes = 1;
+}
+
+service NoteService {
+  rpc ListNotes(ListNotesRequest) returns (ListNotesResponse);
+}

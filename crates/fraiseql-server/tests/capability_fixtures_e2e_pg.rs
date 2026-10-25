@@ -6,7 +6,7 @@
 //!
 //! - `schema.json` and `fraiseql.toml`: the authoring inputs, compiled here. A fixture with no
 //!   `schema.json` is TOML-only: `fraiseql.toml` declares the schema itself, as `fraiseql compile
-//!   fraiseql.toml` reads it.
+//!   fraiseql.toml` reads it. `$FIXTURE` expands to the fixture's directory here too.
 //! - `setup.sql`: the application's tables, views and functions.
 //! - `server.toml`: the server's `ServerConfig`. `$FIXTURE` expands to the fixture's directory, and
 //!   `$NATS_URL` to the broker this run was given; a fixture that names a service the run lacks
@@ -61,6 +61,8 @@ struct Fixture {
     /// Environment for the server process. `$FIXTURE` expands to the fixture's directory.
     #[serde(default)]
     env:            BTreeMap<String, String>,
+    /// None for a fixture about what the server does once it is up.
+    #[serde(default)]
     stimulus:       Vec<Stimulus>,
     effect:         Effect,
 }
@@ -73,6 +75,53 @@ const fn default_true() -> bool {
     true
 }
 
+/// The bearer a stimulus presents.
+#[derive(Debug, Deserialize)]
+#[serde(untagged)]
+enum Auth {
+    /// Sent as written: an opaque token the server was configured with.
+    Token(String),
+    /// An HS256 JWT minted when the stimulus is sent, so no signed token is committed.
+    Jwt { hs256: Hs256 },
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Hs256 {
+    /// The fixture `env` key holding the signing secret the server verifies with.
+    secret_env: String,
+    sub:        String,
+    iss:        String,
+    aud:        String,
+}
+
+impl Auth {
+    fn bearer(&self, env: &BTreeMap<String, String>) -> Result<String, String> {
+        match self {
+            Self::Token(token) => Ok(token.clone()),
+            Self::Jwt { hs256 } => {
+                let secret = env.get(&hs256.secret_env).ok_or_else(|| {
+                    format!("auth.hs256: no `{}` in the fixture env", hs256.secret_env)
+                })?;
+                let now = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map_err(|e| e.to_string())?
+                    .as_secs();
+                let claims = serde_json::json!({
+                    "sub": hs256.sub, "iss": hs256.iss, "aud": hs256.aud,
+                    "iat": now, "exp": now + 3600,
+                });
+                jsonwebtoken::encode(
+                    &jsonwebtoken::Header::default(),
+                    &claims,
+                    &jsonwebtoken::EncodingKey::from_secret(secret.as_bytes()),
+                )
+                .map_err(|e| format!("auth.hs256: {e}"))
+            },
+        }
+    }
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 enum Stimulus {
@@ -83,7 +132,7 @@ enum Stimulus {
         body:   Option<String>,
         /// A bearer token sent as `Authorization`.
         #[serde(default)]
-        auth:   Option<String>,
+        auth:   Option<Auth>,
         /// An HMAC-SHA256 signature of `body`, sent in a header, as a webhook provider
         /// signs a delivery.
         #[serde(default)]
@@ -96,6 +145,9 @@ enum Stimulus {
         tool:      String,
         #[serde(default)]
         arguments: Value,
+        /// A bearer token sent as `Authorization` on every request of the session.
+        #[serde(default)]
+        auth:      Option<Auth>,
     },
     Sql {
         statement: String,
@@ -130,9 +182,14 @@ impl Signature {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 enum Effect {
-    /// `GET path` answers `status`, with `equals` at `json_pointer` when one is given.
+    /// `method path` (a `GET` unless named, with `body` when given) answers `status`, with
+    /// `equals` at `json_pointer` when one is given.
     Http {
+        #[serde(default = "default_method")]
+        method:       String,
         path:         String,
+        #[serde(default)]
+        body:         Option<String>,
         status:       u16,
         #[serde(default)]
         json_pointer: Option<String>,
@@ -165,6 +222,10 @@ enum Effect {
         #[serde(default)]
         serving:    Option<bool>,
     },
+}
+
+fn default_method() -> String {
+    "GET".to_owned()
 }
 
 fn fixtures_dir() -> PathBuf {
@@ -239,12 +300,20 @@ async fn drop_database(admin_url: &str, db: &str) {
 
 /// Compile the fixture's authoring inputs to `out`, as `fraiseql compile` does:
 /// `schema.json` with `fraiseql.toml` beside it, or `fraiseql.toml` alone.
+///
+/// `$FIXTURE` in `fraiseql.toml` expands to the fixture's directory, for a path the
+/// compiled schema carries to the server, which runs in an empty directory of its own.
 async fn compile(dir: &Path, out: &Path) -> Result<(), String> {
+    let source = std::fs::read_to_string(dir.join("fraiseql.toml"))
+        .map_err(|e| format!("fraiseql.toml: {e}"))?;
+    let project = out.with_file_name("fraiseql.toml");
+    std::fs::write(&project, source.replace("$FIXTURE", &dir.to_string_lossy()))
+        .map_err(|e| format!("{}: {e}", project.display()))?;
     let schema = dir.join("schema.json");
     let (input, config) = if schema.is_file() {
-        (schema, Some(dir.join("fraiseql.toml").to_string_lossy().into_owned()))
+        (schema, Some(project.to_string_lossy().into_owned()))
     } else {
-        (dir.join("fraiseql.toml"), None)
+        (project, None)
     };
     fraiseql_cli::commands::compile::run(
         &input.to_string_lossy(),
@@ -405,6 +474,9 @@ async fn serve(
         .env("FRAISEQL_SCHEMA_PATH", schema)
         .env("DATABASE_URL", database_url)
         .env("FRAISEQL_BIND_ADDR", format!("127.0.0.1:{port}"))
+        // Flight binds a port of its own, by default the one every fixture's server would
+        // share, so a server already on it fails a fixture about something else.
+        .env("FRAISEQL_FLIGHT_BIND_ADDR", format!("127.0.0.1:{}", free_port()))
         .env("RUST_LOG", "info")
         .stdin(Stdio::null())
         .stdout(std::fs::File::create(&log).unwrap())
@@ -435,7 +507,12 @@ async fn serve(
     }
 }
 
-async fn send(served: &Served, database_url: &str, stimulus: &Stimulus) -> Result<(), String> {
+async fn send(
+    served: &Served,
+    database_url: &str,
+    env: &BTreeMap<String, String>,
+    stimulus: &Stimulus,
+) -> Result<(), String> {
     match stimulus {
         Stimulus::Http {
             method,
@@ -449,8 +526,8 @@ async fn send(served: &Served, database_url: &str, stimulus: &Stimulus) -> Resul
             let mut request = reqwest::Client::new()
                 .request(method, format!("{}{path}", served.base))
                 .header("content-type", "application/json");
-            if let Some(token) = auth {
-                request = request.bearer_auth(token);
+            if let Some(auth) = auth {
+                request = request.bearer_auth(auth.bearer(env)?);
             }
             if let Some(signature) = sign {
                 request = request
@@ -469,14 +546,19 @@ async fn send(served: &Served, database_url: &str, stimulus: &Stimulus) -> Resul
             path,
             tool,
             arguments,
+            auth,
         } => {
+            let bearer = auth.as_ref().map(|auth| auth.bearer(env)).transpose()?;
             let client = reqwest::Client::new();
             let url = format!("{}{path}", served.base);
             let post = |body: Value, session: Option<&str>| {
-                let request = client
+                let mut request = client
                     .post(&url)
                     .header("accept", "application/json, text/event-stream")
                     .json(&body);
+                if let Some(token) = &bearer {
+                    request = request.bearer_auth(token);
+                }
                 match session {
                     Some(id) => request.header("mcp-session-id", id),
                     None => request,
@@ -547,23 +629,32 @@ async fn send(served: &Served, database_url: &str, stimulus: &Stimulus) -> Resul
 async fn observe(served: &Served, database_url: &str, effect: &Effect) -> Result<(), String> {
     match effect {
         Effect::Http {
+            method,
             path,
+            body,
             status,
             json_pointer,
             equals,
         } => {
-            let response = reqwest::get(format!("{}{path}", served.base))
-                .await
-                .map_err(|e| format!("GET {path}: {e}"))?;
+            let verb = reqwest::Method::from_bytes(method.as_bytes())
+                .map_err(|e| format!("method {method}: {e}"))?;
+            let mut request = reqwest::Client::new()
+                .request(verb, format!("{}{path}", served.base))
+                .header("content-type", "application/json");
+            if let Some(body) = body {
+                request = request.body(body.clone());
+            }
+            let response = request.send().await.map_err(|e| format!("{method} {path}: {e}"))?;
             let got = response.status().as_u16();
             let body: Value = response.json().await.unwrap_or(Value::Null);
             if got != *status {
-                return Err(format!("GET {path} answered {got}, not {status}: {body}"));
+                return Err(format!("{method} {path} answered {got}, not {status}: {body}"));
             }
             match (json_pointer, equals) {
-                (Some(pointer), Some(want)) if body.pointer(pointer) != Some(want) => {
-                    Err(format!("GET {path}: {pointer} is {:?}, not {want}", body.pointer(pointer)))
-                },
+                (Some(pointer), Some(want)) if body.pointer(pointer) != Some(want) => Err(format!(
+                    "{method} {path}: {pointer} is {:?}, not {want}: {body}",
+                    body.pointer(pointer)
+                )),
                 _ => Ok(()),
             }
         },
@@ -693,7 +784,7 @@ async fn run_fixture(admin_url: &str, name: &str, dir: &Path) -> Result<(), Stri
             serve(dir, &fixture, &schema, &database_url, scratch.path(), Receiver::start().await)
                 .await?;
         for stimulus in &fixture.stimulus {
-            send(&served, &database_url, stimulus).await?;
+            send(&served, &database_url, &fixture.env, stimulus).await?;
         }
         let deadline = Instant::now() + Duration::from_secs(fixture.deadline_secs);
         loop {

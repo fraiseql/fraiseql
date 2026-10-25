@@ -1,0 +1,13 @@
+# An identity provider registered over the admin API on a running server gets this
+# service provider's metadata to consume: the store the boot provisions, and the routes
+# that manage it.
+capability = "saml"
+
+[env]
+FRAISEQL_HS256_SECRET = "capability-fixture-hs256-secret-32b"
+
+[[stimulus]]
+http = { method = "POST", path = "/api/saml/idps", auth = "capability-fixture-admin-token-32-chars-long", body = '''{"idp_name":"fixture-idp","sp_entity_id":"https://sp.example.com/metadata","acs_url":"https://sp.example.com/auth/saml/acs","metadata_xml":"<EntityDescriptor xmlns=\"urn:oasis:names:tc:SAML:2.0:metadata\" entityID=\"https://idp.example.com/metadata\">\n  <IDPSSODescriptor protocolSupportEnumeration=\"urn:oasis:names:tc:SAML:2.0:protocol\">\n    <KeyDescriptor use=\"signing\">\n      <KeyInfo xmlns=\"http://www.w3.org/2000/09/xmldsig#\">\n        <X509Data><X509Certificate>MIIDFzCCAf+gAwIBAgIUTv25NScJrUhfeaObJWpjEFo0nsgwDQYJKoZIhvcNAQELBQAwGjEYMBYGA1UEAwwPaWRwLmV4YW1wbGUuY29tMCAXDTI2MTAyNTAzMDMyOVoYDzIxMjYxMDAxMDMwMzI5WjAaMRgwFgYDVQQDDA9pZHAuZXhhbXBsZS5jb20wggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQDJWj4ZtFs/OVhyl/Wx+Y/cLpJwjAN3UCp51qVbpfTleSniCE+AoHJynRlTmKNhFtKViG3JHKP756afEDm1K4CC1pLbZtigLjZsnDNOqniE1YKp1rmYxbNVWZnauxVgZNG/AnGhBCwkyKaEFvfDzpuaU8Nj9of9tcDaadFsUZVatIFrv6E22HZfGEtOw1oMQbQwEPwNiixBpy7PYKTjoGwIVinm1Jo5Wd69wJUcLGugCMxml5Ix88RykN7SSeGC7pPln4MbkIxndLzOL/a3x9VHtUVsVIHUiEujP+1VSIkSTGxXxrtiQhkR3ajumRtt6JvUFHKSgnnz7j7Cg7SN5DHnAgMBAAGjUzBRMB0GA1UdDgQWBBTm6eleFn7IwBbyBQ7B6nbuVp4IYzAfBgNVHSMEGDAWgBTm6eleFn7IwBbyBQ7B6nbuVp4IYzAPBgNVHRMBAf8EBTADAQH/MA0GCSqGSIb3DQEBCwUAA4IBAQB2z6EBg6VzhQW2+ntqoyZ8SDi3Utu/U35777lbJOuyRTkhi9x81t8HRqmRfzrxO6wjToc4iAktNl+il9C6k3jrZYvdTFAvolwzskJYKuSJ2p8sKEibwXFGb1+oIPZaERxX5mH0C7RvYYGwLgkrKhqUHr+fkBUyweGgbQE/TbkbUsEyhyel1Y3GYyiByXNhk5Qvl1tiFfeWEcd99SejhbS6DQCmxuBjeymnoE2KKh0CrWfdpACxyEHfzeOytiDOAAPOJt7OQ+FQihPpbbGviBrjJ8YsuwYjZO66AjUOA0vo0dlCD99hgAbWrLK2YfCvGQwYT+uDZFR2K4ubgBmq9suc</X509Certificate></X509Data>\n      </KeyInfo>\n    </KeyDescriptor>\n    <SingleSignOnService Binding=\"urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect\" Location=\"https://idp.example.com/sso\"/>\n  </IDPSSODescriptor>\n</EntityDescriptor>"}''' }
+
+[effect]
+http = { path = "/auth/saml/metadata?idp=fixture-idp", status = 200 }

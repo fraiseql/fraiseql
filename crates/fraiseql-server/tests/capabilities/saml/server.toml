@@ -1,0 +1,10 @@
+cors_enabled = false
+admin_token = "capability-fixture-admin-token-32-chars-long"
+
+[auth_hs256]
+secret_env = "FRAISEQL_HS256_SECRET"
+issuer = "https://sp.example.com"
+audience = "fraiseql"
+
+[saml]
+store_enabled = true

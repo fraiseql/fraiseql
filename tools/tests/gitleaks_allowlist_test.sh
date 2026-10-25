@@ -50,6 +50,7 @@ trap 'rm -rf "$WORK"' EXIT
 AKIA="AKIA""Z3XQ7T2LMNPQ4RSV"
 STRIPE_REAL="sk_""live_""51H8xQ2eZvKYlo2CkQ4rTbNmXwJ7dFpG9sAeR3uY"
 STRIPE_FIXTURE="sk_""live_""abc123def456"
+RANDOM_32="q8Zr2v""Lx9TfW""4nHs7K""dP3mYc""6BgJ1eRa"
 JWT="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9""."\
 "eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IlRlc3QifQ""."\
 "dBjftJeZ4CVPmB92K27uhbUJU1p1r8W1gFWFOEjXk"
@@ -131,6 +132,10 @@ expect leak  H1 "crates/demo/src/audit_tests.rs" "let k = \"$STRIPE_REAL\";"
 # An env var NAME is exempt; a value assigned to that name is not.
 expect clean I0 "crates/demo/src/config.rs" 'secret_env = "FRAISEQL_HS256_SECRET"'
 expect leak  I1 "crates/demo/src/config.rs" "aws_key = \"$AKIA\""
+# A capability fixture's self-declared throwaway secret is exempt; a secret in the
+# same file that does not declare itself fires.
+expect clean K0 "crates/demo/tests/capabilities/x/fixture.toml" 'FRAISEQL_HS256_SECRET = "capability-fixture-hs256-secret-32b"'
+expect leak  K1 "crates/demo/tests/capabilities/x/fixture.toml" "FRAISEQL_HS256_SECRET = \"$RANDOM_32\""
 
 echo
 echo "── the artifact-tree exemption is a directory, not a name ──"

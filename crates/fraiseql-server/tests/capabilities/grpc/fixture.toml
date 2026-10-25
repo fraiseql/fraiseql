@@ -1,0 +1,6 @@
+# gRPC is built and configured, and no entry point serves it yet: `/health` says so
+# rather than reporting a transport nobody can reach.
+capability = "grpc"
+
+[effect]
+health = { capability = "grpc", started = false }
