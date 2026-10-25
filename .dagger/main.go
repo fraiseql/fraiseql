@@ -2254,7 +2254,7 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		"cargo test -p fraiseql-server --test storage_wiring_test -- --test-threads=1",
 		"cargo test -p fraiseql-server --test tenant_provisioning_test -- --test-threads=1",
 		"cargo test -p fraiseql-server --test test_helpers -- --test-threads=1",
-		"cargo test -p fraiseql-server --test observer_test_helpers -- --test-threads=1",
+		"cargo test -p fraiseql-server --features observers --test observer_test_helpers -- --test-threads=1",
 		// #936: the seed-fixture integrity gate runs LAST (pipeline_e2e ran above).
 		"echo '### cargo test -p fraiseql-db --test seed_fixture_integrity (#936 gate, runs last)'",
 		"cargo test -p fraiseql-db --features postgres,wire-backend,test-postgres --test seed_fixture_integrity -- --test-threads=1",

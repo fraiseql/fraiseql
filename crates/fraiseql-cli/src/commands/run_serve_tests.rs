@@ -31,15 +31,12 @@ async fn run_starts_a_compiled_in_observer_runtime() {
         eprintln!("SKIP run_starts_a_compiled_in_observer_runtime: no DATABASE_URL");
         return;
     };
-    // The tables the observer runtime reads; a deployment applies these migrations.
+    // The change log the runtime reads, which the application supplies (`fraiseql setup`
+    // installs it); `fraiseql run` provisions the runtime's own tables.
     let pool = fraiseql_server::sqlx::PgPool::connect(&url).await.unwrap();
-    fraiseql_server::migration_lock::run_migrations(
+    fraiseql_server::migration_lock::run_migration(
         &pool,
-        &[
-            fraiseql_observers::migrations::observer_management_sql(),
-            fraiseql_observers::migrations::entity_change_log_contract_sql(),
-            fraiseql_observers::migrations::observer_dispatch_sql(),
-        ],
+        fraiseql_observers::migrations::entity_change_log_contract_sql(),
     )
     .await
     .unwrap();

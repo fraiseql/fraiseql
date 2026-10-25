@@ -12,6 +12,7 @@
 //! **Infrastructure:** PostgreSQL
 //! **Parallelism:** safe
 
+#![cfg(feature = "observers")]
 #![allow(dead_code)] // Some helpers may not be used in all test files
 #![allow(clippy::unwrap_used, clippy::missing_assert_message)] // Reason: test code, panics are acceptable
 #![allow(clippy::cast_precision_loss)] // Reason: test metrics use usize/u64→f64 for reporting
@@ -69,147 +70,27 @@ pub async fn setup_observer_schema(pool: &PgPool) -> Result<(), sqlx::Error> {
         .execute(pool)
         .await?;
 
-    // 3. Create observer management tables
-    sqlx::query(
-        r#"
-        CREATE TABLE IF NOT EXISTS tb_observer (
-            pk_observer BIGSERIAL PRIMARY KEY,
-            id UUID NOT NULL DEFAULT gen_random_uuid() UNIQUE,
-            name VARCHAR(255) NOT NULL,
-            description TEXT,
-            entity_type VARCHAR(255),
-            event_type VARCHAR(50),
-            condition_expression TEXT,
-            actions JSONB NOT NULL DEFAULT '[]',
-            enabled BOOLEAN NOT NULL DEFAULT true,
-            priority INTEGER NOT NULL DEFAULT 100,
-            retry_config JSONB NOT NULL DEFAULT '{"max_attempts": 3, "backoff": "exponential", "initial_delay_ms": 100}',
-            timeout_ms INTEGER NOT NULL DEFAULT 30000,
-            fk_customer_org BIGINT,
-            created_by VARCHAR(255),
-            updated_by VARCHAR(255),
-            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-            deleted_at TIMESTAMPTZ
-        )
-        "#,
+    // 3. The observer runtime's own tables, from the migrations the server provisions them with
+    //    (#1710), not a hand-written copy: the copy had drifted (no `fk_customer_org` on the log,
+    //    none of migration 06's checks), and on a database it had prepared, migration 06's indexes
+    //    then failed, so suites that provision for real went red. Dropped first: `CREATE TABLE IF
+    //    NOT EXISTS` keeps a table an older shape left. The drop also empties the checkpoints,
+    //    which must not survive step 2's rebuilt change log: a retained cursor points past its new
+    //    pks, and the runtime would skip every new row (#805).
+    sqlx::raw_sql(
+        "DROP VIEW IF EXISTS vw_observer_stats;
+         DROP TABLE IF EXISTS tb_observer_log, tb_observer, observer_checkpoints,
+             observer_checkpoints_history CASCADE",
     )
     .execute(pool)
     .await?;
-
-    // 4. Create observer log table
-    sqlx::query(
-        r"
-        CREATE TABLE IF NOT EXISTS tb_observer_log (
-            pk_observer_log BIGSERIAL PRIMARY KEY,
-            id UUID NOT NULL DEFAULT gen_random_uuid() UNIQUE,
-            fk_observer BIGINT NOT NULL REFERENCES tb_observer(pk_observer),
-            fk_entity_change_log BIGINT,
-            event_id UUID NOT NULL,
-            entity_type VARCHAR(255) NOT NULL,
-            -- entity_id is a UUID: ObserverLog.entity_id is `Uuid` and list_logs decodes
-            -- it as UUID (a VARCHAR column makes the decode fail). Matches production.
-            entity_id UUID NOT NULL,
-            event_type VARCHAR(50) NOT NULL,
-            status VARCHAR(50) NOT NULL,
-            action_index INTEGER,
-            action_type VARCHAR(50),
-            started_at TIMESTAMPTZ,
-            completed_at TIMESTAMPTZ,
-            duration_ms INTEGER,
-            error_code VARCHAR(100),
-            error_message TEXT,
-            attempt_number INTEGER NOT NULL DEFAULT 1,
-            max_attempts INTEGER NOT NULL DEFAULT 3,
-            -- #468 per-action audit columns written by write_observer_log. These
-            -- mirror migrations/06_create_observer_management.sql; the inline test
-            -- schema had drifted and lacked them, so the writer INSERT failed with
-            -- a missing-column error on response_status_code.
-            request_payload JSONB,
-            response_payload JSONB,
-            response_status_code INTEGER,
-            trace_id VARCHAR(64),
-            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-        )
-        ",
-    )
-    .execute(pool)
-    .await?;
-
-    // #932: production's `ck_observer_log_status` CHECK, which this fixture
-    // lacked. Without it every status the writer emits is accepted here and the
-    // suite can never see the constraint violation that silently drops the row
-    // in a real deployment — the #982 fixture-drift shape, on the one table
-    // whose whole job is recording failures. The vocabulary comes from the
-    // observers crate's canonical constant (pinned to migration 06 by its own
-    // unit test), never a third inline copy.
-    //
-    // Added by ALTER, not inline: the CREATE above is IF NOT EXISTS, so a warm
-    // database from a previous run would otherwise keep the unconstrained table.
-    //
-    // `fraiseql-observers` is an OPTIONAL dependency, and this file is itself a
-    // test binary that some leg steps compile without the `observers` feature —
-    // where the crate is not linked at all. Gate the reference, not just the
-    // call: every test that uses this schema requires the feature anyway, so the
-    // constraint still lands wherever it can matter.
-    #[cfg(feature = "observers")]
-    {
-        let statuses = fraiseql_observers::migrations::OBSERVER_LOG_STATUSES
-            .iter()
-            .map(|s| format!("'{s}'"))
-            .collect::<Vec<_>>()
-            .join(", ");
-        sqlx::query("ALTER TABLE tb_observer_log DROP CONSTRAINT IF EXISTS ck_observer_log_status")
-            .execute(pool)
-            .await?;
-        // NOT VALID: enforce on every new write without validating history. A warm
-        // test database still holds rows written before the writer was corrected,
-        // and validating them would fail *setup* — turning the whole suite red for a
-        // reason unrelated to what it asserts.
-        sqlx::query(&format!(
-            "ALTER TABLE tb_observer_log
-         ADD CONSTRAINT ck_observer_log_status CHECK (status IN ({statuses})) NOT VALID"
-        ))
-        .execute(pool)
-        .await?;
+    for migration in [
+        fraiseql_observers::migrations::observer_management_sql(),
+        fraiseql_observers::migrations::observer_dispatch_sql(),
+        fraiseql_observers::checkpoint::migration_sql(),
+    ] {
+        sqlx::raw_sql(migration).execute(pool).await?;
     }
-
-    // 4b. The stats view the admin API reads. Taken from migration 06 itself rather than a
-    //     copy: the fixture had no view at all, so no test ever reached `get_stats`.
-    let migration = std::fs::read_to_string(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../fraiseql-observers/migrations/06_create_observer_management.sql"
-    ))
-    .expect("migration 06 is readable from the workspace");
-    let view_start = migration
-        .find("CREATE OR REPLACE VIEW vw_observer_stats")
-        .expect("migration 06 defines vw_observer_stats");
-    let view_len = migration[view_start..].find(';').expect("the view statement ends");
-    sqlx::query(&migration[view_start..view_start + view_len]).execute(pool).await?;
-
-    // 5. Create checkpoint table
-    sqlx::query(
-        r"
-        CREATE TABLE IF NOT EXISTS observer_checkpoints (
-            listener_id VARCHAR(255) PRIMARY KEY,
-            last_processed_id BIGINT NOT NULL DEFAULT 0,
-            last_processed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-            batch_size INT NOT NULL DEFAULT 100,
-            event_count INT NOT NULL DEFAULT 0,
-            consecutive_errors INT NOT NULL DEFAULT 0,
-            last_error TEXT,
-            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-        )
-        ",
-    )
-    .execute(pool)
-    .await?;
-
-    // 6. Step 2 above DROPped and recreated tb_entity_change_log, resetting its BIGSERIAL — any
-    //    checkpoint retained from a prior run now points past the new pks and would make the
-    //    runtime (#805 durable cursor) silently skip every new row. A rebuilt change log
-    //    invalidates all cursors.
-    sqlx::query("DELETE FROM observer_checkpoints").execute(pool).await?;
 
     Ok(())
 }
