@@ -500,7 +500,7 @@ impl Executor {
         if let Some(authorizer) = self.ctx.config.authorizer.as_ref() {
             let ops = support::authz::collect_authz_ops(
                 query_type,
-                maybe_parsed.as_ref(),
+                maybe_parsed.as_deref(),
                 &self.ctx.schema,
             );
             crate::security::authorizer::enforce_authz(
@@ -556,7 +556,20 @@ impl Executor {
                     let pr = self.execute_parallel(parsed, variables, security_context).await?;
                     let data = pr.merge_into_data_map();
                     Ok(serde_json::json!({ "data": data }))
+                } else if let Some(completion) = completion {
+                    // The document was parsed and its spreads expanded when it was
+                    // classified, with this operation selected and to this executor's
+                    // depth: the same two steps the matcher would repeat.
+                    let query_match = self.ctx.matcher.match_resolved(
+                        std::sync::Arc::clone(parsed),
+                        &completion.selections,
+                        variables,
+                    )?;
+                    self.query_runner()
+                        .execute_regular_match(query_match, variables, security_context)
+                        .await
                 } else {
+                    // Expansion failed at classification: the matcher's own pass reports why.
                     self.query_runner()
                         .execute_regular_query(query, variables, security_context, operation_name)
                         .await
@@ -566,7 +579,7 @@ impl Executor {
                 self.aggregate_runner()
                     .execute_aggregate_dispatch(
                         query_name,
-                        maybe_parsed.as_ref(),
+                        maybe_parsed.as_deref(),
                         variables,
                         security_context,
                     )
@@ -576,7 +589,7 @@ impl Executor {
                 self.aggregate_runner()
                     .execute_window_dispatch(
                         query_name,
-                        maybe_parsed.as_ref(),
+                        maybe_parsed.as_deref(),
                         variables,
                         security_context,
                     )

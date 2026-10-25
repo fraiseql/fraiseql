@@ -1492,7 +1492,7 @@ async fn the_rest_filter_surface_enforces_the_same_rule() {
         operation_name: None,
         scope_where: None,
         search_relevance: None,
-        parsed_query: fraiseql_core::graphql::ParsedQuery::default(),
+        parsed_query: std::sync::Arc::default(),
     };
 
     let err = exec
@@ -1531,7 +1531,7 @@ async fn the_rest_filter_surface_still_serves_a_declared_key() {
         operation_name: None,
         scope_where: None,
         search_relevance: None,
-        parsed_query: fraiseql_core::graphql::ParsedQuery::default(),
+        parsed_query: std::sync::Arc::default(),
     };
 
     exec.execute_query_direct(&rest_match, None, None, None)
@@ -1658,7 +1658,7 @@ async fn the_rest_sort_surface_enforces_the_same_rule() {
         operation_name: None,
         scope_where: None,
         search_relevance: None,
-        parsed_query: fraiseql_core::graphql::ParsedQuery::default(),
+        parsed_query: std::sync::Arc::default(),
     };
 
     let err = exec

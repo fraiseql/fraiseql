@@ -69,7 +69,7 @@ async fn accepts(executor: &Executor, query: &str, key: &str) -> bool {
         operation_name: None,
         scope_where: None,
         search_relevance: None,
-        parsed_query: fraiseql_core::graphql::ParsedQuery::default(),
+        parsed_query: std::sync::Arc::default(),
     };
     let by_engine = match executor.execute_query_direct(&direct, None, None, None).await {
         Ok(_) => true,

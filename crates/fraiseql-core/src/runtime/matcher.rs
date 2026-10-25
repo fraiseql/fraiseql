@@ -68,8 +68,9 @@ pub struct QueryMatch {
     /// document promises ("ranked by relevance unless `sort` is specified").
     pub search_relevance: Option<crate::backend::RelevanceOrder>,
 
-    /// The parsed query (for access to fragments, variables, etc.).
-    pub parsed_query: ParsedQuery,
+    /// The parsed query (for access to fragments, variables, etc.), shared with the
+    /// classification that parsed it.
+    pub parsed_query: Arc<ParsedQuery>,
 }
 
 impl QueryMatch {
@@ -151,7 +152,7 @@ impl QueryMatch {
             operation_name: None,
             scope_where: None,
             search_relevance: None,
-            parsed_query,
+            parsed_query: Arc::new(parsed_query),
         })
     }
 
@@ -356,20 +357,45 @@ impl QueryMatcher {
         let parsed = parse_query_with_operation_name(query, operation_name)
             .map_err(|e| crate::graphql::operation_selection_error(&e))?;
 
+        // 3a. Expand fragment spreads. Kept apart from evaluating `@skip`/`@include` so the
+        //     *written* set survives: § 5.3.3 is anti-monotone under field removal and has to
+        //     see the document as written, while § 5.3.1 and everything after it want the
+        //     filtered set. Shared with the multi-root fan-out, `node(id:)` and mutations so no
+        //     entry point can answer this question differently (#826, #827).
+        let written_selections =
+            selection_set::resolve(&parsed.selections, &parsed.fragments, self.max_depth)?;
+        self.match_resolved(Arc::new(parsed), &written_selections, variables)
+    }
+
+    /// [`match_query_with_operation_name`](Self::match_query_with_operation_name) for an
+    /// operation already parsed and resolved: `parsed` as
+    /// [`parse_query_with_operation_name`] returns it, and `written_selections` its root
+    /// selection set with fragment spreads expanded to this matcher's depth and directives
+    /// not yet evaluated.
+    ///
+    /// Both depend on the document alone, so a caller that keeps them per document matches
+    /// a repeated one without parsing or resolving it again. Everything that depends on
+    /// `variables` (`@skip`/`@include`, argument values, their validation) runs here, on
+    /// every call.
+    ///
+    /// # Errors
+    ///
+    /// As [`match_query_with_operation_name`](Self::match_query_with_operation_name), after
+    /// parsing and fragment expansion.
+    pub fn match_resolved(
+        &self,
+        parsed: Arc<ParsedQuery>,
+        written_selections: &[FieldSelection],
+        variables: Option<&serde_json::Value>,
+    ) -> Result<QueryMatch> {
         // 2. Build the variables map once. The same map is used for `@skip`/`@include` directive
         //    evaluation (by reference) and then moved onto the returned `QueryMatch` as
         //    `arguments`, so we never pay for a second clone of the JSON tree.
         let variables_map = Self::variables_to_map(variables);
 
-        // 3. Reduce the document to the fields the client asked for: expand fragment spreads, then
-        //    evaluate `@skip`/`@include`. Shared with the multi-root fan-out, `node(id:)` and
-        //    mutations so no entry point can answer this question differently (#826, #827). Kept as
-        //    two steps rather than `resolve_and_filter` so the *written* set survives: § 5.3.3
-        //    below is anti-monotone under field removal and has to see the document as written,
-        //    while § 5.3.1 and everything after it want the filtered set.
-        let written_selections =
-            selection_set::resolve(&parsed.selections, &parsed.fragments, self.max_depth)?;
-        let mut final_selections = selection_set::filter(&written_selections, &variables_map)?;
+        // 3b. Reduce the written set to the fields the client asked for: evaluate
+        //     `@skip`/`@include` against this request's variables.
+        let mut final_selections = selection_set::filter(written_selections, &variables_map)?;
 
         // 5. Find matching query definition using root field
         let query_def = self.definition(&parsed.root_field).ok_or_else(|| {

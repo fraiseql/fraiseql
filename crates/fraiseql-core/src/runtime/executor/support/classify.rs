@@ -14,7 +14,7 @@ use crate::{
 /// variables' declared defaults.
 pub(in crate::runtime::executor) type Classification = (
     QueryType,
-    Option<crate::graphql::ParsedQuery>,
+    Option<std::sync::Arc<crate::graphql::ParsedQuery>>,
     Vec<(String, serde_json::Value)>,
     Option<std::sync::Arc<CompletionTarget>>,
 );
@@ -153,7 +153,7 @@ impl Executor {
             })
         });
         let (query_type, parsed) = self.classify_parsed(parsed)?;
-        Ok((query_type, parsed, defaults, completion))
+        Ok((query_type, parsed.map(std::sync::Arc::new), defaults, completion))
     }
 
     /// The routing half of [`classify_query_with_parse`](Self::classify_query_with_parse).

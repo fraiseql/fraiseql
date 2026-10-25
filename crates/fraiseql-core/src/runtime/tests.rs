@@ -2656,7 +2656,7 @@ mod planner_tests {
             operation_name:   Some("users".to_string()),
             scope_where:      None,
             search_relevance: None,
-            parsed_query:     ParsedQuery {
+            parsed_query:     std::sync::Arc::new(ParsedQuery {
                 operation_type: "query".to_string(),
                 operation_name: Some("users".to_string()),
                 root_field:     "users".to_string(),
@@ -2664,7 +2664,7 @@ mod planner_tests {
                 variables:      vec![],
                 fragments:      vec![],
                 source:         std::sync::Arc::from("{ users { id name } }"),
-            },
+            }),
         }
     }
 

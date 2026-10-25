@@ -117,21 +117,32 @@ fn profile_sql_projection() {
 /// `users` definition's description set to `description`.
 #[cfg(feature = "dhat-heap")]
 fn warm_read_allocations(description: Option<String>) -> (u64, u64) {
+    let (bytes, blocks, _) =
+        warm_allocations(description, "{ users(limit: 20) { id name email } }");
+    (bytes, blocks)
+}
+
+/// Bytes and blocks one warm read of `query` allocates, and its response, against the bench
+/// schema with the `users` definition's description set to `description`.
+#[cfg(feature = "dhat-heap")]
+fn warm_allocations(description: Option<String>, query: &str) -> (u64, u64, serde_json::Value) {
     let mut schema = CompiledSchema::from_json(fixed_rows::SCHEMA, false).unwrap();
     let users = schema.queries.iter_mut().find(|q| q.name == "users").unwrap();
     users.description = description;
     let rows = (0..20).map(|i| user_row(i, false)).collect();
     let executor = Executor::new(schema, Arc::new(FixedRows(rows)));
     let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
-    let query = "{ users(limit: 20) { id name email } }";
     let warm = runtime.block_on(executor.execute(query, None)).unwrap();
     assert!(warm.get("errors").is_none(), "the read must succeed: {warm}");
 
     let before = dhat::HeapStats::get();
     let out = runtime.block_on(executor.execute(query, None)).unwrap();
     let after = dhat::HeapStats::get();
-    drop(out);
-    (after.total_bytes - before.total_bytes, after.total_blocks - before.total_blocks)
+    (
+        after.total_bytes - before.total_bytes,
+        after.total_blocks - before.total_blocks,
+        out,
+    )
 }
 
 /// A repeated document reuses what was compiled for it: a warm read allocates the same
@@ -153,6 +164,44 @@ fn a_warm_read_copies_nothing_of_its_query_definition() {
             "a warm read allocated {} more bytes for a 64 KiB description it never reads: it \
              copies the query definition",
             fat_bytes.saturating_sub(lean_bytes)
+        );
+    }
+}
+
+/// The same selection written through a chain of `n` fragments, each spreading the next
+/// and the last selecting the fields: it resolves to exactly the plain selection.
+#[cfg(feature = "dhat-heap")]
+fn through_fragments(n: usize) -> String {
+    use std::fmt::Write as _;
+    let mut document = String::from("{ users(limit: 20) { ...F0 } }");
+    for i in 0..n - 1 {
+        let _ = write!(document, " fragment F{i} on User {{ ...F{} }}", i + 1);
+    }
+    let _ = write!(document, " fragment F{} on User {{ id name email }}", n - 1);
+    document
+}
+
+/// A repeated document is compiled once: a warm read allocates the same whether its
+/// selection is written plainly or through a chain of fragments that resolves to it,
+/// because no per-request stage walks the document as written: not the parse, not
+/// spread expansion, and not the depth and cost gate.
+#[test]
+fn a_warm_read_does_not_parse_its_document_again() {
+    #[cfg(feature = "dhat-heap")]
+    {
+        let _profiler = dhat::Profiler::builder().testing().build();
+        let plain = warm_allocations(None, "{ users(limit: 20) { id name email } }");
+        let spread = warm_allocations(None, &through_fragments(8));
+        assert_eq!(spread.2, plain.2, "both documents select the same fields");
+        eprintln!(
+            "warm read: plain {} B / {} blocks, 8 chained fragments {} B / {} blocks",
+            plain.0, plain.1, spread.0, spread.1
+        );
+        assert_eq!(
+            (spread.0, spread.1),
+            (plain.0, plain.1),
+            "a warm read of the same selection allocated more for a document written through \
+             fragments: a per-request stage still walks the document as written"
         );
     }
 }

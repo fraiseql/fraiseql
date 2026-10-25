@@ -331,7 +331,22 @@ impl QueryRunner {
             self.ctx
                 .matcher
                 .match_query_with_operation_name(query, variables, operation_name)?;
+        self.execute_regular_match(query_match, variables, security_context).await
+    }
 
+    /// [`execute_regular_query`](Self::execute_regular_query) for a document already
+    /// matched: the dispatcher matches a repeated document from what its classification
+    /// kept, without parsing it again.
+    ///
+    /// # Errors
+    ///
+    /// As [`execute_regular_query`](Self::execute_regular_query), after matching.
+    pub(in super::super) async fn execute_regular_match(
+        &self,
+        query_match: crate::runtime::QueryMatch,
+        variables: Option<&serde_json::Value>,
+        security_context: Option<&SecurityContext>,
+    ) -> Result<serde_json::Value> {
         let mut read = match self.resolve_root_read(
             &query_match,
             variables,
