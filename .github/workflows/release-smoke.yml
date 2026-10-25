@@ -698,7 +698,7 @@ jobs:
         if: always()
         run: kill "$(cat /tmp/fraiseql-published.pid 2>/dev/null)" 2>/dev/null || true
 
-      - name: Assert `fraiseql run` warns (never silently drops) on ignored sections (#643)
+      - name: Assert the published `fraiseql run` boots and serves what its build compiles in (#643)
         run: |
           set -eu
           cat > /tmp/full/run.toml <<'TOML'
@@ -710,17 +710,31 @@ jobs:
 
           [observers]
           TOML
-          # `fraiseql run` reads only [server]/[database]; the [observers] section must
-          # produce a loud warning pointing at fraiseql-server, not a silent drop. The
-          # warning fires during config load (before serve), so a short timeout is
-          # enough; the subsequent serve/compile outcome is irrelevant to this assertion.
-          timeout 25 /tmp/full/extract/fraiseql run /tmp/full/run.toml > /tmp/run.out 2>&1 || true
+          # #643: `fraiseql run` silently dropped the sections it did not serve. Since
+          # 2.18.0 it builds its server the way `fraiseql-server` does and refuses a
+          # section its build cannot serve, so there is no "ignored" warning left to
+          # look for: what is asserted is that the published launcher boots and that
+          # its /health reports the capabilities the -full build compiles in.
+          # FRAISEQL_ENV=development: an unset environment is production, which
+          # refuses CORS with no origins, as it did in 2.16.0 and 2.17.1.
+          FRAISEQL_ENV=development /tmp/full/extract/fraiseql run /tmp/full/run.toml > /tmp/run.out 2>&1 &
+          pid=$!
+          health=""
+          for _ in $(seq 1 30); do
+            if health=$(curl -sf http://127.0.0.1:8899/health); then break; fi
+            if ! kill -0 "$pid" 2>/dev/null; then break; fi
+            sleep 1
+          done
+          kill "$pid" 2>/dev/null || true
           cat /tmp/run.out
-          grep -q "are ignored" /tmp/run.out \
-            || { echo "::error::published 'fraiseql run' did not warn about the ignored [observers] section (#643 regression)" >&2; exit 1; }
-          grep -q "fraiseql-server" /tmp/run.out \
-            || { echo "::error::published 'fraiseql run' warning did not point at fraiseql-server" >&2; exit 1; }
-          echo "'fraiseql run' loudly warns about ignored config sections and points at fraiseql-server."
+          [ -n "$health" ] \
+            || { echo "::error::published 'fraiseql run' did not answer /health within 30s" >&2; exit 1; }
+          echo "$health"
+          for cap in observers functions mcp rest federation; do
+            echo "$health" | jq -e --arg c "$cap" '.capabilities[$c].compiled_in == true' > /dev/null \
+              || { echo "::error::published 'fraiseql run' /health does not report '$cap' compiled in" >&2; exit 1; }
+          done
+          echo "'fraiseql run' boots and reports the -full build's capabilities."
 
   # ── #1222: consume every published artifact the way a stranger does ──────────
   #
