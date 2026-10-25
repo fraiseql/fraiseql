@@ -29,6 +29,16 @@ pub struct ExecutionPlan {
     pub jsonb_strategy: JsonbStrategy,
 }
 
+/// What a read projects: the part of an [`ExecutionPlan`] the executor reads.
+#[derive(Debug, Clone)]
+pub struct PlannedProjection {
+    /// Response keys to project from the JSONB result, `__typename` excluded.
+    pub projection_fields: Vec<String>,
+
+    /// JSONB handling strategy for this query.
+    pub jsonb_strategy: JsonbStrategy,
+}
+
 /// Query planner - selects optimal execution strategy.
 pub struct QueryPlanner {
     /// Enable query plan caching.
@@ -94,13 +104,10 @@ impl QueryPlanner {
 
         let sql = self.generate_sql(query_match);
         let parameters = self.extract_parameters(query_match);
-
-        // Extract nested field names from the first selection's nested_fields
-        // The first selection is typically the root query field (e.g., "users")
-        let projection_fields = self.extract_projection_fields(&query_match.selections);
-
-        // Determine JSONB optimization strategy based on field count
-        let jsonb_strategy = self.choose_jsonb_strategy(&projection_fields);
+        let PlannedProjection {
+            projection_fields,
+            jsonb_strategy,
+        } = self.projection(query_match);
 
         Ok(ExecutionPlan {
             sql,
@@ -120,6 +127,22 @@ impl QueryPlanner {
     /// `snake_case` keys, which violates client expectations.
     ///
     /// `Stream` is only used as a fallback when no specific fields are requested.
+    /// What a matched query's read projects, without the rest of a plan.
+    ///
+    /// The SQL string, the parameter list and the cost estimate [`plan`](Self::plan) adds are
+    /// for `explain`; a read builds its statement from the projection alone, so it asks for
+    /// this instead of paying for them.
+    #[must_use]
+    pub fn projection(&self, query_match: &QueryMatch) -> PlannedProjection {
+        // The first selection is the root query field (e.g. `users`): its children project.
+        let projection_fields = self.extract_projection_fields(&query_match.selections);
+        let jsonb_strategy = self.choose_jsonb_strategy(&projection_fields);
+        PlannedProjection {
+            projection_fields,
+            jsonb_strategy,
+        }
+    }
+
     pub(crate) const fn choose_jsonb_strategy(
         &self,
         projection_fields: &[String],

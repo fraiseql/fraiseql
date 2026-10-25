@@ -632,7 +632,7 @@ impl QueryRunner {
         // A count reads no field, so it has no projection to plan.
         let plan = match door {
             Door::Count => None,
-            Door::Document | Door::Direct { .. } => Some(self.ctx.planner.plan(query_match)?),
+            Door::Document | Door::Direct { .. } => Some(self.ctx.planner.projection(query_match)),
         };
 
         // 6. Field-level RBAC at every level of the selection, each against its own type and by

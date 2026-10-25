@@ -2758,6 +2758,20 @@ mod planner_tests {
         assert_eq!(plan.jsonb_strategy, JsonbStrategy::Project);
     }
 
+    /// A read asks for the projection alone; it is the one `explain`'s plan reports.
+    #[test]
+    fn a_reads_projection_is_the_one_its_plan_reports() {
+        let planner = QueryPlanner::new(true);
+        let mut query_match = test_query_match();
+        for _ in 0..2 {
+            let plan = planner.plan(&query_match).unwrap();
+            let projection = planner.projection(&query_match);
+            assert_eq!(projection.projection_fields, plan.projection_fields);
+            assert_eq!(projection.jsonb_strategy, plan.jsonb_strategy);
+            query_match.selections = std::sync::Arc::default();
+        }
+    }
+
     #[test]
     fn test_planner_always_projects_when_fields_present() {
         let custom_options = JsonbOptimizationOptions {

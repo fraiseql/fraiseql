@@ -241,7 +241,7 @@ impl QueryRunner {
     pub(super) fn build_projection_hint(
         &self,
         query_match: &crate::runtime::matcher::QueryMatch,
-        plan: &crate::runtime::planner::ExecutionPlan,
+        plan: &crate::runtime::planner::PlannedProjection,
         full_row: bool,
         nearest: Option<&crate::backend::OrderByClause>,
     ) -> Result<Option<SqlProjectionHint>> {

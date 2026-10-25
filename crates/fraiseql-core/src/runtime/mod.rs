@@ -144,7 +144,7 @@ pub use matcher::{QueryMatch, QueryMatcher, suggest_similar};
 pub use mutation_result::{
     ConstraintMetadata, MutationErrorShapeCheck, mutation_error_shape_violations,
 };
-pub use planner::{ExecutionPlan, QueryPlanner};
+pub use planner::{ExecutionPlan, PlannedProjection, QueryPlanner};
 pub(crate) use projection::stored_key_candidates;
 pub use projection::{
     FieldMapping, ProjectionMapper, ResultProjector, project_entity, project_nested_lists,

@@ -121,7 +121,7 @@ impl QueryRunner {
         // split the SQL path makes.
         // At every level of the selection, by field name (`query_nested`): a function
         // returns documents of the declared type, nested ones included.
-        let plan = self.ctx.planner.plan(query_match)?;
+        let plan = self.ctx.planner.projection(query_match);
         let selection_access = super::query_nested::SelectionAccess::classify(
             &self.ctx.schema,
             &query_def.return_type,
