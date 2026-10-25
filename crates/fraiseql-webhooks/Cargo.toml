@@ -12,6 +12,7 @@ hmac = "0.13"
 jsonwebtoken = { workspace = true }
 p256 = { version = "0.13", features = ["ecdsa", "pem"] }
 serde = { version = "1.0", features = ["derive"] }
+schemars = { workspace = true }
 serde_json = { workspace = true }
 sha1 = "0.11"
 sha2 = "0.11"
@@ -27,6 +28,7 @@ fraiseql-test-support = { path = "../fraiseql-test-support" }
 rand = "0.9"
 rand_core = { version = "0.6", features = ["getrandom"] }
 tokio-test = "0.4"
+regex = { workspace = true }
 
 [features]
 testing = []

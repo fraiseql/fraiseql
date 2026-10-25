@@ -11,7 +11,9 @@ use crate::error::{ObserverError, Result};
 // ============================================================================
 
 /// Transport type for event sourcing
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema,
+)]
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum TransportKind {
@@ -91,7 +93,7 @@ impl TransportConfig {
 // ============================================================================
 
 /// NATS `JetStream` transport configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct NatsTransportConfig {
     /// NATS server URL (e.g., `nats://localhost:4222`)
@@ -193,7 +195,7 @@ impl NatsTransportConfig {
 // ============================================================================
 
 /// `JetStream` stream and consumer configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct JetStreamConfig {
     /// Message deduplication window in minutes (default: 5, recommended: 2-10)

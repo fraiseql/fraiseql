@@ -13,6 +13,10 @@ PostgreSQL is the only database backend. No crate has a feature that selects ano
 Generated from `fraiseql_server::capability::REGISTRY` by `make gen-matrix`; a test
 fails when this table and the registry disagree. `fraiseql capabilities` prints the
 same list for the server a `fraiseql` binary links, with whether that build has each one.
+With `--json`, each entry also carries `schema`: the JSON Schema of every compiled-schema
+section it lists (`schema.compiled`) and of every server-config key (`schema.runtime`),
+derived from the types the server reads them into. A server-config key is `null` when the
+build does not compile its capability in, since its type does not exist there.
 A running server's `/health` carries it too, under `capabilities`. For each name it reports
 `compiled_in`; `started`, for a capability the server is configured to run (`false` when it
 did not start, or when this entry point does not start it); `serving: true` when it mounted

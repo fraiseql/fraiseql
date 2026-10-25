@@ -68,7 +68,7 @@ const fn default_flush_interval_secs() -> u64 {
 /// Carrying one there is refused too, by `scheme::build_scheme` — see
 /// [`SchemeError::IrrelevantKey`](fraiseql_webhooks::SchemeError::IrrelevantKey).
 #[cfg(feature = "webhooks")]
-#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct WebhookRouteConfig {
     /// Name of the environment variable that holds the webhook signing secret.

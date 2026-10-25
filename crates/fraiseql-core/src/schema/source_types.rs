@@ -28,7 +28,7 @@ mod tests;
 /// assert_eq!(source.cursor_name(), "orders"); // defaults to the source name
 /// assert!(source.enabled);
 /// ```
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct SourceDefinition {
     /// Source name (unique) — the durable-cursor row and the advisory-lease key.
     pub name: String,
@@ -83,7 +83,7 @@ pub struct SourceDefinition {
 /// `user_id` is what the identity answers to `jwt:sub` and `jwt:user_id` (#1700), so
 /// a mutation that injects the caller's id can be called from a source. Its
 /// provenance stays `system_job:<name>`.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct RunAs {
     /// Roles granted to the source's background identity (the RBAC ceiling).

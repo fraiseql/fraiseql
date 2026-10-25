@@ -2725,6 +2725,44 @@ mod run_tests {
         }
     }
 
+    /// Each entry carries the JSON Schema of every section it is configured by: the
+    /// compiled-schema sections always, and its server-config keys when this build compiled
+    /// the capability in (the types exist only then). An agent reads what it may write here.
+    #[test]
+    fn capabilities_report_carries_a_json_schema_for_every_section() {
+        let report = super::super::capabilities::report();
+        let entries = report["capabilities"].as_array().expect("a `capabilities` array");
+        for (entry, r) in entries.iter().zip(fraiseql_server::capability::REGISTRY) {
+            let name = r.meta.name;
+            for section in r.meta.compiled_sections {
+                let schema = &entry["schema"]["compiled"][section.key];
+                assert!(
+                    schema.is_object(),
+                    "{name}: no schema for compiled `{}`: {entry}",
+                    section.key
+                );
+            }
+            for key in r.meta.runtime_keys {
+                let schema = &entry["schema"]["runtime"][key];
+                if r.compiled_in {
+                    assert!(schema.is_object(), "{name}: no schema for runtime `{key}`: {entry}");
+                } else {
+                    assert!(
+                        schema.is_null(),
+                        "{name} is not compiled in, yet `{key}` has a schema"
+                    );
+                }
+            }
+        }
+
+        // Not merely present: the schema is the section's type. `[mcp] transport` is one of three.
+        let mcp = entries.iter().find(|e| e["name"] == "mcp").expect("mcp is registered");
+        let transport = serde_json::to_string(&mcp["schema"]["compiled"]["mcp_config"]).unwrap();
+        for value in ["\"http\"", "\"stdio\"", "\"both\""] {
+            assert!(transport.contains(value), "mcp_config's schema lacks {value}: {transport}");
+        }
+    }
+
     /// `fraiseql run` hands its in-memory schema straight to the server, past the
     /// loader's boot refusal, so a section the linked server was built without used to be
     /// served with its capability silently missing. It is refused when, and only when,

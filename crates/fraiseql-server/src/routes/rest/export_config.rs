@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 ///
 /// Distinct from `fraiseql_arrow::ExportFormat`: this is the server-side
 /// HTTP content-negotiation enum, not the Arrow exporter's format set.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "lowercase")]
 #[non_exhaustive]
 pub enum ExportFormat {
@@ -37,7 +37,7 @@ pub enum ExportFormat {
 /// were inert: a configured CSV delimiter, BOM setting, row cap, temp directory,
 /// concurrency limit and format allow-list were each accepted by the config parser and
 /// then ignored.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(default, deny_unknown_fields)]
 pub struct ExportConfig {
     /// CSV field delimiter (default `,`).

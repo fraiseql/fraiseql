@@ -73,6 +73,14 @@ disagreed, and the promise was the part that was wrong.
 
 ### Added
 
+- **`fraiseql capabilities --json` carries each capability's JSON Schema.** Every entry
+  has `schema.compiled`, keyed by the compiled-schema sections it lists (`mcp_config`,
+  `functions`, ...), and `schema.runtime`, keyed by its server-config keys (`[saml]`,
+  `[webhooks]`, ...). The schemas are derived from the types the server deserializes, so a
+  value the schema refuses is one the server refuses. The server can refuse more, in checks
+  the types do not express. A server-config key is `null` when the build lacks the
+  capability. Keys the server accepts only so that it can name what replaced them are left
+  out.
 - **A `cron:` function and a source can run on a timezone's wall clock (#1658).**
   `timezone = "Europe/Paris"` (any IANA name; UTC when absent) on a function definition
   or a source, and `timezone=` / `timezone:` in the Python and TypeScript SDKs. Around a

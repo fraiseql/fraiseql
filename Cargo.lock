@@ -3826,6 +3826,7 @@ dependencies = [
  "redis",
  "regex",
  "reqwest 0.12.28",
+ "schemars 1.2.1",
  "serde",
  "serde_json",
  "serde_path_to_error",
@@ -3989,6 +3990,7 @@ dependencies = [
  "hex",
  "mail-parser",
  "reqwest 0.12.28",
+ "schemars 1.2.1",
  "serde",
  "serde_json",
  "sha2 0.11.0",
@@ -4067,6 +4069,7 @@ dependencies = [
  "rand 0.9.4",
  "redis",
  "reqwest 0.12.28",
+ "schemars 1.2.1",
  "serde",
  "serde_json",
  "sha2 0.11.0",
@@ -4199,6 +4202,7 @@ dependencies = [
  "rust-embed",
  "rust_xlsxwriter",
  "samael",
+ "schemars 1.2.1",
  "serde",
  "serde_json",
  "sha1 0.11.0",
@@ -4306,6 +4310,8 @@ dependencies = [
  "p256",
  "rand 0.9.4",
  "rand_core 0.6.4",
+ "regex",
+ "schemars 1.2.1",
  "serde",
  "serde_json",
  "sha1 0.11.0",
@@ -8338,6 +8344,7 @@ dependencies = [
  "schemars_derive",
  "serde",
  "serde_json",
+ "uuid",
 ]
 
 [[package]]

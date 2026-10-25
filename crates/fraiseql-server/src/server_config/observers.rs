@@ -54,7 +54,7 @@ const fn default_reload_interval_secs() -> u64 {
 /// acquire_timeout_secs = 10
 /// ```
 #[cfg(feature = "observers")]
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(default, deny_unknown_fields)]
 pub struct ObserverPoolConfig {
     /// Minimum number of connections to keep open (default: 2).
@@ -118,7 +118,7 @@ impl Default for ObserverPoolConfig {
 /// server refuses to boot with a clear error rather than silently ignoring the
 /// setting (the #342 fail-loud contract).
 #[cfg(feature = "observers")]
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(default, deny_unknown_fields)]
 pub struct ObserverRuntimeSettings {
     /// Poll interval for change log in milliseconds (default: 100).
@@ -220,7 +220,7 @@ pub struct ObserverRuntimeSettings {
 
 /// The event transport (`[observers.runtime.transport]`): what the server runs.
 #[cfg(feature = "observers")]
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ObserverTransportConfig {
     /// Where change events come from: `postgres` (default), `nats` or
@@ -254,7 +254,7 @@ impl ObserverTransportConfig {
 /// caching. The server runs neither, so this block refuses those keys rather
 /// than accepting values nothing reads (#1466).
 #[cfg(feature = "observers")]
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ObserverRedisConfig {
     /// Redis connection URL (`redis://…` or `rediss://…`). Required, here or
@@ -330,7 +330,7 @@ impl Default for ObserverRuntimeSettings {
 // a config file the compiler wrote. `compiler_schema_keys_are_tolerated` in this
 // module's tests is that contract, and it fails the moment this attribute is added.
 #[cfg(feature = "observers")]
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct ObserverConfig {
     /// Enable observer runtime (default: true).
     ///
@@ -351,18 +351,25 @@ pub struct ObserverConfig {
     // was the #342 bug. They are not consumed by the runtime and never
     // re-serialized.
     #[serde(default, rename = "poll_interval_ms", skip_serializing)]
+    #[schemars(skip)]
     pub(crate) legacy_poll_interval_ms:     Option<toml::Value>,
     #[serde(default, rename = "batch_size", skip_serializing)]
+    #[schemars(skip)]
     pub(crate) legacy_batch_size:           Option<toml::Value>,
     #[serde(default, rename = "channel_capacity", skip_serializing)]
+    #[schemars(skip)]
     pub(crate) legacy_channel_capacity:     Option<toml::Value>,
     #[serde(default, rename = "auto_reload", skip_serializing)]
+    #[schemars(skip)]
     pub(crate) legacy_auto_reload:          Option<toml::Value>,
     #[serde(default, rename = "reload_interval_secs", skip_serializing)]
+    #[schemars(skip)]
     pub(crate) legacy_reload_interval_secs: Option<toml::Value>,
     #[serde(default, rename = "max_dlq_size", skip_serializing)]
+    #[schemars(skip)]
     pub(crate) legacy_max_dlq_size:         Option<toml::Value>,
     #[serde(default, rename = "pool", skip_serializing)]
+    #[schemars(skip)]
     pub(crate) legacy_pool:                 Option<toml::Value>,
 }
 

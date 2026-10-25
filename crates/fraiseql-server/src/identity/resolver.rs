@@ -40,7 +40,7 @@ pub(super) type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 /// One schema, reused by the enrichment and sender profiles. `deny_unknown_fields`
 /// makes a mistyped/stranded key fail loud — the failure mode that hid #242's
 /// absence.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct EnrichmentQueryConfig {
     /// When `true`, every authenticated request resolves and fail-closes,
@@ -85,7 +85,7 @@ pub struct EnrichmentQueryConfig {
 ///
 /// DESIGN §7. Lives on `ServerConfig` (the config the running server loads), so it
 /// applies under any auth mode — HS256/OIDC parity by construction.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct IdentityConfig {
     /// Consumer A — read scoping. When enabled, every authenticated request

@@ -34,7 +34,7 @@ use serde::{Deserialize, Serialize};
 /// timeout_ms = 5000
 /// compression = "lz4"
 /// ```
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(default, deny_unknown_fields)]
 pub struct SubscriptionKafkaConfig {
     /// The broker endpoint, **scheme first**: `kafka+ssl://`, `kafka+sasl-ssl://`, or

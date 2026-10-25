@@ -23,7 +23,7 @@ use sha2::Digest;
 pub const PERMANENT_ERROR_MARKER: &str = "[fraiseql:permanent]";
 
 /// Supported runtime types for serverless functions.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, schemars::JsonSchema)]
 #[non_exhaustive]
 pub enum RuntimeType {
     /// `WebAssembly` Component Model runtime.
@@ -150,7 +150,7 @@ pub struct EventPayload {
 /// Those three items live behind the `host-live` feature, which is what pulls in
 /// `fraiseql-core`; they are named rather than linked so this page resolves in the
 /// default build, which is the one a bare `cargo doc` produces (#1199).
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct RunAs {
     /// Roles granted to the function's background write identity (the RBAC ceiling).
@@ -206,7 +206,7 @@ impl RunAs {
 }
 
 /// Definition of a serverless function for deployment and execution.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct FunctionDefinition {
     /// Unique name for this function.
@@ -376,7 +376,7 @@ impl FunctionDefinition {
 /// an authoring mirror in `IntermediateSchema`. Three copies of a rule lose the
 /// fourth. It lives here, in the crate that owns [`FunctionDefinition`], so the
 /// producer and both consumers deserialize the same struct.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct FunctionsConfig {
     /// Directory containing the function modules (`.wasm`, `.js`, `.ts`), resolved

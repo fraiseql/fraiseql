@@ -28,7 +28,7 @@ pub mod tls;
 
 /// `[inbound_dispatch]` (#1175): the dispatch ledger's lease, sweep interval and batch.
 #[cfg(feature = "inbound")]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(default, deny_unknown_fields)]
 pub struct InboundDispatchConfig {
     /// Seconds a recorded dispatch runs before the sweep may run it again (default 300).
@@ -1185,7 +1185,7 @@ pub struct ServerConfig {
 /// - `FRAISEQL_SOURCES_ENABLED` — global on/off (`false`/`0`/`no`/`off` disables).
 /// - `FRAISEQL_SOURCES_ALLOWED_ENV_VARS` — comma-separated env-var allowlist (#840).
 #[cfg(feature = "sources")]
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct SourcesConfig {
     /// Global on/off for the source scheduler. Per-source `enabled` in the compiled
@@ -1198,6 +1198,7 @@ pub struct SourcesConfig {
     /// list functions share. Held only so the boot can name where the key went
     /// ([`ServerConfig::validate`]) instead of failing on an unknown key.
     #[serde(default, rename = "allowed_domains", skip_serializing)]
+    #[schemars(skip)]
     pub(crate) replaced_allowed_domains: Option<toml::Value>,
 
     /// Environment variables source connectors may read via `fraiseql_env_var`

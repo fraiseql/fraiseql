@@ -9,7 +9,9 @@
 use serde::{Deserialize, Serialize};
 
 /// Transport security for the SMTP connection.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema,
+)]
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum SmtpTlsMode {
@@ -39,7 +41,7 @@ pub enum SmtpTlsMode {
 ///
 /// Strict (`deny_unknown_fields`): an unrecognised key fails the parse so a
 /// misconfigured mail block is caught at boot, not silently ignored.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct EmailSmtpConfig {
     /// SMTP server hostname (e.g. `smtp.example.com`).

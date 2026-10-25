@@ -26,7 +26,7 @@ use serde::{Deserialize, Serialize};
 /// subject_template = "fraiseql.{tenant_id}.{table}"
 /// tables = ["tb_order", "tb_customer"]
 /// ```
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(default, deny_unknown_fields)]
 pub struct CdcOutboundConfig {
     /// The broker sinks to drain to. An empty list refuses to boot: a
@@ -52,7 +52,7 @@ impl Default for CdcOutboundConfig {
 }
 
 /// One `[[cdc_outbound.sinks]]` entry.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct CdcSinkSectionConfig {
     /// Stable sink name — the delivery-state partition key. Renaming a sink

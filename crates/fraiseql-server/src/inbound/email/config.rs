@@ -34,7 +34,7 @@ const fn default_batch_size() -> u32 {
 /// optional halves: [`imap`](Self::imap) (poll-receive) and its SMTP send half
 /// (added by the hardening `send_email` transport). At least one half must be
 /// present for the account to do anything.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct MailboxConfig {
     /// The poll-IMAP receive half (`[mailbox.<name>.imap]`). Absent → this account
@@ -52,7 +52,7 @@ pub struct MailboxConfig {
 /// Connection is over implicit TLS (IMAPS) on [`port`](Self::port); the password
 /// is read from the environment at [`password_env`](Self::password_env), never
 /// stored in the config.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ImapConfig {
     /// IMAP server hostname (also the TLS SNI / certificate name).
@@ -96,7 +96,9 @@ const fn default_smtp_timeout_secs() -> u64 {
 }
 
 /// Transport security for the SMTP send connection.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema,
+)]
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum SmtpTlsMode {
@@ -114,7 +116,7 @@ pub enum SmtpTlsMode {
 /// Strict (`deny_unknown_fields`): a mistyped key in this security-relevant block
 /// fails the parse rather than being silently ignored. The password is read from
 /// the environment at [`password_env`](Self::password_env), never stored in config.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct MailboxSmtpConfig {
     /// SMTP server hostname (also the TLS SNI / certificate name).
@@ -191,7 +193,7 @@ const DEFAULT_RETURN_PATH_LOCAL_PART: &str = "bounces";
 /// sending domain** — the envelope sender is the SPF/DMARC alignment target, so a
 /// bounce domain on a different domain silently degrades deliverability of the very
 /// sends it tracks; a mismatch is warned about at build time.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ReturnPathConfig {
     /// The Return-Path local part before the `+<send-id>` tag; defaults to `bounces`.
@@ -213,7 +215,7 @@ const fn default_challenge_suppress_after() -> u32 {
 /// Governs how the correlation step reacts to inbound signals. Currently just the
 /// challenge-suppression threshold; separated from the per-mailbox config because
 /// it is a cross-mailbox policy.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct SendSettings {
     /// The number of **unanswered** challenge-response prompts to a recipient
@@ -246,7 +248,7 @@ impl Default for SendSettings {
 
 /// A declared `[[mailbox.<name>.imap.routing]]` rule: a dedicated address that maps
 /// to an entity type (the recipient's plus-tag becomes the entity id).
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct RoutingRuleConfig {
     /// The dedicated base address this rule matches (`support@example.com`).

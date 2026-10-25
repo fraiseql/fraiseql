@@ -6,7 +6,7 @@
 use serde::{Deserialize, Serialize};
 
 /// Federation configuration for Apollo Federation v2 support.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct FederationConfig {
     /// Enable Apollo federation.
@@ -42,7 +42,7 @@ pub struct FederationConfig {
 }
 
 /// Federated entity configuration.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct FederationEntity {
     /// Entity type name (e.g., "User", "Product").
@@ -63,7 +63,7 @@ pub struct FederationEntity {
 }
 
 /// Circuit breaker configuration for federation entity resolution.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct CircuitBreakerConfig {
     /// Enable circuit breaker protection.
@@ -108,7 +108,7 @@ impl Default for CircuitBreakerConfig {
 }
 
 /// Per-entity circuit breaker configuration override.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct EntityCircuitBreakerOverride {
     /// Entity type name to apply override to.
@@ -257,7 +257,7 @@ impl Default for EnterpriseSecurityConfig {
 /// rather than carried as decoration the runtime never reads.
 /// `deny_unknown_fields` makes a hand-edited compiled schema that smuggles a
 /// `handlers` array fail loudly at load instead of deserializing minus the key.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ObserversConfig {
     /// Enable observers system.
@@ -440,7 +440,9 @@ pub struct ValidationConfig {
 }
 
 /// How an MCP server is reached.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema,
+)]
 #[serde(rename_all = "lowercase")]
 pub enum McpTransport {
     /// Over HTTP, at [`McpConfig::path`].
@@ -474,7 +476,7 @@ impl McpTransport {
 /// MCP (Model Context Protocol) server configuration: the `[mcp]` table of
 /// `fraiseql.toml`, read by the compiler and compiled into the schema the server reads,
 /// one type at both ends.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(default, deny_unknown_fields)]
 pub struct McpConfig {
     /// Whether MCP is enabled.
@@ -767,7 +769,9 @@ const fn session_default_true() -> bool {
 }
 
 /// How DELETE endpoints report success.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema,
+)]
 #[non_exhaustive]
 pub enum DeleteResponse {
     /// Return `204 No Content` (default).
@@ -899,7 +903,7 @@ impl Relationship {
 }
 
 /// REST transport configuration (compiled from `[rest]` in `fraiseql.toml`).
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(default)]
 pub struct RestConfig {
     /// Whether the REST transport is enabled.
@@ -994,7 +998,7 @@ impl Default for RestConfig {
 }
 
 /// gRPC transport configuration (compiled from `[grpc]` in `fraiseql.toml`).
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(default)]
 pub struct GrpcConfig {
     /// Whether the gRPC transport is enabled.

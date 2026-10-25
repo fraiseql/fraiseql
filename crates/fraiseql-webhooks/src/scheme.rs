@@ -105,8 +105,26 @@ impl<'de> serde::Deserialize<'de> for CredentialLocation {
     }
 }
 
+/// The string [`FromStr`](std::str::FromStr) parses, not the enum: the variants are never
+/// written as such in a config.
+impl schemars::JsonSchema for CredentialLocation {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        "CredentialLocation".into()
+    }
+
+    fn json_schema(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        schemars::json_schema!({
+            "type": "string",
+            "pattern": "^(header:.+|body|body:.+)$",
+            "description": "`header:<Name>`, `body`, or `body:<field>`",
+        })
+    }
+}
+
 /// How a credential's bytes are written on the wire.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
+)]
 #[serde(rename_all = "lowercase")]
 pub enum SignatureEncoding {
     /// Base-16, either case. This is the pre-#1321 behaviour of the generic HMAC

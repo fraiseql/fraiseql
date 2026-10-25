@@ -25,17 +25,58 @@ use crate::{
     },
 };
 
+mod schema;
+
 /// A capability and whether this build compiled it in.
-#[derive(Debug, Clone, Copy, Serialize)]
+///
+/// Serialized with its metadata flattened, `compiled_in`, and `schema`: the JSON Schema of
+/// each compiled-schema section (`schema.compiled`) and server-config key
+/// (`schema.runtime`) it lists, `null` for a key this build cannot describe.
+#[derive(Debug, Clone, Copy)]
 pub struct Registration {
     /// What the capability is and where it is configured.
-    #[serde(flatten)]
     pub meta:              CapabilityMeta,
     /// Whether this build has the capability's feature.
     pub compiled_in:       bool,
     /// The code that runs it.
-    #[serde(skip)]
     pub(crate) capability: &'static dyn Capability,
+}
+
+impl Registration {
+    /// The schema of every section and key the metadata lists, keyed as it lists them.
+    fn schema(&self) -> serde_json::Value {
+        let compiled: serde_json::Map<_, _> = self
+            .meta
+            .compiled_sections
+            .iter()
+            .map(|s| (s.key.to_owned(), schema::of_compiled(s.key).unwrap_or_default()))
+            .collect();
+        let runtime: serde_json::Map<_, _> = self
+            .meta
+            .runtime_keys
+            .iter()
+            .map(|key| ((*key).to_owned(), schema::of_runtime_key(key).unwrap_or_default()))
+            .collect();
+        serde_json::json!({ "compiled": compiled, "runtime": runtime })
+    }
+}
+
+impl Serialize for Registration {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        #[derive(Serialize)]
+        struct View<'a> {
+            #[serde(flatten)]
+            meta:        &'a CapabilityMeta,
+            compiled_in: bool,
+            schema:      serde_json::Value,
+        }
+        View {
+            meta:        &self.meta,
+            compiled_in: self.compiled_in,
+            schema:      self.schema(),
+        }
+        .serialize(serializer)
+    }
 }
 
 /// What a capability's start left running.
@@ -315,6 +356,8 @@ pub fn feature_gated_keys() -> Vec<(&'static str, &'static str, bool)> {
 
 #[cfg(test)]
 mod manifest_tests;
+#[cfg(test)]
+mod schema_tests;
 
 /// What the serve entry point started and mounted, by capability name.
 ///

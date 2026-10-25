@@ -107,7 +107,7 @@ pub struct EntityEvent {
 /// { "field": "status", "changed_to": "approved" }  // UPDATE-only transition test
 /// { "field": "kind",   "eq": "standard" }           // state test (INSERT + UPDATE)
 /// ```
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct TriggerPredicate {
     /// The field (a JSON key in the row image) to test.

@@ -11,7 +11,7 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
 /// The `[saml]` section.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct SamlServerConfig {
     /// Configured `IdPs` keyed by logical name (`[saml.idps.<name>]`). The name
@@ -59,7 +59,7 @@ pub struct SamlServerConfig {
 }
 
 /// `SP` key material under `[saml.sp]` (#948).
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct SamlSpKeyConfig {
     /// Environment variable holding the `SP` private key (PEM or DER). Exactly one
@@ -182,7 +182,7 @@ const fn default_certificate_expiry_warning_days() -> i64 {
 }
 
 /// One `IdP` under `[saml.idps.<name>]`.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct SamlIdpEntry {
     /// `SP` entity ID (the audience the `IdP` asserts to).

@@ -334,3 +334,28 @@ fn an_encoding_decodes_what_its_senders_write() {
         assert!(matches!(encoding.decode(bad), Err(SignatureError::InvalidFormat)));
     }
 }
+
+/// The schema `fraiseql capabilities --json` publishes for a credential location accepts
+/// what the parser accepts, and nothing else: the variants are never written as such.
+#[test]
+fn the_credential_location_schema_agrees_with_its_parser() {
+    let schema = schemars::schema_for!(CredentialLocation).to_value();
+    assert_eq!(schema["type"], "string", "{schema}");
+    let pattern = regex::Regex::new(schema["pattern"].as_str().expect("a pattern")).unwrap();
+    for value in [
+        "header:X-Signature",
+        "body",
+        "body:token",
+        "header:",
+        "body:",
+        "Header",
+        "query:sig",
+        "",
+    ] {
+        assert_eq!(
+            pattern.is_match(value),
+            value.parse::<CredentialLocation>().is_ok(),
+            "`{value}`: the schema and the parser disagree"
+        );
+    }
+}

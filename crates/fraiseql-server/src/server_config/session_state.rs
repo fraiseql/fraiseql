@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 /// default_ttl_secs = 3600     # per-entry TTL
 /// evict_interval_secs = 300   # background sweep cadence
 /// ```
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(default, deny_unknown_fields)]
 pub struct SessionStateServerConfig {
     /// Storage backend: `"memory"` (volatile — lost on restart; development
