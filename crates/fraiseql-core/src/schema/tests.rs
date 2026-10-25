@@ -1821,3 +1821,23 @@ fn inject_started_at_has_one_default() {
     assert_eq!(absent.inject_started_at, empty_section.inject_started_at);
     assert!(absent.inject_started_at, "documented default: inject before every mutation");
 }
+
+// ── `[mcp]`: one type at the compiler and the server ─────────────────────────
+
+#[test]
+fn the_http_endpoint_is_mounted_for_http_and_both_only() {
+    use crate::schema::McpTransport;
+    assert!(McpTransport::Http.serves_http());
+    assert!(McpTransport::Both.serves_http());
+    assert!(!McpTransport::Stdio.serves_http());
+}
+
+#[test]
+fn an_unknown_mcp_key_is_refused() {
+    let error = serde_json::from_value::<crate::schema::McpConfig>(serde_json::json!({
+        "enabled": true, "transprot": "http"
+    }))
+    .expect_err("an unknown `[mcp]` key must not be dropped")
+    .to_string();
+    assert!(error.contains("transprot"), "{error}");
+}

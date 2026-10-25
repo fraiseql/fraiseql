@@ -79,7 +79,7 @@ fn make_mcp_config() -> McpConfig {
     McpConfig {
         session_state: false,
         enabled:       true,
-        transport:     "http".to_string(),
+        transport:     fraiseql_core::schema::McpTransport::Http,
         path:          "/mcp".to_string(),
         require_auth:  false,
         include:       vec![],

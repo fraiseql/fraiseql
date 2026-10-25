@@ -143,7 +143,7 @@ mod mcp_host_check {
         let mut schema = CompiledSchema::new();
         schema.mcp_config = Some(fraiseql_core::schema::McpConfig {
             enabled: true,
-            transport: "http".to_string(),
+            transport: fraiseql_core::schema::McpTransport::Http,
             path: "/mcp".to_string(),
             require_auth,
             ..fraiseql_core::schema::McpConfig::default()

@@ -334,7 +334,7 @@ mod tools_tests {
         McpConfig {
             session_state: false,
             enabled: true,
-            transport: "http".to_string(),
+            transport: fraiseql_core::schema::McpTransport::Http,
             path: "/mcp".to_string(),
             require_auth: true,
             include,

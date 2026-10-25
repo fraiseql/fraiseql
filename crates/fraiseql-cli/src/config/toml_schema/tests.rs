@@ -678,10 +678,9 @@ path_column = ""
 /// #967: `[mcp] session_state` reaches the compiled schema.
 ///
 /// The key is compiled from `fraiseql.toml` and read by the MCP transport at
-/// runtime, and the two ends are different `McpConfig` types that meet through
-/// serde field names in `merger.rs`. A key added to one and not the other parses,
-/// serializes, and silently means nothing at the far end — which is exactly the
-/// accepted-and-unconsumed shape rule 2 forbids.
+/// runtime. Both ends are one `McpConfig`, and it crosses `merger.rs` as JSON, so this
+/// pins the hop: a key that parsed and then vanished there would be accepted and never
+/// consumed, the shape rule 2 forbids.
 mod mcp_session_state {
     use super::super::*;
 
@@ -729,6 +728,38 @@ mod mcp_session_state {
             round_tripped.session_state,
             "the key set in fraiseql.toml must be the one the MCP transport consults"
         );
+    }
+}
+
+/// `[mcp] transport` names one of three transports. A free string let `transport = "htpp"`
+/// compile, and the server mounted nothing for it.
+mod mcp_transport {
+    use super::super::*;
+
+    #[test]
+    fn a_misspelt_transport_is_refused_naming_the_three() {
+        let error = toml::from_str::<TomlSchema>(
+            r#"
+            [mcp]
+            enabled = true
+            transport = "htpp"
+            "#,
+        )
+        .expect_err("a transport that is not one of the three must not compile")
+        .to_string();
+        for name in ["http", "stdio", "both"] {
+            assert!(error.contains(name), "{error}");
+        }
+    }
+
+    /// The compiler's `[mcp]` table and the server's are one type, so a key cannot be
+    /// read at one end and dropped at the other.
+    #[test]
+    fn the_compiler_reads_the_servers_mcp_config() {
+        let cfg: TomlSchema = toml::from_str("[mcp]\nenabled = true\ntransport = \"both\"\n")
+            .expect("[mcp] must parse");
+        let runtime: &fraiseql_core::schema::McpConfig = &cfg.mcp;
+        assert_eq!(runtime.transport, fraiseql_core::schema::McpTransport::Both);
     }
 }
 

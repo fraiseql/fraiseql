@@ -18,6 +18,12 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **`[mcp] transport` must be `"http"`, `"stdio"` or `"both"` (#1644).** It was a free
+  string: `transport = "htpp"` compiled, and the server mounted no MCP endpoint for it. A
+  misspelt transport now fails `fraiseql compile`, naming the three, and a compiled schema
+  carrying one fails the boot. `[mcp]` also refuses an unknown key. The compiler and the
+  server read `[mcp]` through one `McpConfig`, owned by `fraiseql-core`, where they used
+  two copies. In Rust, `McpConfig::transport` is now an `McpTransport`.
 - **`[egress] allowed_domains` is the one list of hosts functions and source connectors
   may call (#1644).** A function's list came only from `FRAISEQL_FUNCTIONS_ALLOWED_DOMAINS`,
   and a connector's from `[sources] allowed_domains` or `FRAISEQL_SOURCES_ALLOWED_DOMAINS`,

@@ -439,14 +439,48 @@ pub struct ValidationConfig {
     pub max_semi_additive_cells: Option<u64>,
 }
 
-/// MCP (Model Context Protocol) server configuration (compiled from `[mcp]` in `fraiseql.toml`).
+/// How an MCP server is reached.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum McpTransport {
+    /// Over HTTP, at [`McpConfig::path`].
+    #[default]
+    Http,
+    /// Over standard input and output, when the server is started as an MCP stdio server.
+    Stdio,
+    /// Both.
+    Both,
+}
+
+impl std::fmt::Display for McpTransport {
+    /// The spelling `[mcp] transport` takes.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::Http => "http",
+            Self::Stdio => "stdio",
+            Self::Both => "both",
+        })
+    }
+}
+
+impl McpTransport {
+    /// Whether the HTTP endpoint is mounted.
+    #[must_use]
+    pub const fn serves_http(self) -> bool {
+        matches!(self, Self::Http | Self::Both)
+    }
+}
+
+/// MCP (Model Context Protocol) server configuration: the `[mcp]` table of
+/// `fraiseql.toml`, read by the compiler and compiled into the schema the server reads,
+/// one type at both ends.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct McpConfig {
     /// Whether MCP is enabled.
     pub enabled:       bool,
-    /// Transport mode: "http", "stdio", or "both".
-    pub transport:     String,
+    /// How the server is reached: `"http"`, `"stdio"`, or `"both"`.
+    pub transport:     McpTransport,
     /// HTTP path for MCP endpoint (e.g., "/mcp").
     pub path:          String,
     /// Require authentication for MCP requests.
@@ -480,7 +514,7 @@ impl Default for McpConfig {
     fn default() -> Self {
         Self {
             enabled:       false,
-            transport:     "http".to_string(),
+            transport:     McpTransport::Http,
             path:          "/mcp".to_string(),
             require_auth:  true,
             include:       Vec::new(),

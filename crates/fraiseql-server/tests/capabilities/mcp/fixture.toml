@@ -1,0 +1,8 @@
+# An agent client's `tools/call` over MCP's streamable HTTP runs a mutation.
+capability = "mcp"
+
+[[stimulus]]
+mcp = { path = "/mcp", tool = "createNote", arguments = { title = "from an agent" } }
+
+[effect]
+row = { query = "SELECT title FROM app.tb_note", expect = [["from an agent"]] }

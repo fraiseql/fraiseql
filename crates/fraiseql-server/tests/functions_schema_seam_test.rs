@@ -155,7 +155,7 @@ fn schema_with_mcp() -> CompiledSchema {
     CompiledSchema {
         mcp_config: Some(fraiseql_core::schema::McpConfig {
             enabled: true,
-            transport: "stdio".to_string(),
+            transport: fraiseql_core::schema::McpTransport::Stdio,
             require_auth: false,
             ..fraiseql_core::schema::McpConfig::default()
         }),

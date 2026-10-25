@@ -4,7 +4,9 @@
 //!
 //! A fixture is a directory under `tests/capabilities/`:
 //!
-//! - `schema.json` and `fraiseql.toml`: the authoring inputs, compiled here.
+//! - `schema.json` and `fraiseql.toml`: the authoring inputs, compiled here. A fixture with no
+//!   `schema.json` is TOML-only: `fraiseql.toml` declares the schema itself, as `fraiseql compile
+//!   fraiseql.toml` reads it.
 //! - `setup.sql`: the application's tables, views and functions.
 //! - `server.toml`: the server's `ServerConfig`.
 //! - `fixture.toml`: the capability it exercises, the environment the server runs with, the stimuli
@@ -33,8 +35,9 @@ use serde::Deserialize;
 use serde_json::Value;
 use sqlx::{PgPool, Row as _};
 
-/// The files every fixture carries besides `fixture.toml`.
-const FIXTURE_FILES: [&str; 4] = ["schema.json", "fraiseql.toml", "setup.sql", "server.toml"];
+/// The files every fixture carries besides `fixture.toml` (and `schema.json`, unless the
+/// fixture is TOML-only).
+const FIXTURE_FILES: [&str; 3] = ["fraiseql.toml", "setup.sql", "server.toml"];
 
 /// How long a server may take to answer its first request.
 const BOOT_DEADLINE: Duration = Duration::from_mins(1);
@@ -73,6 +76,14 @@ enum Stimulus {
         /// signs a delivery.
         #[serde(default)]
         sign:   Option<Signature>,
+    },
+    /// One MCP `tools/call` over streamable HTTP, after the session handshake an agent
+    /// client performs (`initialize`, then `notifications/initialized`).
+    Mcp {
+        path:      String,
+        tool:      String,
+        #[serde(default)]
+        arguments: Value,
     },
     Sql {
         statement: String,
@@ -194,10 +205,17 @@ async fn drop_database(admin_url: &str, db: &str) {
     }
 }
 
-/// Compile the fixture's authoring inputs to `out`, as `fraiseql compile` does.
+/// Compile the fixture's authoring inputs to `out`, as `fraiseql compile` does:
+/// `schema.json` with `fraiseql.toml` beside it, or `fraiseql.toml` alone.
 async fn compile(dir: &Path, out: &Path) -> Result<(), String> {
+    let schema = dir.join("schema.json");
+    let (input, config) = if schema.is_file() {
+        (schema, Some(dir.join("fraiseql.toml").to_string_lossy().into_owned()))
+    } else {
+        (dir.join("fraiseql.toml"), None)
+    };
     fraiseql_cli::commands::compile::run(
-        &dir.join("schema.json").to_string_lossy(),
+        &input.to_string_lossy(),
         None,
         None,
         Vec::new(),
@@ -210,7 +228,7 @@ async fn compile(dir: &Path, out: &Path) -> Result<(), String> {
         false,
         true,
         false,
-        Some(&dir.join("fraiseql.toml").to_string_lossy()),
+        config.as_deref(),
     )
     .await
     .map_err(|e| format!("fraiseql compile: {e:#}"))
@@ -327,6 +345,68 @@ async fn send(served: &Served, database_url: &str, stimulus: &Stimulus) -> Resul
             let status = response.status();
             let text = response.text().await.unwrap_or_default();
             eprintln!("stimulus {path}: {status} {text}");
+            Ok(())
+        },
+        Stimulus::Mcp {
+            path,
+            tool,
+            arguments,
+        } => {
+            let client = reqwest::Client::new();
+            let url = format!("{}{path}", served.base);
+            let post = |body: Value, session: Option<&str>| {
+                let request = client
+                    .post(&url)
+                    .header("accept", "application/json, text/event-stream")
+                    .json(&body);
+                match session {
+                    Some(id) => request.header("mcp-session-id", id),
+                    None => request,
+                }
+            };
+            let initialize = post(
+                serde_json::json!({
+                    "jsonrpc": "2.0", "id": 1, "method": "initialize",
+                    "params": {
+                        "protocolVersion": "2025-03-26",
+                        "capabilities": {},
+                        "clientInfo": { "name": "capability-fixture", "version": "0" }
+                    }
+                }),
+                None,
+            )
+            .send()
+            .await
+            .map_err(|e| format!("mcp initialize: {e}"))?;
+            let session = initialize
+                .headers()
+                .get("mcp-session-id")
+                .and_then(|id| id.to_str().ok())
+                .map(str::to_owned);
+            let status = initialize.status();
+            let text = initialize.text().await.unwrap_or_default();
+            if !status.is_success() {
+                return Err(format!("mcp initialize answered {status}: {text}"));
+            }
+            post(
+                serde_json::json!({ "jsonrpc": "2.0", "method": "notifications/initialized" }),
+                session.as_deref(),
+            )
+            .send()
+            .await
+            .map_err(|e| format!("mcp initialized: {e}"))?;
+            let call = post(
+                serde_json::json!({
+                    "jsonrpc": "2.0", "id": 2, "method": "tools/call",
+                    "params": { "name": tool, "arguments": arguments }
+                }),
+                session.as_deref(),
+            )
+            .send()
+            .await
+            .map_err(|e| format!("mcp tools/call: {e}"))?;
+            let status = call.status();
+            eprintln!("stimulus mcp {tool}: {status} {}", call.text().await.unwrap_or_default());
             Ok(())
         },
         Stimulus::Sql { statement } => {
@@ -476,6 +556,13 @@ async fn every_capability_fixture_reaches_its_effect() {
     };
     let fixtures = fixtures(&fixtures_dir());
     assert!(!fixtures.is_empty(), "no fixture under {}", fixtures_dir().display());
+    // `CAPABILITY_FIXTURE=<name>` runs one, while working on it. Unset, as in CI, all run.
+    let only = std::env::var("CAPABILITY_FIXTURE").ok();
+    let fixtures: Vec<_> = fixtures
+        .into_iter()
+        .filter(|(name, _)| only.as_ref().is_none_or(|o| o == name))
+        .collect();
+    assert!(!fixtures.is_empty(), "no fixture is named {only:?}");
 
     let mut failures = Vec::new();
     for (name, dir) in &fixtures {

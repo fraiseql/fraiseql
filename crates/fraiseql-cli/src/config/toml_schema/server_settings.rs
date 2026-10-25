@@ -1,54 +1,9 @@
 //! Server settings configuration for TOML schema (validation, debug, MCP).
 
+/// The `[mcp]` table: the server's own type, so a key the compiler reads is one the
+/// server reads (core owns section types).
+pub use fraiseql_core::schema::McpConfig;
 use serde::{Deserialize, Serialize};
-
-/// MCP (Model Context Protocol) server configuration.
-///
-/// Enables AI/LLM tools to interact with FraiseQL queries and mutations
-/// through the standardized Model Context Protocol.
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(default, deny_unknown_fields)]
-pub struct McpConfig {
-    /// Enable MCP server endpoint.
-    pub enabled:       bool,
-    /// Transport mode: "http", "stdio", or "both".
-    pub transport:     String,
-    /// HTTP path for MCP endpoint (e.g., "/mcp").
-    pub path:          String,
-    /// Require authentication for MCP requests.
-    pub require_auth:  bool,
-    /// Whitelist of query/mutation names to expose (empty = all).
-    #[serde(default)]
-    pub include:       Vec<String>,
-    /// Blacklist of query/mutation names to hide.
-    #[serde(default)]
-    pub exclude:       Vec<String>,
-    /// Read-only exposure: when `true`, no mutation is ever exposed as an MCP tool,
-    /// regardless of `include`/`exclude` (fail-closed for AI callers). Recommended
-    /// unless you deliberately expose mutations.
-    #[serde(default)]
-    pub read_only:     bool,
-    /// Keep per-thread working state across an agent's tool calls, in the
-    /// `[session_state]` store (#967). Off by default; requires an authenticated
-    /// caller and a configured `[session_state]` backend.
-    #[serde(default)]
-    pub session_state: bool,
-}
-
-impl Default for McpConfig {
-    fn default() -> Self {
-        Self {
-            enabled:       false,
-            transport:     "http".to_string(),
-            path:          "/mcp".to_string(),
-            require_auth:  true,
-            include:       Vec::new(),
-            exclude:       Vec::new(),
-            read_only:     false,
-            session_state: false,
-        }
-    }
-}
 
 /// Query validation limits (depth and complexity).
 ///

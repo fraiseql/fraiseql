@@ -247,7 +247,7 @@ impl Server {
         state: &AppState,
         mcp_cfg: &fraiseql_core::schema::McpConfig,
     ) -> Router {
-        if mcp_cfg.transport == "http" || mcp_cfg.transport == "both" {
+        if mcp_cfg.transport.serves_http() {
             // The same two auth modes `/graphql` accepts (#376 auth parity):
             // OIDC (`[auth]`) or local HS256 (`[auth_hs256]`). Before this, an
             // HS256-only deployment could never authenticate an MCP call and
