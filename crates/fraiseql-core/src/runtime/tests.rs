@@ -2574,7 +2574,7 @@ mod planner_tests {
 
     fn test_query_match() -> QueryMatch {
         QueryMatch {
-            query_def:        QueryDefinition {
+            query_def:        std::sync::Arc::new(QueryDefinition {
                 function: None,
 
                 requires_actor:      Vec::new(),
@@ -2603,7 +2603,7 @@ mod planner_tests {
                 rest_stream:         false,
                 native_columns:      HashMap::new(),
                 pagination_order:    None,
-            },
+            }),
             fields:           vec!["id".to_string(), "name".to_string()],
             selections:       vec![FieldSelection {
                 name:          "users".to_string(),

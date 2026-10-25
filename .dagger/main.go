@@ -810,7 +810,8 @@ func (m *FraiseqlCi) ShellGates(
 		Stdout(ctx)
 }
 
-// PerfInstructions is the performance gate (#1636): it runs `Executor::execute` and a REST
+// PerfInstructions is the performance gate (#1636). It first runs the dhat allocation tests
+// (crates/fraiseql-core/benches/memory_profile.rs), then runs `Executor::execute` and a REST
 // GET under callgrind (crates/fraiseql-core/benches/executor_instructions.rs,
 // crates/fraiseql-server/benches/rest_instructions.rs) and compares each
 // bench's instruction count with benchmarks/instructions-baseline.json, failing above 3%
@@ -836,6 +837,9 @@ func (m *FraiseqlCi) PerfInstructions(
 	script := strings.Join([]string{
 		"set -euo pipefail",
 		"rm -rf /src/target/iai",
+		// The allocation half: dhat assertions on what a warm read allocates (one
+		// global allocator per binary, so they run single-threaded).
+		"cargo test -p fraiseql-core --features dhat-heap --bench memory_profile -- --test-threads=1 >&2",
 		"export IAI_CALLGRIND_ALLOW_ASLR=yes",
 		// Nine runs, each in its own home: the comparator takes each bench's mean,
 		// because std's per-process hash seed moves a single count by up to 2.6%.

@@ -320,7 +320,7 @@ async fn the_direct_read_settles_a_short_search_too() {
     );
     arguments.insert("where".to_string(), json!({ "cat": { "neq": 0 } }));
     let direct = fraiseql_core::runtime::QueryMatch {
-        query_def,
+        query_def: query_def.into(),
         fields: vec!["id".to_string()],
         selections: vec![],
         arguments,

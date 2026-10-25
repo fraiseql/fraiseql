@@ -55,7 +55,14 @@ async fn accepts(executor: &Executor, query: &str, key: &str) -> bool {
     let mut arguments = std::collections::HashMap::new();
     arguments.insert("orderBy".to_string(), json!([{ "field": key }]));
     let direct = QueryMatch {
-        query_def: executor.schema().queries.iter().find(|q| q.name == query).unwrap().clone(),
+        query_def: executor
+            .schema()
+            .queries
+            .iter()
+            .find(|q| q.name == query)
+            .unwrap()
+            .clone()
+            .into(),
         fields: vec![],
         selections: vec![],
         arguments,

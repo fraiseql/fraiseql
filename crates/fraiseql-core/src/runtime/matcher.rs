@@ -1,6 +1,6 @@
 //! Query pattern matching - matches incoming GraphQL queries to compiled templates.
 
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 use ahash::AHashMap;
 
@@ -14,8 +14,9 @@ use crate::{
 /// A matched query with extracted information.
 #[derive(Debug, Clone)]
 pub struct QueryMatch {
-    /// The matched query definition from compiled schema.
-    pub query_def: QueryDefinition,
+    /// The matched query definition from compiled schema, shared with the matcher that
+    /// found it rather than copied per request.
+    pub query_def: Arc<QueryDefinition>,
 
     /// Requested fields (selection set) - now includes full field info.
     pub fields: Vec<String>,
@@ -111,11 +112,12 @@ impl QueryMatch {
     ///
     /// Returns `FraiseQLError::Validation` if the query definition has no SQL source.
     pub fn from_operation(
-        query_def: QueryDefinition,
+        query_def: impl Into<Arc<QueryDefinition>>,
         fields: Vec<String>,
         arguments: HashMap<String, serde_json::Value>,
         _type_def: Option<&crate::schema::TypeDefinition>,
     ) -> Result<Self> {
+        let query_def = query_def.into();
         let leaf = |name: &String| FieldSelection {
             name:          name.clone(),
             alias:         None,
@@ -201,15 +203,18 @@ impl QueryMatch {
 /// Matches incoming GraphQL queries against the compiled schema to determine
 /// which pre-compiled SQL template to execute.
 pub struct QueryMatcher {
-    schema:    CompiledSchema,
+    schema:      CompiledSchema,
     /// How deep a selection may nest: the schema's declared `max_query_depth`, else
     /// [`DEFAULT_MAX_QUERY_DEPTH`](crate::schema::DEFAULT_MAX_QUERY_DEPTH). The executor
     /// replaces it with its effective one.
-    max_depth: u32,
+    max_depth:   u32,
     /// Each query's arguments, by query name: derived from the schema once, here, because
     /// every request validates against them and the derivation is not cheap (a typed
     /// `orderBy` compares the sort keys of every query on its entity, #1159, #1568).
-    arguments: AHashMap<String, QueryArguments>,
+    arguments:   AHashMap<String, QueryArguments>,
+    /// Each query's definition, by query name. A request only reads the definition it
+    /// matches, so every [`QueryMatch`] shares this one instead of copying it.
+    definitions: AHashMap<String, Arc<QueryDefinition>>,
 }
 
 /// The arguments a query's field takes, as the matcher validates a document against them.
@@ -249,10 +254,16 @@ impl QueryMatcher {
             .iter()
             .map(|query| (query.name.clone(), QueryArguments::derive(query, &schema)))
             .collect();
+        let definitions = schema
+            .queries
+            .iter()
+            .map(|query| (query.name.clone(), Arc::new(query.clone())))
+            .collect();
         Self {
             schema,
             max_depth,
             arguments,
+            definitions,
         }
     }
 
@@ -350,35 +361,35 @@ impl QueryMatcher {
         let mut final_selections = selection_set::filter(&written_selections, &variables_map)?;
 
         // 5. Find matching query definition using root field
+        let query_def = self.schema.find_query(&parsed.root_field).ok_or_else(|| {
+            let display_names: Vec<String> =
+                self.schema.queries.iter().map(|q| self.schema.display_name(&q.name)).collect();
+            let candidate_refs: Vec<&str> = display_names.iter().map(String::as_str).collect();
+            let suggestion = suggest_similar(&parsed.root_field, &candidate_refs);
+            let message = match suggestion.as_slice() {
+                [s] => format!(
+                    "Query '{}' not found in schema. Did you mean '{s}'?",
+                    parsed.root_field
+                ),
+                [a, b] => format!(
+                    "Query '{}' not found in schema. Did you mean '{a}' or '{b}'?",
+                    parsed.root_field
+                ),
+                [a, b, c, ..] => format!(
+                    "Query '{}' not found in schema. Did you mean '{a}', '{b}', or '{c}'?",
+                    parsed.root_field
+                ),
+                _ => format!("Query '{}' not found in schema", parsed.root_field),
+            };
+            FraiseQLError::Validation {
+                message,
+                path: None,
+            }
+        })?;
         let query_def = self
-            .schema
-            .find_query(&parsed.root_field)
-            .ok_or_else(|| {
-                let display_names: Vec<String> =
-                    self.schema.queries.iter().map(|q| self.schema.display_name(&q.name)).collect();
-                let candidate_refs: Vec<&str> = display_names.iter().map(String::as_str).collect();
-                let suggestion = suggest_similar(&parsed.root_field, &candidate_refs);
-                let message = match suggestion.as_slice() {
-                    [s] => format!(
-                        "Query '{}' not found in schema. Did you mean '{s}'?",
-                        parsed.root_field
-                    ),
-                    [a, b] => format!(
-                        "Query '{}' not found in schema. Did you mean '{a}' or '{b}'?",
-                        parsed.root_field
-                    ),
-                    [a, b, c, ..] => format!(
-                        "Query '{}' not found in schema. Did you mean '{a}', '{b}', or '{c}'?",
-                        parsed.root_field
-                    ),
-                    _ => format!("Query '{}' not found in schema", parsed.root_field),
-                };
-                FraiseQLError::Validation {
-                    message,
-                    path: None,
-                }
-            })?
-            .clone();
+            .definitions
+            .get(&query_def.name)
+            .map_or_else(|| Arc::new(query_def.clone()), Arc::clone);
 
         // 5b. #939: the selected fields must exist on the type being queried
         //     (GraphQL § 5.3.1). An undeclared name used to be lowered into the

@@ -1485,7 +1485,7 @@ async fn the_rest_filter_surface_enforces_the_same_rule() {
     let mut arguments = std::collections::HashMap::new();
     arguments.insert("where".to_string(), json!({ "bogusKey": { "eq": "Alice" } }));
     let rest_match = QueryMatch {
-        query_def,
+        query_def: query_def.into(),
         fields: vec!["id".to_string()],
         selections: vec![],
         arguments,
@@ -1524,7 +1524,7 @@ async fn the_rest_filter_surface_still_serves_a_declared_key() {
     let mut arguments = std::collections::HashMap::new();
     arguments.insert("where".to_string(), json!({ "name": { "eq": "Alice" } }));
     let rest_match = QueryMatch {
-        query_def,
+        query_def: query_def.into(),
         fields: vec!["id".to_string()],
         selections: vec![],
         arguments,
@@ -1651,7 +1651,7 @@ async fn the_rest_sort_surface_enforces_the_same_rule() {
     let mut arguments = std::collections::HashMap::new();
     arguments.insert("orderBy".to_string(), json!([{ "field": "totallyBogusField" }]));
     let rest_match = QueryMatch {
-        query_def,
+        query_def: query_def.into(),
         fields: vec!["id".to_string()],
         selections: vec![],
         arguments,

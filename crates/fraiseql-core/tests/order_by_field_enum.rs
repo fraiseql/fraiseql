@@ -183,7 +183,7 @@ async fn accepts(executor: &Executor, query: &str, key: &str) -> bool {
     let mut arguments = std::collections::HashMap::new();
     arguments.insert("orderBy".to_string(), json!([{ "field": key }]));
     let direct = fraiseql_core::runtime::QueryMatch {
-        query_def,
+        query_def: query_def.into(),
         fields: vec!["id".to_string()],
         selections: vec![],
         arguments,
