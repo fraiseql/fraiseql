@@ -93,6 +93,10 @@ disagreed, and the promise was the part that was wrong.
   - `fraiseql-functions/host-storage`: it gated no code. The storage host ops are in every
     build.
 
+  The implicit features Cargo named after the dropped optional dependencies go with them:
+  `fraiseql-functions/{fraiseql-db, fraiseql-storage}`,
+  `fraiseql-observers/{fraiseql-arrow, tokio-util}` and `fraiseql-storage/kamadak-exif`.
+
   `fraiseql-server/federation` no longer pulls in the `fraiseql-federation` crate, and
   `fraiseql-server/mcp` no longer pulls in `schemars`. Neither feature's behaviour changes.
 
@@ -105,10 +109,11 @@ disagreed, and the promise was the part that was wrong.
 
 - **`fraiseql-server` drops four unwired items (#1640).** `routes::api::openapi`
   (`get_openapi_spec`), a hand-written OpenAPI document for `/api/v1` that no route served
-  (REST still serves the OpenAPI it generates); `arrow::ExecutorQueryAdapter`, the bare
-  Flight executor the policy seam exists to keep out of the binary; the empty
-  `testing::runtime_testing`; and `tenancy::audit::TENANT_EVENTS_DDL`, a table definition
-  nothing created or wrote. The tenant audit log the admin API records to is unchanged.
+  (REST still serves the OpenAPI it generates); `arrow::ExecutorQueryAdapter` (the
+  `arrow::executor_wrapper` module), the bare Flight executor the policy seam exists to keep
+  out of the binary; the empty `testing::runtime_testing`; and
+  `tenancy::audit::TENANT_EVENTS_DDL`, a table definition nothing created or wrote. The
+  tenant audit log the admin API records to is unchanged.
 
 - **`fraiseql-auth` drops the copies the server and `oidc_provider` supersede (#1640).**
   Removed: the `oauth` module (`OAuth2Client`, `OIDCClient`, `OAuthSession`, refresh,
@@ -164,7 +169,11 @@ disagreed, and the promise was the part that was wrong.
   - the metric series `fraiseql_observer_dedup_detected_total`,
     `fraiseql_observer_dedup_processing_skipped_total`,
     `fraiseql_observer_events_tenant_violations_total` and every
-    `fraiseql_observer_job_*` series, whose only producers were the deleted modules;
+    `fraiseql_observer_job_*` series, whose only producers were the deleted modules, and
+    the `MetricsRegistry` methods that recorded them (`dedup_detected`,
+    `dedup_processing_skipped`, `dedup_save_rate`, `tenant_violation`, `job_queued`,
+    `job_executed`, `job_failed`, `job_retry_attempt`, `set_job_queue_depth`,
+    `set_job_dlq_items`);
   - `ObserverError::TenantViolation` (OB021), produced only by `deduped_executor`;
   - the MySQL and SQL Server migration files `04`, `05`, `09` and `10`.
 
@@ -177,11 +186,19 @@ disagreed, and the promise was the part that was wrong.
   route. So does a token with any tenant on the changelog, the checkpoints, the runtime
   controls and the DLQ. External changelog consumers use a token that names no tenant.
   `ObserverRepository` methods take an `ObserverScope` in place of
-  `customer_org: Option<i64>`, and the handlers take it as an extractor.
+  `customer_org: Option<i64>`. Each handler in `fraiseql_server::observers::{handlers,
+  changelog_handlers, dlq_handlers}` takes an `ObserverScope` or `OperatorOnly` extractor
+  after its `State` (`get_observer`, `create_observer`, `update_observer`,
+  `delete_observer`, `enable_observer`, `disable_observer`, `get_observer_stats`,
+  `list_observer_logs`, `reload_observers`, `get_runtime_health`, `changelog_list_handler`,
+  `checkpoint_get_handler`, `checkpoint_save_handler`, `delivery_health_handler` and the
+  `dlq_*_handler`s), and `enable_observer` and `disable_observer` also take an
+  `OptionalSecurityContext`.
 
 - **`fraiseql-auth` drops its second reader of the compiled `security` section (#1624).**
-  `SecurityConfigFromSchema`, `AuditLoggingSettings`, `ErrorSanitizationSettings`,
-  `StateEncryptionSettings`, `init_security_config`, `init_default_security_config`,
+  The `security_config` and `security_init` modules go: `SecurityConfigFromSchema`,
+  `AuditLoggingSettings`, `ErrorSanitizationSettings`, `StateEncryptionSettings`,
+  `init_security_config`, `init_default_security_config`,
   `validate_security_config` and `log_security_config` are removed. The server parsed the
   schema with them at boot, logged the result as its security posture and discarded it.
   That reader looked for keys the compiler no longer emits and defaulted audit logging
@@ -276,7 +293,8 @@ disagreed, and the promise was the part that was wrong.
   is `with_identity(RequestIdentity)`, and `routes::grpc::build_grpc_service` takes a
   `RequestIdentity` where it took an `Option<Arc<IdentityResolver>>`. An embedder mounting
   gRPC passes `app_state.identity.clone()`, or `RequestIdentity::default()` for none.
-  `AppState::with_identity_resolver` is unchanged.
+  `AppState::with_identity_resolver` is unchanged. `RbacDbBackend::new` is no longer a
+  `const fn`.
 
 - **The gRPC service takes the deployment's error sanitizer (#1638).**
   `routes::grpc::build_grpc_service` takes an `Arc<ErrorSanitizer>` after `revocation`,
@@ -300,6 +318,16 @@ disagreed, and the promise was the part that was wrong.
   secret: an embedder mounting it by hand puts `service_account_middleware` (or an auth
   layer built `with_service_accounts`) in front of it. `OidcAuthState` gains a
   `service_accounts` field.
+
+- **New public fields on structs a caller can build:**
+  `IntermediateType.subscription_policy` and `TypeDefinition.subscription_policy` in
+  `fraiseql-cli` (#1657);
+  `IntermediateQuery.sql_source_kind` and `PgFunction.volatility` in `fraiseql-cli`,
+  `QueryDefinition.sql_source_kind` in `fraiseql-core` and `ProjectionRequest.source_args`
+  in `fraiseql-db` (#1690); `FederationConfig.inaccessible_fields` in `fraiseql-core`
+  (#1706); `RunAs.user_id` in `fraiseql-core` and `fraiseql-functions` (#1700);
+  `HealthResponse.capabilities` (#1644) and `ObserverState.executor` (#1670) in
+  `fraiseql-server`. A struct literal that lists every field must add them.
 
 ### Added
 
