@@ -303,3 +303,29 @@ async fn another_principal_under_the_same_key_runs_its_own_mutation() {
     assert_eq!(status, StatusCode::OK, "{bobs}");
     assert!(adapter.query_count() > executions, "bob's mutation was never executed");
 }
+
+/// A document may hold several operations, and `operationName` selects the one that runs.
+/// A mutation selected that way is deduplicated like a lone one.
+#[tokio::test]
+async fn a_mutation_selected_by_operation_name_executes_once() {
+    let (router, adapter) = make_router();
+    let body = json!({
+        "query": format!("query Users {{ users {{ id }} }} {MUTATION}"),
+        "operationName": "UpdateUser",
+        "variables": { "id": "u-1" },
+    });
+
+    let (status1, body1) = post_graphql(router.clone(), body.clone(), Some("step-key-2")).await;
+    assert_eq!(status1, StatusCode::OK, "first attempt executes: {body1}");
+    assert!(body1.get("data").is_some(), "first attempt returns data: {body1}");
+    let executions_after_first = adapter.query_count();
+
+    let (status2, body2) = post_graphql(router, body, Some("step-key-2")).await;
+    assert_eq!(status2, StatusCode::OK, "the retry succeeds: {body2}");
+    assert_eq!(body2, body1, "the replayed response is the stored one");
+    assert_eq!(
+        adapter.query_count(),
+        executions_after_first,
+        "the repeated mutation must NOT reach the database"
+    );
+}

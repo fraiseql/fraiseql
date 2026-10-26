@@ -877,6 +877,15 @@ disagreed, and the promise was the part that was wrong.
   the sets of its rows but left each row's empty set in place, one for every id ever
   cached. A row's key now leaves with the last entry holding it.
 
+### Security
+
+- **A request is judged on the operation `operationName` selects.** Affects 2.7.0
+  through 2.18.0. A document may hold several operations, and `operationName` picks the
+  one that runs. The GET and QUERY method checks and the `Idempotency-Key` gate
+  classified the document without that name, so a mutation selected from a
+  multi-operation document could run over GET or QUERY, and could run twice under one
+  key. Each check now selects the operation exactly as execution does.
+
 ## [2.18.0] - 2026-10-25
 
 ### Breaking

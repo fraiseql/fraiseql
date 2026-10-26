@@ -106,7 +106,7 @@ pub(super) async fn resolve_query_body(
     match method {
         Method::Post => {},
         Method::Get => {
-            if detect_mutation_name(&query).is_some() {
+            if detect_mutation_name(&query, request.operation_name.as_deref()).is_some() {
                 warn!(
                     operation_name = ?request.operation_name,
                     "Mutation sent via GET request — rejected (use POST)"
@@ -117,7 +117,7 @@ pub(super) async fn resolve_query_body(
             }
         },
         Method::Query => {
-            if let Some(op) = non_query_operation(&query) {
+            if let Some(op) = non_query_operation(&query, request.operation_name.as_deref()) {
                 warn!(operation = op, "Non-query operation sent via QUERY — rejected (use POST)");
                 return Err(ErrorResponse::from_error(GraphQLError::method_not_allowed(
                     "Only query operations may be sent over the QUERY method; use POST",

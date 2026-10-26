@@ -74,21 +74,21 @@ fn detect_mutation_name_reliably_flags_mutations() {
     use super::detect_mutation_name;
 
     // A plain mutation and a named mutation are both detected.
-    assert!(detect_mutation_name("mutation { createUser(name: \"x\") { id } }").is_some());
-    assert!(detect_mutation_name("mutation Create { createUser { id } }").is_some());
+    assert!(detect_mutation_name("mutation { createUser(name: \"x\") { id } }", None).is_some());
+    assert!(detect_mutation_name("mutation Create { createUser { id } }", None).is_some());
 
     // A leading comment defeats the old `trim_start().starts_with(\"mutation\")` heuristic
     // but not the parser-based detector.
     assert!(
-        detect_mutation_name("# a comment\nmutation { createUser { id } }").is_some(),
+        detect_mutation_name("# a comment\nmutation { createUser { id } }", None).is_some(),
         "a mutation behind a leading comment must still be detected"
     );
 
     // Queries (including one with a field literally named `mutation`) are NOT flagged.
-    assert!(detect_mutation_name("query { users { id } }").is_none());
-    assert!(detect_mutation_name("{ users { id } }").is_none());
+    assert!(detect_mutation_name("query { users { id } }", None).is_none());
+    assert!(detect_mutation_name("{ users { id } }", None).is_none());
     assert!(
-        detect_mutation_name("query GetThing { mutationLog { id } }").is_none(),
+        detect_mutation_name("query GetThing { mutationLog { id } }", None).is_none(),
         "a query selecting a field named like a mutation is not a mutation"
     );
 }
@@ -719,6 +719,44 @@ mod http_cache {
         let router = federated(Some(true));
         let sent = send(&router, "GET", &get_uri("{ _service { sdl } }"), None, &[], None).await;
         assert!(!served_sdl(&sent), "{}", sent.body);
+    }
+
+    // ── A document with several operations ─────────────────────────────────
+
+    /// A document may hold several operations, and `operationName` selects the one that
+    /// runs. What a method may run is judged on that operation, not on the document's
+    /// first or on a parse that cannot choose.
+    const TWO_OPERATIONS: &str =
+        "query Users { users { id } } mutation Create { createUser { id } }";
+
+    #[tokio::test]
+    async fn a_mutation_selected_by_operation_name_is_refused_over_get() {
+        let (router, adapter) = router();
+        let uri = format!("{}&operationName=Create", get_uri(TWO_OPERATIONS));
+        let sent = send(&router, "GET", &uri, None, &[], None).await;
+        assert_eq!(sent.status, StatusCode::METHOD_NOT_ALLOWED, "{}", sent.body);
+        assert_eq!(adapter.query_count(), 0, "the mutation never reached the database");
+    }
+
+    #[tokio::test]
+    async fn a_mutation_selected_by_operation_name_is_refused_over_query() {
+        let (router, adapter) = router();
+        let body = json!({ "query": TWO_OPERATIONS, "operationName": "Create" });
+        let sent = send(&router, "QUERY", "/graphql", Some(body), &[], None).await;
+        assert_eq!(sent.status, StatusCode::METHOD_NOT_ALLOWED, "{}", sent.body);
+        assert_eq!(adapter.query_count(), 0, "the mutation never reached the database");
+    }
+
+    /// The query of the same document is still served over both methods.
+    #[tokio::test]
+    async fn a_query_selected_by_operation_name_runs_over_get_and_query() {
+        let (router, _) = router();
+        let uri = format!("{}&operationName=Users", get_uri(TWO_OPERATIONS));
+        let sent = send(&router, "GET", &uri, None, &[], None).await;
+        assert_eq!(sent.body, json!({ "data": { "users": [{ "id": 1 }] } }), "GET");
+        let body = json!({ "query": TWO_OPERATIONS, "operationName": "Users" });
+        let sent = send(&router, "QUERY", "/graphql", Some(body), &[], None).await;
+        assert_eq!(sent.body, json!({ "data": { "users": [{ "id": 1 }] } }), "QUERY");
     }
 }
 

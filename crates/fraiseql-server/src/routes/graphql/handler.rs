@@ -408,11 +408,19 @@ fn with_caching(
     http
 }
 
-/// Returns the operation type when `query` is **not** a plain query — i.e.
-/// `Some("mutation")` or `Some("subscription")`. `None` for queries and for
-/// documents that fail to parse (which execute nothing).
-pub(crate) fn non_query_operation(query: &str) -> Option<&'static str> {
-    let parsed = fraiseql_core::graphql::parse_query(query).ok()?;
+/// Returns the operation type when the operation of `query` that `operation_name`
+/// selects is **not** a plain query — i.e. `Some("mutation")` or `Some("subscription")`.
+/// `None` for queries and for documents whose operation cannot be selected (which
+/// execute nothing).
+///
+/// The operation is the one execution selects, so a document holding several operations
+/// is judged on the one that runs.
+pub(crate) fn non_query_operation(
+    query: &str,
+    operation_name: Option<&str>,
+) -> Option<&'static str> {
+    let parsed =
+        fraiseql_core::graphql::parse_query_with_operation_name(query, operation_name).ok()?;
     match parsed.operation_type.as_str() {
         "mutation" => Some("mutation"),
         "subscription" => Some("subscription"),
@@ -420,15 +428,18 @@ pub(crate) fn non_query_operation(query: &str) -> Option<&'static str> {
     }
 }
 
-/// Extract the mutation name from a GraphQL query string, if the operation is a mutation.
+/// Extract the mutation name from a GraphQL query string, if the operation that
+/// `operation_name` selects is a mutation.
 ///
-/// Returns `Some(root_field_name)` when the query parses successfully and the operation
-/// type is `"mutation"`. Returns `None` for queries, subscriptions, or parse errors.
+/// Returns `Some(root_field_name)` when the query parses successfully and the selected
+/// operation is a `"mutation"`. Returns `None` for queries, subscriptions, or documents
+/// whose operation cannot be selected (which execute nothing).
 ///
 /// Used to look up before-mutation hooks: a single `HashMap::get` on the trigger
 /// registry — O(1) and allocation-free when no hooks are registered.
-pub(crate) fn detect_mutation_name(query: &str) -> Option<String> {
-    let parsed = fraiseql_core::graphql::parse_query(query).ok()?;
+pub(crate) fn detect_mutation_name(query: &str, operation_name: Option<&str>) -> Option<String> {
+    let parsed =
+        fraiseql_core::graphql::parse_query_with_operation_name(query, operation_name).ok()?;
     if parsed.operation_type == "mutation" {
         Some(parsed.root_field)
     } else {
@@ -623,24 +634,25 @@ async fn execute_admitted(
     // by principal, so a key never replays across tenants nor to a caller other
     // than the one whose gates produced the stored response; mutations only
     // arrive via POST (the GET handler rejects them).
-    let idempotency_key = if detect_mutation_name(&query).is_some() {
-        headers.get("idempotency-key").and_then(|v| v.to_str().ok()).map(|client_key| {
-            let scope = crate::routes::idempotency::IdempotencyScope {
-                tenant:    tenant.key().map(str::to_owned),
-                principal: security_context.as_ref().map(|c| c.user_id.to_string()),
-                method:    "POST".to_string(),
-                path:      "/graphql".to_string(),
-            };
-            let body_hash = crate::routes::idempotency::hash_body(&serde_json::json!({
-                "query": query,
-                "variables": request.variables,
-                "operationName": request.operation_name,
-            }));
-            (scope.key(client_key), body_hash)
-        })
-    } else {
-        None
-    };
+    let idempotency_key =
+        if detect_mutation_name(&query, request.operation_name.as_deref()).is_some() {
+            headers.get("idempotency-key").and_then(|v| v.to_str().ok()).map(|client_key| {
+                let scope = crate::routes::idempotency::IdempotencyScope {
+                    tenant:    tenant.key().map(str::to_owned),
+                    principal: security_context.as_ref().map(|c| c.user_id.to_string()),
+                    method:    "POST".to_string(),
+                    path:      "/graphql".to_string(),
+                };
+                let body_hash = crate::routes::idempotency::hash_body(&serde_json::json!({
+                    "query": query,
+                    "variables": request.variables,
+                    "operationName": request.operation_name,
+                }));
+                (scope.key(client_key), body_hash)
+            })
+        } else {
+            None
+        };
     if let Some((ref key, body_hash)) = idempotency_key {
         match state.idempotency_store.check(key, body_hash).await {
             crate::routes::idempotency::IdempotencyCheck::Replay(stored) => {
