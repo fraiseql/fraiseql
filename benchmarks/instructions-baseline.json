@@ -4,15 +4,15 @@
     "Only valid for that container: refresh with `dagger call perf-instructions --source=. --print` and commit the result."
   ],
   "benchmarks": {
-    "executor_instructions::executor::execute.by_id_fat": 190216,
-    "executor_instructions::executor::execute.by_id_lean": 125244,
-    "executor_instructions::executor::execute.nested_fat": 5256258,
-    "executor_instructions::executor::execute.nested_lean": 337018,
-    "executor_instructions::executor::execute.root_list_fat": 1783367,
-    "executor_instructions::executor::execute.root_list_lean": 426819,
-    "rest_instructions::rest::rest_get.by_id_fat": 924656,
-    "rest_instructions::rest::rest_get.by_id_lean": 168596,
-    "rest_instructions::rest::rest_get.list_fat": 16278492,
-    "rest_instructions::rest::rest_get.list_lean": 1086586
+    "executor_instructions::executor::execute.by_id_fat": 160494,
+    "executor_instructions::executor::execute.by_id_lean": 94611,
+    "executor_instructions::executor::execute.nested_fat": 5196778,
+    "executor_instructions::executor::execute.nested_lean": 298107,
+    "executor_instructions::executor::execute.root_list_fat": 1751148,
+    "executor_instructions::executor::execute.root_list_lean": 396250,
+    "rest_instructions::rest::rest_get.by_id_fat": 902396,
+    "rest_instructions::rest::rest_get.by_id_lean": 146660,
+    "rest_instructions::rest::rest_get.list_fat": 16234678,
+    "rest_instructions::rest::rest_get.list_lean": 1060549
   }
 }
