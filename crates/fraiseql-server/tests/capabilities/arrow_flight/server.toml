@@ -1,0 +1,6 @@
+cors_enabled = false
+flight_views = ["va_note"]
+
+[auth]
+issuer = "$RECEIVER_URL"
+audience = "capability-flight"

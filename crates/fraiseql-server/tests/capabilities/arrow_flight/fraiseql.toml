@@ -1,0 +1,12 @@
+[schema]
+name = "capability-arrow-flight"
+
+[types.Note]
+sql_source = "app.v_note"
+fields.id = { type = "ID" }
+fields.title = { type = "String" }
+
+[queries.notes]
+return_type = "Note"
+return_array = true
+sql_source = "app.v_note"

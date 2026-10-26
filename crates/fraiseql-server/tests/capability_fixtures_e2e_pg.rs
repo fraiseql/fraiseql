@@ -10,7 +10,8 @@
 //! - `setup.sql`: the application's tables, views and functions.
 //! - `server.toml`: the server's `ServerConfig`. `$FIXTURE` expands to the fixture's directory, and
 //!   `$NATS_URL` to the broker this run was given; a fixture that names a service the run lacks
-//!   fails, naming it.
+//!   fails, naming it. `$RECEIVER_URL` is the harness's receiver, which is also an OIDC issuer: it
+//!   publishes a discovery document and a key set, and an `oidc` bearer is signed by its key.
 //! - `fixture.toml`: the capability it exercises, the environment the server runs with, the stimuli
 //!   it receives, and the effect that must follow.
 //!
@@ -83,6 +84,43 @@ enum Auth {
     Token(String),
     /// An HS256 JWT minted when the stimulus is sent, so no signed token is committed.
     Jwt { hs256: Hs256 },
+    /// An RS256 JWT issued by the receiver (`iss` is `$RECEIVER_URL`) and signed with the key
+    /// its key set publishes, as an OIDC provider issues one.
+    Oidc { oidc: OidcClaims },
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct OidcClaims {
+    sub: String,
+    aud: String,
+}
+
+/// The receiver's signing key: generated per run, so no private key is committed.
+struct Issuer {
+    /// PKCS#1 PEM, for signing.
+    pem:  Vec<u8>,
+    /// The public key as a JWK set.
+    jwks: Value,
+}
+
+/// The key id the receiver publishes and signs with.
+const ISSUER_KID: &str = "capability-fixture";
+
+impl Issuer {
+    fn generate() -> Self {
+        use base64::Engine as _;
+        let rsa = openssl::rsa::Rsa::generate(2048).unwrap();
+        let b64 = |bytes: Vec<u8>| base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(bytes);
+        let jwks = serde_json::json!({ "keys": [{
+            "kty": "RSA", "use": "sig", "alg": "RS256", "kid": ISSUER_KID,
+            "n": b64(rsa.n().to_vec()), "e": b64(rsa.e().to_vec()),
+        }]});
+        Self {
+            pem: rsa.private_key_to_pem().unwrap(),
+            jwks,
+        }
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -96,17 +134,24 @@ struct Hs256 {
 }
 
 impl Auth {
-    fn bearer(&self, env: &BTreeMap<String, String>) -> Result<String, String> {
+    fn bearer(
+        &self,
+        env: &BTreeMap<String, String>,
+        receiver: &Receiver,
+    ) -> Result<String, String> {
+        let now = || {
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|elapsed| elapsed.as_secs())
+                .map_err(|e| e.to_string())
+        };
         match self {
             Self::Token(token) => Ok(token.clone()),
             Self::Jwt { hs256 } => {
                 let secret = env.get(&hs256.secret_env).ok_or_else(|| {
                     format!("auth.hs256: no `{}` in the fixture env", hs256.secret_env)
                 })?;
-                let now = std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .map_err(|e| e.to_string())?
-                    .as_secs();
+                let now = now()?;
                 let claims = serde_json::json!({
                     "sub": hs256.sub, "iss": hs256.iss, "aud": hs256.aud,
                     "iat": now, "exp": now + 3600,
@@ -117,6 +162,18 @@ impl Auth {
                     &jsonwebtoken::EncodingKey::from_secret(secret.as_bytes()),
                 )
                 .map_err(|e| format!("auth.hs256: {e}"))
+            },
+            Self::Oidc { oidc } => {
+                let now = now()?;
+                let claims = serde_json::json!({
+                    "sub": oidc.sub, "iss": receiver.url, "aud": oidc.aud,
+                    "iat": now, "exp": now + 3600,
+                });
+                let mut header = jsonwebtoken::Header::new(jsonwebtoken::Algorithm::RS256);
+                header.kid = Some(ISSUER_KID.to_owned());
+                let key = jsonwebtoken::EncodingKey::from_rsa_pem(&receiver.issuer.pem)
+                    .map_err(|e| format!("auth.oidc: {e}"))?;
+                jsonwebtoken::encode(&header, &claims, &key).map_err(|e| format!("auth.oidc: {e}"))
             },
         }
     }
@@ -214,6 +271,13 @@ enum Effect {
     Received { path: String, count: usize },
     /// The server refuses to serve: it exits before answering, saying `message`.
     Refused { message: String },
+    /// Over Arrow Flight, a handshake presenting `auth`, then a `do_get` of `ticket` with the
+    /// session it returned, streams exactly `rows` rows.
+    Flight {
+        ticket: String,
+        auth:   Auth,
+        rows:   usize,
+    },
     /// `/health` reports the capability `started` and `serving` as given.
     Health {
         capability: String,
@@ -343,9 +407,13 @@ fn nats_url() -> Result<String, String> {
 
 /// An HTTP endpoint of the harness's own, at `$RECEIVER_URL`, recording the path of every
 /// request it is sent: where a fixture points an observer's webhook.
+///
+/// It is also an OIDC issuer at its own URL: `/.well-known/openid-configuration` names
+/// `/jwks`, which publishes the key an `oidc` bearer is signed with.
 struct Receiver {
-    url:   String,
-    paths: Arc<Mutex<Vec<String>>>,
+    url:    String,
+    paths:  Arc<Mutex<Vec<String>>>,
+    issuer: Issuer,
 }
 
 impl Receiver {
@@ -354,17 +422,34 @@ impl Receiver {
         let url = format!("http://{}", listener.local_addr().unwrap());
         let paths = Arc::new(Mutex::new(Vec::new()));
         let seen = Arc::clone(&paths);
-        let app = axum::Router::new().fallback(move |uri: axum::http::Uri| {
-            let seen = Arc::clone(&seen);
-            async move {
-                seen.lock().unwrap().push(uri.path().to_owned());
-                axum::http::StatusCode::OK
-            }
+        let issuer = Issuer::generate();
+        let discovery = serde_json::json!({
+            "issuer": url,
+            "jwks_uri": format!("{url}/jwks"),
+            "authorization_endpoint": format!("{url}/authorize"),
+            "token_endpoint": format!("{url}/token"),
+            "response_types_supported": ["code"],
+            "subject_types_supported": ["public"],
+            "id_token_signing_alg_values_supported": ["RS256"],
         });
+        let jwks = issuer.jwks.clone();
+        let app = axum::Router::new()
+            .route(
+                "/.well-known/openid-configuration",
+                axum::routing::get(move || async move { axum::Json(discovery) }),
+            )
+            .route("/jwks", axum::routing::get(move || async move { axum::Json(jwks) }))
+            .fallback(move |uri: axum::http::Uri| {
+                let seen = Arc::clone(&seen);
+                async move {
+                    seen.lock().unwrap().push(uri.path().to_owned());
+                    axum::http::StatusCode::OK
+                }
+            });
         tokio::spawn(async move {
             let _ = axum::serve(listener, app).await;
         });
-        Self { url, paths }
+        Self { url, paths, issuer }
     }
 
     /// `text` with `$RECEIVER_URL` expanded.
@@ -422,6 +507,8 @@ async fn stream_subjects(stream: &str) -> Result<Vec<String>, String> {
 struct Served {
     child:    Child,
     base:     String,
+    /// Where Arrow Flight listens.
+    flight:   String,
     log:      PathBuf,
     receiver: Receiver,
 }
@@ -450,8 +537,12 @@ impl Drop for Served {
     }
 }
 
-fn free_port() -> u16 {
-    std::net::TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port()
+/// Two ports free now, and distinct: both listeners are held until both are known, so the
+/// second cannot be handed the port the first just released.
+fn free_ports() -> (u16, u16) {
+    let bind = || std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let (first, second) = (bind(), bind());
+    (first.local_addr().unwrap().port(), second.local_addr().unwrap().port())
 }
 
 /// Start the `fraiseql-server` binary over the fixture, and wait for its first answer.
@@ -463,7 +554,7 @@ async fn serve(
     scratch: &Path,
     receiver: Receiver,
 ) -> Result<Served, String> {
-    let port = free_port();
+    let (port, flight_port) = free_ports();
     let log = scratch.join("server.log");
     let cwd = scratch.join("cwd");
     std::fs::create_dir_all(&cwd).unwrap();
@@ -476,7 +567,7 @@ async fn serve(
         .env("FRAISEQL_BIND_ADDR", format!("127.0.0.1:{port}"))
         // Flight binds a port of its own, by default the one every fixture's server would
         // share, so a server already on it fails a fixture about something else.
-        .env("FRAISEQL_FLIGHT_BIND_ADDR", format!("127.0.0.1:{}", free_port()))
+        .env("FRAISEQL_FLIGHT_BIND_ADDR", format!("127.0.0.1:{flight_port}"))
         .env("RUST_LOG", "info")
         .stdin(Stdio::null())
         .stdout(std::fs::File::create(&log).unwrap())
@@ -488,6 +579,7 @@ async fn serve(
     let mut served = Served {
         child,
         base: format!("http://127.0.0.1:{port}"),
+        flight: format!("http://127.0.0.1:{flight_port}"),
         log,
         receiver,
     };
@@ -527,7 +619,7 @@ async fn send(
                 .request(method, format!("{}{path}", served.base))
                 .header("content-type", "application/json");
             if let Some(auth) = auth {
-                request = request.bearer_auth(auth.bearer(env)?);
+                request = request.bearer_auth(auth.bearer(env, &served.receiver)?);
             }
             if let Some(signature) = sign {
                 request = request
@@ -548,7 +640,8 @@ async fn send(
             arguments,
             auth,
         } => {
-            let bearer = auth.as_ref().map(|auth| auth.bearer(env)).transpose()?;
+            let bearer =
+                auth.as_ref().map(|auth| auth.bearer(env, &served.receiver)).transpose()?;
             let client = reqwest::Client::new();
             let url = format!("{}{path}", served.base);
             let post = |body: Value, session: Option<&str>| {
@@ -626,7 +719,12 @@ async fn send(
 }
 
 /// `Ok` when the effect holds now, `Err` with what was seen instead.
-async fn observe(served: &Served, database_url: &str, effect: &Effect) -> Result<(), String> {
+async fn observe(
+    served: &Served,
+    database_url: &str,
+    env: &BTreeMap<String, String>,
+    effect: &Effect,
+) -> Result<(), String> {
     match effect {
         Effect::Http {
             method,
@@ -706,6 +804,15 @@ async fn observe(served: &Served, database_url: &str, effect: &Effect) -> Result
             }
         },
         Effect::Refused { .. } => Err("a refusal is judged before the server serves".to_owned()),
+        Effect::Flight { ticket, auth, rows } => {
+            let bearer = auth.bearer(env, &served.receiver)?;
+            let got = flight_rows(&served.flight, &bearer, ticket).await?;
+            if got == *rows {
+                Ok(())
+            } else {
+                Err(format!("Flight do_get {ticket} streamed {got} row(s), not {rows}"))
+            }
+        },
         Effect::Health {
             capability,
             started,
@@ -728,6 +835,68 @@ async fn observe(served: &Served, database_url: &str, effect: &Effect) -> Result
             }
         },
     }
+}
+
+/// The rows a Flight `do_get` of `ticket` streams, after a handshake presenting `bearer`, as
+/// a Flight client reads them: the handshake answers a session token, which the `do_get`
+/// presents.
+#[cfg(feature = "arrow")]
+async fn flight_rows(address: &str, bearer: &str, ticket: &str) -> Result<usize, String> {
+    use fraiseql_arrow::{
+        arrow_flight::{
+            HandshakeRequest, Ticket, decode::FlightRecordBatchStream, error::FlightError,
+            flight_service_client::FlightServiceClient,
+        },
+        tonic::{Request, transport::Endpoint},
+    };
+    use futures::{StreamExt as _, TryStreamExt as _};
+
+    let channel = Endpoint::from_shared(address.to_owned())
+        .map_err(|e| e.to_string())?
+        .connect()
+        .await
+        .map_err(|e| format!("connect to Flight at {address}: {e}"))?;
+    let mut client = FlightServiceClient::new(channel);
+    let handshake = HandshakeRequest {
+        protocol_version: 0,
+        payload:          format!("Bearer {bearer}").into_bytes().into(),
+    };
+    let mut answers = client
+        .handshake(futures::stream::iter([handshake]))
+        .await
+        .map_err(|status| format!("Flight handshake: {status}"))?
+        .into_inner();
+    let session = answers
+        .next()
+        .await
+        .ok_or("the Flight handshake answered nothing")?
+        .map_err(|status| format!("Flight handshake: {status}"))?
+        .payload;
+    let session = String::from_utf8(session.to_vec()).map_err(|e| e.to_string())?;
+
+    let mut request = Request::new(Ticket {
+        ticket: ticket.as_bytes().to_vec().into(),
+    });
+    request.metadata_mut().insert(
+        "authorization",
+        format!("Bearer {session}").parse().map_err(|e| format!("session token: {e}"))?,
+    );
+    let data = client
+        .do_get(request)
+        .await
+        .map_err(|status| format!("Flight do_get: {status}"))?
+        .into_inner()
+        .map_err(FlightError::from);
+    let batches: Vec<_> = FlightRecordBatchStream::new_from_flight_data(data)
+        .try_collect()
+        .await
+        .map_err(|e| format!("Flight do_get stream: {e}"))?;
+    Ok(batches.iter().map(|batch| batch.num_rows()).sum())
+}
+
+#[cfg(not(feature = "arrow"))]
+async fn flight_rows(_address: &str, _bearer: &str, _ticket: &str) -> Result<usize, String> {
+    Err("a `flight` effect needs the `arrow` feature".to_owned())
 }
 
 /// Boot the fixture in `dir`, send its stimuli, and wait for its effect.
@@ -791,7 +960,7 @@ async fn run_fixture(admin_url: &str, name: &str, dir: &Path) -> Result<(), Stri
             served
                 .still_running()
                 .map_err(|exited| format!("{exited}:\n{}", served.log_tail()))?;
-            match observe(&served, &database_url, &fixture.effect).await {
+            match observe(&served, &database_url, &fixture.env, &fixture.effect).await {
                 Ok(()) => return Ok(()),
                 Err(seen) if Instant::now() > deadline => {
                     return Err(format!(

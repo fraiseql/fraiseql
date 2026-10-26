@@ -1,0 +1,12 @@
+# A Flight client authenticated by the deployment's OIDC provider reads a declared view:
+# the handshake validates its token against the provider's published key, and `do_get`
+# streams the view's rows over the session the handshake answered.
+capability = "arrow_flight"
+
+[env]
+FLIGHT_SESSION_SECRET = "capability-fixture-flight-session-secret"
+
+[effect.flight]
+ticket = '{"type":"OptimizedView","view":"va_note"}'
+auth = { oidc = { sub = "analyst", aud = "capability-flight" } }
+rows = 2
