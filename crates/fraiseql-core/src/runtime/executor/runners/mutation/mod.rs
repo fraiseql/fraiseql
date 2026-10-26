@@ -1476,8 +1476,17 @@ async fn prepare_write<'a>(
 
     // 1. Locate the mutation definition
     let mutation_def = ctx.schema.find_mutation(mutation_name).ok_or_else(|| {
-        let display_names: Vec<String> =
-            ctx.schema.mutations.iter().map(|m| ctx.schema.display_name(&m.name)).collect();
+        // Only the mutations this caller may run: one refused to it as absent is not
+        // suggested either.
+        let display_names: Vec<String> = ctx
+            .schema
+            .mutations
+            .iter()
+            .filter(|m| {
+                crate::security::role_gate::caller_holds(m.requires_role.as_deref(), security_ctx)
+            })
+            .map(|m| ctx.schema.display_name(&m.name))
+            .collect();
         let candidate_refs: Vec<&str> = display_names.iter().map(String::as_str).collect();
         let suggestion = suggest_similar(mutation_name, &candidate_refs);
         let message = match suggestion.as_slice() {

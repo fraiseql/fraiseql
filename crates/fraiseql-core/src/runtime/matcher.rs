@@ -9,6 +9,7 @@ use crate::{
     graphql::{FieldSelection, ParsedQuery, parse_query_with_operation_name, selection_set},
     runtime::{argument_validation, argument_value_validation},
     schema::{ArgumentDefinition, CompiledSchema, QueryDefinition},
+    security::{SecurityContext, role_gate::caller_holds},
 };
 
 /// A matched query with extracted information.
@@ -354,6 +355,24 @@ impl QueryMatcher {
         variables: Option<&serde_json::Value>,
         operation_name: Option<&str>,
     ) -> Result<QueryMatch> {
+        self.match_query_for(query, variables, operation_name, None)
+    }
+
+    /// [`match_query_with_operation_name`](Self::match_query_with_operation_name) for
+    /// `caller`: an unknown root field is answered with the names of the queries `caller`
+    /// may run, so a `requires_role` query refused to it as absent is not suggested
+    /// either. `None` is an anonymous caller, never "every query".
+    ///
+    /// # Errors
+    ///
+    /// As [`match_query_with_operation_name`](Self::match_query_with_operation_name).
+    pub fn match_query_for(
+        &self,
+        query: &str,
+        variables: Option<&serde_json::Value>,
+        operation_name: Option<&str>,
+        caller: Option<&SecurityContext>,
+    ) -> Result<QueryMatch> {
         // 1. Parse GraphQL query using proper parser
         let parsed = parse_query_with_operation_name(query, operation_name)
             .map_err(|e| crate::graphql::operation_selection_error(&e))?;
@@ -366,7 +385,7 @@ impl QueryMatcher {
         let written_selections =
             selection_set::resolve(&parsed.selections, &parsed.fragments, self.max_depth)?;
         let selections = selection_set::CollectedFields::new(written_selections);
-        self.match_resolved(Arc::new(parsed), &selections, variables)
+        self.match_resolved_for(Arc::new(parsed), &selections, variables, caller)
     }
 
     /// [`match_query_with_operation_name`](Self::match_query_with_operation_name) for an
@@ -389,6 +408,22 @@ impl QueryMatcher {
         selections: &selection_set::CollectedFields,
         variables: Option<&serde_json::Value>,
     ) -> Result<QueryMatch> {
+        self.match_resolved_for(parsed, selections, variables, None)
+    }
+
+    /// [`match_resolved`](Self::match_resolved) for `caller`, which decides the names an
+    /// unknown root field is answered with, as in [`match_query_for`](Self::match_query_for).
+    ///
+    /// # Errors
+    ///
+    /// As [`match_resolved`](Self::match_resolved).
+    pub fn match_resolved_for(
+        &self,
+        parsed: Arc<ParsedQuery>,
+        selections: &selection_set::CollectedFields,
+        variables: Option<&serde_json::Value>,
+        caller: Option<&SecurityContext>,
+    ) -> Result<QueryMatch> {
         // 2. Build the variables map once. The same map is used for `@skip`/`@include` directive
         //    evaluation (by reference) and then moved onto the returned `QueryMatch` as
         //    `arguments`, so we never pay for a second clone of the JSON tree.
@@ -402,8 +437,13 @@ impl QueryMatcher {
 
         // 5. Find matching query definition using root field
         let query_def = self.definition(&parsed.root_field).ok_or_else(|| {
-            let display_names: Vec<String> =
-                self.schema.queries.iter().map(|q| self.schema.display_name(&q.name)).collect();
+            let display_names: Vec<String> = self
+                .schema
+                .queries
+                .iter()
+                .filter(|q| caller_holds(q.requires_role.as_deref(), caller))
+                .map(|q| self.schema.display_name(&q.name))
+                .collect();
             let candidate_refs: Vec<&str> = display_names.iter().map(String::as_str).collect();
             let suggestion = suggest_similar(&parsed.root_field, &candidate_refs);
             let message = match suggestion.as_slice() {

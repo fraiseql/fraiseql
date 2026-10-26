@@ -18,7 +18,7 @@ use crate::{
     cache::ViewName,
     error::Result,
     runtime::{QueryMatcher, QueryPlanner, RuntimeConfig},
-    schema::{CompiledSchema, IntrospectionResponses},
+    schema::{CallerIntrospection, CompiledSchema},
 };
 
 /// All shared state for an executor instance.
@@ -76,8 +76,9 @@ pub(super) struct ExecutorContext {
     /// Runtime configuration (timeouts, complexity limits, etc.).
     pub(super) config: RuntimeConfig,
 
-    /// Pre-built introspection responses cached for `__schema` and `__type` queries.
-    pub(super) introspection: IntrospectionResponses,
+    /// Pre-built introspection responses for `__schema` and `__type`, answered per
+    /// caller: a `requires_role` operation is listed only to a caller who may run it.
+    pub(super) introspection: CallerIntrospection,
 
     /// The output types introspection publishes, which every response is completed
     /// against (§ 6.4.4, #1522).

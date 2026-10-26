@@ -8,14 +8,19 @@ FraiseQL has two layers of operation-level access control:
 | **Dynamic** — `Authorizer` | "May *this* principal run *this* operation, given its input?" | An app-supplied `Authorizer` on `RuntimeConfig` |
 
 The static layer is a compile-time role check that returns *"not found in schema"*
-to a principal without the role. It refuses the call; it does not hide the operation's
-shape. GraphQL introspection (`__schema`, `__type`) and the federation `_service { sdl }`
-list a gated query or mutation, its arguments and its types to every caller who may
-introspect. Only the REST debug route `GET /introspection` drops what the caller's roles
-do not reach. The **dynamic** layer (this guide, issue #422) is a pluggable
-Policy Enforcement Point (PEP): the engine *enforces*, but the *decision* is delegated
-to an app-supplied trait object, so authorization can be backed by in-process rules, a
-DB query, or an external service. It is the operation-level counterpart of the
+to a principal without the role. GraphQL introspection (`__schema`, `__type`) agrees with
+it: a gated query or mutation is listed only to a caller who holds the role, and a type
+that only such operations reach is left out with them, so `__type` answers `null` for it.
+A misspelt operation name is answered with *"Did you mean"* only the operations the caller
+may run.
+The REST debug route `GET /introspection` also leaves out what the caller's roles do not
+reach. The federation `_service { sdl }` is one document for every caller and still lists
+every operation; see [Federation](../architecture/federation.md).
+
+The **dynamic** layer (this guide, issue #422) is a pluggable Policy Enforcement Point
+(PEP): the engine *enforces*, but the *decision* is delegated to an app-supplied trait
+object, so authorization can be backed by in-process rules, a DB query, or an external
+service. It is the operation-level counterpart of the
 field-level [`FieldAuthorizer`](field-authorization.md) and mirrors the `RLSPolicy`
 plugin shape.
 

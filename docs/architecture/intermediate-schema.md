@@ -106,7 +106,7 @@ A GraphQL object type (e.g. `User`, `Post`).
 | `fields` | `IntermediateField[]` | yes | Fields on this type |
 | `description` | `string?` | no | From docstring |
 | `implements` | `string[]` | no | Interface names this type implements |
-| `requires_role` | `string?` | no | Role required to run the operations that return this type; GraphQL introspection still lists the type |
+| `requires_role` | `string?` | no | Role required to run the operations that return this type; GraphQL introspection lists the type only to a caller who reaches it through an operation it may run |
 | `sql_source` | `string?` | no | Backing view; normally bound on the *query*, needed here only for an owner-split federation entity |
 | `inject_params` | `{[col]: source}` | no | Tenant/owner scoping for an entity **no query returns** (#1142). Same value shapes as the operation-level key. Consulted only on the `_entities` path, behind the backing query; see below |
 | `is_error` | `bool` | no | `true` if tagged with `@fraiseql.error` |

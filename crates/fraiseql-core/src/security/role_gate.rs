@@ -22,6 +22,17 @@ use crate::{
     security::SecurityContext,
 };
 
+/// Whether a caller may run an operation gated by `required`: `None` is ungated, and an
+/// anonymous caller holds no role.
+///
+/// [`enforce_requires_role`] refuses on it, and introspection lists an operation on it,
+/// so an operation a caller is told does not exist is also one it is not shown.
+#[must_use]
+pub fn caller_holds(required: Option<&str>, security_context: Option<&SecurityContext>) -> bool {
+    required
+        .is_none_or(|role| security_context.is_some_and(|ctx| ctx.roles.iter().any(|r| r == role)))
+}
+
 /// Refuse the operation unless the caller holds `required`, hiding its existence.
 ///
 /// `operation_kind` is `"Query"` or `"Mutation"`, used verbatim in the message a
@@ -39,11 +50,7 @@ pub fn enforce_requires_role(
     required: Option<&str>,
     security_context: Option<&SecurityContext>,
 ) -> Result<()> {
-    let Some(required_role) = required else {
-        return Ok(());
-    };
-    let holds = security_context.is_some_and(|ctx| ctx.roles.iter().any(|r| r == required_role));
-    if holds {
+    if caller_holds(required, security_context) {
         return Ok(());
     }
     Err(FraiseQLError::Validation {

@@ -23,7 +23,9 @@
 //! | `type_resolver` | Per-type builders (object, enum, input, interface, union, scalars) |
 //! | `directive_builder` | Built-in and custom directive definitions |
 //! | `schema_builder` | Root type builders, `IntrospectionBuilder`, `IntrospectionResponses` |
+//! | `caller_view` | `CallerIntrospection`: the responses one caller may see |
 
+mod caller_view;
 mod directive_builder;
 mod field_resolver;
 mod schema_builder;
@@ -31,6 +33,7 @@ mod type_resolver;
 mod types;
 
 // Re-export the complete public API (unchanged from the old flat module).
+pub use caller_view::CallerIntrospection;
 pub use schema_builder::{IntrospectionBuilder, IntrospectionResponses};
 pub use type_resolver::published_scalar_names;
 pub use types::{

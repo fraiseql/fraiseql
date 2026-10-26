@@ -173,6 +173,15 @@ disagreed, and the promise was the part that was wrong.
   { title }` each read one `posts` with both sub-selections, as § 6.3.2 CollectFields
   requires, at the first occurrence's position and at every depth. Only the same field
   with the same arguments merges; `posts` and `p: posts` stay two fields.
+- **GraphQL introspection lists a `requires_role` operation only to a caller who may run
+  it (#1717).** `__schema` and `__type` were built once per schema, so they named every
+  gated query and mutation, its arguments and its types to every caller, while the call
+  itself was refused as "not found in schema". They now answer per caller: a gated query
+  or mutation is listed only to a caller holding its role, and a type reached only
+  through such operations is left out with them (`__type` answers `null`). A schema
+  with no `requires_role` serves one view as before. A misspelt query or mutation name is
+  no longer answered with "Did you mean" a gated operation the caller may not run. The
+  federation `_service { sdl }` still lists every operation.
 
 ## [2.18.0] - 2026-10-25
 

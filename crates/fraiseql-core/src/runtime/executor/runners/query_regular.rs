@@ -330,7 +330,7 @@ impl QueryRunner {
         let query_match =
             self.ctx
                 .matcher
-                .match_query_with_operation_name(query, variables, operation_name)?;
+                .match_query_for(query, variables, operation_name, security_context)?;
         self.execute_regular_match(query_match, variables, security_context).await
     }
 

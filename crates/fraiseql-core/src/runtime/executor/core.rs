@@ -18,7 +18,7 @@ use crate::{
     cache::ViewName,
     error::Result,
     runtime::{QueryMatcher, QueryPlanner, RuntimeConfig, matcher::QueryMatch},
-    schema::{CompiledSchema, IntrospectionResponses},
+    schema::{CallerIntrospection, CompiledSchema, IntrospectionResponses},
     security::SecurityContext,
 };
 
@@ -363,7 +363,9 @@ impl Executor {
         // Build introspection responses at startup (zero-cost at runtime),
         // with `@inaccessible` fields filtered out. Shared with the relay
         // constructor so both paths apply the identical filtering (L-relay-inaccessible).
-        let introspection = build_introspection(&schema);
+        // A caller's view without the operations it may not run is built from the same
+        // function, on first use.
+        let introspection = CallerIntrospection::new(&schema, build_introspection);
         let output_types = crate::runtime::completion::OutputTypes::from_schema(&schema);
 
         // Build O(1) node-type index: return_type → sql_source.

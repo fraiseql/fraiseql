@@ -170,12 +170,18 @@ impl Executor {
     /// Answer an introspection document: every root, under its response key
     /// (GraphQL § 2.7), with `__type`'s name read from this request (#1445).
     ///
+    /// The answer is the schema as `security_context` may see it: an operation its
+    /// `requires_role` refuses to this caller is not listed.
+    ///
     /// A data root cannot be answered here, and is refused rather than dropped.
     fn execute_introspection(
         &self,
         parsed: &crate::graphql::ParsedQuery,
         variables: Option<&serde_json::Value>,
+        security_context: Option<&SecurityContext>,
     ) -> Result<serde_json::Value> {
+        let (view_key, view) =
+            self.ctx.introspection.for_caller(&self.ctx.schema, security_context);
         let vars: std::collections::HashMap<String, serde_json::Value> = match variables {
             Some(serde_json::Value::Object(map)) => {
                 map.iter().map(|(k, v)| (k.clone(), v.clone())).collect()
@@ -195,19 +201,20 @@ impl Executor {
             }
             let value = match root.name.as_str() {
                 "__schema" => self.project_introspection(
-                    "__schema",
-                    &self.ctx.introspection.schema_response,
+                    &format!("__schema\u{1}{view_key}"),
+                    &view.schema_response,
                     root,
                     parsed,
                 ),
                 "__type" => {
                     let type_name = introspection_type_name(root, &vars)?;
-                    let built = Arc::new(self.ctx.introspection.get_type_response(&type_name));
-                    // The type name is part of the memo key: two `__type` roots
-                    // with the same selection set but different names project
+                    let built = Arc::new(view.get_type_response(&type_name));
+                    // The type name and the caller's view are part of the memo key:
+                    // two `__type` roots with the same selection set but a different
+                    // name, or asked by callers who see different schemas, project
                     // different values.
                     self.project_introspection(
-                        &format!("__type\u{1}{type_name}"),
+                        &format!("__type\u{1}{type_name}\u{1}{view_key}"),
                         &built,
                         root,
                         parsed,
@@ -560,10 +567,11 @@ impl Executor {
                     // The document was parsed and its spreads expanded when it was
                     // classified, with this operation selected and to this executor's
                     // depth: the same two steps the matcher would repeat.
-                    let query_match = self.ctx.matcher.match_resolved(
+                    let query_match = self.ctx.matcher.match_resolved_for(
                         std::sync::Arc::clone(parsed),
                         &completion.selections,
                         variables,
+                        security_context,
                     )?;
                     self.query_runner()
                         .execute_regular_match(query_match, variables, security_context)
@@ -617,7 +625,7 @@ impl Executor {
                         .to_string(),
                     source:  None,
                 })?;
-                self.execute_introspection(parsed, variables)
+                self.execute_introspection(parsed, variables, security_context)
             },
             QueryType::Mutation { roots } => {
                 self.execute_mutation_roots(roots, variables, security_context).await
