@@ -200,6 +200,18 @@ make_fixture "$WORK/skip" "cargo test -p demo --lib -- tests:: --skip nothing::m
 expect "a --skip naming nothing is not reported" 0 "$WORK/skip"
 
 echo
+echo "── --bench selects a benchmark target, not a test binary ──"
+#
+# `cargo test --bench memory_profile` runs the bench target's harness, so its
+# name is not a test filter and neither is the shell redirection after it. The
+# workflow scan already sets such a line aside; a Dagger leg line gets the same
+# treatment, and the output still names it so nobody counts it as coverage.
+
+make_fixture "$WORK/bench" "cargo test -p demo --bench memory_profile -- --test-threads=1 >&2"
+expect "a --bench line is set aside, not read as filters" 0 "$WORK/bench" \
+    "Test: not counted — \`--bench\` selects a benchmark target"
+
+echo
 if [ "$TESTS_FAILED" -gt 0 ]; then
     echo "suite-coverage filter self-test: $TESTS_FAILED of $TESTS_RUN FAILED"
     exit 1

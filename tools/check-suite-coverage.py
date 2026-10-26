@@ -983,7 +983,7 @@ def resolve_go_expr(expr: str, names: dict[str, str], loops: dict[str, list[str]
     return ["".join(v) for v in variants]
 
 
-def extract_invocations(main_go: str) -> list[Invocation]:
+def extract_invocations(main_go: str) -> tuple[list[Invocation], list[str]]:
     consts = dict(GO_CONST.findall(main_go))
     funcs = [(m.start(), m.group(1)) for m in GO_FUNC.finditer(main_go)]
 
@@ -1016,6 +1016,7 @@ def extract_invocations(main_go: str) -> list[Invocation]:
             loops[m.group(1)] = slices[m.group(2)]
 
     invocations = []
+    ledger: list[str] = []
     # A command expression starts at a literal containing `cargo test`/`cargo
     # nextest` and spans the whole Go `+`-concatenation (which may cross lines).
     for m in re.finditer(r'"cargo (?:test|nextest)[^"]*"', main_go):
@@ -1039,8 +1040,17 @@ def extract_invocations(main_go: str) -> list[Invocation]:
             die(f"{e} — teach tools/check-suite-coverage.py about this .dagger/main.go shape")
         for cmd in cmds:
             cmd = cmd.strip()
-            if cmd.startswith("cargo "):
-                invocations.append(Invocation(func_at(start), cmd))
+            if not cmd.startswith("cargo "):
+                continue
+            # As in a workflow: the bench target's name is no test filter, and
+            # the line runs no test binary this gate counts.
+            if re.search(r"(?:^|\s)--bench(?:\s|=|$)", cmd):
+                ledger.append(
+                    f"{func_at(start)}: not counted — `--bench` selects a benchmark "
+                    f"target, not a test binary: {cmd[:70]}"
+                )
+                continue
+            invocations.append(Invocation(func_at(start), cmd))
 
     # Per-function env bindings.
     env_by_func: dict[str, set[str]] = {}
@@ -1051,7 +1061,7 @@ def extract_invocations(main_go: str) -> list[Invocation]:
 
     for inv in invocations:
         parse_cmd(inv)
-    return invocations
+    return invocations, ledger
 
 
 def parse_cmd(inv: Invocation) -> None:
@@ -2309,8 +2319,9 @@ def _load_exemption_table(table: str) -> dict[str, str]:
 
 def main() -> int:
     main_go = DAGGER_MAIN.read_text(encoding="utf-8")
-    dagger_invocations = extract_invocations(main_go)
-    workflow_invocations, workflow_ledger = extract_workflow_invocations()
+    dagger_invocations, dagger_ledger = extract_invocations(main_go)
+    workflow_invocations, uncounted = extract_workflow_invocations()
+    uncounted += dagger_ledger
     invocations = dagger_invocations + workflow_invocations
     exemptions = load_exemptions()
     ungated_exemptions = load_ungated_exemptions()
@@ -2537,9 +2548,9 @@ def main() -> int:
             f"checked against {len(invocations)} invocations "
             f"({len(dagger_invocations)} Dagger, {len(workflow_invocations)} workflow)."
         )
-        if workflow_ledger:
-            print("\n  Workflow invocations resolved but NOT counted as coverage:")
-            for line in sorted(set(workflow_ledger)):
+        if uncounted:
+            print("\n  Invocations resolved but NOT counted as coverage:")
+            for line in sorted(set(uncounted)):
                 print(f"    · {line}")
         print("  Wire the suite into a leg in .dagger/main.go, or add an exemption with a")
         print("  reason to tools/suite-coverage-exemptions.toml.")
@@ -2559,10 +2570,10 @@ def main() -> int:
         f"{filters_checked} positional filters still match a live test."
     )
     _print_gating_map(leg_gating, gating_legs)
-    # The discounted workflow invocations are printed on success too: they are the
+    # The discounted invocations are printed on success too: they are the
     # cases where a `cargo test` line exists and provides no coverage, which is
     # exactly what a reader skimming the workflows would otherwise miscount.
-    for line in sorted(set(workflow_ledger)):
+    for line in sorted(set(uncounted)):
         print(f"  · {line}")
     return 0
 
