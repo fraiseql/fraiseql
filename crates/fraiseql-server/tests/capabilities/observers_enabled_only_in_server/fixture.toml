@@ -1,0 +1,10 @@
+# `enabled` is the compiler's key. A server config that enables observers the compiled
+# schema does not is refused, pointing at the compiler's table, instead of starting a
+# runtime the schema never declared.
+capability = "observers"
+
+[[stimulus]]
+wait = { secs = 0 }
+
+[effect]
+refused = { message = "fraiseql.toml [observers]" }

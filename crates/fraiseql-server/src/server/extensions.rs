@@ -175,17 +175,21 @@ impl Server {
     #[allow(unknown_lints, clippy::unused_async_trait_impl)]
     pub(super) async fn init_observer_runtime(
         config: &ServerConfig,
+        compiled: Option<&fraiseql_core::schema::ObserversConfig>,
         pool: Option<&sqlx::PgPool>,
         deployment: Deployment,
     ) -> crate::Result<Option<Arc<RwLock<ObserverRuntime>>>> {
-        // Check if enabled
-        let observer_config = match &config.observers {
-            Some(cfg) if cfg.enabled => cfg,
-            _ => {
-                info!("Observer runtime disabled");
-                return Ok(None);
-            },
-        };
+        let enabled = crate::server_config::ObserverConfig::runtime_enabled(
+            config.observers.as_ref(),
+            compiled,
+        )
+        .map_err(crate::ServerError::ConfigError)?;
+        if !enabled {
+            info!("Observer runtime disabled");
+            return Ok(None);
+        }
+        let default_tuning = crate::server_config::ObserverConfig::default();
+        let observer_config = config.observers.as_ref().unwrap_or(&default_tuning);
 
         let Some(pool) = pool else {
             warn!("No database pool provided for observers");

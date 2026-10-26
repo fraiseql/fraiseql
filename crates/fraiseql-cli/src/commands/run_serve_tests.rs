@@ -41,13 +41,19 @@ async fn run_starts_a_compiled_in_observer_runtime() {
     .await
     .unwrap();
     pool.close().await;
+    // `fraiseql run` writes no `[observers]` into the server config: the compiled
+    // `observers_config` is all it has, as `fraiseql.toml [observers]` compiles it.
     let config: ServerConfig = serde_json::from_value(serde_json::json!({
         "database_url": url,
         "cors_enabled": false,
-        "observers": { "enabled": true },
     }))
     .unwrap();
-    let server = build_server(config, CompiledSchema::new(), None).await.unwrap();
+    let mut schema = CompiledSchema::new();
+    schema.observers_config = Some(fraiseql_core::schema::ObserversConfig {
+        enabled: true,
+        ..Default::default()
+    });
+    let server = build_server(config, schema, None).await.unwrap();
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
@@ -76,9 +82,36 @@ async fn run_starts_a_compiled_in_observer_runtime() {
     serving.await.unwrap().unwrap();
     assert!(
         observers.is_ok(),
-        "the server `fraiseql run` builds holds no database pool: a compiled-in observer \
-         runtime never started"
+        "a compiled `observers_config` with `enabled = true` and a compiled-in runtime: \
+         the server `fraiseql run` builds never started it (no database pool, or the \
+         compiled section was not honoured)"
     );
+}
+
+/// `enabled` is the compiler's key: a server config that enables observers the compiled
+/// schema does not is refused, not started.
+#[tokio::test]
+async fn run_refuses_observers_enabled_only_in_the_server_config() {
+    if !compiled_in("observers") {
+        eprintln!("SKIP run_refuses_observers_enabled_only_in_the_server_config: not compiled in");
+        return;
+    }
+    // The assembly connects before it builds the runtime, so the refusal needs a database.
+    let Some(url) = fraiseql_test_support::try_database_url() else {
+        eprintln!("SKIP run_refuses_observers_enabled_only_in_the_server_config: no DATABASE_URL");
+        return;
+    };
+    let config: ServerConfig = serde_json::from_value(serde_json::json!({
+        "database_url": url,
+        "cors_enabled": false,
+        "observers": { "enabled": true },
+    }))
+    .unwrap();
+    let Err(err) = build_server(config, CompiledSchema::new(), None).await else {
+        panic!("a server-only `[observers] enabled = true` built a server");
+    };
+    let err = format!("{err:#}");
+    assert!(err.contains("fraiseql.toml [observers]"), "{err}");
 }
 
 /// `fraiseql run` builds through the binary's assembly ([`build_server`] above) and serves

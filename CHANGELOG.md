@@ -27,6 +27,16 @@ disagreed, and the promise was the part that was wrong.
   could be passed in another flag's place without a word from the compiler: one guard
   took four arguments, three of them `bool`. The server reads its deployment once, at
   construction, and every boot guard judges that one answer.
+- **The compiled schema decides whether the observer runtime runs (#1733).** The
+  runtime started when the server config had an `[observers]` table, `enabled` defaulting
+  to `true`, and the compiled `observers_config` that `fraiseql.toml [observers]` compiles
+  into was never read for it. `fraiseql run`, which writes no `[observers]` into its server
+  config, started no runtime for a project that enabled observers. Now the compiled
+  `enabled` decides, and the server's `[observers.runtime]` only tunes. A server config
+  `enabled` that disagrees with the compiled one refuses the boot, pointing at
+  `fraiseql.toml [observers]`; one that agrees is accepted, so one `fraiseql.toml` still
+  serves both. In Rust, `ObserverConfig::enabled` is an `Option<bool>`, and
+  `ObserverConfig::runtime_enabled` gives the answer.
 - **An enabled observer runtime with no change log refuses the boot (#1710).** The
   runtime reads `core.tb_entity_change_log`, which belongs to the application and which
   `fraiseql setup` installs. A server started with `[observers]` enabled and no such

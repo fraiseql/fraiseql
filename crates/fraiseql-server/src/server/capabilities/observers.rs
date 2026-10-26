@@ -32,9 +32,8 @@ impl Capability for Observers {
     #[cfg(feature = "observers")]
     fn provision(&self, cx: &BootCx<'_>) -> Vec<ProvisionStep> {
         let server = cx.server;
-        let enabled = server.config.observers.as_ref().is_some_and(|o| o.enabled);
         match server.db_pool.as_ref() {
-            Some(pool) if enabled => vec![ProvisionStep::new(
+            Some(pool) if server.observer_runtime.is_some() => vec![ProvisionStep::new(
                 "observers",
                 pool,
                 &[

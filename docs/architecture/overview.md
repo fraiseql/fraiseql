@@ -281,12 +281,10 @@ pool_max_size = 20
 issuer = "https://accounts.google.com"
 audience = "your-api-audience"   # REQUIRED for security when auth is enabled
 
-# Optional: Observers
-[observers]
-enabled = true
-
-# Server runtime tuning lives under [observers.runtime] (see #342) so the
-# [observers] table keeps the same shape the compiler schema uses.
+# Optional: Observers. `fraiseql.toml [observers] enabled = true` switches the runtime on
+# (it is compiled into the schema, #1733); the server config only tunes it. Tuning lives
+# under [observers.runtime] (see #342) so the [observers] table keeps the same shape the
+# compiler schema uses.
 [observers.runtime]
 channel_capacity = 1000
 max_dlq_size = 10000   # prevent unbounded memory growth on persistent failures

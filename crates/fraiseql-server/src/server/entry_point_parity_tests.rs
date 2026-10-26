@@ -25,18 +25,18 @@ async fn serve_on_listener_starts_the_observer_runtime() {
     let pool = sqlx::PgPool::connect(svc.url()).await.unwrap();
     crate::observers::install_runtime_schema_for_tests(&pool).await;
     let config = ServerConfig {
-        observers: Some(serde_json::from_value(serde_json::json!({ "enabled": true })).unwrap()),
         cors_enabled: false,
         ..ServerConfig::default()
     };
-    let server = Box::pin(Server::new(
-        config,
-        CompiledSchema::new(),
-        Arc::new(FailingAdapter::new()),
-        Some(pool),
-    ))
-    .await
-    .unwrap();
+    // `enabled` is the compiled schema's (`fraiseql.toml [observers]`), not the server's.
+    let mut schema = CompiledSchema::new();
+    schema.observers_config = Some(fraiseql_core::schema::ObserversConfig {
+        enabled: true,
+        ..Default::default()
+    });
+    let server = Box::pin(Server::new(config, schema, Arc::new(FailingAdapter::new()), Some(pool)))
+        .await
+        .unwrap();
     let runtime = server.observer_runtime.clone().expect("observers are configured");
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -83,18 +83,18 @@ async fn server_configuring_every_in_process_capability(
     let config: ServerConfig = serde_json::from_value(serde_json::json!({
         "bind_addr": "127.0.0.1:0",
         "flight_bind_addr": flight_addr,
-        "observers": { "enabled": true },
         "cors_enabled": false,
     }))
     .unwrap();
-    let server = Box::pin(Server::new(
-        config,
-        CompiledSchema::new(),
-        Arc::new(FailingAdapter::new()),
-        Some(pool),
-    ))
-    .await
-    .unwrap();
+    // `enabled` is the compiled schema's (`fraiseql.toml [observers]`), not the server's.
+    let mut schema = CompiledSchema::new();
+    schema.observers_config = Some(fraiseql_core::schema::ObserversConfig {
+        enabled: true,
+        ..Default::default()
+    });
+    let server = Box::pin(Server::new(config, schema, Arc::new(FailingAdapter::new()), Some(pool)))
+        .await
+        .unwrap();
     #[cfg(feature = "functions-runtime")]
     let server = {
         // The loader reads module bytes without validating them; the runtime would, lazily.

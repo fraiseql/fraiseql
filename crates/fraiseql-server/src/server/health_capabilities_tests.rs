@@ -118,18 +118,18 @@ async fn health_reports_a_started_observer_runtime() {
     let pool = sqlx::PgPool::connect(svc.url()).await.unwrap();
     crate::observers::install_runtime_schema_for_tests(&pool).await;
     let config = ServerConfig {
-        observers: Some(serde_json::from_value(serde_json::json!({ "enabled": true })).unwrap()),
         cors_enabled: false,
         ..ServerConfig::default()
     };
-    let server = Box::pin(Server::new(
-        config,
-        CompiledSchema::new(),
-        Arc::new(FailingAdapter::new()),
-        Some(pool),
-    ))
-    .await
-    .unwrap();
+    // `enabled` is the compiled schema's (`fraiseql.toml [observers]`), not the server's.
+    let mut schema = CompiledSchema::new();
+    schema.observers_config = Some(fraiseql_core::schema::ObserversConfig {
+        enabled: true,
+        ..Default::default()
+    });
+    let server = Box::pin(Server::new(config, schema, Arc::new(FailingAdapter::new()), Some(pool)))
+        .await
+        .unwrap();
 
     let health = health_of(server, |h| h["capabilities"]["observers"]["started"] == true).await;
 

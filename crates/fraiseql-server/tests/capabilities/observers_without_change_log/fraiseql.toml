@@ -9,3 +9,6 @@ fields.id = { type = "ID" }
 return_type = "Order"
 return_array = true
 sql_source = "app.v_order"
+
+[observers]
+enabled = true

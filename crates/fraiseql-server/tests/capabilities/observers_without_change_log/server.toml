@@ -1,4 +1,1 @@
 cors_enabled = false
-
-[observers]
-enabled = true

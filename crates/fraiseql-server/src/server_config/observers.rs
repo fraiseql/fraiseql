@@ -10,11 +10,6 @@ use fraiseql_observers::config::{
 use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "observers")]
-const fn default_observers_enabled() -> bool {
-    true
-}
-
-#[cfg(feature = "observers")]
 const fn default_poll_interval_ms() -> u64 {
     100
 }
@@ -330,13 +325,16 @@ impl Default for ObserverRuntimeSettings {
 // a config file the compiler wrote. `compiler_schema_keys_are_tolerated` in this
 // module's tests is that contract, and it fails the moment this attribute is added.
 #[cfg(feature = "observers")]
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct ObserverConfig {
-    /// Enable observer runtime (default: true).
+    /// `enabled` as this file writes it: `None` when the key is absent.
     ///
-    /// Shared top-level key — also read by `fraiseql compile`.
-    #[serde(default = "default_observers_enabled")]
-    pub enabled: bool,
+    /// The compiled schema's `observers_config.enabled` decides whether the runtime runs
+    /// (see [`runtime_enabled`](Self::runtime_enabled)). The key is read here only so a
+    /// `fraiseql.toml` shared with the compiler still boots, and so a value that disagrees
+    /// with the compiled one is refused rather than ignored.
+    #[serde(default)]
+    pub enabled: Option<bool>,
 
     /// Server-side runtime tuning (`[observers.runtime]`).
     ///
@@ -375,6 +373,37 @@ pub struct ObserverConfig {
 
 #[cfg(feature = "observers")]
 impl ObserverConfig {
+    /// Whether the observer runtime runs: the compiled schema's `observers_config.enabled`,
+    /// as `fraiseql.toml [observers]` compiles it.
+    ///
+    /// The server's `[observers]` table tunes the runtime (`[observers.runtime]`); it does
+    /// not switch it on. An `enabled` it writes is accepted only when it agrees with the
+    /// compiled one, so one `fraiseql.toml` can serve both the compiler and the server.
+    ///
+    /// # Errors
+    ///
+    /// Returns a message naming both sources when the server's `enabled` disagrees with
+    /// the compiled schema's.
+    pub fn runtime_enabled(
+        server: Option<&Self>,
+        compiled: Option<&fraiseql_core::schema::ObserversConfig>,
+    ) -> Result<bool, String> {
+        let compiled_enabled = compiled.is_some_and(|c| c.enabled);
+        match server.and_then(|s| s.enabled) {
+            Some(true) if !compiled_enabled => Err("the server config sets [observers] \
+                 enabled = true, but the compiled schema does not enable observers. `enabled` \
+                 is the compiler's key: set it in fraiseql.toml [observers] and recompile. \
+                 The server's [observers.runtime] only tunes the runtime"
+                .to_string()),
+            Some(false) if compiled_enabled => Err("the server config sets [observers] \
+                 enabled = false, but the compiled schema's observers_config enables them. \
+                 `enabled` is the compiler's key: set enabled = false in fraiseql.toml \
+                 [observers] and recompile, or remove it from the server config"
+                .to_string()),
+            _ => Ok(compiled_enabled),
+        }
+    }
+
     /// Pre-#342 flat server-tuning keys still present directly under
     /// `[observers]` (they moved to `[observers.runtime]` in v2.5.0).
     ///

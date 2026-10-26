@@ -656,8 +656,13 @@ impl Server {
 
         // Initialize observer runtime
         #[cfg(feature = "observers")]
-        let observer_runtime =
-            Self::init_observer_runtime(&config, db_pool.as_ref(), deployment).await?;
+        let observer_runtime = Self::init_observer_runtime(
+            &config,
+            executor.schema().observers_config.as_ref(),
+            db_pool.as_ref(),
+            deployment,
+        )
+        .await?;
 
         // The REST stream's fan-out (#1309), created iff there will be a producer for
         // it. `serve` hands this exact handle to the `EventBridge`; `build_router` hands

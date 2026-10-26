@@ -18,7 +18,7 @@ fn runtime_subtable_parses_all_known_keys() {
     )
     .unwrap();
 
-    assert!(cfg.enabled);
+    assert_eq!(cfg.enabled, Some(true));
     assert_eq!(cfg.runtime.poll_interval_ms, 500);
     assert_eq!(cfg.runtime.batch_size, 250);
     assert_eq!(cfg.runtime.channel_capacity, 2000);
@@ -76,7 +76,7 @@ fn compiler_schema_keys_are_tolerated() {
     )
     .unwrap();
 
-    assert!(cfg.enabled);
+    assert_eq!(cfg.enabled, Some(true));
     assert!(cfg.misplaced_runtime_keys().is_empty());
 }
 
@@ -230,4 +230,63 @@ fn new_layout_has_no_misplaced_keys() {
     assert!(cfg.misplaced_runtime_keys().is_empty());
     assert_eq!(cfg.runtime.poll_interval_ms, 500);
     assert_eq!(cfg.runtime.pool.max_connections, 7);
+}
+
+// ── `enabled` is the compiled schema's ──────────────────────────────────────
+
+fn compiled(enabled: bool) -> fraiseql_core::schema::ObserversConfig {
+    fraiseql_core::schema::ObserversConfig {
+        enabled,
+        ..Default::default()
+    }
+}
+
+fn server(toml_src: &str) -> ObserverConfig {
+    toml::from_str(toml_src).unwrap()
+}
+
+#[test]
+fn a_compiled_enabled_section_runs_the_runtime_with_no_server_section() {
+    assert_eq!(ObserverConfig::runtime_enabled(None, Some(&compiled(true))), Ok(true));
+}
+
+#[test]
+fn server_tuning_alone_does_not_run_the_runtime() {
+    let tuning = server("[runtime]\npoll_interval_ms = 500\n");
+    assert_eq!(ObserverConfig::runtime_enabled(Some(&tuning), None), Ok(false));
+    assert_eq!(
+        ObserverConfig::runtime_enabled(Some(&tuning), Some(&compiled(false))),
+        Ok(false)
+    );
+    assert_eq!(ObserverConfig::runtime_enabled(Some(&tuning), Some(&compiled(true))), Ok(true));
+}
+
+#[test]
+fn a_server_only_enabled_is_refused_with_a_pointer_to_the_compiler() {
+    let only_here = server("enabled = true\n");
+    for compiled_section in [None, Some(compiled(false))] {
+        let err = ObserverConfig::runtime_enabled(Some(&only_here), compiled_section.as_ref())
+            .unwrap_err();
+        assert!(err.contains("fraiseql.toml [observers]"), "{err}");
+    }
+}
+
+#[test]
+fn a_server_enabled_false_under_a_compiled_enabled_section_is_refused() {
+    let err =
+        ObserverConfig::runtime_enabled(Some(&server("enabled = false\n")), Some(&compiled(true)))
+            .unwrap_err();
+    assert!(err.contains("enabled = false") && err.contains("observers_config"), "{err}");
+}
+
+#[test]
+fn a_server_enabled_that_agrees_with_the_compiled_one_is_accepted() {
+    // One `fraiseql.toml` read by both the compiler and the server.
+    for enabled in [true, false] {
+        let shared = server(&format!("enabled = {enabled}\n"));
+        assert_eq!(
+            ObserverConfig::runtime_enabled(Some(&shared), Some(&compiled(enabled))),
+            Ok(enabled)
+        );
+    }
 }

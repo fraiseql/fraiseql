@@ -37,7 +37,11 @@ interval. `POST /api/observers/runtime/reload` applies it at once, but only on t
 replica that serves the request. With `auto_reload = false`, that endpoint is the only
 way to reload. `reload_interval_secs = 0` with `auto_reload = true` is refused at boot.
 
-`[observers] enabled = false` starts no runtime. Diagnose a running runtime with the
+The compiled schema decides whether the runtime runs: `fraiseql.toml [observers] enabled`
+compiles into its `observers_config`, and `fraiseql run` and `fraiseql-server` both read it
+there. A server config's `[observers]` table tunes the runtime and does not start it. An
+`enabled` written in the server config must agree with the compiled one, or the boot is
+refused, naming `fraiseql.toml [observers]`. Diagnose a running runtime with the
 server's own logs (`RUST_LOG=fraiseql_server=debug,fraiseql_observers=debug`).
 
 ---
