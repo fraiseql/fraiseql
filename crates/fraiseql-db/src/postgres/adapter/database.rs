@@ -19,10 +19,11 @@ use crate::{
     identifier::quote_postgres_identifier,
     postgres::pg_detail,
     traits::{
-        ColumnRowStream, ComposedLevel, DatabaseAdapter, JsonbRowStream, ProjectionRequest, Writer,
+        ColumnRowStream, ComposedLevel, DatabaseAdapter, JsonbRowStream, ProjectionRequest,
+        RawRows, Writer,
     },
     types::{
-        DatabaseType, JsonbValue, PoolMetrics, ReadRouting,
+        DatabaseType, JsonbValue, PoolMetrics, QueryParam, ReadRouting,
         sql_hints::{OrderByClause, SqlProjectionHint},
     },
     where_clause::WhereClause,
@@ -590,6 +591,65 @@ fn aggregate_params(params: &[serde_json::Value]) -> Vec<FlexParam> {
 
 /// `values`, each written for the type the server resolves its parameter to: a function
 /// source's arguments and an aggregate's parameters.
+/// A projection read's statement and its parameters, built once for every way the read
+/// is delivered.
+struct ProjectionStatement {
+    sql:           String,
+    // A function source's arguments are `$1 … $n`, each written for the type of the
+    // parameter it binds, as a write function's are.
+    source_params: Vec<FlexParam>,
+    typed_params:  Vec<QueryParam>,
+}
+
+impl ProjectionStatement {
+    fn of(request: &ProjectionRequest<'_>) -> Result<Self> {
+        let from = super::ReadFrom::of(request);
+        let (page, params) = match request.projection {
+            Some(projection) => build_projection_select_sql(
+                projection,
+                from,
+                request.where_clause,
+                request.limit,
+                request.offset,
+                request.order_by,
+            )?,
+            None => super::build_where_select_sql_ordered(
+                from,
+                request.where_clause,
+                request.limit,
+                request.offset,
+                request.order_by,
+            )?,
+        };
+        // #1314: a page that also counts what its filter matches, in one statement so the
+        // count and the page see the same snapshot.
+        let (sql, typed_params) = match request.matched_up_to {
+            Some(bound) => {
+                super::with_matched_count(&page, params, from, request.where_clause, bound)?
+            },
+            None => (page, params),
+        };
+        tracing::debug!("SQL with projection = {}", sql);
+        Ok(Self {
+            sql,
+            source_params: request.source_args.map_or_else(Vec::new, bound_values),
+            typed_params,
+        })
+    }
+
+    fn params(&self) -> Vec<&(dyn tokio_postgres::types::ToSql + Sync)> {
+        self.source_params
+            .iter()
+            .map(|p| p as &(dyn tokio_postgres::types::ToSql + Sync))
+            .chain(
+                self.typed_params
+                    .iter()
+                    .map(|p| p as &(dyn tokio_postgres::types::ToSql + Sync)),
+            )
+            .collect()
+    }
+}
+
 fn bound_values(values: &[serde_json::Value]) -> Vec<FlexParam> {
     values
         .iter()
@@ -1573,51 +1633,32 @@ impl DatabaseAdapter for PostgresAdapter {
                 .await;
         }
 
-        let from = super::ReadFrom::of(request);
-        let (page, params) = match request.projection {
-            Some(projection) => build_projection_select_sql(
-                projection,
-                from,
-                request.where_clause,
-                request.limit,
-                request.offset,
-                request.order_by,
-            )?,
-            None => super::build_where_select_sql_ordered(
-                from,
-                request.where_clause,
-                request.limit,
-                request.offset,
-                request.order_by,
-            )?,
-        };
-        // #1314: a page that also counts what its filter matches, in one statement so the
-        // count and the page see the same snapshot.
-        let (sql, typed_params) = match request.matched_up_to {
-            Some(bound) => {
-                super::with_matched_count(&page, params, from, request.where_clause, bound)?
-            },
-            None => (page, params),
-        };
-        tracing::debug!("SQL with projection = {}", sql);
-        // A function source's arguments are `$1 … $n`, each written for the type of
-        // the parameter it binds, as a write function's are.
-        let source_params = request.source_args.map_or_else(Vec::new, bound_values);
-        let param_refs: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> = source_params
-            .iter()
-            .map(|p| p as &(dyn tokio_postgres::types::ToSql + Sync))
-            .chain(typed_params.iter().map(|p| p as &(dyn tokio_postgres::types::ToSql + Sync)))
-            .collect();
-
-        // See `execute_where_query_arc_with_session`: the session-free path has to
-        // carry the routing too.
-        if session_vars.is_empty() {
-            return self.execute_raw(&sql, &param_refs, routing).await.map(Arc::new);
-        }
-
-        self.execute_raw_with_session(&sql, &param_refs, session_vars, routing)
+        let statement = ProjectionStatement::of(request)?;
+        self.execute_raw_with_session(&statement.sql, &statement.params(), session_vars, routing)
             .await
             .map(Arc::new)
+    }
+
+    async fn execute_with_projection_raw_with_session(
+        &self,
+        request: &ProjectionRequest<'_>,
+        session_vars: &[(&str, &str)],
+        routing: ReadRouting,
+    ) -> Result<Option<RawRows>> {
+        // A projected page only: a whole stored document is no response, and a counted
+        // page carries its count in a second column.
+        if request.projection.is_none() || request.matched_up_to.is_some() {
+            return Ok(None);
+        }
+        let statement = ProjectionStatement::of(request)?;
+        self.execute_raw_text_with_session(
+            &statement.sql,
+            &statement.params(),
+            session_vars,
+            routing,
+        )
+        .await
+        .map(Some)
     }
 
     /// One statement, one snapshot, one connection held for the delivery (#958).

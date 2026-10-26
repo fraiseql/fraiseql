@@ -347,6 +347,27 @@ impl QueryRunner {
         variables: Option<&serde_json::Value>,
         security_context: Option<&SecurityContext>,
     ) -> Result<serde_json::Value> {
+        self.execute_regular_match_body(query_match, variables, security_context, false)
+            .await
+            .and_then(crate::runtime::ResponseBody::into_value)
+    }
+
+    /// [`execute_regular_match`](Self::execute_regular_match), answered as the body a
+    /// transport sends. With `raw`, a read whose rows need no shaping in Rust is answered
+    /// as the bytes the database serialized; completion leaves such a body unchanged.
+    ///
+    /// # Errors
+    ///
+    /// As [`execute_regular_match`](Self::execute_regular_match).
+    pub(in super::super) async fn execute_regular_match_body(
+        &self,
+        query_match: crate::runtime::QueryMatch,
+        variables: Option<&serde_json::Value>,
+        security_context: Option<&SecurityContext>,
+        raw: bool,
+    ) -> Result<crate::runtime::ResponseBody> {
+        use crate::runtime::ResponseBody;
+
         let mut read = match self.resolve_root_read(
             &query_match,
             variables,
@@ -356,7 +377,8 @@ impl QueryRunner {
             RootRoute::Function => {
                 return self
                     .execute_function_backed_query(&query_match, variables, security_context)
-                    .await;
+                    .await
+                    .map(ResponseBody::Value);
             },
             RootRoute::Relay => {
                 let session_vars = self.resolve_session_vars(security_context)?;
@@ -364,11 +386,15 @@ impl QueryRunner {
                     session_vars.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
                 return self
                     .execute_relay_query(&query_match, variables, security_context, &session_pairs)
-                    .await;
+                    .await
+                    .map(ResponseBody::Value);
             },
             // A count sibling returns a scalar: no projection, cache or field RBAC applies.
             RootRoute::Count => {
-                return self.execute_count_query(&query_match, variables, security_context).await;
+                return self
+                    .execute_count_query(&query_match, variables, security_context)
+                    .await
+                    .map(ResponseBody::Value);
             },
             RootRoute::Rows(read) => *read,
         };
@@ -382,7 +408,17 @@ impl QueryRunner {
         let session_pairs: Vec<(&str, &str)> =
             session_vars.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
         let composed = !read.nested.is_empty();
-        let results = if composed {
+        let raw_read = if raw {
+            self.read_raw(&read, &query_match, &session_pairs).await?
+        } else {
+            None
+        };
+        let results = if let Some(raw_read) = raw_read {
+            match raw_read {
+                super::query_raw::RawRead::Body(body) => return Ok(ResponseBody::Raw(body)),
+                super::query_raw::RawRead::Rows(rows) => rows,
+            }
+        } else if composed {
             self.execute_composed_document_read(
                 read.composed_level(),
                 &session_pairs,
@@ -494,7 +530,10 @@ impl QueryRunner {
             )?;
         }
 
-        Ok(ResultProjector::wrap_in_data_envelope(projected, query_match.response_key()))
+        Ok(ResponseBody::Value(ResultProjector::wrap_in_data_envelope(
+            projected,
+            query_match.response_key(),
+        )))
     }
 
     /// Apply the dynamic field authorizer (#423) to a projected result.

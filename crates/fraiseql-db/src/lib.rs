@@ -88,11 +88,12 @@ pub use tokio_postgres;
 pub use traits::{
     AdminSqlOutcome, AdminSqlRequest, ArcDatabaseAdapter, BatchRowGate, BoxDatabaseAdapter,
     CHANGED_ROWS_KEY, COMPOSED_DOCUMENT_KEY, COMPOSED_EMBEDS_KEY, ChangeLogWrite,
-    ChangedCollections, ChangedRows, ColumnRowStream, ComposedEmbed, ComposedKeyset, ComposedLevel,
-    ConstraintDescription, CursorValue, DERIVED_CASCADE_KEY, DatabaseAdapter, DerivedCascade,
-    EmbedShape, EmbedSource, JsonbRowStream, LevelKeys, MutationRowGate, NativeCorrelation,
-    ProjectionRequest, RelayCursor, RelayDatabaseAdapter, RelayPageResult, ResultCacheStats,
-    TviewProfile, WriteMode, WriteRequest, Writer, composed_read_unsupported,
+    ChangedCollections, ChangedRows, ColumnRowStream, Compacted, ComposedEmbed, ComposedKeyset,
+    ComposedLevel, ConstraintDescription, CursorValue, DERIVED_CASCADE_KEY, DatabaseAdapter,
+    DerivedCascade, EmbedShape, EmbedSource, JsonTally, JsonbRowStream, LevelKeys, MutationRowGate,
+    NativeCorrelation, ProjectionRequest, RawRow, RawRows, RelayCursor, RelayDatabaseAdapter,
+    RelayPageResult, ResultCacheStats, TviewProfile, WriteMode, WriteRequest, Writer, compact_json,
+    composed_read_unsupported,
 };
 pub use types::{
     DatabaseType, JsonbValue, PoolMetrics, QueryStatEntry,

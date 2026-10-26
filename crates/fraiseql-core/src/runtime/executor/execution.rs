@@ -62,6 +62,29 @@ impl Executor {
             .await
     }
 
+    /// [`execute_operation`](Self::execute_operation), answered as the body a transport sends.
+    ///
+    /// The same response, byte for byte, as serializing `execute_operation`'s `Value`.
+    ///
+    /// # Errors
+    ///
+    /// Any error returned by [`execute_operation`](Self::execute_operation).
+    pub async fn execute_operation_body(
+        &self,
+        query: &str,
+        variables: Option<&serde_json::Value>,
+        operation_name: Option<&str>,
+    ) -> Result<super::ResponseBody> {
+        self.execute_with_timeout_body(
+            query,
+            variables,
+            None,
+            normalize_operation_name(operation_name),
+            true,
+        )
+        .await
+    }
+
     /// Apply the configured query timeout (if any) around `execute_dispatch`.
     ///
     /// Shared by the anonymous [`execute`](Self::execute) and the authenticated
@@ -79,6 +102,26 @@ impl Executor {
         security_context: Option<&SecurityContext>,
         operation_name: Option<&str>,
     ) -> Result<serde_json::Value> {
+        self.execute_with_timeout_body(query, variables, security_context, operation_name, false)
+            .await
+            .and_then(super::ResponseBody::into_value)
+    }
+
+    /// [`execute_with_timeout`](Self::execute_with_timeout), answered as the body a
+    /// transport sends: with `raw`, a read whose rows need no shaping in Rust is answered
+    /// as the bytes the database serialized.
+    ///
+    /// # Errors
+    ///
+    /// As [`execute_with_timeout`](Self::execute_with_timeout).
+    pub(super) async fn execute_with_timeout_body(
+        &self,
+        query: &str,
+        variables: Option<&serde_json::Value>,
+        security_context: Option<&SecurityContext>,
+        operation_name: Option<&str>,
+        raw: bool,
+    ) -> Result<super::ResponseBody> {
         // #1336 backstop: a principal that never passed a transport's enrichment seam
         // does not execute. Placed here rather than at the four public entry points
         // above it, because every GraphQL-document path funnels through this one.
@@ -101,7 +144,13 @@ impl Executor {
                     let timeout_duration = Duration::from_millis(self.ctx.config.query_timeout_ms);
                     tokio::time::timeout(
                         timeout_duration,
-                        self.execute_dispatch(query, variables, security_context, operation_name),
+                        self.execute_dispatch_body(
+                            query,
+                            variables,
+                            security_context,
+                            operation_name,
+                            raw,
+                        ),
                     )
                     .await
                     .map_err(|_| {
@@ -113,11 +162,26 @@ impl Executor {
                         }
                     })?
                 } else {
-                    self.execute_dispatch(query, variables, security_context, operation_name).await
+                    self.execute_dispatch_body(
+                        query,
+                        variables,
+                        security_context,
+                        operation_name,
+                        raw,
+                    )
+                    .await
                 }
             })))
             .await;
-        Ok(crate::runtime::notices::with_notices(response?, &notices))
+        // Notices ride in the body, so a response that carries any is built as a tree.
+        let response = response?;
+        if notices.is_empty() {
+            return Ok(response);
+        }
+        Ok(super::ResponseBody::Value(crate::runtime::notices::with_notices(
+            response.into_value()?,
+            &notices,
+        )))
     }
 
     /// GATE 1: query-structure validation (depth/complexity/size `DoS` limits).
@@ -462,6 +526,26 @@ impl Executor {
         security_context: Option<&SecurityContext>,
         operation_name: Option<&str>,
     ) -> Result<serde_json::Value> {
+        self.execute_dispatch_body(query, variables, security_context, operation_name, false)
+            .await
+            .and_then(super::ResponseBody::into_value)
+    }
+
+    /// [`execute_dispatch`](Self::execute_dispatch), answered as the body a transport
+    /// sends: with `raw`, a single-root read whose rows need no shaping in Rust is
+    /// answered as the bytes the database serialized.
+    ///
+    /// # Errors
+    ///
+    /// As [`execute_dispatch`](Self::execute_dispatch).
+    pub(super) async fn execute_dispatch_body(
+        &self,
+        query: &str,
+        variables: Option<&serde_json::Value>,
+        security_context: Option<&SecurityContext>,
+        operation_name: Option<&str>,
+        raw: bool,
+    ) -> Result<super::ResponseBody> {
         // 1. Classify query type — also returns the ParsedQuery for Regular
         // queries so we do not parse the same string twice. Classification also
         // enforces GraphQL § 5.8.3 (every variable used must be defined).
@@ -573,9 +657,15 @@ impl Executor {
                         variables,
                         security_context,
                     )?;
-                    self.query_runner()
-                        .execute_regular_match(query_match, variables, security_context)
-                        .await
+                    match self
+                        .query_runner()
+                        .execute_regular_match_body(query_match, variables, security_context, raw)
+                        .await?
+                    {
+                        // Answered raw only where completion would leave it unchanged.
+                        body @ super::ResponseBody::Raw(_) => return Ok(body),
+                        super::ResponseBody::Value(value) => Ok(value),
+                    }
                 } else {
                     // Expansion failed at classification: the matcher's own pass reports why.
                     self.query_runner()
@@ -678,7 +768,7 @@ impl Executor {
                 variables,
             );
         }
-        Ok(response)
+        Ok(super::ResponseBody::Value(response))
     }
 
     /// Execute a GraphQL query with user context for field-level access control.

@@ -123,6 +123,22 @@ disagreed, and the promise was the part that was wrong.
   `selection_set::CollectedFields` that holds its expanded root set and the fields each
   set of directive outcomes collects.
 
+- **A read whose rows need no shaping in Rust can be answered as the bytes the database
+  serialized (#1565).** `Executor::execute_operation_body` and
+  `execute_operation_with_security_body` return a `ResponseBody`. For a single-root read
+  whose fields are stored `ID`, `String`, `UUID`, `Int` and `Boolean` values, or objects
+  built from them, the body is the projected rows spliced into the `data` envelope: no
+  row becomes a `serde_json::Value`, and the bytes are those `serde_json::to_vec` writes
+  for the existing path's `Value`. Any other read is answered as a `Value`: `__typename`,
+  an enum, a float, a JSON scalar, a list, a localized, encrypted or computed field, a
+  mask, a gated field, an abstract type, a composed nested level, or a row whose numbers
+  or escapes `serde_json` would rewrite. The response ceiling charges such a read the
+  same estimate as the parsed rows. The result cache keeps its reads: a read it may
+  serve or store is never answered raw. `DatabaseAdapter` gains
+  `execute_with_projection_raw_with_session`, which defaults to `None`, and
+  `fraiseql-db` exports `RawRows` and `compact_json`. The existing `execute*` methods
+  are unchanged.
+
 ### Fixed
 
 - **The observer runtime's tables are provisioned at boot (#1710).** Nothing created

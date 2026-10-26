@@ -7,6 +7,7 @@
 mod adapter_types;
 mod composed_read;
 mod mutations;
+mod raw_rows;
 mod relay;
 
 use std::sync::Arc;
@@ -22,6 +23,7 @@ pub use mutations::{
     CHANGED_ROWS_KEY, ChangedCollections, ChangedRows, DERIVED_CASCADE_KEY, DerivedCascade,
     WriteMode, WriteRequest, Writer,
 };
+pub use raw_rows::{Compacted, JsonTally, RawRow, RawRows, compact_json};
 pub use relay::RelayDatabaseAdapter;
 
 /// A violated constraint as the catalog describes it (#1531): see
@@ -1163,6 +1165,25 @@ pub trait DatabaseAdapter: Send + Sync + 'static {
     ) -> Result<Arc<Vec<JsonbValue>>> {
         refuse_session_variables(self, session_vars)?;
         self.execute_with_projection_arc(request).await
+    }
+
+    /// [`execute_with_projection_arc_with_session`](Self::execute_with_projection_arc_with_session)'s
+    /// read, each row kept as the JSON text the database serialized rather than parsed.
+    ///
+    /// `Ok(None)` when this adapter does not answer the read that way: nothing was sent to
+    /// the database, and the caller reads it as `Value`s instead. That is the default, so an
+    /// adapter answers raw only where it says it can.
+    ///
+    /// # Errors
+    ///
+    /// As [`execute_with_projection_arc_with_session`](Self::execute_with_projection_arc_with_session).
+    async fn execute_with_projection_raw_with_session(
+        &self,
+        _request: &ProjectionRequest<'_>,
+        _session_vars: &[(&str, &str)],
+        _routing: ReadRouting,
+    ) -> Result<Option<RawRows>> {
+        Ok(None)
     }
 
     /// The same read as

@@ -104,6 +104,8 @@ pub use executor::{
     Executor,
     JsonRowStream,
     MutationExecution,
+    // A response a transport sends as it is, or serializes first.
+    ResponseBody,
     // The row-shaped read's results (#1351). This list is enumerated, so a new
     // public item is invisible outside the crate until it is named here.
     RowRead,

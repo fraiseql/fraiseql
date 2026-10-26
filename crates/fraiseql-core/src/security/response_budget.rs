@@ -45,7 +45,10 @@
 
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use fraiseql_db::types::{ColumnValue, JsonbValue};
+use fraiseql_db::{
+    JsonTally,
+    types::{ColumnValue, JsonbValue},
+};
 
 use crate::error::{FraiseQLError, Result};
 
@@ -117,6 +120,23 @@ pub fn json_bytes(value: &serde_json::Value) -> u64 {
                 .saturating_add(json_bytes(v))
         }),
     }
+}
+
+/// [`json_bytes`] of a value read as text and never parsed, priced from its token counts.
+///
+/// The same figure `json_bytes` gives the value the text parses to: each kind of token is
+/// charged what `json_bytes` charges it.
+#[must_use]
+pub const fn tally_bytes(tally: &JsonTally) -> u64 {
+    BRACKETS
+        .saturating_mul(tally.objects.saturating_add(tally.arrays))
+        .saturating_add(MEMBER_PUNCTUATION.saturating_mul(tally.members))
+        .saturating_add(tally.key_bytes)
+        .saturating_add(ELEMENT_PUNCTUATION.saturating_mul(tally.elements))
+        .saturating_add(QUOTES.saturating_mul(tally.strings))
+        .saturating_add(tally.string_bytes)
+        .saturating_add(NUMBER_BYTES.saturating_mul(tally.numbers))
+        .saturating_add(LITERAL_BYTES.saturating_mul(tally.literals))
 }
 
 /// Estimated serialised size of one row-shaped column value, in bytes.
@@ -228,6 +248,19 @@ impl ResponseBudget {
     pub fn charge_jsonb_rows(&self, rows: &[JsonbValue]) -> Result<()> {
         for row in rows {
             self.charge(json_bytes(row.as_value()))?;
+        }
+        Ok(())
+    }
+
+    /// Charge a buffered read whose rows were kept as text, row by row, as
+    /// [`charge_jsonb_rows`](Self::charge_jsonb_rows) charges the same rows parsed.
+    ///
+    /// # Errors
+    ///
+    /// [`FraiseQLError::ResponseTooLarge`] when the rows exceed the ceiling.
+    pub fn charge_raw_rows(&self, rows: &fraiseql_db::RawRows) -> Result<()> {
+        for row in rows.rows() {
+            self.charge(tally_bytes(&row.tally))?;
         }
         Ok(())
     }

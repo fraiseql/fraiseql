@@ -62,6 +62,15 @@ pub fn view_name_to_entity_type(view: &str) -> Option<String> {
 }
 
 impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
+    /// Whether the cache neither serves nor stores a projection read: the cache is
+    /// disabled, or opt-in mode is active and the view has no explicit `cache_ttl_seconds`
+    /// annotation. A function source reads tables no mutation names it by, so nothing
+    /// evicts it: it is cached only under an annotation, opt-in mode or not.
+    pub(super) fn bypasses_cache(&self, request: &ProjectionRequest<'_>) -> bool {
+        let opted_in = self.opt_in_mode || request.source_args.is_some();
+        !self.cache.is_enabled() || (opted_in && !self.cacheable_views.contains(request.view))
+    }
+
     /// Cache-aware implementation of `execute_with_projection`.
     ///
     /// Returns the result as `Arc<Vec<JsonbValue>>` so that the caller can borrow
@@ -75,14 +84,9 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
         request: &ProjectionRequest<'_>,
         session_vars: &[(&str, &str)],
     ) -> Result<Arc<Vec<JsonbValue>>> {
-        let view = request.view;
-        // Short-circuit when cache is disabled, or when opt-in mode is active and
-        // the view has no explicit `cache_ttl_seconds` annotation.  This eliminates
-        // key-generation allocations entirely for un-annotated views. A function source
-        // reads tables no mutation names it by, so nothing evicts it: it is
-        // cached only under an annotation, opt-in mode or not.
-        let opted_in = self.opt_in_mode || request.source_args.is_some();
-        if !self.cache.is_enabled() || (opted_in && !self.cacheable_views.contains(view)) {
+        // Short-circuit when the cache neither serves nor stores this read. This eliminates
+        // key-generation allocations entirely for un-annotated views.
+        if self.bypasses_cache(request) {
             return self
                 .adapter
                 .execute_with_projection_arc_with_session(request, session_vars, ReadRouting::Any)
@@ -123,7 +127,7 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
         // selective entity-level invalidation can target precise entries.
         // The entry is registered under the view AND every secondary view a
         // query over it declares, so a mutation on a joined view evicts it (#761).
-        self.store(cache_key, &arc, view, request.where_clause, fence)?;
+        self.store(cache_key, &arc, request.view, request.where_clause, fence)?;
 
         Ok(arc)
     }

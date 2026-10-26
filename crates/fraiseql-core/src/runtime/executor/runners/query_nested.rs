@@ -60,6 +60,11 @@ pub(in super::super) struct SelectionAccess {
 }
 
 impl SelectionAccess {
+    /// Whether no field at any level of the selection is masked.
+    pub(super) fn masks_nothing(&self) -> bool {
+        self.masked.is_empty() && self.root.masked.is_empty()
+    }
+
     /// Classify every level of `root_fields` against the type it selects from.
     ///
     /// `projection_keys` is the planner's projection — the root's response keys, in

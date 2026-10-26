@@ -184,6 +184,8 @@ pub type JsonRowStream =
 
 mod execution;
 pub mod mutation;
+mod response_body;
+pub use response_body::ResponseBody;
 mod runners;
 mod subscription_plan;
 pub use runners::mutation::{StampContract, mutation_contract_errors};

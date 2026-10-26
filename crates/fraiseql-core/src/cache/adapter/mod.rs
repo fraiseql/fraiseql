@@ -1069,6 +1069,29 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
             .await
     }
 
+    /// Forwarded to the inner adapter only where the buffered read above would not touch
+    /// the cache, with the routing that read would use. The cache holds parsed rows, not
+    /// text: where it may serve or store this read, the answer is `None`, and the caller
+    /// takes the buffered read, so a cached entry is never bypassed and a miss still
+    /// populates it.
+    async fn execute_with_projection_raw_with_session(
+        &self,
+        request: &crate::backend::ProjectionRequest<'_>,
+        session_vars: &[(&str, &str)],
+        routing: ReadRouting,
+    ) -> Result<Option<fraiseql_db::RawRows>> {
+        let routing = if !routing.allows_cached_result() {
+            routing
+        } else if self.bypasses_cache(request) {
+            ReadRouting::Any
+        } else {
+            return Ok(None);
+        };
+        self.adapter
+            .execute_with_projection_raw_with_session(request, session_vars, routing)
+            .await
+    }
+
     /// Forwarded to the inner adapter, and deliberately **uncached** (#958).
     ///
     /// Forwarding at all is the load-bearing part. The trait's default would

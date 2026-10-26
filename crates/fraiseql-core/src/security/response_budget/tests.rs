@@ -109,3 +109,45 @@ fn an_overflowing_charge_saturates_rather_than_wrapping() {
     let budget = ResponseBudget::new(Some(u64::MAX - 1)).expect("declared");
     budget.charge(u64::MAX).expect_err("saturates to MAX, which is over MAX - 1");
 }
+
+/// A row read as text is charged what the same row parsed is charged, whatever it holds.
+#[test]
+fn a_row_read_as_text_is_charged_as_the_value_it_parses_to() {
+    for text in [
+        r#"{"id" : "aaaa", "name" : "Alice", "n" : 12, "ok" : true, "gone" : null}"#,
+        r#"{"profile" : {"tier" : "gold", "address" : {"city" : "Paris"}}}"#,
+        r#"{"tags": ["a", "b", ""], "nested": [[1, 2.5], [], [{"k": "naïve 漢字"}]]}"#,
+        r#"{"quote" : "a \"b\" \\ c\n", "empty" : {}}"#,
+        "[]",
+        "7",
+    ] {
+        let mut rows = fraiseql_db::RawRows::new();
+        rows.push(text.as_bytes());
+        let value: serde_json::Value = serde_json::from_str(text).unwrap();
+        assert_eq!(tally_bytes(&rows.rows()[0].tally), json_bytes(&value), "{text}");
+    }
+}
+
+#[test]
+fn rows_read_as_text_are_refused_where_the_parsed_rows_are() {
+    let texts = [
+        r#"{"a" : "xxxxxxxxxx"}"#,
+        r#"{"b" : "yyyyyyyyyy"}"#,
+        r#"{"c" : 1}"#,
+    ];
+    let mut raw = fraiseql_db::RawRows::new();
+    let mut parsed = Vec::new();
+    for text in texts {
+        raw.push(text.as_bytes());
+        parsed.push(JsonbValue::new(serde_json::from_str(text).unwrap()));
+    }
+    let limit = json_bytes(parsed[0].as_value()) + json_bytes(parsed[1].as_value());
+    let refused = |result: Result<()>| match result {
+        Err(FraiseQLError::ResponseTooLarge { bytes, limit }) => Some((bytes, limit)),
+        _ => None,
+    };
+    let by_text = refused(ResponseBudget::new(Some(limit)).unwrap().charge_raw_rows(&raw));
+    let by_value = refused(ResponseBudget::new(Some(limit)).unwrap().charge_jsonb_rows(&parsed));
+    assert!(by_value.is_some());
+    assert_eq!(by_text, by_value);
+}

@@ -245,6 +245,33 @@ impl Executor {
         .await
     }
 
+    /// [`execute_operation_with_security`](Self::execute_operation_with_security), answered
+    /// as the body a transport sends.
+    ///
+    /// The same response, byte for byte, as serializing
+    /// `execute_operation_with_security`'s `Value`.
+    ///
+    /// # Errors
+    ///
+    /// Any error returned by
+    /// [`execute_operation_with_security`](Self::execute_operation_with_security).
+    pub async fn execute_operation_with_security_body(
+        &self,
+        query: &str,
+        variables: Option<&serde_json::Value>,
+        security_context: &SecurityContext,
+        operation_name: Option<&str>,
+    ) -> Result<super::ResponseBody> {
+        self.execute_with_timeout_body(
+            query,
+            variables,
+            Some(security_context),
+            super::execution::normalize_operation_name(operation_name),
+            true,
+        )
+        .await
+    }
+
     /// Check if a specific field can be accessed with given scopes.
     ///
     /// This is a convenience method for checking field access without executing a query.

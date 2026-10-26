@@ -15,6 +15,7 @@ pub(super) mod query_function;
 pub(super) mod query_nested;
 pub(super) mod query_params;
 pub(super) mod query_projection;
+mod query_raw;
 pub(super) mod query_regular;
 pub(super) mod query_relay;
 pub(super) mod read_plan;

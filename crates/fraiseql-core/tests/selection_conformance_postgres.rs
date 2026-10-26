@@ -27,7 +27,11 @@ use std::sync::Arc;
 use fraiseql_core::{
     db::{postgres::PostgresAdapter, traits::DatabaseAdapter},
     runtime::{Executor, relay::encode_node_id},
-    schema::{CompiledSchema, FieldDefinition, FieldType, InterfaceDefinition},
+    schema::{
+        CompiledSchema, FieldDefinition, FieldType, InterfaceDefinition, SessionVariableMapping,
+        SessionVariableSource,
+    },
+    security::SecurityContext,
 };
 use fraiseql_test_utils::schema_builder::{TestQueryBuilder, TestSchemaBuilder, TestTypeBuilder};
 use serde_json::{Value, json};
@@ -124,6 +128,11 @@ fn schema() -> CompiledSchema {
 }
 
 async fn executor() -> Option<Executor> {
+    executor_for(schema()).await
+}
+
+/// [`executor`] over `schema`: the same fixture, provisioned the same way.
+async fn executor_for(schema: CompiledSchema) -> Option<Executor> {
     let pg = fraiseql_test_support::postgres().await?;
     let adapter = PostgresAdapter::new(pg.url()).await.expect("connect to the bound PostgreSQL");
     for stmt in FIXTURE.split(";\n") {
@@ -150,7 +159,7 @@ async fn executor() -> Option<Executor> {
     ] {
         adapter.execute_raw_query(&stmt).await.expect("provision the wide fixture");
     }
-    Some(Executor::new_with_relay(schema(), Arc::new(adapter)))
+    Some(Executor::new_with_relay(schema, Arc::new(adapter)))
 }
 
 /// Response keys of `data.node`, in response order.
@@ -617,4 +626,170 @@ async fn a_wide_selection_comes_back_whole_and_in_order() {
         .unwrap();
     assert!(response.get("errors").is_none(), "{response}");
     assert_eq!(keys_of(&response["data"]["wides"][0]), selected, "{response}");
+}
+
+/// Reads the database answers whole: every field a stored scalar, or an object whose
+/// sub-fields are. Such a read needs no shaping in Rust, so its body is the bytes the
+/// database returned.
+const RAW_ELIGIBLE: &[&str] = &[
+    "{ users { id name email } }",
+    "{ users { email id } }",
+    "{ users { handle: name id } }",
+    "{ users { name profile { tier address { city zip } } } }",
+    "query Named { users { name } }",
+    "{ wides { kaa kab kbb kep } }",
+];
+
+/// Reads that must stay on the `Value` path: each needs a step the bytes cannot take.
+const RAW_INELIGIBLE: &[(&str, &str)] = &[
+    ("`__typename` at the root", "{ users { __typename name } }"),
+    ("`__typename` in a nested object", "{ users { profile { __typename tier } } }"),
+    ("two root fields", "{ users { name } wides { kaa } }"),
+    (
+        "a relay connection",
+        "{ usersConnection(first: 1) { edges { node { name } } } }",
+    ),
+    ("nothing selected", "{ users { id @skip(if: true) } }"),
+];
+
+/// The body the `Value` path serializes, for the same document.
+async fn value_body(exec: &Executor, query: &str) -> Vec<u8> {
+    let value = exec.execute(query, None).await.unwrap_or_else(|e| panic!("{query}: {e}"));
+    serde_json::to_vec(&value).unwrap()
+}
+
+/// Whether a response's root field holds rows. Two bodies of no rows agree whatever path
+/// read them, so a differential over an empty read compares nothing.
+fn holds_rows(body: &[u8]) -> bool {
+    let value: Value = serde_json::from_slice(body).unwrap();
+    value["data"]
+        .as_object()
+        .and_then(|data| data.values().next())
+        .is_some_and(|root| root.as_array().map_or(root.is_object(), |rows| !rows.is_empty()))
+}
+
+#[tokio::test]
+async fn an_eligible_read_is_answered_raw_with_the_value_paths_bytes() {
+    let Some(exec) = executor().await else {
+        eprintln!("SKIP: no PostgreSQL (set DATABASE_URL)");
+        return;
+    };
+
+    let mut failures = Vec::new();
+    for query in RAW_ELIGIBLE {
+        let expected = value_body(&exec, query).await;
+        assert!(holds_rows(&expected), "{query}: the fixture returned no rows");
+        let body = exec
+            .execute_operation_body(query, None, None)
+            .await
+            .unwrap_or_else(|e| panic!("{query}: {e}"));
+        if !body.is_raw() {
+            failures.push(format!("{query}: answered as a `Value`, not raw"));
+            continue;
+        }
+        let bytes = body.into_bytes().unwrap();
+        if bytes != expected {
+            failures.push(format!(
+                "{query}:\n    raw   {}\n    value {}",
+                String::from_utf8_lossy(&bytes),
+                String::from_utf8_lossy(&expected)
+            ));
+        }
+    }
+    assert!(
+        failures.is_empty(),
+        "{} read(s) failed:\n  {}",
+        failures.len(),
+        failures.join("\n  ")
+    );
+}
+
+#[tokio::test]
+async fn an_ineligible_read_stays_on_the_value_path() {
+    let Some(exec) = executor().await else {
+        eprintln!("SKIP: no PostgreSQL (set DATABASE_URL)");
+        return;
+    };
+
+    let mut failures = Vec::new();
+    for (why, query) in RAW_INELIGIBLE {
+        let expected = value_body(&exec, query).await;
+        let body = exec
+            .execute_operation_body(query, None, None)
+            .await
+            .unwrap_or_else(|e| panic!("{query}: {e}"));
+        if body.is_raw() {
+            failures.push(format!("{why}: answered raw"));
+        } else if body.into_bytes().unwrap() != expected {
+            failures.push(format!("{why}: the `Value` body differs from `execute`'s"));
+        }
+    }
+    assert!(
+        failures.is_empty(),
+        "{} read(s) failed:\n  {}",
+        failures.len(),
+        failures.join("\n  ")
+    );
+}
+
+/// An authenticated caller with nothing that gates the fixture.
+fn principal() -> SecurityContext {
+    SecurityContext {
+        user_id:          fraiseql_core::prelude::UserId::new("conformance"),
+        tenant_id:        None,
+        roles:            vec![],
+        scopes:           vec![],
+        attributes:       std::collections::HashMap::new(),
+        request_id:       "req-conformance".to_string(),
+        ip_address:       None,
+        authenticated_at: chrono::Utc::now(),
+        expires_at:       chrono::Utc::now() + chrono::Duration::hours(1),
+        issuer:           None,
+        audience:         None,
+        email:            None,
+        display_name:     None,
+    }
+}
+
+/// The same reads for an authenticated caller, whose session variables ride on the read's
+/// connection: answered raw, and the bytes the `Value` path serializes for that caller.
+#[tokio::test]
+async fn an_authenticated_eligible_read_is_answered_raw_with_the_value_paths_bytes() {
+    let mut schema = schema();
+    schema.session_variables.variables.push(SessionVariableMapping {
+        name:   "app.conformance".to_string(),
+        source: SessionVariableSource::Literal {
+            value: "on".to_string(),
+        },
+    });
+    let Some(exec) = executor_for(schema).await else {
+        eprintln!("SKIP: no PostgreSQL (set DATABASE_URL)");
+        return;
+    };
+    let principal = principal();
+
+    let mut failures = Vec::new();
+    for query in RAW_ELIGIBLE {
+        let value = exec
+            .execute_operation_with_security(query, None, &principal, None)
+            .await
+            .unwrap_or_else(|e| panic!("{query}: {e}"));
+        let expected = serde_json::to_vec(&value).unwrap();
+        assert!(holds_rows(&expected), "{query}: the fixture returned no rows");
+        let body = exec
+            .execute_operation_with_security_body(query, None, &principal, None)
+            .await
+            .unwrap_or_else(|e| panic!("{query}: {e}"));
+        if !body.is_raw() {
+            failures.push(format!("{query}: answered as a `Value`, not raw"));
+        } else if body.into_bytes().unwrap() != expected {
+            failures.push(format!("{query}: the raw body differs from the `Value` body"));
+        }
+    }
+    assert!(
+        failures.is_empty(),
+        "{} read(s) failed:\n  {}",
+        failures.len(),
+        failures.join("\n  ")
+    );
 }

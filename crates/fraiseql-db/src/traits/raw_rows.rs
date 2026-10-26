@@ -1,0 +1,255 @@
+//! Rows read as the bytes the database serialized, never parsed into a `Value`.
+
+/// What a compact JSON text holds, counted per kind of token.
+///
+/// Enough to price the text the way a parsed value would be priced, without parsing it:
+/// a string's length is its decoded length, as a `String` would hold it.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct JsonTally {
+    /// Objects.
+    pub objects:      u64,
+    /// Members of every object.
+    pub members:      u64,
+    /// Bytes of every member's key, decoded.
+    pub key_bytes:    u64,
+    /// Arrays.
+    pub arrays:       u64,
+    /// Elements of every array.
+    pub elements:     u64,
+    /// String values.
+    pub strings:      u64,
+    /// Bytes of every string value, decoded.
+    pub string_bytes: u64,
+    /// Numbers.
+    pub numbers:      u64,
+    /// `null`, `true` and `false`.
+    pub literals:     u64,
+}
+
+/// What compacting one JSON text found.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct Compacted {
+    /// The text's tokens.
+    pub tally: JsonTally,
+    /// Whether the compact text is byte for byte what `serde_json` writes for the value it
+    /// parses to. It is not when a number would not survive as an integer (a fraction, an
+    /// exponent, `-0`, a width past `i64`), or a string carries a `\u` escape.
+    pub exact: bool,
+    /// Whether the text holds a `null`.
+    pub null:  bool,
+}
+
+/// Append `src`, a valid JSON text, to `out` without insignificant whitespace.
+///
+/// The bytes are copied, never parsed into a tree: the scan only tracks whether it is
+/// inside a string, and counts tokens as it passes them. `src` must be valid JSON, as the
+/// database guarantees for a `json` or `jsonb` column; on anything else the output is
+/// whatever the scan copied.
+pub fn compact_json(src: &[u8], out: &mut Vec<u8>) -> Compacted {
+    let mut found = Compacted {
+        exact: true,
+        ..Compacted::default()
+    };
+    let tally = &mut found.tally;
+    // Per open container: whether it is an object.
+    let mut open: Vec<bool> = Vec::new();
+    // Whether the string being read is a key, and the decoded bytes read of it so far.
+    let mut string: Option<(bool, u64)> = None;
+    let mut escaped = false;
+    let mut number_start = None;
+    out.reserve(src.len());
+    for (i, &b) in src.iter().enumerate() {
+        if let Some((key, len)) = string.as_mut() {
+            out.push(b);
+            if escaped {
+                escaped = false;
+                if b == b'u' {
+                    found.exact = false;
+                }
+                *len += 1;
+            } else if b == b'\\' {
+                escaped = true;
+            } else if b == b'"' {
+                if *key {
+                    tally.key_bytes += *len;
+                } else {
+                    tally.strings += 1;
+                    tally.string_bytes += *len;
+                }
+                string = None;
+            } else {
+                *len += 1;
+            }
+            continue;
+        }
+        if let Some(start) = number_start {
+            if matches!(b, b'0'..=b'9' | b'-' | b'+' | b'.' | b'e' | b'E') {
+                out.push(b);
+                continue;
+            }
+            found.exact &= exact_integer(&src[start..i]);
+            number_start = None;
+        }
+        match b {
+            b' ' | b'\n' | b'\r' | b'\t' => continue,
+            b'"' => {
+                // A string where an object expects a key is one; `:` follows it.
+                let key = open.last() == Some(&true) && expects_key(out);
+                if key {
+                    tally.members += 1;
+                } else {
+                    count_element(&open, tally);
+                }
+                string = Some((key, 0));
+            },
+            b'{' | b'[' => {
+                count_element(&open, tally);
+                if b == b'{' {
+                    tally.objects += 1;
+                } else {
+                    tally.arrays += 1;
+                }
+                open.push(b == b'{');
+            },
+            b'}' | b']' => {
+                open.pop();
+            },
+            b'n' | b't' | b'f' => {
+                count_element(&open, tally);
+                tally.literals += 1;
+                found.null |= b == b'n';
+                // The rest of the literal is copied below as plain bytes.
+            },
+            b'0'..=b'9' | b'-' => {
+                count_element(&open, tally);
+                tally.numbers += 1;
+                number_start = Some(i);
+            },
+            _ => {},
+        }
+        out.push(b);
+    }
+    if let Some(start) = number_start {
+        found.exact &= exact_integer(&src[start..]);
+    }
+    found
+}
+
+/// Whether the last significant byte written opens an object or ends a member, so the
+/// string that follows is a key.
+const fn expects_key(out: &[u8]) -> bool {
+    matches!(out.last(), Some(b'{' | b','))
+}
+
+/// Count a value as an array element. A member's value adds nothing: the member is
+/// counted at its key.
+fn count_element(open: &[bool], tally: &mut JsonTally) {
+    if open.last() == Some(&false) {
+        tally.elements += 1;
+    }
+}
+
+/// Whether a number token parses to an integer `serde_json` writes back unchanged.
+fn exact_integer(token: &[u8]) -> bool {
+    let digits = token.strip_prefix(b"-").unwrap_or(token);
+    !digits.is_empty()
+        && digits.len() <= 18
+        && digits.iter().all(u8::is_ascii_digit)
+        && token != b"-0"
+}
+
+/// Rows a read returned, each the database's own serialization, compacted and joined by
+/// `,` with no enclosing brackets.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct RawRows {
+    bytes: Vec<u8>,
+    rows:  Vec<RawRow>,
+    exact: bool,
+    null:  bool,
+}
+
+/// One row of a [`RawRows`]: where it ends, and its tokens.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RawRow {
+    /// One past the row's last byte.
+    pub end:   usize,
+    /// The row's tokens.
+    pub tally: JsonTally,
+}
+
+impl RawRows {
+    /// No rows.
+    #[must_use]
+    pub const fn new() -> Self {
+        Self {
+            bytes: Vec::new(),
+            rows:  Vec::new(),
+            exact: true,
+            null:  false,
+        }
+    }
+
+    /// Append one row, `src` a valid JSON text.
+    pub fn push(&mut self, src: &[u8]) {
+        if !self.rows.is_empty() {
+            self.bytes.push(b',');
+        }
+        let found = compact_json(src, &mut self.bytes);
+        self.exact &= found.exact;
+        self.null |= found.null;
+        self.rows.push(RawRow {
+            end:   self.bytes.len(),
+            tally: found.tally,
+        });
+    }
+
+    /// The rows, joined by `,`.
+    #[must_use]
+    pub fn bytes(&self) -> &[u8] {
+        &self.bytes
+    }
+
+    /// Each row's end and tokens, in order.
+    #[must_use]
+    pub fn rows(&self) -> &[RawRow] {
+        &self.rows
+    }
+
+    /// One row's bytes.
+    #[must_use]
+    pub fn row(&self, index: usize) -> Option<&[u8]> {
+        let row = self.rows.get(index)?;
+        let start = match index {
+            0 => 0,
+            _ => self.rows[index - 1].end + 1,
+        };
+        Some(&self.bytes[start..row.end])
+    }
+
+    /// Whether every row is byte for byte what `serde_json` writes for the value it
+    /// parses to. See [`Compacted::exact`].
+    #[must_use]
+    pub const fn exact(&self) -> bool {
+        self.exact
+    }
+
+    /// Whether any row holds a `null`.
+    #[must_use]
+    pub const fn has_null(&self) -> bool {
+        self.null
+    }
+
+    /// The rows, parsed.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`serde_json::Error`] when a row is not valid JSON.
+    pub fn parse(&self) -> serde_json::Result<Vec<serde_json::Value>> {
+        (0..self.rows.len())
+            .map(|i| serde_json::from_slice(self.row(i).unwrap_or_default()))
+            .collect()
+    }
+}
+
+#[cfg(test)]
+mod tests;

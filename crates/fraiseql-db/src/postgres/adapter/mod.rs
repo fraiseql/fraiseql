@@ -39,7 +39,7 @@ use crate::{
     identifier::quote_postgres_identifier,
     order_by::{Tiebreak, append_order_by, render_order_by_columns},
     postgres::pg_detail,
-    traits::DatabaseAdapter,
+    traits::{DatabaseAdapter, RawRows},
     types::{
         DatabaseType, JsonbValue, QueryParam, ReadRouting,
         sql_hints::{OrderByClause, SqlProjectionHint},
@@ -161,29 +161,78 @@ fn jsonb_cell<I>(row: &Row, column: I, sql: &str) -> Result<JsonbValue>
 where
     I: tokio_postgres::row::RowIndex + std::fmt::Display,
 {
-    // `.chars().take(..)` is inherently char-boundary-safe (no byte slicing).
-    let query_preview = || sql.chars().take(200).collect::<String>();
     match row.try_get::<_, Option<serde_json::Value>>(column) {
         Ok(Some(value)) => Ok(JsonbValue::new(value)),
-        Ok(None) => Err(FraiseQLError::Database {
-            message:    format!(
-                "Query returned a NULL `data` column; the backing view must project a \
-                 non-NULL JSONB `data` value (a view yielding NULL `data`, e.g. via a \
-                 LEFT JOIN, is unsupported). Query: {}",
-                query_preview()
-            ),
-            sql_state:  None,
-            constraint: None,
-        }),
-        Err(e) => Err(FraiseQLError::Database {
-            message:    format!(
-                "Failed to read the `data` column as JSON ({e}); the backing view must \
-                 project a JSONB `data` column (a composed read returns `json`). Query: {}",
-                query_preview()
-            ),
-            sql_state:  None,
-            constraint: None,
-        }),
+        Ok(None) => Err(null_data_column(sql)),
+        Err(e) => Err(unreadable_data_column(&e, sql)),
+    }
+}
+
+/// [`jsonb_cell`]'s cell, appended to `rows` as the text the server sent, never parsed.
+fn raw_json_cell(row: &Row, sql: &str, rows: &mut RawRows) -> Result<()> {
+    match row.try_get::<_, Option<JsonText<'_>>>(0) {
+        Ok(Some(JsonText(text))) => {
+            rows.push(text);
+            Ok(())
+        },
+        Ok(None) => Err(null_data_column(sql)),
+        Err(e) => Err(unreadable_data_column(&e, sql)),
+    }
+}
+
+/// The first 200 characters of a statement, for an error that quotes it.
+fn query_preview(sql: &str) -> String {
+    // `.chars().take(..)` is inherently char-boundary-safe (no byte slicing).
+    sql.chars().take(200).collect()
+}
+
+fn null_data_column(sql: &str) -> FraiseQLError {
+    FraiseQLError::Database {
+        message:    format!(
+            "Query returned a NULL `data` column; the backing view must project a non-NULL \
+             JSONB `data` value (a view yielding NULL `data`, e.g. via a LEFT JOIN, is \
+             unsupported). Query: {}",
+            query_preview(sql)
+        ),
+        sql_state:  None,
+        constraint: None,
+    }
+}
+
+fn unreadable_data_column(e: &tokio_postgres::Error, sql: &str) -> FraiseQLError {
+    FraiseQLError::Database {
+        message:    format!(
+            "Failed to read the `data` column as JSON ({e}); the backing view must project a \
+             JSONB `data` column (a composed read returns `json`). Query: {}",
+            query_preview(sql)
+        ),
+        sql_state:  None,
+        constraint: None,
+    }
+}
+
+/// A `json` or `jsonb` cell's text, borrowed from the row.
+///
+/// Results arrive in binary format: a `json` value's is its text, a `jsonb` value's is a
+/// version byte (`1`) and then its text.
+struct JsonText<'a>(&'a [u8]);
+
+impl<'a> tokio_postgres::types::FromSql<'a> for JsonText<'a> {
+    fn from_sql(
+        ty: &tokio_postgres::types::Type,
+        raw: &'a [u8],
+    ) -> std::result::Result<Self, Box<dyn std::error::Error + Sync + Send>> {
+        if *ty != tokio_postgres::types::Type::JSONB {
+            return Ok(Self(raw));
+        }
+        match raw.split_first() {
+            Some((1, text)) => Ok(Self(text)),
+            _ => Err("unsupported jsonb binary version".into()),
+        }
+    }
+
+    fn accepts(ty: &tokio_postgres::types::Type) -> bool {
+        matches!(*ty, tokio_postgres::types::Type::JSON | tokio_postgres::types::Type::JSONB)
     }
 }
 
@@ -1425,24 +1474,7 @@ impl PostgresAdapter {
         params: &[&(dyn tokio_postgres::types::ToSql + Sync)],
         routing: ReadRouting,
     ) -> Result<Vec<JsonbValue>> {
-        // Read-only by construction (`SELECT data FROM <view>`): replica-eligible.
-        let client = self.acquire_read_connection_with_retry(routing).await?;
-
-        let rows: Vec<Row> = match query_read(&client, sql, params).await {
-            Err(e) if is_stale_cached_statement(&e) => {
-                client.statement_cache.remove(sql, &[]);
-                query_read(&client, sql, params).await
-            },
-            rows => rows,
-        }
-        .map_err(|e| read_failed(&e))?;
-
-        let results = rows
-            .into_iter()
-            .map(|row| jsonb_cell(&row, 0, sql))
-            .collect::<Result<Vec<_>>>()?;
-
-        Ok(results)
+        self.execute_raw_with_session(sql, params, &[], routing).await
     }
 
     /// Like [`execute_raw`](Self::execute_raw) but applies transaction-local
@@ -1464,21 +1496,62 @@ impl PostgresAdapter {
         session_vars: &[(&str, &str)],
         routing: ReadRouting,
     ) -> Result<Vec<JsonbValue>> {
-        // Read-only by construction; `set_config` + SELECT run fine inside a
-        // hot-standby read-only transaction, so this stays replica-eligible.
-        let mut client = self.acquire_read_connection_with_retry(routing).await?;
+        let rows = self.read_rows(sql, params, session_vars, routing).await?;
+        rows.into_iter().map(|row| jsonb_cell(&row, 0, sql)).collect()
+    }
 
-        let rows: Vec<Row> =
-            match query_read_in_session(&mut client, sql, params, session_vars).await? {
+    /// [`execute_raw_with_session`](Self::execute_raw_with_session)'s read, each row kept as
+    /// the text the server sent.
+    ///
+    /// # Errors
+    ///
+    /// As [`execute_raw_with_session`](Self::execute_raw_with_session).
+    pub(super) async fn execute_raw_text_with_session(
+        &self,
+        sql: &str,
+        params: &[&(dyn tokio_postgres::types::ToSql + Sync)],
+        session_vars: &[(&str, &str)],
+        routing: ReadRouting,
+    ) -> Result<RawRows> {
+        let rows = self.read_rows(sql, params, session_vars, routing).await?;
+        let mut raw = RawRows::new();
+        for row in &rows {
+            raw_json_cell(row, sql, &mut raw)?;
+        }
+        Ok(raw)
+    }
+
+    /// Run a read-only statement and return its rows, `session_vars` applied in a
+    /// transaction on the same connection when there are any.
+    ///
+    /// Read-only by construction (`SELECT data FROM <view>`), so replica-eligible:
+    /// `set_config` + SELECT run fine inside a hot-standby read-only transaction.
+    async fn read_rows(
+        &self,
+        sql: &str,
+        params: &[&(dyn tokio_postgres::types::ToSql + Sync)],
+        session_vars: &[(&str, &str)],
+        routing: ReadRouting,
+    ) -> Result<Vec<Row>> {
+        let mut client = self.acquire_read_connection_with_retry(routing).await?;
+        if session_vars.is_empty() {
+            return match query_read(&client, sql, params).await {
                 Err(e) if is_stale_cached_statement(&e) => {
                     client.statement_cache.remove(sql, &[]);
-                    query_read_in_session(&mut client, sql, params, session_vars).await?
+                    query_read(&client, sql, params).await
                 },
                 rows => rows,
             }
-            .map_err(|e| read_failed(&e))?;
-
-        rows.into_iter().map(|row| jsonb_cell(&row, 0, sql)).collect()
+            .map_err(|e| read_failed(&e));
+        }
+        match query_read_in_session(&mut client, sql, params, session_vars).await? {
+            Err(e) if is_stale_cached_statement(&e) => {
+                client.statement_cache.remove(sql, &[]);
+                query_read_in_session(&mut client, sql, params, session_vars).await?
+            },
+            rows => rows,
+        }
+        .map_err(|e| read_failed(&e))
     }
 
     /// Record a mutation-pipeline write for read-your-writes pinning (#407).

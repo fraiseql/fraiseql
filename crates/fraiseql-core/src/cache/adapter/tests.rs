@@ -45,6 +45,18 @@ impl DatabaseAdapter for MockAdapter {
         true
     }
 
+    // A test double that answers every projection read as text.
+    async fn execute_with_projection_raw_with_session(
+        &self,
+        _request: &crate::backend::ProjectionRequest<'_>,
+        _session_vars: &[(&str, &str)],
+        _routing: ReadRouting,
+    ) -> Result<Option<fraiseql_db::RawRows>> {
+        let mut rows = fraiseql_db::RawRows::new();
+        rows.push(br#"{"id" : 1}"#);
+        Ok(Some(rows))
+    }
+
     // A test double: a function source is answered like a relation, so a test
     // counts what reaches the database.
     async fn execute_with_projection_arc_with_session(
@@ -1908,4 +1920,50 @@ async fn a_cached_function_source_is_evicted_by_the_views_its_query_lists() {
     adapter.invalidate_views(&[ViewName::from("v_price")]).unwrap();
     adapter.execute_with_projection_impl(&function_read(&args), &[]).await.unwrap();
     assert_eq!(adapter.inner().call_count(), 2, "a write to v_price re-reads the call");
+}
+
+// ── a read answered as text ────────────────────────────────────────────────────
+
+/// Whether the wrapper hands a read of `v_user` to the inner adapter as text.
+async fn answers_raw(adapter: &CachedDatabaseAdapter<MockAdapter>, routing: ReadRouting) -> bool {
+    adapter
+        .execute_with_projection_raw_with_session(
+            &crate::backend::ProjectionRequest::new("v_user"),
+            &[],
+            routing,
+        )
+        .await
+        .unwrap()
+        .is_some()
+}
+
+fn wrapping(config: CacheConfig) -> CachedDatabaseAdapter<MockAdapter> {
+    CachedDatabaseAdapter::new(MockAdapter::new(), QueryResultCache::new(config), "1.0.0".into())
+}
+
+/// The cache holds parsed rows. A read it may serve or store is never answered as text
+/// past it: a hit would be bypassed and a miss would not populate it.
+#[tokio::test]
+async fn a_read_the_cache_may_serve_is_not_answered_as_text() {
+    assert!(!answers_raw(&wrapping(CacheConfig::enabled()), ReadRouting::Any).await);
+    let annotated = wrapping(CacheConfig::enabled())
+        .with_view_ttl_overrides(std::iter::once(("v_user".to_string(), 60)).collect());
+    assert!(!answers_raw(&annotated, ReadRouting::Any).await);
+}
+
+/// The wrapper sits in front of every server's adapter, cache on or off: a read the cache
+/// would not touch reaches the inner adapter, or the raw path never runs in a server.
+#[tokio::test]
+async fn a_read_the_cache_would_not_touch_is_forwarded_as_text() {
+    assert!(answers_raw(&wrapping(CacheConfig::disabled()), ReadRouting::Any).await);
+    let other_view_annotated = wrapping(CacheConfig::enabled())
+        .with_view_ttl_overrides(std::iter::once(("v_order".to_string(), 60)).collect());
+    assert!(
+        answers_raw(&other_view_annotated, ReadRouting::Any).await,
+        "opt-in, not annotated"
+    );
+    assert!(
+        answers_raw(&wrapping(CacheConfig::enabled()), ReadRouting::Primary).await,
+        "a read that refused staleness bypasses the cache"
+    );
 }
