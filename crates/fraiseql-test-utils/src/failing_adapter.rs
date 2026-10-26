@@ -120,6 +120,9 @@ pub struct FailingAdapter {
     where_clause_log:   Arc<Mutex<Vec<Option<String>>>>,
     /// A row stream that fails after this many rows, with this error.
     stream_failure:     Arc<Mutex<Option<(usize, FailError)>>>,
+    /// Projection reads answered as text, counted; `None` when the adapter answers only
+    /// with `Value`s.
+    text_reads:         Option<Arc<AtomicU64>>,
 }
 
 impl FailingAdapter {
@@ -135,6 +138,7 @@ impl FailingAdapter {
             query_log:          Arc::new(Mutex::new(Vec::new())),
             where_clause_log:   Arc::new(Mutex::new(Vec::new())),
             stream_failure:     Arc::new(Mutex::new(None)),
+            text_reads:         None,
         }
     }
 
@@ -261,6 +265,20 @@ impl FailingAdapter {
     #[must_use]
     pub fn recorded_where_clauses(&self) -> Vec<Option<String>> {
         self.where_clause_log.lock().unwrap().clone()
+    }
+
+    /// Answer projection reads as text too, as the PostgreSQL adapter does: each canned
+    /// row serialized, the way the database would send it.
+    #[must_use]
+    pub fn answering_as_text(mut self) -> Self {
+        self.text_reads = Some(Arc::new(AtomicU64::new(0)));
+        self
+    }
+
+    /// How many projection reads were answered as text.
+    #[must_use]
+    pub fn text_reads(&self) -> u64 {
+        self.text_reads.as_ref().map_or(0, |n| n.load(Ordering::SeqCst))
     }
 
     /// Get the current query count.
@@ -390,6 +408,24 @@ impl DatabaseAdapter for FailingAdapter {
     ) -> Result<Vec<JsonbValue>> {
         self.check_failure(view)?;
         Ok(self.get_response(view))
+    }
+
+    async fn execute_with_projection_raw_with_session(
+        &self,
+        request: &fraiseql_core::db::traits::ProjectionRequest<'_>,
+        _session_vars: &[(&str, &str)],
+        _routing: fraiseql_core::db::types::ReadRouting,
+    ) -> Result<Option<fraiseql_core::db::traits::RawRows>> {
+        let Some(reads) = &self.text_reads else {
+            return Ok(None);
+        };
+        self.check_failure(request.view)?;
+        reads.fetch_add(1, Ordering::SeqCst);
+        let mut rows = fraiseql_core::db::traits::RawRows::new();
+        for row in self.get_response(request.view) {
+            rows.push(&serde_json::to_vec(row.as_value()).unwrap_or_default());
+        }
+        Ok(Some(rows))
     }
 
     // A test double: it reads canned rows and has no session to scope, so the session

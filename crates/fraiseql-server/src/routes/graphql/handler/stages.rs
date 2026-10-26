@@ -477,6 +477,19 @@ pub(super) fn check_federation_circuit_breakers(
     Ok(entity_types)
 }
 
+/// Whether a response may carry field-level-encrypted values for
+/// [`decrypt_response_fields`] to decrypt.
+#[cfg(feature = "secrets")]
+pub(super) fn decrypts_response(state: &AppState) -> bool {
+    state.field_encryption.as_ref().is_some_and(|e| e.has_encrypted_fields())
+}
+
+/// Whether a response may carry encrypted values: never, without field encryption built in.
+#[cfg(not(feature = "secrets"))]
+pub(super) const fn decrypts_response(_state: &AppState) -> bool {
+    false
+}
+
 /// Decrypt any field-level-encrypted values in the response.
 ///
 /// # Errors
@@ -491,7 +504,7 @@ pub(super) async fn decrypt_response_fields(
     let Some(ref encryption) = state.field_encryption else {
         return Ok(());
     };
-    if !encryption.has_encrypted_fields() {
+    if !decrypts_response(state) {
         return Ok(());
     }
     encryption.decrypt_response(response).await.map_err(|e| {

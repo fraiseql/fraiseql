@@ -139,6 +139,12 @@ disagreed, and the promise was the part that was wrong.
   `fraiseql-db` exports `RawRows` and `compact_json`. The existing `execute*` methods
   are unchanged.
 
+- **`/graphql` sends such a read's body as it was serialized (#1565).** For a `POST` or a
+  `QUERY`-method request, the server sends the raw body with the same
+  `content-type: application/json`. It does not do this when a field is encrypted. A
+  `GET` keeps the tree its cache decision reads. Every stage that edits or stores a response parses a raw body
+  back first, so none of them depends on that choice.
+
 ### Fixed
 
 - **The observer runtime's tables are provisioned at boot (#1710).** Nothing created

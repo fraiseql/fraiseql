@@ -128,19 +128,19 @@ pub(in super::super) async fn handle_sse(
         // `complete`.
         let variables = request.variables.clone();
         let batch_size = state.graphql_incremental_batch_size.max(1) as usize;
+        let error_state = state.clone();
         let response =
             Box::pin(execute_admitted(state, request, method, admitted, &headers, &peer_ip))
                 .await?
                 .response;
+        let body = super::tree(response, &error_state)?;
         let chunks = match (defer_plan, nested_stream_plan) {
-            (Some(selections), _) => {
-                deferred_chunks(response.body, &selections, variables.as_ref())
-            },
+            (Some(selections), _) => deferred_chunks(body, &selections, variables.as_ref()),
             (None, Some(selections)) => {
-                streamed_chunks(response.body, &selections, variables.as_ref(), batch_size)?
+                streamed_chunks(body, &selections, variables.as_ref(), batch_size)?
             },
             (None, None) => vec![Chunk {
-                payload:   response.body,
+                payload:   body,
                 resume_id: None,
             }],
         };

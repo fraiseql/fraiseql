@@ -607,3 +607,150 @@ mod http_cache {
         assert_eq!(adapter.query_count(), writes, "the mutation never reached the database");
     }
 }
+
+/// A read the executor answers as the bytes the database serialized reaches the client as
+/// those bytes, with the headers a `Value` body carries; a `GET`, whose cache decision reads
+/// the body, keeps the tree.
+mod raw_body {
+    use std::sync::Arc;
+
+    use axum::{Router, body::Body, routing::get};
+    use fraiseql_core::{db::types::JsonbValue, runtime::Executor, schema::FieldType};
+    use fraiseql_test_utils::{
+        failing_adapter::FailingAdapter,
+        schema_builder::{TestFieldBuilder, TestSchemaBuilder, TestTypeBuilder},
+    };
+    use http::{Request, StatusCode, header::CONTENT_TYPE};
+    use serde_json::{Value, json};
+    use tower::ServiceExt;
+
+    use crate::routes::graphql::{
+        AppState, graphql_get_handler, graphql_handler, handler::graphql_query_method_handler,
+    };
+
+    fn router() -> (Router, FailingAdapter) {
+        let schema = TestSchemaBuilder::new()
+            .with_type(
+                TestTypeBuilder::new("User", "v_users")
+                    .with_field(TestFieldBuilder::new("id", FieldType::Int).build())
+                    .build(),
+            )
+            .with_simple_query("users", "User", true)
+            .build();
+        let adapter = FailingAdapter::new()
+            .with_response(
+                "v_users",
+                vec![
+                    JsonbValue::new(json!({ "id": 1 })),
+                    JsonbValue::new(json!({ "id": 2 })),
+                ],
+            )
+            .answering_as_text();
+        let executor = Arc::new(Executor::new(schema, Arc::new(adapter.clone())));
+        let methods = get(graphql_get_handler)
+            .post(graphql_handler)
+            .fallback(graphql_query_method_handler);
+        let router = Router::new().route("/graphql", methods).with_state(AppState::new(executor));
+        (router, adapter)
+    }
+
+    /// The status, the content type and the body a request is answered with.
+    async fn send(router: Router, request: Request<Body>) -> (StatusCode, String, Value) {
+        let response = router.oneshot(request).await.unwrap();
+        let status = response.status();
+        let content_type = response.headers()[CONTENT_TYPE].to_str().unwrap().to_string();
+        let bytes = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        (status, content_type, serde_json::from_slice(&bytes).unwrap())
+    }
+
+    fn with_body(method: &str) -> Request<Body> {
+        Request::builder()
+            .method(method)
+            .uri("/graphql")
+            .header("content-type", "application/json")
+            .body(Body::from(r#"{"query": "{ users { id } }"}"#))
+            .unwrap()
+    }
+
+    const ANSWER: fn() -> Value = || json!({ "data": { "users": [{ "id": 1 }, { "id": 2 }] } });
+
+    #[tokio::test]
+    async fn a_post_is_answered_with_the_bytes_the_database_serialized() {
+        for method in ["POST", "QUERY"] {
+            let (router, adapter) = router();
+            let sent = send(router, with_body(method)).await;
+            assert_eq!(
+                sent,
+                (StatusCode::OK, "application/json".to_string(), ANSWER()),
+                "{method}"
+            );
+            assert_eq!(adapter.text_reads(), 1, "{method}: the read was answered as text");
+        }
+    }
+
+    #[tokio::test]
+    async fn a_get_keeps_the_tree_its_cache_decision_reads() {
+        let (router, adapter) = router();
+        let request = Request::builder()
+            .method("GET")
+            .uri("/graphql?query=%7B%20users%20%7B%20id%20%7D%20%7D")
+            .body(Body::empty())
+            .unwrap();
+        let sent = send(router, request).await;
+        assert_eq!(sent, (StatusCode::OK, "application/json".to_string(), ANSWER()));
+        assert_eq!(adapter.text_reads(), 0, "a GET is read as `Value`s");
+    }
+
+    #[cfg(feature = "secrets")]
+    #[tokio::test]
+    async fn a_read_where_a_field_is_encrypted_keeps_the_tree_decryption_walks() {
+        use std::collections::HashMap;
+
+        use fraiseql_core::schema::FieldEncryptionConfig;
+        use fraiseql_secrets::{
+            EnvBackend, SecretsManager,
+            encryption::{
+                database_adapter::DatabaseFieldAdapter, middleware::FieldEncryptionService,
+            },
+        };
+
+        let mut schema = TestSchemaBuilder::new()
+            .with_type(
+                TestTypeBuilder::new("User", "v_users")
+                    .with_field(TestFieldBuilder::new("id", FieldType::Int).build())
+                    .with_field(TestFieldBuilder::new("email", FieldType::String).build())
+                    .build(),
+            )
+            .with_simple_query("users", "User", true)
+            .build();
+        schema.types[0].fields[1].encryption = Some(FieldEncryptionConfig {
+            key_reference: "user/email".to_string(),
+            algorithm:     "aes-256-gcm".to_string(),
+        });
+        let adapter = FailingAdapter::new()
+            .with_response(
+                "v_users",
+                vec![
+                    JsonbValue::new(json!({ "id": 1 })),
+                    JsonbValue::new(json!({ "id": 2 })),
+                ],
+            )
+            .answering_as_text();
+        let secrets = Arc::new(SecretsManager::new(Arc::new(EnvBackend::new())));
+        let keys = HashMap::from([("email".to_string(), "user/email".to_string())]);
+        let encryption = FieldEncryptionService::from_schema(
+            &schema,
+            Arc::new(DatabaseFieldAdapter::new(secrets, keys)),
+        );
+        assert!(encryption.has_encrypted_fields());
+        let executor = Arc::new(Executor::new(schema, Arc::new(adapter.clone())));
+        let state = AppState::new(executor).with_field_encryption(Arc::new(encryption));
+        let router = Router::new()
+            .route("/graphql", get(graphql_get_handler).post(graphql_handler))
+            .with_state(state);
+
+        let sent = send(router, with_body("POST")).await;
+        assert_eq!(sent, (StatusCode::OK, "application/json".to_string(), ANSWER()));
+        assert_eq!(adapter.text_reads(), 0, "a schema with an encrypted field is read as `Value`s");
+    }
+}

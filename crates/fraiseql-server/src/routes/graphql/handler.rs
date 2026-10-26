@@ -9,6 +9,7 @@ use axum::{
 };
 use fraiseql_core::{
     apq::{ApqMetrics, ApqStorage},
+    runtime::ResponseBody,
     security::SecurityContext,
 };
 use fraiseql_error::FraiseQLError;
@@ -363,8 +364,8 @@ pub(super) enum Method {
 
 /// An executed request's response, with the caching headers it may carry.
 pub(super) struct Answer {
-    /// The GraphQL response.
-    pub(super) response: GraphQLResponse,
+    /// The GraphQL response: a tree, or the bytes the executor already serialized.
+    pub(super) response: ResponseBody,
     /// `Cache-Control` and, on a reusable response, `Vary`.
     pub(super) headers:  HeaderMap,
 }
@@ -374,7 +375,19 @@ pub(super) struct Answer {
 fn answer(result: Result<Answer, ErrorResponse>) -> axum::response::Response {
     match result {
         Ok(Answer { response, headers }) => {
-            let mut http = axum::response::IntoResponse::into_response(response);
+            let mut http = match response {
+                ResponseBody::Value(body) => {
+                    axum::response::IntoResponse::into_response(GraphQLResponse { body })
+                },
+                // The header `Json` sends a `Value` with.
+                ResponseBody::Raw(bytes) => axum::response::IntoResponse::into_response((
+                    [(
+                        axum::http::header::CONTENT_TYPE,
+                        axum::http::HeaderValue::from_static("application/json"),
+                    )],
+                    bytes,
+                )),
+            };
             http.headers_mut().extend(headers);
             http
         },
@@ -637,9 +650,7 @@ async fn execute_admitted(
                 let mut headers = HeaderMap::new();
                 http_cache::apply(&mut headers, http_cache::Caching::NoStore, None, &[]);
                 return Ok(Answer {
-                    response: GraphQLResponse {
-                        body: stored.body.unwrap_or(serde_json::Value::Null),
-                    },
+                    response: ResponseBody::Value(stored.body.unwrap_or(serde_json::Value::Null)),
                     headers,
                 });
             },
@@ -701,10 +712,25 @@ async fn execute_admitted(
         security_context.as_ref(),
     )
     .map_err(|e| ErrorResponse::from_error(GraphQLError::from_fraiseql_error(&e)))?;
+    // A response may be sent as the bytes the executor serialized only when no stage below
+    // reads it as a tree: no field to decrypt, no `GET` cache decision. An idempotency key
+    // is only taken for a mutation, which is never answered as bytes. Each of those stages
+    // takes a tree whatever this says.
+    let raw = method != Method::Get && !stages::decrypts_response(&state);
     // Boxed for the reason the stages above are: the executor future is deep.
     let exec_result = Box::pin(crate::request_scope::scoped(scope, async {
-        if let Some(sec_ctx) = security_context {
-            executor
+        match (security_context, raw) {
+            (Some(sec_ctx), true) => {
+                executor
+                    .execute_operation_with_security_body(
+                        &query,
+                        variables.as_ref(),
+                        &sec_ctx,
+                        operation_name,
+                    )
+                    .await
+            },
+            (Some(sec_ctx), false) => executor
                 .execute_operation_with_security(
                     &query,
                     variables.as_ref(),
@@ -712,8 +738,16 @@ async fn execute_admitted(
                     operation_name,
                 )
                 .await
-        } else {
-            executor.execute_operation(&query, variables.as_ref(), operation_name).await
+                .map(ResponseBody::Value),
+            (None, true) => {
+                executor
+                    .execute_operation_body(&query, variables.as_ref(), operation_name)
+                    .await
+            },
+            (None, false) => executor
+                .execute_operation(&query, variables.as_ref(), operation_name)
+                .await
+                .map(ResponseBody::Value),
         }
     }))
     .await;
@@ -822,17 +856,20 @@ async fn execute_admitted(
     );
 
     // ── Post-processing ──────────────────────────────────────────────────────
-    #[allow(unused_mut)]
-    // Reason: mut is required by decrypt_response_fields(&mut ...) under the secrets feature
-    let mut response_json = result;
+    let mut response = result;
 
     #[cfg(feature = "secrets")]
-    Box::pin(stages::decrypt_response_fields(&state, &mut response_json)).await?;
+    if stages::decrypts_response(&state) {
+        let mut response_json = tree(response, &state)?;
+        Box::pin(stages::decrypt_response_fields(&state, &mut response_json)).await?;
+        response = ResponseBody::Value(response_json);
+    }
 
     // Idempotency (#747): persist the successful response so a re-send of the
     // same mutation under the same key replays it instead of executing again.
     // Only success is stored — a failed mutation stays retryable under its key.
     if let Some((key, body_hash)) = idempotency_key {
+        let response_json = tree(response, &state)?;
         state
             .idempotency_store
             .store(
@@ -845,11 +882,13 @@ async fn execute_admitted(
                 },
             )
             .await;
+        response = ResponseBody::Value(response_json);
     }
 
     // #1564: only a GET response may be stored, and only as `http_cache` decides.
     let caching = if method == Method::Get {
-        http_cache::decide(
+        let response_json = tree(response, &state)?;
+        let caching = http_cache::decide(
             &http_cache::Answered {
                 body: &response_json,
                 ttl: executor.response_cache_ttl(&query, operation_name),
@@ -859,7 +898,9 @@ async fn execute_admitted(
             },
             headers,
             executor.schema(),
-        )
+        );
+        response = ResponseBody::Value(response_json);
+        caching
     } else {
         http_cache::Caching::NoStore
     };
@@ -867,10 +908,26 @@ async fn execute_admitted(
     http_cache::apply(&mut cache_headers, caching, Some(executor.schema()), &[]);
 
     Ok(Answer {
-        response: GraphQLResponse {
-            body: response_json,
-        },
-        headers:  cache_headers,
+        response,
+        headers: cache_headers,
+    })
+}
+
+/// A response as a tree, for a stage that reads or edits it.
+///
+/// # Errors
+///
+/// A sanitized internal error if a raw body is not valid JSON, which the executor never
+/// produces.
+pub(super) fn tree(
+    response: ResponseBody,
+    state: &AppState,
+) -> Result<serde_json::Value, ErrorResponse> {
+    response.into_value().map_err(|e| {
+        error!(error = %e, "A raw response body did not parse");
+        ErrorResponse::from_error(
+            state.error_sanitizer.sanitize(GraphQLError::from_fraiseql_error(&e)),
+        )
     })
 }
 
