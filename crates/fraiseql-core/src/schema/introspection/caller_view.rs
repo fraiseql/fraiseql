@@ -2,8 +2,9 @@
 //!
 //! The role gate refuses a `requires_role` operation as *"not found in schema"*, so that
 //! a refusal cannot be used to enumerate operations. Introspection must say the same
-//! thing: an operation is listed only to a caller who could run it, and a type is
-//! dropped with it when nothing the caller can still see reaches that type.
+//! thing: an operation is listed only to a caller who could run it, a type with a role
+//! only to a caller who holds it, and a type is dropped with an operation when nothing
+//! the caller can still see reaches that type.
 //!
 //! What a caller sees depends only on which of the schema's gating roles it holds, so a
 //! view is built once per such set and shared. A schema with no `requires_role`
@@ -20,14 +21,17 @@ use serde_json::Value;
 use super::schema_builder::IntrospectionResponses;
 use crate::{
     schema::CompiledSchema,
-    security::{SecurityContext, role_gate::caller_holds},
+    security::{
+        SecurityContext,
+        role_gate::{caller_holds, visible_schema},
+    },
 };
 
 /// The introspection responses of a schema, answered per caller.
 pub struct CallerIntrospection {
     /// Every operation listed: what a caller holding every gating role sees.
     full:           Arc<IntrospectionResponses>,
-    /// Every role a query or mutation of the schema requires.
+    /// Every role a type, query or mutation of the schema requires.
     gating_roles:   BTreeSet<String>,
     /// The type names `full` reaches from its roots.
     full_reachable: HashSet<String>,
@@ -51,6 +55,7 @@ impl CallerIntrospection {
             .iter()
             .filter_map(|q| q.requires_role.clone())
             .chain(schema.mutations.iter().filter_map(|m| m.requires_role.clone()))
+            .chain(schema.types.iter().filter_map(|t| t.requires_role.clone()))
             .collect();
         Self {
             full: Arc::new(full),
@@ -88,17 +93,14 @@ impl CallerIntrospection {
         (key, view)
     }
 
-    /// The responses of `schema` without the operations `caller` may not run, and without
-    /// the types only those operations reached.
+    /// The responses of the schema `caller` may see, without the types only what it may not
+    /// see reached.
     fn build_view(
         &self,
         schema: &CompiledSchema,
         caller: Option<&SecurityContext>,
     ) -> IntrospectionResponses {
-        let mut visible = schema.clone();
-        visible.queries.retain(|q| caller_holds(q.requires_role.as_deref(), caller));
-        visible.mutations.retain(|m| caller_holds(m.requires_role.as_deref(), caller));
-        let mut view = (self.build)(&visible);
+        let mut view = (self.build)(&visible_schema(schema, caller));
 
         let still_reached = reachable_types(schema_of(&view));
         let dropped: HashSet<&str> = self

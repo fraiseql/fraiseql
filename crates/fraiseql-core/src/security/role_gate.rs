@@ -19,6 +19,7 @@
 
 use crate::{
     error::{FraiseQLError, Result},
+    schema::CompiledSchema,
     security::SecurityContext,
 };
 
@@ -31,6 +32,34 @@ use crate::{
 pub fn caller_holds(required: Option<&str>, security_context: Option<&SecurityContext>) -> bool {
     required
         .is_none_or(|role| security_context.is_some_and(|ctx| ctx.roles.iter().any(|r| r == role)))
+}
+
+/// The schema as `caller` may see it: without the queries and mutations it may not run,
+/// the types whose role it lacks, and those types' union memberships.
+///
+/// Introspection, the schema exports and the service SDL describe the schema through this
+/// one answer, so what a caller is shown and what it may run agree.
+///
+/// Loading lowers a type's role onto every operation that returns it, and refuses a field
+/// that reaches a role-gated type from a type not gated the same way. Every operation or
+/// field that reaches a hidden type is therefore itself hidden, and an interface's possible
+/// types are read from `types`, so neither needs a pass of its own.
+#[must_use]
+pub fn visible_schema(schema: &CompiledSchema, caller: Option<&SecurityContext>) -> CompiledSchema {
+    let mut visible = schema.clone();
+    visible.queries.retain(|q| caller_holds(q.requires_role.as_deref(), caller));
+    visible.mutations.retain(|m| caller_holds(m.requires_role.as_deref(), caller));
+    visible.types.retain(|t| caller_holds(t.requires_role.as_deref(), caller));
+    let hidden: Vec<&str> = schema
+        .types
+        .iter()
+        .filter(|t| !caller_holds(t.requires_role.as_deref(), caller))
+        .map(|t| t.name.as_str())
+        .collect();
+    for union in &mut visible.unions {
+        union.member_types.retain(|member| !hidden.contains(&member.as_str()));
+    }
+    visible
 }
 
 /// Refuse the operation unless the caller holds `required`, hiding its existence.

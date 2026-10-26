@@ -11,6 +11,8 @@ The static layer is a compile-time role check that returns *"not found in schema
 to a principal without the role. GraphQL introspection (`__schema`, `__type`) agrees with
 it: a gated query or mutation is listed only to a caller who holds the role, and a type
 that only such operations reach is left out with them, so `__type` answers `null` for it.
+A type declaring `requires_role` is listed only to a caller holding that role, and is
+left out of the possible types of its interfaces and unions for everyone else.
 A misspelt operation name is answered with *"Did you mean"* only the operations the caller
 may run.
 The REST debug route `GET /introspection` also leaves out what the caller's roles do not

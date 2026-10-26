@@ -200,8 +200,10 @@ disagreed, and the promise was the part that was wrong.
   gated query and mutation, its arguments and its types to every caller, while the call
   itself was refused as "not found in schema". They now answer per caller: a gated query
   or mutation is listed only to a caller holding its role, and a type reached only
-  through such operations is left out with them (`__type` answers `null`). A schema
-  with no `requires_role` serves one view as before. A misspelt query or mutation name is
+  through such operations is left out with them (`__type` answers `null`). A type
+  declaring `requires_role` is listed only to a caller holding that role, and is left
+  out of its interfaces' and unions' possible types for anyone else. A schema with no
+  `requires_role` serves one view as before. A misspelt query or mutation name is
   no longer answered with "Did you mean" a gated operation the caller may not run. The
   federation `_service { sdl }` still lists every operation.
 
