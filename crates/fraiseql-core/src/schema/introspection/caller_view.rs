@@ -93,6 +93,36 @@ impl CallerIntrospection {
         (key, view)
     }
 
+    /// The schema `caller` may see, as its introspection lists it: [`visible_schema`]
+    /// without the declarations its view leaves out because nothing it may see reaches
+    /// them. A declaration the full view does not list either is kept, so a caller holding
+    /// every gating role is answered the whole schema.
+    ///
+    /// `schema` must be the schema this was built from.
+    pub fn visible_schema(
+        &self,
+        schema: &CompiledSchema,
+        caller: Option<&SecurityContext>,
+    ) -> CompiledSchema {
+        let mut visible = visible_schema(schema, caller);
+        let (_, view) = self.for_caller(schema, caller);
+        let still_listed = listed_types(schema_of(&view));
+        let dropped: HashSet<&str> = listed_types(schema_of(&self.full))
+            .into_iter()
+            .filter(|name| !still_listed.contains(name))
+            .collect();
+        if dropped.is_empty() {
+            return visible;
+        }
+        let kept = |name: &str| !dropped.contains(name);
+        visible.types.retain(|t| kept(t.name.as_str()));
+        visible.input_types.retain(|t| kept(t.name.as_str()));
+        visible.enums.retain(|t| kept(t.name.as_str()));
+        visible.interfaces.retain(|t| kept(t.name.as_str()));
+        visible.unions.retain(|t| kept(t.name.as_str()));
+        visible
+    }
+
     /// The responses of the schema `caller` may see, without the types only what it may not
     /// see reached.
     fn build_view(
@@ -129,6 +159,16 @@ impl CallerIntrospection {
 /// it cannot collide with the full view's.
 fn view_key(held: &[&str]) -> String {
     format!("\u{1}{}", held.join("\u{1f}"))
+}
+
+/// The names of the types a `__schema` object lists.
+fn listed_types(schema: &Value) -> HashSet<&str> {
+    schema["types"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|t| t["name"].as_str())
+        .collect()
 }
 
 /// The `__schema` object of a response.

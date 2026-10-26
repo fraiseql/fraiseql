@@ -34,11 +34,14 @@ pub fn caller_holds(required: Option<&str>, security_context: Option<&SecurityCo
         .is_none_or(|role| security_context.is_some_and(|ctx| ctx.roles.iter().any(|r| r == role)))
 }
 
-/// The schema as `caller` may see it: without the queries and mutations it may not run,
-/// the types whose role it lacks, and those types' union memberships.
+/// The schema as `caller` may see it.
 ///
-/// Introspection, the schema exports and the service SDL describe the schema through this
-/// one answer, so what a caller is shown and what it may run agree.
+/// It lacks the queries and mutations the caller may not run, the types whose role it
+/// lacks, and those types' union memberships. A stored SDL names every declaration, so it
+/// is dropped when anything is hidden.
+///
+/// Introspection and the schema exports describe the schema through this one answer, so
+/// what a caller is shown and what it may run agree.
 ///
 /// Loading lowers a type's role onto every operation that returns it, and refuses a field
 /// that reaches a role-gated type from a type not gated the same way. Every operation or
@@ -58,6 +61,12 @@ pub fn visible_schema(schema: &CompiledSchema, caller: Option<&SecurityContext>)
         .collect();
     for union in &mut visible.unions {
         union.member_types.retain(|member| !hidden.contains(&member.as_str()));
+    }
+    if visible.queries.len() < schema.queries.len()
+        || visible.mutations.len() < schema.mutations.len()
+        || !hidden.is_empty()
+    {
+        visible.schema_sdl = None;
     }
     visible
 }

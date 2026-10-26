@@ -437,6 +437,17 @@ impl Executor {
         &self.ctx.schema
     }
 
+    /// The compiled schema as `caller` may see it: what its introspection lists, and what
+    /// the schema exports serve it.
+    ///
+    /// It is [`visible_schema`](crate::security::role_gate::visible_schema) without the
+    /// declarations the caller's introspection drops because nothing it may see reaches
+    /// them. A `None` caller is anonymous.
+    #[must_use]
+    pub fn schema_for(&self, caller: Option<&SecurityContext>) -> CompiledSchema {
+        self.ctx.introspection.visible_schema(&self.ctx.schema, caller)
+    }
+
     /// Whether `caller` may select `field` without the read being refused for it
     /// ([`may_select_field`](crate::runtime::may_select_field)), under this executor's schema
     /// and field authorizer.

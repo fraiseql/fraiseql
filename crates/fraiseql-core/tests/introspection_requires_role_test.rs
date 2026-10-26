@@ -19,7 +19,7 @@ use fraiseql_core::{
     prelude::TenantId,
     runtime::{Executor, QueryMatcher},
     schema::CompiledSchema,
-    security::SecurityContext,
+    security::{SecurityContext, role_gate::visible_schema},
 };
 use fraiseql_test_utils::failing_adapter::FailingAdapter;
 use serde_json::{Value, json};
@@ -432,4 +432,112 @@ async fn a_role_only_a_type_declares_still_gates_it() {
         names(&out["data"]["__schema"]["types"]).contains(&"Ledger".to_string()),
         "{out}"
     );
+}
+
+// ---------------------------------------------------------------------------
+// The schema a caller may see, as the exports serve it
+// ---------------------------------------------------------------------------
+
+/// `auditLog` and `auditSearch` need `admin`. Only they reach the enum `AuditAction`, the
+/// interface `Auditable`, the union `AuditResult` and the type `AuditEntry`.
+fn audit_schema() -> CompiledSchema {
+    let doc = json!({
+        "types": [
+            {"name": "Order", "sql_source": "v_order",
+             "fields": [{"name": "id", "field_type": "ID", "nullable": false}]},
+            {"name": "AuditEntry", "sql_source": "v_audit_entry", "implements": ["Auditable"],
+             "fields": [{"name": "id", "field_type": "ID", "nullable": false}]}
+        ],
+        "enums": [
+            {"name": "AuditAction", "values": [{"name": "READ"}, {"name": "WRITE"}]}
+        ],
+        "interfaces": [
+            {"name": "Auditable", "fields": [{"name": "id", "field_type": "ID", "nullable": false}]}
+        ],
+        "unions": [
+            {"name": "AuditResult", "member_types": ["AuditEntry"]}
+        ],
+        "queries": [
+            {"name": "orders", "return_type": "Order", "returns_list": true,
+             "nullable": false, "sql_source": "v_order", "arguments": []},
+            {"name": "auditLog", "return_type": "AuditEntry", "returns_list": true,
+             "nullable": false, "sql_source": "v_audit_entry", "requires_role": "admin",
+             "arguments": [{"name": "action", "arg_type": {"Enum": "AuditAction"}, "nullable": true}]},
+            {"name": "auditSearch", "return_type": "AuditResult", "returns_list": true,
+             "nullable": false, "sql_source": "v_audit_entry", "requires_role": "admin",
+             "arguments": []}
+        ]
+    });
+    CompiledSchema::from_json(&doc.to_string(), false).expect("audit fixture schema loads")
+}
+
+/// Every declaration name of `schema`, by kind.
+fn declared(schema: &CompiledSchema) -> Vec<String> {
+    let mut all: Vec<String> = schema.types.iter().map(|t| t.name.to_string()).collect();
+    all.extend(schema.enums.iter().map(|d| d.name.clone()));
+    all.extend(schema.interfaces.iter().map(|d| d.name.clone()));
+    all.extend(schema.unions.iter().map(|d| d.name.clone()));
+    all.extend(schema.input_types.iter().map(|d| d.name.clone()));
+    all.extend(schema.queries.iter().map(|d| d.name.clone()));
+    all
+}
+
+#[test]
+fn the_visible_schema_drops_what_only_hidden_operations_reach() {
+    let executor = Executor::new(audit_schema(), Arc::new(FailingAdapter::new()));
+    let anonymous = declared(&executor.schema_for(None));
+    for gated in [
+        "auditLog",
+        "auditSearch",
+        "AuditEntry",
+        "AuditAction",
+        "Auditable",
+        "AuditResult",
+    ] {
+        assert!(!anonymous.contains(&gated.to_string()), "{gated} kept: {anonymous:?}");
+    }
+    assert!(anonymous.contains(&"Order".to_string()), "{anonymous:?}");
+
+    let admin = declared(&executor.schema_for(Some(&caller(&["admin"]))));
+    for gated in [
+        "auditLog",
+        "auditSearch",
+        "AuditEntry",
+        "AuditAction",
+        "Auditable",
+        "AuditResult",
+    ] {
+        assert!(admin.contains(&gated.to_string()), "{gated} dropped: {admin:?}");
+    }
+}
+
+/// A stored SDL names every declaration: a caller shown less than the whole schema is not
+/// served it, whichever kind of declaration was hidden.
+#[test]
+fn the_visible_schema_drops_a_stored_sdl_when_anything_is_hidden() {
+    for (fixture, holder) in [(schema(), "admin"), (typed_schema(), "auditor")] {
+        let mut stored = fixture;
+        stored.schema_sdl = Some("type Query { everything: String }".to_string());
+        assert_eq!(visible_schema(&stored, None).schema_sdl, None);
+        assert!(
+            visible_schema(&stored, Some(&caller(&[holder, "accountant"])))
+                .schema_sdl
+                .is_some()
+        );
+    }
+
+    let mut types_only = typed_schema();
+    types_only.schema_sdl = Some("type Query { everything: String }".to_string());
+    let auditor = caller(&["auditor"]);
+    assert_eq!(visible_schema(&types_only, Some(&auditor)).schema_sdl, None, "a hidden type");
+
+    let mut mutations_only = schema();
+    mutations_only.queries.iter_mut().for_each(|q| q.requires_role = None);
+    mutations_only.schema_sdl = Some("type Query { everything: String }".to_string());
+    assert_eq!(visible_schema(&mutations_only, None).schema_sdl, None, "a hidden mutation");
+
+    let mut queries_only = schema();
+    queries_only.mutations.iter_mut().for_each(|m| m.requires_role = None);
+    queries_only.schema_sdl = Some("type Query { everything: String }".to_string());
+    assert_eq!(visible_schema(&queries_only, None).schema_sdl, None, "a hidden query");
 }

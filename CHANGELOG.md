@@ -206,6 +206,17 @@ disagreed, and the promise was the part that was wrong.
   `requires_role` serves one view as before. A misspelt query or mutation name is
   no longer answered with "Did you mean" a gated operation the caller may not run. The
   federation `_service { sdl }` still lists every operation.
+- **The schema exports list what the caller may see (#1717).** `GET
+  /api/v1/schema.graphql` and `GET /api/v1/schema.json` served the whole compiled schema
+  to whoever could reach them. They now answer by the introspection rule: a gated
+  operation, a role-gated type, and a declaration only those reach are left out for a
+  caller without the role, and a hand-written stored SDL is not served to a caller shown
+  less than the whole schema. The caller is the one the authentication layer admitted,
+  so without `schema_export_require_auth` every caller is anonymous and the exports list
+  only what no role gates; enable it for a caller to be shown what its roles reach.
+  The caller's identity is resolved as on `/graphql`, so roles from identity enrichment
+  count, and a subject enrichment denies is refused (403, or 503 when resolution is
+  unavailable).
 
 - **zstd-sys 2.1.2 (RUSTSEC-2026-0410).** zstd-sys's WebAssembly allocator shim could
   corrupt memory when an allocation failed. FraiseQL builds no wasm32 target; the lock

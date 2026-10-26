@@ -930,6 +930,91 @@ mod schema_tests {
     }
 }
 
+/// The exports answer a caller's roles, so they resolve its identity as every transport
+/// does: enrichment can add roles, and a subject it denies is refused, not answered by its
+/// token's roles.
+#[cfg(feature = "auth")]
+mod schema_identity_tests {
+    use std::sync::Arc;
+
+    use axum::{Extension, Router, body::Body, http::Request, routing::get};
+    use fraiseql_core::{
+        runtime::Executor, schema::CompiledSchema, security::AuthenticatedUser, types::UserId,
+    };
+    use fraiseql_test_utils::failing_adapter::FailingAdapter;
+    use http::StatusCode;
+    use tower::ServiceExt;
+
+    use super::super::schema::{export_json_handler, export_sdl_handler};
+    use crate::{
+        identity::{IdentityResolver, tests as identity_fixtures},
+        middleware::oidc_auth::AuthUser,
+        routes::graphql::AppState,
+    };
+
+    fn router(resolver: IdentityResolver) -> Router {
+        let schema = CompiledSchema::from_json(
+            &serde_json::json!({
+                "types": [{"name": "Order", "sql_source": "v_order",
+                           "fields": [{"name": "id", "field_type": "ID", "nullable": false}]}],
+                "queries": [{"name": "orders", "return_type": "Order", "returns_list": true,
+                             "nullable": false, "sql_source": "v_order", "arguments": []}]
+            })
+            .to_string(),
+            false,
+        )
+        .expect("fixture schema loads");
+        let state = AppState::new(Arc::new(Executor::new(schema, Arc::new(FailingAdapter::new()))))
+            .with_identity_resolver(Arc::new(resolver));
+        Router::new()
+            .route("/api/v1/schema.graphql", get(export_sdl_handler))
+            .route("/api/v1/schema.json", get(export_json_handler))
+            .with_state(state)
+            .layer(Extension(AuthUser(AuthenticatedUser {
+                user_id:      UserId("u1".to_string()),
+                email:        None,
+                display_name: None,
+                scopes:       Vec::new(),
+                expires_at:   chrono::Utc::now() + chrono::Duration::hours(1),
+                extra_claims: std::collections::HashMap::new(),
+            })))
+    }
+
+    async fn status(router: &Router, uri: &str) -> StatusCode {
+        let request = Request::builder().uri(uri).body(Body::empty()).expect("request builds");
+        router.clone().oneshot(request).await.expect("the router answers").status()
+    }
+
+    const EXPORTS: [&str; 2] = ["/api/v1/schema.graphql", "/api/v1/schema.json"];
+
+    #[tokio::test]
+    async fn an_unknown_subject_is_refused_the_exports() {
+        let router = router(identity_fixtures::resolver_returning(&[]));
+        for uri in EXPORTS {
+            assert_eq!(status(&router, uri).await, StatusCode::FORBIDDEN, "{uri}");
+        }
+    }
+
+    #[tokio::test]
+    async fn a_resolver_outage_is_unavailable_not_denied() {
+        let router = router(identity_fixtures::resolver_unavailable());
+        for uri in EXPORTS {
+            assert_eq!(status(&router, uri).await, StatusCode::SERVICE_UNAVAILABLE, "{uri}");
+        }
+    }
+
+    #[tokio::test]
+    async fn a_resolved_subject_is_answered() {
+        let router = router(identity_fixtures::resolver_returning(&[
+            ("actor_id", serde_json::json!("a-1")),
+            ("actor_role", serde_json::json!("manager")),
+        ]));
+        for uri in EXPORTS {
+            assert_eq!(status(&router, uri).await, StatusCode::OK, "{uri}");
+        }
+    }
+}
+
 mod tenant_admin_tests {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics acceptable
     #![allow(clippy::missing_panics_doc)] // Reason: test helpers
