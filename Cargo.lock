@@ -3863,6 +3863,7 @@ dependencies = [
  "fraiseql-wire",
  "futures",
  "insta",
+ "memchr",
  "proptest",
  "rustls",
  "rustls-native-certs",

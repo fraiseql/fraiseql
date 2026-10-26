@@ -47,7 +47,7 @@ async fn get(router: &Router, uri: &str) -> (StatusCode, axum::body::Bytes) {
 fn fixture(uri: &'static str, fat: bool) -> Fixture {
     let schema = CompiledSchema::from_json(fixed_rows::SCHEMA, false).expect("bench schema loads");
     let rows = (0..ROWS).map(|i| user_row(i, fat)).collect();
-    let executor = Arc::new(Executor::new(schema, Arc::new(FixedRows(rows))));
+    let executor = Arc::new(Executor::new(schema, Arc::new(FixedRows::new(rows))));
     let router = rest_router(&AppState::new(executor), &RestMountConfig::default())
         .expect("REST router builds");
     let runtime = tokio::runtime::Builder::new_current_thread()

@@ -13,6 +13,10 @@
 //! Shapes: a root list, a by-id read, and a list with a nested list, each over lean rows
 //! (about 200 bytes) and fat rows (about 4.5 KB).
 //!
+//! `respond` measures a read whose rows need no shaping in Rust both ways, each to the
+//! bytes a transport sends: `value_*` executes to a `Value` and serializes it, `raw_*`
+//! splices the rows' text, which the adapter holds as the database would send it.
+//!
 //! glibc's fastbins are off (`glibc.malloc.mxfast=0`). With them on, `malloc_consolidate`
 //! runs inside the measured call or not depending on the heap state setup leaves, which
 //! moves a count by about 4,400 instructions (3.5% of `by_id_lean`) with no code change.
@@ -28,7 +32,7 @@ use serde_json::Value;
 
 #[path = "support/fixed_rows.rs"]
 mod fixed_rows;
-use fixed_rows::{FixedRows, user_row};
+use fixed_rows::{FixedRows, plain_user_row, user_row};
 
 const ROWS: usize = 20;
 
@@ -41,7 +45,7 @@ struct Fixture {
 fn fixture(query: &'static str, fat: bool) -> Fixture {
     let schema = CompiledSchema::from_json(fixed_rows::SCHEMA, false).expect("bench schema loads");
     let rows = (0..ROWS).map(|i| user_row(i, fat)).collect();
-    let executor = Executor::new(schema, Arc::new(FixedRows(rows)));
+    let executor = Executor::new(schema, Arc::new(FixedRows::new(rows)));
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -78,7 +82,70 @@ fn execute(f: Fixture) -> (Fixture, Value) {
     (f, out)
 }
 
-library_benchmark_group!(name = executor; benchmarks = execute);
+const PLAIN_LIST: &str = "{ users(limit: 20) { id name email bio } }";
+const PLAIN_BY_ID: &str =
+    r#"{ user(id: "00000000-0000-4000-8000-000000000000") { id name email bio } }"#;
+
+/// A fixture over rows that also answer as text, the two paths checked to agree.
+fn text_fixture(query: &'static str, fat: bool) -> Fixture {
+    let schema = CompiledSchema::from_json(fixed_rows::SCHEMA, false).expect("bench schema loads");
+    let rows = (0..ROWS).map(|i| plain_user_row(i, fat)).collect();
+    let executor = Executor::new(schema, Arc::new(FixedRows::with_text(rows)));
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime builds");
+    let value = runtime.block_on(executor.execute(query, None)).expect("warm-up call succeeds");
+    assert!(value.get("errors").is_none(), "bench query must succeed: {value}");
+    let body = runtime
+        .block_on(executor.execute_operation_body(query, None, None))
+        .expect("warm-up call succeeds");
+    assert!(body.is_raw(), "bench query must be answered raw: {query}");
+    assert_eq!(
+        body.into_bytes().expect("raw body"),
+        serde_json::to_vec(&value).expect("value serializes"),
+        "the two paths must send the same bytes"
+    );
+    Fixture {
+        runtime,
+        executor,
+        query,
+    }
+}
+
+/// Drops the fixture and the body outside the measured call.
+fn teardown_bytes(done: (Fixture, Vec<u8>)) {
+    drop(done);
+}
+
+#[library_benchmark]
+#[bench::value_list_lean(args = (PLAIN_LIST, false, false), setup = respond_fixture, teardown = teardown_bytes)]
+#[bench::value_list_fat(args = (PLAIN_LIST, true, false), setup = respond_fixture, teardown = teardown_bytes)]
+#[bench::value_by_id_lean(args = (PLAIN_BY_ID, false, false), setup = respond_fixture, teardown = teardown_bytes)]
+#[bench::value_by_id_fat(args = (PLAIN_BY_ID, true, false), setup = respond_fixture, teardown = teardown_bytes)]
+#[bench::raw_list_lean(args = (PLAIN_LIST, false, true), setup = respond_fixture, teardown = teardown_bytes)]
+#[bench::raw_list_fat(args = (PLAIN_LIST, true, true), setup = respond_fixture, teardown = teardown_bytes)]
+#[bench::raw_by_id_lean(args = (PLAIN_BY_ID, false, true), setup = respond_fixture, teardown = teardown_bytes)]
+#[bench::raw_by_id_fat(args = (PLAIN_BY_ID, true, true), setup = respond_fixture, teardown = teardown_bytes)]
+fn respond((f, raw): (Fixture, bool)) -> (Fixture, Vec<u8>) {
+    let query = black_box(f.query);
+    let bytes = if raw {
+        let body = f.runtime.block_on(f.executor.execute_operation_body(query, None, None));
+        body.expect("bench query succeeds").into_bytes()
+    } else {
+        let value = f.runtime.block_on(f.executor.execute(query, None));
+        serde_json::to_vec(&value.expect("bench query succeeds"))
+    };
+    let bytes = black_box(bytes.expect("the body serializes"));
+    (f, bytes)
+}
+
+/// [`text_fixture`], and which path the measured call takes.
+fn respond_fixture(query: &'static str, fat: bool, raw: bool) -> (Fixture, bool) {
+    (text_fixture(query, fat), raw)
+}
+
+library_benchmark_group!(name = executor; benchmarks = execute, respond);
 main!(
     config = LibraryBenchmarkConfig::default().env("GLIBC_TUNABLES", "glibc.malloc.mxfast=0");
     library_benchmark_groups = executor

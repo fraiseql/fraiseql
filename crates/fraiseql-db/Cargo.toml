@@ -9,6 +9,8 @@ fraiseql-error = { workspace = true }
 # Wire protocol (optional)
 fraiseql-wire = { workspace = true, optional = true }
 futures = { workspace = true }
+# Scanning a JSON string for its end without a byte-at-a-time loop.
+memchr = { workspace = true }
 # PostgreSQL transport security (#801/#824). Not optional within the `postgres`
 # feature: a cfg-gated TLS stack means a build where `ssl_mode = "require"` has to
 # either fail at runtime or downgrade, and the second is the bug being fixed.

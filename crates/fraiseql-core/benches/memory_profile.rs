@@ -130,7 +130,7 @@ fn warm_allocations(description: Option<String>, query: &str) -> (u64, u64, serd
     let users = schema.queries.iter_mut().find(|q| q.name == "users").unwrap();
     users.description = description;
     let rows = (0..20).map(|i| user_row(i, false)).collect();
-    let executor = Executor::new(schema, Arc::new(FixedRows(rows)));
+    let executor = Executor::new(schema, Arc::new(FixedRows::new(rows)));
     let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
     let warm = runtime.block_on(executor.execute(query, None)).unwrap();
     assert!(warm.get("errors").is_none(), "the read must succeed: {warm}");

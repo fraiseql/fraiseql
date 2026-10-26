@@ -8,8 +8,8 @@ use async_trait::async_trait;
 use fraiseql_core::{
     db::{
         DatabaseAdapter, DatabaseType, WhereClause,
-        traits::{MutationRowGate, WriteRequest, Writer},
-        types::{JsonbValue, OrderByClause, PoolMetrics},
+        traits::{MutationRowGate, ProjectionRequest, RawRows, WriteRequest, Writer},
+        types::{JsonbValue, OrderByClause, PoolMetrics, ReadRouting},
     },
     error::{FraiseQLError, Result},
     schema::SqlProjectionHint,
@@ -21,7 +21,45 @@ use serde_json::{Value, json};
 pub const SCHEMA: &str = include_str!("../fixtures/executor_schema.json");
 
 /// Returns the same rows for every read.
-pub struct FixedRows(pub Vec<JsonbValue>);
+/// Fixed rows, and optionally each row's text as PostgreSQL writes a `json` object, so a
+/// read answered as text costs what the database's own bytes cost: nothing to build.
+pub struct FixedRows(pub Vec<JsonbValue>, pub Option<Vec<Vec<u8>>>);
+
+impl FixedRows {
+    /// Rows answered as `Value`s only, as an adapter that does not answer as text.
+    pub const fn new(rows: Vec<JsonbValue>) -> Self {
+        Self(rows, None)
+    }
+
+    /// Rows answered as `Value`s, or as text.
+    #[allow(dead_code)] // Reason: one of the three benches that include this file reads as text
+    pub fn with_text(rows: Vec<JsonbValue>) -> Self {
+        let texts = rows.iter().map(|row| json_object_text(row.as_value())).collect();
+        Self(rows, Some(texts))
+    }
+
+    /// How many rows a read returns: one for a lookup, else up to `limit`.
+    fn count(&self, where_clause: Option<&WhereClause>, limit: Option<u32>) -> usize {
+        let n = if where_clause.is_some() {
+            1
+        } else {
+            self.0.len()
+        };
+        limit.map_or(n, |l| n.min(l as usize))
+    }
+}
+
+/// An object as PostgreSQL's `JSON_OBJECT` writes it: `{"k" : v, "k2" : v2}`.
+#[allow(dead_code)] // Reason: reached only through `FixedRows::with_text`
+fn json_object_text(value: &Value) -> Vec<u8> {
+    let members = value.as_object().map_or_else(Vec::new, |object| {
+        object
+            .iter()
+            .map(|(k, v)| format!("{} : {v}", Value::String(k.clone())))
+            .collect()
+    });
+    format!("{{{}}}", members.join(", ")).into_bytes()
+}
 
 // Reason: DatabaseAdapter is defined with #[async_trait]; implementations must match it.
 #[async_trait]
@@ -39,13 +77,23 @@ impl DatabaseAdapter for FixedRows {
         _order_by: Option<&[OrderByClause]>,
     ) -> Result<Vec<JsonbValue>> {
         // A filtered read is the by-id shape: the database would answer one row.
-        let n = if where_clause.is_some() {
-            1
-        } else {
-            self.0.len()
+        Ok(self.0[..self.count(where_clause, limit)].to_vec())
+    }
+
+    async fn execute_with_projection_raw_with_session(
+        &self,
+        request: &ProjectionRequest<'_>,
+        _session_vars: &[(&str, &str)],
+        _routing: ReadRouting,
+    ) -> Result<Option<RawRows>> {
+        let Some(texts) = &self.1 else {
+            return Ok(None);
         };
-        let n = limit.map_or(n, |l| n.min(l as usize));
-        Ok(self.0[..n].to_vec())
+        let mut rows = RawRows::new();
+        for text in &texts[..self.count(request.where_clause, request.limit)] {
+            rows.push(text);
+        }
+        Ok(Some(rows))
     }
 
     async fn execute_with_projection(
@@ -57,7 +105,21 @@ impl DatabaseAdapter for FixedRows {
         offset: Option<u32>,
         order_by: Option<&[OrderByClause]>,
     ) -> Result<Vec<JsonbValue>> {
-        self.execute_where_query(view, where_clause, limit, offset, order_by).await
+        // With text, a projected read parses it, as the database adapter parses its rows.
+        let Some(texts) = &self.1 else {
+            return self.execute_where_query(view, where_clause, limit, offset, order_by).await;
+        };
+        texts[..self.count(where_clause, limit)]
+            .iter()
+            .map(|text| {
+                serde_json::from_slice(text).map(JsonbValue::new).map_err(|e| {
+                    FraiseQLError::Internal {
+                        message: format!("bench row is not JSON: {e}"),
+                        source:  None,
+                    }
+                })
+            })
+            .collect()
     }
 
     fn database_type(&self) -> DatabaseType {
@@ -122,5 +184,21 @@ pub fn user_row(i: usize, fat: bool) -> JsonbValue {
         "bio": bio,
         "createdAt": "2026-10-22T12:00:00Z",
         "posts": posts,
+    }))
+}
+
+/// A user row holding only the fields a plain read selects, in its selection order.
+#[allow(dead_code)] // Reason: one of the three benches that include this file reads it
+pub fn plain_user_row(i: usize, fat: bool) -> JsonbValue {
+    let bio = if fat {
+        "A longer biography paragraph, repeated to make the row fat. ".repeat(10)
+    } else {
+        "Short bio.".to_string()
+    };
+    JsonbValue::new(json!({
+        "id": format!("00000000-0000-4000-8000-{i:012}"),
+        "name": format!("User {i}"),
+        "email": format!("user{i}@example.com"),
+        "bio": bio,
     }))
 }

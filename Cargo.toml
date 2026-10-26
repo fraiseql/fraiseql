@@ -121,6 +121,7 @@ jsonwebtoken = { version = "10", features = ["rust_crypto"] }
 # tightening it to "0.18.2" re-resolves the whole graph and drags in unrelated
 # socket2/itertools/windows-sys dedup drift, which a security fix should not carry.
 lru = "0.18"
+memchr = "2.7"
 moka = { version = "0.12", default-features = false, features = ["sync"] }
 # Parking lot (faster mutexes)
 parking_lot = "0.12"

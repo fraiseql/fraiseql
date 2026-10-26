@@ -42,7 +42,8 @@ pub struct Compacted {
 /// Append `src`, a valid JSON text, to `out` without insignificant whitespace.
 ///
 /// The bytes are copied, never parsed into a tree: the scan only tracks whether it is
-/// inside a string, and counts tokens as it passes them. `src` must be valid JSON, as the
+/// inside a string, and counts tokens as it passes them. A string's contents are copied a
+/// run at a time, up to its next quote or backslash. `src` must be valid JSON, as the
 /// database guarantees for a `json` or `jsonb` column; on anything else the output is
 /// whatever the scan copied.
 pub fn compact_json(src: &[u8], out: &mut Vec<u8>) -> Compacted {
@@ -50,48 +51,27 @@ pub fn compact_json(src: &[u8], out: &mut Vec<u8>) -> Compacted {
         exact: true,
         ..Compacted::default()
     };
-    let tally = &mut found.tally;
     // Per open container: whether it is an object.
     let mut open: Vec<bool> = Vec::new();
-    // Whether the string being read is a key, and the decoded bytes read of it so far.
-    let mut string: Option<(bool, u64)> = None;
-    let mut escaped = false;
     let mut number_start = None;
     out.reserve(src.len());
-    for (i, &b) in src.iter().enumerate() {
-        if let Some((key, len)) = string.as_mut() {
-            out.push(b);
-            if escaped {
-                escaped = false;
-                if b == b'u' {
-                    found.exact = false;
-                }
-                *len += 1;
-            } else if b == b'\\' {
-                escaped = true;
-            } else if b == b'"' {
-                if *key {
-                    tally.key_bytes += *len;
-                } else {
-                    tally.strings += 1;
-                    tally.string_bytes += *len;
-                }
-                string = None;
-            } else {
-                *len += 1;
-            }
-            continue;
-        }
+    let mut i = 0;
+    while let Some(&b) = src.get(i) {
         if let Some(start) = number_start {
             if matches!(b, b'0'..=b'9' | b'-' | b'+' | b'.' | b'e' | b'E') {
                 out.push(b);
+                i += 1;
                 continue;
             }
             found.exact &= exact_integer(&src[start..i]);
             number_start = None;
         }
+        let tally = &mut found.tally;
         match b {
-            b' ' | b'\n' | b'\r' | b'\t' => continue,
+            b' ' | b'\n' | b'\r' | b'\t' => {
+                i += 1;
+                continue;
+            },
             b'"' => {
                 // A string where an object expects a key is one; `:` follows it.
                 let key = open.last() == Some(&true) && expects_key(out);
@@ -100,7 +80,17 @@ pub fn compact_json(src: &[u8], out: &mut Vec<u8>) -> Compacted {
                 } else {
                     count_element(&open, tally);
                 }
-                string = Some((key, 0));
+                out.push(b'"');
+                let (end, len) = copy_string(src, i + 1, out, &mut found.exact);
+                let tally = &mut found.tally;
+                if key {
+                    tally.key_bytes += len;
+                } else {
+                    tally.strings += 1;
+                    tally.string_bytes += len;
+                }
+                i = end;
+                continue;
             },
             b'{' | b'[' => {
                 count_element(&open, tally);
@@ -128,11 +118,41 @@ pub fn compact_json(src: &[u8], out: &mut Vec<u8>) -> Compacted {
             _ => {},
         }
         out.push(b);
+        i += 1;
     }
     if let Some(start) = number_start {
         found.exact &= exact_integer(&src[start..]);
     }
     found
+}
+
+/// Copy a string's contents from `from`, just past its opening quote, through its closing
+/// quote. Returns where the scan resumes and the string's decoded length; a `\u` escape
+/// clears `exact`.
+fn copy_string(src: &[u8], from: usize, out: &mut Vec<u8>, exact: &mut bool) -> (usize, u64) {
+    let mut i = from;
+    let mut len = 0u64;
+    while let Some(run) = src.get(i..) {
+        let Some(at) = memchr::memchr2(b'"', b'\\', run) else {
+            // Unterminated: valid JSON never ends here.
+            out.extend_from_slice(run);
+            return (src.len(), len + run.len() as u64);
+        };
+        out.extend_from_slice(&run[..=at]);
+        len += at as u64;
+        i += at + 1;
+        if run[at] == b'"' {
+            return (i, len);
+        }
+        // An escape is two bytes for one decoded character, or six for `\uXXXX`.
+        if let Some(&escaped) = src.get(i) {
+            out.push(escaped);
+            *exact &= escaped != b'u';
+            len += 1;
+            i += 1;
+        }
+    }
+    (src.len(), len)
 }
 
 /// Whether the last significant byte written opens an object or ends a member, so the
