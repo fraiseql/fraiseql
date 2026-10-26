@@ -1,0 +1,44 @@
+{
+  "types": [
+    {
+      "name": "Reading",
+      "sql_source": "v_reading",
+      "jsonb_column": "data",
+      "fields": [
+        { "name": "id", "field_type": "ID" },
+        { "name": "price", "field_type": "Decimal" },
+        { "name": "cost", "field_type": "Decimal" },
+        { "name": "tax", "field_type": "Decimal" },
+        { "name": "total", "field_type": "Decimal" },
+        { "name": "score", "field_type": "Float" },
+        { "name": "ratio", "field_type": "Float" },
+        { "name": "weight", "field_type": "Float" },
+        { "name": "count", "field_type": "Int" }
+      ]
+    }
+  ],
+  "queries": [
+    {
+      "name": "readings",
+      "return_type": "Reading",
+      "returns_list": true,
+      "nullable": false,
+      "sql_source": "v_reading",
+      "jsonb_column": "data",
+      "arguments": [],
+      "auto_params": {
+        "has_where": false,
+        "has_order_by": false,
+        "has_limit": true,
+        "has_offset": false
+      }
+    }
+  ],
+  "mutations": [],
+  "subscriptions": [],
+  "enums": [],
+  "input_types": [],
+  "interfaces": [],
+  "unions": [],
+  "directives": []
+}

@@ -16,6 +16,8 @@
 //! `respond` measures a read whose rows need no shaping in Rust both ways, each to the
 //! bytes a transport sends: `value_*` executes to a `Value` and serializes it, `raw_*`
 //! splices the rows' text, which the adapter holds as the database would send it.
+//! `numeric_*` does the same over rows of numbers with a fraction, each of which the raw
+//! path writes again as `serde_json` would.
 //!
 //! glibc's fastbins are off (`glibc.malloc.mxfast=0`). With them on, `malloc_consolidate`
 //! runs inside the measured call or not depending on the heap state setup leaves, which
@@ -32,7 +34,7 @@ use serde_json::Value;
 
 #[path = "support/fixed_rows.rs"]
 mod fixed_rows;
-use fixed_rows::{FixedRows, plain_user_row, user_row};
+use fixed_rows::{FixedRows, plain_user_row, reading_text, user_row};
 
 const ROWS: usize = 20;
 
@@ -88,9 +90,14 @@ const PLAIN_BY_ID: &str =
 
 /// A fixture over rows that also answer as text, the two paths checked to agree.
 fn text_fixture(query: &'static str, fat: bool) -> Fixture {
-    let schema = CompiledSchema::from_json(fixed_rows::SCHEMA, false).expect("bench schema loads");
     let rows = (0..ROWS).map(|i| plain_user_row(i, fat)).collect();
-    let executor = Executor::new(schema, Arc::new(FixedRows::with_text(rows)));
+    text_fixture_over(fixed_rows::SCHEMA, FixedRows::with_text(rows), query)
+}
+
+/// [`text_fixture`] over `schema` and `adapter`.
+fn text_fixture_over(schema: &str, adapter: FixedRows, query: &'static str) -> Fixture {
+    let schema = CompiledSchema::from_json(schema, false).expect("bench schema loads");
+    let executor = Executor::new(schema, Arc::new(adapter));
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -127,6 +134,8 @@ fn teardown_bytes(done: (Fixture, Vec<u8>)) {
 #[bench::raw_list_fat(args = (PLAIN_LIST, true, true), setup = respond_fixture, teardown = teardown_bytes)]
 #[bench::raw_by_id_lean(args = (PLAIN_BY_ID, false, true), setup = respond_fixture, teardown = teardown_bytes)]
 #[bench::raw_by_id_fat(args = (PLAIN_BY_ID, true, true), setup = respond_fixture, teardown = teardown_bytes)]
+#[bench::value_numeric_list(args = (false), setup = numeric_fixture, teardown = teardown_bytes)]
+#[bench::raw_numeric_list(args = (true), setup = numeric_fixture, teardown = teardown_bytes)]
 fn respond((f, raw): (Fixture, bool)) -> (Fixture, Vec<u8>) {
     let query = black_box(f.query);
     let bytes = if raw {
@@ -143,6 +152,18 @@ fn respond((f, raw): (Fixture, bool)) -> (Fixture, Vec<u8>) {
 /// [`text_fixture`], and which path the measured call takes.
 fn respond_fixture(query: &'static str, fat: bool, raw: bool) -> (Fixture, bool) {
     (text_fixture(query, fat), raw)
+}
+
+const NUMERIC_LIST: &str =
+    "{ readings(limit: 20) { id price cost tax total score ratio weight count } }";
+
+/// A fixture over [`reading_text`] rows, and which path the measured call takes.
+fn numeric_fixture(raw: bool) -> (Fixture, bool) {
+    let rows = FixedRows::from_texts((0..ROWS).map(reading_text).collect());
+    (
+        text_fixture_over(include_str!("fixtures/numeric_schema.json"), rows, NUMERIC_LIST),
+        raw,
+    )
 }
 
 library_benchmark_group!(name = executor; benchmarks = execute, respond);

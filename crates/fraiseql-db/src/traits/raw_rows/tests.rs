@@ -81,21 +81,50 @@ fn a_null_is_reported_only_where_there_is_one() {
     assert!(!null(r#"{"a" : "null", "n" : 1, "t" : true, "f" : false}"#));
 }
 
-/// Each would serialize differently after a round trip through `serde_json`.
+/// Numbers as `jsonb` and `json` hold them, each of which `serde_json` writes back with
+/// other digits: through an `f64` unless it is an integer that fits `i64` or `u64`.
+const REWRITTEN_NUMBERS: &[&str] = &[
+    r#"{"price" : 1.50}"#,
+    r#"{"f" : 1.0, "g" : 100.00}"#,
+    r#"{"e" : 1e2, "E" : 2E-3, "p" : 1e+3, "big" : 1.5e300}"#,
+    r#"{"z" : -0, "zf" : -0.0, "zero" : 0.0}"#,
+    r#"{"wide" : 1234567890123456789, "u64" : 18446744073709551615}"#,
+    r#"{"wider" : 18446744073709551616, "neg" : -9223372036854775809}"#,
+    r#"{"decimal" : 12345678901234567890.12, "cents" : 123456789012345678.99}"#,
+    r#"{"tiny" : 0.000000000000000000001, "third" : 0.3333333333333333333333}"#,
+    r"[0.5, -2.25, 19.99, 1e-7]",
+    r"3.25",
+    r"-0",
+];
+
+#[test]
+fn a_number_is_written_as_serde_json_writes_it() {
+    for text in REWRITTEN_NUMBERS {
+        let mut out = Vec::new();
+        let found = compact_json(text.as_bytes(), &mut out);
+        let value: Value = serde_json::from_str(text).unwrap();
+        assert_eq!(
+            String::from_utf8(out).unwrap(),
+            serde_json::to_string(&value).unwrap(),
+            "{text}"
+        );
+        assert!(found.exact, "{text} should be exact");
+        let mut expected = JsonTally::default();
+        tally_of(&value, &mut expected);
+        assert_eq!(found.tally, expected, "{text}");
+    }
+}
+
+/// Each would serialize differently after a round trip through `serde_json`, or would not
+/// parse at all.
 #[test]
 fn a_value_serde_json_would_rewrite_is_not_exact() {
     for text in [
-        r#"{"price" : 1.50}"#,
-        r#"{"f" : 1.0}"#,
-        r#"{"e" : 1e2}"#,
-        r#"{"E" : 2E-3}"#,
-        r#"{"z" : -0}"#,
-        r#"{"wide" : 1234567890123456789}"#,
-        r#"{"wider" : 18446744073709551616}"#,
         r#"{"esc" : "\u00e9"}"#,
         r#"{"ctl" : "\u001f"}"#,
-        r"[0.5]",
-        r"3.25",
+        // Past `f64`: `serde_json` refuses it, so the `Value` path must be the one to.
+        r#"{"huge" : 1e400}"#,
+        r"[-1e400]",
     ] {
         let found = compact_json(text.as_bytes(), &mut Vec::new());
         assert!(!found.exact, "{text} should not be exact");
@@ -130,6 +159,6 @@ fn one_inexact_row_makes_the_rows_inexact() {
     let mut rows = RawRows::new();
     rows.push(br#"{"a" : 1}"#);
     assert!(rows.exact());
-    rows.push(br#"{"a" : 1.5}"#);
+    rows.push(br#"{"a" : 1e400}"#);
     assert!(!rows.exact());
 }

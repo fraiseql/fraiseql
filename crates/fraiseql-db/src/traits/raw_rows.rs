@@ -32,8 +32,8 @@ pub struct Compacted {
     /// The text's tokens.
     pub tally: JsonTally,
     /// Whether the compact text is byte for byte what `serde_json` writes for the value it
-    /// parses to. It is not when a number would not survive as an integer (a fraction, an
-    /// exponent, `-0`, a width past `i64`), or a string carries a `\u` escape.
+    /// parses to. It is not when a string carries a `\u` escape, or a number lies past the
+    /// range of an `f64`, which `serde_json` refuses to parse.
     pub exact: bool,
     /// Whether the text holds a `null`.
     pub null:  bool,
@@ -43,7 +43,9 @@ pub struct Compacted {
 ///
 /// The bytes are copied, never parsed into a tree: the scan only tracks whether it is
 /// inside a string, and counts tokens as it passes them. A string's contents are copied a
-/// run at a time, up to its next quote or backslash. `src` must be valid JSON, as the
+/// run at a time, up to its next quote or backslash. A number is written as `serde_json`
+/// writes the value it parses to, so `1.50` becomes `1.5`: an integer `serde_json` keeps
+/// is copied, and any other number is parsed and written again. `src` must be valid JSON, as the
 /// database guarantees for a `json` or `jsonb` column; on anything else the output is
 /// whatever the scan copied.
 pub fn compact_json(src: &[u8], out: &mut Vec<u8>) -> Compacted {
@@ -53,17 +55,18 @@ pub fn compact_json(src: &[u8], out: &mut Vec<u8>) -> Compacted {
     };
     // Per open container: whether it is an object.
     let mut open: Vec<bool> = Vec::new();
+    // Where the number being copied starts, in `src` and in `out`.
     let mut number_start = None;
     out.reserve(src.len());
     let mut i = 0;
     while let Some(&b) = src.get(i) {
-        if let Some(start) = number_start {
+        if let Some((start, out_start)) = number_start {
             if matches!(b, b'0'..=b'9' | b'-' | b'+' | b'.' | b'e' | b'E') {
                 out.push(b);
                 i += 1;
                 continue;
             }
-            found.exact &= exact_integer(&src[start..i]);
+            found.exact &= write_number(&src[start..i], out, out_start);
             number_start = None;
         }
         let tally = &mut found.tally;
@@ -113,15 +116,15 @@ pub fn compact_json(src: &[u8], out: &mut Vec<u8>) -> Compacted {
             b'0'..=b'9' | b'-' => {
                 count_element(&open, tally);
                 tally.numbers += 1;
-                number_start = Some(i);
+                number_start = Some((i, out.len()));
             },
             _ => {},
         }
         out.push(b);
         i += 1;
     }
-    if let Some(start) = number_start {
-        found.exact &= exact_integer(&src[start..]);
+    if let Some((start, out_start)) = number_start {
+        found.exact &= write_number(&src[start..], out, out_start);
     }
     found
 }
@@ -167,6 +170,25 @@ fn count_element(open: &[bool], tally: &mut JsonTally) {
     if open.last() == Some(&false) {
         tally.elements += 1;
     }
+}
+
+/// Write `token`, a number already copied to `out` from `at`, as `serde_json` writes the
+/// value it parses to. Returns `false`, leaving the token as it is, when `serde_json` would
+/// not parse it.
+fn write_number(token: &[u8], out: &mut Vec<u8>, at: usize) -> bool {
+    if exact_integer(token) {
+        return true;
+    }
+    let Ok(number) = serde_json::from_slice::<serde_json::Number>(token) else {
+        return false;
+    };
+    out.truncate(at);
+    if serde_json::to_writer(&mut *out, &number).is_ok() {
+        return true;
+    }
+    out.truncate(at);
+    out.extend_from_slice(token);
+    false
 }
 
 /// Whether a number token parses to an integer `serde_json` writes back unchanged.

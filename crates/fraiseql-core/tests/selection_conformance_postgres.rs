@@ -57,6 +57,23 @@ INSERT INTO v_selection_conformance_user (pk_user, data) VALUES
      "profile":{"tier":"silver","zone":"us","address":{"city":"Austin","zip":"73301"}}}'::jsonb);
 "#;
 
+/// Numbers whose text `serde_json` writes back otherwise: a scale, a width past `u64`, more
+/// digits than an `f64` holds, an exponent, `-0`. `jsonb` keeps a number's scale and digits
+/// and drops its exponent.
+const MEASURE_VIEW: &str = "v_selection_conformance_measure";
+const MEASURE_FIXTURE: &str = r#"
+DROP TABLE IF EXISTS v_selection_conformance_measure;
+CREATE TABLE v_selection_conformance_measure (data jsonb);
+INSERT INTO v_selection_conformance_measure (data) VALUES
+  ('{"price":1.50,"score":0.1,"total":100.00,"count":7}'::jsonb),
+  ('{"price":12345678901234567890.12,"score":1e3,"total":123456789012345678.99,
+     "count":18446744073709551616}'::jsonb),
+  ('{"price":100000000000000000000,"score":-0,"total":2.5E-3,"count":-9223372036854775809}'::jsonb),
+  ('{"price":19.99,"score":1.5e300,"total":-0.0,"count":1234567890123456789}'::jsonb),
+  ('{"price":0.000000000000000000001,"score":0.3333333333333333333333,"total":1.0,
+     "count":0}'::jsonb);
+"#;
+
 /// A document of 120 keys, past the 50 pairs one `jsonb_build_object` call could carry (#1544).
 const WIDE_VIEW: &str = "v_selection_conformance_wide";
 const WIDE_FIELDS: usize = 120;
@@ -92,6 +109,16 @@ fn schema() -> CompiledSchema {
     for i in 0..WIDE_FIELDS {
         wide_type = wide_type.with_simple_field(&wide_field(i), FieldType::Int);
     }
+    let measure_type = TestTypeBuilder::new("Measure", MEASURE_VIEW)
+        .with_simple_field("price", FieldType::Decimal)
+        .with_simple_field("score", FieldType::Float)
+        .with_simple_field("total", FieldType::Decimal)
+        .with_simple_field("count", FieldType::Int)
+        .build();
+    let measures_query = TestQueryBuilder::new("measures", "Measure")
+        .returns_list(true)
+        .with_sql_source(MEASURE_VIEW)
+        .build();
     let wides_query = TestQueryBuilder::new("wides", "Wide")
         .returns_list(true)
         .with_sql_source(WIDE_VIEW)
@@ -117,7 +144,9 @@ fn schema() -> CompiledSchema {
         .with_type(profile_type)
         .with_type(address_type)
         .with_type(wide_type.build())
+        .with_type(measure_type)
         .with_query(users_query)
+        .with_query(measures_query)
         .with_query(wides_query)
         .with_query(connection_query)
         .build();
@@ -135,7 +164,7 @@ async fn executor() -> Option<Executor> {
 async fn executor_for(schema: CompiledSchema) -> Option<Executor> {
     let pg = fraiseql_test_support::postgres().await?;
     let adapter = PostgresAdapter::new(pg.url()).await.expect("connect to the bound PostgreSQL");
-    for stmt in FIXTURE.split(";\n") {
+    for stmt in FIXTURE.split(";\n").chain(MEASURE_FIXTURE.split(";\n")) {
         if stmt.trim().is_empty() {
             continue;
         }
@@ -638,6 +667,7 @@ const RAW_ELIGIBLE: &[&str] = &[
     "{ users { name profile { tier address { city zip } } } }",
     "query Named { users { name } }",
     "{ wides { kaa kab kbb kep } }",
+    "{ measures { price score total count } }",
 ];
 
 /// Reads that must stay on the `Value` path: each needs a step the bytes cannot take.

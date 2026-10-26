@@ -38,6 +38,16 @@ impl FixedRows {
         Self(rows, Some(texts))
     }
 
+    /// Rows given as their text, each also parsed for the `Value` path.
+    #[allow(dead_code)] // Reason: one of the three benches that include this file reads it
+    pub fn from_texts(texts: Vec<Vec<u8>>) -> Self {
+        let rows = texts
+            .iter()
+            .map(|text| JsonbValue::new(serde_json::from_slice(text).expect("bench row is JSON")))
+            .collect();
+        Self(rows, Some(texts))
+    }
+
     /// How many rows a read returns: one for a lookup, else up to `limit`.
     fn count(&self, where_clause: Option<&WhereClause>, limit: Option<u32>) -> usize {
         let n = if where_clause.is_some() {
@@ -201,4 +211,24 @@ pub fn plain_user_row(i: usize, fat: bool) -> JsonbValue {
         "email": format!("user{i}@example.com"),
         "bio": bio,
     }))
+}
+
+/// A reading's text as PostgreSQL writes a `JSON_OBJECT` of `numeric` and `float8`
+/// columns: every number but `count` has a fraction, which `serde_json` writes again.
+#[allow(dead_code)] // Reason: one of the three benches that include this file reads it
+pub fn reading_text(i: usize) -> Vec<u8> {
+    format!(
+        "{{\"id\" : \"00000000-0000-4000-8000-{i:012}\", \"price\" : {}.{:02}, \
+         \"cost\" : {}.50, \"tax\" : 0.{:02}0, \"total\" : 1{i:04}.00, \
+         \"score\" : 0.{:03}, \"ratio\" : 3.14159265358979323846, \"weight\" : {}.125, \
+         \"count\" : {}}}",
+        10 + i,
+        (i * 7) % 100,
+        i * 3,
+        (i * 13) % 100,
+        (i * 37) % 1000,
+        i,
+        i * 11,
+    )
+    .into_bytes()
 }

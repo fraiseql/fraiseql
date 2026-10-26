@@ -4,10 +4,11 @@
 //! response keys, in selection order, each nested object built from its selected
 //! sub-fields. Where nothing after the read would change a byte of it, the rows are
 //! spliced into the `data` envelope as the database wrote them, and no row becomes a
-//! [`serde_json::Value`].
+//! [`serde_json::Value`]. Only their numbers are written again, as `serde_json` writes
+//! them.
 //!
 //! Anything Rust would still reshape keeps the read on the `Value` path: `__typename`,
-//! a localized, encrypted or computed field, an enum, a list, a float or a JSON scalar,
+//! a localized, encrypted or computed field, an enum, a list or a JSON scalar,
 //! an abstract type, a mask, a gated field, a nested level read by a composed statement.
 
 use std::{collections::HashSet, sync::Arc};
@@ -177,6 +178,8 @@ impl RawShape {
                 | FieldType::Id
                 | FieldType::Uuid
                 | FieldType::Int
+                | FieldType::Float
+                | FieldType::Decimal
                 | FieldType::Boolean => sel.nested_fields.is_empty(),
                 FieldType::Object(child) => {
                     !sel.nested_fields.is_empty() && self.admits(&sel.nested_fields, schema, child)

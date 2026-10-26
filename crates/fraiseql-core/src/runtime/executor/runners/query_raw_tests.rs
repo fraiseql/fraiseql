@@ -128,6 +128,8 @@ fn stored_scalars_and_objects_built_from_their_sub_fields_are_admitted() {
         leaf("name"),
         leaf("age"),
         leaf("active"),
+        leaf("score"),
+        leaf("price"),
         select("profile", vec![leaf("tier")]),
     ];
     assert_eq!(admitted(&selections), Some(false));
@@ -141,8 +143,6 @@ fn stored_scalars_and_objects_built_from_their_sub_fields_are_admitted() {
 #[test]
 fn a_field_rust_would_reshape_is_refused() {
     for name in [
-        "score",
-        "price",
         "meta",
         "born",
         "status",
