@@ -39,6 +39,29 @@ ignore = [
   # client_secret (server-initiated, cached an hour, not caller-triggerable or timeable) and
   # S3 SigV4a for multi-region access points (whether to drop `sigv4a` is #1711).
   # deadline: 2027-01-31 — move to an elliptic-curve release on crypto-bigint 0.7.
+  # zstd 0.13.3: the stream `Encoder`/`Decoder::with_context` constructors reused a borrowed
+  # context as it was, so an abandoned stream's data leaked into the next. Nothing we compile
+  # calls them: compression-codecs (tower-http response compression) builds each stream with
+  # `with_dictionary`, a fresh owned context; parquet 59's codec uses the one-shot bulk API;
+  # wasmtime 48's cache uses `encode_all`/`decode_all` and is not enabled.
+  # tools/check-zstd-context-reuse.sh fails on any such call in a direct zstd consumer or a
+  # workspace crate; if it fails, this acceptance is void. Fixed in zstd 0.14.3 (#1747).
+  # deadline: 2027-01-31 — move to zstd 0.14 when parquet, compression-codecs and wasmtime allow it.
+  { id = "RUSTSEC-2026-0391", reason = "zstd with_context context reuse: no consumer calls it (compression-codecs with_dictionary per stream, parquet bulk one-shot, wasmtime cache encode_all/decode_all, off); check-zstd-context-reuse.sh. Fix needs zstd 0.14, blocked by parquet 59 (#1747). Deadline 2027-01-31." },
+  # zstd-sys 2.1.2: streaming decompression of a legacy frame could expose uninitialized
+  # memory on failure. Legacy support is compiled out: zstd-sys's build script defines
+  # ZSTD_LEGACY_SUPPORT=0 without its `legacy` feature, which nothing enables, even with
+  # every FraiseQL feature on (exposure `feature-off:legacy`, checked by
+  # tools/check-advisory-paths.sh). Fixed in zstd-safe 8.2, under zstd 0.14 (#1747).
+  # deadline: 2027-01-31 — move to zstd 0.14 when parquet, compression-codecs and wasmtime allow it.
+  { id = "RUSTSEC-2026-0403", reason = "zstd legacy-frame streaming decode: compiled out, ZSTD_LEGACY_SUPPORT=0 without zstd-sys `legacy`, which nothing enables (feature-off:legacy, check-advisory-paths.sh). Fix needs zstd 0.14, blocked by parquet 59 (#1747). Deadline 2027-01-31." },
+  # zstd-safe 7.2.4: `Seekable::decompress` sets a Vec length past its capacity. The code is
+  # compiled only with zstd-safe's `seekable` feature, which nothing in the graph enables,
+  # even with every FraiseQL feature on (docs/dependency-risk-policy.md, exposure
+  # `feature-off:seekable`, checked by tools/check-advisory-paths.sh). Fixed only in
+  # zstd-safe 8.2, under zstd 0.14; parquet 59 requires zstd ^0.13 (#1747).
+  # deadline: 2027-01-31 — move to zstd 0.14 when parquet, compression-codecs and wasmtime allow it.
+  { id = "RUSTSEC-2026-0398", reason = "zstd-safe Seekable::decompress: compiled only with the `seekable` feature, which nothing enables (feature-off:seekable, check-advisory-paths.sh). Fix needs zstd 0.14, blocked by parquet 59 (#1747). Deadline 2027-01-31." },
   { id = "RUSTSEC-2026-0387", reason = "crypto-bigint 0.5 under elliptic-curve 0.13: ES256/384 and webhook verification are public-key; secret-key use is Apple's cached client_secret and S3 SigV4a (#1711). No 0.5-series fix. Deadline 2027-01-31." },
   { id = "RUSTSEC-2023-0071", reason = "rsa used for RS256 public-key verification (unaffected) and GCS service-account signing only; no caller-triggerable private-key operation (#1110, gated by check-crypto-providers.sh). Deadline 2027-01-31." },
 ]

@@ -183,6 +183,27 @@ disagreed, and the promise was the part that was wrong.
   no longer answered with "Did you mean" a gated operation the caller may not run. The
   federation `_service { sdl }` still lists every operation.
 
+- **zstd-sys 2.1.2 (RUSTSEC-2026-0410).** zstd-sys's WebAssembly allocator shim could
+  corrupt memory when an allocation failed. FraiseQL builds no wasm32 target; the lock
+  no longer carries the affected version.
+
+- **RUSTSEC-2026-0391, -0398 and -0403 (zstd) are accepted, with a 2027-01-31 deadline,
+  each behind a gate that voids it.** Their fixes need zstd 0.14, which parquet 59 does not
+  yet accept (#1747).
+  - 0391 (a stream context reused by `with_context`): nothing we compile calls those
+    constructors. The new `tools/check-zstd-context-reuse.sh` fails on any such call in a
+    crate that depends on zstd directly, or in the workspace.
+  - 0398 (`Seekable`) and 0403 (legacy frames): the flawed code is compiled only with
+    zstd-safe's `seekable` feature and zstd-sys's `legacy` feature, which nothing enables.
+    `tools/check-advisory-paths.sh` gains a `feature-off:<f>` exposure that fails if the
+    feature is turned on, or if the crate does not declare it.
+
+- **`tools/check-advisory-paths.sh` could read a crate as absent when it was present.** It
+  piped `cargo tree`'s output into `grep -q` under `pipefail`. On large output, grep's
+  early exit killed the writer, and the pipeline's 141 read as "no root line", which the
+  gate counted as absent. A `not-compiled` claim could pass that way. It now matches
+  against a here-string, and only cargo's own absence messages count as absent.
+
 ## [2.18.0] - 2026-10-25
 
 ### Breaking

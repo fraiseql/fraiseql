@@ -17,6 +17,8 @@
 #   default-build        `cargo tree -i <crate>@<ver> -e normal` resolves it on default features
 #   feature-gated:<f>    absent on default features; present with --features <f>
 #   not-compiled         absent even with --all-features
+#   feature-off:<f>      compiled, but the crate's own feature <f>, which holds the flaw,
+#                        is enabled by nothing, even with --all-features
 #
 # `-e normal` excludes dev- and build-dependency edges, so "not in the shipped binary" is
 # established by construction rather than asserted in prose.
@@ -59,6 +61,10 @@ fi
 #
 # So: discriminate on the tree's ROOT LINE (`<crate> v<version>`), and treat ambiguity as
 # a gate error rather than as absence.
+#
+# ⚠ Never `printf "$out" | grep -q` (or `| head`) here: under `pipefail`, a reader that
+# exits on its first match kills the writer with SIGPIPE once the output outgrows the pipe
+# buffer, and the pipeline's 141 reads as "no match". Feed grep a here-string instead.
 resolves() {
   local spec="$1"; shift
   local name="${spec%@*}"
@@ -68,19 +74,76 @@ resolves() {
   rc=$?
   set -e
 
-  if printf '%s\n' "$out" | grep -qE 'is ambiguous'; then
+  if grep -qE 'is ambiguous' <<< "$out"; then
     printf 'error:ambiguous spec %s — name the exact version' "$spec"
     return
   fi
-  if [ "$rc" -eq 0 ] && printf '%s\n' "$out" | grep -qE "^${name} v[0-9]"; then
+  if [ "$rc" -eq 0 ] && grep -qE "^${name} v[0-9]" <<< "$out"; then
     printf 'present'
     return
   fi
-  if [ "$rc" -eq 0 ] || printf '%s\n' "$out" | grep -qE 'did not match any packages'; then
+  # Absent only on cargo's own words for it. Any other output without a root line is an
+  # error, shown, never read as absence: absence is what a `not-compiled` claim passes on.
+  if { [ "$rc" -eq 0 ] && grep -qE 'nothing to print' <<< "$out"; } \
+    || grep -qE 'did not match any packages' <<< "$out"; then
     printf 'absent'
     return
   fi
-  printf 'error:cargo tree exited %s for %s' "$rc" "$spec"
+  printf 'error:cargo tree exited %s for %s with no root line: %s' "$rc" "$spec" \
+    "$(sed -n '1,5p' <<< "$out" | tr '\n' ' ')"
+}
+
+# enables <spec> <feature> → prints "on" | "off" | "error:<detail>": whether anything in the
+# graph turns on the crate's own <feature>, with every workspace feature enabled. The crate
+# must resolve at all, and must declare the feature, or "off" would be vacuous.
+enables() {
+  local spec="$1" feature="$2"
+  local name="${spec%@*}"
+  local present out rc
+  present="$(resolves "$spec" --all-features)"
+  case "$present" in
+    present) ;;
+    absent) printf 'error:%s is not compiled at all; claim not-compiled instead' "$spec"; return ;;
+    *) printf '%s' "$present"; return ;;
+  esac
+  # A feature the crate does not declare is enabled by nothing, so a misspelt name would
+  # read as "off". Read the crate's own manifest and require the feature in [features].
+  # The version goes into an extended regex: `.` and the `+` of build metadata
+  # (`2.1.2+zstd.1.5.7`) must match themselves.
+  local version="${spec#*@}" manifest pattern
+  pattern="$(printf '%s' "${name}-${version}" | sed -E 's/[.+]/\\&/g')"
+  local metadata
+  metadata="$(cargo metadata --format-version 1 --all-features 2>/dev/null || true)"
+  manifest="$(grep -oE "\"manifest_path\":\"[^\"]*/${pattern}/Cargo\.toml\"" <<< "$metadata" \
+    | sed -nE '1s/^"manifest_path":"(.*)"$/\1/p' || true)"
+  if [ -z "$manifest" ] || [ ! -f "$manifest" ]; then
+    printf 'error:no manifest found for %s' "$spec"
+    return
+  fi
+  if ! awk -v f="$feature" '
+      /^\[/ { in_features = ($0 == "[features]") ; next }
+      in_features && $0 ~ "^\"?" f "\"?[ \t]*=" { found = 1 }
+      END { exit !found }
+    ' "$manifest"; then
+    printf 'error:%s declares no feature %s' "$spec" "$feature"
+    return
+  fi
+  # `{f}` prints the features enabled on each package; the first line is the inverted
+  # crate itself: `<crate> v<version>|<f1>,<f2>,…`.
+  local root
+  set +e
+  out="$(cargo tree -i "$spec" -e normal --all-features --color never -f '{p}|{f}' 2>&1)"
+  rc=$?
+  set -e
+  root="$(grep -m 1 -E "^${name} v[0-9]" <<< "$out" || true)"
+  if [ "$rc" -ne 0 ] || [ -z "$root" ]; then
+    printf 'error:cargo tree exited %s for %s' "$rc" "$spec"
+    return
+  fi
+  case ",${root#*|}," in
+    *",${feature},"*) printf 'on' ;;
+    *) printf 'off' ;;
+  esac
 }
 
 status=0
@@ -148,9 +211,27 @@ while IFS=$'\t' read -r id spec exposure; do
           status=1 ;;
       esac
       ;;
+    feature-off:*)
+      feature="${exposure#feature-off:}"
+      if [ -z "$feature" ]; then
+        echo "ERROR: $id — 'feature-off:' with no feature named."
+        status=1
+        continue
+      fi
+      got="$(enables "$spec" "$feature")"
+      case "$got" in
+        off) ;;
+        on)
+          echo "ERROR: $id claims 'feature-off:$feature' but $spec has '$feature' enabled with --all-features."
+          status=1 ;;
+        error:*)
+          echo "ERROR: $id — ${got#error:}"
+          status=1 ;;
+      esac
+      ;;
     *)
       echo "ERROR: $id has an unrecognised Exposure value '$exposure'."
-      echo "       Expected: default-build | feature-gated:<feature> | not-compiled"
+      echo "       Expected: default-build | feature-gated:<feature> | not-compiled | feature-off:<feature>"
       status=1
       ;;
   esac

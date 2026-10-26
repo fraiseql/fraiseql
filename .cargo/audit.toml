@@ -25,6 +25,18 @@ ignore = [
   # Apple's cached client_secret and S3 SigV4a (#1711).
   # deadline: 2027-01-31 — matches deny.toml.
   "RUSTSEC-2026-0387",
+  # zstd 0.13.3 with_context context reuse: no consumer calls it; enforced by
+  # tools/check-zstd-context-reuse.sh. Fix needs zstd 0.14, blocked by parquet 59 (#1747).
+  # deadline: 2027-01-31 — matches deny.toml.
+  "RUSTSEC-2026-0391",
+  # zstd-sys legacy-frame streaming decode: compiled out without the `legacy` feature
+  # (feature-off:legacy). Fix needs zstd 0.14, blocked by parquet 59 (#1747).
+  # deadline: 2027-01-31 — matches deny.toml.
+  "RUSTSEC-2026-0403",
+  # zstd-safe 7.2.4 Seekable::decompress: compiled only with the `seekable` feature, which
+  # nothing enables (feature-off:seekable). Fix needs zstd 0.14, blocked by parquet 59 (#1747).
+  # deadline: 2027-01-31 — matches deny.toml.
+  "RUSTSEC-2026-0398",
 ]
 # Surface unsound + unmaintained advisories as warnings so new soundness issues are visible
 # in `cargo audit` output.
