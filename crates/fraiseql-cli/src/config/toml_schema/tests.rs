@@ -55,13 +55,14 @@ backend = "nats"
 nats_url = "nats://localhost:4222"
 "#;
         let schema = TomlSchema::parse_toml(toml).expect("Failed to parse");
-        assert_eq!(schema.observers.backend, "nats");
+        assert_eq!(schema.observers.backend, fraiseql_core::schema::ObserversBackend::Nats);
         assert_eq!(schema.observers.nats_url.as_deref(), Some("nats://localhost:4222"));
-        assert!(schema.observers.redis_url.is_none());
     }
 
+    /// The runtime has no Redis transport: the compiler refuses `redis_url` with a
+    /// pointer instead of compiling a setting nothing reads.
     #[test]
-    fn test_observers_config_redis_url_unchanged() {
+    fn test_observers_config_redis_url_is_refused() {
         let toml = r#"
 [schema]
 name = "myapp"
@@ -70,13 +71,11 @@ database_target = "postgresql"
 
 [observers]
 enabled = true
-backend = "redis"
 redis_url = "redis://localhost:6379"
 "#;
-        let schema = TomlSchema::parse_toml(toml).expect("Failed to parse");
-        assert_eq!(schema.observers.backend, "redis");
-        assert_eq!(schema.observers.redis_url.as_deref(), Some("redis://localhost:6379"));
-        assert!(schema.observers.nats_url.is_none());
+        let schema = TomlSchema::parse_toml(toml).expect("parses: the trap captures the key");
+        let err = schema.validate().expect_err("redis_url configures nothing");
+        assert!(format!("{err:#}").contains("no Redis transport"), "{err:#}");
     }
 
     #[test]
@@ -99,7 +98,7 @@ database_target = "postgresql"
 
 [observers]
 enabled = true
-backend = "postgresql"
+backend = "postgres"
 
 [observers.runtime]
 poll_interval_ms = 500
@@ -111,7 +110,7 @@ max_connections = 9
         let schema =
             TomlSchema::parse_toml(toml).expect("compile must tolerate [observers.runtime]");
         assert!(schema.observers.enabled);
-        assert_eq!(schema.observers.backend, "postgresql");
+        assert_eq!(schema.observers.backend, fraiseql_core::schema::ObserversBackend::Postgres);
         // The compiler captures but does not validate the runtime sub-table.
         assert!(schema.observers.runtime.is_some());
     }
@@ -127,7 +126,7 @@ database_target = "postgresql"
 
 [observers]
 enabled = true
-backend = "postgresql"
+backend = "postgres"
 poll_interval_ms = 500
 "#;
         assert!(

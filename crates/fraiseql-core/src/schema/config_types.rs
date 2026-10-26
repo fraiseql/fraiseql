@@ -257,32 +257,47 @@ impl Default for EnterpriseSecurityConfig {
 /// rather than carried as decoration the runtime never reads.
 /// `deny_unknown_fields` makes a hand-edited compiled schema that smuggles a
 /// `handlers` array fail loudly at load instead of deserializing minus the key.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ObserversConfig {
     /// Enable observers system.
     #[serde(default)]
-    pub enabled:   bool,
-    /// Backend service: redis, nats, postgresql, mysql, in-memory.
-    #[serde(default = "default_backend")]
-    pub backend:   String,
-    /// Redis connection URL.
-    pub redis_url: Option<String>,
-    /// NATS connection URL.
-    pub nats_url:  Option<String>,
+    pub enabled:  bool,
+    /// The transport the observer runtime reads change events from.
+    #[serde(default)]
+    pub backend:  ObserversBackend,
+    /// NATS connection URL. `FRAISEQL_NATS_URL` overrides it at runtime.
+    pub nats_url: Option<String>,
 }
 
-fn default_backend() -> String {
-    "redis".to_string()
+/// The observer runtime's event transport: `"postgres"` (the default) or `"nats"`.
+///
+/// `"redis"` is refused with a pointer: the runtime has no Redis transport, and the
+/// value used to compile into artifacts as the default without selecting anything.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, schemars::JsonSchema)]
+#[serde(rename_all = "lowercase")]
+pub enum ObserversBackend {
+    /// PostgreSQL `LISTEN`/`NOTIFY` over the change log.
+    #[default]
+    Postgres,
+    /// NATS `JetStream`.
+    Nats,
 }
 
-impl Default for ObserversConfig {
-    fn default() -> Self {
-        Self {
-            enabled:   false,
-            backend:   default_backend(),
-            redis_url: None,
-            nats_url:  None,
+impl<'de> Deserialize<'de> for ObserversBackend {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let name = String::deserialize(deserializer)?;
+        match name.as_str() {
+            "postgres" => Ok(Self::Postgres),
+            "nats" => Ok(Self::Nats),
+            "redis" => Err(serde::de::Error::custom(
+                "observers backend \"redis\" names no transport: the observer runtime has no \
+                 Redis transport. Set [observers] backend = \"postgres\" (the default) or \
+                 \"nats\" in fraiseql.toml, and recompile",
+            )),
+            other => Err(serde::de::Error::custom(format!(
+                "unknown observers backend `{other}`: expected \"postgres\" or \"nats\""
+            ))),
         }
     }
 }

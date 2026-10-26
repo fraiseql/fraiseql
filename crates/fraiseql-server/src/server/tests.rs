@@ -1694,7 +1694,12 @@ mod observer_redis_env_tests {
     fn resolve(toml_src: &str, env: &[(&str, &str)]) -> crate::Result<ObserverRuntimeConfig> {
         let pool = lazy_pool();
         with_redis_env(env, || {
-            Server::observer_runtime_config(&observers(toml_src), &pool, Deployment::current())
+            Server::observer_runtime_config(
+                &observers(toml_src),
+                None,
+                &pool,
+                Deployment::current(),
+            )
         })
     }
 
@@ -1832,6 +1837,17 @@ mod observer_transport_tests {
     ];
 
     fn resolve(toml_src: &str, env: &[(&str, &str)]) -> crate::Result<ObserverRuntimeConfig> {
+        resolve_compiled(toml_src, None, env)
+    }
+
+    /// `[observers]` server TOML beside the compiled `observers_config` as JSON.
+    fn resolve_compiled(
+        toml_src: &str,
+        compiled: Option<serde_json::Value>,
+        env: &[(&str, &str)],
+    ) -> crate::Result<ObserverRuntimeConfig> {
+        let compiled: Option<fraiseql_core::schema::ObserversConfig> =
+            compiled.map(|c| serde_json::from_value(c).expect("a valid observers_config"));
         let pool = PgPool::connect_lazy("postgres://test:test@localhost/test").expect("lazy pool");
         let vars: Vec<(&str, Option<&str>)> = TRANSPORT_VARS
             .iter()
@@ -1840,32 +1856,27 @@ mod observer_transport_tests {
         temp_env::with_vars(vars, || {
             let observers: ObserverConfig = toml::from_str(toml_src)
                 .map_err(|e| crate::ServerError::ConfigError(e.to_string()))?;
-            Server::observer_runtime_config(&observers, &pool, Deployment::current())
+            Server::observer_runtime_config(
+                &observers,
+                compiled.as_ref(),
+                &pool,
+                Deployment::current(),
+            )
         })
     }
-
-    const NATS: &str = r#"
-        [runtime.transport]
-        transport = "nats"
-
-        [runtime.transport.nats]
-        url = "nats://broker:4222"
-    "#;
 
     /// The `nats.jetstream` values reach the runtime's transport config, from TOML
     /// and from the environment. That they reach the stream and consumer the
     /// runtime creates is pinned against a live broker in
     /// `tests/observer_runtime_integration_test.rs`.
-    /// The NATS section without selecting NATS: the values are parsed and overridden
+    /// The NATS tuning without selecting NATS: the values are parsed and overridden
     /// whichever transport runs, so this needs no `observers-nats` build.
-    const NATS_SECTION: &str = "[runtime.transport.nats]\nurl = \"nats://broker:4222\"\n";
+    const NATS_SECTION: &str = "[runtime.transport.nats.jetstream]\n";
 
     #[tokio::test]
     async fn jetstream_settings_reach_the_runtime_config() {
-        let toml_src = format!(
-            "{NATS_SECTION}\n[runtime.transport.nats.jetstream]\ndedup_window_minutes = 3\n\
-             max_age_days = 2\nmax_deliver = 9\n"
-        );
+        let toml_src =
+            format!("{NATS_SECTION}dedup_window_minutes = 3\nmax_age_days = 2\nmax_deliver = 9\n");
         let jetstream = resolve(&toml_src, &[]).expect("valid").transport.nats.jetstream;
         assert_eq!(jetstream.dedup_window_minutes, 3);
         assert_eq!(jetstream.max_age_days, 2);
@@ -1897,12 +1908,11 @@ mod observer_transport_tests {
             ("run_bridge", "run_bridge = true"),
             ("run_executors", "run_executors = false"),
         ] {
-            let toml_src =
-                NATS.replace("transport = \"nats\"", &format!("transport = \"nats\"\n{extra}"));
+            let toml_src = format!("[runtime.transport]\n{extra}\n");
             let err = resolve(&toml_src, &[]).expect_err("the key must be refused");
             assert!(err.to_string().contains(key), "{key}: got {err}");
         }
-        let err = resolve(&format!("{NATS}\n[runtime.transport.bridge]\nbatch_size = 10\n"), &[])
+        let err = resolve("[runtime.transport.bridge]\nbatch_size = 10\n", &[])
             .expect_err("[bridge] must be refused");
         assert!(err.to_string().contains("bridge"), "got {err}");
     }
@@ -1917,8 +1927,69 @@ mod observer_transport_tests {
             "FRAISEQL_BRIDGE_POLL_INTERVAL_SECS",
             "FRAISEQL_BRIDGE_NOTIFY_CHANNEL",
         ] {
-            let err = resolve(NATS, &[(var, "1")]).expect_err("the variable must refuse boot");
+            let err = resolve("", &[(var, "1")]).expect_err("the variable must refuse boot");
             assert!(err.to_string().contains(var), "{var}: got {err}");
+        }
+    }
+
+    /// `fraiseql.toml [observers] backend` selects the transport; the server tunes it.
+    #[tokio::test]
+    async fn the_compiled_backend_selects_the_transport() {
+        use fraiseql_observers::config::TransportKind;
+
+        let compiled = serde_json::json!({
+            "enabled": true, "backend": "nats", "nats_url": "nats://compiled:4222"
+        });
+        let resolved = resolve_compiled("", Some(compiled), &[]);
+        if cfg!(feature = "observers-nats") {
+            let transport = resolved.expect("a runnable NATS selection").transport;
+            assert_eq!(transport.transport, TransportKind::Nats);
+            assert_eq!(transport.nats.url, "nats://compiled:4222");
+        } else {
+            // Production (no FRAISEQL_ENV) refuses a NATS selection this build cannot run.
+            let err = resolved.expect_err("NATS without observers-nats");
+            assert!(err.to_string().contains("NATS support"), "{err}");
+        }
+
+        let default = resolve_compiled("", Some(serde_json::json!({ "enabled": true })), &[])
+            .expect("the default backend");
+        assert_eq!(default.transport.transport, TransportKind::Postgres);
+    }
+
+    /// The compiled `nats_url` is the URL, and `FRAISEQL_NATS_URL` still overrides it.
+    #[tokio::test]
+    async fn the_compiled_nats_url_is_the_url_and_the_environment_overrides_it() {
+        let compiled =
+            || serde_json::json!({ "enabled": true, "nats_url": "nats://compiled:4222" });
+        let url = resolve_compiled("", Some(compiled()), &[]).expect("valid").transport.nats.url;
+        assert_eq!(url, "nats://compiled:4222");
+        let url =
+            resolve_compiled("", Some(compiled()), &[("FRAISEQL_NATS_URL", "nats://env:4222")])
+                .expect("valid")
+                .transport
+                .nats
+                .url;
+        assert_eq!(url, "nats://env:4222");
+    }
+
+    /// The transport and its URL are the compiler's keys: written in the server's
+    /// `[observers.runtime.transport]`, they are refused with where they live now.
+    #[tokio::test]
+    async fn a_server_transport_selection_or_url_is_refused_with_a_pointer() {
+        for (key, toml_src, pointer) in [
+            (
+                "transport",
+                "[runtime.transport]\ntransport = \"nats\"\n",
+                "fraiseql.toml [observers] backend",
+            ),
+            (
+                "url",
+                "[runtime.transport.nats]\nurl = \"nats://broker:4222\"\n",
+                "fraiseql.toml [observers] nats_url",
+            ),
+        ] {
+            let err = resolve(toml_src, &[]).expect_err(key);
+            assert!(err.to_string().contains(pointer), "{key}: {err}");
         }
     }
 }

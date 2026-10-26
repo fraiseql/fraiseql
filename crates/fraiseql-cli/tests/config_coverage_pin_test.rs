@@ -322,7 +322,7 @@ fn compiled_observer_handlers_are_rejected_at_compile() {
 }
 
 /// `[observers]` in a TOML schema reaches the compiled `observers_config` in its compiled
-/// shape: the backend and both URLs, and neither `handlers` nor the server's `runtime`.
+/// shape: the backend and the NATS URL, and neither `handlers` nor the server's `runtime`.
 #[test]
 fn observers_settings_are_embedded_in_the_compiled_shape() {
     let f = toml_file(
@@ -342,7 +342,8 @@ fn observers_settings_are_embedded_in_the_compiled_shape() {
     let intermediate = SchemaMerger::merge_toml_only(f.path().to_str().unwrap()).unwrap();
     assert_eq!(
         intermediate.observers_config,
-        Some(serde_json::json!({"enabled": true, "backend": "nats", "redis_url": null,
-                                "nats_url": "nats://bus:4222"})),
+        Some(
+            serde_json::json!({"enabled": true, "backend": "nats", "nats_url": "nats://bus:4222"})
+        ),
     );
 }

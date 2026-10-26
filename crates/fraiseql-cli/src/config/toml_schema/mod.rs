@@ -474,6 +474,7 @@ impl TomlSchema {
         // Compiled handlers are refused; `[observers] enabled` is still consumed as a
         // changelog gate.
         self.observers.refuse_handlers()?;
+        self.observers.refuse_redis_url()?;
 
         Ok(())
     }

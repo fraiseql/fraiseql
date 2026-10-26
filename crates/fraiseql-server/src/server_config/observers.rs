@@ -213,31 +213,79 @@ pub struct ObserverRuntimeSettings {
     pub redis: Option<ObserverRedisConfig>,
 }
 
-/// The event transport (`[observers.runtime.transport]`): what the server runs.
+/// The event transport's tuning (`[observers.runtime.transport]`).
+///
+/// Which transport runs, and the NATS URL, are the compiled schema's
+/// (`fraiseql.toml [observers] backend` and `nats_url`): written here they are refused,
+/// naming where they live.
 #[cfg(feature = "observers")]
 #[derive(Debug, Clone, Default, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
+// Reason: the private unit field traps a moved key at load; it is not a marker that keeps
+// the struct non-exhaustive.
+#[allow(clippy::manual_non_exhaustive)]
 pub struct ObserverTransportConfig {
-    /// Where change events come from: `postgres` (default), `nats` or
-    /// `in_memory`.
-    #[serde(default)]
-    pub transport: TransportKind,
-
     /// The NATS `JetStream` stream and durable consumer
-    /// (`[observers.runtime.transport.nats]`).
-    #[serde(default)]
+    /// (`[observers.runtime.transport.nats]`), without its URL.
+    #[serde(default, deserialize_with = "nats_tuning")]
     pub nats: NatsTransportConfig,
+
+    /// Refused: the transport is `fraiseql.toml [observers] backend`.
+    #[serde(
+        default,
+        rename = "transport",
+        deserialize_with = "transport_moved",
+        skip_serializing
+    )]
+    #[schemars(skip)]
+    _transport: (),
+}
+
+/// `[observers.runtime.transport] transport` moved to the compiler's `[observers] backend`.
+#[cfg(feature = "observers")]
+fn transport_moved<'de, D: serde::Deserializer<'de>>(_: D) -> Result<(), D::Error> {
+    Err(serde::de::Error::custom(
+        "[observers.runtime.transport] transport moved: the transport is the compiled \
+         schema's. Set it in fraiseql.toml [observers] backend (\"postgres\" or \"nats\") and \
+         recompile; FRAISEQL_OBSERVER_TRANSPORT still overrides it",
+    ))
+}
+
+/// The NATS tuning, refusing the URL, which moved to the compiler's `[observers] nats_url`.
+#[cfg(feature = "observers")]
+fn nats_tuning<'de, D: serde::Deserializer<'de>>(d: D) -> Result<NatsTransportConfig, D::Error> {
+    let table = serde_json::Map::<String, serde_json::Value>::deserialize(d)?;
+    if table.contains_key("url") {
+        return Err(serde::de::Error::custom(
+            "[observers.runtime.transport.nats] url moved: the NATS URL is the compiled \
+             schema's. Set it in fraiseql.toml [observers] nats_url and recompile; \
+             FRAISEQL_NATS_URL still overrides it",
+        ));
+    }
+    serde_json::from_value(serde_json::Value::Object(table)).map_err(serde::de::Error::custom)
 }
 
 #[cfg(feature = "observers")]
 impl ObserverTransportConfig {
-    /// The library transport configuration the runtime takes.
+    /// The library transport configuration the runtime takes, for the compiled
+    /// `[observers]` section: its backend selects the transport, its `nats_url` is the
+    /// URL, and this table tunes it.
     #[must_use]
-    pub fn to_runtime(&self) -> TransportConfig {
-        TransportConfig {
-            transport: self.transport,
-            nats:      self.nats.clone(),
+    pub fn to_runtime(
+        &self,
+        compiled: Option<&fraiseql_core::schema::ObserversConfig>,
+    ) -> TransportConfig {
+        use fraiseql_core::schema::ObserversBackend;
+
+        let mut nats = self.nats.clone();
+        if let Some(url) = compiled.and_then(|c| c.nats_url.clone()) {
+            nats.url = url;
         }
+        let transport = match compiled.map(|c| c.backend).unwrap_or_default() {
+            ObserversBackend::Postgres => TransportKind::Postgres,
+            ObserversBackend::Nats => TransportKind::Nats,
+        };
+        TransportConfig { transport, nats }
     }
 }
 

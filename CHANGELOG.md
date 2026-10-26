@@ -27,6 +27,18 @@ disagreed, and the promise was the part that was wrong.
   could be passed in another flag's place without a word from the compiler: one guard
   took four arguments, three of them `bool`. The server reads its deployment once, at
   construction, and every boot guard judges that one answer.
+- **`fraiseql.toml [observers] backend` selects the observer transport, and `redis` is
+  refused.** `backend` was a free string defaulting to `"redis"`, which named no transport
+  the runtime has (its Redis queue was removed), and nothing read it: the transport came
+  from the server's `[observers.runtime.transport] transport`. Now `backend` is
+  `"postgres"` (the default) or `"nats"` and selects the transport, and the compiled
+  `nats_url` is the NATS URL; `FRAISEQL_OBSERVER_TRANSPORT` and `FRAISEQL_NATS_URL` still
+  override them. `backend = "redis"` and `redis_url` fail `fraiseql compile`, and a
+  compiled schema carrying either fails the boot: recompile. The server's
+  `[observers.runtime.transport]` keeps only the `nats` tuning; `transport` and
+  `nats.url` written there are refused at load, naming where they moved. In Rust,
+  `ObserversConfig::backend` is an `ObserversBackend`, `ObserversConfig::redis_url` is
+  gone, and `ObserverTransportConfig::to_runtime` takes the compiled section.
 - **The compiled schema decides whether the observer runtime runs (#1733).** The
   runtime started when the server config had an `[observers]` table, `enabled` defaulting
   to `true`, and the compiled `observers_config` that `fraiseql.toml [observers]` compiles

@@ -1517,9 +1517,52 @@ fn test_circuit_breaker_config_default() {
 
 #[test]
 fn test_observers_config_default() {
-    let config = ObserversConfig::default();
-    assert!(!config.enabled);
-    assert_eq!(config.backend, "redis");
+    let config = serde_json::to_value(ObserversConfig::default()).unwrap();
+    assert_eq!(config["enabled"], false);
+    assert_eq!(config["backend"], "postgres", "the runtime's default transport");
+}
+
+/// `backend` selects the runtime's transport, so it names one the runtime has.
+#[test]
+fn observers_backend_names_a_transport_the_runtime_has() {
+    for backend in ["postgres", "nats"] {
+        let config: ObserversConfig =
+            serde_json::from_value(serde_json::json!({ "backend": backend })).unwrap();
+        assert_eq!(serde_json::to_value(config).unwrap()["backend"], backend);
+    }
+}
+
+/// The runtime has no Redis transport (its queue was removed), so `redis` is refused
+/// with the two it can run, not compiled into an artifact the runtime cannot honour.
+#[test]
+fn observers_backend_redis_is_refused_with_the_alternatives() {
+    let err = serde_json::from_value::<ObserversConfig>(serde_json::json!({ "backend": "redis" }))
+        .expect_err("`redis` names no transport the runtime has");
+    let msg = err.to_string();
+    assert!(
+        msg.contains("redis") && msg.contains("\"postgres\"") && msg.contains("\"nats\""),
+        "{msg}"
+    );
+}
+
+#[test]
+fn observers_backend_outside_the_vocabulary_is_refused() {
+    for backend in ["postgresql", "in-memory", "mysql", ""] {
+        let err =
+            serde_json::from_value::<ObserversConfig>(serde_json::json!({ "backend": backend }))
+                .expect_err(backend);
+        assert!(err.to_string().contains("\"nats\""), "{backend}: {err}");
+    }
+}
+
+/// `redis_url` configured nothing: no transport reads it.
+#[test]
+fn observers_redis_url_is_refused() {
+    let err = serde_json::from_value::<ObserversConfig>(serde_json::json!({
+        "redis_url": "redis://localhost:6379"
+    }))
+    .expect_err("`redis_url` configures nothing");
+    assert!(err.to_string().contains("redis_url"), "{err}");
 }
 
 /// #631: the compiled schema cannot represent handler declarations — runtime
@@ -1529,7 +1572,6 @@ fn test_observers_config_default() {
 fn test_observers_config_rejects_handlers_key() {
     let err = serde_json::from_value::<ObserversConfig>(serde_json::json!({
         "enabled": true,
-        "backend": "redis",
         "handlers": [{"name": "n", "event": "e", "action": "webhook"}]
     }))
     .expect_err("a handlers key must be rejected, not silently dropped");

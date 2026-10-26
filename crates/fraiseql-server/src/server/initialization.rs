@@ -1085,15 +1085,15 @@ pub(super) fn observer_transport_check(
 #[cfg(feature = "observers")]
 const NATS_NOT_COMPILED_MSG: &str = concat!(
     "FraiseQL failed to start\n\n",
-    "  [observers.runtime.transport] transport = \"nats\" (or\n",
+    "  fraiseql.toml [observers] backend = \"nats\" (or\n",
     "  FRAISEQL_OBSERVER_TRANSPORT=nats) was selected, but this binary was not\n",
     "  built with NATS support, so the observer runtime cannot run on NATS and\n",
     "  would silently fall back to PostgreSQL LISTEN/NOTIFY.\n\n",
     "  To fix, build/run a binary with the NATS transport compiled in:\n",
     "    cargo build -p fraiseql-server --features observers-nats\n\n",
-    "  Or select the PostgreSQL transport explicitly:\n",
-    "    [observers.runtime.transport]\n",
-    "    transport = \"postgres\"\n\n",
+    "  Or select the PostgreSQL transport in fraiseql.toml and recompile:\n",
+    "    [observers]\n",
+    "    backend = \"postgres\"\n\n",
     "  For local development only:\n",
     "    Set FRAISEQL_ENV=development to downgrade this to a warning (runs on PostgreSQL).",
 );
@@ -1106,11 +1106,11 @@ const NATS_NOT_COMPILED_WARN: &str = "observer transport = \"nats\" selected but
 #[cfg(feature = "observers")]
 const NATS_NO_URL_MSG: &str = concat!(
     "FraiseQL failed to start\n\n",
-    "  [observers.runtime.transport] transport = \"nats\" was selected, but no NATS\n",
+    "  fraiseql.toml [observers] backend = \"nats\" was selected, but no NATS\n",
     "  broker URL is configured, so the observer runtime cannot connect.\n\n",
-    "  To fix, set the broker URL:\n",
-    "    [observers.runtime.transport.nats]\n",
-    "    url = \"nats://your-broker:4222\"\n",
+    "  To fix, set the broker URL in fraiseql.toml and recompile:\n",
+    "    [observers]\n",
+    "    nats_url = \"nats://your-broker:4222\"\n",
     "  (or export FRAISEQL_NATS_URL).\n\n",
     "  For local development only:\n",
     "    Set FRAISEQL_ENV=development to downgrade this to a warning (runs on PostgreSQL).",
@@ -1119,12 +1119,12 @@ const NATS_NO_URL_MSG: &str = concat!(
 #[cfg(feature = "observers")]
 const NATS_NO_URL_WARN: &str = "observer transport = \"nats\" selected but no NATS broker URL is configured; the observer \
      runtime will run on PostgreSQL. Allowed only because FRAISEQL_ENV=development; set \
-     [observers.runtime.transport.nats] url before production.";
+     fraiseql.toml [observers] nats_url before production.";
 
 #[cfg(feature = "observers")]
 const UNKNOWN_TRANSPORT_MSG: &str = concat!(
     "FraiseQL failed to start\n\n",
-    "  [observers.runtime.transport] selected an observer transport this binary\n",
+    "  The observer transport selected is one this binary\n",
     "  does not know how to run. Upgrade fraiseql-server, or select a supported\n",
     "  transport (\"postgres\" or \"nats\").\n\n",
     "  For local development only:\n",

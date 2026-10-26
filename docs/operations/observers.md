@@ -19,8 +19,10 @@ The observer runtime is compiled into `fraiseql-server` by Cargo features:
 | `observers-enterprise` | `observers-metrics` + `observers-nats` + the library's `enterprise` feature |
 
 Configuration lives in `fraiseql.toml`. `[observers]` is shared with the compiler
-(`enabled`, `backend`, `redis_url`, `nats_url`; `[[observers.handlers]]` is refused, since
-observers come from `tb_observer`). The compiler reads it in both workflows: from a TOML
+(`enabled`, `backend`, `nats_url`; `[[observers.handlers]]` is refused, since observers
+come from `tb_observer`). `backend` selects the event transport: `"postgres"` (the
+default) or `"nats"`, with `nats_url` as the broker URL. `backend = "redis"` and
+`redis_url` are refused at compile: the runtime has no Redis transport. The compiler reads it in both workflows: from a TOML
 schema, and from the `fraiseql.toml` beside an SDK's `schema.json`. A `schema.json` that
 carries its own `observers_config` must agree with `[observers]`; the compile refuses a
 disagreement and names the key. The server's own tuning lives under
@@ -52,8 +54,8 @@ The server applies these over the compiled configuration at boot:
 
 | Variable | Overrides |
 |----------|-----------|
-| `FRAISEQL_OBSERVER_TRANSPORT` | `transport` (`postgres`, `nats`, `in_memory`) |
-| `FRAISEQL_NATS_URL` | `nats.url` |
+| `FRAISEQL_OBSERVER_TRANSPORT` | `[observers] backend` (`postgres`, `nats`, `in_memory`) |
+| `FRAISEQL_NATS_URL` | `[observers] nats_url` |
 | `FRAISEQL_NATS_SUBJECT_PREFIX` | `nats.subject_prefix` |
 | `FRAISEQL_NATS_STREAM_NAME` | `nats.stream_name` |
 | `FRAISEQL_NATS_CONSUMER_NAME` | `nats.consumer_name` |
@@ -73,7 +75,9 @@ no action-result cache. Nothing in the server reads `FRAISEQL_REDIS_POOL_SIZE`,
 refuses to boot when one of them is set.
 
 The server always runs the observer executors. `[observers.runtime.transport]` takes only
-`transport` and `nats`. The keys `run_bridge` and `run_executors` and a `[bridge]` table
+the `nats` tuning: the stream, consumer and `jetstream` settings. Which transport runs and
+the NATS URL are the compiled `[observers]` keys, so `transport` and `nats.url` written
+there are refused at load, naming `fraiseql.toml [observers]`. The keys `run_bridge` and `run_executors` and a `[bridge]` table
 are refused at load. The server refuses to boot when `FRAISEQL_NATS_RUN_EXECUTORS`,
 `FRAISEQL_NATS_ENABLE_BRIDGE` or any `FRAISEQL_BRIDGE_*` variable is set.
 
@@ -177,7 +181,7 @@ owned by the transport (for NATS, the durable consumer).
 
 ## Scaling
 
-**NATS.** Every replica with `transport = "nats"` subscribes through a durable
+**NATS.** Every replica with `backend = "nats"` subscribes through a durable
 JetStream pull consumer named `nats.consumer_name` (default
 `fraiseql_observer_worker`) with explicit acks. Replicas sharing the same
 `consumer_name` and `stream_name` share that consumer and so act as competing

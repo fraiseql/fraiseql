@@ -294,15 +294,15 @@ max_dlq_size = 10000   # prevent unbounded memory growth on persistent failures
 # request payload may carry PII so it is opt-in (oversized payloads are truncated).
 log_payloads = false
 
-# Optional: event transport (#350). Defaults to PostgreSQL LISTEN/NOTIFY.
-# "nats" requires a binary built with `--features observers-nats`; a NATS
-# selection that cannot run (feature missing or no broker URL) or whose broker
-# is unreachable refuses to boot in production rather than silently falling back
-# to PostgreSQL. Override at boot with FRAISEQL_OBSERVER_TRANSPORT / FRAISEQL_NATS_*.
-[observers.runtime.transport]
-transport = "nats"          # "postgres" (default) | "nats" | "in_memory"
+# Optional: event transport tuning (#350). The transport itself is
+# `fraiseql.toml [observers] backend` ("postgres", the default, or "nats") and its
+# URL `nats_url`, both compiled into the schema. "nats" requires a binary built
+# with `--features observers-nats`; a NATS selection that cannot run (feature
+# missing or no broker URL) or whose broker is unreachable refuses to boot in
+# production rather than silently falling back to PostgreSQL. Override at boot
+# with FRAISEQL_OBSERVER_TRANSPORT / FRAISEQL_NATS_*.
 [observers.runtime.transport.nats]
-url = "nats://broker:4222"  # NATS stream names must not contain '.' or '_'
+subject_prefix = "fraiseql.mutation"  # the default
 
 # Optional: SMTP for the email observer action (#349). Strict block — a typo
 # fails the parse. Credentials are env var NAMES, never literals. Without this

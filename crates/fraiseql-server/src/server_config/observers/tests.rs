@@ -139,20 +139,14 @@ fn flat_pool_table_is_trapped() {
 // ── `[observers.runtime.transport]` (#350) ──────────────────────────────────
 
 #[test]
-fn runtime_transport_subtable_parses() {
-    use fraiseql_observers::config::TransportKind;
-
+fn runtime_transport_subtable_parses_the_nats_tuning() {
     let cfg: ObserverConfig = toml::from_str(
-        "enabled = true\n\
-         [runtime.transport]\n\
-         transport = \"nats\"\n\
-         [runtime.transport.nats]\n\
-         url = \"nats://broker:4222\"\n",
+        "[runtime.transport.nats]\n\
+         stream_name = \"orders\"\n",
     )
     .unwrap();
 
-    assert_eq!(cfg.runtime.transport.transport, TransportKind::Nats);
-    assert_eq!(cfg.runtime.transport.nats.url, "nats://broker:4222");
+    assert_eq!(cfg.runtime.transport.nats.stream_name, "orders");
     assert!(cfg.misplaced_runtime_keys().is_empty());
 }
 
@@ -160,8 +154,8 @@ fn runtime_transport_subtable_parses() {
 fn runtime_transport_defaults_to_postgres() {
     use fraiseql_observers::config::TransportKind;
 
-    let cfg: ObserverConfig = toml::from_str("enabled = true\n").unwrap();
-    assert_eq!(cfg.runtime.transport.transport, TransportKind::Postgres);
+    let cfg: ObserverConfig = toml::from_str("[runtime]\n").unwrap();
+    assert_eq!(cfg.runtime.transport.to_runtime(None).transport, TransportKind::Postgres);
 }
 
 #[test]

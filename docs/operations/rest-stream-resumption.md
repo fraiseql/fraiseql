@@ -42,7 +42,7 @@ assumption about commit timing, and it returns exactly what you missed.
 ## What your deployment needs for it to work
 
 **A PostgreSQL change-log poller.** Resumption is served from the dispatch ledger that
-poller writes. With `[observers.runtime.transport] transport = "nats"` (or `in_memory`)
+poller writes. With `fraiseql.toml [observers] backend = "nats"` (or `FRAISEQL_OBSERVER_TRANSPORT=in_memory`)
 the runtime's events never pass through that ledger — the local change log may not even
 be their source — so there is nothing to resume from, and every `Last-Event-ID` request
 is answered `501 RESUMPTION_UNSUPPORTED`. That is the truth about such a deployment, not

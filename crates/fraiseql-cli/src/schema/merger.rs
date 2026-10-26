@@ -728,7 +728,9 @@ impl SchemaMerger {
 
         // Embed observers configuration if enabled or if any backend URL is set
         if toml_schema.observers.is_configured() {
-            if toml_schema.observers.backend == "nats" && toml_schema.observers.nats_url.is_none() {
+            if toml_schema.observers.backend == fraiseql_core::schema::ObserversBackend::Nats
+                && toml_schema.observers.nats_url.is_none()
+            {
                 tracing::warn!(
                     "observers.backend is \"nats\" but observers.nats_url is not set; \
                      the runtime will require FRAISEQL_NATS_URL to be configured"

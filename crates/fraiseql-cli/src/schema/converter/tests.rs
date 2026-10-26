@@ -3152,7 +3152,7 @@ mod changelog_validation_tests {
                 expose: true,
                 ..Default::default()
             }),
-            Some(json!({ "enabled": false, "backend": "redis" })),
+            Some(json!({ "enabled": false, "backend": "postgres" })),
         );
         assert!(SchemaConverter::convert(intermediate).is_err());
     }
@@ -3164,7 +3164,7 @@ mod changelog_validation_tests {
                 expose: true,
                 ..Default::default()
             }),
-            Some(json!({ "enabled": true, "backend": "redis" })),
+            Some(json!({ "enabled": true, "backend": "postgres" })),
         );
         let compiled = SchemaConverter::convert(intermediate).expect("should convert");
         assert!(compiled.changelog.is_some());
@@ -3204,7 +3204,7 @@ mod changelog_validation_tests {
                 expose: true,
                 ..Default::default()
             }),
-            observers_config: Some(json!({ "enabled": true, "backend": "redis" })),
+            observers_config: Some(json!({ "enabled": true, "backend": "postgres" })),
             federation_config: Some(json!({ "enabled": true })),
             ..IntermediateSchema::default()
         };
@@ -3296,7 +3296,7 @@ mod changelog_cascade_conformance_tests {
                 expose: true,
                 ..Default::default()
             }),
-            observers_config: Some(json!({ "enabled": true, "backend": "redis" })),
+            observers_config: Some(json!({ "enabled": true, "backend": "postgres" })),
             ..schema_with(types, mutations)
         }
     }

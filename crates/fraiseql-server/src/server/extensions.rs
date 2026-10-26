@@ -198,7 +198,8 @@ impl Server {
 
         info!("Initializing observer runtime");
 
-        let runtime_config = Self::observer_runtime_config(observer_config, pool, deployment)?;
+        let runtime_config =
+            Self::observer_runtime_config(observer_config, compiled, pool, deployment)?;
         let runtime = ObserverRuntime::new(runtime_config);
         Ok(Some(Arc::new(RwLock::new(runtime))))
     }
@@ -213,6 +214,7 @@ impl Server {
     #[cfg(feature = "observers")]
     pub(super) fn observer_runtime_config(
         observer_config: &crate::server_config::ObserverConfig,
+        compiled: Option<&fraiseql_core::schema::ObserversConfig>,
         pool: &sqlx::PgPool,
         deployment: Deployment,
     ) -> crate::Result<ObserverRuntimeConfig> {
@@ -229,7 +231,8 @@ impl Server {
                  PostgreSQL → NATS bridge for it to configure; unset it"
             )));
         }
-        let mut transport = observer_config.runtime.transport.to_runtime().with_env_overrides();
+        let mut transport =
+            observer_config.runtime.transport.to_runtime(compiled).with_env_overrides();
         let compiled_in = cfg!(feature = "observers-nats");
         let nats_url_present = !transport.nats.url.is_empty();
         crate::server::initialization::observer_transport_check(

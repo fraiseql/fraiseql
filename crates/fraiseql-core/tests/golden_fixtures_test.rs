@@ -414,7 +414,7 @@ fn golden_05_observers_config_and_validation_config() {
     assert!(schema.validation_config.is_some());
 
     let obs_cfg = schema.observers_config.as_ref().expect("observers_config present");
-    assert_eq!(obs_cfg.backend, "nats");
+    assert_eq!(obs_cfg.backend, fraiseql_core::schema::ObserversBackend::Nats);
     assert!(obs_cfg.nats_url.is_some());
 }
 

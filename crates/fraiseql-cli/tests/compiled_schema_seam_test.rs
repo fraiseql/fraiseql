@@ -835,7 +835,7 @@ fn sdk_authored_observers_config_handlers_fail_the_compile_rather_than_vanishing
         ],
         "observers_config": {
             "enabled": true,
-            "backend": "redis",
+            "backend": "postgres",
             "handlers": [
                 {"name": "notify", "event": "Order.created", "action": "webhook",
                  "webhook_url": "https://example.test/hook"}
@@ -869,7 +869,7 @@ fn empty_observers_config_handlers_still_compile() {
             {"name": "orders", "return_type": "Order", "returns_list": true,
              "sql_source": "v_order"}
         ],
-        "observers_config": {"enabled": true, "backend": "redis", "handlers": []}
+        "observers_config": {"enabled": true, "backend": "postgres", "handlers": []}
     });
 
     let intermediate: IntermediateSchema =

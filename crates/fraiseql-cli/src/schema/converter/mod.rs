@@ -545,6 +545,12 @@ impl SchemaConverter {
                         },
                         None => {},
                     }
+                    if oc.get("redis_url").is_some() {
+                        anyhow::bail!(
+                            "{}",
+                            crate::config::toml_schema::observers::REDIS_URL_REFUSED
+                        );
+                    }
                     serde_json::from_value(oc).context("observers_config: invalid JSON structure")
                 })
                 .transpose()?,

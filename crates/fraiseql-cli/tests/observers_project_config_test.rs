@@ -57,8 +57,7 @@ fn a_json_schema_takes_the_project_configs_observers_settings() {
     let observers = compiled_observers(&project(SETTINGS, None));
     assert_eq!(
         observers,
-        json!({"enabled": true, "backend": "nats", "redis_url": null,
-               "nats_url": "nats://bus:4222"}),
+        json!({"enabled": true, "backend": "nats", "nats_url": "nats://bus:4222"}),
         "{observers}"
     );
 }
@@ -72,7 +71,7 @@ fn a_schema_document_agreeing_with_the_project_config_compiles() {
 
 #[test]
 fn a_schema_document_disagreeing_with_the_project_config_is_refused() {
-    let copy = json!({"enabled": true, "backend": "redis", "nats_url": "nats://bus:4222"});
+    let copy = json!({"enabled": true, "backend": "postgres", "nats_url": "nats://bus:4222"});
     let (ok, log) = run(&project(SETTINGS, Some(copy)));
     assert!(!ok, "a disagreeing copy compiled: {log}");
     for needle in [
@@ -86,21 +85,59 @@ fn a_schema_document_disagreeing_with_the_project_config_is_refused() {
 
 #[test]
 fn a_schema_document_declaring_a_setting_the_project_config_omits_is_refused() {
-    let copy = json!({"enabled": true, "backend": "nats", "nats_url": "nats://bus:4222",
-                      "redis_url": "redis://cache:6379"});
-    let (ok, log) = run(&project(SETTINGS, Some(copy)));
+    let toml = "[project]\nname = \"app\"\n\n[observers]\nenabled = true\nbackend = \"nats\"\n";
+    let copy = json!({"enabled": true, "backend": "nats", "nats_url": "nats://bus:4222"});
+    let (ok, log) = run(&project(toml, Some(copy)));
     assert!(!ok, "a disagreeing copy compiled: {log}");
     assert!(
-        log.contains("disagree on `redis_url`"),
+        log.contains("disagree on `nats_url`"),
         "the refusal does not name the key: {log}"
     );
 }
 
 #[test]
 fn without_an_observers_table_the_schema_documents_copy_still_applies() {
-    let copy = json!({"enabled": true, "backend": "redis", "redis_url": "redis://cache:6379"});
+    let copy = json!({"enabled": true, "backend": "nats", "nats_url": "nats://cache:4222"});
     let observers = compiled_observers(&project("[project]\nname = \"app\"\n", Some(copy)));
-    assert_eq!(observers["redis_url"], "redis://cache:6379", "{observers}");
+    assert_eq!(observers["nats_url"], "nats://cache:4222", "{observers}");
+}
+
+/// A bare table compiles the runtime's default transport, not one it does not have.
+#[test]
+fn a_bare_observers_table_compiles_the_postgres_backend() {
+    let toml = "[project]\nname = \"app\"\n\n[observers]\nenabled = false\n";
+    let observers = compiled_observers(&project(toml, None));
+    assert_eq!(observers["backend"], "postgres", "{observers}");
+}
+
+/// The runtime has no Redis transport: `redis` and `redis_url` are refused at compile,
+/// with what to write instead, in the project config and in a schema document alike.
+#[test]
+fn redis_is_refused_with_a_pointer_wherever_it_is_declared() {
+    let table = "[project]\nname = \"app\"\n\n[observers]\nenabled = true\n";
+    let cases = [
+        ("backend in fraiseql.toml", format!("{table}backend = \"redis\"\n"), None),
+        (
+            "redis_url in fraiseql.toml",
+            format!("{table}redis_url = \"redis://c:6379\"\n"),
+            None,
+        ),
+        (
+            "backend in schema.json",
+            "[project]\nname = \"app\"\n".to_string(),
+            Some(json!({"enabled": true, "backend": "redis"})),
+        ),
+        (
+            "redis_url in schema.json",
+            "[project]\nname = \"app\"\n".to_string(),
+            Some(json!({"enabled": true, "redis_url": "redis://c:6379"})),
+        ),
+    ];
+    for (case, toml, copy) in cases {
+        let (ok, log) = run(&project(&toml, copy));
+        assert!(!ok, "{case}: compiled: {log}");
+        assert!(log.contains("no Redis transport"), "{case}: no pointer: {log}");
+    }
 }
 
 #[test]
@@ -127,7 +164,7 @@ fn a_handler_table_beside_a_json_schema_is_refused_by_name() {
 
 #[test]
 fn a_table_declaring_only_disabled_observers_still_owns_the_settings() {
-    let copy = json!({"enabled": true, "backend": "redis", "redis_url": "redis://cache:6379"});
+    let copy = json!({"enabled": true, "backend": "postgres"});
     let toml = "[project]\nname = \"app\"\n\n[observers]\nenabled = false\n";
     let (ok, log) = run(&project(toml, Some(copy)));
     assert!(!ok, "the document's copy overrode the declared table: {log}");

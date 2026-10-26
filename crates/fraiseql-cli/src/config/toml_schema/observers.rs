@@ -1,8 +1,15 @@
 //! Observer/event system configuration for TOML schema.
 
 use anyhow::{Result, bail};
+use fraiseql_core::schema::ObserversBackend;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+
+/// The refusal of `redis_url`, wherever it is declared: the project config's
+/// `[observers]` or a schema document's `observers_config`.
+pub const REDIS_URL_REFUSED: &str = "observers `redis_url` configures nothing: the observer \
+     runtime has no Redis transport. Remove it, and select the transport in fraiseql.toml \
+     [observers] with backend = \"postgres\" (the default) or backend = \"nats\" and nats_url";
 
 /// Observers/event system configuration — the **declarative compile-time**
 /// shape of the `[observers]` table.
@@ -14,16 +21,18 @@ use serde_json::Value;
 /// field is declared-and-ignored here so a shared config carrying the server's
 /// `[observers.runtime]` sub-table still compiles — the compiler does not
 /// validate its contents.
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct ObserversConfig {
     /// Enable observers system
     #[serde(default)]
     pub enabled:   bool,
-    /// Backend service (redis, nats, postgresql, mysql, in-memory)
-    pub backend:   String,
-    /// Redis connection URL (required when backend = "redis")
-    pub redis_url: Option<String>,
+    /// The runtime's event transport: `postgres` (the default) or `nats`.
+    pub backend:   ObserversBackend,
+    /// Refused: the runtime has no Redis transport. Captured only so the refusal can
+    /// say so, instead of an unknown-field error.
+    #[serde(default, skip_serializing)]
+    pub redis_url: Option<toml::Value>,
     /// NATS connection URL (required when backend = "nats")
     ///
     /// Example: `nats://localhost:4222`
@@ -40,35 +49,21 @@ pub struct ObserversConfig {
     pub runtime:   Option<toml::Value>,
 }
 
-impl Default for ObserversConfig {
-    fn default() -> Self {
-        Self {
-            enabled:   false,
-            backend:   "redis".to_string(),
-            redis_url: None,
-            nats_url:  None,
-            handlers:  vec![],
-            runtime:   None,
-        }
-    }
-}
-
 impl ObserversConfig {
     /// Whether the TOML workflow embeds the table: observers are enabled or a backend URL
     /// is set.
     #[must_use]
     pub const fn is_configured(&self) -> bool {
-        self.enabled || self.redis_url.is_some() || self.nats_url.is_some()
+        self.enabled || self.nats_url.is_some()
     }
 
     /// The compiled shape of the table. `handlers` and `runtime` are not part of it.
     #[must_use]
     pub fn to_compiled(&self) -> fraiseql_core::schema::ObserversConfig {
         fraiseql_core::schema::ObserversConfig {
-            enabled:   self.enabled,
-            backend:   self.backend.clone(),
-            redis_url: self.redis_url.clone(),
-            nats_url:  self.nats_url.clone(),
+            enabled:  self.enabled,
+            backend:  self.backend,
+            nats_url: self.nats_url.clone(),
         }
     }
 
@@ -94,11 +89,23 @@ impl ObserversConfig {
         Ok(())
     }
 
+    /// Refuse `redis_url`: no transport reads it.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the table declares `redis_url`.
+    pub fn refuse_redis_url(&self) -> Result<()> {
+        if self.redis_url.is_some() {
+            bail!("{REDIS_URL_REFUSED}");
+        }
+        Ok(())
+    }
+
     /// Lower the project config's `[observers]` beside a schema document's own copy.
     ///
     /// A missing table is absence, so the document's copy stands. A declared table, even
     /// one saying only `enabled = false`, owns these deployment settings: a document copy
-    /// must state the same `enabled`, `backend`, `redis_url` and `nats_url`, and the
+    /// must state the same `enabled`, `backend` and `nats_url`, and the
     /// refusal names both sources and the first key they disagree on. An agreeing copy is
     /// kept as written, so the converter still refuses any `handlers` it declares.
     ///
@@ -111,6 +118,7 @@ impl ObserversConfig {
             return Ok(document);
         };
         table.refuse_handlers()?;
+        table.refuse_redis_url()?;
         let from_config = table.to_compiled();
         let Some(document) = document else {
             return Ok(Some(serde_json::to_value(&from_config)?));
@@ -128,7 +136,6 @@ impl ObserversConfig {
         let differing = [
             ("enabled", from_config.enabled != from_document.enabled),
             ("backend", from_config.backend != from_document.backend),
-            ("redis_url", from_config.redis_url != from_document.redis_url),
             ("nats_url", from_config.nats_url != from_document.nats_url),
         ]
         .into_iter()

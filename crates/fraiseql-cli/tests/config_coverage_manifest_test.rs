@@ -83,11 +83,19 @@ const MANIFEST: &[(&str, &str)] = &[
     // ── Observers: mixed. Backend/enabled consumed; handlers REJECTED (#8) ───
     (
         "observers.enabled",
-        "changelog gate — read by converter (compiled observers_config.enabled)",
+        "compiled observers_config.enabled → whether the server runs the observer runtime \
+         (#1733); also the changelog gate read by the converter",
     ),
-    ("observers.backend", "runtime observer transport backend (redis/nats/postgres)"),
-    ("observers.redis_url", "runtime observer redis backend URL"),
-    ("observers.nats_url", "runtime observer NATS backend URL"),
+    (
+        "observers.backend",
+        "compiled observers_config.backend → the runtime's event transport (postgres/nats); \
+         \"redis\" REJECTED at load",
+    ),
+    (
+        "observers.nats_url",
+        "compiled observers_config.nats_url → the runtime's NATS URL, overridable by \
+         FRAISEQL_NATS_URL",
+    ),
     (
         "observers.handlers",
         "REJECTED at load (#8) — not runtime observers; use tb_observer (#631)",

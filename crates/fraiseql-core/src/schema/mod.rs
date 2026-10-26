@@ -79,8 +79,9 @@ pub use config_types::{
     CrudNamingConfig, CrudNamingPreset, DEFAULT_MAX_QUERY_DEPTH, DebugConfig, DeleteResponse,
     EnterpriseSecurityConfig, EntityCircuitBreakerOverride, FederationConfig, FederationEntity,
     FieldAuthRule, GrpcConfig, McpConfig, McpTransport, NamingConvention, NativeJoin,
-    ObserversConfig, Relationship, RestConfig, SessionVariableMapping, SessionVariableSource,
-    SessionVariablesConfig, SubscriptionHooksConfig, SubscriptionsConfig, ValidationConfig,
+    ObserversBackend, ObserversConfig, Relationship, RestConfig, SessionVariableMapping,
+    SessionVariableSource, SessionVariablesConfig, SubscriptionHooksConfig, SubscriptionsConfig,
+    ValidationConfig,
 };
 pub use dependency_graph::{ChangeImpact, CyclePath, SchemaDependencyGraph};
 pub use field_type::{
