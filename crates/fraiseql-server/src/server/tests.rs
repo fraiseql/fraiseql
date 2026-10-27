@@ -18,11 +18,53 @@ mod mutation_error_shape_check_tests {
         let schema = CompiledSchema::default();
         let config: ServerConfig =
             toml::from_str("mutation_error_shape_check = \"warn\"").expect("the key parses");
-        let rt = executor_runtime_config(&schema, &config).expect("valid schema");
+        let rt = executor_runtime_config(
+            &schema,
+            &config,
+            fraiseql_guard::deployment::Deployment::Development,
+        )
+        .expect("valid schema");
         assert_eq!(rt.mutation_error_shape_check, MutationErrorShapeCheck::Warn);
 
-        let rt = executor_runtime_config(&schema, &ServerConfig::default()).expect("valid schema");
+        let rt = executor_runtime_config(
+            &schema,
+            &ServerConfig::default(),
+            fraiseql_guard::deployment::Deployment::Development,
+        )
+        .expect("valid schema");
         assert_eq!(rt.mutation_error_shape_check, MutationErrorShapeCheck::Off);
+    }
+}
+
+mod suggestions_tests {
+    use fraiseql_core::schema::CompiledSchema;
+    use fraiseql_guard::deployment::Deployment;
+
+    use super::super::initialization::executor_runtime_config;
+    use crate::server_config::ServerConfig;
+
+    /// #1717: the executor's hint switch is `suggestions_enabled` resolved against the
+    /// deployment the builder passes in, not a default.
+    #[test]
+    fn the_resolved_switch_reaches_the_executor() {
+        let schema = CompiledSchema::default();
+        let unset = ServerConfig::default();
+        let on = ServerConfig {
+            suggestions_enabled: Some(true),
+            ..ServerConfig::default()
+        };
+        for (config, deployment, expected) in [
+            (&unset, Deployment::Production, false),
+            (&unset, Deployment::Development, true),
+            (&on, Deployment::Production, true),
+        ] {
+            let rt = executor_runtime_config(&schema, config, deployment).expect("valid schema");
+            assert_eq!(
+                rt.suggestions, expected,
+                "{:?} in {deployment:?}",
+                config.suggestions_enabled
+            );
+        }
     }
 }
 
@@ -45,11 +87,21 @@ mod vector_on_short_result_tests {
             let config: ServerConfig =
                 toml::from_str(&format!("vector_on_short_result = \"{value}\""))
                     .expect("the key parses");
-            let rt = executor_runtime_config(&schema, &config).expect("valid schema");
+            let rt = executor_runtime_config(
+                &schema,
+                &config,
+                fraiseql_guard::deployment::Deployment::Development,
+            )
+            .expect("valid schema");
             assert_eq!(rt.nearest_short_result, policy, "{value}");
         }
 
-        let rt = executor_runtime_config(&schema, &ServerConfig::default()).expect("valid schema");
+        let rt = executor_runtime_config(
+            &schema,
+            &ServerConfig::default(),
+            fraiseql_guard::deployment::Deployment::Development,
+        )
+        .expect("valid schema");
         assert_eq!(rt.nearest_short_result, ShortResultPolicy::Signal);
 
         assert!(toml::from_str::<ServerConfig>("vector_on_short_result = \"warn\"").is_err());
@@ -83,7 +135,12 @@ mod executor_gate_config_tests {
     fn no_runtime_override_leaves_derivation_to_the_executor() {
         let schema = compiled_with(Some(8), Some(100));
         let config = ServerConfig::default();
-        let rt = executor_runtime_config(&schema, &config).expect("valid schema");
+        let rt = executor_runtime_config(
+            &schema,
+            &config,
+            fraiseql_guard::deployment::Deployment::Development,
+        )
+        .expect("valid schema");
         assert!(
             rt.query_validation.is_none(),
             "without a runtime override the executor derives from the compiled schema"
@@ -109,7 +166,12 @@ mod executor_gate_config_tests {
             }),
             ..ServerConfig::default()
         };
-        let rt = executor_runtime_config(&schema, &config).expect("valid schema");
+        let rt = executor_runtime_config(
+            &schema,
+            &config,
+            fraiseql_guard::deployment::Deployment::Development,
+        )
+        .expect("valid schema");
         let gate = rt.query_validation.expect("a runtime override must install the gate");
         assert_eq!(gate.max_complexity, 500, "runtime value wins for complexity");
         assert_eq!(gate.max_depth, 8, "compiled declared value fills undeclared depth");
@@ -137,7 +199,12 @@ mod executor_gate_config_tests {
             }),
             ..ServerConfig::default()
         };
-        let rt = executor_runtime_config(&schema, &config).expect("valid schema");
+        let rt = executor_runtime_config(
+            &schema,
+            &config,
+            fraiseql_guard::deployment::Deployment::Development,
+        )
+        .expect("valid schema");
         let executor = Executor::with_config(schema, Arc::new(FailingAdapter::new()), rt);
 
         // Complexity ~301 (1 + 3×100): over the compiled 100, under the runtime
@@ -183,7 +250,12 @@ mod executor_gate_config_tests {
             }),
             ..ServerConfig::default()
         };
-        let rt = executor_runtime_config(&schema, &config).expect("valid schema");
+        let rt = executor_runtime_config(
+            &schema,
+            &config,
+            fraiseql_guard::deployment::Deployment::Development,
+        )
+        .expect("valid schema");
         let gate = rt.query_validation.expect("a runtime override must install the gate");
         assert_eq!(gate.max_depth, fraiseql_core::schema::DEFAULT_MAX_QUERY_DEPTH as usize);
 
@@ -230,8 +302,12 @@ mod runtime_ceiling_tests {
                 validation: Some(validation),
                 ..ServerConfig::default()
             };
-            let err = executor_runtime_config(&CompiledSchema::default(), &config)
-                .expect_err("refused at boot");
+            let err = executor_runtime_config(
+                &CompiledSchema::default(),
+                &config,
+                fraiseql_guard::deployment::Deployment::Development,
+            )
+            .expect_err("refused at boot");
             assert!(
                 err.contains(key) && err.contains("fraiseql.toml") && err.contains(env),
                 "{err}"
@@ -249,10 +325,19 @@ mod runtime_ceiling_tests {
             }),
             ..CompiledSchema::default()
         };
-        let rt = executor_runtime_config(&schema, &ServerConfig::default()).expect("valid schema");
+        let rt = executor_runtime_config(
+            &schema,
+            &ServerConfig::default(),
+            fraiseql_guard::deployment::Deployment::Development,
+        )
+        .expect("valid schema");
         assert_eq!(rt.max_offset, Some(500));
-        let rt = executor_runtime_config(&CompiledSchema::default(), &ServerConfig::default())
-            .expect("valid schema");
+        let rt = executor_runtime_config(
+            &CompiledSchema::default(),
+            &ServerConfig::default(),
+            fraiseql_guard::deployment::Deployment::Development,
+        )
+        .expect("valid schema");
         assert_eq!(rt.max_offset, None, "unset by default");
     }
 
@@ -267,8 +352,12 @@ mod runtime_ceiling_tests {
             }),
             ..ServerConfig::default()
         };
-        let err = executor_runtime_config(&CompiledSchema::default(), &config)
-            .expect_err("refused at boot");
+        let err = executor_runtime_config(
+            &CompiledSchema::default(),
+            &config,
+            fraiseql_guard::deployment::Deployment::Development,
+        )
+        .expect_err("refused at boot");
         assert!(
             err.contains("max_semi_additive_cells") && err.contains("fraiseql.toml"),
             "{err}"
@@ -285,10 +374,19 @@ mod runtime_ceiling_tests {
             }),
             ..CompiledSchema::default()
         };
-        let rt = executor_runtime_config(&schema, &ServerConfig::default()).expect("valid schema");
+        let rt = executor_runtime_config(
+            &schema,
+            &ServerConfig::default(),
+            fraiseql_guard::deployment::Deployment::Development,
+        )
+        .expect("valid schema");
         assert_eq!(rt.max_semi_additive_cells, 7);
-        let rt = executor_runtime_config(&CompiledSchema::default(), &ServerConfig::default())
-            .expect("valid schema");
+        let rt = executor_runtime_config(
+            &CompiledSchema::default(),
+            &ServerConfig::default(),
+            fraiseql_guard::deployment::Deployment::Development,
+        )
+        .expect("valid schema");
         assert_eq!(
             rt.max_semi_additive_cells,
             fraiseql_core::runtime::DEFAULT_MAX_SEMI_ADDITIVE_CELLS
@@ -2038,6 +2136,7 @@ mod multi_root_mutation_error_tests {
         let config = crate::server::initialization::executor_runtime_config(
             &schema,
             &ServerConfig::default(),
+            fraiseql_guard::deployment::Deployment::Development,
         )
         .expect("runtime config");
         let adapter = FailingAdapter::new().fail_with_error(FailError::Database {

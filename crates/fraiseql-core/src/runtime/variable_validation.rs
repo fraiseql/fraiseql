@@ -136,6 +136,7 @@ pub fn validate_variable_uses(
     operation_name: Option<&str>,
     defined: &[String],
     referenced: &[String],
+    suggestions: bool,
 ) -> Result<()> {
     for name in referenced {
         if defined.iter().any(|d| d == name) {
@@ -147,7 +148,7 @@ pub fn validate_variable_uses(
             Some(op) => format!("Variable '${name}' is not defined by operation '{op}'."),
             None => format!("Variable '${name}' is not defined by the operation."),
         };
-        let message = match super::suggest_similar(name, &candidates).as_slice() {
+        let message = match super::suggestions_for(suggestions, name, &candidates).as_slice() {
             [s] => format!("{subject} Did you mean '${s}'?"),
             [a, b] => format!("{subject} Did you mean '${a}' or '${b}'?"),
             [a, b, c, ..] => format!("{subject} Did you mean '${a}', '${b}', or '${c}'?"),
@@ -204,6 +205,7 @@ pub fn validate_variable_types(
     schema: &crate::schema::CompiledSchema,
     operation_name: Option<&str>,
     definitions: &[crate::graphql::types::VariableDefinition],
+    suggestions: bool,
 ) -> Result<()> {
     // Cannot adjudicate: no input-type information was emitted at all.
     if schema.enums.is_empty() && schema.input_types.is_empty() {
@@ -239,7 +241,7 @@ pub fn validate_variable_types(
             .chain(schema.enums.iter().map(|e| e.name.as_str()))
             .chain(schema.input_types.iter().map(|i| i.name.as_str()))
             .collect();
-        let message = match super::suggest_similar(type_name, &candidates).as_slice() {
+        let message = match super::suggestions_for(suggestions, type_name, &candidates).as_slice() {
             [s] => format!("{subject} Did you mean '{s}'?"),
             [a, b] => format!("{subject} Did you mean '{a}' or '{b}'?"),
             [a, b, c, ..] => format!("{subject} Did you mean '{a}', '{b}', or '{c}'?"),

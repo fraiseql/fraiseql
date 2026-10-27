@@ -183,8 +183,9 @@ impl Executor {
         // Ordered most-useful-first: when a document has more than one of these
         // problems, an undefined *reference* is the one that changed the answer,
         // so it is the one worth reporting.
-        validate_variable_uses(operation_name, &defined, &referenced)?;
-        validate_variable_types(&self.ctx.schema, operation_name, &parsed.variables)?;
+        let suggestions = self.ctx.config.suggestions;
+        validate_variable_uses(operation_name, &defined, &referenced, suggestions)?;
+        validate_variable_types(&self.ctx.schema, operation_name, &parsed.variables, suggestions)?;
         validate_variables_used(operation_name, &defined, &referenced)?;
 
         let root_field = &parsed.root_field;

@@ -684,6 +684,7 @@ impl QueryRunner {
             &query_match.arguments,
             self.ctx.config.rls_policy.as_deref(),
             principal,
+            self.ctx.config.suggestions,
         )?;
         let scoped_and_filtered = and_all(scoped.into_iter().chain(client).collect());
         let (composed_where, source_args) = if query_def.sql_source_kind.is_relation() {
@@ -764,6 +765,7 @@ impl QueryRunner {
                         &query_def.return_type,
                         &query_def.native_columns,
                         principal,
+                        self.ctx.config.suggestions,
                     )
                 })
                 .transpose()?

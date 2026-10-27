@@ -59,7 +59,11 @@ impl Executor {
                     .map(|q| self.ctx.schema.display_name(&q.name))
                     .collect();
                 let candidate_refs: Vec<&str> = display_names.iter().map(String::as_str).collect();
-                let suggestion = crate::runtime::suggest_similar(query_name, &candidate_refs);
+                let suggestion = crate::runtime::suggestions_for(
+                    self.ctx.config.suggestions,
+                    query_name,
+                    &candidate_refs,
+                );
                 let message = match suggestion.as_slice() {
                     [s] => format!("Query '{query_name}' not found in schema. Did you mean '{s}'?"),
                     _ => format!("Query '{query_name}' not found in schema"),

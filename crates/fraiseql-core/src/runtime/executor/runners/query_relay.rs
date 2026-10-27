@@ -198,6 +198,7 @@ impl QueryRunner {
             args,
             self.ctx.config.rls_policy.as_deref(),
             security_context,
+            self.ctx.config.suggestions,
         )?;
 
         // Compose final WHERE: security (RLS + inject) AND user-supplied WHERE.
@@ -223,6 +224,7 @@ impl QueryRunner {
                         &query_def.return_type,
                         &query_def.native_columns,
                         security_context,
+                        self.ctx.config.suggestions,
                     )
                 })
                 .transpose()?

@@ -14,7 +14,11 @@ that only such operations reach is left out with them, so `__type` answers `null
 A type declaring `requires_role` is listed only to a caller holding that role, and is
 left out of the possible types of its interfaces and unions for everyone else.
 A misspelt operation name is answered with *"Did you mean"* only the operations the caller
-may run.
+may run. `suggestions_enabled` (env `FRAISEQL_SUGGESTIONS_ENABLED`) withholds every such hint,
+on operations, arguments, variables, variable types, sort keys and filter fields alike,
+over `/graphql`, `explain` and `/ws`: the refusal stands, without naming what is near it.
+Unset, the deployment decides: off in production, on in development. A production
+server set to `true` boots with a warning.
 The REST debug route `GET /introspection` also leaves out what the caller's roles do not
 reach, and so do the schema exports `GET /api/v1/schema.graphql` and
 `GET /api/v1/schema.json`, which list what that caller's introspection lists. The caller

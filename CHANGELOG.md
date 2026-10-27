@@ -32,6 +32,19 @@ disagreed, and the promise was the part that was wrong.
   Introspection and `_service` are also recognised through a
   root fragment (`{ ... on Query { __schema { … } } }`, `{ ...F }`), which the executor
   refused but the policy gate did not see.
+- **A production server no longer answers a misspelt name with "Did you mean" (#1717).**
+  A hint named the declared operations, arguments, variables, variable types, sort keys and
+  filter fields nearest the one a request misspelt, so a client could map the schema by
+  probing with introspection off. The new `suggestions_enabled` (env
+  `FRAISEQL_SUGGESTIONS_ENABLED`) withholds every hint over `/graphql`, `explain` and `/ws`;
+  the refusal itself is unchanged. Unset, the deployment decides: off in production, on in
+  development (`FRAISEQL_ENV`). Set it to `true` to keep the hints in production; the server
+  boots with a warning. In `fraiseql-core`, `RuntimeConfig` gains `suggestions` (default
+  `true`), and `validate_argument_names`, `validate_variable_uses`,
+  `validate_variable_types`, `enrich_order_by_clauses`, `client_where_argument` and
+  `subscription::subscription_arguments` take the switch as a last argument.
+  `SubscriptionManager` and `QueryMatcher` gain `with_suggestions`, and
+  `WhereFieldSchema` in `fraiseql-db` gains `with_suggestions`.
 - **A boot guard takes a `Deployment`, not an `is_production: bool`.**
   `fraiseql_server::token_revocation::revocation_manager_from_schema_in`,
   `fraiseql_server::inbound::webhook_routes_check` and

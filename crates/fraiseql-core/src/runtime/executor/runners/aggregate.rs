@@ -6,7 +6,7 @@ use super::super::context::ExecutorContext;
 use crate::{
     backend::WhereClause,
     error::{FraiseQLError, Result},
-    runtime::suggest_similar,
+    runtime::suggestions_for,
     security::{RlsWhereClause, SecurityContext, rls_policy::RlsTarget},
 };
 
@@ -239,7 +239,7 @@ impl AggregateRunner {
         // Get fact table metadata from schema
         let metadata = self.ctx.schema.get_fact_table(&fact_table_name).ok_or_else(|| {
             let known: Vec<&str> = self.ctx.schema.list_fact_tables();
-            let suggestion = suggest_similar(&fact_table_name, &known);
+            let suggestion = suggestions_for(self.ctx.config.suggestions, &fact_table_name, &known);
             let base = format!("Fact table '{}' not found in schema", fact_table_name);
             let message = match suggestion.as_slice() {
                 [s] => format!("{base}. Did you mean '{s}'?"),
@@ -300,7 +300,7 @@ impl AggregateRunner {
         // Get fact table metadata from schema
         let metadata = self.ctx.schema.get_fact_table(&fact_table_name).ok_or_else(|| {
             let known: Vec<&str> = self.ctx.schema.list_fact_tables();
-            let suggestion = suggest_similar(&fact_table_name, &known);
+            let suggestion = suggestions_for(self.ctx.config.suggestions, &fact_table_name, &known);
             let base = format!("Fact table '{}' not found in schema", fact_table_name);
             let message = match suggestion.as_slice() {
                 [s] => format!("{base}. Did you mean '{s}'?"),

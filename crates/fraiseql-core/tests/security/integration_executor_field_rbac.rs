@@ -326,6 +326,7 @@ fn test_executor_runtime_config_with_field_filter() {
         after_mutation_observer: None,
         write_gate:              None,
         root_error_renderer:     None,
+        suggestions:             true,
 
         cache_query_plans:           true,
         max_page_size:               Some(1000),

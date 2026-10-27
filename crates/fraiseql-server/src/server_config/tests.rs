@@ -1766,3 +1766,59 @@ mod service_sdl_require_auth {
         assert_eq!(config.service_sdl_require_auth, Some(true));
     }
 }
+
+mod suggestions_enabled {
+    use fraiseql_guard::deployment::Deployment;
+
+    use super::*;
+
+    #[test]
+    fn it_is_read_from_toml() {
+        let config: ServerConfig =
+            toml::from_str("suggestions_enabled = true").expect("config parses");
+        assert_eq!(config.suggestions_enabled, Some(true));
+        let config: ServerConfig = toml::from_str("").expect("empty config parses");
+        assert_eq!(config.suggestions_enabled, None);
+    }
+
+    #[cfg(feature = "cli")]
+    #[test]
+    fn the_environment_overrides_the_config_file() {
+        // A valid value on the real name: a concurrent clap parse reading it is harmless.
+        std::env::set_var("FRAISEQL_SUGGESTIONS_ENABLED", "false");
+        let args = crate::ServerArgs::from_env();
+        std::env::remove_var("FRAISEQL_SUGGESTIONS_ENABLED");
+        let args = args.expect("a boolean parses");
+        assert_eq!(args.suggestions_enabled, Some(false));
+
+        let mut config: ServerConfig =
+            toml::from_str("suggestions_enabled = true").expect("config parses");
+        args.apply_to_config(&mut config);
+        assert_eq!(config.suggestions_enabled, Some(false));
+    }
+
+    /// #1717: unset, a production server withholds hints and a development one gives them.
+    #[test]
+    fn an_unset_switch_follows_the_deployment() {
+        let config = ServerConfig::default();
+        assert!(!config.suggestions_enabled_in(Deployment::Production));
+        assert!(config.suggestions_enabled_in(Deployment::Development));
+    }
+
+    /// #1717: set, it is honoured in either deployment.
+    #[test]
+    fn a_set_switch_is_honoured_in_either_deployment() {
+        for (set, deployment) in [
+            (true, Deployment::Production),
+            (true, Deployment::Development),
+            (false, Deployment::Production),
+            (false, Deployment::Development),
+        ] {
+            let config = ServerConfig {
+                suggestions_enabled: Some(set),
+                ..ServerConfig::default()
+            };
+            assert_eq!(config.suggestions_enabled_in(deployment), set, "{deployment:?}");
+        }
+    }
+}

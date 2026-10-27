@@ -185,6 +185,22 @@ impl ServerConfig {
         self.service_sdl_require_auth.unwrap_or(self.introspection_require_auth)
     }
 
+    /// Effective `suggestions_enabled` in `deployment`: as written when set, else
+    /// off in production and on in development.
+    ///
+    /// The single seam: the executor, the subscription manager and the boot warning all
+    /// read this, and the builder resolves the deployment once and passes it here.
+    #[must_use]
+    pub const fn suggestions_enabled_in(
+        &self,
+        deployment: fraiseql_guard::deployment::Deployment,
+    ) -> bool {
+        match self.suggestions_enabled {
+            Some(on) => on,
+            None => matches!(deployment, fraiseql_guard::deployment::Deployment::Development),
+        }
+    }
+
     /// Effective `@stream` continuation batch size (#387).
     ///
     /// The 100-row default lives here — the single seam — so every consumer

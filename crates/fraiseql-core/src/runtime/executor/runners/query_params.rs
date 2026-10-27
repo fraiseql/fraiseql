@@ -502,6 +502,7 @@ pub fn client_where_argument(
     arguments: &std::collections::HashMap<String, serde_json::Value>,
     rls_policy: Option<&dyn crate::security::RLSPolicy>,
     security_context: Option<&crate::security::SecurityContext>,
+    suggestions: bool,
 ) -> Result<Option<WhereClause>> {
     // Absent is the common case, and the one that must stay free: with `has_where`
     // on by default, every list query would otherwise pay for a map it never reads.
@@ -528,7 +529,8 @@ pub fn client_where_argument(
         schema,
         &query_def.return_type,
         &query_def.native_columns,
-    );
+    )
+    .with_suggestions(suggestions);
     let clause = WhereClause::from_graphql_json(raw, &types)?;
     // A field the caller may not read may not decide which rows come back (ruling AA 3).
     // Here, where every read path's client filter is parsed, so no path can skip it.

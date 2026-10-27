@@ -50,6 +50,7 @@ pub(super) fn effective_validation_limits(
 pub(super) fn executor_runtime_config(
     schema: &CompiledSchema,
     config: &crate::server_config::ServerConfig,
+    deployment: Deployment,
 ) -> Result<fraiseql_core::runtime::RuntimeConfig, String> {
     // The response-bytes ceiling takes the same runtime-over-compiled precedence as
     // the limits below. `ServerConfig::validation` is the *same* `ValidationConfig`
@@ -68,6 +69,8 @@ pub(super) fn executor_runtime_config(
     rt.constraint_metadata = config.mutation_constraint_metadata;
     // #1314: operator-owned, so it survives a hot reload and reaches every tenant.
     rt.nearest_short_result = config.vector_on_short_result;
+    // Operator-owned, resolved against the deployment the builder judged once.
+    rt.suggestions = config.suggestions_enabled_in(deployment);
     if config.validation.is_some() {
         let (depth, complexity) = effective_validation_limits(
             config.validation.as_ref(),
@@ -1610,6 +1613,26 @@ pub(super) fn warn_when_no_caller_can_read_the_service_sdl(
          authentication and give the gateway a credential, set \
          `service_sdl_require_auth = false` to serve it to anyone, or compose offline with \
          `fraiseql federation sdl`."
+    );
+}
+
+/// Warn that a production server gives "Did you mean" hints because it was told to.
+///
+/// Unset, `suggestions_enabled` is off in production: a hint names the declared names
+/// nearest a misspelt one, which maps the schema for a client with introspection off.
+/// An operator who sets it on there is honoured, and told what it costs.
+pub(super) fn warn_when_production_gives_suggestions(
+    suggestions_enabled: Option<bool>,
+    deployment: Deployment,
+) {
+    if suggestions_enabled != Some(true) || deployment != Deployment::Production {
+        return;
+    }
+    warn!(
+        suggestions_enabled = true,
+        "`suggestions_enabled = true` in production: a refusal of a misspelt name lists the \
+         declared names nearest it, which maps the schema for any client even with \
+         introspection off. Unset it to follow the deployment."
     );
 }
 

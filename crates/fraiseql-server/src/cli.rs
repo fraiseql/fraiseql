@@ -164,6 +164,11 @@ pub struct ServerArgs {
     #[arg(long, env = "FRAISEQL_SERVICE_SDL_REQUIRE_AUTH", value_parser = BoolishValueParser::new(), num_args = 0..=1, default_missing_value = "true")]
     pub service_sdl_require_auth: Option<bool>,
 
+    /// Whether a refused name carries a "Did you mean" hint (overrides
+    /// `suggestions_enabled`; unset, the deployment decides: off in production).
+    #[arg(long, env = "FRAISEQL_SUGGESTIONS_ENABLED", value_parser = BoolishValueParser::new(), num_args = 0..=1, default_missing_value = "true")]
+    pub suggestions_enabled: Option<bool>,
+
     /// Require authentication for playground endpoint (overrides `introspection_require_auth` for
     /// the playground path).
     #[arg(long, env = "FRAISEQL_PLAYGROUND_REQUIRE_AUTH", value_parser = BoolishValueParser::new(), num_args = 0..=1, default_missing_value = "true")]
@@ -243,6 +248,7 @@ impl ServerArgs {
             metadata_require_auth: parse_bool_env_opt("FRAISEQL_METADATA_REQUIRE_AUTH")?,
             schema_export_require_auth: parse_bool_env_opt("FRAISEQL_SCHEMA_EXPORT_REQUIRE_AUTH")?,
             service_sdl_require_auth: parse_bool_env_opt("FRAISEQL_SERVICE_SDL_REQUIRE_AUTH")?,
+            suggestions_enabled: parse_bool_env_opt("FRAISEQL_SUGGESTIONS_ENABLED")?,
             playground_require_auth: parse_bool_env_opt("FRAISEQL_PLAYGROUND_REQUIRE_AUTH")?,
             subscription_require_auth: parse_bool_env_opt("FRAISEQL_SUBSCRIPTION_REQUIRE_AUTH")?,
             rate_limiting_enabled: parse_bool_env_opt("FRAISEQL_RATE_LIMITING_ENABLED")?,
@@ -315,6 +321,9 @@ impl ServerArgs {
         }
         if let Some(require_auth) = self.service_sdl_require_auth {
             config.service_sdl_require_auth = Some(require_auth);
+        }
+        if let Some(enabled) = self.suggestions_enabled {
+            config.suggestions_enabled = Some(enabled);
         }
         if let Some(require_auth) = self.playground_require_auth {
             config.playground_require_auth = Some(require_auth);

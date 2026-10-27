@@ -450,6 +450,17 @@ pub struct ServerConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub service_sdl_require_auth: Option<bool>,
 
+    /// Whether a refused name carries a "Did you mean" hint.
+    ///
+    /// A hint names the declared operations, arguments, variables, types, sort keys and
+    /// filter fields nearest the one a request misspelt, so a client with introspection
+    /// off can still map the schema by probing. When `Some`, it is honoured as written;
+    /// `Some(true)` in production boots with a warning. When `None` (default), the
+    /// deployment decides: off in production, on in development (`FRAISEQL_ENV`). It is
+    /// the one switch whose unset value follows the deployment rather than another key.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub suggestions_enabled: Option<bool>,
+
     /// Require authentication for the GraphQL Playground endpoint (default: None).
     ///
     /// Controls the playground independently of introspection auth. When `Some(true)`,
@@ -1499,6 +1510,7 @@ impl Default for ServerConfig {
             metadata_require_auth: None,  // Falls back to introspection_require_auth
             schema_export_require_auth: None, // Falls back to introspection_require_auth
             service_sdl_require_auth: None, // Falls back to introspection_require_auth
+            suggestions_enabled: None,    // The deployment decides
             playground_require_auth: None, // Falls back to introspection_require_auth
             subscription_require_auth: None, // Falls back to introspection_require_auth
             subscription_auth_recheck_secs: default_subscription_auth_recheck_secs(),

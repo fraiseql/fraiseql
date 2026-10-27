@@ -3,7 +3,7 @@
 use super::super::{Executor, QueryType};
 use crate::{
     error::{FraiseQLError, Result},
-    runtime::{ExplainPlan, suggest_similar},
+    runtime::{ExplainPlan, suggestions_for},
 };
 
 impl Executor {
@@ -65,7 +65,8 @@ impl Executor {
                                 .collect();
                             let candidate_refs: Vec<&str> =
                                 display_names.iter().map(String::as_str).collect();
-                            let suggestion = suggest_similar(name, &candidate_refs);
+                            let suggestion =
+                                suggestions_for(self.ctx.config.suggestions, name, &candidate_refs);
                             let message = match suggestion.as_slice() {
                                 [s] => format!(
                                     "Mutation '{name}' not found in schema. Did you mean '{s}'?"

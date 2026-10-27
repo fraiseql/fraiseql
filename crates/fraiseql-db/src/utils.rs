@@ -207,6 +207,20 @@ mod tests;
 // names. `fraiseql_core::runtime::suggest_similar` re-exports this one, so the
 // two cannot drift.
 
+/// [`suggest_similar`], or nothing when `enabled` is false (#1717).
+///
+/// Every "Did you mean" hint a request can receive goes through here, so one switch
+/// withholds them all: a hint names declared operations, arguments and fields to a
+/// client that misspelt one, which maps the schema for a client with introspection off.
+#[must_use]
+pub fn suggestions_for<'a>(enabled: bool, needle: &str, haystack: &[&'a str]) -> Vec<&'a str> {
+    if enabled {
+        suggest_similar(needle, haystack)
+    } else {
+        Vec::new()
+    }
+}
+
 /// Return candidates from `haystack` whose edit distance to `needle` is ≤ 2.
 ///
 /// Uses a simple iterative Levenshtein implementation with a `2 * threshold`

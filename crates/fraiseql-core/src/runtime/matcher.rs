@@ -218,6 +218,10 @@ pub struct QueryMatcher {
     /// Each query's definition, by query name. A request only reads the definition it
     /// matches, so every [`QueryMatch`] shares this one instead of copying it.
     definitions: AHashMap<String, Arc<QueryDefinition>>,
+    /// Whether a refused query or argument name carries a "Did you mean" hint (#1717).
+    /// The executor replaces it with its
+    /// [`RuntimeConfig::suggestions`](super::RuntimeConfig::suggestions).
+    suggestions: bool,
 }
 
 /// The arguments a query's field takes, as the matcher validates a document against them.
@@ -267,6 +271,7 @@ impl QueryMatcher {
             max_depth,
             arguments,
             definitions,
+            suggestions: true,
         }
     }
 
@@ -285,6 +290,13 @@ impl QueryMatcher {
     #[must_use]
     pub const fn with_max_depth(mut self, max_depth: u32) -> Self {
         self.max_depth = max_depth;
+        self
+    }
+
+    /// The same matcher, with "Did you mean" hints on a refused name on or off (#1717).
+    #[must_use]
+    pub const fn with_suggestions(mut self, enabled: bool) -> Self {
+        self.suggestions = enabled;
         self
     }
 
@@ -445,7 +457,7 @@ impl QueryMatcher {
                 .map(|q| self.schema.display_name(&q.name))
                 .collect();
             let candidate_refs: Vec<&str> = display_names.iter().map(String::as_str).collect();
-            let suggestion = suggest_similar(&parsed.root_field, &candidate_refs);
+            let suggestion = suggestions_for(self.suggestions, &parsed.root_field, &candidate_refs);
             let message = match suggestion.as_slice() {
                 [s] => format!(
                     "Query '{}' not found in schema. Did you mean '{s}'?",
@@ -537,6 +549,7 @@ impl QueryMatcher {
                 &field_label,
                 &arguments.accepted,
                 &root.arguments,
+                self.suggestions,
             )?;
             argument_value_validation::validate_argument_values(
                 &field_label,
@@ -726,4 +739,4 @@ impl QueryMatcher {
 // Re-exported so `crate::runtime::suggest_similar` keeps its call sites while the one
 // implementation lives in `fraiseql-db` — the WHERE parser needs it too, and `fraiseql-core`
 // depends on `fraiseql-db`, not the reverse.
-pub use fraiseql_db::utils::suggest_similar;
+pub use fraiseql_db::utils::{suggest_similar, suggestions_for};

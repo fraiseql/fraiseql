@@ -671,6 +671,7 @@ fn a_filter_a_query_accepts_is_parsed() {
         &a_filter(),
         None,
         None,
+        true,
     )
     .expect("an accepted `where` argument parses")
     .expect("and yields a clause");
@@ -687,6 +688,7 @@ fn a_filter_a_query_does_not_accept_is_refused_not_dropped() {
         &a_filter(),
         None,
         None,
+        true,
     )
     .expect_err("a filter that cannot be applied is refused");
 
@@ -714,7 +716,7 @@ fn no_filter_is_accepted_whatever_the_flag_says() {
     let empty = HashMap::new();
     for accepts in [true, false] {
         assert!(
-            client_where_argument(&schema, &filterable(accepts), &empty, None, None)
+            client_where_argument(&schema, &filterable(accepts), &empty, None, None, true)
                 .expect("no filter, nothing to refuse")
                 .is_none(),
             "has_where = {accepts}"

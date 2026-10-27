@@ -48,12 +48,13 @@ use crate::{
 ///
 /// Returns [`FraiseQLError::Validation`] naming the first undeclared argument and
 /// the field it is not defined on, with a "did you mean" hint when a close
-/// accepted name exists — a dropped filter is most often a typo or a renamed
-/// argument, and both are one edit away from the name that works.
+/// accepted name exists and `suggestions` is on — a dropped filter is most often a typo
+/// or a renamed argument, and both are one edit away from the name that works.
 pub fn validate_argument_names(
     field_label: &str,
     accepted: &[String],
     provided: &[GraphQLArgument],
+    suggestions: bool,
 ) -> Result<()> {
     for arg in provided {
         if accepted.iter().any(|name| name == &arg.name) {
@@ -61,7 +62,7 @@ pub fn validate_argument_names(
         }
 
         let candidates: Vec<&str> = accepted.iter().map(String::as_str).collect();
-        let message = match super::suggest_similar(&arg.name, &candidates).as_slice() {
+        let message = match super::suggestions_for(suggestions, &arg.name, &candidates).as_slice() {
             [s] => format!(
                 "Unknown argument '{}' on field '{field_label}'. Did you mean '{s}'?",
                 arg.name

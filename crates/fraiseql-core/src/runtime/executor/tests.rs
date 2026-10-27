@@ -69,6 +69,7 @@ mod query {
             after_mutation_observer: None,
             write_gate:              None,
             root_error_renderer:     None,
+            suggestions:             true,
 
             cache_query_plans:           false,
             max_page_size:               Some(1000),
@@ -1331,6 +1332,7 @@ mod config {
             after_mutation_observer: None,
             write_gate:              None,
             root_error_renderer:     None,
+            suggestions:             true,
 
             cache_query_plans:           false,
             max_page_size:               Some(1000),
@@ -1373,6 +1375,7 @@ mod config {
             after_mutation_observer: None,
             write_gate:              None,
             root_error_renderer:     None,
+            suggestions:             true,
 
             cache_query_plans:           false,
             max_page_size:               Some(1000),

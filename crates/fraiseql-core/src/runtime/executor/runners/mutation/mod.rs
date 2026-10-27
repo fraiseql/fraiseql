@@ -28,7 +28,7 @@ use crate::{
         ResultProjector,
         mutation_result::{MutationOutcome, parse_mutation_row},
         projection::effective_selections,
-        suggest_similar,
+        suggestions_for,
     },
     schema::{CompiledSchema, InputStyle, MutationOperation, NamingConvention},
     security::SecurityContext,
@@ -1488,7 +1488,7 @@ async fn prepare_write<'a>(
             .map(|m| ctx.schema.display_name(&m.name))
             .collect();
         let candidate_refs: Vec<&str> = display_names.iter().map(String::as_str).collect();
-        let suggestion = suggest_similar(mutation_name, &candidate_refs);
+        let suggestion = suggestions_for(ctx.config.suggestions, mutation_name, &candidate_refs);
         let message = match suggestion.as_slice() {
             [s] => {
                 format!("Mutation '{mutation_name}' not found in schema. Did you mean '{s}'?")
@@ -1606,6 +1606,7 @@ async fn prepare_write<'a>(
         &format!("Mutation.{}", ctx.schema.display_name(&mutation_def.name)),
         &mutation_def.arguments.iter().map(|arg| arg.name.clone()).collect::<Vec<_>>(),
         inline_arguments,
+        ctx.config.suggestions,
     )?;
 
     // 2. Require a sql_source (PostgreSQL function name).

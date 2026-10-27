@@ -210,21 +210,24 @@ pub type RelationFieldMaps = Arc<HashMap<String, Arc<HashMap<String, WhereFieldI
 #[derive(Debug, Clone, Default)]
 pub struct WhereFieldSchema {
     /// Declared casts, keyed by dotted snake_case path.
-    casts:     SharedFieldTypes,
+    casts:                SharedFieldTypes,
     /// Declared top-level keys, by snake_case name.
     ///
     /// `None` means the schema could not adjudicate — the type was not found,
     /// or it carries no field metadata. It does **not** mean "no keys".
-    known:     Option<Arc<HashMap<String, WhereFieldInfo>>>,
+    known:                Option<Arc<HashMap<String, WhereFieldInfo>>>,
     /// Keys of every type a nested predicate can descend into.
     ///
     /// Empty is the honest default for a caller that knows the entry type but
     /// nothing beyond it — the nested levels then pass unadjudicated, which is
     /// what this did at every depth before the derived filter surface made the
     /// target type nameable.
-    relations: RelationFieldMaps,
+    relations:            RelationFieldMaps,
     /// The request's locale reading, for a filter on a localized field.
-    locale:    Option<LocaleReading>,
+    locale:               Option<LocaleReading>,
+    /// Refuse an unknown key without a "Did you mean" hint (#1717). Stored negated so
+    /// the derived `Default` keeps the hint, as every constructor does.
+    withhold_suggestions: bool,
 }
 
 impl WhereFieldSchema {
@@ -233,6 +236,19 @@ impl WhereFieldSchema {
     pub fn with_locale(mut self, locale: LocaleReading) -> Self {
         self.locale = Some(locale);
         self
+    }
+
+    /// The same schema, with "Did you mean" hints on an unknown key on or off (#1717).
+    #[must_use]
+    pub const fn with_suggestions(mut self, enabled: bool) -> Self {
+        self.withhold_suggestions = !enabled;
+        self
+    }
+
+    /// Whether an unknown key's refusal carries a "Did you mean" hint.
+    #[must_use]
+    pub const fn suggests(&self) -> bool {
+        !self.withhold_suggestions
     }
 
     /// The request's locale reading, when one was given.
@@ -252,6 +268,7 @@ impl WhereFieldSchema {
             known: None,
             relations: RelationFieldMaps::default(),
             locale: None,
+            withhold_suggestions: false,
         }
     }
 
@@ -270,6 +287,7 @@ impl WhereFieldSchema {
             known: Some(Arc::new(known)),
             relations: RelationFieldMaps::default(),
             locale: None,
+            withhold_suggestions: false,
         }
     }
 
@@ -289,6 +307,7 @@ impl WhereFieldSchema {
             known: Some(Arc::new(known)),
             relations,
             locale: None,
+            withhold_suggestions: false,
         }
     }
 

@@ -410,7 +410,13 @@ impl WhereClause {
                                     &info.declared_name,
                                 ));
                             },
-                            None => return Err(unknown_where_field(field_name, level)),
+                            None => {
+                                return Err(unknown_where_field(
+                                    field_name,
+                                    level,
+                                    schema.suggests(),
+                                ));
+                            },
                         }
                     }
 
@@ -603,15 +609,20 @@ fn undeclared_where_spelling(field_name: &str, declared: &str) -> FraiseQLError 
 /// Mirrors the shape of the unknown-operator error already in this file, plus a
 /// "did you mean" hint: a `where` key is most often a rename or a
 /// camelCase/snake_case slip, and both are one edit from the name that works.
-fn unknown_where_field(field_name: &str, level: &HashMap<String, WhereFieldInfo>) -> FraiseQLError {
+fn unknown_where_field(
+    field_name: &str,
+    level: &HashMap<String, WhereFieldInfo>,
+    suggestions: bool,
+) -> FraiseQLError {
     let candidates: Vec<&str> = level.values().map(|i| i.declared_name.as_str()).collect();
     let subject = format!("Unknown field '{field_name}' in where clause.");
-    let message = match crate::utils::suggest_similar(field_name, &candidates).as_slice() {
-        [s] => format!("{subject} Did you mean '{s}'?"),
-        [a, b] => format!("{subject} Did you mean '{a}' or '{b}'?"),
-        [a, b, c, ..] => format!("{subject} Did you mean '{a}', '{b}', or '{c}'?"),
-        _ => subject,
-    };
+    let message =
+        match crate::utils::suggestions_for(suggestions, field_name, &candidates).as_slice() {
+            [s] => format!("{subject} Did you mean '{s}'?"),
+            [a, b] => format!("{subject} Did you mean '{a}' or '{b}'?"),
+            [a, b, c, ..] => format!("{subject} Did you mean '{a}', '{b}', or '{c}'?"),
+            _ => subject,
+        };
     FraiseQLError::Validation {
         message,
         path: Some(format!("where.{field_name}")),

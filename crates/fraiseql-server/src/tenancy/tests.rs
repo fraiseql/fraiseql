@@ -848,6 +848,7 @@ mod runtime_config_drift {
             // write gate; the server's executor has none to inherit.
             write_gate: _,
             root_error_renderer,
+            suggestions,
         } = server;
 
         let mut out = Vec::new();
@@ -903,6 +904,10 @@ mod runtime_config_drift {
         }
         if *dry_run_mutations != tenant.dry_run_mutations {
             out.push("dry_run_mutations");
+        }
+        // #1717: the operator decides whether a refusal hints, for every tenant.
+        if *suggestions != tenant.suggestions {
+            out.push("suggestions");
         }
         if *mutation_error_shape_check != tenant.mutation_error_shape_check {
             out.push("mutation_error_shape_check");
@@ -968,6 +973,7 @@ mod runtime_config_drift {
             dry_run_mutations: true,
             mutation_error_shape_check: fraiseql_core::runtime::MutationErrorShapeCheck::Warn,
             constraint_metadata: fraiseql_core::runtime::ConstraintMetadata::None,
+            suggestions: false,
             ..RuntimeConfig::default()
         };
 
@@ -987,6 +993,7 @@ mod runtime_config_drift {
             "operator_max_response_bytes",
             "audit_mutations",
             "changelog_enabled",
+            "suggestions",
         ] {
             assert!(
                 found.contains(&expected),

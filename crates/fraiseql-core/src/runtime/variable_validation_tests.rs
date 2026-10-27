@@ -162,7 +162,7 @@ fn a_cyclic_fragment_spread_terminates() {
 
 #[test]
 fn an_undefined_reference_is_a_validation_error_naming_the_variable() {
-    let err = validate_variable_uses(Some("Q"), &[], &["neverDeclared".to_string()])
+    let err = validate_variable_uses(Some("Q"), &[], &["neverDeclared".to_string()], true)
         .expect_err("undefined variable must be refused");
     let message = err.to_string();
     assert!(message.contains("$neverDeclared"), "message was: {message}");
@@ -171,21 +171,22 @@ fn an_undefined_reference_is_a_validation_error_naming_the_variable() {
 
 #[test]
 fn a_defined_reference_passes() {
-    validate_variable_uses(Some("Q"), &["off".to_string()], &["off".to_string()])
+    validate_variable_uses(Some("Q"), &["off".to_string()], &["off".to_string()], true)
         .expect("a defined variable is not an error");
 }
 
 #[test]
 fn a_near_miss_gets_a_did_you_mean_hint() {
-    let err = validate_variable_uses(Some("Q"), &["limit".to_string()], &["limt".to_string()])
-        .expect_err("typo must be refused");
+    let err =
+        validate_variable_uses(Some("Q"), &["limit".to_string()], &["limt".to_string()], true)
+            .expect_err("typo must be refused");
     let message = err.to_string();
     assert!(message.contains("Did you mean '$limit'?"), "message was: {message}");
 }
 
 #[test]
 fn an_anonymous_operation_does_not_invent_a_name() {
-    let err = validate_variable_uses(None, &[], &["x".to_string()])
+    let err = validate_variable_uses(None, &[], &["x".to_string()], true)
         .expect_err("undefined variable must be refused");
     let message = err.to_string();
     assert!(message.contains("not defined by the operation"), "message was: {message}");
@@ -194,7 +195,7 @@ fn an_anonymous_operation_does_not_invent_a_name() {
 
 #[test]
 fn the_error_path_locates_the_variable_in_the_operation() {
-    let err = validate_variable_uses(Some("Q"), &[], &["x".to_string()])
+    let err = validate_variable_uses(Some("Q"), &[], &["x".to_string()], true)
         .expect_err("undefined variable must be refused");
     assert!(
         matches!(&err, FraiseQLError::Validation { path: Some(p), .. } if p == "Q.$x"),
@@ -204,7 +205,7 @@ fn the_error_path_locates_the_variable_in_the_operation() {
 
 #[test]
 fn the_first_undefined_reference_in_document_order_is_reported() {
-    let err = validate_variable_uses(Some("Q"), &[], &["a".to_string(), "b".to_string()])
+    let err = validate_variable_uses(Some("Q"), &[], &["a".to_string(), "b".to_string()], true)
         .expect_err("undefined variable must be refused");
     assert!(err.to_string().contains("$a"), "message was: {err}");
 }
@@ -214,14 +215,14 @@ fn the_first_undefined_reference_in_document_order_is_reported() {
 #[test]
 fn a_declared_but_unsupplied_variable_is_not_an_undefined_reference() {
     let source = "query Q($o: Int) { orders(offset: $o) { reference } }";
-    validate_variable_uses(Some("Q"), &defined(source), &references(source))
+    validate_variable_uses(Some("Q"), &defined(source), &references(source), true)
         .expect("declared-but-unsupplied is not a definition error");
 }
 
 #[test]
 fn a_multi_root_query_with_a_declared_variable_passes() {
     let source = "query Q($n: Int) { a: orders(limit: $n) { id } b: orders { id } }";
-    validate_variable_uses(Some("Q"), &defined(source), &references(source))
+    validate_variable_uses(Some("Q"), &defined(source), &references(source), true)
         .expect("multi-root with a declared variable is valid");
 }
 
@@ -229,7 +230,7 @@ fn a_multi_root_query_with_a_declared_variable_passes() {
 fn a_variable_used_only_inside_a_reachable_fragment_is_defined_by_the_operation() {
     let source = "query Q($n: Int) { orders { ...F } } \
                   fragment F on Order { items(first: $n) { id } }";
-    validate_variable_uses(Some("Q"), &defined(source), &references(source))
+    validate_variable_uses(Some("Q"), &defined(source), &references(source), true)
         .expect("a fragment reference to a declared variable is valid");
 }
 
@@ -266,6 +267,7 @@ fn a_variable_typed_with_an_unpublished_name_is_a_validation_error() {
         &schema_with_input_types(),
         Some("Q"),
         &var_defs("query Q($w: NoSuchTypeAtAll) { orders(where: $w) { id } }"),
+        true,
     )
     .expect_err("a type name the schema does not publish must be refused");
     let message = err.to_string();
@@ -283,6 +285,7 @@ fn json_is_accepted_with_the_spelling_introspection_publishes() {
         &schema_with_input_types(),
         Some("Q"),
         &var_defs("query Q($w: JSON) { orders(where: $w) { id } }"),
+        true,
     )
     .expect("`JSON` is what introspection publishes and what a client writes");
 }
@@ -294,7 +297,7 @@ fn every_published_scalar_is_accepted_as_a_variable_type() {
     let schema = schema_with_input_types();
     for name in crate::schema::published_scalar_names() {
         let source = format!("query Q($v: {name}) {{ orders(where: $v) {{ id }} }}");
-        let result = validate_variable_types(&schema, Some("Q"), &var_defs(&source));
+        let result = validate_variable_types(&schema, Some("Q"), &var_defs(&source), true);
         assert!(result.is_ok(), "published scalar '{name}' must be accepted: {result:?}");
     }
 }
@@ -307,7 +310,7 @@ fn list_and_non_null_wrappers_are_structural_and_unwrapped() {
         "query Q($ids: [ID]) { orders(where: $ids) { id } }",
         "query Q($id: ID!) { orders(where: $id) { id } }",
     ] {
-        let result = validate_variable_types(&schema, Some("Q"), &var_defs(source));
+        let result = validate_variable_types(&schema, Some("Q"), &var_defs(source), true);
         assert!(result.is_ok(), "wrappers are structural, not names: {source}: {result:?}");
     }
 }
@@ -319,12 +322,14 @@ fn a_declared_enum_and_input_object_are_accepted() {
         &schema,
         Some("Q"),
         &var_defs("query Q($s: OrderStatus) { orders(where: $s) { id } }"),
+        true,
     )
     .expect("a declared enum is an input type");
     validate_variable_types(
         &schema,
         Some("Q"),
         &var_defs("query Q($f: OrderFilter) { orders(where: $f) { id } }"),
+        true,
     )
     .expect("a declared input object is an input type");
 }
@@ -355,7 +360,7 @@ fn a_vector_type_the_schema_declares_is_an_acceptable_variable_type() {
         schema.types.push(doc);
 
         let source = format!("query Q($v: {name}) {{ orders(where: $v) {{ id }} }}");
-        let result = validate_variable_types(&schema, Some("Q"), &var_defs(&source));
+        let result = validate_variable_types(&schema, Some("Q"), &var_defs(&source), true);
         assert!(
             result.is_ok(),
             "'{name}' is declared by this schema, so refusing it would break a working \
@@ -375,7 +380,7 @@ fn authoring_only_scalars_are_not_acceptable_variable_types() {
     let schema = schema_with_input_types();
     for name in ["Vector", "BitVector", "HalfVector", "SparseVector"] {
         let source = format!("query Q($v: {name}) {{ orders(where: $v) {{ id }} }}");
-        let result = validate_variable_types(&schema, Some("Q"), &var_defs(&source));
+        let result = validate_variable_types(&schema, Some("Q"), &var_defs(&source), true);
         assert!(
             result.is_err(),
             "'{name}' is in the authoring table but is not published as a scalar, so it is \
@@ -393,6 +398,7 @@ fn a_schema_that_cannot_adjudicate_accepts_any_type_name() {
         &crate::schema::CompiledSchema::default(),
         Some("Q"),
         &var_defs("query Q($w: NoSuchTypeAtAll) { orders(where: $w) { id } }"),
+        true,
     )
     .expect("no input-type information emitted — a rejection cannot be justified");
 }
@@ -463,6 +469,7 @@ fn a_federated_schema_accepts_the_router_s_representations_variable() {
             "query($representations: [_Any!]!) { \
              _entities(representations: $representations) { ... on User { id } } }",
         ),
+        true,
     )
     .expect("`_Any` is the federation built-in every router sends");
 }
@@ -477,6 +484,7 @@ fn a_non_federated_schema_still_refuses_the_federation_builtins() {
         &schema,
         Some("Q"),
         &var_defs("query Q($r: [_Any!]!) { orders(where: $r) { id } }"),
+        true,
     )
     .expect_err("`_Any` means nothing to a schema that is not a subgraph");
 }

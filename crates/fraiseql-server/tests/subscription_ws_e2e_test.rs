@@ -440,6 +440,65 @@ async fn ws_e2e_subscribe_unknown_returns_error() {
     assert_eq!(error_frame["id"], "op_bad");
 }
 
+/// The `error` frame `/ws` answers the subscription `query` with, from a manager whose
+/// "Did you mean" hints are `suggestions`.
+async fn ws_refusal(query: &str, suggestions: bool) -> String {
+    let mut schema = schema_with_subscription("orderCreated", "Order");
+    schema.subscriptions[0]
+        .arguments
+        .push(fraiseql_core::schema::ArgumentDefinition::new("status", FieldType::String));
+    // An input-type vocabulary, without which no variable's declared type is judged.
+    schema.enums.push(
+        fraiseql_core::schema::EnumDefinition::new("OrderStatus")
+            .with_value(fraiseql_core::schema::EnumValueDefinition::new("OPEN")),
+    );
+    let schema = Arc::new(schema);
+    let manager = Arc::new(SubscriptionManager::new(schema.clone()).with_suggestions(suggestions));
+    // The schema the server serves: what `/ws` checks a variable's declared type against.
+    let live: fraiseql_server::routes::subscriptions::LiveSchema = Arc::new(move || schema.clone());
+    let url = spawn_ws_server(SubscriptionState::new(manager).with_live_schema(Some(live))).await;
+    let (mut sink, mut stream) = connect_ws(&url).await;
+    send_json(&mut sink, json!({"type": "connection_init"})).await;
+    let ack = recv_json(&mut stream).await;
+    assert_eq!(ack["type"], "connection_ack", "expected an ack, got {ack}");
+    send_json(
+        &mut sink,
+        json!({
+            "type": "subscribe",
+            "id": "op_typo",
+            "payload": {"query": query}
+        }),
+    )
+    .await;
+    let frame = recv_json(&mut stream).await;
+    assert_eq!(frame["type"], "error", "expected an error frame, got {frame}");
+    frame.to_string()
+}
+
+/// #1717: `/ws` validates a subscription's variables itself, and withholds the "Did you
+/// mean" hint there when the manager's switch is off: for a variable used undeclared, and
+/// for one declared with an unknown type.
+#[tokio::test]
+async fn ws_e2e_a_refusal_hints_only_when_suggestions_are_on() {
+    for (query, misspelt) in [
+        (
+            "subscription S($status: String) { orderCreated(status: $statu) { id } }",
+            "$statu",
+        ),
+        (
+            "subscription S($status: Strng) { orderCreated(status: $status) { id } }",
+            "Strng",
+        ),
+    ] {
+        let with = ws_refusal(query, true).await;
+        let without = ws_refusal(query, false).await;
+        assert!(with.contains("Did you mean"), "the control carries no hint: {with}");
+        assert!(with.contains(misspelt), "the control refused something else: {with}");
+        assert!(without.contains(misspelt), "refused something else: {without}");
+        assert!(!without.contains("Did you mean"), "a hint with suggestions off: {without}");
+    }
+}
+
 /// Verify that sending `complete` cleanly removes the subscription.
 #[tokio::test]
 async fn ws_e2e_complete_unsubscribes() {

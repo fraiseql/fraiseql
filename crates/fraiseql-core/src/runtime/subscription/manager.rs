@@ -52,6 +52,9 @@ pub struct SubscriptionManager {
     /// In single-tenant mode the gate stays permissive so existing deployments,
     /// where tenant ids are typically absent, keep working.
     multi_tenant: bool,
+
+    /// Whether a refused subscription argument carries a "Did you mean" hint (#1717).
+    suggestions: bool,
 }
 
 impl SubscriptionManager {
@@ -81,7 +84,21 @@ impl SubscriptionManager {
             event_sender,
             sequence_counter: AtomicU64::new(1),
             multi_tenant,
+            suggestions: true,
         }
+    }
+
+    /// The same manager, with "Did you mean" hints on a refused argument on or off (#1717).
+    #[must_use]
+    pub const fn with_suggestions(mut self, enabled: bool) -> Self {
+        self.suggestions = enabled;
+        self
+    }
+
+    /// Whether a refusal this manager's transport issues carries a "Did you mean" hint.
+    #[must_use]
+    pub const fn suggestions(&self) -> bool {
+        self.suggestions
     }
 
     /// Get a receiver for subscription payloads.
@@ -326,8 +343,14 @@ impl SubscriptionManager {
             .as_ref()
             .and_then(|v| v.max_query_depth)
             .unwrap_or(crate::schema::DEFAULT_MAX_QUERY_DEPTH);
-        super::subscription_arguments(&self.schema, document, variables, max_depth)
-            .map(serde_json::Value::Object)
+        super::subscription_arguments(
+            &self.schema,
+            document,
+            variables,
+            max_depth,
+            self.suggestions,
+        )
+        .map(serde_json::Value::Object)
     }
 
     /// Unsubscribe from a subscription.

@@ -31,6 +31,7 @@ pub fn subscription_arguments(
     document: &ParsedQuery,
     variables: Option<&serde_json::Value>,
     max_depth: u32,
+    suggestions: bool,
 ) -> Result<serde_json::Map<String, serde_json::Value>> {
     let defaults = crate::graphql::value_json::variable_defaults(&document.variables)?;
     let defaulted = crate::graphql::value_json::with_variable_defaults(&defaults, variables);
@@ -55,7 +56,7 @@ pub fn subscription_arguments(
         ))
     })?;
     let declared: Vec<String> = definition.arguments.iter().map(|a| a.name.clone()).collect();
-    crate::runtime::validate_argument_names(&root.name, &declared, &root.arguments)?;
+    crate::runtime::validate_argument_names(&root.name, &declared, &root.arguments, suggestions)?;
     // A value of the wrong type compares unequal with every event: refuse it, as a query
     // field's is, rather than establish a subscription that matches nothing.
     crate::runtime::validate_argument_values(

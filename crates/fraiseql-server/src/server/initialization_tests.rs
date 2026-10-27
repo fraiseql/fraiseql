@@ -202,3 +202,40 @@ fn a_service_sdl_some_caller_can_read_is_not_reported() {
     assert_eq!(service_sdl_events(true, false, false), Vec::<serde_json::Value>::new());
     assert_eq!(service_sdl_events(true, true, true), Vec::<serde_json::Value>::new());
 }
+
+// ── #1717: a production server told to give "Did you mean" hints ──
+
+/// The JSON log events `warn_when_production_gives_suggestions` emits.
+fn suggestion_events(
+    set: Option<bool>,
+    deployment: fraiseql_guard::deployment::Deployment,
+) -> Vec<serde_json::Value> {
+    log_events(|| super::warn_when_production_gives_suggestions(set, deployment))
+}
+
+#[test]
+fn a_production_server_told_to_give_suggestions_is_warned() {
+    use fraiseql_guard::deployment::Deployment;
+    let events = suggestion_events(Some(true), Deployment::Production);
+    assert_eq!(events.len(), 1, "{events:?}");
+    assert_eq!(events[0]["level"], "WARN");
+    let message = events[0]["fields"]["message"].as_str().unwrap();
+    assert!(message.contains("suggestions_enabled"), "{message}");
+}
+
+#[test]
+fn a_server_giving_suggestions_by_its_own_choice_is_not_warned() {
+    use fraiseql_guard::deployment::Deployment;
+    for (set, deployment) in [
+        (None, Deployment::Production),
+        (Some(false), Deployment::Production),
+        (Some(true), Deployment::Development),
+        (None, Deployment::Development),
+    ] {
+        assert_eq!(
+            suggestion_events(set, deployment),
+            Vec::<serde_json::Value>::new(),
+            "{set:?} in {deployment:?}"
+        );
+    }
+}

@@ -213,6 +213,7 @@ impl Executor {
                 document,
                 variables,
                 self.max_query_depth(),
+                ctx.config.suggestions,
             )?
             .into_iter()
             .collect();

@@ -374,6 +374,7 @@ pub fn enrich_order_by_clauses(
     return_type: &str,
     native_columns: &std::collections::HashMap<String, crate::schema::NativeColumn>,
     security_context: Option<&crate::security::SecurityContext>,
+    suggestions: bool,
 ) -> crate::error::Result<Vec<OrderByClause>> {
     let type_def = schema.find_type(return_type);
     // #1159: the keys the derived `…OrderByField` enum lists, and no other. `None` when the
@@ -391,7 +392,7 @@ pub fn enrich_order_by_clauses(
     for clause in &mut clauses {
         if let Some(keys) = &sortable {
             if !keys.contains(&clause.field) {
-                return Err(unknown_sort_field(&clause.field, return_type, keys));
+                return Err(unknown_sort_field(&clause.field, return_type, keys, suggestions));
             }
         }
 
@@ -450,15 +451,17 @@ fn unknown_sort_field(
     field: &str,
     return_type: &str,
     sortable: &[String],
+    suggestions: bool,
 ) -> crate::error::FraiseQLError {
     let candidates: Vec<&str> = sortable.iter().map(String::as_str).collect();
     let subject = format!("Cannot sort by '{field}' on type '{return_type}'.");
-    let message = match super::super::super::suggest_similar(field, &candidates).as_slice() {
-        [s] => format!("{subject} Did you mean '{s}'?"),
-        [a, b] => format!("{subject} Did you mean '{a}' or '{b}'?"),
-        [a, b, c, ..] => format!("{subject} Did you mean '{a}', '{b}', or '{c}'?"),
-        _ => subject,
-    };
+    let message =
+        match super::super::super::suggestions_for(suggestions, field, &candidates).as_slice() {
+            [s] => format!("{subject} Did you mean '{s}'?"),
+            [a, b] => format!("{subject} Did you mean '{a}' or '{b}'?"),
+            [a, b, c, ..] => format!("{subject} Did you mean '{a}', '{b}', or '{c}'?"),
+            _ => subject,
+        };
     crate::error::FraiseQLError::Validation {
         message,
         path: Some(format!("orderBy.{field}")),
@@ -694,6 +697,7 @@ mod order_by_validation {
             "Order",
             &HashMap::new(),
             None,
+            true,
         )
         .expect_err("an unknown sort key silently ordered nothing");
         let msg = err.to_string();
@@ -709,6 +713,7 @@ mod order_by_validation {
             "Order",
             &HashMap::new(),
             None,
+            true,
         )
         .expect_err("a typo must be refused");
         assert!(err.to_string().contains("Did you mean 'reference'?"), "got: {err}");
@@ -722,6 +727,7 @@ mod order_by_validation {
             "Order",
             &HashMap::new(),
             None,
+            true,
         )
         .expect("a declared field is a legitimate sort key");
         assert_eq!(
@@ -744,6 +750,7 @@ mod order_by_validation {
             "Order",
             &native,
             None,
+            true,
         )
         .expect("a native column is a legitimate sort key");
         assert_eq!(
@@ -772,6 +779,7 @@ mod order_by_validation {
                 "Order",
                 &native,
                 None,
+                true,
             )
             .expect("a native column is a legitimate sort key");
             assert_eq!(enriched[0].native_not_null, not_null);
@@ -786,6 +794,7 @@ mod order_by_validation {
             "NoSuchType",
             &HashMap::new(),
             None,
+            true,
         )
         .expect("no type information — a rejection cannot be justified");
     }
@@ -794,7 +803,7 @@ mod order_by_validation {
     fn a_type_with_no_fields_cannot_adjudicate_and_passes() {
         let mut schema = CompiledSchema::default();
         schema.types.push(TypeDefinition::new("Order", "v_order"));
-        enrich_order_by_clauses(clause("anything"), &schema, "Order", &HashMap::new(), None)
+        enrich_order_by_clauses(clause("anything"), &schema, "Order", &HashMap::new(), None, true)
             .expect("an empty field list is absence of evidence, not evidence of absence");
     }
 }

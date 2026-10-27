@@ -1202,7 +1202,11 @@ async fn handle_client_message(
             // can be applied to a subscription.
             let document = extract_subscription_root(&payload.query).and_then(|(root, parsed)| {
                 let schema = state.live_schema.as_ref().map(|f| f());
-                validate_subscription_variables(&parsed, schema.as_deref())?;
+                validate_subscription_variables(
+                    &parsed,
+                    schema.as_deref(),
+                    state.manager.suggestions(),
+                )?;
                 Ok((root, parsed))
             });
             let (
@@ -1789,7 +1793,8 @@ impl SubscriptionDocumentError {
 ///
 /// `schema` is `None` for a caller that mounts no compiled schema; § 5.8.2 —
 /// the only rule of the three that needs one — is then skipped, and the other
-/// two still run.
+/// two still run. `suggestions` is the manager's switch: off, a refusal carries no
+/// "Did you mean" hint.
 ///
 /// # Errors
 ///
@@ -1797,6 +1802,7 @@ impl SubscriptionDocumentError {
 pub(crate) fn validate_subscription_variables(
     parsed: &ParsedQuery,
     schema: Option<&CompiledSchema>,
+    suggestions: bool,
 ) -> Result<(), SubscriptionDocumentError> {
     use fraiseql_core::runtime::{
         collect_variable_references, validate_variable_types, validate_variable_uses,
@@ -1811,9 +1817,10 @@ pub(crate) fn validate_subscription_variables(
     let defined: Vec<String> = parsed.variables.iter().map(|v| v.name.clone()).collect();
     let referenced = collect_variable_references(parsed).map_err(fail)?;
 
-    validate_variable_uses(operation_name, &defined, &referenced).map_err(fail)?;
+    validate_variable_uses(operation_name, &defined, &referenced, suggestions).map_err(fail)?;
     if let Some(schema) = schema {
-        validate_variable_types(schema, operation_name, &parsed.variables).map_err(fail)?;
+        validate_variable_types(schema, operation_name, &parsed.variables, suggestions)
+            .map_err(fail)?;
     }
     validate_variables_used(operation_name, &defined, &referenced).map_err(fail)?;
 

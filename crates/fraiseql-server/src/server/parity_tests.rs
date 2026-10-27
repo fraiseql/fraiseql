@@ -1247,6 +1247,91 @@ async fn build_for(
     .await
 }
 
+/// #1717: a server built for a deployment gives every consumer of the hint switch the
+/// same resolved value: the executor (queries, mutations, `explain`) and the subscription
+/// manager (`/ws`). Unset, production withholds hints; set, both honour it.
+#[tokio::test]
+async fn suggestions_reach_every_consumer_as_the_deployment_resolves_them() {
+    use fraiseql_guard::deployment::Deployment;
+
+    for (set, deployment, expected) in [
+        (None, Deployment::Production, false),
+        (None, Deployment::Development, true),
+        (Some(true), Deployment::Production, true),
+        (Some(false), Deployment::Development, false),
+    ] {
+        let config = ServerConfig {
+            suggestions_enabled: set,
+            ..fully_configured_server_config()
+        };
+        let server = build_for(config, CompiledSchema::default(), deployment)
+            .await
+            .expect("a bare schema boots");
+        assert_eq!(server.executor.config().suggestions, expected, "{set:?} in {deployment:?}");
+        assert_eq!(
+            server.subscription_manager.suggestions(),
+            expected,
+            "{set:?} in {deployment:?}"
+        );
+    }
+}
+
+/// The JSON log lines building the server `config` describes, for `deployment`, writes.
+async fn boot_log_for(
+    config: ServerConfig,
+    deployment: fraiseql_guard::deployment::Deployment,
+) -> String {
+    use std::sync::Mutex;
+
+    #[derive(Clone, Default)]
+    struct Captured(Arc<Mutex<Vec<u8>>>);
+    impl std::io::Write for Captured {
+        fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+            self.0.lock().expect("log buffer").extend_from_slice(buf);
+            Ok(buf.len())
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    let captured = Captured::default();
+    let writer = captured.clone();
+    let subscriber = tracing_subscriber::fmt().json().with_writer(move || writer.clone()).finish();
+    let guard = fraiseql_test_support::tracing_capture::set_default(subscriber);
+    build_for(config, CompiledSchema::default(), deployment)
+        .await
+        .expect("the server boots");
+    drop(guard);
+    let bytes = captured.0.lock().expect("log buffer").clone();
+    String::from_utf8(bytes).expect("utf-8 log")
+}
+
+/// Whether `log` carries the warning that a production server gives hints.
+fn reports_production_suggestions(log: &str) -> bool {
+    log.lines()
+        .filter_map(|line| serde_json::from_str::<serde_json::Value>(line).ok())
+        .any(|event| event["level"] == "WARN" && event["fields"]["suggestions_enabled"] == true)
+}
+
+/// #1717: a production server told to give hints boots, and says what that costs; one
+/// left to the deployment says nothing.
+#[tokio::test]
+async fn a_production_server_told_to_give_suggestions_warns_at_boot() {
+    use fraiseql_guard::deployment::Deployment;
+
+    let on = ServerConfig {
+        suggestions_enabled: Some(true),
+        ..fully_configured_server_config()
+    };
+    let log = boot_log_for(on, Deployment::Production).await;
+    assert!(reports_production_suggestions(&log), "{log}");
+
+    let log = boot_log_for(fully_configured_server_config(), Deployment::Production).await;
+    assert!(!reports_production_suggestions(&log), "unset: {log}");
+}
+
 /// `fully_configured_schema` with `section` set under `security` as `key`.
 fn schema_with_security(key: &str, section: serde_json::Value) -> CompiledSchema {
     let mut schema = fully_configured_schema();

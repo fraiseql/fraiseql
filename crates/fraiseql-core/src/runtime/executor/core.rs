@@ -358,7 +358,9 @@ impl Executor {
         // gate admits is never refused by a second, fixed limit — and one it refuses is
         // refused by the resolver too on the paths that classify before the gate runs.
         let max_depth = u32::try_from(gate1.config().max_depth).unwrap_or(u32::MAX);
-        let matcher = QueryMatcher::new(schema.clone()).with_max_depth(max_depth);
+        let matcher = QueryMatcher::new(schema.clone())
+            .with_max_depth(max_depth)
+            .with_suggestions(config.suggestions);
         let planner = QueryPlanner::new(config.cache_query_plans);
         // Build introspection responses at startup (zero-cost at runtime),
         // with `@inaccessible` fields filtered out. Shared with the relay

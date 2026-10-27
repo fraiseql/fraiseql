@@ -431,7 +431,7 @@ mod document_validation {
     fn refuse(query: &str) -> (&'static str, String) {
         let schema = schema();
         let err = extract_subscription_root(query)
-            .and_then(|(_, parsed)| validate_subscription_variables(&parsed, Some(&schema)))
+            .and_then(|(_, parsed)| validate_subscription_variables(&parsed, Some(&schema), true))
             .expect_err("this document must be refused");
         (err.code(), err.message().to_string())
     }
@@ -439,7 +439,7 @@ mod document_validation {
     fn accept(query: &str) {
         let schema = schema();
         extract_subscription_root(query)
-            .and_then(|(_, parsed)| validate_subscription_variables(&parsed, Some(&schema)))
+            .and_then(|(_, parsed)| validate_subscription_variables(&parsed, Some(&schema), true))
             .unwrap_or_else(|e| panic!("this document must be accepted: {}", e.message()));
     }
 
@@ -503,7 +503,9 @@ mod document_validation {
         ] {
             let schema = schema();
             let err = extract_subscription_root(query)
-                .and_then(|(_, parsed)| validate_subscription_variables(&parsed, Some(&schema)))
+                .and_then(|(_, parsed)| {
+                    validate_subscription_variables(&parsed, Some(&schema), true)
+                })
                 .expect_err("must be refused");
             assert_eq!(err.code(), "PARSE_ERROR", "for: {query}");
         }
@@ -518,7 +520,7 @@ mod document_validation {
             "subscription S($w: NoSuchTypeAtAll) { orderUpdated(where: $w) { id } }",
         )
         .expect("parses");
-        validate_subscription_variables(&parsed, None)
+        validate_subscription_variables(&parsed, None, true)
             .expect("§ 5.8.2 cannot be adjudicated without a schema");
 
         let (_, parsed) =
@@ -526,7 +528,7 @@ mod document_validation {
                 .expect("parses");
         assert!(
             matches!(
-                validate_subscription_variables(&parsed, None),
+                validate_subscription_variables(&parsed, None, true),
                 Err(SubscriptionDocumentError::Validation(_))
             ),
             "§ 5.8.3 needs no schema, so it must still run"
@@ -560,8 +562,10 @@ mod document_validation {
             let operation_name = parsed.operation_name.as_deref();
             let defined: Vec<String> = parsed.variables.iter().map(|v| v.name.clone()).collect();
             let referenced = collect_variable_references(&parsed).expect("walk succeeds");
-            let http = validate_variable_uses(operation_name, &defined, &referenced)
-                .and_then(|()| validate_variable_types(&schema, operation_name, &parsed.variables))
+            let http = validate_variable_uses(operation_name, &defined, &referenced, true)
+                .and_then(|()| {
+                    validate_variable_types(&schema, operation_name, &parsed.variables, true)
+                })
                 .and_then(|()| validate_variables_used(operation_name, &defined, &referenced))
                 .expect_err("the /graphql surface refuses this document");
 

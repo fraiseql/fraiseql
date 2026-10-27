@@ -1911,6 +1911,7 @@ fn the_derived_filter_types_are_acceptable_variable_types() {
         &schema,
         Some("Q"),
         &var_defs("query Q($w: OrderWhereInput) { orders(where: $w) { reference } }"),
+        true,
     )
     .expect("the schema publishes `OrderWhereInput`, so a client may write it");
 
@@ -1918,6 +1919,7 @@ fn the_derived_filter_types_are_acceptable_variable_types() {
         &schema,
         Some("Q"),
         &var_defs("query Q($o: [OrderOrderByInput!]) { orders(orderBy: $o) { reference } }"),
+        true,
     )
     .expect("and `OrderOrderByInput`, list-wrapped");
 
@@ -1925,6 +1927,7 @@ fn the_derived_filter_types_are_acceptable_variable_types() {
         &schema,
         Some("Q"),
         &var_defs("query Q($d: SortDirection) { orders(orderBy: [{field: \"x\", direction: $d}]) { reference } }"),
+        true,
     )
     .expect("and the direction enum");
 
@@ -1932,6 +1935,7 @@ fn the_derived_filter_types_are_acceptable_variable_types() {
         &schema,
         Some("Q"),
         &var_defs("query Q($w: OrdrWhereInput) { orders(where: $w) { reference } }"),
+        true,
     )
     .expect_err("a name the schema does not carry is still refused");
     let message = err.to_string();

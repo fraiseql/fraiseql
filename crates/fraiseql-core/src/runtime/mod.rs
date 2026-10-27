@@ -142,7 +142,7 @@ pub(crate) use locale_argument::{
     translations_read,
 };
 pub(crate) use localized_input::coerce_localized_arguments;
-pub use matcher::{QueryMatch, QueryMatcher, suggest_similar};
+pub use matcher::{QueryMatch, QueryMatcher, suggest_similar, suggestions_for};
 pub use mutation_result::{
     ConstraintMetadata, MutationErrorShapeCheck, mutation_error_shape_violations,
 };
@@ -216,6 +216,7 @@ use crate::security::{
 /// | `after_mutation_observer` | `None` | No one is told a write committed |
 /// | `write_gate` | `None` | Every write is admitted (no tenant storage quota) |
 /// | `root_error_renderer` | `None` | A failing root's `errors` entry carries the error's text |
+/// | `suggestions` | `true` | A refused name carries a "Did you mean" hint |
 ///
 /// # Example
 ///
@@ -468,6 +469,15 @@ pub struct RuntimeConfig {
     /// the entry the treatment a failed request gets; the engine adds its `path`.
     /// `None` renders `{"message": <the error's text>}`.
     pub root_error_renderer: Option<RootErrorRenderer>,
+
+    /// Whether a refused name carries a "Did you mean" hint (#1717).
+    ///
+    /// A hint names the declared operations, arguments, variables, types and sort
+    /// keys nearest the one a request misspelt, so a client with introspection off can
+    /// still map the schema by probing. `false` withholds every hint and keeps the
+    /// refusal. Operator-owned: the server resolves `suggestions_enabled` against the
+    /// deployment, and a hot reload or a tenant's schema carries it through unchanged.
+    pub suggestions: bool,
 }
 
 /// Renders an engine error as a GraphQL `errors` entry, without its `path`
@@ -534,6 +544,7 @@ impl std::fmt::Debug for RuntimeConfig {
             .field("after_mutation_observer", &self.after_mutation_observer.is_some())
             .field("write_gate", &self.write_gate.is_some())
             .field("root_error_renderer", &self.root_error_renderer.is_some())
+            .field("suggestions", &self.suggestions)
             .finish()
     }
 }
@@ -568,6 +579,7 @@ impl Default for RuntimeConfig {
             after_mutation_observer:     None,
             write_gate:                  None,
             root_error_renderer:         None,
+            suggestions:                 true,
         }
     }
 }
@@ -917,6 +929,7 @@ impl RuntimeConfig {
             after_mutation_observer,
             write_gate,
             root_error_renderer,
+            suggestions,
         } = self;
 
         Ok(Self {
@@ -947,6 +960,7 @@ impl RuntimeConfig {
             after_mutation_observer,
             write_gate,
             root_error_renderer,
+            suggestions,
         })
     }
 }
@@ -1085,3 +1099,6 @@ impl ExecutionContext {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod suggestions_tests;

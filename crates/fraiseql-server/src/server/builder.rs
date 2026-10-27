@@ -281,10 +281,11 @@ impl Server {
         // toggle, and the runtime [validation] override on the executor gate
         // (#379). Doing it first preserves "reject bad version before any
         // further setup".
-        let executor_config = crate::server::initialization::executor_runtime_config(
-            &schema, &config,
-        )
-        .map_err(|msg| ServerError::ConfigError(format!("Incompatible compiled schema: {msg}")))?;
+        let executor_config =
+            crate::server::initialization::executor_runtime_config(&schema, &config, deployment)
+                .map_err(|msg| {
+                    ServerError::ConfigError(format!("Incompatible compiled schema: {msg}"))
+                })?;
 
         // Refuse to boot if any field is marked for at-rest encryption: the write path does
         // not encrypt (H12), so those fields would be stored in plaintext. Fail loud rather
@@ -330,7 +331,14 @@ impl Server {
         // `executor_config` was built from the compiled schema at the top of this
         // constructor (the H16 seam — audit flag, #421 page-size, change-log toggle).
         let executor = Arc::new(make_executor(schema.clone(), Arc::new(cached), executor_config));
-        let subscription_manager = Arc::new(SubscriptionManager::new(Arc::new(schema)));
+        let subscription_manager = Arc::new(
+            SubscriptionManager::new(Arc::new(schema))
+                .with_suggestions(config.suggestions_enabled_in(deployment)),
+        );
+        crate::server::initialization::warn_when_production_gives_suggestions(
+            config.suggestions_enabled,
+            deployment,
+        );
 
         // Boxed: `from_executor` constructs every subsystem, and its future is
         // large enough that inlining it tips each public constructor past
