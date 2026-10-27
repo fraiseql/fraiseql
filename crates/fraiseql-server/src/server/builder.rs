@@ -976,6 +976,16 @@ impl Server {
             ))
         });
 
+        crate::server::initialization::warn_when_no_caller_can_read_the_service_sdl(
+            cfg!(feature = "federation")
+                && executor.schema().federation.as_ref().is_some_and(|fed| fed.enabled),
+            config.service_sdl_requires_auth(),
+            oidc_validator.is_some()
+                || hs256_auth.is_some()
+                || api_key_authenticator.is_some()
+                || service_account_authenticator.is_some(),
+        );
+
         Ok(Self {
             config,
             deployment,

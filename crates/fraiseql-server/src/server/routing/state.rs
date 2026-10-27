@@ -294,11 +294,7 @@ impl Server {
             self.config.introspection_enabled,
             self.config.introspection_require_auth,
         ));
-        state = state.with_service_sdl_require_auth(
-            self.config
-                .service_sdl_require_auth
-                .unwrap_or(self.config.introspection_require_auth),
-        );
+        state = state.with_service_sdl_require_auth(self.config.service_sdl_requires_auth());
 
         // Attach APQ store if configured
         if let Some(ref store) = self.apq_store {

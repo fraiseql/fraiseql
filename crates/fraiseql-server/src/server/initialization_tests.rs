@@ -168,3 +168,37 @@ fn a_server_hearing_the_others_names_no_query_cached_without_expiry() {
 fn a_disabled_cache_names_no_query_cached_without_expiry() {
     assert!(per_process_events(&schema_with_users(Some(0)), false).is_empty());
 }
+
+// ── #1717: a service SDL that requires authentication, on a server that authenticates nobody ──
+
+/// The JSON log events `warn_when_no_caller_can_read_the_service_sdl` emits.
+fn service_sdl_events(
+    federation_enabled: bool,
+    requires_auth: bool,
+    authenticates: bool,
+) -> Vec<serde_json::Value> {
+    log_events(|| {
+        super::warn_when_no_caller_can_read_the_service_sdl(
+            federation_enabled,
+            requires_auth,
+            authenticates,
+        );
+    })
+}
+
+#[test]
+fn a_service_sdl_no_caller_can_read_is_reported_naming_both_ways_out() {
+    let events = service_sdl_events(true, true, false);
+    assert_eq!(events.len(), 1, "{events:?}");
+    assert_eq!(events[0]["level"], "WARN");
+    let message = events[0]["fields"]["message"].as_str().unwrap();
+    assert!(message.contains("service_sdl_require_auth = false"), "{message}");
+    assert!(message.contains("fraiseql federation sdl"), "{message}");
+}
+
+#[test]
+fn a_service_sdl_some_caller_can_read_is_not_reported() {
+    assert_eq!(service_sdl_events(false, true, false), Vec::<serde_json::Value>::new());
+    assert_eq!(service_sdl_events(true, false, false), Vec::<serde_json::Value>::new());
+    assert_eq!(service_sdl_events(true, true, true), Vec::<serde_json::Value>::new());
+}

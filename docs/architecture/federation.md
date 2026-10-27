@@ -233,6 +233,10 @@ or off, because a gateway composes it from a subgraph whose introspection is off
 the switch off serves it to whoever the subgraph serves, and nothing more: no setting makes
 it public on a secured subgraph, by design (ADR-0016 §6: a permissive case is named and
 opted into, and the subgraph's SDL lists every type, field and entity key).
+A federated server that requires authentication for the SDL and configures no
+authentication layer (OIDC, HS256, API keys or service accounts) refuses it to every caller;
+it boots, and warns at startup naming the two ways out: turn the switch off, or compose
+offline as below.
 
 The SDL is one document, the same for every caller, so it lists every operation the
 subgraph declares, `requires_role`-gated queries and mutations included. A supergraph

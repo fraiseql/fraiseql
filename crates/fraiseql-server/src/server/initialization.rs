@@ -1588,6 +1588,31 @@ pub(super) fn warn_when_nothing_is_cacheable(schema: &CompiledSchema, cache_enab
     );
 }
 
+/// Warn that the federation service SDL is refused to every caller this server can see (#1717).
+///
+/// With `service_sdl_require_auth` in effect, `{ _service { sdl } }` is served only to an
+/// authenticated caller. A server with no authentication layer configured authenticates
+/// nobody, so a gateway composing from it is refused the SDL on every attempt. That is
+/// not unsafe, so the server boots; it says so, and names both ways out.
+pub(super) fn warn_when_no_caller_can_read_the_service_sdl(
+    federation_enabled: bool,
+    service_sdl_requires_auth: bool,
+    authenticates: bool,
+) {
+    if !federation_enabled || !service_sdl_requires_auth || authenticates {
+        return;
+    }
+    warn!(
+        service_sdl_reachable = false,
+        "Federation is enabled and the service SDL (`{{ _service {{ sdl }} }}`) requires an \
+         authenticated caller, but no authentication is configured, so every request for it \
+         is refused and a gateway cannot compose this subgraph from it. Configure \
+         authentication and give the gateway a credential, set \
+         `service_sdl_require_auth = false` to serve it to anyone, or compose offline with \
+         `fraiseql federation sdl`."
+    );
+}
+
 /// Warn naming the queries cached with no expiry, which no other server's write evicts (#1577).
 ///
 /// Without the feed (`cache_cross_instance = "off"`), the result cache lives in this process:

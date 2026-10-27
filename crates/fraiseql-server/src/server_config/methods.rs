@@ -175,6 +175,16 @@ impl ServerConfig {
         }
     }
 
+    /// Effective `service_sdl_require_auth` (#1717): unset, it follows
+    /// `introspection_require_auth`.
+    ///
+    /// The single seam: the gate on `{ _service { sdl } }` and the boot warning that a
+    /// gateway has no credential to present both read this, so they cannot disagree.
+    #[must_use]
+    pub fn service_sdl_requires_auth(&self) -> bool {
+        self.service_sdl_require_auth.unwrap_or(self.introspection_require_auth)
+    }
+
     /// Effective `@stream` continuation batch size (#387).
     ///
     /// The 100-row default lives here — the single seam — so every consumer

@@ -26,7 +26,10 @@ disagreed, and the promise was the part that was wrong.
   keeps it open, as it keeps introspection open. The switch is its own: the SDL is served
   whether `introspection_enabled` is on or off. A gateway presents a credential (a service
   account on `x-api-key`), or set `service_sdl_require_auth = false` to serve the SDL to
-  whoever the subgraph serves. Introspection and `_service` are also recognised through a
+  whoever the subgraph serves. A federated server that requires it and configures no
+  authentication, so no gateway can read it, boots with a warning naming both ways out:
+  `service_sdl_require_auth = false`, or composing offline with `fraiseql federation sdl`.
+  Introspection and `_service` are also recognised through a
   root fragment (`{ ... on Query { __schema { … } } }`, `{ ...F }`), which the executor
   refused but the policy gate did not see.
 - **A boot guard takes a `Deployment`, not an `is_production: bool`.**

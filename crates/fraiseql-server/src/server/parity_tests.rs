@@ -1002,6 +1002,16 @@ async fn postgres_api_keys_without_a_pool_refuse_to_boot() {
 
 /// The JSON log lines `Server::new` writes while booting over `schema` with the cache on.
 async fn boot_log(schema: CompiledSchema) -> String {
+    let config = ServerConfig {
+        cache_enabled: true,
+        cors_enabled: false,
+        ..ServerConfig::default()
+    };
+    boot_log_with(config, schema).await
+}
+
+/// The JSON log lines `Server::new` writes while booting `config` over `schema`.
+async fn boot_log_with(config: ServerConfig, schema: CompiledSchema) -> String {
     use std::sync::Mutex;
 
     #[derive(Clone, Default)]
@@ -1021,12 +1031,7 @@ async fn boot_log(schema: CompiledSchema) -> String {
     let writer = captured.clone();
     let subscriber = tracing_subscriber::fmt().json().with_writer(move || writer.clone()).finish();
     let guard = fraiseql_test_support::tracing_capture::set_default(subscriber);
-    let config = ServerConfig {
-        cache_enabled: true,
-        cors_enabled: false,
-        ..ServerConfig::default()
-    };
-    Server::new(config, schema, Arc::new(NoopRelayAdapter::default()), None)
+    Box::pin(Server::new(config, schema, Arc::new(NoopRelayAdapter::default()), None))
         .await
         .expect("the server boots");
     drop(guard);
@@ -1045,6 +1050,161 @@ async fn server_new_reports_a_cache_no_query_opts_into() {
         .filter_map(|line| serde_json::from_str::<serde_json::Value>(line).ok())
         .any(|event| event["level"] == "WARN" && event["fields"]["cacheable_queries"] == 0);
     assert!(reported, "{log}");
+}
+
+/// A schema with federation enabled: the service SDL is served from it.
+#[cfg(feature = "federation")]
+fn federated_schema() -> CompiledSchema {
+    CompiledSchema {
+        federation: Some(fraiseql_core::schema::FederationConfig {
+            enabled: true,
+            ..Default::default()
+        }),
+        ..CompiledSchema::default()
+    }
+}
+
+/// Whether `log` carries the warning that no caller can read the service SDL.
+#[cfg(feature = "federation")]
+fn reports_an_unreachable_service_sdl(log: &str) -> bool {
+    log.lines()
+        .filter_map(|line| serde_json::from_str::<serde_json::Value>(line).ok())
+        .any(|event| event["level"] == "WARN" && event["fields"]["service_sdl_reachable"] == false)
+}
+
+/// #1717: a federated server that requires authentication for its service SDL, and
+/// authenticates nobody, says at boot that a gateway cannot read the SDL.
+#[cfg(feature = "federation")]
+#[tokio::test]
+async fn server_new_reports_a_service_sdl_no_caller_can_read() {
+    let config = ServerConfig {
+        cors_enabled: false,
+        ..ServerConfig::default()
+    };
+    let log = boot_log_with(config, federated_schema()).await;
+    assert!(reports_an_unreachable_service_sdl(&log), "{log}");
+}
+
+/// #1717: the same server with any one authentication layer configured has a caller who
+/// can read it, so it says nothing. Each layer is its own boot: the warning reads them as a
+/// disjunction, and a layer the condition forgot would warn on a server that authenticates.
+#[cfg(feature = "federation")]
+#[tokio::test]
+async fn server_new_is_silent_when_a_caller_can_authenticate() {
+    const SECRET_ENV: &str = "FRAISEQL_TEST_1717_SERVICE_SDL_SECRET";
+    let anonymous = || ServerConfig {
+        cors_enabled: false,
+        ..ServerConfig::default()
+    };
+    let with_security = |configure: &dyn Fn(&mut SecurityConfig)| {
+        let mut security = SecurityConfig::default();
+        configure(&mut security);
+        CompiledSchema {
+            security: Some(security),
+            ..federated_schema()
+        }
+    };
+    let layers: [(&str, ServerConfig, CompiledSchema); 4] = [
+        (
+            "hs256",
+            ServerConfig {
+                auth_hs256: Some(crate::server_config::hs256::Hs256Config {
+                    secret_env: SECRET_ENV.to_string(),
+                    issuer:     None,
+                    audience:   Some("fraiseql".to_string()),
+                }),
+                ..anonymous()
+            },
+            federated_schema(),
+        ),
+        (
+            "oidc",
+            ServerConfig {
+                // The JWKS URI is pinned, so the validator performs no discovery.
+                auth: Some(fraiseql_core::security::OidcConfig {
+                    issuer: None,
+                    audience: Some("https://api.example.test".to_string()),
+                    jwks_uri: Some("https://idp.example.test/.well-known/jwks.json".to_string()),
+                    ..Default::default()
+                }),
+                ..anonymous()
+            },
+            federated_schema(),
+        ),
+        (
+            "api key",
+            anonymous(),
+            with_security(&|security| {
+                security.api_keys = Some(fraiseql_core::schema::ApiKeySecurityConfig {
+                    enabled: true,
+                    storage: "env".to_string(),
+                    static_keys: vec![fraiseql_core::schema::StaticApiKeyEntry {
+                        key_hash: format!("sha256:{}", "0".repeat(64)),
+                        scopes:   vec!["read:*".to_string()],
+                        name:     "gateway".to_string(),
+                    }],
+                    ..Default::default()
+                });
+            }),
+        ),
+        (
+            "service account",
+            anonymous(),
+            with_security(&|security| {
+                security.service_accounts = Some(HashMap::from([(
+                    "gateway".to_string(),
+                    fraiseql_core::schema::ServiceAccountConfig {
+                        secret_env:      SECRET_ENV.to_string(),
+                        roles:           Vec::new(),
+                        scopes:          Vec::new(),
+                        tenant:          None,
+                        static_enriched: HashMap::new(),
+                    },
+                )]));
+            }),
+        ),
+    ];
+    Box::pin(temp_env::async_with_vars(
+        [(SECRET_ENV, Some("service-sdl-secret-32bytes-long!!"))],
+        async {
+            for (layer, config, schema) in layers {
+                let log = boot_log_with(config, schema).await;
+                assert!(!reports_an_unreachable_service_sdl(&log), "{layer}: {log}");
+            }
+        },
+    ))
+    .await;
+}
+
+/// #1717: a federated server that serves its service SDL to anyone, or one that is not
+/// federated (no `[federation]`, or one with `enabled = false`), has nothing to warn about.
+#[cfg(feature = "federation")]
+#[tokio::test]
+async fn server_new_is_silent_when_the_service_sdl_is_served_or_absent() {
+    let open = ServerConfig {
+        cors_enabled: false,
+        service_sdl_require_auth: Some(false),
+        ..ServerConfig::default()
+    };
+    let log = boot_log_with(open, federated_schema()).await;
+    assert!(!reports_an_unreachable_service_sdl(&log), "served to anyone: {log}");
+
+    let anonymous = ServerConfig {
+        cors_enabled: false,
+        ..ServerConfig::default()
+    };
+    let log = boot_log_with(anonymous.clone(), CompiledSchema::default()).await;
+    assert!(!reports_an_unreachable_service_sdl(&log), "not federated: {log}");
+
+    let disabled = CompiledSchema {
+        federation: Some(fraiseql_core::schema::FederationConfig {
+            enabled: false,
+            ..Default::default()
+        }),
+        ..CompiledSchema::default()
+    };
+    let log = boot_log_with(anonymous, disabled).await;
+    assert!(!reports_an_unreachable_service_sdl(&log), "federation disabled: {log}");
 }
 
 /// #1577: building a server whose result cache is on names, at boot, the queries cached with
