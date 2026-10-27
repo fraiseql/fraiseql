@@ -2072,6 +2072,47 @@ async fn a_relay_page_routed_to_the_primary_never_reads_a_replica() {
     bs_cleanup(tag, &standby).await;
 }
 
+/// The aggregate twin of [`a_query_routed_to_the_primary_never_reads_a_replica`]: an
+/// aggregate with no session variables, read by either entry point, keeps the query's
+/// routing.
+#[tokio::test]
+async fn an_aggregate_routed_to_the_primary_never_reads_a_replica() {
+    let tag = "aggregate_routing";
+    let standby = bs_fixture(tag).await;
+    let adapter = bs_adapter(None, std::time::Duration::from_millis(100)).await;
+    let sql = format!("SELECT data->>'origin' AS origin FROM v_rr957_{tag}");
+
+    for exact in [false, true] {
+        let origin = |routing| {
+            let (adapter, sql) = (&adapter, &sql);
+            async move {
+                let rows = if exact {
+                    adapter.execute_parameterized_aggregate_exact(sql, &[], &[], routing, &[]).await
+                } else {
+                    adapter
+                        .execute_parameterized_aggregate_with_session(sql, &[], &[], routing)
+                        .await
+                }
+                .expect("routed aggregate");
+                rows[0]["origin"].as_str().expect("origin marker").to_string()
+            }
+        };
+        // The control: with `any`, the standby serves the aggregate.
+        assert_eq!(
+            origin(fraiseql_db::types::ReadRouting::Any).await,
+            "replica",
+            "exact: {exact}: with no routing override, an aggregate is replica-served"
+        );
+        assert_eq!(
+            origin(fraiseql_db::types::ReadRouting::Primary).await,
+            "primary",
+            "exact: {exact}: an aggregate routed to the primary must not read a replica"
+        );
+    }
+
+    bs_cleanup(tag, &standby).await;
+}
+
 #[tokio::test]
 async fn a_query_routed_to_a_replica_ignores_the_read_your_writes_pin() {
     let tag = "pin";

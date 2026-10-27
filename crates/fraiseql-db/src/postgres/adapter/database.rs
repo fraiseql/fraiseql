@@ -1313,14 +1313,13 @@ impl PostgresAdapter {
             )
         };
 
+        // A compiled aggregate is read-only, so a replica may serve it unless its routing
+        // says otherwise; with or without session variables, the routing decides.
+        let mut client = self.acquire_read_connection_with_retry(routing).await?;
         if session_vars.is_empty() {
-            // Compiled aggregate SELECT: read-only, replica-eligible (#407).
-            let client = self.acquire_read_connection_with_retry(ReadRouting::Any).await?;
             return client.query(sql, &param_refs).await.map_err(|e| failed(&e));
         }
 
-        // Read-only aggregate with session vars; standby-safe → replica-eligible.
-        let mut client = self.acquire_read_connection_with_retry(routing).await?;
         let txn = client.build_transaction().start().await.map_err(|e| {
             crate::postgres::database_error(
                 format!("Failed to start session-var transaction: {}", pg_detail(&e)),

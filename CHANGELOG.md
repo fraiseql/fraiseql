@@ -209,6 +209,13 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **An aggregate or window query routed to the primary is never served by a replica
+  (#1768).** With read replicas configured, a query compiled with `read_routing = primary`
+  kept its routing only when the request carried session variables. Without them, the
+  PostgreSQL adapter read the aggregate from whichever replica the server's policy picked,
+  so the result could be as stale as the replica's lag. The routing now decides with or
+  without session variables, as it already did for a plain read and a relay page.
+
 - **Every level of a read is shaped by its selection, whatever the adapter returned
   (#1646).** A GraphQL read and a `node(id:)` read made three passes over each response
   after projecting it: they projected nested lists, stamped nested `__typename`s and
