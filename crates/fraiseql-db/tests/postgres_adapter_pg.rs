@@ -2225,12 +2225,41 @@ async fn a_per_query_lag_budget_overrides_the_servers() {
     bs_cleanup(tag, &standby).await;
 }
 
+/// Refuse a failover standby that a previous run of
+/// [`a_replica_promoted_by_a_failover_stops_serving_reads`] already promoted.
+///
+/// `pg_promote()` is one-way, so a second run in the same rig finds a plain writable server.
+/// Asked through the server's `postgres` database, which every server has: a database
+/// created on the primary after the promotion never reached it, and connecting to that one
+/// fails with "does not exist", far from the cause.
+async fn assert_failover_rig_in_recovery(failover_url: &str) {
+    let mut config: tokio_postgres::Config = failover_url.parse().expect("failover standby URL");
+    config.dbname("postgres");
+    let (client, connection) = config
+        .connect(tokio_postgres::NoTls)
+        .await
+        .expect("admin connection to the failover standby");
+    tokio::spawn(connection);
+    let in_recovery: bool = client
+        .query_one("SELECT pg_is_in_recovery()", &[])
+        .await
+        .expect("failover standby recovery state")
+        .get(0);
+    assert!(
+        in_recovery,
+        "the failover standby is not in recovery — a previous run of this test already \
+         promoted it, and promotion is one-way. Re-clone it with `make db-failover-reset` \
+         (CI legs start from a fresh container and never hit this)."
+    );
+}
+
 #[tokio::test]
 async fn a_replica_promoted_by_a_failover_stops_serving_reads() {
     // Runs against its own standby — `FAILOVER_STANDBY_DATABASE_URL` — because
     // `pg_promote()` is one-way. Sharing the bounded-staleness standby would make
     // those tests' meaning depend on which one libtest ran first.
     let failover_url = fraiseql_test_support::db::failover_standby_database_url();
+    assert_failover_rig_in_recovery(&failover_url).await;
     let tag = "failover";
 
     let primary = rr_admin_connect(&test_db_url()).await;
@@ -2258,19 +2287,6 @@ async fn a_replica_promoted_by_a_failover_stops_serving_reads() {
         .expect("primary fixture DDL");
 
     let standby = rr_admin_connect(&failover_url).await;
-    // `pg_promote()` is one-way, so a second run in the same rig finds a plain
-    // writable server and would otherwise fail somewhere far from the cause.
-    let in_recovery: bool = standby
-        .query_one("SELECT pg_is_in_recovery()", &[])
-        .await
-        .expect("failover standby recovery state")
-        .get(0);
-    assert!(
-        in_recovery,
-        "the failover standby is not in recovery — a previous run of this test already \
-         promoted it, and promotion is one-way. Re-clone it with `make db-failover-reset` \
-         (CI legs start from a fresh container and never hit this)."
-    );
     bs_wait_caught_up(&standby).await;
 
     // No staleness budget: the point is that a promoted replica stops serving
