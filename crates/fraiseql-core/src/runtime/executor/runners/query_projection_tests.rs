@@ -30,7 +30,12 @@ fn field(name: &str, alias: Option<&str>, nested: Vec<FieldSelection>) -> FieldS
 /// Run the selection set through the projection builder + the PostgreSQL
 /// `jsonb_build_object` generator and return the rendered SQL fragment.
 fn projection_sql(selections: &[FieldSelection], schema: &CompiledSchema, root: &str) -> String {
-    let typed = build_typed_projection_fields(selections, schema, root);
+    let typed = build_typed_projection_fields(
+        selections,
+        schema,
+        root,
+        crate::runtime::localization_chain(schema).as_deref(),
+    );
     PostgresProjectionGenerator::new()
         .generate_typed_projection_sql(&typed)
         .unwrap()

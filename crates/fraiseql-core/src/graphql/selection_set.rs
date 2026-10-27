@@ -173,16 +173,35 @@ pub struct CollectedFields {
 /// The fields one set of directive outcomes collects, and what is kept of them.
 ///
 /// Whether a check that depends on those fields alone has passed on them, and the
-/// projection SQL they read through in the locale chain that first asked for it.
+/// projection SQL they read through under the [`ProjectionKey`] that first asked for it.
 #[derive(Debug)]
 pub struct Collected {
     fields:     std::sync::Arc<[FieldSelection]>,
     checked:    std::sync::OnceLock<()>,
-    projection: std::sync::OnceLock<KeptProjection>,
+    projection:
+        std::sync::OnceLock<(ProjectionKey, std::sync::Arc<crate::schema::SqlProjectionHint>)>,
 }
 
-/// A projection, and the request locale chain it was built in.
-type KeptProjection = (Option<Vec<String>>, std::sync::Arc<crate::schema::SqlProjectionHint>);
+/// Everything a request can vary in the projection of a document's collected fields.
+///
+/// The projection is built from these fields, this key and nothing else a request can
+/// change. The rest of what it reads is fixed for the fields' lifetime:
+/// - the fields themselves, and so the `@skip`/`@include` outcome set they were collected under; a
+///   field argument, including a literal `locale:`, is part of them;
+/// - the query definition and its return type, which the document's root field names;
+/// - the schema and the adapter's database type, fixed for the executor whose document cache holds
+///   the fields: a reload builds a new executor, with an empty cache.
+///
+/// Not read at all: variables (a `locale:` given by a variable rewrites the selection
+/// for that request, which then reads no kept projection), the tenant, the caller and
+/// its field masks (applied to the rows in Rust, never in this SQL), and a vector
+/// `nearest` (a projection with a distance field is built per request and not kept).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProjectionKey {
+    /// The request locale's fallback chain, which a localized field read without
+    /// `locale:` reads; `None` when the schema declares no locale.
+    pub request_chain: Option<Vec<String>>,
+}
 
 impl Collected {
     fn new(fields: Vec<FieldSelection>) -> std::sync::Arc<Self> {
@@ -193,31 +212,34 @@ impl Collected {
         })
     }
 
-    /// The projection these fields read through in the request locale chain `chain`,
-    /// built by `build` the first time it is asked for in that chain. Only for a projection
-    /// that depends on the fields and the chain alone. The first chain's projection is
-    /// kept; one built in another chain serves its own request and is not kept, nor is a
-    /// failure, so a request that cannot be projected fails again.
+    /// The projection these fields read through under `key`, built by `build` from the
+    /// fields and the key the first time it is asked for under that key.
+    ///
+    /// The first key's projection is kept; one built under another key serves its own
+    /// request and is not kept, nor is a failure, so a request that cannot be projected
+    /// fails again.
     ///
     /// # Errors
     ///
     /// Whatever `build` returns.
     pub fn projection_once<E>(
         &self,
-        chain: Option<&[String]>,
-        build: impl FnOnce(&[FieldSelection]) -> Result<crate::schema::SqlProjectionHint, E>,
+        key: &ProjectionKey,
+        build: impl FnOnce(
+            &[FieldSelection],
+            &ProjectionKey,
+        ) -> Result<crate::schema::SqlProjectionHint, E>,
     ) -> Result<std::sync::Arc<crate::schema::SqlProjectionHint>, E> {
-        if let Some((kept_chain, hint)) = self.projection.get() {
-            if kept_chain.as_deref() == chain {
+        if let Some((kept_key, hint)) = self.projection.get() {
+            if kept_key == key {
                 return Ok(std::sync::Arc::clone(hint));
             }
-            return build(&self.fields).map(std::sync::Arc::new);
+            return build(&self.fields, key).map(std::sync::Arc::new);
         }
-        let hint = std::sync::Arc::new(build(&self.fields)?);
-        let (kept_chain, kept) = self
-            .projection
-            .get_or_init(|| (chain.map(<[String]>::to_vec), std::sync::Arc::clone(&hint)));
-        Ok(if kept_chain.as_deref() == chain {
+        let hint = std::sync::Arc::new(build(&self.fields, key)?);
+        let (kept_key, kept) =
+            self.projection.get_or_init(|| (key.clone(), std::sync::Arc::clone(&hint)));
+        Ok(if kept_key == key {
             std::sync::Arc::clone(kept)
         } else {
             hint

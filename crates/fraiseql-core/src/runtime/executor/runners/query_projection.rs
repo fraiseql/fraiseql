@@ -36,10 +36,15 @@ use crate::{
 /// The `ResultProjector` handles injection — see `projection.rs`.
 /// Removing this filter causes `data->>'__typename'` (NULL) to overwrite
 /// the value injected by `with_typename()`, depending on field iteration order.
+///
+/// A localized field read without `locale:` reads `request_chain`, the request locale's
+/// chain, which the caller passes rather than this reading the request's scope: the
+/// projection is built from its arguments alone.
 pub fn build_typed_projection_fields(
     selections: &[FieldSelection],
     schema: &CompiledSchema,
     parent_type_name: &str,
+    request_chain: Option<&[String]>,
 ) -> Vec<ProjectionField> {
     let type_def = schema.find_type(parent_type_name);
     selections
@@ -97,7 +102,12 @@ pub fn build_typed_projection_fields(
                 })
                 .and_then(|fd| fd.field_type.type_name())
                 .map(|child_type| {
-                    build_typed_projection_fields(&sel.nested_fields, schema, child_type)
+                    build_typed_projection_fields(
+                        &sel.nested_fields,
+                        schema,
+                        child_type,
+                        request_chain,
+                    )
                 });
 
             ProjectionField {
@@ -111,7 +121,7 @@ pub fn build_typed_projection_fields(
                 // #1513: a localized field reads its selection's chain.
                 localized: field_def
                     .filter(|fd| fd.localized)
-                    .and_then(|_| crate::runtime::selection_chain(schema, sel))
+                    .and_then(|_| crate::runtime::selection_chain_in(schema, sel, request_chain))
                     .map(fraiseql_db::LocalizedRead::Label),
                 computed: None,
             }

@@ -281,47 +281,29 @@ impl QueryRunner {
             ))));
         }
 
-        // #1554: a projection of stored keys alone can be cut to its page and detoasted before
-        // it is projected. A computed field (a vector distance) reads native columns the paged
-        // subquery does not expose, so that read keeps the single-`SELECT` shape.
-        let reads_only_document = distance_fields.is_empty();
-        let build = |root_fields: &[crate::graphql::FieldSelection], distance_fields: Vec<_>| {
-            let mut typed_fields = build_typed_projection_fields(
-                root_fields,
-                &self.ctx.schema,
-                &query_match.query_def.return_type,
-            );
-            merge_computed_fields(&mut typed_fields, distance_fields);
-            // A projection that cannot be built is an error, not a licence to
-            // select every column: the Rust projector subsets top-level keys but
-            // returns nested objects whole, so the fallback leaked sub-blobs the
-            // client never asked for (#827's family).
-            let projection_sql =
-                generator.generate_typed_projection_sql(&typed_fields).map_err(internal)?;
-            let hint = SqlProjectionHint::new(
-                self.ctx.adapter.database_type(),
-                projection_sql,
-                compute_projection_reduction(plan.projection_fields.len()),
-            );
-            Ok(if reads_only_document {
-                hint.reading_only_the_document()
-            } else {
-                hint
-            })
+        // A projection of the document's own fields is built from them and the request's
+        // `ProjectionKey` alone, so a repeated document builds it once per key. A distance
+        // field reads the request's `nearest`, so a projection with one is built per request.
+        let key = crate::graphql::selection_set::ProjectionKey {
+            request_chain: crate::runtime::localization_chain(&self.ctx.schema),
         };
-        // A projection of the document's own fields depends on them and on the request
-        // locale (a localized field read without `locale:`) alone, so a repeated document
-        // builds it once per locale chain. A distance field reads the request's `nearest`.
-        let chain = crate::runtime::localization_chain(&self.ctx.schema);
+        let projection = DocumentProjection {
+            schema:          &self.ctx.schema,
+            return_type:     &query_match.query_def.return_type,
+            database:        self.ctx.adapter.database_type(),
+            projected_count: plan.projection_fields.len(),
+        };
         match query_match.prepared() {
-            Some(prepared) if reads_only_document => prepared
-                .projection_once(chain.as_deref(), |fields| {
+            Some(prepared) if distance_fields.is_empty() => prepared
+                .projection_once(&key, |fields, key| {
                     let root_fields =
                         fields.first().map_or(&[] as &[_], |s| s.nested_fields.as_slice());
-                    build(root_fields, Vec::new())
+                    projection.build(root_fields, Vec::new(), key)
                 })
                 .map(Some),
-            _ => build(root_fields, distance_fields).map(|hint| Some(Arc::new(hint))),
+            _ => projection
+                .build(root_fields, distance_fields, &key)
+                .map(|hint| Some(Arc::new(hint))),
         }
     }
 
@@ -1379,3 +1361,131 @@ mod query_nested_authz_tests;
 #[cfg(test)]
 #[path = "root_read_guard_tests.rs"]
 mod root_read_guard_tests;
+
+/// What a read's projection is built from that is fixed for its document: with the
+/// document's fields and a [`ProjectionKey`](crate::graphql::selection_set::ProjectionKey),
+/// everything [`DocumentProjection::build`] reads.
+struct DocumentProjection<'a> {
+    schema:          &'a crate::schema::CompiledSchema,
+    return_type:     &'a str,
+    database:        crate::db::DatabaseType,
+    projected_count: usize,
+}
+
+impl DocumentProjection<'_> {
+    /// The projection of `root_fields`, plus `computed` fields, under `key`.
+    ///
+    /// # Errors
+    ///
+    /// `FraiseQLError::Internal` when the projection cannot be built. That is an error, not
+    /// a licence to select every column: the Rust projector subsets top-level keys but
+    /// returns nested objects whole, so the fallback leaked sub-blobs the client never
+    /// asked for (#827's family).
+    fn build(
+        &self,
+        root_fields: &[crate::graphql::FieldSelection],
+        computed: Vec<fraiseql_db::projection_generator::ProjectionField>,
+        key: &crate::graphql::selection_set::ProjectionKey,
+    ) -> Result<SqlProjectionHint> {
+        // #1554: a projection of stored keys alone can be cut to its page and detoasted
+        // before it is projected. A computed field (a vector distance) reads native columns
+        // the paged subquery does not expose, so that read keeps the single-`SELECT` shape.
+        let reads_only_document = computed.is_empty();
+        let mut typed_fields = build_typed_projection_fields(
+            root_fields,
+            self.schema,
+            self.return_type,
+            key.request_chain.as_deref(),
+        );
+        merge_computed_fields(&mut typed_fields, computed);
+        let projection_sql = PostgresProjectionGenerator::new()
+            .generate_typed_projection_sql(&typed_fields)
+            .map_err(|e| FraiseQLError::Internal {
+                message: format!(
+                    "could not build a projection for type '{}': {e}",
+                    self.return_type
+                ),
+                source:  None,
+            })?;
+        let hint = SqlProjectionHint::new(
+            self.database,
+            projection_sql,
+            compute_projection_reduction(self.projected_count),
+        );
+        Ok(if reads_only_document {
+            hint.reading_only_the_document()
+        } else {
+            hint
+        })
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+mod document_projection_tests {
+    use super::*;
+    use crate::{
+        graphql::{FieldSelection, selection_set::ProjectionKey},
+        schema::{CompiledSchema, FieldDefinition, FieldType, LocaleConfig, TypeDefinition},
+    };
+
+    fn leaf(name: &str) -> FieldSelection {
+        FieldSelection {
+            name:          name.to_string(),
+            alias:         None,
+            arguments:     Vec::new(),
+            nested_fields: Vec::new(),
+            directives:    Vec::new(),
+        }
+    }
+
+    /// The projection reads what a request can vary only through its key: built under one
+    /// key, it is the same SQL whatever locale the request around it runs in, so a kept
+    /// projection keyed by that key cannot be another request's.
+    #[tokio::test]
+    async fn a_document_projection_reads_the_request_only_through_its_key() {
+        let mut schema = CompiledSchema::default();
+        schema.types.push({
+            let mut t = TypeDefinition::new("User", "v_user");
+            let mut name = FieldDefinition::nullable("name", FieldType::String);
+            name.localized = true;
+            t.fields = vec![FieldDefinition::new("id", FieldType::Int), name];
+            t
+        });
+        schema.locale = Some(
+            LocaleConfig::new(
+                "en-US",
+                ["en-US", "fr-FR", "de-DE"].map(String::from).to_vec(),
+                std::collections::BTreeMap::new(),
+                Vec::new(),
+            )
+            .unwrap(),
+        );
+        let projection = DocumentProjection {
+            schema:          &schema,
+            return_type:     "User",
+            database:        crate::db::DatabaseType::PostgreSQL,
+            projected_count: 2,
+        };
+        let key = ProjectionKey {
+            request_chain: Some(vec!["fr-FR".to_string(), "en-US".to_string()]),
+        };
+        let fields = [leaf("id"), leaf("name")];
+        let outside = projection.build(&fields, Vec::new(), &key).unwrap();
+        for locale in ["de-DE", "en-US"] {
+            let inside = crate::runtime::with_request_locale(locale, async {
+                projection.build(&fields, Vec::new(), &key).unwrap()
+            })
+            .await;
+            assert_eq!(
+                inside.projection_template, outside.projection_template,
+                "a projection built in {locale} read the request's locale around its key"
+            );
+        }
+        assert!(
+            outside.projection_template.contains("'fr-FR'"),
+            "{}",
+            outside.projection_template
+        );
+    }
+}

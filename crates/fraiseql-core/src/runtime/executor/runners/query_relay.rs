@@ -655,8 +655,12 @@ impl QueryRunner {
             // Flat: projected in SQL (mirrors the regular query path), then the nested
             // lists the SQL projection left as their stored sub-blob — every stored key,
             // whatever the sub-selection named — re-projected at their own type.
-            let typed_fields =
-                build_typed_projection_fields(selections, &self.ctx.schema, &type_name);
+            let typed_fields = build_typed_projection_fields(
+                selections,
+                &self.ctx.schema,
+                &type_name,
+                crate::runtime::localization_chain(&self.ctx.schema).as_deref(),
+            );
             let projection_sql = PostgresProjectionGenerator::new()
                 .generate_typed_projection_sql(&typed_fields)
                 .map_err(|e| FraiseQLError::Internal {

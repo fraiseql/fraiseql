@@ -188,14 +188,29 @@ const fn refusal(message: String) -> FraiseQLError {
 /// else names no chain and falls back to the request locale's.
 #[must_use]
 pub fn selection_chain(schema: &CompiledSchema, selection: &FieldSelection) -> Option<Vec<String>> {
-    let argued = selection
+    argued_chain(schema, selection).or_else(|| crate::runtime::localization_chain(schema))
+}
+
+/// [`selection_chain`] with the request locale's chain given rather than read from the
+/// request's scope: what a builder that must name every input it reads calls.
+#[must_use]
+pub fn selection_chain_in(
+    schema: &CompiledSchema,
+    selection: &FieldSelection,
+    request_chain: Option<&[String]>,
+) -> Option<Vec<String>> {
+    argued_chain(schema, selection).or_else(|| request_chain.map(<[String]>::to_vec))
+}
+
+/// The chain a selection's `locale:` argument names, when it names an allowed tag.
+fn argued_chain(schema: &CompiledSchema, selection: &FieldSelection) -> Option<Vec<String>> {
+    selection
         .arguments
         .iter()
         .find(|a| a.name == LOCALE_ARGUMENT)
         .and_then(|a| crate::graphql::value_json::decode(&a.value_json).ok())
         .and_then(|value| value.as_str().map(str::to_string))
-        .and_then(|tag| schema.locale.as_ref()?.chain(&tag).map(<[String]>::to_vec));
-    argued.or_else(|| crate::runtime::localization_chain(schema))
+        .and_then(|tag| schema.locale.as_ref()?.chain(&tag).map(<[String]>::to_vec))
 }
 
 /// How a translations sibling selection reads its base field's map (#1513): every allowed
