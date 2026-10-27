@@ -16,8 +16,10 @@
 //! `respond` measures a read whose rows need no shaping in Rust both ways, each to the
 //! bytes a transport sends: `value_*` executes to a `Value` and serializes it, `raw_*`
 //! splices the rows' text, which the adapter holds as the database would send it.
-//! `numeric_*` does the same over rows of numbers with a fraction, each of which the raw
-//! path writes again as `serde_json` would.
+//! `numeric_*` does the same over rows of `Decimal`s and `Float`s. The value path quotes
+//! each row's `Decimal`s before it parses them, as the database adapter does; the raw path
+//! receives them as the strings the projection reads, and writes each `Float`'s fraction
+//! again as `serde_json` would.
 //!
 //! glibc's fastbins are off (`glibc.malloc.mxfast=0`). With them on, `malloc_consolidate`
 //! runs inside the measured call or not depending on the heap state setup leaves, which

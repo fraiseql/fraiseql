@@ -8,7 +8,9 @@ use async_trait::async_trait;
 use fraiseql_core::{
     db::{
         DatabaseAdapter, DatabaseType, WhereClause,
-        traits::{MutationRowGate, ProjectionRequest, RawRows, WriteRequest, Writer},
+        traits::{
+            MutationRowGate, ProjectionRequest, RawRows, WriteRequest, Writer, quote_decimals,
+        },
         types::{JsonbValue, OrderByClause, PoolMetrics, ReadRouting},
     },
     error::{FraiseQLError, Result},
@@ -104,6 +106,42 @@ impl DatabaseAdapter for FixedRows {
             rows.push(text);
         }
         Ok(Some(rows))
+    }
+
+    async fn execute_with_projection_arc(
+        &self,
+        request: &ProjectionRequest<'_>,
+    ) -> Result<std::sync::Arc<Vec<JsonbValue>>> {
+        // A read with a `Decimal` shape quotes its rows' text first, as the database adapter
+        // does, so the count includes the pass.
+        let (Some(texts), Some(shape)) = (&self.1, request.decimals) else {
+            return self
+                .execute_with_projection(
+                    request.view,
+                    request.projection,
+                    request.where_clause,
+                    request.limit,
+                    request.offset,
+                    request.order_by,
+                )
+                .await
+                .map(std::sync::Arc::new);
+        };
+        let mut quoted = Vec::new();
+        texts[..self.count(request.where_clause, request.limit)]
+            .iter()
+            .map(|text| {
+                quoted.clear();
+                quote_decimals(text, shape, &mut quoted);
+                serde_json::from_slice(&quoted).map(JsonbValue::new).map_err(|e| {
+                    FraiseQLError::Internal {
+                        message: format!("bench row is not JSON: {e}"),
+                        source:  None,
+                    }
+                })
+            })
+            .collect::<Result<Vec<_>>>()
+            .map(std::sync::Arc::new)
     }
 
     async fn execute_with_projection(
@@ -213,13 +251,14 @@ pub fn plain_user_row(i: usize, fat: bool) -> JsonbValue {
     }))
 }
 
-/// A reading's text as PostgreSQL writes a `JSON_OBJECT` of `numeric` and `float8`
-/// columns: every number but `count` has a fraction, which `serde_json` writes again.
+/// A reading's text as PostgreSQL writes its projection: each `Decimal` a string of its
+/// digits, read with `->>`, and each `Float` a number with a fraction, which `serde_json`
+/// writes again.
 #[allow(dead_code)] // Reason: one of the three benches that include this file reads it
 pub fn reading_text(i: usize) -> Vec<u8> {
     format!(
-        "{{\"id\" : \"00000000-0000-4000-8000-{i:012}\", \"price\" : {}.{:02}, \
-         \"cost\" : {}.50, \"tax\" : 0.{:02}0, \"total\" : 1{i:04}.00, \
+        "{{\"id\" : \"00000000-0000-4000-8000-{i:012}\", \"price\" : \"{}.{:02}\", \
+         \"cost\" : \"{}.50\", \"tax\" : \"0.{:02}0\", \"total\" : \"1{i:04}.00\", \
          \"score\" : 0.{:03}, \"ratio\" : 3.14159265358979323846, \"weight\" : {}.125, \
          \"count\" : {}}}",
         10 + i,
