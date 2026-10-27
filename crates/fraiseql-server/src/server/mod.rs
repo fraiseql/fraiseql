@@ -232,6 +232,12 @@ pub struct Server {
     /// database pool.
     pub(super) admin_tokens: Option<std::sync::Arc<crate::api::PgAdminTokenStore>>,
 
+    /// The one per-client failure budget against the admin credentials (#1760): every admin
+    /// router's auth state holds a handle to it, so a client refused on one is refused on
+    /// all. Each router used to build its own, which gave a client the configured
+    /// `admin_auth_max_failures` once per router.
+    pub(super) admin_failure_limiter: crate::middleware::auth::FailureLimiter,
+
     /// The role-assignment store (#1632): one instance for the RBAC API, SCIM group sync
     /// and the request-path reader, so a write flushes the cache the reader serves from.
     /// Present when one of those writers can mount.

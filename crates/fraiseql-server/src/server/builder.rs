@@ -978,6 +978,9 @@ impl Server {
         // Role assignments (#1632) are written by the RBAC API and by SCIM group sync, both
         // behind the admin token, and read on every request. The RBAC API is core: it mounts
         // on every build that has the token and a pool.
+        let admin_failure_limiter =
+            crate::middleware::auth::FailureLimiter::new(config.admin_auth_max_failures);
+
         let rbac = config.admin_token.as_ref().and(db_pool.as_ref()).map(|pool| {
             std::sync::Arc::new(crate::api::rbac_management::db_backend::RbacDbBackend::new(
                 pool.clone(),
@@ -1051,6 +1054,7 @@ impl Server {
             #[cfg(feature = "observers")]
             stream_replay,
             admin_tokens,
+            admin_failure_limiter,
             rbac,
             #[cfg(feature = "auth")]
             enrichment_pool: db_pool.clone(),

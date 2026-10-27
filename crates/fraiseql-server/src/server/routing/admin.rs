@@ -127,10 +127,8 @@ impl Server {
             auth_users::revoke_user_handler,
             metrics_summary::summary_handler as metrics_summary_handler,
         };
-        let auth = BearerAuthState::with_max_failures(
-            token.to_string(),
-            self.config.admin_auth_max_failures,
-        );
+        let auth =
+            BearerAuthState::with_limiter(token.to_string(), self.admin_failure_limiter.clone());
         let studio_admin_router = Router::new()
             // Schema + health
             .route("/admin/v1/schema", get(studio_schema_handler))
@@ -155,10 +153,8 @@ impl Server {
         token: &str,
         validator: &Arc<OidcValidator>,
     ) -> Router {
-        let auth = BearerAuthState::with_max_failures(
-            token.to_string(),
-            self.config.admin_auth_max_failures,
-        );
+        let auth =
+            BearerAuthState::with_limiter(token.to_string(), self.admin_failure_limiter.clone());
         let router = Router::new()
             .route(
                 "/admin/v1/auth/refresh-jwks",
@@ -445,10 +441,8 @@ impl Server {
                 "Metrics endpoints enabled (bearer token required)"
             );
 
-            let auth_state = BearerAuthState::with_max_failures(
-                token.clone(),
-                self.config.admin_auth_max_failures,
-            );
+            let auth_state =
+                BearerAuthState::with_limiter(token.clone(), self.admin_failure_limiter.clone());
 
             let metrics_router = Router::new()
                 .route(&self.config.metrics_path, get(metrics_handler))
@@ -468,9 +462,9 @@ impl Server {
     fn mount_admin_api(&self, mut app: Router, state: &AppState) -> Router {
         if let Some(ref write_token) = self.config.admin_token {
             // Destructive-operation router — always uses admin_token.
-            let write_auth = BearerAuthState::with_max_failures(
+            let write_auth = BearerAuthState::with_limiter(
                 write_token.clone(),
-                self.config.admin_auth_max_failures,
+                self.admin_failure_limiter.clone(),
             );
             let admin_write_router = Router::new()
                 .route("/api/v1/admin/reload-schema", post(api::admin::reload_schema_handler))
@@ -521,9 +515,9 @@ impl Server {
                 );
             }
 
-            let read_auth = BearerAuthState::with_max_failures(
+            let read_auth = BearerAuthState::with_limiter(
                 read_token.clone(),
-                self.config.admin_auth_max_failures,
+                self.admin_failure_limiter.clone(),
             );
             let admin_read_router = Router::new()
                 .route("/api/v1/admin/cache/stats", get(api::admin::cache_stats_handler))
@@ -601,9 +595,9 @@ impl Server {
             return app;
         };
 
-        let write_auth = BearerAuthState::with_max_failures(
+        let write_auth = BearerAuthState::with_limiter(
             write_token.to_string(),
-            self.config.admin_auth_max_failures,
+            self.admin_failure_limiter.clone(),
         );
         let write_router = Router::new()
             .route(
@@ -614,9 +608,9 @@ impl Server {
             .with_state(storage_state.clone());
 
         let read_token = self.config.admin_readonly_token.as_deref().unwrap_or(write_token);
-        let read_auth = BearerAuthState::with_max_failures(
+        let read_auth = BearerAuthState::with_limiter(
             read_token.to_string(),
-            self.config.admin_auth_max_failures,
+            self.admin_failure_limiter.clone(),
         );
         let read_router = Router::new()
             .route(POLICIES_PATH, get(get_bucket_policy_handler))
@@ -667,10 +661,10 @@ impl Server {
             return app;
         }
 
-        let auth = AdminDualAuthState::new(
+        let auth = AdminDualAuthState::with_limiter(
             write_token.to_string(),
             self.config.admin_readonly_token.clone(),
-            self.config.admin_auth_max_failures,
+            self.admin_failure_limiter.clone(),
         );
         let console = Router::new()
             .route(SQL_PATH, post(admin_sql_handler))

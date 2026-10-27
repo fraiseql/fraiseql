@@ -26,9 +26,9 @@ impl Capability for Identity {
         else {
             return None;
         };
-        let auth_state = crate::server::BearerAuthState::with_max_failures(
+        let auth_state = crate::server::BearerAuthState::with_limiter(
             token.clone(),
-            server.config.admin_auth_max_failures,
+            server.admin_failure_limiter.clone(),
         );
         tracing::info!(
             "Identity-cache admin API enabled (POST /api/identity/flush[-all]; admin bearer \

@@ -191,6 +191,12 @@ disagreed, and the promise was the part that was wrong.
   that ignores the projection serves no unselected or masked value. A selected key the
   adapter left out of a nested object now completes to `null` in its place, as it does
   at the root.
+- **The admin failure budget is one per client, not one per admin router** (#1760). Each
+  admin router built its own failure limiter, so a client refused on one still had the
+  full `admin_auth_max_failures` on every other: about 13 times the configured budget
+  against the same admin token. The server now builds one limiter and every admin router
+  draws on it. A 32-character minimum on `admin_token` kept the wider budget from making
+  the token guessable; the budget the operator configures is now the budget a client gets.
 - **The observer runtime's tables are provisioned at boot (#1710).** Nothing created
   `tb_observer`, `tb_observer_log`, `core.tb_observer_dispatch` or the listener
   checkpoints. On a fresh database an enabled runtime failed loading `tb_observer`, and

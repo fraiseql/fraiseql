@@ -160,9 +160,15 @@ impl BearerAuthState {
     /// window, further requests receive **429 Too Many Requests**.
     #[must_use]
     pub fn with_max_failures(token: String, max_failures: u32) -> Self {
+        Self::with_limiter(token, FailureLimiter::new(max_failures))
+    }
+
+    /// Bearer auth state drawing on `failure_limiter`, a budget it may share with other
+    /// routers checking the same client (#1760).
+    pub(crate) fn with_limiter(token: String, failure_limiter: FailureLimiter) -> Self {
         Self {
-            token:           Arc::new(token),
-            failure_limiter: FailureLimiter::new(max_failures),
+            token: Arc::new(token),
+            failure_limiter,
         }
     }
 }
@@ -278,10 +284,20 @@ impl AdminPrincipalState {
         tokens: Option<Arc<crate::api::admin_principal::PgAdminTokenStore>>,
         max_failures: u32,
     ) -> Self {
+        Self::with_limiter(platform_token, tokens, FailureLimiter::new(max_failures))
+    }
+
+    /// As [`new`](Self::new), drawing on `failure_limiter`, a budget it may share with
+    /// other routers checking the same client (#1760).
+    pub(crate) fn with_limiter(
+        platform_token: String,
+        tokens: Option<Arc<crate::api::admin_principal::PgAdminTokenStore>>,
+        failure_limiter: FailureLimiter,
+    ) -> Self {
         Self {
             platform_token: Arc::new(platform_token),
             tokens,
-            failure_limiter: FailureLimiter::new(max_failures),
+            failure_limiter,
         }
     }
 }
@@ -427,10 +443,20 @@ impl AdminDualAuthState {
     /// the rest of the admin API already behaves.
     #[must_use]
     pub fn new(write_token: String, readonly_token: Option<String>, max_failures: u32) -> Self {
+        Self::with_limiter(write_token, readonly_token, FailureLimiter::new(max_failures))
+    }
+
+    /// As [`new`](Self::new), drawing on `failure_limiter`, a budget it may share with
+    /// other routers checking the same client (#1760).
+    pub(crate) fn with_limiter(
+        write_token: String,
+        readonly_token: Option<String>,
+        failure_limiter: FailureLimiter,
+    ) -> Self {
         Self {
-            write_token:     Arc::new(write_token),
-            readonly_token:  readonly_token.map(Arc::new),
-            failure_limiter: FailureLimiter::new(max_failures),
+            write_token: Arc::new(write_token),
+            readonly_token: readonly_token.map(Arc::new),
+            failure_limiter,
         }
     }
 
@@ -578,5 +604,41 @@ mod xff_tests {
             statuses.contains(&StatusCode::TOO_MANY_REQUESTS),
             "rotating X-Forwarded-For must still hit the shared rate limit, got {statuses:?}"
         );
+    }
+}
+
+#[cfg(test)]
+mod shared_limiter_tests {
+    //! #1760: an admin auth state built `with_limiter` draws on the budget it was handed,
+    //! not one of its own, so every router holding a handle spends the same budget.
+
+    use super::{AdminDualAuthState, AdminPrincipalState, BearerAuthState, FailureLimiter};
+
+    /// Two failures through the state exhaust the shared budget of two.
+    fn spends_the_shared_budget(state_limiter: &FailureLimiter, shared: &FailureLimiter) {
+        state_limiter.record_failure("198.51.100.7");
+        state_limiter.record_failure("198.51.100.7");
+        assert!(shared.is_blocked("198.51.100.7"), "the state kept a budget of its own");
+    }
+
+    #[test]
+    fn bearer_auth_state_draws_on_the_limiter_it_is_handed() {
+        let shared = FailureLimiter::new(2);
+        let state = BearerAuthState::with_limiter("t".to_owned(), shared.clone());
+        spends_the_shared_budget(&state.failure_limiter, &shared);
+    }
+
+    #[test]
+    fn admin_dual_auth_state_draws_on_the_limiter_it_is_handed() {
+        let shared = FailureLimiter::new(2);
+        let state = AdminDualAuthState::with_limiter("w".to_owned(), None, shared.clone());
+        spends_the_shared_budget(&state.failure_limiter, &shared);
+    }
+
+    #[test]
+    fn admin_principal_state_draws_on_the_limiter_it_is_handed() {
+        let shared = FailureLimiter::new(2);
+        let state = AdminPrincipalState::with_limiter("p".to_owned(), None, shared.clone());
+        spends_the_shared_budget(&state.failure_limiter, &shared);
     }
 }

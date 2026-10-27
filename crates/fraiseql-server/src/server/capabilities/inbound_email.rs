@@ -131,9 +131,9 @@ impl Capability for InboundEmail {
         let tracker = std::sync::Arc::new(crate::inbound::email::PgSendTracker::new(pool.clone()));
         let suppression_state =
             std::sync::Arc::new(crate::inbound::email::SuppressionAdminState::new(tracker, key));
-        let auth_state = crate::server::BearerAuthState::with_max_failures(
+        let auth_state = crate::server::BearerAuthState::with_limiter(
             token.clone(),
-            server.config.admin_auth_max_failures,
+            server.admin_failure_limiter.clone(),
         );
         info!(
             "Suppression admin API enabled (POST /api/email/suppress, POST \

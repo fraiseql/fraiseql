@@ -37,10 +37,8 @@ impl Server {
         // is just a wrong token.
         if let (Some(token), Some(tokens)) = (self.config.admin_token.as_ref(), &self.admin_tokens)
         {
-            let auth_state = BearerAuthState::with_max_failures(
-                token.clone(),
-                self.config.admin_auth_max_failures,
-            );
+            let auth_state =
+                BearerAuthState::with_limiter(token.clone(), self.admin_failure_limiter.clone());
             let router =
                 crate::api::admin_token_management_router(crate::api::AdminTokenManagementState {
                     tokens: tokens.clone(),
@@ -62,9 +60,9 @@ impl Server {
                 let mgmt_state = crate::api::ApiKeyManagementState {
                     store: std::sync::Arc::new(store.clone()),
                 };
-                let auth_state = BearerAuthState::with_max_failures(
+                let auth_state = BearerAuthState::with_limiter(
                     token.clone(),
-                    self.config.admin_auth_max_failures,
+                    self.admin_failure_limiter.clone(),
                 );
                 let mgmt_router = crate::api::api_key_management_router(mgmt_state).route_layer(
                     middleware::from_fn_with_state(auth_state, bearer_auth_middleware),
@@ -338,10 +336,10 @@ impl Server {
         &self,
         admin_token: &str,
     ) -> crate::middleware::AdminPrincipalState {
-        crate::middleware::AdminPrincipalState::new(
+        crate::middleware::AdminPrincipalState::with_limiter(
             admin_token.to_string(),
             self.admin_tokens.clone(),
-            self.config.admin_auth_max_failures,
+            self.admin_failure_limiter.clone(),
         )
     }
 

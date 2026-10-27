@@ -10,6 +10,8 @@
 //! - [`observers`]: Observer management routes
 
 mod admin;
+#[cfg(test)]
+mod admin_failure_budget_tests;
 #[cfg(feature = "auth")]
 mod auth;
 mod extensions;
