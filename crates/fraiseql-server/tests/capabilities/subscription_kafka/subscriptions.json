@@ -1,0 +1,5 @@
+{
+  "subscriptions": [
+    { "name": "noteCreated", "return_type": "Note", "topic": "note_created", "arguments": [] }
+  ]
+}

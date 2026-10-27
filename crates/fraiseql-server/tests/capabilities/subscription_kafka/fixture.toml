@@ -1,0 +1,24 @@
+# A change that reaches a live GraphQL subscriber is mirrored to Kafka: the change log feeds
+# the subscription through the observer runtime, and the mirror publishes the delivery on
+# the configured topic, named for the subscription it went to.
+capability = "subscription_kafka"
+
+# The broker in CI and locally is plaintext. A production server refuses a kafka://
+# endpoint; this is the documented dev/CI bypass.
+[env]
+FRAISEQL_ENV = "development"
+FRAISEQL_KAFKA_ALLOW_PLAINTEXT = "true"
+
+[[stimulus]]
+subscribe = { path = "/ws", query = "subscription { noteCreated { id title } }" }
+
+# `subscribe` has no acknowledgement in graphql-transport-ws: give the server a moment to
+# register it before the change arrives, which is delivered only to live subscribers.
+[[stimulus]]
+wait = { secs = 1 }
+
+[[stimulus]]
+sql = { statement = "INSERT INTO core.tb_entity_change_log (object_type, modification_type, object_id, object_data) VALUES ('Note', 'INSERT', '6f1c4d0e-8a51-4c36-9d1e-2b7f0a3c5e91', '{\"id\": \"6f1c4d0e-8a51-4c36-9d1e-2b7f0a3c5e91\", \"title\": \"mirrored\"}')" }
+
+[effect]
+kafka = { subscription = "noteCreated", count = 1 }

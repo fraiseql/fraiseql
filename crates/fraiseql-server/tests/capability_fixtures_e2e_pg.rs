@@ -12,6 +12,8 @@
 //!   `$NATS_URL` to the broker this run was given; a fixture that names a service the run lacks
 //!   fails, naming it. `$RECEIVER_URL` is the harness's receiver, which is also an OIDC issuer: it
 //!   publishes a discovery document and a key set, and an `oidc` bearer is signed by its key.
+//!   `$KAFKA_BOOTSTRAP` is the broker this run was given, and `$KAFKA_TOPIC` a topic created for
+//!   this run alone, so a message an earlier run left cannot satisfy a `kafka` effect.
 //! - `fixture.toml`: the capability it exercises, the environment the server runs with, the stimuli
 //!   it receives, and the effect that must follow.
 //!
@@ -20,9 +22,10 @@
 //! suite created. The server is a child process with an empty working directory: an
 //! environment variable is set on the process that reads it, as in a deployment.
 //!
-//! **Execution engine:** `PostgreSQL` · **Infrastructure:** `DATABASE_URL`, and
-//! `NATS_URL` for a fixture that names NATS · **Leg:** `integration (observers)`, which
-//! binds them · **Parallelism:** one scratch database per fixture, fixtures run in turn.
+//! **Execution engine:** `PostgreSQL` · **Infrastructure:** `DATABASE_URL`, `NATS_URL`
+//! for a fixture that names NATS, `KAFKA_BOOTSTRAP` for one that names Kafka · **Leg:**
+//! `integration (observers)`, which binds them · **Parallelism:** one scratch database per fixture,
+//! fixtures run in turn.
 #![cfg(feature = "cli")]
 #![allow(clippy::unwrap_used, clippy::panic, clippy::print_stderr)] // Reason: test code
 
@@ -206,6 +209,12 @@ enum Stimulus {
         #[serde(default)]
         auth:      Option<Auth>,
     },
+    /// A GraphQL subscription over `graphql-transport-ws`, held open until the fixture ends:
+    /// `connection_init`, its `connection_ack`, then `subscribe` with `query`.
+    Subscribe {
+        path:  String,
+        query: String,
+    },
     Sql {
         statement: String,
     },
@@ -265,6 +274,11 @@ enum Effect {
         stream:         String,
         subject_prefix: String,
         count:          usize,
+    },
+    /// At least `count` messages naming `subscription` are on the run's `$KAFKA_TOPIC`.
+    Kafka {
+        subscription: String,
+        count:        usize,
     },
     /// The harness's receiver (`$RECEIVER_URL`) was sent at least `count` requests for
     /// `path`, as an observer's webhook action sends them.
@@ -405,6 +419,61 @@ fn nats_url() -> Result<String, String> {
         .map_err(|_| "this fixture needs NATS, and NATS_URL is not set".to_owned())
 }
 
+/// The broker a fixture that needs Kafka is given (`KAFKA_BOOTSTRAP`, `host:port`).
+fn kafka_bootstrap() -> Result<String, String> {
+    std::env::var("KAFKA_BOOTSTRAP")
+        .map_err(|_| "this fixture needs Kafka, and KAFKA_BOOTSTRAP is not set".to_owned())
+}
+
+/// Create `topic` before the server boots: a consumer of a topic that does not exist yet
+/// fails, which would read as "nothing was published".
+async fn create_topic(topic: &str) -> Result<(), String> {
+    use fraiseql_kafka::rdkafka::{
+        ClientConfig,
+        admin::{AdminClient, AdminOptions, NewTopic, TopicReplication},
+        client::DefaultClientContext,
+    };
+    let admin: AdminClient<DefaultClientContext> = ClientConfig::new()
+        .set("bootstrap.servers", kafka_bootstrap()?)
+        .create()
+        .map_err(|e| format!("Kafka admin client: {e}"))?;
+    let created = admin
+        .create_topics(&[NewTopic::new(topic, 1, TopicReplication::Fixed(1))], &AdminOptions::new())
+        .await
+        .map_err(|e| format!("create topic {topic}: {e}"))?;
+    for result in created {
+        result.map_err(|(topic, code)| format!("create topic {topic}: {code}"))?;
+    }
+    Ok(())
+}
+
+/// The `subscription_name` of every message on `topic`, read from the start by a consumer
+/// of its own.
+async fn topic_subscriptions(topic: &str) -> Result<Vec<String>, String> {
+    use fraiseql_kafka::rdkafka::{
+        ClientConfig, Message as _,
+        consumer::{Consumer as _, StreamConsumer},
+    };
+    let consumer: StreamConsumer = ClientConfig::new()
+        .set("bootstrap.servers", kafka_bootstrap()?)
+        .set("group.id", format!("capability-fixture-{}", uuid::Uuid::new_v4()))
+        .set("auto.offset.reset", "earliest")
+        .set("enable.auto.commit", "false")
+        .create()
+        .map_err(|e| format!("Kafka consumer: {e}"))?;
+    consumer.subscribe(&[topic]).map_err(|e| format!("subscribe to {topic}: {e}"))?;
+    let mut names = Vec::new();
+    // Until the topic has been quiet for a while: the first poll also waits out the group join.
+    while let Ok(received) = tokio::time::timeout(Duration::from_secs(3), consumer.recv()).await {
+        let Ok(message) = received else { continue };
+        let payload: Value = message
+            .payload()
+            .map_or(Value::Null, |bytes| serde_json::from_slice(bytes).unwrap_or(Value::Null));
+        names.push(payload["subscription_name"].as_str().unwrap_or("<none>").to_owned());
+    }
+    Ok(names)
+}
+
 /// An HTTP endpoint of the harness's own, at `$RECEIVER_URL`, recording the path of every
 /// request it is sent: where a fixture points an observer's webhook.
 ///
@@ -458,13 +527,25 @@ impl Receiver {
     }
 }
 
-/// The fixture's `server.toml` with `$FIXTURE`, `$NATS_URL` and `$RECEIVER_URL` expanded,
-/// written to `scratch`.
-fn render_server_toml(dir: &Path, scratch: &Path, receiver: &Receiver) -> Result<PathBuf, String> {
+/// The fixture's `server.toml` with `$FIXTURE`, `$NATS_URL`, `$RECEIVER_URL`,
+/// `$KAFKA_BOOTSTRAP` and `$KAFKA_TOPIC` expanded, written to `scratch`.
+async fn render_server_toml(
+    dir: &Path,
+    scratch: &Path,
+    receiver: &Receiver,
+    kafka_topic: &str,
+) -> Result<PathBuf, String> {
     let mut text = std::fs::read_to_string(dir.join("server.toml")).map_err(|e| e.to_string())?;
     text = receiver.expand(&text.replace("$FIXTURE", &dir.to_string_lossy()));
     if text.contains("$NATS_URL") {
         text = text.replace("$NATS_URL", &nats_url()?);
+    }
+    if text.contains("$KAFKA_BOOTSTRAP") {
+        text = text.replace("$KAFKA_BOOTSTRAP", &kafka_bootstrap()?);
+    }
+    if text.contains("$KAFKA_TOPIC") {
+        create_topic(kafka_topic).await?;
+        text = text.replace("$KAFKA_TOPIC", kafka_topic);
     }
     let rendered = scratch.join("server.toml");
     std::fs::write(&rendered, text).map_err(|e| e.to_string())?;
@@ -505,12 +586,16 @@ async fn stream_subjects(stream: &str) -> Result<Vec<String>, String> {
 
 /// A served fixture: the server process, and where its output goes.
 struct Served {
-    child:    Child,
-    base:     String,
+    child:         Child,
+    base:          String,
     /// Where Arrow Flight listens.
-    flight:   String,
-    log:      PathBuf,
-    receiver: Receiver,
+    flight:        String,
+    log:           PathBuf,
+    receiver:      Receiver,
+    /// This run's `$KAFKA_TOPIC`.
+    kafka_topic:   String,
+    /// The `subscribe` stimuli's connections, held open until the fixture ends.
+    subscriptions: Mutex<Vec<tokio::task::JoinHandle<()>>>,
 }
 
 impl Served {
@@ -532,6 +617,9 @@ impl Served {
 
 impl Drop for Served {
     fn drop(&mut self) {
+        for subscription in self.subscriptions.lock().unwrap().drain(..) {
+            subscription.abort();
+        }
         let _ = self.child.kill();
         let _ = self.child.wait();
     }
@@ -555,13 +643,17 @@ async fn serve(
     receiver: Receiver,
 ) -> Result<Served, String> {
     let (port, flight_port) = free_ports();
+    let kafka_topic = format!("capability-fixture-{}", uuid::Uuid::new_v4());
     let log = scratch.join("server.log");
     let cwd = scratch.join("cwd");
     std::fs::create_dir_all(&cwd).unwrap();
     let mut command = Command::new(env!("CARGO_BIN_EXE_fraiseql-server"));
     command
         .current_dir(&cwd)
-        .env("FRAISEQL_CONFIG", render_server_toml(dir, scratch, &receiver)?)
+        .env(
+            "FRAISEQL_CONFIG",
+            render_server_toml(dir, scratch, &receiver, &kafka_topic).await?,
+        )
         .env("FRAISEQL_SCHEMA_PATH", schema)
         .env("DATABASE_URL", database_url)
         .env("FRAISEQL_BIND_ADDR", format!("127.0.0.1:{port}"))
@@ -582,6 +674,8 @@ async fn serve(
         flight: format!("http://127.0.0.1:{flight_port}"),
         log,
         receiver,
+        kafka_topic,
+        subscriptions: Mutex::new(Vec::new()),
     };
     let started = Instant::now();
     loop {
@@ -702,6 +796,53 @@ async fn send(
             eprintln!("stimulus mcp {tool}: {status} {}", call.text().await.unwrap_or_default());
             Ok(())
         },
+        Stimulus::Subscribe { path, query } => {
+            use futures::{SinkExt as _, StreamExt as _};
+            use tokio_tungstenite::tungstenite::{Message, client::IntoClientRequest as _};
+
+            let url = format!("{}{path}", served.base.replacen("http://", "ws://", 1));
+            let mut request = url.as_str().into_client_request().map_err(|e| e.to_string())?;
+            request.headers_mut().insert(
+                "sec-websocket-protocol",
+                axum::http::HeaderValue::from_static("graphql-transport-ws"),
+            );
+            let (mut socket, _) = tokio_tungstenite::connect_async(request)
+                .await
+                .map_err(|e| format!("subscribe {path}: {e}"))?;
+            let text = |value: Value| Message::Text(value.to_string().into());
+            socket
+                .send(text(serde_json::json!({ "type": "connection_init", "payload": {} })))
+                .await
+                .map_err(|e| format!("connection_init: {e}"))?;
+            loop {
+                let reply = tokio::time::timeout(Duration::from_secs(10), socket.next())
+                    .await
+                    .map_err(|_| "no connection_ack within 10s".to_owned())?
+                    .ok_or("the subscription socket closed before connection_ack")?
+                    .map_err(|e| format!("connection_init: {e}"))?;
+                if let Message::Text(reply) = reply {
+                    let reply: Value = serde_json::from_str(&reply).unwrap_or(Value::Null);
+                    if reply["type"] == "connection_ack" {
+                        break;
+                    }
+                    return Err(format!("connection_init answered {reply}"));
+                }
+            }
+            socket
+                .send(text(serde_json::json!({
+                    "type": "subscribe", "id": "fixture",
+                    "payload": { "query": query, "variables": {} },
+                })))
+                .await
+                .map_err(|e| format!("subscribe: {e}"))?;
+            // Read what arrives, so the connection stays open and its frames are logged.
+            served.subscriptions.lock().unwrap().push(tokio::spawn(async move {
+                while let Some(Ok(frame)) = socket.next().await {
+                    eprintln!("subscription frame: {frame}");
+                }
+            }));
+            Ok(())
+        },
         Stimulus::Sql { statement } => {
             let pool = PgPool::connect(database_url).await.map_err(|e| format!("connect: {e}"))?;
             sqlx::raw_sql(&served.receiver.expand(statement))
@@ -789,6 +930,21 @@ async fn observe(
                 Err(format!(
                     "{matching} message(s) under `{subject_prefix}` on {stream}, not {count}: \
                      {subjects:?}"
+                ))
+            }
+        },
+        Effect::Kafka {
+            subscription,
+            count,
+        } => {
+            let names = topic_subscriptions(&served.kafka_topic).await?;
+            let hits = names.iter().filter(|name| *name == subscription).count();
+            if hits >= *count {
+                Ok(())
+            } else {
+                Err(format!(
+                    "{hits} message(s) for {subscription} on {}, not {count}: {names:?}",
+                    served.kafka_topic
                 ))
             }
         },
@@ -976,6 +1132,55 @@ async fn run_fixture(admin_url: &str, name: &str, dir: &Path) -> Result<(), Stri
     .await;
     drop_database(admin_url, &db).await;
     outcome
+}
+
+/// Registrations with no fixture yet, each with the issue that blocks it. Shrink-only: the
+/// gate below also fails when one of these gains a fixture, so the entry goes with it.
+const NO_FIXTURE_YET: &[(&str, &str)] = &[
+    // The IMAP client trusts only the webpki roots, and a test IMAP server cannot be trusted.
+    ("inbound_email", "#1757"),
+];
+
+/// The capability each fixture exercises, read from its `fixture.toml`.
+fn exercised_capabilities() -> Vec<String> {
+    fixtures(&fixtures_dir())
+        .into_iter()
+        .map(|(name, dir)| {
+            let fixture: Fixture =
+                toml::from_str(&std::fs::read_to_string(dir.join("fixture.toml")).unwrap())
+                    .unwrap_or_else(|e| panic!("fixture {name}: fixture.toml: {e}"));
+            fixture.capability
+        })
+        .collect()
+}
+
+/// Every registration is served by the binary and judged by its effect in at least one
+/// fixture, so a capability cannot be registered and never booted. Needs no database.
+#[test]
+fn every_registration_has_a_boot_to_effect_fixture() {
+    let exercised = exercised_capabilities();
+    let mut failures = Vec::new();
+    for entry in REGISTRY {
+        let name = entry.meta.name;
+        let has_fixture = exercised.iter().any(|capability| capability == name);
+        match NO_FIXTURE_YET.iter().find(|(allowed, _)| *allowed == name) {
+            None if !has_fixture => failures.push(format!(
+                "{name} has no fixture under tests/capabilities/: add one whose fixture.toml \
+                 names `capability = \"{name}\"`"
+            )),
+            Some((_, issue)) if has_fixture => failures.push(format!(
+                "{name} has a fixture now: remove its NO_FIXTURE_YET entry ({issue})"
+            )),
+            _ => {},
+        }
+    }
+    for (name, issue) in NO_FIXTURE_YET {
+        if !REGISTRY.iter().any(|entry| entry.meta.name == *name) {
+            failures
+                .push(format!("NO_FIXTURE_YET names {name} ({issue}), which is not registered"));
+        }
+    }
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
 }
 
 #[tokio::test]

@@ -1,0 +1,19 @@
+[schema]
+name = "capability-subscription-kafka"
+
+# A TOML schema has no table for subscription definitions; they come from an included file.
+[includes]
+types = ["$FIXTURE/subscriptions.json"]
+
+[types.Note]
+sql_source = "app.v_note"
+fields.id = { type = "ID" }
+fields.title = { type = "String" }
+
+[queries.notes]
+return_type = "Note"
+return_array = true
+sql_source = "app.v_note"
+
+[observers]
+enabled = true

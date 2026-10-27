@@ -1,0 +1,7 @@
+cors_enabled = false
+# No OIDC here: a subscription needs no bearer on this fixture's server.
+subscription_require_auth = false
+
+[subscription_kafka]
+endpoint = "kafka://$KAFKA_BOOTSTRAP"
+default_topic = "$KAFKA_TOPIC"
