@@ -396,7 +396,7 @@ pub(in super::super) struct RootRead {
     /// `query_nested`); [`access`](Self::access) is its root level.
     pub(super) selection:      SelectionAccess,
     /// Projection for the read, or `None` to read the stored document whole.
-    pub(super) projection:     Option<SqlProjectionHint>,
+    pub(super) projection:     Option<std::sync::Arc<SqlProjectionHint>>,
     /// The nested levels whose type scopes its rows, read as levels of a composed
     /// statement rooted at this read. Empty: the read is flat.
     pub(super) nested:         Vec<ComposedEmbed>,
@@ -448,7 +448,7 @@ impl RootRead {
         crate::backend::ProjectionRequest {
             view:          &self.sql_source,
             source_args:   self.source_args.as_deref(),
-            projection:    self.projection.as_ref(),
+            projection:    self.projection.as_deref(),
             where_clause:  self.composed_where.as_ref(),
             order_by:      self.order_by.as_deref(),
             limit:         self.limit,

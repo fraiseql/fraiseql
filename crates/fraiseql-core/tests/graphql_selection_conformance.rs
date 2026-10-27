@@ -1511,6 +1511,7 @@ async fn the_rest_filter_surface_enforces_the_same_rule() {
         scope_where: None,
         search_relevance: None,
         parsed_query: std::sync::Arc::default(),
+        collected: None,
     };
 
     let err = exec
@@ -1550,6 +1551,7 @@ async fn the_rest_filter_surface_still_serves_a_declared_key() {
         scope_where: None,
         search_relevance: None,
         parsed_query: std::sync::Arc::default(),
+        collected: None,
     };
 
     exec.execute_query_direct(&rest_match, None, None, None)
@@ -1677,6 +1679,7 @@ async fn the_rest_sort_surface_enforces_the_same_rule() {
         scope_where: None,
         search_relevance: None,
         parsed_query: std::sync::Arc::default(),
+        collected: None,
     };
 
     let err = exec

@@ -73,9 +73,24 @@ pub struct QueryMatch {
     /// The parsed query (for access to fragments, variables, etc.), shared with the
     /// classification that parsed it.
     pub parsed_query: Arc<ParsedQuery>,
+
+    /// What the document's collected fields compiled to, shared with every request that
+    /// collected them, or `None` when the selections were built for this request alone.
+    /// Read only through [`QueryMatch::prepared`], which answers it while it is still
+    /// `selections`' own set, so a rewritten selection never reads another's entry.
+    pub collected: Option<Arc<selection_set::Collected>>,
 }
 
 impl QueryMatch {
+    /// What this request's fields compiled to, when they are the document's collected set
+    /// unchanged.
+    #[must_use]
+    pub fn prepared(&self) -> Option<&selection_set::Collected> {
+        self.collected
+            .as_deref()
+            .filter(|collected| Arc::ptr_eq(collected.fields(), &self.selections))
+    }
+
     /// The key this query's result appears under in `data`.
     ///
     /// The document's alias when it supplies one, otherwise the field name as
@@ -155,6 +170,7 @@ impl QueryMatch {
             scope_where: None,
             search_relevance: None,
             parsed_query: Arc::new(parsed_query),
+            collected: None,
         })
     }
 
@@ -664,6 +680,7 @@ impl QueryMatcher {
             // ranking it implies is derived by that transport (#1284).
             search_relevance: None,
             parsed_query: parsed,
+            collected: Some(collected),
         })
     }
 

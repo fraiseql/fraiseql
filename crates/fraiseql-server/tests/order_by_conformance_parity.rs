@@ -70,6 +70,7 @@ async fn accepts(executor: &Executor, query: &str, key: &str) -> bool {
         scope_where: None,
         search_relevance: None,
         parsed_query: std::sync::Arc::default(),
+        collected: None,
     };
     let by_engine = match executor.execute_query_direct(&direct, None, None, None).await {
         Ok(_) => true,

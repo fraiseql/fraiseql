@@ -2666,6 +2666,7 @@ mod planner_tests {
                 fragments:      vec![],
                 source:         std::sync::Arc::from("{ users { id name } }"),
             }),
+            collected:        None,
         }
     }
 

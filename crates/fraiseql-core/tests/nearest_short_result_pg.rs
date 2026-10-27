@@ -328,6 +328,7 @@ async fn the_direct_read_settles_a_short_search_too() {
         scope_where: None,
         search_relevance: None,
         parsed_query: std::sync::Arc::default(),
+        collected: None,
     };
     let (rows, notices) = fraiseql_core::runtime::notices::collect_notices(
         executor.execute_query_direct(&direct, None, None, None),

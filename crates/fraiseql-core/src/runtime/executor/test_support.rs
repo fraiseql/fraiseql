@@ -88,6 +88,11 @@ pub struct CapturingMockAdapter {
     /// What `supports_composed_reads` answers; `true` unless built
     /// [`without_composed_reads`](Self::without_composed_reads).
     pub composes_reads:            bool,
+    /// The address of the projection hint each projected read carried, in call order.
+    pub projection_addresses:      std::sync::Mutex<Vec<usize>>,
+    /// Holds each projected read until this many are in flight, when set by
+    /// [`with_rendezvous`](Self::with_rendezvous).
+    pub rendezvous:                Option<tokio::sync::Barrier>,
 }
 
 /// The arguments a row-shaped read reached the adapter with (#1351).
@@ -126,7 +131,17 @@ impl CapturingMockAdapter {
             captured_projection: std::sync::Mutex::new(None),
             captured_source: std::sync::Mutex::new(None),
             composes_reads: true,
+            projection_addresses: std::sync::Mutex::new(Vec::new()),
+            rendezvous: None,
         }
+    }
+
+    /// The same double, holding each projected read until `reads` of them are in flight
+    /// at once, so whatever each carries is alive at the same time.
+    #[must_use]
+    pub fn with_rendezvous(mut self, reads: usize) -> Self {
+        self.rendezvous = Some(tokio::sync::Barrier::new(reads));
+        self
     }
 
     /// The same double, claiming no composed-read capability — an adapter like the wire
@@ -224,6 +239,15 @@ impl DatabaseAdapter for CapturingMockAdapter {
         order_by: Option<&[OrderByClause]>,
     ) -> Result<Vec<JsonbValue>> {
         *self.captured_projection.lock().unwrap() = projection.cloned();
+        if let Some(hint) = projection {
+            self.projection_addresses
+                .lock()
+                .unwrap()
+                .push(std::ptr::from_ref(hint) as usize);
+        }
+        if let Some(rendezvous) = &self.rendezvous {
+            rendezvous.wait().await;
+        }
         self.execute_where_query(view, where_clause, limit, offset, order_by).await
     }
 

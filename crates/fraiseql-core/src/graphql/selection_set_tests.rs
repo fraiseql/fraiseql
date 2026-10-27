@@ -369,3 +369,40 @@ fn a_check_on_collected_fields_is_kept_only_once_it_passes() {
     fields.collect(&vars).unwrap().check_once(pass).unwrap();
     assert_eq!(runs.get(), 3);
 }
+
+/// A projection built for collected fields is built once per locale chain and shared; one
+/// that failed to build is built again, and one in another chain is built and not kept.
+#[test]
+fn a_projection_of_collected_fields_is_kept_only_once_it_is_built() {
+    use crate::{db::DatabaseType, schema::SqlProjectionHint};
+
+    let fields = written("{ users { id } }");
+    let vars = variables_map(None);
+    let builds = std::cell::Cell::new(0);
+    let fail = |_: &[FieldSelection]| {
+        builds.set(builds.get() + 1);
+        Err(())
+    };
+    assert!(fields.collect(&vars).unwrap().projection_once(None, fail).is_err());
+    assert!(fields.collect(&vars).unwrap().projection_once(None, fail).is_err());
+    let build = |_: &[FieldSelection]| {
+        builds.set(builds.get() + 1);
+        Ok::<_, ()>(SqlProjectionHint::new(DatabaseType::PostgreSQL, "p".to_string(), 0))
+    };
+    let first = fields.collect(&vars).unwrap().projection_once(None, build).unwrap();
+    let second = fields.collect(&vars).unwrap().projection_once(None, build).unwrap();
+    assert_eq!(builds.get(), 3);
+    assert!(std::sync::Arc::ptr_eq(&first, &second), "the second read shares the first's");
+
+    let other_chain = ["de-DE".to_string()];
+    let other = fields
+        .collect(&vars)
+        .unwrap()
+        .projection_once(Some(&other_chain), build)
+        .unwrap();
+    assert_eq!(builds.get(), 4, "another locale chain builds its own");
+    assert!(!std::sync::Arc::ptr_eq(&first, &other), "another locale chain reads its own");
+    let again = fields.collect(&vars).unwrap().projection_once(None, build).unwrap();
+    assert_eq!(builds.get(), 4, "the first chain's is still kept");
+    assert!(std::sync::Arc::ptr_eq(&first, &again));
+}

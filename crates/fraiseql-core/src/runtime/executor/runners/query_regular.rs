@@ -244,7 +244,7 @@ impl QueryRunner {
         plan: &crate::runtime::planner::PlannedProjection,
         full_row: bool,
         nearest: Option<&crate::backend::OrderByClause>,
-    ) -> Result<Option<SqlProjectionHint>> {
+    ) -> Result<Option<Arc<SqlProjectionHint>>> {
         let root_fields = query_match
             .selections
             .first()
@@ -274,35 +274,55 @@ impl QueryRunner {
             }
             let sql =
                 generator.generate_merged_projection_sql(&distance_fields).map_err(internal)?;
-            return Ok(Some(SqlProjectionHint::new(self.ctx.adapter.database_type(), sql, 0)));
+            return Ok(Some(Arc::new(SqlProjectionHint::new(
+                self.ctx.adapter.database_type(),
+                sql,
+                0,
+            ))));
         }
 
-        let mut typed_fields = build_typed_projection_fields(
-            root_fields,
-            &self.ctx.schema,
-            &query_match.query_def.return_type,
-        );
         // #1554: a projection of stored keys alone can be cut to its page and detoasted before
         // it is projected. A computed field (a vector distance) reads native columns the paged
         // subquery does not expose, so that read keeps the single-`SELECT` shape.
         let reads_only_document = distance_fields.is_empty();
-        merge_computed_fields(&mut typed_fields, distance_fields);
-        // A projection that cannot be built is an error, not a licence to
-        // select every column: the Rust projector subsets top-level keys but
-        // returns nested objects whole, so the fallback leaked sub-blobs the
-        // client never asked for (#827's family).
-        let projection_sql =
-            generator.generate_typed_projection_sql(&typed_fields).map_err(internal)?;
-        let hint = SqlProjectionHint::new(
-            self.ctx.adapter.database_type(),
-            projection_sql,
-            compute_projection_reduction(plan.projection_fields.len()),
-        );
-        Ok(Some(if reads_only_document {
-            hint.reading_only_the_document()
-        } else {
-            hint
-        }))
+        let build = |root_fields: &[crate::graphql::FieldSelection], distance_fields: Vec<_>| {
+            let mut typed_fields = build_typed_projection_fields(
+                root_fields,
+                &self.ctx.schema,
+                &query_match.query_def.return_type,
+            );
+            merge_computed_fields(&mut typed_fields, distance_fields);
+            // A projection that cannot be built is an error, not a licence to
+            // select every column: the Rust projector subsets top-level keys but
+            // returns nested objects whole, so the fallback leaked sub-blobs the
+            // client never asked for (#827's family).
+            let projection_sql =
+                generator.generate_typed_projection_sql(&typed_fields).map_err(internal)?;
+            let hint = SqlProjectionHint::new(
+                self.ctx.adapter.database_type(),
+                projection_sql,
+                compute_projection_reduction(plan.projection_fields.len()),
+            );
+            Ok(if reads_only_document {
+                hint.reading_only_the_document()
+            } else {
+                hint
+            })
+        };
+        // A projection of the document's own fields depends on them and on the request
+        // locale (a localized field read without `locale:`) alone, so a repeated document
+        // builds it once per locale chain. A distance field reads the request's `nearest`.
+        let chain = crate::runtime::localization_chain(&self.ctx.schema);
+        match query_match.prepared() {
+            Some(prepared) if reads_only_document => prepared
+                .projection_once(chain.as_deref(), |fields| {
+                    let root_fields =
+                        fields.first().map_or(&[] as &[_], |s| s.nested_fields.as_slice());
+                    build(root_fields, Vec::new())
+                })
+                .map(Some),
+            _ => build(root_fields, distance_fields).map(|hint| Some(Arc::new(hint))),
+        }
     }
 
     /// Execute a regular (non-aggregate) GraphQL query root, for an authenticated caller or

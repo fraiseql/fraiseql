@@ -3456,6 +3456,84 @@ mod page_first {
         let hint = adapter.captured_projection.lock().unwrap().clone().expect("a projected read");
         assert!(hint.reads_only_document, "{hint:?}");
     }
+
+    /// A repeated document's projection SQL is built once. Two warm reads of it, held
+    /// until both are in flight, carry the one hint the first read built: a hint built
+    /// per request would be two hints alive at once, at two addresses.
+    #[tokio::test]
+    async fn a_repeated_document_builds_its_projection_once() {
+        let mut schema = auto_params::schema_with_auto_params(AutoParams::all());
+        schema.types.push({
+            let mut t = TypeDefinition::new("User", "v_user");
+            t.fields = vec![
+                FieldDefinition::new("id", FieldType::Int),
+                FieldDefinition::new("name", FieldType::String),
+            ];
+            t
+        });
+        let document = "{ users(limit: 2) { id name } }";
+        let adapter = Arc::new(CapturingMockAdapter::new(mock_user_results()).with_rendezvous(2));
+        let executor = Executor::new(schema, adapter.clone());
+        // The first pair compiles the document; the second reads it warm.
+        for _ in 0..2 {
+            let (first, second) =
+                tokio::join!(executor.execute(document, None), executor.execute(document, None));
+            first.unwrap();
+            second.unwrap();
+        }
+
+        let addresses = adapter.projection_addresses.lock().unwrap().clone();
+        assert_eq!(addresses.len(), 4, "every read is projected: {addresses:?}");
+        assert_eq!(
+            addresses[2], addresses[3],
+            "two reads of one document carried two projection hints alive at once: the \
+             projection SQL was built per request"
+        );
+    }
+
+    /// A localized field with no `locale:` argument is read in the request's locale, so
+    /// its projection depends on the request as well as the document: each request locale
+    /// reads its own chain, whichever read the document first.
+    #[tokio::test]
+    async fn a_repeated_document_projects_each_request_locale() {
+        let mut schema = auto_params::schema_with_auto_params(AutoParams::all());
+        schema.types.push({
+            let mut t = TypeDefinition::new("User", "v_user");
+            let mut name = FieldDefinition::nullable("name", FieldType::String);
+            name.localized = true;
+            t.fields = vec![FieldDefinition::new("id", FieldType::Int), name];
+            t
+        });
+        schema.locale = Some(
+            crate::schema::LocaleConfig::new(
+                "en-US",
+                ["en-US", "fr-FR", "de-DE"].map(String::from).to_vec(),
+                std::collections::BTreeMap::new(),
+                Vec::new(),
+            )
+            .unwrap(),
+        );
+        let adapter = Arc::new(CapturingMockAdapter::new(mock_user_results()));
+        let executor = Executor::new(schema, adapter.clone());
+        let document = "{ users(limit: 2) { id name } }";
+
+        for locale in ["fr-FR", "de-DE", "fr-FR"] {
+            crate::runtime::with_request_locale(locale, executor.execute(document, None))
+                .await
+                .unwrap();
+            let sql = adapter
+                .captured_projection
+                .lock()
+                .unwrap()
+                .clone()
+                .expect("a projected read")
+                .projection_template;
+            assert!(
+                sql.contains(&format!("'{locale}'")),
+                "a read in {locale} must project its own locale's label: {sql}"
+            );
+        }
+    }
 }
 
 // ── mod bounded_direct_read: #1581, a row count the server sets is not a page ──

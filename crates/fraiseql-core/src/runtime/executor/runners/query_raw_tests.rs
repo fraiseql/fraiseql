@@ -216,11 +216,11 @@ fn read(schema: &CompiledSchema, selections: &[FieldSelection]) -> RootRead {
             None,
         )
         .unwrap(),
-        projection:     Some(SqlProjectionHint::new(
+        projection:     Some(std::sync::Arc::new(SqlProjectionHint::new(
             DatabaseType::PostgreSQL,
             "JSON_OBJECT('name' VALUE \"data\"->>'name' RETURNING json)".to_string(),
             0,
-        )),
+        ))),
         nested:         Vec::new(),
         gated_present:  false,
         abstract_read:  false,
