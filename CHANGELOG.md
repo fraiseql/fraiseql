@@ -236,6 +236,22 @@ disagreed, and the promise was the part that was wrong.
   faster" because its "SQL is pre-compiled at build time". The SQL is built per request
   (#1646), and no comparative benchmark is published.
 
+- **Every capability fixture runs through every entry point its capability declares.**
+  The fixtures used to run through the `fraiseql-server` binary only. Each fixture now
+  also boots, on a fresh database, through `serve_on_listener` (as an embedder serves),
+  through MCP stdio, and through `fraiseql run`. Its effect is judged the same way on
+  each. MCP stdio is judged as a client reads it: every line on stdout must be a JSON-RPC
+  message. A fixture is skipped on an entry point whose transport cannot carry its
+  stimuli and effect; stdio carries no HTTP and no bearer.
+  - A test now fails when a capability declares an entry point that no fixture is driven
+    through. Two kinds of pair are listed against their issues instead, and that list can
+    only shrink:
+    - every `fraiseql run` pair (#1803): `fraiseql run` reads `FRAISEQL_CONFIG` and drops
+      it, so no fixture's server configuration reaches it;
+    - functions over stdio (#1719): `[mcp]` is refused beside an SDK `schema.json`.
+  - `session_state` no longer declares the MCP stdio entry point. A session is keyed by
+    the `mcp-session-id` header, which stdio cannot carry, so nothing is held there.
+
 ### Fixed
 
 - **MCP stdio mode no longer writes its log to stdout, the protocol channel (#1804).** With

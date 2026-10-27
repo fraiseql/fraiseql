@@ -45,7 +45,7 @@ own requests.
 | `inbound_webhooks` | `inbound` | stable | `-platform` | binary, `fraiseql run`, listener | `webhooks`, `inbound_dispatch` | — | [architecture/webhooks.md](architecture/webhooks.md) |
 | `inbound_email` | `inbound-email` | stable | `-platform` | binary, `fraiseql run`, listener | `mailbox`, `send` | — | [architecture/inbound-email.md](architecture/inbound-email.md) |
 | `identity` | `auth` | stable | every image and tarball | binary, `fraiseql run`, listener | `identity` | — | [auth/identity-store.md](auth/identity-store.md) |
-| `session_state` | `auth` | stable | every image and tarball | binary, `fraiseql run`, listener, MCP stdio | `session_state` | — | [features/session-state.md](features/session-state.md) |
+| `session_state` | `auth` | stable | every image and tarball | binary, `fraiseql run`, listener | `session_state` | — | [features/session-state.md](features/session-state.md) |
 | `saml` | `auth-saml` | preview | none: build from source | binary, `fraiseql run`, listener | `saml` | — | [auth/saml-sso.md](auth/saml-sso.md) |
 | `cdc_outbound` | `cdc-outbound` | stable | `-platform` | binary, `fraiseql run`, listener | `cdc_outbound` | — | [features/cdc-outbound.md](features/cdc-outbound.md) |
 | `subscription_kafka` | `subscription-kafka` | preview | none: build from source | binary, `fraiseql run`, listener | `subscription_kafka` | — | [features/cdc-outbound.md](features/cdc-outbound.md) |

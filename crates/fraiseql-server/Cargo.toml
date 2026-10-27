@@ -213,7 +213,8 @@ iai-callgrind = "=0.16.1"
 # gate e2e (#453). chrono is already a normal dependency; pinned by the workspace.
 chrono = { workspace = true }
 fraiseql-auth = { workspace = true }
-fraiseql-cli = { workspace = true }
+# `run-server`: the capability fixtures drive `fraiseql run` as one of the entry points.
+fraiseql-cli = { workspace = true, features = ["run-server"] }
 fraiseql-federation = { workspace = true, features = ["test-utils"] }
 fraiseql-test-utils = { path = "../fraiseql-test-utils" }
 fraiseql-test-support = { path = "../fraiseql-test-support" }

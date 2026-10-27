@@ -302,7 +302,9 @@ pub static REGISTRY: &[Registration] = &[
         docs: Some("docs/features/session-state.md"),
         maturity: Maturity::Stable,
         release: Release::Default,
-        entry_points: EntryPoints::ALL,
+        // Not `mcp_stdio`: a session is keyed by `mcp-session-id`, which stdio has no header
+        // to carry, so no value is ever held there.
+        entry_points: EntryPoints::HTTP,
     },
     register! {
         capability: impls::Saml,

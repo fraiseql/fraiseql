@@ -62,6 +62,9 @@ store directly: `session_id` is a `UUIDv5` over the authenticated `user_id` and
 by principal first and by the client's own thread id second. See
 [../mcp.md](../mcp.md#session-continuity).
 
+MCP over stdio (`FRAISEQL_MCP_STDIO`) has no `mcp-session-id` header and no bearer,
+so it holds nothing here: session state is an HTTP capability.
+
 Library embedders reach the same store directly (above).
 
 See `.github` issue #389 for the remaining roadmap items built on top of it
