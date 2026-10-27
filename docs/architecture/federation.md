@@ -225,8 +225,14 @@ failure_threshold = 10
 
 `_service { sdl }` is authorized like any other read: on a secured subgraph it is served
 to the principals the subgraph serves anything to, and refused to an anonymous or unknown
-caller. There is no setting that makes it public, by design (ADR-0016 §6: a permissive
-case is named and opted into, and the subgraph's SDL lists every type, field and entity key).
+caller. On a subgraph that does serve anonymous callers, the SDL is still refused to them
+while `service_sdl_require_auth` is on (env `FRAISEQL_SERVICE_SDL_REQUIRE_AUTH`). Unset, it
+takes `introspection_require_auth`, which defaults to `true`, so a gateway presents a
+credential. The SDL is not introspection: it is served whether `introspection_enabled` is on
+or off, because a gateway composes it from a subgraph whose introspection is off. Turning
+the switch off serves it to whoever the subgraph serves, and nothing more: no setting makes
+it public on a secured subgraph, by design (ADR-0016 §6: a permissive case is named and
+opted into, and the subgraph's SDL lists every type, field and entity key).
 
 The SDL is one document, the same for every caller, so it lists every operation the
 subgraph declares, `requires_role`-gated queries and mutations included. A supergraph

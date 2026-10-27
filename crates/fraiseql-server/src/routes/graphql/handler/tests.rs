@@ -606,6 +606,120 @@ mod http_cache {
 
         assert_eq!(adapter.query_count(), writes, "the mutation never reached the database");
     }
+
+    // ── The federation service SDL ─────────────────────────────────────────
+    //
+    // Only a build with `federation` answers `_service`, so only there can a refusal be
+    // told apart from the field not existing.
+
+    #[cfg(feature = "federation")]
+    /// [`router_with`] over a federated schema, with introspection disabled and the
+    /// service SDL's auth switch as given.
+    fn federated(service_sdl_require_auth: Option<bool>) -> Router {
+        router_with(
+            |schema| {
+                schema.federation = Some(fraiseql_core::schema::FederationConfig {
+                    enabled: true,
+                    ..Default::default()
+                });
+            },
+            |state| match service_sdl_require_auth {
+                Some(required) => state.with_service_sdl_require_auth(required),
+                None => state,
+            },
+        )
+        .0
+    }
+
+    #[cfg(feature = "federation")]
+    /// Whether `sent` carries the service SDL.
+    fn served_sdl(sent: &Sent) -> bool {
+        sent.body.pointer("/data/_service/sdl").is_some_and(Value::is_string)
+            || sent.body.pointer("/data/s/sdl").is_some_and(Value::is_string)
+    }
+
+    #[cfg(feature = "federation")]
+    /// Every way a document can reach `_service`: plainly, aliased, through a fragment,
+    /// and as the operation `operationName` selects from several.
+    fn service_sdl_requests() -> Vec<Value> {
+        vec![
+            json!({ "query": "{ _service { sdl } }" }),
+            json!({ "query": "{ s: _service { sdl } }" }),
+            json!({ "query": "query { ...F } fragment F on Query { _service { sdl } }" }),
+            json!({
+                "query": "query A { users { id } } query B { _service { sdl } }",
+                "operationName": "B",
+            }),
+        ]
+    }
+
+    #[cfg(feature = "federation")]
+    #[tokio::test]
+    async fn the_service_sdl_is_refused_to_an_anonymous_caller_when_it_requires_auth() {
+        let router = federated(Some(true));
+        for body in service_sdl_requests() {
+            let sent = send(&router, "POST", "/graphql", Some(body.clone()), &[], None).await;
+            assert!(!served_sdl(&sent), "{body}: {}", sent.body);
+            let message = sent.body["errors"][0]["message"].as_str().unwrap_or_default();
+            assert!(message.contains("authentication"), "{body}: {}", sent.body);
+        }
+    }
+
+    #[cfg(feature = "federation")]
+    /// A gateway presents a credential and is served, with introspection disabled: the
+    /// service SDL answers its own switch, not the introspection policy.
+    #[tokio::test]
+    async fn the_service_sdl_is_served_to_an_authenticated_caller_with_introspection_off() {
+        let router = federated(Some(true));
+        // The executor answers no root fragment spread for `_service`; the gate still
+        // sees through one, which the refusal test pins.
+        for body in service_sdl_requests()
+            .into_iter()
+            .filter(|b| !b["query"].as_str().unwrap().contains("...F"))
+        {
+            let sent =
+                send(&router, "POST", "/graphql", Some(body.clone()), &[], Some(principal())).await;
+            assert!(served_sdl(&sent), "{body}: {}", sent.body);
+        }
+    }
+
+    #[cfg(feature = "federation")]
+    #[tokio::test]
+    async fn the_service_sdl_is_served_to_anyone_when_it_does_not_require_auth() {
+        let router = federated(Some(false));
+        let body = json!({ "query": "{ _service { sdl } }" });
+        let sent = send(&router, "POST", "/graphql", Some(body), &[], None).await;
+        assert!(served_sdl(&sent), "{}", sent.body);
+    }
+
+    /// The switch refuses the service SDL, not the anonymous caller: its other queries run.
+    #[cfg(feature = "federation")]
+    #[tokio::test]
+    async fn an_anonymous_query_without_the_service_sdl_still_runs() {
+        let router = federated(Some(true));
+        let body = json!({ "query": "{ users { id } }" });
+        let sent = send(&router, "POST", "/graphql", Some(body), &[], None).await;
+        assert_eq!(sent.body, json!({ "data": { "users": [{ "id": 1 }] } }));
+    }
+
+    #[cfg(feature = "federation")]
+    /// A state no one configured refuses: the switch fails closed.
+    #[tokio::test]
+    async fn the_service_sdl_requires_auth_by_default() {
+        let router = federated(None);
+        let body = json!({ "query": "{ _service { sdl } }" });
+        let sent = send(&router, "POST", "/graphql", Some(body), &[], None).await;
+        assert!(!served_sdl(&sent), "{}", sent.body);
+    }
+
+    #[cfg(feature = "federation")]
+    /// The same document over GET is refused too: every method funnels through one gate.
+    #[tokio::test]
+    async fn the_service_sdl_over_get_answers_the_same_switch() {
+        let router = federated(Some(true));
+        let sent = send(&router, "GET", &get_uri("{ _service { sdl } }"), None, &[], None).await;
+        assert!(!served_sdl(&sent), "{}", sent.body);
+    }
 }
 
 /// A read the executor answers as the bytes the database serialized reaches the client as

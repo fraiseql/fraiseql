@@ -59,6 +59,8 @@ mod provision_tests;
 #[cfg(test)]
 mod rbac_mount_tests;
 #[cfg(test)]
+mod service_sdl_wiring_tests;
+#[cfg(test)]
 mod storage_quota_sweep_tests;
 
 #[cfg(test)]

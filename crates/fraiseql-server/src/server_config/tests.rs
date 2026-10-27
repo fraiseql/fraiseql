@@ -1735,3 +1735,34 @@ fn the_cache_feed_is_off_unless_asked_for() {
 
     assert!(toml::from_str::<ServerConfig>("cache_cross_instance = \"redis\"\n").is_err());
 }
+
+/// The service SDL's auth switch is read from TOML and from
+/// `FRAISEQL_SERVICE_SDL_REQUIRE_AUTH`, and the environment wins.
+mod service_sdl_require_auth {
+    use super::*;
+
+    #[test]
+    fn it_is_read_from_toml() {
+        let config: ServerConfig =
+            toml::from_str("service_sdl_require_auth = false").expect("config parses");
+        assert_eq!(config.service_sdl_require_auth, Some(false));
+        let config: ServerConfig = toml::from_str("").expect("empty config parses");
+        assert_eq!(config.service_sdl_require_auth, None);
+    }
+
+    #[cfg(feature = "cli")]
+    #[test]
+    fn the_environment_overrides_the_config_file() {
+        // A valid value on the real name: a concurrent clap parse reading it is harmless.
+        std::env::set_var("FRAISEQL_SERVICE_SDL_REQUIRE_AUTH", "true");
+        let args = crate::ServerArgs::from_env();
+        std::env::remove_var("FRAISEQL_SERVICE_SDL_REQUIRE_AUTH");
+        let args = args.expect("a boolean parses");
+        assert_eq!(args.service_sdl_require_auth, Some(true));
+
+        let mut config: ServerConfig =
+            toml::from_str("service_sdl_require_auth = false").expect("config parses");
+        args.apply_to_config(&mut config);
+        assert_eq!(config.service_sdl_require_auth, Some(true));
+    }
+}

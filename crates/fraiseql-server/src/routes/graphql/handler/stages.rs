@@ -322,6 +322,19 @@ pub(super) fn enforce_introspection_policy(
         };
         return Err(ErrorResponse::from_error(GraphQLError::introspection_disabled(detail)));
     }
+    // The service SDL is not introspection, so it is served whatever the policy is: a
+    // gateway composes it from a subgraph whose introspection is off. It answers its own
+    // switch instead.
+    if state.service_sdl_require_auth
+        && security_context.is_none()
+        && IntrospectionEnforcer::selects_service_sdl(query)
+    {
+        debug!("Service SDL query rejected: authentication required");
+        state.metrics.queries_error.fetch_add(1, Ordering::Relaxed);
+        return Err(ErrorResponse::from_error(GraphQLError::introspection_disabled(
+            "The federation service SDL requires authentication",
+        )));
+    }
     Ok(())
 }
 

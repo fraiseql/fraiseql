@@ -18,6 +18,17 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **The federation service SDL requires an authenticated caller by default (#1717).**
+  `{ _service { sdl } }` was served to whoever the subgraph serves, so a subgraph open to
+  anonymous reads listed its whole SDL to anyone. It is now refused to an anonymous caller
+  while the new `service_sdl_require_auth` is on (env `FRAISEQL_SERVICE_SDL_REQUIRE_AUTH`).
+  Unset, it takes `introspection_require_auth`, which defaults to `true`; `fraiseql run`
+  keeps it open, as it keeps introspection open. The switch is its own: the SDL is served
+  whether `introspection_enabled` is on or off. A gateway presents a credential (a service
+  account on `x-api-key`), or set `service_sdl_require_auth = false` to serve the SDL to
+  whoever the subgraph serves. Introspection and `_service` are also recognised through a
+  root fragment (`{ ... on Query { __schema { … } } }`, `{ ...F }`), which the executor
+  refused but the policy gate did not see.
 - **A boot guard takes a `Deployment`, not an `is_production: bool`.**
   `fraiseql_server::token_revocation::revocation_manager_from_schema_in`,
   `fraiseql_server::inbound::webhook_routes_check` and

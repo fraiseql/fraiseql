@@ -19,8 +19,10 @@ The REST debug route `GET /introspection` also leaves out what the caller's role
 reach, and so do the schema exports `GET /api/v1/schema.graphql` and
 `GET /api/v1/schema.json`, which list what that caller's introspection lists. The caller
 is the one the authentication layer admitted: without `schema_export_require_auth` every
-caller is anonymous, so the exports list only what no role gates. The federation `_service { sdl }` is one document for every caller and still lists
-every operation; see [Federation](../architecture/federation.md).
+caller is anonymous, so the exports list only what no role gates. The federation
+`_service { sdl }` is one document for every caller and still lists every operation; it is
+refused to an anonymous caller while `service_sdl_require_auth` is on. See
+[Federation](../architecture/federation.md).
 
 The **dynamic** layer (this guide, issue #422) is a pluggable Policy Enforcement Point
 (PEP): the engine *enforces*, but the *decision* is delegated to an app-supplied trait

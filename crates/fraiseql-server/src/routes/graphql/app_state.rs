@@ -96,6 +96,14 @@ pub struct AppState {
     /// (fail-closed) when no config is wired, matching the server's
     /// introspection-off-by-default posture.
     pub introspection_policy: IntrospectionPolicy,
+    /// Whether the federation service SDL (`_service`) is refused to an anonymous caller.
+    ///
+    /// Resolved in `build_app_state` from `ServerConfig::service_sdl_require_auth`, which
+    /// falls back to `introspection_require_auth`. It is its own switch, not part of
+    /// [`introspection_policy`](Self::introspection_policy): a gateway composes the
+    /// service SDL from a subgraph whose introspection is off. Defaults to `true`
+    /// (fail-closed) when no config is wired.
+    pub service_sdl_require_auth: bool,
     /// Connection pool auto-tuner (optional, enabled via `[pool_tuning]` config).
     pub pool_tuner: Option<Arc<crate::pool::PoolSizingAdvisor>>,
     /// Observer runtime handle for health probes (optional, requires `observers` feature).
@@ -254,6 +262,7 @@ impl AppState {
             graphql_incremental_enabled: false,
             graphql_incremental_batch_size: 100,
             introspection_policy: IntrospectionPolicy::Disabled,
+            service_sdl_require_auth: true,
             schema_path: None,
             reload_lock: Arc::new(tokio::sync::Mutex::new(())),
             adapter_cache_enabled: false,
@@ -741,6 +750,16 @@ impl AppState {
     #[must_use]
     pub const fn with_introspection_policy(mut self, policy: IntrospectionPolicy) -> Self {
         self.introspection_policy = policy;
+        self
+    }
+
+    /// Set whether the federation service SDL is refused to an anonymous caller.
+    ///
+    /// Wired in `build_app_state` from the server config; the default is `true`
+    /// (fail-closed).
+    #[must_use]
+    pub const fn with_service_sdl_require_auth(mut self, required: bool) -> Self {
+        self.service_sdl_require_auth = required;
         self
     }
 

@@ -1733,6 +1733,50 @@ mod introspection_enforcer_tests {
     // Edge Cases
     // ============================================================================
 
+    /// A root field reached through a fragment is still selected at the root: a named
+    /// spread, an inline fragment, and a typeless inline fragment.
+    #[test]
+    fn introspection_through_a_root_fragment_is_detected() {
+        let enforcer = IntrospectionEnforcer::disabled();
+        for query in [
+            "{ ... on Query { __schema { queryType { name } } } }",
+            "query { ...F } fragment F on Query { __schema { queryType { name } } }",
+            "{ ... { __type(name: \"User\") { name } } }",
+            "query { ...F } fragment F on Query { ...G } fragment G on Query { __schema { types { name } } }",
+        ] {
+            assert!(enforcer.is_introspection_query(query), "{query}");
+        }
+    }
+
+    #[test]
+    fn a_fragment_selecting_no_introspection_is_not_introspection() {
+        let enforcer = IntrospectionEnforcer::disabled();
+        let query = "query { ...F } fragment F on Query { users { __typename } }";
+        assert!(!enforcer.is_introspection_query(query));
+    }
+
+    #[test]
+    fn the_service_sdl_is_detected_however_it_is_selected() {
+        for query in [
+            "{ _service { sdl } }",
+            "{ s: _service { sdl } }",
+            "{ ... on Query { _service { sdl } } }",
+            "query { ...F } fragment F on Query { _service { sdl } }",
+            "query A { users { id } } query B { _service { sdl } }",
+        ] {
+            assert!(IntrospectionEnforcer::selects_service_sdl(query), "{query}");
+        }
+        for query in [
+            "{ users { id } }",
+            "{ users(filter: \"_service\") { id } }",
+            "{ __schema { types { name } } }",
+            "{ _entities(representations: []) { __typename } }",
+            "not a document",
+        ] {
+            assert!(!IntrospectionEnforcer::selects_service_sdl(query), "{query}");
+        }
+    }
+
     #[test]
     fn test_introspection_in_string_literal_not_detected() {
         let enforcer = IntrospectionEnforcer::disabled();

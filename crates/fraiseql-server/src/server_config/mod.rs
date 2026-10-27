@@ -439,6 +439,17 @@ pub struct ServerConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub schema_export_require_auth: Option<bool>,
 
+    /// Require authentication for the federation service SDL (default: None).
+    ///
+    /// Controls `{ _service { sdl } }` on `/graphql`. The service SDL is not
+    /// introspection: it is served whether `introspection_enabled` is on or off, because a
+    /// gateway composes it from a subgraph whose introspection is off. When `Some(true)`,
+    /// an anonymous caller is refused it, so the gateway presents a credential. When
+    /// `Some(false)`, it is served to anyone. When `None` (default), falls back to
+    /// `introspection_require_auth`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub service_sdl_require_auth: Option<bool>,
+
     /// Require authentication for the GraphQL Playground endpoint (default: None).
     ///
     /// Controls the playground independently of introspection auth. When `Some(true)`,
@@ -1487,6 +1498,7 @@ impl Default for ServerConfig {
             introspection_require_auth: true, // Require auth when enabled
             metadata_require_auth: None,  // Falls back to introspection_require_auth
             schema_export_require_auth: None, // Falls back to introspection_require_auth
+            service_sdl_require_auth: None, // Falls back to introspection_require_auth
             playground_require_auth: None, // Falls back to introspection_require_auth
             subscription_require_auth: None, // Falls back to introspection_require_auth
             subscription_auth_recheck_secs: default_subscription_auth_recheck_secs(),

@@ -44,7 +44,7 @@ use std::fmt;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    graphql::ParsedQuery,
+    graphql::{FieldSelection, FragmentResolver, ParsedQuery},
     security::errors::{Result, SecurityError},
 };
 
@@ -87,6 +87,28 @@ impl IntrospectionPolicy {
             (true, true) => Self::InternalOnly,
             (true, false) => Self::Allowed,
         }
+    }
+}
+
+/// Whether `parsed` selects a root field `wanted` names, through any fragment.
+///
+/// A named spread is expanded and an inline fragment is entered, so `{ ...F }` with
+/// `fragment F on Query { __schema { .. } }` selects `__schema`. A spread that cannot be
+/// expanded (unknown, circular, too deep) leaves the selections as written: the executor
+/// refuses that document, and a gate must not refuse what a name it cannot read hides.
+fn selects_at_root(parsed: &ParsedQuery, wanted: &dyn Fn(&str) -> bool) -> bool {
+    fn any(selections: &[FieldSelection], wanted: &dyn Fn(&str) -> bool) -> bool {
+        selections.iter().any(|sel| {
+            if sel.name.starts_with("...") {
+                any(&sel.nested_fields, wanted)
+            } else {
+                wanted(&sel.name)
+            }
+        })
+    }
+    match FragmentResolver::new(&parsed.fragments).resolve_spreads(&parsed.selections) {
+        Ok(expanded) => any(&expanded, wanted),
+        Err(_) => any(&parsed.selections, wanted),
     }
 }
 
@@ -285,6 +307,24 @@ impl IntrospectionEnforcer {
         })
     }
 
+    /// Whether any operation of `query` selects the federation service SDL (`_service`) at
+    /// its root.
+    ///
+    /// Every operation counts, as for introspection: this runs before `operationName` has
+    /// selected one, so a decoy operation must not hide the one that executes. Matched on the field
+    /// name, so an alias is transparent. A query that fails to parse selects nothing; it is
+    /// refused on the normal parse path.
+    #[must_use]
+    pub fn selects_service_sdl(query: &str) -> bool {
+        let Ok(doc) = crate::graphql::parse_graphql_document(query) else {
+            return false;
+        };
+        doc.operations.iter().any(|op| {
+            crate::graphql::parse_selected_operation(op, &doc, query)
+                .is_ok_and(|parsed| selects_at_root(&parsed, &|name| name == "_service"))
+        })
+    }
+
     /// Scan an already-parsed query's root selection set for the configured
     /// introspection meta-fields.
     ///
@@ -294,9 +334,9 @@ impl IntrospectionEnforcer {
     /// aliases are transparent and never matches `__typename`.
     #[must_use]
     pub fn is_introspection(&self, parsed: &ParsedQuery) -> bool {
-        parsed.selections.iter().any(|sel| {
-            (self.config.detect_schema && sel.name == "__schema")
-                || (self.config.detect_type && sel.name == "__type")
+        selects_at_root(parsed, &|name| {
+            (self.config.detect_schema && name == "__schema")
+                || (self.config.detect_type && name == "__type")
         })
     }
 
