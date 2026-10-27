@@ -6,6 +6,7 @@
 
 mod adapter_types;
 mod composed_read;
+mod decimal_text;
 mod mutations;
 mod raw_rows;
 mod relay;
@@ -18,6 +19,7 @@ pub use composed_read::{
     COMPOSED_DOCUMENT_KEY, COMPOSED_EMBEDS_KEY, ComposedEmbed, ComposedKeyset, ComposedLevel,
     EmbedShape, EmbedSource, LevelKeys, NativeCorrelation, composed_read_unsupported,
 };
+pub use decimal_text::{DecimalFields, DecimalNode, DecimalShape, quote_decimals};
 use fraiseql_error::{FraiseQLError, Result};
 pub use mutations::{
     CHANGED_ROWS_KEY, ChangedCollections, ChangedRows, DERIVED_CASCADE_KEY, DerivedCascade,
