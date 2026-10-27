@@ -87,6 +87,13 @@ disagreed, and the promise was the part that was wrong.
   declaration. The SDL now imports and declares `@tag`. In Rust,
   `fraiseql_federation::generate_service_sdl` takes the `ContractTags` to render as a
   third argument; `CompiledSchema::federation_service_sdl` computes them.
+- **A federated server with strict trusted documents refuses to boot (#1801).** A strict
+  store refuses every request without a registered `documentId`, and a gateway sends its
+  subgraphs operations it planned itself (query-plan fetches, `_service`, `_entities`), so
+  such a subgraph refused every request its gateway sent, and nothing said why. With
+  federation enabled, `mode = "strict"` or `persisted_queries_only = true` now stops the boot
+  with an error naming both ways out: enforce trusted documents at the gateway and make them
+  permissive on the subgraph, or disable federation on it.
 - **A boot guard takes a `Deployment`, not an `is_production: bool`.**
   `fraiseql_server::token_revocation::revocation_manager_from_schema_in`,
   `fraiseql_server::inbound::webhook_routes_check` and

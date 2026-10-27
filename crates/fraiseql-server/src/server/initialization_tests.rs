@@ -203,6 +203,48 @@ fn a_service_sdl_some_caller_can_read_is_not_reported() {
     assert_eq!(service_sdl_events(true, true, true), Vec::<serde_json::Value>::new());
 }
 
+// ── #1801: a federated server whose trusted documents are strict ──
+
+fn store(
+    mode: crate::trusted_documents::TrustedDocumentMode,
+) -> crate::trusted_documents::TrustedDocumentStore {
+    crate::trusted_documents::TrustedDocumentStore::from_documents(
+        std::collections::HashMap::new(),
+        mode,
+    )
+}
+
+#[test]
+fn a_federated_server_with_strict_trusted_documents_is_refused_naming_both_ways_out() {
+    use crate::trusted_documents::TrustedDocumentMode;
+    let err = super::refuse_strict_trusted_documents_under_federation(
+        true,
+        Some(&store(TrustedDocumentMode::Strict)),
+    )
+    .expect_err("a strict store under federation must refuse the boot");
+    let message = err.to_string();
+    assert!(message.contains("at the gateway"), "{message}");
+    assert!(message.contains("disable federation"), "{message}");
+}
+
+#[test]
+fn a_federated_server_without_strict_trusted_documents_boots() {
+    use crate::trusted_documents::TrustedDocumentMode;
+    let permissive = store(TrustedDocumentMode::Permissive);
+    let strict = store(TrustedDocumentMode::Strict);
+    for (federation, store) in [
+        (true, Some(&permissive)),
+        (true, None),
+        (false, Some(&strict)),
+    ] {
+        assert!(
+            super::refuse_strict_trusted_documents_under_federation(federation, store).is_ok(),
+            "federation {federation}, store {:?}",
+            store.map(crate::trusted_documents::TrustedDocumentStore::mode),
+        );
+    }
+}
+
 // ── #1717: a production server told to give "Did you mean" hints ──
 
 /// The JSON log events `warn_when_production_gives_suggestions` emits.

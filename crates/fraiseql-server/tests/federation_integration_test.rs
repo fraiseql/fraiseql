@@ -174,6 +174,63 @@ async fn the_service_sdl_is_refused_to_an_anonymous_caller_by_default() {
     assert!(message.contains("requires authentication"), "{resp}");
 }
 
+/// #1801: a federated server whose trusted documents are strict, by `mode = "strict"` or by
+/// `persisted_queries_only`, refuses to boot: its gateway's planned fetches, `_service` and
+/// `_entities` carry no registered `documentId`, so every one would be refused. A permissive
+/// store still boots, and so does a strict one without federation.
+#[tokio::test]
+async fn a_federated_server_with_strict_trusted_documents_refuses_to_boot() {
+    use fraiseql_core::schema::{SecurityConfig, TrustedDocumentMode, TrustedDocumentsConfig};
+
+    let manifest = tempfile::NamedTempFile::new().expect("temp manifest");
+    std::fs::write(manifest.path(), r#"{"version": 1, "documents": {}}"#)
+        .expect("write the manifest");
+    let schema_with = |mode, persisted_queries_only| {
+        let mut schema = user_schema_with_federation();
+        schema.security = Some(SecurityConfig {
+            trusted_documents: Some(TrustedDocumentsConfig {
+                enabled: true,
+                mode,
+                manifest_path: Some(manifest.path().display().to_string()),
+                ..TrustedDocumentsConfig::default()
+            }),
+            persisted_queries_only,
+            ..SecurityConfig::default()
+        });
+        schema
+    };
+    let boot = |schema| async {
+        let config = ServerConfig {
+            cors_enabled: false,
+            ..ServerConfig::default()
+        };
+        Box::pin(fraiseql_server::Server::new(
+            config,
+            schema,
+            Arc::new(FailingAdapter::new()),
+            None,
+        ))
+        .await
+        .map(drop)
+    };
+
+    for (mode, persisted_queries_only) in [
+        (TrustedDocumentMode::Strict, false),
+        (TrustedDocumentMode::Permissive, true),
+    ] {
+        let err = boot(schema_with(mode, persisted_queries_only))
+            .await
+            .expect_err("a strict store under federation must refuse the boot");
+        assert!(err.to_string().contains("at the gateway"), "{err}");
+    }
+    boot(schema_with(TrustedDocumentMode::Permissive, false))
+        .await
+        .expect("a permissive store under federation boots");
+    let mut unfederated = schema_with(TrustedDocumentMode::Strict, false);
+    unfederated.federation = None;
+    boot(unfederated).await.expect("a strict store without federation boots");
+}
+
 // ─── Test 2: _entities resolves User from PostgreSQL ─────────────────────────
 
 /// `_entities` resolves a `User` entity by ID from a real PostgreSQL database.

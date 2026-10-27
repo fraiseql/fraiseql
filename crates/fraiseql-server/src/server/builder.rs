@@ -987,9 +987,14 @@ impl Server {
             ))
         });
 
+        let federation_enabled = cfg!(feature = "federation")
+            && executor.schema().federation.as_ref().is_some_and(|fed| fed.enabled);
+        crate::server::initialization::refuse_strict_trusted_documents_under_federation(
+            federation_enabled,
+            trusted_docs.as_deref(),
+        )?;
         crate::server::initialization::warn_when_no_caller_can_read_the_service_sdl(
-            cfg!(feature = "federation")
-                && executor.schema().federation.as_ref().is_some_and(|fed| fed.enabled),
+            federation_enabled,
             config.service_sdl_requires_auth(),
             oidc_validator.is_some()
                 || hs256_auth.is_some()

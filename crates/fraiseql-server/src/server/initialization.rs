@@ -1616,6 +1616,36 @@ pub(super) fn warn_when_no_caller_can_read_the_service_sdl(
     );
 }
 
+/// Refuse a federated server whose trusted documents are strict.
+///
+/// A strict store refuses every request without a registered `documentId`, and a gateway
+/// sends its subgraphs operations it planned itself: the fetches of a query plan,
+/// `{ _service { sdl } }` and `_entities`. No manifest lists them, so such a subgraph
+/// would refuse every request its gateway sends.
+///
+/// # Errors
+///
+/// Returns `ServerError::ConfigError` naming both ways out when federation is enabled and
+/// the store in effect is strict.
+pub(super) fn refuse_strict_trusted_documents_under_federation(
+    federation_enabled: bool,
+    trusted_docs: Option<&crate::trusted_documents::TrustedDocumentStore>,
+) -> crate::Result<()> {
+    let strict = trusted_docs
+        .is_some_and(|store| store.mode() == crate::trusted_documents::TrustedDocumentMode::Strict);
+    if !federation_enabled || !strict {
+        return Ok(());
+    }
+    Err(ServerError::ConfigError(
+        "Federation is enabled and trusted documents are strict (`mode = \"strict\"` or \
+         `persisted_queries_only = true`), so every request a gateway sends this subgraph is \
+         refused: its query-plan fetches, `_service` and `_entities` carry no registered \
+         `documentId`. Enforce trusted documents at the gateway and make them permissive \
+         here, or disable federation on this subgraph."
+            .to_string(),
+    ))
+}
+
 /// Warn that a production server gives "Did you mean" hints because it was told to.
 ///
 /// Unset, `suggestions_enabled` is off in production: a hint names the declared names
