@@ -160,7 +160,10 @@ disagreed, and the promise was the part that was wrong.
   wraps them (`.into()`, `Arc::default()`); every read derefs as before. A warm read no
   longer copies the query's definition, parses or expands its document, or collects its
   fields again: those are kept per document, and its fields per set of
-  `@skip`/`@include` outcomes.
+  `@skip`/`@include` outcomes. `QueryMatch` also gains `collected`, what the document's
+  collected fields compiled to; a struct literal sets it to `None`. A warm read builds its
+  projection SQL once per request locale chain (#1779), and no longer copies its selection
+  to classify a nested level's fields or to plan its nested reads.
 
 ### Added
 

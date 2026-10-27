@@ -6,7 +6,7 @@
 
 use crate::{
     error::{FraiseQLError, Result},
-    runtime::{classify_field_access, field_filter::FieldAccessResult},
+    runtime::field_filter::masked_fields,
     schema::{CompiledSchema, FieldDenyPolicy, SessionVariableSource, SessionVariablesConfig},
     security::{ENRICHED_NAMESPACE_PREFIX, SecurityContext},
 };
@@ -212,20 +212,19 @@ pub(in super::super) fn read_session_variables(
     Ok(vars)
 }
 
-/// Classify each requested field as allowed, masked, or rejected.
-///
-/// Does NOT require `&self` — all data comes from parameters.
+/// The requested fields a principal may not read and has masked; every other requested
+/// field is read.
 ///
 /// # Errors
 ///
 /// Returns `FraiseQLError::Authorization` if any field has `on_deny = Reject`
 /// and the user lacks the required scope.
-pub(in super::super) fn apply_field_rbac_filtering(
+fn apply_field_rbac_filtering<'a>(
     schema: &CompiledSchema,
     return_type: &str,
-    projection_fields: Vec<String>,
+    requested: impl IntoIterator<Item = &'a str>,
     security_context: &SecurityContext,
-) -> Result<FieldAccessResult> {
+) -> Result<Vec<String>> {
     // A scope is granted only by a role the `security` section defines. Without the
     // section no role is defined, so no principal holds any scope: the gate still
     // applies, and denies (ruling Y 7). It used to be skipped, serving every scoped field
@@ -233,30 +232,22 @@ pub(in super::super) fn apply_field_rbac_filtering(
     // same answer for one built in code.
     let no_roles = crate::schema::SecurityConfig::default();
     let security_config = schema.security.as_ref().unwrap_or(&no_roles);
-    if let Some(type_def) = schema.types.iter().find(|t| t.name == return_type) {
-        return classify_field_access(
-            security_context,
-            security_config,
-            &type_def.fields,
-            projection_fields,
-        )
-        .map_err(|rejected_field| FraiseQLError::Authorization {
+    let Some(type_def) = schema.types.iter().find(|t| t.name == return_type) else {
+        return Ok(Vec::new());
+    };
+    masked_fields(security_context, security_config, &type_def.fields, requested).map_err(
+        |rejected_field| FraiseQLError::Authorization {
             message:  format!(
                 "Access denied: field '{rejected_field}' on type '{return_type}' \
                  requires a scope you do not have"
             ),
             action:   Some("read".to_string()),
             resource: Some(format!("{return_type}.{rejected_field}")),
-        });
-    }
-
-    Ok(FieldAccessResult {
-        projected: projection_fields,
-        masked:    Vec::new(),
-    })
+        },
+    )
 }
 
-/// Classify field access for a request that carries **no** principal.
+/// The requested fields a request that carries **no** principal has masked.
 ///
 /// The anonymous path used to skip field RBAC entirely, so a field protected only
 /// by `requires_scope` (and not the dynamic `authorize` flag) was served in full to
@@ -279,39 +270,25 @@ pub(in super::super) fn apply_field_rbac_filtering(
 ///
 /// Returns [`FraiseQLError::Authorization`] if a requested field requires a scope
 /// and has `on_deny = Reject`.
-pub(in super::super) fn apply_anonymous_field_rbac_filtering(
+fn apply_anonymous_field_rbac_filtering<'a>(
     schema: &CompiledSchema,
     return_type: &str,
-    projection_fields: &[String],
-) -> Result<FieldAccessResult> {
-    let allow_all = || FieldAccessResult {
-        projected: projection_fields.to_vec(),
-        masked:    Vec::new(),
-    };
-
+    requested: impl IntoIterator<Item = &'a str>,
+) -> Result<Vec<String>> {
     let Some(type_def) = schema.types.iter().find(|t| t.name == return_type) else {
-        return Ok(allow_all());
+        return Ok(Vec::new());
     };
-
-    let mut projected = Vec::with_capacity(projection_fields.len());
     let mut masked = Vec::new();
-
-    for name in projection_fields {
-        // Fields absent from the type definition pass through, as in
-        // classify_field_access — they are built-ins such as `__typename`.
-        // Masked fields keep their requested position; only their value is
-        // withheld.
-        projected.push(name.clone());
+    for name in requested {
         // A translations sibling is gated by the field it lists (#1523).
         let Some(field) = crate::schema::gated_field(&type_def.fields, name) else {
             continue;
         };
-
         if field.requires_scope.is_none() {
             continue;
         }
         match field.on_deny {
-            FieldDenyPolicy::Mask => masked.push(name.clone()),
+            FieldDenyPolicy::Mask => masked.push(name.to_string()),
             FieldDenyPolicy::Reject => {
                 return Err(FraiseQLError::Authorization {
                     message:  format!(
@@ -324,11 +301,12 @@ pub(in super::super) fn apply_anonymous_field_rbac_filtering(
             },
         }
     }
-
-    Ok(FieldAccessResult { projected, masked })
+    Ok(masked)
 }
 
-/// Classify the requested field set for a read, with or without a principal.
+/// Classify the requested field set for a read, with or without a principal: the fields
+/// the caller has masked, in the order requested. Every other requested field is read, and
+/// a field the caller may not read whose policy is `Reject` refuses the read.
 ///
 /// Which of the two classifiers applies is a property of **whether a principal
 /// exists**, not of the transport the read arrived on. Both GraphQL entry points
@@ -346,15 +324,15 @@ pub(in super::super) fn apply_anonymous_field_rbac_filtering(
 ///
 /// Returns [`FraiseQLError::Authorization`] if a requested field requires a scope the
 /// caller lacks and its `on_deny` policy is `Reject`.
-pub(in super::super) fn classify_fields_for_read(
+pub(in super::super) fn classify_fields_for_read<'a>(
     schema: &CompiledSchema,
     return_type: &str,
-    projection_fields: Vec<String>,
+    requested: impl IntoIterator<Item = &'a str>,
     security_context: Option<&SecurityContext>,
-) -> Result<FieldAccessResult> {
+) -> Result<Vec<String>> {
     match security_context {
-        Some(ctx) => apply_field_rbac_filtering(schema, return_type, projection_fields, ctx),
-        None => apply_anonymous_field_rbac_filtering(schema, return_type, &projection_fields),
+        Some(ctx) => apply_field_rbac_filtering(schema, return_type, requested, ctx),
+        None => apply_anonymous_field_rbac_filtering(schema, return_type, requested),
     }
 }
 

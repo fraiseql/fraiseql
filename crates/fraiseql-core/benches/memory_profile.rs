@@ -206,6 +206,33 @@ fn a_warm_read_does_not_parse_its_document_again() {
     }
 }
 
+/// A warm read copies nothing of its selection: it allocates the same whether its nested
+/// list selects one field or three, when the list is empty in every row. The two answer
+/// the same body, so only a per-request copy of the selection (to classify a level's
+/// fields, or to plan its nested reads) could tell them apart.
+#[test]
+fn a_warm_read_copies_nothing_of_its_selection() {
+    #[cfg(feature = "dhat-heap")]
+    {
+        let _profiler = dhat::Profiler::builder().testing().build();
+        let narrow = warm_allocations(None, "{ users(limit: 20) { id posts { id } } }");
+        let wide =
+            warm_allocations(None, "{ users(limit: 20) { id posts { id title published } } }");
+        assert_eq!(wide.2, narrow.2, "both documents answer the same body");
+        eprintln!(
+            "warm read: posts {{ id }} {} B / {} blocks, posts {{ id title published }} {} B / \
+             {} blocks",
+            narrow.0, narrow.1, wide.0, wide.1
+        );
+        assert_eq!(
+            (wide.0, wide.1),
+            (narrow.0, narrow.1),
+            "a warm read allocated more for a wider selection of an empty list: a per-request \
+             stage still copies the selection"
+        );
+    }
+}
+
 /// A repeated document is compiled once per set of `@skip`/`@include` outcomes: a warm read
 /// allocates the same whether its selection is written once or repeats fields that merge
 /// into it (§ 6.3.2), because no per-request stage collects the written fields again.

@@ -54,30 +54,47 @@ pub fn classify_field_access(
     fields: &[FieldDefinition],
     requested: Vec<String>,
 ) -> std::result::Result<FieldAccessResult, String> {
-    let mut projected = Vec::with_capacity(requested.len());
+    // Allowed and masked fields alike keep their requested position, so the projected
+    // list is the requested one.
+    let masked =
+        masked_fields(context, security_config, fields, requested.iter().map(String::as_str))
+            .map_err(str::to_string)?;
+    Ok(FieldAccessResult {
+        projected: requested,
+        masked,
+    })
+}
+
+/// The fields of `requested` the caller may not read and has masked.
+///
+/// The rule of [`classify_field_access`] over borrowed names, for a caller that needs only
+/// the masked set. Allocates nothing when nothing is masked.
+///
+/// # Errors
+///
+/// Returns `Err(field_name)` for the first requested field with `on_deny = Reject` the
+/// caller lacks the scope for.
+pub fn masked_fields<'a>(
+    context: &SecurityContext,
+    security_config: &SecurityConfig,
+    fields: &[FieldDefinition],
+    requested: impl IntoIterator<Item = &'a str>,
+) -> std::result::Result<Vec<String>, &'a str> {
     let mut masked = Vec::new();
-
     for name in requested {
-        // A translations sibling is gated by the field it lists (#1523).
-        let field_def = crate::schema::gated_field(fields, &name);
-
-        let Some(field) = field_def else {
-            // Field not in type definition — pass through (may be a built-in like __typename)
-            projected.push(name);
+        // A translations sibling is gated by the field it lists (#1523). A field not in the
+        // type definition passes through (it may be a built-in like __typename).
+        let Some(field) = crate::schema::gated_field(fields, name) else {
             continue;
         };
-
         if !can_access_field(context, security_config, field) {
             match field.on_deny {
-                FieldDenyPolicy::Mask => masked.push(name.clone()),
+                FieldDenyPolicy::Mask => masked.push(name.to_string()),
                 FieldDenyPolicy::Reject => return Err(name),
             }
         }
-        // Allowed and masked fields alike keep their requested position.
-        projected.push(name);
     }
-
-    Ok(FieldAccessResult { projected, masked })
+    Ok(masked)
 }
 
 /// Filter fields based on user's roles and scope requirements.

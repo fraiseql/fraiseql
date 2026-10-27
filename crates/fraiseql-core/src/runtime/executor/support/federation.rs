@@ -349,13 +349,13 @@ impl Executor {
             if masked_by_type.contains_key(&rep.typename) {
                 continue;
             }
-            let access = super::security::classify_fields_for_read(
+            let masked = super::security::classify_fields_for_read(
                 &self.ctx.schema,
                 &rep.typename,
-                selection.fields.clone(),
+                selection.fields.iter().map(String::as_str),
                 security_context,
             )?;
-            masked_by_type.insert(rep.typename.clone(), access.masked);
+            masked_by_type.insert(rep.typename.clone(), masked);
         }
         Ok(masked_by_type)
     }

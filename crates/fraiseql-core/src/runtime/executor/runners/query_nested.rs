@@ -15,7 +15,10 @@
 //! that list — so an aliased field matched no declared field and passed through
 //! unclassified. Classification here takes the field name; masking takes the key.
 
-use std::collections::{HashMap, HashSet};
+use std::{
+    borrow::Cow,
+    collections::{HashMap, HashSet},
+};
 
 use super::{super::context::ExecutorContext, query::QueryRunner};
 use crate::{
@@ -205,14 +208,13 @@ fn classify_level(
         .into_iter()
         .filter(|sel| sel.name != "__typename")
         .collect();
-    let names = level.iter().map(|sel| sel.name.clone()).collect();
-    let access = super::super::support::security::classify_fields_for_read(
+    let level_masked = super::super::support::security::classify_fields_for_read(
         schema,
         type_name,
-        names,
+        level.iter().map(|sel| sel.name.as_str()),
         security_context,
     )?;
-    masked.extend(access.masked.into_iter().map(|field| (type_name.to_string(), field)));
+    masked.extend(level_masked.into_iter().map(|field| (type_name.to_string(), field)));
 
     let Some(type_def) = schema.find_type(type_name) else {
         return Ok(());
@@ -598,7 +600,9 @@ impl QueryRunner {
 
         // One level per field, over every selection of it: `a: orders { id }` and
         // `b: orders { total }` read the same rows.
-        let mut fields: Vec<(&FieldDefinition, Vec<FieldSelection>)> = Vec::new();
+        // A field selected once is read through its own selection; only a field selected
+        // again is merged into a copy.
+        let mut fields: Vec<(&FieldDefinition, Cow<'_, [FieldSelection]>)> = Vec::new();
         for sel in effective_selections(selections, parent_type, schema) {
             let Some(field) = parent_def.fields.iter().find(|f| f.name == sel.name) else {
                 continue;
@@ -607,8 +611,8 @@ impl QueryRunner {
                 continue;
             }
             match fields.iter_mut().find(|(f, _)| f.name == field.name) {
-                Some((_, subs)) => subs.extend(sel.nested_fields.iter().cloned()),
-                None => fields.push((field, sel.nested_fields.clone())),
+                Some((_, subs)) => subs.to_mut().extend(sel.nested_fields.iter().cloned()),
+                None => fields.push((field, Cow::Borrowed(&sel.nested_fields))),
             }
         }
 
