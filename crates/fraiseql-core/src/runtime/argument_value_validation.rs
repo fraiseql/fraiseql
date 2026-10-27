@@ -185,6 +185,12 @@ impl Scalar {
         if self == Self::Uuid && value.is_string() {
             return Some("a String that is not a UUID".to_string());
         }
+        if self == Self::Decimal && value.is_number() {
+            return Some(
+                "a number an f64 had already rounded: write a Decimal's digits as a string"
+                    .to_string(),
+            );
+        }
         Some(match json_shape(value) {
             shape @ ("a list" | "an object") => shape.to_string(),
             "Int" => "an Int value".to_string(),
@@ -215,9 +221,10 @@ impl Scalar {
             Self::Boolean => value.is_boolean(),
             // § 3.5.5: ID serializes as a String but accepts an integer input.
             Self::Id => value.is_string() || value.as_i64().is_some(),
-            // Decimal travels as a string to keep precision, and an integer
-            // literal is an ordinary way to write one.
-            Self::Decimal => value.is_string() || value.is_number(),
+            // A Decimal travels as a string of its digits. An integer held exactly is an
+            // ordinary way to write one; a number with a fraction or an exponent was
+            // rounded to an `f64` before anything could read it.
+            Self::Decimal => value.is_string() || value.is_i64() || value.is_u64(),
         }
     }
 
@@ -237,7 +244,6 @@ impl Scalar {
         matches!(
             (self, location),
             (Self::Int, Self::Float | Self::Decimal | Self::Id)
-                | (Self::Float, Self::Decimal)
                 | (
                     Self::String,
                     Self::Id

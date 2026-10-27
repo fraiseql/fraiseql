@@ -629,3 +629,86 @@ fn a_null_item_is_found_wherever_it_sits_in_a_resolved_argument() {
         "a null field value is no list's item"
     );
 }
+
+// ---------------------------------------------------------------- Decimal input
+
+fn payment_schema() -> CompiledSchema {
+    let mut schema = CompiledSchema::new();
+    schema.input_types.push(
+        InputObjectDefinition::new("PayInput")
+            .with_field(InputFieldDefinition::new("amount", "Decimal"))
+            .with_field(InputFieldDefinition::new("splits", "[Decimal!]")),
+    );
+    schema
+}
+
+fn pay_arg() -> Vec<ArgumentDefinition> {
+    vec![ArgumentDefinition::optional(
+        "input",
+        FieldType::Object("PayInput".to_string()),
+    )]
+}
+
+/// A request's JSON text, parsed as a server parses it: a number with a fraction, an
+/// exponent or more digits than a `u64` holds is already an `f64`.
+fn parsed(text: &str) -> Value {
+    serde_json::from_str(text).unwrap()
+}
+
+/// A Decimal takes its digits as a string, or an integer held exactly; a number with a
+/// fraction or an exponent was rounded to an `f64` before anything could read it.
+#[test]
+fn a_decimal_takes_a_string_or_an_exact_integer() {
+    let schema = payment_schema();
+    let pays = |amount: &str| {
+        let values =
+            parsed(&format!(r#"{{"input": {{"amount": {amount}, "splits": [{amount}]}}}}"#));
+        validate_mutation_argument_values(&schema, "Mutation.pay", &pay_arg(), Some(&values))
+    };
+    for held in [
+        r#""12345678901234567.89""#,
+        r#""-0.010""#,
+        "7",
+        "-9223372036854775808",
+        "18446744073709551615",
+    ] {
+        assert!(pays(held).is_ok(), "{held}");
+    }
+    for rounded in ["1.5", "1e3", "1.0", "18446744073709551616"] {
+        let msg = message(pays(rounded));
+        assert!(msg.contains("input.amount") && msg.contains("Decimal"), "{rounded}: {msg}");
+        assert!(msg.contains("as a string"), "the refusal says how to write one: {msg}");
+    }
+}
+
+#[test]
+fn a_decimal_argument_and_variable_take_the_same_values() {
+    let declared = vec![ArgumentDefinition::new("min", FieldType::Decimal)];
+    let literal_at = |text: &str, kind: &str| {
+        validate_argument_values("Query.orders", &declared, &[literal("min", kind, text)], &[])
+    };
+    assert!(literal_at("10", "int").is_ok());
+    assert!(literal_at(r#""10.25""#, "string").is_ok());
+    assert!(literal_at("10.25", "float").is_err(), "a Float literal is already rounded");
+
+    let vars = [var("min", "Decimal", false)];
+    let supplied = |text: &str| {
+        validate_variable_values(Some("Q"), &vars, Some(&parsed(&format!(r#"{{"min": {text}}}"#))))
+    };
+    assert!(supplied(r#""10.25""#).is_ok());
+    assert!(supplied("10").is_ok());
+    assert!(supplied("10.25").is_err());
+}
+
+#[test]
+fn a_float_declared_variable_is_refused_at_a_decimal_argument() {
+    let declared = vec![ArgumentDefinition::new("min", FieldType::Decimal)];
+    let vars = [var("min", "Float", false)];
+    let msg = message(validate_argument_values(
+        "Query.orders",
+        &declared,
+        &[var_use("min", "min")],
+        &vars,
+    ));
+    assert!(msg.contains("$min") && msg.contains("Float"), "{msg}");
+}
