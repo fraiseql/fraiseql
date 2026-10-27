@@ -1124,9 +1124,18 @@ fn shape_level(
             out.insert(key.to_string(), JsonValue::String(type_name.to_string()));
             continue;
         }
-        // The key the level held is moved, not copied.
-        let (key, value) =
-            object.remove_entry(key).unwrap_or_else(|| (key.to_string(), JsonValue::Null));
+        // The key the level held is moved, not copied. A level that arrived with its stored
+        // keys (a leaf selection of an object field, read whole) is read under those, copied:
+        // an alias and the field it names read one stored key.
+        let (key, value) = object.remove_entry(key).unwrap_or_else(|| {
+            let (stored, fallback) = stored_key_candidates(&sel.name);
+            let value = object
+                .get(&stored)
+                .or_else(|| fallback.as_ref().and_then(|f| object.get(f)))
+                .cloned()
+                .unwrap_or(JsonValue::Null);
+            (key.to_string(), value)
+        });
         if is_masked(masked, type_name, &sel.name) {
             out.insert(key, masked_value(type_def, &sel.name));
             continue;

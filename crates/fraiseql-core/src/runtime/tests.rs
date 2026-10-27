@@ -3641,6 +3641,7 @@ mod projection_tests {
                 "fields": [
                     { "name": "id", "field_type": "Int" },
                     { "name": "margin", "field_type": "Int" },
+                    { "name": "ownerName", "field_type": "String" },
                     { "name": "tags", "field_type": { "List": {"item": "String"} } },
                     { "name": "parent", "field_type": { "Object": "Folder" } },
                     { "name": "children", "field_type": { "List": {"item": { "Object": "Folder" }} } }
@@ -3832,6 +3833,35 @@ mod projection_tests {
                 "children": [{ "id": 0, "margin": null }],
             })
         );
+    }
+
+    /// A nested object that arrives with its stored keys — a leaf selection of an object
+    /// field, read whole — is read under them where its response keys are absent; a level
+    /// holding the response key is read under that.
+    #[test]
+    fn shape_projected_reads_a_nested_object_under_its_stored_keys() {
+        let selection = [
+            field("id", vec![]),
+            field(
+                "parent",
+                vec![
+                    field("ownerName", vec![]),
+                    aliased("owner", "ownerName", vec![]),
+                    field("id", vec![]),
+                ],
+            ),
+        ];
+        let mut value =
+            json!({ "id": 1, "parent": { "id": 0, "owner_name": "ada", "audit": "x" } });
+        crate::runtime::shape_projected(&mut value, "Folder", &selection, &folders(), None);
+        assert_eq!(
+            serde_json::to_string(&value).unwrap(),
+            r#"{"id":1,"parent":{"ownerName":"ada","owner":"ada","id":0}}"#
+        );
+
+        let mut value = json!({ "parent": { "ownerName": "projected", "owner_name": "stored" } });
+        crate::runtime::shape_projected(&mut value, "Folder", &selection, &folders(), None);
+        assert_eq!(value["parent"]["ownerName"], "projected", "{value}");
     }
 
     /// A field selected twice under one response key keeps its value.
