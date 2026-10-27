@@ -80,6 +80,10 @@ jobs:
           # PostgreSQL 18 is the supported floor (#1452): pgvector:pg18 is the service image.
           # postgres:17 is mirrored because the floor-refusal suites need a server below it.
           # The pg16 pair stays so an older checkout still resolves.
+          #
+          # GreenMail 2.1.0 is the test IMAP/SMTP server of the inbound_email capability
+          # fixture (#1757), pinned by digest: it is unmodified upstream, and the leg serves
+          # it a keystore generated per run, so nothing of its own bundled TLS is used.
           IMAGES="
           docker.io/library/rust:1.94|ghcr.io/fraiseql/rust:1.94
           docker.io/library/rust:1.94.1|ghcr.io/fraiseql/rust:1.94.1
@@ -97,6 +101,7 @@ jobs:
           docker.io/localstack/localstack:3.8|ghcr.io/fraiseql/localstack:3.8
           docker.io/hashicorp/vault:1.17|ghcr.io/fraiseql/vault:1.17
           docker.io/mailhog/mailhog:v1.0.1|ghcr.io/fraiseql/mailhog:v1.0.1
+          docker.io/greenmail/standalone@sha256:308685b99ad840f05bd2dee43f47f7956f876adbf396523f68166f078300cd29|ghcr.io/fraiseql/greenmail:2.1.0
           docker.io/fsouza/fake-gcs-server:1.56.1|ghcr.io/fraiseql/fake-gcs-server:1.56.1
           cgr.dev/chainguard/minio@sha256:e7ca559d9f7c0b5f24f5f669bb92f40f3ca88d56273b808bf3a7c116c17d2ffa|ghcr.io/fraiseql/minio:RELEASE.2026-09-22T19-25-18Z
           "
@@ -133,4 +138,4 @@ jobs:
           echo "needs no action. Only a brand-new package NAME does, and then the fix is to"
           echo "grant the fraiseql/fraiseql repo access — not to publish it publicly:"
           echo "  https://github.com/orgs/fraiseql/packages/container/<name>/settings"
-          echo "Packages: rust ubuntu postgres pgvector redis nats vault mailhog fake-gcs-server minio"
+          echo "Packages: rust ubuntu postgres pgvector redis nats vault mailhog greenmail fake-gcs-server minio"
