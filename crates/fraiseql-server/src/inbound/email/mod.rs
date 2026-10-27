@@ -34,7 +34,7 @@
 
 use std::{collections::HashMap, future::Future, pin::Pin, sync::Arc, time::Duration};
 
-use fraiseql_functions::host::live::storage::StorageBackend;
+use fraiseql_functions::{IngestError, host::live::storage::StorageBackend};
 use tracing::{info, warn};
 
 pub mod admin;
@@ -127,13 +127,17 @@ pub fn build_pollers<S: std::hash::BuildHasher>(
             );
             continue;
         };
-        let fetcher = match ImapMailboxFetcher::new(
-            &imap.host,
-            imap.port,
-            &imap.username,
-            password,
-            &imap.mailbox,
-        ) {
+        // Validated at config load; read again here, so the roots are the file's now.
+        let fetcher = match imap.ca_certificates(name).map_err(IngestError::new).and_then(|roots| {
+            ImapMailboxFetcher::with_extra_roots(
+                &imap.host,
+                imap.port,
+                &imap.username,
+                password,
+                &imap.mailbox,
+                roots,
+            )
+        }) {
             Ok(fetcher) => Arc::new(fetcher),
             Err(error) => {
                 warn!(mailbox = %name, %error, "poll-IMAP mailbox not started: TLS setup failed");
@@ -205,13 +209,16 @@ pub async fn run_startup_probes<S: std::hash::BuildHasher + Sync>(
         let Some(password) = get_env(&imap.password_env) else {
             continue;
         };
-        let fetcher = match ImapMailboxFetcher::new(
-            &imap.host,
-            imap.port,
-            &imap.username,
-            password,
-            &imap.mailbox,
-        ) {
+        let fetcher = match imap.ca_certificates(name).map_err(IngestError::new).and_then(|roots| {
+            ImapMailboxFetcher::with_extra_roots(
+                &imap.host,
+                imap.port,
+                &imap.username,
+                password,
+                &imap.mailbox,
+                roots,
+            )
+        }) {
             Ok(fetcher) => fetcher,
             Err(error) => {
                 warn!(mailbox = %name, %error, "Return-Path probe skipped: IMAP TLS setup failed");

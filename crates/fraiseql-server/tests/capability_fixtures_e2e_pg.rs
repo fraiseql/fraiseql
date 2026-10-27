@@ -14,6 +14,11 @@
 //!   publishes a discovery document and a key set, and an `oidc` bearer is signed by its key.
 //!   `$KAFKA_BOOTSTRAP` is the broker this run was given, and `$KAFKA_TOPIC` a topic created for
 //!   this run alone, so a message an earlier run left cannot satisfy a `kafka` effect.
+//!   `$GREENMAIL_HOST`, `"$GREENMAIL_IMAPS_PORT"` and `$GREENMAIL_CA` name the test mail server
+//!   this run was given and the CA its certificate is signed by; the port is written quoted, so the
+//!   file is valid TOML, and expands to a bare integer.
+//! - `$RUN_ID` is unique to the run, in an `smtp` stimulus and a `row` effect: a mail server keeps
+//!   what earlier runs delivered, and only this run's message may satisfy the effect.
 //! - `fixture.toml`: the capability it exercises, the environment the server runs with, the stimuli
 //!   it receives, and the effect that must follow.
 //!
@@ -23,7 +28,8 @@
 //! environment variable is set on the process that reads it, as in a deployment.
 //!
 //! **Execution engine:** `PostgreSQL` · **Infrastructure:** `DATABASE_URL`, `NATS_URL`
-//! for a fixture that names NATS, `KAFKA_BOOTSTRAP` for one that names Kafka · **Leg:**
+//! for a fixture that names NATS, `KAFKA_BOOTSTRAP` for one that names Kafka,
+//! `GREENMAIL_{HOST,IMAPS_PORT,SMTP_PORT,CA}` for one that names the mail server · **Leg:**
 //! `integration (observers)`, which binds them · **Parallelism:** one scratch database per fixture,
 //! fixtures run in turn.
 #![cfg(feature = "cli")]
@@ -214,6 +220,13 @@ enum Stimulus {
     Subscribe {
         path:  String,
         query: String,
+    },
+    /// One message submitted to the test mail server over SMTP (`GREENMAIL_SMTP_PORT`).
+    /// `$RUN_ID` expands in `subject`.
+    Smtp {
+        from:    String,
+        to:      String,
+        subject: String,
     },
     Sql {
         statement: String,
@@ -474,6 +487,62 @@ async fn topic_subscriptions(topic: &str) -> Result<Vec<String>, String> {
     Ok(names)
 }
 
+/// The test mail server a fixture that needs one is given, by `GREENMAIL_<key>`.
+fn greenmail(key: &str) -> Result<String, String> {
+    std::env::var(format!("GREENMAIL_{key}")).map_err(|_| {
+        format!("this fixture needs the test mail server, and GREENMAIL_{key} is not set")
+    })
+}
+
+/// Submit one message over SMTP, as a sending server delivers it: no TLS and no
+/// authentication, which a test mail server accepts.
+async fn submit_smtp(from: &str, to: &str, subject: &str) -> Result<(), String> {
+    use tokio::io::{AsyncBufReadExt as _, AsyncWriteExt as _, BufReader};
+
+    let address = format!("{}:{}", greenmail("HOST")?, greenmail("SMTP_PORT")?);
+    let stream = tokio::net::TcpStream::connect(&address)
+        .await
+        .map_err(|e| format!("SMTP connect {address}: {e}"))?;
+    let (read, mut write) = stream.into_split();
+    let mut lines = BufReader::new(read).lines();
+    let message = format!(
+        "From: <{from}>\r\nTo: <{to}>\r\nSubject: {subject}\r\nMessage-ID: <{}@capability-fixture>\r\n\
+         \r\nDelivered by the capability fixture harness.\r\n.\r\n",
+        uuid::Uuid::new_v4()
+    );
+    // The greeting, then each command's reply, multi-line or not, by its code.
+    for (command, code) in [
+        (None, "220"),
+        (Some("EHLO capability-fixture\r\n".to_owned()), "250"),
+        (Some(format!("MAIL FROM:<{from}>\r\n")), "250"),
+        (Some(format!("RCPT TO:<{to}>\r\n")), "250"),
+        (Some("DATA\r\n".to_owned()), "354"),
+        (Some(message), "250"),
+        (Some("QUIT\r\n".to_owned()), "221"),
+    ] {
+        if let Some(command) = command {
+            write
+                .write_all(command.as_bytes())
+                .await
+                .map_err(|e| format!("SMTP write: {e}"))?;
+        }
+        loop {
+            let line = lines
+                .next_line()
+                .await
+                .map_err(|e| format!("SMTP read: {e}"))?
+                .ok_or("the SMTP server closed the connection")?;
+            if !line.starts_with(code) {
+                return Err(format!("SMTP answered {line:?}, not {code}"));
+            }
+            if line.as_bytes().get(3) != Some(&b'-') {
+                break;
+            }
+        }
+    }
+    Ok(())
+}
+
 /// An HTTP endpoint of the harness's own, at `$RECEIVER_URL`, recording the path of every
 /// request it is sent: where a fixture points an observer's webhook.
 ///
@@ -528,7 +597,7 @@ impl Receiver {
 }
 
 /// The fixture's `server.toml` with `$FIXTURE`, `$NATS_URL`, `$RECEIVER_URL`,
-/// `$KAFKA_BOOTSTRAP` and `$KAFKA_TOPIC` expanded, written to `scratch`.
+/// `$KAFKA_BOOTSTRAP`, `$KAFKA_TOPIC` and `$GREENMAIL_*` expanded, written to `scratch`.
 async fn render_server_toml(
     dir: &Path,
     scratch: &Path,
@@ -542,6 +611,17 @@ async fn render_server_toml(
     }
     if text.contains("$KAFKA_BOOTSTRAP") {
         text = text.replace("$KAFKA_BOOTSTRAP", &kafka_bootstrap()?);
+    }
+    // The port is a TOML integer: it is written quoted, so `server.toml` stays valid TOML, and
+    // it expands with its quotes.
+    for (key, placeholder) in [
+        ("HOST", "$GREENMAIL_HOST"),
+        ("IMAPS_PORT", "\"$GREENMAIL_IMAPS_PORT\""),
+        ("CA", "$GREENMAIL_CA"),
+    ] {
+        if text.contains(placeholder) {
+            text = text.replace(placeholder, &greenmail(key)?);
+        }
     }
     if text.contains("$KAFKA_TOPIC") {
         create_topic(kafka_topic).await?;
@@ -594,6 +674,8 @@ struct Served {
     receiver:      Receiver,
     /// This run's `$KAFKA_TOPIC`.
     kafka_topic:   String,
+    /// This run's `$RUN_ID`.
+    run_id:        String,
     /// The `subscribe` stimuli's connections, held open until the fixture ends.
     subscriptions: Mutex<Vec<tokio::task::JoinHandle<()>>>,
 }
@@ -675,6 +757,7 @@ async fn serve(
         log,
         receiver,
         kafka_topic,
+        run_id: uuid::Uuid::new_v4().simple().to_string(),
         subscriptions: Mutex::new(Vec::new()),
     };
     let started = Instant::now();
@@ -843,6 +926,9 @@ async fn send(
             }));
             Ok(())
         },
+        Stimulus::Smtp { from, to, subject } => {
+            submit_smtp(from, to, &subject.replace("$RUN_ID", &served.run_id)).await
+        },
         Stimulus::Sql { statement } => {
             let pool = PgPool::connect(database_url).await.map_err(|e| format!("connect: {e}"))?;
             sqlx::raw_sql(&served.receiver.expand(statement))
@@ -899,7 +985,8 @@ async fn observe(
         },
         Effect::Row { query, expect } => {
             let pool = PgPool::connect(database_url).await.map_err(|e| format!("connect: {e}"))?;
-            let rows = sqlx::query(query).fetch_all(&pool).await;
+            let query = query.replace("$RUN_ID", &served.run_id);
+            let rows = sqlx::query(&query).fetch_all(&pool).await;
             pool.close().await;
             let rows = rows.map_err(|e| format!("`{query}`: {e}"))?;
             let got: Vec<Vec<String>> = rows
@@ -1136,10 +1223,7 @@ async fn run_fixture(admin_url: &str, name: &str, dir: &Path) -> Result<(), Stri
 
 /// Registrations with no fixture yet, each with the issue that blocks it. Shrink-only: the
 /// gate below also fails when one of these gains a fixture, so the entry goes with it.
-const NO_FIXTURE_YET: &[(&str, &str)] = &[
-    // The IMAP client trusts only the webpki roots, and a test IMAP server cannot be trusted.
-    ("inbound_email", "#1757"),
-];
+const NO_FIXTURE_YET: &[(&str, &str)] = &[];
 
 /// The capability each fixture exercises, read from its `fixture.toml`.
 fn exercised_capabilities() -> Vec<String> {

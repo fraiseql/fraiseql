@@ -64,3 +64,91 @@ frmo = "typo@example.com"
 "#;
     assert!(toml::from_str::<MailboxConfig>(toml).is_err());
 }
+
+/// An `[imap]` half pointing `ca_file` at `path`.
+fn imap_with_ca_file(path: &std::path::Path) -> super::ImapConfig {
+    let toml = format!(
+        "host = \"imap.example.com\"\nusername = \"u\"\npassword_env = \"PW\"\nca_file = {:?}\n",
+        path.display().to_string()
+    );
+    toml::from_str(&toml).unwrap()
+}
+
+/// A self-signed certificate, PEM-encoded, generated here so none is committed.
+fn certificate_pem() -> Vec<u8> {
+    use openssl::{asn1::Asn1Time, hash::MessageDigest, pkey::PKey, rsa::Rsa, x509::X509};
+    let key = PKey::from_rsa(Rsa::generate(2048).unwrap()).unwrap();
+    let mut name = openssl::x509::X509NameBuilder::new().unwrap();
+    name.append_entry_by_text("CN", "mailbox test CA").unwrap();
+    let name = name.build();
+    let mut cert = X509::builder().unwrap();
+    cert.set_version(2).unwrap();
+    cert.set_subject_name(&name).unwrap();
+    cert.set_issuer_name(&name).unwrap();
+    cert.set_pubkey(&key).unwrap();
+    cert.set_not_before(&Asn1Time::days_from_now(0).unwrap()).unwrap();
+    cert.set_not_after(&Asn1Time::days_from_now(1).unwrap()).unwrap();
+    cert.sign(&key, MessageDigest::sha256()).unwrap();
+    cert.build().to_pem().unwrap()
+}
+
+#[test]
+fn ca_file_is_optional_and_off_by_default() {
+    let imap: super::ImapConfig =
+        toml::from_str("host = \"h\"\nusername = \"u\"\npassword_env = \"PW\"\n").unwrap();
+    assert!(imap.ca_file.is_none(), "webpki-only unless a mailbox names a CA bundle");
+    imap.validate("support").unwrap();
+}
+
+#[test]
+fn a_ca_file_holding_a_certificate_is_accepted() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("ca.pem");
+    std::fs::write(&path, certificate_pem()).unwrap();
+    imap_with_ca_file(&path).validate("support").unwrap();
+}
+
+#[test]
+fn a_missing_ca_file_is_refused_naming_the_mailbox() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("absent.pem");
+    let error = imap_with_ca_file(&path).validate("support").unwrap_err();
+    assert!(error.contains("[mailbox.support.imap] ca_file"), "{error}");
+    assert!(error.contains("absent.pem"), "{error}");
+}
+
+#[test]
+fn an_unreadable_ca_file_is_refused_naming_the_mailbox() {
+    // A directory cannot be read as a file, whoever runs the test.
+    let dir = tempfile::tempdir().unwrap();
+    let error = imap_with_ca_file(dir.path()).validate("support").unwrap_err();
+    assert!(error.contains("[mailbox.support.imap] ca_file"), "{error}");
+    assert!(error.contains("cannot be read"), "{error}");
+}
+
+#[test]
+fn a_ca_file_with_no_certificate_is_refused_naming_the_mailbox() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("key-only.pem");
+    let key = openssl::pkey::PKey::from_rsa(openssl::rsa::Rsa::generate(2048).unwrap()).unwrap();
+    std::fs::write(&path, key.private_key_to_pem_pkcs8().unwrap()).unwrap();
+    let error = imap_with_ca_file(&path).validate("support").unwrap_err();
+    assert!(error.contains("[mailbox.support.imap] ca_file"), "{error}");
+    assert!(error.contains("no certificate"), "{error}");
+}
+
+#[test]
+fn server_config_validation_refuses_a_mailbox_with_a_bad_ca_file() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("absent.pem");
+    let mut config = crate::ServerConfig::default();
+    config.mailbox.insert(
+        "support".to_owned(),
+        super::MailboxConfig {
+            imap: Some(imap_with_ca_file(&path)),
+            smtp: None,
+        },
+    );
+    let error = config.validate().unwrap_err();
+    assert!(error.contains("[mailbox.support.imap] ca_file"), "{error}");
+}

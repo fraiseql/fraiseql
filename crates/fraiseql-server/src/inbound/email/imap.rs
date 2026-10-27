@@ -21,7 +21,11 @@ use tokio::{
 };
 use tokio_rustls::{
     TlsConnector,
-    rustls::{ClientConfig, RootCertStore, crypto::ring, pki_types::ServerName},
+    rustls::{
+        ClientConfig, RootCertStore,
+        crypto::ring,
+        pki_types::{CertificateDer, ServerName},
+    },
 };
 
 /// One raw message fetched from a mailbox, tagged with its IMAP `UID`.
@@ -78,7 +82,7 @@ pub struct ImapMailboxFetcher {
 }
 
 impl ImapMailboxFetcher {
-    /// Build a fetcher for one mailbox.
+    /// Build a fetcher for one mailbox, trusting the webpki (Mozilla) roots.
     ///
     /// # Errors
     ///
@@ -90,13 +94,31 @@ impl ImapMailboxFetcher {
         password: impl Into<String>,
         mailbox: impl Into<String>,
     ) -> Result<Self, IngestError> {
+        Self::with_extra_roots(host, port, username, password, mailbox, Vec::new())
+    }
+
+    /// Build a fetcher trusting the webpki roots and `extra_roots`: the mailbox's
+    /// [`ca_file`](super::config::ImapConfig::ca_file), if any.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`IngestError`] if the rustls client configuration cannot be built, or an
+    /// extra root is not a usable trust anchor.
+    pub(crate) fn with_extra_roots(
+        host: impl Into<String>,
+        port: u16,
+        username: impl Into<String>,
+        password: impl Into<String>,
+        mailbox: impl Into<String>,
+        extra_roots: Vec<CertificateDer<'static>>,
+    ) -> Result<Self, IngestError> {
         Ok(Self {
             host: host.into(),
             port,
             username: username.into(),
             password: password.into(),
             mailbox: mailbox.into(),
-            connector: tls_connector()?,
+            connector: tls_connector(extra_roots)?,
         })
     }
 
@@ -199,13 +221,19 @@ impl MailboxFetcher for ImapMailboxFetcher {
     }
 }
 
-/// Build a rustls TLS connector trusting the webpki (Mozilla) root store.
+/// Build a rustls TLS connector trusting the webpki (Mozilla) root store, and
+/// `extra_roots` on top of it.
 ///
 /// The `ring` provider is selected explicitly so the connector never depends on
 /// which process-default rustls provider happens to be installed.
-fn tls_connector() -> Result<TlsConnector, IngestError> {
+fn tls_connector(extra_roots: Vec<CertificateDer<'static>>) -> Result<TlsConnector, IngestError> {
     let mut roots = RootCertStore::empty();
     roots.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
+    for root in extra_roots {
+        roots
+            .add(root)
+            .map_err(|error| IngestError::new(format!("imap ca_file certificate: {error}")))?;
+    }
     let config = ClientConfig::builder_with_provider(Arc::new(ring::default_provider()))
         .with_safe_default_protocol_versions()
         .map_err(|error| IngestError::new(format!("imap rustls config: {error}")))?

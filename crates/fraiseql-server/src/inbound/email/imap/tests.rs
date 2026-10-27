@@ -7,7 +7,7 @@ use super::{ImapMailboxFetcher, MailboxFetcher, tls_connector};
 /// Guards against a provider-ambiguity regression on any TLS-stack bump.
 #[test]
 fn tls_connector_builds_with_ring_provider() {
-    assert!(tls_connector().is_ok());
+    assert!(tls_connector(Vec::new()).is_ok());
 }
 
 /// A live-IMAP smoke test, gated on `FRAISEQL_TEST_IMAP_*`; skips cleanly when no

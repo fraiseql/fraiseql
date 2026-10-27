@@ -122,6 +122,12 @@ disagreed, and the promise was the part that was wrong.
 
 ### Added
 
+- **A mailbox can trust a private CA: `[mailbox.<name>.imap] ca_file`** (#1757). A PEM
+  bundle added, for that mailbox only, to the webpki roots its IMAP connection trusts, so
+  a mail server behind a private CA can be polled. A missing or unreadable file, or one
+  holding no certificate, refuses the config at load, naming the mailbox. Unset, only the
+  webpki roots are trusted, as before. See `docs/architecture/inbound-email.md`.
+
 - **`fraiseql capabilities --json` carries each capability's JSON Schema.** Every entry
   has `schema.compiled`, keyed by the compiled-schema sections it lists (`mcp_config`,
   `functions`, ...), and `schema.runtime`, keyed by its server-config keys (`[saml]`,

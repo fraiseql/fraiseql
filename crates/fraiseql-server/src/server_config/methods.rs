@@ -238,6 +238,13 @@ impl ServerConfig {
             ss.validate()?;
         }
 
+        #[cfg(feature = "inbound-email")]
+        for (name, mailbox) in &self.mailbox {
+            if let Some(ref imap) = mailbox.imap {
+                imap.validate(name)?;
+            }
+        }
+
         if let Some(ref ao) = self.async_operations {
             ao.validate()?;
         }

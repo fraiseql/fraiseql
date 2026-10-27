@@ -52,6 +52,7 @@ mailbox = "INBOX"                 # default "INBOX"
 poll_interval_secs = 60           # default 60
 batch_size = 50                   # max messages processed per poll; default 50
 attachment_bucket = "inbound"     # optional; attachments dropped if unset
+ca_file = "/etc/fraiseql/imap-ca.pem"  # optional; see "Trusting a private CA"
 
 # Declared dedicated-address routing (optional). A message to a rule's address
 # maps to `entity_type`; the recipient's plus-tag becomes the entity id
@@ -63,6 +64,22 @@ entity_type = "Ticket"
 
 A mailbox whose IMAP `password_env` is unset is **skipped with a warning**, never
 polled without credentials. Requires a PostgreSQL pool.
+
+### Trusting a private CA
+
+The IMAP connection is implicit TLS, and by default the server trusts only the webpki
+(Mozilla) roots. A mailbox whose IMAP server presents a certificate from a private CA
+names that CA in `ca_file`: a PEM bundle of one or more `BEGIN CERTIFICATE` blocks,
+trusted **for that mailbox only**, on top of the webpki roots. Other mailboxes, and every
+other TLS client in the server, are unaffected.
+
+The certificate's name is still checked. `host` must match a subjectAltName on the
+server's certificate: a DNS name for a hostname, an IP address SAN for an IP literal.
+
+The server refuses to start when `ca_file` names a file that does not exist, cannot be
+read, or holds no certificate. The refusal names the mailbox
+(`[mailbox.support.imap] ca_file ...`). There is no plaintext IMAP: a mail server without
+TLS cannot be polled.
 
 > **Renamed (breaking).** The receive config moved from `[imap.<name>]` to
 > `[mailbox.<name>.imap]` so one connected account can carry both its inbound and

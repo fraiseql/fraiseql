@@ -1,0 +1,10 @@
+cors_enabled = false
+
+[mailbox.support.imap]
+host = "$GREENMAIL_HOST"
+port = "$GREENMAIL_IMAPS_PORT"
+username = "fixture"
+password_env = "SUPPORT_IMAP_PASSWORD"
+poll_interval_secs = 1
+# The test mail server's certificate is signed by a CA made for this run, not a public one.
+ca_file = "$GREENMAIL_CA"

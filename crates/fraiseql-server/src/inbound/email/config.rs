@@ -83,6 +83,62 @@ pub struct ImapConfig {
     /// Declared dedicated-address routing rules applied during normalization.
     #[serde(default)]
     pub routing:            Vec<RoutingRuleConfig>,
+    /// A PEM bundle of CA certificates this mailbox's server is also trusted under, on
+    /// top of the webpki (Mozilla) roots: for an IMAP server behind a private CA. Unset,
+    /// only the webpki roots are trusted. A missing or unreadable file, or one holding no
+    /// certificate, refuses the config.
+    #[serde(default)]
+    pub ca_file:            Option<std::path::PathBuf>,
+}
+
+impl ImapConfig {
+    /// Check what can be checked before the server boots, naming `mailbox`.
+    ///
+    /// # Errors
+    ///
+    /// A description of the refusal, naming `[mailbox.<mailbox>.imap]`.
+    pub fn validate(&self, mailbox: &str) -> Result<(), String> {
+        self.ca_certificates(mailbox).map(|_| ())
+    }
+
+    /// The certificates [`ca_file`](Self::ca_file) adds to the webpki roots: none when it
+    /// is unset. Both config validation and the TLS connector read the bundle through
+    /// this, so what boot accepts is what the connection trusts.
+    ///
+    /// # Errors
+    ///
+    /// A description naming `[mailbox.<mailbox>.imap] ca_file` when the file is missing
+    /// or unreadable, or holds no parseable certificate.
+    pub(crate) fn ca_certificates(
+        &self,
+        mailbox: &str,
+    ) -> Result<Vec<tokio_rustls::rustls::pki_types::CertificateDer<'static>>, String> {
+        use tokio_rustls::rustls::pki_types::{CertificateDer, pem::PemObject as _};
+
+        let Some(ref path) = self.ca_file else {
+            return Ok(Vec::new());
+        };
+        let bytes = std::fs::read(path).map_err(|error| {
+            if error.kind() == std::io::ErrorKind::NotFound {
+                format!("[mailbox.{mailbox}.imap] ca_file {} does not exist", path.display())
+            } else {
+                format!(
+                    "[mailbox.{mailbox}.imap] ca_file {} cannot be read: {error}",
+                    path.display()
+                )
+            }
+        })?;
+        let certificates: Vec<_> =
+            CertificateDer::pem_slice_iter(&bytes).filter_map(Result::ok).collect();
+        if certificates.is_empty() {
+            return Err(format!(
+                "[mailbox.{mailbox}.imap] ca_file {} holds no certificate: it must be a PEM \
+                 bundle of one or more `BEGIN CERTIFICATE` blocks",
+                path.display()
+            ));
+        }
+        Ok(certificates)
+    }
 }
 
 /// Default SMTP submission port (STARTTLS).

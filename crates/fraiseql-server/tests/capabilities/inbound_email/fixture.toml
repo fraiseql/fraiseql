@@ -1,0 +1,17 @@
+# A message delivered to a mailbox is polled over IMAPS and ingested: the server trusts the
+# test mail server through the mailbox's `ca_file`, as a deployment trusts an IMAP server
+# behind a private CA.
+capability = "inbound_email"
+
+[env]
+SUPPORT_IMAP_PASSWORD = "fixture"
+
+[[stimulus]]
+smtp = { from = "sender@example.test", to = "fixture@example.test", subject = "capability fixture $RUN_ID" }
+
+[effect]
+row = { query = "SELECT source FROM _fraiseql_inbound_message WHERE payload->>'subject' = 'capability fixture $RUN_ID'", expect = [
+  [
+    "email:support",
+  ],
+] }

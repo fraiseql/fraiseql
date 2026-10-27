@@ -1344,6 +1344,11 @@ const (
 	// asserts the message arrived in the sink.
 	mailhogImage    = "ghcr.io/fraiseql/mailhog:v1.0.1"
 	mailhogBindHost = "mailhog"
+	// greenmailImage / greenmailBindHost — the test IMAPS/SMTP server of the
+	// inbound_email capability fixture (#1757), mirrored by digest. It serves a keystore
+	// greenmailCerts generates per run, never the self-signed one it bundles.
+	greenmailImage    = "ghcr.io/fraiseql/greenmail:2.1.0"
+	greenmailBindHost = "greenmail"
 
 	// serverBindHost / e2eMetricsToken — the HTTP E2E server service (legacy
 	// integration-http-e2e): the fraiseql-server binary run as a bound service the
@@ -2848,6 +2853,49 @@ func (m *FraiseqlCi) tlsCerts() *dagger.Directory {
 		Directory("/out")
 }
 
+// greenmailCerts generates the test mail server's PKI per run: a CA, and a server
+// certificate it signs for greenmailBindHost, as a PKCS12 keystore GreenMail loads. The
+// fixture trusts the CA through `[mailbox.<name>.imap] ca_file`; nothing is committed.
+// The keystore is world-readable: GreenMail does not run as root, and a keystore it
+// cannot read leaves IMAPS unstarted and every handshake reset.
+func (m *FraiseqlCi) greenmailCerts() *dagger.Directory {
+	gen := strings.Join([]string{
+		"set -e",
+		"mkdir -p /out && cd /out",
+		"openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:P-256 -keyout ca.key -out ca.crt -days 2 -nodes" +
+			" -subj '/CN=fraiseql-greenmail-test-ca'" +
+			" -addext 'basicConstraints=critical,CA:TRUE' -addext 'keyUsage=critical,keyCertSign'",
+		"openssl req -newkey ec -pkeyopt ec_paramgen_curve:P-256 -keyout server.key -out server.csr -nodes -subj '/CN=" + greenmailBindHost + "'",
+		"openssl x509 -req -in server.csr -CA ca.crt -CAkey ca.key -CAcreateserial -out server.crt -days 2" +
+			" -extfile <(printf 'subjectAltName=DNS:" + greenmailBindHost + ",DNS:localhost,IP:127.0.0.1\\nbasicConstraints=critical,CA:FALSE\\nextendedKeyUsage=serverAuth')",
+		"openssl pkcs12 -export -in server.crt -inkey server.key -out greenmail.p12 -passout pass:greenmail -name greenmail",
+		"chmod 644 ca.crt greenmail.p12",
+	}, "\n")
+
+	return dag.Container().
+		From(pgImage). // the postgres image ships openssl
+		WithExec([]string{"bash", "-c", gen}).
+		Directory("/out")
+}
+
+// greenmailService is GreenMail over the keystore greenmailCerts made: IMAPS on 3993,
+// SMTP on 3025, and the one user the inbound_email fixture logs in as.
+func (m *FraiseqlCi) greenmailService(certs *dagger.Directory) *dagger.Service {
+	return dag.Container().
+		From(greenmailImage).
+		WithFile("/tls/greenmail.p12", certs.File("greenmail.p12")).
+		WithEnvVariable("GREENMAIL_OPTS", strings.Join([]string{
+			"-Dgreenmail.setup.test.all",
+			"-Dgreenmail.hostname=0.0.0.0",
+			"-Dgreenmail.users=fixture:fixture@example.test",
+			"-Dgreenmail.tls.keystore.file=/tls/greenmail.p12",
+			"-Dgreenmail.tls.keystore.password=greenmail",
+		}, " ")).
+		WithExposedPort(3993).
+		WithExposedPort(3025).
+		AsService()
+}
+
 // tlsPgService is a pgImage Postgres that enables TLS using the pre-generated server cert.
 // A small initdb script copies the cert/key into $PGDATA (as the postgres user, then
 // chmod 600), turns on ssl, and seeds v_test_entity (the wire TLS tests query it and
@@ -3121,6 +3169,9 @@ func (m *FraiseqlCi) integrationObservers(ctx context.Context, source *dagger.Di
 		"echo 'test-integration OK: observers suite passed'",
 	}, "\n")
 
+	// One PKI for the service and the client that trusts it.
+	greenmailCerts := m.greenmailCerts()
+
 	return m.integrationBase(source, rustMsrv).
 		WithServiceBinding(pgBindHost, m.pgService(source)).
 		WithServiceBinding(redisBindHost, m.redisService()).
@@ -3128,6 +3179,12 @@ func (m *FraiseqlCi) integrationObservers(ctx context.Context, source *dagger.Di
 		WithServiceBinding(kafkaBindHost, m.kafkaService()).
 		WithServiceBinding(localstackBindHost, m.localstackService()).
 		WithServiceBinding(mailhogBindHost, m.mailhogService()).
+		WithServiceBinding(greenmailBindHost, m.greenmailService(greenmailCerts)).
+		WithFile("/greenmail-ca.crt", greenmailCerts.File("ca.crt")).
+		WithEnvVariable("GREENMAIL_HOST", greenmailBindHost).
+		WithEnvVariable("GREENMAIL_IMAPS_PORT", "3993").
+		WithEnvVariable("GREENMAIL_SMTP_PORT", "3025").
+		WithEnvVariable("GREENMAIL_CA", "/greenmail-ca.crt").
 		WithEnvVariable("DATABASE_URL", dbURL).
 		WithEnvVariable("TEST_DATABASE_URL", dbURL).
 		WithEnvVariable("REDIS_URL", redisURL).
