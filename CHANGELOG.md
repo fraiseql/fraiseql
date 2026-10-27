@@ -217,7 +217,7 @@ disagreed, and the promise was the part that was wrong.
   without session variables, as it already did for a plain read and a relay page.
 
 - **Every level of a read is shaped by its selection, whatever the adapter returned
-  (#1646).** A GraphQL read and a `node(id:)` read made three passes over each response
+  (#1646, #1758).** A GraphQL read and a `node(id:)` read made three passes over each response
   after projecting it: they projected nested lists, stamped nested `__typename`s and
   nulled masked fields. A nested single object was served as the adapter returned it,
   with every key it held. One walk now rebuilds each object at every depth in selection
@@ -225,7 +225,9 @@ disagreed, and the promise was the part that was wrong.
   and reads a masked field as `null`. A key nothing selected is dropped, so an adapter
   that ignores the projection serves no unselected or masked value. A selected key the
   adapter left out of a nested object now completes to `null` in its place, as it does
-  at the root.
+  at the root. A direct read (a REST read, a streamed export, a composed read) is
+  shaped by the same walk, so it answers what the GraphQL read of the same selection
+  answers.
 - **The admin failure budget is one per client, not one per admin router** (#1760). Each
   admin router built its own failure limiter, so a client refused on one still had the
   full `admin_auth_max_failures` on every other: about 13 times the configured budget

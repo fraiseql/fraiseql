@@ -9,18 +9,10 @@
 //! The stored JSONB `data` builds nested arrays with `snake_case` keys and every
 //! column (not just the selected ones); the SQL projector leaves list fields as the
 //! raw sub-blob, so the recasing/projection must happen in Rust. These pure tests
-//! exercise both Rust projectors that see raw list blobs:
-//!
-//! - [`project_entity`] — the canonical entity projector (mutation success/error payloads, and the
-//!   query-path list pass delegates to it).
-//! - [`project_nested_lists`] — the query-path pass that fixes list fields left raw by the SQL
-//!   projection.
+//! exercise [`project_entity`], the canonical entity projector (mutation success/error
+//! payloads; the query path's walk projects each list element through it).
 
-use fraiseql_core::{
-    graphql::FieldSelection,
-    runtime::{project_entity, project_nested_lists},
-    schema::CompiledSchema,
-};
+use fraiseql_core::{graphql::FieldSelection, runtime::project_entity, schema::CompiledSchema};
 use serde_json::json;
 
 /// A leaf field selection (no sub-selection, no alias).
@@ -117,56 +109,5 @@ fn project_entity_recases_and_projects_nested_list_objects() {
         }),
         "nested list objects must be recased to camelCase and projected to the selection \
          set (no snake_case keys, no unselected `id`)"
-    );
-}
-
-#[test]
-fn project_nested_lists_fixes_a_sql_projected_result() {
-    // The query path already projected top-level fields at the SQL level (camelCase
-    // `id`), but left the `lineItems` list as the raw stored sub-blob.
-    let mut sql_projected = json!({
-        "id": "o1",
-        "lineItems": [
-            { "id": "li1", "unit_price": 9.99, "sku_code": "ABC" }
-        ]
-    });
-    let selections = vec![
-        field("id"),
-        nested("lineItems", vec![field("unitPrice"), field("skuCode")]),
-    ];
-
-    project_nested_lists(&mut sql_projected, "Order", &selections, &schema());
-
-    assert_eq!(
-        sql_projected,
-        json!({
-            "id": "o1",
-            "lineItems": [ { "unitPrice": 9.99, "skuCode": "ABC" } ]
-        })
-    );
-}
-
-#[test]
-fn project_nested_lists_reaches_lists_nested_inside_single_objects() {
-    // `customer` is a single object the SQL side already projected (camelCase keys);
-    // the list `orders` inside it is still raw. The pass must recurse into the object.
-    let mut sql_projected = json!({
-        "id": "o1",
-        "customer": {
-            "displayName": "Acme",
-            "orders": [ { "id": "o9", "line_items": [] } ]
-        }
-    });
-    let selections = vec![
-        field("id"),
-        nested("customer", vec![field("displayName"), nested("orders", vec![field("id")])]),
-    ];
-
-    project_nested_lists(&mut sql_projected, "Order", &selections, &schema());
-
-    assert_eq!(
-        sql_projected["customer"]["orders"],
-        json!([ { "id": "o9" } ]),
-        "a list nested inside an already-projected single object must still be projected"
     );
 }

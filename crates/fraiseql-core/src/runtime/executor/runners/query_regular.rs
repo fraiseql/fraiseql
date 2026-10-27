@@ -1291,44 +1291,16 @@ impl QueryRunner {
                 &query_match.query_def.return_type,
             );
         let mut projected = projector.project_results(rows, returns_list)?;
-        // #489: recase + project nested list-of-object fields left raw by SQL projection.
-        crate::runtime::project_nested_lists(
-            &mut projected,
-            &query_match.query_def.return_type,
-            query_match.selections.first().map_or(&[][..], |r| r.nested_fields.as_slice()),
-            &self.ctx.schema,
-        );
-
-        // #912: `__typename` is stripped from the SQL projection at every depth (it
-        //       is a meta-field, not a JSONB key — projecting it emits a literal
-        //       NULL). The root object is stamped by the projector and list elements
-        //       by `project_entity`; nested single objects have no other owner.
-        crate::runtime::stamp_nested_typenames(
-            &mut projected,
-            &query_match.query_def.return_type,
-            query_match.selections.first().map_or(&[][..], |r| r.nested_fields.as_slice()),
-            &self.ctx.schema,
-        );
-
-        // A root object field with a sub-selection — a REST leaf selection expanded to its
-        // type's fields — projected from the stored row at its own type, not verbatim.
-        super::query_nested::project_object_fields(
-            &mut projected,
-            rows,
-            &query_match.query_def.return_type,
-            root_fields,
-            &self.ctx.schema,
-        );
-
-        // #886: null out fields denied to this caller under `on_deny = Mask`, at every
-        // level.
-        selection.null_masked(
+        // Every level below the root rebuilt from its selection, its masked fields null, as
+        // for a GraphQL read. A root object field a leaf selection expanded arrives with its
+        // stored keys, which the walk reads where its response keys are absent.
+        crate::runtime::shape_projected(
             &mut projected,
             &query_match.query_def.return_type,
             root_fields,
             &self.ctx.schema,
+            Some(selection.masked_set()),
         );
-
         Ok(projected)
     }
 

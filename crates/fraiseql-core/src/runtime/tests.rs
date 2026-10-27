@@ -3713,32 +3713,6 @@ mod projection_tests {
         assert_eq!(projected, json!({ "parent": {}, "children": [{}], "tags": ["a"] }));
     }
 
-    /// A list nested below any depth is projected element by element, and so is a list's
-    /// nested object.
-    #[test]
-    fn project_nested_lists_reaches_a_list_at_every_depth() {
-        let mut doc = folder_doc(8);
-        let mut level = &mut doc;
-        for _ in 0..7 {
-            level = &mut level["parent"];
-        }
-        level["children"] = json!([folder_doc(3)]);
-        let selection = (0..7).fold(
-            vec![field(
-                "children",
-                vec![
-                    field("id", vec![]),
-                    field("parent", vec![field("id", vec![])]),
-                ],
-            )],
-            |inner, _| vec![field("parent", inner)],
-        );
-        let mut value = doc.clone();
-        crate::runtime::project_nested_lists(&mut value, "Folder", &selection, &folders());
-        let children = (0..7).fold(&value, |level, _| &level["parent"])["children"].clone();
-        assert_eq!(children, json!([{ "id": 3, "parent": { "id": 2 } }]), "{value}");
-    }
-
     fn aliased(alias: &str, name: &str, nested: Vec<FieldSelection>) -> FieldSelection {
         FieldSelection {
             alias: Some(alias.to_string()),
@@ -3869,6 +3843,67 @@ mod projection_tests {
     fn shape_projected_fills_a_key_selected_twice_once() {
         let selection = [field("id", vec![]), field("id", vec![])];
         assert_eq!(shaped(json!({ "id": 1 }), &selection, None), json!({ "id": 1 }));
+    }
+
+    /// A list nested seven objects down is projected element by element, and so is a
+    /// list's nested object.
+    #[test]
+    fn shape_projected_reaches_a_list_at_every_depth() {
+        let mut doc = folder_doc(8);
+        let mut level = &mut doc;
+        for _ in 0..7 {
+            level = &mut level["parent"];
+        }
+        level["children"] = json!([folder_doc(3)]);
+        let selection = (0..7).fold(
+            vec![field(
+                "children",
+                vec![
+                    field("id", vec![]),
+                    field("parent", vec![field("id", vec![])]),
+                ],
+            )],
+            |inner, _| vec![field("parent", inner)],
+        );
+        let mut value = doc;
+        crate::runtime::shape_projected(&mut value, "Folder", &selection, &folders(), None);
+        let children = (0..7).fold(&value, |level, _| &level["parent"])["children"].clone();
+        assert_eq!(children, json!([{ "id": 3, "parent": { "id": 2 } }]), "{value}");
+    }
+
+    /// A list the SQL projection left as its stored sub-document, `snake_case` keys and
+    /// unselected keys included, comes back in its selection's `camelCase` keys only.
+    #[test]
+    fn shape_projected_recases_a_stored_list_to_its_selection() {
+        let schema: crate::schema::CompiledSchema = serde_json::from_value(json!({
+            "naming_convention": "camelCase",
+            "types": [
+                { "name": "Order", "sql_source": "v_order", "fields": [
+                    { "name": "id", "field_type": "ID" },
+                    { "name": "lineItems",
+                      "field_type": { "List": {"item": { "Object": "LineItem" }} } }
+                ] },
+                { "name": "LineItem", "sql_source": "v_line_item", "fields": [
+                    { "name": "id", "field_type": "ID" },
+                    { "name": "unitPrice", "field_type": "Float" },
+                    { "name": "skuCode", "field_type": "String" }
+                ] }
+            ]
+        }))
+        .unwrap();
+        let mut value = json!({
+            "id": "o1",
+            "lineItems": [{ "id": "li1", "unit_price": 9.99, "sku_code": "ABC" }]
+        });
+        let selection = [
+            field("id", vec![]),
+            field("lineItems", vec![field("unitPrice", vec![]), field("skuCode", vec![])]),
+        ];
+        crate::runtime::shape_projected(&mut value, "Order", &selection, &schema, None);
+        assert_eq!(
+            serde_json::to_string(&value).unwrap(),
+            r#"{"id":"o1","lineItems":[{"unitPrice":9.99,"skuCode":"ABC"}]}"#
+        );
     }
 
     /// A list is projected from its stored elements, at any depth below a single object.

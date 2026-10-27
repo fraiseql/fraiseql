@@ -7,7 +7,7 @@
 //! End-to-end on the QUERY path: the view's `data` builds a nested `line_items`
 //! array with `snake_case` element keys (`unit_price`, `sku_code`) and an unselected
 //! `id`. The SQL projector leaves list fields as the raw sub-blob, so the recasing +
-//! projection happens in Rust (`project_nested_lists`, wired into the query runner).
+//! projection happens in Rust (the shaping walk, `shape_projected`).
 //! We run a real GraphQL query through parse → SQL → project → serialize and assert
 //! the array comes back camelCased and projected.
 //!

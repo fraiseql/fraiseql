@@ -149,10 +149,7 @@ pub use mutation_result::{
     ConstraintMetadata, MutationErrorShapeCheck, mutation_error_shape_violations,
 };
 pub use planner::{ExecutionPlan, PlannedProjection, QueryPlanner};
-pub use projection::{
-    FieldMapping, ProjectionMapper, ResultProjector, project_entity, project_nested_lists,
-    stamp_nested_typenames,
-};
+pub use projection::{FieldMapping, ProjectionMapper, ResultProjector, project_entity};
 pub(crate) use projection::{shape_projected, shape_unprojected_root, stored_key_candidates};
 pub use query_function::{QueryFunctionRequest, QueryFunctionResolver};
 pub use query_tracing::{
