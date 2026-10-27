@@ -418,6 +418,9 @@ pub(in super::super) struct RootRead {
     /// The bound a `nearest` search counts its filter's matches up to, in the same
     /// statement (`verify` / `refuse`), or `None`.
     pub(super) nearest_count:  Option<u32>,
+    /// Where the documents this read returns hold a `Decimal`: they are read as text and
+    /// those digits kept as strings.
+    pub(super) decimals:       Option<std::sync::Arc<crate::backend::traits::DecimalShape>>,
 }
 
 impl RootRead {
@@ -451,6 +454,7 @@ impl RootRead {
             limit:         self.limit,
             offset:        self.offset,
             matched_up_to: self.nearest_count,
+            decimals:      self.decimals.as_deref(),
         }
     }
 
@@ -467,6 +471,7 @@ impl RootRead {
             keyset: None,
             keys: super::query_nested::root_keys(&embeds),
             embeds,
+            decimals: self.decimals.clone(),
         }
     }
 }
@@ -725,6 +730,7 @@ impl QueryRunner {
                 response_bytes: None,
                 nearest_k: None,
                 nearest_count: None,
+                decimals: self.ctx.decimals.read_by(&query_def.name).cloned(),
             })));
         };
 
@@ -855,6 +861,7 @@ impl QueryRunner {
             response_bytes: self.ctx.config.max_response_bytes,
             nearest_k,
             nearest_count,
+            decimals: self.ctx.decimals.read_by(&query_def.name).cloned(),
         })))
     }
 

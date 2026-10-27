@@ -19,10 +19,14 @@ use crate::{
 #[cfg(test)]
 mod tests;
 
-/// The fields of every type in a schema that leads to a `Decimal`, built once per schema.
+/// Every type in a schema from which a `Decimal` is reachable, and the shape of a document
+/// read as each, built once per schema.
 #[derive(Debug, Clone, Default)]
 pub struct DecimalIndex {
-    types: Arc<HashMap<String, DecimalFields>>,
+    /// The shape of a document read as each object type, union or interface.
+    shapes: HashMap<String, Arc<DecimalShape>>,
+    /// The shape of the documents each query reads.
+    reads:  HashMap<String, Arc<DecimalShape>>,
 }
 
 impl DecimalIndex {
@@ -31,7 +35,7 @@ impl DecimalIndex {
     #[must_use]
     pub fn new(schema: &CompiledSchema) -> Self {
         let reaching = reaching_types(schema);
-        let types = schema
+        let types: HashMap<String, DecimalFields> = schema
             .types
             .iter()
             .filter(|t| reaching.contains(t.name.as_str()))
@@ -55,50 +59,66 @@ impl DecimalIndex {
                 (t.name.to_string(), fields)
             })
             .collect();
-        Self {
-            types: Arc::new(types),
-        }
+        let types = Arc::new(types);
+        let abstracts = schema
+            .unions
+            .iter()
+            .map(|u| u.name.as_str())
+            .chain(schema.interfaces.iter().map(|i| i.name.as_str()));
+        let shapes = types
+            .keys()
+            .map(|name| (name.clone(), DecimalNode::Object(name.clone())))
+            .chain(
+                abstracts
+                    .filter(|name| reaches_abstract(schema, &reaching, name))
+                    .map(|name| (name.to_string(), DecimalNode::Abstract(None))),
+            )
+            .map(|(name, root)| (name, Arc::new(DecimalShape::new(root, Arc::clone(&types)))))
+            .collect::<HashMap<_, _>>();
+        let reads = schema
+            .queries
+            .iter()
+            .filter_map(|query| {
+                let read_as = query.return_type.as_str();
+                let shape = shapes.get(read_as)?;
+                let stored = schema.possible_types(read_as).and_then(|possible| {
+                    schema.type_stored_in(&possible, query.sql_source.as_deref())
+                });
+                let shape = match stored {
+                    Some(fallback) => Arc::new(DecimalShape::new(
+                        DecimalNode::Abstract(Some(fallback.to_string())),
+                        Arc::clone(&types),
+                    )),
+                    None => Arc::clone(shape),
+                };
+                Some((query.name.clone(), shape))
+            })
+            .collect();
+        Self { shapes, reads }
     }
 
     /// The shape of a document read as `type_name`, an object type, a union or an
     /// interface; `None` when no `Decimal` is reachable from it.
     #[must_use]
-    pub fn shape(&self, schema: &CompiledSchema, type_name: &str) -> Option<DecimalShape> {
-        self.shape_with_fallback(schema, type_name, None)
+    pub fn shape(&self, type_name: &str) -> Option<&Arc<DecimalShape>> {
+        self.shapes.get(type_name)
     }
 
-    /// [`shape`](Self::shape) for an abstract `type_name` whose documents may name no
-    /// `__typename`: each such document is read as `fallback`.
+    /// The shape of the documents the query `query_name` reads: its return type's, an
+    /// abstract one reading a document that names no `__typename` as the one possible type
+    /// stored in the query's view, as the read itself types such a row.
     #[must_use]
-    pub fn shape_with_fallback(
-        &self,
-        schema: &CompiledSchema,
-        type_name: &str,
-        fallback: Option<&str>,
-    ) -> Option<DecimalShape> {
-        let root = if schema.find_type(type_name).is_some() {
-            DecimalNode::Object(type_name.to_string())
-        } else {
-            let members = abstract_members(schema, type_name)?;
-            if !members.iter().any(|m| self.types.contains_key(m.as_str())) {
-                return None;
-            }
-            DecimalNode::Abstract(fallback.map(str::to_string))
-        };
-        if let DecimalNode::Object(name) = &root {
-            self.types.get(name)?;
-        }
-        Some(DecimalShape::new(root, Arc::clone(&self.types)))
+    pub fn read_by(&self, query_name: &str) -> Option<&Arc<DecimalShape>> {
+        self.reads.get(query_name)
     }
 }
 
-/// The concrete types a union or an interface may hold; `None` when `name` is neither.
-fn abstract_members(schema: &CompiledSchema, name: &str) -> Option<Vec<String>> {
-    if let Some(union) = schema.find_union(name) {
-        return Some(union.member_types.clone());
-    }
-    schema.find_interface(name)?;
-    Some(schema.find_implementors(name).iter().map(|t| t.name.to_string()).collect())
+/// Whether a union or an interface named `name` holds a type from which a `Decimal` is
+/// reachable.
+fn reaches_abstract(schema: &CompiledSchema, reaching: &HashSet<String>, name: &str) -> bool {
+    schema
+        .possible_types(name)
+        .is_some_and(|members| members.iter().any(|m| reaching.contains(*m)))
 }
 
 /// Every object type from which a `Decimal` is reachable, through any depth of fields.
@@ -131,10 +151,9 @@ fn node_for(
         FieldType::Object(name) => {
             reaching.contains(name.as_str()).then(|| DecimalNode::Object(name.clone()))
         },
-        FieldType::Union(name) | FieldType::Interface(name) => abstract_members(schema, name)?
-            .iter()
-            .any(|m| reaching.contains(m.as_str()))
-            .then_some(DecimalNode::Abstract(None)),
+        FieldType::Union(name) | FieldType::Interface(name) => {
+            reaches_abstract(schema, reaching, name).then_some(DecimalNode::Abstract(None))
+        },
         _ => None,
     }
 }

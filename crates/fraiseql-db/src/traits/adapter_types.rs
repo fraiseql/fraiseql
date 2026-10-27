@@ -162,6 +162,10 @@ pub struct ProjectionRequest<'a> {
     /// count under [`MATCHED_KEY`], and an empty page comes back as one document marked
     /// [`EMPTY_PAGE_KEY`]; [`take_matched`] strips both. `None` adds nothing.
     pub matched_up_to: Option<u32>,
+    /// Where the read's documents hold a `Decimal`: each is read as text and its digits kept
+    /// as a string, which a decoded number would round. `None` when the type reaches
+    /// none.
+    pub decimals:      Option<&'a super::DecimalShape>,
 }
 
 /// The key a [`ProjectionRequest::matched_up_to`] page carries its match count under.
@@ -207,6 +211,7 @@ impl<'a> ProjectionRequest<'a> {
             limit: None,
             offset: None,
             matched_up_to: None,
+            decimals: None,
         }
     }
 }

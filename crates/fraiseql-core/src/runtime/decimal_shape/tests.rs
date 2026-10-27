@@ -6,8 +6,8 @@ use super::DecimalIndex;
 use crate::{
     db::traits::{DecimalShape, quote_decimals},
     schema::{
-        CompiledSchema, FieldDefinition, FieldType, InterfaceDefinition, TypeDefinition,
-        UnionDefinition,
+        CompiledSchema, FieldDefinition, FieldType, InterfaceDefinition, QueryDefinition,
+        TypeDefinition, UnionDefinition,
     },
 };
 
@@ -36,7 +36,7 @@ fn schema(types: Vec<TypeDefinition>) -> CompiledSchema {
 fn type_def(name: &str, fields: Vec<FieldDefinition>) -> TypeDefinition {
     fields
         .into_iter()
-        .fold(TypeDefinition::new(name, "v_x"), TypeDefinition::with_field)
+        .fold(TypeDefinition::new(name, format!("v_{name}")), TypeDefinition::with_field)
 }
 
 fn implementing(mut t: TypeDefinition, interface: &str) -> TypeDefinition {
@@ -51,7 +51,9 @@ fn read(shape: &DecimalShape, src: &str) -> Value {
 }
 
 fn shape_of(schema: &CompiledSchema, type_name: &str) -> Option<DecimalShape> {
-    DecimalIndex::new(schema).shape(schema, type_name)
+    DecimalIndex::new(schema)
+        .shape(type_name)
+        .map(|shape| DecimalShape::clone(shape))
 }
 
 #[test]
@@ -178,13 +180,21 @@ fn a_union_or_interface_member_is_read_as_the_type_it_names() {
 }
 
 #[test]
-fn an_abstract_document_naming_no_type_is_read_as_the_fallback() {
-    let schema = union_schema();
+fn a_query_of_an_abstract_type_reads_a_document_naming_no_type_as_the_one_stored_in_its_view() {
+    let mut schema = union_schema();
+    let mut stored = QueryDefinition::new("invoices", "Item");
+    stored.sql_source = Some("v_Invoice".to_string());
+    let mut shared = QueryDefinition::new("feed", "Item");
+    shared.sql_source = Some("v_items".to_string());
+    schema.queries.extend([stored, shared]);
     let index = DecimalIndex::new(&schema);
     let doc = r#"{"amount": 1.50}"#;
-    let with = index.shape_with_fallback(&schema, "Item", Some("Invoice")).unwrap();
-    assert_eq!(read(&with, doc), json!({"amount": "1.50"}));
-    assert_eq!(read(&index.shape(&schema, "Item").unwrap(), doc), json!({"amount": 1.5}));
+    assert_eq!(read(index.read_by("invoices").unwrap(), doc), json!({"amount": "1.50"}));
+    assert_eq!(
+        read(index.read_by("feed").unwrap(), doc),
+        json!({"amount": 1.5}),
+        "a view no single member is stored in names no fallback"
+    );
 }
 
 #[test]

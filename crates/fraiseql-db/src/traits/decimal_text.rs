@@ -8,6 +8,8 @@
 
 use std::{borrow::Cow, collections::HashMap, sync::Arc};
 
+use super::{COMPOSED_DOCUMENT_KEY as COMPOSED_DOCUMENT, COMPOSED_EMBEDS_KEY as COMPOSED_EMBEDS};
+
 #[cfg(test)]
 mod tests;
 
@@ -66,6 +68,13 @@ impl DecimalShape {
         Self { root, types }
     }
 
+    /// What a document is read as. With the schema the shape was built from, it determines
+    /// the whole shape.
+    #[must_use]
+    pub const fn root(&self) -> &DecimalNode {
+        &self.root
+    }
+
     fn fields(&self, type_name: &str) -> Option<&DecimalFields> {
         self.types.get(type_name)
     }
@@ -94,6 +103,23 @@ pub fn quote_decimals(src: &[u8], shape: &DecimalShape, out: &mut Vec<u8>) {
         objects: 0,
     }
     .value(skip_ws(src, 0), Some(&shape.root), 0);
+    out.extend_from_slice(src.get(end..).unwrap_or_default());
+}
+
+/// [`quote_decimals`] for a composed row.
+///
+/// Its level's document is under `"d"`, read as `shape`'s root, and under `"e"` each
+/// embedded level's rows, keyed by the parent's field, read the same way at that field's
+/// type.
+pub fn quote_composed_decimals(src: &[u8], shape: &DecimalShape, out: &mut Vec<u8>) {
+    out.reserve(src.len() + 16);
+    let end = Scan {
+        src,
+        out,
+        shape,
+        objects: 0,
+    }
+    .composed(skip_ws(src, 0), Some(&shape.root));
     out.extend_from_slice(src.get(end..).unwrap_or_default());
 }
 
@@ -192,6 +218,85 @@ impl<'s> Scan<'s, '_> {
     }
 
     fn members(&mut self, at: usize, fields: &'s DecimalFields) -> usize {
+        self.each_member(at, |scan, key, i| scan.value(i, key.and_then(|k| fields.get(k)), 0))
+    }
+
+    /// A composed row of `node`: its document under `"d"`, its embedded levels under `"e"`.
+    fn composed(&mut self, at: usize, node: Option<&'s DecimalNode>) -> usize {
+        if self.src.get(at) != Some(&b'{') || self.objects >= MAX_OBJECT_DEPTH {
+            return self.copy(at);
+        }
+        let parent = self.embedding_fields(at, node);
+        self.objects += 1;
+        let end = self.each_member(at, |scan, key, i| match key {
+            Some(COMPOSED_DOCUMENT) => scan.value(i, node, 0),
+            Some(COMPOSED_EMBEDS) => scan.embeds(i, parent),
+            _ => scan.copy(i),
+        });
+        self.objects -= 1;
+        end
+    }
+
+    /// The embedded levels of a row whose type has `parent`'s fields: each a composed row,
+    /// or a list of them, read at the type of the field it is keyed by.
+    fn embeds(&mut self, at: usize, parent: Option<&'s DecimalFields>) -> usize {
+        let Some(parent) = parent.filter(|_| self.src.get(at) == Some(&b'{')) else {
+            return self.copy(at);
+        };
+        self.each_member(at, |scan, key, i| {
+            let child = key.and_then(|k| parent.get(k));
+            match scan.src.get(i) {
+                Some(b'[') if child.is_some() => scan.composed_list(i, child),
+                Some(b'{') if child.is_some() => scan.composed(i, child),
+                _ => scan.copy(i),
+            }
+        })
+    }
+
+    fn composed_list(&mut self, at: usize, node: Option<&'s DecimalNode>) -> usize {
+        self.out.push(b'[');
+        let mut i = at + 1;
+        loop {
+            i = self.whitespace(i);
+            match self.src.get(i) {
+                Some(b']') => {
+                    self.out.push(b']');
+                    return i + 1;
+                },
+                Some(b',') => {
+                    self.out.push(b',');
+                    i += 1;
+                },
+                Some(_) => i = self.composed(i, node),
+                None => return i,
+            }
+        }
+    }
+
+    /// The fields of the type a composed row of `node` is: an abstract row's is the type
+    /// its document names.
+    fn embedding_fields(&self, at: usize, node: Option<&DecimalNode>) -> Option<&'s DecimalFields> {
+        let shape: &'s DecimalShape = self.shape;
+        match node? {
+            DecimalNode::Object(name) => shape.fields(name),
+            DecimalNode::Abstract(fallback) => {
+                let named = member_value(self.src, at, COMPOSED_DOCUMENT)
+                    .and_then(|document| concrete_type(self.src, document));
+                match named {
+                    Some(name) => shape.fields(&name),
+                    None => shape.fields(fallback.as_deref()?),
+                }
+            },
+            DecimalNode::Decimal => None,
+        }
+    }
+
+    /// Copy the object at `at`, each member's value through `on_value` with its decoded key.
+    fn each_member(
+        &mut self,
+        at: usize,
+        mut on_value: impl FnMut(&mut Self, Option<&str>, usize) -> usize,
+    ) -> usize {
         self.out.push(b'{');
         let mut i = at + 1;
         loop {
@@ -214,7 +319,7 @@ impl<'s> Scan<'s, '_> {
                         self.out.push(b':');
                         i = self.whitespace(i + 1);
                     }
-                    i = self.value(i, key.as_deref().and_then(|k| fields.get(k)), 0);
+                    i = on_value(self, key.as_deref(), i);
                 },
                 Some(_) => return self.copy_rest(i),
                 None => return i,
@@ -239,6 +344,15 @@ impl<'s> Scan<'s, '_> {
 /// The type an object's top-level `__typename` member names, wherever it sits among the
 /// members.
 fn concrete_type(src: &[u8], at: usize) -> Option<Cow<'_, str>> {
+    let value = member_value(src, at, "__typename")?;
+    string_text(&src[value..end_of_value(src, value)])
+}
+
+/// Where the value of the object at `at`'s top-level member `key` starts.
+fn member_value(src: &[u8], at: usize, key: &str) -> Option<usize> {
+    if src.get(at) != Some(&b'{') {
+        return None;
+    }
     let mut i = at + 1;
     loop {
         i = skip_ws(src, i);
@@ -246,16 +360,15 @@ fn concrete_type(src: &[u8], at: usize) -> Option<Cow<'_, str>> {
             b',' => i += 1,
             b'"' => {
                 let close = end_of_string(src, i);
-                let is_typename = string_text(&src[i..close]).as_deref() == Some("__typename");
+                let found = string_text(&src[i..close]).as_deref() == Some(key);
                 i = skip_ws(src, close);
                 if src.get(i) == Some(&b':') {
                     i = skip_ws(src, i + 1);
                 }
-                let end = end_of_value(src, i);
-                if is_typename {
-                    return string_text(&src[i..end]);
+                if found {
+                    return Some(i);
                 }
-                i = end;
+                i = end_of_value(src, i);
             },
             _ => return None,
         }

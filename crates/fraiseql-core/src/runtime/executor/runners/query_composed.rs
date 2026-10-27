@@ -451,7 +451,10 @@ impl ComposedPlan {
     /// because it is projected afterwards exactly as a flat read is; every level beneath
     /// it reads only the keys its field access allows.
     fn lower(&self, schema: &CompiledSchema) -> ComposedLevel {
-        self.lower_level(schema, LevelKeys::Whole)
+        ComposedLevel {
+            decimals: self.resolved.decimals.clone(),
+            ..self.lower_level(schema, LevelKeys::Whole)
+        }
     }
 
     fn lower_level(&self, schema: &CompiledSchema, keys: LevelKeys) -> ComposedLevel {
@@ -470,6 +473,8 @@ impl ComposedPlan {
                 .iter()
                 .filter_map(|embed| embed.lower(schema, parent_type, &self.resolved.sql_source))
                 .collect(),
+            // Only the root carries the shape: it reaches the embedded levels too.
+            decimals: None,
         }
     }
 }
@@ -509,6 +514,7 @@ impl PlannedEmbed {
                         masked: Vec::new(),
                     },
                     embeds:       Vec::new(),
+                    decimals:     None,
                 },
             ),
         };

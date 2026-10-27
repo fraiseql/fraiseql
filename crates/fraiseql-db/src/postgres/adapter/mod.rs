@@ -39,7 +39,7 @@ use crate::{
     identifier::quote_postgres_identifier,
     order_by::{Tiebreak, append_order_by, render_order_by_columns},
     postgres::pg_detail,
-    traits::{DatabaseAdapter, RawRows},
+    traits::{DatabaseAdapter, DecimalShape, RawRows, quote_composed_decimals, quote_decimals},
     types::{
         DatabaseType, JsonbValue, QueryParam, ReadRouting,
         sql_hints::{OrderByClause, SqlProjectionHint},
@@ -163,6 +163,59 @@ where
 {
     match row.try_get::<_, Option<serde_json::Value>>(column) {
         Ok(Some(value)) => Ok(JsonbValue::new(value)),
+        Ok(None) => Err(null_data_column(sql)),
+        Err(e) => Err(unreadable_data_column(&e, sql)),
+    }
+}
+
+/// Where a read's documents hold a `Decimal`, and how its rows carry them.
+#[derive(Clone, Copy)]
+pub(super) enum Decimals<'a> {
+    /// Each row is one document of the shape's root.
+    Document(&'a DecimalShape),
+    /// Each row is a composed row: its document and its embedded levels.
+    Composed(&'a DecimalShape),
+}
+
+impl<'a> Decimals<'a> {
+    /// Rows that are documents of `shape`, or `None` for no shape.
+    pub(super) fn documents(shape: Option<&'a DecimalShape>) -> Option<Self> {
+        shape.map(Self::Document)
+    }
+}
+
+/// [`jsonb_cell`], each number at a `Decimal` position of `decimals` kept as a string of
+/// the digits the server sent, which a decoded number would round. `None` is [`jsonb_cell`].
+fn document_cell<I>(
+    row: &Row,
+    column: I,
+    sql: &str,
+    decimals: Option<Decimals<'_>>,
+) -> Result<JsonbValue>
+where
+    I: tokio_postgres::row::RowIndex + std::fmt::Display,
+{
+    let Some(decimals) = decimals else {
+        return jsonb_cell(row, column, sql);
+    };
+    match row.try_get::<_, Option<JsonText<'_>>>(column) {
+        Ok(Some(JsonText(text))) => {
+            let mut quoted = Vec::new();
+            match decimals {
+                Decimals::Document(shape) => quote_decimals(text, shape, &mut quoted),
+                Decimals::Composed(shape) => quote_composed_decimals(text, shape, &mut quoted),
+            }
+            serde_json::from_slice(&quoted).map(JsonbValue::new).map_err(|e| {
+                FraiseQLError::Database {
+                    message:    format!(
+                        "Failed to parse the `data` column as JSON ({e}). Query: {}",
+                        query_preview(sql)
+                    ),
+                    sql_state:  None,
+                    constraint: None,
+                }
+            })
+        },
         Ok(None) => Err(null_data_column(sql)),
         Err(e) => Err(unreadable_data_column(&e, sql)),
     }
@@ -1496,8 +1549,26 @@ impl PostgresAdapter {
         session_vars: &[(&str, &str)],
         routing: ReadRouting,
     ) -> Result<Vec<JsonbValue>> {
+        self.execute_documents_with_session(sql, params, session_vars, routing, None)
+            .await
+    }
+
+    /// [`execute_raw_with_session`](Self::execute_raw_with_session), each document's
+    /// `Decimal` numbers kept as the digits stored (see [`document_cell`]).
+    ///
+    /// # Errors
+    ///
+    /// As [`execute_raw_with_session`](Self::execute_raw_with_session).
+    pub(super) async fn execute_documents_with_session(
+        &self,
+        sql: &str,
+        params: &[&(dyn tokio_postgres::types::ToSql + Sync)],
+        session_vars: &[(&str, &str)],
+        routing: ReadRouting,
+        decimals: Option<Decimals<'_>>,
+    ) -> Result<Vec<JsonbValue>> {
         let rows = self.read_rows(sql, params, session_vars, routing).await?;
-        rows.into_iter().map(|row| jsonb_cell(&row, 0, sql)).collect()
+        rows.into_iter().map(|row| document_cell(&row, 0, sql, decimals)).collect()
     }
 
     /// [`execute_raw_with_session`](Self::execute_raw_with_session)'s read, each row kept as

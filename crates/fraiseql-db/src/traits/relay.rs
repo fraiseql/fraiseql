@@ -101,6 +101,7 @@ pub trait RelayDatabaseAdapter: DatabaseAdapter {
         include_total_count: bool,
         session_vars: &'a [(&'a str, &'a str)],
         _routing: ReadRouting,
+        _decimals: Option<&'a super::DecimalShape>,
     ) -> impl Future<Output = Result<RelayPageResult>> + Send + 'a {
         async move {
             super::refuse_session_variables(self, session_vars)?;

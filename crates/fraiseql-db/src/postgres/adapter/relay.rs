@@ -7,7 +7,7 @@ use crate::{
     dialect::PostgresDialect,
     identifier::quote_postgres_identifier,
     postgres::{pg_detail, where_generator::PostgresWhereGenerator},
-    traits::{RelayCursor, RelayDatabaseAdapter, RelayPageResult},
+    traits::{DecimalShape, RelayCursor, RelayDatabaseAdapter, RelayPageResult},
     types::{QueryParam, ReadRouting, sql_hints::OrderByClause},
     where_clause::WhereClause,
 };
@@ -66,6 +66,7 @@ impl RelayDatabaseAdapter for PostgresAdapter {
             order_by,
             include_total_count,
             ReadRouting::Any,
+            None,
         )
         .await
     }
@@ -84,6 +85,7 @@ impl RelayDatabaseAdapter for PostgresAdapter {
         include_total_count: bool,
         session_vars: &[(&str, &str)],
         routing: ReadRouting,
+        decimals: Option<&DecimalShape>,
     ) -> Result<RelayPageResult> {
         // Fast path: no session variables to apply, so no transaction; same routing.
         if session_vars.is_empty() {
@@ -99,6 +101,7 @@ impl RelayDatabaseAdapter for PostgresAdapter {
                     order_by,
                     include_total_count,
                     routing,
+                    decimals,
                 )
                 .await;
         }
@@ -131,6 +134,7 @@ impl RelayDatabaseAdapter for PostgresAdapter {
                 where_clause,
                 order_by,
                 include_total_count,
+                decimals,
             )
             .await;
         if page.is_err() {
@@ -170,6 +174,7 @@ impl PostgresAdapter {
         order_by: Option<&[OrderByClause]>,
         include_total_count: bool,
         routing: ReadRouting,
+        decimals: Option<&DecimalShape>,
     ) -> Result<RelayPageResult> {
         let client = self.acquire_read_connection_with_retry(routing).await?;
         let active = if forward {
@@ -189,6 +194,7 @@ impl PostgresAdapter {
                 where_clause,
                 order_by,
                 include_total_count,
+                decimals,
             )
             .await;
         drop(client);
@@ -268,6 +274,7 @@ impl PostgresAdapter {
         where_clause: Option<&WhereClause>,
         order_by: Option<&[OrderByClause]>,
         include_total_count: bool,
+        decimals: Option<&DecimalShape>,
     ) -> Result<RelayPageResult>
     where
         C: tokio_postgres::GenericClient + Sync,
@@ -372,7 +379,9 @@ impl PostgresAdapter {
 
         let rows: Vec<crate::types::JsonbValue> = page_rows
             .iter()
-            .map(|row| super::jsonb_cell(row, "data", &page_sql))
+            .map(|row| {
+                super::document_cell(row, "data", &page_sql, super::Decimals::documents(decimals))
+            })
             .collect::<Result<Vec<_>>>()?;
 
         // ── Count query (Relay spec: totalCount ignores cursor position) ────────

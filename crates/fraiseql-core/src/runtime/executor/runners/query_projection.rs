@@ -64,10 +64,14 @@ pub fn build_typed_projection_fields(
                 type_def.and_then(|td| td.fields.iter().find(|f| f.name == sel.name.as_str()));
 
             let is_composite = field_def.is_some_and(|fd| !fd.field_type.is_scalar());
+            // A `Decimal` is read as text too: `->>` prints the digits jsonb stored, which
+            // a decoded number would round.
             let is_text = field_def.is_some_and(|fd| {
                 matches!(
                     fd.field_type,
-                    crate::schema::FieldType::String | crate::schema::FieldType::Id
+                    crate::schema::FieldType::String
+                        | crate::schema::FieldType::Id
+                        | crate::schema::FieldType::Decimal
                 )
             });
 

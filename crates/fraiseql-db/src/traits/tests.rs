@@ -211,6 +211,7 @@ mod trait_defaults {
                 false,
                 &[("app.tenant_id", "t1")],
                 ReadRouting::Any,
+                None,
             )
             .await;
 

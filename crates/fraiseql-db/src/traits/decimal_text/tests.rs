@@ -245,3 +245,64 @@ fn a_truncated_text_is_copied_to_its_end_without_panicking() {
         assert_eq!(quoted(text, &shape).replace('"', ""), text.replace('"', ""), "cut at {cut}");
     }
 }
+
+fn composed(src: &str, shape: &DecimalShape) -> Value {
+    let mut out = Vec::new();
+    super::quote_composed_decimals(src.as_bytes(), shape, &mut out);
+    serde_json::from_slice(&out).unwrap()
+}
+
+/// A `Post` with a `price`, embedding its `comments`, each with a `tip`, and its `author`,
+/// with a `balance`.
+fn posts() -> DecimalShape {
+    shape(
+        object("Post"),
+        &[
+            (
+                "Post",
+                &[
+                    ("price", decimal()),
+                    ("comments", object("Comment")),
+                    ("author", object("User")),
+                ],
+            ),
+            ("Comment", &[("tip", decimal())]),
+            ("User", &[("balance", decimal())]),
+        ],
+    )
+}
+
+#[test]
+fn a_composed_row_is_read_level_by_level_through_its_embeds() {
+    let row = r#"{"d": {"price": 1.50, "n": 1.50},
+                  "e": {"comments": [{"d": {"tip": 0.10}, "e": {}}, {"d": {"tip": 2}}],
+                        "author": {"d": {"balance": 100.00}, "e": null},
+                        "other": {"d": {"tip": 1.5}}}}"#;
+    assert_eq!(
+        composed(row, &posts()),
+        json!({"d": {"price": "1.50", "n": 1.5},
+               "e": {"comments": [{"d": {"tip": "0.10"}, "e": {}}, {"d": {"tip": "2"}}],
+                     "author": {"d": {"balance": "100.00"}, "e": null},
+                     "other": {"d": {"tip": 1.5}}}})
+    );
+}
+
+#[test]
+fn a_composed_row_whose_document_comes_after_its_embeds_is_read_the_same() {
+    let row = r#"{"e": {"author": {"e": {}, "d": {"balance": 1.10}}}, "d": {"price": 2.20}}"#;
+    assert_eq!(
+        composed(row, &posts()),
+        json!({"e": {"author": {"e": {}, "d": {"balance": "1.10"}}}, "d": {"price": "2.20"}})
+    );
+}
+
+#[test]
+fn an_abstract_composed_row_embeds_by_the_type_its_document_names() {
+    let mut shape = posts();
+    shape.root = DecimalNode::Abstract(None);
+    let row = r#"{"e": {"comments": [{"d": {"tip": 0.10}}]}, "d": {"__typename": "Post", "price": 1.50}}"#;
+    assert_eq!(
+        composed(row, &shape),
+        json!({"e": {"comments": [{"d": {"tip": "0.10"}}]}, "d": {"__typename": "Post", "price": "1.50"}})
+    );
+}

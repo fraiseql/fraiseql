@@ -392,6 +392,7 @@ impl Executor {
             &schema,
             config.rls_policy.as_deref(),
         );
+        let decimals = crate::runtime::DecimalIndex::new(&schema);
         let ctx = Arc::new(ExecutorContext {
             schema,
             schema_version,
@@ -406,6 +407,7 @@ impl Executor {
             introspection,
             output_types,
             node_type_index,
+            decimals,
             gate1,
             parse_cache: MokaCache::new(PARSE_CACHE_CAPACITY),
             documents: crate::graphql::DocumentCache::new(PARSE_CACHE_CAPACITY),

@@ -19,7 +19,9 @@ pub use composed_read::{
     COMPOSED_DOCUMENT_KEY, COMPOSED_EMBEDS_KEY, ComposedEmbed, ComposedKeyset, ComposedLevel,
     EmbedShape, EmbedSource, LevelKeys, NativeCorrelation, composed_read_unsupported,
 };
-pub use decimal_text::{DecimalFields, DecimalNode, DecimalShape, quote_decimals};
+pub use decimal_text::{
+    DecimalFields, DecimalNode, DecimalShape, quote_composed_decimals, quote_decimals,
+};
 use fraiseql_error::{FraiseQLError, Result};
 pub use mutations::{
     CHANGED_ROWS_KEY, ChangedCollections, ChangedRows, DERIVED_CASCADE_KEY, DerivedCascade,

@@ -51,6 +51,7 @@ use crate::{
     backend::{
         ComposedEmbed, ComposedKeyset, ComposedLevel, EmbedShape, EmbedSource, LevelKeys,
         NativeCorrelation, OrderByClause, ProjectionRequest, RelayCursor, WhereOperator,
+        traits::{DecimalNode, DecimalShape},
         where_clause::WhereClause,
     },
     schema::QueryDefinition,
@@ -251,6 +252,7 @@ pub fn generate_projection_query_key(
         limit,
         offset,
         matched_up_to,
+        decimals,
     } = *request;
     let mut h = new_hasher();
     h.write(b"p:");
@@ -315,6 +317,10 @@ pub fn generate_projection_query_key(
         },
         None => h.write_u8(0),
     }
+    // Rows decoded with a `Decimal` shape hold strings where rows decoded without one hold
+    // numbers, so two types reading one view never share an entry.
+    h.write(b"\0d:");
+    hash_decimals(&mut h, decimals);
     h.write(b"\0sv:");
     hash_session_vars(&mut h, session_vars);
     hash_locale(&mut h, locale);
@@ -357,6 +363,7 @@ fn hash_composed_level(h: &mut impl Hasher, level: &ComposedLevel) {
         keyset,
         keys,
         embeds,
+        decimals,
     } = level;
     h.write(view.as_bytes());
     h.write(b"\0j:");
@@ -424,6 +431,8 @@ fn hash_composed_level(h: &mut impl Hasher, level: &ComposedLevel) {
             hash_strings(h, masked);
         },
     }
+    h.write(b"\0d:");
+    hash_decimals(h, decimals.as_deref());
     h.write(b"\0e:");
     h.write_usize(embeds.len());
     for ComposedEmbed {
@@ -470,6 +479,24 @@ fn hash_composed_level(h: &mut impl Hasher, level: &ComposedLevel) {
             },
         }
         hash_composed_level(h, level);
+    }
+}
+
+/// The shape a read decodes its rows with. The schema it was built from is in the key, so
+/// its root determines the rest.
+fn hash_decimals(h: &mut impl Hasher, decimals: Option<&DecimalShape>) {
+    match decimals.map(DecimalShape::root) {
+        None => h.write_u8(0),
+        Some(DecimalNode::Decimal) => h.write_u8(1),
+        Some(DecimalNode::Object(name)) => {
+            h.write_u8(2);
+            h.write(name.as_bytes());
+            h.write_u8(0);
+        },
+        Some(DecimalNode::Abstract(fallback)) => {
+            h.write_u8(3);
+            hash_optional_str(h, fallback.as_deref());
+        },
     }
 }
 

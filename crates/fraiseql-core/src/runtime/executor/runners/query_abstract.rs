@@ -35,26 +35,8 @@ pub(super) struct AbstractRead<'s> {
 impl<'s> AbstractRead<'s> {
     /// `Some` when `query` returns an interface or a union.
     pub(super) fn of(schema: &'s CompiledSchema, query: &'s QueryDefinition) -> Option<Self> {
-        let name = query.return_type.as_str();
-        let possible: Vec<&str> = if schema.find_interface(name).is_some() {
-            schema
-                .types
-                .iter()
-                .filter(|t| t.implements.iter().any(|i| i == name))
-                .map(|t| t.name.as_str())
-                .collect()
-        } else {
-            schema.find_union(name)?.member_types.iter().map(String::as_str).collect()
-        };
-        let mut reading_the_view = possible.iter().copied().filter(|t| {
-            schema.find_type(t).is_some_and(|td| {
-                query.sql_source.as_deref().is_some_and(|view| td.sql_source.as_str() == view)
-            })
-        });
-        let view_type = match (reading_the_view.next(), reading_the_view.next()) {
-            (Some(only), None) => Some(only),
-            _ => None,
-        };
+        let possible = schema.possible_types(query.return_type.as_str())?;
+        let view_type = schema.type_stored_in(&possible, query.sql_source.as_deref());
         Some(Self {
             query,
             possible,

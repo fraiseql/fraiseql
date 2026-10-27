@@ -87,6 +87,9 @@ pub(super) struct ExecutorContext {
     /// O(1) lookup index for Relay `node(id)` queries.
     pub(super) node_type_index: HashMap<String, Arc<str>>,
 
+    /// Where each type's documents hold a `Decimal`, so a read keeps their digits.
+    pub(super) decimals: crate::runtime::DecimalIndex,
+
     /// GATE-1 query-structure validator (depth / complexity / alias / size),
     /// resolved once at construction: the embedder-installed
     /// `RuntimeConfig::query_validation` when set, otherwise derived from the

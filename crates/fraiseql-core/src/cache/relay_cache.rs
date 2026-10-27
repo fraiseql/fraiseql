@@ -52,6 +52,7 @@ impl<A: RelayDatabaseAdapter + DatabaseAdapter> RelayDatabaseAdapter for CachedD
         include_total_count: bool,
         session_vars: &[(&str, &str)],
         routing: crate::backend::types::ReadRouting,
+        decimals: Option<&crate::backend::traits::DecimalShape>,
     ) -> Result<crate::backend::traits::RelayPageResult> {
         // Relay results are not cached; forward with session affinity so RLS
         // pagination sees the configured session variables (#329).
@@ -68,6 +69,7 @@ impl<A: RelayDatabaseAdapter + DatabaseAdapter> RelayDatabaseAdapter for CachedD
                 include_total_count,
                 session_vars,
                 routing,
+                decimals,
             )
             .await
     }

@@ -227,6 +227,7 @@ fn read(schema: &CompiledSchema, selections: &[FieldSelection]) -> RootRead {
         response_bytes: None,
         nearest_k:      None,
         nearest_count:  None,
+        decimals:       None,
     }
 }
 
@@ -260,6 +261,7 @@ fn a_read_with_anything_to_do_after_the_database_is_not_flat() {
                     keyset:       None,
                     keys:         LevelKeys::Whole,
                     embeds:       Vec::new(),
+                    decimals:     None,
                 },
             });
         }),

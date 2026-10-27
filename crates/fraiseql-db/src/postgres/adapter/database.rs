@@ -11,8 +11,8 @@ use tokio_postgres::{
 };
 
 use super::{
-    PostgresAdapter, build_projection_select_sql, build_where_select_sql,
-    build_where_select_sql_ordered, composed::build_composed_select_sql, jsonb_cell,
+    Decimals, PostgresAdapter, build_projection_select_sql, build_where_select_sql,
+    build_where_select_sql_ordered, composed::build_composed_select_sql, document_cell,
     numeric::PgNumericText,
 };
 use crate::{
@@ -1189,6 +1189,39 @@ fn changelog_prepare_hint(detail: &str) -> &'static str {
     }
 }
 
+impl PostgresAdapter {
+    /// A plain `WHERE` read of `request`'s relation, its documents decoded with
+    /// `request.decimals`. Its projection, count and function arguments are not read.
+    async fn where_documents(
+        &self,
+        request: &ProjectionRequest<'_>,
+        session_vars: &[(&str, &str)],
+        routing: ReadRouting,
+    ) -> Result<Arc<Vec<JsonbValue>>> {
+        let (sql, typed_params) = build_where_select_sql_ordered(
+            super::ReadFrom::relation(request.view),
+            request.where_clause,
+            request.limit,
+            request.offset,
+            request.order_by,
+        )?;
+        let param_refs = crate::types::as_sql_param_refs(&typed_params);
+        // Session variables or none, the read carries this query's routing: delegating to
+        // `execute_where_query_arc`, which has none, reverted every read without session
+        // variables to server policy.
+        self.execute_documents_with_session(
+            &sql,
+            &param_refs,
+            session_vars,
+            routing,
+            Decimals::documents(request.decimals),
+        )
+        .await
+        .map(Arc::new)
+        .map_err(|e| enrich_undefined_column_error(e, request.view, request.where_clause))
+    }
+}
+
 // Reason: DatabaseAdapter is defined with #[async_trait]; all implementations must match
 // its transformed method signatures to satisfy the trait contract
 // async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
@@ -1523,32 +1556,18 @@ impl DatabaseAdapter for PostgresAdapter {
         session_vars: &[(&str, &str)],
         routing: ReadRouting,
     ) -> Result<Arc<Vec<JsonbValue>>> {
-        let (sql, typed_params) = build_where_select_sql_ordered(
-            super::ReadFrom::relation(view),
+        let request = ProjectionRequest {
+            view,
+            source_args: None,
+            projection: None,
             where_clause,
+            order_by,
             limit,
             offset,
-            order_by,
-        )?;
-        let param_refs = crate::types::as_sql_param_refs(&typed_params);
-
-        // No session variables => no transaction wrapper, but still this query's
-        // routing. The fast path used to delegate to `execute_where_query_arc`,
-        // which has no routing parameter, so every read that happened not to carry
-        // session variables silently reverted to server policy — `read_routing`
-        // accepted and dropped on the most common shape there is.
-        if session_vars.is_empty() {
-            return self
-                .execute_raw(&sql, &param_refs, routing)
-                .await
-                .map(Arc::new)
-                .map_err(|e| enrich_undefined_column_error(e, view, where_clause));
-        }
-
-        self.execute_raw_with_session(&sql, &param_refs, session_vars, routing)
-            .await
-            .map(Arc::new)
-            .map_err(|e| enrich_undefined_column_error(e, view, where_clause))
+            matched_up_to: None,
+            decimals: None,
+        };
+        self.where_documents(&request, session_vars, routing).await
     }
 
     /// `SELECT COUNT(*)`, pushed into the database rather than counted in Rust.
@@ -1620,23 +1639,19 @@ impl DatabaseAdapter for PostgresAdapter {
             && request.matched_up_to.is_none()
             && request.source_args.is_none()
         {
-            return self
-                .execute_where_query_arc_with_session(
-                    request.view,
-                    request.where_clause,
-                    request.limit,
-                    request.offset,
-                    request.order_by,
-                    session_vars,
-                    routing,
-                )
-                .await;
+            return self.where_documents(request, session_vars, routing).await;
         }
 
         let statement = ProjectionStatement::of(request)?;
-        self.execute_raw_with_session(&statement.sql, &statement.params(), session_vars, routing)
-            .await
-            .map(Arc::new)
+        self.execute_documents_with_session(
+            &statement.sql,
+            &statement.params(),
+            session_vars,
+            routing,
+            Decimals::documents(request.decimals),
+        )
+        .await
+        .map(Arc::new)
     }
 
     async fn execute_with_projection_raw_with_session(
@@ -1675,16 +1690,15 @@ impl DatabaseAdapter for PostgresAdapter {
     ) -> Result<Arc<Vec<JsonbValue>>> {
         let (sql, typed_params) = build_composed_select_sql(read)?;
         let param_refs = crate::types::as_sql_param_refs(&typed_params);
-
-        // See `execute_where_query_arc_with_session`: the session-free path has to
-        // carry the routing too.
-        if session_vars.is_empty() {
-            return self.execute_raw(&sql, &param_refs, routing).await.map(Arc::new);
-        }
-
-        self.execute_raw_with_session(&sql, &param_refs, session_vars, routing)
-            .await
-            .map(Arc::new)
+        self.execute_documents_with_session(
+            &sql,
+            &param_refs,
+            session_vars,
+            routing,
+            read.decimals.as_deref().map(Decimals::Composed),
+        )
+        .await
+        .map(Arc::new)
     }
 
     async fn stream_with_projection(
@@ -1713,9 +1727,15 @@ impl DatabaseAdapter for PostgresAdapter {
             )?,
         };
 
-        super::streaming::stream_rows(self, sql, typed_params, session_vars, routing, |row, sql| {
-            jsonb_cell(row, 0, sql)
-        })
+        let decimals = request.decimals.cloned();
+        super::streaming::stream_rows(
+            self,
+            sql,
+            typed_params,
+            session_vars,
+            routing,
+            move |row, sql| document_cell(row, 0, sql, Decimals::documents(decimals.as_ref())),
+        )
         .await
         .map_err(|e| enrich_undefined_column_error(e, request.view, request.where_clause))
     }

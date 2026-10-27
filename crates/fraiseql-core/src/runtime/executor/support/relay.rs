@@ -18,7 +18,9 @@ use futures::future::BoxFuture;
 
 use crate::{
     backend::{
-        RelayCursor, RelayDatabaseAdapter, WhereClause, traits::RelayPageResult, types::ReadRouting,
+        RelayCursor, RelayDatabaseAdapter, WhereClause,
+        traits::{DecimalShape, RelayPageResult},
+        types::ReadRouting,
     },
     compiler::aggregation::OrderByClause,
     error::Result,
@@ -41,6 +43,7 @@ pub(in crate::runtime::executor) trait RelayDispatch:
         include_total_count: bool,
         session_vars: &'a [(&'a str, &'a str)],
         routing: ReadRouting,
+        decimals: Option<&'a DecimalShape>,
     ) -> BoxFuture<'a, Result<RelayPageResult>>;
 }
 
@@ -63,6 +66,7 @@ impl<A: RelayDatabaseAdapter + Send + Sync + 'static> RelayDispatch for RelayDis
         include_total_count: bool,
         session_vars: &'a [(&'a str, &'a str)],
         routing: ReadRouting,
+        decimals: Option<&'a DecimalShape>,
     ) -> BoxFuture<'a, Result<RelayPageResult>> {
         Box::pin(self.0.execute_relay_page_with_session(
             view,
@@ -76,6 +80,7 @@ impl<A: RelayDatabaseAdapter + Send + Sync + 'static> RelayDispatch for RelayDis
             include_total_count,
             session_vars,
             routing,
+            decimals,
         ))
     }
 }

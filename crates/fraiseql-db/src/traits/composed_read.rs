@@ -86,6 +86,9 @@ pub struct ComposedLevel {
     pub keys:         LevelKeys,
     /// The levels embedded into each row of this one.
     pub embeds:       Vec<ComposedEmbed>,
+    /// Where the composed document holds a `Decimal`, the embedded levels included: each
+    /// row is read as text and those digits kept as a string. Only the root carries one.
+    pub decimals:     Option<std::sync::Arc<super::DecimalShape>>,
 }
 
 /// A root level paged by keyset, as a Relay connection pages.

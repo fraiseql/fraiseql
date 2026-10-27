@@ -714,6 +714,7 @@ impl QueryRunner {
                     keyset: None,
                     keys,
                     embeds: children,
+                    decimals: None,
                 },
             });
         }

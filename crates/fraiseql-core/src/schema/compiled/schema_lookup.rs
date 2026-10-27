@@ -228,6 +228,37 @@ impl CompiledSchema {
         self.unions.iter().find(|u| u.name == name)
     }
 
+    /// The object types a value of the interface or union `name` may be: the interface's
+    /// implementors, the union's members. `None` when `name` is neither.
+    #[must_use]
+    pub fn possible_types(&self, name: &str) -> Option<Vec<&str>> {
+        if self.find_interface(name).is_some() {
+            return Some(
+                self.types
+                    .iter()
+                    .filter(|t| t.implements.iter().any(|i| i == name))
+                    .map(|t| t.name.as_str())
+                    .collect(),
+            );
+        }
+        Some(self.find_union(name)?.member_types.iter().map(String::as_str).collect())
+    }
+
+    /// The one type of `possible` whose own view is `view`, if exactly one is: what a row
+    /// of `view` that names no `__typename` is.
+    #[must_use]
+    pub fn type_stored_in<'s>(&self, possible: &[&'s str], view: Option<&str>) -> Option<&'s str> {
+        let view = view?;
+        let mut stored = possible
+            .iter()
+            .copied()
+            .filter(|t| self.find_type(t).is_some_and(|td| td.sql_source.as_str() == view));
+        match (stored.next(), stored.next()) {
+            (Some(only), None) => Some(only),
+            _ => None,
+        }
+    }
+
     /// The types a successful mutation returning `return_type` can produce: the non-error
     /// members of a union, the implementors of an interface, or the type itself.
     ///

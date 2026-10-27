@@ -2044,6 +2044,7 @@ async fn a_relay_page_routed_to_the_primary_never_reads_a_replica() {
                     false,
                     &[],
                     routing,
+                    None,
                 )
                 .await
                 .expect("routed relay page");
@@ -3213,6 +3214,7 @@ async fn a_counted_page_keeps_its_documents_key_order() {
                 offset:        None,
                 matched_up_to: Some(100),
                 source_args:   None,
+                decimals:      None,
             },
             &[],
             ReadRouting::Any,

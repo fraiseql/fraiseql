@@ -143,6 +143,7 @@ async fn relay_page_with_session_applies_rls_setting() {
             true, // include_total_count
             &[("app.tenant_id_relay", "tenant-a")],
             fraiseql_core::db::types::ReadRouting::Any,
+            None,
         )
         .await
         .unwrap();
@@ -168,6 +169,7 @@ async fn relay_page_with_session_applies_rls_setting() {
             false,
             &[],
             fraiseql_core::db::types::ReadRouting::Any,
+            None,
         )
         .await
         .unwrap();

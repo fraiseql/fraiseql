@@ -72,7 +72,16 @@ INSERT INTO v_selection_conformance_measure (data) VALUES
   ('{"price":19.99,"score":1.5e300,"total":-0.0,"count":1234567890123456789}'::jsonb),
   ('{"price":0.000000000000000000001,"score":0.3333333333333333333333,"total":1.0,
      "count":0}'::jsonb);
+DROP TABLE IF EXISTS v_selection_conformance_ledger;
+CREATE TABLE v_selection_conformance_ledger (pk_ledger bigint, data jsonb);
+INSERT INTO v_selection_conformance_ledger (pk_ledger, data) VALUES
+  (1, '{"total":1.50,"entry":{"amount":100.00,"memo":"m"},
+     "lines":[{"amount":-0.001,"qty":2},{"amount":0,"qty":1}],"rates":[0.10,[2.50],null]}'::jsonb),
+  (2, '{"total":12345678901234567890.12,"entry":null,"lines":[],"rates":[]}'::jsonb);
 "#;
+
+/// Decimals at the root, in a nested object, in a list of objects and in a list of lists.
+const LEDGER_VIEW: &str = "v_selection_conformance_ledger";
 
 /// A document of 120 keys, past the 50 pairs one `jsonb_build_object` call could carry (#1544).
 const WIDE_VIEW: &str = "v_selection_conformance_wide";
@@ -115,6 +124,36 @@ fn schema() -> CompiledSchema {
         .with_simple_field("total", FieldType::Decimal)
         .with_simple_field("count", FieldType::Int)
         .build();
+    let entry_type = TestTypeBuilder::new("Entry", "v_selection_conformance_entry")
+        .with_simple_field("amount", FieldType::Decimal)
+        .with_simple_field("memo", FieldType::String)
+        .with_simple_field("qty", FieldType::Int)
+        .build();
+    let ledger_type = TestTypeBuilder::new("Ledger", LEDGER_VIEW)
+        .with_simple_field("total", FieldType::Decimal)
+        .with_nullable_field("entry", FieldType::Object("Entry".to_string()))
+        .with_simple_field(
+            "lines",
+            FieldType::List {
+                item:           Box::new(FieldType::Object("Entry".to_string())),
+                nullable_items: false,
+            },
+        )
+        .with_simple_field(
+            "rates",
+            FieldType::List {
+                item:           Box::new(FieldType::List {
+                    item:           Box::new(FieldType::Decimal),
+                    nullable_items: true,
+                }),
+                nullable_items: true,
+            },
+        )
+        .build();
+    let ledgers_query = TestQueryBuilder::new("ledgers", "Ledger")
+        .returns_list(true)
+        .with_sql_source(LEDGER_VIEW)
+        .build();
     let measures_query = TestQueryBuilder::new("measures", "Measure")
         .returns_list(true)
         .with_sql_source(MEASURE_VIEW)
@@ -145,6 +184,9 @@ fn schema() -> CompiledSchema {
         .with_type(address_type)
         .with_type(wide_type.build())
         .with_type(measure_type)
+        .with_type(entry_type)
+        .with_type(ledger_type)
+        .with_query(ledgers_query)
         .with_query(users_query)
         .with_query(measures_query)
         .with_query(wides_query)
@@ -821,5 +863,103 @@ async fn an_authenticated_eligible_read_is_answered_raw_with_the_value_paths_byt
         "{} read(s) failed:\n  {}",
         failures.len(),
         failures.join("\n  ")
+    );
+}
+
+/// What PostgreSQL itself prints for `expr` over `view`'s rows, in table order: the digits a
+/// `Decimal` was stored with.
+async fn stored_digits(view: &str, expr: &str) -> Vec<Value> {
+    let pg = fraiseql_test_support::postgres().await.unwrap();
+    let adapter = PostgresAdapter::new(pg.url()).await.unwrap();
+    adapter
+        .execute_raw_query(&format!("SELECT {expr} AS v FROM {view}"))
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|mut row| row.remove("v").unwrap())
+        .collect()
+}
+
+/// A field of every row of a response's root list.
+fn column(response: &Value, root: &str, field: &str) -> Vec<Value> {
+    response["data"][root]
+        .as_array()
+        .unwrap_or_else(|| panic!("expected a list at data.{root}: {response}"))
+        .iter()
+        .map(|row| row[field].clone())
+        .collect()
+}
+
+/// A `Decimal` is a JSON string of the digits PostgreSQL stored, on the `Value` path
+/// and on the raw path alike; a `Float` and an `Int` stay numbers.
+#[tokio::test]
+async fn a_decimal_is_answered_as_the_digits_it_was_stored_with() {
+    let Some(exec) = executor().await else {
+        eprintln!("SKIP: no PostgreSQL (set DATABASE_URL)");
+        return;
+    };
+    let price = stored_digits(MEASURE_VIEW, "data->>'price'").await;
+    let total = stored_digits(MEASURE_VIEW, "data->>'total'").await;
+    assert!(price.iter().all(Value::is_string), "{price:?}");
+
+    let tree = exec
+        .execute("{ measures { __typename price total score } }", None)
+        .await
+        .unwrap();
+    let raw_body = exec
+        .execute_operation_body("{ measures { price total score } }", None, None)
+        .await
+        .unwrap();
+    assert!(raw_body.is_raw(), "the read without `__typename` is answered raw");
+    let raw: Value = serde_json::from_slice(&raw_body.into_bytes().unwrap()).unwrap();
+    for (path, response) in [("value", &tree), ("raw", &raw)] {
+        assert_eq!(column(response, "measures", "price"), price, "{path}: {response}");
+        assert_eq!(column(response, "measures", "total"), total, "{path}: {response}");
+        assert!(
+            column(response, "measures", "score").iter().all(Value::is_number),
+            "{path}: a Float stays a number: {response}"
+        );
+    }
+}
+
+/// A `Decimal` keeps its digits in a nested object, in a list of objects and in a list
+/// of lists, under an alias, and on the `Value` path a `__typename` forces.
+#[tokio::test]
+async fn a_decimal_below_the_root_keeps_its_digits() {
+    let Some(exec) = executor().await else {
+        eprintln!("SKIP: no PostgreSQL (set DATABASE_URL)");
+        return;
+    };
+    let expected = json!([
+        {"total": "1.50", "entry": {"amount": "100.00"},
+         "lines": [{"amount": "-0.001", "qty": 2}, {"amount": "0", "qty": 1}],
+         "rates": ["0.10", ["2.50"], null]},
+        {"total": "12345678901234567890.12", "entry": null, "lines": [], "rates": []}
+    ]);
+    let response = exec
+        .execute("{ ledgers { total entry { amount } lines { amount qty } rates } }", None)
+        .await
+        .unwrap();
+    assert_eq!(response["data"]["ledgers"], expected, "{response}");
+
+    let typed = exec
+        .execute("{ ledgers { __typename total entry { __typename amount } lines { amount qty } rates } }", None)
+        .await
+        .unwrap();
+    assert_eq!(
+        column(&typed, "ledgers", "total"),
+        column(&response, "ledgers", "total"),
+        "{typed}"
+    );
+    assert_eq!(typed["data"]["ledgers"][0]["entry"]["amount"], "100.00", "{typed}");
+
+    let aliased = exec
+        .execute("{ ledgers { t: total entry { a: amount } lines { n: amount } } }", None)
+        .await
+        .unwrap();
+    assert_eq!(
+        aliased["data"]["ledgers"][0],
+        json!({"t": "1.50", "entry": {"a": "100.00"}, "lines": [{"n": "-0.001"}, {"n": "0"}]}),
+        "{aliased}"
     );
 }

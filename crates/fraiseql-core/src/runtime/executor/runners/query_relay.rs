@@ -285,6 +285,7 @@ impl QueryRunner {
                     include_total_count,
                     session_vars,
                     query_def.read_routing,
+                    self.ctx.decimals.read_by(&query_def.name).map(|shape| &**shape),
                 )
                 .await?;
             let total = result.total_count();
@@ -307,6 +308,7 @@ impl QueryRunner {
                 }),
                 keys:         super::query_nested::root_keys(&nested_reads),
                 embeds:       nested_reads,
+                decimals:     self.ctx.decimals.read_by(&query_def.name).cloned(),
             };
             let documents = self
                 .execute_composed_document_read(root, session_vars, query_def.read_routing)
@@ -327,6 +329,7 @@ impl QueryRunner {
                         true,
                         session_vars,
                         query_def.read_routing,
+                        None,
                     )
                     .await?
                     .total_count()
@@ -680,6 +683,7 @@ impl QueryRunner {
                         limit:         Some(1),
                         offset:        None,
                         matched_up_to: None,
+                        decimals:      self.ctx.decimals.shape(&type_name).map(|shape| &**shape),
                     },
                     &session_pairs,
                     node_qdef.read_routing,
@@ -716,6 +720,7 @@ impl QueryRunner {
                         keyset:       None,
                         keys:         super::query_nested::root_keys(&nested_reads),
                         embeds:       nested_reads,
+                        decimals:     self.ctx.decimals.shape(&type_name).cloned(),
                     },
                     &session_pairs,
                     node_qdef.read_routing,

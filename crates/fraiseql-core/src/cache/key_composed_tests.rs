@@ -24,6 +24,7 @@ fn level(view: &str) -> ComposedLevel {
         keyset:       None,
         keys:         LevelKeys::Whole,
         embeds:       Vec::new(),
+        decimals:     None,
     }
 }
 
