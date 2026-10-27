@@ -1057,6 +1057,42 @@ async fn a_cached_decimal_keeps_its_digits() {
     }
 }
 
+/// A direct read takes the stored row whole, with no projection, so a read of the rows as a
+/// `Float` and a later one as a `Decimal` run the same SQL; only the shape they are decoded
+/// with tells their cache entries apart.
+#[tokio::test]
+async fn a_cached_direct_read_keeps_the_shape_it_was_read_with() {
+    if executor().await.is_none() {
+        eprintln!("SKIP: no PostgreSQL (set DATABASE_URL)");
+        return;
+    }
+    let pg = fraiseql_test_support::postgres().await.unwrap();
+    let adapter = PostgresAdapter::new(pg.url()).await.unwrap();
+    let cache = QueryResultCache::new(CacheConfig::enabled());
+    let cached = Arc::new(CachedDatabaseAdapter::new(adapter, cache, "decimal-v1".to_string()));
+    let exec = Executor::new_with_relay(schema(), Arc::clone(&cached));
+    let matcher = fraiseql_core::runtime::QueryMatcher::new(exec.schema().clone());
+    let direct = |document: &'static str| {
+        let (exec, matcher) = (&exec, &matcher);
+        async move {
+            let query_match = matcher.match_query(document, None).unwrap();
+            exec.execute_query_direct(&query_match, None, None, None).await.unwrap()
+        }
+    };
+
+    let estimate = direct("{ ledgerEstimates { entry { amount } } }").await;
+    assert_eq!(estimate["data"]["ledgerEstimates"][0]["entry"]["amount"], json!(100.0));
+    for read in ["first", "cached"] {
+        let response = direct("{ ledgers { entry { amount } } }").await;
+        assert_eq!(
+            json!(column(&response, "ledgers", "entry")),
+            json!([{ "amount": "100.00" }, null]),
+            "{read}: {response}"
+        );
+    }
+    assert_eq!(cached.cache().metrics().unwrap().hits, 1, "the second Decimal read is a hit");
+}
+
 /// A direct read (REST) answers what the GraphQL read of the same selection answers, key
 /// order included, at every depth: a `camelCase` field stored `snake_case` at the root, in
 /// a nested object two levels down and in a list of objects holding one, `__typename`
