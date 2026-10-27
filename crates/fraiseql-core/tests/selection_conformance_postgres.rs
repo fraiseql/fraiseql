@@ -81,6 +81,21 @@ INSERT INTO v_selection_conformance_ledger (pk_ledger, data) VALUES
   (2, '{"total":12345678901234567890.12,"entry":null,"lines":[],"rates":[]}'::jsonb);
 "#;
 
+/// Every key stored `snake_case` under a `camelCase` field, at the root, in a nested object
+/// two levels deep and in a list of objects holding an object, plus keys no query selects.
+const PARITY_VIEW: &str = "v_selection_conformance_parity";
+const PARITY_FIXTURE: &str = r#"
+DROP TABLE IF EXISTS v_selection_conformance_parity;
+CREATE TABLE v_selection_conformance_parity (data jsonb);
+INSERT INTO v_selection_conformance_parity (data) VALUES
+  ('{"id":"c1","display_name":"Ada","unselected":"ROOT",
+     "home_address":{"postal_code":"75001","street_line":"1 rue","unselected":"D1",
+       "home_region":{"region_name":"IDF","unselected":"D2"}},
+     "past_orders":[{"order_total":12,"unselected":"L1",
+       "ship_to":{"postal_code":"69001","street_line":"2 rue","unselected":"L2"}}]}'::jsonb),
+  ('{"id":"c2","display_name":"Bob","home_address":null,"past_orders":[]}'::jsonb);
+"#;
+
 /// Decimals at the root, in a nested object, in a list of objects and in a list of lists.
 const LEDGER_VIEW: &str = "v_selection_conformance_ledger";
 
@@ -151,6 +166,34 @@ fn schema() -> CompiledSchema {
             },
         )
         .build();
+    let region_type = TestTypeBuilder::new("ParityRegion", "v_selection_conformance_region")
+        .with_simple_field("regionName", FieldType::String)
+        .build();
+    let parity_address_type = TestTypeBuilder::new("ParityAddress", "v_selection_conformance_pa")
+        .with_simple_field("postalCode", FieldType::String)
+        .with_simple_field("streetLine", FieldType::String)
+        .with_nullable_field("homeRegion", FieldType::Object("ParityRegion".to_string()))
+        .build();
+    let order_type = TestTypeBuilder::new("ParityOrder", "v_selection_conformance_order")
+        .with_simple_field("orderTotal", FieldType::Int)
+        .with_nullable_field("shipTo", FieldType::Object("ParityAddress".to_string()))
+        .build();
+    let customer_type = TestTypeBuilder::new("ParityCustomer", PARITY_VIEW)
+        .with_simple_field("id", FieldType::String)
+        .with_simple_field("displayName", FieldType::String)
+        .with_nullable_field("homeAddress", FieldType::Object("ParityAddress".to_string()))
+        .with_simple_field(
+            "pastOrders",
+            FieldType::List {
+                item:           Box::new(FieldType::Object("ParityOrder".to_string())),
+                nullable_items: false,
+            },
+        )
+        .build();
+    let customers_query = TestQueryBuilder::new("customers", "ParityCustomer")
+        .returns_list(true)
+        .with_sql_source(PARITY_VIEW)
+        .build();
     // The same view read with its entry's amount as a `Float`.
     let entry_estimate_type =
         TestTypeBuilder::new("EntryEstimate", "v_selection_conformance_entry")
@@ -201,6 +244,11 @@ fn schema() -> CompiledSchema {
         .with_type(ledger_type)
         .with_query(ledgers_query)
         .with_type(entry_estimate_type)
+        .with_type(region_type)
+        .with_type(parity_address_type)
+        .with_type(order_type)
+        .with_type(customer_type)
+        .with_query(customers_query)
         .with_type(ledger_estimate_type)
         .with_query(ledger_estimates_query)
         .with_query(users_query)
@@ -222,7 +270,11 @@ async fn executor() -> Option<Executor> {
 async fn executor_for(schema: CompiledSchema) -> Option<Executor> {
     let pg = fraiseql_test_support::postgres().await?;
     let adapter = PostgresAdapter::new(pg.url()).await.expect("connect to the bound PostgreSQL");
-    for stmt in FIXTURE.split(";\n").chain(MEASURE_FIXTURE.split(";\n")) {
+    for stmt in FIXTURE
+        .split(";\n")
+        .chain(MEASURE_FIXTURE.split(";\n"))
+        .chain(PARITY_FIXTURE.split(";\n"))
+    {
         if stmt.trim().is_empty() {
             continue;
         }
@@ -1003,4 +1055,59 @@ async fn a_cached_decimal_keeps_its_digits() {
         assert_eq!(json!(column(&response, "ledgers", "entry")), entries, "{read}: {response}");
         assert_eq!(hits(), hit, "{read}: answered from the cache {} times", hits());
     }
+}
+
+/// A direct read (REST) answers what the GraphQL read of the same selection answers, key
+/// order included, at every depth: a `camelCase` field stored `snake_case` at the root, in
+/// a nested object two levels down and in a list of objects holding one, `__typename`
+/// below the root, and a leaf selection of an object field.
+#[tokio::test]
+async fn a_direct_read_answers_what_the_graphql_read_answers() {
+    let Some(exec) = executor().await else {
+        eprintln!("SKIP: no PostgreSQL (set DATABASE_URL)");
+        return;
+    };
+    let matcher = fraiseql_core::runtime::QueryMatcher::new(exec.schema().clone());
+    let mut differ = Vec::new();
+    for document in [
+        "{ customers { id displayName } }",
+        "{ customers { displayName homeAddress { postalCode } } }",
+        "{ customers { homeAddress { streetLine homeRegion { regionName } postalCode } } }",
+        "{ customers { pastOrders { orderTotal shipTo { postalCode } } } }",
+        "{ customers { homeAddress { __typename postalCode homeRegion { __typename regionName } } } }",
+        "{ customers { pastOrders { __typename shipTo { __typename streetLine } } } }",
+    ] {
+        let graphql = exec.execute(document, None).await.unwrap();
+        let query_match = matcher.match_query(document, None).unwrap();
+        let direct = exec.execute_query_direct(&query_match, None, None, None).await;
+        match direct {
+            Ok(direct) if direct["data"] == graphql["data"] => {},
+            Ok(direct) => differ.push(format!(
+                "{document}\n    graphql: {}\n    direct:  {}",
+                graphql["data"], direct["data"]
+            )),
+            Err(e) => differ.push(format!("{document}\n    graphql: {graphql}\n    direct: {e}")),
+        }
+    }
+
+    // A REST leaf selection of an object field reads it whole, as its type, which GraphQL
+    // spells as every field in declaration order.
+    let mut leaf = matcher
+        .match_query("{ customers { id homeAddress { postalCode } } }", None)
+        .unwrap();
+    let mut roots = leaf.selections.to_vec();
+    roots[0].nested_fields[1].nested_fields.clear();
+    leaf.selections = roots.into();
+    let whole =
+        "{ customers { id homeAddress { postalCode streetLine homeRegion { regionName } } } }";
+    let graphql = exec.execute(whole, None).await.unwrap();
+    match exec.execute_query_direct(&leaf, None, None, None).await {
+        Ok(direct) if direct["data"] == graphql["data"] => {},
+        Ok(direct) => differ.push(format!(
+            "leaf homeAddress\n    graphql: {}\n    direct:  {}",
+            graphql["data"], direct["data"]
+        )),
+        Err(e) => differ.push(format!("leaf homeAddress\n    direct: {e}")),
+    }
+    assert!(differ.is_empty(), "the two reads differ:\n  {}", differ.join("\n  "));
 }

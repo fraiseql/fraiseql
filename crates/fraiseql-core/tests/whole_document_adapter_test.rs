@@ -199,3 +199,29 @@ async fn a_nested_object_follows_the_selection_order_not_the_documents() {
     assert_eq!(keys(&user), ["profile", "name"]);
     assert_eq!(keys(&user["profile"]), ["address", "tier"]);
 }
+
+/// A direct read (REST) over the same adapter answers what the GraphQL read answers: the
+/// selected keys only, masked positions `null`, every level in selection order.
+#[tokio::test]
+async fn a_direct_read_is_shaped_by_its_selection_as_the_graphql_read_is() {
+    let exec = executor();
+    let matcher = fraiseql_core::runtime::QueryMatcher::new(exec.schema().clone());
+    for query in [
+        "{ users { name profile { tier address { city } } } }",
+        "{ users { profile { note tier address { code city } } } }",
+        "{ users { profile { address { city } tier } name } }",
+    ] {
+        let query_match = matcher.match_query(query, None).unwrap();
+        let direct = exec
+            .execute_query_direct(&query_match, None, Some(&scopeless()), None)
+            .await
+            .unwrap_or_else(|e| panic!("{query}: {e}"));
+        let user = &direct["data"]["users"][0];
+        assert_eq!(user, &first_user(query).await, "{query}");
+        assert_eq!(
+            serde_json::to_string(user).unwrap(),
+            serde_json::to_string(&first_user(query).await).unwrap(),
+            "{query}: the same key order"
+        );
+    }
+}
