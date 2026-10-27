@@ -155,6 +155,19 @@ impl DatabaseAdapter for MockAdapter {
         row.insert("count".to_string(), json!(42));
         Ok(vec![row])
     }
+
+    async fn execute_parameterized_aggregate_exact(
+        &self,
+        _sql: &str,
+        _params: &[serde_json::Value],
+        _session_vars: &[(&str, &str)],
+        _routing: fraiseql_db::types::ReadRouting,
+        exact: &[&str],
+    ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+        Ok(vec![
+            exact.iter().map(|c| ((*c).to_string(), json!("read as digits"))).collect(),
+        ])
+    }
 }
 
 // The writes this double answers, called by its `Writer` impl below.
@@ -194,6 +207,25 @@ async fn schema_storage_bytes_is_forwarded_through_the_cache() {
     let cache = QueryResultCache::new(CacheConfig::enabled());
     let adapter = CachedDatabaseAdapter::new(MockAdapter::new(), cache, "1.0.0".to_string());
     assert_eq!(adapter.schema_storage_bytes("tenant_a").await.unwrap(), Some(8));
+}
+
+/// The server wraps every adapter in the cache, so the trait's default here would print
+/// a number the wrapped adapter had already rounded instead of letting it read the digits.
+#[tokio::test]
+async fn an_exact_aggregate_is_read_by_the_wrapped_adapter() {
+    let cache = QueryResultCache::new(CacheConfig::enabled());
+    let adapter = CachedDatabaseAdapter::new(MockAdapter::new(), cache, "1.0.0".to_string());
+    let rows = adapter
+        .execute_parameterized_aggregate_exact(
+            "SELECT SUM(amount) AS amount_sum FROM tf_sale",
+            &[],
+            &[],
+            fraiseql_db::types::ReadRouting::Any,
+            &["amount_sum"],
+        )
+        .await
+        .unwrap();
+    assert_eq!(rows[0]["amount_sum"], json!("read as digits"), "{rows:?}");
 }
 
 #[tokio::test]

@@ -183,6 +183,44 @@ pub enum WindowSelectColumn {
     },
 }
 
+impl WindowRequest {
+    /// The aliases whose value is a `Decimal`: a `Decimal` measure selected, read from
+    /// another row, or run through a function that keeps its type. PostgreSQL computes
+    /// each in `numeric`, so the adapter can read it as digits rather than round it
+    /// through a JSON number.
+    #[must_use]
+    pub fn decimal_aliases(&self, metadata: &FactTableMetadata) -> Vec<String> {
+        let is_decimal = |measure: &str| {
+            metadata.measures.iter().any(|m| {
+                m.name == measure && m.sql_type == crate::compiler::fact_table::SqlType::Decimal
+            })
+        };
+        let selected = self.select.iter().filter_map(|column| match column {
+            WindowSelectColumn::Measure { name, alias } if is_decimal(name) => Some(alias),
+            _ => None,
+        });
+        let windowed = self.windows.iter().filter_map(|window| match &window.function {
+            WindowFunctionSpec::Lag { field: measure, .. }
+            | WindowFunctionSpec::Lead { field: measure, .. }
+            | WindowFunctionSpec::FirstValue { field: measure }
+            | WindowFunctionSpec::LastValue { field: measure }
+            | WindowFunctionSpec::NthValue { field: measure, .. }
+            | WindowFunctionSpec::RunningSum { measure }
+            | WindowFunctionSpec::RunningAvg { measure }
+            | WindowFunctionSpec::RunningMin { measure }
+            | WindowFunctionSpec::RunningMax { measure }
+            | WindowFunctionSpec::RunningStddev { measure }
+            | WindowFunctionSpec::RunningVariance { measure }
+                if is_decimal(measure) =>
+            {
+                Some(&window.alias)
+            },
+            _ => None,
+        });
+        selected.chain(windowed).cloned().collect()
+    }
+}
+
 impl WindowSelectColumn {
     /// Get the result alias for this selection.
     #[must_use]

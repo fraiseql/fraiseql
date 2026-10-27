@@ -978,6 +978,20 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
             .await
     }
 
+    async fn execute_parameterized_aggregate_exact(
+        &self,
+        sql: &str,
+        params: &[serde_json::Value],
+        session_vars: &[(&str, &str)],
+        routing: ReadRouting,
+        exact: &[&str],
+    ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+        // Not cached either; forwarded so the wrapped adapter reads the digits itself.
+        self.adapter
+            .execute_parameterized_aggregate_exact(sql, params, session_vars, routing, exact)
+            .await
+    }
+
     // Forwarded with `execute_composed_with_session`, which it describes: the server wraps
     // every adapter in this one, so a default here would refuse embeds for all of them.
     fn supports_composed_reads(&self) -> bool {

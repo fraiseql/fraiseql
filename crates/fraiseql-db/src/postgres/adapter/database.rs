@@ -898,6 +898,24 @@ fn row_to_map(row: &Row) -> std::collections::HashMap<String, serde_json::Value>
     map
 }
 
+/// [`row_to_map`], with each `NUMERIC` column named in `exact` kept as a string of the
+/// digits PostgreSQL printed: re-parsed as a JSON number, it would round through an `f64`.
+fn row_to_map_exact(
+    row: &Row,
+    exact: &[&str],
+) -> std::collections::HashMap<String, serde_json::Value> {
+    let mut map = std::collections::HashMap::new();
+    for (idx, column) in row.columns().iter().enumerate() {
+        let digits = exact
+            .contains(&column.name())
+            .then(|| row.try_get::<_, Option<PgNumericText>>(idx).ok().flatten())
+            .flatten();
+        let cell = digits.map_or_else(|| decode_cell(row, idx), |d| serde_json::Value::String(d.0));
+        map.insert(column.name().to_string(), cell);
+    }
+    map
+}
+
 /// Decode one cell of a `tokio_postgres::Row` to JSON.
 ///
 /// The decode ladder itself, extracted from [`row_to_map`] so the positional
@@ -1220,6 +1238,49 @@ impl PostgresAdapter {
         .map(Arc::new)
         .map_err(|e| enrich_undefined_column_error(e, request.view, request.where_clause))
     }
+
+    /// The rows of a compiled aggregate statement, `session_vars` applied on its connection.
+    async fn aggregate_rows(
+        &self,
+        sql: &str,
+        params: &[serde_json::Value],
+        session_vars: &[(&str, &str)],
+        routing: ReadRouting,
+    ) -> Result<Vec<Row>> {
+        let typed = aggregate_params(params);
+        let param_refs: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> =
+            typed.iter().map(|v| v as &(dyn tokio_postgres::types::ToSql + Sync)).collect();
+        let failed = |e: &tokio_postgres::Error| {
+            crate::postgres::database_error(
+                format!("Parameterized aggregate query failed: {}", pg_detail(e)),
+                e,
+            )
+        };
+
+        if session_vars.is_empty() {
+            // Compiled aggregate SELECT: read-only, replica-eligible (#407).
+            let client = self.acquire_read_connection_with_retry(ReadRouting::Any).await?;
+            return client.query(sql, &param_refs).await.map_err(|e| failed(&e));
+        }
+
+        // Read-only aggregate with session vars; standby-safe → replica-eligible.
+        let mut client = self.acquire_read_connection_with_retry(routing).await?;
+        let txn = client.build_transaction().start().await.map_err(|e| {
+            crate::postgres::database_error(
+                format!("Failed to start session-var transaction: {}", pg_detail(&e)),
+                &e,
+            )
+        })?;
+        apply_session_vars(&txn, session_vars).await?;
+        let rows = txn.query(sql, &param_refs).await.map_err(|e| failed(&e))?;
+        txn.commit().await.map_err(|e| {
+            crate::postgres::database_error(
+                format!("Failed to commit session-var transaction: {}", pg_detail(&e)),
+                &e,
+            )
+        })?;
+        Ok(rows)
+    }
 }
 
 // Reason: DatabaseAdapter is defined with #[async_trait]; all implementations must match
@@ -1482,23 +1543,8 @@ impl DatabaseAdapter for PostgresAdapter {
         sql: &str,
         params: &[serde_json::Value],
     ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
-        let typed = aggregate_params(params);
-        let param_refs: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> =
-            typed.iter().map(|v| v as &(dyn tokio_postgres::types::ToSql + Sync)).collect();
-
-        // Compiled aggregate SELECT: read-only, replica-eligible (#407).
-        let client = self.acquire_read_connection_with_retry(ReadRouting::Any).await?;
-        let rows: Vec<Row> = client.query(sql, &param_refs).await.map_err(|e| {
-            crate::postgres::database_error(
-                format!("Parameterized aggregate query failed: {}", pg_detail(&e)),
-                &e,
-            )
-        })?;
-
-        let results: Vec<std::collections::HashMap<String, serde_json::Value>> =
-            rows.iter().map(row_to_map).collect();
-
-        Ok(results)
+        let rows = self.aggregate_rows(sql, params, &[], ReadRouting::Any).await?;
+        Ok(rows.iter().map(row_to_map).collect())
     }
 
     async fn execute_parameterized_aggregate_with_session(
@@ -1508,37 +1554,20 @@ impl DatabaseAdapter for PostgresAdapter {
         session_vars: &[(&str, &str)],
         routing: ReadRouting,
     ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
-        if session_vars.is_empty() {
-            return self.execute_parameterized_aggregate(sql, params).await;
-        }
-
-        let typed = aggregate_params(params);
-        let param_refs: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> =
-            typed.iter().map(|v| v as &(dyn tokio_postgres::types::ToSql + Sync)).collect();
-
-        // Read-only aggregate with session vars; standby-safe → replica-eligible.
-        let mut client = self.acquire_read_connection_with_retry(routing).await?;
-        let txn = client.build_transaction().start().await.map_err(|e| {
-            crate::postgres::database_error(
-                format!("Failed to start session-var transaction: {}", pg_detail(&e)),
-                &e,
-            )
-        })?;
-        apply_session_vars(&txn, session_vars).await?;
-        let rows: Vec<Row> = txn.query(sql, &param_refs).await.map_err(|e| {
-            crate::postgres::database_error(
-                format!("Parameterized aggregate query failed: {}", pg_detail(&e)),
-                &e,
-            )
-        })?;
-        txn.commit().await.map_err(|e| {
-            crate::postgres::database_error(
-                format!("Failed to commit session-var transaction: {}", pg_detail(&e)),
-                &e,
-            )
-        })?;
-
+        let rows = self.aggregate_rows(sql, params, session_vars, routing).await?;
         Ok(rows.iter().map(row_to_map).collect())
+    }
+
+    async fn execute_parameterized_aggregate_exact(
+        &self,
+        sql: &str,
+        params: &[serde_json::Value],
+        session_vars: &[(&str, &str)],
+        routing: ReadRouting,
+        exact: &[&str],
+    ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+        let rows = self.aggregate_rows(sql, params, session_vars, routing).await?;
+        Ok(rows.iter().map(|row| row_to_map_exact(row, exact)).collect())
     }
 
     // PostgreSQL session variables are applied connection-affinely by the

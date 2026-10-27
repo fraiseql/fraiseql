@@ -116,8 +116,39 @@ mod trait_defaults {
             _sql: &str,
             _params: &[serde_json::Value],
         ) -> Result<Vec<HashMap<String, serde_json::Value>>> {
-            Ok(Vec::new())
+            Ok(vec![HashMap::from([
+                ("total".to_string(), json!(12.5)),
+                ("count".to_string(), json!(2)),
+                ("region".to_string(), json!("north")),
+                ("empty".to_string(), serde_json::Value::Null),
+            ])])
         }
+    }
+
+    #[tokio::test]
+    async fn exact_aggregate_default_prints_only_the_named_numbers() {
+        let adapter = CollectOnlyAdapter::new(Vec::new());
+
+        let rows = adapter
+            .execute_parameterized_aggregate_exact(
+                "SELECT 1",
+                &[],
+                &[],
+                ReadRouting::Any,
+                &["total", "region", "empty"],
+            )
+            .await
+            .expect("default exact aggregate");
+
+        assert_eq!(
+            rows,
+            [HashMap::from([
+                ("total".to_string(), json!("12.5")),
+                ("count".to_string(), json!(2)),
+                ("region".to_string(), json!("north")),
+                ("empty".to_string(), serde_json::Value::Null),
+            ])]
+        );
     }
 
     #[tokio::test]

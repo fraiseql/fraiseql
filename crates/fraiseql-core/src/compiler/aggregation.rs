@@ -387,6 +387,37 @@ impl AggregationPlan {
             })
             .collect()
     }
+
+    /// The aliases whose value is a `Decimal`: a function that keeps a `Decimal` measure's
+    /// type applied to one. PostgreSQL computes each in `numeric`, so the adapter can read
+    /// it as digits rather than round it through a JSON number.
+    #[must_use]
+    pub fn decimal_aliases(&self) -> Vec<&str> {
+        let is_decimal = |measure: &str| {
+            self.metadata
+                .measures
+                .iter()
+                .any(|m| m.name == measure && m.sql_type == super::fact_table::SqlType::Decimal)
+        };
+        self.request
+            .aggregates
+            .iter()
+            .filter_map(|selection| match selection {
+                AggregateSelection::MeasureAggregate {
+                    measure,
+                    function:
+                        AggregateFunction::Sum
+                        | AggregateFunction::Avg
+                        | AggregateFunction::Min
+                        | AggregateFunction::Max
+                        | AggregateFunction::Stddev
+                        | AggregateFunction::Variance,
+                    alias,
+                } if is_decimal(measure) => Some(alias.as_str()),
+                _ => None,
+            })
+            .collect()
+    }
 }
 
 /// Aggregation plan generator

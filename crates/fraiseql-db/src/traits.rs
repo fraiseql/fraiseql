@@ -879,6 +879,39 @@ pub trait DatabaseAdapter: Send + Sync + 'static {
         self.execute_parameterized_aggregate(sql, params).await
     }
 
+    /// [`execute_parameterized_aggregate_with_session`](Self::execute_parameterized_aggregate_with_session),
+    /// with each column named in `exact` answered as a string of the digits the database
+    /// computed rather than as a JSON number.
+    ///
+    /// An aggregate of a `Decimal` measure is a `Decimal` too, and a JSON number decodes
+    /// through an `f64` that rounds it. The default can only print the number the plain
+    /// read returned; an adapter that reads `NUMERIC` as text overrides it.
+    ///
+    /// # Errors
+    ///
+    /// Same errors as
+    /// [`execute_parameterized_aggregate_with_session`](Self::execute_parameterized_aggregate_with_session).
+    async fn execute_parameterized_aggregate_exact(
+        &self,
+        sql: &str,
+        params: &[serde_json::Value],
+        session_vars: &[(&str, &str)],
+        routing: ReadRouting,
+        exact: &[&str],
+    ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+        let mut rows = self
+            .execute_parameterized_aggregate_with_session(sql, params, session_vars, routing)
+            .await?;
+        for row in &mut rows {
+            for column in exact {
+                if let Some(value @ serde_json::Value::Number(_)) = row.get_mut(*column) {
+                    *value = serde_json::Value::String(value.to_string());
+                }
+            }
+        }
+        Ok(rows)
+    }
+
     /// Whether this adapter implements
     /// [`execute_composed_with_session`](Self::execute_composed_with_session) — whether a
     /// read can have related resources composed into it (the REST `?select=` embed).

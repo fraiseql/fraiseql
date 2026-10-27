@@ -537,11 +537,12 @@ impl AggregateRunner {
         let rows = self
             .ctx
             .adapter
-            .execute_parameterized_aggregate_with_session(
+            .execute_parameterized_aggregate_exact(
                 &parameterized.sql,
                 &parameterized.params,
                 &session_pairs,
                 routing,
+                &plan.decimal_aliases(),
             )
             .await?;
 
@@ -674,6 +675,7 @@ impl AggregateRunner {
 
         // 2. Generate execution plan (validates semantic names against metadata) Text keys sort
         //    under the request locale's collation (#1512).
+        let decimals = request.decimal_aliases(metadata);
         let plan = crate::compiler::window_functions::WindowPlanner::plan_in_locale(
             request,
             metadata,
@@ -699,11 +701,12 @@ impl AggregateRunner {
         let rows = self
             .ctx
             .adapter
-            .execute_parameterized_aggregate_with_session(
+            .execute_parameterized_aggregate_exact(
                 &sql.raw_sql,
                 &sql.parameters,
                 &session_pairs,
                 routing,
+                &decimals.iter().map(String::as_str).collect::<Vec<_>>(),
             )
             .await?;
 
