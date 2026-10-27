@@ -80,6 +80,105 @@ impl DecimalShape {
     }
 }
 
+/// Where a mutation's response row holds `Decimal`s: the documents its `jsonb` columns
+/// carry, each read at the type its position has.
+///
+/// `entity` and `error_detail` are read as the type the row's `entity_type` stamps, else as
+/// the one this names; `result` as the payload whose success fields it holds; a cascade's
+/// entities as their entries name them.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WriteDecimals {
+    types:  Arc<HashMap<String, DecimalFields>>,
+    entity: Option<DecimalNode>,
+    error:  Option<DecimalNode>,
+    result: Option<DecimalNode>,
+}
+
+impl WriteDecimals {
+    /// A response whose documents are of `types`, each read as the type its row stamps.
+    #[must_use]
+    pub const fn new(types: Arc<HashMap<String, DecimalFields>>) -> Self {
+        Self {
+            types,
+            entity: None,
+            error: None,
+            result: None,
+        }
+    }
+
+    /// The entity read as `node` when its row stamps no type.
+    #[must_use]
+    pub fn with_entity(mut self, node: Option<DecimalNode>) -> Self {
+        self.entity = node;
+        self
+    }
+
+    /// A failure's `error_detail` read as `node` when its row stamps no type.
+    #[must_use]
+    pub fn with_error(mut self, node: Option<DecimalNode>) -> Self {
+        self.error = node;
+        self
+    }
+
+    /// The success fields under `result` read as `node`'s.
+    #[must_use]
+    pub fn with_result(mut self, node: Option<DecimalNode>) -> Self {
+        self.result = node;
+        self
+    }
+
+    /// How the response column `column` of a row stamping `stamp` is read; `None` when no
+    /// `Decimal` can sit in it.
+    #[must_use]
+    pub fn column(&self, column: &str, stamp: Option<&str>) -> Option<WriteColumn> {
+        let stamped = |fallback: &Option<DecimalNode>| {
+            stamp
+                .map(|name| DecimalNode::Object(name.to_string()))
+                .or_else(|| fallback.clone())
+        };
+        let (root, cascade) = match column {
+            WRITE_ENTITY => (stamped(&self.entity)?, false),
+            WRITE_ERROR => (stamped(&self.error)?, false),
+            WRITE_RESULT => (self.result.clone()?, false),
+            WRITE_CASCADE => (DecimalNode::Abstract(None), true),
+            _ => return None,
+        };
+        let shape = DecimalShape::new(root, Arc::clone(&self.types));
+        Some(if cascade {
+            WriteColumn::Cascade(shape)
+        } else {
+            WriteColumn::Document(shape)
+        })
+    }
+
+    /// A document of `type_name`: an entity a derived cascade reads from its view.
+    #[must_use]
+    pub fn document(&self, type_name: &str) -> DecimalShape {
+        DecimalShape::new(DecimalNode::Object(type_name.to_string()), Arc::clone(&self.types))
+    }
+}
+
+/// How one column of a mutation's response row is read: see [`WriteDecimals::column`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum WriteColumn {
+    /// A document of the shape's root, for [`quote_decimals`].
+    Document(DecimalShape),
+    /// A cascade, for [`quote_cascade_decimals`].
+    Cascade(DecimalShape),
+}
+
+/// The response columns a [`WriteDecimals`] reads.
+const WRITE_ENTITY: &str = "entity";
+const WRITE_ERROR: &str = "error_detail";
+const WRITE_RESULT: &str = "result";
+const WRITE_CASCADE: &str = "cascade";
+
+/// The member of a cascade holding the entries it updated, each with its entity.
+const CASCADE_UPDATED: &str = "updated";
+
+/// The member of a cascade entry holding the entity.
+const CASCADE_ENTITY: &str = "entity";
+
 /// Objects nested deeper than this are copied without being looked into. A query's depth
 /// limit is far below it; a stored document's depth is not bounded.
 const MAX_OBJECT_DEPTH: usize = 128;
@@ -120,6 +219,22 @@ pub fn quote_composed_decimals(src: &[u8], shape: &DecimalShape, out: &mut Vec<u
         objects: 0,
     }
     .composed(skip_ws(src, 0), Some(&shape.root));
+    out.extend_from_slice(src.get(end..).unwrap_or_default());
+}
+
+/// [`quote_decimals`] for a mutation's cascade.
+///
+/// Under `"updated"`, each entry's entity is read as the type the entry's `__typename`
+/// names, from `shape`'s types. Its root is not read: a cascade's types are its entries'.
+pub fn quote_cascade_decimals(src: &[u8], shape: &DecimalShape, out: &mut Vec<u8>) {
+    out.reserve(src.len() + 16);
+    let end = Scan {
+        src,
+        out,
+        shape,
+        objects: 0,
+    }
+    .cascade(skip_ws(src, 0));
     out.extend_from_slice(src.get(end..).unwrap_or_default());
 }
 
@@ -188,23 +303,7 @@ impl<'s> Scan<'s, '_> {
     }
 
     fn list(&mut self, at: usize, node: &DecimalNode, lists: usize) -> usize {
-        self.out.push(b'[');
-        let mut i = at + 1;
-        loop {
-            i = self.whitespace(i);
-            match self.src.get(i) {
-                Some(b']') => {
-                    self.out.push(b']');
-                    return i + 1;
-                },
-                Some(b',') => {
-                    self.out.push(b',');
-                    i += 1;
-                },
-                Some(_) => i = self.value(i, Some(node), lists),
-                None => return i,
-            }
-        }
+        self.each_item(at, |scan, i| scan.value(i, Some(node), lists))
     }
 
     fn object(&mut self, at: usize, fields: Option<&'s DecimalFields>) -> usize {
@@ -254,6 +353,42 @@ impl<'s> Scan<'s, '_> {
     }
 
     fn composed_list(&mut self, at: usize, node: Option<&'s DecimalNode>) -> usize {
+        self.each_item(at, |scan, i| scan.composed(i, node))
+    }
+
+    /// A cascade: under `"updated"`, a list of entries, each carrying the entity it names
+    /// under `"entity"`.
+    fn cascade(&mut self, at: usize) -> usize {
+        if self.src.get(at) != Some(&b'{') {
+            return self.copy(at);
+        }
+        self.each_member(at, |scan, key, i| match (key, scan.src.get(i)) {
+            (Some(CASCADE_UPDATED), Some(b'[')) => {
+                scan.each_item(i, |scan, i| scan.cascade_entry(i))
+            },
+            _ => scan.copy(i),
+        })
+    }
+
+    /// One updated cascade entry: its entity read as the type its `__typename` names.
+    fn cascade_entry(&mut self, at: usize) -> usize {
+        let shape: &'s DecimalShape = self.shape;
+        let fields = concrete_type(self.src, at).and_then(|name| shape.fields(&name));
+        if fields.is_none() {
+            return self.copy(at);
+        }
+        self.each_member(at, |scan, key, i| match (key, scan.src.get(i)) {
+            (Some(CASCADE_ENTITY), Some(b'{')) => scan.object(i, fields),
+            _ => scan.copy(i),
+        })
+    }
+
+    /// Copy the list at `at`, each item through `on_item`.
+    fn each_item(
+        &mut self,
+        at: usize,
+        mut on_item: impl FnMut(&mut Self, usize) -> usize,
+    ) -> usize {
         self.out.push(b'[');
         let mut i = at + 1;
         loop {
@@ -267,7 +402,7 @@ impl<'s> Scan<'s, '_> {
                     self.out.push(b',');
                     i += 1;
                 },
-                Some(_) => i = self.composed(i, node),
+                Some(_) => i = on_item(self, i),
                 None => return i,
             }
         }

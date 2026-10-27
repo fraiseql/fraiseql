@@ -39,7 +39,10 @@ use crate::{
     identifier::quote_postgres_identifier,
     order_by::{Tiebreak, append_order_by, render_order_by_columns},
     postgres::pg_detail,
-    traits::{DatabaseAdapter, DecimalShape, RawRows, quote_composed_decimals, quote_decimals},
+    traits::{
+        DatabaseAdapter, DecimalShape, RawRows, WriteColumn, quote_cascade_decimals,
+        quote_composed_decimals, quote_decimals,
+    },
     types::{
         DatabaseType, JsonbValue, QueryParam, ReadRouting,
         sql_hints::{OrderByClause, SqlProjectionHint},
@@ -175,12 +178,34 @@ pub(super) enum Decimals<'a> {
     Document(&'a DecimalShape),
     /// Each row is a composed row: its document and its embedded levels.
     Composed(&'a DecimalShape),
+    /// A mutation's cascade: its entries' entities, each of the type its entry names.
+    Cascade(&'a DecimalShape),
 }
 
 impl<'a> Decimals<'a> {
     /// Rows that are documents of `shape`, or `None` for no shape.
     pub(super) fn documents(shape: Option<&'a DecimalShape>) -> Option<Self> {
         shape.map(Self::Document)
+    }
+
+    /// How a mutation's response column is read.
+    pub(super) const fn column(column: &'a WriteColumn) -> Self {
+        match column {
+            WriteColumn::Document(shape) => Self::Document(shape),
+            WriteColumn::Cascade(shape) => Self::Cascade(shape),
+        }
+    }
+
+    /// `text`, a JSON document, parsed with each number at one of these `Decimal`
+    /// positions kept as a string of its digits.
+    pub(super) fn parse(self, text: &[u8]) -> serde_json::Result<serde_json::Value> {
+        let mut quoted = Vec::new();
+        match self {
+            Self::Document(shape) => quote_decimals(text, shape, &mut quoted),
+            Self::Composed(shape) => quote_composed_decimals(text, shape, &mut quoted),
+            Self::Cascade(shape) => quote_cascade_decimals(text, shape, &mut quoted),
+        }
+        serde_json::from_slice(&quoted)
     }
 }
 
@@ -200,20 +225,13 @@ where
     };
     match row.try_get::<_, Option<JsonText<'_>>>(column) {
         Ok(Some(JsonText(text))) => {
-            let mut quoted = Vec::new();
-            match decimals {
-                Decimals::Document(shape) => quote_decimals(text, shape, &mut quoted),
-                Decimals::Composed(shape) => quote_composed_decimals(text, shape, &mut quoted),
-            }
-            serde_json::from_slice(&quoted).map(JsonbValue::new).map_err(|e| {
-                FraiseQLError::Database {
-                    message:    format!(
-                        "Failed to parse the `data` column as JSON ({e}). Query: {}",
-                        query_preview(sql)
-                    ),
-                    sql_state:  None,
-                    constraint: None,
-                }
+            decimals.parse(text).map(JsonbValue::new).map_err(|e| FraiseQLError::Database {
+                message:    format!(
+                    "Failed to parse the `data` column as JSON ({e}). Query: {}",
+                    query_preview(sql)
+                ),
+                sql_state:  None,
+                constraint: None,
             })
         },
         Ok(None) => Err(null_data_column(sql)),
@@ -268,7 +286,7 @@ fn unreadable_data_column(e: &tokio_postgres::Error, sql: &str) -> FraiseQLError
 ///
 /// Results arrive in binary format: a `json` value's is its text, a `jsonb` value's is a
 /// version byte (`1`) and then its text.
-struct JsonText<'a>(&'a [u8]);
+pub(super) struct JsonText<'a>(pub(super) &'a [u8]);
 
 impl<'a> tokio_postgres::types::FromSql<'a> for JsonText<'a> {
     fn from_sql(

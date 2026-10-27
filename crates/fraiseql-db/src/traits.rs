@@ -20,7 +20,8 @@ pub use composed_read::{
     EmbedShape, EmbedSource, LevelKeys, NativeCorrelation, composed_read_unsupported,
 };
 pub use decimal_text::{
-    DecimalFields, DecimalNode, DecimalShape, quote_composed_decimals, quote_decimals,
+    DecimalFields, DecimalNode, DecimalShape, WriteColumn, WriteDecimals, quote_cascade_decimals,
+    quote_composed_decimals, quote_decimals,
 };
 use fraiseql_error::{FraiseQLError, Result};
 pub use mutations::{

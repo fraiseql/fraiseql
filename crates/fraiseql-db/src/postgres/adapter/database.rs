@@ -11,7 +11,7 @@ use tokio_postgres::{
 };
 
 use super::{
-    Decimals, PostgresAdapter, build_projection_select_sql, build_where_select_sql,
+    Decimals, JsonText, PostgresAdapter, build_projection_select_sql, build_where_select_sql,
     build_where_select_sql_ordered, composed::build_composed_select_sql, document_cell,
     numeric::PgNumericText,
 };
@@ -47,6 +47,7 @@ struct PreparedCall<'r> {
     /// Report the rows the call changed, at most this many, in the call's own flight
     /// (#1576). Never with `derived`, whose report already says.
     report_changes: Option<i32>,
+    decimals:       Option<&'r crate::traits::WriteDecimals>,
 }
 
 impl<'r> PreparedCall<'r> {
@@ -58,6 +59,7 @@ impl<'r> PreparedCall<'r> {
             changelog,
             derived_cascade,
             report_changes,
+            decimals,
             ..
         } = *request;
         let quoted_fn = quote_postgres_identifier(function_name);
@@ -174,6 +176,7 @@ impl<'r> PreparedCall<'r> {
             },
             derived: derived_cascade,
             report_changes: report_changes.filter(|_| derived_cascade.is_none()),
+            decimals,
         }
     }
 
@@ -331,7 +334,10 @@ async fn run_functions_in_txn(
         async move {
             configured.map_err(|e| call.configuration_failed(&e))?;
             let rows = called.map_err(|e| call.call_failed(&e))?;
-            let mut results: Vec<RowMap> = rows.iter().map(row_to_map).collect();
+            let mut results: Vec<RowMap> = rows
+                .iter()
+                .map(|row| write_row_to_map(row, call.decimals))
+                .collect::<Result<_>>()?;
             if let Some(reported) = reported {
                 let report: serde_json::Value =
                     reported.map_err(|e| changes_report_failed(&e))?.get("report");
@@ -342,7 +348,7 @@ async fn run_functions_in_txn(
             if let Some(derived) = call.derived {
                 if let Some(first) = results.first_mut() {
                     if first.get("succeeded").and_then(serde_json::Value::as_bool) == Some(true) {
-                        let report = derived_cascade_report(txn, derived).await?;
+                        let report = derived_cascade_report(txn, derived, call.decimals).await?;
                         first.insert(crate::traits::DERIVED_CASCADE_KEY.to_string(), report);
                     }
                 }
@@ -449,6 +455,7 @@ fn changes_report_failed(e: &tokio_postgres::Error) -> FraiseQLError {
 async fn derived_cascade_report(
     txn: &deadpool_postgres::Transaction<'_>,
     derived: &crate::traits::DerivedCascade<'_>,
+    decimals: Option<&crate::traits::WriteDecimals>,
 ) -> Result<serde_json::Value> {
     let report_failed = |e: &tokio_postgres::Error| {
         crate::postgres::database_error(
@@ -511,8 +518,16 @@ async fn derived_cascade_report(
             );
             let statement = txn.prepare_cached(&sql).await.map_err(|e| read_failed(&e))?;
             let rows = txn.query(&statement, &[ids]).await.map_err(|e| read_failed(&e))?;
-            let by_id: std::collections::HashMap<String, serde_json::Value> =
-                rows.iter().map(|r| (r.get("id"), r.get("data"))).collect();
+            let shape = decimals.map(|decimals| decimals.document(typename));
+            let data = |r: &Row| match &shape {
+                Some(shape) => json_column(r, "data", Decimals::Document(shape))
+                    .unwrap_or(Ok(serde_json::Value::Null)),
+                None => Ok(r.get("data")),
+            };
+            let by_id = rows
+                .iter()
+                .map(|r| Ok((r.get("id"), data(r)?)))
+                .collect::<Result<std::collections::HashMap<String, serde_json::Value>>>()?;
             Ok::<_, FraiseQLError>((*typename, by_id))
         });
         let read: Vec<(&str, std::collections::HashMap<String, serde_json::Value>)> =
@@ -896,6 +911,47 @@ fn row_to_map(row: &Row) -> std::collections::HashMap<String, serde_json::Value>
         map.insert(column.name().to_string(), decode_cell(row, idx));
     }
     map
+}
+
+/// [`row_to_map`] for a mutation's response row, each document column `decimals` reads
+/// keeping its `Decimal`s' digits; the row's `entity_type` stamps the type its entity and
+/// its `error_detail` are read as.
+fn write_row_to_map(
+    row: &Row,
+    decimals: Option<&crate::traits::WriteDecimals>,
+) -> Result<std::collections::HashMap<String, serde_json::Value>> {
+    let Some(decimals) = decimals else {
+        return Ok(row_to_map(row));
+    };
+    let stamp = row.try_get::<_, Option<String>>("entity_type").ok().flatten();
+    let mut map = std::collections::HashMap::new();
+    for (idx, column) in row.columns().iter().enumerate() {
+        let read = decimals.column(column.name(), stamp.as_deref());
+        let cell = match &read {
+            Some(read) => json_column(row, idx, Decimals::column(read))
+                .unwrap_or_else(|| Ok(decode_cell(row, idx)))?,
+            None => decode_cell(row, idx),
+        };
+        map.insert(column.name().to_string(), cell);
+    }
+    Ok(map)
+}
+
+/// A `json`/`jsonb` cell, each number at a `Decimal` position of `decimals` kept as a string
+/// of its digits; `None` when the cell is not JSON.
+fn json_column<I>(row: &Row, column: I, decimals: Decimals<'_>) -> Option<Result<serde_json::Value>>
+where
+    I: tokio_postgres::row::RowIndex + std::fmt::Display + Copy,
+{
+    let cell = match row.try_get::<_, Option<JsonText<'_>>>(column).ok()? {
+        Some(JsonText(text)) => decimals.parse(text).map_err(|e| FraiseQLError::Database {
+            message:    format!("Failed to parse the `{column}` column as JSON: {e}"),
+            sql_state:  None,
+            constraint: None,
+        }),
+        None => Ok(serde_json::Value::Null),
+    };
+    Some(cell)
 }
 
 /// [`row_to_map`], with each `NUMERIC` column named in `exact` kept as a string of the

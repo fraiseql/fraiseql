@@ -4,7 +4,10 @@ use std::sync::Arc;
 
 use serde_json::{Value, json};
 
-use super::{DecimalFields, DecimalNode, DecimalShape, quote_decimals};
+use super::{
+    DecimalFields, DecimalNode, DecimalShape, WriteColumn, WriteDecimals, quote_cascade_decimals,
+    quote_decimals,
+};
 
 fn decimal() -> DecimalNode {
     DecimalNode::Decimal
@@ -305,4 +308,100 @@ fn an_abstract_composed_row_embeds_by_the_type_its_document_names() {
         composed(row, &shape),
         json!({"e": {"comments": [{"d": {"tip": "0.10"}}]}, "d": {"__typename": "Post", "price": "1.50"}})
     );
+}
+
+fn cascade(src: &str, shape: &DecimalShape) -> Value {
+    let mut out = Vec::new();
+    quote_cascade_decimals(src.as_bytes(), shape, &mut out);
+    serde_json::from_slice(&out).unwrap()
+}
+
+#[test]
+fn a_cascade_entity_is_read_as_the_type_its_entry_names() {
+    let shape = shape(
+        DecimalNode::Abstract(None),
+        &[
+            ("Product", &[("price", decimal())]),
+            ("Order", &[("total", decimal())]),
+        ],
+    );
+    let src = r#"{
+        "updated": [
+            {"entity": {"price": 1.50, "total": 2}, "__typename": "Product", "id": 1},
+            {"__typename": "Order", "id": 2, "entity": {"price": 3, "total": 4.00}},
+            {"__typename": "Tag", "id": 3, "entity": {"price": 5}},
+            {"id": 4, "entity": {"price": 6}}
+        ],
+        "deleted": [{"__typename": "Product", "id": 5, "entity": {"price": 7}}],
+        "metadata": {"affectedCount": 4}
+    }"#;
+    assert_eq!(
+        cascade(src, &shape),
+        json!({
+            "updated": [
+                {"entity": {"price": "1.50", "total": 2}, "__typename": "Product", "id": 1},
+                {"__typename": "Order", "id": 2, "entity": {"price": 3, "total": "4.00"}},
+                {"__typename": "Tag", "id": 3, "entity": {"price": 5}},
+                {"id": 4, "entity": {"price": 6}}
+            ],
+            "deleted": [{"__typename": "Product", "id": 5, "entity": {"price": 7}}],
+            "metadata": {"affectedCount": 4}
+        })
+    );
+}
+
+#[test]
+fn what_is_not_a_cascade_is_copied_as_it_is() {
+    for src in [
+        "null",
+        "[1.5]",
+        r#"{"updated": {"price": 1.5}}"#,
+        r#"{"updated": [1.5, null]}"#,
+    ] {
+        assert_eq!(
+            cascade(src, &product()).to_string(),
+            serde_json::from_str::<Value>(src).unwrap().to_string(),
+            "{src}"
+        );
+    }
+}
+
+#[test]
+fn a_write_reads_its_entity_and_its_error_as_the_type_the_row_stamps() {
+    let types = Arc::new(
+        [
+            ("Product", ("price", decimal())),
+            ("Fault", ("loss", decimal())),
+        ]
+        .into_iter()
+        .map(|(name, (key, node))| {
+            let mut fields = DecimalFields::new();
+            fields.insert(key, node);
+            (name.to_string(), fields)
+        })
+        .collect(),
+    );
+    let write = WriteDecimals::new(types)
+        .with_entity(Some(object("Product")))
+        .with_error(Some(object("Fault")))
+        .with_result(Some(object("Product")));
+    let root = |column: &str, stamp: Option<&str>| match write.column(column, stamp) {
+        Some(WriteColumn::Document(shape)) => Some(shape.root().clone()),
+        Some(WriteColumn::Cascade(_)) | None => None,
+    };
+    assert_eq!(root("entity", None), Some(object("Product")));
+    assert_eq!(root("entity", Some("Fault")), Some(object("Fault")));
+    assert_eq!(root("error_detail", None), Some(object("Fault")));
+    assert_eq!(root("error_detail", Some("Product")), Some(object("Product")));
+    assert_eq!(
+        root("result", Some("Fault")),
+        Some(object("Product")),
+        "a payload is not stamped"
+    );
+    assert_eq!(root("metadata", None), None, "observability is never read for Decimals");
+    assert!(matches!(write.column("cascade", None), Some(WriteColumn::Cascade(_))));
+
+    let unknown = WriteDecimals::new(Arc::default());
+    assert_eq!(unknown.column("entity", None), None, "no type to read it as");
+    assert_eq!(unknown.column("result", None), None);
 }

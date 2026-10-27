@@ -219,6 +219,9 @@ pub struct WriteRequest<'a> {
     /// [`CHANGED_ROWS_KEY`]. A call with a [`DerivedCascade`] carries its report there
     /// instead.
     pub report_changes:  Option<i32>,
+    /// Where the response row's documents hold a `Decimal`, read as its digits; `None`:
+    /// decoded as JSON numbers.
+    pub decimals:        Option<&'a super::WriteDecimals>,
 }
 
 impl<'a> WriteRequest<'a> {
@@ -233,7 +236,15 @@ impl<'a> WriteRequest<'a> {
             mode: WriteMode::Commit,
             derived_cascade: None,
             report_changes: None,
+            decimals: None,
         }
+    }
+
+    /// Reading the response row's `Decimal`s as `decimals` places them.
+    #[must_use]
+    pub const fn with_decimals(mut self, decimals: Option<&'a super::WriteDecimals>) -> Self {
+        self.decimals = decimals;
+        self
     }
 
     /// Reporting the rows the call changes, at most `max_entities` (#1576).
