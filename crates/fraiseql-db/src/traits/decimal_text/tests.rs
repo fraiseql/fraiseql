@@ -1,5 +1,7 @@
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
+use std::sync::Arc;
+
 use serde_json::{Value, json};
 
 use super::{DecimalFields, DecimalNode, DecimalShape, quote_decimals};
@@ -24,7 +26,7 @@ fn shape(root: DecimalNode, types: &[(&str, &[(&str, DecimalNode)])]) -> Decimal
             ((*name).to_string(), fields)
         })
         .collect();
-    DecimalShape::new(root, types)
+    DecimalShape::new(root, Arc::new(types))
 }
 
 /// A `Product` whose `price` is a `Decimal`.
@@ -185,7 +187,7 @@ fn an_abstract_object_naming_no_type_reads_the_fallback() {
 fn a_list_of_abstract_objects_is_quoted_per_element() {
     let mut shape = union_shape(None);
     shape.root = object("Feed");
-    shape.types.insert("Feed".to_string(), {
+    Arc::make_mut(&mut shape.types).insert("Feed".to_string(), {
         let mut f = DecimalFields::new();
         f.insert("items", DecimalNode::Abstract(None));
         f

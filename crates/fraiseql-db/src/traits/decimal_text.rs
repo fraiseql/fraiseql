@@ -6,7 +6,7 @@
 //! [`quote_decimals`] wraps each number token at a `Decimal` position in quotes before it
 //! is parsed. Every other byte is copied as it is.
 
-use std::{borrow::Cow, collections::HashMap};
+use std::{borrow::Cow, collections::HashMap, sync::Arc};
 
 #[cfg(test)]
 mod tests;
@@ -56,13 +56,13 @@ impl DecimalFields {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DecimalShape {
     root:  DecimalNode,
-    types: HashMap<String, DecimalFields>,
+    types: Arc<HashMap<String, DecimalFields>>,
 }
 
 impl DecimalShape {
     /// A document read as `root`, its types' fields in `types`.
     #[must_use]
-    pub const fn new(root: DecimalNode, types: HashMap<String, DecimalFields>) -> Self {
+    pub const fn new(root: DecimalNode, types: Arc<HashMap<String, DecimalFields>>) -> Self {
         Self { root, types }
     }
 
