@@ -257,6 +257,10 @@ inputs and enums are never tagged, since another subgraph may declare the same n
 supergraph tag covers every declaration of it: let the contract remove unreachable types to
 drop those that only gated operations use. A type two roles reach carries neither tag.
 
+The [gateway deployment guide](../guides/federation-gateway-deployment.md) puts these
+together: who reaches the subgraph, the gateway's introspection, trusted documents at the
+gateway, and a contract per audience.
+
 **Composing offline** (a CI composition gate, `rover supergraph compose`) needs no running
 subgraph and no principal: print exactly what `_service { sdl }` serves, from the artifact.
 

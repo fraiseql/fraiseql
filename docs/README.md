@@ -10,6 +10,7 @@
 | Set up a development environment | [`.claude/CLAUDE.md`](../.claude/CLAUDE.md) |
 | Understand the branching / release model | [`docs/contributing/branching-model.md`](contributing/branching-model.md) — trunk-based development |
 | Run the server in production | [`docs/runbooks/`](runbooks/) — 15 incident response runbooks |
+| Run a federated subgraph behind a gateway (what the supergraph shows, contracts) | [`docs/guides/federation-gateway-deployment.md`](guides/federation-gateway-deployment.md) |
 | Deploy on FreeBSD (Jails + ZFS + Caddy) | [`docs/guides/freebsd-deployment.md`](guides/freebsd-deployment.md) |
 | Understand the cache system | [`docs/modules/cache.md`](modules/cache.md) |
 | Serve text in several languages (localized fields, request locale) | [`docs/guides/localization.md`](guides/localization.md) |
