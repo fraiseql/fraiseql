@@ -73,6 +73,20 @@ disagreed, and the promise was the part that was wrong.
   `subscription::subscription_arguments` take the switch as a last argument.
   `SubscriptionManager` and `QueryMatcher` gain `with_suggestions`, and
   `WhereFieldSchema` in `fraiseql-db` gains `with_suggestions`.
+- **The federation service SDL tags what a role gates, for gateway contracts (#1717).**
+  A supergraph composed from `_service { sdl }` lists `requires_role` operations to every
+  client of the gateway. Each gated root query and mutation now carries
+  `@tag(name: "requires-role/<role>")`, and so does each object type of the subgraph's own
+  that only that role's operations reach (or that the role gates). A contract (GraphOS,
+  Hive, Cosmo) excluding the tag builds a public supergraph without them; one including it
+  keeps them served. A character outside letters, digits, `-` and `_` is written `/` and
+  two hex digits (`org:admin` → `requires-role/org/3Aadmin`), so no two roles share a tag,
+  and a role whose tag would pass a contract's 128-character limit fails the SDL instead
+  of going untagged. Entities, `@shareable` types, inputs and enums are never tagged:
+  another subgraph may declare the same name, and a supergraph tag covers every subgraph's
+  declaration. The SDL now imports and declares `@tag`. In Rust,
+  `fraiseql_federation::generate_service_sdl` takes the `ContractTags` to render as a
+  third argument; `CompiledSchema::federation_service_sdl` computes them.
 - **A boot guard takes a `Deployment`, not an `is_production: bool`.**
   `fraiseql_server::token_revocation::revocation_manager_from_schema_in`,
   `fraiseql_server::inbound::webhook_routes_check` and

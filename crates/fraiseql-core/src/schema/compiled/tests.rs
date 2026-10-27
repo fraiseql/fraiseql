@@ -1397,8 +1397,7 @@ fn service_sdl_advertises_root_query_fields() {
         ..Default::default()
     });
 
-    let meta = schema.federation_metadata().expect("federation enabled");
-    let sdl = crate::federation::generate_service_sdl(&schema.raw_schema(), &meta);
+    let sdl = schema.federation_service_sdl().expect("federation enabled");
 
     assert!(
         sdl.contains("users: [User!]!"),

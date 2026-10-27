@@ -26,6 +26,8 @@
 //! | `caller_view` | `CallerIntrospection`: the responses one caller may see |
 
 mod caller_view;
+#[cfg(feature = "federation")]
+pub mod contract_tags;
 mod directive_builder;
 mod field_resolver;
 mod schema_builder;

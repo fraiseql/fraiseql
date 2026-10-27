@@ -49,14 +49,24 @@ pub fn caller_holds(required: Option<&str>, security_context: Option<&SecurityCo
 /// types are read from `types`, so neither needs a pass of its own.
 #[must_use]
 pub fn visible_schema(schema: &CompiledSchema, caller: Option<&SecurityContext>) -> CompiledSchema {
+    visible_schema_where(schema, |required| caller_holds(required, caller))
+}
+
+/// The schema as seen by whoever `holds` the roles it answers `true` for, as
+/// [`visible_schema`] describes; `holds` is asked about `None` too, and must answer `true`.
+#[must_use]
+pub(crate) fn visible_schema_where(
+    schema: &CompiledSchema,
+    holds: impl Fn(Option<&str>) -> bool,
+) -> CompiledSchema {
     let mut visible = schema.clone();
-    visible.queries.retain(|q| caller_holds(q.requires_role.as_deref(), caller));
-    visible.mutations.retain(|m| caller_holds(m.requires_role.as_deref(), caller));
-    visible.types.retain(|t| caller_holds(t.requires_role.as_deref(), caller));
+    visible.queries.retain(|q| holds(q.requires_role.as_deref()));
+    visible.mutations.retain(|m| holds(m.requires_role.as_deref()));
+    visible.types.retain(|t| holds(t.requires_role.as_deref()));
     let hidden: Vec<&str> = schema
         .types
         .iter()
-        .filter(|t| !caller_holds(t.requires_role.as_deref(), caller))
+        .filter(|t| !holds(t.requires_role.as_deref()))
         .map(|t| t.name.as_str())
         .collect();
     for union in &mut visible.unions {

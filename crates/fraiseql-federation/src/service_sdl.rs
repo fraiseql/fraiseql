@@ -2,8 +2,9 @@
 
 use std::{collections::HashMap, fmt::Write as _};
 
-use super::types::{
-    FederatedType, FederationMetadata, FieldFederationDirectives, FieldPathSelection,
+use super::{
+    contract_tags::{ContractTags, tag_suffix},
+    types::{FederatedType, FederationMetadata, FieldFederationDirectives, FieldPathSelection},
 };
 
 const FEDERATION_SCHEMA: &str = r"
@@ -15,6 +16,7 @@ directive @provides(fields: String!) on FIELD_DEFINITION
 directive @shareable on FIELD_DEFINITION | OBJECT
 directive @inaccessible on FIELD_DEFINITION | OBJECT | INTERFACE | UNION | ARGUMENT_DEFINITION | SCALAR | ENUM | ENUM_VALUE | INPUT_OBJECT | INPUT_FIELD_DEFINITION
 directive @override(from: String!) on FIELD_DEFINITION
+directive @tag(name: String!) repeatable on FIELD_DEFINITION | OBJECT | INTERFACE | UNION | ARGUMENT_DEFINITION | SCALAR | ENUM | ENUM_VALUE | INPUT_OBJECT | INPUT_FIELD_DEFINITION
 directive @link(url: String, as: String, for: link__Purpose, import: [link__Import]) repeatable on SCHEMA
 
 enum link__Purpose {
@@ -100,9 +102,11 @@ fn resolve_federation_version(version: &str) -> String {
 /// Parsed type header from a schema line.
 struct TypeHeader {
     /// `"type"`, `"interface"`, `"input"`, `"enum"`, `"scalar"`, `"union"`
-    kind: String,
+    kind:      String,
     /// The type name (e.g., `"User"`)
-    name: String,
+    name:      String,
+    /// Which whitespace-separated word of the line the name is.
+    name_word: usize,
 }
 
 /// Try to parse a type header from a trimmed line.
@@ -119,8 +123,9 @@ fn parse_type_header(trimmed: &str) -> Option<TypeHeader> {
         "type" | "interface" | "input" | "enum" | "scalar" | "union" => {
             if tokens.len() >= 2 {
                 Some(TypeHeader {
-                    kind: tokens[0].to_string(),
-                    name: tokens[1].to_string(),
+                    kind:      tokens[0].to_string(),
+                    name:      tokens[1].to_string(),
+                    name_word: 1,
                 })
             } else {
                 None
@@ -129,8 +134,9 @@ fn parse_type_header(trimmed: &str) -> Option<TypeHeader> {
         "extend" => {
             if tokens.len() >= 3 {
                 Some(TypeHeader {
-                    kind: tokens[1].to_string(),
-                    name: tokens[2].to_string(),
+                    kind:      tokens[1].to_string(),
+                    name:      tokens[2].to_string(),
+                    name_word: 2,
                 })
             } else {
                 None
@@ -164,11 +170,26 @@ fn append_directives_to_line(line: &str, suffix: &str) -> String {
     }
 }
 
+/// `line`, a type header, with `suffix` right after its name.
+fn insert_after_name(line: &str, header: &TypeHeader, suffix: &str) -> String {
+    let mut word_ends = line.char_indices().filter_map(|(at, c)| {
+        let end = at + c.len_utf8();
+        let ends_word =
+            !c.is_whitespace() && line[end..].chars().next().is_none_or(char::is_whitespace);
+        ends_word.then_some(end)
+    });
+    match word_ends.nth(header.name_word) {
+        Some(end) => format!("{}{suffix}{}", &line[..end], &line[end..]),
+        None => line.to_string(),
+    }
+}
+
 /// Generate federation-compliant SDL for `_service` query.
 ///
 /// Uses a state-machine line processor to inject `@key` on type headers and
 /// field-level federation directives (`@external`, `@requires`, `@provides`,
-/// `@shareable`, `@inaccessible`, `@override`) on individual field definitions.
+/// `@shareable`, `@inaccessible`, `@override`) on individual field definitions,
+/// and each of `tags` on the root field or type header it names.
 ///
 /// # Type handling
 ///
@@ -177,7 +198,11 @@ fn append_directives_to_line(line: &str, suffix: &str) -> String {
 /// - `interface` types with `@key` → entity interface pattern
 /// - `input` / `enum` types → no federation directives injected
 #[must_use]
-pub fn generate_service_sdl(base_schema: &str, metadata: &FederationMetadata) -> String {
+pub fn generate_service_sdl(
+    base_schema: &str,
+    metadata: &FederationMetadata,
+    tags: &ContractTags,
+) -> String {
     if !metadata.enabled {
         return base_schema.to_string();
     }
@@ -189,6 +214,8 @@ pub fn generate_service_sdl(base_schema: &str, metadata: &FederationMetadata) ->
     // State-machine line processor
     let mut output_lines: Vec<String> = Vec::new();
     let mut current_type_name: Option<String> = None;
+    // The type whose body is open, federated or not: what a field line belongs to.
+    let mut open_type: Option<String> = None;
     let mut brace_depth: u32 = 0;
 
     for line in base_schema.lines() {
@@ -197,11 +224,13 @@ pub fn generate_service_sdl(base_schema: &str, metadata: &FederationMetadata) ->
 
         if brace_depth == 0 {
             if let Some(type_info) = parse_type_header(trimmed) {
+                open_type = Some(type_info.name.clone());
+                let type_tags = tag_suffix(tags.of_type(&type_info.name));
                 match type_info.kind.as_str() {
                     "input" | "enum" | "scalar" | "union" => {
                         // No federation directives for these types
                         current_type_name = None;
-                        output_lines.push(line.to_string());
+                        output_lines.push(insert_after_name(line, &type_info, &type_tags));
                     },
                     "type" | "interface" => {
                         if let Some(fed_type) = fed_type_map.get(type_info.name.as_str()) {
@@ -233,13 +262,14 @@ pub fn generate_service_sdl(base_schema: &str, metadata: &FederationMetadata) ->
                             if fed_type.type_shareable {
                                 header.push_str(" @shareable");
                             }
+                            header.push_str(&type_tags);
 
                             header.push_str(" {");
                             output_lines.push(format!("{indent}{header}"));
                         } else {
-                            // Not a federated type — pass through unchanged
+                            // Not a federated type: only its tags, if any
                             current_type_name = None;
-                            output_lines.push(line.to_string());
+                            output_lines.push(insert_after_name(line, &type_info, &type_tags));
                         }
                     },
                     _ => {
@@ -250,27 +280,22 @@ pub fn generate_service_sdl(base_schema: &str, metadata: &FederationMetadata) ->
                 output_lines.push(line.to_string());
             }
         } else if brace_depth == 1 {
-            if let Some(ref type_name) = current_type_name {
-                if let Some(fed_type) = fed_type_map.get(type_name.as_str()) {
-                    if let Some(field_name) = extract_field_name(trimmed) {
-                        if let Some(directives) = fed_type.field_directives.get(&field_name) {
-                            let suffix = field_directive_suffix(directives);
-                            if suffix.is_empty() {
-                                output_lines.push(line.to_string());
-                            } else {
-                                output_lines.push(append_directives_to_line(line, &suffix));
-                            }
-                        } else {
-                            output_lines.push(line.to_string());
-                        }
-                    } else {
-                        output_lines.push(line.to_string());
-                    }
-                } else {
-                    output_lines.push(line.to_string());
-                }
-            } else {
+            let suffix = extract_field_name(trimmed).map_or_else(String::new, |field_name| {
+                let federated = current_type_name
+                    .as_deref()
+                    .and_then(|name| fed_type_map.get(name))
+                    .and_then(|fed_type| fed_type.field_directives.get(&field_name))
+                    .map_or_else(String::new, field_directive_suffix);
+                let tagged = open_type
+                    .as_deref()
+                    .and_then(|name| tags.field(name, &field_name))
+                    .map_or_else(String::new, |tag| tag_suffix([tag]));
+                federated + &tagged
+            });
+            if suffix.is_empty() {
                 output_lines.push(line.to_string());
+            } else {
+                output_lines.push(append_directives_to_line(line, &suffix));
             }
         } else {
             output_lines.push(line.to_string());
@@ -302,7 +327,7 @@ pub fn generate_service_sdl(base_schema: &str, metadata: &FederationMetadata) ->
         sdl,
         "extend schema @link(url: \"https://specs.apollo.dev/federation/{version_url}\", \
          import: [\"@key\", \"@external\", \"@requires\", \"@provides\", \"@shareable\", \
-         \"@inaccessible\", \"@override\", \"@extends\"])"
+         \"@inaccessible\", \"@override\", \"@extends\", \"@tag\"])"
     );
 
     sdl.push_str(&modified_schema);

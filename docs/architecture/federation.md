@@ -244,6 +244,19 @@ composed from it shows those operations' names, arguments and types to every cli
 gateway. The subgraph still refuses a call from a principal without the role. Treat the
 supergraph as the subgraph's full surface.
 
+To give different audiences different supergraphs, filter it with a gateway contract
+(GraphOS, Hive, Cosmo). Each gated root field carries `@tag(name: "requires-role/<role>")`,
+and so does each object type of this subgraph's own that only that role's operations reach,
+or that the role gates. A contract excluding `requires-role/admin` drops the `admin`
+operations and what only they expose; a router serving a contract that includes it serves
+them, and the subgraph still checks the role on every call. A role's characters other than
+letters, digits, `-` and `_` are written `/` and two hex digits (`org:admin` →
+`requires-role/org/3Aadmin`), so each role has its own tag, and a role too long for a
+128-character tag makes the SDL fail rather than go untagged. Entities, `@shareable` types,
+inputs and enums are never tagged, since another subgraph may declare the same name and a
+supergraph tag covers every declaration of it: let the contract remove unreachable types to
+drop those that only gated operations use. A type two roles reach carries neither tag.
+
 **Composing offline** (a CI composition gate, `rover supergraph compose`) needs no running
 subgraph and no principal: print exactly what `_service { sdl }` serves, from the artifact.
 

@@ -9,6 +9,8 @@
 // Usage:
 //   node compose-check.mjs <name>=<file.graphql> [<name>=<file.graphql> ...]
 //   node compose-check.mjs --expect-fail=<CODE> <name>=<file> ...   # negative case
+//   node compose-check.mjs --expect-supergraph=<regex> <name>=<file> ...
+//     # positive case whose composed supergraph SDL must also match <regex> (repeatable)
 //
 // Exit codes: 0 = composed as expected, 1 = unexpected result, 2 = bad invocation.
 
@@ -18,10 +20,15 @@ import { composeServices } from "@apollo/composition";
 
 const raw = process.argv.slice(2);
 let expectFailCode = null;
+const expectSupergraph = [];
 const specs = [];
 for (const arg of raw) {
   if (arg.startsWith("--expect-fail=")) {
     expectFailCode = arg.slice("--expect-fail=".length);
+    continue;
+  }
+  if (arg.startsWith("--expect-supergraph=")) {
+    expectSupergraph.push(new RegExp(arg.slice("--expect-supergraph=".length), "m"));
     continue;
   }
   const eq = arg.indexOf("=");
@@ -66,6 +73,13 @@ if (expectFailCode !== null) {
 if (errors.length) {
   console.error(`✗ ${names}: composition FAILED with ${errors.length} error(s):`);
   for (const e of errors) console.error(`    - [${e.extensions?.code ?? "ERROR"}] ${e.message}`);
+  process.exit(1);
+}
+
+const missing = expectSupergraph.filter((re) => !re.test(result.supergraphSdl));
+if (missing.length) {
+  console.error(`✗ ${names}: composed, but the supergraph matches none of:`);
+  for (const re of missing) console.error(`    - ${re.source}`);
   process.exit(1);
 }
 

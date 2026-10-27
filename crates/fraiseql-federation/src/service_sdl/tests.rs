@@ -36,7 +36,7 @@ fn test_generate_service_sdl_empty() {
     let metadata = FederationMetadata::default();
     let base_schema = "type Query { test: String }";
 
-    let sdl = generate_service_sdl(base_schema, &metadata);
+    let sdl = generate_service_sdl(base_schema, &metadata, &crate::ContractTags::none());
     assert_eq!(sdl, base_schema);
 }
 
@@ -44,7 +44,7 @@ fn test_generate_service_sdl_empty() {
 fn test_generate_service_sdl_with_federation() {
     let metadata = enabled_metadata();
     let base_schema = "type Query { test: String }";
-    let sdl = generate_service_sdl(base_schema, &metadata);
+    let sdl = generate_service_sdl(base_schema, &metadata, &crate::ContractTags::none());
 
     assert!(sdl.contains("directive @key"));
     assert!(sdl.contains("scalar _Any"));
@@ -85,7 +85,7 @@ fn test_key_directives_emitted_inline() {
 
     let base_schema =
         "type User {\n  id: ID!\n  name: String!\n}\n\ntype Query {\n  user(id: ID!): User\n}";
-    let sdl = generate_service_sdl(base_schema, &metadata);
+    let sdl = generate_service_sdl(base_schema, &metadata, &crate::ContractTags::none());
 
     assert!(sdl.contains("type User @key(fields: \"id\") {"), "SDL: {sdl}");
     assert!(!sdl.contains("# @key"), "must not contain commented @key: {sdl}");
@@ -95,7 +95,7 @@ fn test_key_directives_emitted_inline() {
 fn test_inaccessible_directive_declared_in_sdl() {
     let metadata = enabled_metadata();
     let base_schema = "type Query { test: String }";
-    let sdl = generate_service_sdl(base_schema, &metadata);
+    let sdl = generate_service_sdl(base_schema, &metadata, &crate::ContractTags::none());
 
     assert!(
         sdl.contains("directive @inaccessible on"),
@@ -107,7 +107,7 @@ fn test_inaccessible_directive_declared_in_sdl() {
 fn test_link_directive_emitted_in_sdl() {
     let metadata = enabled_metadata();
     let base_schema = "type Query { test: String }";
-    let sdl = generate_service_sdl(base_schema, &metadata);
+    let sdl = generate_service_sdl(base_schema, &metadata, &crate::ContractTags::none());
 
     assert!(
         sdl.contains("extend schema @link(url: \"https://specs.apollo.dev/federation/v2.0\","),
@@ -119,7 +119,7 @@ fn test_link_directive_emitted_in_sdl() {
 fn test_override_directive_declared_in_sdl() {
     let metadata = enabled_metadata();
     let base_schema = "type Query { test: String }";
-    let sdl = generate_service_sdl(base_schema, &metadata);
+    let sdl = generate_service_sdl(base_schema, &metadata, &crate::ContractTags::none());
 
     assert!(
         sdl.contains("directive @override(from: String!) on FIELD_DEFINITION"),
@@ -142,7 +142,7 @@ fn test_field_external_directive() {
     };
 
     let base_schema = "type User {\n  id: ID!\n  email: String!\n}";
-    let sdl = generate_service_sdl(base_schema, &metadata);
+    let sdl = generate_service_sdl(base_schema, &metadata, &crate::ContractTags::none());
 
     assert!(sdl.contains("email: String! @external"), "Field must have @external: {sdl}");
 }
@@ -165,7 +165,7 @@ fn test_field_requires_directive() {
     };
 
     let base_schema = "type User {\n  id: ID!\n  fullName: String!\n}";
-    let sdl = generate_service_sdl(base_schema, &metadata);
+    let sdl = generate_service_sdl(base_schema, &metadata, &crate::ContractTags::none());
 
     assert!(
         sdl.contains("fullName: String! @requires(fields: \"profile\")"),
@@ -191,7 +191,7 @@ fn test_field_requires_nested_path() {
     };
 
     let base_schema = "type User {\n  id: ID!\n  displayAge: Int!\n}";
-    let sdl = generate_service_sdl(base_schema, &metadata);
+    let sdl = generate_service_sdl(base_schema, &metadata, &crate::ContractTags::none());
 
     assert!(
         sdl.contains("@requires(fields: \"profile { age }\")"),
@@ -217,7 +217,7 @@ fn test_field_provides_directive() {
     };
 
     let base_schema = "type User {\n  id: ID!\n  reviews: [Review!]!\n}";
-    let sdl = generate_service_sdl(base_schema, &metadata);
+    let sdl = generate_service_sdl(base_schema, &metadata, &crate::ContractTags::none());
 
     assert!(
         sdl.contains("reviews: [Review!]! @provides(fields: \"body\")"),
@@ -238,7 +238,7 @@ fn test_field_shareable_directive() {
     };
 
     let base_schema = "type User {\n  id: ID!\n  name: String!\n}";
-    let sdl = generate_service_sdl(base_schema, &metadata);
+    let sdl = generate_service_sdl(base_schema, &metadata, &crate::ContractTags::none());
 
     assert!(sdl.contains("name: String! @shareable"), "Field must have @shareable: {sdl}");
 }
@@ -256,7 +256,7 @@ fn test_field_inaccessible_directive() {
     };
 
     let base_schema = "type User {\n  id: ID!\n  ssn: String!\n}";
-    let sdl = generate_service_sdl(base_schema, &metadata);
+    let sdl = generate_service_sdl(base_schema, &metadata, &crate::ContractTags::none());
 
     assert!(
         sdl.contains("ssn: String! @inaccessible"),
@@ -279,7 +279,7 @@ fn test_field_override_directive() {
     };
 
     let base_schema = "type User {\n  id: ID!\n  price: Float!\n}";
-    let sdl = generate_service_sdl(base_schema, &metadata);
+    let sdl = generate_service_sdl(base_schema, &metadata, &crate::ContractTags::none());
 
     assert!(
         sdl.contains("price: Float! @override(from: \"old-subgraph\")"),
@@ -312,7 +312,7 @@ fn test_multi_directive_field() {
     };
 
     let base_schema = "type User {\n  id: ID!\n  email: String!\n}";
-    let sdl = generate_service_sdl(base_schema, &metadata);
+    let sdl = generate_service_sdl(base_schema, &metadata, &crate::ContractTags::none());
 
     // Directive order: @external before @requires
     assert!(
@@ -344,7 +344,7 @@ fn test_extends_type_uses_extend_keyword() {
     };
 
     let base_schema = "type User {\n  id: ID!\n}";
-    let sdl = generate_service_sdl(base_schema, &metadata);
+    let sdl = generate_service_sdl(base_schema, &metadata, &crate::ContractTags::none());
 
     assert!(
         sdl.contains("extend type User @key(fields: \"id\") {"),
@@ -379,7 +379,7 @@ fn test_type_level_shareable() {
     };
 
     let base_schema = "type User {\n  id: ID!\n}";
-    let sdl = generate_service_sdl(base_schema, &metadata);
+    let sdl = generate_service_sdl(base_schema, &metadata, &crate::ContractTags::none());
 
     assert!(
         sdl.contains("type User @key(fields: \"id\") @shareable {"),
@@ -395,7 +395,8 @@ fn test_link_url_version_v2() {
         types:   Vec::new(),
     };
 
-    let sdl = generate_service_sdl("type Query { x: Int }", &metadata);
+    let sdl =
+        generate_service_sdl("type Query { x: Int }", &metadata, &crate::ContractTags::none());
     assert!(sdl.contains("federation/v2.0\""), "v2 must resolve to v2.0: {sdl}");
 }
 
@@ -407,14 +408,16 @@ fn test_link_url_version_v2_3() {
         types:   Vec::new(),
     };
 
-    let sdl = generate_service_sdl("type Query { x: Int }", &metadata);
+    let sdl =
+        generate_service_sdl("type Query { x: Int }", &metadata, &crate::ContractTags::none());
     assert!(sdl.contains("federation/v2.3\""), "v2.3 must stay as v2.3: {sdl}");
 }
 
 #[test]
 fn test_link_import_includes_extends() {
     let metadata = enabled_metadata();
-    let sdl = generate_service_sdl("type Query { x: Int }", &metadata);
+    let sdl =
+        generate_service_sdl("type Query { x: Int }", &metadata, &crate::ContractTags::none());
 
     assert!(sdl.contains("\"@extends\""), "@extends must be in @link import list: {sdl}");
 }
@@ -451,7 +454,7 @@ fn test_cross_type_field_collision() {
 type User {\n  id: ID!\n  name: String!\n}\n\n\
 type Product {\n  sku: ID!\n  name: String!\n}";
 
-    let sdl = generate_service_sdl(base_schema, &metadata);
+    let sdl = generate_service_sdl(base_schema, &metadata, &crate::ContractTags::none());
 
     // User.name must have @shareable
     assert!(
@@ -484,7 +487,7 @@ fn test_input_type_fields_no_directives() {
 type User {\n  id: ID!\n  name: String!\n}\n\n\
 input CreateUserInput {\n  name: String!\n}";
 
-    let sdl = generate_service_sdl(base_schema, &metadata);
+    let sdl = generate_service_sdl(base_schema, &metadata, &crate::ContractTags::none());
 
     // The input type line must be untouched
     assert!(
@@ -516,7 +519,7 @@ fn test_interface_entity_pattern() {
     };
 
     let base_schema = "interface Node {\n  id: ID!\n}";
-    let sdl = generate_service_sdl(base_schema, &metadata);
+    let sdl = generate_service_sdl(base_schema, &metadata, &crate::ContractTags::none());
 
     assert!(
         sdl.contains("interface Node @key(fields: \"id\") {"),
@@ -547,7 +550,7 @@ fn test_non_resolvable_key() {
     };
 
     let base_schema = "type User {\n  id: ID!\n}";
-    let sdl = generate_service_sdl(base_schema, &metadata);
+    let sdl = generate_service_sdl(base_schema, &metadata, &crate::ContractTags::none());
 
     assert!(
         sdl.contains("@key(fields: \"id\", resolvable: false)"),
@@ -584,7 +587,7 @@ fn test_multiple_keys_on_one_type() {
     };
 
     let base_schema = "type User {\n  id: ID!\n  email: String!\n}";
-    let sdl = generate_service_sdl(base_schema, &metadata);
+    let sdl = generate_service_sdl(base_schema, &metadata, &crate::ContractTags::none());
 
     assert!(
         sdl.contains("type User @key(fields: \"id\") @key(fields: \"email\") {"),
@@ -664,8 +667,107 @@ fn link_directive_definition_uses_link_purpose_enum() {
     // The `@link` directive's `for` argument must be the `link__Purpose` enum, not
     // `String` — federation composition rejects `for: String`. The supporting
     // `link__Purpose` enum must be defined alongside it.
-    let sdl = generate_service_sdl("type Query { test: String }", &enabled_metadata());
+    let sdl = generate_service_sdl(
+        "type Query { test: String }",
+        &enabled_metadata(),
+        &crate::ContractTags::none(),
+    );
     assert!(sdl.contains("for: link__Purpose"), "@link `for` must be link__Purpose:\n{sdl}");
     assert!(!sdl.contains("for: String"), "@link must not declare `for: String`:\n{sdl}");
     assert!(sdl.contains("enum link__Purpose"), "link__Purpose enum must be defined:\n{sdl}");
+}
+
+/// `ContractTags` tagging `Query.secret` and `Mutation.purge` with `requires-role/a`, and
+/// each of `types` with `requires-role/a` and `requires-role/b`.
+fn tags(types: &[&str]) -> ContractTags {
+    let mut tags = ContractTags::none();
+    for (root, field) in [("Query", "secret"), ("Mutation", "purge")] {
+        tags.fields
+            .entry(root.to_string())
+            .or_default()
+            .insert(field.to_string(), "requires-role/a".to_string());
+    }
+    for name in types {
+        tags.types.insert(
+            (*name).to_string(),
+            ["requires-role/b", "requires-role/a"].map(String::from).into(),
+        );
+    }
+    tags
+}
+
+const BOTH: &str = r#"@tag(name: "requires-role/a") @tag(name: "requires-role/b")"#;
+
+#[test]
+fn a_tagged_root_field_line_ends_with_its_tag() {
+    let base = "type Query {\n  open: Int\n  secret(id: ID!): Int\n}\n\ntype Mutation {\n  purge: \
+                Boolean!\n}\n";
+    let sdl = generate_service_sdl(base, &enabled_metadata(), &tags(&[]));
+    assert!(sdl.contains("  open: Int\n"), "{sdl}");
+    assert!(
+        sdl.contains("  secret(id: ID!): Int @tag(name: \"requires-role/a\")\n"),
+        "{sdl}"
+    );
+    assert!(sdl.contains("  purge: Boolean! @tag(name: \"requires-role/a\")\n"), "{sdl}");
+}
+
+#[test]
+fn a_field_of_another_type_named_like_a_tagged_root_field_is_left_alone() {
+    let base = "type Vault {\n  secret: Int\n}\n\ntype Query {\n  vault: Vault\n}\n";
+    let sdl = generate_service_sdl(base, &enabled_metadata(), &tags(&[]));
+    assert!(sdl.contains("type Vault {\n  secret: Int\n}"), "{sdl}");
+}
+
+#[test]
+fn a_tagged_type_header_of_every_kind_carries_its_tags_after_its_name() {
+    let base = "scalar Cents\n\nenum Basis {\n  FIFO\n}\n\ninput Filter {\n  q: String\n}\n\n\
+                interface Node {\n  id: ID!\n}\n\nunion Hit = Doc | Page\n\ntype Doc {\n  id: \
+                ID!\n}\n\ntype Page {\n  id: ID!\n}\n\ntype Query {\n  hit: Hit\n}\n";
+    let names = ["Cents", "Basis", "Filter", "Node", "Hit", "Doc"];
+    let sdl = generate_service_sdl(base, &enabled_metadata(), &tags(&names));
+    for header in [
+        format!("scalar Cents {BOTH}\n"),
+        format!("enum Basis {BOTH} {{\n"),
+        format!("input Filter {BOTH} {{\n"),
+        format!("interface Node {BOTH} {{\n"),
+        format!("union Hit {BOTH} = Doc | Page\n"),
+        format!("type Doc {BOTH} {{\n"),
+    ] {
+        assert!(sdl.contains(&header), "no `{header}` in:\n{sdl}");
+    }
+    assert!(sdl.contains("type Page {\n"), "{sdl}");
+}
+
+#[test]
+fn a_tagged_entity_header_carries_its_tags_after_its_keys() {
+    let mut metadata = enabled_metadata();
+    metadata.types.push(user_type_with_key());
+    let base = "type User {\n  id: ID!\n}\n\ntype Query {\n  me: User\n}\n";
+    let sdl = generate_service_sdl(base, &metadata, &tags(&["User"]));
+    assert!(sdl.contains(&format!("type User @key(fields: \"id\") {BOTH} {{")), "{sdl}");
+}
+
+#[test]
+fn the_tag_directive_is_declared_and_imported_even_with_nothing_tagged() {
+    let sdl = generate_service_sdl(
+        "type Query {\n  a: Int\n}\n",
+        &enabled_metadata(),
+        &ContractTags::none(),
+    );
+    assert!(sdl.lines().next().unwrap().contains(r#", "@tag"]"#), "{sdl}");
+    assert!(
+        sdl.contains(
+            "directive @tag(name: String!) repeatable on FIELD_DEFINITION | OBJECT | INTERFACE | \
+             UNION | ARGUMENT_DEFINITION | SCALAR | ENUM | ENUM_VALUE | INPUT_OBJECT | \
+             INPUT_FIELD_DEFINITION"
+        ),
+        "{sdl}"
+    );
+}
+
+#[test]
+fn a_tagged_extension_header_carries_its_tags_after_its_name() {
+    let base = "extend type ty {\n  a: Int\n}\n\ntype Query {\n  b: Int\n}\n";
+    let sdl = generate_service_sdl(base, &enabled_metadata(), &tags(&["ty"]));
+    assert!(sdl.contains(&format!("extend type ty {BOTH} {{\n")), "{sdl}");
 }

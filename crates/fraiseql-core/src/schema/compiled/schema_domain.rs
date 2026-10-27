@@ -277,7 +277,8 @@ impl CompiledSchema {
     }
 
     /// The SDL a federated subgraph serves as `_service { sdl }`: Apollo Federation v2
-    /// directives over the schema's types (#1427).
+    /// directives over the schema's types (#1427), and a `@tag` on each root field and
+    /// object type a role gates, for a gateway contract to filter on.
     ///
     /// The executor's `_service` arm and `fraiseql federation sdl` both call this, so what
     /// a server serves and what the CLI prints from the same artifact cannot differ.
@@ -285,7 +286,8 @@ impl CompiledSchema {
     /// # Errors
     ///
     /// [`FraiseQLError::Validation`](crate::error::FraiseQLError::Validation) when the
-    /// schema has no enabled `[federation]` section.
+    /// schema has no enabled `[federation]` section, or a gating role is too long for a
+    /// contract tag to name.
     #[cfg(feature = "federation")]
     pub fn federation_service_sdl(&self) -> crate::error::Result<String> {
         let metadata =
@@ -296,7 +298,8 @@ impl CompiledSchema {
                         .to_string(),
                     path:    None,
                 })?;
-        Ok(crate::federation::generate_service_sdl(&self.raw_schema(), &metadata))
+        let tags = crate::schema::introspection::contract_tags::contract_tags(self)?;
+        Ok(crate::federation::generate_service_sdl(&self.raw_schema(), &metadata, &tags))
     }
 
     /// Stub federation metadata when federation feature is disabled.

@@ -6,8 +6,7 @@
 //! composed clean, so nothing exercised the path where two subgraphs share a type.
 //!
 //! This test renders two subgraphs through the *real* chain the server uses —
-//! [`CompiledSchema::raw_schema`] → [`CompiledSchema::federation_metadata`] →
-//! [`generate_service_sdl`] — and asserts the SDL invariants each of those bugs
+//! [`CompiledSchema::federation_service_sdl`] — and asserts the SDL invariants each of those bugs
 //! individually broke. It is hermetic (no Docker, no composer binary); the
 //! companion real-`composeServices` check lives in the federation-compose CI leg.
 //!
@@ -37,11 +36,11 @@ use fraiseql_core::schema::{
 };
 
 /// Render a subgraph's Apollo-Federation `_service { sdl }` exactly as the server
-/// does: `generate_service_sdl(raw_schema(), federation_metadata())`.
+/// does.
 fn service_sdl(schema: &CompiledSchema) -> String {
-    let raw = schema.raw_schema();
-    let meta = schema.federation_metadata().expect("subgraph has an enabled federation block");
-    fraiseql_core::federation::generate_service_sdl(&raw, &meta)
+    schema
+        .federation_service_sdl()
+        .expect("subgraph has an enabled federation block")
 }
 
 /// Shared `@shareable` value type — `Money { amount, currency }`. Defined
@@ -54,7 +53,8 @@ fn money_type() -> TypeDefinition {
 }
 
 /// `catalog` subgraph — owns `Product @key(id)`, defines the shared `@shareable`
-/// `Money`, exposes a root query + the camelCase #149 change-log.
+/// `Money`, exposes a root query + the camelCase #149 change-log, and a root query a
+/// role gates, returning a type nothing else reaches: both carry the role's `@tag`.
 fn subgraph_catalog() -> CompiledSchema {
     let mut s = CompiledSchema::new();
     s.naming_convention = NamingConvention::CamelCase;
@@ -75,6 +75,18 @@ fn subgraph_catalog() -> CompiledSchema {
             .returning_list()
             .with_sql_source("public.v_product"),
     );
+
+    s.types.push(
+        TypeDefinition::new("ProductCost", "public.v_product_cost")
+            .with_field(FieldDefinition::new("productId", FieldType::Id))
+            .with_field(FieldDefinition::new("unitCost", FieldType::Object("Money".into()))),
+    );
+    s.queries.push(QueryDefinition {
+        requires_role: Some("catalog-admin".to_string()),
+        ..QueryDefinition::new("productCosts", "ProductCost")
+            .returning_list()
+            .with_sql_source("public.v_product_cost")
+    });
 
     s.federation = Some(FederationConfig {
         enabled: true,

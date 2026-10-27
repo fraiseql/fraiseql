@@ -86,11 +86,7 @@ fn compile(json: &str) -> fraiseql_core::schema::CompiledSchema {
 }
 
 fn service_sdl(schema: &fraiseql_core::schema::CompiledSchema) -> String {
-    let raw = schema.raw_schema();
-    let meta = schema
-        .federation_metadata()
-        .expect("federation_metadata must be Some when enabled");
-    fraiseql_core::federation::generate_service_sdl(&raw, &meta)
+    schema.federation_service_sdl().expect("federation is enabled")
 }
 
 #[test]

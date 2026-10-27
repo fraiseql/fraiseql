@@ -4,7 +4,9 @@
 # Composes the committed FraiseQL-rendered subgraph SDLs with Apollo Federation v2
 # composition (@apollo/composition — the engine `rover supergraph compose` wraps)
 # and asserts the golden cases:
-#   - catalog + reviews              → composes cleanly
+#   - catalog + reviews              → composes cleanly, and the supergraph keeps the
+#     role tags catalog's gated query and its type carry (#1717), which is what a
+#     gateway contract filters on
 #   - catalog + reviews_conflict     → rejected with INVALID_FIELD_SHARING (#497)
 #   - cascade_orders + cascade_users → composes cleanly (#698): two cascade-enabled
 #     subgraphs synthesize the identical envelope value types, which compose only
@@ -28,8 +30,10 @@ if [[ ! -d node_modules ]]; then
   npm ci --no-audit --no-fund
 fi
 
-echo "→ positive: catalog + reviews must compose"
+echo "→ positive: catalog + reviews must compose, keeping catalog's role tags"
 node compose-check.mjs \
+  '--expect-supergraph=^  productCosts: .* @tag\(name: "requires-role/catalog-admin"\)$' \
+  '--expect-supergraph=^type ProductCost\n(  @.*\n)*  @tag\(name: "requires-role/catalog-admin"\)\n\{' \
   "catalog=$fixtures/catalog.graphql" \
   "reviews=$fixtures/reviews.graphql"
 

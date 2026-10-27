@@ -1,4 +1,4 @@
-extend schema @link(url: "https://specs.apollo.dev/federation/v2.0", import: ["@key", "@external", "@requires", "@provides", "@shareable", "@inaccessible", "@override", "@extends"])
+extend schema @link(url: "https://specs.apollo.dev/federation/v2.0", import: ["@key", "@external", "@requires", "@provides", "@shareable", "@inaccessible", "@override", "@extends", "@tag"])
 scalar DateTime
 scalar JSON
 
@@ -146,7 +146,7 @@ extend type Product @key(fields: "id") {
   reviews: [Review!]!
 }
 
-type EntityChangeLog {
+type EntityChangeLog @tag(name: "requires-role/changelog_reader") {
   id: ID!
   pkEntityChangeLog: Int!
   fkCustomerOrg: String
@@ -168,12 +168,12 @@ type TransportCheckpoint {
 
 type Query {
   reviews: [Review!]!
-  entityChangeLogs(where: EntityChangeLogWhereInput, orderBy: [EntityChangeLogOrderByInput!], limit: Int): [EntityChangeLog!]!
-  transportCheckpoint(transportName: String!): TransportCheckpoint
+  entityChangeLogs(where: EntityChangeLogWhereInput, orderBy: [EntityChangeLogOrderByInput!], limit: Int): [EntityChangeLog!]! @tag(name: "requires-role/changelog_reader")
+  transportCheckpoint(transportName: String!): TransportCheckpoint @tag(name: "requires-role/changelog_reader")
 }
 
 type Mutation {
-  upsertTransportCheckpoint(transportName: String!, lastPk: Int!): TransportCheckpoint
+  upsertTransportCheckpoint(transportName: String!, lastPk: Int!): TransportCheckpoint @tag(name: "requires-role/changelog_writer")
 }
 
 
@@ -186,6 +186,7 @@ directive @provides(fields: String!) on FIELD_DEFINITION
 directive @shareable on FIELD_DEFINITION | OBJECT
 directive @inaccessible on FIELD_DEFINITION | OBJECT | INTERFACE | UNION | ARGUMENT_DEFINITION | SCALAR | ENUM | ENUM_VALUE | INPUT_OBJECT | INPUT_FIELD_DEFINITION
 directive @override(from: String!) on FIELD_DEFINITION
+directive @tag(name: String!) repeatable on FIELD_DEFINITION | OBJECT | INTERFACE | UNION | ARGUMENT_DEFINITION | SCALAR | ENUM | ENUM_VALUE | INPUT_OBJECT | INPUT_FIELD_DEFINITION
 directive @link(url: String, as: String, for: link__Purpose, import: [link__Import]) repeatable on SCHEMA
 
 enum link__Purpose {

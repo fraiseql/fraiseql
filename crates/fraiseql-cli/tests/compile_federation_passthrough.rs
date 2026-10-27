@@ -138,10 +138,9 @@ fn legacy_json_federation_produces_apollo_v2_service_sdl() {
         serde_json::from_str(SDK_SCHEMA_WITH_FEDERATION).expect("parse SDK schema.json");
     let compiled = SchemaConverter::convert(intermediate).expect("convert to compiled schema");
 
-    let metadata = compiled
-        .federation_metadata()
-        .expect("federation_metadata must be Some when federation is enabled");
-    let sdl = fraiseql_core::federation::generate_service_sdl(&compiled.raw_schema(), &metadata);
+    let sdl = compiled
+        .federation_service_sdl()
+        .expect("federation_service_sdl must render when federation is enabled");
 
     assert!(
         sdl.contains("https://specs.apollo.dev/federation/v2.0"),
@@ -280,8 +279,7 @@ fn toml_federation_service_name_and_version_reach_compiled_schema() {
     assert_eq!(fed.version.as_deref(), Some("v2"));
 
     // Server-readable round-trip: the named subgraph serves an Apollo Fed v2 SDL.
-    let metadata = compiled.federation_metadata().expect("federation metadata");
-    let sdl = fraiseql_core::federation::generate_service_sdl(&compiled.raw_schema(), &metadata);
+    let sdl = compiled.federation_service_sdl().expect("federation service SDL");
     assert!(sdl.contains("https://specs.apollo.dev/federation/v2.0"), "got:\n{sdl}");
     assert!(sdl.contains("@key(fields: \"id\")"), "got:\n{sdl}");
 }
@@ -373,8 +371,7 @@ fn toml_federation_declares_an_extended_entity_and_renders_it() {
     let order = fed.entities.iter().find(|e| e.name == "Order").expect("Order entity");
     assert!(!order.extends, "an entity that declares nothing stays a plain owned entity");
 
-    let metadata = compiled.federation_metadata().expect("federation metadata");
-    let sdl = fraiseql_core::federation::generate_service_sdl(&compiled.raw_schema(), &metadata);
+    let sdl = compiled.federation_service_sdl().expect("federation service SDL");
     assert!(
         sdl.contains("extend type User"),
         "an extended entity must render as `extend type`, got:\n{sdl}"

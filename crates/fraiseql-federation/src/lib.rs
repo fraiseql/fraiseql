@@ -47,6 +47,7 @@
 
 pub mod composition_validator;
 pub mod connection_manager;
+pub mod contract_tags;
 pub mod database_resolver;
 pub mod dependency_graph;
 pub mod direct_db_resolver;
@@ -73,6 +74,7 @@ pub use composition_validator::{
     ComposedSchema, ComposedType, CompositionError, CompositionValidator, CrossSubgraphValidator,
 };
 pub use connection_manager::*;
+pub use contract_tags::{ContractTags, MAX_TAG_LEN, ROLE_TAG_PREFIX, role_tag};
 pub use database_resolver::*;
 pub use dependency_graph::DependencyGraph;
 pub use direct_db_resolver::*;

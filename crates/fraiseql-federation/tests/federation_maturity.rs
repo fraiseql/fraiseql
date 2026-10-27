@@ -30,7 +30,11 @@ fn test_all_seven_directives_in_sdl() {
         types:   vec![],
     };
 
-    let sdl = generate_service_sdl("type Query { test: String }", &metadata);
+    let sdl = generate_service_sdl(
+        "type Query { test: String }",
+        &metadata,
+        &fraiseql_federation::ContractTags::none(),
+    );
 
     let required_directives = [
         "directive @key",
@@ -55,7 +59,11 @@ fn test_link_directive_imports_all_directives() {
         types:   vec![],
     };
 
-    let sdl = generate_service_sdl("type Query { test: String }", &metadata);
+    let sdl = generate_service_sdl(
+        "type Query { test: String }",
+        &metadata,
+        &fraiseql_federation::ContractTags::none(),
+    );
 
     assert!(
         sdl.contains("@link(url: \"https://specs.apollo.dev/federation/v2.0\""),

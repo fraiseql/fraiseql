@@ -172,14 +172,14 @@ fn listed_types(schema: &Value) -> HashSet<&str> {
 }
 
 /// The `__schema` object of a response.
-fn schema_of(responses: &IntrospectionResponses) -> &Value {
+pub(super) fn schema_of(responses: &IntrospectionResponses) -> &Value {
     &responses.schema_response["data"]["__schema"]
 }
 
 /// The names of the types a client can reach from `schema`'s root operation types and
 /// its directives' arguments, by fields, arguments, input fields, interfaces and
 /// possible types.
-fn reachable_types(schema: &Value) -> HashSet<String> {
+pub(super) fn reachable_types(schema: &Value) -> HashSet<String> {
     let by_name: HashMap<&str, &Value> = schema["types"]
         .as_array()
         .into_iter()
