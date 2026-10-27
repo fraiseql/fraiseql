@@ -142,7 +142,14 @@ for case in 'ratio:Reads are 4.2× faster than before.' \
             'pct:The new path is 30% faster.' \
             'x:Columnar reads are 10x faster.' \
             'cell:| native `id` | **4.2×** |' \
-            'p99:Expected: P99 < 200ms for moderate queries'; do
+            'p99:Expected: P99 < 200ms for moderate queries' \
+            'tps:It went from 53 078 to 3 640 transactions per second.' \
+            'TPS:The write load held at 52 571 TPS.' \
+            'faster:Applications get significantly faster query execution.' \
+            'speedup:The measured speedup varies by workload.' \
+            'outperforms:It outperforms interpreted servers.' \
+            'share:The trigger cost 13% of the write throughput.' \
+            'measurable:Polling had no measurable effect on write throughput.'; do
     r="$WORK/perf_${case%%:*}"; clean_root "$r"
     printf '\n## Claim\n%s\n' "${case#*:}" >> "$r/docs/guide.md"
     assert_gate "rule 8: an uncited ${case%%:*} figure is red" 1 "rule 8: performance figures" "$r"
@@ -164,8 +171,9 @@ assert_gate "rule 8: an issue, a bench file or a harness in the section passes" 
 
 r="$WORK/perf_not_figures"; clean_root "$r"
 printf '\n## Words\nNeeds thiserror 2.x and a 500×500 render. The budget defaults to 5 000 ms.\n' >> "$r/docs/guide.md"
+printf '\n## Load\nLoad tests check throughput, latency and error rate. Breakfast is served.\nLine coverage is measured weekly and stands at 85%%.\n' >> "$r/docs/guide.md"
 printf '\n```text\nReads are 4.2× faster.\n```\n' >> "$r/docs/guide.md"
-assert_gate "rule 8: versions, dimensions, config defaults and code fences are not figures" 0 "doc claims: ok" "$r"
+assert_gate "rule 8: versions, dimensions, config defaults, unmeasured mentions and code fences are not figures" 0 "doc claims: ok" "$r"
 
 r="$WORK/perf_exempt"; clean_root "$r"; mkdir -p "$r/docs/runbooks" "$r/docs/history"
 printf '# Latency\nAlert when p99 > 500ms.\n' > "$r/docs/runbooks/latency.md"

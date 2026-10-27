@@ -39,9 +39,12 @@
 #   8. A performance figure in README.md or docs/ names its evidence (#1636): the markdown
 #      section it sits in (heading to heading) cites an issue (`#NNN`) or a bench file or
 #      harness (`benches/`, `benchmarks/`, `*bench*.rs`, velocitybench). A figure is a speed
-#      ratio (`4.2×`, `10x faster`, `30% slower`), a rate (`req/s`, `rps`, `ops/s`, `qps`), or a
-#      time (`ms`, `µs`, `ns`) on a line that presents it as measured or as latency (measured,
-#      p50, p95, p99, latency, faster, slower, per page, per row, a cell, on a N-row ...).
+#      ratio (`4.2×`, `10x faster`, `30% slower`), a rate (`req/s`, `rps`, `ops/s`, `qps`, `TPS`,
+#      `transactions per second`), or a time (`ms`, `µs`, `ns`) on a line that presents it as
+#      measured or as latency (measured, p50, p95, p99, latency, faster, slower, per page, per
+#      row, a cell, on a N-row ...). A comparison with no number is a claim too: `faster`,
+#      `slower`, `speedup` or `outperforms`, and a share of throughput or latency (`13% of the
+#      write throughput`, `no measurable effect on latency`).
 #      Positional: a citation in another section does not count. Code fences are skipped.
 #      History (the rule 1 paths, docs/history/) and docs/runbooks/, whose figures are alert
 #      thresholds for an operator to set rather than claims about FraiseQL, are not scanned. No
@@ -204,10 +207,13 @@ else
       ratio = l ~ /[0-9][0-9.]*[[:space:]]*×([[:space:]]*(faster|slower|the|cheaper|speedup)|\*\*|\)|[[:space:]]*\||[[:space:]]*$)/ \
            || l ~ /[0-9][0-9.]*x[[:space:]]+(faster|slower|cheaper|speedup)/ \
            || l ~ /[0-9]+%[[:space:]]+(faster|slower)/
-      rate = l ~ /[0-9][0-9,.]*[[:space:]]*(req\/s|rps|ops\/s|qps)([^A-Za-z0-9]|$)/
+      rate = l ~ /[0-9][0-9,.]*[[:space:]]*(req\/s|rps|ops\/s|qps|TPS|tps|(transactions|requests|queries|operations) per second)([^A-Za-z0-9]|$)/
       tm   = l ~ /[0-9][0-9,.]*[[:space:]]*(ms|µs|ns)([^A-Za-z0-9]|$)/ \
           && tolower(l) ~ /measured|p50|p9[59]|latency|faster|slower|per page|per row|a cell|on a [0-9]/
-      if (ratio || rate || tm) { total++; nfig++; fig[nfig] = file ":" FNR ": " l }
+      ll = tolower(l)
+      word  = ll ~ /(^|[^a-z])(faster|slower|speedup|outperform[a-z]*)([^a-z]|$)/
+      share = ll ~ /throughput|latency/ && (l ~ /[0-9]%/ || ll ~ /measur/)
+      if (ratio || rate || tm || word || share) { total++; nfig++; fig[nfig] = file ":" FNR ": " l }
     }
     END { flush(); print "TOTAL " total + 0 }' 2>/dev/null || true)
   if [ "$(printf '%s\n' "$perf" | sed -n 's/^TOTAL //p')" = "0" ]; then

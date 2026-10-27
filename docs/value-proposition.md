@@ -8,9 +8,9 @@
 
 ## Core Value Proposition
 
-FraiseQL is a compiled GraphQL execution engine that eliminates runtime interpretation overhead by transforming schema definitions into optimized SQL at build time. This compilation boundary enables deterministic, production-grade query execution without the performance penalties of traditional GraphQL resolvers.
+FraiseQL is a compiled GraphQL execution engine. Compiling validates the schema and binds each query to the database view it reads, so at runtime a request is checked against a fixed schema and answered from that view, with no per-field resolvers.
 
-As a result, applications built with FraiseQL achieve significantly faster query execution (SQL is pre-compiled at build time), automatic SQL injection protection, and lower runtime parsing overhead—all while maintaining type safety across the entire stack.
+As a result, applications built with FraiseQL get automatic SQL injection protection and type safety across the entire stack. How its speed compares with a resolver-based server depends on the workload, and no comparative benchmark is published yet (see [performance.md](performance.md) for what is measured).
 
 ---
 
@@ -18,13 +18,13 @@ As a result, applications built with FraiseQL achieve significantly faster query
 
 ### 1. Performance Without Compromise
 
-**FraiseQL**: Compilation phase determines all schema logic. Runtime executes pre-optimized SQL with direct JSONB/Arrow response.
+**FraiseQL**: Compilation determines the schema logic and binds each query to its view. At runtime the SQL is built per request from the selection set over that view and returns the JSONB it produces (building it once per operation is tracked in #1646).
 
 **Hasura/PostGraphile**: Runtime interpretation of GraphQL queries into SQL. Resolvers execute sequentially; N+1 prevention requires careful schema design.
 
 **Advantage**: FraiseQL achieves:
 
-- Faster query execution (SQL pre-compiled at build time; measured speedup varies by workload)
+- Reads answered from a view the compiler bound, with no resolver chain
 - Automatic elimination of N+1 queries (determined at compile time)
 - Bounded memory usage with streaming support for large result sets
 - Connection pooling optimized at compile time
@@ -263,7 +263,7 @@ JVM language users should use the Java SDK with interop libraries (Kotlin, Cloju
 | Aspect | FraiseQL | Hasura |
 |--------|----------|--------|
 | **Architecture** | Compiled, statically-analyzed | Runtime interpretation |
-| **Performance** | Faster (compiled SQL, workload-dependent) | Baseline (interpreted) |
+| **Performance** | Not yet benchmarked against it | — |
 | **Database** | PostgreSQL | PostgreSQL |
 | **Schema Authoring** | 6 languages (Python, TS, Java, Go, PHP, Rust) | Manual YAML/API |
 | **N+1 Prevention** | Automatic at compile time | Manual via schema design |
@@ -282,7 +282,7 @@ JVM language users should use the Java SDK with interop libraries (Kotlin, Cloju
 | Aspect | FraiseQL | PostGraphile |
 |--------|----------|--------------|
 | **Database** | PostgreSQL | PostgreSQL only |
-| **Performance** | Faster (compiled SQL, workload-dependent) | Baseline (interpreted) |
+| **Performance** | Not yet benchmarked against it | — |
 | **Build Step** | Required (schema → compiled JSON) | No build step |
 | **Type Safety** | Compile-time guarantee | Runtime reflection |
 | **Extensibility** | Trait-based adapters | PostgreSQL plugins |

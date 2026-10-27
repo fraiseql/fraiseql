@@ -218,7 +218,7 @@ every change whichever replica it is connected to:
 
 A change reaches subscribers whether or not its observer actions succeed.
 
-The PostgreSQL read polls rather than using `LISTEN`/`NOTIFY` by measurement: a `pg_notify`
+The PostgreSQL read polls rather than using `LISTEN`/`NOTIFY` by measurement (#1158): a `pg_notify`
 trigger on the change log serialises committing transactions (on PostgreSQL 18, 53 078 → 3 640
 mutation transactions per second at 64 clients), while sixteen replicas polling at 10 Hz had
 no measurable effect on write throughput.
