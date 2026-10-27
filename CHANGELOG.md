@@ -221,6 +221,18 @@ disagreed, and the promise was the part that was wrong.
   `GET` keeps the tree its cache decision reads. Every stage that edits or stores a response parses a raw body
   back first, so none of them depends on that choice.
 
+- **Every capability has a documentation page.** New pages:
+  `docs/architecture/rest.md`, `docs/architecture/grpc.md` and
+  `docs/architecture/arrow-flight.md`. They cover each capability's configuration, routes
+  or calls, authentication, refusals, and what each one does not do yet (#1765, #1766,
+  #1789, #1790). The capability registry names them, and a registration with no page now
+  fails the build. The doc-claims gate's rule 8 now also counts claims with no number in
+  them: "faster", "slower", "speedup", "outperforms", a share of throughput or latency,
+  and a rate in TPS. Like any other figure, each must cite a bench or an issue in its
+  section. `docs/value-proposition.md` no longer says FraiseQL runs "significantly
+  faster" because its "SQL is pre-compiled at build time". The SQL is built per request
+  (#1646), and no comparative benchmark is published.
+
 ### Fixed
 
 - **An aggregate or window query routed to the primary is never served by a replica

@@ -37,11 +37,11 @@ own requests.
 | `functions` | `functions-runtime` | stable | `-platform` | binary, `fraiseql run`, listener, MCP stdio | — | `functions` | [architecture/functions.md](architecture/functions.md) |
 | `sources` | `sources` | stable | `-platform` | binary, `fraiseql run`, listener | `sources` | `sources` | [architecture/sources.md](architecture/sources.md) |
 | `mcp` | `mcp` | stable | `-platform` | binary, `fraiseql run`, listener, MCP stdio | — | `mcp_config` | [mcp.md](mcp.md) |
-| `rest` | `rest` | stable | `-full`, `-platform` | binary, `fraiseql run`, listener | `export` | `rest_config` | — |
-| `grpc` | `grpc` | preview | none: build from source | none yet | — | `grpc_config` | — |
+| `rest` | `rest` | stable | `-full`, `-platform` | binary, `fraiseql run`, listener | `export` | `rest_config` | [architecture/rest.md](architecture/rest.md) |
+| `grpc` | `grpc` | preview | none: build from source | none yet | — | `grpc_config` | [architecture/grpc.md](architecture/grpc.md) |
 | `federation` | `federation` | stable | `-platform` | binary, `fraiseql run`, listener | — | `federation` | [architecture/federation.md](architecture/federation.md) |
 | `observers` | `observers` | stable | `-platform` | binary, `fraiseql run`, listener | `observers` | `observers_config` | [operations/observers.md](operations/observers.md) |
-| `arrow_flight` | `arrow` | stable | `-full`, `-platform` | binary, `fraiseql run` | `flight_bind_addr`, `flight_upload_tables`, `flight_views` | — | — |
+| `arrow_flight` | `arrow` | stable | `-full`, `-platform` | binary, `fraiseql run` | `flight_bind_addr`, `flight_upload_tables`, `flight_views` | — | [architecture/arrow-flight.md](architecture/arrow-flight.md) |
 | `inbound_webhooks` | `inbound` | stable | `-platform` | binary, `fraiseql run`, listener | `webhooks`, `inbound_dispatch` | — | [architecture/webhooks.md](architecture/webhooks.md) |
 | `inbound_email` | `inbound-email` | stable | `-platform` | binary, `fraiseql run`, listener | `mailbox`, `send` | — | [architecture/inbound-email.md](architecture/inbound-email.md) |
 | `identity` | `auth` | stable | every image and tarball | binary, `fraiseql run`, listener | `identity` | — | [auth/identity-store.md](auth/identity-store.md) |

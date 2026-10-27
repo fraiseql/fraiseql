@@ -278,6 +278,15 @@ fn every_registration_names_a_real_feature() {
     }
 }
 
+/// Every registration names a documentation page: a capability an operator can turn on is one
+/// they can read about.
+#[test]
+fn every_registration_names_a_docs_page() {
+    let undocumented: Vec<&str> =
+        REGISTRY.iter().filter(|r| r.meta.docs.is_none()).map(|r| r.meta.name).collect();
+    assert!(undocumented.is_empty(), "registrations with no docs page: {undocumented:?}");
+}
+
 /// Every documentation page a registration names exists.
 #[test]
 fn every_registered_docs_page_exists() {
