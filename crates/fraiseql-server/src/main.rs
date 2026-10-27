@@ -89,7 +89,10 @@ fn validate_schema_path(path: &Path) -> anyhow::Result<()> {
 /// `OTEL_EXPORTER_OTLP_ENDPOINT` environment variable), an `OpenTelemetry` span
 /// exporter is added as an additional tracing layer.  When no endpoint is set,
 /// no gRPC connection is attempted and there is zero overhead.
-fn init_tracing(config: &ServerConfig, is_json: bool) {
+///
+/// `to_stderr` sends the log to stderr rather than stdout: MCP stdio mode, where stdout
+/// carries the protocol.
+fn init_tracing(config: &ServerConfig, is_json: bool, to_stderr: bool) {
     let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| "fraiseql_server=info,tower_http=info,axum=info".into());
 
@@ -97,11 +100,21 @@ fn init_tracing(config: &ServerConfig, is_json: bool) {
     // `fraiseql::mutation_audit` target and is otherwise a zero-cost no-op.
     let audit_layer = MutationAuditLayer::new(Arc::clone(global_aggregator()));
 
+    // Over MCP stdio, stdout is the protocol channel: one JSON-RPC message per line, and a
+    // client cannot read past a line that is not one. The log goes to stderr there.
+    let writer = || {
+        if to_stderr {
+            tracing_subscriber::fmt::writer::BoxMakeWriter::new(std::io::stderr)
+        } else {
+            tracing_subscriber::fmt::writer::BoxMakeWriter::new(std::io::stdout)
+        }
+    };
+
     if is_json {
         let subscriber = tracing_subscriber::registry()
             .with(env_filter)
             .with(audit_layer)
-            .with(tracing_subscriber::fmt::layer().json());
+            .with(tracing_subscriber::fmt::layer().json().with_writer(writer()));
 
         #[cfg(feature = "tracing-opentelemetry")]
         let subscriber = subscriber.with(build_otlp_layer(config));
@@ -114,7 +127,7 @@ fn init_tracing(config: &ServerConfig, is_json: bool) {
         let subscriber = tracing_subscriber::registry()
             .with(env_filter)
             .with(audit_layer)
-            .with(tracing_subscriber::fmt::layer());
+            .with(tracing_subscriber::fmt::layer().with_writer(writer()));
 
         #[cfg(feature = "tracing-opentelemetry")]
         let subscriber = subscriber.with(build_otlp_layer(config));
@@ -399,7 +412,11 @@ async fn main() -> anyhow::Result<()> {
     // Tracing calls in load_and_validate_config are silently discarded (no
     // subscriber yet); critical errors surface via the Result return.
     let config = load_and_validate_config(&cli)?;
-    init_tracing(&config, cli.server.is_json_log_format());
+    #[cfg(feature = "mcp")]
+    let over_stdio = cli.mcp_stdio.is_some();
+    #[cfg(not(feature = "mcp"))]
+    let over_stdio = false;
+    init_tracing(&config, cli.server.is_json_log_format(), over_stdio);
     tracing::info!("FraiseQL Server v{}", env!("CARGO_PKG_VERSION"));
     tracing::info!(
         bind_addr = %config.bind_addr,

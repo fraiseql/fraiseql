@@ -238,6 +238,12 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **MCP stdio mode no longer writes its log to stdout, the protocol channel (#1804).** With
+  `FRAISEQL_MCP_STDIO` set, the server's log lines came first on stdout, before the answer
+  to `initialize`. An MCP client cannot read past a line that is not JSON-RPC, and the
+  client configurations in `docs/mcp.md` set no `RUST_LOG` that would have silenced
+  them. In stdio mode the log now goes to stderr; HTTP mode still logs to stdout.
+
 - **An aggregate or window query routed to the primary is never served by a replica
   (#1768).** With read replicas configured, a query compiled with `read_routing = primary`
   kept its routing only when the request carried session variables. Without them, the
