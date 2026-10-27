@@ -149,6 +149,11 @@ impl SelectionAccess {
             .collect()
     }
 
+    /// Every `(type, field)` the caller may not read and that masks, at any level.
+    pub(in super::super) const fn masked_set(&self) -> &HashSet<(String, String)> {
+        &self.masked
+    }
+
     /// Null every masked field of a projected result, at every level, under the key the
     /// response carries it.
     pub(in super::super) fn null_masked(
@@ -331,11 +336,7 @@ pub(in super::super) fn masked_value(
     type_def: Option<&crate::schema::TypeDefinition>,
     field: &str,
 ) -> serde_json::Value {
-    if type_def.and_then(|t| t.translations_of(field)).is_some() {
-        serde_json::Value::Array(Vec::new())
-    } else {
-        serde_json::Value::Null
-    }
+    crate::runtime::projection::masked_value(type_def, field)
 }
 
 fn null_masked_at(

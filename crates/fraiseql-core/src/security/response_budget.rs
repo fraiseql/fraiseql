@@ -9,7 +9,7 @@
 //!
 //! This engine does not have one. A nested field on a materialised view is
 //! already inside the parent document, and
-//! [`project_nested_lists`](crate::runtime::project_nested_lists) projects it out
+//! the projection's shaping walk projects it out
 //! of rows that have *already been read* — one read, whatever the depth. Scoring
 //! such a read by multiply-per-level over-estimates it by orders of magnitude and
 //! would be bounding an execution model this framework does not use.

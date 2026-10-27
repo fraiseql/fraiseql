@@ -80,7 +80,7 @@ pub fn build_typed_projection_fields(
             };
 
             // Recurse into a single object — an enum is composite too, and is its stored
-            // value. A list falls back to its stored array, which `project_nested_lists`
+            // value. A list falls back to its stored array, which `shape_projected`
             // re-projects element by element.
             let sub_fields = field_def
                 .filter(|fd| {

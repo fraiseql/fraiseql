@@ -646,7 +646,7 @@ impl QueryRunner {
         let resolved_session_vars = self.resolve_session_vars(security_context)?;
         let session_pairs: Vec<(&str, &str)> =
             resolved_session_vars.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
-        let mut node_value = if nested_reads.is_empty() {
+        let node_value = if nested_reads.is_empty() {
             // Flat: projected in SQL (mirrors the regular query path), then the nested
             // lists the SQL projection left as their stored sub-blob — every stored key,
             // whatever the sub-selection named — re-projected at their own type.
@@ -690,17 +690,13 @@ impl QueryRunner {
                 |arc| arc.first().map_or(serde_json::Value::Null, |row| row.data.clone()),
                 |v| v.into_iter().next().map_or(serde_json::Value::Null, |row| row.data),
             );
-            crate::runtime::project_nested_lists(
+            // The row rebuilt from its selection at every depth, what RBAC masked null.
+            crate::runtime::shape_unprojected_root(
                 &mut value,
                 &type_name,
                 selections,
                 &self.ctx.schema,
-            );
-            crate::runtime::stamp_nested_typenames(
-                &mut value,
-                &type_name,
-                selections,
-                &self.ctx.schema,
+                Some(selection_access.masked_set()),
             );
             value
         } else {
@@ -724,17 +720,17 @@ impl QueryRunner {
                 )
                 .await?;
             self.charge_node_budget(&rows)?;
-            super::query_nested::project_documents(
+            let mut value = super::query_nested::project_documents(
                 &rows,
                 &type_name,
                 selections,
                 &self.ctx.schema,
                 false,
-            )
+            );
+            // 6. Null what field-level RBAC masked, at every level.
+            selection_access.null_masked(&mut value, &type_name, selections, &self.ctx.schema);
+            value
         };
-
-        // 6. Null what field-level RBAC masked, at every level.
-        selection_access.null_masked(&mut node_value, &type_name, selections, &self.ctx.schema);
 
         let response = ResultProjector::wrap_in_data_envelope(node_value, "node");
         Ok(response)

@@ -461,13 +461,17 @@ impl QueryRunner {
         let mut authorizer_rows = None;
         let mut projected = if let Some(abstract_read) = &abstract_read {
             // Each row as the object type it is, its own masks applied (#1612).
-            abstract_read.project(&results, root_fields, &self.ctx.schema, &read.selection)?
+            let mut projected =
+                abstract_read.project(&results, root_fields, &self.ctx.schema, &read.selection)?;
+            read.selection
+                .null_masked(&mut projected, return_type, root_fields, &self.ctx.schema);
+            projected
         } else if composed || read.gated_present {
             // Stored documents with their gated levels merged in, or read whole because a
             // policy-gated field bypassed the SQL projection: projected the way a nested list
             // element is, at every depth — aliases, recasing, `__typename`, a localized field
             // in its selection's locale and its translations sibling included.
-            let projected = super::query_nested::project_documents(
+            let mut projected = super::query_nested::project_documents(
                 &results,
                 return_type,
                 root_fields,
@@ -475,6 +479,8 @@ impl QueryRunner {
                 query_match.query_def.returns_list,
             );
             authorizer_rows = Some(results);
+            read.selection
+                .null_masked(&mut projected, return_type, root_fields, &self.ctx.schema);
             projected
         } else {
             let projector = ResultProjector::new(read.access().projected.clone())
@@ -485,29 +491,16 @@ impl QueryRunner {
             // their values are moved into the response rather than cloned.
             let mut projected =
                 projector.project_results_owned(results, query_match.query_def.returns_list)?;
-            // #489: recase + project nested list-of-object fields the SQL projection left as
-            // the raw stored sub-blob (snake_case keys, unselected keys).
-            crate::runtime::project_nested_lists(
+            // Every level below the root rebuilt from its selection, its masked fields null.
+            crate::runtime::shape_projected(
                 &mut projected,
                 return_type,
                 root_fields,
                 &self.ctx.schema,
-            );
-            // #912: `__typename` is stripped from the SQL projection at every depth; the root
-            // object is stamped by the projector and list elements by `project_entity`, and
-            // nested single objects have no other owner.
-            crate::runtime::stamp_nested_typenames(
-                &mut projected,
-                return_type,
-                root_fields,
-                &self.ctx.schema,
+                Some(read.selection.masked_set()),
             );
             projected
         };
-
-        // Null the masked fields, at every level.
-        read.selection
-            .null_masked(&mut projected, return_type, root_fields, &self.ctx.schema);
 
         // The dynamic field authorizer (#423), per row, after the static gate —
         // AND-composition: a field is shown only if both allow. Fail-closed: a `Reject` or any

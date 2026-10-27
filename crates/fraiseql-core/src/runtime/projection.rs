@@ -1,6 +1,9 @@
 //! Result projection - transforms JSONB database results to GraphQL responses.
 
-use std::{borrow::Cow, collections::HashMap};
+use std::{
+    borrow::Cow,
+    collections::{HashMap, HashSet},
+};
 
 use serde_json::{Map, Value as JsonValue};
 
@@ -851,7 +854,25 @@ pub fn project_entity(
     if selections.is_empty() {
         return JsonValue::Object(Map::new());
     }
-    project_entity_at(entity, type_name, selections, schema)
+    project_entity_at(entity, type_name, selections, schema, None)
+}
+
+/// The fields a caller may not read and that mask, by `(type, field)`.
+type Masked<'a> = Option<&'a HashSet<(String, String)>>;
+
+/// Whether `masked` masks `field` of `type_name`.
+fn is_masked(masked: Masked<'_>, type_name: &str, field: &str) -> bool {
+    masked.is_some_and(|m| !m.is_empty() && m.contains(&(type_name.to_string(), field.to_string())))
+}
+
+/// What a masked field reads as: `null`, or `[]` for a translations sibling, whose
+/// `[LocalizedString!]!` has no `null` (#1523).
+pub fn masked_value(type_def: Option<&crate::schema::TypeDefinition>, field: &str) -> JsonValue {
+    if type_def.and_then(|t| t.translations_of(field)).is_some() {
+        JsonValue::Array(Vec::new())
+    } else {
+        JsonValue::Null
+    }
 }
 
 fn project_entity_at(
@@ -859,6 +880,7 @@ fn project_entity_at(
     type_name: &str,
     selections: &[FieldSelection],
     schema: &CompiledSchema,
+    masked: Masked<'_>,
 ) -> JsonValue {
     let JsonValue::Object(obj) = entity else {
         // Not an object (e.g. null) — nothing to project.
@@ -870,6 +892,10 @@ fn project_entity_at(
     for sel in effective_selections(selections, type_name, schema) {
         if sel.name == "__typename" {
             out.insert(sel.response_key().to_string(), JsonValue::String(type_name.to_string()));
+            continue;
+        }
+        if is_masked(masked, type_name, &sel.name) {
+            out.insert(sel.response_key().to_string(), masked_value(type_def, &sel.name));
             continue;
         }
         // A localized field's translations sibling lists its stored map (#1513); an absent
@@ -894,7 +920,7 @@ fn project_entity_at(
             out.insert(sel.response_key().to_string(), JsonValue::Null);
             continue;
         };
-        let projected = project_field_value(value, field_def, sel, schema);
+        let projected = project_field_value(value, field_def, sel, schema, masked);
         out.insert(sel.response_key().to_string(), projected);
     }
 
@@ -907,6 +933,7 @@ fn project_field_value(
     field_def: Option<&FieldDefinition>,
     selection: &FieldSelection,
     schema: &CompiledSchema,
+    masked: Masked<'_>,
 ) -> JsonValue {
     let nested = selection.nested_fields.as_slice();
     // An object field is projected through its sub-selection at every depth, and an empty
@@ -921,7 +948,7 @@ fn project_field_value(
             if let Some(child_type) = fd.field_type.type_name() {
                 match value {
                     JsonValue::Object(_) => {
-                        return project_entity_at(value, child_type, nested, schema);
+                        return project_entity_at(value, child_type, nested, schema, masked);
                     },
                     // The DB sometimes returns a nested object as a JSON string
                     // (when extracted via `->>`). Re-parse and project it.
@@ -929,7 +956,7 @@ fn project_field_value(
                         if let Ok(parsed @ JsonValue::Object(_)) =
                             serde_json::from_str::<JsonValue>(s)
                         {
-                            return project_entity_at(&parsed, child_type, nested, schema);
+                            return project_entity_at(&parsed, child_type, nested, schema, masked);
                         }
                     },
                     _ => {},
@@ -945,7 +972,7 @@ fn project_field_value(
                 if let JsonValue::Array(arr) = value {
                     return JsonValue::Array(
                         arr.iter()
-                            .map(|el| project_list_element(el, child_type, nested, schema))
+                            .map(|el| project_list_element(el, child_type, nested, schema, masked))
                             .collect(),
                     );
                 }
@@ -955,7 +982,9 @@ fn project_field_value(
                     if let Ok(JsonValue::Array(arr)) = serde_json::from_str::<JsonValue>(s) {
                         return JsonValue::Array(
                             arr.iter()
-                                .map(|el| project_list_element(el, child_type, nested, schema))
+                                .map(|el| {
+                                    project_list_element(el, child_type, nested, schema, masked)
+                                })
                                 .collect(),
                         );
                     }
@@ -973,17 +1002,186 @@ fn project_list_element(
     child_type: &str,
     nested: &[FieldSelection],
     schema: &CompiledSchema,
+    masked: Masked<'_>,
 ) -> JsonValue {
     match element {
-        JsonValue::Object(_) => project_entity_at(element, child_type, nested, schema),
+        JsonValue::Object(_) => project_entity_at(element, child_type, nested, schema, masked),
         // An element itself text-encoded as a JSON object.
         JsonValue::String(s) => match serde_json::from_str::<JsonValue>(s) {
             Ok(parsed @ JsonValue::Object(_)) => {
-                project_entity_at(&parsed, child_type, nested, schema)
+                project_entity_at(&parsed, child_type, nested, schema, masked)
             },
             _ => element.clone(),
         },
         _ => element.clone(),
+    }
+}
+
+/// Shape a SQL-projected result by its selection, at every depth, in one walk.
+///
+/// `value` is what the projector built from the rows the SQL projection returned: an
+/// object, or a list of them, of `type_name`. Each object at every depth is rebuilt in
+/// the order `selections` gives, holding only the keys they select:
+///
+/// - a selected key is read under its response key, which is how the SQL projection writes a level
+///   it built (`jsonb_build_object`); a key nothing selects is dropped, whatever the adapter
+///   returned, and a selected key it did not return is `null`;
+/// - `__typename` is written where it was selected, as `type_name`;
+/// - a field in `masked` reads as `null` (`[]` for a translations sibling);
+/// - a single object is shaped the same way, one level down;
+/// - a list of objects, which the SQL projection leaves as the stored sub-documents, is projected
+///   element by element from their stored keys ([`project_entity`]).
+///
+/// No level below the root is taken as the adapter shaped it: an adapter that ignored
+/// the projection serves no key the query did not select.
+pub fn shape_projected(
+    value: &mut JsonValue,
+    type_name: &str,
+    selections: &[FieldSelection],
+    schema: &CompiledSchema,
+    masked: Option<&HashSet<(String, String)>>,
+) {
+    match value {
+        // A list-returning query: each element is an entity of `type_name`.
+        JsonValue::Array(items) => {
+            for item in items {
+                shape_projected(item, type_name, selections, schema, masked);
+            }
+        },
+        JsonValue::Object(object) => shape_root(object, type_name, selections, schema, masked),
+        _ => {},
+    }
+}
+
+/// [`shape_projected`] over a row no projector built: its root is rebuilt from the
+/// selection as every level below it is.
+pub fn shape_unprojected_root(
+    value: &mut JsonValue,
+    type_name: &str,
+    selections: &[FieldSelection],
+    schema: &CompiledSchema,
+    masked: Option<&HashSet<(String, String)>>,
+) {
+    if let JsonValue::Object(object) = value {
+        *object = shape_level(std::mem::take(object), type_name, selections, schema, masked);
+    }
+}
+
+/// The root level of [`shape_projected`], shaped in place: the projector built it from
+/// the selection already, in its order and holding only its keys, so only its masked
+/// fields and the objects below it are left to do.
+fn shape_root(
+    object: &mut Map<String, JsonValue>,
+    type_name: &str,
+    selections: &[FieldSelection],
+    schema: &CompiledSchema,
+    masked: Masked<'_>,
+) {
+    let type_def = schema.find_type(type_name);
+    for sel in effective_selections(selections, type_name, schema) {
+        if sel.name == "__typename" {
+            continue;
+        }
+        // A scalar the projector placed is left where it is: only a masked field or an
+        // object is looked up.
+        if is_masked(masked, type_name, &sel.name) {
+            if let Some(slot) = object.get_mut(sel.response_key()) {
+                *slot = masked_value(type_def, &sel.name);
+            }
+            continue;
+        }
+        let Some(field_def) = type_def.and_then(|td| td.fields.iter().find(|f| f.name == sel.name))
+        else {
+            continue;
+        };
+        if field_def.field_type.is_scalar() {
+            continue;
+        }
+        if let Some(slot) = object.get_mut(sel.response_key()) {
+            *slot = shape_field(std::mem::take(slot), field_def, sel, schema, masked);
+        }
+    }
+}
+
+/// One level of [`shape_projected`]: `object` rebuilt from its selected response keys.
+fn shape_level(
+    mut object: Map<String, JsonValue>,
+    type_name: &str,
+    selections: &[FieldSelection],
+    schema: &CompiledSchema,
+    masked: Masked<'_>,
+) -> Map<String, JsonValue> {
+    let type_def = schema.find_type(type_name);
+    let level = effective_selections(selections, type_name, schema);
+    let mut out = Map::with_capacity(level.len());
+    for sel in level {
+        let key = sel.response_key();
+        // A key selected twice is one response key, filled once.
+        if out.contains_key(key) {
+            continue;
+        }
+        if sel.name == "__typename" {
+            out.insert(key.to_string(), JsonValue::String(type_name.to_string()));
+            continue;
+        }
+        // The key the level held is moved, not copied.
+        let (key, value) =
+            object.remove_entry(key).unwrap_or_else(|| (key.to_string(), JsonValue::Null));
+        if is_masked(masked, type_name, &sel.name) {
+            out.insert(key, masked_value(type_def, &sel.name));
+            continue;
+        }
+        let field_def = type_def.and_then(|td| td.fields.iter().find(|f| f.name == sel.name));
+        let value = match field_def {
+            Some(fd) if !fd.field_type.is_scalar() => shape_field(value, fd, sel, schema, masked),
+            _ => value,
+        };
+        out.insert(key, value);
+    }
+    out
+}
+
+/// A selected object field's value in a SQL-projected level.
+fn shape_field(
+    value: JsonValue,
+    field_def: &FieldDefinition,
+    sel: &FieldSelection,
+    schema: &CompiledSchema,
+    masked: Masked<'_>,
+) -> JsonValue {
+    let nested = sel.nested_fields.as_slice();
+    if field_def.field_type.is_list() {
+        let Some(child) = field_def.field_type.inner_type().and_then(FieldType::type_name) else {
+            return value;
+        };
+        return match value {
+            // Each element replaced where it is: the one it replaces is freed before the
+            // next is built, so the allocator reuses it.
+            JsonValue::Array(mut items) => {
+                for item in &mut items {
+                    *item = project_list_element(item, child, nested, schema, masked);
+                }
+                JsonValue::Array(items)
+            },
+            // A whole array as JSON text, as `->>` extracts it.
+            text @ JsonValue::String(_) => {
+                project_field_value(&text, Some(field_def), sel, schema, masked)
+            },
+            other => other,
+        };
+    }
+    let Some(child) = field_def.field_type.type_name() else {
+        return value;
+    };
+    match value {
+        JsonValue::Object(object) => {
+            JsonValue::Object(shape_level(object, child, nested, schema, masked))
+        },
+        // An object as JSON text holds its stored keys: projected as a stored document.
+        text @ JsonValue::String(_) => {
+            project_field_value(&text, Some(field_def), sel, schema, masked)
+        },
+        other => other,
     }
 }
 

@@ -103,7 +103,7 @@ impl QueryMatch {
     /// root selection named for the query, carrying the requested fields as its
     /// `nested_fields`. Every consumer of a `QueryMatch` reads the requested field set
     /// as `selections.first().nested_fields` — the planner's projection extraction, the
-    /// `#423` field-authorization gate, and `project_nested_lists` all do — so a *flat*
+    /// `#423` field-authorization gate, and `shape_projected` all do — so a *flat*
     /// list of leaf selections reads to all of them as "no fields requested".
     ///
     /// That was `#886`: this constructor built the flat shape, so every REST read

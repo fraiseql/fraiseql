@@ -604,6 +604,24 @@ async fn node_query_resolves_a_named_spread() {
     assert!(!projection.contains("secret"), "unselected field projected: {projection}");
 }
 
+/// This adapter answers with the whole stored row whatever it was asked to project, so
+/// the response is all that stands between the row and the client: it holds the
+/// selection, in its order, and nothing else.
+#[tokio::test]
+async fn node_query_serves_only_the_selected_keys_whatever_the_adapter_returns() {
+    let (exec, _adapter) = executor();
+    let node_id = encode_node_id("User", ALICE_UUID);
+    let query = format!(
+        "query {{ node(id: \"{node_id}\") {{ ... on User {{ profile {{ tier }} name }} }} }}"
+    );
+    let response = exec.execute(&query, None).await.expect("node query must run");
+    assert_eq!(
+        serde_json::to_string(&response["data"]["node"]).unwrap(),
+        r#"{"profile":{"tier":"gold"},"name":"Alice"}"#,
+        "{response}"
+    );
+}
+
 #[tokio::test]
 async fn node_query_resolves_a_spread_only_selection() {
     // The over-disclosure case: `fields` ends up empty, `projection_hint` is

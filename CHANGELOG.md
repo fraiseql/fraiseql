@@ -162,6 +162,16 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **Every level of a read is shaped by its selection, whatever the adapter returned
+  (#1646).** A GraphQL read and a `node(id:)` read made three passes over each response
+  after projecting it: they projected nested lists, stamped nested `__typename`s and
+  nulled masked fields. A nested single object was served as the adapter returned it,
+  with every key it held. One walk now rebuilds each object at every depth in selection
+  order, from the keys the query selected. It writes `__typename` where it was selected
+  and reads a masked field as `null`. A key nothing selected is dropped, so an adapter
+  that ignores the projection serves no unselected or masked value. A selected key the
+  adapter left out of a nested object now completes to `null` in its place, as it does
+  at the root.
 - **The observer runtime's tables are provisioned at boot (#1710).** Nothing created
   `tb_observer`, `tb_observer_log`, `core.tb_observer_dispatch` or the listener
   checkpoints. On a fresh database an enabled runtime failed loading `tb_observer`, and

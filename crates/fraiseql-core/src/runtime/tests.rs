@@ -3737,6 +3737,131 @@ mod projection_tests {
         let children = (0..7).fold(&value, |level, _| &level["parent"])["children"].clone();
         assert_eq!(children, json!([{ "id": 3, "parent": { "id": 2 } }]), "{value}");
     }
+
+    fn aliased(alias: &str, name: &str, nested: Vec<FieldSelection>) -> FieldSelection {
+        FieldSelection {
+            alias: Some(alias.to_string()),
+            ..field(name, nested)
+        }
+    }
+
+    fn shaped(
+        mut value: serde_json::Value,
+        selection: &[FieldSelection],
+        masked: Option<&std::collections::HashSet<(String, String)>>,
+    ) -> serde_json::Value {
+        crate::runtime::shape_unprojected_root(&mut value, "Folder", selection, &folders(), masked);
+        value
+    }
+
+    /// Over a root the projector built, the root keeps its keys and order; its masked
+    /// fields are `null`, and every level below it is rebuilt from its selection.
+    #[test]
+    fn shape_projected_takes_the_projectors_root_and_shapes_below_it() {
+        let masked = std::iter::once(("Folder".to_string(), "margin".to_string())).collect();
+        let mut value = json!({ "margin": 7, "parent": { "audit": "internal", "id": 0 } });
+        let selection = [
+            field("margin", vec![]),
+            field("parent", vec![field("id", vec![])]),
+        ];
+        crate::runtime::shape_projected(
+            &mut value,
+            "Folder",
+            &selection,
+            &folders(),
+            Some(&masked),
+        );
+        assert_eq!(serde_json::to_string(&value).unwrap(), r#"{"margin":null,"parent":{"id":0}}"#);
+    }
+
+    /// Each level holds only what it selects, in selection order, read under its response
+    /// key; a selected key the level lacks completes to `null`.
+    #[test]
+    fn shape_projected_rebuilds_every_level_from_its_selection() {
+        let value = json!({
+            "id": 1, "audit": "internal",
+            "up": { "margin": 7, "audit": "internal", "id": 0, "parent": { "id": 9 } },
+        });
+        let selection = [
+            aliased("up", "parent", vec![field("id", vec![]), field("margin", vec![])]),
+            field("id", vec![]),
+            field("tags", vec![]),
+        ];
+        let value = shaped(value, &selection, None);
+        assert_eq!(value, json!({ "up": { "id": 0, "margin": 7 }, "id": 1, "tags": null }));
+        assert_eq!(
+            serde_json::to_string(&value).unwrap(),
+            r#"{"up":{"id":0,"margin":7},"id":1,"tags":null}"#
+        );
+    }
+
+    /// `__typename` lands where the selection puts it, at the root and below.
+    #[test]
+    fn shape_projected_writes_typename_where_it_was_selected() {
+        let selection = [
+            field("id", vec![]),
+            field("parent", vec![field("id", vec![]), field("__typename", vec![])]),
+            field("__typename", vec![]),
+        ];
+        let value = shaped(json!({ "id": 1, "parent": { "id": 0 } }), &selection, None);
+        assert_eq!(
+            serde_json::to_string(&value).unwrap(),
+            r#"{"id":1,"parent":{"id":0,"__typename":"Folder"},"__typename":"Folder"}"#
+        );
+    }
+
+    /// A masked field is `null` wherever it is selected: at the root, in a nested object,
+    /// and in each element of a list the walk projects from stored keys.
+    #[test]
+    fn shape_projected_nulls_a_masked_field_at_every_depth() {
+        let masked = std::iter::once(("Folder".to_string(), "margin".to_string())).collect();
+        let mut value = json!({ "id": 1, "margin": 7, "parent": { "id": 0, "margin": 7 } });
+        value["children"] = json!([folder_doc(0)]);
+        let fields = || vec![field("id", vec![]), field("margin", vec![])];
+        let selection = [
+            field("margin", vec![]),
+            field("parent", fields()),
+            field("children", fields()),
+        ];
+        let value = shaped(value, &selection, Some(&masked));
+        assert_eq!(
+            value,
+            json!({
+                "margin": null,
+                "parent": { "id": 0, "margin": null },
+                "children": [{ "id": 0, "margin": null }],
+            })
+        );
+    }
+
+    /// A field selected twice under one response key keeps its value.
+    #[test]
+    fn shape_projected_fills_a_key_selected_twice_once() {
+        let selection = [field("id", vec![]), field("id", vec![])];
+        assert_eq!(shaped(json!({ "id": 1 }), &selection, None), json!({ "id": 1 }));
+    }
+
+    /// A list is projected from its stored elements, at any depth below a single object.
+    #[test]
+    fn shape_projected_projects_a_list_below_a_single_object() {
+        let mut value = json!({ "parent": { "id": 0 } });
+        value["parent"]["children"] = json!([folder_doc(1)]);
+        let selection = [field(
+            "parent",
+            vec![field(
+                "children",
+                vec![
+                    field("id", vec![]),
+                    field("parent", vec![field("id", vec![])]),
+                ],
+            )],
+        )];
+        let value = shaped(value, &selection, None);
+        assert_eq!(
+            value,
+            json!({ "parent": { "children": [{ "id": 1, "parent": { "id": 0 } }] } })
+        );
+    }
 }
 
 mod query_tracing_tests {
