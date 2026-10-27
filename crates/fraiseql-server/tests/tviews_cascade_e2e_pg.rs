@@ -74,7 +74,7 @@ async fn provision(url: &str) {
              CREATE TABLE tv_post AS SELECT p.pk_post, p.id, jsonb_build_object('id', p.id,
                'title', p.title) AS data FROM tb_post p;
              CREATE TABLE tv_user AS SELECT u.pk_user, u.id, jsonb_build_object('id', u.id,
-               'name', u.name, 'titles', coalesce((SELECT jsonb_agg(p.title ORDER BY p.pk_post)
+               'name', u.name, 'credit', 12345678901234567.89, 'titles', coalesce((SELECT jsonb_agg(p.title ORDER BY p.pk_post)
                FROM tb_post p WHERE p.fk_user = u.pk_user), '[]'::jsonb)) AS data
                FROM tb_user u;
              CREATE VIEW v_post WITH (security_invoker = true) AS SELECT id, data FROM tv_post;
@@ -229,7 +229,8 @@ fn schema_with_inject(query: &str, inject: &Value) -> CompiledSchema {
                 "name": "User", "sql_source": format!("{SCHEMA}.v_user"), "is_input": false,
                 "fields": [{ "name": "id", "type": "ID", "nullable": false },
                            { "name": "name", "type": "String", "nullable": false },
-                           { "name": "titles", "type": "[String!]", "nullable": false }]
+                           { "name": "titles", "type": "[String!]", "nullable": false },
+                           { "name": "credit", "type": "Decimal", "nullable": false }]
             }
         ],
         "queries": [
@@ -367,6 +368,34 @@ async fn the_cascade_lists_the_rows_pg_tviews_refreshed() {
         "the author pg_tviews refreshed: {body}"
     );
     assert_eq!(entries.len(), 2, "each row once: {body}");
+}
+
+/// A derived row keeps its `Decimal`s' digits: it is read from its view as the type
+/// `pg_tviews` names it, not decoded through an `f64`.
+#[tokio::test]
+async fn a_derived_row_keeps_the_digits_of_its_decimals() {
+    let Some(server) = serve().await else {
+        return;
+    };
+    let query = format!(
+        "mutation {{ updatePost(id: \"{POST}\", title: \"wide\") {{ ... on UpdatePostPayload \
+         {{ cascade {{ updated {{ entity {{ __typename ... on User {{ credit }} }} }} }} }} }} }}"
+    );
+    let body: Value = reqwest::Client::new()
+        .post(format!("{}/graphql", server.base))
+        .json(&json!({ "query": query }))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let users: Vec<_> = updated(&body).into_iter().filter(|(t, _)| t == "User").collect();
+    assert_eq!(
+        users,
+        [("User".to_string(), json!({ "credit": "12345678901234567.89" }))],
+        "{body}"
+    );
 }
 
 /// A derived row the caller's own read does not return is not served: the reader's view

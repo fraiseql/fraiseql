@@ -11,7 +11,7 @@ use std::{
 };
 
 use crate::{
-    db::traits::{DecimalFields, DecimalNode, DecimalShape},
+    db::traits::{DecimalFields, DecimalNode, DecimalShape, WriteDecimals},
     runtime::projection::stored_key_candidates,
     schema::{CompiledSchema, FieldType},
 };
@@ -27,6 +27,8 @@ pub struct DecimalIndex {
     shapes: HashMap<String, Arc<DecimalShape>>,
     /// The shape of the documents each query reads.
     reads:  HashMap<String, Arc<DecimalShape>>,
+    /// The fields of every type from which a `Decimal` is reachable.
+    types:  Arc<HashMap<String, DecimalFields>>,
 }
 
 impl DecimalIndex {
@@ -94,7 +96,11 @@ impl DecimalIndex {
                 Some((query.name.clone(), shape))
             })
             .collect();
-        Self { shapes, reads }
+        Self {
+            shapes,
+            reads,
+            types,
+        }
     }
 
     /// The shape of a document read as `type_name`, an object type, a union or an
@@ -111,6 +117,24 @@ impl DecimalIndex {
     pub fn read_by(&self, query_name: &str) -> Option<&Arc<DecimalShape>> {
         self.reads.get(query_name)
     }
+
+    /// A mutation response's documents, each read as the type its row stamps; `None` when
+    /// the schema holds no `Decimal`.
+    #[must_use]
+    pub fn write(&self) -> Option<WriteDecimals> {
+        (!self.types.is_empty()).then(|| WriteDecimals::new(Arc::clone(&self.types)))
+    }
+}
+
+/// Whether `text` is a `Decimal` as one travels: optionally signed digits, with a fractional
+/// part after a point when it has one. No exponent, no leading point, no padding.
+#[must_use]
+pub fn is_decimal_digits(text: &str) -> bool {
+    let unsigned = text.strip_prefix('-').unwrap_or(text);
+    let (whole, fraction) =
+        unsigned.split_once('.').map_or((unsigned, None), |(w, f)| (w, Some(f)));
+    let digits = |part: &str| !part.is_empty() && part.bytes().all(|b| b.is_ascii_digit());
+    digits(whole) && fraction.is_none_or(digits)
 }
 
 /// Whether a union or an interface named `name` holds a type from which a `Decimal` is

@@ -331,7 +331,6 @@ fn success_field_value_ok(
             | FieldType::Date
             | FieldType::Time
             | FieldType::Uuid
-            | FieldType::Decimal
             | FieldType::BitVector
             | FieldType::SparseVector,
             Value::String(_),
@@ -339,6 +338,7 @@ fn success_field_value_ok(
         | (FieldType::Boolean, Value::Bool(_))
         | (FieldType::Json, _) => true,
         (FieldType::Id, Value::Number(n)) => n.is_i64() || n.is_u64(),
+        (FieldType::Decimal, Value::String(digits)) => crate::runtime::is_decimal_digits(digits),
         (FieldType::Vector | FieldType::HalfVector, Value::Array(items)) => {
             items.iter().all(Value::is_number)
         },
@@ -2118,6 +2118,7 @@ struct WriteParts<'p> {
     /// Report the rows the call changes, at most this many (#1576).
     report_changes: Option<i32>,
     mode:           crate::backend::WriteMode,
+    decimals:       Option<crate::backend::traits::WriteDecimals>,
 }
 
 impl WriteParts<'_> {
@@ -2128,6 +2129,7 @@ impl WriteParts<'_> {
             .with_mode(self.mode)
             .with_derived_cascade(self.derived.as_ref())
             .with_changes_reported(self.report_changes)
+            .with_decimals(self.decimals.as_ref())
     }
 }
 
@@ -2197,7 +2199,33 @@ impl PreparedWrite<'_> {
             // The cache evicts its reads by id by the rows the write changed (#1576).
             report_changes: ctx.adapter.reports_changed_rows().then(|| max_entities(ctx)),
             mode,
+            decimals: self.decimals(),
         }
+    }
+
+    /// Where this write's response holds `Decimal`s: an unstamped entity or failure read as
+    /// the one type its arm can be, a cascade payload's success fields as the payload's.
+    fn decimals(&self) -> Option<crate::backend::traits::WriteDecimals> {
+        let object = |types: &[String]| match types {
+            [only] => Some(crate::backend::traits::DecimalNode::Object(only.clone())),
+            _ => None,
+        };
+        let contract = self.payload_gates.contract();
+        let return_type = &self.mutation_def.return_type;
+        let payload = self.mutation_def.cascade.then(|| {
+            crate::backend::traits::DecimalNode::Object(resolve_payload_type(
+                return_type,
+                &self.ctx.schema,
+            ))
+        });
+        Some(
+            self.ctx
+                .decimals
+                .write()?
+                .with_entity(object(&contract.success))
+                .with_error(object(&contract.error))
+                .with_result(payload),
+        )
     }
 
     /// 5/6. Row → outcome → response, as one step, because all of it has to happen before

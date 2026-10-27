@@ -7996,6 +7996,10 @@ fn a_success_field_value_is_checked_against_its_type() {
         (FieldType::Id, json!(7), json!(1.5)),
         (enum_type(), json!("FULL"), json!("MOSTLY")),
         (enum_type(), json!("FULL"), json!(1)),
+        (FieldType::Decimal, json!("12345678901234567.89"), json!("12.5 EUR")),
+        (FieldType::Decimal, json!("-0.010"), json!("1.5e3")),
+        (FieldType::Decimal, json!("7"), json!(".5")),
+        (FieldType::Decimal, json!(12.5), json!(true)),
     ] {
         let declared = field(field_type.clone(), false);
         assert!(

@@ -98,7 +98,7 @@ pub use argument_value_validation::{
     validate_argument_list_items, validate_argument_values, validate_enum_argument_literals,
     validate_enum_variable_values, validate_mutation_argument_values, validate_variable_values,
 };
-pub use decimal_shape::DecimalIndex;
+pub use decimal_shape::{DecimalIndex, is_decimal_digits};
 pub use embed_selection::{CountSelection, EmbedSelection};
 pub(crate) use enum_coercion::{coerce_enum_argument_object, coerce_enum_arguments};
 pub(crate) use executor::field_type_to_where_type;
