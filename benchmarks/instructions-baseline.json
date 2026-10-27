@@ -14,15 +14,15 @@
     "executor_instructions::executor::respond.raw_by_id_lean": 57380,
     "executor_instructions::executor::respond.raw_list_fat": 122346,
     "executor_instructions::executor::respond.raw_list_lean": 105121,
-    "executor_instructions::executor::respond.raw_numeric_list": 297883,
+    "executor_instructions::executor::respond.raw_numeric_list": 254145,
     "executor_instructions::executor::respond.value_by_id_fat": 91580,
     "executor_instructions::executor::respond.value_by_id_lean": 83458,
     "executor_instructions::executor::respond.value_list_fat": 594686,
     "executor_instructions::executor::respond.value_list_lean": 453138,
-    "executor_instructions::executor::respond.value_numeric_list": 905424,
-    "rest_instructions::rest::rest_get.by_id_fat": 902396,
-    "rest_instructions::rest::rest_get.by_id_lean": 146660,
-    "rest_instructions::rest::rest_get.list_fat": 16234678,
-    "rest_instructions::rest::rest_get.list_lean": 1060549
+    "executor_instructions::executor::respond.value_numeric_list": 1103430,
+    "rest_instructions::rest::rest_get.by_id_fat": 701919,
+    "rest_instructions::rest::rest_get.by_id_lean": 141988,
+    "rest_instructions::rest::rest_get.list_fat": 12433022,
+    "rest_instructions::rest::rest_get.list_lean": 993021
   }
 }
