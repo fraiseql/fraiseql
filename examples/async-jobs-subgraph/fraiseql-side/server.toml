@@ -13,3 +13,10 @@
 # check set off, not just this one.
 
 cors_enabled = false
+
+# rover fetches the subgraph SDL (`{ _service { sdl } }`) from the host with no
+# credential, and this example configures no authentication, so the SDL is served to
+# anyone. The default refuses it to an anonymous caller. A deployment either gives the
+# gateway a credential (a service account on `x-api-key`) or composes offline from the
+# artifact with `fraiseql federation sdl schema.compiled.json`, and leaves this unset.
+service_sdl_require_auth = false

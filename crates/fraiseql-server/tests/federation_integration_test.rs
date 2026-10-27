@@ -21,6 +21,7 @@ mod common;
 use std::sync::Arc;
 
 use fraiseql_core::{db::postgres::PostgresAdapter, schema::CompiledSchema};
+use fraiseql_server::server_config::ServerConfig;
 use fraiseql_test_utils::failing_adapter::FailingAdapter;
 use reqwest::Client;
 use serde_json::{Value, json};
@@ -117,13 +118,20 @@ async fn setup_users_table(db_url: &str) -> tokio_postgres::Client {
 /// `_service { sdl }` returns SDL with proper inline `@key` directives.
 ///
 /// Does NOT require Docker — uses `FailingAdapter` (no DB needed for SDL generation).
+/// The server serves the SDL to anyone (`service_sdl_require_auth = false`): this test
+/// asks as a gateway with no credential would.
 #[tokio::test]
 async fn service_sdl_contains_federation_directives() {
     let schema = user_schema_with_federation();
     // #1427: what `fraiseql federation sdl` prints from the same artifact.
     let offline = schema.federation_service_sdl().expect("a federated schema renders its SDL");
     let adapter = Arc::new(FailingAdapter::new());
-    let server = TestServer::start(schema, adapter).await;
+    let config = ServerConfig {
+        cors_enabled: false,
+        service_sdl_require_auth: Some(false),
+        ..ServerConfig::default()
+    };
+    let server = Box::pin(TestServer::start_with_config(config, schema, adapter)).await;
 
     let client = Client::new();
     let resp = client
@@ -149,6 +157,21 @@ async fn service_sdl_contains_federation_directives() {
     assert!(sdl.contains("_service"), "SDL must declare _service query");
     assert!(!sdl.contains("# @key"), "SDL must not contain commented @key: {sdl}");
     assert_eq!(sdl, offline, "the HTTP `_service` serves exactly the offline rendering");
+}
+
+/// #1717: a server left at the default refuses the SDL to a caller with no credential,
+/// through the whole HTTP stack.
+#[tokio::test]
+async fn the_service_sdl_is_refused_to_an_anonymous_caller_by_default() {
+    let adapter = Arc::new(FailingAdapter::new());
+    let server = TestServer::start(user_schema_with_federation(), adapter).await;
+
+    let resp =
+        post_gql(&Client::new(), &server.url, json!({"query": "{ _service { sdl } }"})).await;
+
+    assert!(resp["data"]["_service"]["sdl"].is_null(), "the SDL was served: {resp}");
+    let message = resp["errors"][0]["message"].as_str().unwrap_or_default();
+    assert!(message.contains("requires authentication"), "{resp}");
 }
 
 // ─── Test 2: _entities resolves User from PostgreSQL ─────────────────────────
