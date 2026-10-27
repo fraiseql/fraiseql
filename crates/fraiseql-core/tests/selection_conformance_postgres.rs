@@ -25,6 +25,7 @@
 use std::sync::Arc;
 
 use fraiseql_core::{
+    cache::{CacheConfig, CachedDatabaseAdapter, QueryResultCache},
     db::{postgres::PostgresAdapter, traits::DatabaseAdapter},
     runtime::{Executor, relay::encode_node_id},
     schema::{
@@ -150,6 +151,18 @@ fn schema() -> CompiledSchema {
             },
         )
         .build();
+    // The same view read with its entry's amount as a `Float`.
+    let entry_estimate_type =
+        TestTypeBuilder::new("EntryEstimate", "v_selection_conformance_entry")
+            .with_simple_field("amount", FieldType::Float)
+            .build();
+    let ledger_estimate_type = TestTypeBuilder::new("LedgerEstimate", LEDGER_VIEW)
+        .with_nullable_field("entry", FieldType::Object("EntryEstimate".to_string()))
+        .build();
+    let ledger_estimates_query = TestQueryBuilder::new("ledgerEstimates", "LedgerEstimate")
+        .returns_list(true)
+        .with_sql_source(LEDGER_VIEW)
+        .build();
     let ledgers_query = TestQueryBuilder::new("ledgers", "Ledger")
         .returns_list(true)
         .with_sql_source(LEDGER_VIEW)
@@ -187,6 +200,9 @@ fn schema() -> CompiledSchema {
         .with_type(entry_type)
         .with_type(ledger_type)
         .with_query(ledgers_query)
+        .with_type(entry_estimate_type)
+        .with_type(ledger_estimate_type)
+        .with_query(ledger_estimates_query)
         .with_query(users_query)
         .with_query(measures_query)
         .with_query(wides_query)
@@ -962,4 +978,29 @@ async fn a_decimal_below_the_root_keeps_its_digits() {
         json!({"t": "1.50", "entry": {"a": "100.00"}, "lines": [{"n": "-0.001"}, {"n": "0"}]}),
         "{aliased}"
     );
+}
+
+/// A read answered from the cache hands back the digits the first read did, and a read
+/// of the same rows as a `Float` never answers it.
+#[tokio::test]
+async fn a_cached_decimal_keeps_its_digits() {
+    if executor().await.is_none() {
+        eprintln!("SKIP: no PostgreSQL (set DATABASE_URL)");
+        return;
+    }
+    let pg = fraiseql_test_support::postgres().await.unwrap();
+    let adapter = PostgresAdapter::new(pg.url()).await.unwrap();
+    let cache = QueryResultCache::new(CacheConfig::enabled());
+    let cached = Arc::new(CachedDatabaseAdapter::new(adapter, cache, "decimal-v1".to_string()));
+    let exec = Executor::new_with_relay(schema(), Arc::clone(&cached));
+    let hits = || cached.cache().metrics().unwrap().hits;
+
+    let estimate = exec.execute("{ ledgerEstimates { entry { amount } } }", None).await.unwrap();
+    assert_eq!(estimate["data"]["ledgerEstimates"][0]["entry"]["amount"], json!(100.0));
+    let entries = json!([{ "amount": "100.00" }, null]);
+    for (read, hit) in [("first", 0), ("cached", 1)] {
+        let response = exec.execute("{ ledgers { entry { amount } } }", None).await.unwrap();
+        assert_eq!(json!(column(&response, "ledgers", "entry")), entries, "{read}: {response}");
+        assert_eq!(hits(), hit, "{read}: answered from the cache {} times", hits());
+    }
 }
