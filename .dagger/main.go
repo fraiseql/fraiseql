@@ -479,6 +479,11 @@ func (m *FraiseqlCi) ShellGates(
 		"bash tools/check-fmt-toolchain.sh",
 		"bash tools/check-test-imports.sh",
 		"bash tools/check-route-syntax.sh",
+		// No route answers 501 through `not_implemented(` but revoke's conditional one
+		// (ADR-0007 §5, check 8): a route that exists and declines is a capability the
+		// registry reports served and the deployment does not serve.
+		"bash tools/check-not-implemented.sh",
+		"bash tools/tests/not_implemented_test.sh",
 		"bash tools/check-guard-parity.sh",
 		// The test side of the same rule (#1272): a test that asserts a guard's
 		// behaviour must take the temp_env lock, or it races the sibling that sets
