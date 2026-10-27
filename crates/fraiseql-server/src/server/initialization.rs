@@ -269,82 +269,80 @@ impl Server {
     ///
     /// Any background hot-reload task spawned for the store is pushed onto
     /// `tasks` so the server can await its termination during graceful shutdown.
-    #[allow(clippy::cognitive_complexity)] // Reason: config parsing with multiple optional fields and validation
+    ///
+    /// # Errors
+    ///
+    /// Returns `ServerError::ConfigError` when trusted documents are asked for and
+    /// would not be enforced: `enabled` with no `manifest_path`, or a manifest that
+    /// cannot be loaded, or `persisted_queries_only` without enabled trusted documents.
+    /// A server that booted without the store would accept every raw query.
     pub(super) fn trusted_docs_from_schema(
         schema: &CompiledSchema,
         tasks: &mut tokio::task::JoinSet<()>,
-    ) -> Option<Arc<crate::trusted_documents::TrustedDocumentStore>> {
-        let security = schema.security.as_ref()?;
-
-        // #379: `[security] persisted_queries_only = true` is a top-level shorthand that
-        // forces the trusted-document store into Strict mode below. It only takes effect
-        // when a trusted-documents manifest is configured (there must be persisted
-        // operations to allow-list); warn loudly otherwise so the flag never fails silent.
-        let persisted_queries_only = security.persisted_queries_only;
-
-        let Some(cfg) = security.trusted_documents.as_ref() else {
-            if persisted_queries_only {
-                warn!(
-                    "security.persisted_queries_only = true but no [security.trusted_documents] \
-                     is configured — the flag has no effect. Configure a trusted-documents \
-                     manifest (manifest_path or manifest_url) so persisted queries can be \
-                     allow-listed."
-                );
-            }
-            return None;
+    ) -> crate::Result<Option<Arc<crate::trusted_documents::TrustedDocumentStore>>> {
+        let Some(security) = schema.security.as_ref() else {
+            return Ok(None);
         };
 
-        if !cfg.enabled {
+        // `[security] persisted_queries_only = true` forces the store into Strict mode
+        // below, so it needs an enabled store to force.
+        let persisted_queries_only = security.persisted_queries_only;
+
+        let Some(cfg) = security.trusted_documents.as_ref().filter(|cfg| cfg.enabled) else {
             if persisted_queries_only {
-                warn!(
-                    "security.persisted_queries_only = true but [security.trusted_documents].enabled \
-                     = false — the flag has no effect; enable trusted documents with a manifest."
-                );
+                return Err(ServerError::ConfigError(
+                    "security.persisted_queries_only = true needs [security.trusted_documents] \
+                     with enabled = true and a manifest_path: without them no operation is \
+                     restricted."
+                        .to_string(),
+                ));
             }
-            return None;
-        }
+            return Ok(None);
+        };
 
         let mode = effective_trusted_doc_mode(cfg.mode, persisted_queries_only);
 
-        if let Some(ref path) = cfg.manifest_path {
-            match crate::trusted_documents::TrustedDocumentStore::from_manifest_file(
-                std::path::Path::new(path),
-                mode,
-            ) {
-                Ok(store) => {
-                    let store = Arc::new(store);
-                    // Spawn hot-reload task if configured.
-                    if cfg.reload_interval_secs > 0 {
-                        if let Some(ref url) = cfg.manifest_url {
-                            Self::spawn_trusted_docs_reload(
-                                Arc::clone(&store),
-                                url.clone(),
-                                cfg.reload_interval_secs,
-                                tasks,
-                            );
-                        } else {
-                            warn!(
-                                "trusted_documents.reload_interval_secs > 0 but no manifest_url set \
-                                 — hot-reload disabled (file-based manifests must be reloaded manually)"
-                            );
-                        }
-                    }
-                    info!(
-                        manifest = %path,
-                        mode = ?mode,
-                        "Trusted documents loaded"
-                    );
-                    Some(store)
-                },
-                Err(e) => {
-                    tracing::error!(error = %e, "Failed to load trusted documents manifest");
-                    None
-                },
+        let Some(ref path) = cfg.manifest_path else {
+            return Err(ServerError::ConfigError(
+                "[security.trusted_documents] is enabled but sets no manifest_path, so no \
+                 operation would be restricted. manifest_url only refreshes a manifest loaded \
+                 from manifest_path."
+                    .to_string(),
+            ));
+        };
+
+        let store = crate::trusted_documents::TrustedDocumentStore::from_manifest_file(
+            std::path::Path::new(path),
+            mode,
+        )
+        .map_err(|e| {
+            ServerError::ConfigError(format!(
+                "[security.trusted_documents] is enabled but its manifest {path} cannot be \
+                 loaded, so no operation would be restricted: {e}"
+            ))
+        })?;
+        let store = Arc::new(store);
+        if cfg.reload_interval_secs > 0 {
+            if let Some(ref url) = cfg.manifest_url {
+                Self::spawn_trusted_docs_reload(
+                    Arc::clone(&store),
+                    url.clone(),
+                    cfg.reload_interval_secs,
+                    tasks,
+                );
+            } else {
+                warn!(
+                    "trusted_documents.reload_interval_secs > 0 but no manifest_url set \
+                     — hot-reload disabled (file-based manifests must be reloaded manually)"
+                );
             }
-        } else {
-            warn!("trusted_documents.enabled = true but no manifest_path or manifest_url set");
-            None
         }
+        info!(
+            manifest = %path,
+            mode = ?mode,
+            "Trusted documents loaded"
+        );
+        Ok(Some(store))
     }
 
     /// Spawn a background task that periodically re-fetches the manifest from a URL.

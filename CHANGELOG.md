@@ -287,6 +287,13 @@ disagreed, and the promise was the part that was wrong.
   federation enabled, `mode = "strict"` or `persisted_queries_only = true` now stops the boot
   with an error naming both ways out: enforce trusted documents at the gateway and make them
   permissive on the subgraph, or disable federation on it.
+- **Trusted documents are enforced, or the server does not boot.** With
+  `[security.trusted_documents]` enabled, a manifest that could not be loaded (missing,
+  unreadable, oversized or unparseable) was logged and the server booted with no store,
+  accepting every raw query. The same happened with only `manifest_url` set, which never
+  loaded a manifest. Both now stop the boot with the reason, and so does
+  `persisted_queries_only = true` without enabled trusted documents, which used to boot with
+  a warning. `manifest_path` is required; `manifest_url` only refreshes it.
 - **A boot guard takes a `Deployment`, not an `is_production: bool`.**
   `fraiseql_server::token_revocation::revocation_manager_from_schema_in`,
   `fraiseql_server::inbound::webhook_routes_check` and

@@ -62,6 +62,8 @@ mod rbac_mount_tests;
 mod service_sdl_wiring_tests;
 #[cfg(test)]
 mod storage_quota_sweep_tests;
+#[cfg(test)]
+mod trusted_documents_boot_tests;
 
 #[cfg(test)]
 mod routing_tests;

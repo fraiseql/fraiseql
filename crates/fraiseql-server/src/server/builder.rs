@@ -425,7 +425,7 @@ impl Server {
         // Collect lifecycle task handles into a JoinSet that will be moved onto
         // the `Server` so graceful shutdown can await them.
         let mut tasks: tokio::task::JoinSet<()> = tokio::task::JoinSet::new();
-        let trusted_docs = Self::trusted_docs_from_schema(schema, &mut tasks);
+        let trusted_docs = Self::trusted_docs_from_schema(schema, &mut tasks)?;
 
         Ok(SchemaSubsystems {
             deployment,

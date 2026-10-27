@@ -708,7 +708,8 @@ pub struct TrustedDocumentsConfig {
     /// Path to the trusted documents manifest JSON file.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub manifest_path:        Option<String>,
-    /// URL to fetch the trusted documents manifest from at startup.
+    /// URL the manifest is re-fetched from every `reload_interval_secs`. The manifest is
+    /// loaded at startup from `manifest_path`, which an enabled store requires.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub manifest_url:         Option<String>,
     /// Poll interval in seconds for hot-reloading the manifest (0 = no reload).
