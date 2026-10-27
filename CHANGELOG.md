@@ -18,6 +18,34 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **A `Decimal` is a JSON string of the digits it was stored with (#1751).** Every
+  `Decimal` was decoded to a JSON number on its way out, through an `f64`: `1.50` lost its
+  scale (`1.5`) and every digit past the fifteenth was rounded, on a read, an aggregate, a
+  window and a mutation alike. It is now served as a string of exactly the digits
+  PostgreSQL holds: `"1.50"`, `"12345678901234567.89"`. That covers:
+  - a field of a read at any depth, including a list, a union or interface member, a
+    relay connection, a node and a REST read;
+  - the `SUM`, `AVG`, `MIN`, `MAX`, `STDDEV` and `VARIANCE` of a `Decimal` measure;
+  - a window's `Decimal` measure and the values computed from it;
+  - a mutation's entity, a failure's error fields, a cascade's entities (including those
+    `pg_tviews` reports) and a payload's success fields.
+
+  A count, and an aggregate of a measure that is not a `Decimal`, stay numbers, and
+  ordering by an aggregate still sorts by its value. A client that parsed a number reads a
+  string now. A mutation function must return a `Decimal` success field as a number or as
+  such a string: any other string is refused.
+
+  A `Decimal` argument, variable or input field takes a string, or an integer that fits an
+  `i64` or a `u64`. A number with a fraction or an exponent (`12.5`, `1e3`) is refused: it
+  was rounded to an `f64` before the server could read it. Write `"12.5"`. A variable
+  declared `Float` is no longer accepted at a `Decimal` argument. The scalar's
+  introspection description says how it travels.
+
+  Not yet covered, each under its own issue:
+  - subscription and change-log payloads (#1763);
+  - federation `_entities` (#1764);
+  - gRPC (#1765);
+  - Arrow Flight (#1766).
 - **The federation service SDL requires an authenticated caller by default (#1717).**
   `{ _service { sdl } }` was served to whoever the subgraph serves, so a subgraph open to
   anonymous reads listed its whole SDL to anyone. It is now refused to an anonymous caller

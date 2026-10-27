@@ -71,7 +71,11 @@ pub(super) fn builtin_scalars() -> Vec<IntrospectionType> {
             "Arbitrary JSON value",
             Some("https://www.ecma-international.org/publications/files/ECMA-ST/ECMA-404.pdf"),
         ),
-        scalar_type("Decimal", "Decimal number"),
+        scalar_type(
+            "Decimal",
+            "Exact decimal number, as a string of its digits (\"12.50\"). Written as such a \
+             string, or as an integer.",
+        ),
     ]
 }
 

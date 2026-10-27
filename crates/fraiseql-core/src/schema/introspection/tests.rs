@@ -1230,3 +1230,18 @@ fn an_arguments_list_items_are_published_as_declared() {
         "{sdl}"
     );
 }
+
+/// A client generator reads the scalar's description to choose a type: a Decimal arrives
+/// as a string of its digits, and is written the same way.
+#[test]
+fn the_decimal_scalar_says_it_travels_as_a_string_of_its_digits() {
+    let decimal = super::type_resolver::builtin_scalars()
+        .into_iter()
+        .find(|t| t.name.as_deref() == Some("Decimal"))
+        .expect("Decimal is a built-in scalar");
+    let description = decimal.description.unwrap_or_default();
+    assert!(
+        description.contains("string") && description.contains("digits"),
+        "{description}"
+    );
+}

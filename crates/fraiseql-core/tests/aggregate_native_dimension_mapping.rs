@@ -256,7 +256,13 @@ async fn window_revenue_where(
         .as_array()
         .unwrap()
         .iter()
-        .map(|r| r["revenue"].as_f64().unwrap_or_else(|| panic!("revenue in {r}")))
+        // A `Decimal` measure is served as a string of its digits.
+        .map(|r| {
+            r["revenue"]
+                .as_str()
+                .and_then(|digits| digits.parse::<f64>().ok())
+                .unwrap_or_else(|| panic!("revenue in {r}"))
+        })
         .sum()
 }
 

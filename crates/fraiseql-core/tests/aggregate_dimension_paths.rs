@@ -143,7 +143,13 @@ async fn a_window_filters_a_deep_declared_path_at_its_location() {
         .as_array()
         .unwrap()
         .iter()
-        .map(|r| r["revenue"].as_i64().unwrap_or_else(|| panic!("revenue in {r}")))
+        // A `Decimal` measure is served as a string of its digits.
+        .map(|r| {
+            r["revenue"]
+                .as_str()
+                .and_then(|digits| digits.parse::<i64>().ok())
+                .unwrap_or_else(|| panic!("revenue in {r}"))
+        })
         .collect();
     revenues.sort_unstable();
     assert_eq!(revenues, vec![1, 2], "the window keeps the category-A rows");
