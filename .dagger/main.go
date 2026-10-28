@@ -518,6 +518,9 @@ func (m *FraiseqlCi) ShellGates(
 		// One pg_tviews pin (docker/pg-tviews/Dockerfile); the docs and compose name it (#1391).
 		"bash tools/check-pg-tviews-pin.sh",
 		"bash tools/tests/pg_tviews_pin_test.sh",
+		// The quiet-window check the release benchmark waits on before measuring on forge:
+		// another CI job, a cargo or rustc, or a load over the limit keeps it from measuring.
+		"bash tools/tests/bench_quiet_window_test.sh",
 		// A bare `image: fraiseql:...` in a fenced code block resolves to
 		// docker.io/library/fraiseql, which this project cannot publish to — #1129's
 		// defect, in the one place the file-level gates do not read (#1220).
