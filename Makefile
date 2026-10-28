@@ -993,6 +993,13 @@ lint-pg-tviews-pin:
 test-pg-tviews-pin-gate:
 	@bash tools/tests/pg_tviews_pin_test.sh
 
+# The release benchmark's quiet-window check and its baseline host guard.
+.PHONY: test-bench-quiet-window-gate test-detect-regression-host-gate
+test-bench-quiet-window-gate:
+	@bash tools/tests/bench_quiet_window_test.sh
+test-detect-regression-host-gate:
+	@bash tools/tests/detect_regression_host_test.sh
+
 # The pg_tviews suites (#1391), locally: builds the pinned image on first use (a pgrx
 # compile, ~2.5 min cold), starts it on 127.0.0.1:5441, and runs them against it. Their
 # runtime-absent case reads DATABASE_URL, a database without pg_tviews.
@@ -1703,7 +1710,7 @@ lint-required-checks:
 # test suite or service-backed integration tests — those are `make test` and the
 # separate Dagger test/integration legs.
 .PHONY: preflight
-preflight: lint-fmt-toolchain fmt-check lint-not-implemented test-not-implemented-gate lint-sdk-dead-surface test-e2e-documents-gate test-e2e-documents lint-tests-layout lint-expect lint-async-trait lint-gate-db lint-gate-core lint-deadlines lint-audit-ledger lint-doc-claims lint-release-validation lint-rustc-wrapper lint-deploy-security lint-deploy-versions lint-compiled-schema-stamp lint-fuzz-targets lint-compose-references lint-dagger-apt lint-pg-tviews-pin lint-doc-image-refs lint-ci-install-pins lint-phases-citations lint-image-context lint-publish-parity lint-publish-secrets lint-routes lint-guard-parity lint-guard-test-lock test-guard-test-lock-gate lint-internal-flag lint-value-json lint-graphql-parse lint-mutation-dispatch lint-write-selections lint-principal-producers lint-rls-policy-construction lint-config-deny-unknown lint-docs-env-vars lint-docs-version lint-config-loaders lint-public-api-reexports lint-sdk-publication-claims lint-examples-postgres-only lint-examples-integrity lint-r-examples lint-suite-coverage lint-snapshot-pairing lint-empty-tests lint-test-subject lint-module-reachability lint-pub-mod-callers lint-prose-ratchet lint-docs-rust-examples lint-feature-chains lint-crate-sizes lint-sdk-workflows lint-workflow-reachability lint-already-passed-guard lint-image-mirror lint-trigger-rule-copies lint-fixture-collisions lint-preflight-parity lint-shard-parity lint-deny-flags lint-dockerfile-msrv lint-dockerfile-members lint-image-parity lint-artifact-features lint-delivery-coverage lint-sdk-lockfile-freshness lint-cargo-lock-path-versions test-release-tooling test-changelog-gate test-deadline-gate test-audit-ledger-gate test-docs-env-vars-gate test-doc-claims-gate test-release-validation-gate test-rustc-wrapper-gate test-write-selections-gate test-preflight-parity test-shard-parity test-imports-gate test-suite-coverage-workflows test-workflow-reachability-gate test-already-passed-guard-gate test-image-mirror-gate test-sdk-workflows-gate test-workflow-trigger-rule test-fixture-collisions-gate test-deny-flags-gate test-dockerfile-msrv-gate test-compiled-schema-stamp-gate test-dockerfile-members-gate test-image-parity-gate test-artifact-features-gate test-publish-secrets-gate test-delivery-coverage-gate test-sdk-lockfile-freshness-gate test-cargo-lock-path-versions-gate test-feature-matrix-gate test-test-subject-gate test-module-reachability-gate test-pub-mod-callers-gate test-prose-ratchet-gate test-perf-instructions-gate test-docs-rust-examples-gate test-suite-coverage-inner-gates test-suite-coverage-gating test-suite-coverage-filters test-suite-marker-prelude test-conformance-selftest test-public-api-reexports-gate test-sdk-publication-claims-gate test-fuzz-compiles-gate test-compose-references-gate test-dagger-apt-gate test-pg-tviews-pin-gate test-doc-image-refs-gate test-ci-install-pins-gate test-ci-stale-artifacts-gate lint-ci-source-stamp test-ci-source-stamp-gate test-example-crates-gate test-r-examples-gate test-phases-citations-gate test-image-context-gate
+preflight: lint-fmt-toolchain fmt-check lint-not-implemented test-not-implemented-gate lint-sdk-dead-surface test-e2e-documents-gate test-e2e-documents lint-tests-layout lint-expect lint-async-trait lint-gate-db lint-gate-core lint-deadlines lint-audit-ledger lint-doc-claims lint-release-validation lint-rustc-wrapper lint-deploy-security lint-deploy-versions lint-compiled-schema-stamp lint-fuzz-targets lint-compose-references lint-dagger-apt lint-pg-tviews-pin lint-doc-image-refs lint-ci-install-pins lint-phases-citations lint-image-context lint-publish-parity lint-publish-secrets lint-routes lint-guard-parity lint-guard-test-lock test-guard-test-lock-gate lint-internal-flag lint-value-json lint-graphql-parse lint-mutation-dispatch lint-write-selections lint-principal-producers lint-rls-policy-construction lint-config-deny-unknown lint-docs-env-vars lint-docs-version lint-config-loaders lint-public-api-reexports lint-sdk-publication-claims lint-examples-postgres-only lint-examples-integrity lint-r-examples lint-suite-coverage lint-snapshot-pairing lint-empty-tests lint-test-subject lint-module-reachability lint-pub-mod-callers lint-prose-ratchet lint-docs-rust-examples lint-feature-chains lint-crate-sizes lint-sdk-workflows lint-workflow-reachability lint-already-passed-guard lint-image-mirror lint-trigger-rule-copies lint-fixture-collisions lint-preflight-parity lint-shard-parity lint-deny-flags lint-dockerfile-msrv lint-dockerfile-members lint-image-parity lint-artifact-features lint-delivery-coverage lint-sdk-lockfile-freshness lint-cargo-lock-path-versions test-release-tooling test-changelog-gate test-deadline-gate test-audit-ledger-gate test-docs-env-vars-gate test-doc-claims-gate test-release-validation-gate test-rustc-wrapper-gate test-write-selections-gate test-preflight-parity test-shard-parity test-imports-gate test-suite-coverage-workflows test-workflow-reachability-gate test-already-passed-guard-gate test-image-mirror-gate test-sdk-workflows-gate test-workflow-trigger-rule test-fixture-collisions-gate test-deny-flags-gate test-dockerfile-msrv-gate test-compiled-schema-stamp-gate test-dockerfile-members-gate test-image-parity-gate test-artifact-features-gate test-publish-secrets-gate test-delivery-coverage-gate test-sdk-lockfile-freshness-gate test-cargo-lock-path-versions-gate test-feature-matrix-gate test-test-subject-gate test-module-reachability-gate test-pub-mod-callers-gate test-prose-ratchet-gate test-perf-instructions-gate test-docs-rust-examples-gate test-suite-coverage-inner-gates test-suite-coverage-gating test-suite-coverage-filters test-suite-marker-prelude test-conformance-selftest test-public-api-reexports-gate test-sdk-publication-claims-gate test-fuzz-compiles-gate test-compose-references-gate test-dagger-apt-gate test-pg-tviews-pin-gate test-bench-quiet-window-gate test-detect-regression-host-gate test-doc-image-refs-gate test-ci-install-pins-gate test-ci-stale-artifacts-gate lint-ci-source-stamp test-ci-source-stamp-gate test-example-crates-gate test-r-examples-gate test-phases-citations-gate test-image-context-gate
 	@echo "=== preflight: lint-unwrap (UNWRAP_ALLOW_LIMIT=3) ==="
 	@$(MAKE) --no-print-directory lint-unwrap UNWRAP_ALLOW_LIMIT=3
 	@echo "=== preflight: check-test-imports ==="
@@ -2241,12 +2248,17 @@ bench-fraiseql:
 		  --output $(BENCH_OUTPUT_MD)
 	@echo "Results written to $(BENCH_OUTPUT_JSON)"
 
+# Velocitybench numbers compare only on the host that measured them; the committed
+# baseline is forge's (.github/workflows/benchmark-velocity.yml).
+BENCH_HOST ?= $(shell hostname -s)
+
 ## Compare last bench run against benchmarks/baseline.json; fail on >5% RPS regression
 bench-check-regression: bench-fraiseql
 	python benchmarks/detect_regression.py \
 	  --results $(BENCH_OUTPUT_JSON) \
 	  --baseline benchmarks/baseline.json \
 	  --framework $(BENCH_VARIANT) \
+	  --require-host $(BENCH_HOST) \
 	  --output $(BENCH_REPORT_FILE)
 	@cat $(BENCH_REPORT_FILE)
 
@@ -2256,6 +2268,7 @@ bench-update-baseline: bench-fraiseql
 	  --results $(BENCH_OUTPUT_JSON) \
 	  --baseline benchmarks/baseline.json \
 	  --framework $(BENCH_VARIANT) \
+	  --host $(BENCH_HOST) \
 	  --update
 	@echo "Run: git add benchmarks/baseline.json && git commit -m 'chore(bench): update performance baseline'"
 

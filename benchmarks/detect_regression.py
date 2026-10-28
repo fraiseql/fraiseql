@@ -163,7 +163,18 @@ def main() -> None:
         action="store_true",
         help="Overwrite baseline with current results instead of comparing",
     )
+    parser.add_argument(
+        "--host",
+        help="With --update (required): the host the results were measured on",
+    )
+    parser.add_argument(
+        "--require-host",
+        help="Compare only against a baseline measured on this host; any other is "
+        "reported as not comparable, and passes",
+    )
     args = parser.parse_args()
+    if args.update and not args.host:
+        parser.error("--update needs --host: a baseline must say where it was measured")
 
     baseline_path = Path(args.baseline)
     results_path = Path(args.results)
@@ -186,6 +197,7 @@ def main() -> None:
 
         new_baseline = {
             **baseline,
+            "config": {**baseline.get("config", {}), "host": args.host},
             "git_sha": sha,
             "recorded_at": datetime.datetime.utcnow().isoformat() + "Z",
             "results": indexed,
@@ -194,7 +206,16 @@ def main() -> None:
         print(f"✅ Baseline updated: {baseline_path}")
         return
 
-    report, regressions = build_report(baseline, raw_results, args.framework)
+    baseline_host = baseline.get("config", {}).get("host")
+    if args.require_host and baseline_host != args.require_host:
+        report = (
+            f"No baseline measured on {args.require_host}: {args.baseline} was "
+            f"not measured on {args.require_host} (host: {baseline_host or 'unrecorded'}), "
+            "so nothing was compared. Numbers from different hosts are not comparable.\n"
+        )
+        regressions = []
+    else:
+        report, regressions = build_report(baseline, raw_results, args.framework)
 
     if args.output == "-":
         print(report)

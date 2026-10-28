@@ -1,60 +1,121 @@
-name: Velocitybench Regression Gate
+name: Velocitybench (forge, report-only)
 
-# Runs the fraiseql-tv scenario from velocitybench to catch performance regressions
-# before merging to dev. Blocks merge if RPS drops >5% or p95 increases >10%.
+# Measures the release candidate against velocitybench's FraiseQL scenarios on forge,
+# and attaches the numbers to the run. It never blocks a release: a regression is
+# reported, not failed, and no release step waits on this workflow. The job goes red
+# only when the harness itself breaks, so a broken benchmark is seen, not mistaken
+# for a quiet one.
 #
-# How it works:
-#   1. Build fraiseql-server release binary from the current PR
-#   2. Inject it into velocitybench/frameworks/fraiseql/fraiseql-server
-#   3. Start postgres via velocitybench's docker compose
-#   4. Run bench_sequential.py --frameworks fraiseql-tv (it manages the container lifecycle)
-#   5. Compare the JSON output against benchmarks/baseline.json
-#   6. Post a before/after table as a PR comment; fail the job on regression
+#   1. Build fraiseql-cli and fraiseql-server (release) from this commit on a hosted
+#      runner, never on forge. Its glibc (Ubuntu 24.04, 2.39) is below the FraiseQL
+#      image's runtime base (Debian 13, 2.41), so the binaries load there.
+#   2. On forge, inject both into velocitybench's FraiseQL image, naming this release
+#      so its version guard checks the binaries it was given.
+#   3. Start velocitybench's PostgreSQL 18 database (medium dataset).
+#   4. Wait for a quiet window on forge (tools/bench-quiet-window.sh): no other CI
+#      job, no cargo or rustc, load under the limit. A box still busy after 20 minutes
+#      is reported as "skipped: not quiet", with the load it saw, and the job is green.
+#   5. Run bench_sequential.py for the FraiseQL frameworks only.
+#   6. Compare with benchmarks/baseline.json and attach results, report and the load
+#      seen before and after.
 #
-# Triggered by manual dispatch only, since the 2026-05-31 Dagger migration stripped
-# the push and PR triggers. The job kept a `push || PR-labelled-perf` condition that
-# no dispatch can satisfy, so pressing Run executed nothing and reported success
-# (#1206); the condition is gone.
+# This job holds forge's only runner from start to finish, so no other CI job (the
+# Dagger preflight every PR needs among them) can start there while it waits or
+# measures. That is what makes the quiet window reachable: while it holds the runner,
+# only interactive use of forge can disturb it. Building elsewhere keeps the hold to the
+# 20-minute wait plus the measurement.
 #
-# #1207: the PR-comment and baseline-artifact steps were `pull_request`- and
-# push-to-dev-gated under a dispatch-only trigger, so neither could run. The comment
-# step is DELETED rather than re-triggered — the report it posted is already written
-# to `$GITHUB_STEP_SUMMARY` and uploaded as an artifact by the two steps below it, so
-# nothing is lost. The baseline save is now an explicit dispatch input, which is what
-# "save this run as the baseline" always meant.
-#
-# To update the stored baseline after an intentional perf change:
-#   make bench-update-baseline
-#   git add benchmarks/baseline.json && git commit
+# Numbers are forge-only: never compare them with numbers from another box.
+# benchmarks/baseline.json changes only through a reviewed commit, from a run of this
+# workflow, never automatically.
+
 on:
+  push:
+    branches: ['release/**']
   workflow_dispatch:
     inputs:
-      save_baseline:
-        description: 'Upload this run as the velocitybench-baseline-dev artifact'
-        type: boolean
-        default: false
+      frameworks:
+        description: Comma-separated velocitybench FraiseQL frameworks to measure
+        default: fraiseql-tv
+      velocitybench_ref:
+        description: velocitybench ref to measure with
+        default: main
 
 permissions:
   contents: read
+  # actions: read lets already-passed.yml see this workflow's earlier runs.
+  actions: read
+
+concurrency:
+  group: velocitybench-forge
+  cancel-in-progress: false
 
 env:
   CARGO_TERM_COLOR: always
-  SCCACHE_GHA_ENABLED: "true"
-  RUSTC_WRAPPER: "sccache"
-  BENCH_FRAMEWORK: fraiseql-tv
+  BENCH_FRAMEWORKS: ${{ inputs.frameworks || 'fraiseql-tv' }}
   BENCH_DURATION: "30"
   BENCH_CONCURRENCY: "40"
-  # bench_sequential.py writes foo.md; JSON lands at foo.json (same stem)
-  BENCH_OUTPUT_MD: /tmp/bench-results.md
-  BENCH_OUTPUT_JSON: /tmp/bench-results.json
-  BENCH_REPORT_FILE: /tmp/regression-report.md
+  # velocitybench's database seeds this volume at init (compose DATA_VOLUME).
+  DATA_VOLUME: medium
+  K6_VERSION: "1.6.1"
+  K6_SHA256: 68df4958a1b089dc6f70a234e07c7ec818922f83b261ca24f3abf79882b13343
+  # The quiet-window limit: forge has 12 threads and idles well under 1.
+  QUIET_MAX_LOAD: "1.5"
+  QUIET_RETRIES: "20"
+  QUIET_INTERVAL: "60"
 
 jobs:
-  velocity-regression:
-    name: Velocitybench (fraiseql-tv, 30s)
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
+  already-passed:
+    name: already passed
+    uses: ./.github/workflows/already-passed.yml
+    with:
+      workflow: benchmark-velocity.yml
 
+  build:
+    needs: already-passed
+    if: ${{ !cancelled() && needs.already-passed.outputs.passed != 'true' }}
+    name: Build the release binaries (hosted)
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+
+      - name: Setup Rust
+        uses: ./.github/actions/setup-rust
+
+      - name: Build fraiseql-cli and fraiseql-server (release)
+        run: cargo build --release --locked -p fraiseql-cli -p fraiseql-server
+
+      - name: Name the release they were built from
+        id: version
+        run: |
+          version="$(cargo metadata --no-deps --format-version 1 \
+            | python3 -c 'import json,sys; print(next(p["version"] for p in json.load(sys.stdin)["packages"] if p["name"] == "fraiseql-server"))')"
+          for bin in fraiseql-cli fraiseql-server; do
+            "target/release/$bin" --version | grep -F "$version"
+          done
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Hand the binaries to the forge job
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: velocitybench-binaries-${{ github.sha }}
+          path: |
+            target/release/fraiseql-cli
+            target/release/fraiseql-server
+          if-no-files-found: error
+          retention-days: 1
+
+  velocitybench:
+    needs: [already-passed, build]
+    if: ${{ !cancelled() && needs.already-passed.outputs.passed != 'true' && needs.build.result == 'success' }}
+    name: Velocitybench (forge, report-only)
+    runs-on: [self-hosted, forge]
+    timeout-minutes: 120
+    env:
+      FRAISEQL_VERSION: ${{ needs.build.outputs.version }}
     steps:
       - name: Checkout fraiseql
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
@@ -63,121 +124,143 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
         with:
           repository: evoludigit/velocitybench
+          ref: ${{ inputs.velocitybench_ref || 'main' }}
           path: velocitybench
 
-      - name: Setup Rust
-        uses: ./.github/actions/setup-rust
-
-      - name: Build fraiseql-server (release)
-        run: cargo build -p fraiseql-server --release
-
-      - name: Inject fraiseql binary into velocitybench
-        # bench_sequential.py uses the pre-built binary at frameworks/fraiseql/fraiseql-server
+      - name: Install k6 (pinned)
         run: |
-          cp target/release/fraiseql-server velocitybench/frameworks/fraiseql/fraiseql-server
-          chmod +x velocitybench/frameworks/fraiseql/fraiseql-server
-          echo "Binary injected: $(file velocitybench/frameworks/fraiseql/fraiseql-server)"
+          dir="$RUNNER_TEMP/k6"
+          mkdir -p "$dir"
+          tarball="k6-v${K6_VERSION}-linux-amd64.tar.gz"
+          curl -fsSL -o "$dir/$tarball" \
+            "https://github.com/grafana/k6/releases/download/v${K6_VERSION}/$tarball"
+          echo "${K6_SHA256}  $dir/$tarball" | sha256sum -c -
+          tar -xzf "$dir/$tarball" -C "$dir" --strip-components=1
+          echo "$dir" >> "$GITHUB_PATH"
 
-      - name: Start postgres via velocitybench docker compose
-        working-directory: velocitybench
+      - name: Take the binaries the build job made
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
+        with:
+          name: velocitybench-binaries-${{ github.sha }}
+          path: ${{ runner.temp }}/bin
+
+      - name: Inject them into velocitybench's FraiseQL image
         run: |
-          docker compose up -d postgres
-          # Wait for postgres to be ready
-          for i in $(seq 1 30); do
-            if docker compose exec -T postgres pg_isready -U fraiseql 2>/dev/null; then
-              echo "Postgres ready after ${i}s"
-              break
-            fi
-            sleep 2
+          for bin in fraiseql-cli fraiseql-server; do
+            install -m 0755 "$RUNNER_TEMP/bin/$bin" "velocitybench/frameworks/fraiseql/$bin"
+            "velocitybench/frameworks/fraiseql/$bin" --version | grep -F "$FRAISEQL_VERSION"
           done
 
-      - name: Seed database (medium dataset)
+      - name: Start velocitybench's database
         working-directory: velocitybench
         run: |
-          # Apply schema and seed data using velocitybench SQL files
-          for sql in database/01-extensions.sql database/02-schema.sql database/05-medium-seed.sql; do
-            if [ -f "$sql" ]; then
-              echo "Applying $sql..."
-              docker compose exec -T postgres psql -U fraiseql -d velocitybench -f "/velocitybench_src/$sql" 2>/dev/null || \
-              docker compose exec -T -e PGPASSWORD=fraiseql postgres psql -U fraiseql -d velocitybench \
-                < "$sql" 2>/dev/null || \
-              cat "$sql" | docker compose exec -T postgres psql -U fraiseql velocitybench || true
+          # A volume a cancelled run left behind would carry its cluster into this one.
+          docker compose down --volumes --remove-orphans 2>/dev/null || true
+          # velocitybench's compose joins a network it declares external and never creates.
+          # It is shared by name, so it is created when missing and left in place.
+          docker network inspect velocitybench-benchmark > /dev/null 2>&1 \
+            || docker network create velocitybench-benchmark
+          docker compose up -d --build postgres
+          for _ in $(seq 1 120); do
+            if docker compose exec -T postgres \
+                pg_isready -U benchmark -d velocitybench_benchmark -q; then
+              echo "PostgreSQL ready"
+              docker compose exec -T postgres psql -U benchmark -d velocitybench_benchmark \
+                -Atc 'select version()'
+              exit 0
             fi
+            sleep 5
           done
-          echo "Database seeding complete"
+          docker compose logs postgres | tail -50
+          echo "::error::velocitybench's database did not become ready"
+          exit 1
 
-      - name: Run velocitybench (fraiseql-tv, ${{ env.BENCH_DURATION }}s)
-        working-directory: velocitybench
-        run: |
-          python tests/benchmark/bench_sequential.py \
-            --frameworks "${{ env.BENCH_FRAMEWORK }}" \
-            --duration "${{ env.BENCH_DURATION }}" \
-            --concurrency "${{ env.BENCH_CONCURRENCY }}" \
-            --output "${{ env.BENCH_OUTPUT_MD }}"
-          # bench_sequential.py writes JSON to same stem (.md → .json)
-          echo "Results written to ${{ env.BENCH_OUTPUT_JSON }}"
-          [ -f "${{ env.BENCH_OUTPUT_JSON }}" ] || {
-            echo "::error::JSON output not found at ${{ env.BENCH_OUTPUT_JSON }}"
-            exit 1
-          }
-
-      - name: Detect regressions vs baseline
-        id: regression
+      - name: Wait for a quiet window on forge
+        id: quiet
         run: |
           set +e
-          python benchmarks/detect_regression.py \
-            --results "${{ env.BENCH_OUTPUT_JSON }}" \
-            --baseline benchmarks/baseline.json \
-            --framework "${{ env.BENCH_FRAMEWORK }}" \
-            --output "${{ env.BENCH_REPORT_FILE }}"
-          REGRESSION_EXIT=$?
+          bash tools/bench-quiet-window.sh --max-load "$QUIET_MAX_LOAD" \
+            --retries "$QUIET_RETRIES" --interval "$QUIET_INTERVAL" \
+            > "$RUNNER_TEMP/quiet-before.json"
+          rc=$?
           set -e
+          cat "$RUNNER_TEMP/quiet-before.json"
+          case "$rc" in
+            0) echo "measure=true" >> "$GITHUB_OUTPUT" ;;
+            3) echo "measure=false" >> "$GITHUB_OUTPUT"
+               echo "::warning::skipped: not quiet. forge stayed busy for the whole window; nothing measured" ;;
+            *) exit "$rc" ;;
+          esac
 
-          {
-            echo "report<<REPORT_EOF"
-            cat "${{ env.BENCH_REPORT_FILE }}"
-            echo "REPORT_EOF"
-          } >> "$GITHUB_OUTPUT"
+      - name: Run velocitybench (FraiseQL only)
+        if: steps.quiet.outputs.measure == 'true'
+        working-directory: velocitybench
+        run: |
+          python3 tests/benchmark/bench_sequential.py \
+            --frameworks "$BENCH_FRAMEWORKS" \
+            --duration "$BENCH_DURATION" \
+            --concurrency "$BENCH_CONCURRENCY" \
+            --output "$RUNNER_TEMP/bench-results.md"
+          test -s "$RUNNER_TEMP/bench-results.json"
 
-          echo "regression_detected=${REGRESSION_EXIT}" >> "$GITHUB_OUTPUT"
+      - name: Record the load after measuring
+        if: steps.quiet.outputs.measure == 'true'
+        run: |
+          bash tools/bench-quiet-window.sh --max-load "$QUIET_MAX_LOAD" --retries 1 \
+            > "$RUNNER_TEMP/quiet-after.json" || true
+          cat "$RUNNER_TEMP/quiet-after.json"
 
-      - name: Add benchmark summary to job
+      - name: Compare with the forge baseline (report only)
+        if: steps.quiet.outputs.measure == 'true'
+        run: |
+          set +e
+          python3 benchmarks/detect_regression.py \
+            --results "$RUNNER_TEMP/bench-results.json" \
+            --baseline benchmarks/baseline.json \
+            --require-host forge \
+            --output "$RUNNER_TEMP/regression-report.md"
+          rc=$?
+          set -e
+          case "$rc" in
+            0) ;;
+            1) echo "::warning::slower than benchmarks/baseline.json; see the report" ;;
+            *) exit "$rc" ;;
+          esac
+
+      - name: Summary
         if: always()
         run: |
-          echo "## Velocitybench Results" >> "$GITHUB_STEP_SUMMARY"
-          cat "${{ env.BENCH_REPORT_FILE }}" >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || \
-            echo "No report generated." >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo "## Velocitybench on forge (report-only)"
+            echo
+            echo "fraiseql $FRAISEQL_VERSION, frameworks: $BENCH_FRAMEWORKS"
+            echo
+            if [ "${{ steps.quiet.outputs.measure }}" = false ]; then
+              echo "**Skipped: not quiet.** forge stayed busy for the whole window, so nothing was measured."
+              echo
+            fi
+            echo "Load before measuring: \`$(cat "$RUNNER_TEMP/quiet-before.json" 2>/dev/null || echo none)\`"
+            echo
+            echo "Load after measuring: \`$(cat "$RUNNER_TEMP/quiet-after.json" 2>/dev/null || echo none)\`"
+            echo
+            cat "$RUNNER_TEMP/regression-report.md" 2>/dev/null || echo "No comparison."
+          } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Upload results artifact
+      - name: Attach results to the run
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
-          name: velocitybench-results-${{ github.sha }}
+          name: velocitybench-forge-${{ github.sha }}
           path: |
-            ${{ env.BENCH_OUTPUT_JSON }}
-            ${{ env.BENCH_OUTPUT_MD }}
-            ${{ env.BENCH_REPORT_FILE }}
-          retention-days: 30
+            ${{ runner.temp }}/bench-results.json
+            ${{ runner.temp }}/bench-results.md
+            ${{ runner.temp }}/regression-report.md
+            ${{ runner.temp }}/quiet-before.json
+            ${{ runner.temp }}/quiet-after.json
+          if-no-files-found: ignore
+          retention-days: 90
 
-      - name: Save baseline artifact
-        if: inputs.save_baseline
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
-        with:
-          name: velocitybench-baseline-dev
-          path: ${{ env.BENCH_OUTPUT_JSON }}
-          retention-days: 14
-          overwrite: true
-
-      - name: Stop velocitybench docker compose
+      - name: Stop velocitybench
         if: always()
         working-directory: velocitybench
-        run: docker compose down --volumes 2>/dev/null || true
-
-      - name: Fail if regression detected
-        if: steps.regression.outputs.regression_detected != '0'
-        run: |
-          echo "::error::Performance regression detected. See report above."
-          echo "To update the baseline after an intentional change:"
-          echo "  make bench-update-baseline"
-          echo "  git add benchmarks/baseline.json && git commit"
-          exit 1
+        run: docker compose down --volumes --remove-orphans 2>/dev/null || true
