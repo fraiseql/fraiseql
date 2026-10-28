@@ -156,7 +156,7 @@ impl DatabaseAdapter for PostgresAdapter { ... }
 
 **The same pattern is used for other integrations:**
 
-- `OAuthProvider` trait (Google, GitHub, Keycloak, Okta, Auth0, Azure AD, generic OIDC, etc.)
+- `OAuthProvider` trait (Apple, Discord, Facebook, GitHub, Google, generic OIDC)
 - `SessionStore` trait (Postgres, in-memory)
 - `SignatureVerifier` trait (Stripe, GitHub, Shopify, etc.)
 
@@ -635,8 +635,8 @@ extends to all query paths.
 ### 2. Authentication Layers
 
 - OAuth2/OIDC support with these providers (`fraiseql-auth/src/providers/`):
-  - Apple, Auth0, Azure AD, Discord, Facebook, GitHub, Google, Keycloak, Logto, Okta,
-    Ory, and a generic OIDC provider
+  - Apple, Discord, Facebook, GitHub and Google, and a generic OIDC provider for any other
+    issuer
 - JWT token validation for sessions with automatic rotation
 - Bearer token for metrics endpoints
 - TLS/mTLS for transport security

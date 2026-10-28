@@ -482,8 +482,8 @@ impl OAuthProvider for OidcProvider {
             raw_claims.insert("email".to_string(), serde_json::Value::String(email.clone()));
         }
         // Re-surface `email_verified` in raw_claims: it is an explicit field on
-        // `UserInfoRaw` (so `#[serde(flatten)] extra` no longer captures it), but
-        // provider wrappers (Okta/Auth0) read it back from raw_claims.
+        // `UserInfoRaw` (so `#[serde(flatten)] extra` no longer captures it), and
+        // raw_claims carries the whole claim set the provider returned.
         if let Some(email_verified) = response.email_verified {
             raw_claims
                 .insert("email_verified".to_string(), serde_json::Value::Bool(email_verified));

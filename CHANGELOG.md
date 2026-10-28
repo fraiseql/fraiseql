@@ -174,6 +174,28 @@ disagreed, and the promise was the part that was wrong.
   projection SQL once per request locale chain (#1779), and no longer copies its selection
   to classify a nested level's fields or to plan its nested reads.
 
+- **`fraiseql-auth` no longer has the Okta, Auth0, Keycloak, Azure AD, Ory and Logto
+  wrappers, or `create_provider` (#1773).** No configuration could select them:
+  `[auth.social]` names only `apple`, `discord`, `facebook`, `github` and `google`, and
+  any other key is refused. They derived roles and an organisation from heuristics: a
+  substring of a group or role name, or the email domain. Removed from the public API:
+  - the modules `providers::{okta, auth0, keycloak, azure_ad, ory, logto}` and their types
+    `OktaOAuth`, `Auth0OAuth`, `KeycloakOAuth`, `AzureADOAuth`, `OryOAuth` and `LogtoOAuth`,
+    re-exported from `providers` (and `AzureADOAuth` and `KeycloakOAuth` from the crate root);
+  - `create_provider`, from `providers` and from the crate root;
+  - `GoogleOAuth::map_groups_to_roles` and `GoogleOAuth::extract_roles_from_domain`, which
+    gave every `@company.com` address `operator`;
+  - `GitHubOAuth::map_teams_to_roles`, `GitHubOAuth::get_user_with_teams`,
+    `GitHubOAuth::extract_org_id_from_teams`, `GitHubTeam` and `GitHubOrg`.
+
+  The mapped roles never reached a session. The login callback reads a provider's subject,
+  email, verification flag and name, and nothing else. A Google login no longer adds
+  `google_default_roles`, `org_id`, `google_email` or `google_workspace_available` to
+  `UserInfo::raw_claims`. A GitHub login no longer adds `github_teams` or `org_id`, and no
+  longer requests `/user/teams`. Without the `read:org` scope, which it never asked for,
+  that request could only return nothing. For another issuer, validate its bearer tokens
+  with `[auth] issuer`.
+
 ### Added
 
 - **A mailbox can trust a private CA: `[mailbox.<name>.imap] ca_file`** (#1757). A PEM

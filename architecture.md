@@ -285,7 +285,7 @@
   rate_limiting.rs        Auth-specific rate limiting (token bucket)
 
   providers/              Built-in IdP integrations
-    auth0, azure_ad, github, google, keycloak, logto, okta, ory
+    apple, discord, facebook, github, google
 
   handlers.rs             Auth HTTP handlers (split into 6 sub-modules):
     do_get / do_put / do_exchange / metadata / actions / send_helpers

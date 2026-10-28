@@ -36,7 +36,10 @@
 #![cfg(feature = "auth")]
 #![allow(clippy::unwrap_used, clippy::panic, clippy::print_stderr)] // Reason: test code — panics and skip diagnostics are acceptable
 
-use std::sync::Arc;
+use std::sync::{
+    Arc,
+    atomic::{AtomicUsize, Ordering},
+};
 
 use axum::{
     Json, Router,
@@ -150,6 +153,9 @@ fn database_url_or_skip(test: &str) -> Option<String> {
 /// claims-only token is exactly what the production parser sees. What it *does*
 /// check — `iss`, `aud`, `exp` — is real here, and the refusal cases are
 /// covered by the provider's unit tests.
+/// How many times the stub `IdP` served the `/user/teams` endpoint.
+static TEAMS_REQUESTS: AtomicUsize = AtomicUsize::new(0);
+
 fn unsigned_jwt(claims: &serde_json::Value) -> String {
     use base64::Engine as _;
     let engine = base64::engine::general_purpose::URL_SAFE_NO_PAD;
@@ -347,9 +353,14 @@ async fn stub_idp() -> String {
                     { "email": "bob@example.com", "primary": true, "verified": true }
                 ]))
             }),
+        )
+        .route(
+            "/user/teams",
+            get(|| async {
+                TEAMS_REQUESTS.fetch_add(1, Ordering::SeqCst);
+                Json(serde_json::json!([]))
+            }),
         );
-    // /user/teams is deliberately unmounted: the 404 exercises the
-    // best-effort teams path.
 
     tokio::spawn(async move {
         axum::serve(listener, app.into_make_service()).await.unwrap();
@@ -659,6 +670,11 @@ async fn google_and_github_full_loops_link_verified_emails() {
     assert_eq!(
         cross.user_id, github_user,
         "GitHub identity must be email-keyed via the verified /user/emails hop"
+    );
+    assert_eq!(
+        TEAMS_REQUESTS.load(Ordering::SeqCst),
+        0,
+        "a GitHub login reads no team membership: no role or organisation is derived from it"
     );
 
     let _ = tx.send(());

@@ -1,188 +1,23 @@
 //! Provider-specific OAuth / OIDC implementations.
 //!
-//! Each sub-module wraps [`crate::oidc_provider::OidcProvider`] for a particular identity
-//! provider and translates that provider's user-info format and role/group claims into
-//! FraiseQL's generic [`crate::provider::UserInfo`] and role strings.
+//! Each sub-module translates one identity provider's user-info format into FraiseQL's
+//! generic [`crate::provider::UserInfo`]. None of them derives a role or an organisation:
+//! the identity is the provider's subject and email, nothing more.
 //!
-//! Supported providers: Apple, Auth0, Discord, Facebook, GitHub, Google, Keycloak, Okta,
-//! Azure AD, Ory, and Logto.
+//! Supported providers: Apple, Discord, Facebook, GitHub and Google, each selected by its
+//! `[auth.social.<provider>]` block.
 
 pub mod apple;
-pub mod auth0;
-pub mod azure_ad;
 pub mod discord;
 pub mod facebook;
 pub mod github;
 pub mod google;
-pub mod keycloak;
-pub mod logto;
-pub mod okta;
-pub mod ory;
 
 pub use apple::AppleOAuth;
-pub use auth0::Auth0OAuth;
-pub use azure_ad::AzureADOAuth;
 pub use discord::DiscordOAuth;
 pub use facebook::FacebookOAuth;
 pub use github::GitHubOAuth;
 pub use google::GoogleOAuth;
-pub use keycloak::KeycloakOAuth;
-pub use logto::LogtoOAuth;
-pub use okta::OktaOAuth;
-pub use ory::OryOAuth;
-
-use crate::{error::Result, provider::OAuthProvider};
-
-/// Factory for creating OAuth providers from configuration
-///
-/// # Arguments
-/// * `provider_type` - Provider type: "auth0", "github", "google", "keycloak", "okta", "azure_ad",
-///   "ory", "logto"
-/// * `client_id` - OAuth client ID
-/// * `client_secret` - OAuth client secret
-/// * `config` - Provider-specific configuration (JSON value)
-///
-/// # Returns
-/// A boxed OAuthProvider implementation
-///
-/// # Errors
-///
-/// Returns `AuthError::ConfigError` if the provider type is unknown or the configuration
-/// is missing required fields. Returns `AuthError` if OIDC discovery fails.
-pub async fn create_provider(
-    provider_type: &str,
-    client_id: String,
-    client_secret: String,
-    redirect_uri: String,
-    config: Option<serde_json::Value>,
-) -> Result<Box<dyn OAuthProvider>> {
-    match provider_type {
-        "auth0" => {
-            let config = config.ok_or_else(|| crate::AuthError::ConfigError {
-                message: "Auth0 provider requires config with auth0_domain".to_string(),
-            })?;
-
-            let auth0_domain = config
-                .get("auth0_domain")
-                .and_then(|v| v.as_str())
-                .ok_or_else(|| crate::AuthError::ConfigError {
-                    message: "Missing auth0_domain in config".to_string(),
-                })?
-                .to_string();
-
-            let provider =
-                Auth0OAuth::new(client_id, client_secret, auth0_domain, redirect_uri).await?;
-            Ok(Box::new(provider))
-        },
-        "github" => {
-            // Network-free: GitHub serves no OIDC discovery document.
-            let provider = GitHubOAuth::new(client_id, client_secret, redirect_uri)?;
-            Ok(Box::new(provider))
-        },
-        "google" => {
-            let provider = GoogleOAuth::new(client_id, client_secret, redirect_uri).await?;
-            Ok(Box::new(provider))
-        },
-        "keycloak" => {
-            let config = config.ok_or_else(|| crate::AuthError::ConfigError {
-                message: "Keycloak provider requires config with keycloak_url and realm"
-                    .to_string(),
-            })?;
-
-            let keycloak_url = config
-                .get("keycloak_url")
-                .and_then(|v| v.as_str())
-                .ok_or_else(|| crate::AuthError::ConfigError {
-                    message: "Missing keycloak_url in config".to_string(),
-                })?
-                .to_string();
-
-            let realm = config
-                .get("realm")
-                .and_then(|v| v.as_str())
-                .ok_or_else(|| crate::AuthError::ConfigError {
-                    message: "Missing realm in config".to_string(),
-                })?
-                .to_string();
-
-            let provider =
-                KeycloakOAuth::new(client_id, client_secret, keycloak_url, realm, redirect_uri)
-                    .await?;
-            Ok(Box::new(provider))
-        },
-        "okta" => {
-            let config = config.ok_or_else(|| crate::AuthError::ConfigError {
-                message: "Okta provider requires config with okta_domain".to_string(),
-            })?;
-
-            let okta_domain = config
-                .get("okta_domain")
-                .and_then(|v| v.as_str())
-                .ok_or_else(|| crate::AuthError::ConfigError {
-                    message: "Missing okta_domain in config".to_string(),
-                })?
-                .to_string();
-
-            let provider =
-                OktaOAuth::new(client_id, client_secret, okta_domain, redirect_uri).await?;
-            Ok(Box::new(provider))
-        },
-        "azure_ad" => {
-            let config = config.ok_or_else(|| crate::AuthError::ConfigError {
-                message: "Azure AD provider requires config with tenant".to_string(),
-            })?;
-
-            let tenant = config
-                .get("tenant")
-                .and_then(|v| v.as_str())
-                .ok_or_else(|| crate::AuthError::ConfigError {
-                    message: "Missing tenant in config".to_string(),
-                })?
-                .to_string();
-
-            let provider =
-                AzureADOAuth::new(client_id, client_secret, tenant, redirect_uri).await?;
-            Ok(Box::new(provider))
-        },
-        "ory" => {
-            let config = config.ok_or_else(|| crate::AuthError::ConfigError {
-                message: "Ory provider requires config with ory_issuer_url".to_string(),
-            })?;
-
-            let ory_issuer_url = config
-                .get("ory_issuer_url")
-                .and_then(|v| v.as_str())
-                .ok_or_else(|| crate::AuthError::ConfigError {
-                    message: "Missing ory_issuer_url in config".to_string(),
-                })?
-                .to_string();
-
-            let provider =
-                OryOAuth::new(client_id, client_secret, ory_issuer_url, redirect_uri).await?;
-            Ok(Box::new(provider))
-        },
-        "logto" => {
-            let config = config.ok_or_else(|| crate::AuthError::ConfigError {
-                message: "Logto provider requires config with logto_endpoint".to_string(),
-            })?;
-
-            let logto_endpoint = config
-                .get("logto_endpoint")
-                .and_then(|v| v.as_str())
-                .ok_or_else(|| crate::AuthError::ConfigError {
-                    message: "Missing logto_endpoint in config".to_string(),
-                })?
-                .to_string();
-
-            let provider =
-                LogtoOAuth::new(client_id, client_secret, logto_endpoint, redirect_uri).await?;
-            Ok(Box::new(provider))
-        },
-        _ => Err(crate::AuthError::ConfigError {
-            message: format!("Unknown provider type: {}", provider_type),
-        }),
-    }
-}
 
 #[cfg(test)]
 mod tests;

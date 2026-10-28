@@ -9,7 +9,8 @@ use crate::{
 
 /// Google OAuth provider wrapper
 ///
-/// Handles Google-specific OAuth flows and Workspace group mapping to FraiseQL roles.
+/// Google Identity Services over [`OidcProvider`]: the identity is the OIDC userinfo, as
+/// Google returns it. No role or organisation is derived from it.
 #[derive(Debug)]
 pub struct GoogleOAuth {
     oidc: OidcProvider,
@@ -55,67 +56,6 @@ impl GoogleOAuth {
 
         Ok(Self { oidc })
     }
-
-    /// Map Google Workspace groups to FraiseQL roles
-    ///
-    /// Maps group emails/names to role names based on naming conventions.
-    /// Example: "fraiseql-admins@company.com" -> "admin"
-    ///
-    /// # Arguments
-    /// * `groups` - List of group email addresses
-    #[must_use]
-    pub fn map_groups_to_roles(groups: Vec<String>) -> Vec<String> {
-        groups
-            .into_iter()
-            .filter_map(|group| {
-                let group_lower = group.to_lowercase();
-
-                // Check common admin group names
-                if group_lower.contains("fraiseql-admin")
-                    || group_lower.contains("fraiseql-admins")
-                    || group_lower.contains("-admin@")
-                    || group_lower.contains("-admins@")
-                {
-                    return Some("admin".to_string());
-                }
-
-                // Check operator group names
-                if group_lower.contains("fraiseql-operator")
-                    || group_lower.contains("fraiseql-operators")
-                    || group_lower.contains("-operator@")
-                    || group_lower.contains("-operators@")
-                {
-                    return Some("operator".to_string());
-                }
-
-                // Check viewer group names
-                if group_lower.contains("fraiseql-viewer")
-                    || group_lower.contains("fraiseql-viewers")
-                    || group_lower.contains("-viewer@")
-                    || group_lower.contains("-viewers@")
-                {
-                    return Some("viewer".to_string());
-                }
-
-                None
-            })
-            .collect()
-    }
-
-    /// Check if user belongs to a specific group
-    ///
-    /// Simple email-based check without Directory API (for basic use cases)
-    #[must_use]
-    pub fn extract_roles_from_domain(email: &str) -> Vec<String> {
-        // Default roles based on email domain
-        // This is a fallback when Directory API is not available
-        if email.ends_with("@company.com") {
-            // Company employees get operator role by default
-            vec!["operator".to_string()]
-        } else {
-            vec!["viewer".to_string()]
-        }
-    }
 }
 
 // Reason: OAuthProvider is defined with #[async_trait]; all implementations must match
@@ -138,38 +78,7 @@ impl OAuthProvider for GoogleOAuth {
     }
 
     async fn user_info(&self, access_token: &str) -> Result<UserInfo> {
-        // Get user info from OIDC
-        let mut user_info = self.oidc.user_info(access_token).await?;
-
-        let email = user_info.email.clone().unwrap_or_default();
-
-        // Extract domain-based roles as fallback
-        let default_roles = Self::extract_roles_from_domain(&email);
-        user_info.raw_claims["google_default_roles"] = serde_json::json!(default_roles);
-
-        // Extract org_id from email domain
-        let org_id = email
-            .split('@')
-            .nth(1)
-            .and_then(|domain| domain.split('.').next())
-            .map(std::string::ToString::to_string);
-
-        if let Some(org_id) = org_id {
-            user_info.raw_claims["org_id"] = serde_json::json!(&org_id);
-        }
-
-        // Note: To get Workspace groups, you would need to:
-        // 1. Request additional scopes: https://www.googleapis.com/auth/admin.directory.group.readonly
-        // 2. Use Directory API: GET https://www.googleapis.com/admin/directory/v1/groups?userKey={email}
-        // This requires admin consent and service account setup, so it's not included in basic
-        // setup
-        //
-        // For now, we store the email for later group lookup
-        user_info.raw_claims["google_email"] = serde_json::json!(email);
-        user_info.raw_claims["google_workspace_available"] =
-            serde_json::json!("Configure Directory API scopes for group sync");
-
-        Ok(user_info)
+        self.oidc.user_info(access_token).await
     }
 
     async fn refresh_token(&self, refresh_token: &str) -> Result<TokenResponse> {

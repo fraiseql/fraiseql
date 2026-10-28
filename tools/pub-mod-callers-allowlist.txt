@@ -56,12 +56,6 @@ fraiseql_core::security::audit_export_webhook pending becomes an audit sink by #
 fraiseql_functions::triggers::storage pending after:storage dispatch by #1654
 
 # ── No work package yet: triage in #1681 ─────────────────────────────────────────────
-fraiseql_auth::providers::auth0 pending merged into generic OIDC config; triage #1681
-fraiseql_auth::providers::azure_ad pending merged into generic OIDC config; triage #1681
-fraiseql_auth::providers::keycloak pending merged into generic OIDC config; triage #1681
-fraiseql_auth::providers::logto pending merged into generic OIDC config; triage #1681
-fraiseql_auth::providers::okta pending merged into generic OIDC config; triage #1681
-fraiseql_auth::providers::ory pending merged into generic OIDC config; triage #1681
 fraiseql_auth::monitoring pending rebuilt as auth event counters; triage #1681
 fraiseql_auth::phone_otp pending no plan names it; triage #1681
 fraiseql_core::security::kms pending moves into fraiseql-secrets as a KeyProvider; triage #1681

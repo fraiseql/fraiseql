@@ -121,7 +121,7 @@ FraiseQL provides a layered architecture where features are opt-in via Cargo fea
 - Rate limiting on auth endpoints with configurable thresholds
 - Auth event logging (login attempts) via fraiseql-auth
 - Constant-time token comparison (prevents timing attacks)
-- OAuth2/OIDC with 7+ pre-built providers (GitHub, Google, Auth0, Azure AD, Keycloak, Okta, custom)
+- OAuth2/OIDC social login (Apple, Discord, Facebook, GitHub, Google) and any OIDC issuer for bearer tokens
 - Multi-tenant isolation with automatic data scoping
 - PKCE state encryption for OAuth state parameter protection
 

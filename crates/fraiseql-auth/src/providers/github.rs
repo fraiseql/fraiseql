@@ -11,7 +11,7 @@
 //!
 //! This implementation talks to the fixed well-known endpoints
 //! (`{base}/login/oauth/authorize`, `{base}/login/oauth/access_token`,
-//! `{api}/user`, `{api}/user/emails`, `{api}/user/teams`), overridable for
+//! `{api}/user`, `{api}/user/emails`), overridable for
 //! GitHub Enterprise Server. The `/user/emails` second hop resolves the
 //! **primary verified** email so a GitHub identity can participate in
 //! email-keyed account linking — without it, a private-email GitHub user
@@ -75,7 +75,7 @@ impl std::fmt::Debug for GitHubOAuth {
     }
 }
 
-/// GitHub user information with teams
+/// GitHub user information
 #[derive(Debug, Clone, Deserialize)]
 pub struct GitHubUser {
     /// GitHub numeric user ID (stable across username changes)
@@ -108,28 +108,6 @@ pub struct GitHubEmail {
     pub primary:  bool,
     /// Whether GitHub has verified this email.
     pub verified: bool,
-}
-
-/// GitHub team from API response
-#[derive(Debug, Clone, Deserialize)]
-pub struct GitHubTeam {
-    /// GitHub numeric team ID
-    pub id:           u64,
-    /// Human-readable team name
-    pub name:         String,
-    /// URL-safe team slug (used in API paths)
-    pub slug:         String,
-    /// Organization that owns this team
-    pub organization: GitHubOrg,
-}
-
-/// GitHub organization
-#[derive(Debug, Clone, Deserialize)]
-pub struct GitHubOrg {
-    /// GitHub numeric organization ID
-    pub id:    u64,
-    /// Organization login (handle)
-    pub login: String,
 }
 
 /// GitHub token response. Unlike OIDC, there is **no** `expires_in` — GitHub
@@ -221,34 +199,6 @@ impl GitHubOAuth {
         })
     }
 
-    /// Map GitHub teams to FraiseQL roles
-    ///
-    /// Maps organization:team slugs to role names.
-    /// Example: "my-org:admin-team" -> "admin"
-    ///
-    /// # Arguments
-    /// * `teams` - List of "org:team" strings from GitHub
-    #[must_use]
-    pub fn map_teams_to_roles(teams: Vec<String>) -> Vec<String> {
-        teams
-            .into_iter()
-            .filter_map(|team| {
-                let parts: Vec<&str> = team.split(':').collect();
-                if parts.len() == 2 {
-                    match parts[1] {
-                        "admin" | "administrators" | "admin-team" => Some("admin".to_string()),
-                        "operator" | "operators" | "operator-team" | "maintainer"
-                        | "maintainers" => Some("operator".to_string()),
-                        "viewer" | "viewers" | "viewer-team" => Some("viewer".to_string()),
-                        _ => None,
-                    }
-                } else {
-                    None
-                }
-            })
-            .collect()
-    }
-
     /// GET a GitHub API path with the user's access token, enforcing the
     /// response-size cap. Returns the raw bytes on HTTP success.
     async fn api_get(&self, path: &str, access_token: &str) -> Result<Vec<u8>> {
@@ -278,58 +228,6 @@ impl GitHubOAuth {
             });
         }
         Ok(bytes.to_vec())
-    }
-
-    /// Fetch `/user/teams` as `org:slug` strings. Best-effort: a missing
-    /// scope, oversized response, or parse failure logs and yields an empty
-    /// list — team-to-role mapping is an enrichment, not an identity claim.
-    async fn fetch_team_strings(&self, access_token: &str) -> Vec<String> {
-        let teams: Vec<GitHubTeam> = match self.api_get("/user/teams", access_token).await {
-            Ok(bytes) => serde_json::from_slice(&bytes).unwrap_or_else(|e| {
-                warn!(error = %e, "Failed to parse GitHub teams response — treating as empty");
-                Vec::new()
-            }),
-            Err(e) => {
-                warn!(error = %e, "GitHub teams fetch failed — treating as empty");
-                Vec::new()
-            },
-        };
-        teams.iter().map(|t| format!("{}:{}", t.organization.login, t.slug)).collect()
-    }
-
-    /// Get user info including teams from GitHub API
-    ///
-    /// # Arguments
-    /// * `access_token` - GitHub access token
-    ///
-    /// # Errors
-    ///
-    /// Returns `AuthError::OAuthError` if the GitHub `/user` request fails or
-    /// returns a non-success status code.
-    pub async fn get_user_with_teams(
-        &self,
-        access_token: &str,
-    ) -> Result<(GitHubUser, Vec<String>)> {
-        let user_bytes = self.api_get("/user", access_token).await?;
-        let user: GitHubUser =
-            serde_json::from_slice(&user_bytes).map_err(|e| AuthError::OAuthError {
-                message: format!("Failed to parse GitHub user: {e}"),
-            })?;
-        let team_strings = self.fetch_team_strings(access_token).await;
-        Ok((user, team_strings))
-    }
-
-    /// Extract organization ID from GitHub teams (primary org)
-    ///
-    /// Returns the first organization the user belongs to as the org_id.
-    /// In multi-org scenarios, this should be overridden with explicit org selection.
-    #[must_use]
-    pub fn extract_org_id_from_teams(teams: &[(GitHubUser, Vec<String>)]) -> Option<String> {
-        teams
-            .first()
-            .and_then(|(_, team_strings)| team_strings.first())
-            .and_then(|team_str| team_str.split(':').next())
-            .map(|org| org.to_string())
     }
 }
 
@@ -434,16 +332,9 @@ impl OAuthProvider for GitHubOAuth {
             },
         };
 
-        let team_strings = self.fetch_team_strings(access_token).await;
-        let org_id = team_strings
-            .first()
-            .and_then(|team| team.split(':').next())
-            .map(|org| org.to_string());
-
         let mut raw_claims = serde_json::Map::new();
         raw_claims.insert("github_id".to_string(), serde_json::json!(github_user.id));
         raw_claims.insert("github_login".to_string(), serde_json::json!(github_user.login));
-        raw_claims.insert("github_teams".to_string(), serde_json::json!(team_strings));
         raw_claims.insert("github_company".to_string(), serde_json::json!(github_user.company));
         raw_claims.insert("github_location".to_string(), serde_json::json!(github_user.location));
         raw_claims
@@ -452,9 +343,6 @@ impl OAuthProvider for GitHubOAuth {
             raw_claims.insert("email".to_string(), serde_json::json!(email));
         }
         raw_claims.insert("email_verified".to_string(), serde_json::json!(email_verified));
-        if let Some(org_id) = org_id {
-            raw_claims.insert("org_id".to_string(), serde_json::json!(&org_id));
-        }
 
         Ok(UserInfo {
             id: github_user.id.to_string(),
