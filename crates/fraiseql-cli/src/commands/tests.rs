@@ -2643,8 +2643,8 @@ mod run_tests {
     use tempfile::TempDir;
 
     use super::super::run::{
-        ServerFile, auto_detect_input, build_config_from, compile_schema, resolve_input,
-        resolve_runtime_config,
+        SETTINGS_IN_BOTH, ServerFile, auto_detect_input, build_config_from, compile_schema,
+        resolve_input, resolve_runtime_config,
     };
     use crate::config::runtime::{DatabaseRuntimeConfig, ServerRuntimeConfig};
 
@@ -2970,6 +2970,53 @@ mod run_tests {
             });
             assert!(err.contains(setting) && err.contains("FRAISEQL_CONFIG"), "{setting}: {err}");
         }
+    }
+
+    /// Every `[server]`/`[database]` key `fraiseql.toml` accepts is either paired in
+    /// `SETTINGS_IN_BOTH` with the server key it sets, or listed here as applied to nothing
+    /// (#1808). A new key cannot then be accepted and silently dropped, or be made in both
+    /// files with one of them silently winning. The keys are read off the types, not listed.
+    #[test]
+    fn every_run_setting_is_paired_with_a_server_key_or_listed_as_unapplied() {
+        const UNAPPLIED: &[&str] = &[
+            "database.idle_timeout_ms",
+            "server.cors.credentials",
+            "server.keep_alive_secs",
+            "server.request_timeout_ms",
+        ];
+        let mut keys = std::collections::BTreeSet::new();
+        for (section, value) in [
+            ("server", serde_json::to_value(ServerRuntimeConfig::default()).unwrap()),
+            ("database", serde_json::to_value(DatabaseRuntimeConfig::default()).unwrap()),
+        ] {
+            for (key, inner) in value.as_object().unwrap() {
+                match inner.as_object() {
+                    Some(nested) => {
+                        keys.extend(nested.keys().map(|leaf| format!("{section}.{key}.{leaf}")));
+                    },
+                    None => {
+                        keys.insert(format!("{section}.{key}"));
+                    },
+                }
+            }
+        }
+        let paired = |key: &str| {
+            SETTINGS_IN_BOTH
+                .iter()
+                .any(|(setting, _)| key == *setting || key.starts_with(&format!("{setting}.")))
+        };
+        let unclassified: Vec<&String> = keys
+            .iter()
+            .filter(|key| !paired(key) && !UNAPPLIED.contains(&key.as_str()))
+            .collect();
+        assert!(
+            unclassified.is_empty(),
+            "fraiseql.toml accepts these and `fraiseql run` neither maps them to a server key \
+             (SETTINGS_IN_BOTH) nor lists them as unapplied: {unclassified:?}"
+        );
+        let stale: Vec<&&str> =
+            UNAPPLIED.iter().filter(|key| !keys.contains(**key) || paired(key)).collect();
+        assert!(stale.is_empty(), "UNAPPLIED names keys that are gone or now paired: {stale:?}");
     }
 
     /// The server file is read by the server's own loader, so what that loader refuses,

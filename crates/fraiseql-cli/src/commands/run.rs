@@ -388,7 +388,7 @@ pub(crate) struct ServerFile {
 
 /// Each `fraiseql.toml` setting `fraiseql run` reads, and the server configuration key it
 /// sets. A setting may be made in either file, never in both: neither could win silently.
-const SETTINGS_IN_BOTH: &[(&str, &str)] = &[
+pub(crate) const SETTINGS_IN_BOTH: &[(&str, &str)] = &[
     ("server.host", "bind_addr"),
     ("server.port", "bind_addr"),
     ("server.cors.origins", "cors_origins"),
