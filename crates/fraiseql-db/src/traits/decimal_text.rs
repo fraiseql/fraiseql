@@ -75,6 +75,17 @@ impl DecimalShape {
         &self.root
     }
 
+    /// The shape of the value an object document holds under `key`, its response key or its
+    /// stored key; `None` when the root is not an object type or `key` leads to no `Decimal`.
+    #[must_use]
+    pub fn at_field(&self, key: &str) -> Option<Self> {
+        let DecimalNode::Object(type_name) = &self.root else {
+            return None;
+        };
+        let node = self.fields(type_name)?.get(key)?;
+        Some(Self::new(node.clone(), Arc::clone(&self.types)))
+    }
+
     fn fields(&self, type_name: &str) -> Option<&DecimalFields> {
         self.types.get(type_name)
     }

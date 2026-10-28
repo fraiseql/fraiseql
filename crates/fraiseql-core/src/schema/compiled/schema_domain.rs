@@ -255,6 +255,7 @@ impl CompiledSchema {
                 sources.entry(q.return_type.clone()).or_insert_with(|| EntitySource {
                     relation:     relation.to_string(),
                     jsonb_column: (!q.jsonb_column.is_empty()).then(|| q.jsonb_column.clone()),
+                    decimals:     None,
                 });
             }
         }
@@ -270,6 +271,7 @@ impl CompiledSchema {
             sources.entry(t.name.to_string()).or_insert_with(|| EntitySource {
                 relation:     t.sql_source.to_string(),
                 jsonb_column: (!t.jsonb_column.is_empty()).then(|| t.jsonb_column.clone()),
+                decimals:     None,
             });
         }
 

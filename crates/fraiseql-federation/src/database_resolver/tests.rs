@@ -3,9 +3,12 @@
 use std::collections::HashMap;
 
 use fraiseql_db::{DatabaseType, WhereClause, WhereOperator};
-use serde_json::json;
+use serde_json::{Value, json};
 
-use super::{build_select_list, quote_relation, render_row_filter, select_expr};
+use super::{
+    build_select_list, quote_relation, read_decimal_fields, render_row_filter, select_expr,
+    select_text_expr,
+};
 use crate::{
     selection_parser::FieldSelection,
     types::{FederatedType, KeyDirective},
@@ -63,7 +66,7 @@ fn build_select_list_drops_inaccessible_external_and_injection() {
     ]);
 
     // Flat mode: bare columns.
-    let flat = build_select_list(&selection, &fed_type, None);
+    let (flat, _) = build_select_list(&selection, &fed_type, None, None);
     assert!(flat.contains("name"), "exposed field kept");
     assert!(flat.contains("id"), "key field always present");
     assert!(!flat.contains("password_hash"), "@inaccessible field must never be selected");
@@ -80,7 +83,7 @@ fn build_select_list_projects_jsonb_fields_with_recasing() {
     fed_type.external_fields.clear();
     let selection = FieldSelection::new(vec!["isCustomer".to_string(), "name".to_string()]);
 
-    let sql = build_select_list(&selection, &fed_type, Some("data"));
+    let (sql, _) = build_select_list(&selection, &fed_type, Some("data"), None);
 
     assert!(sql.contains(r#""data"->'is_customer' AS "isCustomer""#), "got: {sql}");
     assert!(sql.contains(r#""data"->'name' AS "name""#), "got: {sql}");
@@ -134,4 +137,104 @@ fn render_row_filter_applies_native_cast() {
     let (sql, params) = render_row_filter(&filter, DatabaseType::PostgreSQL, 1).unwrap();
     assert_eq!(sql, "\"tenant_id\" = $2::text::uuid");
     assert_eq!(params.len(), 1);
+}
+
+/// A `Product` shape whose `price` is a `Decimal` and whose `cost` holds one; `name` leads
+/// to none.
+fn product_decimals() -> fraiseql_db::traits::DecimalShape {
+    use fraiseql_db::traits::{DecimalFields, DecimalNode, DecimalShape};
+    let mut product = DecimalFields::new();
+    product.insert("price", DecimalNode::Decimal);
+    product.insert("unit_cost", DecimalNode::Object("Money".to_string()));
+    product.insert("unitCost", DecimalNode::Object("Money".to_string()));
+    let mut money = DecimalFields::new();
+    money.insert("amount", DecimalNode::Decimal);
+    DecimalShape::new(
+        DecimalNode::Object("Product".to_string()),
+        std::sync::Arc::new(
+            [
+                ("Product".to_string(), product),
+                ("Money".to_string(), money),
+            ]
+            .into(),
+        ),
+    )
+}
+
+/// A field leading to a `Decimal` is read as JSON text, in both modes; every other field
+/// keeps the expression it had without a shape, byte for byte.
+#[test]
+fn build_select_list_reads_only_decimal_fields_as_text() {
+    let mut fed_type = user_type_with_inaccessible();
+    fed_type.external_fields.clear();
+    let selection = FieldSelection::new(vec![
+        "name".to_string(),
+        "price".to_string(),
+        "unitCost".to_string(),
+    ]);
+    let decimals = product_decimals();
+
+    for column in [Some("data"), None] {
+        let (plain, none_read) = build_select_list(&selection, &fed_type, column, None);
+        let (sql, read) = build_select_list(&selection, &fed_type, column, Some(&decimals));
+
+        assert!(none_read.is_empty());
+        let fields: Vec<&str> = read.iter().map(|(field, _)| field.as_str()).collect();
+        assert_eq!(fields, ["price", "unitCost"], "{column:?}");
+        for field in ["price", "unitCost"] {
+            assert!(sql.contains(&select_text_expr(field, column)), "{column:?}: {sql}");
+        }
+        for field in ["name", "id"] {
+            assert!(sql.contains(&select_expr(field, column)), "{column:?}: {sql}");
+        }
+        assert_eq!(
+            sql.split(", ").filter(|e| !e.contains("::text")).collect::<Vec<_>>(),
+            plain
+                .split(", ")
+                .filter(|e| !["price", "unitCost"].iter().any(|f| e.contains(f)))
+                .collect::<Vec<_>>(),
+            "{column:?}"
+        );
+    }
+}
+
+#[test]
+fn select_text_expr_reads_the_serialized_json() {
+    assert_eq!(
+        select_text_expr("unitCost", Some("data")),
+        r#"("data"->'unit_cost')::text AS "unitCost""#
+    );
+    assert_eq!(select_text_expr("price", None), r#"to_jsonb(price)::text AS "price""#);
+}
+
+/// Text read for a `Decimal` field is parsed with its digits kept; `null`, as SQL `NULL`
+/// arrives, stays `null`.
+#[test]
+fn read_decimal_fields_keeps_each_decimals_digits() {
+    let decimals = product_decimals();
+    let fields = vec![
+        ("price".to_string(), decimals.at_field("price").unwrap()),
+        ("unitCost".to_string(), decimals.at_field("unitCost").unwrap()),
+    ];
+    let mut rows = vec![
+        [
+            ("price".to_string(), Value::String("12345678901234567890.10".to_string())),
+            ("unitCost".to_string(), Value::String(r#"{"amount": 1.50}"#.to_string())),
+            ("name".to_string(), Value::String("1.50".to_string())),
+        ]
+        .into(),
+        [
+            ("price".to_string(), Value::Null),
+            ("unitCost".to_string(), Value::Null),
+        ]
+        .into(),
+    ];
+
+    read_decimal_fields(&mut rows, &fields).unwrap();
+
+    assert_eq!(rows[0]["price"], json!("12345678901234567890.10"));
+    assert_eq!(rows[0]["unitCost"], json!({ "amount": "1.50" }));
+    assert_eq!(rows[0]["name"], json!("1.50"), "a field not read as text is left alone");
+    assert_eq!(rows[1]["price"], Value::Null);
+    assert_eq!(rows[1]["unitCost"], Value::Null);
 }

@@ -332,6 +332,11 @@ pub struct EntitySource {
     /// `<col>->>'<snake(key)>'`, mirroring the normal query path. `None` → a
     /// flat-column view; fields are read as bare columns (the legacy shape).
     pub jsonb_column: Option<String>,
+
+    /// Where a document of the entity's type holds a `Decimal`; `None` when it holds none.
+    /// A field leading to one is read as the text the database serialized, so its digits
+    /// are kept.
+    pub decimals: Option<std::sync::Arc<fraiseql_db::traits::DecimalShape>>,
 }
 
 /// Federation resolver - orchestrates entity resolution

@@ -405,3 +405,32 @@ fn a_write_reads_its_entity_and_its_error_as_the_type_the_row_stamps() {
     assert_eq!(unknown.column("entity", None), None, "no type to read it as");
     assert_eq!(unknown.column("result", None), None);
 }
+
+#[test]
+fn a_field_of_an_object_shape_is_read_as_its_node() {
+    let product = shape(
+        object("Product"),
+        &[
+            ("Product", &[("price", decimal()), ("cost", object("Money"))]),
+            ("Money", &[("amount", decimal())]),
+        ],
+    );
+
+    assert_eq!(product.at_field("price").unwrap().root(), &decimal());
+    let cost = product.at_field("cost").unwrap();
+    assert_eq!(cost.root(), &object("Money"));
+    assert_eq!(cost.at_field("amount").unwrap().root(), &decimal());
+}
+
+#[test]
+fn a_field_leading_to_no_decimal_or_below_a_non_object_root_has_no_shape() {
+    let product = shape(object("Product"), &[("Product", &[("price", decimal())])]);
+    assert!(product.at_field("name").is_none(), "a key leading to no Decimal");
+    assert!(shape(decimal(), &[]).at_field("price").is_none(), "a Decimal root");
+    assert!(
+        shape(DecimalNode::Abstract(None), &[("Product", &[("price", decimal())])])
+            .at_field("price")
+            .is_none(),
+        "an abstract root names no fields of its own"
+    );
+}

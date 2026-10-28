@@ -328,6 +328,7 @@ async fn test_resolve_view_backed_uuid_entity_uses_sql_source() {
         EntitySource {
             relation:     "v_organization".to_string(),
             jsonb_column: None,
+            decimals:     None,
         },
     );
     let resolver = DatabaseEntityResolver::new(adapter, metadata).with_entity_sources(sources);
@@ -382,6 +383,7 @@ async fn test_resolve_jsonb_data_backed_entity_projects_and_recases() {
         EntitySource {
             relation:     "v_customer".to_string(),
             jsonb_column: None,
+            decimals:     None,
         },
     );
     let flat_resolver =
@@ -405,6 +407,7 @@ async fn test_resolve_jsonb_data_backed_entity_projects_and_recases() {
         EntitySource {
             relation:     "v_customer".to_string(),
             jsonb_column: Some("data".to_string()),
+            decimals:     None,
         },
     );
     let resolver = DatabaseEntityResolver::new(adapter, metadata).with_entity_sources(sources);

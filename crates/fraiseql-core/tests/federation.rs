@@ -13,6 +13,7 @@ mod federation {
     // Entity resolution — database integration
     mod entity_connection;
     mod entity_cross_db;
+    mod entity_decimal;
     mod entity_field_rbac;
     mod entity_nested_selection;
     mod entity_perf;

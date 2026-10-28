@@ -113,8 +113,14 @@ impl Executor {
         // (owned entities), with a fallback to the type-level `sql_source` for an
         // owner-split `extend type` entity that has no local query (#507). See
         // [`CompiledSchema::entity_sources`].
+        // Each entity type's `Decimal` positions ride on its source, so the resolver reads
+        // those fields as the text the database serialized and keeps their digits.
+        let mut entity_sources = self.ctx.schema.entity_sources();
+        for (type_name, source) in &mut entity_sources {
+            source.decimals = self.ctx.decimals.shape(type_name).cloned();
+        }
         let fed_resolver = crate::federation::FederationResolver::new(fed_metadata)
-            .with_entity_sources(self.ctx.schema.entity_sources());
+            .with_entity_sources(entity_sources);
 
         // Extract actual field selection from GraphQL query AST.
         // __typename is NOT added to the SQL field list — it is a GraphQL meta-field

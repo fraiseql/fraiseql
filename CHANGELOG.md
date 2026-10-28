@@ -41,9 +41,11 @@ disagreed, and the promise was the part that was wrong.
   declared `Float` is no longer accepted at a `Decimal` argument. The scalar's
   introspection description says how it travels.
 
+  Federation `_entities` answers a `Decimal` the same way, from a `data`-jsonb view and from
+  a flat `numeric` column, and an entity is the same bytes a query reads for its row (#1764).
+
   Not yet covered, each under its own issue:
   - subscription and change-log payloads (#1763);
-  - federation `_entities` (#1764);
   - gRPC (#1765);
   - Arrow Flight (#1766).
 - **The federation service SDL requires an authenticated caller by default (#1717).**

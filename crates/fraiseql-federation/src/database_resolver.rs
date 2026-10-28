@@ -7,7 +7,8 @@ use std::sync::Arc;
 
 use ::tracing::warn;
 use fraiseql_db::{
-    DatabaseType, GenericWhereGenerator, PostgresDialect, WhereClause, traits::DatabaseAdapter,
+    DatabaseType, GenericWhereGenerator, PostgresDialect, WhereClause,
+    traits::{DatabaseAdapter, DecimalShape, quote_decimals},
     utils::to_snake_case,
 };
 use fraiseql_error::{FraiseQLError, Result};
@@ -186,6 +187,7 @@ impl<A: DatabaseAdapter + ?Sized> DatabaseEntityResolver<A> {
         let relation = source.map_or_else(|| typename.to_lowercase(), |s| s.relation.clone());
         let quoted_table = quote_relation(&relation)?;
         let jsonb_column = source.and_then(|s| s.jsonb_column.as_deref());
+        let decimals = source.and_then(|s| s.decimals.as_deref());
 
         // Build the parameterized WHERE IN clause. Key-field values are bound (not
         // interpolated), so the dialect must match the executing adapter. In jsonb mode
@@ -219,14 +221,17 @@ impl<A: DatabaseAdapter + ?Sized> DatabaseEntityResolver<A> {
         // list). In jsonb mode each field is projected as
         // `<col>->'<snake(field)>' AS "<field>"` (typed via the adapter's jsonb
         // decoding, with camelCase→snake recasing); in flat mode fields are bare
-        // columns interpolated unquoted (relying on PostgreSQL case-folding).
-        let select_list = build_select_list(selection, fed_type, jsonb_column);
+        // columns interpolated unquoted (relying on PostgreSQL case-folding). A field
+        // leading to a `Decimal` is read as JSON text instead, and parsed below with its
+        // digits kept.
+        let (select_list, decimal_fields) =
+            build_select_list(selection, fed_type, jsonb_column, decimals);
 
         let sql = format!("SELECT {select_list} FROM {quoted_table} WHERE {where_clause}");
 
         // Execute with bound parameters (no value interpolation), pinning session
         // variables to the read's connection so `current_setting()` RLS is effective.
-        let rows = self
+        let mut rows = self
             .adapter
             // Federation `_entities` resolution has no compiled QueryDefinition to
             // carry routing, so it takes the server's policy (#957).
@@ -237,6 +242,7 @@ impl<A: DatabaseAdapter + ?Sized> DatabaseEntityResolver<A> {
                 fraiseql_db::types::ReadRouting::Any,
             )
             .await?;
+        read_decimal_fields(&mut rows, &decimal_fields)?;
 
         // Project results maintaining order
         project_results(&rows, representations, fed_type, typename)
@@ -308,7 +314,8 @@ fn build_select_list(
     selection: &FieldSelection,
     fed_type: &FederatedType,
     jsonb_column: Option<&str>,
-) -> String {
+    decimals: Option<&DecimalShape>,
+) -> (String, Vec<(String, DecimalShape)>) {
     let mut fields: Vec<String> = Vec::new();
     for field in &selection.fields {
         if field == "__typename" {
@@ -332,11 +339,22 @@ fn build_select_list(
             }
         }
     }
-    fields
+    let mut decimal_fields = Vec::new();
+    let select_list = fields
         .iter()
-        .map(|f| select_expr(f, jsonb_column))
+        .map(|f| {
+            let key = jsonb_column.map_or_else(|| f.clone(), |_| to_snake_case(f));
+            match decimals.and_then(|shape| shape.at_field(&key)) {
+                Some(shape) => {
+                    decimal_fields.push((f.clone(), shape));
+                    select_text_expr(f, jsonb_column)
+                },
+                None => select_expr(f, jsonb_column),
+            }
+        })
         .collect::<Vec<_>>()
-        .join(", ")
+        .join(", ");
+    (select_list, decimal_fields)
 }
 
 /// Render one SELECT expression for `field`: a jsonb projection
@@ -354,6 +372,48 @@ fn select_expr(field: &str, jsonb_column: Option<&str>) -> String {
         },
         None => field.to_string(),
     }
+}
+
+/// [`select_expr`] for a field leading to a `Decimal`: its value as the JSON text the
+/// database serialized (`("col"->'key')::text`, or `to_jsonb(field)::text` in flat mode),
+/// which keeps a number's digits where a decoded value would round them.
+fn select_text_expr(field: &str, jsonb_column: Option<&str>) -> String {
+    let alias = field.replace('"', "\"\"");
+    match jsonb_column {
+        Some(col) => {
+            let column = col.replace('"', "\"\"");
+            let key = to_snake_case(field).replace('\'', "''");
+            format!("(\"{column}\"->'{key}')::text AS \"{alias}\"")
+        },
+        None => format!("to_jsonb({field})::text AS \"{alias}\""),
+    }
+}
+
+/// Parse each field [`select_text_expr`] read as text, each number at a `Decimal` position
+/// of its shape kept as a string of its digits. SQL `NULL`, a key the document lacks, stays
+/// `null`.
+fn read_decimal_fields(
+    rows: &mut [std::collections::HashMap<String, Value>],
+    decimal_fields: &[(String, DecimalShape)],
+) -> Result<()> {
+    for row in rows {
+        for (field, shape) in decimal_fields {
+            let Some(Value::String(text)) = row.get(field) else {
+                continue;
+            };
+            let mut quoted = Vec::with_capacity(text.len());
+            quote_decimals(text.as_bytes(), shape, &mut quoted);
+            let value = serde_json::from_slice(&quoted).map_err(|e| FraiseQLError::Database {
+                message:    format!(
+                    "entity field '{field}' is not the JSON text it was read as: {e}"
+                ),
+                sql_state:  None,
+                constraint: None,
+            })?;
+            row.insert(field.clone(), value);
+        }
+    }
+    Ok(())
 }
 
 /// Project database results to federation format, maintaining order of representations.
