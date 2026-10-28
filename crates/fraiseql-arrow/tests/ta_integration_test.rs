@@ -7,7 +7,7 @@
 //! separate test files with feature gates.
 #![allow(clippy::unwrap_used, clippy::print_stdout, clippy::print_stderr)] // Reason: test code, panics are acceptable
 
-use arrow::ipc::root_as_message;
+use arrow::datatypes::Schema;
 use arrow_flight::{FlightDescriptor, Ticket, flight_service_client::FlightServiceClient};
 use fraiseql_arrow::{FlightTicket, flight_server::FraiseQLFlightService};
 use tonic::transport::{Endpoint, Server};
@@ -107,16 +107,10 @@ async fn test_get_schema_for_ta_orders() {
         // Verify we got schema bytes back
         assert!(!schema_result.schema.is_empty(), "Schema should not be empty for ta_orders");
 
-        // Decode and verify schema structure
+        // Decode it as a Flight client does, and check it is the ta_orders schema
         let schema =
-            root_as_message(&schema_result.schema).expect("Failed to decode schema for ta_orders");
-        assert_eq!(schema.header_type(), arrow::ipc::MessageHeader::Schema);
-
-        // Verify schema fields match ta_orders definition
-        if schema.header_type() == arrow::ipc::MessageHeader::Schema {
-            // Schema decoding successful - detailed field verification could be added
-            println!("ta_orders schema successfully retrieved and decoded");
-        }
+            Schema::try_from(&schema_result).expect("Failed to decode schema for ta_orders");
+        assert!(schema.field_with_name("total").is_ok(), "ta_orders schema: {schema:?}");
     })
     .await;
 }
@@ -155,12 +149,10 @@ async fn test_get_schema_for_ta_users() {
         // Verify we got schema bytes back
         assert!(!schema_result.schema.is_empty(), "Schema should not be empty for ta_users");
 
-        // Decode and verify schema structure
+        // Decode it as a Flight client does, and check it is the ta_users schema
         let schema =
-            root_as_message(&schema_result.schema).expect("Failed to decode schema for ta_users");
-        assert_eq!(schema.header_type(), arrow::ipc::MessageHeader::Schema);
-
-        println!("ta_users schema successfully retrieved and decoded");
+            Schema::try_from(&schema_result).expect("Failed to decode schema for ta_users");
+        assert!(schema.field_with_name("email").is_ok(), "ta_users schema: {schema:?}");
     })
     .await;
 }

@@ -3,13 +3,10 @@
 //! Contains handlers for: `handshake`, `list_flights`, `get_schema`,
 //! `get_flight_info`, and `poll_flight_info`.
 
-use arrow::{
-    datatypes::SchemaRef,
-    ipc::writer::{DictionaryTracker, IpcDataGenerator, IpcWriteOptions},
-};
+use arrow::{datatypes::SchemaRef, ipc::writer::IpcWriteOptions};
 use arrow_flight::{
-    Criteria, FlightDescriptor, FlightInfo, HandshakeRequest, HandshakeResponse, PollInfo,
-    SchemaResult,
+    Criteria, FlightDescriptor, FlightInfo, HandshakeRequest, HandshakeResponse, IpcMessage,
+    PollInfo, SchemaAsIpc, SchemaResult,
 };
 use prost::bytes::Bytes;
 use tonic::{Request, Response, Status, Streaming};
@@ -69,15 +66,18 @@ fn ticket_to_schema(
     }
 }
 
-/// Serialize an Arrow schema to IPC bytes.
-fn schema_to_ipc_bytes(schema: &SchemaRef) -> Bytes {
-    let options = IpcWriteOptions::default();
-    let data_gen = IpcDataGenerator::default();
-    let mut dict_tracker = DictionaryTracker::new(false);
-    data_gen
-        .schema_to_bytes_with_dictionary_tracker(schema, &mut dict_tracker, &options)
-        .ipc_message
-        .into()
+/// Serialize an Arrow schema in the IPC form `SchemaResult` and `FlightInfo` carry: the
+/// flatbuffer `Message` behind its continuation marker and length, as the Flight spec
+/// defines it and arrow-flight's decoders read it. The bare flatbuffer a `FlightData`
+/// header holds is not that form, and a reference client cannot decode it.
+///
+/// # Errors
+///
+/// Returns `Status::internal` if the schema cannot be encoded.
+fn schema_to_ipc_bytes(schema: &SchemaRef) -> std::result::Result<Bytes, Status> {
+    let message = IpcMessage::try_from(SchemaAsIpc::new(schema, &IpcWriteOptions::default()))
+        .map_err(|e| Status::internal(format!("Cannot encode the schema: {e}")))?;
+    Ok(message.0)
 }
 
 /// Handshake handler: JWT authentication that returns a short-lived session token.
@@ -170,7 +170,7 @@ pub(super) async fn list_flights(
             };
 
             let flight_info = FlightInfo {
-                schema:            schema_to_ipc_bytes(&schema),
+                schema:            schema_to_ipc_bytes(&schema)?,
                 flight_descriptor: Some(descriptor),
                 endpoint:          vec![],
                 total_records:     -1, // Unknown until executed
@@ -205,7 +205,7 @@ pub(super) async fn get_schema(
     let schema = ticket_to_schema(svc, ticket)?;
 
     Ok(Response::new(SchemaResult {
-        schema: schema_to_ipc_bytes(&schema),
+        schema: schema_to_ipc_bytes(&schema)?,
     }))
 }
 
@@ -229,7 +229,7 @@ pub(super) async fn get_flight_info(
     let schema = ticket_to_schema(svc, ticket)?;
 
     let flight_info = FlightInfo {
-        schema:            schema_to_ipc_bytes(&schema),
+        schema:            schema_to_ipc_bytes(&schema)?,
         flight_descriptor: Some(descriptor),
         endpoint:          vec![], // Data retrieved via DoGet with same descriptor
         total_records:     -1,     // Unknown until executed

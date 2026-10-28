@@ -311,6 +311,11 @@ disagreed, and the promise was the part that was wrong.
   time, with no error. The warning now says that column is not the field, that the TVIEW's definition
   cannot project another of that name, and to read the field through a view over the base
   table that exposes the table's own column, indexed there as `(created_at DESC, id)`.
+- **Arrow Flight's `GetSchema`, `GetFlightInfo`, `PollFlightInfo` and `ListFlights` send a
+  schema a Flight client can decode (#1820).** Each sent the bare flatbuffer `Message`, not
+  the framed IPC form the Flight spec defines, so arrow-flight's own
+  `Schema::try_from(&SchemaResult)` and `FlightInfo::try_decode_schema` failed on every one.
+  A client that read the bare flatbuffer itself must read the framed form now.
 
 - **`fraiseql run` reads the server configuration file `FRAISEQL_CONFIG` names (#1803).**
   `run` read the variable into its server arguments and then dropped it, so nothing but

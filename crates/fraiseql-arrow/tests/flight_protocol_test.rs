@@ -446,3 +446,54 @@ async fn test_do_get_without_auth_returns_error() {
         err.message()
     );
 }
+
+// ---------------------------------------------------------------------------
+// Tests: the schema's wire form
+// ---------------------------------------------------------------------------
+
+/// Every metadata call sends the schema in the IPC form the Flight spec defines (a length
+/// prefix, then the flatbuffer), so arrow-flight's own decoders read back the registered
+/// schema. Each call that carries one is checked.
+#[tokio::test]
+async fn every_metadata_call_sends_a_schema_the_reference_decoder_reads() {
+    use fraiseql_arrow::arrow::datatypes::Schema;
+
+    let service = FraiseQLFlightService::new();
+    let registered = service.schema_registry().get("va_orders").unwrap();
+    let descriptor = || {
+        descriptor_for_ticket(&FlightTicket::OptimizedView {
+            view:     "va_orders".to_string(),
+            filter:   None,
+            order_by: None,
+            limit:    None,
+            offset:   None,
+        })
+    };
+
+    let schema = service.get_schema(Request::new(descriptor())).await.unwrap().into_inner();
+    assert_eq!(Schema::try_from(&schema).unwrap(), *registered, "get_schema");
+
+    let info = service.get_flight_info(Request::new(descriptor())).await.unwrap().into_inner();
+    assert_eq!(info.try_decode_schema().unwrap(), *registered, "get_flight_info");
+
+    let poll = service.poll_flight_info(Request::new(descriptor())).await.unwrap().into_inner();
+    let info = poll.info.expect("a completed poll carries its FlightInfo");
+    assert_eq!(info.try_decode_schema().unwrap(), *registered, "poll_flight_info");
+
+    let mut listed = service
+        .list_flights(Request::new(Criteria {
+            expression: vec![].into(),
+        }))
+        .await
+        .unwrap()
+        .into_inner();
+    let mut decoded = None;
+    while let Some(info) = listed.next().await {
+        let info = info.unwrap();
+        let path = info.flight_descriptor.as_ref().and_then(|d| d.path.first().cloned());
+        if path.as_deref() == Some("va_orders") {
+            decoded = Some(info.try_decode_schema().unwrap());
+        }
+    }
+    assert_eq!(decoded.expect("va_orders is listed"), *registered, "list_flights");
+}
