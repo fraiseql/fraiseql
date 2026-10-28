@@ -2643,7 +2643,8 @@ mod run_tests {
     use tempfile::TempDir;
 
     use super::super::run::{
-        auto_detect_input, build_config_from, compile_schema, resolve_input, resolve_runtime_config,
+        ServerFile, auto_detect_input, build_config_from, compile_schema, resolve_input,
+        resolve_runtime_config,
     };
     use crate::config::runtime::{DatabaseRuntimeConfig, ServerRuntimeConfig};
 
@@ -2860,6 +2861,131 @@ mod run_tests {
         assert!(msg.contains("fraiseql run <INPUT>"), "expected usage in: {msg}");
     }
 
+    /// A project directory: `fraiseql.toml` with `project_toml`, and a `schema.json` beside it,
+    /// as `fraiseql run schema.json` reads them.
+    fn project(project_toml: &str) -> (TempDir, std::path::PathBuf) {
+        let dir = TempDir::new().unwrap();
+        std::fs::create_dir(dir.path().join(".git")).unwrap();
+        std::fs::write(dir.path().join("fraiseql.toml"), project_toml).unwrap();
+        let schema = dir.path().join("schema.json");
+        std::fs::write(&schema, "{}").unwrap();
+        (dir, schema)
+    }
+
+    /// A server configuration file with `contents`, loaded as `FRAISEQL_CONFIG` names it.
+    fn server_file(dir: &TempDir, contents: &str) -> ServerFile {
+        let path = dir.path().join("server.toml");
+        std::fs::write(&path, contents).unwrap();
+        ServerFile::load(path.to_str().unwrap()).unwrap()
+    }
+
+    /// #1803: what the server configuration file sets reaches `fraiseql run`, where it used to
+    /// be read into `ServerArgs.config` and dropped.
+    #[test]
+    fn the_server_file_reaches_fraiseql_run() {
+        let (dir, schema) = project("[database]\nurl = \"postgresql://project-host/db\"\n");
+        let file = server_file(&dir, "cors_enabled = false\ngraphql_path = \"/gql\"\n");
+        temp_env::with_vars_unset(["DATABASE_URL", "FRAISEQL_HOST", "FRAISEQL_PORT"], || {
+            let (db_url, addr, srv, db) =
+                resolve_runtime_config(&schema, None, None, None, Some(&file)).unwrap();
+            let config = build_config_from(&db_url, addr, &srv, &db, false, Some(&file)).unwrap();
+            assert!(!config.cors_enabled, "cors_enabled = false must reach run");
+            assert_eq!(config.graphql_path, "/gql");
+            assert_eq!(config.database_url, "postgresql://project-host/db");
+        });
+    }
+
+    /// The server file's `bind_addr` and `database_url` apply when no flag, environment
+    /// variable or project setting names them.
+    #[test]
+    fn the_server_files_address_and_database_apply_when_nothing_else_names_them() {
+        let (dir, schema) = project("[project]\nname = \"p\"\n");
+        let file = server_file(
+            &dir,
+            "bind_addr = \"127.0.0.1:9911\"\ndatabase_url = \"postgresql://file-host/db\"\n",
+        );
+        temp_env::with_vars_unset(["DATABASE_URL", "FRAISEQL_HOST", "FRAISEQL_PORT"], || {
+            let (db_url, addr, _, _) =
+                resolve_runtime_config(&schema, None, None, None, Some(&file)).unwrap();
+            assert_eq!(addr, "127.0.0.1:9911".parse::<SocketAddr>().unwrap());
+            assert_eq!(db_url, "postgresql://file-host/db");
+            // A flag still outranks the file.
+            let (_, addr, _, _) =
+                resolve_runtime_config(&schema, None, Some(7000), None, Some(&file)).unwrap();
+            assert_eq!(addr.port(), 7000);
+        });
+    }
+
+    /// A setting made in both `fraiseql.toml` and the server file is refused, naming both,
+    /// for every pair `fraiseql run` maps: neither may win silently.
+    #[test]
+    fn a_setting_made_in_both_files_is_refused() {
+        for (project_toml, file_toml, setting) in [
+            ("[server]\nport = 9000\n", "bind_addr = \"127.0.0.1:9001\"\n", "[server] port"),
+            (
+                "[server]\nhost = \"127.0.0.1\"\n",
+                "bind_addr = \"127.0.0.1:9001\"\n",
+                "[server] host",
+            ),
+            (
+                "[server.cors]\norigins = [\"https://a.example\"]\n",
+                "cors_origins = [\"https://b.example\"]\n",
+                "[server] cors.origins",
+            ),
+            (
+                "[server.tls]\nenabled = false\n",
+                "[tls]\nenabled = false\ncert_path = \"c\"\nkey_path = \"k\"\n",
+                "[server] tls",
+            ),
+            (
+                "[database]\nurl = \"postgresql://a/db\"\n",
+                "database_url = \"postgresql://b/db\"\n",
+                "[database] url",
+            ),
+            ("[database]\npool_min = 1\n", "pool_min_size = 3\n", "[database] pool_min"),
+            ("[database]\npool_max = 5\n", "pool_max_size = 7\n", "[database] pool_max"),
+            (
+                "[database]\nconnect_timeout_ms = 1000\n",
+                "pool_timeout_secs = 3\n",
+                "[database] connect_timeout_ms",
+            ),
+            (
+                "[database]\nssl_mode = \"disable\"\n",
+                "[database_tls]\npostgres_ssl_mode = \"require\"\n",
+                "[database] ssl_mode",
+            ),
+        ] {
+            let (dir, schema) = project(project_toml);
+            let file = server_file(&dir, file_toml);
+            let err = temp_env::with_vars_unset(["DATABASE_URL"], || {
+                resolve_runtime_config(
+                    &schema,
+                    Some("postgresql://cli/db".into()),
+                    None,
+                    None,
+                    Some(&file),
+                )
+                .expect_err(setting)
+                .to_string()
+            });
+            assert!(err.contains(setting) && err.contains("FRAISEQL_CONFIG"), "{setting}: {err}");
+        }
+    }
+
+    /// The server file is read by the server's own loader, so what that loader refuses,
+    /// `fraiseql run` refuses too.
+    #[test]
+    fn the_server_file_is_read_by_the_servers_loader() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("server.toml");
+        std::fs::write(&path, "not_a_server_key = 1\n").unwrap();
+        let err = ServerFile::load(path.to_str().unwrap())
+            .err()
+            .expect("an unknown key")
+            .to_string();
+        assert!(err.contains("not_a_server_key"), "{err}");
+    }
+
     #[test]
     fn test_build_config_sets_db_url() {
         // `build_config_from` -> `ServerArgs::from_env()` reads `DATABASE_URL` directly. Wrap the
@@ -2876,6 +3002,7 @@ mod run_tests {
                 &ServerRuntimeConfig::default(),
                 &DatabaseRuntimeConfig::default(),
                 false,
+                None,
             )
             .expect("build_config_from");
             assert_eq!(config.database_url, "postgres://localhost/test");
@@ -2891,6 +3018,7 @@ mod run_tests {
             &ServerRuntimeConfig::default(),
             &DatabaseRuntimeConfig::default(),
             false,
+            None,
         )
         .expect("build_config_from");
         assert_eq!(config.bind_addr, addr);
@@ -2905,6 +3033,7 @@ mod run_tests {
             &ServerRuntimeConfig::default(),
             &DatabaseRuntimeConfig::default(),
             true,
+            None,
         )
         .expect("build_config_from");
         assert!(config.introspection_enabled);
@@ -2920,6 +3049,7 @@ mod run_tests {
             &ServerRuntimeConfig::default(),
             &DatabaseRuntimeConfig::default(),
             false,
+            None,
         )
         .expect("build_config_from");
         assert!(!config.introspection_enabled);
@@ -2939,6 +3069,7 @@ mod run_tests {
             &ServerRuntimeConfig::default(),
             &db_cfg,
             false,
+            None,
         )
         .expect("build_config_from");
         assert_eq!(config.pool_min_size, 5);
@@ -2961,6 +3092,7 @@ mod run_tests {
             &server_cfg,
             &DatabaseRuntimeConfig::default(),
             false,
+            None,
         )
         .expect("build_config_from");
         assert_eq!(config.cors_origins, ["https://example.com"]);
@@ -2985,7 +3117,7 @@ url = "postgresql://toml-host/testdb"
 
         temp_env::with_vars([("DATABASE_URL", None::<&str>)], || {
             let (db_url, _addr, _srv, _db) =
-                resolve_runtime_config(&toml_path, None, None, None).unwrap();
+                resolve_runtime_config(&toml_path, None, None, None, None).unwrap();
             assert_eq!(db_url, "postgresql://toml-host/testdb");
         });
     }
@@ -3007,7 +3139,7 @@ url = "postgresql://toml-host/testdb"
 
         temp_env::with_vars([("DATABASE_URL", None::<&str>)], || {
             let (db_url, _addr, _srv, _db) =
-                resolve_runtime_config(&schema, None, None, None).unwrap();
+                resolve_runtime_config(&schema, None, None, None, None).unwrap();
             assert_eq!(db_url, "postgresql://project-host/db");
         });
     }
@@ -3022,8 +3154,9 @@ url = "postgresql://toml-host/testdb"
         let schema = dir.path().join("schema.json");
         std::fs::write(&schema, "{}").unwrap();
 
-        let err = resolve_runtime_config(&schema, Some("postgresql://h/db".into()), None, None)
-            .unwrap_err();
+        let err =
+            resolve_runtime_config(&schema, Some("postgresql://h/db".into()), None, None, None)
+                .unwrap_err();
         assert!(format!("{err:#}").contains("fraiseql.toml"), "{err:#}");
     }
 
@@ -3047,6 +3180,7 @@ url = "postgresql://toml-host/testdb"
         let (db_url, _addr, _srv, _db) = resolve_runtime_config(
             &toml_path,
             Some("postgresql://cli-host/clidb".to_string()),
+            None,
             None,
             None,
         )
@@ -3073,7 +3207,7 @@ url = "postgresql://toml-host/testdb"
 
         temp_env::with_vars([("DATABASE_URL", Some("postgresql://env-host/envdb"))], || {
             let (db_url, _addr, _srv, _db) =
-                resolve_runtime_config(&toml_path, None, None, None).unwrap();
+                resolve_runtime_config(&toml_path, None, None, None, None).unwrap();
             assert_eq!(db_url, "postgresql://env-host/envdb");
         });
     }
@@ -3107,7 +3241,7 @@ port = 9999
             ],
             || {
                 let (_db_url, addr, _srv, _db) =
-                    resolve_runtime_config(&toml_path, None, None, None).unwrap();
+                    resolve_runtime_config(&toml_path, None, None, None, None).unwrap();
                 assert_eq!(addr.port(), 9999);
                 assert_eq!(addr.ip().to_string(), "127.0.0.1");
             },
@@ -3141,7 +3275,7 @@ port = 9999
             ],
             || {
                 let (_db_url, addr, _srv, _db) =
-                    resolve_runtime_config(&toml_path, None, Some(7777), None).unwrap();
+                    resolve_runtime_config(&toml_path, None, Some(7777), None, None).unwrap();
                 assert_eq!(addr.port(), 7777);
             },
         );
@@ -3153,7 +3287,7 @@ port = 9999
         let toml_path = dir.path().join("fraiseql.toml");
         std::fs::write(&toml_path, "this is [not valid toml !!!").unwrap();
 
-        let result = resolve_runtime_config(&toml_path, None, None, None);
+        let result = resolve_runtime_config(&toml_path, None, None, None, None);
         assert!(result.is_err(), "invalid primary TOML must be fatal");
     }
 
@@ -3183,7 +3317,7 @@ port = 0
                 ("FRAISEQL_PORT", None::<&str>),
             ],
             || {
-                let result = resolve_runtime_config(&toml_path, None, None, None);
+                let result = resolve_runtime_config(&toml_path, None, None, None, None);
                 let msg = result.expect_err("expected Err for port=0").to_string();
                 assert!(msg.contains("port"), "got: {msg}");
             },
@@ -3210,7 +3344,7 @@ pool_max = 10
         .unwrap();
 
         temp_env::with_vars([("DATABASE_URL", None::<&str>)], || {
-            let result = resolve_runtime_config(&toml_path, None, None, None);
+            let result = resolve_runtime_config(&toml_path, None, None, None, None);
             let msg = result.expect_err("expected Err for pool_min > pool_max").to_string();
             assert!(msg.contains("pool_min"), "got: {msg}");
         });
@@ -3231,7 +3365,7 @@ database_target = "postgresql"
         .unwrap();
 
         temp_env::with_vars([("DATABASE_URL", None::<&str>)], || {
-            let result = resolve_runtime_config(&toml_path, None, None, None);
+            let result = resolve_runtime_config(&toml_path, None, None, None, None);
             let msg = result.expect_err("expected Err for missing database URL").to_string();
             assert!(msg.contains("database URL"), "got: {msg}");
         });

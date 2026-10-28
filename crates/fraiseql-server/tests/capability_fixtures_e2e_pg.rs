@@ -122,30 +122,7 @@ impl Entry {
 /// MCP stdio refuses a schema without `[mcp]`, and a project that declares functions (an SDK
 /// `schema.json`) cannot also declare `[mcp]` beside it (#1719), so no application can serve
 /// its functions over stdio yet.
-///
-/// `fraiseql run` reads no server configuration (#1803), so no fixture can be served through
-/// it: each one's `server.toml` sets at least `cors_enabled = false`, without which `run`
-/// refuses to boot in production mode.
-const NOT_DRIVEN_YET: &[(&str, Entry, &str)] = &[
-    ("cron", Entry::McpStdio, "#1719"),
-    ("arrow_flight", Entry::Run, "#1803"),
-    ("cdc_outbound", Entry::Run, "#1803"),
-    ("cron", Entry::Run, "#1803"),
-    ("federation", Entry::Run, "#1803"),
-    ("functions", Entry::Run, "#1803"),
-    ("identity", Entry::Run, "#1803"),
-    ("inbound_email", Entry::Run, "#1803"),
-    ("inbound_webhooks", Entry::Run, "#1803"),
-    ("mcp", Entry::Run, "#1803"),
-    ("observers", Entry::Run, "#1803"),
-    ("observers_enabled_only_in_server", Entry::Run, "#1803"),
-    ("observers_without_change_log", Entry::Run, "#1803"),
-    ("rest", Entry::Run, "#1803"),
-    ("saml", Entry::Run, "#1803"),
-    ("session_state", Entry::Run, "#1803"),
-    ("sources", Entry::Run, "#1803"),
-    ("subscription_kafka", Entry::Run, "#1803"),
-];
+const NOT_DRIVEN_YET: &[(&str, Entry, &str)] = &[("cron", Entry::McpStdio, "#1719")];
 
 /// Whether `fixture` is listed in [`NOT_DRIVEN_YET`] for `entry`.
 fn waiting(fixture: &str, entry: Entry) -> bool {

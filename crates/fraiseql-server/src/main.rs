@@ -17,49 +17,17 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 ///
 /// # Errors
 ///
-/// Returns an error if the config file cannot be read or is not valid TOML.
+/// Returns an error if the config file cannot be read, is not valid TOML, or is refused by
+/// the loader.
 fn load_config(config_path: Option<&str>) -> anyhow::Result<ServerConfig> {
     if let Some(path) = config_path {
         tracing::info!(path = %path, "Loading configuration from file");
-        let config = ServerConfig::from_file(path)
-            .map_err(|e| anyhow::anyhow!("failed to parse config file `{path}`: {e}"))?;
-        #[cfg(feature = "observers")]
-        check_observer_config_layout(&config, path)?;
-        Ok(config)
+        ServerConfig::from_file(path)
+            .map_err(|e| anyhow::anyhow!("failed to parse config file `{path}`: {e}"))
     } else {
         tracing::info!("Using default server configuration");
         Ok(ServerConfig::default())
     }
-}
-
-/// Reject the pre-#342 flat `[observers]` server-tuning layout with a clear
-/// migration message.
-///
-/// As of v2.5.0 the server's runtime tuning (`poll_interval_ms`, `batch_size`,
-/// `channel_capacity`, `auto_reload`, `reload_interval_secs`, `pool`) moved from
-/// `[observers]` to `[observers.runtime]` so the `[observers]` table can be
-/// shared with the compiler schema (#342). A flat key here is captured as a
-/// migration trap rather than silently ignored — boot fails loud, the #342
-/// contract.
-///
-/// # Errors
-///
-/// Returns an error naming the misplaced keys when a pre-#342 server-tuning key
-/// is found directly under `[observers]`.
-#[cfg(feature = "observers")]
-fn check_observer_config_layout(config: &ServerConfig, path: &str) -> anyhow::Result<()> {
-    if let Some(observers) = &config.observers {
-        let misplaced = observers.misplaced_runtime_keys();
-        if let Some(first) = misplaced.first() {
-            anyhow::bail!(
-                "config file `{path}`: the [observers] key(s) `{}` moved to \
-                 [observers.runtime] in v2.5.0. Move them under an \
-                 `[observers.runtime]` table, e.g.\n\n    [observers.runtime]\n    {first} = ...\n",
-                misplaced.join("`, `"),
-            );
-        }
-    }
-    Ok(())
 }
 
 /// Validate that schema file exists.

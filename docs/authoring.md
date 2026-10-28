@@ -530,7 +530,10 @@ root (the directory holding `.git`). The working directory plays no part, so in 
 repository with several subgraphs each schema gets its own subgraph's config wherever the
 command runs from. `--config <path>` names the file explicitly. Every compile prints the
 file it used (`Config: …`), or that none applied. `fraiseql run` reads its `[server]` and
-`[database]` sections from the same file.
+`[database]` sections from the same file. It also reads the server configuration file that
+`FRAISEQL_CONFIG` names, the way `fraiseql-server` does, so every section the server reads
+reaches it. A setting made in both, such as `[database] pool_max` and `pool_max_size`, is
+refused at startup.
 
 The compiled schema is a self-contained JSON file. Deploy it alongside the
 `fraiseql-server` binary — no Python or Node.js needed at runtime.

@@ -287,6 +287,23 @@ fn from_file_names_the_build_feature_for_a_compiled_out_section() {
     );
 }
 
+/// The pre-#342 flat `[observers]` tuning layout is refused by the loader itself, so every
+/// reader of a config file refuses it: the binary, `fraiseql run` and an embedder.
+#[cfg(feature = "observers")]
+#[test]
+fn from_file_refuses_observer_tuning_outside_observers_runtime() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let path = dir.path().join("server.toml");
+    std::fs::write(&path, "[observers]\npoll_interval_ms = 200\n").expect("write config");
+
+    let err = ServerConfig::from_file(&path)
+        .expect_err("a flat [observers] tuning key must be refused, not ignored");
+    assert!(
+        err.contains("poll_interval_ms") && err.contains("[observers.runtime]"),
+        "the error must name the key and where it moved; got: {err}"
+    );
+}
+
 #[test]
 fn unknown_scalar_key_is_rejected_not_discarded() {
     let err = toml::from_str::<ServerConfig>("bind_adr = \"0.0.0.0:4000\"\n")

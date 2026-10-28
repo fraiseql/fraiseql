@@ -261,6 +261,23 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **`fraiseql run` reads the server configuration file `FRAISEQL_CONFIG` names (#1803).**
+  `run` read the variable into its server arguments and then dropped it, so nothing but
+  `fraiseql.toml`'s `[server]` and `[database]` reached it. Nine capabilities that declare
+  `fraiseql run` could not be configured there: Arrow Flight, CDC outbound, identity,
+  inbound email, inbound webhooks, SAML, session state, sources and Kafka subscriptions. A
+  plain `fraiseql run` refused to boot in production mode on CORS, because
+  `cors_enabled = false` could not reach it.
+  - `run` now loads the file with the server's own loader, `ServerConfig::from_file`, and
+    uses it as the base. `fraiseql.toml`'s values and the flags apply wherever the file is
+    silent, so a project that sets no `FRAISEQL_CONFIG` runs exactly as before.
+  - A setting made in both files is refused at startup, naming both: `[server]`
+    host/port/cors.origins/tls against `bind_addr`/`cors_origins`/`tls`, and `[database]`
+    url/pool_min/pool_max/connect_timeout_ms/ssl_mode against their server keys.
+  - The pre-v2.5 flat `[observers]` tuning layout is refused by the loader itself. The
+    binary, `fraiseql run` and an embedder now all refuse it; only the binary used to.
+  - Every capability fixture now also runs through `fraiseql run`.
+
 - **MCP stdio mode no longer writes its log to stdout, the protocol channel (#1804).** With
   `FRAISEQL_MCP_STDIO` set, the server's log lines came first on stdout, before the answer
   to `initialize`. An MCP client cannot read past a line that is not JSON-RPC, and the

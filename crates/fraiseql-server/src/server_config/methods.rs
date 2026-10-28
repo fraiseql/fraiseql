@@ -86,13 +86,40 @@ impl ServerConfig {
     pub fn from_file(path: impl AsRef<std::path::Path>) -> Result<Self, String> {
         let content = std::fs::read_to_string(path.as_ref())
             .map_err(|e| format!("Cannot read config file: {e}"))?;
-        toml::from_str(&content).map_err(|e| {
+        let config: Self = toml::from_str(&content).map_err(|e| {
             enrich_parse_error(
                 &crate::capability::feature_gated_keys(),
                 &content,
                 format!("Invalid TOML config: {e}"),
             )
-        })
+        })?;
+        #[cfg(feature = "observers")]
+        config.refuse_misplaced_observer_keys()?;
+        Ok(config)
+    }
+
+    /// Refuse the pre-#342 flat `[observers]` server-tuning layout, with a migration message.
+    ///
+    /// As of v2.5.0 the server's runtime tuning (`poll_interval_ms`, `batch_size`,
+    /// `channel_capacity`, `auto_reload`, `reload_interval_secs`, `pool`) lives under
+    /// `[observers.runtime]`, so the `[observers]` table can be shared with the compiler
+    /// schema (#342). A flat key is captured as a migration trap rather than silently
+    /// ignored. The loader refuses it, so every reader of a config file does.
+    #[cfg(feature = "observers")]
+    fn refuse_misplaced_observer_keys(&self) -> Result<(), String> {
+        let Some(observers) = &self.observers else {
+            return Ok(());
+        };
+        let misplaced = observers.misplaced_runtime_keys();
+        match misplaced.first() {
+            Some(first) => Err(format!(
+                "the [observers] key(s) `{}` moved to [observers.runtime] in v2.5.0. Move them \
+                 under an `[observers.runtime]` table, e.g.\n\n    [observers.runtime]\n    \
+                 {first} = ...\n",
+                misplaced.join("`, `"),
+            )),
+            None => Ok(()),
+        }
     }
 
     /// Check if running in production mode.
