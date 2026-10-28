@@ -176,7 +176,10 @@ disagreed, and the promise was the part that was wrong.
   `@skip`/`@include` outcomes. `QueryMatch` also gains `collected`, what the document's
   collected fields compiled to; a struct literal sets it to `None`. A warm read builds its
   projection SQL once per request locale chain (#1779), and no longer copies its selection
-  to classify a nested level's fields or to plan its nested reads.
+  to classify a nested level's fields or to plan its nested reads. It also runs once, not
+  per request, the checks its document passes on its own: its fields and leaves, its root
+  arguments and their literals, and its `locale:` arguments. A refused document is checked
+  again on every request.
 
 - **`fraiseql-auth` no longer has the Okta, Auth0, Keycloak, Azure AD, Ory and Logto
   wrappers, or `create_provider` (#1773).** No configuration could select them:

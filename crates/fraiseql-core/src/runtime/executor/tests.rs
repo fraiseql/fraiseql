@@ -2718,6 +2718,59 @@ mod parse_cache {
         assert_eq!(parses, after_first, "three requests and a repeat: no parse after the first");
     }
 
+    /// The checks a document passes or fails on its own (§ 5.3.1, § 5.3.3, § 5.4.1 and the
+    /// argument literals) answer the same for every request that sends it, so a repeated
+    /// document runs them once (#1779).
+    #[tokio::test]
+    async fn a_repeated_document_runs_its_document_checks_once() {
+        let adapter = Arc::new(MockAdapter::new(mock_user_results()));
+        let executor = Executor::new(test_schema(), adapter);
+
+        let before = crate::runtime::document_checks_on_this_thread();
+        for _ in 0..3 {
+            let response = executor.execute("{ users { id name } }", None).await.unwrap();
+            assert!(response["data"]["users"].is_array(), "the query executes: {response}");
+        }
+        let checks = crate::runtime::document_checks_on_this_thread() - before;
+        assert_eq!(checks, 1, "three requests for one document: checked on the first only");
+    }
+
+    /// A reload builds the executor afresh, so a document a warm executor passed under
+    /// one schema is checked again under the next: an argument the new schema no longer
+    /// accepts is refused, not answered from the old schema's verdict (#1779).
+    #[tokio::test]
+    async fn a_reload_checks_a_warm_document_against_the_new_schema() {
+        let adapter = Arc::new(MockAdapter::new(mock_user_results()));
+        let executor = Executor::new(test_schema(), adapter);
+        let document = "{ users(limit: 2) { id } }";
+        executor.execute(document, None).await.unwrap();
+
+        let mut without_limit = test_schema();
+        without_limit.queries[0].auto_params = AutoParams::none();
+        let reloaded = executor.rebuild_with(without_limit, RuntimeConfig::default());
+        let refused = reloaded.execute(document, None).await;
+        assert!(
+            matches!(&refused, Err(FraiseQLError::Validation { message, .. }) if message.contains("limit")),
+            "the old schema's verdict answered for the new one: {refused:?}"
+        );
+    }
+
+    /// A refusal is not kept: a document that fails a document check is refused on
+    /// every request, not answered from a verdict the first one left behind.
+    #[tokio::test]
+    async fn a_repeated_document_that_fails_its_document_checks_is_refused_each_time() {
+        let adapter = Arc::new(MockAdapter::new(mock_user_results()));
+        let executor = Executor::new(test_schema(), adapter);
+
+        for attempt in 0..2 {
+            let refused = executor.execute("{ users(bogus: 1) { id } }", None).await;
+            assert!(
+                matches!(&refused, Err(FraiseQLError::Validation { message, .. }) if message.contains("bogus")),
+                "attempt {attempt}: {refused:?}"
+            );
+        }
+    }
+
     /// The cache key is a 64-bit hash, so two documents can share one. An entry
     /// planted under a document's key, but computed for a different document, must
     /// not answer for it: the request is classified afresh (#1562).

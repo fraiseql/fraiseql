@@ -177,9 +177,20 @@ pub struct CollectedFields {
 #[derive(Debug)]
 pub struct Collected {
     fields:     std::sync::Arc<[FieldSelection]>,
-    checked:    std::sync::OnceLock<()>,
+    checked:    [std::sync::OnceLock<()>; 2],
     projection:
         std::sync::OnceLock<(ProjectionKey, std::sync::Arc<crate::schema::SqlProjectionHint>)>,
+}
+
+/// A check whose verdict depends on a document's collected fields alone. Each has its own
+/// record of having passed, so passing one never stands in for another.
+#[derive(Debug, Clone, Copy)]
+pub enum FieldsCheck {
+    /// The document as written: its fields exist and leaves are leaves (§ 5.3.1, § 5.3.3),
+    /// and its root arguments are declared and their literals typed (§ 5.4.1, § 5.6.1).
+    Document = 0,
+    /// Every `locale:` argument names an allowed locale.
+    Locale   = 1,
 }
 
 /// Everything a request can vary in the projection of a document's collected fields.
@@ -207,7 +218,7 @@ impl Collected {
     fn new(fields: Vec<FieldSelection>) -> std::sync::Arc<Self> {
         std::sync::Arc::new(Self {
             fields:     fields.into(),
-            checked:    std::sync::OnceLock::new(),
+            checked:    [std::sync::OnceLock::new(), std::sync::OnceLock::new()],
             projection: std::sync::OnceLock::new(),
         })
     }
@@ -252,20 +263,22 @@ impl Collected {
         &self.fields
     }
 
-    /// Run `check` on these fields unless it has passed on them before. Only for a check
-    /// whose verdict depends on the fields alone: a failure is not kept, so a refused
-    /// request is refused again.
+    /// Run `check` on these fields unless the check `which` names has passed on them
+    /// before. Only for a check whose verdict depends on the fields alone: a failure is
+    /// not kept, so a refused request is refused again.
     ///
     /// # Errors
     ///
     /// Whatever `check` returns.
     pub fn check_once<E>(
         &self,
+        which: FieldsCheck,
         check: impl FnOnce(&[FieldSelection]) -> Result<(), E>,
     ) -> Result<(), E> {
-        if self.checked.get().is_none() {
+        let passed = &self.checked[which as usize];
+        if passed.get().is_none() {
             check(&self.fields)?;
-            let _ = self.checked.set(());
+            let _ = passed.set(());
         }
         Ok(())
     }

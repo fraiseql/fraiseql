@@ -6,7 +6,10 @@ use ahash::AHashMap;
 
 use crate::{
     error::{FraiseQLError, Result},
-    graphql::{FieldSelection, ParsedQuery, parse_query_with_operation_name, selection_set},
+    graphql::{
+        FieldSelection, ParsedQuery, parse_query_with_operation_name,
+        selection_set::{self, FieldsCheck},
+    },
     runtime::{argument_validation, argument_value_validation},
     schema::{ArgumentDefinition, CompiledSchema, QueryDefinition},
     security::{SecurityContext, role_gate::caller_holds},
@@ -510,82 +513,90 @@ impl QueryMatcher {
         //     direction: `return_type` is the entity type, but the field is a
         //     scalar `Int!` with no sub-selection at all, so there is nothing to
         //     validate against it.
-        if !query_def.relay && !query_def.returns_count {
-            if let Some(root) = final_selections.first() {
-                crate::graphql::validate_selection_set(
-                    &self.schema,
-                    &query_def.return_type,
-                    &root.nested_fields,
-                )?;
+        //     None of 5b-5e reads the request, only the document: they run once per
+        //     collected set, and a warm request runs none of them. A refusal is
+        //     not kept, so a refused document is refused on every request.
+        collected.check_once(FieldsCheck::Document, |fields| -> Result<()> {
+            #[cfg(any(test, feature = "test-utils"))]
+            DOCUMENT_CHECKS_ON_THIS_THREAD.with(|n| n.set(n.get() + 1));
+            if !query_def.relay && !query_def.returns_count {
+                if let Some(root) = fields.first() {
+                    crate::graphql::validate_selection_set(
+                        &self.schema,
+                        &query_def.return_type,
+                        &root.nested_fields,
+                    )?;
+                }
+                // 5b-ii. #1357: § 5.3.3, on the set as **written**. `{ users }` was
+                //        answered with one empty object per row under a 200 with no
+                //        `errors` — the fabricated success #1076's AI adapters reported
+                //        to models. Nothing leaks on this path (the SQL projection is
+                //        built *from* the selection set, so an empty one selects
+                //        nothing), which is why the shape read as a formatting quirk;
+                //        the write path's twin of it is a policy bypass.
+                if let Some(root) = written_selections.first() {
+                    crate::graphql::validate_leaf_field_selections(
+                        &self.schema,
+                        &query_def.return_type,
+                        &root.nested_fields,
+                    )?;
+                }
             }
-            // 5b-ii. #1357: § 5.3.3, on the set as **written**. `{ users }` was
-            //        answered with one empty object per row under a 200 with no
-            //        `errors` — the fabricated success #1076's AI adapters reported
-            //        to models. Nothing leaks on this path (the SQL projection is
-            //        built *from* the selection set, so an empty one selects
-            //        nothing), which is why the shape read as a formatting quirk;
-            //        the write path's twin of it is a policy bypass.
-            if let Some(root) = written_selections.first() {
-                crate::graphql::validate_leaf_field_selections(
-                    &self.schema,
-                    &query_def.return_type,
-                    &root.nested_fields,
-                )?;
-            }
-        }
 
-        // 5c. #1154: the arguments written on the root field must be defined on it
-        //     (GraphQL § 5.4.1). An undeclared argument used to be dropped —
-        //     only declared arguments become WHERE conditions and only the
-        //     auto-wired names reach the pagination paths — so a client filter
-        //     the schema no longer carries returned the *unfiltered* set under a
-        //     200. Unlike 5b this applies to relay and count queries too: their
-        //     argument surfaces differ from a plain list query's, and
-        //     `accepted_argument_names` is what encodes each one.
-        //
-        //     5d. #1197: and the *value* written against each of those names must
-        //     have that name's type (GraphQL § 5.6.1, § 5.8.5), as must every
-        //     supplied variable against its own declaration (§ 6.1.2). The same
-        //     failure mode one level down: `limit: "2"` was read with `as_u64()`,
-        //     answered `None`, and `None` is indistinguishable from "the client
-        //     did not paginate" — so a request for two rows returned the table.
-        //     Argument *types* come from `graphql_arguments`, which is where the
-        //     auto-wired `limit`/`offset` acquire theirs; `accepted_argument_names`
-        //     above is deliberately wider and carries no types.
-        if let Some(root) = final_selections.first() {
-            let field_label = format!("Query.{}", self.schema.display_name(&query_def.name));
-            let derived;
-            let arguments = if let Some(arguments) = self.arguments.get(&query_def.name) {
-                arguments
-            } else {
-                derived = QueryArguments::derive(&query_def, &self.schema);
-                &derived
-            };
-            argument_validation::validate_argument_names(
-                &field_label,
-                &arguments.accepted,
-                &root.arguments,
-                self.suggestions,
-            )?;
-            argument_value_validation::validate_argument_values(
-                &field_label,
-                &arguments.published,
-                &root.arguments,
-                &parsed.variables,
-            )?;
-            //     5e. #1362: and an enum written at one of those names must name a
-            //     member the schema declares. Separate from 5d because that check
-            //     adjudicates the ten built-in scalars and needs no schema, while an
-            //     enum's value space is only knowable from one — and because 5d stops
-            //     at the argument, where this walks into `where:` and every other
-            //     input object to reach the enums inside them.
-            argument_value_validation::validate_enum_argument_literals(
-                &self.schema,
-                &field_label,
-                &arguments.published,
-                &root.arguments,
-            )?;
-        }
+            // 5c. #1154: the arguments written on the root field must be defined on it
+            //     (GraphQL § 5.4.1). An undeclared argument used to be dropped —
+            //     only declared arguments become WHERE conditions and only the
+            //     auto-wired names reach the pagination paths — so a client filter
+            //     the schema no longer carries returned the *unfiltered* set under a
+            //     200. Unlike 5b this applies to relay and count queries too: their
+            //     argument surfaces differ from a plain list query's, and
+            //     `accepted_argument_names` is what encodes each one.
+            //
+            //     5d. #1197: and the *value* written against each of those names must
+            //     have that name's type (GraphQL § 5.6.1, § 5.8.5), as must every
+            //     supplied variable against its own declaration (§ 6.1.2). The same
+            //     failure mode one level down: `limit: "2"` was read with `as_u64()`,
+            //     answered `None`, and `None` is indistinguishable from "the client
+            //     did not paginate" — so a request for two rows returned the table.
+            //     Argument *types* come from `graphql_arguments`, which is where the
+            //     auto-wired `limit`/`offset` acquire theirs; `accepted_argument_names`
+            //     above is deliberately wider and carries no types.
+            if let Some(root) = fields.first() {
+                let field_label = format!("Query.{}", self.schema.display_name(&query_def.name));
+                let derived;
+                let arguments = if let Some(arguments) = self.arguments.get(&query_def.name) {
+                    arguments
+                } else {
+                    derived = QueryArguments::derive(&query_def, &self.schema);
+                    &derived
+                };
+                argument_validation::validate_argument_names(
+                    &field_label,
+                    &arguments.accepted,
+                    &root.arguments,
+                    self.suggestions,
+                )?;
+                argument_value_validation::validate_argument_values(
+                    &field_label,
+                    &arguments.published,
+                    &root.arguments,
+                    &parsed.variables,
+                )?;
+                //     5e. #1362: and an enum written at one of those names must name a
+                //     member the schema declares. Separate from 5d because that check
+                //     adjudicates the ten built-in scalars and needs no schema, while an
+                //     enum's value space is only knowable from one — and because 5d stops
+                //     at the argument, where this walks into `where:` and every other
+                //     input object to reach the enums inside them.
+                argument_value_validation::validate_enum_argument_literals(
+                    &self.schema,
+                    &field_label,
+                    &arguments.published,
+                    &root.arguments,
+                )?;
+            }
+            Ok(())
+        })?;
         argument_value_validation::validate_variable_values(
             parsed.operation_name.as_deref(),
             &parsed.variables,
@@ -622,7 +633,8 @@ impl QueryMatcher {
                 resolve(&mut fields)?;
                 final_selections = fields.into();
             } else {
-                collected.check_once(|fields| resolve(&mut fields.to_vec()))?;
+                collected
+                    .check_once(FieldsCheck::Locale, |fields| resolve(&mut fields.to_vec()))?;
             }
         }
 
@@ -751,6 +763,22 @@ impl QueryMatcher {
     pub const fn schema(&self) -> &CompiledSchema {
         &self.schema
     }
+}
+
+#[cfg(any(test, feature = "test-utils"))]
+thread_local! {
+    static DOCUMENT_CHECKS_ON_THIS_THREAD: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+/// How many times the matcher has run the checks that depend on the document alone
+/// (§ 5.3.1, § 5.3.3, § 5.4.1 and the argument literals) on the calling thread.
+///
+/// Test-only: a repeated document is checked once, so a request driven on a
+/// current-thread runtime can assert that a warm one ran none of them.
+#[cfg(any(test, feature = "test-utils"))]
+#[must_use]
+pub fn document_checks_on_this_thread() -> usize {
+    DOCUMENT_CHECKS_ON_THIS_THREAD.with(std::cell::Cell::get)
 }
 
 // Re-exported so `crate::runtime::suggest_similar` keeps its call sites while the one

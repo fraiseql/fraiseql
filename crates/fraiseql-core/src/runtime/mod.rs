@@ -144,6 +144,8 @@ pub(crate) use locale_argument::{
     selection_chain_in, translations_read,
 };
 pub(crate) use localized_input::coerce_localized_arguments;
+#[cfg(any(test, feature = "test-utils"))]
+pub use matcher::document_checks_on_this_thread;
 pub use matcher::{QueryMatch, QueryMatcher, suggest_similar, suggestions_for};
 pub use mutation_result::{
     ConstraintMetadata, MutationErrorShapeCheck, mutation_error_shape_violations,

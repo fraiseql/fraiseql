@@ -691,6 +691,10 @@ impl Executor {
     /// step #750 showed can omit one. Carrying it makes a downgrade unrepresentable
     /// rather than merely unlikely. The refusal beside it is recomputed from the same
     /// adapter, so it agrees with the boot (ruling Z 1).
+    ///
+    /// The document caches are **not** carried: a kept document remembers the checks it
+    /// passed under the old schema and is not checked again, so a carried cache
+    /// would answer the new schema with the old one's verdicts.
     #[must_use]
     pub fn rebuild_with(&self, schema: CompiledSchema, config: RuntimeConfig) -> Self {
         Self::build(

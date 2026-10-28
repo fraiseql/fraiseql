@@ -359,15 +359,40 @@ fn a_check_on_collected_fields_is_kept_only_once_it_passes() {
         runs.set(runs.get() + 1);
         Err(())
     };
-    assert!(fields.collect(&vars).unwrap().check_once(refuse).is_err());
-    assert!(fields.collect(&vars).unwrap().check_once(refuse).is_err());
+    assert!(
+        fields
+            .collect(&vars)
+            .unwrap()
+            .check_once(FieldsCheck::Document, refuse)
+            .is_err()
+    );
+    assert!(
+        fields
+            .collect(&vars)
+            .unwrap()
+            .check_once(FieldsCheck::Document, refuse)
+            .is_err()
+    );
     let pass = |_: &[FieldSelection]| {
         runs.set(runs.get() + 1);
         Ok::<(), ()>(())
     };
-    fields.collect(&vars).unwrap().check_once(pass).unwrap();
-    fields.collect(&vars).unwrap().check_once(pass).unwrap();
+    fields.collect(&vars).unwrap().check_once(FieldsCheck::Document, pass).unwrap();
+    fields.collect(&vars).unwrap().check_once(FieldsCheck::Document, pass).unwrap();
     assert_eq!(runs.get(), 3);
+}
+
+/// Each check keeps its own verdict: one that passed does not stand in for another on
+/// the same fields, which still runs and still refuses.
+#[test]
+fn a_passed_check_does_not_stand_in_for_another() {
+    let fields = written("{ users { id } }");
+    let vars = variables_map(None);
+    let collected = fields.collect(&vars).unwrap();
+    collected.check_once(FieldsCheck::Document, |_| Ok::<(), ()>(())).unwrap();
+    assert!(collected.check_once(FieldsCheck::Locale, |_| Err(())).is_err());
+    collected.check_once(FieldsCheck::Locale, |_| Ok::<(), ()>(())).unwrap();
+    assert!(collected.check_once(FieldsCheck::Document, |_| Err(())).is_ok(), "kept");
 }
 
 /// A projection built for collected fields is built once per key and shared; one that
