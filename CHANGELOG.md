@@ -200,6 +200,11 @@ disagreed, and the promise was the part that was wrong.
   that request could only return nothing. For another issuer, validate its bearer tokens
   with `[auth] issuer`.
 
+- **`DatabaseWarning::TemporalKeyInDocument` carries a `remedy`, not `column_exists`
+  (#1815).** The warning now covers every relation, and the fix differs by relation, so it
+  says which one applies: `TemporalKeyRemedy::{MapColumn, AddToTview, AddToTable,
+  ExposeFromView, TviewRowTimestamp}`. `column_exists: true` is `MapColumn`.
+
 ### Added
 
 - **A mailbox can trust a private CA: `[mailbox.<name>.imap] ca_file`** (#1757). A PEM
@@ -288,6 +293,21 @@ disagreed, and the promise was the part that was wrong.
     the `mcp-session-id` header, which stdio cannot carry, so nothing is held there.
 
 ### Fixed
+
+- **`compile --database` advises a date sorted or filtered out of any relation's document,
+  not only a `tv_*` one (#1815).** A `DateTime`, `Date` or `Time` key read out of the
+  document is compared as `(data->>'key')::timestamptz`, which PostgreSQL will not index on a
+  view or a table either, so every such sort or filter reads the whole relation. The
+  warning's advice follows the relation: map the column it already has, add one to a table,
+  expose the base table's from a view, or add one to a TVIEW's definition. A TVIEW is
+  recognised from pg_tviews' catalog, from its first releases to the current one, and no
+  longer from a `tv_` name: a plain table named `tv_…` is a table.
+- **`compile --database` no longer tells a TVIEW's `createdAt` to map to `created_at`
+  (#1818).** pg_tviews appends `created_at` and `updated_at` to every TVIEW and stamps them
+  when it materialises a row, so following the advice sorted and filtered by materialisation
+  time, with no error. The warning now says that column is not the field, that the TVIEW's definition
+  cannot project another of that name, and to read the field through a view over the base
+  table that exposes the table's own column, indexed there as `(created_at DESC, id)`.
 
 - **`fraiseql run` reads the server configuration file `FRAISEQL_CONFIG` names (#1803).**
   `run` read the variable into its server arguments and then dropped it, so nothing but

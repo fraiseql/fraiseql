@@ -139,19 +139,33 @@ present:
 
 With the column, the read is an index-only scan.
 
-### Dates and times on a TVIEW (#1571)
+### Dates and times in a document (#1571, #1815)
 
 A `DateTime`, `Date` or `Time` key is compared as `(data->>'key')::timestamptz` (or `::date`,
 `::time`). PostgreSQL refuses to index that cast, because its result depends on the session's
-`TimeZone`, so a sort or a filter on the key reads every row. On a 100 000-row TVIEW, the 20
-newest rows by a document `DateTime`: a parallel sequential scan and a sort, 18 ms. By a native
-`timestamptz` column with an index: an index scan, 0.02 ms, same rows.
+`TimeZone`, so a sort or a filter on the key reads every row, whatever the relation. On a
+100 000-row TVIEW, the 20 newest rows by a document `DateTime`: a parallel sequential scan and
+a sort, 18 ms. By a native `timestamptz` column with an index: an index scan, 0.02 ms, same rows.
 
-The fix is the native column above: add it to the TVIEW's definition (pg_tviews keeps it equal
-to the document's value; it adds its own `created_at` and `updated_at`, so pick another name),
-index it, and map it with an argument of the field's name. `compile --database` names every
-sorted or filtered temporal key a `tv_*` query reads out of its document, and says whether the
-column already exists.
+The fix is the native column above, indexed and mapped by an argument of the field's name.
+What adds it depends on the relation:
+
+- a table: add the column;
+- a view: expose its base table's column, and index it there with the page's tie-breaker
+  (`(created_at DESC, id)`: an offset page always orders by `id` after the field);
+- a TVIEW: add the column to its definition (pg_tviews keeps it equal to the document's value).
+
+`compile --database` names every sorted or filtered temporal key a query reads out of its
+document, on any relation, and says which of these applies or that the column already exists.
+It recognises a TVIEW from pg_tviews' catalog, not from a `tv_` name.
+
+A TVIEW's `created_at` and `updated_at` are pg_tviews' own (#1818). It appends them to every
+TVIEW and stamps them itself: `created_at` when it materialises a row (again on a full
+refresh), `updated_at` whenever it rewrites one. They hold materialisation times, not the
+document's dates,
+and the definition cannot project columns of those names. A `createdAt` or `updatedAt` field
+on a TVIEW therefore has no native column: read it through a view over the base table that
+exposes the table's own column, indexed there the same way.
 
 FraiseQL does not sort these keys as text instead. pg_tviews renders them in UTC ISO 8601
 (a documented contract since beta.26), but a value it did not render (text copied through, a

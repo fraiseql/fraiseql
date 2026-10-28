@@ -490,6 +490,43 @@ impl DatabaseIntrospector for PostgresIntrospector {
             )),
         }
     }
+
+    async fn is_tview(&self, relation: &str) -> Result<bool> {
+        let client = self.pool.get().await.map_err(|e| FraiseQLError::ConnectionPool {
+            message: format!("Failed to acquire connection: {e}"),
+        })?;
+        // Every pg_tviews release records each TVIEW's table in `pg_tview_meta.table_oid`, in
+        // the extension's own schema: `public` for the early releases, `tviews` since its
+        // catalog moved there. No extension, no TVIEW.
+        let schema: Option<String> = client
+            .query_opt(
+                "SELECT n.nspname::text FROM pg_extension e \
+                 JOIN pg_namespace n ON n.oid = e.extnamespace WHERE e.extname = 'pg_tviews'",
+                &[],
+            )
+            .await
+            .map_err(|e| {
+                crate::postgres::database_error(
+                    format!("Failed to probe pg_tviews: {}", pg_detail(&e)),
+                    &e,
+                )
+            })?
+            .map(|row| row.get(0));
+        let Some(schema) = schema else {
+            return Ok(false);
+        };
+        let query = format!(
+            "SELECT EXISTS (SELECT 1 FROM {}.pg_tview_meta WHERE table_oid = to_regclass($1)::oid)",
+            crate::identifier::quote_postgres_identifier(&schema),
+        );
+        let row = client.query_one(&query, &[&relation]).await.map_err(|e| {
+            crate::postgres::database_error(
+                format!("Failed to read the pg_tviews catalog: {}", pg_detail(&e)),
+                &e,
+            )
+        })?;
+        Ok(row.get(0))
+    }
 }
 impl PostgresIntrospector {
     /// Every index on `relation`, keys in declared order (#1307).

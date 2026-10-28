@@ -233,22 +233,22 @@ pub enum DatabaseWarning {
         /// The native column's SQL type (e.g. `uuid`).
         column_type:  String,
     },
-    /// L2: a query sorts or filters a `DateTime`, `Date` or `Time` field it reads out of a
-    /// TVIEW's document (#1571). The runtime compares `(data->>'key')::timestamptz`, a cast
-    /// PostgreSQL will not index (it depends on the session's `TimeZone`), so every sort or
-    /// filter on the key reads every row. A native column of the type, mapped by an argument
+    /// L2: a query sorts or filters a `DateTime`, `Date` or `Time` field it reads out of its
+    /// relation's document (#1571). The runtime compares `(data->>'key')::timestamptz`,
+    /// a cast PostgreSQL will not index (it depends on the session's `TimeZone`), so every sort
+    /// or filter on the key reads every row. A native column of the type, mapped by an argument
     /// of the field's name, is read instead, and an index on it serves both.
     TemporalKeyInDocument {
         /// Name of the query.
-        query_name:    String,
+        query_name: String,
         /// The `sql_source` relation.
-        sql_source:    String,
+        sql_source: String,
         /// The field, as the schema names it.
-        field:         String,
+        field:      String,
         /// The column the runtime would read for it.
-        column:        String,
-        /// Whether the relation already has that column (only the mapping is missing).
-        column_exists: bool,
+        column:     String,
+        /// What would let an index serve the field.
+        remedy:     TemporalKeyRemedy,
     },
     /// L2: a query filters a TVIEW's document on keys no index of the TVIEW serves (#1571):
     /// its inject parameters and arguments that read `data->>'key'`, on every call. `pg_tviews`
@@ -282,6 +282,24 @@ pub enum DatabaseWarning {
         /// Rows whose column and key differ.
         disagreeing: u64,
     },
+}
+
+/// What would let an index serve a temporal field read out of a document
+/// ([`DatabaseWarning::TemporalKeyInDocument`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TemporalKeyRemedy {
+    /// The relation has the column: only the query's mapping is missing.
+    MapColumn,
+    /// A TVIEW without the column: its definition can project one.
+    AddToTview,
+    /// A table without the column: it can have one.
+    AddToTable,
+    /// A view without the column: it can expose its base table's, where the index lives.
+    ExposeFromView,
+    /// A TVIEW's `created_at` or `updated_at`: `pg_tviews` stamps it when it materialises the
+    /// row, so it is not the field, and the TVIEW's definition cannot project another column of
+    /// that name.
+    TviewRowTimestamp,
 }
 
 impl DatabaseWarning {
@@ -583,22 +601,44 @@ impl fmt::Display for DatabaseWarning {
                 sql_source,
                 field,
                 column,
-                column_exists,
+                remedy,
             } => {
-                let step = if *column_exists {
-                    format!("`{sql_source}` already has `{column}`: give the query")
-                } else {
-                    format!(
-                        "add `{column}` to the TVIEW's definition (with its own type, e.g. \
-                         `timestamptz`, and an index), then give the query"
-                    )
+                let step = match remedy {
+                    TemporalKeyRemedy::MapColumn => format!(
+                        "`{sql_source}` already has `{column}`: give the query an argument named \
+                         `{field}` so this compile maps it to the column"
+                    ),
+                    TemporalKeyRemedy::AddToTview => format!(
+                        "Add `{column}` to the TVIEW's definition (with its own type, e.g. \
+                         `timestamptz`, and an index), then give the query an argument named \
+                         `{field}` so this compile maps it to the column"
+                    ),
+                    TemporalKeyRemedy::AddToTable => format!(
+                        "Add a `{column}` column to `{sql_source}` (with its own type, e.g. \
+                         `timestamptz`, and an index), then give the query an argument named \
+                         `{field}` so this compile maps it to the column"
+                    ),
+                    TemporalKeyRemedy::ExposeFromView => format!(
+                        "Expose `{column}` from the view's base table as a column of its own \
+                         type (e.g. `timestamptz`), index it on the base table with the page's \
+                         tie-breaker (`({column} DESC, id)`), then give the query an argument \
+                         named `{field}` so this compile maps it to the column"
+                    ),
+                    TemporalKeyRemedy::TviewRowTimestamp => format!(
+                        "`{sql_source}.{column}` is not this field: pg_tviews appends it to every \
+                         TVIEW and stamps it itself when it materialises the row, so mapping \
+                         `{field}` to it would sort and filter by materialisation time, and the \
+                         TVIEW's definition cannot project another `{column}`. No column of \
+                         `{sql_source}` can serve `{field}` under this name: read it through a \
+                         view over the base table that exposes the table's own `{column}`, \
+                         indexed there as `({column} DESC, id)`"
+                    ),
                 };
                 write!(
                     f,
                     "query `{query_name}`: `{field}` is read out of `{sql_source}`'s document, so \
                      every sort or filter on it casts each row's value and no index can serve it. \
-                     {step} an argument named `{field}` so this compile maps it to the column \
-                     (docs/performance.md, \"Use a Native Column\")."
+                     {step} (docs/performance.md, \"Use a Native Column\")."
                 )
             },
             Self::NativeKeyDisagreement {
@@ -1015,14 +1055,25 @@ pub async fn validate_schema_against_database(
                 }
             }
 
-            // L2 (#1571): a sorted or filtered temporal key read out of a TVIEW's document.
-            if !jsonb_col.is_empty() {
+            // L2 (#1571): a sorted or filtered temporal key read out of a document.
+            if !jsonb_col.is_empty() && compares_document_keys(query) {
+                let backing = if introspector.is_tview(source).await? {
+                    TemporalBacking::Tview
+                } else if relation_kind(&schema_qualified, &unqualified, source)
+                    == Some(fraiseql_core::db::RelationKind::View)
+                    || introspector.get_view_definition(source).await?.is_some()
+                {
+                    TemporalBacking::View
+                } else {
+                    TemporalBacking::Table
+                };
                 warnings.extend(temporal_keys_in_document(
                     schema,
                     query,
                     source,
                     &query_native,
                     &column_map,
+                    backing,
                 ));
             }
 
@@ -1133,24 +1184,21 @@ fn unify_tview_index_advice(warnings: &mut [DatabaseWarning]) {
 }
 
 /// The `DateTime`, `Date` and `Time` fields `query` sorts or filters while reading them out of
-/// a TVIEW's document, with no native column mapped for them (#1571).
+/// `source`'s document, with no native column mapped for them (#1571).
 ///
-/// Only a `tv_*` relation: pg_tviews renders every temporal value of a TVIEW in UTC ISO, and
-/// a column is added to its definition alongside the document. Only a query exposing
-/// `orderBy` or `where`: one that does neither never compares the key.
+/// Every relation: the cast is unindexable whatever reads it. The caller asks only for a query
+/// that [`compares_document_keys`]: one that does not never compares the key. The remedy
+/// depends on what
+/// `source` is: a TVIEW (`is_tview`, from `pg_tviews`' catalog, never from a name), a view or a
+/// table. A TVIEW's `created_at` and `updated_at` are `pg_tviews`' own.
 fn temporal_keys_in_document(
     schema: &CompiledSchema,
     query: &fraiseql_core::schema::QueryDefinition,
     source: &str,
     query_native: &HashMap<String, fraiseql_core::schema::NativeColumn>,
     column_map: &HashMap<String, String>,
+    backing: TemporalBacking,
 ) -> Vec<DatabaseWarning> {
-    let relation = source.rsplit('.').next().unwrap_or(source);
-    if !relation.starts_with("tv_")
-        || !(query.auto_params.has_order_by || query.auto_params.has_where)
-    {
-        return Vec::new();
-    }
     let Some(ty) = schema.find_type(&query.return_type) else {
         return Vec::new();
     };
@@ -1160,15 +1208,57 @@ fn temporal_keys_in_document(
         .filter(|f| !query_native.contains_key(f.name.as_str()))
         .map(|f| {
             let column = fraiseql_core::utils::to_snake_case(f.name.as_str());
+            let remedy = match backing {
+                TemporalBacking::Tview if TVIEW_ROW_TIMESTAMPS.contains(&column.as_str()) => {
+                    TemporalKeyRemedy::TviewRowTimestamp
+                },
+                _ if column_map.contains_key(&column) => TemporalKeyRemedy::MapColumn,
+                TemporalBacking::Tview => TemporalKeyRemedy::AddToTview,
+                TemporalBacking::View => TemporalKeyRemedy::ExposeFromView,
+                TemporalBacking::Table => TemporalKeyRemedy::AddToTable,
+            };
             DatabaseWarning::TemporalKeyInDocument {
                 query_name: query.name.clone(),
                 sql_source: source.to_string(),
                 field: f.name.to_string(),
-                column_exists: column_map.contains_key(&column),
                 column,
+                remedy,
             }
         })
         .collect()
+}
+
+/// The columns `pg_tviews` appends to every TVIEW's table, stamped when it writes a row.
+const TVIEW_ROW_TIMESTAMPS: [&str; 2] = ["created_at", "updated_at"];
+
+/// Whether `query` compares its document's keys: it exposes `orderBy` or `where`.
+const fn compares_document_keys(query: &fraiseql_core::schema::QueryDefinition) -> bool {
+    query.auto_params.has_order_by || query.auto_params.has_where
+}
+
+/// What a query's `sql_source` is, for [`temporal_keys_in_document`]'s advice.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum TemporalBacking {
+    /// A table `pg_tviews` maintains.
+    Tview,
+    /// A view.
+    View,
+    /// Any other table.
+    Table,
+}
+
+/// The kind of `source` among `relations`: by schema when it is qualified, else by the
+/// first schema the search path lists it in.
+fn relation_kind(
+    schema_qualified: &HashMap<(String, String), RelationInfo>,
+    unqualified: &HashMap<String, Vec<String>>,
+    source: &str,
+) -> Option<fraiseql_core::db::RelationKind> {
+    let (schema, name) = match source.split_once('.') {
+        Some((schema, name)) => (schema.to_string(), name),
+        None => (unqualified.get(source)?.first()?.clone(), source),
+    };
+    schema_qualified.get(&(schema, name.to_string())).map(|r| r.kind.clone())
 }
 
 /// The index of `declaration`'s TVIEW that `filters` (the document keys `query` reads with
@@ -1507,6 +1597,12 @@ impl DatabaseIntrospector for AnyIntrospector {
     ) -> fraiseql_core::Result<Option<fraiseql_db::TviewDeclaration>> {
         match self {
             Self::Postgres(i) => i.tview_declaration(relation).await,
+        }
+    }
+
+    async fn is_tview(&self, relation: &str) -> fraiseql_core::Result<bool> {
+        match self {
+            Self::Postgres(i) => i.is_tview(relation).await,
         }
     }
 }

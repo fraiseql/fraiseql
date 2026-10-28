@@ -2186,6 +2186,10 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		// #1571: compile --database advises the pg_tviews `indexes` option for the document
 		// keys a TVIEW query filters on, and FraiseQL's reads are served by the index it declares.
 		"cargo test -p fraiseql-cli --features test-postgres --test tview_index_advice_pg -- --test-threads=1",
+		// #1815/#1818: compile --database advises a document date on every relation by what it
+		// is, recognising a TVIEW from pg_tviews' catalog. Its cases are #[ignore]d so the DB-less
+		// test leg cannot pass them; here both databases are bound and a missing one fails.
+		"cargo test -p fraiseql-cli --features test-postgres --test temporal_key_advice_pg -- --ignored --test-threads=1",
 		// #809: schema-per-tenant isolation was a single session `SET search_path` on
 		// one pooled connection. Every other connection resolved against `public`, so
 		// the leak is only visible under concurrency — a single-connection test passes

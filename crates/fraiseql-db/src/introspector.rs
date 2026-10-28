@@ -179,4 +179,16 @@ pub trait DatabaseIntrospector: Send + Sync {
     async fn tview_declaration(&self, _relation: &str) -> Result<Option<TviewDeclaration>> {
         Ok(None)
     }
+
+    /// Whether `relation` is a table `pg_tviews` maintains, as its own catalog records it,
+    /// whatever the relation is named.
+    ///
+    /// `false` ⇒ not a TVIEW, no `pg_tviews`, or a connector that cannot read its catalog.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the catalog query fails.
+    async fn is_tview(&self, _relation: &str) -> Result<bool> {
+        Ok(false)
+    }
 }

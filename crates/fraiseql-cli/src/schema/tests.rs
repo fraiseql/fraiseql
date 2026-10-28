@@ -25,6 +25,7 @@ mod database_validator_tests {
         json_samples: HashMap<(String, String), Vec<serde_json::Value>>,
         functions:    std::collections::HashSet<String>,
         view_defs:    HashMap<String, String>,
+        tviews:       std::collections::HashSet<String>,
         db_type:      DatabaseType,
     }
 
@@ -36,6 +37,7 @@ mod database_validator_tests {
                 json_samples: HashMap::new(),
                 functions: std::collections::HashSet::new(),
                 view_defs: HashMap::new(),
+                tviews: std::collections::HashSet::new(),
                 db_type,
             }
         }
@@ -74,6 +76,12 @@ mod database_validator_tests {
         /// Register a view body, as `pg_get_viewdef` would return it (#1303).
         fn with_view_definition(mut self, view: &str, body: &str) -> Self {
             self.view_defs.insert(view.to_string(), body.to_string());
+            self
+        }
+
+        /// Record `relation` in `pg_tviews`' catalog, as a TVIEW's table.
+        fn with_tview(mut self, relation: &str) -> Self {
+            self.tviews.insert(relation.to_string());
             self
         }
 
@@ -148,6 +156,10 @@ mod database_validator_tests {
             relation: &str,
         ) -> fraiseql_core::Result<Option<String>> {
             Ok(self.view_defs.get(relation).cloned())
+        }
+
+        async fn is_tview(&self, relation: &str) -> fraiseql_core::Result<bool> {
+            Ok(self.tviews.contains(relation))
         }
     }
 
@@ -1009,12 +1021,25 @@ mod database_validator_tests {
         );
     }
 
-    // ── #1571: a sorted or filtered temporal key read out of a TVIEW's document ──
+    // ── #1571: a sorted or filtered temporal key read out of a document ──
 
-    /// `events` over `tv_event`, returning `Event { occurredAt: <ty> }`, with `auto_params`
-    /// and the relation's extra columns as given.
-    async fn temporal_report(
+    /// How the relation a temporal fixture reads is backed.
+    #[derive(Clone, Copy)]
+    enum Backing {
+        /// A table `pg_tviews` maintains.
+        Tview,
+        /// A table nothing maintains.
+        Table,
+        /// A view.
+        View,
+    }
+
+    /// `events` over `source`, returning `Event { <field>: <ty> }`, with `auto_params` and the
+    /// relation's extra columns as given.
+    async fn temporal_report_for(
         source: &str,
+        backing: Backing,
+        field: &str,
         ty: FieldType,
         auto_params: AutoParams,
         extra_columns: Vec<(&str, &str, bool)>,
@@ -1022,17 +1047,43 @@ mod database_validator_tests {
     ) -> Vec<DatabaseWarning> {
         let mut columns = vec![("data", "jsonb", false), ("id", "uuid", false)];
         columns.extend(extra_columns);
-        let introspector = MockIntrospector::new(DatabaseType::PostgreSQL)
-            .with_relation("public", source, fraiseql_core::db::RelationKind::Table)
+        let kind = match backing {
+            Backing::View => fraiseql_core::db::RelationKind::View,
+            Backing::Tview | Backing::Table => fraiseql_core::db::RelationKind::Table,
+        };
+        let mut introspector = MockIntrospector::new(DatabaseType::PostgreSQL)
+            .with_relation("public", source, kind)
             .with_columns(source, columns)
-            .with_json_samples(source, "data", vec![serde_json::json!({"occurredAt": "x"})]);
+            .with_json_samples(source, "data", vec![serde_json::json!({ field: "x" })]);
+        if matches!(backing, Backing::Tview) {
+            introspector = introspector.with_tview(source);
+        }
         let mut query = make_query("events", "Event", source);
         query.auto_params = auto_params;
         if mapped_by_argument {
-            query.arguments.push(ArgumentDefinition::new("occurredAt", FieldType::DateTime));
+            query.arguments.push(ArgumentDefinition::new(field, FieldType::DateTime));
         }
-        let schema = make_schema(vec![make_type("Event", vec![("occurredAt", ty)])], vec![query]);
+        let schema = make_schema(vec![make_type("Event", vec![(field, ty)])], vec![query]);
         validate_schema_against_database(&schema, &introspector).await.unwrap().warnings
+    }
+
+    async fn temporal_report(
+        source: &str,
+        ty: FieldType,
+        auto_params: AutoParams,
+        extra_columns: Vec<(&str, &str, bool)>,
+        mapped_by_argument: bool,
+    ) -> Vec<DatabaseWarning> {
+        temporal_report_for(
+            source,
+            Backing::Tview,
+            "occurredAt",
+            ty,
+            auto_params,
+            extra_columns,
+            mapped_by_argument,
+        )
+        .await
     }
 
     fn sorting() -> AutoParams {
@@ -1042,7 +1093,7 @@ mod database_validator_tests {
         }
     }
 
-    fn temporal_advice(warnings: &[DatabaseWarning]) -> Vec<(&str, &str, &str, bool)> {
+    fn temporal_advice(warnings: &[DatabaseWarning]) -> Vec<(&str, &str, &str, TemporalKeyRemedy)> {
         warnings
             .iter()
             .filter_map(|w| match w {
@@ -1050,13 +1101,23 @@ mod database_validator_tests {
                     query_name,
                     field,
                     column,
-                    column_exists,
+                    remedy,
                     ..
-                } => Some((query_name.as_str(), field.as_str(), column.as_str(), *column_exists)),
+                } => Some((query_name.as_str(), field.as_str(), column.as_str(), *remedy)),
                 _ => None,
             })
             .collect()
     }
+
+    fn temporal_message(warnings: &[DatabaseWarning]) -> String {
+        warnings
+            .iter()
+            .find(|w| matches!(w, DatabaseWarning::TemporalKeyInDocument { .. }))
+            .unwrap_or_else(|| panic!("no temporal advice: {warnings:?}"))
+            .to_string()
+    }
+
+    const TIMESTAMPTZ: &str = "timestamp with time zone";
 
     #[tokio::test]
     async fn a_sorted_datetime_read_from_a_tview_document_is_advised() {
@@ -1064,7 +1125,7 @@ mod database_validator_tests {
             temporal_report("tv_event", FieldType::DateTime, sorting(), vec![], false).await;
         assert_eq!(
             temporal_advice(&warnings),
-            vec![("events", "occurredAt", "occurred_at", false)]
+            vec![("events", "occurredAt", "occurred_at", TemporalKeyRemedy::AddToTview)]
         );
         let advice = warnings
             .iter()
@@ -1082,21 +1143,24 @@ mod database_validator_tests {
         let warnings = temporal_report("tv_event", FieldType::Date, filtering, vec![], false).await;
         assert_eq!(
             temporal_advice(&warnings),
-            vec![("events", "occurredAt", "occurred_at", false)]
+            vec![("events", "occurredAt", "occurred_at", TemporalKeyRemedy::AddToTview)]
         );
     }
 
     #[tokio::test]
     async fn a_column_the_query_does_not_map_yet_is_named_as_existing() {
-        let column = vec![("occurred_at", "timestamp with time zone", false)];
+        let column = vec![("occurred_at", TIMESTAMPTZ, false)];
         let warnings =
             temporal_report("tv_event", FieldType::DateTime, sorting(), column, false).await;
-        assert_eq!(temporal_advice(&warnings), vec![("events", "occurredAt", "occurred_at", true)]);
+        assert_eq!(
+            temporal_advice(&warnings),
+            vec![("events", "occurredAt", "occurred_at", TemporalKeyRemedy::MapColumn)]
+        );
     }
 
     #[tokio::test]
     async fn a_temporal_key_mapped_to_its_native_column_is_not_advised() {
-        let column = vec![("occurred_at", "timestamp with time zone", false)];
+        let column = vec![("occurred_at", TIMESTAMPTZ, false)];
         let warnings =
             temporal_report("tv_event", FieldType::DateTime, sorting(), column, true).await;
         assert!(temporal_advice(&warnings).is_empty(), "{warnings:?}");
@@ -1117,11 +1181,61 @@ mod database_validator_tests {
         assert!(temporal_advice(&warnings).is_empty(), "{warnings:?}");
     }
 
+    /// The remedy follows what the relation is, never its name: a TVIEW is what `pg_tviews`'
+    /// catalog lists, and its `created_at` / `updated_at` are `pg_tviews`' own.
     #[tokio::test]
-    async fn a_relation_that_is_not_a_tview_is_not_advised() {
-        let warnings =
-            temporal_report("v_event", FieldType::DateTime, sorting(), vec![], false).await;
-        assert!(temporal_advice(&warnings).is_empty(), "{warnings:?}");
+    async fn the_advice_follows_what_the_relation_is() {
+        use TemporalKeyRemedy::*;
+        let dated = |c: &'static str| vec![(c, TIMESTAMPTZ, false)];
+        let cases = [
+            ("v_event", Backing::View, "occurredAt", vec![], ExposeFromView),
+            ("v_event", Backing::View, "occurredAt", dated("occurred_at"), MapColumn),
+            ("tv_event", Backing::Table, "occurredAt", vec![], AddToTable),
+            ("event_doc", Backing::Tview, "occurredAt", vec![], AddToTview),
+            ("tv_event", Backing::Tview, "createdAt", dated("created_at"), TviewRowTimestamp),
+            ("tv_event", Backing::Tview, "updatedAt", dated("updated_at"), TviewRowTimestamp),
+            ("tb_event", Backing::Table, "createdAt", dated("created_at"), MapColumn),
+        ];
+        for (source, backing, field, columns, remedy) in cases {
+            let warnings = temporal_report_for(
+                source,
+                backing,
+                field,
+                FieldType::DateTime,
+                sorting(),
+                columns,
+                false,
+            )
+            .await;
+            let column = fraiseql_core::utils::to_snake_case(field);
+            assert_eq!(
+                temporal_advice(&warnings),
+                vec![("events", field, column.as_str(), remedy)],
+                "{source}"
+            );
+            let message = temporal_message(&warnings);
+            assert_eq!(message.contains("TVIEW"), matches!(backing, Backing::Tview), "{message}");
+        }
+    }
+
+    /// Mapping a field to a TVIEW's row timestamp sorts by materialisation time, and its
+    /// definition cannot project another column of that name: the advice offers neither.
+    #[tokio::test]
+    async fn a_tviews_row_timestamp_is_never_offered_as_the_documents_date() {
+        let warnings = temporal_report_for(
+            "tv_event",
+            Backing::Tview,
+            "createdAt",
+            FieldType::DateTime,
+            sorting(),
+            vec![("created_at", TIMESTAMPTZ, false)],
+            false,
+        )
+        .await;
+        let message = temporal_message(&warnings);
+        assert!(message.contains("pg_tviews"), "{message}");
+        assert!(!message.contains("give the query an argument"), "{message}");
+        assert!(!message.contains("to the TVIEW's definition"), "{message}");
     }
 }
 
