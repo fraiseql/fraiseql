@@ -435,6 +435,27 @@ impl Executor {
         u32::try_from(self.ctx.gate1.config().max_depth).unwrap_or(u32::MAX)
     }
 
+    /// `text`, a document stored as `type_name` (a change-log entry's `object_data`, say),
+    /// parsed with each `Decimal` the type holds kept as a string of its stored digits. Decoded
+    /// as a JSON number, `1.50` would lose its scale and a digit past the seventeenth would
+    /// round. A type from which no `Decimal` is reachable is parsed as it is.
+    ///
+    /// # Errors
+    ///
+    /// Returns the parse error when `text` is not JSON.
+    pub fn parse_document(
+        &self,
+        type_name: &str,
+        text: &str,
+    ) -> serde_json::Result<serde_json::Value> {
+        let Some(shape) = self.ctx.decimals.shape(type_name) else {
+            return serde_json::from_str(text);
+        };
+        let mut quoted = Vec::new();
+        crate::backend::traits::quote_decimals(text.as_bytes(), shape, &mut quoted);
+        serde_json::from_slice(&quoted)
+    }
+
     /// Get the compiled schema.
     #[must_use]
     pub fn schema(&self) -> &CompiledSchema {

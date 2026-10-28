@@ -33,7 +33,7 @@ use fraiseql_core::{
     schema::{CompiledSchema, SubscriptionDefinition},
 };
 use fraiseql_server::{
-    observers::runtime::{ObserverRuntime, ObserverRuntimeConfig},
+    observers::runtime::{ObserverRuntime, ObserverRuntimeConfig, decimal_documents},
     routes::subscriptions::{SubscriptionState, subscription_handler},
     subscriptions::{EventBridge, EventBridgeConfig},
 };
@@ -110,7 +110,15 @@ impl Pipeline {
         let bridge = EventBridge::new(Arc::clone(&manager), EventBridgeConfig::new());
         let sender = bridge.sender();
 
-        let config = ObserverRuntimeConfig::new(pool.clone()).with_poll_interval(50);
+        // The executor over the schema: the change log's documents are read as it types them,
+        // as `Server` reads them (#1763), and a planned subscription is planned by it.
+        let executor = Arc::new(fraiseql_core::runtime::Executor::new(
+            schema,
+            Arc::new(fraiseql_test_utils::failing_adapter::FailingAdapter::new()),
+        ));
+        let config = ObserverRuntimeConfig::new(pool.clone())
+            .with_poll_interval(50)
+            .with_documents(decimal_documents(Arc::clone(&executor)));
         let mut runtime = ObserverRuntime::new(config);
         runtime.set_event_bridge_sender(sender);
         runtime.start().await.expect("observer runtime must start");
@@ -119,10 +127,6 @@ impl Pipeline {
         // Production `/ws` handler over the same manager.
         let mut state = SubscriptionState::new(Arc::clone(&manager));
         if planned {
-            let executor = Arc::new(fraiseql_core::runtime::Executor::new(
-                schema,
-                Arc::new(fraiseql_test_utils::failing_adapter::FailingAdapter::new()),
-            ));
             state = state.with_live_executor(Some(Arc::new(move || Arc::clone(&executor))));
         }
         let app = axum::Router::new()
@@ -349,6 +353,66 @@ async fn change_log_burst_beyond_bridge_capacity_is_delivered_completely() {
 // writes a `pending` row, then a `shipped` row, and subscribes for `shipped`: the first
 // frame must be the shipped row. Delivering the pending row first means the filter was
 // not applied, and the subscription silently matched every event.
+
+/// #1763: a `Decimal` in the change log reaches a subscriber as the string of its stored
+/// digits, planned or not: `1.50` keeps its scale, a 22-digit value every digit, and a null
+/// stays null. A `Float` field is a number as before.
+#[tokio::test]
+#[ignore = "requires PostgreSQL"]
+async fn a_subscriber_receives_each_decimal_as_its_stored_digits() {
+    use fraiseql_core::schema::{FieldDefinition, FieldType, TypeDefinition};
+
+    for planned in [false, true] {
+        let test_id = Uuid::new_v4().simple().to_string();
+        let pool = create_test_pool().await;
+        setup_observer_schema(&pool).await.expect("schema setup");
+        let entity_type = format!("Order_{test_id}");
+
+        let mut schema = CompiledSchema::new();
+        let mut order = TypeDefinition::new(entity_type.as_str(), "v_order");
+        order.fields = vec![
+            FieldDefinition::new("id", FieldType::Id),
+            FieldDefinition::nullable("amount", FieldType::Decimal),
+            FieldDefinition::nullable("balance", FieldType::Decimal),
+            FieldDefinition::nullable("discount", FieldType::Decimal),
+            FieldDefinition::nullable("weight", FieldType::Float),
+        ];
+        schema.types.push(order);
+        schema
+            .subscriptions
+            .push(SubscriptionDefinition::new("orderChanged", &entity_type));
+        let pipeline = Pipeline::start_on(&pool, schema, planned).await;
+        let (_sink, mut stream) = subscribe(
+            &pipeline,
+            "subscription { orderChanged { id amount balance discount weight } }",
+        )
+        .await;
+
+        let id = Uuid::new_v4().to_string();
+        insert_change_log_text(
+            &pool,
+            "INSERT",
+            &entity_type,
+            &id,
+            &format!(
+                r#"{{"id": "{id}", "amount": 1.50, "balance": 12345678901234567890.12, "discount": null, "weight": 2.5}}"#
+            ),
+        )
+        .await
+        .expect("insert change log row");
+        let frame = recv_next(&mut stream, std::time::Duration::from_secs(10)).await;
+        pipeline.stop().await;
+        cleanup_test_data(&pool, &test_id).await.ok();
+
+        let data = &frame["payload"]["data"]["orderChanged"];
+        assert_eq!(
+            data,
+            &json!({"id": id, "amount": "1.50", "balance": "12345678901234567890.12",
+                    "discount": null, "weight": 2.5}),
+            "planned: {planned}; frame: {frame}"
+        );
+    }
+}
 
 fn status_subscription(entity_type: &str) -> SubscriptionDefinition {
     let mut definition = SubscriptionDefinition::new("orderStatusChanged", entity_type)

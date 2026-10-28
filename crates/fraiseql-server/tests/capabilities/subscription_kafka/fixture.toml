@@ -10,7 +10,7 @@ FRAISEQL_ENV = "development"
 FRAISEQL_KAFKA_ALLOW_PLAINTEXT = "true"
 
 [[stimulus]]
-subscribe = { path = "/ws", query = "subscription { noteCreated { id title } }" }
+subscribe = { path = "/ws", query = "subscription { noteCreated { id title price balance discount } }" }
 
 # `subscribe` has no acknowledgement in graphql-transport-ws: give the server a moment to
 # register it before the change arrives, which is delivered only to live subscribers.
@@ -18,7 +18,9 @@ subscribe = { path = "/ws", query = "subscription { noteCreated { id title } }" 
 wait = { secs = 1 }
 
 [[stimulus]]
-sql = { statement = "INSERT INTO core.tb_entity_change_log (object_type, modification_type, object_id, object_data) VALUES ('Note', 'INSERT', '6f1c4d0e-8a51-4c36-9d1e-2b7f0a3c5e91', '{\"id\": \"6f1c4d0e-8a51-4c36-9d1e-2b7f0a3c5e91\", \"title\": \"mirrored\"}')" }
+sql = { statement = "INSERT INTO core.tb_entity_change_log (object_type, modification_type, object_id, object_data) VALUES ('Note', 'INSERT', '6f1c4d0e-8a51-4c36-9d1e-2b7f0a3c5e91', '{\"id\": \"6f1c4d0e-8a51-4c36-9d1e-2b7f0a3c5e91\", \"title\": \"mirrored\", \"price\": 1.50, \"balance\": 12345678901234567890.12, \"discount\": null}')" }
 
 [effect]
-kafka = { subscription = "noteCreated", count = 1 }
+# The mirrored delivery's `data`, as JSON text: each Decimal is the string of its stored
+# digits, and a null one stays null.
+kafka = { subscription = "noteCreated", count = 1, data = '{"id": "6f1c4d0e-8a51-4c36-9d1e-2b7f0a3c5e91", "title": "mirrored", "price": "1.50", "balance": "12345678901234567890.12", "discount": null}' }

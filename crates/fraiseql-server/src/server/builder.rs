@@ -669,6 +669,7 @@ impl Server {
             executor.schema().observers_config.as_ref(),
             db_pool.as_ref(),
             deployment,
+            crate::observers::runtime::decimal_documents(Arc::clone(&executor)),
         )
         .await?;
 

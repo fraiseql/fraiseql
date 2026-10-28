@@ -17,6 +17,7 @@ fn tail(floor: i64, delivered: &[i64]) -> ChangeLogTail {
         delivered: delivered.iter().copied().collect(),
         pending: std::collections::VecDeque::new(),
         warned: false,
+        documents: super::DocumentDecoder::plain(),
     }
 }
 

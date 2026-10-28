@@ -44,7 +44,7 @@ use fraiseql_core::{
     schema::RestConfig,
 };
 use fraiseql_server::{
-    observers::runtime::{ObserverRuntime, ObserverRuntimeConfig},
+    observers::runtime::{ObserverRuntime, ObserverRuntimeConfig, decimal_documents},
     routes::{
         graphql::AppState,
         rest::{RestMountConfig, resource::RestRouteTable, rest_query_router},
@@ -61,10 +61,6 @@ use uuid::Uuid;
 /// How long to wait for one SSE frame. Generous: the runtime polls the change log
 /// every 50 ms and the webhook round-trips through wiremock.
 const FRAME_TIMEOUT: Duration = Duration::from_secs(15);
-
-/// The listener identity `ObserverRuntimeConfig::new` polls under, and therefore the
-/// ledger a resumed stream reads its delivery order from.
-const DEFAULT_LISTENER_ID: &str = "change_log";
 
 /// The full production wiring, assembled the way `server/lifecycle.rs` and
 /// `server/routing/state.rs` do it between them: one fan-out handle, given to the
@@ -146,23 +142,25 @@ impl Rig {
             .with_entity_fanout(fanout.clone());
         let sender = bridge.sender();
 
-        let config = ObserverRuntimeConfig::new(pool.clone()).with_poll_interval(50);
+        let url = try_database_url().expect("DATABASE_URL");
+        let adapter = Arc::new(PostgresAdapter::new(&url).await.expect("connect"));
+        let executor = Arc::new(Executor::new(schema, adapter));
+
+        // The change log's documents are read as `Server` reads them: as the schema types
+        // them, so a `Decimal` keeps its digits (#1763).
+        let config = ObserverRuntimeConfig::new(pool.clone())
+            .with_poll_interval(50)
+            .with_documents(decimal_documents(Arc::clone(&executor)));
         let mut runtime = ObserverRuntime::new(config);
         runtime.set_event_bridge_sender(sender);
         runtime.start().await.expect("observer runtime must start");
         let bridge_handle = bridge.spawn();
 
-        let url = try_database_url().expect("DATABASE_URL");
-        let adapter = Arc::new(PostgresAdapter::new(&url).await.expect("connect"));
-        let executor = Arc::new(Executor::new(schema, adapter));
-        // The reader a resumed stream catches up from (#1310), keyed on the listener id
-        // this runtime polls under — `Server` derives exactly this from the runtime, and
-        // a reader keyed on any other id would answer for a delivery order this
-        // deployment never had.
-        let replay = std::sync::Arc::new(fraiseql_observers::listener::ChangeLogReplayReader::new(
-            pool.clone(),
-            DEFAULT_LISTENER_ID.to_string(),
-        ));
+        // The reader a resumed stream catches up from (#1310), derived from the runtime as
+        // `Server` derives it: keyed on the listener id the runtime polls under (a reader
+        // keyed on any other id would answer for a delivery order this deployment never
+        // had), and reading documents as the runtime does.
+        let replay = runtime.stream_replay_reader().expect("a PostgreSQL change-log runtime");
         let state = AppState::new(executor)
             .with_entity_event_fanout(fanout)
             .with_stream_replay(replay);
@@ -348,6 +346,83 @@ async fn an_open_stream_does_not_stop_the_observer_from_firing() {
     wait_for_webhook(&mock_server, 1, Duration::from_secs(15)).await;
     let requests = mock_server.received_requests().await;
     assert_eq!(requests.len(), 1, "the observer must have fired exactly once");
+
+    rig.stop().await;
+    cleanup_test_data(&pool, &test_id).await.ok();
+}
+
+/// #1763: a `Decimal` in a change-log document keeps its stored digits on every reader of
+/// the log. The observer's webhook (the listener), the live stream (the subscription tail)
+/// and a resumed stream (the replay reader) each carry `1.50` with its scale and a 22-digit
+/// value whole, where a JSON number would give `1.5` and an `f64` rounding.
+#[tokio::test]
+#[ignore = "requires PostgreSQL"]
+async fn a_decimal_keeps_its_digits_on_every_reader_of_the_change_log() {
+    let test_id = Uuid::new_v4().simple().to_string();
+    let pool = create_test_pool().await;
+    setup_observer_schema(&pool).await.expect("schema setup");
+
+    let entity_type = format!("Order_{test_id}");
+    let mock_server = MockWebhookServer::start().await;
+    mock_server.mock_success().await;
+    create_test_observer(
+        &pool,
+        &format!("stream-decimal-{test_id}"),
+        Some(&entity_type),
+        Some("INSERT"),
+        None,
+        &mock_server.webhook_url(),
+    )
+    .await
+    .expect("create observer");
+
+    let rig = Rig::start_with(&pool, &entity_type, |schema| {
+        schema.types[0].fields.push(
+            TestFieldBuilder::nullable("amount", fraiseql_core::schema::FieldType::Decimal).build(),
+        );
+    })
+    .await;
+    let document = |id: &str, amount: &str| {
+        format!(r#"{{"id": "{id}", "status": "placed", "amount": {amount}}}"#)
+    };
+
+    // Live: the stream and the observer's webhook.
+    let mut stream = rig.open_stream().await;
+    let live_id = Uuid::new_v4().to_string();
+    insert_change_log_text(&pool, "INSERT", &entity_type, &live_id, &document(&live_id, "1.50"))
+        .await
+        .expect("insert the live row");
+    let frames = stream.read_until(&live_id, FRAME_TIMEOUT).await;
+    assert!(
+        frames.contains(r#""amount":"1.50""#),
+        "the live frame must carry the Decimal's digits, got:\n{frames}"
+    );
+    wait_for_webhook(&mock_server, 1, Duration::from_secs(15)).await;
+    let bodies = mock_server.received_requests().await;
+    assert!(
+        bodies.iter().any(|body| body.to_string().contains(r#""amount":"1.50""#)),
+        "the observer's webhook must carry the Decimal's digits, got: {bodies:?}"
+    );
+    let last_event_id = wire_id_of(&frames, &live_id);
+    drop(stream);
+
+    // Replayed: a row written while the client was away.
+    let missed_id = Uuid::new_v4().to_string();
+    insert_change_log_text(
+        &pool,
+        "INSERT",
+        &entity_type,
+        &missed_id,
+        &document(&missed_id, "12345678901234567890.12"),
+    )
+    .await
+    .expect("insert the missed row");
+    let mut resumed = rig.resume_stream(&last_event_id).await;
+    let replayed = resumed.read_until(&missed_id, FRAME_TIMEOUT).await;
+    assert!(
+        replayed.contains(r#""amount":"12345678901234567890.12""#),
+        "the replayed frame must carry every digit, got:\n{replayed}"
+    );
 
     rig.stop().await;
     cleanup_test_data(&pool, &test_id).await.ok();

@@ -178,6 +178,7 @@ impl Server {
         compiled: Option<&fraiseql_core::schema::ObserversConfig>,
         pool: Option<&sqlx::PgPool>,
         deployment: Deployment,
+        documents: fraiseql_observers::listener::DocumentDecoder,
     ) -> crate::Result<Option<Arc<RwLock<ObserverRuntime>>>> {
         let enabled = crate::server_config::ObserverConfig::runtime_enabled(
             config.observers.as_ref(),
@@ -199,7 +200,8 @@ impl Server {
         info!("Initializing observer runtime");
 
         let runtime_config =
-            Self::observer_runtime_config(observer_config, compiled, pool, deployment)?;
+            Self::observer_runtime_config(observer_config, compiled, pool, deployment)?
+                .with_documents(documents);
         let runtime = ObserverRuntime::new(runtime_config);
         Ok(Some(Arc::new(RwLock::new(runtime))))
     }

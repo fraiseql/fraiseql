@@ -26,7 +26,7 @@ pub mod replay;
 pub mod tail;
 
 #[cfg(feature = "postgres")]
-pub use change_log::{ChangeLogEntry, ChangeLogListener, ChangeLogListenerConfig};
+pub use change_log::{ChangeLogEntry, ChangeLogListener, ChangeLogListenerConfig, DocumentDecoder};
 pub use lease::CheckpointLease;
 #[cfg(feature = "postgres")]
 pub use replay::{ChangeLogReplayReader, ReplayScope, ReplayedEvent, ResumeAnchor, ResumePosition};

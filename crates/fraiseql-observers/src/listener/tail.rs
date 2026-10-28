@@ -45,7 +45,7 @@ use std::{
 use sqlx::{PgPool, Postgres, Transaction};
 use tracing::warn;
 
-use super::change_log::{CHANGE_LOG_PROJECTION, ChangeLogEntry, ChangeLogRow};
+use super::change_log::{CHANGE_LOG_PROJECTION, ChangeLogEntry, ChangeLogRow, DocumentDecoder};
 use crate::error::{ObserverError, Result};
 
 /// How long a floor candidate waits before it may be applied, and how far back the
@@ -86,6 +86,7 @@ pub struct ChangeLogTail {
     delivered:  BTreeSet<i64>,
     pending:    VecDeque<FloorCandidate>,
     warned:     bool,
+    documents:  DocumentDecoder,
 }
 
 impl ChangeLogTail {
@@ -138,7 +139,15 @@ impl ChangeLogTail {
             delivered: seen.into_iter().collect(),
             pending: VecDeque::new(),
             warned: false,
+            documents: DocumentDecoder::plain(),
         })
+    }
+
+    /// Parse the change log's documents with `documents`.
+    #[must_use]
+    pub fn with_documents(mut self, documents: DocumentDecoder) -> Self {
+        self.documents = documents;
+        self
     }
 
     /// The committed rows this process has not handed out yet, in pk order, at most
@@ -183,9 +192,9 @@ impl ChangeLogTail {
             .into_iter()
             .map(|row| {
                 self.delivered.insert(row.pk_entity_change_log);
-                ChangeLogEntry::from(row)
+                row.into_entry(&self.documents)
             })
-            .collect();
+            .collect::<Result<Vec<_>>>()?;
         self.advance(&horizon, Instant::now());
         Ok(entries)
     }

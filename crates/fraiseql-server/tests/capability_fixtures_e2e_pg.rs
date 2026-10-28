@@ -363,10 +363,13 @@ enum Effect {
         subject_prefix: String,
         count:          usize,
     },
-    /// At least `count` messages naming `subscription` are on the run's `$KAFKA_TOPIC`.
+    /// At least `count` messages naming `subscription` are on the run's `$KAFKA_TOPIC`; with
+    /// `data`, JSON text, one of them carries exactly that as its `data`.
     Kafka {
         subscription: String,
         count:        usize,
+        #[serde(default)]
+        data:         Option<String>,
     },
     /// The harness's receiver (`$RECEIVER_URL`) was sent at least `count` requests for
     /// `path`, as an observer's webhook action sends them.
@@ -584,9 +587,8 @@ async fn create_topic(topic: &str) -> Result<(), String> {
     Ok(())
 }
 
-/// The `subscription_name` of every message on `topic`, read from the start by a consumer
-/// of its own.
-async fn topic_subscriptions(topic: &str) -> Result<Vec<String>, String> {
+/// Every message on `topic`, as JSON, read from the start by a consumer of its own.
+async fn topic_messages(topic: &str) -> Result<Vec<Value>, String> {
     use fraiseql_kafka::rdkafka::{
         ClientConfig, Message as _,
         consumer::{Consumer as _, StreamConsumer},
@@ -599,16 +601,17 @@ async fn topic_subscriptions(topic: &str) -> Result<Vec<String>, String> {
         .create()
         .map_err(|e| format!("Kafka consumer: {e}"))?;
     consumer.subscribe(&[topic]).map_err(|e| format!("subscribe to {topic}: {e}"))?;
-    let mut names = Vec::new();
+    let mut messages = Vec::new();
     // Until the topic has been quiet for a while: the first poll also waits out the group join.
     while let Ok(received) = tokio::time::timeout(Duration::from_secs(3), consumer.recv()).await {
         let Ok(message) = received else { continue };
-        let payload: Value = message
-            .payload()
-            .map_or(Value::Null, |bytes| serde_json::from_slice(bytes).unwrap_or(Value::Null));
-        names.push(payload["subscription_name"].as_str().unwrap_or("<none>").to_owned());
+        messages.push(
+            message
+                .payload()
+                .map_or(Value::Null, |bytes| serde_json::from_slice(bytes).unwrap_or(Value::Null)),
+        );
     }
-    Ok(names)
+    Ok(messages)
 }
 
 /// The test mail server a fixture that needs one is given, by `GREENMAIL_<key>`.
@@ -1324,16 +1327,26 @@ async fn observe(
         Effect::Kafka {
             subscription,
             count,
+            data,
         } => {
-            let names = topic_subscriptions(&served.kafka_topic).await?;
-            let hits = names.iter().filter(|name| *name == subscription).count();
-            if hits >= *count {
+            let messages = topic_messages(&served.kafka_topic).await?;
+            let hits: Vec<&Value> =
+                messages.iter().filter(|m| m["subscription_name"] == **subscription).collect();
+            if hits.len() < *count {
+                return Err(format!(
+                    "{} message(s) for {subscription} on {}, not {count}: {messages:?}",
+                    hits.len(),
+                    served.kafka_topic
+                ));
+            }
+            let Some(data) = data else { return Ok(()) };
+            let want: Value =
+                serde_json::from_str(data).map_err(|e| format!("kafka.data is not JSON: {e}"))?;
+            if hits.iter().any(|m| m["data"] == want) {
                 Ok(())
             } else {
-                Err(format!(
-                    "{hits} message(s) for {subscription} on {}, not {count}: {names:?}",
-                    served.kafka_topic
-                ))
+                let got: Vec<&Value> = hits.iter().map(|m| &m["data"]).collect();
+                Err(format!("no {subscription} message carries data {want}: {got:?}"))
             }
         },
         Effect::Received { path, count } => {

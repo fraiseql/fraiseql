@@ -26,7 +26,7 @@ use fraiseql_observers::{
         CheckpointState as ObserverCheckpointState, CheckpointStore, PostgresCheckpointStore,
     },
     config::{EmailSmtpConfig, TransportConfig, TransportKind},
-    listener::ChangeLogTail,
+    listener::{ChangeLogTail, DocumentDecoder},
     transport::{EventFilter, EventStream, EventTransport},
 };
 use futures::StreamExt;
@@ -192,6 +192,21 @@ pub struct ObserverRuntimeConfig {
     /// The invalidator reads `url`, `connect_timeout_secs` and
     /// `command_timeout_secs`; the dedup and result-cache fields are unused here.
     pub redis: Option<fraiseql_observers::config::RedisConfig>,
+
+    /// How the change log's documents are parsed, by every reader of it: the observer
+    /// listener, the subscription tail and the REST stream's replay. The server's keeps each
+    /// `Decimal`'s stored digits ([`decimal_documents`]).
+    pub documents: DocumentDecoder,
+}
+
+/// The change log's documents parsed as `executor`'s schema types them: each `Decimal` kept
+/// as a string of its stored digits, which a decoded JSON number would round.
+///
+/// Bound to the executor the server boots with, as the subscription manager is bound to the
+/// schema it boots with.
+#[must_use]
+pub fn decimal_documents(executor: Arc<fraiseql_core::runtime::Executor>) -> DocumentDecoder {
+    DocumentDecoder::new(move |object_type, text| executor.parse_document(object_type, text))
 }
 
 impl ObserverRuntimeConfig {
@@ -211,7 +226,15 @@ impl ObserverRuntimeConfig {
             log_payloads: false,
             listener_id: "change_log".to_string(),
             redis: None,
+            documents: DocumentDecoder::plain(),
         }
+    }
+
+    /// Set how the change log's documents are parsed.
+    #[must_use]
+    pub fn with_documents(mut self, documents: DocumentDecoder) -> Self {
+        self.documents = documents;
+        self
     }
 
     /// Set the Redis backend backing `cache`/`invalidate` actions (#985).
@@ -652,7 +675,8 @@ impl ObserverRuntime {
         let mut listener_config = ChangeLogListenerConfig::new(self.config.pool.clone())
             .with_poll_interval(self.config.poll_interval_ms)
             .with_batch_size(self.config.batch_size)
-            .with_listener_id(self.config.listener_id.clone());
+            .with_listener_id(self.config.listener_id.clone())
+            .with_documents(self.config.documents.clone());
         if let Some(state) = &restored {
             listener_config = listener_config.with_resume_from(state.last_processed_id);
         }
@@ -710,7 +734,8 @@ impl ObserverRuntime {
                     ServerError::ConfigError(format!(
                         "failed to start the subscription fan-out reader: {e}"
                     ))
-                })?;
+                })?
+                .with_documents(self.config.documents.clone());
             self.fanout_handle = Some(tokio::spawn(run_change_log_fanout(
                 tail,
                 sender,
@@ -1259,12 +1284,13 @@ impl ObserverRuntime {
         &self,
     ) -> Option<Arc<fraiseql_observers::listener::ChangeLogReplayReader>> {
         match listener_selection(self.config.transport.transport) {
-            ListenerSelection::PostgresChangeLog => {
-                Some(Arc::new(fraiseql_observers::listener::ChangeLogReplayReader::new(
+            ListenerSelection::PostgresChangeLog => Some(Arc::new(
+                fraiseql_observers::listener::ChangeLogReplayReader::new(
                     self.config.pool.clone(),
                     self.config.listener_id.clone(),
-                )))
-            },
+                )
+                .with_documents(self.config.documents.clone()),
+            )),
             ListenerSelection::TransportStream => None,
         }
     }

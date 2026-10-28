@@ -340,6 +340,35 @@ pub async fn insert_change_log_entry(
     Ok(row.0)
 }
 
+/// [`insert_change_log_entry`] with the after-image as JSON text, stored as written: a
+/// `serde_json::Value` cannot hold `1.50` or a 20-digit number, the `Decimal`s a change-log
+/// reader must keep (#1763).
+pub async fn insert_change_log_text(
+    pool: &PgPool,
+    event_type: &str,
+    entity_type: &str,
+    entity_id: &str,
+    data: &str,
+) -> Result<i64, sqlx::Error> {
+    let row: (i64,) = sqlx::query_as(
+        r"
+        INSERT INTO core.tb_entity_change_log (
+            object_type, object_id, modification_type, object_data
+        )
+        VALUES ($1, $2::uuid, $3, $4::jsonb)
+        RETURNING pk_entity_change_log
+        ",
+    )
+    .bind(entity_type)
+    .bind(entity_id)
+    .bind(event_type)
+    .bind(data)
+    .fetch_one(pool)
+    .await?;
+
+    Ok(row.0)
+}
+
 /// Panic, naming the exports, unless the outbound SSRF bypass is in force.
 ///
 /// The mock webhook server binds loopback, and the observer dispatch path's SSRF

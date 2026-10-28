@@ -57,7 +57,7 @@ compile_error!(
 use chrono::{DateTime, Utc};
 use sqlx::postgres::PgPool;
 
-use super::change_log::{CHANGE_LOG_PROJECTION, ChangeLogEntry, ChangeLogRow};
+use super::change_log::{CHANGE_LOG_PROJECTION, ChangeLogRow, DocumentDecoder};
 use crate::{
     error::{ObserverError, Result},
     event::EntityEvent,
@@ -132,6 +132,7 @@ pub struct ReplayedEvent {
 pub struct ChangeLogReplayReader {
     pool:        PgPool,
     listener_id: String,
+    documents:   DocumentDecoder,
 }
 
 /// One replay row: the contract columns plus the ledger position that ordered them.
@@ -152,8 +153,20 @@ impl ChangeLogReplayReader {
     /// through a load balancer to a different replica resumes from the same recorded
     /// order, which is what an in-process replay buffer could never offer (#874).
     #[must_use]
-    pub const fn new(pool: PgPool, listener_id: String) -> Self {
-        Self { pool, listener_id }
+    pub fn new(pool: PgPool, listener_id: String) -> Self {
+        Self {
+            pool,
+            listener_id,
+            documents: DocumentDecoder::plain(),
+        }
+    }
+
+    /// Parse the change log's documents with `documents`, as the live path does, so a
+    /// replayed event and the live one for the same row are the same value.
+    #[must_use]
+    pub fn with_documents(mut self, documents: DocumentDecoder) -> Self {
+        self.documents = documents;
+        self
     }
 
     /// Resolve a client's `Last-Event-ID` to a position in the delivery order.
@@ -372,7 +385,7 @@ impl ChangeLogReplayReader {
                         dispatched_at: None,
                         pk,
                     },
-                    event:    ChangeLogEntry::from(row).to_entity_event()?,
+                    event:    row.into_entry(&self.documents)?.to_entity_event()?,
                 })
             })
             .collect()
@@ -437,7 +450,7 @@ impl ChangeLogReplayReader {
                             dispatched_at: Some(dispatched_at),
                             pk,
                         },
-                        event:    ChangeLogEntry::from(row).to_entity_event()?,
+                        event:    row.into_entry(&self.documents)?.to_entity_event()?,
                     })
                 })
                 .collect()
@@ -475,7 +488,7 @@ impl ChangeLogReplayReader {
                             dispatched_at: None,
                             pk,
                         },
-                        event:    ChangeLogEntry::from(row).to_entity_event()?,
+                        event:    row.into_entry(&self.documents)?.to_entity_event()?,
                     })
                 })
                 .collect()

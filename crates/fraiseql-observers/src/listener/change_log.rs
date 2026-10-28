@@ -39,6 +39,7 @@ compile_error!(
 
 use std::{
     collections::{HashMap, VecDeque},
+    sync::Arc,
     time::{Duration, Instant},
 };
 
@@ -87,10 +88,13 @@ pub(crate) struct ChangeLogRow {
     pub(crate) object_id:            Uuid, // public-facing UUID
     pub(crate) modification_type:    String,
     pub(crate) change_status:        Option<String>,
-    pub(crate) object_data:          Option<Value>, /* nullable on the contract (the
-                                                     * after-image) */
-    pub(crate) object_data_before:   Option<Value>, /* the pre-image (changelog_pre_image);
-                                                     * NULL unless opted in */
+    // The two documents are read as the text the database stored, and parsed by a
+    // [`DocumentDecoder`]: decoded straight into a `Value`, every number in them would be an
+    // `f64`, and a `Decimal` would lose its scale and every digit past the seventeenth.
+    pub(crate) object_data:          Option<String>, /* nullable on the contract (the
+                                                      * after-image) */
+    pub(crate) object_data_before:   Option<String>, /* the pre-image (changelog_pre_image);
+                                                      * NULL unless opted in */
     pub(crate) extra_metadata:       Option<Value>,
     pub(crate) created_at:           Option<DateTime<Utc>>,
     pub(crate) tenant_id:            Option<Uuid>, // public-facing UUID partition stamp
@@ -120,8 +124,8 @@ pub(crate) const CHANGE_LOG_PROJECTION: &str = "
                     e.object_id,
                     e.modification_type,
                     e.change_status,
-                    e.object_data,
-                    e.object_data_before,
+                    e.object_data::text AS object_data,
+                    e.object_data_before::text AS object_data_before,
                     e.extra_metadata,
                     e.created_at,
                     e.tenant_id,
@@ -131,15 +135,67 @@ pub(crate) const CHANGE_LOG_PROJECTION: &str = "
                     e.acting_for,
                     e.schema_version";
 
-impl From<ChangeLogRow> for ChangeLogEntry {
-    /// The one projection from a contract row to the entry every consumer sees.
+/// Parses a change-log document (`object_data`, `object_data_before`) from the text the
+/// database stored, given the entity type it was written as.
+///
+/// The server supplies one built from its schema, which keeps each `Decimal` as a string of
+/// its stored digits. [`DocumentDecoder::plain`], the default, parses the text as it
+/// is, so a number is whatever JSON decodes it to.
+#[derive(Clone)]
+pub struct DocumentDecoder(Arc<dyn Fn(&str, &str) -> serde_json::Result<Value> + Send + Sync>);
+
+impl DocumentDecoder {
+    /// A decoder that parses a document stored as an entity type (the first argument) from
+    /// its text (the second).
+    pub fn new(
+        parse: impl Fn(&str, &str) -> serde_json::Result<Value> + Send + Sync + 'static,
+    ) -> Self {
+        Self(Arc::new(parse))
+    }
+
+    /// Parse the text as it is, whatever the entity type.
+    #[must_use]
+    pub fn plain() -> Self {
+        Self::new(|_, text| serde_json::from_str(text))
+    }
+
+    fn decode(&self, object_type: &str, text: Option<String>) -> Result<Option<Value>> {
+        text.map(|text| {
+            (self.0)(object_type, &text).map_err(|e| ObserverError::DeserializationError {
+                raw:    text.into_bytes(),
+                reason: format!("change-log document of {object_type}: {e}"),
+            })
+        })
+        .transpose()
+    }
+}
+
+impl Default for DocumentDecoder {
+    fn default() -> Self {
+        Self::plain()
+    }
+}
+
+impl std::fmt::Debug for DocumentDecoder {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("DocumentDecoder")
+    }
+}
+
+impl ChangeLogRow {
+    /// The one projection from a contract row to the entry every consumer sees, its
+    /// documents parsed by `documents`.
     ///
     /// Extracted from `next_batch` when the resume reader (#1310) became a second
     /// reader of the same table: a replayed event and the live event for the same row
     /// must be the same value, and the only way to guarantee that is for one function
     /// to produce both.
-    fn from(row: ChangeLogRow) -> Self {
-        let ChangeLogRow {
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ObserverError::DeserializationError`] when a document does not parse.
+    pub(crate) fn into_entry(self, documents: &DocumentDecoder) -> Result<ChangeLogEntry> {
+        let Self {
             pk_entity_change_log,
             id,
             fk_customer_org,
@@ -158,9 +214,11 @@ impl From<ChangeLogRow> for ChangeLogEntry {
             actor_type,
             acting_for,
             schema_version,
-        } = row;
+        } = self;
 
-        Self {
+        let object_data = documents.decode(&object_type, object_data)?;
+        let object_data_before = documents.decode(&object_type, object_data_before)?;
+        Ok(ChangeLogEntry {
             id: pk_entity_change_log,
             pk_entity_change_log: id.to_string(),
             // BIGINT/UUID contract values projected into the string-typed
@@ -186,7 +244,7 @@ impl From<ChangeLogRow> for ChangeLogEntry {
             acting_for: acting_for.map(|u| u.to_string()),
             // #377 producer schema version (TEXT) — already string-typed.
             schema_version,
-        }
+        })
     }
 }
 
@@ -223,6 +281,10 @@ pub struct ChangeLogListenerConfig {
     /// The sweep is the safety net for a transaction that outlived
     /// `commit_lag_window`; each row it finds is reported at `WARN`.
     pub sweep_every: u64,
+
+    /// How the change log's documents are parsed: the server's keeps each `Decimal`'s
+    /// digits.
+    pub documents: DocumentDecoder,
 }
 
 /// Default bound on how long after `created_at` a writing transaction may commit
@@ -248,7 +310,15 @@ impl ChangeLogListenerConfig {
             listener_id: DEFAULT_LISTENER_ID.to_string(),
             commit_lag_window: DEFAULT_COMMIT_LAG_WINDOW,
             sweep_every: DEFAULT_SWEEP_EVERY,
+            documents: DocumentDecoder::plain(),
         }
+    }
+
+    /// Set how the change log's documents are parsed.
+    #[must_use]
+    pub fn with_documents(mut self, documents: DocumentDecoder) -> Self {
+        self.documents = documents;
+        self
     }
 
     /// Set the stable listener identity keying the dispatch ledger (#935).
@@ -841,7 +911,7 @@ impl ChangeLogListener {
                 late_recovered += 1;
             }
 
-            entries.push(ChangeLogEntry::from(row));
+            entries.push(row.into_entry(&self.config.documents)?);
 
             // Advance the scan bound and suppress in-process re-delivery until
             // the driver records the dispatch (or the window lapses).

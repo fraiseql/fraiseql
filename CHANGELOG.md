@@ -44,8 +44,12 @@ disagreed, and the promise was the part that was wrong.
   Federation `_entities` answers a `Decimal` the same way, from a `data`-jsonb view and from
   a flat `numeric` column, and an entity is the same bytes a query reads for its row (#1764).
 
+  Every reader of the change log answers a `Decimal` the same way, from the document as
+  stored: a subscription delivery and its Kafka mirror, a REST stream's live and resumed
+  frames, and an observer's action payload, a webhook body included (#1763). The document
+  is read as the type the row names, by the schema the server boots with.
+
   Not yet covered, each under its own issue:
-  - subscription and change-log payloads (#1763);
   - gRPC (#1765);
   - Arrow Flight (#1766).
 - **The federation service SDL requires an authenticated caller by default (#1717).**
