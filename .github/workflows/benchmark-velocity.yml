@@ -3,8 +3,8 @@ name: Velocitybench (forge, report-only)
 # Measures the release candidate against velocitybench's FraiseQL scenarios on forge,
 # and attaches the numbers to the run. It never blocks a release: a regression is
 # reported, not failed, and no release step waits on this workflow. The job goes red
-# only when the harness itself breaks, so a broken benchmark is seen, not mistaken
-# for a quiet one.
+# only when the harness itself breaks, a run that measured nothing among them, so a
+# broken benchmark is seen, not mistaken for a quiet one.
 #
 #   1. Build fraiseql-cli and fraiseql-server (release) from this commit on a hosted
 #      runner, never on forge. Its glibc (Ubuntu 24.04, 2.39) is below the FraiseQL
@@ -161,9 +161,11 @@ jobs:
           docker network inspect velocitybench-benchmark > /dev/null 2>&1 \
             || docker network create velocitybench-benchmark
           docker compose up -d --build postgres
+          # Over TCP: while the image's init scripts seed the dataset, its temporary server
+          # listens on the unix socket only, so a socket probe answers "ready" mid-seed.
           for _ in $(seq 1 120); do
-            if docker compose exec -T postgres \
-                pg_isready -U benchmark -d velocitybench_benchmark -q; then
+            if docker compose exec -T postgres pg_isready -h 127.0.0.1 \
+                -U benchmark -d velocitybench_benchmark -q; then
               echo "PostgreSQL ready"
               docker compose exec -T postgres psql -U benchmark -d velocitybench_benchmark \
                 -Atc 'select version()'
@@ -174,6 +176,36 @@ jobs:
           docker compose logs postgres | tail -50
           echo "::error::velocitybench's database did not become ready"
           exit 1
+
+      - name: Build the measured FraiseQL services and place their compiled schemas
+        working-directory: velocitybench
+        run: |
+          # velocitybench's FraiseQL services compile their schema inside the image, but
+          # its compose file mounts a host-side schema*.compiled.json over the image's
+          # copy, and that file is gitignored. A missing mount source becomes an empty
+          # directory and the service never boots, so copy each image's own compiled
+          # schema to the path its service mounts.
+          services="$(python3 -c '
+          import sys
+          sys.path.insert(0, "tests/benchmark")
+          from bench_sequential import FRAMEWORKS
+          print(" ".join(FRAMEWORKS[f.strip()]["compose_service"] for f in sys.argv[1].split(",")))
+          ' "$BENCH_FRAMEWORKS")"
+          for service in $services; do
+            docker compose --profile "*" build "$service"
+            mount="$(docker compose --profile "*" config --format json | python3 -c '
+          import json, sys
+          service = json.load(sys.stdin)["services"][sys.argv[1]]
+          print(next((v["source"] for v in service.get("volumes", [])
+                      if v.get("target") == "/app/schema.compiled.json"), ""))
+          ' "$service")"
+            [ -n "$mount" ] || continue
+            image="$(docker compose --profile "*" config --images "$service" | grep -F -- "$service")"
+            container="$(docker create "$image")"
+            docker cp -q "$container:/app/schema.compiled.json" "$mount"
+            docker rm "$container" > /dev/null
+            echo "$service: $(wc -c < "$mount") bytes of compiled schema at $mount"
+          done
 
       - name: Wait for a quiet window on forge
         id: quiet
@@ -226,6 +258,13 @@ jobs:
             1) echo "::warning::slower than benchmarks/baseline.json; see the report" ;;
             *) exit "$rc" ;;
           esac
+
+      # A run that measured nothing is a broken harness (a service that never booted
+      # records every query as skipped and still exits 0), not a quiet result: fail it.
+      # "Skipped: not quiet" never reaches this step.
+      - name: Require a measurement
+        if: steps.quiet.outputs.measure == 'true'
+        run: python3 -I tools/bench-require-measured.py "$RUNNER_TEMP/bench-results.json"
 
       - name: Summary
         if: always()

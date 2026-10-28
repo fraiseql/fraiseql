@@ -523,6 +523,8 @@ func (m *FraiseqlCi) ShellGates(
 		"bash tools/tests/bench_quiet_window_test.sh",
 		// A velocitybench baseline compares only on the host that measured it.
 		"bash tools/tests/detect_regression_host_test.sh",
+		// A velocitybench run that measured nothing fails the release benchmark.
+		"bash tools/tests/bench_require_measured_test.sh",
 		// A bare `image: fraiseql:...` in a fenced code block resolves to
 		// docker.io/library/fraiseql, which this project cannot publish to — #1129's
 		// defect, in the one place the file-level gates do not read (#1220).
