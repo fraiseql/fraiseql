@@ -1418,3 +1418,84 @@ fn a_deprecated_type_field_reaches_the_compiled_schema() {
 
     assert!(field("id").deprecation.is_none(), "an undecorated field is not deprecated");
 }
+
+// ===========================================================================
+// #1837 — the sections that refuse an unknown key still load what compile writes
+// ===========================================================================
+
+/// `[grpc]`, `[session_variables]`, `[changelog]` and `[hierarchies]` refuse a key their
+/// types do not declare, and the same types are read back from `schema.compiled.json`. What
+/// `fraiseql compile` writes for each must therefore still load, values intact.
+#[test]
+fn what_compile_writes_for_the_strict_sections_loads() {
+    let dir = TempDir::new().unwrap();
+    fs::write(
+        dir.path().join("fraiseql.toml"),
+        r#"
+[schema]
+name = "s"
+version = "1.0.0"
+database_target = "postgresql"
+
+[types.User]
+sql_source = "v_user"
+[types.User.fields.id]
+type = "ID"
+nullable = false
+
+[grpc]
+enabled = true
+descriptor_path = "api.binpb"
+stream_batch_size = 250
+
+[session_variables]
+inject_started_at = false
+[[session_variables.variables]]
+name = "app.tenant_id"
+source = "jwt"
+claim = "tenant_id"
+
+[changelog]
+read_role = "auditor"
+max_limit = 50
+
+[crud]
+function_schema = "app"
+
+[hierarchies.org]
+table = "tb_org"
+path_column = "path"
+"#,
+    )
+    .unwrap();
+
+    let artifact = compile_artifact(
+        SchemaMerger::merge_toml_only(&as_str(&dir.path().join("fraiseql.toml"))).unwrap(),
+    );
+    let written = serde_json::to_string(&artifact.to_json_value().unwrap()).unwrap();
+    let loaded = CompiledSchema::from_json(&written, false).expect("what compile writes must load");
+
+    let grpc = loaded.grpc_config.as_ref().expect("grpc_config");
+    assert!(grpc.enabled && grpc.stream_batch_size == 250, "{grpc:?}");
+    assert!(!loaded.session_variables.inject_started_at);
+    assert_eq!(loaded.session_variables.variables.len(), 1);
+    let changelog = loaded.changelog.as_ref().expect("changelog");
+    assert_eq!(changelog.read_role.as_deref(), Some("auditor"));
+    assert_eq!(changelog.max_limit, 50);
+    assert!(loaded.hierarchies_config.is_some(), "hierarchies_config");
+}
+
+/// A compiled schema carrying a key these sections do not declare is refused, naming it.
+/// The compiler never writes one; recompiling is the way past it.
+#[test]
+fn a_compiled_section_with_an_unknown_key_is_refused_naming_it() {
+    for (section, body) in [
+        ("grpc_config", json!({"enabled": false, "zz_not_a_key": 1})),
+        ("session_variables", json!({"variables": [], "zz_not_a_key": 1})),
+        ("changelog", json!({"expose": false, "zz_not_a_key": 1})),
+    ] {
+        let schema = json!({ section: body }).to_string();
+        let err = CompiledSchema::from_json(&schema, false).expect_err(section);
+        assert!(err.to_string().contains("zz_not_a_key"), "{section}: {err}");
+    }
+}

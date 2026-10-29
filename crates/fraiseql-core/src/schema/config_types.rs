@@ -314,7 +314,7 @@ impl<'de> Deserialize<'de> for ObserversBackend {
 /// read from `tb_entity_change_log` / `tb_transport_checkpoint`, which the observer
 /// system installs (or which the operator supplies as a documented prerequisite).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct ChangelogConfig {
     /// Master switch. When `false`, no changelog types are registered (default).
     pub expose:        bool,
@@ -629,7 +629,7 @@ pub enum CrudNamingPreset {
 /// `function_schema` is applied as a prefix to the resolved name
 /// (e.g. `"app"` + `"create_user"` → `"app.create_user"`).
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct CrudNamingConfig {
     /// PostgreSQL schema prefix (e.g. `"app"` → `"app.create_user"`).
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -757,6 +757,7 @@ pub struct SessionVariableMapping {
 /// as PostgreSQL transaction-scoped settings.  SQL functions and RLS policies can
 /// then read these via `current_setting('app.tenant_id', true)`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct SessionVariablesConfig {
     /// Per-request session variable mappings.
     #[serde(default)]
@@ -1014,7 +1015,7 @@ impl Default for RestConfig {
 
 /// gRPC transport configuration (compiled from `[grpc]` in `fraiseql.toml`).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct GrpcConfig {
     /// Whether the gRPC transport is enabled.
     pub enabled:           bool,

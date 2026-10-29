@@ -298,6 +298,7 @@ pub struct TomlSchema {
 /// Defines the database table and ltree path column for a named hierarchy.
 /// The `id` column is always `id` (UUID) per the trinity pattern — not configurable.
 #[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct HierarchyConfig {
     /// Database table containing the ltree column (e.g., `"tb_category"`).
     pub table: String,

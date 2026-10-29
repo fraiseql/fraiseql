@@ -45,6 +45,21 @@ disagreed, and the promise was the part that was wrong.
   - MCP words a refused token the way `/graphql` does: "Token has expired", "Token is
     invalid" or "Token has been revoked". It used to answer "Invalid or expired
     authentication token" for all three.
+- **Five `fraiseql.toml` sections refuse a key they do not declare (#1837).** serde does not
+  carry `deny_unknown_fields` into a nested section, and these five lacked their own, so a
+  misspelt key was discarded and its setting stayed at the default: `[grpc] enabeld = true`
+  compiled with gRPC off. Each now fails the load, naming the key:
+  - `[grpc]`;
+  - `[session_variables]` (and `[fraiseql.session_variables]` in the project file);
+  - `[changelog]`;
+  - `[crud]`;
+  - `[hierarchies.<name>]`.
+
+  `grpc_config`, `session_variables` and `changelog` in `schema.compiled.json` are read into
+  the same types, so an unknown key there is refused too. The compiler never writes one, and
+  the server already refuses an artifact from any other build, so recompiling is the whole
+  migration.
+
 - **`fraiseql.toml` refuses four keys `fraiseql run` never applied (#1808).** They were
   parsed and validated, then dropped: setting one had no effect and no error. Each is now
   refused when written, even at its old default, with what to do instead:
