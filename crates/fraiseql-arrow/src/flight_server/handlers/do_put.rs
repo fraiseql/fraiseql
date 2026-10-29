@@ -144,7 +144,7 @@ pub(super) async fn handle(
                                     );
 
                                     // #1355: the batch's rows and their change-log outbox
-                                    // rows commit together or not at all. `execute_raw_query`
+                                    // rows commit together or not at all. `execute_described_query`
                                     // is deliberately no longer on this path — it cannot
                                     // express the transaction, and using it left the Change
                                     // Spine blind to every DoPut, exactly as it had left it

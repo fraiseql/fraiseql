@@ -228,15 +228,12 @@ async fn batched_queries_with_heterogeneous_schemas_error_loudly() {
 
     #[async_trait::async_trait]
     impl fraiseql_arrow::ArrowDatabaseAdapter for TestFlightAdapter {
-        async fn execute_raw_query(
+        async fn execute_described_query(
             &self,
             sql: &str,
-        ) -> fraiseql_arrow::db::DatabaseResult<
-            Vec<std::collections::HashMap<String, serde_json::Value>>,
-        > {
-            use fraiseql_core::db::traits::DatabaseAdapter as _;
+        ) -> fraiseql_arrow::db::DatabaseResult<fraiseql_arrow::db::DescribedRows> {
             self.inner
-                .execute_raw_query(sql)
+                .execute_described_query(sql)
                 .await
                 .map_err(|e| fraiseql_arrow::db::DatabaseError::new(e.to_string()))
         }

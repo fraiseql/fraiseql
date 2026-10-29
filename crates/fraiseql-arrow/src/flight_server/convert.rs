@@ -568,7 +568,7 @@ fn float_sql_literal(value: f64, pg_type: &str) -> String {
 ///
 /// Generates a single multi-row INSERT statement with **inline, escaped
 /// literals** — not bind parameters (the Flight upload path executes it via
-/// `execute_raw_query`, which has no parameter transport). String values are
+/// `execute_described_query`, which has no parameter transport). String values are
 /// quote-escaped; floats, timestamps and dates render as cast literals. The
 /// statement grows with the batch, so callers control statement size via
 /// their Arrow batch size.

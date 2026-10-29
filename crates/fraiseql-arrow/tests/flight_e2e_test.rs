@@ -21,7 +21,7 @@
 //! --ignored --test-threads=1`.
 #![allow(clippy::unwrap_used, clippy::print_stdout, clippy::print_stderr)] // Reason: test code, panics are acceptable
 
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 
 use arrow::record_batch::RecordBatch;
 use arrow_flight::{Ticket, flight_service_client::FlightServiceClient};
@@ -182,13 +182,12 @@ struct TestFlightAdapter {
 
 #[async_trait::async_trait]
 impl fraiseql_arrow::ArrowDatabaseAdapter for TestFlightAdapter {
-    async fn execute_raw_query(
+    async fn execute_described_query(
         &self,
         sql: &str,
-    ) -> fraiseql_arrow::db::DatabaseResult<Vec<HashMap<String, serde_json::Value>>> {
-        use fraiseql_core::db::traits::DatabaseAdapter as _;
+    ) -> fraiseql_arrow::db::DatabaseResult<fraiseql_arrow::db::DescribedRows> {
         self.inner
-            .execute_raw_query(sql)
+            .execute_described_query(sql)
             .await
             .map_err(|e| fraiseql_arrow::db::DatabaseError::new(e.to_string()))
     }

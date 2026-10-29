@@ -23,7 +23,8 @@ use crate::{
         RawRows, Writer,
     },
     types::{
-        DatabaseType, JsonbValue, PoolMetrics, QueryParam, ReadRouting,
+        DatabaseType, DescribedColumn, DescribedRows, JsonbValue, NumericType, PoolMetrics,
+        QueryParam, ReadRouting,
         sql_hints::{OrderByClause, SqlProjectionHint},
     },
     where_clause::WhereClause,
@@ -1280,6 +1281,44 @@ fn changelog_prepare_hint(detail: &str) -> &'static str {
 }
 
 impl PostgresAdapter {
+    /// [`DatabaseAdapter::execute_raw_query`], with each column as PostgreSQL described it
+    /// and each `numeric` cell a string of the digits PostgreSQL printed.
+    ///
+    /// The description comes with the statement, so a result with no rows is described too,
+    /// and no catalog is queried: a `numeric`'s precision and scale are its type modifier.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FraiseQLError::Database`] if the statement cannot be prepared or run.
+    pub async fn execute_described_query(&self, sql: &str) -> Result<DescribedRows> {
+        let client = self.acquire_connection_with_retry().await?;
+        let failed = |e: tokio_postgres::Error| {
+            crate::postgres::database_error(
+                format!("Query execution failed: {}", pg_detail(&e)),
+                &e,
+            )
+        };
+        let statement = client.prepare(sql).await.map_err(failed)?;
+        let rows: Vec<Row> = client.query(&statement, &[]).await.map_err(failed)?;
+
+        let columns: Vec<DescribedColumn> = statement
+            .columns()
+            .iter()
+            .map(|column| DescribedColumn {
+                name:    column.name().to_string(),
+                numeric: (*column.type_() == Type::NUMERIC)
+                    .then(|| NumericType::from_type_modifier(column.type_modifier())),
+            })
+            .collect();
+        let numerics: Vec<&str> = columns
+            .iter()
+            .filter(|column| column.numeric.is_some())
+            .map(|column| column.name.as_str())
+            .collect();
+        let rows = rows.iter().map(|row| row_to_map_exact(row, &numerics)).collect();
+        Ok(DescribedRows { columns, rows })
+    }
+
     /// A plain `WHERE` read of `request`'s relation, its documents decoded with
     /// `request.decimals`. Its projection, count and function arguments are not read.
     async fn where_documents(

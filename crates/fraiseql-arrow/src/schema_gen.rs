@@ -8,7 +8,10 @@ use std::{collections::HashMap, sync::Arc};
 use arrow::datatypes::{DataType, Field, Schema, TimeUnit};
 use serde_json::Value;
 
-use crate::error::ArrowFlightError;
+use crate::{
+    db::{DescribedRows, NumericType},
+    error::ArrowFlightError,
+};
 
 /// Map GraphQL scalar types to Arrow types.
 ///
@@ -101,7 +104,7 @@ pub fn generate_arrow_schema(fields: &[(String, String, bool)]) -> Arc<Schema> {
 /// - **Deterministic order** (#1002). The field list used to come from `HashMap::iter()`, whose
 ///   order is unspecified and differs between map instances. `Schema` equality is order-sensitive,
 ///   so the heterogeneous-schema guard on batched queries (#717) rejected identically-shaped
-///   queries at random. Sorting is the only stable order available here: `execute_raw_query`
+///   queries at random. Sorting is the only stable order available here: `execute_described_query`
 ///   returns `HashMap`, so the SELECT order is already lost by this point.
 ///
 /// - **Types that hold for every row** (#1042). Typing from row 0 alone meant a leading `null`
@@ -184,6 +187,48 @@ pub fn infer_schema_from_rows(
         .collect();
 
     Ok(Arc::new(Schema::new(arrow_fields)))
+}
+
+/// The Arrow schema of a raw read's rows.
+///
+/// Each column is typed as [`infer_schema_from_rows`] types it, except a column the read
+/// describes as a `numeric`, which is typed by its description ([`numeric_arrow_type`]):
+/// its cells hold the digits the database printed, and a value cannot say what it is.
+///
+/// # Errors
+///
+/// Returns error if the read has no rows.
+pub fn schema_for_read(read: &DescribedRows) -> Result<Arc<Schema>, ArrowFlightError> {
+    let inferred = infer_schema_from_rows(&read.rows)?;
+    let numerics: HashMap<&str, NumericType> = read.numeric_columns().collect();
+    let fields: Vec<Field> = inferred
+        .fields()
+        .iter()
+        .map(|field| match numerics.get(field.name().as_str()) {
+            Some(numeric) => field.as_ref().clone().with_data_type(numeric_arrow_type(*numeric)),
+            None => field.as_ref().clone(),
+        })
+        .collect();
+    Ok(Arc::new(Schema::new(fields)))
+}
+
+/// The Arrow type a `numeric` column travels as.
+///
+/// `numeric(p, s)` is `Decimal128(p, s)` when `Decimal128` can hold it: a precision of 38
+/// or less and a scale from 0 to the precision. Any other `numeric`, an unconstrained one
+/// included, is `Utf8` holding the digits the database printed. It is never a float.
+#[must_use]
+pub fn numeric_arrow_type(numeric: NumericType) -> DataType {
+    if let NumericType::Declared { precision, scale } = numeric {
+        let precision = u8::try_from(precision).ok().filter(|p| (1..=38).contains(p));
+        let scale = i8::try_from(scale).ok();
+        if let (Some(precision), Some(scale)) = (precision, scale) {
+            if i8::try_from(precision).is_ok_and(|most| (0..=most).contains(&scale)) {
+                return DataType::Decimal128(precision, scale);
+            }
+        }
+    }
+    DataType::Utf8
 }
 
 /// Least common Arrow type of two values observed in the same column.

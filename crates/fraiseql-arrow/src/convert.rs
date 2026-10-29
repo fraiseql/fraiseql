@@ -7,8 +7,8 @@ use std::sync::Arc;
 
 use arrow::{
     array::{
-        ArrayBuilder, BooleanBuilder, Date32Builder, Float64Builder, Int32Builder, Int64Builder,
-        RecordBatch, StringBuilder, TimestampNanosecondBuilder,
+        ArrayBuilder, BooleanBuilder, Date32Builder, Decimal128Builder, Float64Builder,
+        Int32Builder, Int64Builder, RecordBatch, StringBuilder, TimestampNanosecondBuilder,
     },
     datatypes::{DataType, Schema, TimeUnit},
     error::ArrowError,
@@ -54,6 +54,8 @@ pub enum Value {
     Timestamp(i64),
     /// Date as days since Unix epoch
     Date(i32),
+    /// A decimal as an integer of its field's scale: `1.50` at scale 2 is 150
+    Decimal(i128),
 }
 
 /// Convert SQL rows to Arrow `RecordBatches`.
@@ -246,6 +248,22 @@ impl RowToArrowConverter {
                     },
                 }
             },
+            DataType::Decimal128(..) => {
+                let b = downcast_builder::<Decimal128Builder>(
+                    builder,
+                    "Decimal128Builder",
+                    "Decimal128",
+                )?;
+                match value {
+                    Some(Value::Decimal(units)) => b.append_value(*units),
+                    None => b.append_null(),
+                    _ => {
+                        return Err(ArrowError::InvalidArgumentError(
+                            "Expected decimal value".into(),
+                        ));
+                    },
+                }
+            },
             _ => {
                 return Err(ArrowError::InvalidArgumentError(format!(
                     "Unsupported data type: {data_type:?}"
@@ -289,6 +307,10 @@ fn create_builder_for_type(
             TimestampNanosecondBuilder::with_capacity(capacity).with_timezone_opt(tz.clone()),
         )),
         DataType::Date32 => Ok(Box::new(Date32Builder::with_capacity(capacity))),
+        DataType::Decimal128(precision, scale) => Ok(Box::new(
+            Decimal128Builder::with_capacity(capacity)
+                .with_precision_and_scale(*precision, *scale)?,
+        )),
         _ => Err(ArrowError::InvalidArgumentError(format!(
             "Unsupported data type: {data_type:?}"
         ))),

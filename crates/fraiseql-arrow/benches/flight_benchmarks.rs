@@ -21,14 +21,12 @@ struct BenchFlightAdapter {
 
 #[async_trait::async_trait]
 impl fraiseql_arrow::ArrowDatabaseAdapter for BenchFlightAdapter {
-    async fn execute_raw_query(
+    async fn execute_described_query(
         &self,
         sql: &str,
-    ) -> fraiseql_arrow::db::DatabaseResult<Vec<std::collections::HashMap<String, serde_json::Value>>>
-    {
-        use fraiseql_core::db::DatabaseAdapter as _;
+    ) -> fraiseql_arrow::db::DatabaseResult<fraiseql_arrow::db::DescribedRows> {
         self.inner
-            .execute_raw_query(sql)
+            .execute_described_query(sql)
             .await
             .map_err(|e| fraiseql_arrow::db::DatabaseError::new(e.to_string()))
     }
@@ -231,7 +229,7 @@ fn flight_adapter_latency(c: &mut Criterion) {
                 .expect("Failed to create adapter");
             let flight_adapter = BenchFlightAdapter { inner: pg_adapter };
             flight_adapter
-                .execute_raw_query(black_box("SELECT * FROM ta_users LIMIT 5"))
+                .execute_described_query(black_box("SELECT * FROM ta_users LIMIT 5"))
                 .await
         });
     });

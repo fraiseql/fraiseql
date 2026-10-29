@@ -9,9 +9,9 @@
 //! the methods needed for Arrow Flight streaming. In fraiseql-server, a wrapper
 //! can implement both traits by delegating to the core adapter.
 
-use std::collections::HashMap;
-
 use async_trait::async_trait;
+/// A raw read's rows and the description of its columns, as an adapter returns them.
+pub use fraiseql_core::db::types::{DescribedColumn, DescribedRows, NumericType};
 
 /// Error type for database operations.
 ///
@@ -64,18 +64,14 @@ pub type DatabaseResult<T> = Result<T, DatabaseError>;
 ///
 /// ```no_run
 /// // Requires: a running database and an implementation of this trait.
-/// use std::collections::HashMap;
-/// use fraiseql_arrow::db::{ArrowDatabaseAdapter, DatabaseError, DatabaseResult};
+/// use fraiseql_arrow::db::{ArrowDatabaseAdapter, DatabaseResult, DescribedRows};
 ///
 /// struct MyAdapter { /* database connection */ }
 ///
 /// #[async_trait::async_trait]
 /// impl ArrowDatabaseAdapter for MyAdapter {
-///     async fn execute_raw_query(
-///         &self,
-///         sql: &str,
-///     ) -> DatabaseResult<Vec<HashMap<String, serde_json::Value>>> {
-///         // Execute SQL and return rows as JSON maps
+///     async fn execute_described_query(&self, sql: &str) -> DatabaseResult<DescribedRows> {
+///         // Execute SQL; return its rows as JSON maps and describe each column
 ///         panic!("connect to database and execute: {}", sql)
 ///     }
 /// }
@@ -84,30 +80,24 @@ pub type DatabaseResult<T> = Result<T, DatabaseError>;
 // dyn-compatibility async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
 #[async_trait]
 pub trait ArrowDatabaseAdapter: Send + Sync {
-    /// Execute a raw SQL query and return rows as JSON objects.
+    /// Execute a raw SQL query and return its rows as JSON objects, with each column as the
+    /// database described it.
     ///
-    /// # Arguments
-    ///
-    /// * `sql` - SQL query string
-    ///
-    /// # Returns
-    ///
-    /// Vec of `HashMap` where each `HashMap` represents a row with column names as keys
-    /// and column values as `serde_json::Value`
+    /// A `numeric` column is described with its precision and scale, and each of its cells
+    /// is a JSON string of the digits the database printed: Flight types the column from
+    /// the description, never from a value, so a `numeric` is never a float.
+    /// [`DescribedRows::undescribed`] returns rows typed by their values alone.
     ///
     /// # Errors
     ///
     /// Returns `DatabaseError` if the query fails for any reason.
-    async fn execute_raw_query(
-        &self,
-        sql: &str,
-    ) -> DatabaseResult<Vec<HashMap<String, serde_json::Value>>>;
+    async fn execute_described_query(&self, sql: &str) -> DatabaseResult<DescribedRows>;
 
     /// Execute one allow-listed Flight `Upload`: the client's rows **and** the
     /// `core.tb_entity_change_log` outbox rows that record them, in a **single
     /// transaction** (#953).
     ///
-    /// # Why this is not `execute_raw_query`
+    /// # Why this is not `execute_described_query`
     ///
     /// An `Upload` is a client-directed write that never passes through the mutation
     /// pipeline, so nothing else will write its Change Spine rows. Running the INSERT

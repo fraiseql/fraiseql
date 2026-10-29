@@ -46,6 +46,40 @@ fn chunk_into_batches(
         .collect()
 }
 
+/// Refuse a registered schema that types a `numeric` column of `read` as anything but
+/// `Decimal128` or `Utf8`: a float would round its digits, an integer drop its scale.
+///
+/// The registry is filled by [`crate::schema_gen::schema_for_read`], which never does that,
+/// but an embedder can register a schema of its own for a view.
+///
+/// # Errors
+///
+/// Returns `Status::failed_precondition` naming the view, the column and the fix.
+fn refuse_narrowed_numerics(
+    view: &str,
+    schema: &arrow::datatypes::Schema,
+    read: &crate::db::DescribedRows,
+) -> std::result::Result<(), Status> {
+    for (column, numeric) in read.numeric_columns() {
+        let Ok(field) = schema.field_with_name(column) else {
+            continue;
+        };
+        if !matches!(
+            field.data_type(),
+            arrow::datatypes::DataType::Decimal128(..) | arrow::datatypes::DataType::Utf8
+        ) {
+            return Err(Status::failed_precondition(format!(
+                "view `{view}`: column `{column}` is a numeric, and the schema registered for \
+                 it types the column {:?}, which cannot carry its digits. Register it as {:?} \
+                 or as Utf8.",
+                field.data_type(),
+                crate::schema_gen::numeric_arrow_type(numeric),
+            )));
+        }
+    }
+    Ok(())
+}
+
 /// Read `FLIGHT_SESSION_SECRET` from the environment once.
 ///
 /// Returns `None` (and logs a warning) if the variable is unset or empty.
@@ -151,7 +185,7 @@ impl FraiseQLFlightService {
     /// # struct MyAdapter;
     /// # #[async_trait::async_trait]
     /// # impl ArrowDatabaseAdapter for MyAdapter {
-    /// #     async fn execute_raw_query(&self, _sql: &str) -> fraiseql_arrow::db::DatabaseResult<Vec<std::collections::HashMap<String, serde_json::Value>>> { panic!("example stub") }
+    /// #     async fn execute_described_query(&self, _sql: &str) -> fraiseql_arrow::db::DatabaseResult<fraiseql_arrow::db::DescribedRows> { panic!("example stub") }
     /// # }
     /// // In production, create a real PostgresAdapter from fraiseql-core
     /// // and wrap it to implement the local ArrowDatabaseAdapter trait
@@ -203,7 +237,7 @@ impl FraiseQLFlightService {
     /// # struct MyAdapter;
     /// # #[async_trait::async_trait]
     /// # impl ArrowDatabaseAdapter for MyAdapter {
-    /// #     async fn execute_raw_query(&self, _sql: &str) -> fraiseql_arrow::db::DatabaseResult<Vec<std::collections::HashMap<String, serde_json::Value>>> { panic!("example stub") }
+    /// #     async fn execute_described_query(&self, _sql: &str) -> fraiseql_arrow::db::DatabaseResult<fraiseql_arrow::db::DescribedRows> { panic!("example stub") }
     /// # }
     /// let db_adapter: Arc<dyn ArrowDatabaseAdapter> = Arc::new(MyAdapter);
     /// let service = FraiseQLFlightService::new_with_cache(db_adapter, 60); // 60-second cache
@@ -259,7 +293,7 @@ impl FraiseQLFlightService {
     /// # struct MyAdapter;
     /// # #[async_trait::async_trait]
     /// # impl ArrowDatabaseAdapter for MyAdapter {
-    /// #     async fn execute_raw_query(&self, _sql: &str) -> fraiseql_arrow::db::DatabaseResult<Vec<std::collections::HashMap<String, serde_json::Value>>> { panic!("example stub") }
+    /// #     async fn execute_described_query(&self, _sql: &str) -> fraiseql_arrow::db::DatabaseResult<fraiseql_arrow::db::DescribedRows> { panic!("example stub") }
     /// # }
     /// // Create your adapter and OIDC validator for JWT authentication
     /// let db_adapter: Arc<dyn ArrowDatabaseAdapter> = Arc::new(MyAdapter);
@@ -341,7 +375,7 @@ impl FraiseQLFlightService {
     /// # struct MyAdapter;
     /// # #[async_trait::async_trait]
     /// # impl ArrowDatabaseAdapter for MyAdapter {
-    /// #     async fn execute_raw_query(&self, _sql: &str) -> fraiseql_arrow::db::DatabaseResult<Vec<std::collections::HashMap<String, serde_json::Value>>> { panic!("example stub") }
+    /// #     async fn execute_described_query(&self, _sql: &str) -> fraiseql_arrow::db::DatabaseResult<fraiseql_arrow::db::DescribedRows> { panic!("example stub") }
     /// # }
     /// let db_adapter: Arc<dyn ArrowDatabaseAdapter> = Arc::new(MyAdapter);
     /// let mut service = FraiseQLFlightService::new_with_db(db_adapter.clone());
@@ -787,10 +821,10 @@ impl FraiseQLFlightService {
     /// # Security — this path applies no row scoping of any kind
     ///
     /// The built SQL runs directly against the raw database adapter
-    /// (`db_adapter.execute_raw_query`); the RLS-aware query executor is not
+    /// (`db_adapter.execute_described_query`); the RLS-aware query executor is not
     /// involved, so **no per-user row-level filtering is applied**.
     ///
-    /// Nor can the view scope itself. [`ArrowDatabaseAdapter::execute_raw_query`]
+    /// Nor can the view scope itself. [`ArrowDatabaseAdapter::execute_described_query`]
     /// takes a SQL string and nothing else — there is no per-request session
     /// mechanism on this path, so a `va_*` view that filters on
     /// `current_setting('app.tenant_id')` or any other session variable has
@@ -854,25 +888,25 @@ impl FraiseQLFlightService {
         //    this path applies no row filtering, so the cache must not become a way for one
         //    principal to observe another principal's read (#716).
         let scope = crate::cache::principal_scope(security_context);
-        let db_rows = if let Some(cache) = &self.cache {
+        let read = if let Some(cache) = &self.cache {
             if let Some(cached_result) = cache.get(scope, &sql) {
                 debug!("Cache hit for query: {}", sql);
                 (*cached_result).clone()
             } else {
                 // Cache miss: execute query and cache result
-                let result = self.execute_raw_query_and_cache(scope, &sql).await?;
+                let result = self.execute_described_query_and_cache(scope, &sql).await?;
                 result
             }
         } else {
             // No cache: execute query normally
             if let Some(db) = &self.db_adapter {
-                db.execute_raw_query(&sql)
+                db.execute_described_query(&sql)
                     .await
                     .map_err(|e| Status::internal(format!("Database query failed: {e}")))?
             } else {
                 #[cfg(any(test, feature = "testing"))]
                 {
-                    execute_placeholder_query(view, limit)
+                    crate::db::DescribedRows::undescribed(execute_placeholder_query(view, limit))
                 }
                 #[cfg(not(any(test, feature = "testing")))]
                 {
@@ -885,8 +919,10 @@ impl FraiseQLFlightService {
             }
         };
 
-        // 4. Convert database rows to Arrow Values
-        let arrow_rows = convert_db_rows_to_arrow(&db_rows, &schema)
+        // 4. Convert database rows to Arrow Values, refusing a registered type that would round a
+        //    `numeric`.
+        refuse_narrowed_numerics(view, &schema, &read)?;
+        let arrow_rows = convert_db_rows_to_arrow(&read.rows, &schema)
             .map_err(|e| Status::internal(format!("Row conversion failed: {e}")))?;
 
         // 5. Convert to RecordBatches. Clamp the client-derived batch size to
@@ -925,18 +961,17 @@ impl FraiseQLFlightService {
     /// `scope` is the requesting principal ([`crate::cache::principal_scope`]) —
     /// required, not optional, so no call site can store an entry that another
     /// principal could read back (#716).
-    pub(crate) async fn execute_raw_query_and_cache(
+    pub(crate) async fn execute_described_query_and_cache(
         &self,
         scope: crate::cache::CacheScope,
         sql: &str,
-    ) -> std::result::Result<Vec<std::collections::HashMap<String, serde_json::Value>>, Status>
-    {
+    ) -> std::result::Result<crate::db::DescribedRows, Status> {
         let result = if let Some(db) = &self.db_adapter {
-            db.execute_raw_query(sql)
+            db.execute_described_query(sql)
                 .await
                 .map_err(|e| Status::internal(format!("Database query failed: {e}")))?
         } else {
-            Vec::new()
+            crate::db::DescribedRows::default()
         };
 
         // Store in cache if available
@@ -1003,36 +1038,36 @@ impl FraiseQLFlightService {
             debug!("Executing batched query: {}", query);
 
             // Try to get from cache first, scoped to this principal (#716).
-            let db_rows = if let Some(cache) = &self.cache {
+            let read = if let Some(cache) = &self.cache {
                 if let Some(cached_result) = cache.get(scope, query) {
                     debug!("Cache hit for batched query: {}", query);
                     (*cached_result).clone()
                 } else {
                     // Cache miss: execute and cache
-                    let result = self.execute_raw_query_and_cache(scope, query).await?;
+                    let result = self.execute_described_query_and_cache(scope, query).await?;
                     result
                 }
             } else {
                 // No cache: execute normally
                 if let Some(db) = &self.db_adapter {
-                    db.execute_raw_query(query)
+                    db.execute_described_query(query)
                         .await
                         .map_err(|e| Status::internal(format!("Database query failed: {e}")))?
                 } else {
-                    Vec::new()
+                    crate::db::DescribedRows::default()
                 }
             };
 
-            // Infer schema from first row
-            if db_rows.is_empty() {
+            // Infer schema from the rows, a `numeric` from its description
+            if read.rows.is_empty() {
                 continue;
             }
 
-            let inferred_schema = crate::schema_gen::infer_schema_from_rows(&db_rows)
+            let inferred_schema = crate::schema_gen::schema_for_read(&read)
                 .map_err(|e| Status::internal(format!("Schema inference failed: {e}")))?;
 
             // Convert to Arrow
-            let arrow_rows = convert_db_rows_to_arrow(&db_rows, &inferred_schema)
+            let arrow_rows = convert_db_rows_to_arrow(&read.rows, &inferred_schema)
                 .map_err(|e| Status::internal(format!("Row conversion failed: {e}")))?;
 
             // Convert to RecordBatches
@@ -1224,14 +1259,14 @@ impl FraiseQLFlightService {
         debug!(sql = %sql, "Executing export query");
 
         // Execute query
-        let rows = db_adapter
-            .execute_raw_query(&sql)
+        let read = db_adapter
+            .execute_described_query(&sql)
             .await
             // A raw-SQL failure here is `DatabaseError`, which classifies as
             // server-side whichever route it takes — unchanged by #1201.
             .map_err(|e| Status::internal(format!("Query execution failed: {e}")))?;
 
-        if rows.is_empty() {
+        if read.rows.is_empty() {
             info!(table = %table, "Export returned no rows");
             return Err(Status::not_found(format!(
                 "No rows found for export from table: {}",
@@ -1241,16 +1276,16 @@ impl FraiseQLFlightService {
 
         info!(
             table = %table,
-            row_count = rows.len(),
+            row_count = read.rows.len(),
             "Query returned rows for export"
         );
 
-        // Infer schema from rows
-        let schema = crate::schema_gen::infer_schema_from_rows(&rows)
+        // Infer schema from the rows, a `numeric` from its description
+        let schema = crate::schema_gen::schema_for_read(&read)
             .map_err(|e| Status::internal(format!("Schema inference failed: {}", e)))?;
 
         // Convert database rows to Arrow format
-        let arrow_rows = convert_db_rows_to_arrow(&rows, &schema)
+        let arrow_rows = convert_db_rows_to_arrow(&read.rows, &schema)
             .map_err(|e| Status::internal(format!("Row conversion failed: {}", e)))?;
 
         // Convert to RecordBatches
@@ -1728,7 +1763,7 @@ mod bulk_export_document_tests {
     use futures::StreamExt;
 
     use super::FraiseQLFlightService;
-    use crate::db::{ArrowDatabaseAdapter, DatabaseResult};
+    use crate::db::{ArrowDatabaseAdapter, DatabaseResult, DescribedRows};
 
     /// Returns `rows` single-column rows for any query.
     ///
@@ -1746,17 +1781,16 @@ mod bulk_export_document_tests {
     // Reason: the adapter trait's methods are async; impls must match its signatures.
     #[async_trait]
     impl ArrowDatabaseAdapter for RowsAdapter {
-        async fn execute_raw_query(
-            &self,
-            _sql: &str,
-        ) -> DatabaseResult<Vec<HashMap<String, serde_json::Value>>> {
-            Ok((0..self.rows)
-                .map(|i| {
-                    let mut row = HashMap::new();
-                    row.insert("id".to_string(), serde_json::json!(i.to_string()));
-                    row
-                })
-                .collect())
+        async fn execute_described_query(&self, _sql: &str) -> DatabaseResult<DescribedRows> {
+            Ok(DescribedRows::undescribed(
+                (0..self.rows)
+                    .map(|i| {
+                        let mut row = HashMap::new();
+                        row.insert("id".to_string(), serde_json::json!(i.to_string()));
+                        row
+                    })
+                    .collect(),
+            ))
         }
     }
 
@@ -1910,5 +1944,30 @@ mod refresh_schema_registry_tests {
             !body["failed"].as_array().expect("failed must be an array").is_empty(),
             "the failing views must be named: {body}"
         );
+    }
+}
+
+#[cfg(test)]
+mod graphql_decimal_tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
+    use arrow::{array::StringArray, datatypes::DataType};
+
+    use super::FraiseQLFlightService;
+
+    /// A GraphQL `Decimal` travels as a string of its digits, so a `GraphQLQuery` ticket's
+    /// result carries it as `Utf8` with every digit: typing it from its value is
+    /// what keeps it exact here.
+    #[test]
+    fn a_graphql_decimal_arrives_as_its_digits() {
+        let result = serde_json::json!({
+            "data": { "orders": [{ "total": "12345678901234567.89" }, { "total": "1.50" }] }
+        });
+        let batches = FraiseQLFlightService::new().convert_json_to_arrow_batches(&result).unwrap();
+        let total = batches[0].column_by_name("total").unwrap();
+        assert_eq!(total.data_type(), &DataType::Utf8);
+        let total = total.as_any().downcast_ref::<StringArray>().unwrap();
+        assert_eq!(total.value(0), "12345678901234567.89");
+        assert_eq!(total.value(1), "1.50");
     }
 }

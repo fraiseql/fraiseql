@@ -3166,6 +3166,8 @@ func (m *FraiseqlCi) integrationObservers(ctx context.Context, source *dagger.Di
 		// library pre-fills is emptied by the server). `--features arrow` named on the line
 		// for the same #940-class reason as the two lines above.
 		"cargo test -p fraiseql-server --features arrow --test flight_views_pg -- --ignored --test-threads=1",
+		// Flight serves a `numeric` with its digits on every ticket that reads rows (#1766).
+		"cargo test -p fraiseql-server --features arrow --test flight_decimal_pg -- --ignored --test-threads=1",
 		// #908/#1001: the three DB-backed Flight suites. They self-skipped on a
 		// missing DATABASE_URL and the test leg has none, so all 31 tests read as
 		// passing while running nothing — and two of the three asserted a

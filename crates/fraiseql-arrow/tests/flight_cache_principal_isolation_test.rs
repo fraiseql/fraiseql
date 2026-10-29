@@ -10,18 +10,17 @@
 #![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code, panics acceptable
 #![allow(clippy::default_trait_access)] // Reason: test code uses Default::default() for struct fields
 
-use std::{
-    collections::HashMap,
-    sync::{
-        Arc,
-        atomic::{AtomicUsize, Ordering},
-    },
+use std::sync::{
+    Arc,
+    atomic::{AtomicUsize, Ordering},
 };
 
 use arrow_flight::{Ticket, flight_service_server::FlightService as _};
 use async_trait::async_trait;
 use chrono::Utc;
-use fraiseql_arrow::{ArrowDatabaseAdapter, DatabaseResult, FlightTicket, FraiseQLFlightService};
+use fraiseql_arrow::{
+    ArrowDatabaseAdapter, DatabaseResult, FlightTicket, FraiseQLFlightService, db::DescribedRows,
+};
 use jsonwebtoken::{Algorithm, EncodingKey, Header, encode};
 use serde::Serialize;
 use tonic::Request;
@@ -35,12 +34,9 @@ struct CountingAdapter {
 
 #[async_trait]
 impl ArrowDatabaseAdapter for CountingAdapter {
-    async fn execute_raw_query(
-        &self,
-        _sql: &str,
-    ) -> DatabaseResult<Vec<HashMap<String, serde_json::Value>>> {
+    async fn execute_described_query(&self, _sql: &str) -> DatabaseResult<DescribedRows> {
         let n = self.calls.fetch_add(1, Ordering::SeqCst);
-        Ok(vec![
+        Ok(DescribedRows::undescribed(vec![
             [
                 ("id".to_string(), serde_json::json!("1")),
                 ("email".to_string(), serde_json::json!("a@example.com")),
@@ -49,7 +45,7 @@ impl ArrowDatabaseAdapter for CountingAdapter {
             ]
             .into_iter()
             .collect(),
-        ])
+        ]))
     }
 }
 

@@ -26,7 +26,7 @@ use chrono::{DateTime, Utc};
 use dashmap::DashMap;
 
 use crate::{
-    db::ArrowDatabaseAdapter,
+    db::{ArrowDatabaseAdapter, DescribedRows},
     error::{ArrowFlightError, Result},
 };
 
@@ -46,32 +46,19 @@ struct VersionedSchema {
     created_at: DateTime<Utc>,
 }
 
-/// Infer Arrow schema from a database row.
+/// Infer a view's Arrow schema from a sample of its rows.
 ///
-/// Analyzes JSON values to determine appropriate Arrow data types.
-/// Falls back to Utf8 for complex or unknown types.
-fn infer_schema_from_row(
-    view_name: &str,
-    row: &std::collections::HashMap<String, serde_json::Value>,
-) -> Result<Arc<Schema>> {
-    use arrow::datatypes::Field;
-
-    let mut fields = Vec::new();
-
-    for (column_name, value) in row {
-        // Single source of truth shared with `schema_gen` so the two row→schema
-        // inference paths cannot drift (H37); JSON null → nullable Utf8.
-        let data_type = crate::schema_gen::json_value_to_arrow_type(value);
-        fields.push(Field::new(column_name.clone(), data_type, true));
-    }
-
-    if fields.is_empty() {
+/// Typed by the one inference [`crate::schema_gen::schema_for_read`] the `do_get` paths use,
+/// so the schema a view is registered with cannot drift from them (H37): a `numeric` column
+/// is typed by its description, never by a sampled value.
+fn infer_schema_from_sample(view_name: &str, sample: &DescribedRows) -> Result<Arc<Schema>> {
+    let schema = crate::schema_gen::schema_for_read(sample)?;
+    if schema.fields().is_empty() {
         return Err(ArrowFlightError::SchemaNotFound(format!(
             "No columns found for view: {view_name}"
         )));
     }
-
-    Ok(Arc::new(Schema::new(fields)))
+    Ok(schema)
 }
 
 /// In-memory Arrow schema metadata store with versioning support.
@@ -240,15 +227,15 @@ impl SchemaRegistry {
 
         let sample_query = format!("SELECT * FROM {} LIMIT 1", view_name);
 
-        let rows = db_adapter.execute_raw_query(&sample_query).await.map_err(|e| {
+        let sample = db_adapter.execute_described_query(&sample_query).await.map_err(|e| {
             ArrowFlightError::SchemaNotFound(format!(
                 "Failed to reload schema for {}: {}",
                 view_name, e
             ))
         })?;
 
-        if let Some(first_row) = rows.first() {
-            let new_schema = infer_schema_from_row(view_name, first_row)?;
+        if !sample.rows.is_empty() {
+            let new_schema = infer_schema_from_sample(view_name, &sample)?;
 
             // Atomically update with new version
             let new_version = self.version_counter.fetch_add(1, AtomicOrdering::SeqCst);
@@ -424,16 +411,18 @@ impl SchemaRegistry {
         for view in views {
             let quoted = format!("\"{}\"", view.replace('"', "\"\""));
             let sample = format!("SELECT * FROM {quoted} LIMIT 1");
-            match db_adapter.execute_raw_query(&sample).await {
-                Ok(rows) => match rows.first().map(|row| infer_schema_from_row(view, row)) {
-                    Some(Ok(schema)) => {
-                        self.register(view.clone(), schema);
-                        registered.push(view.clone());
-                    },
-                    Some(Err(e)) => {
-                        tracing::warn!(view = %view, error = %e, "cannot type the view's rows");
-                    },
-                    None => tracing::warn!(view = %view, "the view has no row to type it from"),
+            match db_adapter.execute_described_query(&sample).await {
+                Ok(read) => {
+                    match (!read.rows.is_empty()).then(|| infer_schema_from_sample(view, &read)) {
+                        Some(Ok(schema)) => {
+                            self.register(view.clone(), schema);
+                            registered.push(view.clone());
+                        },
+                        Some(Err(e)) => {
+                            tracing::warn!(view = %view, error = %e, "cannot type the view's rows");
+                        },
+                        None => tracing::warn!(view = %view, "the view has no row to type it from"),
+                    }
                 },
                 Err(e) => tracing::warn!(view = %view, error = %e, "cannot read the view"),
             }
@@ -487,11 +476,11 @@ impl SchemaRegistry {
             // Sample one row from the view to infer schema
             let sample_query = format!("SELECT * FROM {} LIMIT 1", view_name);
 
-            match db_adapter.execute_raw_query(&sample_query).await {
-                Ok(rows) => {
-                    if let Some(first_row) = rows.first() {
-                        // Infer schema from first row
-                        match infer_schema_from_row(view_name, first_row) {
+            match db_adapter.execute_described_query(&sample_query).await {
+                Ok(sample) => {
+                    if !sample.rows.is_empty() {
+                        // Infer schema from the sampled row
+                        match infer_schema_from_sample(view_name, &sample) {
                             Ok(schema) => {
                                 self.register(view_name, schema);
                                 preloaded_count += 1;

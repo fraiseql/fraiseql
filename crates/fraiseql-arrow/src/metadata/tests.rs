@@ -144,39 +144,42 @@ fn test_register_defaults_includes_ta_tables() {
 }
 
 #[test]
-fn test_infer_schema_from_row_boolean() {
+fn test_infer_schema_from_sample_boolean() {
     use std::collections::HashMap;
 
     let mut row = HashMap::new();
     row.insert("active".to_string(), serde_json::json!(true));
 
-    let schema = infer_schema_from_row("test_view", &row).unwrap();
+    let schema =
+        infer_schema_from_sample("test_view", &DescribedRows::undescribed(vec![row])).unwrap();
     assert_eq!(schema.fields().len(), 1);
     assert_eq!(schema.field(0).name(), "active");
     assert!(matches!(schema.field(0).data_type(), arrow::datatypes::DataType::Boolean));
 }
 
 #[test]
-fn test_infer_schema_from_row_numbers() {
+fn test_infer_schema_from_sample_numbers() {
     use std::collections::HashMap;
 
     let mut row = HashMap::new();
     row.insert("count".to_string(), serde_json::json!(42));
     row.insert("price".to_string(), serde_json::json!(99.99));
 
-    let schema = infer_schema_from_row("test_view", &row).unwrap();
+    let schema =
+        infer_schema_from_sample("test_view", &DescribedRows::undescribed(vec![row])).unwrap();
     assert_eq!(schema.fields().len(), 2);
 }
 
 #[test]
-fn test_infer_schema_from_row_strings() {
+fn test_infer_schema_from_sample_strings() {
     use std::collections::HashMap;
 
     let mut row = HashMap::new();
     row.insert("name".to_string(), serde_json::json!("John"));
     row.insert("email".to_string(), serde_json::json!("john@example.com"));
 
-    let schema = infer_schema_from_row("test_view", &row).unwrap();
+    let schema =
+        infer_schema_from_sample("test_view", &DescribedRows::undescribed(vec![row])).unwrap();
     assert_eq!(schema.fields().len(), 2);
     for field in schema.fields() {
         assert!(matches!(field.data_type(), arrow::datatypes::DataType::Utf8));
@@ -184,13 +187,14 @@ fn test_infer_schema_from_row_strings() {
 }
 
 #[test]
-fn test_infer_schema_from_row_nullable() {
+fn test_infer_schema_from_sample_nullable() {
     use std::collections::HashMap;
 
     let mut row = HashMap::new();
     row.insert("optional_field".to_string(), serde_json::json!(null));
 
-    let schema = infer_schema_from_row("test_view", &row).unwrap();
+    let schema =
+        infer_schema_from_sample("test_view", &DescribedRows::undescribed(vec![row])).unwrap();
     let field = schema.field(0);
     assert!(field.is_nullable());
 }
@@ -200,7 +204,7 @@ fn test_infer_schema_from_empty_row() {
     use std::collections::HashMap;
 
     let row = HashMap::new();
-    let result = infer_schema_from_row("test_view", &row);
+    let result = infer_schema_from_sample("test_view", &DescribedRows::undescribed(vec![row]));
     assert!(
         matches!(result, Err(ArrowFlightError::SchemaNotFound(_))),
         "expected SchemaNotFound error, got: {result:?}"

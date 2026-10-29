@@ -24,7 +24,7 @@
 #![allow(clippy::unwrap_used, clippy::panic, clippy::expect_used)] // Reason: test code, panics acceptable
 #![allow(clippy::items_after_statements)] // Reason: test helper items defined near use site
 
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 
 use arrow::{
     array::{ArrayRef, StringArray},
@@ -33,7 +33,7 @@ use arrow::{
 };
 use arrow_flight::{FlightData, flight_service_client::FlightServiceClient};
 use fraiseql_arrow::{
-    db::{ArrowDatabaseAdapter, DatabaseError, DatabaseResult},
+    db::{ArrowDatabaseAdapter, DatabaseError, DatabaseResult, DescribedRows},
     exchange_protocol::{ExchangeMessage, RequestType},
     flight_server::FraiseQLFlightService,
 };
@@ -110,13 +110,9 @@ struct PgFlightAdapter {
 
 #[async_trait::async_trait]
 impl ArrowDatabaseAdapter for PgFlightAdapter {
-    async fn execute_raw_query(
-        &self,
-        sql: &str,
-    ) -> DatabaseResult<Vec<HashMap<String, serde_json::Value>>> {
-        use fraiseql_core::db::traits::DatabaseAdapter as _;
+    async fn execute_described_query(&self, sql: &str) -> DatabaseResult<DescribedRows> {
         self.inner
-            .execute_raw_query(sql)
+            .execute_described_query(sql)
             .await
             .map_err(|e| DatabaseError::new(e.to_string()))
     }

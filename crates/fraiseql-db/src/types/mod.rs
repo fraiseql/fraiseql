@@ -1,6 +1,7 @@
 //! Type definitions for fraiseql-db.
 
 pub mod db_types;
+pub mod described_rows;
 pub mod query_stats;
 pub mod read_routing;
 pub mod sql_hints;
@@ -11,6 +12,8 @@ pub use db_types::QueryParam;
 #[cfg(feature = "postgres")]
 pub use db_types::as_sql_param_refs;
 pub use db_types::{DatabaseType, JsonbValue, PoolMetrics};
+// Re-export a raw read's described rows
+pub use described_rows::{DescribedColumn, DescribedRows, NumericType};
 // Re-export query stats types
 pub use query_stats::QueryStatEntry;
 // Re-export per-query read routing (#957)

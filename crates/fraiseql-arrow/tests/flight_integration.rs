@@ -223,15 +223,12 @@ mod tests {
 
     #[async_trait::async_trait]
     impl fraiseql_arrow::ArrowDatabaseAdapter for TestFlightAdapter {
-        async fn execute_raw_query(
+        async fn execute_described_query(
             &self,
             sql: &str,
-        ) -> fraiseql_arrow::db::DatabaseResult<
-            Vec<std::collections::HashMap<String, serde_json::Value>>,
-        > {
-            use fraiseql_core::db::traits::DatabaseAdapter as _;
+        ) -> fraiseql_arrow::db::DatabaseResult<fraiseql_arrow::db::DescribedRows> {
             self.inner
-                .execute_raw_query(sql)
+                .execute_described_query(sql)
                 .await
                 .map_err(|e| fraiseql_arrow::db::DatabaseError::new(e.to_string()))
         }
@@ -261,8 +258,9 @@ mod tests {
 
         // Execute raw query
         let result = flight_adapter
-            .execute_raw_query("SELECT id, name, email FROM ta_users LIMIT 5")
-            .await?;
+            .execute_described_query("SELECT id, name, email FROM ta_users LIMIT 5")
+            .await?
+            .rows;
 
         // Verify results
         assert!(!result.is_empty(), "Query should return rows");
@@ -345,12 +343,16 @@ mod tests {
         let flight_adapter = create_flight_adapter(&conn_string).await?;
 
         // Execute query with LIMIT
-        let result = flight_adapter.execute_raw_query("SELECT id FROM ta_users LIMIT 2").await?;
+        let result = flight_adapter
+            .execute_described_query("SELECT id FROM ta_users LIMIT 2")
+            .await?
+            .rows;
 
         assert_eq!(result.len(), 2, "LIMIT 2 should return exactly 2 rows");
 
         // Verify LIMIT works correctly
-        let result_all = flight_adapter.execute_raw_query("SELECT id FROM ta_users").await?;
+        let result_all =
+            flight_adapter.execute_described_query("SELECT id FROM ta_users").await?.rows;
 
         assert_eq!(result_all.len(), 5, "Should return all 5 users without LIMIT");
 
@@ -372,15 +374,17 @@ mod tests {
 
         // Execute query with OFFSET
         let result = flight_adapter
-            .execute_raw_query("SELECT id FROM ta_users ORDER BY id LIMIT 2 OFFSET 2")
-            .await?;
+            .execute_described_query("SELECT id FROM ta_users ORDER BY id LIMIT 2 OFFSET 2")
+            .await?
+            .rows;
 
         assert_eq!(result.len(), 2, "LIMIT 2 OFFSET 2 should return exactly 2 rows");
 
         // Verify we get different results than without OFFSET
         let result_no_offset = flight_adapter
-            .execute_raw_query("SELECT id FROM ta_users ORDER BY id LIMIT 2")
-            .await?;
+            .execute_described_query("SELECT id FROM ta_users ORDER BY id LIMIT 2")
+            .await?
+            .rows;
 
         let id_with_offset = result[0].get("id").unwrap().as_str().unwrap();
         let id_without_offset = result_no_offset[0].get("id").unwrap().as_str().unwrap();
@@ -405,8 +409,9 @@ mod tests {
 
         // Execute query with WHERE clause
         let result = flight_adapter
-            .execute_raw_query("SELECT id, name FROM ta_users WHERE id = 'user-1'")
-            .await?;
+            .execute_described_query("SELECT id, name FROM ta_users WHERE id = 'user-1'")
+            .await?
+            .rows;
 
         assert_eq!(result.len(), 1, "WHERE clause should return 1 user");
 
@@ -435,8 +440,9 @@ mod tests {
 
         // Execute query
         let result = flight_adapter
-            .execute_raw_query("SELECT id, customer_name FROM ta_orders LIMIT 1")
-            .await?;
+            .execute_described_query("SELECT id, customer_name FROM ta_orders LIMIT 1")
+            .await?
+            .rows;
 
         assert_eq!(result.len(), 1);
 
@@ -471,8 +477,9 @@ mod tests {
 
         // Query all orders
         let result = flight_adapter
-            .execute_raw_query("SELECT id, customer_name, total FROM ta_orders ORDER BY id")
-            .await?;
+            .execute_described_query("SELECT id, customer_name, total FROM ta_orders ORDER BY id")
+            .await?
+            .rows;
 
         assert_eq!(result.len(), 5, "Should have 5 orders");
 
@@ -499,8 +506,9 @@ mod tests {
 
         // Query all users
         let result = flight_adapter
-            .execute_raw_query("SELECT id, name, email FROM ta_users ORDER BY id")
-            .await?;
+            .execute_described_query("SELECT id, name, email FROM ta_users ORDER BY id")
+            .await?
+            .rows;
 
         assert_eq!(result.len(), 5, "Should have 5 users");
 
@@ -566,12 +574,12 @@ mod tests {
         assert!(cache.get(SCOPE, query).is_none());
 
         // Store result
-        cache.put(SCOPE, query, Arc::new(result));
+        cache.put(SCOPE, query, Arc::new(fraiseql_arrow::db::DescribedRows::undescribed(result)));
 
         // Cache hit
         let cached = cache.get(SCOPE, query).unwrap();
-        assert_eq!(cached.len(), 1);
-        assert_eq!(cached[0].get("name").unwrap().as_str().unwrap(), "Alice");
+        assert_eq!(cached.rows.len(), 1);
+        assert_eq!(cached.rows[0].get("name").unwrap().as_str().unwrap(), "Alice");
 
         tracing::info!("✓ Query cache test passed");
         Ok(())
@@ -591,7 +599,7 @@ mod tests {
             serde_json::json!("order-1"),
         )])];
 
-        cache.put(SCOPE, query, Arc::new(result));
+        cache.put(SCOPE, query, Arc::new(fraiseql_arrow::db::DescribedRows::undescribed(result)));
 
         // Should be cached immediately
         assert!(cache.get(SCOPE, query).is_some());

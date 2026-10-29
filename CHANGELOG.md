@@ -57,7 +57,12 @@ disagreed, and the promise was the part that was wrong.
   `numeric` has no decimal-message form, so a read that meets one in a decimal message is
   refused, naming the field and the value; a `string` field carries it as text (#1819).
 
-  Not yet covered: Arrow Flight (#1766).
+  Arrow Flight serves a `numeric` with its exact digits too (#1766). A `numeric(p, s)` read
+  straight from PostgreSQL is `Decimal128(p, s)` when `p` is at most 38, and any other
+  `numeric` is `Utf8` holding its digits. Previously each was a `Float64`, rounded. A `NaN`
+  in a `Decimal128` column refuses the read, naming the column and the value. A schema
+  registered for a view that types a `numeric` column as a float or an integer is refused
+  at `DoGet`, naming the column and the type to register.
 - **A row-shaped read has a `Decimal` column type (#1765).** For library users of
   fraiseql-db and fraiseql-server:
   - `RowViewColumnType::Decimal` and `ColumnValue::Decimal(String)` are new variants, so an
@@ -67,6 +72,22 @@ disagreed, and the promise was the part that was wrong.
   - fraiseql-server's `routes::grpc::handler::encode_row` and `encode_response` return
     `Result<DynamicMessage, FraiseQLError>`: a row a decimal message cannot carry is an
     error (#1819).
+- **Arrow Flight types a `numeric` column from PostgreSQL's description (#1766).**
+  - On the wire, a `numeric` column changes from `Float64` to `Decimal128(p, s)` or `Utf8`
+    on these paths:
+    - `OptimizedView`: its rows, and the schema `GetSchema` and `GetFlightInfo` advertise;
+    - `BulkExport`, in every format;
+    - `BatchedQueries`, whether read from the database or from the query cache.
+    A client that reads such a column as a float must read a decimal or a string.
+  - `ArrowDatabaseAdapter::execute_raw_query` is replaced by `execute_described_query`,
+    which returns `DescribedRows`: the rows, and each column with a `numeric`'s precision
+    and scale. An implementor must add it. `DescribedRows::undescribed(rows)` types every
+    column from its values, as before.
+  - `QueryCache` stores and returns `Arc<DescribedRows>`.
+  - A registered view's schema lists its columns in name order, as the other tickets'
+    schemas already did.
+  - fraiseql-db gains `PostgresAdapter::execute_described_query`, and `types` gains
+    `DescribedRows`, `DescribedColumn` and `NumericType`.
 - **The federation service SDL requires an authenticated caller by default (#1717).**
   `{ _service { sdl } }` was served to whoever the subgraph serves, so a subgraph open to
   anonymous reads listed its whole SDL to anyone. It is now refused to an anonymous caller

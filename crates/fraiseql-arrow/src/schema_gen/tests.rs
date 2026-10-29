@@ -592,3 +592,53 @@ fn a_column_missing_from_a_later_row_is_still_a_column() {
 
     assert_eq!(field_names(&schema), ["early", "id"]);
 }
+
+/// `numeric(p, s)` is `Decimal128(p, s)` only where `Decimal128` holds it; every other
+/// `numeric` is its text, and none is a float.
+#[test]
+fn a_numeric_is_decimal128_where_it_fits_and_text_elsewhere() {
+    let declared = |precision, scale| NumericType::Declared { precision, scale };
+    for (numeric, expected) in [
+        (declared(20, 2), DataType::Decimal128(20, 2)),
+        (declared(38, 0), DataType::Decimal128(38, 0)),
+        (declared(1, 1), DataType::Decimal128(1, 1)),
+        (declared(39, 2), DataType::Utf8),
+        (declared(5, -2), DataType::Utf8),
+        (declared(2, 3), DataType::Utf8),
+        (declared(0, 0), DataType::Utf8),
+        (NumericType::Unconstrained, DataType::Utf8),
+    ] {
+        assert_eq!(numeric_arrow_type(numeric), expected, "{numeric:?}");
+    }
+}
+
+/// A read's `numeric` column is typed by its description even when every sampled value is
+/// a number or null, and a column it does not describe is inferred as before.
+#[test]
+fn a_reads_numeric_column_is_typed_by_its_description() {
+    let read = DescribedRows {
+        columns: vec![
+            crate::db::DescribedColumn {
+                name:    "amount".to_string(),
+                numeric: Some(NumericType::Declared {
+                    precision: 20,
+                    scale:     2,
+                }),
+            },
+            crate::db::DescribedColumn {
+                name:    "count".to_string(),
+                numeric: None,
+            },
+        ],
+        rows:    vec![HashMap::from([
+            ("amount".to_string(), Value::Null),
+            ("count".to_string(), serde_json::json!(3)),
+        ])],
+    };
+    let schema = schema_for_read(&read).unwrap();
+    assert_eq!(
+        schema.field_with_name("amount").unwrap().data_type(),
+        &DataType::Decimal128(20, 2)
+    );
+    assert_eq!(schema.field_with_name("count").unwrap().data_type(), &DataType::Int64);
+}

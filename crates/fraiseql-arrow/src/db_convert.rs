@@ -15,7 +15,7 @@ use crate::{
 
 /// Convert database rows to Arrow Values.
 ///
-/// Takes rows returned from `DatabaseAdapter::execute_raw_query()` and converts
+/// Takes rows returned from `ArrowDatabaseAdapter::execute_described_query()` and converts
 /// them to the Arrow Value enum for `RecordBatch` construction.
 ///
 /// # Arguments
@@ -76,7 +76,12 @@ pub fn convert_db_rows_to_arrow(
 
             let arrow_value = match value {
                 Some(json_val) if !json_val.is_null() => {
-                    Some(json_to_arrow_value(json_val, field.data_type())?)
+                    Some(json_to_arrow_value(json_val, field.data_type()).map_err(|e| match e {
+                        ArrowFlightError::Conversion(message) => ArrowFlightError::Conversion(
+                            format!("column `{column_name}`: {message}"),
+                        ),
+                        other => other,
+                    })?)
                 },
                 _ => None, // NULL or missing column
             };
@@ -189,8 +194,51 @@ fn json_to_arrow_value(json_val: &serde_json::Value, data_type: &DataType) -> Re
                 "Expected string or number for Date32, got {json_val}"
             ))),
         },
+        DataType::Decimal128(_, scale) => match json_val {
+            JsonValue::String(digits) => decimal_units(digits, *scale).map(Value::Decimal),
+            _ => Err(ArrowFlightError::Conversion(format!(
+                "Expected the digits of a numeric for Decimal128, got {json_val}: a JSON number \
+                 has been rounded through a float"
+            ))),
+        },
         _ => Err(ArrowFlightError::Conversion(format!("Unsupported data type: {data_type:?}"))),
     }
+}
+
+/// The `Decimal128` value of `digits` at `scale`: the digits as one integer, `scale` of them
+/// after the decimal point (`"1.5"` at scale 2 is 150). No float is involved, so every
+/// digit is kept; a value with more fractional digits than `scale`, or more digits than an
+/// `i128` holds, is refused rather than rounded.
+///
+/// # Errors
+///
+/// Returns [`ArrowFlightError::Conversion`] naming `digits` when they are not a decimal
+/// number (`NaN`, `Infinity` and `-Infinity` have no `Decimal128` form) or do not fit.
+fn decimal_units(digits: &str, scale: i8) -> Result<i128> {
+    let refused = || {
+        ArrowFlightError::Conversion(format!(
+            "the numeric `{digits}` has no Decimal128 form at scale {scale}"
+        ))
+    };
+    let (negative, unsigned) =
+        digits.strip_prefix('-').map_or((false, digits), |unsigned| (true, unsigned));
+    let (whole, fraction) = unsigned.split_once('.').unwrap_or((unsigned, ""));
+    let scale = usize::try_from(scale).map_err(|_| refused())?;
+    let is_number = !whole.is_empty()
+        && whole.bytes().chain(fraction.bytes()).all(|b| b.is_ascii_digit())
+        && fraction.len() <= scale;
+    if !is_number {
+        return Err(refused());
+    }
+    let padding = std::iter::repeat_n(b'0', scale - fraction.len());
+    let mut units: i128 = 0;
+    for digit in whole.bytes().chain(fraction.bytes()).chain(padding) {
+        units = units
+            .checked_mul(10)
+            .and_then(|units| units.checked_add(i128::from(digit - b'0')))
+            .ok_or_else(refused)?;
+    }
+    Ok(if negative { -units } else { units })
 }
 
 #[cfg(test)]

@@ -4,14 +4,12 @@
 //! to fraiseql-arrow's `DatabaseAdapter` trait, enabling the Arrow Flight service
 //! to execute queries against real databases, through `PostgresAdapter`.
 
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 
 use async_trait::async_trait;
 #[cfg(feature = "arrow")]
-use fraiseql_arrow::db::{ArrowDatabaseAdapter, DatabaseError};
-use fraiseql_core::db::{
-    postgres::PostgresAdapter, traits::DatabaseAdapter as CoreDatabaseAdapter,
-};
+use fraiseql_arrow::db::{ArrowDatabaseAdapter, DatabaseError, DescribedRows};
+use fraiseql_core::db::postgres::PostgresAdapter;
 
 /// Wrapper that adapts fraiseql-core's database adapters to fraiseql-arrow's `DatabaseAdapter`
 /// trait.
@@ -59,16 +57,14 @@ impl FlightDatabaseAdapter {
 // async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
 #[async_trait]
 impl ArrowDatabaseAdapter for FlightDatabaseAdapter {
+    /// Each column as PostgreSQL described it, and each `numeric` cell as its digits (#1766).
+    ///
     /// # Errors
     ///
     /// Returns [`DatabaseError`] if the underlying PostgreSQL query fails.
-    async fn execute_raw_query(
-        &self,
-        sql: &str,
-    ) -> Result<Vec<HashMap<String, serde_json::Value>>, DatabaseError> {
-        // Delegate to PostgreSQL adapter
+    async fn execute_described_query(&self, sql: &str) -> Result<DescribedRows, DatabaseError> {
         self.inner
-            .execute_raw_query(sql)
+            .execute_described_query(sql)
             .await
             .map_err(|e: fraiseql_core::error::FraiseQLError| DatabaseError::new(e.to_string()))
     }

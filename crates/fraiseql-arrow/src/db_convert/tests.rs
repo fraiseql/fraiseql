@@ -426,3 +426,46 @@ fn test_json_null_treated_as_none() {
     let arrow_rows = convert_db_rows_to_arrow(&rows, &schema).unwrap();
     assert_eq!(arrow_rows[0][0], None);
 }
+
+/// A `numeric`'s digits become a `Decimal128` integer at the field's scale with every digit
+/// kept, and a value with no exact form there is refused, naming it.
+#[test]
+fn a_numerics_digits_become_its_decimal128_units() {
+    for (digits, scale, units) in [
+        ("1.5", 2, 150),
+        ("1.50", 2, 150),
+        ("-0.05", 2, -5),
+        ("12", 0, 12),
+        ("12345678901234567.89", 2, 1_234_567_890_123_456_789),
+    ] {
+        assert_eq!(decimal_units(digits, scale).unwrap(), units, "{digits} at scale {scale}");
+    }
+    for (digits, scale) in [
+        ("NaN", 2),
+        ("Infinity", 2),
+        ("-Infinity", 2),
+        ("1.234", 2),
+        ("", 2),
+        (".5", 2),
+        ("1e3", 2),
+        ("1234567890123456789012345678901234567890", 0),
+    ] {
+        let Err(ArrowFlightError::Conversion(message)) = decimal_units(digits, scale) else {
+            panic!("`{digits}` at scale {scale} must be refused");
+        };
+        assert!(message.contains(&format!("`{digits}`")), "{message}");
+    }
+}
+
+/// A conversion failure names the column it happened in.
+#[test]
+fn a_decimal128_cell_that_cannot_convert_names_its_column() {
+    let schema =
+        Arc::new(Schema::new(vec![Field::new("amount", DataType::Decimal128(10, 2), true)]));
+    let rows = vec![HashMap::from([("amount".to_string(), json!("NaN"))])];
+    let Err(ArrowFlightError::Conversion(message)) = convert_db_rows_to_arrow(&rows, &schema)
+    else {
+        panic!("a NaN in a Decimal128 column must be refused");
+    };
+    assert!(message.contains("column `amount`") && message.contains("`NaN`"), "{message}");
+}

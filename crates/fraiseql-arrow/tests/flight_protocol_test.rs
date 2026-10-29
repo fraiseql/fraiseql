@@ -11,14 +11,16 @@
 #![allow(clippy::default_trait_access)] // Reason: test code uses Default::default() for struct field initialization
 #![allow(clippy::cast_sign_loss)] // Reason: test data uses small positive integers
 
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 
 use arrow_flight::{
     Criteria, Empty, FlightDescriptor, Ticket, flight_service_server::FlightService as _,
 };
 use async_trait::async_trait;
 use chrono::Utc;
-use fraiseql_arrow::{ArrowDatabaseAdapter, DatabaseResult, FlightTicket, FraiseQLFlightService};
+use fraiseql_arrow::{
+    ArrowDatabaseAdapter, DatabaseResult, FlightTicket, FraiseQLFlightService, db::DescribedRows,
+};
 use futures::StreamExt as _;
 use jsonwebtoken::{Algorithm, EncodingKey, Header, encode};
 use serde::Serialize;
@@ -41,11 +43,8 @@ impl ArrowDatabaseAdapter for MockAdapter
 where
     MockAdapter: Send + Sync,
 {
-    async fn execute_raw_query(
-        &self,
-        _sql: &str,
-    ) -> DatabaseResult<Vec<HashMap<String, serde_json::Value>>> {
-        Ok(vec![
+    async fn execute_described_query(&self, _sql: &str) -> DatabaseResult<DescribedRows> {
+        Ok(DescribedRows::undescribed(vec![
             [
                 ("id".to_string(), serde_json::json!("1")),
                 ("email".to_string(), serde_json::json!("alice@example.com")),
@@ -62,7 +61,7 @@ where
             ]
             .into_iter()
             .collect(),
-        ])
+        ]))
     }
 }
 

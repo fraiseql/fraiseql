@@ -18,7 +18,7 @@
 //! With proper cache configuration (TTL per workload, 85%+ hit rate):
 //! - Cache hit: ~2ms (vs 50-200ms database query)
 //! - Throughput improvement: 10-20% from cache hits alone
-//! - Memory overhead: Minimal (Arc<Vec<HashMap>> shared across threads)
+//! - Memory overhead: Minimal (Arc<DescribedRows> shared across threads)
 //!
 //! # Running Tests
 //!
@@ -72,7 +72,7 @@ fn test_cache_hit_latency_under_10ms() {
         },
     ];
 
-    cache.put(SCOPE, query, Arc::new(result));
+    cache.put(SCOPE, query, Arc::new(fraiseql_arrow::db::DescribedRows::undescribed(result)));
 
     // Measure cache hit latency
     let start = Instant::now();
@@ -81,7 +81,7 @@ fn test_cache_hit_latency_under_10ms() {
 
     // Verify hit occurred
     assert!(hit.is_some());
-    assert_eq!(hit.unwrap().len(), 2);
+    assert_eq!(hit.unwrap().rows.len(), 2);
 
     // Verify latency < 10ms (documented: 5ms ± 1ms)
     assert!(
@@ -103,7 +103,7 @@ fn test_cache_hit_consistency_across_accesses() {
         map
     }];
 
-    cache.put(SCOPE, query, Arc::new(result));
+    cache.put(SCOPE, query, Arc::new(fraiseql_arrow::db::DescribedRows::undescribed(result)));
 
     // Multiple rapid cache hits
     let mut total_latency = Duration::ZERO;
@@ -160,12 +160,12 @@ fn test_cache_miss_then_hit() {
         map
     }];
 
-    cache.put(SCOPE, query, Arc::new(result));
+    cache.put(SCOPE, query, Arc::new(fraiseql_arrow::db::DescribedRows::undescribed(result)));
 
     // Second access hits
     let hit = cache.get(SCOPE, query);
     assert!(hit.is_some(), "Second access should hit after put");
-    assert_eq!(hit.unwrap().len(), 1);
+    assert_eq!(hit.unwrap().rows.len(), 1);
 }
 
 #[test]
@@ -186,20 +186,20 @@ fn test_cache_miss_count_accuracy() {
     cache.put(
         SCOPE,
         q1,
-        Arc::new(vec![{
+        Arc::new(fraiseql_arrow::db::DescribedRows::undescribed(vec![{
             let mut m = HashMap::new();
             m.insert("id".to_string(), serde_json::json!(1));
             m
-        }]),
+        }])),
     );
     cache.put(
         SCOPE,
         q3,
-        Arc::new(vec![{
+        Arc::new(fraiseql_arrow::db::DescribedRows::undescribed(vec![{
             let mut m = HashMap::new();
             m.insert("id".to_string(), serde_json::json!(3));
             m
-        }]),
+        }])),
     );
 
     // Verify pattern: hit, miss, hit
@@ -230,7 +230,7 @@ fn test_cache_expiration_after_ttl() {
         map
     }];
 
-    cache.put(SCOPE, query, Arc::new(result));
+    cache.put(SCOPE, query, Arc::new(fraiseql_arrow::db::DescribedRows::undescribed(result)));
 
     // Immediate access succeeds
     assert!(cache.get(SCOPE, query).is_some(), "Should hit before TTL expires");
@@ -253,7 +253,7 @@ fn test_cache_ttl_zero_expires_immediately() {
         map
     }];
 
-    cache.put(SCOPE, query, Arc::new(result));
+    cache.put(SCOPE, query, Arc::new(fraiseql_arrow::db::DescribedRows::undescribed(result)));
 
     // Even immediate access should miss with 0 TTL
     assert!(cache.get(SCOPE, query).is_none(), "0-second TTL should expire immediately");
@@ -273,9 +273,13 @@ fn test_cache_different_ttls() {
     }];
 
     // Both entries share same TTL but are stored at different times
-    cache.put(SCOPE, q1, Arc::new(result.clone()));
+    cache.put(
+        SCOPE,
+        q1,
+        Arc::new(fraiseql_arrow::db::DescribedRows::undescribed(result.clone())),
+    );
     std::thread::sleep(Duration::from_millis(100));
-    cache.put(SCOPE, q2, Arc::new(result));
+    cache.put(SCOPE, q2, Arc::new(fraiseql_arrow::db::DescribedRows::undescribed(result)));
 
     // Both should be valid immediately
     assert!(cache.get(SCOPE, q1).is_some());
@@ -310,7 +314,7 @@ fn test_cache_hit_rate_perfect_hits() {
             m.insert("query".to_string(), serde_json::json!(q));
             m
         }];
-        cache.put(SCOPE, q, Arc::new(result));
+        cache.put(SCOPE, q, Arc::new(fraiseql_arrow::db::DescribedRows::undescribed(result)));
     }
 
     // All accesses hit
@@ -346,7 +350,7 @@ fn test_cache_hit_rate_mixed_pattern() {
             m.insert("query".to_string(), serde_json::json!(q));
             m
         }];
-        cache.put(SCOPE, q, Arc::new(result));
+        cache.put(SCOPE, q, Arc::new(fraiseql_arrow::db::DescribedRows::undescribed(result)));
     }
 
     // Access q1 (hit), q2 (miss), q3 (hit)
@@ -391,7 +395,7 @@ fn test_cache_concurrent_reads() {
         map.insert("data".to_string(), serde_json::json!("shared"));
         map
     }];
-    cache.put(SCOPE, query, Arc::new(result));
+    cache.put(SCOPE, query, Arc::new(fraiseql_arrow::db::DescribedRows::undescribed(result)));
 
     // Spawn multiple threads reading same query
     let handles: Vec<_> = (0..10)
@@ -400,7 +404,7 @@ fn test_cache_concurrent_reads() {
             std::thread::spawn(move || {
                 let hit = cache_clone.get(SCOPE, query);
                 assert!(hit.is_some(), "Concurrent read should hit");
-                hit.unwrap().len()
+                hit.unwrap().rows.len()
             })
         })
         .collect();
@@ -428,7 +432,11 @@ fn test_cache_concurrent_writes() {
                     m.insert("table_id".to_string(), serde_json::json!(i));
                     m
                 }];
-                cache_clone.put(SCOPE, &query, Arc::new(result));
+                cache_clone.put(
+                    SCOPE,
+                    &query,
+                    Arc::new(fraiseql_arrow::db::DescribedRows::undescribed(result)),
+                );
                 query
             })
         })
@@ -456,7 +464,7 @@ fn test_cache_concurrent_mixed_operations() {
             m.insert("id".to_string(), serde_json::json!(i));
             m
         }];
-        cache.put(SCOPE, &query, Arc::new(result));
+        cache.put(SCOPE, &query, Arc::new(fraiseql_arrow::db::DescribedRows::undescribed(result)));
     }
 
     // Spawn mixed operations
@@ -472,7 +480,11 @@ fn test_cache_concurrent_mixed_operations() {
                         m.insert("id".to_string(), serde_json::json!(i));
                         m
                     }];
-                    cache_clone.put(SCOPE, &query, Arc::new(result));
+                    cache_clone.put(
+                        SCOPE,
+                        &query,
+                        Arc::new(fraiseql_arrow::db::DescribedRows::undescribed(result)),
+                    );
                     "write"
                 } else if i % 3 == 1 {
                     // Read operation
@@ -523,7 +535,7 @@ fn test_cache_many_entries_performance() {
             m.insert("id".to_string(), serde_json::json!(i));
             m
         }];
-        cache.put(SCOPE, &query, Arc::new(result));
+        cache.put(SCOPE, &query, Arc::new(fraiseql_arrow::db::DescribedRows::undescribed(result)));
     }
 
     // Access latency should still be sub-millisecond even with 1000 entries
@@ -552,13 +564,13 @@ fn test_cache_entry_data_integrity() {
     original_map.insert("age".to_string(), serde_json::json!(30));
 
     let result = vec![original_map.clone()];
-    cache.put(SCOPE, query, Arc::new(result));
+    cache.put(SCOPE, query, Arc::new(fraiseql_arrow::db::DescribedRows::undescribed(result)));
 
     // Retrieve and verify data integrity
     let cached = cache.get(SCOPE, query).unwrap();
-    assert_eq!(cached.len(), 1);
+    assert_eq!(cached.rows.len(), 1);
 
-    let cached_row = &cached[0];
+    let cached_row = &cached.rows[0];
     assert_eq!(cached_row.get("id"), original_map.get("id"));
     assert_eq!(cached_row.get("name"), original_map.get("name"));
     assert_eq!(cached_row.get("email"), original_map.get("email"));

@@ -23,7 +23,7 @@ use dashmap::DashMap;
 #[derive(Clone, Debug)]
 struct CacheEntry {
     /// Cached result as JSON rows
-    result:     Arc<Vec<std::collections::HashMap<String, serde_json::Value>>>,
+    result:     Arc<crate::db::DescribedRows>,
     /// Unix timestamp when entry expires
     expires_at: u64,
 }
@@ -55,7 +55,7 @@ pub fn principal_scope(context: &fraiseql_core::security::SecurityContext) -> Ca
 /// # Example
 ///
 /// ```no_run
-/// use fraiseql_arrow::cache::QueryCache;
+/// use fraiseql_arrow::{cache::QueryCache, db::DescribedRows};
 /// use std::collections::HashMap;
 /// use std::sync::Arc;
 ///
@@ -68,7 +68,7 @@ pub fn principal_scope(context: &fraiseql_core::security::SecurityContext) -> Ca
 /// }
 ///
 /// // Store result
-/// let result = vec![HashMap::new()];
+/// let result = DescribedRows::undescribed(vec![HashMap::new()]);
 /// cache.put(scope, "SELECT * FROM users", Arc::new(result));
 /// ```
 pub struct QueryCache {
@@ -114,11 +114,7 @@ impl QueryCache {
     ///
     /// `Some(result)` if cache hit and not expired, `None` if miss or expired
     #[must_use]
-    pub fn get(
-        &self,
-        scope: CacheScope,
-        query: &str,
-    ) -> Option<Arc<Vec<std::collections::HashMap<String, serde_json::Value>>>> {
+    pub fn get(&self, scope: CacheScope, query: &str) -> Option<Arc<crate::db::DescribedRows>> {
         let by_query = self.entries.get(&scope)?;
         let entry = by_query.get(query)?;
         let now = current_unix_timestamp();
@@ -139,7 +135,7 @@ impl QueryCache {
         &self,
         scope: CacheScope,
         query: impl Into<String>,
-        result: Arc<Vec<std::collections::HashMap<String, serde_json::Value>>>,
+        result: Arc<crate::db::DescribedRows>,
     ) {
         let expires_at = current_unix_timestamp() + self.ttl_secs;
         self.entries

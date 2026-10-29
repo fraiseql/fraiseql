@@ -17,13 +17,13 @@ fn test_cache_put_and_get() {
         ("name".to_string(), serde_json::json!("Alice")),
     ])];
 
-    cache.put(SCOPE, query, Arc::new(result));
+    cache.put(SCOPE, query, Arc::new(crate::db::DescribedRows::undescribed(result)));
 
     let cached = cache.get(SCOPE, query);
     assert!(cached.is_some());
     let cached = cached.unwrap();
-    assert_eq!(cached.len(), 1);
-    let name_val = cached[0].get("name").unwrap();
+    assert_eq!(cached.rows.len(), 1);
+    let name_val = cached.rows[0].get("name").unwrap();
     assert_eq!(name_val.as_str().unwrap(), "Alice");
 }
 
@@ -43,7 +43,7 @@ fn test_cache_expiration() {
         serde_json::json!("99.99"),
     )])];
 
-    cache.put(SCOPE, query, Arc::new(result));
+    cache.put(SCOPE, query, Arc::new(crate::db::DescribedRows::undescribed(result)));
 
     // Should be cached immediately
     assert!(cache.get(SCOPE, query).is_some());
@@ -58,8 +58,8 @@ fn test_cache_expiration() {
 #[test]
 fn test_cache_clear() {
     let cache = QueryCache::new(60);
-    cache.put(SCOPE, "query1", Arc::new(vec![]));
-    cache.put(SCOPE, "query2", Arc::new(vec![]));
+    cache.put(SCOPE, "query1", Arc::new(crate::db::DescribedRows::undescribed(vec![])));
+    cache.put(SCOPE, "query2", Arc::new(crate::db::DescribedRows::undescribed(vec![])));
 
     assert_eq!(cache.len(), 2);
     cache.clear();
@@ -79,8 +79,16 @@ fn test_cache_multiple_queries() {
         serde_json::json!("100.00"),
     )])];
 
-    cache.put(SCOPE, "SELECT * FROM users", Arc::new(result1));
-    cache.put(SCOPE, "SELECT * FROM orders", Arc::new(result2));
+    cache.put(
+        SCOPE,
+        "SELECT * FROM users",
+        Arc::new(crate::db::DescribedRows::undescribed(result1)),
+    );
+    cache.put(
+        SCOPE,
+        "SELECT * FROM orders",
+        Arc::new(crate::db::DescribedRows::undescribed(result2)),
+    );
 
     assert_eq!(cache.len(), 2);
     assert!(cache.get(SCOPE, "SELECT * FROM users").is_some());
@@ -96,9 +104,21 @@ fn test_cache_default_ttl() {
 #[test]
 fn test_invalidate_views() {
     let cache = QueryCache::new(60);
-    cache.put(SCOPE, "SELECT * FROM v_user WHERE id = 1", Arc::new(vec![]));
-    cache.put(SCOPE, "SELECT * FROM v_user WHERE id = 2", Arc::new(vec![]));
-    cache.put(SCOPE, "SELECT * FROM v_order WHERE id = 1", Arc::new(vec![]));
+    cache.put(
+        SCOPE,
+        "SELECT * FROM v_user WHERE id = 1",
+        Arc::new(crate::db::DescribedRows::undescribed(vec![])),
+    );
+    cache.put(
+        SCOPE,
+        "SELECT * FROM v_user WHERE id = 2",
+        Arc::new(crate::db::DescribedRows::undescribed(vec![])),
+    );
+    cache.put(
+        SCOPE,
+        "SELECT * FROM v_order WHERE id = 1",
+        Arc::new(crate::db::DescribedRows::undescribed(vec![])),
+    );
 
     assert_eq!(cache.len(), 3);
 
@@ -111,9 +131,21 @@ fn test_invalidate_views() {
 #[test]
 fn test_invalidate_views_multiple() {
     let cache = QueryCache::new(60);
-    cache.put(SCOPE, "SELECT * FROM v_user", Arc::new(vec![]));
-    cache.put(SCOPE, "SELECT * FROM v_order", Arc::new(vec![]));
-    cache.put(SCOPE, "SELECT * FROM v_product", Arc::new(vec![]));
+    cache.put(
+        SCOPE,
+        "SELECT * FROM v_user",
+        Arc::new(crate::db::DescribedRows::undescribed(vec![])),
+    );
+    cache.put(
+        SCOPE,
+        "SELECT * FROM v_order",
+        Arc::new(crate::db::DescribedRows::undescribed(vec![])),
+    );
+    cache.put(
+        SCOPE,
+        "SELECT * FROM v_product",
+        Arc::new(crate::db::DescribedRows::undescribed(vec![])),
+    );
 
     assert_eq!(cache.len(), 3);
 
@@ -126,9 +158,21 @@ fn test_invalidate_views_multiple() {
 #[test]
 fn test_invalidate_pattern_wildcard() {
     let cache = QueryCache::new(60);
-    cache.put(SCOPE, "SELECT * FROM v_user_detail", Arc::new(vec![]));
-    cache.put(SCOPE, "SELECT * FROM v_user_summary", Arc::new(vec![]));
-    cache.put(SCOPE, "SELECT * FROM v_order", Arc::new(vec![]));
+    cache.put(
+        SCOPE,
+        "SELECT * FROM v_user_detail",
+        Arc::new(crate::db::DescribedRows::undescribed(vec![])),
+    );
+    cache.put(
+        SCOPE,
+        "SELECT * FROM v_user_summary",
+        Arc::new(crate::db::DescribedRows::undescribed(vec![])),
+    );
+    cache.put(
+        SCOPE,
+        "SELECT * FROM v_order",
+        Arc::new(crate::db::DescribedRows::undescribed(vec![])),
+    );
 
     assert_eq!(cache.len(), 3);
 
@@ -141,9 +185,21 @@ fn test_invalidate_pattern_wildcard() {
 #[test]
 fn test_invalidate_pattern_prefix() {
     let cache = QueryCache::new(60);
-    cache.put(SCOPE, "SELECT * FROM v_user", Arc::new(vec![]));
-    cache.put(SCOPE, "SELECT * FROM v_order", Arc::new(vec![]));
-    cache.put(SCOPE, "INSERT INTO v_user VALUES", Arc::new(vec![]));
+    cache.put(
+        SCOPE,
+        "SELECT * FROM v_user",
+        Arc::new(crate::db::DescribedRows::undescribed(vec![])),
+    );
+    cache.put(
+        SCOPE,
+        "SELECT * FROM v_order",
+        Arc::new(crate::db::DescribedRows::undescribed(vec![])),
+    );
+    cache.put(
+        SCOPE,
+        "INSERT INTO v_user VALUES",
+        Arc::new(crate::db::DescribedRows::undescribed(vec![])),
+    );
 
     assert_eq!(cache.len(), 3);
 
@@ -155,8 +211,16 @@ fn test_invalidate_pattern_prefix() {
 #[test]
 fn test_invalidate_pattern_no_match() {
     let cache = QueryCache::new(60);
-    cache.put(SCOPE, "SELECT * FROM v_user", Arc::new(vec![]));
-    cache.put(SCOPE, "SELECT * FROM v_order", Arc::new(vec![]));
+    cache.put(
+        SCOPE,
+        "SELECT * FROM v_user",
+        Arc::new(crate::db::DescribedRows::undescribed(vec![])),
+    );
+    cache.put(
+        SCOPE,
+        "SELECT * FROM v_order",
+        Arc::new(crate::db::DescribedRows::undescribed(vec![])),
+    );
 
     assert_eq!(cache.len(), 2);
 
@@ -171,14 +235,12 @@ fn test_invalidate_pattern_no_match() {
 fn test_put_overwrites_existing_entry() {
     let cache = QueryCache::new(60);
     let q = "SELECT * FROM users";
-    let result1 = Arc::new(vec![std::collections::HashMap::from([(
-        "id".to_string(),
-        serde_json::json!("1"),
-    )])]);
-    let result2 = Arc::new(vec![std::collections::HashMap::from([(
-        "id".to_string(),
-        serde_json::json!("99"),
-    )])]);
+    let result1 = Arc::new(crate::db::DescribedRows::undescribed(vec![
+        std::collections::HashMap::from([("id".to_string(), serde_json::json!("1"))]),
+    ]));
+    let result2 = Arc::new(crate::db::DescribedRows::undescribed(vec![
+        std::collections::HashMap::from([("id".to_string(), serde_json::json!("99"))]),
+    ]));
 
     cache.put(SCOPE, q, Arc::clone(&result1));
     assert_eq!(cache.len(), 1);
@@ -186,7 +248,7 @@ fn test_put_overwrites_existing_entry() {
     // Should still be 1 entry (overwritten)
     assert_eq!(cache.len(), 1);
     let got = cache.get(SCOPE, q).unwrap();
-    let id_val = got[0].get("id").unwrap();
+    let id_val = got.rows[0].get("id").unwrap();
     assert_eq!(id_val.as_str().unwrap(), "99");
 }
 
@@ -199,7 +261,7 @@ fn test_is_empty_true_initially() {
 #[test]
 fn test_is_empty_false_after_put() {
     let cache = QueryCache::new(30);
-    cache.put(SCOPE, "q", Arc::new(vec![]));
+    cache.put(SCOPE, "q", Arc::new(crate::db::DescribedRows::undescribed(vec![])));
     assert!(!cache.is_empty());
 }
 
@@ -207,7 +269,11 @@ fn test_is_empty_false_after_put() {
 fn test_len_increments_with_each_distinct_query() {
     let cache = QueryCache::new(60);
     for i in 0..5 {
-        cache.put(SCOPE, format!("SELECT {i}"), Arc::new(vec![]));
+        cache.put(
+            SCOPE,
+            format!("SELECT {i}"),
+            Arc::new(crate::db::DescribedRows::undescribed(vec![])),
+        );
     }
     assert_eq!(cache.len(), 5);
 }
@@ -215,7 +281,11 @@ fn test_len_increments_with_each_distinct_query() {
 #[test]
 fn test_invalidate_views_empty_view_list_removes_nothing() {
     let cache = QueryCache::new(60);
-    cache.put(SCOPE, "SELECT * FROM v_user", Arc::new(vec![]));
+    cache.put(
+        SCOPE,
+        "SELECT * FROM v_user",
+        Arc::new(crate::db::DescribedRows::undescribed(vec![])),
+    );
     let removed = cache.invalidate_views(&[]);
     assert_eq!(removed, 0);
     assert_eq!(cache.len(), 1);
@@ -225,8 +295,8 @@ fn test_invalidate_views_empty_view_list_removes_nothing() {
 fn test_invalidate_pattern_exact_no_wildcard() {
     // Pattern with no wildcard acts as exact match
     let cache = QueryCache::new(60);
-    cache.put(SCOPE, "exact_query", Arc::new(vec![]));
-    cache.put(SCOPE, "other_query", Arc::new(vec![]));
+    cache.put(SCOPE, "exact_query", Arc::new(crate::db::DescribedRows::undescribed(vec![])));
+    cache.put(SCOPE, "other_query", Arc::new(crate::db::DescribedRows::undescribed(vec![])));
 
     let removed = cache.invalidate_pattern("exact_query");
     assert_eq!(removed, 1);
@@ -237,9 +307,21 @@ fn test_invalidate_pattern_exact_no_wildcard() {
 #[test]
 fn test_invalidate_pattern_star_only_removes_all() {
     let cache = QueryCache::new(60);
-    cache.put(SCOPE, "SELECT * FROM users", Arc::new(vec![]));
-    cache.put(SCOPE, "SELECT * FROM orders", Arc::new(vec![]));
-    cache.put(SCOPE, "SELECT id FROM items", Arc::new(vec![]));
+    cache.put(
+        SCOPE,
+        "SELECT * FROM users",
+        Arc::new(crate::db::DescribedRows::undescribed(vec![])),
+    );
+    cache.put(
+        SCOPE,
+        "SELECT * FROM orders",
+        Arc::new(crate::db::DescribedRows::undescribed(vec![])),
+    );
+    cache.put(
+        SCOPE,
+        "SELECT id FROM items",
+        Arc::new(crate::db::DescribedRows::undescribed(vec![])),
+    );
 
     let removed = cache.invalidate_pattern("*");
     assert_eq!(removed, 3);
@@ -249,9 +331,21 @@ fn test_invalidate_pattern_star_only_removes_all() {
 #[test]
 fn test_invalidate_views_does_not_affect_non_matching_entries() {
     let cache = QueryCache::new(60);
-    cache.put(SCOPE, "SELECT * FROM v_user", Arc::new(vec![]));
-    cache.put(SCOPE, "SELECT * FROM v_order", Arc::new(vec![]));
-    cache.put(SCOPE, "SELECT * FROM v_product", Arc::new(vec![]));
+    cache.put(
+        SCOPE,
+        "SELECT * FROM v_user",
+        Arc::new(crate::db::DescribedRows::undescribed(vec![])),
+    );
+    cache.put(
+        SCOPE,
+        "SELECT * FROM v_order",
+        Arc::new(crate::db::DescribedRows::undescribed(vec![])),
+    );
+    cache.put(
+        SCOPE,
+        "SELECT * FROM v_product",
+        Arc::new(crate::db::DescribedRows::undescribed(vec![])),
+    );
 
     let removed = cache.invalidate_views(&["v_order"]);
     assert_eq!(removed, 1);
@@ -264,7 +358,7 @@ fn test_invalidate_views_does_not_affect_non_matching_entries() {
 fn test_zero_ttl_expires_immediately() {
     // With TTL=0, entries should expire immediately since expires_at == now
     let cache = QueryCache::new(0);
-    cache.put(SCOPE, "q", Arc::new(vec![]));
+    cache.put(SCOPE, "q", Arc::new(crate::db::DescribedRows::undescribed(vec![])));
     // The entry was put at `now + 0`, so current time >= expires_at
     // In practice the comparison is `now < expires_at`, so with TTL=0
     // the entry expires immediately.
@@ -284,10 +378,9 @@ fn test_clear_on_empty_cache_is_noop() {
 #[test]
 fn test_result_is_shared_via_arc() {
     let cache = QueryCache::new(60);
-    let original = Arc::new(vec![std::collections::HashMap::from([(
-        "k".to_string(),
-        serde_json::json!("v"),
-    )])]);
+    let original = Arc::new(crate::db::DescribedRows::undescribed(vec![
+        std::collections::HashMap::from([("k".to_string(), serde_json::json!("v"))]),
+    ]));
     cache.put(SCOPE, "q", Arc::clone(&original));
     let retrieved = cache.get(SCOPE, "q").unwrap();
     // Both Arcs point to the same allocation
@@ -303,11 +396,10 @@ mod scoped_by_principal {
     const ALICE: CacheScope = 0xA11CE;
     const BOB: CacheScope = 0xB0B;
 
-    fn rows(marker: &str) -> Arc<Vec<std::collections::HashMap<String, serde_json::Value>>> {
-        Arc::new(vec![std::collections::HashMap::from([(
-            "name".to_string(),
-            serde_json::json!(marker),
-        )])])
+    fn rows(marker: &str) -> Arc<crate::db::DescribedRows> {
+        Arc::new(crate::db::DescribedRows::undescribed(vec![std::collections::HashMap::from([
+            ("name".to_string(), serde_json::json!(marker)),
+        ])]))
     }
 
     #[test]
@@ -332,8 +424,8 @@ mod scoped_by_principal {
         cache.put(ALICE, sql, rows("alice-rows"));
         cache.put(BOB, sql, rows("bob-rows"));
 
-        assert_eq!(cache.get(ALICE, sql).unwrap()[0]["name"], "alice-rows");
-        assert_eq!(cache.get(BOB, sql).unwrap()[0]["name"], "bob-rows");
+        assert_eq!(cache.get(ALICE, sql).unwrap().rows[0]["name"], "alice-rows");
+        assert_eq!(cache.get(BOB, sql).unwrap().rows[0]["name"], "bob-rows");
         assert_eq!(cache.len(), 2, "both entries are resident");
     }
 

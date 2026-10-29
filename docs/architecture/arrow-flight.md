@@ -90,19 +90,39 @@ A ticket is a JSON object tagged by `type`:
   ([#1789](https://github.com/fraiseql/fraiseql/issues/1789)). A client has to know the
   view's name.
 
-GraphQL types map to Arrow types:
+How a column is typed depends on where its rows come from.
 
-- `ID`, `UUID` and `JSON` map to `Utf8`.
-- `DateTime` maps to `Timestamp(ns, UTC)`.
-- `Date` maps to `Date32`.
-- `Time` maps to `Time64`.
-- `Decimal` maps to `Decimal128(38, 10)`.
-- Any other type maps to `Utf8`.
+A `GraphQLQuery` ticket's result is typed from its JSON values:
 
-Rows read straight from the database are a separate case. Today their numeric columns
-are rounded through `Float64`, which loses the scale and any digit past the
-seventeenth. This affects view tickets and fact-table measures
-([#1766](https://github.com/fraiseql/fraiseql/issues/1766)).
+- A string maps to `Utf8`, and so does an array, an object, or a column that is null in
+  every row.
+- A whole number maps to `Int64`, and any other number to `Float64`.
+- A boolean maps to `Boolean`.
+
+A GraphQL `Decimal` travels as a string of its digits, so it arrives as `Utf8`, exact.
+
+`OptimizedView`, `BatchedQueries` and `BulkExport` read rows straight from PostgreSQL,
+and a `numeric` column is typed by what PostgreSQL says it is, never by a value
+([#1766](https://github.com/fraiseql/fraiseql/issues/1766)):
+
+- `numeric(p, s)` with `p` at most 38 and `s` from 0 to `p` maps to `Decimal128(p, s)`.
+- Any other `numeric` maps to `Utf8`, holding the digits PostgreSQL printed. That covers
+  an unconstrained `numeric`, a wider one, one with a negative scale, and a column computed
+  in a view (`amount * 2`), which PostgreSQL reports as unconstrained.
+- No `numeric` maps to `Float64`.
+
+`Decimal128` has no `NaN` or infinity, so a `numeric(p, s)` that holds `NaN` refuses the
+read, naming the column and the value. A `Utf8` column carries `NaN`, `Infinity` and
+`-Infinity` as that text.
+
+The precision and scale come with the statement's own result description, for a view's
+columns as for a table's, so no catalog is queried. The schema `GetSchema` and
+`GetFlightInfo` advertise for a view is typed the same way. Every other column is typed
+from its values, as a `GraphQLQuery` result is.
+
+A schema an embedder registers for a view with `SchemaRegistry::register` must type each
+of the view's `numeric` columns as `Decimal128` or `Utf8`. A float or an integer would round
+the digits, so `DoGet` refuses the view, naming the column and the type to register.
 
 ## See also
 
