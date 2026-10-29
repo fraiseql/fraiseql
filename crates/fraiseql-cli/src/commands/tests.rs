@@ -3127,7 +3127,7 @@ mod run_tests {
         let addr: SocketAddr = "0.0.0.0:8080".parse().unwrap();
         let server_cfg = ServerRuntimeConfig {
             cors: crate::config::runtime::CorsRuntimeConfig {
-                origins:     vec!["https://example.com".to_string()],
+                origins: vec!["https://example.com".to_string()],
             },
             ..Default::default()
         };
@@ -3141,6 +3141,36 @@ mod run_tests {
         )
         .expect("build_config_from");
         assert_eq!(config.cors_origins, ["https://example.com"]);
+    }
+
+    /// A `"*"` in fraiseql.toml's `[server.cors] origins` reaches the server and is refused
+    /// when `fraiseql run` boots it, rather than panicking while the CORS layer is built.
+    #[tokio::test]
+    async fn a_wildcard_cors_origin_in_fraiseql_toml_is_refused_at_boot() {
+        let dir = TempDir::new().unwrap();
+        let toml_path = dir.path().join("fraiseql.toml");
+        std::fs::write(
+            &toml_path,
+            "[database]\nurl = \"postgresql://toml-host/testdb\"\n\n\
+             [server.cors]\norigins = [\"*\"]\n",
+        )
+        .unwrap();
+        let (db_url, addr, server_cfg, db_cfg) =
+            temp_env::with_vars([("DATABASE_URL", None::<&str>)], || {
+                resolve_runtime_config(&toml_path, None, None, None, None).unwrap()
+            });
+        let config = build_config_from(&db_url, addr, &server_cfg, &db_cfg, false, None).unwrap();
+
+        let err = Box::pin(fraiseql_server::Server::new(
+            config,
+            fraiseql_core::schema::CompiledSchema::new(),
+            std::sync::Arc::new(fraiseql_test_utils::failing_adapter::FailingAdapter::new()),
+            None,
+        ))
+        .await
+        .err()
+        .expect("a wildcard origin must be refused");
+        assert!(err.to_string().contains("cors_origins"), "{err}");
     }
 
     #[test]

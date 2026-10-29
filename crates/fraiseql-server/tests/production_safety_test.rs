@@ -151,6 +151,33 @@ fn test_development_allows_playground_and_empty_cors() {
     });
 }
 
+#[test]
+fn test_wildcard_cors_origin_is_refused_in_development_too() {
+    // The CORS layer panics on "*" in every mode, so the refusal is not a production gate.
+    temp_env::with_var("FRAISEQL_ENV", Some("development"), || {
+        let config = ServerConfig {
+            cors_enabled: true,
+            cors_origins: vec!["*".to_string()],
+            ..ServerConfig::default()
+        };
+        let err = config.validate().unwrap_err();
+        assert!(err.contains("cors_origins"), "{err}");
+    });
+}
+
+#[test]
+fn test_wildcard_cors_origin_is_accepted_when_cors_is_disabled() {
+    // No CORS layer is built, so the list is never read.
+    temp_env::with_var("FRAISEQL_ENV", Some("development"), || {
+        let config = ServerConfig {
+            cors_enabled: false,
+            cors_origins: vec!["*".to_string()],
+            ..ServerConfig::default()
+        };
+        config.validate().unwrap();
+    });
+}
+
 // =============================================================================
 // Configuration Combinations Tests
 // =============================================================================

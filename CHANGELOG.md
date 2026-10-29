@@ -383,6 +383,13 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **A `"*"` in `cors_origins` is refused at boot instead of crashing it (#1829).** The CORS
+  layer allows exactly the origins listed, and building it panicked on a wildcard among
+  them, so a server configuration file or a `fraiseql.toml` (`[server.cors] origins`) that
+  wrote `"*"` took the process down with a panic. Configuration validation now refuses it,
+  in every deployment mode, and says to list each origin a browser app is served from.
+  With CORS disabled the list is not read and nothing changes.
+
 - **`compile --database` advises a date sorted or filtered out of any relation's document,
   not only a `tv_*` one (#1815).** A `DateTime`, `Date` or `Time` key read out of the
   document is compared as `(data->>'key')::timestamptz`, which PostgreSQL will not index on a

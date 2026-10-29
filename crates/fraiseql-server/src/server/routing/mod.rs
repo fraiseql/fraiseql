@@ -14,6 +14,8 @@ mod admin;
 mod admin_failure_budget_tests;
 #[cfg(feature = "auth")]
 mod auth;
+#[cfg(test)]
+mod cors_wildcard_tests;
 mod extensions;
 mod graphql;
 #[cfg(test)]

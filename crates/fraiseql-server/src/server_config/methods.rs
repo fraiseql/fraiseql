@@ -249,6 +249,7 @@ impl ServerConfig {
     /// - `tls` is enabled but cert or key path is missing
     /// - TLS minimum version is invalid
     /// - In production mode: `playground_enabled` is true
+    /// - `cors_enabled` is true and `cors_origins` contains `"*"`
     /// - In production mode: `cors_enabled` is true but `cors_origins` is empty
     pub fn validate(&self) -> Result<(), String> {
         // A Flight view name reaches SQL as a quoted identifier; only a plain identifier
@@ -551,6 +552,15 @@ impl ServerConfig {
                 // so "never reachable without a credential" is enforced by
                 // construction rather than by a check that could drift.
             }
+        }
+
+        // The CORS layer allows exactly the listed origins, and tower-http panics on a
+        // wildcard among them, so `"*"` would crash the boot instead of allowing anything.
+        if self.cors_enabled && self.cors_origins.iter().any(|o| o == "*") {
+            return Err("cors_origins contains \"*\", which the server does not support: \
+                 list each origin a browser app is served from, \
+                 e.g. cors_origins = [\"https://app.example.com\"]"
+                .to_string());
         }
 
         if Self::is_production_mode() {
