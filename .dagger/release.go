@@ -12,199 +12,34 @@ package main
 // BEFORE a tag goes out, the two failure classes a release run would otherwise
 // discover the expensive way:
 //   - "tag shipped but a crate failed to publish" (the v2.3.0 / v2.3.1 regression)
-//     → PublishDryRun walks the same topological order as release.yml.
+//     → PublishDryRun packages and verifies every crate release.yml publishes.
 //   - an accidental breaking public-API change → SemverNamed / SemverWorkspace.
 //
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"sort"
 	"strings"
 
 	"dagger/fraiseql-ci/internal/dagger"
 )
 
-// legacyPublishOrder is the topological crate publish order proven by release.yml
-// (it shipped all 16 publishable crates at v2.3.2). It is the canonical order the
-// dry-run loop iterates; PublishOrderSelftest validates it against the live
-// dependency graph, so a newly-added crate or a new cross-crate edge that would
-// break publish order is caught here rather than mid-release.
-var legacyPublishOrder = []string{
-	// Tier 1: leaf crates (depend on none of the others). fraiseql-guard is first
-	// because auth/federation/observers/functions/arrow/secrets/core/cdc-sinks/server
-	// all depend on it.
-	"fraiseql-guard",
-	// fraiseql-kafka is tier 1.5: it depends on fraiseql-guard alone, and both
-	// fraiseql-cdc-sinks and fraiseql-core depend on it (#1102).
-	"fraiseql-kafka",
-	// fraiseql-jwks is tier 1.5 for the same reason (#1335): it depends on
-	// fraiseql-guard alone, and fraiseql-auth, fraiseql-webhooks and fraiseql-core
-	// all depend on it — it is the one bounded JWKS client they share.
-	"fraiseql-jwks",
-	"fraiseql-error", "fraiseql-auth", "fraiseql-webhooks", "fraiseql-wire",
-	"fraiseql-cdc-sinks",
-	// Tier 2: depend on tier 1.
-	"fraiseql-db", "fraiseql-storage",
-	// Tier 3.
-	"fraiseql-federation",
-	// Tier 4.
-	"fraiseql-core",
-	// Tier 4.5.
-	"fraiseql-codegen",
-	// Tier 5.
-	"fraiseql-arrow", "fraiseql-secrets", "fraiseql-observers", "fraiseql-functions",
-	// fraiseql-saga is tier 5 too: it depends on fraiseql-core and
-	// fraiseql-federation, both published above it (#1354).
-	"fraiseql-saga",
-	// Tier 6: top-level binaries + umbrella.
-	"fraiseql-server", "fraiseql-cli", "fraiseql",
-}
-
-// PublishOrder returns the canonical crates.io publish order, one crate per line —
-// the order PublishDryRun (and the legacy release.yml) publish in.
-func (m *FraiseqlCi) PublishOrder() string {
-	return strings.Join(legacyPublishOrder, "\n")
-}
-
-// cargoMetadata is the subset of `cargo metadata --no-deps` output the selftest reads.
-type cargoMetadata struct {
-	Packages []cargoPackage `json:"packages"`
-}
-
-type cargoPackage struct {
-	Name string `json:"name"`
-	// Publish: null/absent → publishable; [] → publish=false; ["registry"] → restricted.
-	Publish      *[]string         `json:"publish"`
-	Dependencies []cargoDependency `json:"dependencies"`
-}
-
-type cargoDependency struct {
-	Name string `json:"name"`
-	// Kind: null → normal, "dev", or "build".
-	Kind *string `json:"kind"`
-}
-
-func (p cargoPackage) publishable() bool {
-	return p.Publish == nil || len(*p.Publish) > 0
-}
-
-// PublishOrderSelftest validates legacyPublishOrder against the live workspace
-// dependency graph (`cargo metadata --no-deps`):
+// PublishDryRun packages and verify-builds every publishable crate, as release.yml's
+// "Package and verify every publishable crate" step does before anything is
+// published. It catches the packaging regressions (gitignored files or build.rs side
+// effects in the .crate tarball) that shipped v2.3.0/v2.3.1 tags whose publish then
+// failed.
 //
-//  1. Set equality — the publishable crates the workspace actually has match the
-//     embedded order exactly. A newly-added publishable crate, or a removed one,
-//     fails here with the diff.
-//  2. Topological validity — every crate is listed after all of its in-workspace
-//     (non-dev) dependencies. A new cross-crate edge that violates publish order
-//     fails here.
+// The crates come from tools/publish-order.py, which reads them off the workspace.
+// `cargo package` resolves each workspace sibling from the packages it has just built,
+// not from crates.io, so a crate whose new sibling version is not published yet
+// verifies like any other: no failure is forgiven. No token is needed and nothing is
+// uploaded, so this is safe to run before tagging.
 //
-// This is the Phase-06 CLEANUP gate ("publish order matches release.yml"): the
-// embedded order stays canonical (it is what release.yml proved), and this guards
-// it against drift.
-func (m *FraiseqlCi) PublishOrderSelftest(
-	ctx context.Context,
-	// +ignore=["target", "**/target", ".git"]
-	source *dagger.Directory,
-) (string, error) {
-	out, err := m.rustBase().
-		WithMountedDirectory("/src", source).
-		WithWorkdir("/src").
-		WithExec([]string{"cargo", "metadata", "--no-deps", "--format-version", "1"}).
-		Stdout(ctx)
-	if err != nil {
-		return "", fmt.Errorf("cargo metadata failed: %w", err)
-	}
-
-	var meta cargoMetadata
-	if err := json.Unmarshal([]byte(out), &meta); err != nil {
-		return "", fmt.Errorf("parsing cargo metadata JSON: %w", err)
-	}
-
-	pos := make(map[string]int, len(legacyPublishOrder))
-	for i, name := range legacyPublishOrder {
-		pos[name] = i
-	}
-
-	// (1) Set equality: live publishable crates vs the embedded order.
-	livePublishable := make(map[string]bool)
-	for _, pkg := range meta.Packages {
-		if pkg.publishable() {
-			livePublishable[pkg.Name] = true
-		}
-	}
-	var missing, extra []string
-	for name := range livePublishable {
-		if _, ok := pos[name]; !ok {
-			missing = append(missing, name)
-		}
-	}
-	for _, name := range legacyPublishOrder {
-		if !livePublishable[name] {
-			extra = append(extra, name)
-		}
-	}
-	sort.Strings(missing)
-	sort.Strings(extra)
-	if len(missing) > 0 || len(extra) > 0 {
-		return "", fmt.Errorf(
-			"publish-order drift vs `cargo metadata`:\n"+
-				"  missing from legacyPublishOrder (add them in dependency order): %v\n"+
-				"  listed but no longer a publishable workspace crate (remove them): %v",
-			missing, extra)
-	}
-
-	// (2) Topological validity: each crate after its in-workspace non-dev deps.
-	var violations []string
-	for _, pkg := range meta.Packages {
-		if !pkg.publishable() {
-			continue
-		}
-		for _, dep := range pkg.Dependencies {
-			if dep.Kind != nil && *dep.Kind == "dev" {
-				continue // dev-deps do not constrain publish order
-			}
-			if !livePublishable[dep.Name] {
-				continue // external or non-publishable dependency
-			}
-			if pos[dep.Name] >= pos[pkg.Name] {
-				violations = append(violations, fmt.Sprintf(
-					"%s is ordered before its dependency %s", pkg.Name, dep.Name))
-			}
-		}
-	}
-	sort.Strings(violations)
-	if len(violations) > 0 {
-		return "", fmt.Errorf("publish order is not topologically valid:\n  %s",
-			strings.Join(violations, "\n  "))
-	}
-
-	return fmt.Sprintf("publish-order OK: %d publishable crates, valid topological order\n  %s\n",
-		len(legacyPublishOrder), strings.Join(legacyPublishOrder, " → ")), nil
-}
-
-// PublishDryRun runs `cargo publish --dry-run` for every publishable crate in
-// publish order, mirroring release.yml's "Dry-run publish for every publishable
-// crate" gate — the upstream check added after v2.3.0/v2.3.1 shipped tags whose
-// publish then failed (packaging-rule regressions: gitignored files or build.rs
-// side effects swept into the .crate tarball). Like the legacy gate it does NOT
-// fail fast: it dry-runs all crates, prints the tail of any that fail, and exits
-// non-zero at the end if any failed, so one run surfaces every packaging problem.
-//
-// No registry token is needed — `--dry-run` packages and verify-builds but never
-// contacts the upload endpoint — so this is safe to run locally before tagging.
-//
-// The verify build resolves each crate's dependencies from crates.io, NOT from the
-// local workspace paths. So during a synchronized version bump the not-yet-published
-// new sibling versions are unresolvable, and a crate that depends on one fails its
-// dry-run with "no matching package named X" / "failed to select a version for X".
-// That is expected and benign — the ordered publish ships those siblings first — so
-// dry_run_failure_is_tolerable (tools/lib/, unit-tested) downgrades it to a WARN when
-// every unresolved package is one of our own publishable crates and the failure is a
-// packaging-prep failure, not a compile error. Everything else still hard-fails. This
-// matches release.yml's tolerance (v2.4.0 hit exactly this with fraiseql-codegen and
-// the synchronized 2.4.0 bump).
+// Run it after the version bump, as tools/release.sh does. At a version already on
+// crates.io, every crate is packaged beside a published copy with another checksum,
+// and fraiseql-server, whose tests lock fraiseql-cli, fails with "checksum for
+// `fraiseql-cli` changed between lock files" even on the tagged tree.
 //
 // expectVersion, when set, asserts the workspace `[workspace.package]` version
 // matches first — a guard against tagging vX while Cargo.toml still says vY.
@@ -216,11 +51,7 @@ func (m *FraiseqlCi) PublishDryRun(
 	expectVersion string,
 ) (string, error) {
 	script := strings.Join([]string{
-		"set -uo pipefail",
-		// Plain (uncoloured) cargo output so the tolerance greps match reliably.
-		"export CARGO_TERM_COLOR=never",
-		// First-publish-sibling tolerance lives in a tested shell lib in the source.
-		"source tools/lib/dry_run_tolerance.sh",
+		"set -euo pipefail",
 		fmt.Sprintf("EXPECT=%q", expectVersion),
 		`if [ -n "$EXPECT" ]; then`,
 		`  ACTUAL=$(grep -m1 -E '^version[[:space:]]*=' Cargo.toml | sed -E 's/.*"([^"]*)".*/\1/')`,
@@ -229,25 +60,11 @@ func (m *FraiseqlCi) PublishDryRun(
 		`  fi`,
 		`  echo "✅ workspace version $ACTUAL matches expected"`,
 		`fi`,
-		fmt.Sprintf("CRATES=%q", strings.Join(legacyPublishOrder, " ")),
-		"FAILED=0",
-		`for c in $CRATES; do`,
-		`  echo "===== dry-run publish: $c ====="`,
-		`  log="/tmp/dryrun-$c.log"`,
-		`  cargo publish --dry-run -p "$c" > "$log" 2>&1`,
-		`  status=$?`,
-		`  if [ "$status" -eq 0 ]; then`,
-		`    echo "OK: $c"`,
-		`  elif tol=$(dry_run_failure_is_tolerable "$log" "$CRATES"); then`,
-		`    echo "WARN: $c tolerated — not-yet-published sibling(s): $(echo $tol | tr '\n' ' ')"`,
-		`  else`,
-		`    echo "FAIL: $c (exit $status)"`,
-		`    tail -40 "$log"`,
-		`    FAILED=1`,
-		`  fi`,
-		"done",
-		`if [ "$FAILED" -ne 0 ]; then echo "❌ one or more crates failed dry-run publish"; exit 1; fi`,
-		fmt.Sprintf(`echo "✅ publish-dry-run OK: all %d crates passed (first-publish siblings tolerated)"`, len(legacyPublishOrder)),
+		`ORDER="$(python3 tools/publish-order.py)"`,
+		`args=()`,
+		`while read -r crate; do args+=(--package "$crate"); done <<<"$ORDER"`,
+		`cargo package "${args[@]}"`,
+		`echo "✅ publish-dry-run OK: $(wc -l <<<"$ORDER") crates packaged and verified"`,
 	}, "\n")
 
 	return m.rustSrc(source).

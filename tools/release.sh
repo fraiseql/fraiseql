@@ -276,11 +276,11 @@ if [[ -n "${SKIP_RELEASE_VALIDATE:-}" ]]; then
 elif ! command -v dagger >/dev/null 2>&1; then
     echo "      WARNING: 'dagger' not on PATH — cannot run the pre-tag validation gate."
     echo "      WARNING: Run 'make release-validate VERSION=${VERSION}' on a machine with"
-    echo "      WARNING: Dagger BEFORE pushing the v${VERSION} tag. It catches the publish-order,"
+    echo "      WARNING: Dagger BEFORE pushing the v${VERSION} tag. It catches the packaging,"
     echo "      WARNING: unpublished-sibling, and dry-run-compile failures that have repeatedly"
     echo "      WARNING: broken releases only after the tag was already pushed."
 else
-    echo "      Running 'make release-validate VERSION=${VERSION}' (publish-order self-test + dry-run)..."
+    echo "      Running 'make release-validate VERSION=${VERSION}' (package and verify every crate)..."
     if make release-validate VERSION="${VERSION}"; then
         echo "      Pre-tag validation passed."
     else

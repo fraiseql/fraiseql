@@ -43,7 +43,7 @@ make_fixture() {
 
     cp "$REPO_ROOT/tools/check-delivery-coverage.py" \
        "$REPO_ROOT/tools/check-image-parity.py" \
-       "$REPO_ROOT/tools/check-publish-parity.py" \
+       "$REPO_ROOT/tools/publish-order.py" \
        "$REPO_ROOT/tools/check-suite-coverage.py" \
        "$REPO_ROOT/tools/delivery-artifacts.toml" \
        "$REPO_ROOT/tools/compose-stack-test.sh" \

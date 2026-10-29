@@ -3,8 +3,8 @@
 # #1198 gate.
 #
 # A gate that never fails is indistinguishable from a clean tree, and this one is
-# especially easy to make vacuous: it discovers its subjects from the `cargo publish
-# --package` steps in release.yml, so a rename there would silently leave it checking
+# especially easy to make vacuous: it discovers its subjects from the workspace's
+# `publish` settings, so a workspace that publishes nothing would leave it checking
 # nothing. Every property below is asserted in BOTH directions.
 #
 # The fixtures are whole throwaway workspaces in a temp dir. The gate is never pointed
@@ -35,15 +35,16 @@ TESTS_FAILED=0
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 
-# fixture <id> <lib.rs body> [allowlist body] [release.yml override]
+# fixture <id> <lib.rs body> [allowlist body] [extra [package] line]
 #
-# Builds a one-crate workspace whose crate is published, with `serde_json` as its only
+# Builds a one-crate workspace whose crate is published (unless the extra line says
+# `publish = false`), with `serde_json` as its only
 # third-party dependency. `cargo metadata --no-deps` reads the manifest without resolving
 # or downloading anything, so these run offline.
 fixture() {
-    local id="$1" lib="$2" allow="${3:-}" publish="${4:-cargo publish --package fixture-crate}"
+    local id="$1" lib="$2" allow="${3:-}" package_line="${4:-}"
     local dir="$WORK/$id"
-    mkdir -p "$dir/crates/fixture-crate/src" "$dir/tools" "$dir/.github/workflows"
+    mkdir -p "$dir/crates/fixture-crate/src" "$dir/tools"
     cat > "$dir/Cargo.toml" <<EOF
 [workspace]
 members = ["crates/fixture-crate"]
@@ -54,6 +55,7 @@ EOF
 name = "fixture-crate"
 version = "0.1.0"
 edition = "2021"
+$package_line
 
 [dependencies]
 serde_json = "1"
@@ -61,20 +63,18 @@ thiserror = "2"
 EOF
     printf '%s\n' "$lib" > "$dir/crates/fixture-crate/src/lib.rs"
     printf '%s\n' "$allow" > "$dir/tools/public-api-reexports.allow"
-    printf 'jobs:\n  publish:\n    steps:\n      - run: %s\n' "$publish" \
-        > "$dir/.github/workflows/release.yml"
     echo "$dir"
 }
 
 # fixture_unpublished <id>
 #
 # Two crates, only the clean one published. The crate with the unreachable reference is a
-# workspace member release.yml does not name, so nobody outside can call it.
+# workspace member that says `publish = false`, so nobody outside can call it.
 fixture_unpublished() {
     local id="$1"
     local dir
     dir="$(fixture "$id" 'pub fn config() -> serde_json::Value { serde_json::Value::Null }' '' \
-           'cargo publish --package published-crate')"
+           'publish = false')"
     mkdir -p "$dir/crates/published-crate/src"
     cat > "$dir/crates/published-crate/Cargo.toml" <<EOF
 [package]
@@ -212,11 +212,10 @@ pub fn kind() -> Kind { Kind::Other }')"
 
 echo
 echo "── the gate refuses to pass vacuously ──"
-# If release.yml's publish steps are renamed away, the gate has no subjects. It must
-# say so rather than report OK over an empty list — the shape #1206 shipped.
-expect fail D0 "release.yml names no published crate" \
-    "$(fixture d0 'pub fn config() -> serde_json::Value { serde_json::Value::Null }' '' \
-       'echo nothing to publish')"
+# A workspace that publishes nothing leaves the gate no subjects. It must say so
+# rather than report OK over an empty list — the shape #1206 shipped.
+expect fail D0 "the workspace publishes no crate" \
+    "$(fixture d0 'pub fn ok() {}' '' 'publish = false')"
 # An unpublished crate's public API is an internal seam; nobody outside can call it.
 expect pass D1 "the offending crate is not published" \
     "$(fixture_unpublished d1)"

@@ -23,7 +23,10 @@ jobs:
     name: Validate Release Prerequisites
     environment: release
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # The dry run below verify-builds all 21 publishable crates (15 minutes on a
+    # 24-core box, with no sccache here). Its predecessor stopped early at every crate
+    # whose new sibling was not yet published, so it fitted in 30.
+    timeout-minutes: 90
     env:
       RUSTC_WRAPPER: ""
     steps:
@@ -69,83 +72,38 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8  # stable
 
-      # Upstream gate that catches packaging-rules regressions (e.g.
-      # gitignored files or build.rs side effects swept into the .crate
-      # tarball) before they reach the actual publish step. Added after
-      # v2.3.0 / v2.3.1 shipped tags but failed to publish fraiseql-server
-      # (the previous version of this step only dry-ran fraiseql-error).
-      - name: Dry-run publish for every publishable crate
+      # Packages and verify-builds every publishable crate before anything is
+      # published, catching packaging regressions (gitignored files or build.rs side
+      # effects in the .crate tarball) that shipped v2.3.0/v2.3.1 tags whose publish
+      # then failed. `cargo package` resolves each workspace sibling from the packages
+      # it has just built rather than from crates.io, so a crate whose new sibling
+      # version is not published yet verifies like any other: no failure is forgiven.
+      # It needs no token and uploads nothing.
+      #
+      # A crate already on crates.io at this version (a rerun after a partial
+      # publish) is left out, as the publish job skips it. Packaged again, it would
+      # sit beside the published copy with a different checksum, and the dependents
+      # that lock both fail ("checksum for `fraiseql-cli` changed between lock
+      # files"); left out, they verify against the published copy they will resolve.
+      - name: Package and verify every publishable crate
         shell: bash
         run: |
-          set -uo pipefail
-          # GitHub runs `shell: bash` with `-e`, which would abort this loop at the
-          # first crate whose dry-run exits non-zero — before the per-crate status
-          # capture and first-publish-sibling tolerance below ever run, defeating
-          # the collect-all design. Disable errexit; the loop tracks FAILED itself.
-          set +e
-          # Plain (uncoloured) cargo output so the log greps below match reliably.
-          export CARGO_TERM_COLOR=never
-          CRATES="fraiseql-guard fraiseql-kafka fraiseql-jwks fraiseql-error fraiseql-auth fraiseql-webhooks \
-                  fraiseql-wire fraiseql-cdc-sinks \
-                  fraiseql-db fraiseql-storage fraiseql-federation fraiseql-core \
-                  fraiseql-codegen fraiseql-arrow fraiseql-secrets fraiseql-observers \
-                  fraiseql-functions fraiseql-saga fraiseql-server fraiseql-cli fraiseql"
-          FAILED=0
-          for c in $CRATES; do
-            echo "::group::dry-run publish: $c"
-            log="/tmp/dryrun-$c.log"
-            cargo publish --dry-run --token "${{ secrets.CARGO_TOKEN }}" -p "$c" > "$log" 2>&1
-            status=$?
-            tail -30 "$log"
-            if [ "$status" -eq 0 ]; then
-              echo "OK: $c dry-run passed"
+          set -euo pipefail
+          VERSION="${GITHUB_REF#refs/tags/v}"
+          ORDER="$(python3 tools/publish-order.py)"
+          args=()
+          while read -r crate; do
+            if [ "$(curl -s -o /dev/null -w '%{http_code}' -H 'User-Agent: fraiseql-ci' "https://crates.io/api/v1/crates/$crate/$VERSION")" = "200" ]; then
+              echo "$crate $VERSION already published, not packaged"
             else
-              # A dry-run can fail purely because a sibling crate this one depends
-              # on is not on crates.io at the required version yet — the first
-              # release of a new crate (fraiseql-codegen) or a synchronized version
-              # bump where the new sibling versions are published later in $CRATES
-              # order. cargo phrases this two ways:
-              #   "no matching package named \`X\` found"                  (X never published)
-              #   "failed to select a version for the requirement \`X = …\`" (X published, not at the required version)
-              # Tolerate either when every unresolved package is one of our own
-              # publishable crates AND the failure is a packaging-prep failure —
-              # NOT a compile error in the verify build. Gitignored files / build.rs
-              # side effects / a genuinely missing external dep / a real compile
-              # error all still hard-fail.
-              tolerable=0
-              if grep -q "failed to prepare local package for uploading" "$log" \
-                 && ! grep -qE "could not compile|error\[E[0-9]|aborting due to" "$log"; then
-                missing=$( {
-                  grep -oE "no matching package named \`[a-zA-Z0-9_-]+\`" "$log" \
-                    | sed -E "s/.*\`([^\`]+)\`.*/\1/"
-                  grep -oE "failed to select a version for the requirement \`[a-zA-Z0-9_-]+" "$log" \
-                    | sed -E "s/.*\`([a-zA-Z0-9_-]+).*/\1/"
-                } | sort -u)
-                if [ -n "$missing" ]; then
-                  tolerable=1
-                  for m in $missing; do
-                    case " $CRATES " in
-                      *" $m "*) ;;        # one of our publishable crates → first-publish ordering, ok
-                      *) tolerable=0 ;;   # an external dependency is genuinely unresolved → fail
-                    esac
-                  done
-                fi
-              fi
-              if [ "$tolerable" -eq 1 ]; then
-                echo "WARN: $c dry-run failed only on not-yet-published sibling crate(s): $missing"
-                echo "      tolerated — the ordered publish ships those first (see step comment)"
-              else
-                echo "FAIL: $c dry-run exited $status"
-                FAILED=1
-              fi
+              args+=(--package "$crate")
             fi
-            echo "::endgroup::"
-          done
-          if [ "$FAILED" -ne 0 ]; then
-            echo "::error::One or more crates failed dry-run publish — see expanded groups above"
-            exit 1
+          done <<<"$ORDER"
+          if [ "${#args[@]}" -eq 0 ]; then
+            echo "every crate is already published at $VERSION"
+            exit 0
           fi
-          echo "All crates passed dry-run publish"
+          cargo package "${args[@]}"
 
   # Create GitHub release using gh CLI
   create-github-release:
@@ -486,344 +444,39 @@ jobs:
           cargo check --features "arrow,kafka,postgres,redis-apq,schema-lint,test-utils,wire-backend"
           echo "✅ All crates build successfully"
 
-      # Publish in strict topological dependency order
-      # Tier 1: No fraiseql dependencies. fraiseql-guard goes first — auth,
-      # federation, observers, functions, arrow, secrets, core, cdc-sinks and
-      # server all depend on it.
-      - name: Publish fraiseql-guard
-        id: publish-guard
-        run: |
-          VERSION="${GITHUB_REF#refs/tags/v}"
-          if [ "$(curl -s -o /dev/null -w '%{http_code}' -H 'User-Agent: fraiseql-ci' "https://crates.io/api/v1/crates/fraiseql-guard/$VERSION")" = "200" ]; then
-            echo "fraiseql-guard $VERSION already published, skipping"
-          else
-            cargo publish --package fraiseql-guard --token ${{ secrets.CARGO_TOKEN }}
-          fi
-
-      # fraiseql-kafka: the one Kafka producer in the workspace (#1102). Depends on
-      # fraiseql-guard alone; cdc-sinks and core both depend on it, so it publishes
-      # before either.
-      - name: Publish fraiseql-kafka
-        id: publish-kafka
-        run: |
-          VERSION="${GITHUB_REF#refs/tags/v}"
-          if [ "$(curl -s -o /dev/null -w '%{http_code}' -H 'User-Agent: fraiseql-ci' "https://crates.io/api/v1/crates/fraiseql-kafka/$VERSION")" = "200" ]; then
-            echo "fraiseql-kafka $VERSION already published, skipping"
-          else
-            cargo publish --package fraiseql-kafka --token ${{ secrets.CARGO_TOKEN }}
-          fi
-
-      # fraiseql-jwks: the one bounded JWKS client in the workspace (#1335). Depends
-      # on fraiseql-guard alone; auth, webhooks and core all depend on it, so it
-      # publishes before any of them.
-      - name: Publish fraiseql-jwks
-        id: publish-jwks
-        run: |
-          VERSION="${GITHUB_REF#refs/tags/v}"
-          if [ "$(curl -s -o /dev/null -w '%{http_code}' -H 'User-Agent: fraiseql-ci' "https://crates.io/api/v1/crates/fraiseql-jwks/$VERSION")" = "200" ]; then
-            echo "fraiseql-jwks $VERSION already published, skipping"
-          else
-            cargo publish --package fraiseql-jwks --token ${{ secrets.CARGO_TOKEN }}
-          fi
-
-      - name: Publish fraiseql-error
-        id: publish-error
-        run: |
-          VERSION="${GITHUB_REF#refs/tags/v}"
-          if [ "$(curl -s -o /dev/null -w '%{http_code}' -H 'User-Agent: fraiseql-ci' "https://crates.io/api/v1/crates/fraiseql-error/$VERSION")" = "200" ]; then
-            echo "fraiseql-error $VERSION already published, skipping"
-          else
-            cargo publish --package fraiseql-error --token ${{ secrets.CARGO_TOKEN }}
-          fi
-
-      - name: Publish fraiseql-auth
-        id: publish-auth
-        run: |
-          VERSION="${GITHUB_REF#refs/tags/v}"
-          if [ "$(curl -s -o /dev/null -w '%{http_code}' -H 'User-Agent: fraiseql-ci' "https://crates.io/api/v1/crates/fraiseql-auth/$VERSION")" = "200" ]; then
-            echo "fraiseql-auth $VERSION already published, skipping"
-          else
-            cargo publish --package fraiseql-auth --token ${{ secrets.CARGO_TOKEN }}
-          fi
-
-      - name: Publish fraiseql-webhooks
-        id: publish-webhooks
-        run: |
-          VERSION="${GITHUB_REF#refs/tags/v}"
-          if [ "$(curl -s -o /dev/null -w '%{http_code}' -H 'User-Agent: fraiseql-ci' "https://crates.io/api/v1/crates/fraiseql-webhooks/$VERSION")" = "200" ]; then
-            echo "fraiseql-webhooks $VERSION already published, skipping"
-          else
-            cargo publish --package fraiseql-webhooks --token ${{ secrets.CARGO_TOKEN }}
-          fi
-
-      - name: Publish fraiseql-wire
-        id: publish-wire
-        run: |
-          VERSION="${GITHUB_REF#refs/tags/v}"
-          if [ "$(curl -s -o /dev/null -w '%{http_code}' -H 'User-Agent: fraiseql-ci' "https://crates.io/api/v1/crates/fraiseql-wire/$VERSION")" = "200" ]; then
-            echo "fraiseql-wire $VERSION already published, skipping"
-          else
-            cargo publish --package fraiseql-wire --token ${{ secrets.CARGO_TOKEN }}
-          fi
-
-      - name: Wait for crates.io indexing (Tier 1)
-        run: bash tools/wait-for-crates-index.sh "${GITHUB_REF#refs/tags/v}" fraiseql-guard fraiseql-kafka fraiseql-jwks fraiseql-error fraiseql-auth fraiseql-webhooks fraiseql-wire
-
-      # Tier 1.5: Depends on fraiseql-guard (Tier 1), and nothing else.
+      # Every publishable workspace crate, each after every workspace crate it depends
+      # on: tools/publish-order.py derives both from the manifests, so a new crate or
+      # a new edge needs no edit here. A rerun after a partial failure skips what is
+      # already on crates.io.
       #
-      # fraiseql-server carries this crate as an *optional* dependency behind its
-      # `cdc-outbound` feature (#382, added after v2.14.1). An optional dependency
-      # still has to resolve on crates.io at publish time, so leaving it out of this
-      # job does not merely skip it — it fails the fraiseql-server publish outright
-      # with "no matching package named `fraiseql-cdc-sinks` found", taking
-      # fraiseql-cli and the fraiseql umbrella down with it.
-      - name: Publish fraiseql-cdc-sinks
-        id: publish-cdc-sinks
+      # Not `cargo publish --workspace`: it waits for each crate to reach the index for
+      # 60 seconds at most, then warns and publishes the next crate anyway, so a slow
+      # index fails a dependent mid-release (v2.13.0). wait-for-crates-index.sh waits
+      # longer and stops the release when it runs out.
+      - name: Publish crates in dependency order
+        shell: bash
         run: |
+          set -euo pipefail
           VERSION="${GITHUB_REF#refs/tags/v}"
-          if [ "$(curl -s -o /dev/null -w '%{http_code}' -H 'User-Agent: fraiseql-ci' "https://crates.io/api/v1/crates/fraiseql-cdc-sinks/$VERSION")" = "200" ]; then
-            echo "fraiseql-cdc-sinks $VERSION already published, skipping"
-          else
-            cargo publish --package fraiseql-cdc-sinks --token ${{ secrets.CARGO_TOKEN }}
-          fi
-
-      - name: Wait for crates.io indexing (Tier 1.5)
-        run: bash tools/wait-for-crates-index.sh "${GITHUB_REF#refs/tags/v}" fraiseql-cdc-sinks
-
-      # Tier 2: Depends on Tier 1 (fraiseql-error, fraiseql-wire)
-      - name: Publish fraiseql-db
-        id: publish-db
-        run: |
-          VERSION="${GITHUB_REF#refs/tags/v}"
-          if [ "$(curl -s -o /dev/null -w '%{http_code}' -H 'User-Agent: fraiseql-ci' "https://crates.io/api/v1/crates/fraiseql-db/$VERSION")" = "200" ]; then
-            echo "fraiseql-db $VERSION already published, skipping"
-          else
-            cargo publish --package fraiseql-db --token ${{ secrets.CARGO_TOKEN }}
-          fi
-
-      - name: Publish fraiseql-storage
-        id: publish-storage
-        run: |
-          VERSION="${GITHUB_REF#refs/tags/v}"
-          if [ "$(curl -s -o /dev/null -w '%{http_code}' -H 'User-Agent: fraiseql-ci' "https://crates.io/api/v1/crates/fraiseql-storage/$VERSION")" = "200" ]; then
-            echo "fraiseql-storage $VERSION already published, skipping"
-          else
-            cargo publish --package fraiseql-storage --token ${{ secrets.CARGO_TOKEN }}
-          fi
-
-      - name: Wait for crates.io indexing (Tier 2)
-        run: bash tools/wait-for-crates-index.sh "${GITHUB_REF#refs/tags/v}" fraiseql-db fraiseql-storage
-
-      # Tier 3: Depends on fraiseql-db, fraiseql-error
-      - name: Publish fraiseql-federation
-        id: publish-federation
-        run: |
-          VERSION="${GITHUB_REF#refs/tags/v}"
-          if [ "$(curl -s -o /dev/null -w '%{http_code}' -H 'User-Agent: fraiseql-ci' "https://crates.io/api/v1/crates/fraiseql-federation/$VERSION")" = "200" ]; then
-            echo "fraiseql-federation $VERSION already published, skipping"
-          else
-            cargo publish --package fraiseql-federation --token ${{ secrets.CARGO_TOKEN }}
-          fi
-
-      - name: Wait for crates.io indexing (Tier 3)
-        run: bash tools/wait-for-crates-index.sh "${GITHUB_REF#refs/tags/v}" fraiseql-federation
-
-      # Tier 4: Depends on fraiseql-db, fraiseql-error, fraiseql-federation, fraiseql-wire
-      - name: Publish fraiseql-core
-        id: publish-core
-        run: |
-          VERSION="${GITHUB_REF#refs/tags/v}"
-          if [ "$(curl -s -o /dev/null -w '%{http_code}' -H 'User-Agent: fraiseql-ci' "https://crates.io/api/v1/crates/fraiseql-core/$VERSION")" = "200" ]; then
-            echo "fraiseql-core $VERSION already published, skipping"
-          else
-            cargo publish --package fraiseql-core --token ${{ secrets.CARGO_TOKEN }}
-          fi
-
-      - name: Wait for crates.io indexing (Tier 4)
-        run: bash tools/wait-for-crates-index.sh "${GITHUB_REF#refs/tags/v}" fraiseql-core
-
-      # Tier 4.5: Depends on fraiseql-core, fraiseql-error
-      - name: Publish fraiseql-codegen
-        id: publish-codegen
-        run: |
-          VERSION="${GITHUB_REF#refs/tags/v}"
-          if [ "$(curl -s -o /dev/null -w '%{http_code}' -H 'User-Agent: fraiseql-ci' "https://crates.io/api/v1/crates/fraiseql-codegen/$VERSION")" = "200" ]; then
-            echo "fraiseql-codegen $VERSION already published, skipping"
-          else
-            cargo publish --package fraiseql-codegen --token ${{ secrets.CARGO_TOKEN }}
-          fi
-
-      - name: Wait for crates.io indexing (Tier 4.5)
-        run: bash tools/wait-for-crates-index.sh "${GITHUB_REF#refs/tags/v}" fraiseql-codegen
-
-      # Tier 5: Depends on fraiseql-core
-      - name: Publish fraiseql-arrow
-        id: publish-arrow
-        run: |
-          VERSION="${GITHUB_REF#refs/tags/v}"
-          if [ "$(curl -s -o /dev/null -w '%{http_code}' -H 'User-Agent: fraiseql-ci' "https://crates.io/api/v1/crates/fraiseql-arrow/$VERSION")" = "200" ]; then
-            echo "fraiseql-arrow $VERSION already published, skipping"
-          else
-            cargo publish --package fraiseql-arrow --token ${{ secrets.CARGO_TOKEN }}
-          fi
-
-      - name: Publish fraiseql-secrets
-        id: publish-secrets
-        run: |
-          VERSION="${GITHUB_REF#refs/tags/v}"
-          if [ "$(curl -s -o /dev/null -w '%{http_code}' -H 'User-Agent: fraiseql-ci' "https://crates.io/api/v1/crates/fraiseql-secrets/$VERSION")" = "200" ]; then
-            echo "fraiseql-secrets $VERSION already published, skipping"
-          else
-            cargo publish --package fraiseql-secrets --token ${{ secrets.CARGO_TOKEN }}
-          fi
-
-      - name: Wait for crates.io indexing (Tier 5)
-        run: bash tools/wait-for-crates-index.sh "${GITHUB_REF#refs/tags/v}" fraiseql-arrow fraiseql-secrets
-
-      # Tier 6: Depends on fraiseql-arrow
-      - name: Publish fraiseql-observers
-        id: publish-observers
-        run: |
-          VERSION="${GITHUB_REF#refs/tags/v}"
-          if [ "$(curl -s -o /dev/null -w '%{http_code}' -H 'User-Agent: fraiseql-ci' "https://crates.io/api/v1/crates/fraiseql-observers/$VERSION")" = "200" ]; then
-            echo "fraiseql-observers $VERSION already published, skipping"
-          else
-            cargo publish --package fraiseql-observers --token ${{ secrets.CARGO_TOKEN }}
-          fi
-
-      - name: Wait for crates.io indexing (Tier 6)
-        run: bash tools/wait-for-crates-index.sh "${GITHUB_REF#refs/tags/v}" fraiseql-observers
-
-      # Tier 6.5: Depends on fraiseql-error, fraiseql-observers (+ optional core/db/storage)
-      - name: Publish fraiseql-functions
-        id: publish-functions
-        run: |
-          VERSION="${GITHUB_REF#refs/tags/v}"
-          if [ "$(curl -s -o /dev/null -w '%{http_code}' -H 'User-Agent: fraiseql-ci' "https://crates.io/api/v1/crates/fraiseql-functions/$VERSION")" = "200" ]; then
-            echo "fraiseql-functions $VERSION already published, skipping"
-          else
-            cargo publish --package fraiseql-functions --token ${{ secrets.CARGO_TOKEN }}
-          fi
-
-      - name: Wait for crates.io indexing (Tier 6.5)
-        run: bash tools/wait-for-crates-index.sh "${GITHUB_REF#refs/tags/v}" fraiseql-functions
-
-      # Tier 6.6: Depends on fraiseql-core, fraiseql-db, fraiseql-error, fraiseql-federation
-      - name: Publish fraiseql-saga
-        id: publish-saga
-        run: |
-          VERSION="${GITHUB_REF#refs/tags/v}"
-          if [ "$(curl -s -o /dev/null -w '%{http_code}' -H 'User-Agent: fraiseql-ci' "https://crates.io/api/v1/crates/fraiseql-saga/$VERSION")" = "200" ]; then
-            echo "fraiseql-saga $VERSION already published, skipping"
-          else
-            cargo publish --package fraiseql-saga --token ${{ secrets.CARGO_TOKEN }}
-          fi
-
-      - name: Wait for crates.io indexing (Tier 6.6)
-        run: bash tools/wait-for-crates-index.sh "${GITHUB_REF#refs/tags/v}" fraiseql-saga
-
-      # Tier 7: Depends on fraiseql-arrow, fraiseql-auth, fraiseql-core, fraiseql-error, fraiseql-functions, fraiseql-observers, fraiseql-secrets, fraiseql-storage, fraiseql-webhooks
-      - name: Publish fraiseql-server
-        id: publish-server
-        run: |
-          VERSION="${GITHUB_REF#refs/tags/v}"
-          if [ "$(curl -s -o /dev/null -w '%{http_code}' -H 'User-Agent: fraiseql-ci' "https://crates.io/api/v1/crates/fraiseql-server/$VERSION")" = "200" ]; then
-            echo "fraiseql-server $VERSION already published, skipping"
-          else
-            cargo publish --package fraiseql-server --token ${{ secrets.CARGO_TOKEN }}
-          fi
-
-      - name: Wait for crates.io indexing (Tier 7)
-        run: bash tools/wait-for-crates-index.sh "${GITHUB_REF#refs/tags/v}" fraiseql-server
-
-      # Tier 8: Depends on fraiseql-core, fraiseql-db, fraiseql-error, fraiseql-federation, fraiseql-server
-      - name: Publish fraiseql-cli
-        id: publish-cli
-        run: |
-          VERSION="${GITHUB_REF#refs/tags/v}"
-          if [ "$(curl -s -o /dev/null -w '%{http_code}' -H 'User-Agent: fraiseql-ci' "https://crates.io/api/v1/crates/fraiseql-cli/$VERSION")" = "200" ]; then
-            echo "fraiseql-cli $VERSION already published, skipping"
-          else
-            cargo publish --package fraiseql-cli --token ${{ secrets.CARGO_TOKEN }}
-          fi
-
-      - name: Wait for crates.io indexing (Tier 8)
-        run: bash tools/wait-for-crates-index.sh "${GITHUB_REF#refs/tags/v}" fraiseql-cli
-
-      # Tier 9: Root umbrella crate — depends on all others
-      - name: Publish fraiseql (root crate)
-        id: publish-root
-        run: |
-          VERSION="${GITHUB_REF#refs/tags/v}"
-          if [ "$(curl -s -o /dev/null -w '%{http_code}' -H 'User-Agent: fraiseql-ci' "https://crates.io/api/v1/crates/fraiseql/$VERSION")" = "200" ]; then
-            echo "fraiseql $VERSION already published, skipping"
-          else
-            cargo publish --package fraiseql --token ${{ secrets.CARGO_TOKEN }}
-          fi
-
-      - name: Verify all crates published
-        if: always()
-        run: |
-          FAILED=0
-          for step_outcome in \
-            "${{ steps.publish-guard.outcome }}" \
-            "${{ steps.publish-kafka.outcome }}" \
-            "${{ steps.publish-jwks.outcome }}" \
-            "${{ steps.publish-error.outcome }}" \
-            "${{ steps.publish-auth.outcome }}" \
-            "${{ steps.publish-webhooks.outcome }}" \
-            "${{ steps.publish-wire.outcome }}" \
-            "${{ steps.publish-cdc-sinks.outcome }}" \
-            "${{ steps.publish-db.outcome }}" \
-            "${{ steps.publish-storage.outcome }}" \
-            "${{ steps.publish-federation.outcome }}" \
-            "${{ steps.publish-core.outcome }}" \
-            "${{ steps.publish-codegen.outcome }}" \
-            "${{ steps.publish-arrow.outcome }}" \
-            "${{ steps.publish-secrets.outcome }}" \
-            "${{ steps.publish-observers.outcome }}" \
-            "${{ steps.publish-functions.outcome }}" \
-            "${{ steps.publish-saga.outcome }}" \
-            "${{ steps.publish-server.outcome }}" \
-            "${{ steps.publish-cli.outcome }}" \
-            "${{ steps.publish-root.outcome }}"; do
-            if [ "$step_outcome" != "success" ]; then
-              FAILED=1
-            fi
-          done
-          if [ "$FAILED" -eq 1 ]; then
-            echo "::error::One or more crates failed to publish"
-            exit 1
-          fi
-          echo "All crates published successfully"
-
-      - name: Report crates.io publishing results
-        if: always()
-        run: |
+          # An assignment, not `< <(…)`: errexit sees a failed derivation here, and
+          # an empty list would otherwise publish nothing and pass.
+          ORDER="$(python3 tools/publish-order.py)"
+          mapfile -t CRATES <<<"$ORDER"
           echo "## 📦 Crates.io Publishing Results" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-
-          [ "${{ steps.publish-guard.outcome }}" = "success" ] && echo "- ✅ fraiseql-guard" >> "$GITHUB_STEP_SUMMARY" || echo "- ❌ fraiseql-guard" >> "$GITHUB_STEP_SUMMARY"
-          [ "${{ steps.publish-kafka.outcome }}" = "success" ] && echo "- ✅ fraiseql-kafka" >> "$GITHUB_STEP_SUMMARY" || echo "- ❌ fraiseql-kafka" >> "$GITHUB_STEP_SUMMARY"
-          [ "${{ steps.publish-jwks.outcome }}" = "success" ] && echo "- ✅ fraiseql-jwks" >> "$GITHUB_STEP_SUMMARY" || echo "- ❌ fraiseql-jwks" >> "$GITHUB_STEP_SUMMARY"
-          [ "${{ steps.publish-error.outcome }}" = "success" ] && echo "- ✅ fraiseql-error" >> "$GITHUB_STEP_SUMMARY" || echo "- ❌ fraiseql-error" >> "$GITHUB_STEP_SUMMARY"
-          [ "${{ steps.publish-auth.outcome }}" = "success" ] && echo "- ✅ fraiseql-auth" >> "$GITHUB_STEP_SUMMARY" || echo "- ❌ fraiseql-auth" >> "$GITHUB_STEP_SUMMARY"
-          [ "${{ steps.publish-webhooks.outcome }}" = "success" ] && echo "- ✅ fraiseql-webhooks" >> "$GITHUB_STEP_SUMMARY" || echo "- ❌ fraiseql-webhooks" >> "$GITHUB_STEP_SUMMARY"
-          [ "${{ steps.publish-wire.outcome }}" = "success" ] && echo "- ✅ fraiseql-wire" >> "$GITHUB_STEP_SUMMARY" || echo "- ❌ fraiseql-wire" >> "$GITHUB_STEP_SUMMARY"
-          [ "${{ steps.publish-cdc-sinks.outcome }}" = "success" ] && echo "- ✅ fraiseql-cdc-sinks" >> "$GITHUB_STEP_SUMMARY" || echo "- ❌ fraiseql-cdc-sinks" >> "$GITHUB_STEP_SUMMARY"
-          [ "${{ steps.publish-db.outcome }}" = "success" ] && echo "- ✅ fraiseql-db" >> "$GITHUB_STEP_SUMMARY" || echo "- ❌ fraiseql-db" >> "$GITHUB_STEP_SUMMARY"
-          [ "${{ steps.publish-storage.outcome }}" = "success" ] && echo "- ✅ fraiseql-storage" >> "$GITHUB_STEP_SUMMARY" || echo "- ❌ fraiseql-storage" >> "$GITHUB_STEP_SUMMARY"
-          [ "${{ steps.publish-federation.outcome }}" = "success" ] && echo "- ✅ fraiseql-federation" >> "$GITHUB_STEP_SUMMARY" || echo "- ❌ fraiseql-federation" >> "$GITHUB_STEP_SUMMARY"
-          [ "${{ steps.publish-core.outcome }}" = "success" ] && echo "- ✅ fraiseql-core" >> "$GITHUB_STEP_SUMMARY" || echo "- ❌ fraiseql-core" >> "$GITHUB_STEP_SUMMARY"
-          [ "${{ steps.publish-codegen.outcome }}" = "success" ] && echo "- ✅ fraiseql-codegen" >> "$GITHUB_STEP_SUMMARY" || echo "- ❌ fraiseql-codegen" >> "$GITHUB_STEP_SUMMARY"
-          [ "${{ steps.publish-arrow.outcome }}" = "success" ] && echo "- ✅ fraiseql-arrow" >> "$GITHUB_STEP_SUMMARY" || echo "- ❌ fraiseql-arrow" >> "$GITHUB_STEP_SUMMARY"
-          [ "${{ steps.publish-secrets.outcome }}" = "success" ] && echo "- ✅ fraiseql-secrets" >> "$GITHUB_STEP_SUMMARY" || echo "- ❌ fraiseql-secrets" >> "$GITHUB_STEP_SUMMARY"
-          [ "${{ steps.publish-observers.outcome }}" = "success" ] && echo "- ✅ fraiseql-observers" >> "$GITHUB_STEP_SUMMARY" || echo "- ❌ fraiseql-observers" >> "$GITHUB_STEP_SUMMARY"
-          [ "${{ steps.publish-functions.outcome }}" = "success" ] && echo "- ✅ fraiseql-functions" >> "$GITHUB_STEP_SUMMARY" || echo "- ❌ fraiseql-functions" >> "$GITHUB_STEP_SUMMARY"
-          [ "${{ steps.publish-saga.outcome }}" = "success" ] && echo "- ✅ fraiseql-saga" >> "$GITHUB_STEP_SUMMARY" || echo "- ❌ fraiseql-saga" >> "$GITHUB_STEP_SUMMARY"
-          [ "${{ steps.publish-server.outcome }}" = "success" ] && echo "- ✅ fraiseql-server" >> "$GITHUB_STEP_SUMMARY" || echo "- ❌ fraiseql-server" >> "$GITHUB_STEP_SUMMARY"
-          [ "${{ steps.publish-cli.outcome }}" = "success" ] && echo "- ✅ fraiseql-cli" >> "$GITHUB_STEP_SUMMARY" || echo "- ❌ fraiseql-cli" >> "$GITHUB_STEP_SUMMARY"
-          [ "${{ steps.publish-root.outcome }}" = "success" ] && echo "- ✅ fraiseql (root)" >> "$GITHUB_STEP_SUMMARY" || echo "- ❌ fraiseql (root)" >> "$GITHUB_STEP_SUMMARY"
+          for crate in "${CRATES[@]}"; do
+            if [ "$(curl -s -o /dev/null -w '%{http_code}' -H 'User-Agent: fraiseql-ci' "https://crates.io/api/v1/crates/$crate/$VERSION")" = "200" ]; then
+              echo "$crate $VERSION already published, skipping"
+              echo "- ⏭️ $crate (already published)" >> "$GITHUB_STEP_SUMMARY"
+            else
+              if ! cargo publish --package "$crate" --token "${{ secrets.CARGO_TOKEN }}"; then
+                echo "- ❌ $crate" >> "$GITHUB_STEP_SUMMARY"
+                echo "::error::$crate failed to publish; the crates after it were not attempted"
+                exit 1
+              fi
+              echo "- ✅ $crate" >> "$GITHUB_STEP_SUMMARY"
+            fi
+            bash tools/wait-for-crates-index.sh "$VERSION" "$crate"
+          done
 
   # Build and publish Python package
   publish-python:
@@ -925,8 +578,7 @@ jobs:
   # deleting this job fails the gate rather than silently un-publishing the SDK again.
   #
   # NOT `--package`: this crate is not a workspace member, so it publishes from its own
-  # directory. That also keeps it out of `check-publish-parity.py`, which owns the
-  # ordered `cargo publish --package` list for the 18 workspace crates.
+  # directory, and `tools/publish-order.py`, which reads the workspace, never lists it.
   publish-rust-sdk:
     name: Publish Rust SDK to crates.io
     environment: release

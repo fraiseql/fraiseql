@@ -331,6 +331,20 @@ disagreed, and the promise was the part that was wrong.
   - `session_state` no longer declares the MCP stdio entry point. A session is keyed by
     the `mcp-session-id` header, which stdio cannot carry, so nothing is held there.
 
+### Changed
+
+- **The release publishes the crates in an order derived from the workspace, not written
+  by hand (#1784).** `tools/publish-order.py` reads the publishable crates and their
+  dependencies from `cargo metadata`, optional ones included, and release.yml publishes
+  them in one loop. The 21 publish steps, the `legacyPublishOrder` list in
+  `.dagger/release.go`, `PublishOrderSelftest` and `tools/check-publish-parity.py`, which
+  kept those copies aligned, are gone. A new crate is published without editing any list.
+  The pre-tag dry run is now `cargo package`, which resolves each unpublished sibling from
+  the packages it has just built. It used to resolve siblings from crates.io and had to
+  forgive the resulting failures, which is how a missing crate once passed it. The
+  derived order differs from the old one only between crates that do not depend on each
+  other.
+
 ### Fixed
 
 - **`compile --database` advises a date sorted or filtered out of any relation's document,

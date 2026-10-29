@@ -65,12 +65,13 @@ release:
 	bash tools/release.sh $(VERSION)
 
 # Pre-tag release validation via Dagger (same engine locally and on the runner).
-# Tokenless and read-only — never publishes. Run before cutting a release tag to
-# catch the "tag shipped but publish failed" class (v2.3.0/v2.3.1) up front.
-#   make release-validate                 # self-test the publish order + dry-run every crate
+# Tokenless and read-only — never publishes. Run before cutting a release tag, after
+# the version bump (release.sh does both), to catch the "tag shipped but publish
+# failed" class (v2.3.0/v2.3.1) up front. At a version already on crates.io it fails
+# on a checksum mismatch: see PublishDryRun.
+#   make release-validate                 # package and verify every publishable crate
 #   make release-validate VERSION=2.4.0   # also assert Cargo.toml is on 2.4.0
 release-validate:
-	dagger call publish-order-selftest --source=.
 	dagger call publish-dry-run --source=. $(if $(VERSION),--expect-version=$(VERSION),)
 
 # Heavier API-compatibility gate (recompiles rustdoc for the whole workspace + its
@@ -709,13 +710,12 @@ lint-tests-layout:
 
 # Unit tests for the release tooling (tools/release.sh shell libs). Pure bash, no
 # toolchain — wired into the Dagger ShellGates so the release-cut helpers (tag-note
-# extraction, internal floor bump, dry-run first-publish-sibling tolerance) cannot
-# silently bit-rot.
+# extraction, internal floor bump, the derived crate publish order) cannot silently
+# bit-rot.
 .PHONY: test-release-tooling
 test-release-tooling:
 	@bash tools/tests/release_helpers_test.sh
-	@bash tools/tests/dry_run_tolerance_test.sh
-	@bash tools/tests/publish_parity_test.sh
+	@bash tools/tests/publish_order_test.sh
 	@bash tools/tests/wait_for_workflow_runs_test.sh
 
 # Unit tests for the advisory-deadline gate. Its boundary behaviour is worth
@@ -1154,17 +1154,6 @@ check-example-crates:
 .PHONY: test-example-crates-gate
 test-example-crates-gate:
 	@bash tools/tests/example_crates_compile_test.sh
-
-# Gate: every publishable workspace crate is published by release.yml, in the same
-# order .dagger/release.go dry-runs and topologically self-tests. fraiseql-cdc-sinks
-# (#382) reached the workspace and legacyPublishOrder but never reached release.yml;
-# because it is an OPTIONAL dependency of fraiseql-server, the pre-tag dry-run
-# tolerated the gap (its tolerance forgives a sibling that is in the list it was
-# handed) while the real publish could not resolve it at all. Nothing compared the
-# two lists until this gate.
-.PHONY: lint-publish-parity
-lint-publish-parity:
-	@python3 tools/check-publish-parity.py
 
 # Gate: every secret a publish job reads is one release.yml's prerequisite step checks
 # (#1518: the Rust SDK read CARGO_REGISTRY_TOKEN, which the repository never had, and
@@ -1716,7 +1705,7 @@ lint-required-checks:
 # test suite or service-backed integration tests — those are `make test` and the
 # separate Dagger test/integration legs.
 .PHONY: preflight
-preflight: lint-fmt-toolchain fmt-check lint-not-implemented test-not-implemented-gate lint-sdk-dead-surface test-e2e-documents-gate test-e2e-documents lint-tests-layout lint-expect lint-async-trait lint-gate-db lint-gate-core lint-deadlines lint-audit-ledger lint-doc-claims lint-release-validation lint-rustc-wrapper lint-deploy-security lint-deploy-versions lint-compiled-schema-stamp lint-fuzz-targets lint-compose-references lint-dagger-apt lint-pg-tviews-pin lint-doc-image-refs lint-ci-install-pins lint-phases-citations lint-image-context lint-publish-parity lint-publish-secrets lint-routes lint-guard-parity lint-guard-test-lock test-guard-test-lock-gate lint-internal-flag lint-value-json lint-graphql-parse lint-mutation-dispatch lint-write-selections lint-principal-producers lint-rls-policy-construction lint-config-deny-unknown lint-docs-env-vars lint-docs-version lint-config-loaders lint-public-api-reexports lint-sdk-publication-claims lint-examples-postgres-only lint-examples-integrity lint-r-examples lint-suite-coverage lint-snapshot-pairing lint-empty-tests lint-test-subject lint-module-reachability lint-pub-mod-callers lint-prose-ratchet lint-docs-rust-examples lint-feature-chains lint-crate-sizes lint-sdk-workflows lint-workflow-reachability lint-already-passed-guard lint-image-mirror lint-trigger-rule-copies lint-fixture-collisions lint-preflight-parity lint-shard-parity lint-deny-flags lint-dockerfile-msrv lint-dockerfile-members lint-image-parity lint-artifact-features lint-delivery-coverage lint-sdk-lockfile-freshness lint-cargo-lock-path-versions test-release-tooling test-changelog-gate test-deadline-gate test-audit-ledger-gate test-docs-env-vars-gate test-doc-claims-gate test-release-validation-gate test-rustc-wrapper-gate test-write-selections-gate test-preflight-parity test-shard-parity test-imports-gate test-suite-coverage-workflows test-workflow-reachability-gate test-already-passed-guard-gate test-image-mirror-gate test-sdk-workflows-gate test-workflow-trigger-rule test-fixture-collisions-gate test-deny-flags-gate test-dockerfile-msrv-gate test-compiled-schema-stamp-gate test-dockerfile-members-gate test-image-parity-gate test-artifact-features-gate test-publish-secrets-gate test-delivery-coverage-gate test-sdk-lockfile-freshness-gate test-cargo-lock-path-versions-gate test-feature-matrix-gate test-test-subject-gate test-module-reachability-gate test-pub-mod-callers-gate test-prose-ratchet-gate test-perf-instructions-gate test-docs-rust-examples-gate test-suite-coverage-inner-gates test-suite-coverage-gating test-suite-coverage-filters test-suite-marker-prelude test-conformance-selftest test-public-api-reexports-gate test-sdk-publication-claims-gate test-fuzz-compiles-gate test-compose-references-gate test-dagger-apt-gate test-pg-tviews-pin-gate test-bench-quiet-window-gate test-detect-regression-host-gate test-bench-require-measured-gate test-doc-image-refs-gate test-ci-install-pins-gate test-ci-stale-artifacts-gate lint-ci-source-stamp test-ci-source-stamp-gate test-example-crates-gate test-r-examples-gate test-phases-citations-gate test-image-context-gate
+preflight: lint-fmt-toolchain fmt-check lint-not-implemented test-not-implemented-gate lint-sdk-dead-surface test-e2e-documents-gate test-e2e-documents lint-tests-layout lint-expect lint-async-trait lint-gate-db lint-gate-core lint-deadlines lint-audit-ledger lint-doc-claims lint-release-validation lint-rustc-wrapper lint-deploy-security lint-deploy-versions lint-compiled-schema-stamp lint-fuzz-targets lint-compose-references lint-dagger-apt lint-pg-tviews-pin lint-doc-image-refs lint-ci-install-pins lint-phases-citations lint-image-context lint-publish-secrets lint-routes lint-guard-parity lint-guard-test-lock test-guard-test-lock-gate lint-internal-flag lint-value-json lint-graphql-parse lint-mutation-dispatch lint-write-selections lint-principal-producers lint-rls-policy-construction lint-config-deny-unknown lint-docs-env-vars lint-docs-version lint-config-loaders lint-public-api-reexports lint-sdk-publication-claims lint-examples-postgres-only lint-examples-integrity lint-r-examples lint-suite-coverage lint-snapshot-pairing lint-empty-tests lint-test-subject lint-module-reachability lint-pub-mod-callers lint-prose-ratchet lint-docs-rust-examples lint-feature-chains lint-crate-sizes lint-sdk-workflows lint-workflow-reachability lint-already-passed-guard lint-image-mirror lint-trigger-rule-copies lint-fixture-collisions lint-preflight-parity lint-shard-parity lint-deny-flags lint-dockerfile-msrv lint-dockerfile-members lint-image-parity lint-artifact-features lint-delivery-coverage lint-sdk-lockfile-freshness lint-cargo-lock-path-versions test-release-tooling test-changelog-gate test-deadline-gate test-audit-ledger-gate test-docs-env-vars-gate test-doc-claims-gate test-release-validation-gate test-rustc-wrapper-gate test-write-selections-gate test-preflight-parity test-shard-parity test-imports-gate test-suite-coverage-workflows test-workflow-reachability-gate test-already-passed-guard-gate test-image-mirror-gate test-sdk-workflows-gate test-workflow-trigger-rule test-fixture-collisions-gate test-deny-flags-gate test-dockerfile-msrv-gate test-compiled-schema-stamp-gate test-dockerfile-members-gate test-image-parity-gate test-artifact-features-gate test-publish-secrets-gate test-delivery-coverage-gate test-sdk-lockfile-freshness-gate test-cargo-lock-path-versions-gate test-feature-matrix-gate test-test-subject-gate test-module-reachability-gate test-pub-mod-callers-gate test-prose-ratchet-gate test-perf-instructions-gate test-docs-rust-examples-gate test-suite-coverage-inner-gates test-suite-coverage-gating test-suite-coverage-filters test-suite-marker-prelude test-conformance-selftest test-public-api-reexports-gate test-sdk-publication-claims-gate test-fuzz-compiles-gate test-compose-references-gate test-dagger-apt-gate test-pg-tviews-pin-gate test-bench-quiet-window-gate test-detect-regression-host-gate test-bench-require-measured-gate test-doc-image-refs-gate test-ci-install-pins-gate test-ci-stale-artifacts-gate lint-ci-source-stamp test-ci-source-stamp-gate test-example-crates-gate test-r-examples-gate test-phases-citations-gate test-image-context-gate
 	@echo "=== preflight: lint-unwrap (UNWRAP_ALLOW_LIMIT=3) ==="
 	@$(MAKE) --no-print-directory lint-unwrap UNWRAP_ALLOW_LIMIT=3
 	@echo "=== preflight: check-test-imports ==="

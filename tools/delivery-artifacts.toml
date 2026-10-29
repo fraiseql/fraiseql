@@ -19,11 +19,11 @@
 #
 # ── What it does NOT do ──────────────────────────────────────────────────────────────
 #
-# It is an INDEX, not a fifth parity gate. Four gates already hold the per-class lists
-# honest and this file must not become a copy of any of them:
+# It is an INDEX, not another parity gate. These hold the per-class lists honest and
+# this file must not become a copy of any of them:
 #
 #   * tools/check-image-parity.py       — the image variant list, across three copies
-#   * tools/check-publish-parity.py     — the crate set and its publish ORDER
+#   * tools/publish-order.py            — derives the crate set and its publish order
 #   * tools/check-sdk-workflow-coverage.py — every official SDK is gated on a branch push
 #   * tools/check-suite-coverage.py     — every test suite maps to a leg that runs it
 #
@@ -291,9 +291,9 @@ executes = []
 # ── Rust crates on crates.io ───────────────────────────────────────────────
 #
 # Discovered from the workspace manifest: every member whose Cargo.toml does not set
-# `publish = false`. Same source `tools/check-publish-parity.py` uses, so a crate that
-# joins the workspace arrives here too — that gate holds the publish ORDER honest, this
-# one holds the claim that something verifies the result.
+# `publish = false`. Same source release.yml publishes from (`tools/publish-order.py`),
+# so a crate that joins the workspace arrives here too; this one holds the claim that
+# something verifies the result.
 #
 # All 18 are exempt under `crate:*` (#1222): release.yml asks crates.io for HTTP 200 and
 # nothing installs them. Phase 07 of the delivery-artifact program closes it.

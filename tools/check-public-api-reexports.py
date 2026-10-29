@@ -16,9 +16,10 @@ This gate is what keeps the next such signature from shipping unreachable.
 
 ## What counts
 
-- **Published crates only.** The list is discovered from the `cargo publish --package X`
-  steps in `.github/workflows/release.yml`. An unpublished crate's public API is an
-  internal seam; nobody outside this workspace can call it.
+- **Published crates only.** The list is the workspace members whose manifest does not
+  say `publish = false`, read by `tools/publish-order.py`, the same list release.yml
+  publishes. An unpublished crate's public API is an internal seam; nobody outside this
+  workspace can call it.
 - **Third-party types only.** A workspace sibling is published in lockstep at the same
   version, so `fraiseql-server = "2.15"` + `fraiseql-error = "2.15"` is discoverable and
   consistent. `jsonwebtoken = "?"` is not.
@@ -61,6 +62,7 @@ cases are each shown to be RED against the revision of the gate that could not s
 """
 from __future__ import annotations
 
+import importlib.util
 import re
 import subprocess
 import sys
@@ -75,7 +77,6 @@ ROOT = Path(sys.argv[sys.argv.index("--root") + 1]).resolve() if "--root" in sys
     subprocess.run(["git", "rev-parse", "--show-toplevel"],
                    capture_output=True, text=True, check=True).stdout.strip())
 ALLOWLIST = ROOT / "tools" / "public-api-reexports.allow"
-RELEASE_YML = ROOT / ".github" / "workflows" / "release.yml"
 
 PUB_ITEM = re.compile(r"^\s*(?:#\[[^\]]*\]\s*)?pub\s+"
                       r"(?:async\s+|const\s+|unsafe\s+|extern\s+\"[^\"]*\"\s+)*"
@@ -96,17 +97,15 @@ VARIANT = re.compile(r"^([A-Z][A-Za-z0-9_]*)")
 
 
 def published_crates() -> list[str]:
-    """The crates release.yml actually publishes, in its own order."""
-    if not RELEASE_YML.is_file():
-        sys.exit(f"ERROR: {RELEASE_YML} not found — this gate reads the publish steps from it.")
-    names = []
-    for m in re.finditer(r"cargo publish --package (\S+)", RELEASE_YML.read_text()):
-        if m.group(1) not in names:
-            names.append(m.group(1))
+    """The crates release.yml publishes: tools/publish-order.py's reading of the workspace."""
+    spec = importlib.util.spec_from_file_location(
+        "_fraiseql_publish_order", Path(__file__).resolve().parent / "publish-order.py")
+    publish_order = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(publish_order)  # type: ignore[union-attr]
+    names = publish_order.publishable_workspace_crates(ROOT)
     if not names:
-        sys.exit("ERROR: no `cargo publish --package` step found in .github/workflows/release.yml. "
-                 "The publish steps were renamed or removed; this gate cannot discover its "
-                 "subjects and is refusing to pass vacuously.")
+        sys.exit(f"ERROR: no workspace member of {ROOT} is published. This gate cannot "
+                 "discover its subjects and is refusing to pass vacuously.")
     return names
 
 
@@ -344,9 +343,7 @@ def main() -> int:
 
     crates = published_crates()
     for name in crates:
-        pkg = packages.get(name)
-        if pkg is None:
-            sys.exit(f"ERROR: release.yml publishes {name!r}, which is not a workspace member.")
+        pkg = packages[name]
         manifest = pkg["manifest"]
         lib_path = manifest.get("lib", {}).get("path", "src/lib.rs")
         root_file = pkg["dir"] / lib_path

@@ -652,9 +652,7 @@ before the tag instead of discovering breakage during the release run:
 
 | Dagger fn | Mirrors | Notes |
 |---|---|---|
-| `publish-order` | release.yml crate order | Canonical 16-crate topological order. |
-| `publish-order-selftest` | (new) | `cargo metadata` → asserts publishable set + topological validity vs the embedded order. Catches a new/removed crate or a new cross-crate edge. |
-| `publish-dry-run` | release.yml "Dry-run publish for every publishable crate" | Tokenless; collect-all-then-fail. **Strict** (see divergence below). |
+| `publish-dry-run` | release.yml "Package and verify every publishable crate" | Tokenless `cargo package` over the crates `tools/publish-order.py` reads off the workspace; unpublished siblings resolve from the packages it just built. |
 | `semver-named` | ci.yml "API Semver Compatibility" | 5 named crates, advisory/non-gating (`\|\| true`). |
 | `semver-workspace` | semver.yml | gating `--workspace --exclude fraiseql-test-utils`. |
 
@@ -700,14 +698,9 @@ Cases where Dagger and legacy YAML differ on purpose. Examples might include:
 
 Document each so future contributors don't chase phantom regressions.
 
-**Phase 06 — dry-run gate strictness (intentional, 2026-06-04).** The local Dagger
-`publish-dry-run` is **strict**: a crate that fails because a sibling it depends on
-is not yet on crates.io (a first-publish, e.g. fraiseql-codegen) is a hard failure,
-so a human running it before a tag sees every gap. The GitHub `release.yml` gate was
-**patched to tolerate** that one case (a single "failed to prepare local package for
-uploading" whose only missing packages are our own publishable crates) so an
-unattended tag release does not false-block on a first-publish ordering artifact the
-real ordered publish resolves. Same intent, different audience: local diagnostic vs
-unattended release. Everything else (gitignored files / build.rs artifacts in the
-tarball, a genuinely missing external dep, verify-build compile errors) hard-fails in
-both.
+**Dry-run strictness.** `publish-dry-run` and release.yml's dry run are the same
+`cargo package` call, and neither forgives a failure. They once differed: both ran
+`cargo publish --dry-run` per crate, which resolved siblings from crates.io, so a
+crate whose new sibling version was not yet published failed, and release.yml
+forgave exactly that. `cargo package` resolves siblings from the packages it has just
+built, so the case no longer arises.

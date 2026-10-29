@@ -12,7 +12,7 @@ the one that let the release image stay unbuildable for weeks with eleven CI leg
    reads, never from a second hand-maintained list:
 
    - container images   ← `imageVariants` in .dagger/image.go   (check-image-parity.py)
-   - crates             ← publishable workspace members         (check-publish-parity.py)
+   - crates             ← publishable workspace members         (publish-order.py)
    - SDK packages       ← sdks/official/* minus NOT_AN_SDK      (check-sdk-workflow-coverage.py)
                           plus any sdks/community/* a workflow actually publishes
    - the Helm chart     ← deploy/**/Chart.yaml
@@ -117,8 +117,8 @@ def discover_images() -> set[str]:
 
 
 def discover_crates() -> set[str]:
-    parity = _sibling("check-publish-parity.py", "_fraiseql_publish_parity")
-    crates = parity.publishable_workspace_crates(REPO)
+    order = _sibling("publish-order.py", "_fraiseql_publish_order")
+    crates = order.publishable_workspace_crates(REPO)
     if not crates:
         die("zero publishable crates found — the workspace manifest moved")
     return {f"crate:{c}" for c in crates}

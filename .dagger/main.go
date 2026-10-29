@@ -544,13 +544,6 @@ func (m *FraiseqlCi) ShellGates(
 		"bash tools/check-phases-citations.sh",
 		"bash tools/check-image-context.sh",
 		"bash tools/tests/doc_image_refs_test.sh",
-		// Every publishable crate is published by release.yml, in the order this
-		// file's legacyPublishOrder dry-runs and self-tests. fraiseql-cdc-sinks
-		// (#382) was in the workspace and in legacyPublishOrder but in neither the
-		// publish steps nor the CRATES lists; as an OPTIONAL dependency of
-		// fraiseql-server it was tolerated by the pre-tag dry-run and fatal to the
-		// real publish. Nothing compared the two lists before this gate.
-		"python3 tools/check-publish-parity.py",
 		// Every secret a publish job reads is checked by release.yml's prerequisite
 		// step before anything is published. The Rust SDK read CARGO_REGISTRY_TOKEN, a
 		// secret the repository never had: empty at the upload, after every other
