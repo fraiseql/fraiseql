@@ -183,7 +183,31 @@ impl<'a> OperationGate<'a> {
             &query.name,
             &query.requires_actor,
             principal,
-        )
+        )?;
+        // A read of a union or an interface is a read of every type it can be, each gated
+        // as its own read is: a type's role is lowered only onto the operations that name it.
+        let schema = &self.ctx.schema;
+        for member in schema.possible_types(query.return_type.as_str()).unwrap_or_default() {
+            let read = super::query_nested::own_read(schema, member);
+            let role = read
+                .and_then(|q| q.requires_role.as_deref())
+                .or_else(|| schema.find_type(member).and_then(|t| t.requires_role.as_deref()));
+            crate::security::role_gate::enforce_requires_role(
+                "Query",
+                &query.name,
+                role,
+                principal,
+            )?;
+            if let Some(read) = read {
+                crate::security::actor_type::enforce_requires_actor(
+                    "Query",
+                    &query.name,
+                    &read.requires_actor,
+                    principal,
+                )?;
+            }
+        }
+        Ok(())
     }
 }
 

@@ -473,3 +473,136 @@ fn an_entity_lookup_is_refused_where_a_member_level_is_scoped() {
         assert!(matches!(err, FraiseQLError::Authorization { .. }), "{document}: {err}");
     }
 }
+
+// ── a root read of a union or an interface ───────────────────────────────────────────
+
+/// The schema with `parties`, a root read of the union `Party` over `v_party`.
+fn with_parties(edit: impl FnOnce(&mut CompiledSchema)) -> CompiledSchema {
+    schema_with(FieldDenyPolicy::Mask, |s| {
+        s.queries.push(
+            QueryDefinition::new("parties", "Party")
+                .returning_list()
+                .with_sql_source("v_party"),
+        );
+        edit(s);
+    })
+}
+
+fn party_executor(schema: CompiledSchema) -> (Executor, Arc<CapturingMockAdapter>) {
+    let adapter = Arc::new(CapturingMockAdapter::new(vec![JsonbValue::new(serde_json::json!(
+        {"__typename": "Person", "name": "p"}
+    ))]));
+    (
+        Executor::with_config(schema, adapter.clone(), RuntimeConfig::default()),
+        adapter,
+    )
+}
+
+const PERSONS_ONLY: &str = "{ parties { ... on Person { name } } }";
+
+fn is_refusal(err: &FraiseQLError) -> bool {
+    matches!(err, FraiseQLError::Validation { .. } | FraiseQLError::Authorization { .. })
+}
+
+#[tokio::test]
+async fn a_root_of_a_union_answers_when_no_type_it_can_be_is_gated() {
+    let (exec, _) = party_executor(with_parties(|_| {}));
+    for result in both_callers(&exec, PERSONS_ONLY).await {
+        assert!(result.unwrap().to_string().contains(r#""name":"p""#));
+    }
+}
+
+#[tokio::test]
+async fn a_root_of_a_union_is_refused_when_a_type_it_can_be_requires_a_role() {
+    let gated = with_parties(|s| {
+        s.types.iter_mut().find(|t| t.name == "Org").unwrap().requires_role =
+            Some("admin".to_string());
+    });
+    // The same role on the type's own read rather than on the type.
+    let read_gated = with_parties(|s| {
+        let mut orgs =
+            QueryDefinition::new("orgs", "Org").returning_list().with_sql_source("v_org");
+        orgs.requires_role = Some("admin".to_string());
+        s.queries.push(orgs);
+    });
+    for schema in [gated.clone(), read_gated] {
+        let (exec, adapter) = party_executor(schema);
+        for result in both_callers(&exec, PERSONS_ONLY).await {
+            let err = result.expect_err("an Org row may be among them");
+            assert!(is_refusal(&err), "{err}");
+        }
+        assert!(adapter.captured_where().is_none(), "the read was made");
+    }
+
+    let mut admin = unscoped();
+    admin.roles.push("admin".to_string());
+    let (exec, _) = party_executor(gated);
+    exec.execute_with_security(PERSONS_ONLY, None, &admin).await.unwrap();
+}
+
+#[tokio::test]
+async fn a_root_of_a_union_is_refused_when_a_type_it_can_be_is_read_by_another_actor() {
+    let gated = with_parties(|s| {
+        let mut orgs =
+            QueryDefinition::new("orgs", "Org").returning_list().with_sql_source("v_org");
+        orgs.requires_actor = vec![crate::security::ActorType::ServiceAccount];
+        s.queries.push(orgs);
+    });
+    let (exec, adapter) = party_executor(gated);
+    let err = exec
+        .execute_with_security(PERSONS_ONLY, None, &unscoped())
+        .await
+        .expect_err("a person is not a service account");
+    assert!(is_refusal(&err), "{err}");
+    assert!(adapter.captured_where().is_none(), "the read was made");
+}
+
+/// The schema with `authorized` types' `name` policy-gated, and `holders: [Holder]` beside
+/// `parties: [Party]`.
+fn with_gated_names(authorized: &[&str]) -> CompiledSchema {
+    with_parties(|s| {
+        s.queries.push(
+            QueryDefinition::new("holders", "Holder")
+                .returning_list()
+                .with_sql_source("v_bank"),
+        );
+        for t in s.types.iter_mut().filter(|t| authorized.contains(&t.name.as_str())) {
+            t.fields.iter_mut().find(|f| f.name == "name").unwrap().authorize = true;
+        }
+    })
+}
+
+/// What an anonymous read of `document` is refused with, if it is.
+async fn anonymous_refusal(schema: CompiledSchema, document: &str) -> Option<String> {
+    let (exec, adapter) = party_executor(schema);
+    let err = exec.execute(document, None).await.err()?;
+    assert!(matches!(err, FraiseQLError::Authorization { .. }), "{document}: {err}");
+    assert!(adapter.captured_where().is_none(), "{document} was read");
+    Some(err.to_string())
+}
+
+#[tokio::test]
+async fn a_root_of_a_union_or_an_interface_refuses_a_gated_field_naming_the_member_that_holds_it() {
+    for (gated, document, member) in [
+        ("Org", "{ parties { ... on Org { name } } }", "Org"),
+        ("Bank", "{ holders { ... on Bank { name } } }", "Bank"),
+    ] {
+        let message =
+            anonymous_refusal(with_gated_names(&[gated]), document).await.expect(document);
+        assert!(message.contains(&format!("type '{member}'")), "{document}: {message}");
+    }
+}
+
+#[tokio::test]
+async fn a_refusal_names_the_first_member_in_schema_order_that_the_selection_reaches() {
+    let both = with_gated_names(&["Org", "Person"]);
+    for (document, member) in [
+        ("{ parties { ... on Person { name } ... on Org { name } } }", "Org"),
+        ("{ parties { ... on Person { name } } }", "Person"),
+    ] {
+        let message = anonymous_refusal(both.clone(), document).await.expect(document);
+        assert!(message.contains(&format!("type '{member}'")), "{document}: {message}");
+    }
+    // A gated member the selection does not reach is neither named nor refused.
+    assert_eq!(anonymous_refusal(with_gated_names(&["Org"]), PERSONS_ONLY).await, None);
+}

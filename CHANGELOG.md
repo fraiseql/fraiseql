@@ -185,8 +185,14 @@ disagreed, and the promise was the part that was wrong.
     filtered by one type's predicate;
   - a nested field of a type the schema does not declare refuses.
 
-  A read through such a field that a member's gate applies to now answers `403` where it
-  answered with data.
+  A query that returns a union or an interface is refused, as "not found", unless the
+  caller may make the read of every type it can be: each type's `requires_role` (its own
+  read's, else the type's) and its read's `requires_actor`. A type's role was lowered only
+  onto the operations that name that type, so it gated no read of a union it belongs to.
+
+  A read through such a field or of such a query that a member's gate applies to now
+  answers with a refusal where it answered with data, whichever members the selection
+  names: the type of a row is not known before it is read.
 
 - **A `Decimal` is a JSON string of the digits it was stored with (#1751).** Every
   `Decimal` was decoded to a JSON number on its way out, through an `f64`: `1.50` lost its
