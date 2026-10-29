@@ -30,22 +30,22 @@ use super::{
     resolve_apq,
 };
 use crate::{
+    admission::{self, AdmissionPolicy},
     error::{ErrorResponse, GraphQLError},
     routes::graphql::{app_state::AppState, request::GraphQLRequest},
-    tracing_utils,
 };
 
 /// Who is asking and what they are asking: the request after the stages every
 /// `/graphql` entry point runs before it plans anything.
 pub(super) struct Admitted {
     /// The principal, authenticated, stamped with the request's trace and enriched.
-    pub security_context: Option<SecurityContext>,
+    pub identified: admission::Identified,
     /// The document the request executes, resolved and allowed for its method.
-    pub query:            String,
+    pub query:      String,
 }
 
-/// Run the admission prefix: [`authenticate`], [`stamp_trace_context`],
-/// [`enrich_identity`], [`resolve_query_body`], in that order.
+/// Run the admission prefix: [`admission::identify`] under
+/// [`AdmissionPolicy::GRAPHQL`], then [`resolve_query_body`].
 ///
 /// The buffered handler and the SSE handler both start here, so a stage added to one
 /// reaches the other. They used not to: the SSE handler ran its own copy of the prefix,
@@ -63,120 +63,12 @@ pub(super) async fn admit(
     method: Method,
 ) -> Result<Admitted, ErrorResponse> {
     // Each stage is boxed for the reason `execute_graphql_request` gives.
-    let security_context = Box::pin(authenticate(state, headers, security_context)).await?;
-    #[cfg_attr(not(feature = "auth"), allow(unused_mut))]
-    // Reason: only identity enrichment, compiled with `auth`, rewrites the context.
-    let mut security_context = stamp_trace_context(headers, security_context);
-    #[cfg(feature = "auth")]
-    Box::pin(enrich_identity(state, &mut security_context)).await?;
+    let identified =
+        Box::pin(admission::identify(state, headers, security_context, &AdmissionPolicy::GRAPHQL))
+            .await
+            .map_err(|refusal| ErrorResponse::from_error(super::admission_error(&refusal)))?;
     let query = Box::pin(resolve_query_body(state, request, method)).await?;
-    Ok(Admitted {
-        security_context,
-        query,
-    })
-}
-
-/// Resolve the request's principal from the credentials it presents.
-///
-/// `security_context` carries what the auth layer already resolved: a JWT principal,
-/// or a service account it admitted as itself (#1650), which also refused a bearer
-/// presented beside a service-account secret as ambiguous (#602). What is left is the
-/// scopes-only static API key on the same header, which a service account's `run_as`
-/// ceiling takes precedence over (ADR-0018): it is tried only for a request the layer
-/// resolved to no one.
-///
-/// # Errors
-///
-/// Returns a 401 response for an invalid API key.
-pub(super) async fn authenticate(
-    state: &AppState,
-    headers: &HeaderMap,
-    mut security_context: Option<SecurityContext>,
-) -> Result<Option<SecurityContext>, ErrorResponse> {
-    // API key auth: if configured, try it before falling through to JWT/OIDC.
-    if security_context.is_none() {
-        if let Some(ref api_key_auth) = state.api_key_authenticator {
-            match api_key_auth.authenticate(headers).await {
-                crate::api_key::ApiKeyResult::Authenticated(ctx) => {
-                    debug!("Authenticated via API key");
-                    security_context = Some(*ctx);
-                },
-                crate::api_key::ApiKeyResult::Invalid => {
-                    return Err(ErrorResponse::from_error(GraphQLError::new(
-                        "Invalid API key",
-                        crate::error::ErrorCode::Unauthenticated,
-                    )));
-                },
-                crate::api_key::ApiKeyResult::NotPresent => {
-                    // Fall through to JWT/OIDC (or unauthenticated).
-                },
-            }
-        }
-    }
-
-    Ok(security_context)
-}
-
-/// Stamp the originating request's W3C trace context onto the principal.
-///
-/// The change-log write records both the scalar `trace_id` and the full parsed
-/// `trace_context` JSONB (#375), which is what makes a row traceable back to the
-/// request that produced it. Both are gated on a principal being present: an
-/// anonymous request has none to stamp, so its change-log rows keep `trace_id`
-/// NULL — consistent with how `tenant_id` behaves there.
-#[must_use]
-pub(super) fn stamp_trace_context(
-    headers: &HeaderMap,
-    security_context: Option<SecurityContext>,
-) -> Option<SecurityContext> {
-    let mut security_context = security_context;
-    if let Some(trace_id) = tracing_utils::extract_trace_id(headers) {
-        security_context = security_context.map(|ctx| ctx.with_trace_id(trace_id));
-    }
-    if let Some(trace_context) = tracing_utils::extract_trace_context_json(headers) {
-        security_context = security_context.map(|ctx| ctx.with_trace_context(trace_context));
-    }
-    security_context
-}
-
-/// Resolve the subject's database identity and merge it under the forge-proof
-/// `fraiseql.enriched.*` namespace (#539).
-///
-/// Runs *before* dispatch so RLS, views and inject-params scope on a DB-derived
-/// identity rather than a client-asserted one. Fail-closed at source: an
-/// unresolved identity denies the request before any data query runs; a
-/// transient resolver failure is a 503. An unauthenticated request has no
-/// subject to resolve and proceeds unchanged.
-///
-/// # Errors
-///
-/// Returns 403 when the identity is denied and 503 when resolution is
-/// unavailable.
-#[cfg(feature = "auth")]
-pub(super) async fn enrich_identity(
-    state: &AppState,
-    security_context: &mut Option<SecurityContext>,
-) -> Result<(), ErrorResponse> {
-    match crate::identity::resolve_request_identity(&state.identity, security_context.as_mut())
-        .await
-    {
-        crate::identity::EnrichmentOutcome::Proceed => Ok(()),
-        // Generic outward body (DESIGN §5.4): the precise DenyReason is logged
-        // server-side, never surfaced (actor-table oracle guard). The wording is
-        // shared with every other transport so the response cannot differ by door.
-        crate::identity::EnrichmentOutcome::Denied => {
-            Err(ErrorResponse::from_error(GraphQLError::new(
-                crate::identity::EnrichmentOutcome::DENIED_MESSAGE,
-                crate::error::ErrorCode::Forbidden,
-            )))
-        },
-        crate::identity::EnrichmentOutcome::Unavailable => {
-            Err(ErrorResponse::from_error(GraphQLError::new(
-                crate::identity::EnrichmentOutcome::UNAVAILABLE_MESSAGE,
-                crate::error::ErrorCode::ServiceUnavailable,
-            )))
-        },
-    }
+    Ok(Admitted { identified, query })
 }
 
 /// Determine the GraphQL document this request executes, and refuse one its method

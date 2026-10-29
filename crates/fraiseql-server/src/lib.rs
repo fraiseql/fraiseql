@@ -38,6 +38,9 @@ pub mod service_account;
 pub mod token_revocation;
 
 // Original fraiseql-server modules
+// Admission: the steps every transport runs to identify a request, resolve its
+// tenant, dispatch it and charge its budget.
+pub mod admission;
 pub mod api;
 pub mod async_operations;
 pub mod capability;

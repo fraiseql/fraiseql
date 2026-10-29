@@ -48,18 +48,18 @@ cd "$(git rev-parse --show-toplevel)"
 # Matched as a bare word rather than a call: a handler takes it by type
 # (`ctx: OptionalSecurityContext`), destructures it, or borrows it, and requiring a
 # following `(` saw only the destructuring form.
-PRODUCER='(SecurityContext::(from_user|service_account)|build_security_context)\s*\(|OptionalSecurityContext'
+PRODUCER='(SecurityContext::(from_user|from_token_claims|service_account)|build_security_context)\s*\(|OptionalSecurityContext'
 
 # The seams that resolve a produced principal and fail-close.
-#
-#   resolve_request_identity  the one every transport inside fraiseql-server calls
-#   enrich_identity           the GraphQL handler's thin stage around it, listed because
-#                             that transport is split across `handler.rs` and
-#                             `handler/stages.rs`
+#   resolve_request_identity  the seam itself, which admission and gRPC call
+#   admission::identify       admission's first step (#1643): every transport moved onto
+#                             admission enters it. It runs the seam when the transport's
+#                             policy enriches, and is accepted only while its body still
+#                             reaches the seam (checked below).
 #   stages::admit             the GraphQL admission stage `/graphql` and SSE both enter.
-#                             It runs `enrich_identity`, and is accepted only while it does
-#                             (checked below). Matched qualified, because a bare `admit(`
-#                             is a word any future module could reuse.
+#                             It calls `admission::identify`, and is accepted only while it
+#                             does (checked below). Matched qualified, because a bare
+#                             `admit(` is a word any future module could reuse.
 #   resolve_identity          `fraiseql-arrow`'s equivalent (#1349). That crate cannot
 #                             depend on fraiseql-server, so it calls the object-safe
 #                             `IdentityEnricher` seam through a helper of its own.
@@ -70,7 +70,7 @@ PRODUCER='(SecurityContext::(from_user|service_account)|build_security_context)\
 # A staleness check that cannot see the fix it is waiting for is the failure mode it
 # exists to prevent. The non-vacuity checks at the bottom assert each of these three is
 # a real seam, so a name here cannot become a second implementation of the rule.
-RESOLVER='(resolve_request_identity|enrich_identity|resolve_identity|stages::admit)\s*\('
+RESOLVER='(resolve_request_identity|admission::identify|resolve_identity|stages::admit)\s*\('
 
 # Producers that legitimately do not resolve, each for a stated structural reason.
 # This is not a severity ladder — an entry here is a claim that the resolve happens
@@ -219,23 +219,31 @@ if ! grep -rqE "fn resolve_identity" crates/fraiseql-arrow/src; then
   exit 1
 fi
 
-# `enrich_identity` is accepted above as a name for "resolves", which is only true while
-# it is a wrapper. If it stopped calling the seam it would be a second implementation of
-# the rule, and this gate would be blessing the drift it exists to prevent.
-stage='crates/fraiseql-server/src/routes/graphql/handler/stages.rs'
-if ! grep -qE "resolve_request_identity\s*\(" "$stage"; then
-  echo "ERROR: $stage no longer calls resolve_request_identity."
-  echo "RESOLVER accepts enrich_identity only because that stage is a wrapper around the"
-  echo "seam. A second implementation of the rule is what #1336 was."
+# `admission::identify` is accepted above as a name for "resolves", which is only true while
+# its body still runs the seam through `enrich_identity`, and `enrich_identity` still calls
+# `resolve_request_identity`. If either stopped, admission would be a second implementation
+# of the rule, and this gate would be blessing the drift it exists to prevent. Checked on
+# the function bodies, not the file, because the file defines both and a file-wide grep
+# would be satisfied forever.
+admission='crates/fraiseql-server/src/admission/mod.rs'
+body_of() {
+  awk -v name="$1" '$0 ~ ("fn " name "\\(") { inside = 1 } inside { print } inside && /^}/ { exit }' "$2"
+}
+if ! body_of identify "$admission" | grep -qE "enrich_identity\s*\("; then
+  echo "ERROR: admission::identify in $admission no longer calls enrich_identity."
+  echo "RESOLVER accepts admission::identify only because it runs the enrichment seam."
+  exit 1
+fi
+if ! body_of enrich_identity "$admission" | grep -qE "resolve_request_identity\s*\("; then
+  echo "ERROR: enrich_identity in $admission no longer calls resolve_request_identity."
+  echo "A second implementation of the rule is what #1336 was."
   exit 1
 fi
 
-# `stages::admit` is accepted for the same reason and on the same condition: its body
-# must still run `enrich_identity`. Checked on the function body, not the file, because
-# the file defines `enrich_identity` itself and would satisfy a file-wide grep forever.
-if ! awk '/fn admit\(/ { inside = 1 } inside { print } inside && /^}/ { exit }' "$stage" \
-    | grep -qE "enrich_identity\s*\("; then
-  echo "ERROR: stages::admit in $stage no longer calls enrich_identity."
+# `stages::admit` is accepted on the same condition: its body must still enter admission.
+stage='crates/fraiseql-server/src/routes/graphql/handler/stages.rs'
+if ! body_of admit "$stage" | grep -qE "admission::identify\s*\("; then
+  echo "ERROR: stages::admit in $stage no longer calls admission::identify."
   echo "RESOLVER accepts stages::admit only because admission resolves the identity."
   exit 1
 fi

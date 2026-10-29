@@ -49,6 +49,7 @@ use super::{
     stages,
 };
 use crate::{
+    admission,
     error::{ErrorResponse, GraphQLError},
     middleware::stream_auth::StreamAuthGuard,
 };
@@ -151,18 +152,16 @@ pub(in super::super) async fn handle_sse(
     // The stages after admission that a query runs; those that only apply to
     // mutations (idempotency, before-mutation hooks) are structurally inapplicable:
     // @stream is queries-only by construction.
-    let stages::Admitted {
-        security_context,
-        query,
-    } = admitted;
-    stages::enforce_introspection_policy(&state, &query, security_context.as_ref())?;
+    let stages::Admitted { identified, query } = admitted;
+    stages::enforce_introspection_policy(&state, &query, identified.security_context())?;
     stages::validate_request(&state, &query, &request, &peer_ip)?;
 
     // Refused as the buffered pipeline refuses: a header naming a tenant the token is not
     // bound to is FORBIDDEN, a malformed one a validation error.
-    let tenant_key =
-        tenant_dispatch::resolve_tenant_key(&state, security_context.as_ref(), &headers)
-            .map_err(|e| ErrorResponse::from_error(GraphQLError::from_fraiseql_error(&e)))?;
+    let tenant = identified
+        .tenant(&state, &headers)
+        .map_err(|refusal| ErrorResponse::from_error(super::admission_error(&refusal)))?;
+    let security_context = identified.into_security_context();
 
     state.metrics.queries_total.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
 
@@ -172,20 +171,17 @@ pub(in super::super) async fn handle_sse(
     // every batch: continuation batches run after this handler returns, where neither the
     // headers nor a scope reach them.
     let scope = {
-        let dispatch = tenant_dispatch::dispatch_to_tenant(&state, tenant_key.as_deref())
-            .map_err(|e| ErrorResponse::from_error(super::tenant_dispatch_error(&e)))?;
+        let dispatch = tenant
+            .dispatch(&state)
+            .map_err(|refusal| ErrorResponse::from_error(super::admission_error(&refusal)))?;
         let estimated_cost = tenant_dispatch::estimate_request_cost(
             &query,
             request.variables.as_ref(),
             &dispatch.executor,
         );
-        tenant_dispatch::charge_cost_budget(
-            &state,
-            tenant_key.as_deref(),
-            security_context.as_ref(),
-            estimated_cost,
-        )
-        .map_err(|e| ErrorResponse::from_error(super::tenant_dispatch_error(&e)))?;
+        tenant
+            .charge(&state, security_context.as_ref(), estimated_cost)
+            .map_err(|refusal| ErrorResponse::from_error(super::admission_error(&refusal)))?;
         crate::request_scope::RequestScope::resolve(
             dispatch.executor.schema(),
             Some(&headers),
@@ -220,17 +216,10 @@ pub(in super::super) async fn handle_sse(
     let initial_requested =
         remaining_budget.map_or(plan.initial_count, |left| plan.initial_count.min(left));
     let initial_vars = batch_variables(&base_variables, initial_requested, start_offset);
-    let first = run_batch(
-        &state,
-        tenant_key.as_deref(),
-        &query,
-        &initial_vars,
-        security_context.as_ref(),
-        op,
-        &scope,
-    )
-    .await
-    .map_err(ErrorResponse::from_error)?;
+    let first =
+        run_batch(&state, &tenant, &query, &initial_vars, security_context.as_ref(), op, &scope)
+            .await
+            .map_err(ErrorResponse::from_error)?;
 
     let initial_rows = extract_items(&first, &plan.response_key).map_or(0, <[Value]>::len) as u64;
     let delivered = already_delivered + initial_rows;
@@ -269,7 +258,7 @@ pub(in super::super) async fn handle_sse(
         base_variables,
         security_context,
         auth_guard,
-        tenant_key,
+        tenant,
         scope,
         response_key: plan.response_key,
         client_limit: plan.client_limit,
@@ -496,7 +485,7 @@ struct BatchState {
     security_context: Option<SecurityContext>,
     /// Re-checked before every continuation batch (#958).
     auth_guard:       StreamAuthGuard,
-    tenant_key:       Option<String>,
+    tenant:           admission::Tenant,
     /// The request's scope (#1512, #1520), resolved before the first batch.
     scope:            crate::request_scope::RequestScope,
     response_key:     String,
@@ -528,7 +517,7 @@ async fn batch_step(mut st: BatchState) -> Option<(Chunk, BatchState)> {
                 target: "fraiseql::sse_audit",
                 batches = st.batches,
                 rows = st.emitted_rows,
-                tenant = st.tenant_key.as_deref().unwrap_or(""),
+                tenant = st.tenant.key().unwrap_or(""),
                 "@stream delivery complete"
             );
             None
@@ -560,7 +549,7 @@ async fn batch_step(mut st: BatchState) -> Option<(Chunk, BatchState)> {
             let vars = batch_variables(&st.base_variables, requested, st.offset);
             let result = run_batch(
                 &st.state,
-                st.tenant_key.as_deref(),
+                &st.tenant,
                 &st.query,
                 &vars,
                 st.security_context.as_ref(),
@@ -635,15 +624,14 @@ async fn batch_step(mut st: BatchState) -> Option<(Chunk, BatchState)> {
 #[allow(clippy::result_large_err)]
 async fn run_batch(
     state: &AppState,
-    tenant_key: Option<&str>,
+    tenant: &admission::Tenant,
     query: &str,
     variables: &Value,
     security_context: Option<&SecurityContext>,
     operation_name: Option<&str>,
     scope: &crate::request_scope::RequestScope,
 ) -> Result<Value, GraphQLError> {
-    let dispatch = tenant_dispatch::dispatch_to_tenant(state, tenant_key)
-        .map_err(|e| super::tenant_dispatch_error(&e))?;
+    let dispatch = tenant.dispatch(state).map_err(|refusal| super::admission_error(&refusal))?;
     let executor = &dispatch.executor;
 
     let result = crate::request_scope::scoped(

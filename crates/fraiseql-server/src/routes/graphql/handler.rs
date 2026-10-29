@@ -10,7 +10,7 @@ use axum::{
 use fraiseql_core::{
     apq::{ApqMetrics, ApqStorage},
     runtime::ResponseBody,
-    security::SecurityContext,
+    security::{EnrichmentOutcome, SecurityContext},
 };
 use fraiseql_error::FraiseQLError;
 use tracing::{debug, error, warn};
@@ -20,6 +20,7 @@ use super::{
     request::{GraphQLGetParams, GraphQLRequest, GraphQLResponse},
 };
 use crate::{
+    admission::Refusal,
     error::{ErrorResponse, GraphQLError},
     extractors::{OptionalSecurityContext, PeerIp},
     routes::http_cache,
@@ -579,10 +580,7 @@ async fn execute_admitted(
     headers: &HeaderMap,
     peer_ip: &str,
 ) -> Result<Answer, ErrorResponse> {
-    let stages::Admitted {
-        security_context,
-        query,
-    } = admitted;
+    let stages::Admitted { identified, query } = admitted;
 
     let start_time = Instant::now();
     let metrics = &state.metrics;
@@ -599,20 +597,20 @@ async fn execute_admitted(
     );
 
     // ── Whether they may ─────────────────────────────────────────────────────
-    stages::enforce_introspection_policy(&state, &query, security_context.as_ref())?;
+    stages::enforce_introspection_policy(&state, &query, identified.security_context())?;
     stages::validate_request(&state, &query, &request, peer_ip)?;
 
     #[cfg(feature = "federation")]
     let cb_entity_types =
         stages::check_federation_circuit_breakers(&state, &query, request.variables.as_ref())?;
 
-    // Resolve the tenant key — the token's tenant for an authenticated caller, the
-    // client hints otherwise — through the same seam the MCP transport uses (#858). A
+    // The tenant: the token's for an authenticated caller, the client hints otherwise. A
     // refusal keeps its own class: a header naming a tenant the token is not bound to
     // is FORBIDDEN, a malformed header a validation error.
-    let tenant_key =
-        super::tenant_dispatch::resolve_tenant_key(&state, security_context.as_ref(), headers)
-            .map_err(|e| ErrorResponse::from_error(GraphQLError::from_fraiseql_error(&e)))?;
+    let tenant = identified
+        .tenant(&state, headers)
+        .map_err(|refusal| ErrorResponse::from_error(admission_error(&refusal)))?;
+    let security_context = identified.into_security_context();
 
     // ── Idempotency (#747) ───────────────────────────────────────────────────
     // A mutation carrying an `Idempotency-Key` header executes at most once per
@@ -628,7 +626,7 @@ async fn execute_admitted(
     let idempotency_key = if detect_mutation_name(&query).is_some() {
         headers.get("idempotency-key").and_then(|v| v.to_str().ok()).map(|client_key| {
             let scope = crate::routes::idempotency::IdempotencyScope {
-                tenant:    tenant_key.clone(),
+                tenant:    tenant.key().map(str::to_owned),
                 principal: security_context.as_ref().map(|c| c.user_id.to_string()),
                 method:    "POST".to_string(),
                 path:      "/graphql".to_string(),
@@ -670,26 +668,22 @@ async fn execute_admitted(
     let variables = request.variables;
 
     // ── Execution ────────────────────────────────────────────────────────────
-    // Dispatch, the suspended-tenant gate and the per-tenant quotas all live in
-    // the shared seam so the MCP transport enforces the identical policy (#858).
-    // `dispatch` holds the concurrency permit for the rest of this scope, which
-    // is why it is not extracted into a stage.
-    let dispatch = super::tenant_dispatch::dispatch_to_tenant(&state, tenant_key.as_deref())
-        .map_err(|e| ErrorResponse::from_error(tenant_dispatch_error(&e)))?;
+    // Dispatch, the suspended-tenant gate and the per-tenant quotas are admission's, so
+    // every transport enforces the identical policy (#858). `dispatch` holds the
+    // concurrency permit for the rest of this scope, which is why it is not extracted
+    // into a stage.
+    let dispatch = tenant
+        .dispatch(&state)
+        .map_err(|refusal| ErrorResponse::from_error(admission_error(&refusal)))?;
     let executor = &dispatch.executor;
 
     // M-quotas (cost): one estimate serves both budget enforcement and
-    // observability (#379). Rejection surfaces at the same chokepoint as the
-    // other per-tenant quotas, in the shared seam for the same reason (#858).
+    // observability (#379).
     let estimated_cost =
         super::tenant_dispatch::estimate_request_cost(&query, variables.as_ref(), executor);
-    super::tenant_dispatch::charge_cost_budget(
-        &state,
-        tenant_key.as_deref(),
-        security_context.as_ref(),
-        estimated_cost,
-    )
-    .map_err(|e| ErrorResponse::from_error(tenant_dispatch_error(&e)))?;
+    tenant
+        .charge(&state, security_context.as_ref(), estimated_cost)
+        .map_err(|refusal| ErrorResponse::from_error(admission_error(&refusal)))?;
 
     // #1564: whether the response was produced for a principal, read before
     // `security_context` is consumed.
@@ -837,7 +831,7 @@ async fn execute_admitted(
         tracing::info!(
             target: "fraiseql::cost_audit",
             cost,
-            tenant = tenant_key.as_deref().unwrap_or(""),
+            tenant = tenant.key().unwrap_or(""),
             operation = %op_name,
             "operation cost"
         );
@@ -893,7 +887,7 @@ async fn execute_admitted(
                 body: &response_json,
                 ttl: executor.response_cache_ttl(&query, operation_name),
                 principal,
-                tenant: tenant_key.is_some(),
+                tenant: tenant.key().is_some(),
                 s_maxage: None,
             },
             headers,
@@ -929,6 +923,27 @@ pub(super) fn tree(
             state.error_sanitizer.sanitize(GraphQLError::from_fraiseql_error(&e)),
         )
     })
+}
+
+/// The `/graphql` answer to an admission refusal.
+pub(super) fn admission_error(refusal: &Refusal) -> GraphQLError {
+    match refusal {
+        Refusal::InvalidApiKey => {
+            GraphQLError::new("Invalid API key", crate::error::ErrorCode::Unauthenticated)
+        },
+        // Generic outward body (DESIGN §5.4): the precise reason is logged server-side,
+        // never surfaced (actor-table oracle guard). The wording is shared with every other
+        // transport so the response cannot differ by door.
+        Refusal::IdentityDenied => {
+            GraphQLError::new(EnrichmentOutcome::DENIED_MESSAGE, crate::error::ErrorCode::Forbidden)
+        },
+        Refusal::IdentityUnavailable => GraphQLError::new(
+            EnrichmentOutcome::UNAVAILABLE_MESSAGE,
+            crate::error::ErrorCode::ServiceUnavailable,
+        ),
+        Refusal::Tenant(error) => GraphQLError::from_fraiseql_error(error),
+        Refusal::Dispatch(error) | Refusal::Cost(error) => tenant_dispatch_error(error),
+    }
 }
 
 /// Map a tenant-dispatch error from [`AppState::executor_for_tenant`] to the

@@ -15,12 +15,14 @@ use axum::{
     response::{IntoResponse, Response},
     routing::post,
 };
+use fraiseql_core::security::EnrichmentOutcome;
 use serde::Deserialize;
 use serde_json::{Value, json};
 use uuid::Uuid;
 
 use super::graphql::{AppState, tenant_dispatch};
 use crate::{
+    admission::{self, AdmissionPolicy, Refusal},
     async_operations::AsyncOperationsRuntime,
     extractors::OptionalSecurityContext,
     routes::idempotency::{IdempotencyCheck, IdempotencyScope, StoredResponse, hash_body},
@@ -121,38 +123,24 @@ async fn submit(
     // A submission is executed later, as the submitter — no principal, nothing
     // to execute as. Refused outright, never queued unattributed.
     let Some(ctx) = ctx else {
-        return error_response(
-            StatusCode::UNAUTHORIZED,
-            "async operations require an authenticated caller — the submission snapshots your \
-             security context for the background execution",
-        );
+        return error_response(StatusCode::UNAUTHORIZED, UNAUTHENTICATED_SUBMISSION);
     };
 
-    // #1336: resolve before the snapshot. This surface *is* a transport — it executes a
-    // GraphQL document as the submitter — and the context it serialises at line ~215 is
-    // the one the background worker runs with. Without this the snapshot carries no
-    // enriched fields, so every enriched operation fails later, in a job, rather than
-    // now, at the door; and an unprovisioned subject's work is queued at all.
-    // Shadowed under the cfg rather than declared `mut` up front: the `identity` module
-    // is gated on `auth`, and without it nothing mutates the context.
-    #[cfg(feature = "auth")]
-    let ctx = {
-        let mut ctx = ctx;
-        match crate::identity::resolve_request_identity(&state.app.identity, Some(&mut ctx)).await {
-            crate::identity::EnrichmentOutcome::Proceed => ctx,
-            crate::identity::EnrichmentOutcome::Denied => {
-                return error_response(
-                    StatusCode::FORBIDDEN,
-                    crate::identity::EnrichmentOutcome::DENIED_MESSAGE,
-                );
-            },
-            crate::identity::EnrichmentOutcome::Unavailable => {
-                return error_response(
-                    StatusCode::SERVICE_UNAVAILABLE,
-                    crate::identity::EnrichmentOutcome::UNAVAILABLE_MESSAGE,
-                );
-            },
-        }
+    // #1336: identified, and so enriched, before the snapshot. This surface *is* a
+    // transport: it executes a GraphQL document as the submitter, and the context it
+    // serialises below is the one the background worker runs with. Unenriched, every
+    // enriched operation would fail later, in a job, rather than now, at the door; and an
+    // unprovisioned subject's work would be queued at all.
+    let identified = match admission::identify(
+        &state.app,
+        &headers,
+        Some(ctx),
+        &AdmissionPolicy::ASYNC_OPERATIONS,
+    )
+    .await
+    {
+        Ok(identified) => identified,
+        Err(refusal) => return refusal_response(&refusal),
     };
 
     // The allowlist is the operator's explicit surface (fail-closed).
@@ -186,9 +174,12 @@ async fn submit(
         );
     }
 
-    let tenant_key = match tenant_dispatch::resolve_tenant_key(&state.app, Some(&ctx), &headers) {
-        Ok(k) => k,
-        Err(e) => return error_response(tenant_refusal_status(&e), &e.to_string()),
+    let tenant = match identified.tenant(&state.app, &headers) {
+        Ok(tenant) => tenant,
+        Err(refusal) => return refusal_response(&refusal),
+    };
+    let Some(ctx) = identified.into_security_context() else {
+        return error_response(StatusCode::UNAUTHORIZED, UNAUTHENTICATED_SUBMISSION);
     };
 
     // Idempotent submission (#747): the same Idempotency-Key with the same body
@@ -196,7 +187,7 @@ async fn submit(
     // operation. A different body under the same key is a conflict.
     let idempotency = headers.get("idempotency-key").and_then(|v| v.to_str().ok()).map(|k| {
         let scope = IdempotencyScope {
-            tenant:    tenant_key.clone(),
+            tenant:    tenant.key().map(str::to_owned),
             principal: Some(ctx.user_id.to_string()),
             method:    "POST".to_string(),
             path:      format!("/operations/v1/{operation}"),
@@ -228,10 +219,8 @@ async fn submit(
         body.variables.as_ref(),
         &state.app.executor(),
     );
-    if let Err(e) =
-        tenant_dispatch::charge_cost_budget(&state.app, tenant_key.as_deref(), Some(&ctx), cost)
-    {
-        return error_response(StatusCode::TOO_MANY_REQUESTS, &e.to_string());
+    if let Err(refusal) = tenant.charge(&state.app, Some(&ctx), cost) {
+        return refusal_response(&refusal);
     }
 
     let ctx_json = match serde_json::to_value(&ctx) {
@@ -246,7 +235,7 @@ async fn submit(
     // #1512, #1520: the request's scope (locale, session headers) is resolved now, from this
     // request, and stored with the operation: the worker that executes it has no request to
     // resolve one from. The tenant's executor, read without charging its quotas a second time.
-    let scope = match state.app.executor_for_tenant(tenant_key.as_deref()) {
+    let scope = match state.app.executor_for_tenant(tenant.key()) {
         Ok(executor) => match crate::request_scope::RequestScope::resolve(
             executor.schema(),
             Some(&headers),
@@ -262,7 +251,7 @@ async fn submit(
         .runtime
         .store
         .submit(
-            tenant_key.as_deref(),
+            tenant.key(),
             ctx.user_id.as_str(),
             &operation,
             &body.query,
@@ -306,20 +295,15 @@ async fn status(
         Ok(pair) => pair,
         Err(resp) => return resp,
     };
-    let tenant_key = match tenant_dispatch::resolve_tenant_key(&state.app, Some(&ctx), &headers) {
-        Ok(k) => k,
-        Err(e) => return error_response(tenant_refusal_status(&e), &e.to_string()),
+    let (ctx, tenant) = match lookup_tenant(&state, &headers, ctx).await {
+        Ok(pair) => pair,
+        Err(resp) => return resp,
     };
 
     // The status is READ from the stored row — never inferred (P19 mode 6) —
     // and scoped to the submitter, so another principal's op_id reads as
     // absent rather than becoming an existence oracle.
-    match state
-        .runtime
-        .store
-        .get_scoped(op_id, ctx.user_id.as_str(), tenant_key.as_deref())
-        .await
-    {
+    match state.runtime.store.get_scoped(op_id, ctx.user_id.as_str(), tenant.key()).await {
         Ok(Some(op)) => (StatusCode::OK, Json(op_json(&op))).into_response(),
         Ok(None) => error_response(StatusCode::NOT_FOUND, "no such operation"),
         Err(e) => error_response(StatusCode::INTERNAL_SERVER_ERROR, &e.to_string()),
@@ -336,12 +320,12 @@ async fn cancel(
         Ok(pair) => pair,
         Err(resp) => return resp,
     };
-    let tenant_key = match tenant_dispatch::resolve_tenant_key(&state.app, Some(&ctx), &headers) {
-        Ok(k) => k,
-        Err(e) => return error_response(tenant_refusal_status(&e), &e.to_string()),
+    let (ctx, tenant) = match lookup_tenant(&state, &headers, ctx).await {
+        Ok(pair) => pair,
+        Err(resp) => return resp,
     };
     let submitter = ctx.user_id.as_str();
-    let tenant = tenant_key.as_deref();
+    let tenant = tenant.key();
 
     // Truthful cancellation (#746): a queued operation is cancelled outright
     // and reported as such; a running one gets a REQUEST (honoured at the
@@ -378,6 +362,9 @@ async fn cancel(
     }
 }
 
+/// Why a lookup without a principal is refused: an operation is scoped to its submitter.
+const UNAUTHENTICATED_LOOKUP: &str = "async operations require an authenticated caller";
+
 /// Shared guard: an authenticated caller and a UUID-shaped id.
 #[allow(clippy::result_large_err)] // Reason: the Err IS the handler's HTTP response; boxing it buys nothing
 fn caller_and_id(
@@ -385,15 +372,58 @@ fn caller_and_id(
     op_id: &str,
 ) -> std::result::Result<(fraiseql_core::security::SecurityContext, Uuid), Response> {
     let Some(ctx) = ctx else {
-        return Err(error_response(
-            StatusCode::UNAUTHORIZED,
-            "async operations require an authenticated caller",
-        ));
+        return Err(error_response(StatusCode::UNAUTHORIZED, UNAUTHENTICATED_LOOKUP));
     };
     let Ok(op_id) = Uuid::parse_str(op_id) else {
         return Err(error_response(StatusCode::BAD_REQUEST, "op_id must be a UUID"));
     };
     Ok((ctx, op_id))
+}
+
+/// Why a submission without a principal is refused: it executes later, as the submitter.
+const UNAUTHENTICATED_SUBMISSION: &str = "async operations require an authenticated caller — \
+                                          the submission snapshots your security context for \
+                                          the background execution";
+
+/// The caller and the tenant a lookup of their operation is scoped to.
+async fn lookup_tenant(
+    state: &AsyncOperationsState,
+    headers: &HeaderMap,
+    ctx: fraiseql_core::security::SecurityContext,
+) -> std::result::Result<(fraiseql_core::security::SecurityContext, admission::Tenant), Response> {
+    let identified = admission::identify(
+        &state.app,
+        headers,
+        Some(ctx),
+        &AdmissionPolicy::ASYNC_OPERATION_LOOKUP,
+    )
+    .await
+    .map_err(|refusal| refusal_response(&refusal))?;
+    let tenant = identified
+        .tenant(&state.app, headers)
+        .map_err(|refusal| refusal_response(&refusal))?;
+    let Some(ctx) = identified.into_security_context() else {
+        return Err(error_response(StatusCode::UNAUTHORIZED, UNAUTHENTICATED_LOOKUP));
+    };
+    Ok((ctx, tenant))
+}
+
+/// The answer to an admission refusal: enrichment as every transport answers it, a tenant
+/// refusal in its own class, and a cost refusal as 429.
+fn refusal_response(refusal: &Refusal) -> Response {
+    match refusal {
+        Refusal::IdentityDenied => {
+            error_response(StatusCode::FORBIDDEN, EnrichmentOutcome::DENIED_MESSAGE)
+        },
+        Refusal::IdentityUnavailable => {
+            error_response(StatusCode::SERVICE_UNAVAILABLE, EnrichmentOutcome::UNAVAILABLE_MESSAGE)
+        },
+        Refusal::Tenant(error) | Refusal::Dispatch(error) => {
+            error_response(tenant_refusal_status(error), &error.to_string())
+        },
+        Refusal::Cost(error) => error_response(StatusCode::TOO_MANY_REQUESTS, &error.to_string()),
+        Refusal::InvalidApiKey => error_response(StatusCode::UNAUTHORIZED, "Invalid API key"),
+    }
 }
 
 /// The status a tenant-resolution refusal is answered with: its own class (403 for a

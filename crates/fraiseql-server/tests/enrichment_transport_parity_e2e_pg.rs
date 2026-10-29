@@ -46,7 +46,7 @@ use fraiseql_server::{
     identity::{EnrichmentQueryConfig, IdentityResolver},
     mcp::handler::{FraiseQLMcpService, McpTokenValidator},
     routes::graphql::AppState,
-    server_config::{Hs256Config, ServerConfig},
+    server_config::{AsyncOperationsConfig, Hs256Config, ServerConfig},
 };
 use fraiseql_test_support::try_database_url;
 use fraiseql_test_utils::schema_builder::{
@@ -297,6 +297,14 @@ async fn start() -> Option<(String, tokio::sync::oneshot::Sender<()>)> {
 
 /// [`start`], serving `schema`.
 async fn start_with(schema: CompiledSchema) -> Option<(String, tokio::sync::oneshot::Sender<()>)> {
+    Box::pin(start_over(schema, server_config())).await
+}
+
+/// [`start_with`], under `config`.
+async fn start_over(
+    schema: CompiledSchema,
+    config: ServerConfig,
+) -> Option<(String, tokio::sync::oneshot::Sender<()>)> {
     let url = try_database_url()?;
     let adapter = Arc::new(PostgresAdapter::new(&url).await.expect("connect to the test database"));
     seed(&adapter).await;
@@ -305,7 +313,7 @@ async fn start_with(schema: CompiledSchema) -> Option<(String, tokio::sync::ones
     // at boot, before the server starts serving.
     std::env::set_var(SECRET_ENV, SECRET);
 
-    let mut config = server_config();
+    let mut config = config;
     config.database_url = url;
 
     // The pool is what makes `[identity.enrichment]` live: `enrichment_pool` is this
@@ -330,6 +338,59 @@ async fn start_with(schema: CompiledSchema) -> Option<(String, tokio::sync::ones
     });
     tokio::time::sleep(std::time::Duration::from_millis(300)).await;
     Some((format!("http://127.0.0.1:{port}"), tx))
+}
+
+/// Submit `{ audits { id } }` as an async operation, as the subject `token` names.
+///
+/// The submission snapshots the security context the background worker executes as, so it
+/// is admitted, and its subject resolved, now, at the door.
+async fn async_submit(token: &str) -> Option<(Answer, tokio::sync::oneshot::Sender<()>)> {
+    let mut config = server_config();
+    config.async_operations = Some(AsyncOperationsConfig {
+        operations: vec!["audits".to_string()],
+        workers: 1,
+        poll_interval_ms: 100,
+        ..AsyncOperationsConfig::default()
+    });
+    let (base, shutdown) = Box::pin(start_over(build_schema(), config)).await?;
+    let response = reqwest::Client::new()
+        .post(format!("{base}/operations/v1/audits"))
+        .header("authorization", format!("Bearer {token}"))
+        .json(&json!({ "query": "{ audits { id } }" }))
+        .send()
+        .await
+        .expect("async submission");
+    let status = response.status().as_u16();
+    let text = response.text().await.expect("response body");
+    let answer = Answer {
+        status,
+        body: serde_json::from_str(&text).unwrap_or_else(|_| json!({ "raw": text })),
+    };
+    Some((answer, shutdown))
+}
+
+#[tokio::test]
+async fn async_operations_refuse_a_subject_the_actor_table_does_not_know() {
+    let Some((answer, shutdown)) = Box::pin(async_submit(&token_for(UNKNOWN_SUB))).await else {
+        eprintln!("skipping #1336 enrichment parity: DATABASE_URL not set");
+        return;
+    };
+    assert_eq!(answer.status, 403, "refused at submission, never queued: {}", answer.body);
+    let _ = shutdown.send(());
+}
+
+#[tokio::test]
+async fn async_operations_accept_a_subject_the_actor_table_knows() {
+    let Some((answer, shutdown)) = Box::pin(async_submit(&token_for(KNOWN_SUB))).await else {
+        eprintln!("skipping #1336 enrichment parity: DATABASE_URL not set");
+        return;
+    };
+    assert_eq!(
+        answer.status, 202,
+        "control: the fixture accepts a known subject, so the refusal above is enrichment's: {}",
+        answer.body
+    );
+    let _ = shutdown.send(());
 }
 
 // ---------------------------------------------------------------------------
