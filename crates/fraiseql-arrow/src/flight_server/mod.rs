@@ -218,6 +218,9 @@ pub struct FraiseQLFlightService {
     /// dispatched it unresolved, so an enrichment-declaring deployment had its requests
     /// refused by the engine's fail-closed backstop (#1336).
     pub(crate) identity_enricher: Option<Arc<dyn fraiseql_core::security::IdentityEnricher>>,
+    /// The claim a session token names its tenant by: the compiled schema's tenant claim,
+    /// installed at serve time. `None` gives a principal no tenant.
+    pub(crate) tenant_claim: Option<String>,
     /// Optional security context for authenticated requests.
     /// Stores session information from successful handshake.
     pub(crate) security_context: Option<SecurityContext>,
@@ -292,4 +295,8 @@ pub(crate) struct SessionTokenClaims {
     pub(crate) scopes:       Vec<String>,
     /// Session type marker
     pub(crate) session_type: String,
+    /// The original token's other claims, so the session's principal carries the tenant,
+    /// roles and attributes the token gives every other transport.
+    #[serde(default)]
+    pub(crate) claims:       std::collections::HashMap<String, serde_json::Value>,
 }

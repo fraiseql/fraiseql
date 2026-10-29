@@ -55,10 +55,7 @@ pub(super) async fn handle(
     // resolves; this one did not, so the one verb that had never resolved was also the
     // one whose rows the Change Spine could not attribute — the outbox row's tenant comes
     // from this context and nowhere else.
-    let mut security_context = fraiseql_core::security::SecurityContext::from_user(
-        &authenticated_user,
-        uuid::Uuid::new_v4().to_string(),
-    );
+    let mut security_context = super::session_principal(svc, &authenticated_user);
     super::resolve_identity(svc, &mut security_context).await?;
 
     // Check if database adapter is available

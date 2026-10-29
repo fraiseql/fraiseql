@@ -82,7 +82,7 @@ async fn extractor_leaves_roles_empty_without_claim() {
     assert!(ctx.roles.is_empty());
 }
 
-/// `build_security_context` is the one function that turns a validated token into
+/// `SecurityContext::from_token_claims` is the one function that turns a validated token into
 /// a `SecurityContext`, so every transport derives the tenant and forwards the claims
 /// the same way.
 ///
@@ -92,8 +92,9 @@ async fn extractor_leaves_roles_empty_without_claim() {
 /// assertions are made against the shared builder rather than the HTTP extractor
 /// precisely because the shared builder is what every transport calls.
 mod shared_security_context {
+    use fraiseql_core::security::SecurityContext;
+
     use super::{HashMap, json, user_with_claims};
-    use crate::extractors::build_security_context;
 
     fn tenant_of(
         claims: &[(&str, serde_json::Value)],
@@ -101,9 +102,13 @@ mod shared_security_context {
     ) -> Option<String> {
         let extra: HashMap<_, _> =
             claims.iter().map(|(k, v)| ((*k).to_string(), v.clone())).collect();
-        build_security_context(&user_with_claims(extra), "req-1".to_string(), tenant_claim)
-            .tenant_id
-            .map(|t| t.0)
+        SecurityContext::from_token_claims(
+            &user_with_claims(extra),
+            "req-1".to_string(),
+            tenant_claim,
+        )
+        .tenant_id
+        .map(|t| t.0)
     }
 
     /// The tenant is the configured claim (#1388). It used to be `org_id` whatever the
@@ -155,7 +160,8 @@ mod shared_security_context {
         let mut extra = HashMap::new();
         extra.insert("department".to_string(), json!("finance"));
 
-        let ctx = build_security_context(&user_with_claims(extra), "req-1".to_string(), None);
+        let ctx =
+            SecurityContext::from_token_claims(&user_with_claims(extra), "req-1".to_string(), None);
 
         assert_eq!(ctx.attributes.get("department"), Some(&json!("finance")));
     }
@@ -167,7 +173,8 @@ mod shared_security_context {
         let mut extra = HashMap::new();
         extra.insert("fraiseql.actor_type".to_string(), json!("system"));
 
-        let ctx = build_security_context(&user_with_claims(extra), "req-1".to_string(), None);
+        let ctx =
+            SecurityContext::from_token_claims(&user_with_claims(extra), "req-1".to_string(), None);
 
         assert_ne!(ctx.attributes.get("fraiseql.actor_type"), Some(&json!("system")));
     }

@@ -18,6 +18,14 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **An Arrow Flight principal carries the claims of the token it came from (#1643).** The
+  handshake's session token used to keep only the subject and scopes, so a Flight request
+  ran with no tenant, no roles from the token and no claim attributes. The session token
+  now carries the original token's claims. A Flight principal has the same tenant (from
+  the schema's tenant claim), roles and attributes as a `/graphql` principal built from
+  that token, and RLS, tenant scoping and role checks read them the same way. A session
+  also expires no later than that token: five minutes from the handshake, or sooner when
+  the token expires first.
 - **The storage API identifies a caller as `/graphql` does (#1643).**
   - A service account's secret, or a static API key, now identifies a storage caller. A
     bearer token sent beside a service-account secret is refused as ambiguous.

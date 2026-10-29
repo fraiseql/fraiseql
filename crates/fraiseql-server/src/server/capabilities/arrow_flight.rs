@@ -28,31 +28,7 @@ impl Capability for ArrowFlight {
         };
         let flight_addr = server.config.flight_bind_addr;
 
-        // #954: attach the policy seam, never a bare executor. This is the
-        // first point where both halves exist — `create_flight_service` builds
-        // the service before there is any `AppState` to enforce policy from —
-        // so the wiring lives here rather than in the constructor. Without it
-        // Flight is the one transport that skips tenant resolution, the
-        // suspended-tenant gate, per-tenant quotas and trusted documents.
-        let app_state = cx.app.clone();
-
-        // #1349: the same wiring point, for the same reason. Flight builds its own
-        // principal from a session token and, until now, dispatched it unresolved —
-        // so `[identity.enrichment]`'s "every authenticated request resolves and
-        // fail-closes" was true of six transports out of seven, and this one was
-        // refused outright by the engine's backstop on any enrichment-declaring
-        // deployment.
-        #[cfg(feature = "auth")]
-        if !app_state.identity.is_empty() {
-            flight_service.set_identity_enricher(std::sync::Arc::new(app_state.identity.clone()));
-            info!("Arrow Flight resolves identity before dispatch (#1349)");
-        }
-
-        flight_service.set_executor(crate::arrow::policy_seam::policy_gated_executor(app_state));
-        info!(
-            "Arrow Flight GraphQL execution enabled through the policy seam (tenant \
-             dispatch, trusted documents, per-tenant quotas)"
-        );
+        wire_policy(&mut flight_service, cx.app.clone());
 
         info!("Arrow Flight server listening on grpc://{}", flight_addr);
 
@@ -71,3 +47,43 @@ impl Capability for ArrowFlight {
         Ok(Started::Running)
     }
 }
+
+/// Attach what the server enforces to a Flight service, at serve time: the identity
+/// enricher, the tenant claim its principals are built with, and the policy seam its
+/// GraphQL tickets execute through.
+#[cfg(feature = "arrow")]
+fn wire_policy(
+    flight_service: &mut fraiseql_arrow::FraiseQLFlightService,
+    app_state: crate::routes::graphql::AppState,
+) {
+    // #954: attach the policy seam, never a bare executor. This is the
+    // first point where both halves exist — `create_flight_service` builds
+    // the service before there is any `AppState` to enforce policy from —
+    // so the wiring lives here rather than in the constructor. Without it
+    // Flight is the one transport that skips tenant resolution, the
+    // suspended-tenant gate, per-tenant quotas and trusted documents.
+
+    // #1349: the same wiring point, for the same reason. Flight builds its own
+    // principal from a session token and, until now, dispatched it unresolved —
+    // so `[identity.enrichment]`'s "every authenticated request resolves and
+    // fail-closes" was true of six transports out of seven, and this one was
+    // refused outright by the engine's backstop on any enrichment-declaring
+    // deployment.
+    #[cfg(feature = "auth")]
+    if !app_state.identity.is_empty() {
+        flight_service.set_identity_enricher(std::sync::Arc::new(app_state.identity.clone()));
+        info!("Arrow Flight resolves identity before dispatch (#1349)");
+    }
+
+    // A session token's principal carries the tenant claim and attributes a token gives
+    // every other transport.
+    flight_service.set_tenant_claim(app_state.executor().schema().tenant_claim());
+    flight_service.set_executor(crate::arrow::policy_seam::policy_gated_executor(app_state));
+    info!(
+        "Arrow Flight GraphQL execution enabled through the policy seam (tenant \
+         dispatch, trusted documents, per-tenant quotas)"
+    );
+}
+
+#[cfg(all(test, feature = "arrow"))]
+mod tests;

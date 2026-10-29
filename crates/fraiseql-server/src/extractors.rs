@@ -96,7 +96,7 @@ where
             // Create SecurityContext if auth user is present
             let security_context = auth_user.map(|auth_user| {
                 let request_id = extract_request_id(headers);
-                let mut context = build_security_context(
+                let mut context = SecurityContext::from_token_claims(
                     &auth_user.0,
                     request_id,
                     tenant_claim.as_ref().map(|c| &*c.0),
@@ -108,53 +108,6 @@ where
             Ok(OptionalSecurityContext(security_context))
         }
     }
-}
-
-/// Build the [`SecurityContext`] for a validated token.
-///
-/// This is the one place a token becomes a security context, so every transport
-/// gets the same one. The MCP transport used to call
-/// [`SecurityContext::from_user`] directly, which leaves `tenant_id` unset and
-/// `attributes` empty — so an MCP caller's `org_id` never became a tenant and
-/// every `SessionVariableSource::Jwt` mapping resolved to nothing (#858).
-///
-/// Beyond `from_user` this:
-/// - forwards the JWT's extra claims into `attributes`, making custom claims (`org_id`, roles, …)
-///   available to RLS policies and session-variable injection;
-/// - skips any claim in the framework-reserved `fraiseql.` namespace, so a token carrying a claim
-///   literally named `fraiseql.actor_type` cannot forge the recorded actor (#390);
-/// - derives `tenant_id` from `tenant_claim`, the claim the compiled schema names its tenant by
-///   (`[fraiseql.tenancy] tenant_claim`, default `tenant_id`; #1388). It used to be the `org_id`
-///   claim whatever the schema said, so a token carrying both was scoped by the wrong one. `None` —
-///   no claim configured on this path — means no tenant: everything that scopes by tenant then
-///   fails closed instead of guessing.
-#[must_use]
-pub(crate) fn build_security_context(
-    user: &fraiseql_core::security::AuthenticatedUser,
-    request_id: String,
-    tenant_claim: Option<&str>,
-) -> SecurityContext {
-    let mut context = SecurityContext::from_user(user, request_id);
-
-    for (key, value) in &user.extra_claims {
-        if key.starts_with("fraiseql.") {
-            continue;
-        }
-        context.attributes.insert(key.clone(), value.clone());
-    }
-
-    // A tenant identifier is a non-empty string, or a number spelled in decimal; any
-    // other shape names no tenant.
-    context.tenant_id = tenant_claim
-        .and_then(|claim| context.jwt_claim(claim, claim))
-        .and_then(|value| match value {
-            serde_json::Value::String(s) if !s.is_empty() => Some(s),
-            serde_json::Value::Number(n) => Some(n.to_string()),
-            _ => None,
-        })
-        .map(fraiseql_core::types::TenantId::new);
-
-    context
 }
 
 /// Extract request ID from headers or generate a new one.

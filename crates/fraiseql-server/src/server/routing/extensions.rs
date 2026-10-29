@@ -479,7 +479,12 @@ async fn identify_storage_caller(
             // a `require_claims` rule can match.
             let claims = fraiseql_storage::normalise_claims(&user.extra_claims);
             let request_id = uuid::Uuid::new_v4().to_string();
-            (Some(crate::extractors::build_security_context(&user, request_id, None)), claims)
+            (
+                Some(fraiseql_core::security::SecurityContext::from_token_claims(
+                    &user, request_id, None,
+                )),
+                claims,
+            )
         },
         (None, Some(_), None) => {
             tracing::debug!("Storage auth: bearer did not match storage_token");

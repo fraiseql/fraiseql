@@ -221,7 +221,7 @@ impl FraiseQLMcpService {
                         refuse(refusal)
                     },
                 )?;
-                Some(crate::extractors::build_security_context(
+                Some(fraiseql_core::security::SecurityContext::from_token_claims(
                     &user,
                     request_id,
                     Some(self.schema.tenant_claim()),

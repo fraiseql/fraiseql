@@ -155,6 +155,7 @@ impl FraiseQLFlightService {
             executor: None,
             cache: None,
             identity_enricher: None,
+            tenant_claim: None,
             security_context: None,
             oidc_validator: None,
             event_storage: None,
@@ -206,6 +207,7 @@ impl FraiseQLFlightService {
             executor: None,
             cache: None,
             identity_enricher: None,
+            tenant_claim: None,
             security_context: None,
             oidc_validator: None,
             event_storage: None,
@@ -255,6 +257,7 @@ impl FraiseQLFlightService {
             executor: None,
             cache: Some(Arc::new(QueryCache::new(cache_ttl_secs))),
             identity_enricher: None,
+            tenant_claim: None,
             security_context: None,
             oidc_validator: None,
             event_storage: None,
@@ -340,6 +343,7 @@ impl FraiseQLFlightService {
             executor: None,
             cache,
             identity_enricher: None,
+            tenant_claim: None,
             security_context: None,
             oidc_validator: Some(oidc_validator),
             event_storage: None,
@@ -527,6 +531,18 @@ impl FraiseQLFlightService {
     /// ```
     pub fn set_executor(&mut self, executor: Arc<dyn QueryExecutor>) {
         self.executor = Some(executor);
+    }
+
+    /// Install the claim a session token names its tenant by, so a Flight principal is
+    /// built as every transport builds one from a token.
+    pub fn set_tenant_claim(&mut self, tenant_claim: impl Into<String>) {
+        self.tenant_claim = Some(tenant_claim.into());
+    }
+
+    /// The claim a session token names its tenant by, if one was installed.
+    #[must_use]
+    pub fn tenant_claim(&self) -> Option<&str> {
+        self.tenant_claim.as_deref()
     }
 
     /// Install the identity enricher (#1349).

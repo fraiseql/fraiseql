@@ -542,7 +542,7 @@ impl DynamicGrpcService {
     /// resolver rather than `&self` so driving it needs no descriptor pool, no dispatch
     /// table and no adapter, none of which it reads.
     ///
-    /// `build_security_context` rather than `SecurityContext::from_user`: #858's fix
+    /// `SecurityContext::from_token_claims` rather than `from_user`: #858's fix
     /// never reached gRPC, so `tenant_id` stayed unset and `attributes` stayed empty —
     /// the JWT's `org_id` never became a tenant and every `SessionVariableSource::Jwt`
     /// mapping resolved to nothing. It is also a *prerequisite* for the enrichment
@@ -562,8 +562,12 @@ impl DynamicGrpcService {
         request_id: String,
         tenant_claim: &str,
     ) -> std::result::Result<SecurityContext, http::Response<TonicBody>> {
-        let ctx = crate::extractors::build_security_context(user, request_id, Some(tenant_claim))
-            .with_transport("grpc");
+        let ctx = fraiseql_core::security::SecurityContext::from_token_claims(
+            user,
+            request_id,
+            Some(tenant_claim),
+        )
+        .with_transport("grpc");
         // Shadowed rather than declared `mut` up front: without `auth` there is no
         // resolver and nothing mutates it, and an unconditional `mut` warns in that
         // arm — the arm `--all-features` never builds.

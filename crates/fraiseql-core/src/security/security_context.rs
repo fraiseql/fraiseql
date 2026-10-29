@@ -318,6 +318,43 @@ impl SecurityContext {
         .with_acting_for(acting_for)
     }
 
+    /// The principal a validated token names, as every transport builds it: [`from_user`],
+    /// plus the token's claims.
+    ///
+    /// - The token's extra claims become `attributes`, so custom claims (`org_id`, roles, …) reach
+    ///   RLS policies and session-variable injection.
+    /// - A claim in the framework-reserved `fraiseql.` namespace is skipped, so a token carrying a
+    ///   claim literally named `fraiseql.actor_type` cannot forge the recorded actor.
+    /// - `tenant_id` comes from `tenant_claim`, the claim the compiled schema names its tenant by
+    ///   (`[fraiseql.tenancy] tenant_claim`). A tenant is a non-empty string or a number spelled in
+    ///   decimal; any other shape names none. `None` means no claim is configured on this path, so
+    ///   there is no tenant, and everything that scopes by tenant fails closed instead of guessing.
+    ///
+    /// [`from_user`]: Self::from_user
+    #[must_use]
+    pub fn from_token_claims(
+        user: &AuthenticatedUser,
+        request_id: String,
+        tenant_claim: Option<&str>,
+    ) -> Self {
+        let mut context = Self::from_user(user, request_id);
+        for (key, value) in &user.extra_claims {
+            if key.starts_with("fraiseql.") {
+                continue;
+            }
+            context.attributes.insert(key.clone(), value.clone());
+        }
+        context.tenant_id = tenant_claim
+            .and_then(|claim| context.jwt_claim(claim, claim))
+            .and_then(|value| match value {
+                serde_json::Value::String(s) if !s.is_empty() => Some(s),
+                serde_json::Value::Number(n) => Some(n.to_string()),
+                _ => None,
+            })
+            .map(crate::types::TenantId::new);
+        context
+    }
+
     /// Construct the context for an internal scheduled / system job (#573 D6).
     ///
     /// Unlike [`from_user`](Self::from_user), this carries **no JWT and no request**

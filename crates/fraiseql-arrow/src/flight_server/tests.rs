@@ -278,6 +278,7 @@ async fn test_do_action_health_check() {
             iat:          now.timestamp(),
             scopes:       vec!["user".to_string()],
             session_type: "flight".to_string(),
+            claims:       std::collections::HashMap::new(),
         };
 
         let key = EncodingKey::from_secret(TEST_FLIGHT_SECRET.as_bytes());
@@ -329,6 +330,7 @@ async fn test_do_action_unknown_action() {
             iat:          now.timestamp(),
             scopes:       vec!["user".to_string()],
             session_type: "flight".to_string(),
+            claims:       std::collections::HashMap::new(),
         };
 
         let key = EncodingKey::from_secret(TEST_FLIGHT_SECRET.as_bytes());
@@ -697,5 +699,132 @@ mod identity_enrichment {
             .expect("nothing to resolve, nothing to refuse");
 
         assert_eq!(ctx.enrichment_mark(), None);
+    }
+}
+
+/// A Flight principal is the one `/graphql` builds from the same token: the session token
+/// carries the original token's claims, and the handler builds the context with the
+/// schema's tenant claim.
+mod principal_parity {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics acceptable
+
+    use std::sync::{Arc, Mutex};
+
+    use arrow_flight::{Ticket, flight_service_server::FlightService as _};
+    use fraiseql_core::security::{AuthenticatedUser, SecurityContext};
+
+    use super::super::{FraiseQLFlightService, QueryExecutor, auth::create_session_token};
+    use crate::FlightTicket;
+
+    const SECRET: &str = "flight-principal-parity-secret-32";
+
+    /// Records the principal each GraphQL ticket is executed as.
+    #[derive(Default)]
+    struct Capturing(Mutex<Option<SecurityContext>>);
+
+    #[async_trait::async_trait]
+    impl QueryExecutor for Capturing {
+        async fn execute_with_security(
+            &self,
+            _query: &str,
+            _variables: Option<&serde_json::Value>,
+            ctx: &SecurityContext,
+        ) -> Result<serde_json::Value, fraiseql_core::error::FraiseQLError> {
+            *self.0.lock().unwrap() = Some(ctx.clone());
+            Ok(serde_json::json!({ "data": { "orders": [] } }))
+        }
+    }
+
+    fn user() -> AuthenticatedUser {
+        AuthenticatedUser {
+            user_id:      fraiseql_core::types::UserId::new("alice"),
+            email:        None,
+            display_name: None,
+            scopes:       vec!["read:orders".to_string()],
+            expires_at:   chrono::Utc::now() + chrono::Duration::hours(1),
+            extra_claims: [
+                ("tenant_id".to_string(), serde_json::json!("acme")),
+                ("org_id".to_string(), serde_json::json!("org-7")),
+                ("roles".to_string(), serde_json::json!(["analyst"])),
+            ]
+            .into_iter()
+            .collect(),
+        }
+    }
+
+    /// The session token is the server's: one whose claims were changed, re-signed with
+    /// another key or not re-signed at all, is refused rather than restored.
+    #[test]
+    fn a_session_token_with_tampered_claims_is_refused() {
+        use super::super::auth::validate_session_token;
+
+        let session = create_session_token(&user(), SECRET).unwrap();
+        let mut claims = jsonwebtoken::dangerous::insecure_decode::<serde_json::Value>(&session)
+            .unwrap()
+            .claims;
+        claims["claims"]["roles"] = serde_json::json!(["admin"]);
+
+        let resigned = jsonwebtoken::encode(
+            &jsonwebtoken::Header::new(jsonwebtoken::Algorithm::HS256),
+            &claims,
+            &jsonwebtoken::EncodingKey::from_secret(b"another-key-another-key-another-k"),
+        )
+        .unwrap();
+        assert!(validate_session_token(&resigned, SECRET).is_err(), "signed with another key");
+
+        // The altered claims under the server's own signature over the original claims.
+        let (altered, _) = resigned.rsplit_once('.').unwrap();
+        let (_, signature) = session.rsplit_once('.').unwrap();
+        let grafted = format!("{altered}.{signature}");
+        assert!(validate_session_token(&grafted, SECRET).is_err(), "the original signature");
+    }
+
+    /// A session expires with the token it was opened with, when that comes first.
+    #[test]
+    fn a_session_does_not_outlive_its_token() {
+        use super::super::auth::validate_session_token;
+
+        let mut short = user();
+        short.expires_at = chrono::Utc::now() + chrono::Duration::seconds(60);
+        let session = create_session_token(&short, SECRET).unwrap();
+        let restored = validate_session_token(&session, SECRET).unwrap();
+        assert!(
+            restored.expires_at <= short.expires_at,
+            "{} > {}",
+            restored.expires_at,
+            short.expires_at
+        );
+    }
+
+    #[tokio::test]
+    async fn a_flight_principal_is_the_one_graphql_builds_from_the_same_token() {
+        let executor = Arc::new(Capturing::default());
+        let mut svc = FraiseQLFlightService::new().with_session_secret(SECRET);
+        svc.set_tenant_claim("tenant_id");
+        svc.set_executor(Arc::clone(&executor) as Arc<dyn QueryExecutor>);
+
+        let session = create_session_token(&user(), SECRET).unwrap();
+        let ticket = FlightTicket::GraphQLQuery {
+            query:     "{ orders { id } }".to_string(),
+            variables: None,
+        };
+        let mut request = tonic::Request::new(Ticket {
+            ticket: ticket.encode().unwrap().into(),
+        });
+        request
+            .metadata_mut()
+            .insert("authorization", format!("Bearer {session}").parse().unwrap());
+        let _ = svc.do_get(request).await.unwrap();
+
+        let flight = executor.0.lock().unwrap().clone().expect("the ticket was executed");
+        let graphql =
+            SecurityContext::from_token_claims(&user(), "req".to_string(), Some("tenant_id"));
+        assert_eq!(flight.user_id, graphql.user_id);
+        assert_eq!(flight.tenant_id, graphql.tenant_id);
+        assert_eq!(flight.roles, graphql.roles);
+        assert_eq!(flight.scopes, graphql.scopes);
+        assert_eq!(flight.attributes, graphql.attributes);
+        assert_eq!(flight.actor_type(), graphql.actor_type());
+        assert!(flight.tenant_id.is_some(), "the token's tenant, not none");
     }
 }

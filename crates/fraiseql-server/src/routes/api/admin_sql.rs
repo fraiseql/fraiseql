@@ -412,7 +412,7 @@ fn impersonated_session_vars(
 
     // The same builder a validated token goes through, so the preview cannot resolve a
     // claim differently from the request it previews.
-    let mut context = crate::extractors::build_security_context(
+    let mut context = fraiseql_core::security::SecurityContext::from_token_claims(
         &user,
         format!("admin-sql-{}", uuid::Uuid::new_v4()),
         Some(tenant_claim),

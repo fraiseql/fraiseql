@@ -16,7 +16,6 @@ use tower::ServiceExt;
 
 use super::{ObserverScope, ScopeRefusal};
 use crate::{
-    extractors::build_security_context,
     middleware::{AuthUser, TenantClaim},
     observers::{
         DlqState, RuntimeHealthState, observer_dlq_routes, observer_runtime_routes,
@@ -40,7 +39,11 @@ fn admin(tenant: Option<Value>) -> AuthenticatedUser {
 }
 
 fn context(tenant: Option<Value>) -> SecurityContext {
-    build_security_context(&admin(tenant), "req-1".to_owned(), Some("tenant_id"))
+    fraiseql_core::security::SecurityContext::from_token_claims(
+        &admin(tenant),
+        "req-1".to_owned(),
+        Some("tenant_id"),
+    )
 }
 
 mod scope_of {

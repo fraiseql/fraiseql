@@ -198,6 +198,20 @@ impl FlightService for FraiseQLFlightService {
     }
 }
 
+/// The principal a validated session token names, built as every transport builds one
+/// from a token: its claims become attributes and roles, and its tenant comes from the
+/// schema's tenant claim.
+pub(super) fn session_principal(
+    svc: &FraiseQLFlightService,
+    user: &fraiseql_core::security::AuthenticatedUser,
+) -> fraiseql_core::security::SecurityContext {
+    fraiseql_core::security::SecurityContext::from_token_claims(
+        user,
+        uuid::Uuid::new_v4().to_string(),
+        svc.tenant_claim.as_deref(),
+    )
+}
+
 /// Resolve the request subject's database identity before dispatch (#1349).
 ///
 /// `[identity.enrichment]`'s contract is that when enrichment is enabled, **every**

@@ -27,7 +27,8 @@ pub fn map_security_error_to_status(error: fraiseql_core::security::SecurityErro
     }
 }
 
-/// Create a short-lived session token (5 minutes).
+/// Create a short-lived session token: five minutes, and never past the expiry of the token
+/// it was opened with, so a session cannot outlive its source.
 ///
 /// `secret` is the HMAC-SHA256 key, read once at service startup from
 /// `FLIGHT_SESSION_SECRET` and cached in [`FraiseQLFlightService::session_secret`].
@@ -37,7 +38,7 @@ pub fn create_session_token(
     secret: &str,
 ) -> std::result::Result<String, Status> {
     let now = Utc::now();
-    let exp = now + chrono::Duration::minutes(5);
+    let exp = (now + chrono::Duration::minutes(5)).min(user.expires_at);
 
     let claims = SessionTokenClaims {
         sub:          user.user_id.0.clone(),
@@ -45,6 +46,7 @@ pub fn create_session_token(
         iat:          now.timestamp(),
         scopes:       user.scopes.clone(),
         session_type: "flight".to_string(),
+        claims:       user.extra_claims.clone(),
     };
 
     let key = EncodingKey::from_secret(secret.as_bytes());
@@ -108,7 +110,7 @@ pub fn validate_session_token(
         expires_at,
         email: None,
         display_name: None,
-        extra_claims: std::collections::HashMap::new(),
+        extra_claims: claims.claims,
     })
 }
 

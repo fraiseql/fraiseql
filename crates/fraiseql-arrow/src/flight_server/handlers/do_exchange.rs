@@ -285,10 +285,7 @@ pub(super) async fn handle(
     info!(user_id = %authenticated_user.user_id, "Authenticated do_exchange request");
 
     // Create security context for RLS
-    let mut security_context = fraiseql_core::security::SecurityContext::from_user(
-        &authenticated_user,
-        uuid::Uuid::new_v4().to_string(),
-    );
+    let mut security_context = super::session_principal(svc, &authenticated_user);
     // #1349: the Upload/exchange arm resolves too — an unresolved subject must not reach
     // a write any more than it may reach a read.
     super::resolve_identity(svc, &mut security_context).await?;
