@@ -23,7 +23,6 @@ url = "${DATABASE_URL}"                 # Connection string (env interpolation)
 pool_min = 2                            # Minimum pool connections
 pool_max = 20                           # Maximum pool connections
 connect_timeout_ms = 5000               # Connection acquisition timeout
-idle_timeout_ms = 600_000               # Idle connection lifetime (10 min)
 ssl_mode = "prefer"                     # disable | allow | prefer | require
 
 # =============================================================================
@@ -33,12 +32,9 @@ ssl_mode = "prefer"                     # disable | allow | prefer | require
 [server]
 host = "0.0.0.0"
 port = 8080
-request_timeout_ms = 30_000             # 30 seconds
-keep_alive_secs = 75
 
 [server.cors]
-origins = []                            # Empty = allow all origins
-credentials = false
+origins = []                            # Empty = http://localhost:3000 only; list yours
 
 [server.tls]
 enabled = false

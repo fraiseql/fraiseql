@@ -318,11 +318,8 @@ mod runtime_tests {
         let cfg = ServerRuntimeConfig::default();
         assert_eq!(cfg.host, "0.0.0.0");
         assert_eq!(cfg.port, 8080);
-        assert_eq!(cfg.request_timeout_ms, 30_000);
-        assert_eq!(cfg.keep_alive_secs, 75);
         assert!(!cfg.tls.enabled);
         assert!(cfg.cors.origins.is_empty());
-        assert!(!cfg.cors.credentials);
     }
 
     #[test]
@@ -390,13 +387,11 @@ mod runtime_tests {
     #[test]
     fn test_server_runtime_config_parses_toml() {
         let toml_str = r#"
-host               = "127.0.0.1"
-port               = 9000
-request_timeout_ms = 60_000
+host = "127.0.0.1"
+port = 9000
 
 [cors]
-origins     = ["https://example.com"]
-credentials = true
+origins = ["https://example.com"]
 
 [tls]
 enabled = false
@@ -404,9 +399,7 @@ enabled = false
         let cfg: ServerRuntimeConfig = toml::from_str(toml_str).expect("parse failed");
         assert_eq!(cfg.host, "127.0.0.1");
         assert_eq!(cfg.port, 9000);
-        assert_eq!(cfg.request_timeout_ms, 60_000);
         assert_eq!(cfg.cors.origins, ["https://example.com"]);
-        assert!(cfg.cors.credentials);
         assert!(!cfg.tls.enabled);
     }
 
@@ -419,7 +412,6 @@ enabled = false
         assert_eq!(cfg.pool_min, 2);
         assert_eq!(cfg.pool_max, 20);
         assert_eq!(cfg.connect_timeout_ms, 5_000);
-        assert_eq!(cfg.idle_timeout_ms, 600_000);
         // Unset, so the connection URL decides — see `DatabaseRuntimeConfig::ssl_mode`.
         assert_eq!(cfg.ssl_mode, None);
     }
@@ -761,5 +753,85 @@ mod project_database_target_tests {
         project_targeting(Some("postgresql")).validate().unwrap();
         project_targeting(Some("PostgreSQL")).validate().unwrap();
         project_targeting(None).validate().unwrap();
+    }
+}
+
+/// `fraiseql.toml` keys that `fraiseql run` never applied. Each is refused when it is written,
+/// naming what to do instead, so a project that relied on one learns it never worked.
+mod refused_key_tests {
+    use super::super::TomlProjectConfig;
+
+    /// Load `contents` as a `fraiseql.toml`, through the loader `run` and `compile` share.
+    fn load(contents: &str) -> anyhow::Result<TomlProjectConfig> {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("fraiseql.toml");
+        std::fs::write(&path, contents).unwrap();
+        TomlProjectConfig::from_file(path.to_str().unwrap())
+    }
+
+    #[test]
+    fn every_key_run_never_applied_is_refused_with_what_to_do_instead() {
+        let cases = [
+            (
+                "[server]\nrequest_timeout_ms = 5_000\n",
+                "[server] request_timeout_ms",
+                "request_timeout_secs",
+            ),
+            (
+                "[server]\nkeep_alive_secs = 30\n",
+                "[server] keep_alive_secs",
+                "no keep-alive setting",
+            ),
+            (
+                "[server.cors]\ncredentials = true\n",
+                "[server.cors] credentials",
+                "cannot send the session cookie",
+            ),
+            (
+                "[database]\nidle_timeout_ms = 60_000\n",
+                "[database] idle_timeout_ms",
+                "no idle timeout",
+            ),
+        ];
+        for (toml, key, instead) in cases {
+            let err = load(toml).err().unwrap_or_else(|| panic!("{key} was accepted"));
+            let message = format!("{err:#}");
+            assert!(message.contains(key), "{key}: {message}");
+            assert!(message.contains(instead), "{key}: {message}");
+        }
+    }
+
+    /// The server timeout lives in the server configuration file, so the refusal says where.
+    #[test]
+    fn the_request_timeout_refusal_names_the_server_configuration_file() {
+        let err = load("[server]\nrequest_timeout_ms = 5_000\n").unwrap_err();
+        assert!(format!("{err:#}").contains("FRAISEQL_CONFIG"), "{err:#}");
+    }
+
+    /// Whoever sets `credentials = true` wants cross-origin cookies; the refusal says why
+    /// that cannot work and what does.
+    #[test]
+    fn the_credentials_refusal_names_the_cookie_alternatives() {
+        let err = format!("{:#}", load("[server.cors]\ncredentials = true\n").unwrap_err());
+        assert!(err.contains("same origin"), "{err}");
+        assert!(err.contains("bearer token"), "{err}");
+    }
+
+    /// A key set to its old default is refused too: it never had an effect either way.
+    #[test]
+    fn a_refused_key_set_to_its_old_default_is_still_refused() {
+        assert!(load("[server.cors]\ncredentials = false\n").is_err());
+    }
+
+    /// The four keys' sections still load without them.
+    #[test]
+    fn the_sections_load_without_the_refused_keys() {
+        let config = load(
+            "[server]\nport = 9000\n[server.cors]\norigins = [\"https://example.com\"]\n\
+             [database]\npool_max = 5\n",
+        )
+        .unwrap();
+        assert_eq!(config.server.port, 9000);
+        assert_eq!(config.database.pool_max, 5);
     }
 }

@@ -205,6 +205,11 @@ impl TomlProjectConfig {
         let raw = std::fs::read_to_string(path).context("Failed to read fraiseql.toml")?;
         let toml_content = expand_env_vars(&raw)?;
 
+        // A file that is not TOML at all is reported by the typed parse below.
+        if let Ok(table) = toml_content.parse::<toml::Table>() {
+            refuse_unapplied_keys(&table)?;
+        }
+
         let config: TomlProjectConfig = toml::from_str(&toml_content)
             .map_err(|e| anyhow::anyhow!("Failed to parse fraiseql.toml: {e}"))?;
 
@@ -229,6 +234,51 @@ impl TomlProjectConfig {
         self.database.validate()?;
         Ok(())
     }
+}
+
+/// Keys `fraiseql.toml` once accepted that `fraiseql run` never applied: the section, the
+/// key, and what to do instead.
+///
+/// Each is refused by name when it is written, even at its old default, so a project
+/// that relied on one learns it never had an effect. Without this, `deny_unknown_fields`
+/// would still refuse them, but as an unknown field, with no word of what to use.
+const UNAPPLIED_KEYS: &[(&str, &str, &str)] = &[
+    (
+        "server",
+        "request_timeout_ms",
+        "set `request_timeout_secs` (in seconds) in the server configuration file, the file \
+         FRAISEQL_CONFIG names",
+    ),
+    ("server", "keep_alive_secs", "remove it: the server has no keep-alive setting"),
+    (
+        "server.cors",
+        "credentials",
+        "remove it: the server never sends `Access-Control-Allow-Credentials`, so a \
+         browser app on another origin cannot send the session cookie; serve the app \
+         from the same origin as the API, or authenticate with a bearer token",
+    ),
+    (
+        "database",
+        "idle_timeout_ms",
+        "remove it: the database pool has no idle timeout",
+    ),
+];
+
+/// Refuse the first key of [`UNAPPLIED_KEYS`] that `table` sets.
+fn refuse_unapplied_keys(table: &toml::Table) -> Result<()> {
+    for (section, key, instead) in UNAPPLIED_KEYS {
+        let mut found = Some(table);
+        for part in section.split('.') {
+            found = found.and_then(|t| t.get(part)).and_then(toml::Value::as_table);
+        }
+        if found.is_some_and(|t| t.contains_key(*key)) {
+            anyhow::bail!(
+                "fraiseql.toml: `[{section}] {key}` was never applied by `fraiseql run` and is \
+                 no longer accepted; {instead}"
+            );
+        }
+    }
+    Ok(())
 }
 
 /// Refuse a `database_target` other than `postgresql` (compared case-insensitively).

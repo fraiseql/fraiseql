@@ -2976,14 +2976,12 @@ mod run_tests {
     /// `SETTINGS_IN_BOTH` with the server key it sets, or listed here as applied to nothing
     /// (#1808). A new key cannot then be accepted and silently dropped, or be made in both
     /// files with one of them silently winning. The keys are read off the types, not listed.
+    ///
+    /// The list is empty: the four keys it held are refused at load. A key added to it is
+    /// a deliberate exception, not a default.
     #[test]
     fn every_run_setting_is_paired_with_a_server_key_or_listed_as_unapplied() {
-        const UNAPPLIED: &[&str] = &[
-            "database.idle_timeout_ms",
-            "server.cors.credentials",
-            "server.keep_alive_secs",
-            "server.request_timeout_ms",
-        ];
+        const UNAPPLIED: &[&str] = &[];
         let mut keys = std::collections::BTreeSet::new();
         for (section, value) in [
             ("server", serde_json::to_value(ServerRuntimeConfig::default()).unwrap()),
@@ -3000,6 +2998,7 @@ mod run_tests {
                 }
             }
         }
+        assert!(keys.len() > 5, "the keys were not read off the types: {keys:?}");
         let paired = |key: &str| {
             SETTINGS_IN_BOTH
                 .iter()
@@ -3129,7 +3128,6 @@ mod run_tests {
         let server_cfg = ServerRuntimeConfig {
             cors: crate::config::runtime::CorsRuntimeConfig {
                 origins:     vec!["https://example.com".to_string()],
-                credentials: false,
             },
             ..Default::default()
         };

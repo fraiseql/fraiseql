@@ -53,17 +53,14 @@ impl Default for TlsRuntimeConfig {
 ///
 /// ```toml
 /// [server.cors]
-/// origins     = ["https://app.example.com"]
-/// credentials = true
+/// origins = ["https://app.example.com"]
 /// ```
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct CorsRuntimeConfig {
-    /// Allowed origins.  Empty list → all origins allowed (development default).
+    /// Allowed origins. Empty: the server allows `http://localhost:3000` only, and
+    /// refuses to start in production.
     pub origins: Vec<String>,
-
-    /// Allow credentials (cookies, `Authorization` header).  Default: `false`.
-    pub credentials: bool,
 }
 
 // ─── Server ──────────────────────────────────────────────────────────────────
@@ -71,8 +68,8 @@ pub struct CorsRuntimeConfig {
 /// HTTP server runtime configuration.
 ///
 /// The `[server]` section in `fraiseql.toml` is **optional**.  When absent,
-/// the server listens on `0.0.0.0:8080` with no TLS and permissive CORS
-/// (suitable for local development).
+/// the server listens on `0.0.0.0:8080` with no TLS, and CORS allows
+/// `http://localhost:3000` only (suitable for local development).
 ///
 /// CLI flags (`--port`, `--bind`) take precedence over these settings.
 ///
@@ -80,14 +77,11 @@ pub struct CorsRuntimeConfig {
 ///
 /// ```toml
 /// [server]
-/// host               = "127.0.0.1"
-/// port               = 9000
-/// request_timeout_ms = 30_000
-/// keep_alive_secs    = 75
+/// host = "127.0.0.1"
+/// port = 9000
 ///
 /// [server.cors]
-/// origins     = ["https://app.example.com"]
-/// credentials = true
+/// origins = ["https://app.example.com"]
 ///
 /// [server.tls]
 /// enabled   = true
@@ -103,12 +97,6 @@ pub struct ServerRuntimeConfig {
     /// TCP port.  Default: `8080`.
     pub port: u16,
 
-    /// Request timeout in milliseconds.  Default: `30 000` (30 s).
-    pub request_timeout_ms: u64,
-
-    /// TCP keep-alive in seconds.  Default: `75`.
-    pub keep_alive_secs: u64,
-
     /// CORS settings.
     pub cors: CorsRuntimeConfig,
 
@@ -119,12 +107,10 @@ pub struct ServerRuntimeConfig {
 impl Default for ServerRuntimeConfig {
     fn default() -> Self {
         Self {
-            host:               "0.0.0.0".to_string(),
-            port:               8080,
-            request_timeout_ms: 30_000,
-            keep_alive_secs:    75,
-            cors:               CorsRuntimeConfig::default(),
-            tls:                TlsRuntimeConfig::default(),
+            host: "0.0.0.0".to_string(),
+            port: 8080,
+            cors: CorsRuntimeConfig::default(),
+            tls:  TlsRuntimeConfig::default(),
         }
     }
 }
@@ -197,9 +183,6 @@ pub struct DatabaseRuntimeConfig {
     /// Connection acquisition timeout in milliseconds.  Default: `5 000` (5 s).
     pub connect_timeout_ms: u64,
 
-    /// Idle connection lifetime in milliseconds.  Default: `600 000` (10 min).
-    pub idle_timeout_ms: u64,
-
     /// PostgreSQL SSL mode: `"disable"`, `"prefer"`, `"require"`, or
     /// `"verify-full"`. Default: `"prefer"`.
     ///
@@ -223,7 +206,6 @@ impl Default for DatabaseRuntimeConfig {
             pool_min:           2,
             pool_max:           20,
             connect_timeout_ms: 5_000,
-            idle_timeout_ms:    600_000,
             ssl_mode:           None,
         }
     }

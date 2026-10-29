@@ -18,6 +18,31 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **`fraiseql.toml` refuses four keys `fraiseql run` never applied (#1808).** They were
+  parsed and validated, then dropped: setting one had no effect and no error. Each is now
+  refused when written, even at its old default, with what to do instead:
+  - `[server] request_timeout_ms`: set `request_timeout_secs` (in seconds) in the server
+    configuration file, the file `FRAISEQL_CONFIG` names;
+  - `[server] keep_alive_secs`: remove it, the server has no keep-alive setting;
+  - `[server.cors] credentials`: remove it. The server never sends
+    `Access-Control-Allow-Credentials`, so a browser app on another origin cannot send the
+    session cookie: serve the app from the API's origin, or use a bearer token;
+  - `[database] idle_timeout_ms`: remove it, the database pool has no idle timeout.
+
+  `fraiseql.toml.example` no longer sets them. A project whose `fraiseql.toml` was copied
+  from an earlier `fraiseql.toml.example` has all four and must delete these lines (no
+  `fraiseql init` template or SDK scaffolder ever wrote them):
+
+  ```toml
+  idle_timeout_ms = 600_000      # [database]
+  request_timeout_ms = 30_000    # [server]
+  keep_alive_secs = 75           # [server]
+  credentials = false            # [server.cors]
+  ```
+
+  The example's comment on `[server.cors] origins` now says what an empty list does: allow
+  `http://localhost:3000` only.
+
 - **A `Decimal` is a JSON string of the digits it was stored with (#1751).** Every
   `Decimal` was decoded to a JSON number on its way out, through an `f64`: `1.50` lost its
   scale (`1.5`) and every digit past the fifteenth was rounded, on a read, an aggregate, a
