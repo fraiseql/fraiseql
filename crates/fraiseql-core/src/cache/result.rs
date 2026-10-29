@@ -129,6 +129,13 @@ pub struct CachedResult {
     /// listener can deregister exactly the instance being evicted and never the
     /// live one that displaced it — see the module docs (#740).
     pub epoch: u64,
+
+    /// The invalidation sequence as it was before the read that filled this entry (#1778).
+    pub snapshot: u64,
+
+    /// The counters of the names this entry reads: it is served only while none has moved
+    /// past [`snapshot`](Self::snapshot) (#1778).
+    pub counters: Box<[Arc<AtomicU64>]>,
 }
 
 /// A reverse-index registration: the cache key plus the epoch of the entry
@@ -532,7 +539,11 @@ impl QueryResultCache {
         }
 
         // moka::sync::Cache::get() is lock-free on the read path.
-        if let Some(cached) = self.store.get(&cache_key) {
+        if let Some(cached) = self
+            .store
+            .get(&cache_key)
+            .filter(|cached| self.fence.current(cached.snapshot, &cached.counters))
+        {
             self.hits.fetch_add(1, Ordering::Relaxed);
             Ok(Some(Arc::clone(&cached.result)))
         } else {
@@ -715,42 +726,32 @@ impl QueryResultCache {
             tags.entities.clone().into_boxed_slice()
         };
 
+        let reach = Reach {
+            views:           by_id
+                .is_none()
+                .then(|| accessed_views.iter().map(String::as_str))
+                .into_iter()
+                .flatten()
+                .collect(),
+            collected_views: tags.collected_views.iter().map(String::as_str).collect(),
+            entities:        entity_refs.iter().map(|(t, id)| (t.as_str(), id.as_str())).collect(),
+            collections:     tags
+                .collections
+                .iter()
+                .map(|(c, p)| (c.child_type.as_str(), c.column.as_str(), p.as_str()))
+                .collect(),
+            by_id:           by_id.as_ref().map(|(t, id)| {
+                ((t.as_str(), id.as_str()), accessed_views.iter().map(String::as_str).collect())
+            }),
+        };
+
         // Cheap pre-check: if an invalidation reaching this fill already landed, do no work
         // at all. The authoritative check is after the insert, below — this one saves the
         // serialisation and index churn, and keeps the common straddle from ever being
         // visible in the store.
-        if fence.is_some_and(|snapshot| {
-            self.fence.moved_since(
-                snapshot,
-                &Reach {
-                    views:           by_id
-                        .is_none()
-                        .then(|| accessed_views.iter().map(String::as_str))
-                        .into_iter()
-                        .flatten()
-                        .collect(),
-                    collected_views: tags.collected_views.iter().map(String::as_str).collect(),
-                    entities:        entity_refs
-                        .iter()
-                        .map(|(t, id)| (t.as_str(), id.as_str()))
-                        .collect(),
-                    collections:     tags
-                        .collections
-                        .iter()
-                        .map(|(c, p)| (c.child_type.as_str(), c.column.as_str(), p.as_str()))
-                        .collect(),
-                    by_id:           by_id.as_ref().map(|(t, id)| {
-                        (
-                            (t.as_str(), id.as_str()),
-                            accessed_views.iter().map(String::as_str).collect(),
-                        )
-                    }),
-                },
-            )
-        }) {
+        if fence.is_some_and(|snapshot| self.fence.moved_since(snapshot, &reach)) {
             return Ok(());
         }
-
         let ttl_seconds = ttl_override.unwrap_or(self.config.ttl_seconds);
 
         // TTL=0 means "no time-based expiry" — store the entry and rely entirely
@@ -776,6 +777,10 @@ impl QueryResultCache {
                 return Ok(()); // silently skip when budget is exhausted
             }
         }
+
+        // A fill with no snapshot raced nothing: its hits check the names from now on.
+        let snapshot = fence.unwrap_or_else(|| self.fence.snapshot());
+        let counters = self.fence.counters(&reach);
 
         // Promote owned `String` view names into `ViewName(Arc<str>)` exactly
         // once. The same Arc is then shared by `view_index` and
@@ -844,6 +849,8 @@ impl QueryResultCache {
             collections,
             by_id,
             epoch,
+            snapshot,
+            counters,
         };
 
         before_insert();
@@ -1421,3 +1428,7 @@ mod result_collections_tests;
 #[cfg(test)]
 #[path = "result_by_id_tests.rs"]
 mod result_by_id_tests;
+
+#[cfg(test)]
+#[path = "result_names_tests.rs"]
+mod result_names_tests;

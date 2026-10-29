@@ -49,7 +49,12 @@
 //! the slot's modification order, and the insert happens-before the invalidation's key
 //! collection, which then evicts it. There is no third order (#1585).
 
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{
+    Arc,
+    atomic::{AtomicU64, Ordering},
+};
+
+use super::names::{Name, NameRegistry};
 
 /// Number of slots. A power of two, so the index is a mask.
 const SLOTS: usize = 1024;
@@ -110,6 +115,8 @@ pub(super) struct InvalidationFence {
     /// Stamped by the evictions of the rows hashed to each slot, read by id (#1576) or evicted
     /// by entity (#1605).
     rows:       Box<[AtomicU64]>,
+    /// The counter of every name a stored entry reads, checked on each hit (#1778).
+    names:      NameRegistry,
 }
 
 impl InvalidationFence {
@@ -119,6 +126,7 @@ impl InvalidationFence {
             everything: AtomicU64::new(0),
             slots:      (0..SLOTS).map(|_| AtomicU64::new(0)).collect(),
             rows:       (0..ROW_SLOTS).map(|_| AtomicU64::new(0)).collect(),
+            names:      NameRegistry::new(),
         }
     }
 
@@ -132,6 +140,7 @@ impl InvalidationFence {
         let stamp = self.next();
         for view in views {
             self.slot(VIEW, &[view]).fetch_max(stamp, Ordering::SeqCst);
+            self.names.stamp(Name::View, view, stamp);
         }
     }
 
@@ -142,10 +151,17 @@ impl InvalidationFence {
         self.row_slot(ENTITY, entity_type, id).fetch_max(stamp, Ordering::SeqCst);
     }
 
-    /// Stamp every fill. Call before clearing.
+    /// Stamp every fill, and retire every name's counter (#1778). Call before clearing.
     pub(super) fn stamp_everything(&self) {
         let stamp = self.next();
         self.everything.fetch_max(stamp, Ordering::SeqCst);
+        self.names.clear();
+    }
+
+    /// How many name counters there are (#1778).
+    #[cfg(test)]
+    pub(super) fn name_count(&self) -> usize {
+        self.names.len()
     }
 
     /// Stamp the slots of `views` swept by a change feed that names collections, or by a
@@ -155,6 +171,7 @@ impl InvalidationFence {
         let stamp = self.next();
         for view in views {
             self.slot(FEED_VIEW, &[view]).fetch_max(stamp, Ordering::SeqCst);
+            self.names.stamp(Name::FeedView, view, stamp);
         }
     }
 
@@ -164,6 +181,7 @@ impl InvalidationFence {
         let stamp = self.next();
         for view in views {
             self.slot(WRITE_VIEW, &[view]).fetch_max(stamp, Ordering::SeqCst);
+            self.names.stamp(Name::WriteView, view, stamp);
         }
     }
 
@@ -177,12 +195,14 @@ impl InvalidationFence {
     pub(super) fn stamp_by_id_type(&self, type_name: &str) {
         let stamp = self.next();
         self.slot(BY_ID_TYPE, &[type_name]).fetch_max(stamp, Ordering::SeqCst);
+        self.names.stamp(Name::ByIdType, type_name, stamp);
     }
 
     /// Stamp the slot of every collection of `child_type` (#1589).
     pub(super) fn stamp_collection_type(&self, child_type: &str) {
         let stamp = self.next();
         self.slot(COLLECTION_TYPE, &[child_type]).fetch_max(stamp, Ordering::SeqCst);
+        self.names.stamp(Name::CollectionType, child_type, stamp);
     }
 
     /// Stamp the slot of the collection `column` of `child_type` under the parent `parent`
@@ -204,6 +224,42 @@ impl InvalidationFence {
     /// ordered before it (see the module documentation).
     pub(super) fn moved_since_inserted(&self, snapshot: u64, reach: &Reach<'_>) -> bool {
         self.reaches(snapshot, reach, |slot| slot.fetch_add(0, Ordering::SeqCst))
+    }
+
+    /// The counters of the names a fill indexed under `reach` reads, one per name: what
+    /// [`current`](Self::current) checks on each of its hits (#1778). The same names
+    /// [`moved_since`](Self::moved_since) checks, rows apart.
+    pub(super) fn counters(&self, reach: &Reach<'_>) -> Box<[Arc<AtomicU64>]> {
+        let views = reach
+            .views
+            .iter()
+            .flat_map(|v| [Name::View, Name::FeedView, Name::WriteView].map(|kind| (kind, *v)));
+        let collected_views = reach
+            .collected_views
+            .iter()
+            .flat_map(|v| [Name::View, Name::WriteView].map(|kind| (kind, *v)));
+        let by_id = reach.by_id.iter().flat_map(|((t, _), views)| {
+            views.iter().map(|v| (Name::View, *v)).chain([(Name::ByIdType, *t)])
+        });
+        let collections = reach.collections.iter().map(|(t, _, _)| (Name::CollectionType, *t));
+        let mut names: Vec<(Name, &str)> =
+            views.chain(collected_views).chain(by_id).chain(collections).collect();
+        names.sort_unstable();
+        names.dedup();
+        names
+            .into_iter()
+            .map(|(kind, name)| {
+                self.names
+                    .counter(kind, name, || self.slot(domain(kind), &[name]).load(Ordering::SeqCst))
+            })
+            .collect()
+    }
+
+    /// Whether an entry read at `snapshot`, holding `counters`, may still be served: no
+    /// invalidation of its names, nor a `clear`, has been stamped since (#1778).
+    pub(super) fn current(&self, snapshot: u64, counters: &[Arc<AtomicU64>]) -> bool {
+        self.everything.load(Ordering::SeqCst) <= snapshot
+            && counters.iter().all(|counter| counter.load(Ordering::SeqCst) <= snapshot)
     }
 
     fn reaches(&self, snapshot: u64, reach: &Reach<'_>, read: impl Fn(&AtomicU64) -> u64) -> bool {
@@ -245,6 +301,17 @@ impl InvalidationFence {
         #[allow(clippy::cast_possible_truncation)] // Reason: masked to SLOTS - 1 first
         let index = (hash(domain, parts) & (SLOTS as u64 - 1)) as usize;
         &self.slots[index]
+    }
+}
+
+/// The hash domain of the slot holding the floor of a name's counter (#1778).
+const fn domain(kind: Name) -> u8 {
+    match kind {
+        Name::View => VIEW,
+        Name::FeedView => FEED_VIEW,
+        Name::WriteView => WRITE_VIEW,
+        Name::ByIdType => BY_ID_TYPE,
+        Name::CollectionType => COLLECTION_TYPE,
     }
 }
 

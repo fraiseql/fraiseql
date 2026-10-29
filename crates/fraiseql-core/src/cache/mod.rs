@@ -192,6 +192,7 @@ mod fact_table_cache;
 mod fence;
 mod invalidation_api;
 mod key;
+mod names;
 mod relay_cache;
 mod result;
 
