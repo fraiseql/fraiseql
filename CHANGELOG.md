@@ -296,6 +296,23 @@ disagreed, and the promise was the part that was wrong.
   says which one applies: `TemporalKeyRemedy::{MapColumn, AddToTview, AddToTable,
   ExposeFromView, TviewRowTimestamp}`. `column_exists: true` is `MapColumn`.
 
+- **An invalidation of a view, a type read by id or a collection's child type no longer
+  counts entries (#1778).** These invalidations now raise a version counter per name, and
+  every entry reading the name is refused on its next read instead of being evicted
+  there and then. Nothing is collected, so there is nothing to count. Every signature
+  that returned that count now returns `Result<()>`:
+  - `fraiseql_db::DatabaseAdapter::invalidate_views` and `invalidate_written` (a wrapper
+    adapter that overrides them must change its signature);
+  - `Executor::invalidate_views` and `CachedDatabaseAdapter::invalidate_views`;
+  - `QueryResultCache::invalidate_views`, `invalidate_views_except_by_id`,
+    `invalidate_views_except_collections`, `invalidate_by_id_type` and
+    `invalidate_collections_of`;
+  - `cache::CacheEvictor::apply`.
+
+  An eviction by row still counts what it evicts: `invalidate_by_entity`,
+  `invalidate_by_id` and `invalidate_collection`. `CachedResult` is no longer `Clone`,
+  and carries the read's snapshot, its name counters and whether it may be served.
+
 ### Added
 
 - **A mailbox can trust a private CA: `[mailbox.<name>.imap] ca_file`** (#1757). A PEM
@@ -407,6 +424,21 @@ disagreed, and the promise was the part that was wrong.
   - a field of a union or an interface;
   - a root typed as one;
   - a direct read, a composed read, or a read that takes the stored row whole.
+
+- **The admin API's `cache/clear` with scope `entity` reports no count for the query
+  result cache (#1778).** The cache refuses every entry reading the type's view on its
+  next read rather than dropping it now, so its `caches[]` entry has
+  `entries_cleared: null` and no `note`: served, but not counted. The message says it
+  invalidated the cache, and the top-level `entries_cleared` counts only the caches that
+  counted. Scope `all` still reports the entries it dropped.
+
+- **An invalidation of a view costs one counter per view, whatever the cache holds
+  (#1778).** It used to collect and evict every entry reading the view: 110 to 220 µs for
+  100 entries, now under 1 µs (runs of each build alternated on one core). A hit checks the
+  counters of the few names its entry reads and stays one lookup whatever the number of
+  rows it holds, within noise of before (157 to 171 ns); a fill registers its names and
+  costs 5 to 9% more (1.8 to 2.1 µs). The cache keeps one index, of the rows its entries
+  hold, in place of six.
 
 ### Fixed
 
@@ -576,6 +608,18 @@ disagreed, and the promise was the part that was wrong.
   early exit killed the writer, and the pipeline's 141 read as "no root line", which the
   gate counted as absent. A `not-compiled` claim could pass that way. It now matches
   against a here-string, and only cargo's own absence messages count as absent.
+
+- **A read racing a write could briefly be served the pre-write result after the write's
+  invalidation returned (#1778).** A read that started before a write, and stored its rows
+  just after the write's invalidation ran, was in the cache from its insert until its own
+  check withdrew it, and a concurrent reader landing in between was served it. A stress
+  test of two writers and six readers saw 100 to 1,200 such hits per tenth of a second.
+  An entry is now served only once its check has passed, and an invalidation of a view
+  refuses such an entry on every read.
+
+- **The cache's row indexes grew without bound (#1778).** Evicting an entry removed it from
+  the sets of its rows but left each row's empty set in place, one for every id ever
+  cached. A row's key now leaves with the last entry holding it.
 
 ## [2.18.0] - 2026-10-25
 

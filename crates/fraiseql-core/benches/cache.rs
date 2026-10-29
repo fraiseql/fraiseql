@@ -78,17 +78,25 @@ fn bench_cache_put_get(c: &mut Criterion) {
     });
 
     // Invalidate by view
+    // The sweep alone: the 100 puts are the batch's setup, not timed.
     group.bench_function(BenchmarkId::new("invalidate_view", "100_entries"), |b| {
         let result = make_result();
-        b.iter(|| {
-            let cache = QueryResultCache::new(enabled(10_000));
-            for i in 0..100_u64 {
+        b.iter_batched(
+            || {
+                let cache = QueryResultCache::new(enabled(10_000));
+                for i in 0..100_u64 {
+                    cache
+                        .put(i, result.clone(), vec!["v_user".to_string()], None, None, None)
+                        .unwrap();
+                }
                 cache
-                    .put(i, result.clone(), vec!["v_user".to_string()], None, None, None)
-                    .unwrap();
-            }
-            cache.invalidate_views(&[ViewName::from("v_user")]).unwrap();
-        });
+            },
+            |cache| {
+                let _ = cache.invalidate_views(&[ViewName::from("v_user")]);
+                cache
+            },
+            criterion::BatchSize::SmallInput,
+        );
     });
 
     group.finish();
