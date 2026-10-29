@@ -15,20 +15,21 @@
 //! - **`metrics()`**: reads `store.entry_count()` directly — no shard scan.
 //! - **`invalidate_views()`**: one stamp per view, O(views): nothing is collected or evicted. Each
 //!   entry reading one is refused on its next hit (see `fence.rs`, names).
-//! - **`invalidate_by_entity()`**: O(k) where k = matching entries (via the row indexes), not
-//!   O(total entries).
+//! - **`invalidate_by_entity()`**: O(k) where k = matching entries (via the row index), not O(total
+//!   entries).
 //!
-//! ## Row indexes
+//! ## The row index
 //!
-//! Because `moka` does not support arbitrary iteration, invalidation by row relies on
-//! `DashMap` reverse indexes maintained alongside the store:
+//! Because `moka` does not support arbitrary iteration, invalidation by row relies on one
+//! `DashMap` reverse index maintained alongside the store:
 //!
 //! ```text
-//! entity_index: DashMap<entity_type, DashMap<entity_id, DashSet<(cache_key, epoch)>>>
+//! rows: DashMap<RowRef, DashSet<(cache_key, epoch)>>
 //! ```
 //!
-//! and likewise for a row read by id and a collection of one parent. Indexes are populated
-//! in `put()` and pruned via moka's eviction listener. `clear()` resets them synchronously.
+//! A [`RowRef`] is a row an entry holds, the row it reads by id, or a collection of one
+//! parent it composes. It is populated in `put()` and pruned via moka's eviction listener,
+//! which drops a row's key with its last entry. `clear()` resets it synchronously.
 //!
 //! ### Why the indexes key on `(cache_key, epoch)` and not on `cache_key` alone (#740)
 //!
@@ -74,7 +75,7 @@ use crate::{db::types::JsonbValue, error::Result};
 ///
 /// Stores the query result along with tracking information for
 /// TTL expiry, view-based invalidation, and monitoring.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct CachedResult {
     /// The actual query result (JSONB array from database).
     ///
@@ -108,7 +109,7 @@ pub struct CachedResult {
     /// Contains one `(entity_type, entity_id)` pair per row in `result` that has
     /// a valid string in its `"id"` field.  Empty for queries with no `id` column
     /// or when `put()` is called without an `entity_type`.
-    /// Used by the eviction listener to clean up `entity_index` on eviction.
+    /// Used by the eviction listener to clean up the row index on eviction.
     pub entity_refs: Box<[(String, String)]>,
 
     /// Views of the levels of a composed read tagged by collection (#1589), indexed apart
@@ -137,17 +138,42 @@ pub struct CachedResult {
     /// The counters of the names this entry reads: it is served only while none has moved
     /// past [`snapshot`](Self::snapshot) (#1778).
     pub counters: Box<[Arc<AtomicU64>]>,
+
+    /// Whether a hit may serve it. A fill fenced by a snapshot is stored unconfirmed, and
+    /// confirmed once its post-insert check found no row eviction reaching it: one that
+    /// lost that race is in the store until it withdraws itself, and must not be served
+    /// in between (#1778).
+    confirmed: AtomicBool,
 }
 
 /// A reverse-index registration: the cache key plus the epoch of the entry
 /// instance that registered it.
 type IndexRef = (u64, u64);
 
-/// Reverse index: child type → `(column, parent id)` → set of `(cache key, epoch)` (#1589).
-type CollectionIndex = DashMap<String, DashMap<(String, String), DashSet<IndexRef>>>;
+/// A row an entry is indexed under, and evicted by eagerly (#1778).
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+enum RowRef {
+    /// A row its result holds, `(type, id)`: evicted by entity (#1605).
+    Entity(String, String),
+    /// The one row it reads by id, `(type, id)` (#1576).
+    ById(String, String),
+    /// A collection it composes, `(child type, column, parent id)` (#1589).
+    Collection(String, String, String),
+}
 
-/// Reverse index: type → id → set of `(cache key, epoch)`.
-type RowIndex = DashMap<String, DashMap<String, DashSet<IndexRef>>>;
+/// Reverse index: row → set of `(cache key, epoch)`. A row no entry holds has no key.
+type RowIndex = DashMap<RowRef, DashSet<IndexRef>>;
+
+/// Every row `entry` is indexed under: what `put` registers and the eviction listener
+/// deregisters, one list for both.
+fn row_refs(entry: &CachedResult) -> impl Iterator<Item = RowRef> + '_ {
+    let entities = entry.entity_refs.iter().map(|(t, id)| RowRef::Entity(t.clone(), id.clone()));
+    let by_id = entry.by_id.iter().map(|(t, id)| RowRef::ById(t.clone(), id.clone()));
+    let collections = entry.collections.iter().map(|(collection, parent)| {
+        RowRef::Collection(collection.child_type.clone(), collection.column.clone(), parent.clone())
+    });
+    entities.chain(by_id).chain(collections)
+}
 
 /// How far a sweep of views reaches.
 #[derive(Clone, Copy)]
@@ -277,14 +303,9 @@ pub struct QueryResultCache {
     /// can hold a clone and decrement on eviction.
     memory_bytes: Arc<AtomicUsize>,
 
-    /// Reverse index: entity type → entity id → set of `(cache key, epoch)`.
-    entity_index: Arc<DashMap<String, DashMap<String, DashSet<IndexRef>>>>,
-
-    /// Reverse index of the collections composed reads compose (#1589).
-    collection_index: Arc<CollectionIndex>,
-
-    /// Reverse index: type → id → the entries reading that row by id (#1576).
-    by_id_index: Arc<RowIndex>,
+    /// Reverse index: each row an entry holds, reads by id and collections → the entries
+    /// holding it.
+    rows: Arc<RowIndex>,
 
     /// Source of [`CachedResult::epoch`] values. Monotonic for the process
     /// lifetime; wrap-around at 2^64 puts is not reachable.
@@ -334,25 +355,14 @@ const fn entry_overhead() -> usize {
     std::mem::size_of::<CachedResult>() + std::mem::size_of::<u64>() * 2
 }
 
-/// The reverse indexes an entry is registered in, as the eviction listener deregisters it.
-struct ReverseIndexes {
-    entities:    Arc<RowIndex>,
-    collections: Arc<CollectionIndex>,
-    by_id:       Arc<RowIndex>,
-}
-
-/// Build the moka store, wiring the eviction listener to the reverse indexes
-/// and memory counter.
+/// Build the moka store, wiring the eviction listener to the row index and memory counter.
 fn build_store(
     config: &CacheConfig,
     memory_bytes: Arc<AtomicUsize>,
-    indexes: ReverseIndexes,
+    rows: Arc<RowIndex>,
 ) -> MokaCache<u64, Arc<CachedResult>> {
     let max_cap = config.max_entries as u64;
     let mb = memory_bytes;
-    let ei = indexes.entities;
-    let ci = indexes.collections;
-    let bi = indexes.by_id;
 
     MokaCache::builder()
         .max_capacity(max_cap)
@@ -367,30 +377,16 @@ fn build_store(
             // special case and no future moka cause can detach a live entry (#740).
             let reference: IndexRef = (*key, value.epoch);
 
-            // And the row it reads by id (#1576).
-            if let Some((type_name, id)) = &value.by_id {
-                if let Some(by_type) = bi.get(type_name) {
-                    if let Some(keys) = by_type.get(id) {
-                        keys.remove(&reference);
-                    }
-                }
-            }
-
-            // Remove ALL entity_refs from entity index.
-            for (et, id) in &*value.entity_refs {
-                if let Some(by_type) = ei.get(et) {
-                    if let Some(keys) = by_type.get(id) {
-                        keys.remove(&reference);
-                    }
-                }
-            }
-
-            // And the composed read's collections (#1589).
-            for (collection, parent) in &*value.collections {
-                if let Some(by_type) = ci.get(&collection.child_type) {
-                    if let Some(keys) = by_type.get(&(collection.column.clone(), parent.clone())) {
-                        keys.remove(&reference);
-                    }
+            for row in row_refs(&value) {
+                // The `get` guard drops before `remove_if` takes the same shard. A
+                // registration holds the shard while it inserts, so an emptied set is
+                // removed only if nothing registered under it since.
+                let emptied = rows.get(&row).is_some_and(|keys| {
+                    keys.remove(&reference);
+                    keys.is_empty()
+                });
+                if emptied {
+                    rows.remove_if(&row, |_, keys| keys.is_empty());
                 }
             }
         })
@@ -416,20 +412,9 @@ impl QueryResultCache {
         assert!(config.max_entries > 0, "max_entries must be > 0");
 
         let memory_bytes = Arc::new(AtomicUsize::new(0));
-        let entity_index: Arc<DashMap<String, DashMap<String, DashSet<IndexRef>>>> =
-            Arc::new(DashMap::new());
-        let collection_index: Arc<CollectionIndex> = Arc::new(DashMap::new());
-        let by_id_index: Arc<RowIndex> = Arc::new(DashMap::new());
+        let rows: Arc<RowIndex> = Arc::new(DashMap::new());
 
-        let store = build_store(
-            &config,
-            Arc::clone(&memory_bytes),
-            ReverseIndexes {
-                entities:    Arc::clone(&entity_index),
-                collections: Arc::clone(&collection_index),
-                by_id:       Arc::clone(&by_id_index),
-            },
-        );
+        let store = build_store(&config, Arc::clone(&memory_bytes), Arc::clone(&rows));
 
         Self {
             store,
@@ -439,9 +424,7 @@ impl QueryResultCache {
             total_cached: AtomicU64::new(0),
             invalidations: AtomicU64::new(0),
             memory_bytes,
-            entity_index,
-            collection_index,
-            by_id_index,
+            rows,
             next_epoch: AtomicU64::new(0),
             fence: InvalidationFence::new(),
             suspended: AtomicBool::new(false),
@@ -493,11 +476,10 @@ impl QueryResultCache {
         }
 
         // moka::sync::Cache::get() is lock-free on the read path.
-        if let Some(cached) = self
-            .store
-            .get(&cache_key)
-            .filter(|cached| self.fence.current(cached.snapshot, &cached.counters))
-        {
+        if let Some(cached) = self.store.get(&cache_key).filter(|cached| {
+            cached.confirmed.load(Ordering::Acquire)
+                && self.fence.current(cached.snapshot, &cached.counters)
+        }) {
             self.hits.fetch_add(1, Ordering::Relaxed);
             Ok(Some(Arc::clone(&cached.result)))
         } else {
@@ -747,36 +729,6 @@ impl QueryResultCache {
         let epoch = self.next_epoch.fetch_add(1, Ordering::Relaxed);
         let reference: IndexRef = (cache_key, epoch);
 
-        // Register a read by id under its row (#1576).
-        if let Some((type_name, id)) = &by_id {
-            self.by_id_index
-                .entry(type_name.clone())
-                .or_default()
-                .entry(id.clone())
-                .or_default()
-                .insert(reference);
-        }
-
-        // Register ALL entity refs in entity index.
-        for (et, id) in &*entity_refs {
-            self.entity_index
-                .entry(et.clone())
-                .or_default()
-                .entry(id.clone())
-                .or_default()
-                .insert(reference);
-        }
-
-        // Register the composed read's collections (#1589).
-        for (collection, parent) in &*collections {
-            self.collection_index
-                .entry(collection.child_type.clone())
-                .or_default()
-                .entry((collection.column.clone(), parent.clone()))
-                .or_default()
-                .insert(reference);
-        }
-
         let cached = CachedResult {
             result,
             accessed_views,
@@ -791,7 +743,13 @@ impl QueryResultCache {
             epoch,
             snapshot,
             counters,
+            confirmed: AtomicBool::new(fence.is_none()),
         };
+
+        // Register under every row it holds (#1576, #1589, #1605).
+        for row in row_refs(&cached) {
+            self.rows.entry(row).or_default().insert(reference);
+        }
 
         before_insert();
 
@@ -808,8 +766,10 @@ impl QueryResultCache {
         // and the insert collects a key that is not stored yet and evicts nothing. Checked
         // here, either this check sees its stamp and the fill withdraws itself, or the
         // insert is ordered before the invalidation's key collection, which evicts it
-        // (`fence.rs`, Ordering). The eviction listener deregisters the withdrawn entry.
-        // No DashMap guard is held here: the listener re-enters the row indexes.
+        // (`fence.rs`, Ordering). Until it passes the entry is unconfirmed, so a reader between
+        // the insert and a withdrawal is not served it. The eviction listener deregisters
+        // the withdrawn entry. No DashMap guard is held here: the listener re-enters the row
+        // index.
         if fence.is_some_and(|snapshot| {
             self.fence.moved_since_inserted(
                 snapshot,
@@ -835,6 +795,9 @@ impl QueryResultCache {
             self.store.invalidate(&cache_key);
             return Ok(());
         }
+        // No eviction of its rows was stamped before this check, so each one landing after
+        // it collects this entry and evicts it (`fence.rs`, Ordering): it may be served.
+        entry.confirmed.store(true, Ordering::Release);
         self.total_cached.fetch_add(1, Ordering::Relaxed);
         Ok(())
     }
@@ -853,7 +816,7 @@ impl QueryResultCache {
     /// * `accessed_views` - List of views accessed by this query
     /// * `ttl_override` - Per-entry TTL in seconds; `None` uses `CacheConfig::ttl_seconds`
     /// * `entity_type` - Optional GraphQL type name (e.g. `"User"`) for entity-ID indexing. When
-    ///   provided, each row's `"id"` field is extracted and stored in `entity_index` so that
+    ///   provided, each row's `"id"` field is extracted and stored in the row index so that
     ///   `invalidate_by_entity()` can perform selective eviction.
     ///
     /// # Errors
@@ -928,12 +891,7 @@ impl QueryResultCache {
         }
         // Stamp before collecting keys (#1079).
         self.fence.stamp_by_id(type_name, id);
-        let keys: HashSet<u64> = self
-            .by_id_index
-            .get(type_name)
-            .and_then(|by_type| by_type.get(id).map(|refs| refs.iter().map(|r| r.0).collect()))
-            .unwrap_or_default();
-        Ok(self.evict(keys))
+        Ok(self.evict_row(&RowRef::ById(type_name.to_string(), id.to_string())))
     }
 
     /// Refuse every read of a row of `type_name` by its id from now on (#1576): each is
@@ -961,17 +919,11 @@ impl QueryResultCache {
         // Stamp before collecting keys (#1079), as invalidate_by_entity does.
         self.fence
             .stamp_collection(&collection.child_type, &collection.column, parent_id);
-        // Collect first: the eviction listener re-enters the index (see invalidate_views).
-        let keys: HashSet<u64> = self
-            .collection_index
-            .get(&collection.child_type)
-            .and_then(|by_type| {
-                by_type
-                    .get(&(collection.column.clone(), parent_id.to_string()))
-                    .map(|refs| refs.iter().map(|r| r.0).collect())
-            })
-            .unwrap_or_default();
-        Ok(self.evict(keys))
+        Ok(self.evict_row(&RowRef::Collection(
+            collection.child_type.clone(),
+            collection.column.clone(),
+            parent_id.to_string(),
+        )))
     }
 
     /// Refuse the entries composing any collection of `child_type` from now on (#1589), on
@@ -987,9 +939,16 @@ impl QueryResultCache {
         Ok(())
     }
 
-    /// Evict `keys`, counting them as invalidations. No index guard may be held: the eviction
-    /// listener re-enters the indexes.
-    fn evict(&self, keys: HashSet<u64>) -> u64 {
+    /// Evict the entries holding `row`, counting them as invalidations.
+    ///
+    /// Collected first: moka's eviction listener fires synchronously on the calling thread
+    /// and re-enters the row index, so no shard guard may be held while evicting.
+    fn evict_row(&self, row: &RowRef) -> u64 {
+        let keys: HashSet<u64> = self
+            .rows
+            .get(row)
+            .map(|refs| refs.iter().map(|r| r.0).collect())
+            .unwrap_or_default();
         #[allow(clippy::cast_possible_truncation)]
         // Reason: entry count never exceeds u64
         let count = keys.len() as u64;
@@ -1072,7 +1031,7 @@ impl QueryResultCache {
 
     /// Evict cache entries that contain a specific entity UUID.
     ///
-    /// Uses the `entity_index` for O(k) lookup. Entries not referencing this
+    /// Uses the row index for O(k) lookup. Entries not referencing this
     /// entity are left untouched.
     ///
     /// # Arguments
@@ -1100,28 +1059,7 @@ impl QueryResultCache {
         // a fill of another row of the type, stored first, would have been left in place.
         self.fence.stamp_entity(entity_type, entity_id);
 
-        // Short-circuit: if entity_type has no indexed entries, skip the DashMap
-        // lookup entirely.  Covers cold-cache and write-heavy workloads where no
-        // reads are cached yet.
-        if !self.entity_index.contains_key(entity_type) {
-            return Ok(by_id);
-        }
-
-        // Collect keys first (releases DashMap guards) then invalidate.
-        // Moka's eviction listener fires synchronously on the calling thread, so
-        // we must NOT hold any DashMap shard guard when calling store.invalidate() —
-        // the listener itself calls entity_index.get() on the same shard, which
-        // would deadlock on a non-re-entrant parking_lot::RwLock.
-        let keys_to_invalidate: HashSet<u64> = self
-            .entity_index
-            .get(entity_type)
-            .and_then(|by_type| {
-                by_type.get(entity_id).map(|keys| keys.iter().map(|r| r.0).collect())
-            })
-            .unwrap_or_default();
-
-        // Index cleanup handled by eviction listener.
-        Ok(by_id + self.evict(keys_to_invalidate))
+        Ok(by_id + self.evict_row(&RowRef::Entity(entity_type.to_string(), entity_id.to_string())))
     }
 
     /// Get cache metrics snapshot.
@@ -1184,9 +1122,7 @@ impl QueryResultCache {
         self.store.invalidate_all();
         // Reset indexes and memory counter synchronously — don't rely on the
         // async eviction listener to do this.
-        self.entity_index.clear();
-        self.collection_index.clear();
-        self.by_id_index.clear();
+        self.rows.clear();
         self.memory_bytes.store(0, Ordering::Relaxed);
         Ok(())
     }
@@ -1207,6 +1143,12 @@ impl QueryResultCache {
     pub fn resume(&self) {
         self.suspended.store(false, Ordering::SeqCst);
         let _ = self.clear();
+    }
+
+    /// How many row keys the row indexes hold (#1778).
+    #[cfg(test)]
+    fn row_key_count(&self) -> usize {
+        self.rows.len()
     }
 
     /// Flush pending background tasks in the moka store.
@@ -1300,3 +1242,11 @@ mod result_by_id_tests;
 #[cfg(test)]
 #[path = "result_names_tests.rs"]
 mod result_names_tests;
+
+#[cfg(test)]
+#[path = "result_rows_tests.rs"]
+mod result_rows_tests;
+
+#[cfg(test)]
+#[path = "result_stress_tests.rs"]
+mod result_stress_tests;

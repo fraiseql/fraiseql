@@ -39,6 +39,11 @@
 //! check reads the stamp, and it withdraws its own entry, or the check precedes the stamp in
 //! the slot's modification order, and the insert happens-before the invalidation's key
 //! collection, which then evicts it. There is no third order (#1585).
+//!
+//! In the first order the entry is in the store from its insert to its withdrawal. It is
+//! stored unconfirmed and confirmed only once its check passed, and a hit serves only a
+//! confirmed entry (#1778): a reader landing in that window, after the invalidation has
+//! returned, is not served rows older than the write.
 
 use std::sync::{
     Arc,
@@ -50,7 +55,8 @@ use super::names::{Name, NameRegistry};
 /// Number of slots. A power of two, so the index is a mask.
 const SLOTS: usize = 1024;
 
-/// Number of slots of rows, read by id (#1576) or evicted by entity (#1605), apart: a write
+/// Number of slots of rows, read by id (#1576), evicted by entity (#1605) or a collection of
+/// one parent (#1589), apart: a write
 /// reports every row it rewrote, a user's posts and comments with them, so under steady
 /// writes thousands of rows are stamped a second, and a fill holding another row sharing a
 /// slot with one would be refused. 65 536 slots (512 `KiB`) keep that to about one row in
@@ -101,10 +107,11 @@ pub(super) struct InvalidationFence {
     sequence:   AtomicU64,
     /// Stamped by an invalidation that reaches every fill (`clear`).
     everything: AtomicU64,
-    /// Stamped by the invalidations reaching the names hashed to each slot.
+    /// Stamped by the invalidations of the names hashed to each slot: where a name's counter
+    /// starts, when the first fill holding it creates one (#1778).
     slots:      Box<[AtomicU64]>,
-    /// Stamped by the evictions of the rows hashed to each slot, read by id (#1576) or evicted
-    /// by entity (#1605).
+    /// Stamped by the evictions of the rows hashed to each slot, read by id (#1576), evicted
+    /// by entity (#1605) or a collection of one parent (#1589).
     rows:       Box<[AtomicU64]>,
     /// The counter of every name a stored entry reads, checked on each hit (#1778).
     names:      NameRegistry,
@@ -139,7 +146,7 @@ impl InvalidationFence {
     /// collecting the keys to evict.
     pub(super) fn stamp_entity(&self, entity_type: &str, id: &str) {
         let stamp = self.next();
-        self.row_slot(ENTITY, entity_type, id).fetch_max(stamp, Ordering::SeqCst);
+        self.row_slot(ENTITY, &[entity_type, id]).fetch_max(stamp, Ordering::SeqCst);
     }
 
     /// Stamp every fill, and retire every name's counter (#1778). Call before clearing.
@@ -179,7 +186,7 @@ impl InvalidationFence {
     /// Stamp the slot of the row `id` of `type_name`, read by id (#1576).
     pub(super) fn stamp_by_id(&self, type_name: &str, id: &str) {
         let stamp = self.next();
-        self.row_slot(BY_ID, type_name, id).fetch_max(stamp, Ordering::SeqCst);
+        self.row_slot(BY_ID, &[type_name, id]).fetch_max(stamp, Ordering::SeqCst);
     }
 
     /// Stamp the slot of every row of `type_name` read by id (#1576).
@@ -200,7 +207,7 @@ impl InvalidationFence {
     /// (#1589).
     pub(super) fn stamp_collection(&self, child_type: &str, column: &str, parent: &str) {
         let stamp = self.next();
-        self.slot(COLLECTION_MEMBER, &[child_type, column, parent])
+        self.row_slot(COLLECTION_MEMBER, &[child_type, column, parent])
             .fetch_max(stamp, Ordering::SeqCst);
     }
 
@@ -254,16 +261,13 @@ impl InvalidationFence {
     }
 
     fn reaches(&self, snapshot: u64, reach: &Reach<'_>, read: impl Fn(&AtomicU64) -> u64) -> bool {
-        let moved = |domain: u8, parts: &[&str]| read(self.slot(domain, parts)) > snapshot;
+        let moved = |domain: u8, parts: &[&str]| read(self.row_slot(domain, parts)) > snapshot;
         read(&self.everything) > snapshot
             || reach
                 .by_id
                 .as_ref()
-                .is_some_and(|((t, id), _)| read(self.row_slot(BY_ID, t, id)) > snapshot)
-            || reach
-                .entities
-                .iter()
-                .any(|(t, id)| read(self.row_slot(ENTITY, t, id)) > snapshot)
+                .is_some_and(|(row, _)| moved(BY_ID, &<[&str; 2]>::from(*row)))
+            || reach.entities.iter().any(|&row| moved(ENTITY, &<[&str; 2]>::from(row)))
             || reach
                 .collections
                 .iter()
@@ -274,9 +278,9 @@ impl InvalidationFence {
         self.sequence.fetch_add(1, Ordering::SeqCst) + 1
     }
 
-    fn row_slot(&self, domain: u8, type_name: &str, id: &str) -> &AtomicU64 {
+    fn row_slot(&self, domain: u8, parts: &[&str]) -> &AtomicU64 {
         #[allow(clippy::cast_possible_truncation)] // Reason: masked to ROW_SLOTS - 1 first
-        let index = (hash(domain, &[type_name, id]) & (ROW_SLOTS as u64 - 1)) as usize;
+        let index = (hash(domain, parts) & (ROW_SLOTS as u64 - 1)) as usize;
         &self.rows[index]
     }
 
