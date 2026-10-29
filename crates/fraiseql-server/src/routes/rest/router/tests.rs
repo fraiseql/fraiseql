@@ -488,10 +488,7 @@ mod admission {
     use tower::ServiceExt;
 
     use super::{RestMountConfig, rest_router, schema_with_rest};
-    use crate::{
-        api_key::{ApiKeyAuthenticator, ApiKeyConfig, StaticApiKeyConfig, sha256_hash},
-        routes::graphql::{AppState, TenantExecutorRegistry, tenant_registry::TenantQuota},
-    };
+    use crate::routes::graphql::{AppState, TenantExecutorRegistry, tenant_registry::TenantQuota};
 
     const KEY: &str = "rest-static-key";
 
@@ -513,18 +510,7 @@ mod admission {
             );
             Arc::new(Executor::new(schema.clone(), Arc::new(adapter)))
         };
-        let api_keys = ApiKeyAuthenticator::from_config(&ApiKeyConfig {
-            enabled:        true,
-            header:         "x-api-key".into(),
-            hash_algorithm: "sha256".into(),
-            storage:        "env".into(),
-            static_keys:    vec![StaticApiKeyConfig {
-                key_hash: format!("sha256:{}", hex::encode(sha256_hash(KEY.as_bytes()))),
-                scopes:   vec!["read:*".into()],
-                name:     "static".into(),
-            }],
-        })
-        .unwrap();
+        let api_keys = crate::api_key::static_key_authenticator(KEY);
         let state = AppState::new(executor()).with_api_key_authenticator(Arc::new(api_keys));
         let registry = TenantExecutorRegistry::new(Arc::clone(&state.executor));
         registry.upsert_with_quota(

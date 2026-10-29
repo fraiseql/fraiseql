@@ -973,12 +973,12 @@ mod http_transport_tests {
 mod credential_tests {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
-    use std::{collections::HashMap, sync::Arc};
+    use std::sync::Arc;
 
     use fraiseql_core::{
         db::types::JsonbValue,
         runtime::Executor,
-        schema::{FieldType, McpConfig, ServiceAccountConfig},
+        schema::{FieldType, McpConfig},
         security::{AuthConfig, AuthMiddleware},
     };
     use fraiseql_test_utils::{
@@ -989,10 +989,9 @@ mod credential_tests {
 
     use crate::{
         admission::{INVALID_API_KEY, TOKEN_EXPIRED, TOKEN_INVALID},
-        api_key::{ApiKeyAuthenticator, ApiKeyConfig, StaticApiKeyConfig, sha256_hash},
         mcp::handler::{FraiseQLMcpService, McpTokenValidator},
         routes::graphql::AppState,
-        service_account::{AMBIGUOUS_CREDENTIALS, ServiceAccountAuthenticator},
+        service_account::AMBIGUOUS_CREDENTIALS,
     };
 
     const SECRET: &str = "fraiseql-mcp-credential-secret-32";
@@ -1017,31 +1016,8 @@ mod credential_tests {
         let adapter = FailingAdapter::new()
             .with_response("v_users", vec![JsonbValue::new(serde_json::json!({ "id": 1 }))]);
         let executor = Arc::new(Executor::new(schema, Arc::new(adapter)));
-        let api_keys = ApiKeyAuthenticator::from_config(&ApiKeyConfig {
-            enabled:        true,
-            header:         "x-api-key".into(),
-            hash_algorithm: "sha256".into(),
-            storage:        "env".into(),
-            static_keys:    vec![StaticApiKeyConfig {
-                key_hash: format!("sha256:{}", hex::encode(sha256_hash(STATIC_KEY.as_bytes()))),
-                scopes:   vec!["read:*".into()],
-                name:     "static".into(),
-            }],
-        })
-        .unwrap();
-        let accounts = ServiceAccountAuthenticator::from_config(
-            &HashMap::from([(
-                "svc".to_string(),
-                ServiceAccountConfig {
-                    secret_env:      "MCP_TEST_ACCOUNT".into(),
-                    roles:           Vec::new(),
-                    scopes:          Vec::new(),
-                    tenant:          None,
-                    static_enriched: HashMap::new(),
-                },
-            )]),
-            |_| Some(ACCOUNT_SECRET.to_string()),
-        );
+        let api_keys = crate::api_key::static_key_authenticator(STATIC_KEY);
+        let accounts = Some(crate::service_account::one_account_authenticator(ACCOUNT_SECRET));
         let mut state = AppState::new(executor).with_api_key_authenticator(Arc::new(api_keys));
         state.service_account_authenticator = accounts;
         FraiseQLMcpService::new(

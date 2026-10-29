@@ -5,7 +5,11 @@ use axum::{Router, middleware};
 use tracing::info;
 
 use super::super::{BearerAuthState, Server, bearer_auth_middleware};
-use crate::{capability::REGISTRY, routes::graphql::AppState};
+use crate::{
+    admission::{self, AdmissionPolicy, Refusal},
+    capability::REGISTRY,
+    routes::graphql::AppState,
+};
 
 impl Server {
     /// Mount the core admin APIs, every capability's routes, storage, and admission
@@ -134,7 +138,7 @@ impl Server {
 
         // Mount storage routes when StorageState was pre-built during server construction.
         if let Some(ref storage_state) = self.storage_state {
-            app = self.mount_storage_state(app, storage_state);
+            app = self.mount_storage_state(app, storage_state, state);
         }
 
         // Wire admission controller into the router via Extension.
@@ -370,20 +374,15 @@ impl Server {
         &self,
         mut app: Router,
         storage_state: &fraiseql_storage::StorageState,
+        state: &AppState,
     ) -> Router {
-        // Authentication is applied when EITHER a static `storage_token` is set OR
-        // an OIDC validator is configured. For each request the bearer token (or
-        // `__Host-access_token` cookie) is resolved as follows:
-        //   1. matches `storage_token` (constant-time) → admin `StorageUser`;
-        //   2. else, an OIDC validator present → validate (401 on failure), populating a per-user
-        //      `StorageUser` for RLS;
-        //   3. else (token-only mode), a non-matching token → 401.
-        // A request with no token is left anonymous: RLS then permits only
-        // PublicRead reads.
+        // Authentication is applied when EITHER a static `storage_token` is set OR an OIDC
+        // validator is configured, and each request is identified by
+        // [`identify_storage_caller`]. A request with no credential is left anonymous: RLS
+        // then permits only PublicRead reads.
         let storage_token = self.config.storage_token.clone();
         let validator = self.oidc_validator.clone();
-        // GHSA-7482-9g53-rj7f: the store both HTTP auth middlewares check.
-        let revocation = self.revocation_manager.clone();
+        let admission_state = state.clone();
 
         // Fail closed (M-storage-legacy): with neither a storage_token nor an OIDC
         // validator there is no way to authenticate a caller, so no request could
@@ -398,86 +397,146 @@ impl Server {
             return app;
         }
 
-        let storage = fraiseql_storage::storage_router(storage_state.clone()).layer(
-            middleware::from_fn(
+        let storage =
+            fraiseql_storage::storage_router(storage_state.clone()).layer(middleware::from_fn(
                 move |mut request: axum::extract::Request, next: axum::middleware::Next| {
                     let storage_token = storage_token.clone();
                     let validator = validator.clone();
-                    let revocation = revocation.clone();
+                    let state = admission_state.clone();
                     async move {
-                        use axum::http::{StatusCode, header};
-                        use axum::response::IntoResponse;
-                        use crate::middleware::oidc_auth::extract_access_token_cookie;
-
-                        let token = request
-                            .headers()
-                            .get(header::AUTHORIZATION)
-                            .and_then(|v| v.to_str().ok())
-                            .and_then(fraiseql_core::security::bearer_credential)
-                            .map(str::to_owned)
-                            .or_else(|| extract_access_token_cookie(request.headers()));
-
-                        if let Some(token) = token {
-                            if let Some(user) = storage_admin_user(&token, storage_token.as_deref())
-                            {
+                        match identify_storage_caller(
+                            &state,
+                            storage_token.as_deref(),
+                            validator.as_deref(),
+                            request.headers(),
+                        )
+                        .await
+                        {
+                            Ok(Some(user)) => {
                                 request.extensions_mut().insert(user);
-                            } else if let Some(ref validator) = validator {
-                                match validator.validate_token(&token).await {
-                                    Ok(user) => {
-                                        if crate::middleware::oidc_auth::check_revocation(
-                                            revocation.as_ref(),
-                                            &user,
-                                            &token,
-                                        )
-                                        .await
-                                        .is_err()
-                                        {
-                                            tracing::debug!("Storage auth: token is revoked");
-                                            return (
-                                                StatusCode::UNAUTHORIZED,
-                                                "Invalid or expired token",
-                                            )
-                                                .into_response();
-                                        }
-                                        let storage_user = fraiseql_storage::StorageUser {
-                                            user_id: Some(user.user_id.to_string()),
-                                            roles:   user.scopes,
-                                            // #974: the OIDC path is the only
-                                            // one carrying claims, so it is the
-                                            // only one where a `require_claims`
-                                            // rule can match.
-                                            claims:  fraiseql_storage::normalise_claims(
-                                                &user.extra_claims,
-                                            ),
-                                        };
-                                        request.extensions_mut().insert(storage_user);
-                                    },
-                                    Err(e) => {
-                                        tracing::debug!(error = %e, "Storage auth: token validation failed");
-                                        return (
-                                            StatusCode::UNAUTHORIZED,
-                                            "Invalid or expired token",
-                                        )
-                                            .into_response();
-                                    },
-                                }
-                            } else {
-                                // Token-only mode (no OIDC validator); the layer is
-                                // mounted only when `storage_token` is set, so a
-                                // non-matching token is a rejected admin attempt.
-                                tracing::debug!("Storage auth: bearer did not match storage_token");
-                                return (StatusCode::UNAUTHORIZED, "Invalid storage token")
-                                    .into_response();
-                            }
+                            },
+                            Ok(None) => {},
+                            Err(refused) => return refused,
                         }
                         next.run(request).await
                     }
                 },
-            ),
-        );
+            ));
         app = app.merge(storage);
         info!("Storage API routes mounted at /storage/v1/");
         app
+    }
+}
+
+/// Identify a storage request's caller.
+///
+/// The bearer token comes from the `Authorization` header or the `__Host-access_token`
+/// cookie. A token that matches the configured `storage_token` is the storage admin.
+/// Otherwise the caller is identified as every transport identifies one: a service-account
+/// secret, else a validated, unrevoked bearer token, then admission's steps for storage
+/// (a static API key, enrichment). Without an OIDC validator, a token that is not the
+/// `storage_token` is a rejected admin attempt.
+///
+/// # Errors
+///
+/// The refusal response: 401 for a credential, with `WWW-Authenticate`, and 403 or 503 for
+/// a subject enrichment denies or cannot resolve.
+async fn identify_storage_caller(
+    state: &AppState,
+    storage_token: Option<&str>,
+    validator: Option<&fraiseql_core::security::OidcValidator>,
+    headers: &axum::http::HeaderMap,
+) -> Result<Option<fraiseql_storage::StorageUser>, axum::response::Response> {
+    use axum::{
+        http::{StatusCode, header},
+        response::IntoResponse,
+    };
+
+    let token = headers
+        .get(header::AUTHORIZATION)
+        .and_then(|v| v.to_str().ok())
+        .and_then(fraiseql_core::security::bearer_credential)
+        .map(str::to_owned)
+        .or_else(|| crate::middleware::oidc_auth::extract_access_token_cookie(headers));
+    if let Some(admin) = token.as_deref().and_then(|token| storage_admin_user(token, storage_token))
+    {
+        return Ok(Some(admin));
+    }
+
+    let principal =
+        admission::service_account(state, headers, token.is_some()).map_err(storage_refusal)?;
+    let (principal, claims) = match (principal, token, validator) {
+        (Some(principal), ..) => (Some(principal), fraiseql_storage::ClaimValues::new()),
+        (None, Some(token), Some(validator)) => {
+            let user = validator.validate_token(&token).await.map_err(|e| {
+                tracing::debug!(error = %e, "Storage auth: token validation failed");
+                storage_refusal(Refusal::from_token_error(&e))
+            })?;
+            admission::check_revocation(state, &user, &token)
+                .await
+                .map_err(storage_refusal)?;
+            // #974: a token is the only credential carrying claims, so it is the only one
+            // a `require_claims` rule can match.
+            let claims = fraiseql_storage::normalise_claims(&user.extra_claims);
+            let request_id = uuid::Uuid::new_v4().to_string();
+            (Some(crate::extractors::build_security_context(&user, request_id, None)), claims)
+        },
+        (None, Some(_), None) => {
+            tracing::debug!("Storage auth: bearer did not match storage_token");
+            return Err((StatusCode::UNAUTHORIZED, "Invalid storage token").into_response());
+        },
+        (None, None, _) => (None, fraiseql_storage::ClaimValues::new()),
+    };
+    let identified = admission::identify(state, headers, principal, &AdmissionPolicy::STORAGE)
+        .await
+        .map_err(storage_refusal)?;
+    Ok(identified.into_security_context().map(|ctx| fraiseql_storage::StorageUser {
+        user_id: Some(ctx.user_id.to_string()),
+        roles: ctx.scopes,
+        claims,
+    }))
+}
+
+/// The storage answer to an admission refusal.
+fn storage_refusal(refusal: Refusal) -> axum::response::Response {
+    use axum::{
+        http::{StatusCode, header},
+        response::IntoResponse,
+    };
+
+    let message = refusal.message().map(str::to_owned);
+    match refusal {
+        Refusal::IdentityDenied => {
+            (StatusCode::FORBIDDEN, message.unwrap_or_default()).into_response()
+        },
+        Refusal::IdentityUnavailable => {
+            (StatusCode::SERVICE_UNAVAILABLE, message.unwrap_or_default()).into_response()
+        },
+        Refusal::Tenant(error) | Refusal::Dispatch(error) | Refusal::Cost(error) => {
+            let status = StatusCode::from_u16(error.status_code()).unwrap_or(StatusCode::FORBIDDEN);
+            (status, error.to_string()).into_response()
+        },
+        Refusal::AmbiguousCredentials => (
+            StatusCode::UNAUTHORIZED,
+            [(header::WWW_AUTHENTICATE, "Bearer error=\"invalid_request\"")],
+            message.unwrap_or_default(),
+        )
+            .into_response(),
+        Refusal::TokenExpired
+        | Refusal::TokenInvalid
+        | Refusal::TokenRevoked
+        | Refusal::InvalidApiKey => {
+            let message = message.unwrap_or_default();
+            (
+                StatusCode::UNAUTHORIZED,
+                [(
+                    header::WWW_AUTHENTICATE,
+                    format!("Bearer error=\"invalid_token\", error_description=\"{message}\""),
+                )],
+                message,
+            )
+                .into_response()
+        },
     }
 }
 

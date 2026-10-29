@@ -18,6 +18,13 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **The storage API identifies a caller as `/graphql` does (#1643).**
+  - A service account's secret, or a static API key, now identifies a storage caller. A
+    bearer token sent beside a service-account secret is refused as ambiguous.
+  - A subject that identity enrichment denies is refused with a `403`, as on `/graphql`.
+  - A refused token gets a `401` with a `WWW-Authenticate` header, in the same words as
+    elsewhere: "Token has expired", "Token is invalid" or "Token has been revoked". It used
+    to be a bare "Invalid or expired token".
 - **REST and MCP identify a caller as `/graphql` does (#1643).**
   - A static API key from `[api_keys]` now identifies a caller on a REST route and on an MCP
     tool call. An unknown key is refused, as `/graphql` refuses it; before, both transports

@@ -239,6 +239,24 @@ impl std::fmt::Debug for ApiKeyAuthenticator {
 // Helpers
 // ───────────────────────────────────────────────────────────────
 
+/// An authenticator holding one static key, `key`, named `static` and granting
+/// `read:*`, for another module's tests.
+#[cfg(test)]
+pub(crate) fn static_key_authenticator(key: &str) -> ApiKeyAuthenticator {
+    ApiKeyAuthenticator::from_config(&ApiKeyConfig {
+        enabled:        true,
+        header:         "x-api-key".into(),
+        hash_algorithm: "sha256".into(),
+        storage:        "env".into(),
+        static_keys:    vec![StaticApiKeyConfig {
+            key_hash: format!("sha256:{}", hex::encode(sha256_hash(key.as_bytes()))),
+            scopes:   vec!["read:*".into()],
+            name:     "static".into(),
+        }],
+    })
+    .expect("one static key configures an authenticator")
+}
+
 /// SHA-256 hash of input bytes.
 pub(crate) fn sha256_hash(input: &[u8]) -> [u8; 32] {
     let mut hasher = Sha256::new();

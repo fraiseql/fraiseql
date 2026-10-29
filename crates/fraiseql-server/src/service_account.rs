@@ -282,6 +282,26 @@ pub(crate) fn admit(
     }
 }
 
+/// An authenticator holding one account, `svc`, whose secret is `secret`, with no roles,
+/// scopes or tenant, for another module's tests.
+#[cfg(test)]
+pub(crate) fn one_account_authenticator(secret: &str) -> Arc<ServiceAccountAuthenticator> {
+    ServiceAccountAuthenticator::from_config(
+        &HashMap::from([(
+            "svc".to_string(),
+            ServiceAccountConfig {
+                secret_env:      "TEST_SERVICE_ACCOUNT_SECRET".into(),
+                roles:           Vec::new(),
+                scopes:          Vec::new(),
+                tenant:          None,
+                static_enriched: HashMap::new(),
+            },
+        )]),
+        |_| Some(secret.to_string()),
+    )
+    .expect("one account with a secret configures an authenticator")
+}
+
 /// Auth layer for a deployment with service accounts and no JWT authentication:
 /// admits a service account as itself and leaves every other request as it was.
 pub async fn service_account_middleware(
