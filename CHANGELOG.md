@@ -49,9 +49,24 @@ disagreed, and the promise was the part that was wrong.
   frames, and an observer's action payload, a webhook body included (#1763). The document
   is read as the type the row names, by the schema the server boots with.
 
-  Not yet covered, each under its own issue:
-  - gRPC (#1765);
-  - Arrow Flight (#1766).
+  gRPC sends a `Decimal` column with its exact digits too (#1765). Its proto field must be a
+  `string`, or a decimal message with a `string value` field (the `google.type.Decimal`
+  shape). A descriptor that declares one as a `double`, a `float` or an integer is refused
+  at startup, naming the field: change the field's type in your `.proto` and rebuild the
+  descriptor set. Previously it was sent as a `double`, rounded. A `NaN` or infinite
+  `numeric` has no decimal-message form, so a read that meets one in a decimal message is
+  refused, naming the field and the value; a `string` field carries it as text (#1819).
+
+  Not yet covered: Arrow Flight (#1766).
+- **A row-shaped read has a `Decimal` column type (#1765).** For library users of
+  fraiseql-db and fraiseql-server:
+  - `RowViewColumnType::Decimal` and `ColumnValue::Decimal(String)` are new variants, so an
+    exhaustive `match` on either enum needs an arm for them.
+  - `row_to_column_values` returns `Result<Vec<ColumnValue>>`. It refuses a JSON number in
+    a `Decimal` column, whose digits were rounded before it got there.
+  - fraiseql-server's `routes::grpc::handler::encode_row` and `encode_response` return
+    `Result<DynamicMessage, FraiseQLError>`: a row a decimal message cannot carry is an
+    error (#1819).
 - **The federation service SDL requires an authenticated caller by default (#1717).**
   `{ _service { sdl } }` was served to whoever the subgraph serves, so a subgraph open to
   anonymous reads listed its whole SDL to anyone. It is now refused to an anonymous caller

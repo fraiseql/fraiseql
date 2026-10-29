@@ -151,7 +151,8 @@ pub const fn column_bytes(value: &ColumnValue) -> u64 {
         | ColumnValue::Uuid(s)
         | ColumnValue::Timestamptz(s)
         | ColumnValue::Date(s)
-        | ColumnValue::Json(s) => s.len() as u64,
+        | ColumnValue::Json(s)
+        | ColumnValue::Decimal(s) => s.len() as u64,
         ColumnValue::Int32(_) | ColumnValue::Float64(_) | ColumnValue::Int64(_) => 8,
         ColumnValue::Boolean(_) => 1,
         ColumnValue::Null => 0,

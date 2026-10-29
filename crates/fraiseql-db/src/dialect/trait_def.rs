@@ -28,6 +28,8 @@ pub enum RowViewColumnType {
     Json,
     /// Date (without time).
     Date,
+    /// `NUMERIC`, read as the exact text the database printed: an `f64` would round it.
+    Decimal,
 }
 
 /// Error returned when an operator is not supported by a dialect.

@@ -786,7 +786,7 @@ pub trait DatabaseAdapter: Send + Sync + 'static {
         let sql = build_row_query_sql(view_name, where_sql, order_by, limit, offset);
         let results = self.execute_raw_query(&sql).await?;
 
-        Ok(results.iter().map(|row| row_to_column_values(row, columns)).collect())
+        results.iter().map(|row| row_to_column_values(row, columns)).collect()
     }
 
     /// Connection-affine variant of [`execute_row_query`](Self::execute_row_query).
@@ -1507,17 +1507,43 @@ pub fn build_row_query_sql(
 /// A column the row does not carry decodes to [`crate::types::ColumnValue::Null`]
 /// rather than shortening the row: the transport encodes positionally against
 /// `columns`.
-#[must_use]
+///
+/// A `Decimal` column carries the exact text the database printed, as a JSON string. A JSON
+/// number there was decoded through an `f64` before it reached this function, so its digits
+/// are already lost: that is refused rather than passed on rounded.
+///
+/// # Errors
+///
+/// Returns [`FraiseQLError::Database`] when a `Decimal` column holds anything but a string
+/// or `null`.
 pub fn row_to_column_values<S: std::hash::BuildHasher>(
     row: &std::collections::HashMap<String, serde_json::Value, S>,
     columns: &[crate::types::ColumnSpec],
-) -> Vec<crate::types::ColumnValue> {
-    use crate::types::ColumnValue;
+) -> Result<Vec<crate::types::ColumnValue>> {
+    use crate::{dialect::RowViewColumnType, types::ColumnValue};
 
     columns
         .iter()
         .map(|col| {
-            row.get(&col.name).map_or(ColumnValue::Null, |v| match v {
+            let Some(value) = row.get(&col.name) else {
+                return Ok(ColumnValue::Null);
+            };
+            if col.column_type == RowViewColumnType::Decimal {
+                return match value {
+                    serde_json::Value::Null => Ok(ColumnValue::Null),
+                    serde_json::Value::String(digits) => Ok(ColumnValue::Decimal(digits.clone())),
+                    other => Err(FraiseQLError::Database {
+                        message:    format!(
+                            "column `{}` is a Decimal, and the read decoded it as {other}: its \
+                             exact digits were lost before it reached the transport",
+                            col.name
+                        ),
+                        sql_state:  None,
+                        constraint: None,
+                    }),
+                };
+            }
+            Ok(match value {
                 serde_json::Value::Null => ColumnValue::Null,
                 serde_json::Value::Bool(b) => ColumnValue::Boolean(*b),
                 serde_json::Value::Number(n) => {

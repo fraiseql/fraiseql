@@ -185,8 +185,18 @@ pub async fn build_streaming_body(
                             let e = state.error_sanitizer.sanitize_error(e);
                             return Some((Ok(error_trailers(&e.to_string())), state));
                         }
-                        let row_msg =
-                            handler::encode_row(&row, &state.columns, &state.row_descriptor);
+                        let row_msg = match handler::encode_row(
+                            &row,
+                            &state.columns,
+                            &state.row_descriptor,
+                        ) {
+                            Ok(row_msg) => row_msg,
+                            Err(e) => {
+                                state.sent_trailers = true;
+                                let e = state.error_sanitizer.sanitize_error(e);
+                                return Some((Ok(error_trailers(&e.to_string())), state));
+                            },
+                        };
                         all_frames.extend_from_slice(&grpc_frame(&row_msg.encode_to_vec()));
                     },
                     Err(e) => {

@@ -2469,3 +2469,168 @@ async fn a_stream_that_fails_part_way_does_not_echo_engine_text() {
         SANITIZED_DATABASE,
     );
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// A Decimal column on the wire (#1765)
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// How a test's proto declares the `User.balance` field the schema types `Decimal`.
+enum BalanceProto {
+    Double,
+    String,
+    /// A `fraiseql.v1.Decimal { string value = 1; }`, the `google.type.Decimal` shape.
+    DecimalMessage,
+}
+
+/// [`build_descriptor_set`] with `User.balance` (field 5) declared as `kind`.
+fn decimal_descriptor_set(kind: &BalanceProto) -> FileDescriptorSet {
+    let mut fds = build_descriptor_set();
+    let file = &mut fds.file[0];
+    let (r#type, type_name) = match kind {
+        BalanceProto::Double => (field_descriptor_proto::Type::Double, None),
+        BalanceProto::String => (field_descriptor_proto::Type::String, None),
+        BalanceProto::DecimalMessage => {
+            file.message_type.push(DescriptorProto {
+                name: Some("Decimal".into()),
+                field: vec![FieldDescriptorProto {
+                    name: Some("value".into()),
+                    number: Some(1),
+                    r#type: Some(field_descriptor_proto::Type::String.into()),
+                    label: Some(field_descriptor_proto::Label::Optional.into()),
+                    ..Default::default()
+                }],
+                ..Default::default()
+            });
+            (field_descriptor_proto::Type::Message, Some(".fraiseql.v1.Decimal".to_string()))
+        },
+    };
+    let user = file
+        .message_type
+        .iter_mut()
+        .find(|m| m.name.as_deref() == Some("User"))
+        .expect("User message");
+    user.field.push(FieldDescriptorProto {
+        name: Some("balance".into()),
+        number: Some(5),
+        r#type: Some(r#type.into()),
+        type_name,
+        label: Some(field_descriptor_proto::Label::Optional.into()),
+        ..Default::default()
+    });
+    fds
+}
+
+/// The `User` schema with a `balance: Decimal`, served from a descriptor declaring it `kind`.
+fn decimal_schema(dir: &std::path::Path, kind: &BalanceProto) -> CompiledSchema {
+    let path = dir.join("descriptor.binpb");
+    std::fs::write(&path, decimal_descriptor_set(kind).encode_to_vec()).expect("write descriptor");
+    let mut schema = build_grpc_schema(&path.to_string_lossy());
+    let user = schema.types.iter_mut().find(|t| t.name == "User").expect("User type");
+    user.fields.push(
+        TestFieldBuilder::nullable("balance", fraiseql_core::schema::FieldType::Decimal).build(),
+    );
+    schema.build_indexes();
+    schema
+}
+
+/// A Decimal column whose proto field is a `double` cannot carry its digits, so the service
+/// refuses to build, naming the field and what to declare instead. Checked once with only the
+/// unary `GetUser` served and once with only the server-streaming `ListUsers`: each kind of
+/// read is checked where it is built.
+#[test]
+fn a_decimal_the_proto_declares_double_is_refused_at_boot() {
+    for served in ["user", "users"] {
+        let tmp = tempfile::tempdir().unwrap();
+        let mut schema = decimal_schema(tmp.path(), &BalanceProto::Double);
+        schema.queries.retain(|query| query.name == served);
+        schema.build_indexes();
+        let schema = Arc::new(schema);
+        let refused = build_grpc_service_for_test(
+            Arc::clone(&schema),
+            Arc::new(Executor::new((*schema).clone(), Arc::new(FailingAdapter::new()))),
+            None,
+            None,
+        );
+        let Err(error) = refused else {
+            panic!("serving only `{served}`: a Decimal declared `double` must refuse the service");
+        };
+        let message = error.to_string();
+        assert!(
+            message.contains("fraiseql.v1.User.balance") && message.contains("string"),
+            "serving only `{served}`: the refusal must name the field and the fix: {message}"
+        );
+    }
+}
+
+/// `google.type.Decimal` has no `NaN` or infinity, so a `NUMERIC` holding one cannot be put in
+/// a decimal message: the read is refused, naming the field and the value, on the unary and
+/// the streaming path alike. A `string` field carries the value as its text.
+#[tokio::test]
+async fn a_numeric_a_decimal_message_cannot_hold_is_refused_naming_it() {
+    for special in ["NaN", "Infinity", "-Infinity"] {
+        let mut row = alice_row();
+        row.push(ColumnValue::Decimal(special.into()));
+        for kind in [BalanceProto::DecimalMessage, BalanceProto::String] {
+            let tmp = tempfile::tempdir().unwrap();
+            let adapter = FailingAdapter::new().with_row_response("vr_tb_users", vec![row.clone()]);
+            let svc = build_service(adapter, decimal_schema(tmp.path(), &kind));
+            let unary = unary_message(&svc, "GetUser", "fraiseql.v1.GetUserRequest").await;
+            let streaming = streaming_message(&svc).await;
+            for (path, message) in [("unary", unary), ("streaming", streaming)] {
+                match kind {
+                    BalanceProto::DecimalMessage => {
+                        let message = message.unwrap_or_default();
+                        assert!(
+                            message.contains("fraiseql.v1.User.balance")
+                                && message.contains(&format!("`{special}`")),
+                            "{path} {special}: the refusal must name the field and the value: \
+                             {message:?}"
+                        );
+                    },
+                    _ => assert_eq!(message, None, "{path} {special}: a string field carries it"),
+                }
+            }
+        }
+    }
+}
+
+/// A Decimal column reaches a `string` field, and a decimal message's `value`, with every
+/// digit and its scale.
+#[tokio::test]
+async fn a_decimal_reaches_the_client_with_its_digits() {
+    for kind in [BalanceProto::String, BalanceProto::DecimalMessage] {
+        let tmp = tempfile::tempdir().unwrap();
+        let schema = decimal_schema(tmp.path(), &kind);
+        let mut row = alice_row();
+        row.push(ColumnValue::Decimal("12345678901234567.89".into()));
+        let adapter = FailingAdapter::new().with_row_response("vr_tb_users", vec![row]);
+        let svc = build_service(adapter, schema);
+
+        let pool = prost_reflect::DescriptorPool::decode(
+            decimal_descriptor_set(&kind).encode_to_vec().as_slice(),
+        )
+        .unwrap();
+        let request = prost_reflect::DynamicMessage::new(
+            pool.get_message_by_name("fraiseql.v1.GetUserRequest").unwrap(),
+        );
+        let (status, grpc_status, body) =
+            send_grpc(&svc, "GetUser", &request.encode_to_vec()).await;
+        assert_eq!(status, http::StatusCode::OK);
+        assert_eq!(grpc_status.as_deref(), Some("0"), "gRPC status should be OK");
+
+        let user_desc = pool.get_message_by_name("fraiseql.v1.User").unwrap();
+        let user = prost_reflect::DynamicMessage::decode(user_desc.clone(), &body[5..]).unwrap();
+        let balance = user.get_field(&user_desc.get_field_by_name("balance").unwrap()).into_owned();
+        let digits = match (&kind, balance) {
+            (BalanceProto::String, prost_reflect::Value::String(s)) => s,
+            (BalanceProto::DecimalMessage, prost_reflect::Value::Message(m)) => m
+                .get_field_by_name("value")
+                .expect("value")
+                .as_str()
+                .unwrap_or_default()
+                .to_owned(),
+            (_, other) => panic!("balance arrived as {other:?}"),
+        };
+        assert_eq!(digits, "12345678901234567.89");
+    }
+}

@@ -367,13 +367,16 @@ impl DynamicGrpcService {
                         return self.engine_error(FraiseQLError::internal(e));
                     }
                 }
-                handler::encode_response(
+                match handler::encode_response(
                     rows,
                     &read.columns,
                     *returns_list,
                     row_descriptor,
                     &op.response_descriptor,
-                )
+                ) {
+                    Ok(response) => response,
+                    Err(e) => return self.engine_error(e),
+                }
             },
             handler::RpcKind::ServerStream { .. } => {
                 // Defense in depth: streaming RPCs are routed through a

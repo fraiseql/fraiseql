@@ -50,6 +50,8 @@ pub enum ColumnValue {
     Date(String),
     /// JSON value as string.
     Json(String),
+    /// `NUMERIC` as the exact text the database printed (`"1.50"`, every digit).
+    Decimal(String),
     /// Null value.
     Null,
 }

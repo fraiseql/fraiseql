@@ -50,9 +50,27 @@ operation by name:
 A method with no matching operation is skipped and answers `UNIMPLEMENTED`; so is a
 function-backed query. Column values are encoded into the response message by type:
 text, numbers and booleans directly; timestamps, dates, JSON and UUIDs as strings; a
-`NULL` leaves the field unset. A `Decimal` column is sent as a `double` today, which
-loses its scale and any digit past the seventeenth
-([#1765](https://github.com/fraiseql/fraiseql/issues/1765)).
+`NULL` leaves the field unset.
+
+A `Decimal` column carries the exact digits the database stored, scale included (`1.50`).
+Declare its field as a `string`, or as a decimal message with a `string value` field, the
+`google.type.Decimal` shape:
+
+```proto
+message Decimal { string value = 1; }
+message Order { Decimal total = 1; }
+```
+
+A `Decimal` declared as a `double`, a `float` or an integer would lose its scale and any
+digit past the seventeenth, so the server refuses to start with that descriptor, naming the
+field.
+
+A `NUMERIC` can also hold `NaN`, `Infinity` and `-Infinity`. A `string` field carries them
+as that text. A decimal message has no form for them, as `google.type.Decimal` defines none,
+so a read that meets one is refused with an error naming the field and the value, on a
+unary and a streaming call alike
+([#1819](https://github.com/fraiseql/fraiseql/issues/1819)). Declare the field `string` to
+receive them.
 
 ## Authentication and errors
 

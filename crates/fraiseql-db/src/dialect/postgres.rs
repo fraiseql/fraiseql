@@ -319,6 +319,7 @@ impl SqlDialect for PostgresDialect {
             RowViewColumnType::Timestamptz => "timestamptz",
             RowViewColumnType::Date => "date",
             RowViewColumnType::Json => "jsonb",
+            RowViewColumnType::Decimal => "numeric",
         };
         format!("({json_column}->>'{field_name}')::{pg_type}")
     }

@@ -22,7 +22,9 @@ use fraiseql_core::{
     security::SecurityContext,
 };
 use fraiseql_error::FraiseQLError;
-use prost_reflect::{DynamicMessage, MessageDescriptor, ReflectMessage, Value};
+use prost_reflect::{
+    DynamicMessage, FieldDescriptor, Kind, MessageDescriptor, ReflectMessage, Value,
+};
 use tracing::{debug, warn};
 
 /// Maximum number of rows returned by a single gRPC query (safety limit).
@@ -100,9 +102,11 @@ pub type RpcDispatchTable = HashMap<String, RpcOperation>;
 #[must_use]
 pub const fn field_type_to_column_type(ft: &FieldType) -> Option<RowViewColumnType> {
     match ft {
-        FieldType::String | FieldType::Scalar(_) | FieldType::Decimal | FieldType::Time => {
+        // Enums map to text (their string representation).
+        FieldType::String | FieldType::Scalar(_) | FieldType::Time | FieldType::Enum(_) => {
             Some(RowViewColumnType::Text)
         },
+        FieldType::Decimal => Some(RowViewColumnType::Decimal),
         FieldType::Int => Some(RowViewColumnType::Int32),
         FieldType::Float => Some(RowViewColumnType::Float64),
         FieldType::Boolean => Some(RowViewColumnType::Boolean),
@@ -110,8 +114,6 @@ pub const fn field_type_to_column_type(ft: &FieldType) -> Option<RowViewColumnTy
         FieldType::DateTime => Some(RowViewColumnType::Timestamptz),
         FieldType::Date => Some(RowViewColumnType::Date),
         FieldType::Json => Some(RowViewColumnType::Json),
-        // Enums map to text (their string representation).
-        FieldType::Enum(_) => Some(RowViewColumnType::Text),
         // Types with no columnar representation: List, Object, Interface,
         // Union, Vector, BitVector — the vector kinds are searched, not
         // projected into the columnar view.
@@ -724,17 +726,26 @@ pub fn encode_mutation_response(
 ///
 /// Each column is mapped to the corresponding protobuf field by position (the
 /// column specs and message fields are aligned by the proto generator).
-#[must_use]
+///
+/// # Errors
+///
+/// Returns [`FraiseQLError::Internal`] when a `Decimal` holds a value its decimal message
+/// cannot carry: `NaN`, `Infinity` or `-Infinity`.
 pub fn encode_row(
     row: &[ColumnValue],
     columns: &[ColumnSpec],
     row_desc: &MessageDescriptor,
-) -> DynamicMessage {
+) -> Result<DynamicMessage, FraiseQLError> {
     let mut msg = DynamicMessage::new(row_desc.clone());
 
     for (col_val, col_spec) in row.iter().zip(columns.iter()) {
         if let Some(field_desc) = row_desc.get_field_by_name(&col_spec.name) {
-            let proto_val = column_value_to_proto(col_val);
+            let proto_val = match (col_val, field_desc.kind()) {
+                (ColumnValue::Decimal(digits), Kind::Message(decimal)) => {
+                    Some(decimal_message(&field_desc, &decimal, digits)?)
+                },
+                _ => column_value_to_proto(col_val),
+            };
             if let Some(v) = proto_val {
                 msg.set_field(&field_desc, v);
             }
@@ -743,7 +754,77 @@ pub fn encode_row(
         }
     }
 
-    msg
+    Ok(msg)
+}
+
+/// A decimal message (`google.type.Decimal`'s shape) holding `digits` in its `value`.
+///
+/// # Errors
+///
+/// Returns [`FraiseQLError::Internal`] naming `field` and the value when `digits` is
+/// `NaN`, `Infinity` or `-Infinity`, which a `google.type.Decimal` has no form for.
+fn decimal_message(
+    field: &FieldDescriptor,
+    decimal: &MessageDescriptor,
+    digits: &str,
+) -> Result<Value, FraiseQLError> {
+    if matches!(digits, "NaN" | "Infinity" | "-Infinity") {
+        return Err(FraiseQLError::Internal {
+            message: format!(
+                "Cannot send {} as a decimal message: the stored value is `{digits}`, which a \
+                 decimal message has no form for. Declare the field `string` to receive it.",
+                field.full_name()
+            ),
+            source:  None,
+        });
+    }
+    let mut message = DynamicMessage::new(decimal.clone());
+    if let Some(value) = decimal.get_field_by_name("value") {
+        message.set_field(&value, Value::String(digits.to_owned()));
+    }
+    Ok(Value::Message(message))
+}
+
+/// Whether `field` can carry a `Decimal`'s digits: a `string`, or a message with a `string
+/// value` (the `google.type.Decimal` shape). A `double` or an integer would round them.
+fn carries_decimal(field: &FieldDescriptor) -> bool {
+    if field.is_list() || field.is_map() {
+        return false;
+    }
+    match field.kind() {
+        Kind::String => true,
+        Kind::Message(message) => message
+            .get_field_by_name("value")
+            .is_some_and(|value| matches!(value.kind(), Kind::String) && !value.is_list()),
+        _ => false,
+    }
+}
+
+/// Refuse a service whose proto declares a `Decimal` column as a field that cannot carry its
+/// digits: the value would be rounded on every response, so the service is not served.
+///
+/// # Errors
+///
+/// Returns [`FraiseQLError::Validation`] naming the field and what to declare instead.
+fn refuse_narrowed_decimals(
+    columns: &[ColumnSpec],
+    row_desc: &MessageDescriptor,
+) -> Result<(), FraiseQLError> {
+    for column in columns.iter().filter(|c| c.column_type == RowViewColumnType::Decimal) {
+        let Some(field) = row_desc.get_field_by_name(&column.name) else {
+            continue;
+        };
+        if !carries_decimal(&field) {
+            return Err(FraiseQLError::validation(format!(
+                "gRPC: `{}` is a Decimal in the schema, and the proto declares it {:?}, which \
+                 cannot hold its digits. Declare it `string`, or a decimal message with a \
+                 `string value` field (the `google.type.Decimal` shape).",
+                field.full_name(),
+                field.kind(),
+            )));
+        }
+    }
+    Ok(())
 }
 
 /// Convert a [`ColumnValue`] to a protobuf [`Value`].
@@ -764,7 +845,8 @@ pub fn column_value_to_proto(col: &ColumnValue) -> Option<Value> {
             // google.protobuf.Timestamp, but string is simpler for the MVP.
             Some(Value::String(ts.clone()))
         },
-        ColumnValue::Date(d) => Some(Value::String(d.clone())),
+        // A Decimal's digits travel as a string; a decimal message is built by `encode_row`.
+        ColumnValue::Date(d) | ColumnValue::Decimal(d) => Some(Value::String(d.clone())),
         ColumnValue::Json(v) => Some(Value::String(v.clone())),
     }
 }
@@ -774,25 +856,25 @@ pub fn column_value_to_proto(col: &ColumnValue) -> Option<Value> {
 /// For list queries, the response contains a `repeated` field named `items`
 /// (or the pluralized type name). For get queries, the response fields are
 /// the row fields directly.
-#[must_use]
+///
+/// # Errors
+///
+/// Returns the error [`encode_row`] returns for any row.
 pub fn encode_response(
     rows: Vec<Vec<ColumnValue>>,
     columns: &[ColumnSpec],
     returns_list: bool,
     row_descriptor: &MessageDescriptor,
     response_descriptor: &MessageDescriptor,
-) -> DynamicMessage {
+) -> Result<DynamicMessage, FraiseQLError> {
     let mut response = DynamicMessage::new(response_descriptor.clone());
 
     if returns_list {
         // List response: encode each row as a sub-message in the "items" field.
         let items: Vec<Value> = rows
             .iter()
-            .map(|row| {
-                let row_msg = encode_row(row, columns, row_descriptor);
-                Value::Message(row_msg)
-            })
-            .collect();
+            .map(|row| encode_row(row, columns, row_descriptor).map(Value::Message))
+            .collect::<Result<_, FraiseQLError>>()?;
 
         // Find the repeated field (first repeated message field in the response).
         for field_desc in response_descriptor.fields() {
@@ -802,19 +884,14 @@ pub fn encode_response(
             }
         }
     } else {
-        // Get response: single row — set fields directly on the response message.
+        // Get response: the row's fields set directly on the response message, by the same
+        // encoder a list's items use.
         if let Some(row) = rows.into_iter().next() {
-            for (col_val, col_spec) in row.iter().zip(columns.iter()) {
-                if let Some(field_desc) = response_descriptor.get_field_by_name(&col_spec.name) {
-                    if let Some(v) = column_value_to_proto(col_val) {
-                        response.set_field(&field_desc, v);
-                    }
-                }
-            }
+            response = encode_row(&row, columns, response_descriptor)?;
         }
     }
 
-    response
+    Ok(response)
 }
 
 // ---------------------------------------------------------------------------
@@ -894,6 +971,7 @@ pub fn build_dispatch_table(
                 let is_server_streaming = method_desc.is_server_streaming();
 
                 let kind = if is_server_streaming && query_def.returns_list {
+                    refuse_narrowed_decimals(&columns, &response_desc)?;
                     RpcKind::ServerStream {
                         columns,
                         row_descriptor: response_desc.clone(),
@@ -908,6 +986,7 @@ pub fn build_dispatch_table(
                     } else {
                         response_desc.clone()
                     };
+                    refuse_narrowed_decimals(&columns, &row_desc)?;
                     RpcKind::Query {
                         returns_list: query_def.returns_list,
                         columns,

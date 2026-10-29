@@ -32,6 +32,7 @@ fn scalar_types_map_correctly() {
     assert_eq!(field_type_to_column_type(&FieldType::Date), Some(RowViewColumnType::Date));
     assert_eq!(field_type_to_column_type(&FieldType::Json), Some(RowViewColumnType::Json));
     assert_eq!(field_type_to_column_type(&FieldType::Uuid), Some(RowViewColumnType::Uuid));
+    assert_eq!(field_type_to_column_type(&FieldType::Decimal), Some(RowViewColumnType::Decimal));
 }
 
 #[test]
@@ -370,7 +371,7 @@ fn encode_row_sets_fields() {
         ColumnValue::Int32(30),
     ];
 
-    let msg = encode_row(&row, &columns, &user_desc);
+    let msg = encode_row(&row, &columns, &user_desc).unwrap();
 
     let id_field = user_desc.get_field_by_name("id").unwrap();
     let name_field = user_desc.get_field_by_name("name").unwrap();
@@ -407,7 +408,7 @@ fn encode_row_null_leaves_field_unset() {
         ColumnValue::Int32(0),
     ];
 
-    let msg = encode_row(&row, &columns, &user_desc);
+    let msg = encode_row(&row, &columns, &user_desc).unwrap();
 
     let name_field = user_desc.get_field_by_name("name").unwrap();
     // Null leaves the field at its default (empty string for proto3 string).
@@ -435,7 +436,7 @@ fn encode_response_get_single_row() {
         ColumnValue::Text("Bob".into()),
     ]];
 
-    let response = encode_response(rows, &columns, false, &user_desc, &user_desc);
+    let response = encode_response(rows, &columns, false, &user_desc, &user_desc).unwrap();
 
     let id_field = user_desc.get_field_by_name("id").unwrap();
     assert_eq!(response.get_field(&id_field).into_owned(), Value::String("u-1".into()));
@@ -452,7 +453,7 @@ fn encode_response_empty_rows() {
     }];
 
     // No rows — response should have default values.
-    let response = encode_response(vec![], &columns, false, &user_desc, &user_desc);
+    let response = encode_response(vec![], &columns, false, &user_desc, &user_desc).unwrap();
     let id_field = user_desc.get_field_by_name("id").unwrap();
     assert!(!response.has_field(&id_field));
 }

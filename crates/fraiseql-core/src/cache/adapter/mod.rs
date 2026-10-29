@@ -1144,6 +1144,24 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
         self.adapter.execute_composed_with_session(read, session_vars, routing).await
     }
 
+    /// Forwarded to the inner adapter, as its streaming and session siblings are. The trait
+    /// default reads through `execute_raw_query`, whose decode rounds a `NUMERIC` through an
+    /// `f64`; the inner adapter's own row read keeps a `Decimal`'s digits. The row-shaped read
+    /// is never cached.
+    async fn execute_row_query(
+        &self,
+        view_name: &str,
+        columns: &[fraiseql_db::types::ColumnSpec],
+        where_sql: Option<&str>,
+        order_by: Option<&str>,
+        limit: Option<u32>,
+        offset: Option<u32>,
+    ) -> Result<Vec<Vec<fraiseql_db::types::ColumnValue>>> {
+        self.adapter
+            .execute_row_query(view_name, columns, where_sql, order_by, limit, offset)
+            .await
+    }
+
     /// Forwarded to the inner adapter — see
     /// [`stream_with_projection`](Self::stream_with_projection). The row-shaped
     /// read was never cached in the first place.

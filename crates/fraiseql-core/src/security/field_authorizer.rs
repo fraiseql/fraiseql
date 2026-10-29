@@ -689,7 +689,8 @@ fn column_value_to_json(value: &ColumnValue) -> JsonValue {
         ColumnValue::Text(s)
         | ColumnValue::Uuid(s)
         | ColumnValue::Timestamptz(s)
-        | ColumnValue::Date(s) => JsonValue::String(s.clone()),
+        | ColumnValue::Date(s)
+        | ColumnValue::Decimal(s) => JsonValue::String(s.clone()),
         ColumnValue::Int32(i) => JsonValue::from(*i),
         ColumnValue::Int64(i) => JsonValue::from(*i),
         ColumnValue::Float64(f) => {

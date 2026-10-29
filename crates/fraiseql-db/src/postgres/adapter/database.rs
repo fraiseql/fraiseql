@@ -954,6 +954,22 @@ where
     Some(cell)
 }
 
+/// A row of a row-shaped read, in `columns`' order, each `Decimal` column kept as the exact
+/// text PostgreSQL printed. The one decode the four row reads (collecting and streaming,
+/// with and without session variables) share, so none of them can drift back to
+/// [`row_to_map`]'s, which rounds a `NUMERIC` through an `f64`.
+fn row_to_columns(
+    row: &Row,
+    columns: &[crate::types::ColumnSpec],
+) -> Result<Vec<crate::types::ColumnValue>> {
+    let exact: Vec<&str> = columns
+        .iter()
+        .filter(|c| c.column_type == crate::dialect::RowViewColumnType::Decimal)
+        .map(|c| c.name.as_str())
+        .collect();
+    crate::traits::row_to_column_values(&row_to_map_exact(row, &exact), columns)
+}
+
 /// [`row_to_map`], with each `NUMERIC` column named in `exact` kept as a string of the
 /// digits PostgreSQL printed: re-parsed as a JSON number, it would round through an `f64`.
 fn row_to_map_exact(
@@ -1824,6 +1840,29 @@ impl DatabaseAdapter for PostgresAdapter {
         .map_err(|e| enrich_undefined_column_error(e, request.view, request.where_clause))
     }
 
+    /// The column-shaped collecting read behind gRPC: the trait default would decode each
+    /// row through `row_to_map`, which rounds a `NUMERIC` through an `f64`. On the primary,
+    /// as `execute_raw_query`, which it replaces here, reads.
+    async fn execute_row_query(
+        &self,
+        view_name: &str,
+        columns: &[crate::types::ColumnSpec],
+        where_sql: Option<&str>,
+        order_by: Option<&str>,
+        limit: Option<u32>,
+        offset: Option<u32>,
+    ) -> Result<Vec<Vec<crate::types::ColumnValue>>> {
+        let sql = crate::traits::build_row_query_sql(view_name, where_sql, order_by, limit, offset);
+        let client = self.acquire_connection_with_retry().await?;
+        let rows: Vec<Row> = client.query(sql.as_str(), &[]).await.map_err(|e| {
+            crate::postgres::database_error(
+                format!("Row query execution failed: {}", pg_detail(&e)),
+                &e,
+            )
+        })?;
+        rows.iter().map(|row| row_to_columns(row, columns)).collect()
+    }
+
     /// The column-shaped streaming read behind gRPC server-streaming (#958).
     ///
     /// Routed to the primary like its collecting sibling: `execute_row_query`
@@ -1847,7 +1886,7 @@ impl DatabaseAdapter for PostgresAdapter {
             Vec::new(),
             &[],
             ReadRouting::Primary,
-            move |row, _sql| Ok(crate::traits::row_to_column_values(&row_to_map(row), &columns)),
+            move |row, _sql| row_to_columns(row, &columns),
         )
         .await
     }
@@ -1897,10 +1936,7 @@ impl DatabaseAdapter for PostgresAdapter {
             )
         })?;
 
-        Ok(rows
-            .iter()
-            .map(|row| crate::traits::row_to_column_values(&row_to_map(row), columns))
-            .collect())
+        rows.iter().map(|row| row_to_columns(row, columns)).collect()
     }
 
     /// The session-pinned streaming row read (#1351).
@@ -1926,7 +1962,7 @@ impl DatabaseAdapter for PostgresAdapter {
             Vec::new(),
             session_vars,
             ReadRouting::Primary,
-            move |row, _sql| Ok(crate::traits::row_to_column_values(&row_to_map(row), &columns)),
+            move |row, _sql| row_to_columns(row, &columns),
         )
         .await
     }
