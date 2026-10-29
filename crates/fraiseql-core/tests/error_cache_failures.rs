@@ -139,8 +139,7 @@ async fn test_invalidate_view_forces_cache_miss() {
     assert_eq!(cached.inner().query_count(), 1);
 
     // Invalidate
-    let invalidated = cached.invalidate_views(&[ViewName::from("v_user")]).unwrap();
-    assert_eq!(invalidated, 1);
+    cached.invalidate_views(&[ViewName::from("v_user")]).unwrap();
 
     // Must hit adapter again
     let _ = cached.execute_where_query("v_user", None, None, None, None).await.unwrap();

@@ -983,19 +983,18 @@ pub trait DatabaseAdapter: Send + Sync + 'static {
 
     /// Invalidate cached query results for the specified views.
     ///
-    /// Called by the executor after a mutation succeeds, so that stale cache
-    /// entries reading from modified views are evicted. The default
+    /// Called by the executor after a mutation succeeds, so that no stale cache
+    /// entry reading from a modified view is served again. The default
     /// implementation is a no-op; `CachedDatabaseAdapter` overrides this.
     ///
     /// View names are passed as `&[ViewName]` so the wrapper's `Arc<str>`
     /// backing is preserved across the call. Callers that hold a `String`
     /// can convert in place with `ViewName::from(...)`.
     ///
-    /// # Returns
-    ///
-    /// The number of cache entries evicted.
-    async fn invalidate_views(&self, _views: &[crate::ViewName]) -> Result<u64> {
-        Ok(0)
+    /// Nothing is counted: a cache may refuse its entries on their next read rather
+    /// than evict them now.
+    async fn invalidate_views(&self, _views: &[crate::ViewName]) -> Result<()> {
+        Ok(())
     }
 
     /// Whether a write should report the rows it changed ([`ChangedRows`], #1576), for
@@ -1009,15 +1008,11 @@ pub trait DatabaseAdapter: Send + Sync + 'static {
     /// all in `changed`: an adapter may evict reads of single rows by those rows rather than
     /// by the views. Provided: `invalidate_views`. A wrapper adapter must forward this to the
     /// adapter it wraps.
-    ///
-    /// # Returns
-    ///
-    /// The number of cache entries evicted.
     async fn invalidate_written(
         &self,
         views: &[crate::ViewName],
         _changed: &ChangedRows,
-    ) -> Result<u64> {
+    ) -> Result<()> {
         self.invalidate_views(views).await
     }
 

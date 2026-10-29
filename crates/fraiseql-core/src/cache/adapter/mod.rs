@@ -1258,12 +1258,11 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
         self.adapter.execute_admin_sql(request).await
     }
 
-    async fn invalidate_views(&self, views: &[fraiseql_db::ViewName]) -> Result<u64> {
-        // Delegate to the inherent (synchronous) method which handles cascade
-        // expansion and cache eviction.
-        let evicted = CachedDatabaseAdapter::invalidate_views(self, views)?;
+    async fn invalidate_views(&self, views: &[fraiseql_db::ViewName]) -> Result<()> {
+        // Delegate to the inherent (synchronous) method which handles cascade expansion.
+        CachedDatabaseAdapter::invalidate_views(self, views)?;
         self.announce(|| Eviction::Views(views.iter().map(|v| v.as_str().to_owned()).collect()));
-        Ok(evicted)
+        Ok(())
     }
 
     fn reports_changed_rows(&self) -> bool {
@@ -1277,8 +1276,8 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
         &self,
         views: &[fraiseql_db::ViewName],
         changed: &fraiseql_db::ChangedRows,
-    ) -> Result<u64> {
-        let evicted = super::invalidation_api::invalidate_written(
+    ) -> Result<()> {
+        super::invalidation_api::invalidate_written(
             &self.cache,
             self.cascade_invalidator.as_ref(),
             views,
@@ -1286,7 +1285,7 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
         )?;
         // Another server holds no report: it sweeps the views, its reads by id included.
         self.announce(|| Eviction::Views(views.iter().map(|v| v.as_str().to_owned()).collect()));
-        Ok(evicted)
+        Ok(())
     }
 
     async fn invalidate_by_entity(&self, entity_type: &str, entity_id: &str) -> Result<u64> {

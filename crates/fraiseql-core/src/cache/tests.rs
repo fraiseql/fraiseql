@@ -1666,8 +1666,7 @@ mod result_tests {
             .unwrap();
 
         // Invalidate v_user
-        let invalidated = cache.invalidate_views(&[ViewName::from("v_user")]).unwrap();
-        assert_eq!(invalidated, 1);
+        cache.invalidate_views(&[ViewName::from("v_user")]).unwrap();
 
         // v_user entry gone, v_post remains
         assert!(cache.get(1_u64).unwrap().is_none());
@@ -1689,10 +1688,9 @@ mod result_tests {
             .unwrap();
 
         // Invalidate v_user and v_post
-        let invalidated = cache
+        cache
             .invalidate_views(&[ViewName::from("v_user"), ViewName::from("v_post")])
             .unwrap();
-        assert_eq!(invalidated, 2);
 
         assert!(cache.get(1_u64).unwrap().is_none());
         assert!(cache.get(2_u64).unwrap().is_none());
@@ -1716,8 +1714,7 @@ mod result_tests {
             .unwrap();
 
         // Invalidating either view should remove the entry
-        let invalidated = cache.invalidate_views(&[ViewName::from("v_user")]).unwrap();
-        assert_eq!(invalidated, 1);
+        cache.invalidate_views(&[ViewName::from("v_user")]).unwrap();
 
         assert!(cache.get(1_u64).unwrap().is_none());
     }
@@ -1731,8 +1728,7 @@ mod result_tests {
             .unwrap();
 
         // Invalidate view that doesn't exist
-        let invalidated = cache.invalidate_views(&[ViewName::from("v_nonexistent")]).unwrap();
-        assert_eq!(invalidated, 0);
+        cache.invalidate_views(&[ViewName::from("v_nonexistent")]).unwrap();
 
         // Entry should remain
         assert!(cache.get(1_u64).unwrap().is_some());
@@ -2056,8 +2052,7 @@ mod result_tests {
             .put(0x003, list, vec!["v_user".to_string()], None, Some("User"), None)
             .unwrap();
 
-        let evicted = cache.invalidate_views(&[ViewName::from("v_user")]).unwrap();
-        assert_eq!(evicted, 3, "zero-, one- and multi-row entries are all evicted");
+        cache.invalidate_views(&[ViewName::from("v_user")]).unwrap();
         for key in [0x001_u64, 0x002, 0x003] {
             assert!(cache.get(key).unwrap().is_none(), "entry {key:#x} must be evicted");
         }
@@ -2079,8 +2074,8 @@ mod result_tests {
             .put(0x001, rows, vec!["v_user".to_string()], None, Some("User"), None)
             .unwrap();
 
-        // Force eviction via invalidate_views
-        cache.invalidate_views(&[ViewName::from("v_user")]).unwrap();
+        // Evict it by one of its rows
+        assert_eq!(cache.invalidate_by_entity("User", "uuid-A").unwrap(), 1);
         // Flush moka's async eviction pipeline
         cache.run_pending_tasks();
 
@@ -2255,9 +2250,8 @@ mod result_tests {
             cache.put(i, test_result(), vec![view.to_string()], None, None, None).unwrap();
         }
 
-        // Invalidate v_user — should remove exactly 100 entries
-        let invalidated = cache.invalidate_views(&[ViewName::from("v_user")]).unwrap();
-        assert_eq!(invalidated, 100);
+        // Invalidate v_user
+        cache.invalidate_views(&[ViewName::from("v_user")]).unwrap();
 
         // All v_user entries gone, all v_post entries remain
         for i in 0_u64..200 {
@@ -2498,11 +2492,7 @@ mod eviction_lifecycle_tests {
             .unwrap();
         cache.run_pending_tasks();
 
-        assert_eq!(
-            cache.invalidate_views(&[ViewName::from("v_user")]).unwrap(),
-            1,
-            "#740: a re-cached entry must still be reachable through view_index"
-        );
+        cache.invalidate_views(&[ViewName::from("v_user")]).unwrap();
         cache.run_pending_tasks();
         assert!(
             cache.get(42).unwrap().is_none(),
@@ -2535,7 +2525,7 @@ mod eviction_lifecycle_tests {
     }
 
     /// A genuinely evicted entry must *not* leave its registration behind, or
-    /// `view_index` grows without bound on a long-running TTL-based cache.
+    /// `entity_index` grows without bound on a long-running TTL-based cache.
     #[test]
     fn explicitly_evicted_entry_releases_its_index_registration() {
         let cache = QueryResultCache::new(CacheConfig::enabled());
@@ -2544,14 +2534,9 @@ mod eviction_lifecycle_tests {
             .put(44, one_row(), vec!["v_user".to_string()], Some(0), Some("User"), None)
             .unwrap();
         cache.run_pending_tasks();
-        assert_eq!(cache.invalidate_views(&[ViewName::from("v_user")]).unwrap(), 1);
+        assert_eq!(cache.invalidate_by_entity("User", "u1").unwrap(), 1);
         cache.run_pending_tasks();
 
-        assert_eq!(
-            cache.invalidate_views(&[ViewName::from("v_user")]).unwrap(),
-            0,
-            "#740: an evicted entry must not linger in view_index"
-        );
         assert_eq!(
             cache.invalidate_by_entity("User", "u1").unwrap(),
             0,
@@ -2600,10 +2585,8 @@ mod invalidation_fence_tests {
         // The read snapshots, then awaits the database…
         let fence = cache.invalidation_generation();
 
-        // …and while it is awaiting, a mutation commits and invalidates. Nothing is
-        // evicted: this key is not in the reverse index yet.
-        let evicted = cache.invalidate_views(&[ViewName::from("v_user")]).unwrap();
-        assert_eq!(evicted, 0, "precondition: the racing invalidation evicts nothing");
+        // …and while it is awaiting, a mutation commits and invalidates.
+        cache.invalidate_views(&[ViewName::from("v_user")]).unwrap();
 
         // …then the read returns and stores its pre-mutation rows.
         cache
@@ -2643,14 +2626,15 @@ mod invalidation_fence_tests {
     fn a_fenced_out_write_deregisters_itself() {
         let cache = row_cache();
         let fence = cache.invalidation_generation();
-        cache.invalidate_views(&[ViewName::from("v_user")]).unwrap();
+        cache.invalidate_by_entity("User", "u-1").unwrap();
         cache
-            .put(1_u64, rows(), vec!["v_user".to_string()], None, None, Some(fence))
+            .put(1_u64, rows(), vec!["v_user".to_string()], None, Some("User"), Some(fence))
             .unwrap();
+        cache.run_pending_tasks();
 
         // If the refused write left its registration behind, this invalidation would
         // report evicting an entry that does not exist.
-        let evicted = cache.invalidate_views(&[ViewName::from("v_user")]).unwrap();
+        let evicted = cache.invalidate_by_entity("User", "u-1").unwrap();
         assert_eq!(
             evicted, 0,
             "a fenced-out write must deregister itself; a stale index row makes the next \

@@ -13,26 +13,27 @@
 //! - **`put()` path**: early-exit guards (disabled / list / size) before touching the store.
 //!   Reverse-index updates use `DashMap` (fine-grained sharding, no global lock).
 //! - **`metrics()`**: reads `store.entry_count()` directly — no shard scan.
-//! - **`invalidate_views()` / `invalidate_by_entity()`**: O(k) where k = matching entries (via
-//!   reverse indexes), not O(total entries).
+//! - **`invalidate_views()`**: one stamp per view, O(views): nothing is collected or evicted. Each
+//!   entry reading one is refused on its next hit (see `fence.rs`, names).
+//! - **`invalidate_by_entity()`**: O(k) where k = matching entries (via the row indexes), not
+//!   O(total entries).
 //!
-//! ## Reverse indexes
+//! ## Row indexes
 //!
-//! Because `moka` does not support arbitrary iteration, view-based and entity-based
-//! invalidation rely on two `DashMap` reverse indexes maintained alongside the store:
+//! Because `moka` does not support arbitrary iteration, invalidation by row relies on
+//! `DashMap` reverse indexes maintained alongside the store:
 //!
 //! ```text
-//! view_index:   DashMap<view_name,   DashSet<(cache_key, epoch)>>
 //! entity_index: DashMap<entity_type, DashMap<entity_id, DashSet<(cache_key, epoch)>>>
 //! ```
 //!
-//! Indexes are populated in `put()` and pruned via moka's eviction listener.
-//! `clear()` resets all indexes synchronously.
+//! and likewise for a row read by id and a collection of one parent. Indexes are populated
+//! in `put()` and pruned via moka's eviction listener. `clear()` resets them synchronously.
 //!
 //! ### Why the indexes key on `(cache_key, epoch)` and not on `cache_key` alone (#740)
 //!
 //! `put_arc()` registers the key in the reverse indexes *before* `store.insert()`,
-//! deliberately: an `invalidate_views()` racing the insert must not miss the key.
+//! deliberately: an `invalidate_by_entity()` racing the insert must not miss the key.
 //! The consequence is that moka fires the eviction listener for the entry the insert
 //! just displaced — while the replacement is already live under the same key. A
 //! listener that pruned by `cache_key` would delete the registrations the *live*
@@ -144,9 +145,6 @@ type IndexRef = (u64, u64);
 
 /// Reverse index: child type → `(column, parent id)` → set of `(cache key, epoch)` (#1589).
 type CollectionIndex = DashMap<String, DashMap<(String, String), DashSet<IndexRef>>>;
-
-/// Reverse index: view → set of `(cache key, epoch)`.
-type ViewIndex = DashMap<ViewName, DashSet<IndexRef>>;
 
 /// Reverse index: type → id → set of `(cache key, epoch)`.
 type RowIndex = DashMap<String, DashMap<String, DashSet<IndexRef>>>;
@@ -279,27 +277,11 @@ pub struct QueryResultCache {
     /// can hold a clone and decrement on eviction.
     memory_bytes: Arc<AtomicUsize>,
 
-    /// Reverse index: view name → set of `(cache key, epoch)` accessing that view.
-    ///
-    /// Keys are [`ViewName`] (`Arc<str>` inside) so inserts share the same
-    /// allocation as the names stored in [`CachedResult::accessed_views`].
-    /// Lookup by `&str` still works via the `Borrow<str>` impl on `ViewName`.
-    view_index: Arc<DashMap<ViewName, DashSet<IndexRef>>>,
-
     /// Reverse index: entity type → entity id → set of `(cache key, epoch)`.
     entity_index: Arc<DashMap<String, DashMap<String, DashSet<IndexRef>>>>,
 
-    /// Reverse index: view of a level tagged by collection → set of `(cache key, epoch)`
-    /// (#1589). Swept by [`invalidate_views`](Self::invalidate_views), not by
-    /// [`invalidate_views_except_collections`](Self::invalidate_views_except_collections).
-    collected_view_index: Arc<DashMap<ViewName, DashSet<IndexRef>>>,
-
     /// Reverse index of the collections composed reads compose (#1589).
     collection_index: Arc<CollectionIndex>,
-
-    /// Reverse index: view of an entry reading one row by id → its `(cache key, epoch)`
-    /// (#1576). Swept by [`invalidate_views`](Self::invalidate_views) only.
-    by_id_view_index: Arc<ViewIndex>,
 
     /// Reverse index: type → id → the entries reading that row by id (#1576).
     by_id_index: Arc<RowIndex>,
@@ -354,12 +336,9 @@ const fn entry_overhead() -> usize {
 
 /// The reverse indexes an entry is registered in, as the eviction listener deregisters it.
 struct ReverseIndexes {
-    views:           Arc<ViewIndex>,
-    entities:        Arc<RowIndex>,
-    collected_views: Arc<ViewIndex>,
-    collections:     Arc<CollectionIndex>,
-    by_id_views:     Arc<ViewIndex>,
-    by_id:           Arc<RowIndex>,
+    entities:    Arc<RowIndex>,
+    collections: Arc<CollectionIndex>,
+    by_id:       Arc<RowIndex>,
 }
 
 /// Build the moka store, wiring the eviction listener to the reverse indexes
@@ -371,11 +350,8 @@ fn build_store(
 ) -> MokaCache<u64, Arc<CachedResult>> {
     let max_cap = config.max_entries as u64;
     let mb = memory_bytes;
-    let vi = indexes.views;
     let ei = indexes.entities;
-    let cvi = indexes.collected_views;
     let ci = indexes.collections;
-    let bvi = indexes.by_id_views;
     let bi = indexes.by_id;
 
     MokaCache::builder()
@@ -391,13 +367,6 @@ fn build_store(
             // special case and no future moka cause can detach a live entry (#740).
             let reference: IndexRef = (*key, value.epoch);
 
-            // Remove this instance from the view index it was registered in.
-            let views = if value.by_id.is_some() { &bvi } else { &vi };
-            for view in &value.accessed_views {
-                if let Some(keys) = views.get(view) {
-                    keys.remove(&reference);
-                }
-            }
             // And the row it reads by id (#1576).
             if let Some((type_name, id)) = &value.by_id {
                 if let Some(by_type) = bi.get(type_name) {
@@ -416,12 +385,7 @@ fn build_store(
                 }
             }
 
-            // And the composed read's collection tags (#1589).
-            for view in &value.collected_views {
-                if let Some(keys) = cvi.get(view) {
-                    keys.remove(&reference);
-                }
-            }
+            // And the composed read's collections (#1589).
             for (collection, parent) in &*value.collections {
                 if let Some(by_type) = ci.get(&collection.child_type) {
                     if let Some(keys) = by_type.get(&(collection.column.clone(), parent.clone())) {
@@ -452,25 +416,18 @@ impl QueryResultCache {
         assert!(config.max_entries > 0, "max_entries must be > 0");
 
         let memory_bytes = Arc::new(AtomicUsize::new(0));
-        let view_index: Arc<DashMap<ViewName, DashSet<IndexRef>>> = Arc::new(DashMap::new());
         let entity_index: Arc<DashMap<String, DashMap<String, DashSet<IndexRef>>>> =
             Arc::new(DashMap::new());
-        let collected_view_index: Arc<DashMap<ViewName, DashSet<IndexRef>>> =
-            Arc::new(DashMap::new());
         let collection_index: Arc<CollectionIndex> = Arc::new(DashMap::new());
-        let by_id_view_index: Arc<ViewIndex> = Arc::new(DashMap::new());
         let by_id_index: Arc<RowIndex> = Arc::new(DashMap::new());
 
         let store = build_store(
             &config,
             Arc::clone(&memory_bytes),
             ReverseIndexes {
-                views:           Arc::clone(&view_index),
-                entities:        Arc::clone(&entity_index),
-                collected_views: Arc::clone(&collected_view_index),
-                collections:     Arc::clone(&collection_index),
-                by_id_views:     Arc::clone(&by_id_view_index),
-                by_id:           Arc::clone(&by_id_index),
+                entities:    Arc::clone(&entity_index),
+                collections: Arc::clone(&collection_index),
+                by_id:       Arc::clone(&by_id_index),
             },
         );
 
@@ -482,11 +439,8 @@ impl QueryResultCache {
             total_cached: AtomicU64::new(0),
             invalidations: AtomicU64::new(0),
             memory_bytes,
-            view_index,
             entity_index,
-            collected_view_index,
             collection_index,
-            by_id_view_index,
             by_id_index,
             next_epoch: AtomicU64::new(0),
             fence: InvalidationFence::new(),
@@ -782,9 +736,6 @@ impl QueryResultCache {
         let snapshot = fence.unwrap_or_else(|| self.fence.snapshot());
         let counters = self.fence.counters(&reach);
 
-        // Promote owned `String` view names into `ViewName(Arc<str>)` exactly
-        // once. The same Arc is then shared by `view_index` and
-        // `accessed_views` (the slice stored on the cached entry).
         let accessed_views: Box<[ViewName]> =
             accessed_views.into_iter().map(ViewName::from).collect();
         let collected_views: Box<[ViewName]> =
@@ -796,15 +747,7 @@ impl QueryResultCache {
         let epoch = self.next_epoch.fetch_add(1, Ordering::Relaxed);
         let reference: IndexRef = (cache_key, epoch);
 
-        // Register in view index, a read by id in its own, and under its row (#1576).
-        let views = if by_id.is_some() {
-            &self.by_id_view_index
-        } else {
-            &self.view_index
-        };
-        for view in &accessed_views {
-            views.entry(view.clone()).or_default().insert(reference);
-        }
+        // Register a read by id under its row (#1576).
         if let Some((type_name, id)) = &by_id {
             self.by_id_index
                 .entry(type_name.clone())
@@ -824,10 +767,7 @@ impl QueryResultCache {
                 .insert(reference);
         }
 
-        // Register the composed read's collection tags (#1589).
-        for view in &collected_views {
-            self.collected_view_index.entry(view.clone()).or_default().insert(reference);
-        }
+        // Register the composed read's collections (#1589).
         for (collection, parent) in &*collections {
             self.collection_index
                 .entry(collection.child_type.clone())
@@ -869,32 +809,26 @@ impl QueryResultCache {
         // here, either this check sees its stamp and the fill withdraws itself, or the
         // insert is ordered before the invalidation's key collection, which evicts it
         // (`fence.rs`, Ordering). The eviction listener deregisters the withdrawn entry.
-        // No DashMap guard is held here: the listener re-enters `view_index`.
+        // No DashMap guard is held here: the listener re-enters the row indexes.
         if fence.is_some_and(|snapshot| {
-            let views = || entry.accessed_views.iter().map(ViewName::as_str);
             self.fence.moved_since_inserted(
                 snapshot,
                 &Reach {
-                    views:           if entry.by_id.is_some() {
-                        Vec::new()
-                    } else {
-                        views().collect()
-                    },
-                    collected_views: entry.collected_views.iter().map(ViewName::as_str).collect(),
-                    entities:        entry
+                    entities: entry
                         .entity_refs
                         .iter()
                         .map(|(t, id)| (t.as_str(), id.as_str()))
                         .collect(),
-                    collections:     entry
+                    collections: entry
                         .collections
                         .iter()
                         .map(|(c, p)| (c.child_type.as_str(), c.column.as_str(), p.as_str()))
                         .collect(),
-                    by_id:           entry
+                    by_id: entry
                         .by_id
                         .as_ref()
-                        .map(|(t, id)| ((t.as_str(), id.as_str()), views().collect())),
+                        .map(|(t, id)| ((t.as_str(), id.as_str()), Vec::new())),
+                    ..Reach::default()
                 },
             )
         }) {
@@ -1002,27 +936,17 @@ impl QueryResultCache {
         Ok(self.evict(keys))
     }
 
-    /// Evict every read of a row of `type_name` by its id (#1576).
+    /// Refuse every read of a row of `type_name` by its id from now on (#1576): each is
+    /// left in the store, refused on its next hit (#1778).
     ///
     /// # Errors
     ///
     /// This method is infallible. The `Result` return type is kept for API compatibility.
-    pub fn invalidate_by_id_type(&self, type_name: &str) -> Result<u64> {
-        if !self.config.enabled {
-            return Ok(0);
+    pub fn invalidate_by_id_type(&self, type_name: &str) -> Result<()> {
+        if self.config.enabled {
+            self.fence.stamp_by_id_type(type_name);
         }
-        self.fence.stamp_by_id_type(type_name);
-        let keys: HashSet<u64> = self
-            .by_id_index
-            .get(type_name)
-            .map(|by_type| {
-                by_type
-                    .iter()
-                    .flat_map(|refs| refs.iter().map(|r| r.0).collect::<Vec<_>>())
-                    .collect()
-            })
-            .unwrap_or_default();
-        Ok(self.evict(keys))
+        Ok(())
     }
 
     /// Evict the entries composing `collection` of the parent `parent_id` (#1589).
@@ -1050,27 +974,17 @@ impl QueryResultCache {
         Ok(self.evict(keys))
     }
 
-    /// Evict the entries composing any collection of `child_type` (#1589).
+    /// Refuse the entries composing any collection of `child_type` from now on (#1589), on
+    /// their next hit (#1778).
     ///
     /// # Errors
     ///
     /// This method is infallible. The `Result` return type is kept for API compatibility.
-    pub fn invalidate_collections_of(&self, child_type: &str) -> Result<u64> {
-        if !self.config.enabled {
-            return Ok(0);
+    pub fn invalidate_collections_of(&self, child_type: &str) -> Result<()> {
+        if self.config.enabled {
+            self.fence.stamp_collection_type(child_type);
         }
-        self.fence.stamp_collection_type(child_type);
-        let keys: HashSet<u64> = self
-            .collection_index
-            .get(child_type)
-            .map(|by_type| {
-                by_type
-                    .iter()
-                    .flat_map(|refs| refs.iter().map(|r| r.0).collect::<Vec<_>>())
-                    .collect()
-            })
-            .unwrap_or_default();
-        Ok(self.evict(keys))
+        Ok(())
     }
 
     /// Evict `keys`, counting them as invalidations. No index guard may be held: the eviction
@@ -1095,7 +1009,7 @@ impl QueryResultCache {
     /// # Errors
     ///
     /// This method is infallible. The `Result` return type is kept for API compatibility.
-    pub fn invalidate_views_except_collections(&self, views: &[ViewName]) -> Result<u64> {
+    pub fn invalidate_views_except_collections(&self, views: &[ViewName]) -> Result<()> {
         self.sweep_views(views, Sweep::Feed)
     }
 
@@ -1106,22 +1020,20 @@ impl QueryResultCache {
     /// # Errors
     ///
     /// This method is infallible. The `Result` return type is kept for API compatibility.
-    pub fn invalidate_views_except_by_id(&self, views: &[ViewName]) -> Result<u64> {
+    pub fn invalidate_views_except_by_id(&self, views: &[ViewName]) -> Result<()> {
         self.sweep_views(views, Sweep::Write)
     }
 
-    /// Invalidate entries accessing specified views.
+    /// Refuse every entry reading one of `views` from now on.
     ///
-    /// Uses the `view_index` for O(k) lookup instead of O(n) full-cache scan.
-    /// Keys accessing multiple views in `views` are deduplicated before invalidation.
+    /// Nothing is evicted, so nothing is counted: each entry is left in the store and refused
+    /// on its next hit, until a fill of its key replaces it or the store's capacity policy
+    /// drops it (#1778). A read in flight across this call is never served either: its
+    /// entry's snapshot predates the stamp.
     ///
     /// # Arguments
     ///
     /// * `views` - List of view/table names modified by mutation
-    ///
-    /// # Returns
-    ///
-    /// Number of cache entries invalidated.
     ///
     /// # Errors
     ///
@@ -1136,67 +1048,26 @@ impl QueryResultCache {
     /// let cache = QueryResultCache::new(CacheConfig::default());
     ///
     /// // After createUser mutation
-    /// let invalidated = cache.invalidate_views(&[ViewName::from("v_user")])?;
-    /// println!("Invalidated {} cache entries", invalidated);
+    /// cache.invalidate_views(&[ViewName::from("v_user")])?;
     /// # Ok::<(), fraiseql_core::error::FraiseQLError>(())
     /// ```
-    pub fn invalidate_views(&self, views: &[ViewName]) -> Result<u64> {
+    pub fn invalidate_views(&self, views: &[ViewName]) -> Result<()> {
         self.sweep_views(views, Sweep::Full)
     }
 
-    /// Evict the entries indexed under `views`, as far as `sweep` reaches: also those whose
-    /// levels tagged by collection read one of them (#1589), and those reading one row of one
-    /// by id (#1576).
-    fn sweep_views(&self, views: &[ViewName], sweep: Sweep) -> Result<u64> {
+    /// Stamp `views`, as far as `sweep` reaches: also the entries whose levels tagged by
+    /// collection read one of them (#1589), and those reading one row of one by id (#1576).
+    fn sweep_views(&self, views: &[ViewName], sweep: Sweep) -> Result<()> {
         if !self.config.enabled {
-            return Ok(0);
+            return Ok(());
         }
-
-        // Stamp BEFORE collecting keys (#1079). A read whose database round trip
-        // straddles this call must observe the stamp even if it snapshotted a moment
-        // ago — stamping first means the window can only ever be too wide (a refused
-        // cache write), never too narrow (a stale entry). Only these views' fills are
-        // fenced (#1584).
         let names = views.iter().map(ViewName::as_str);
         match sweep {
             Sweep::Full => self.fence.stamp_views(names),
             Sweep::Write => self.fence.stamp_write_views(names),
             Sweep::Feed => self.fence.stamp_feed_views(names),
         }
-        let indexes: &[&ViewIndex] = match sweep {
-            Sweep::Full => &[
-                &self.view_index,
-                &self.collected_view_index,
-                &self.by_id_view_index,
-            ],
-            Sweep::Write => &[&self.view_index, &self.collected_view_index],
-            Sweep::Feed => &[&self.view_index],
-        };
-
-        // Collect keys first (releases DashMap guards) then invalidate.
-        // Moka's eviction listener fires synchronously on the calling thread, so
-        // we must NOT hold any DashMap shard guard when calling store.invalidate() —
-        // the listener itself calls view_index.get() on the same shard, which
-        // would deadlock on a non-re-entrant parking_lot::RwLock.
-        let mut keys_to_invalidate: HashSet<u64> = HashSet::new();
-        for view in views {
-            // ViewName implements Borrow<str>, so DashMap lookup by &str works
-            // without materialising a fresh ViewName.
-            for index in indexes {
-                if let Some(keys) = index.get(view.as_str()) {
-                    // Dedup: a query accessing multiple views in `views` would
-                    // otherwise be counted and invalidated once per view, and a
-                    // key mid-replacement is registered under two epochs.
-                    for reference in keys.iter() {
-                        keys_to_invalidate.insert(reference.0);
-                    }
-                }
-                // Guard dropped here — safe to proceed
-            }
-        }
-
-        // Index cleanup handled by eviction listener.
-        Ok(self.evict(keys_to_invalidate))
+        Ok(())
     }
 
     /// Evict cache entries that contain a specific entity UUID.
@@ -1313,11 +1184,8 @@ impl QueryResultCache {
         self.store.invalidate_all();
         // Reset indexes and memory counter synchronously — don't rely on the
         // async eviction listener to do this.
-        self.view_index.clear();
         self.entity_index.clear();
-        self.collected_view_index.clear();
         self.collection_index.clear();
-        self.by_id_view_index.clear();
         self.by_id_index.clear();
         self.memory_bytes.store(0, Ordering::Relaxed);
         Ok(())

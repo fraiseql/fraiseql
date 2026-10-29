@@ -1,49 +1,40 @@
-//! The insert fence of [`QueryResultCache`](super::QueryResultCache) (#1079, #1584, #1605).
+//! The invalidation sequence of [`QueryResultCache`](super::QueryResultCache): what refuses
+//! a stale entry (#1079, #1584, #1605, #1778).
 //!
-//! A cached read is `get` → miss → **await the database** → `put`. An invalidation landing
-//! inside that await evicts nothing (the key is not registered yet), and the `put` would then
-//! store rows fetched before the write committed. The fence refuses such a fill.
+//! A cached read is `get` → miss → **await the database** → `put`. Every invalidation takes
+//! the next number of one sequence; a read snapshots it before its round trip, and its
+//! entry is refused whenever an invalidation reaching it stamped a later number. Two kinds
+//! of key, refused two ways:
 //!
-//! # What a stamp must reach
+//! - **Names** — a view (swept in full, by a change feed or a write that names its collections,
+//!   #1589, #1603, or by a write that reported its rows, #1576), a type read by id, a collection's
+//!   child type, and `clear`. Bounded by the schema, a few per entry. Each has an exact counter
+//!   ([`super::names`]), checked on **every hit**: nothing is evicted by name, and a fill
+//!   straddling a stamp is stored but never served.
+//! - **Rows** — an entity `(type, id)` (#1605), a row read by id (#1576), a collection of one
+//!   parent (#1589). Values, one per row an entry holds. Evicted eagerly through the row indexes,
+//!   and fenced **at the fill**, below: a hit never pays for them.
 //!
-//! The rule every slot below follows: **an invalidation fences exactly the fills its own key
-//! collection would have evicted, had they been stored before it.** A fill it would not have
-//! evicted cannot be made stale by it: had the fill landed first, the invalidation would
-//! have left it in place, so letting it land second changes nothing. Whatever else the write
-//! changed is the business of the invalidations that do reach it (its views, its
-//! collections, its feed), each fenced by its own stamp. Refusing more is never unsound,
-//! only a missed cache write; refusing less is a stale entry.
+//! # What a row stamp must reach
 //!
-//! So every invalidation takes the next number of one sequence and stamps it on what its
-//! eviction is keyed by:
+//! **An invalidation fences exactly the fills its own key collection would have evicted, had
+//! they been stored before it.** A fill it would not have evicted cannot be made stale by it:
+//! had the fill landed first, the invalidation would have left it in place. Refusing more is
+//! never unsound, only a missed cache write; refusing less is a stale entry. So an eviction of
+//! the entity `(type, id)` stamps that row's slot, and fences the fills holding it and no
+//! other fill of the type: under a steady stream of comment writes a per-type stamp refused
+//! every composed read holding *any* comment. A fill is checked against the slot of every
+//! row reference it will be indexed under, read from the rows it fetched.
 //!
-//! - a sweep of views: a slot per view (a change feed's, or a write's that names its collections, a
-//!   slot of its own: those do not reach the views of levels tagged by collection, #1589, #1603; a
-//!   write that reported its rows, another: it does not reach reads of one row by id, #1576);
-//! - an eviction of the entity `(type, id)` (`invalidate_by_entity`): the slot of that row (#1605).
-//!   It evicts the entries whose entity references hold that id, so it fences the fills that hold
-//!   it, and no other fill of the type. Under a steady stream of comment writes a per-type stamp
-//!   refused every composed read holding *any* comment;
-//! - an eviction of collections: a slot per collection and parent, or per child type (#1589);
-//! - a read of one row by its id (#1576): its own `(type, id)` slot, its type's, and a full sweep
-//!   of its views;
-//! - `clear`: every fill at once.
-//!
-//! A read snapshots the sequence before its round trip; its fill is refused when a slot it
-//! would be indexed under carries a later stamp. The fill is checked against the slots of
-//! **every** reference it will be indexed under: its views, and each `(type, id)` its rows and
-//! its composed levels hold, read from the rows it fetched, which are exactly what the entity
-//! index will register.
-//!
-//! Slots are fixed arrays indexed by a hash of the name, so a name never outlives anything
-//! and arbitrary names cost no memory. Two names sharing a slot only fence each other's fills
-//! too eagerly: a missed cache write, never a stale entry. Rows, read by id or evicted by
-//! entity, have an array of their own, larger: a write stamps every row it rewrote, many
-//! more names than views or types.
+//! Row slots are a fixed array indexed by a hash, so arbitrary ids cost no memory. Two rows
+//! sharing a slot only fence each other's fills too eagerly, and only for the round trip of a
+//! read. Names have slots too, never checked against a fill: a name's counter, created by
+//! the first fill holding it, starts at its slot, which holds every stamp the name took
+//! before it had one.
 //!
 //! # Ordering
 //!
-//! Every access is `SeqCst`. An invalidation stamps **before** it collects keys; a fill checks
+//! Every access is `SeqCst`. A row invalidation stamps **before** it collects keys; a fill checks
 //! **after** it is in the store, with a read-modify-write on each slot. Either the fill's
 //! check reads the stamp, and it withdraws its own entry, or the check precedes the stamp in
 //! the slot's modification order, and the insert happens-before the invalidation's key
@@ -266,25 +257,17 @@ impl InvalidationFence {
         let moved = |domain: u8, parts: &[&str]| read(self.slot(domain, parts)) > snapshot;
         read(&self.everything) > snapshot
             || reach
-                .views
-                .iter()
-                .any(|v| moved(VIEW, &[v]) || moved(FEED_VIEW, &[v]) || moved(WRITE_VIEW, &[v]))
-            || reach
-                .collected_views
-                .iter()
-                .any(|v| moved(VIEW, &[v]) || moved(WRITE_VIEW, &[v]))
-            || reach.by_id.as_ref().is_some_and(|((t, id), views)| {
-                read(self.row_slot(BY_ID, t, id)) > snapshot
-                    || moved(BY_ID_TYPE, &[t])
-                    || views.iter().any(|v| moved(VIEW, &[v]))
-            })
+                .by_id
+                .as_ref()
+                .is_some_and(|((t, id), _)| read(self.row_slot(BY_ID, t, id)) > snapshot)
             || reach
                 .entities
                 .iter()
                 .any(|(t, id)| read(self.row_slot(ENTITY, t, id)) > snapshot)
-            || reach.collections.iter().any(|(t, c, p)| {
-                moved(COLLECTION_TYPE, &[t]) || moved(COLLECTION_MEMBER, &[t, c, p])
-            })
+            || reach
+                .collections
+                .iter()
+                .any(|&member| moved(COLLECTION_MEMBER, &<[&str; 3]>::from(member)))
     }
 
     fn next(&self) -> u64 {

@@ -16,18 +16,14 @@ use super::{
 use crate::{db::DatabaseAdapter, error::Result};
 
 impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
-    /// Invalidate cache entries that read from specified views.
+    /// Refuse every cache entry reading one of `views`, or a view embedding one.
     ///
-    /// Call this after mutations to ensure cache consistency. All cache entries
-    /// that accessed any of the modified views will be removed.
+    /// Call this after mutations to ensure cache consistency. Nothing is evicted, so
+    /// nothing is counted: each entry is refused on its next hit (#1778).
     ///
     /// # Arguments
     ///
     /// * `views` - List of views/tables that were modified
-    ///
-    /// # Returns
-    ///
-    /// Number of cache entries invalidated
     ///
     /// # Errors
     ///
@@ -41,12 +37,11 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
     /// # use fraiseql_db::ViewName;
     /// # async fn example(adapter: CachedDatabaseAdapter<PostgresAdapter>) -> Result<(), Box<dyn std::error::Error>> {
     /// // After creating a user
-    /// let count = adapter.invalidate_views(&[ViewName::from("v_user")])?;
-    /// println!("Invalidated {} cache entries", count);
+    /// adapter.invalidate_views(&[ViewName::from("v_user")])?;
     /// # Ok(())
     /// # }
     /// ```
-    pub fn invalidate_views(&self, views: &[ViewName]) -> Result<u64> {
+    pub fn invalidate_views(&self, views: &[ViewName]) -> Result<()> {
         invalidate_expanded(&self.cache, self.cascade_invalidator.as_ref(), views)
     }
 
@@ -68,18 +63,18 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
     }
 }
 
-/// Evict every entry reading one of `views`, or a view that embeds one of them through
+/// Refuse every entry reading one of `views`, or a view that embeds one of them through
 /// `cascade` (#1575). The one implementation for this server's writes and for another
 /// server's announced evictions (#1577).
 pub(super) fn invalidate_expanded(
     cache: &QueryResultCache,
     cascade: Option<&Arc<Mutex<CascadeInvalidator>>>,
     views: &[ViewName],
-) -> Result<u64> {
-    // When caching is disabled, both the shard scan and the CascadeInvalidator
-    // mutex are unnecessary — skip them entirely to avoid serializing mutations.
+) -> Result<()> {
+    // When caching is disabled, the CascadeInvalidator mutex is unnecessary — skip it
+    // entirely to avoid serializing mutations.
     if !cache.is_enabled() {
-        return Ok(0);
+        return Ok(());
     }
     cache.invalidate_views(&expand(cascade, views)?)
 }
@@ -98,9 +93,9 @@ pub(super) fn invalidate_written(
     cascade: Option<&Arc<Mutex<CascadeInvalidator>>>,
     views: &[ViewName],
     changed: &ChangedRows,
-) -> Result<u64> {
+) -> Result<()> {
     if !cache.is_enabled() {
-        return Ok(0);
+        return Ok(());
     }
     let views = expand(cascade, views)?;
     // A key that is not `<child type>.<column>` names no collection: unknown, as none.
@@ -114,29 +109,29 @@ pub(super) fn invalidate_written(
                 })
                 .collect()
         });
-    let mut evicted = match collections {
+    match collections {
         Some(_) => cache.invalidate_views_except_collections(&views)?,
         None => cache.invalidate_views_except_by_id(&views)?,
-    };
+    }
     for (type_name, ids) in &changed.rows {
         for id in ids {
-            evicted += cache.invalidate_by_id(type_name, id)?;
+            cache.invalidate_by_id(type_name, id)?;
         }
     }
     for type_name in &changed.types {
-        evicted += cache.invalidate_by_id_type(type_name)?;
+        cache.invalidate_by_id_type(type_name)?;
     }
     if let Some(collections) = collections {
         for (collection, parents) in collections {
             for parent in parents {
-                evicted += cache.invalidate_collection(&collection, parent)?;
+                cache.invalidate_collection(&collection, parent)?;
             }
         }
         for type_name in &changed.types {
-            evicted += cache.invalidate_collections_of(type_name)?;
+            cache.invalidate_collections_of(type_name)?;
         }
     }
-    Ok(evicted)
+    Ok(())
 }
 
 /// `views` and every view that embeds one of them through `cascade` (#1575).

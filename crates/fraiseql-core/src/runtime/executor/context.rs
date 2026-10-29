@@ -190,8 +190,8 @@ impl ExecutorContext {
         self.adapter.clear_result_cache().await
     }
 
-    /// Evict adapter-level result-cache entries derived from the given views.
-    pub(super) async fn invalidate_views(&self, views: &[ViewName]) -> Result<u64> {
+    /// Refuse adapter-level result-cache entries derived from the given views.
+    pub(super) async fn invalidate_views(&self, views: &[ViewName]) -> Result<()> {
         self.adapter.invalidate_views(views).await
     }
 

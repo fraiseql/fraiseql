@@ -5042,10 +5042,10 @@ mod cascade {
             true
         }
 
-        async fn invalidate_views(&self, views: &[fraiseql_db::ViewName]) -> Result<u64> {
+        async fn invalidate_views(&self, views: &[fraiseql_db::ViewName]) -> Result<()> {
             let mut captured = self.invalidated_views.lock().unwrap();
             captured.extend(views.iter().map(|v| v.as_str().to_string()));
-            Ok(views.len() as u64)
+            Ok(())
         }
 
         async fn execute_with_projection(
@@ -7574,9 +7574,9 @@ mod batch {
     // async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
     #[async_trait]
     impl DatabaseAdapter for CountingAdapter {
-        async fn invalidate_views(&self, views: &[fraiseql_db::ViewName]) -> Result<u64> {
+        async fn invalidate_views(&self, _views: &[fraiseql_db::ViewName]) -> Result<()> {
             self.invalidation.fetch_add(1, Ordering::SeqCst);
-            Ok(views.len() as u64)
+            Ok(())
         }
 
         async fn execute_with_projection(
@@ -7796,9 +7796,9 @@ mod dry_run {
             true
         }
 
-        async fn invalidate_views(&self, views: &[fraiseql_db::ViewName]) -> Result<u64> {
+        async fn invalidate_views(&self, _views: &[fraiseql_db::ViewName]) -> Result<()> {
             self.invalidation.fetch_add(1, Ordering::SeqCst);
-            Ok(views.len() as u64)
+            Ok(())
         }
 
         async fn execute_with_projection(

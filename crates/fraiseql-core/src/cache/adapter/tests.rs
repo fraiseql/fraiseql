@@ -319,10 +319,9 @@ async fn test_invalidation_clears_cache() {
     assert_eq!(adapter.inner().call_count(), 1);
 
     // Invalidate
-    let invalidated = adapter
+    adapter
         .invalidate_views(&[ViewName::from("v_user")])
         .expect("invalidate_views must succeed");
-    assert_eq!(invalidated, 1);
 
     // Query 3 - cache miss again (was invalidated)
     adapter
@@ -785,8 +784,7 @@ async fn test_cascade_invalidator_expands_transitive_views() {
     assert_eq!(adapter.inner().call_count(), 3);
 
     // Invalidate only the base view; cascade should evict dependents too
-    let count = adapter.invalidate_views(&[ViewName::from("v_user")]).unwrap();
-    assert_eq!(count, 3, "All three views should be invalidated via cascade");
+    adapter.invalidate_views(&[ViewName::from("v_user")]).unwrap();
 
     // All three should now be cache misses
     adapter
@@ -866,8 +864,7 @@ async fn test_no_cascade_invalidator_only_direct_views() {
     assert_eq!(adapter.inner().call_count(), 2);
 
     // Only v_user is invalidated — v_user_stats remains cached
-    let count = adapter.invalidate_views(&[ViewName::from("v_user")]).unwrap();
-    assert_eq!(count, 1);
+    adapter.invalidate_views(&[ViewName::from("v_user")]).unwrap();
 
     adapter
         .execute_where_query("v_user", Some(&where_clause), None, None, None)

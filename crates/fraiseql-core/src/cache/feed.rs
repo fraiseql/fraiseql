@@ -354,7 +354,7 @@ impl CacheEvictor {
     /// # Errors
     ///
     /// When the embedding graph's lock is poisoned.
-    pub fn apply(&self, eviction: &Eviction) -> Result<u64> {
+    pub fn apply(&self, eviction: &Eviction) -> Result<()> {
         match eviction {
             Eviction::Views(views) => {
                 let views: Vec<ViewName> =
@@ -368,11 +368,8 @@ impl CacheEvictor {
             Eviction::Entity {
                 entity_type,
                 entity_id,
-            } => self.cache.invalidate_by_entity(entity_type, entity_id),
-            Eviction::Everything => {
-                self.cache.clear()?;
-                Ok(0)
-            },
+            } => self.cache.invalidate_by_entity(entity_type, entity_id).map(drop),
+            Eviction::Everything => self.cache.clear(),
         }
     }
 

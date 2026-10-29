@@ -86,7 +86,7 @@ fn a_type_evicts_every_read_of_its_rows_by_id() {
     let cache = cache();
     read_user(&cache, 1, A, None);
     read_user(&cache, 2, B, None);
-    assert_eq!(cache.invalidate_by_id_type("User").unwrap(), 2);
+    cache.invalidate_by_id_type("User").unwrap();
     assert!(!cached(&cache, 1) && !cached(&cache, 2));
 }
 

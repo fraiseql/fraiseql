@@ -293,6 +293,65 @@ async fn the_three_admin_cache_endpoints_agree() {
     let _ = handle.await;
 }
 
+/// An `entity` clear invalidates without counting (#1778): the query result cache refuses
+/// each entry reading the type's view on its next read rather than dropping it, so it
+/// reports no count, and says it served the scope rather than that it could not.
+#[tokio::test]
+async fn an_entity_clear_invalidates_the_query_result_cache_without_counting() {
+    let calls = Arc::new(AtomicU64::new(0));
+    let adapter = CountingAdapter {
+        calls: Arc::clone(&calls),
+    };
+    let server = Server::new(admin_config(), schema(), Arc::new(adapter), None)
+        .await
+        .expect("Server::new");
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.expect("bind");
+    let port = listener.local_addr().expect("addr").port();
+    let (tx, rx) = tokio::sync::oneshot::channel::<()>();
+    let handle = tokio::spawn(async move {
+        server
+            .serve_on_listener(listener, async {
+                let _ = rx.await;
+            })
+            .await
+    });
+    let client = Client {
+        port,
+        http: reqwest::Client::new(),
+    };
+
+    let _ = client.graphql("query { prices { id } }").await;
+    let _ = client.graphql("query { prices { id } }").await;
+    assert_eq!(calls.load(Ordering::SeqCst), 1, "the second query is served from cache");
+
+    let (status, cleared) = client
+        .post_json(
+            "/api/v1/admin/cache/clear",
+            serde_json::json!({"scope": "entity", "entity_type": "Price"}),
+        )
+        .await;
+    assert_eq!(status, 200, "got: {cleared}");
+    let entry = cache_entry(&cleared["data"], "query_result");
+    assert_eq!(entry["configured"], true);
+    assert!(entry["entries_cleared"].is_null(), "nothing is counted; got: {cleared}");
+    assert!(entry["note"].is_null(), "a note says the scope was not served; got: {cleared}");
+    let message = cleared["data"]["message"].as_str().unwrap_or_default();
+    assert!(
+        message.starts_with("Invalidated query_result"),
+        "the message must say the cache was invalidated; got: {cleared}"
+    );
+
+    let _ = client.graphql("query { prices { id } }").await;
+    assert_eq!(
+        calls.load(Ordering::SeqCst),
+        2,
+        "after an entity clear the next query must reach the adapter again"
+    );
+
+    let _ = tx.send(());
+    let _ = handle.await;
+}
+
 /// The other half of the vocabulary: with the cache off, every endpoint says so.
 #[tokio::test]
 async fn with_the_cache_off_every_endpoint_says_so() {

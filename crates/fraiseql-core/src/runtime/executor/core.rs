@@ -583,14 +583,12 @@ impl Executor {
         self.ctx.clear_result_cache().await
     }
 
-    /// Evict adapter-level result-cache entries derived from the given views.
-    ///
-    /// Returns the number of entries removed; `0` on a backend with no such cache.
+    /// Refuse adapter-level result-cache entries derived from the given views, from now on.
     ///
     /// # Errors
     ///
-    /// Returns the backend's own error when eviction fails.
-    pub async fn invalidate_views(&self, views: &[ViewName]) -> Result<u64> {
+    /// Returns the backend's own error when invalidation fails.
+    pub async fn invalidate_views(&self, views: &[ViewName]) -> Result<()> {
         self.ctx.invalidate_views(views).await
     }
 

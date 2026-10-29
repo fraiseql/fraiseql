@@ -125,8 +125,10 @@ pub struct CacheClearResponse {
 /// What one cache did for one admin request.
 ///
 /// `configured = false` means the cache is not present on this server at all;
-/// `entries_cleared = null` on a configured cache means it cannot serve this scope,
-/// and `note` says so. The two used to be indistinguishable: every non-Arrow
+/// a `note` on a configured cache means it cannot serve this scope, and says why.
+/// `entries_cleared = null` with no `note` means it served the scope without counting:
+/// the query result cache's `entity` scope refuses each entry on its next read rather
+/// than dropping it now (#1778). The two used to be indistinguishable: every non-Arrow
 /// deployment got `500 Cache not configured` while its query result cache was
 /// serving traffic (#941).
 #[derive(Debug, Serialize)]
@@ -135,7 +137,8 @@ pub struct CacheOperationResult {
     pub cache:           &'static str,
     /// Whether this cache exists on this server.
     pub configured:      bool,
-    /// Entries dropped, or `null` when the scope does not apply to this cache.
+    /// Entries dropped, or `null` when the scope does not apply to this cache or the
+    /// cache does not count what it invalidates.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub entries_cleared: Option<usize>,
     /// Why nothing happened, when nothing happened.
@@ -374,8 +377,11 @@ pub async fn cache_clear_handler(
     caches.push(clear_arrow_flight_cache(&state, &req));
 
     let entries_cleared: usize = caches.iter().filter_map(|c| c.entries_cleared).sum();
-    let served: Vec<&str> =
-        caches.iter().filter(|c| c.entries_cleared.is_some()).map(|c| c.cache).collect();
+    let served: Vec<&str> = caches
+        .iter()
+        .filter(|c| c.configured && c.note.is_none())
+        .map(|c| c.cache)
+        .collect();
 
     info!(
         operation = "admin.cache_clear",
@@ -386,10 +392,22 @@ pub async fn cache_clear_handler(
         "Admin: cache cleared"
     );
 
-    let message = if served.is_empty() {
-        format!("No cache on this server can serve scope '{}'", req.scope)
-    } else {
-        format!("Cleared {entries_cleared} entries from {}", served.join(", "))
+    let counted: Vec<&str> =
+        caches.iter().filter(|c| c.entries_cleared.is_some()).map(|c| c.cache).collect();
+    let uncounted: Vec<&str> =
+        served.iter().copied().filter(|cache| !counted.contains(cache)).collect();
+    let message = match (counted.is_empty(), uncounted.is_empty()) {
+        (true, true) => format!("No cache on this server can serve scope '{}'", req.scope),
+        (false, true) => format!("Cleared {entries_cleared} entries from {}", counted.join(", ")),
+        (true, false) => format!(
+            "Invalidated {}: its entries are refused on their next read, not counted",
+            uncounted.join(", ")
+        ),
+        (false, false) => format!(
+            "Cleared {entries_cleared} entries from {}; invalidated {}, not counted",
+            counted.join(", "),
+            uncounted.join(", ")
+        ),
     };
 
     Ok(Json(ApiResponse {
@@ -444,11 +462,12 @@ async fn clear_query_result_cache(
                     )),
                 });
             };
-            let evicted = executor
+            executor
                 .invalidate_views(&[fraiseql_core::cache::ViewName::from(view.as_str())])
                 .await
                 .map_err(|e| ApiError::internal_error(format!("Cache clear failed: {e}")))?;
-            Some(usize::try_from(evicted).unwrap_or(usize::MAX))
+            // Every entry reading the view is refused on its next read: none is counted.
+            None
         },
         _ => {
             return Ok(CacheOperationResult {

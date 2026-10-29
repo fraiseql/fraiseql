@@ -78,7 +78,7 @@ fn a_child_type_evicts_every_collection_of_it_and_no_other() {
         .put_composed(3, rows(), vec!["tv_post".to_string()], None, None, tags, None)
         .unwrap();
 
-    assert_eq!(cache.invalidate_collections_of("Comment").unwrap(), 2);
+    cache.invalidate_collections_of("Comment").unwrap();
     assert!(!cached(&cache, 1) && !cached(&cache, 2));
     assert!(cached(&cache, 3), "composes tags, not comments");
 }
@@ -89,10 +89,10 @@ fn a_sweep_of_a_collected_view_evicts_unless_it_keeps_collections() {
     compose(&cache, 1, &["p1"], None);
 
     let comments = [ViewName::from("tv_comment")];
-    assert_eq!(cache.invalidate_views_except_collections(&comments).unwrap(), 0);
+    cache.invalidate_views_except_collections(&comments).unwrap();
     assert!(cached(&cache, 1), "the feed names the comments' collections instead");
 
-    assert_eq!(cache.invalidate_views(&comments).unwrap(), 1);
+    cache.invalidate_views(&comments).unwrap();
     assert!(!cached(&cache, 1), "a write FraiseQL ran sweeps it at once");
 }
 
@@ -102,7 +102,7 @@ fn a_sweep_that_keeps_collections_still_evicts_by_the_entrys_own_views() {
     compose(&cache, 1, &["p1"], None);
 
     let posts = [ViewName::from("tv_post")];
-    assert_eq!(cache.invalidate_views_except_collections(&posts).unwrap(), 1);
+    cache.invalidate_views_except_collections(&posts).unwrap();
     assert!(!cached(&cache, 1));
 }
 
@@ -130,12 +130,10 @@ fn a_read_that_straddles_another_child_types_eviction_is_stored() {
 fn an_evicted_entry_leaves_no_collection_behind() {
     let cache = cache();
     compose(&cache, 1, &["p1"], None);
-    cache.invalidate_views(&[ViewName::from("tv_post")]).unwrap();
+    cache.store.invalidate(&1);
     cache.store.run_pending_tasks();
 
     assert_eq!(cache.invalidate_collection(&comments_by_post(), "p1").unwrap(), 0);
-    assert_eq!(cache.invalidate_collections_of("Comment").unwrap(), 0);
-    assert_eq!(cache.invalidate_views(&[ViewName::from("tv_comment")]).unwrap(), 0);
 }
 
 #[test]
@@ -144,8 +142,7 @@ fn a_clear_leaves_no_collection_behind() {
     compose(&cache, 1, &["p1"], None);
     cache.clear().unwrap();
 
-    assert_eq!(cache.invalidate_collections_of("Comment").unwrap(), 0);
-    assert_eq!(cache.invalidate_views(&[ViewName::from("tv_comment")]).unwrap(), 0);
+    assert_eq!(cache.invalidate_collection(&comments_by_post(), "p1").unwrap(), 0);
 }
 
 #[test]

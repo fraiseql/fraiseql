@@ -42,8 +42,7 @@ async fn cache_invalidation_forces_refetch() {
     let _ = cached.execute_where_query("test.v_user", None, None, None, None).await.unwrap();
 
     // Invalidate
-    let evicted = cached.invalidate_views(&[ViewName::from("test.v_user")]).unwrap();
-    assert!(evicted > 0, "should have evicted at least one entry");
+    cached.invalidate_views(&[ViewName::from("test.v_user")]).unwrap();
 
     // Query again — should miss
     let _ = cached.execute_where_query("test.v_user", None, None, None, None).await.unwrap();
