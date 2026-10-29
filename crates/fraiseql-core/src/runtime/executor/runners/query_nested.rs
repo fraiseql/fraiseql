@@ -96,11 +96,18 @@ impl SelectionAccess {
         };
         classify_level(&mut level, root_type, root_fields, "", &mut masked)?;
 
-        let masked_keys = effective_selections(root_fields, root_type, schema)
-            .into_iter()
-            .filter(|sel| masked.contains(&(root_type.to_string(), sel.name.clone())))
-            .map(|sel| sel.response_key().to_string())
-            .collect();
+        let root_types = abstract_members(schema, root_type).unwrap_or_else(|| vec![root_type]);
+        let mut masked_keys: Vec<String> = Vec::new();
+        for type_name in root_types {
+            for sel in effective_selections(root_fields, type_name, schema) {
+                let key = sel.response_key();
+                if masked.contains(&(type_name.to_string(), sel.name.clone()))
+                    && !masked_keys.iter().any(|k| k == key)
+                {
+                    masked_keys.push(key.to_string());
+                }
+            }
+        }
         Ok(Self {
             root: FieldAccessResult {
                 projected: projection_keys,
@@ -204,6 +211,12 @@ fn classify_level(
 ) -> Result<()> {
     let schema = level_ctx.schema;
     let security_context = level_ctx.security_context;
+    if let Some(members) = abstract_members(schema, type_name) {
+        for member in members {
+            classify_level(level_ctx, member, selections, path, masked)?;
+        }
+        return Ok(());
+    }
     let level: Vec<&FieldSelection> = effective_selections(selections, type_name, schema)
         .into_iter()
         .filter(|sel| sel.name != "__typename")
@@ -226,28 +239,60 @@ fn classify_level(
             .find(|f| f.name == sel.name)
             .and_then(|f| object_type_of(&f.field_type));
         if let Some(child) = child {
-            enforce_level_read_gates(schema, type_name, &sel.name, child, security_context)?;
             let child_path = if path.is_empty() {
                 sel.name.clone()
             } else {
                 format!("{path}.{}", sel.name)
             };
-            if let Some(authz) = level_ctx.authz {
-                if level_ctx.asked.insert((type_name.to_string(), child_path.clone())) {
-                    ask_level_authorizer(
-                        authz,
-                        schema,
-                        type_name,
-                        child,
-                        &child_path,
-                        security_context,
-                    )?;
+            for target in level_types(schema, type_name, &sel.name, child)? {
+                enforce_level_read_gates(schema, type_name, &sel.name, target, security_context)?;
+                if let Some(authz) = level_ctx.authz {
+                    // A union or an interface is read as each type it can be, each asked
+                    // for once.
+                    let asked = if target == child {
+                        child_path.clone()
+                    } else {
+                        format!("{child_path}:{target}")
+                    };
+                    if level_ctx.asked.insert((type_name.to_string(), asked)) {
+                        ask_level_authorizer(
+                            authz,
+                            schema,
+                            type_name,
+                            target,
+                            &child_path,
+                            security_context,
+                        )?;
+                    }
                 }
+                classify_level(level_ctx, target, &sel.nested_fields, &child_path, masked)?;
             }
-            classify_level(level_ctx, child, &sel.nested_fields, &child_path, masked)?;
         }
     }
     Ok(())
+}
+
+/// The object types a nested level of `child` reads: `child` itself, or every type a union
+/// or an interface can be — each classified and gated as a read of its own, as a root read
+/// of the abstract type is (`AbstractRead`). A level of a type the schema does not declare
+/// refuses: it would be read with no type's gates.
+fn level_types<'s>(
+    schema: &'s CompiledSchema,
+    parent_type: &str,
+    field: &str,
+    child: &'s str,
+) -> Result<Vec<&'s str>> {
+    if schema.find_type(child).is_some() {
+        return Ok(vec![child]);
+    }
+    schema.possible_types(child).ok_or_else(|| FraiseQLError::Authorization {
+        message:  format!(
+            "'{parent_type}.{field}' reads '{child}', which is not a type of this schema; \
+             refusing rather than reading it ungated"
+        ),
+        action:   Some("read".to_string()),
+        resource: Some(child.to_string()),
+    })
 }
 
 /// Put a nested level of `target` to the #422 authorizer, as a read of its own type: named
@@ -311,6 +356,10 @@ pub(in super::super) fn type_read_refusal(
     type_name: &str,
     security_context: Option<&SecurityContext>,
 ) -> Option<&'static str> {
+    // A union or an interface is read as every type it can be.
+    if let Some(members) = abstract_members(schema, type_name) {
+        return members.iter().find_map(|m| type_read_refusal(schema, m, security_context));
+    }
     let read = own_read(schema, type_name);
     let role = read
         .and_then(|q| q.requires_role.as_deref())
@@ -341,6 +390,15 @@ pub(in super::super) fn masked_value(
     crate::runtime::projection::masked_value(type_def, field)
 }
 
+/// The object types a union or an interface named `type_name` can be; `None` for an object
+/// type, or a name the schema does not declare.
+fn abstract_members<'s>(schema: &'s CompiledSchema, type_name: &str) -> Option<Vec<&'s str>> {
+    if schema.find_type(type_name).is_some() {
+        return None;
+    }
+    schema.possible_types(type_name)
+}
+
 fn null_masked_at(
     value: &mut serde_json::Value,
     type_name: &str,
@@ -348,6 +406,21 @@ fn null_masked_at(
     masked: &HashSet<(String, String)>,
     schema: &CompiledSchema,
 ) {
+    // A union or an interface is masked as the type the document names; one that names
+    // none is masked as every type it can be, so no type's masked field reaches it.
+    if let (serde_json::Value::Object(object), Some(members)) =
+        (&*value, abstract_members(schema, type_name))
+    {
+        let named = object
+            .get("__typename")
+            .and_then(serde_json::Value::as_str)
+            .and_then(|named| members.iter().copied().find(|m| *m == named));
+        let types = named.map_or(members, |member| vec![member]);
+        for member in types {
+            null_masked_at(value, member, selections, masked, schema);
+        }
+        return;
+    }
     match value {
         serde_json::Value::Array(items) => {
             for item in items {
@@ -559,6 +632,43 @@ fn row_gate(
     })
 }
 
+/// Refuse a nested level of `target`, a union or an interface, when a type it can be has a
+/// row predicate that applies to `security_context`: the level holds documents of several
+/// types, and no one type's predicate can filter it. An object type, or a level no type of
+/// which is row-gated for this caller, passes.
+fn refuse_row_gated_members(
+    schema: &CompiledSchema,
+    policy: Option<&dyn RLSPolicy>,
+    parent: &TypeDefinition,
+    field: &FieldDefinition,
+    target: &str,
+    security_context: Option<&SecurityContext>,
+) -> Result<()> {
+    let Some(members) = abstract_members(schema, target) else {
+        return Ok(());
+    };
+    for member in members {
+        let Some(gate) = row_gate(schema, policy, parent, field, member) else {
+            continue;
+        };
+        if row_predicate(schema, policy, gate.query(), member, gate.over(), security_context)?
+            .is_some()
+        {
+            return Err(FraiseQLError::Authorization {
+                message:  format!(
+                    "'{}.{}' reads '{target}', which can be '{member}', whose row security \
+                     applies to this request; a level of several types cannot be filtered by \
+                     one type's predicate, so it is refused rather than served unfiltered",
+                    parent.name, field.name
+                ),
+                action:   Some("read".to_string()),
+                resource: Some(member.to_string()),
+            });
+        }
+    }
+    Ok(())
+}
+
 impl SelectionAccess {
     fn masks(&self, type_name: &str, field: &str) -> bool {
         self.masked.contains(&(type_name.to_string(), field.to_string()))
@@ -594,6 +704,15 @@ impl QueryRunner {
         access: &SelectionAccess,
     ) -> Result<Vec<ComposedEmbed>> {
         let schema = &self.ctx.schema;
+        if let Some(members) = abstract_members(schema, parent_type) {
+            return self.refuse_composed_members(
+                parent_type,
+                &members,
+                selections,
+                security_context,
+                access,
+            );
+        }
         let Some(parent_def) = schema.find_type(parent_type) else {
             return Ok(Vec::new());
         };
@@ -621,6 +740,14 @@ impl QueryRunner {
             let Some(target) = object_type_of(&field.field_type) else {
                 continue;
             };
+            refuse_row_gated_members(
+                schema,
+                self.ctx.config.rls_policy.as_deref(),
+                parent_def,
+                field,
+                target,
+                security_context,
+            )?;
             let children = self.plan_nested_level(target, &subs, security_context, access)?;
             let gate = self.ctx.nested_row_gates.get(parent_type, field.name.as_str());
 
@@ -725,6 +852,32 @@ impl QueryRunner {
         Ok(embeds)
     }
 
+    /// The levels below a union or an interface: none. A level of several types is not
+    /// composed per type, so a row-gated level any of them would need refuses.
+    fn refuse_composed_members(
+        &self,
+        parent_type: &str,
+        members: &[&str],
+        selections: &[FieldSelection],
+        security_context: Option<&SecurityContext>,
+        access: &SelectionAccess,
+    ) -> Result<Vec<ComposedEmbed>> {
+        for member in members {
+            if !self.plan_nested_level(member, selections, security_context, access)?.is_empty() {
+                return Err(FraiseQLError::Authorization {
+                    message:  format!(
+                        "a level of '{parent_type}' read as '{member}' reaches a type whose row \
+                         security applies to this request, which is not applied below a union \
+                         or an interface; refusing rather than serving its rows unfiltered"
+                    ),
+                    action:   Some("read".to_string()),
+                    resource: Some((*member).to_string()),
+                });
+            }
+        }
+        Ok(Vec::new())
+    }
+
     /// Refuse a selection, for a read that cannot carry a composed level, when any nested
     /// level of it reaches a type whose row predicate applies to this caller: the
     /// federation resolver's entity lookup, built in `fraiseql-federation`. (A Relay
@@ -747,6 +900,12 @@ impl QueryRunner {
         surface: &str,
     ) -> Result<()> {
         let schema = &self.ctx.schema;
+        if let Some(members) = abstract_members(schema, parent_type) {
+            for member in members {
+                self.refuse_row_gated_levels(member, selections, security_context, surface)?;
+            }
+            return Ok(());
+        }
         let Some(parent_def) = schema.find_type(parent_type) else {
             return Ok(());
         };
@@ -757,6 +916,14 @@ impl QueryRunner {
             let Some(target) = object_type_of(&field.field_type) else {
                 continue;
             };
+            refuse_row_gated_members(
+                schema,
+                self.ctx.config.rls_policy.as_deref(),
+                parent_def,
+                field,
+                target,
+                security_context,
+            )?;
             if let Some(gate) = self.ctx.nested_row_gates.get(parent_type, field.name.as_str()) {
                 if self
                     .nested_predicate(gate.query(), target, gate.over(), security_context)?
@@ -901,6 +1068,7 @@ fn relation_guards(
         let Some(target) = object_type_of(&field.field_type) else {
             break;
         };
+        refuse_row_gated_members(schema, policy, parent, field, target, security_context)?;
         // A list relation cannot be filtered through (`where` refuses it as a scalar);
         // were it made filterable, it would need the per-element form (ruling AH 5).
         if field.field_type.is_list() {
@@ -1274,6 +1442,26 @@ impl DocumentRowFilter {
         security_context: Option<&SecurityContext>,
     ) -> Result<()> {
         let schema = &ctx.schema;
+        if let Some(members) = abstract_members(schema, root_type) {
+            // `apply` filters by declared type, which a document of several types is not.
+            for member in members {
+                let mut below = Self::default();
+                below.plan(ctx, member, selections, security_context)?;
+                if !below.is_empty() {
+                    return Err(FraiseQLError::Authorization {
+                        message:  format!(
+                            "a level of '{root_type}' read as '{member}' in the document the \
+                             write returned reaches a type whose row security applies to this \
+                             request, which is not applied below a union or an interface; \
+                             refusing before the write rather than serving its rows unfiltered"
+                        ),
+                        action:   Some("read".to_string()),
+                        resource: Some(member.to_string()),
+                    });
+                }
+            }
+            return Ok(());
+        }
         let Some(parent_def) = schema.find_type(root_type) else {
             return Ok(());
         };
@@ -1284,6 +1472,14 @@ impl DocumentRowFilter {
             let Some(target) = object_type_of(&field.field_type) else {
                 continue;
             };
+            refuse_row_gated_members(
+                schema,
+                ctx.config.rls_policy.as_deref(),
+                parent_def,
+                field,
+                target,
+                security_context,
+            )?;
             let key = (root_type.to_string(), field.name.to_string());
             if let std::collections::hash_map::Entry::Vacant(slot) = self.by_field.entry(key) {
                 if let Some(gate) = ctx.nested_row_gates.get(root_type, field.name.as_str()) {
@@ -1519,3 +1715,7 @@ fn meets(document: &serde_json::Value, conditions: &[DocumentCondition]) -> bool
 #[cfg(test)]
 #[path = "query_nested_document_tests.rs"]
 mod document_tests;
+
+#[cfg(test)]
+#[path = "query_nested_abstract_tests.rs"]
+mod abstract_tests;

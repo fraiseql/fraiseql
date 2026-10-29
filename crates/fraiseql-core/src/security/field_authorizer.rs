@@ -208,16 +208,34 @@ pub(crate) fn selection_set_selects_gated_field(
     type_name: &str,
     fields: &[FieldSelection],
 ) -> bool {
+    type_selecting_gated_field(schema, type_name, fields).is_some()
+}
+
+/// The type through which `fields`, selected on `type_name`, reach a policy-gated field:
+/// `type_name` itself, or, at a union or an interface, the first type it can be (in
+/// schema order) whose selection does.
+fn type_selecting_gated_field<'s>(
+    schema: &'s CompiledSchema,
+    type_name: &'s str,
+    fields: &[FieldSelection],
+) -> Option<&'s str> {
     let Some(type_def) = schema.find_type(type_name) else {
-        return false;
+        // A union or an interface selects a gated field when any type it can be does.
+        return schema
+            .possible_types(type_name)?
+            .into_iter()
+            .find(|m| type_selecting_gated_field(schema, m, fields).is_some());
     };
     // Resolve inline `... on T` fragments so a gated field selected through a
     // fragment (interface/union member, e.g. a cascade `entity { ... on Post {
     // gated } }` or a union mutation's `... on Post { gated }`) is not invisible.
-    effective_selections(fields, type_name, schema).iter().any(|sel| {
-        crate::schema::gated_field(&type_def.fields, &sel.name).is_some_and(|f| f.authorize)
-            || selection_field_has_gated_descendant(schema, type_name, sel)
-    })
+    effective_selections(fields, type_name, schema)
+        .iter()
+        .any(|sel| {
+            crate::schema::gated_field(&type_def.fields, &sel.name).is_some_and(|f| f.authorize)
+                || selection_field_has_gated_descendant(schema, type_name, sel)
+        })
+        .then_some(type_name)
 }
 
 /// Returns `true` if `sel` (a field on `parent_type`) has a policy-gated field
@@ -239,16 +257,12 @@ fn selection_field_has_gated_descendant(
     let Some(child_type) = object_type_of(&field_def.field_type) else {
         return false;
     };
-    let Some(child_def) = schema.find_type(child_type) else {
-        return false;
-    };
-    effective_selections(&sel.nested_fields, child_type, schema)
-        .iter()
-        .any(|child_sel| {
-            crate::schema::gated_field(&child_def.fields, &child_sel.name)
-                .is_some_and(|f| f.authorize)
-                || selection_field_has_gated_descendant(schema, child_type, child_sel)
-        })
+    // A level whose type is no object, union or interface of the schema cannot be told
+    // free of gated fields, so it is taken to hold one.
+    if schema.find_type(child_type).is_none() && schema.possible_types(child_type).is_none() {
+        return true;
+    }
+    selection_set_selects_gated_field(schema, child_type, &sel.nested_fields)
 }
 
 /// Returns `true` if a policy-gated field is selected **below** the given fields
@@ -320,14 +334,16 @@ pub(crate) fn deny_if_gated_field_selected(
     fields: &[FieldSelection],
     path: &str,
 ) -> Result<()> {
-    if selection_set_selects_gated_field(schema, type_name, fields) {
+    // At a union or an interface, the refusal names the type it can be that selects the
+    // gated field.
+    if let Some(gated_type) = type_selecting_gated_field(schema, type_name, fields) {
         return Err(FraiseQLError::Authorization {
             message:  format!(
                 "Field-level authorization is not enforced on the {path} path; a policy-gated \
-                 field on type '{type_name}' was selected"
+                 field on type '{gated_type}' was selected"
             ),
             action:   Some("read".to_string()),
-            resource: Some(type_name.to_string()),
+            resource: Some(gated_type.to_string()),
         });
     }
     Ok(())

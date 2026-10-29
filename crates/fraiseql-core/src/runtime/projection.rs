@@ -841,8 +841,18 @@ pub fn project_entity(
 type Masked<'a> = Option<&'a HashSet<(String, String)>>;
 
 /// Whether `masked` masks `field` of `type_name`.
-fn is_masked(masked: Masked<'_>, type_name: &str, field: &str) -> bool {
-    masked.is_some_and(|m| !m.is_empty() && m.contains(&(type_name.to_string(), field.to_string())))
+/// Whether `field` of `type_name` is masked. At a union or an interface, a field any type
+/// it can be masks is masked: the level is not shaped as one of them.
+fn is_masked(masked: Masked<'_>, schema: &CompiledSchema, type_name: &str, field: &str) -> bool {
+    let Some(masked) = masked.filter(|m| !m.is_empty()) else {
+        return false;
+    };
+    let masks = |t: &str| masked.contains(&(t.to_string(), field.to_string()));
+    masks(type_name)
+        || (schema.find_type(type_name).is_none()
+            && schema
+                .possible_types(type_name)
+                .is_some_and(|members| members.into_iter().any(masks)))
 }
 
 /// What a masked field reads as: `null`, or `[]` for a translations sibling, whose
@@ -874,7 +884,7 @@ fn project_entity_at(
             out.insert(sel.response_key().to_string(), JsonValue::String(type_name.to_string()));
             continue;
         }
-        if is_masked(masked, type_name, &sel.name) {
+        if is_masked(masked, schema, type_name, &sel.name) {
             out.insert(sel.response_key().to_string(), masked_value(type_def, &sel.name));
             continue;
         }
@@ -1074,7 +1084,7 @@ fn shape_root(
     for sel in level {
         // A scalar the projector placed is left where it is: only a masked field or an
         // object is looked up.
-        if is_masked(masked, type_name, &sel.name) {
+        if is_masked(masked, schema, type_name, &sel.name) {
             if let Some(slot) = object.get_mut(sel.response_key()) {
                 *slot = masked_value(type_def, &sel.name);
             }
@@ -1127,7 +1137,7 @@ fn shape_level(
                 .unwrap_or(JsonValue::Null);
             (key.to_string(), value)
         });
-        if is_masked(masked, type_name, &sel.name) {
+        if is_masked(masked, schema, type_name, &sel.name) {
             out.insert(key, masked_value(type_def, &sel.name));
             continue;
         }

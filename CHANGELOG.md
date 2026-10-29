@@ -169,6 +169,25 @@ disagreed, and the promise was the part that was wrong.
   The example's comment on `[server.cors] origins` now says what an empty list does: allow
   `http://localhost:3000` only.
 
+- **A nested field of a union or an interface is gated as a read of every type it can
+  be.** A selection below such a field was classified against the abstract type, which
+  declares no fields, so what a read of a member type refuses or masks was served there:
+  a `requires_scope` field (`Reject` or `Mask`), a policy-gated field, the type's
+  `requires_role` and its read's `requires_actor`, the authorizer's decision on the type,
+  and the type's row security. Each is now applied per member:
+  - a member's scoped or policy-gated field refuses or masks only a selection that reaches
+    it (an interface field reaches every implementor, a fragment only its own type);
+  - a member whose read the caller may not make, or that the authorizer denies, refuses the
+    field;
+  - a member whose rows are scoped for the caller (an RLS policy, `inject_params`), or that
+    reaches such a level, refuses the field, on a read, a mutation's returned document, a
+    federation entity lookup and a filter through it: a level of several types is not
+    filtered by one type's predicate;
+  - a nested field of a type the schema does not declare refuses.
+
+  A read through such a field that a member's gate applies to now answers `403` where it
+  answered with data.
+
 - **A `Decimal` is a JSON string of the digits it was stored with (#1751).** Every
   `Decimal` was decoded to a JSON number on its way out, through an `f64`: `1.50` lost its
   scale (`1.5`) and every digit past the fifteenth was rounded, on a read, an aggregate, a
