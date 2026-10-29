@@ -345,6 +345,17 @@ disagreed, and the promise was the part that was wrong.
   derived order differs from the old one only between crates that do not depend on each
   other.
 
+- **A read whose projection prints every `Decimal` as text parses its rows without
+  quoting their numbers (#1792).** A projected read already reads each `Decimal` leaf with
+  `->>`, so its digits arrive as a string, and the per-row quoting pass only copied the
+  row. The pass is now skipped when every position the read can hold a `Decimal` at is
+  such a leaf, or an object built from them. It still runs wherever a `Decimal` can
+  arrive as a number:
+  - a list, or an object read whole;
+  - a field of a union or an interface;
+  - a root typed as one;
+  - a direct read, a composed read, or a read that takes the stored row whole.
+
 ### Fixed
 
 - **`compile --database` advises a date sorted or filtered out of any relation's document,

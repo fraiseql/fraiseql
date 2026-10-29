@@ -129,6 +129,44 @@ pub fn build_typed_projection_fields(
         .collect()
 }
 
+/// Whether `fields`, projected from a document of `parent_type_name`, print every `Decimal`
+/// they can hold as text, so the projected rows need no quoting of their numbers to keep
+/// a `Decimal`'s digits.
+///
+/// Proven per field, never assumed: a `->>` leaf of a declared field, an object built from
+/// sub-fields that are themselves proven, or a value whose declared type reaches no
+/// `Decimal`. Anything else can carry a `Decimal` as a number and fails the read: a list
+/// or an object taken whole, a field below a union or an interface (projected without its
+/// type, so with `->`), and a field the parent type does not declare. A wrong `true` would
+/// round a `Decimal` silently, so an unrecognised shape is a `false`.
+#[must_use]
+pub fn projects_decimals_as_text(
+    fields: &[ProjectionField],
+    schema: &CompiledSchema,
+    parent_type_name: &str,
+    decimals: &crate::runtime::DecimalIndex,
+) -> bool {
+    let type_def = schema.find_type(parent_type_name);
+    fields.iter().all(|field| {
+        // A vector distance and a localized label or map are never a `Decimal`.
+        if field.computed.is_some() || field.localized.is_some() {
+            return true;
+        }
+        let Some(field_def) =
+            type_def.and_then(|td| td.fields.iter().find(|f| f.name == field.source.as_str()))
+        else {
+            return false;
+        };
+        match (&field.kind, &field_def.field_type, &field.sub_fields) {
+            (FieldKind::Text, _, _) => true,
+            (FieldKind::Composite, crate::schema::FieldType::Object(child), Some(sub_fields)) => {
+                projects_decimals_as_text(sub_fields, schema, child, decimals)
+            },
+            _ => !decimals.holds_decimal(&field_def.field_type),
+        }
+    })
+}
+
 /// Declared scalar type of every filterable field on `return_type`, keyed by
 /// the JSONB storage key.
 ///

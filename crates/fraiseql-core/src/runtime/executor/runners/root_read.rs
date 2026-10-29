@@ -831,6 +831,13 @@ impl QueryRunner {
             full_row,
             order_by.as_ref().and_then(|c| c.first()),
         )?;
+        // A projection that prints every `Decimal` its rows can hold as text leaves
+        // the rows' quoting nothing to keep; any other read is parsed with its shape.
+        let decimals = match &projection {
+            Some(kept) if kept.decimals_as_text => None,
+            _ => self.ctx.decimals.read_by(&query_def.name).cloned(),
+        };
+        let projection = projection.map(|kept| kept.hint);
 
         // 13. #1303: the total order this query declares, when the read is paged. After the
         //     projection, which reads the ordering's first clause to project a distance.
@@ -861,7 +868,7 @@ impl QueryRunner {
             response_bytes: self.ctx.config.max_response_bytes,
             nearest_k,
             nearest_count,
-            decimals: self.ctx.decimals.read_by(&query_def.name).cloned(),
+            decimals,
         })))
     }
 
@@ -897,3 +904,7 @@ impl QueryRunner {
 #[cfg(test)]
 #[path = "function_root_tests.rs"]
 mod function_root_tests;
+
+#[cfg(test)]
+#[path = "decimal_text_tests.rs"]
+mod decimal_text_tests;

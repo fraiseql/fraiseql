@@ -30,7 +30,7 @@ use fraiseql_core::{
     runtime::{Executor, relay::encode_node_id},
     schema::{
         CompiledSchema, FieldDefinition, FieldType, InterfaceDefinition, SessionVariableMapping,
-        SessionVariableSource,
+        SessionVariableSource, SourceKind,
     },
     security::SecurityContext,
 };
@@ -73,12 +73,13 @@ INSERT INTO v_selection_conformance_measure (data) VALUES
   ('{"price":19.99,"score":1.5e300,"total":-0.0,"count":1234567890123456789}'::jsonb),
   ('{"price":0.000000000000000000001,"score":0.3333333333333333333333,"total":1.0,
      "count":0}'::jsonb);
-DROP TABLE IF EXISTS v_selection_conformance_ledger;
+DROP TABLE IF EXISTS v_selection_conformance_ledger CASCADE;
 CREATE TABLE v_selection_conformance_ledger (pk_ledger bigint, data jsonb);
 INSERT INTO v_selection_conformance_ledger (pk_ledger, data) VALUES
-  (1, '{"total":1.50,"entry":{"amount":100.00,"memo":"m"},
+  (1, '{"total":1.50,"entry":{"amount":100.00,"memo":"m","splits":[0.10,2.500]},
      "lines":[{"amount":-0.001,"qty":2},{"amount":0,"qty":1}],"rates":[0.10,[2.50],null]}'::jsonb),
   (2, '{"total":12345678901234567890.12,"entry":null,"lines":[],"rates":[]}'::jsonb);
+CREATE OR REPLACE FUNCTION fn_selection_conformance_ledger() RETURNS SETOF v_selection_conformance_ledger LANGUAGE sql STABLE AS 'SELECT * FROM v_selection_conformance_ledger';
 "#;
 
 /// Every key stored `snake_case` under a `camelCase` field, at the root, in a nested object
@@ -98,6 +99,8 @@ INSERT INTO v_selection_conformance_parity (data) VALUES
 
 /// Decimals at the root, in a nested object, in a list of objects and in a list of lists.
 const LEDGER_VIEW: &str = "v_selection_conformance_ledger";
+/// A set-returning function over [`LEDGER_VIEW`]'s rows.
+const LEDGER_FUNCTION: &str = "fn_selection_conformance_ledger";
 
 /// A document of 120 keys, past the 50 pairs one `jsonb_build_object` call could carry (#1544).
 const WIDE_VIEW: &str = "v_selection_conformance_wide";
@@ -144,6 +147,13 @@ fn schema() -> CompiledSchema {
         .with_simple_field("amount", FieldType::Decimal)
         .with_simple_field("memo", FieldType::String)
         .with_simple_field("qty", FieldType::Int)
+        .with_simple_field(
+            "splits",
+            FieldType::List {
+                item:           Box::new(FieldType::Decimal),
+                nullable_items: true,
+            },
+        )
         .build();
     let ledger_type = TestTypeBuilder::new("Ledger", LEDGER_VIEW)
         .with_simple_field("total", FieldType::Decimal)
@@ -210,6 +220,12 @@ fn schema() -> CompiledSchema {
         .returns_list(true)
         .with_sql_source(LEDGER_VIEW)
         .build();
+    // The same rows read from a set-returning function.
+    let mut ledger_rows_query = TestQueryBuilder::new("ledgerRows", "Ledger")
+        .returns_list(true)
+        .with_sql_source(LEDGER_FUNCTION)
+        .build();
+    ledger_rows_query.sql_source_kind = SourceKind::Function;
     let measures_query = TestQueryBuilder::new("measures", "Measure")
         .returns_list(true)
         .with_sql_source(MEASURE_VIEW)
@@ -243,6 +259,7 @@ fn schema() -> CompiledSchema {
         .with_type(entry_type)
         .with_type(ledger_type)
         .with_query(ledgers_query)
+        .with_query(ledger_rows_query)
         .with_type(entry_estimate_type)
         .with_type(region_type)
         .with_type(parity_address_type)
@@ -1030,6 +1047,34 @@ async fn a_decimal_below_the_root_keeps_its_digits() {
         json!({"t": "1.50", "entry": {"a": "100.00"}, "lines": [{"n": "-0.001"}, {"n": "0"}]}),
         "{aliased}"
     );
+}
+
+/// A read from a set-returning function keeps every `Decimal`'s digits, at the root, in a
+/// nested object and in a list of objects, which it reads as the stored array.
+#[tokio::test]
+async fn a_decimal_read_from_a_function_keeps_its_digits() {
+    let Some(exec) = executor().await else {
+        eprintln!("SKIP: no PostgreSQL (set DATABASE_URL)");
+        return;
+    };
+    let response = exec
+        .execute("{ ledgerRows { total entry { amount } lines { amount } } }", None)
+        .await
+        .unwrap();
+    assert_eq!(
+        column(&response, "ledgerRows", "total"),
+        vec![json!("1.50"), json!("12345678901234567890.12")],
+        "{response}"
+    );
+    let first = &response["data"]["ledgerRows"][0];
+    assert_eq!(first["entry"]["amount"], "100.00", "{response}");
+    let nested = exec.execute("{ ledgers { entry { splits } } }", None).await.unwrap();
+    assert_eq!(
+        nested["data"]["ledgers"][0]["entry"]["splits"],
+        json!(["0.10", "2.500"]),
+        "a list inside a projected object is read as its stored array: {nested}"
+    );
+    assert_eq!(first["lines"], json!([{"amount": "-0.001"}, {"amount": "0"}]), "{response}");
 }
 
 /// A read answered from the cache hands back the digits the first read did, and a read

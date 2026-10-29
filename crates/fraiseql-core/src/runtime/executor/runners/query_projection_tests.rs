@@ -173,3 +173,83 @@ fn an_enum_field_projects_its_stored_value() {
     assert!(sql.contains("'kind' VALUE \"data\"->'kind'"), "{sql}");
     assert!(!sql.contains("JSON_OBJECT(RETURNING json)"), "{sql}");
 }
+
+/// `Ledger { total: Decimal, count: Int, entry: Entry, lines: [Entry] }` with
+/// `Entry { amount: Decimal, memo: String }`, and the union `Party` of `Entry`.
+fn decimal_schema() -> CompiledSchema {
+    let mut schema = CompiledSchema::new();
+    let mut ledger = TypeDefinition::new("Ledger", "v_ledger");
+    ledger.fields = vec![
+        FieldDefinition::new("total", FieldType::Decimal),
+        FieldDefinition::new("count", FieldType::Int),
+        FieldDefinition::nullable("entry", FieldType::Object("Entry".to_string())),
+        FieldDefinition::new(
+            "lines",
+            FieldType::List {
+                item:           Box::new(FieldType::Object("Entry".to_string())),
+                nullable_items: true,
+            },
+        ),
+    ];
+    let mut entry = TypeDefinition::new("Entry", "v_entry");
+    entry.fields = vec![
+        FieldDefinition::new("amount", FieldType::Decimal),
+        FieldDefinition::new("memo", FieldType::String),
+        FieldDefinition::new(
+            "splits",
+            FieldType::List {
+                item:           Box::new(FieldType::Decimal),
+                nullable_items: true,
+            },
+        ),
+    ];
+    schema.types = vec![ledger, entry];
+    let mut party = crate::schema::UnionDefinition::new("Party");
+    party.member_types = vec!["Entry".to_string()];
+    schema.unions.push(party);
+    schema
+}
+
+/// Whether `selections`, built into projection fields of `parent` as a read builds them,
+/// print every `Decimal` they can hold as text.
+fn decimals_as_text(selections: &[FieldSelection], parent: &str) -> bool {
+    let schema = decimal_schema();
+    let fields = build_typed_projection_fields(selections, &schema, parent, None);
+    super::projects_decimals_as_text(
+        &fields,
+        &schema,
+        parent,
+        &crate::runtime::DecimalIndex::new(&schema),
+    )
+}
+
+#[test]
+fn decimal_leaves_and_objects_built_from_them_are_printed_as_text() {
+    let leaves = [field("total", None, vec![]), field("count", None, vec![])];
+    assert!(decimals_as_text(&leaves, "Ledger"));
+    let nested = [field("entry", None, vec![field("amount", None, vec![])])];
+    assert!(decimals_as_text(&nested, "Ledger"));
+    assert!(decimals_as_text(&[field("memo", None, vec![])], "Entry"));
+}
+
+#[test]
+fn a_list_or_an_undeclared_parent_can_hold_a_decimal_as_a_number() {
+    let list = [field("lines", None, vec![field("memo", None, vec![])])];
+    assert!(!decimals_as_text(&list, "Ledger"), "a list is read as its stored array");
+    let nested_list = [field("entry", None, vec![field("splits", None, vec![])])];
+    assert!(
+        !decimals_as_text(&nested_list, "Ledger"),
+        "an object is as covered as its fields"
+    );
+    // Below a union, the builder finds no type, so a member's field is read with `->`.
+    assert!(!decimals_as_text(&[field("amount", None, vec![])], "Party"));
+    // An object read without sub-fields is the stored object whole.
+    let schema = decimal_schema();
+    let whole = vec![crate::backend::ProjectionField::composite("entry")];
+    assert!(!super::projects_decimals_as_text(
+        &whole,
+        &schema,
+        "Ledger",
+        &crate::runtime::DecimalIndex::new(&schema),
+    ));
+}

@@ -178,8 +178,18 @@ pub struct CollectedFields {
 pub struct Collected {
     fields:     std::sync::Arc<[FieldSelection]>,
     checked:    [std::sync::OnceLock<()>; 2],
-    projection:
-        std::sync::OnceLock<(ProjectionKey, std::sync::Arc<crate::schema::SqlProjectionHint>)>,
+    projection: std::sync::OnceLock<(ProjectionKey, KeptProjection)>,
+}
+
+/// The projection a document's collected fields read through, and what it decides about
+/// the rows it returns.
+#[derive(Debug, Clone)]
+pub struct KeptProjection {
+    /// The SQL the read selects through.
+    pub hint:             std::sync::Arc<crate::schema::SqlProjectionHint>,
+    /// Every `Decimal` a projected row can hold is a leaf the projection prints as text, so
+    /// the rows are parsed without quoting their numbers.
+    pub decimals_as_text: bool,
 }
 
 /// A check whose verdict depends on a document's collected fields alone. Each has its own
@@ -236,25 +246,17 @@ impl Collected {
     pub fn projection_once<E>(
         &self,
         key: &ProjectionKey,
-        build: impl FnOnce(
-            &[FieldSelection],
-            &ProjectionKey,
-        ) -> Result<crate::schema::SqlProjectionHint, E>,
-    ) -> Result<std::sync::Arc<crate::schema::SqlProjectionHint>, E> {
-        if let Some((kept_key, hint)) = self.projection.get() {
+        build: impl FnOnce(&[FieldSelection], &ProjectionKey) -> Result<KeptProjection, E>,
+    ) -> Result<KeptProjection, E> {
+        if let Some((kept_key, kept)) = self.projection.get() {
             if kept_key == key {
-                return Ok(std::sync::Arc::clone(hint));
+                return Ok(kept.clone());
             }
-            return build(&self.fields, key).map(std::sync::Arc::new);
+            return build(&self.fields, key);
         }
-        let hint = std::sync::Arc::new(build(&self.fields, key)?);
-        let (kept_key, kept) =
-            self.projection.get_or_init(|| (key.clone(), std::sync::Arc::clone(&hint)));
-        Ok(if kept_key == key {
-            std::sync::Arc::clone(kept)
-        } else {
-            hint
-        })
+        let built = build(&self.fields, key)?;
+        let (kept_key, kept) = self.projection.get_or_init(|| (key.clone(), built.clone()));
+        Ok(if kept_key == key { kept.clone() } else { built })
     }
 
     /// The collected fields.

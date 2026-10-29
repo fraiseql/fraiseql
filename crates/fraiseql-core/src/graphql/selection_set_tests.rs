@@ -400,7 +400,9 @@ fn a_passed_check_does_not_stand_in_for_another() {
 #[test]
 fn a_projection_of_collected_fields_is_kept_only_once_it_is_built() {
     use crate::{
-        db::DatabaseType, graphql::selection_set::ProjectionKey, schema::SqlProjectionHint,
+        db::DatabaseType,
+        graphql::selection_set::{KeptProjection, ProjectionKey},
+        schema::SqlProjectionHint,
     };
 
     let fields = written("{ users { id } }");
@@ -417,20 +419,30 @@ fn a_projection_of_collected_fields_is_kept_only_once_it_is_built() {
     assert!(fields.collect(&vars).unwrap().projection_once(&first_key, fail).is_err());
     let build = |_: &[FieldSelection], _: &ProjectionKey| {
         builds.set(builds.get() + 1);
-        Ok::<_, ()>(SqlProjectionHint::new(DatabaseType::PostgreSQL, "p".to_string(), 0))
+        Ok::<_, ()>(KeptProjection {
+            hint:             std::sync::Arc::new(SqlProjectionHint::new(
+                DatabaseType::PostgreSQL,
+                "p".to_string(),
+                0,
+            )),
+            decimals_as_text: false,
+        })
     };
     let first = fields.collect(&vars).unwrap().projection_once(&first_key, build).unwrap();
     let second = fields.collect(&vars).unwrap().projection_once(&first_key, build).unwrap();
     assert_eq!(builds.get(), 3);
-    assert!(std::sync::Arc::ptr_eq(&first, &second), "the second read shares the first's");
+    assert!(
+        std::sync::Arc::ptr_eq(&first.hint, &second.hint),
+        "the second read shares the first's"
+    );
 
     let other_key = ProjectionKey {
         request_chain: Some(vec!["de-DE".to_string()]),
     };
     let other = fields.collect(&vars).unwrap().projection_once(&other_key, build).unwrap();
     assert_eq!(builds.get(), 4, "another key builds its own");
-    assert!(!std::sync::Arc::ptr_eq(&first, &other), "another key reads its own");
+    assert!(!std::sync::Arc::ptr_eq(&first.hint, &other.hint), "another key reads its own");
     let again = fields.collect(&vars).unwrap().projection_once(&first_key, build).unwrap();
     assert_eq!(builds.get(), 4, "the first key's is still kept");
-    assert!(std::sync::Arc::ptr_eq(&first, &again));
+    assert!(std::sync::Arc::ptr_eq(&first.hint, &again.hint));
 }

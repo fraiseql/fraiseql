@@ -118,6 +118,20 @@ impl DecimalIndex {
         self.reads.get(query_name)
     }
 
+    /// Whether a value of `field_type` can hold a `Decimal`, at any depth: one is reachable
+    /// from it exactly where a shape built from this index has a position for one.
+    #[must_use]
+    pub fn holds_decimal(&self, field_type: &FieldType) -> bool {
+        match field_type {
+            FieldType::Decimal => true,
+            FieldType::List { item, .. } => self.holds_decimal(item),
+            FieldType::Object(name) | FieldType::Union(name) | FieldType::Interface(name) => {
+                self.shapes.contains_key(name)
+            },
+            _ => false,
+        }
+    }
+
     /// A mutation response's documents, each read as the type its row stamps; `None` when
     /// the schema holds no `Decimal`.
     #[must_use]

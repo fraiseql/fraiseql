@@ -8,14 +8,15 @@ use super::{
     query::QueryRunner,
     query_params::compute_projection_reduction,
     query_projection::{
-        build_typed_projection_fields, merge_computed_fields, vector_distance_projection_fields,
-        where_field_types,
+        build_typed_projection_fields, merge_computed_fields, projects_decimals_as_text,
+        vector_distance_projection_fields, where_field_types,
     },
     root_read::{DirectReadCost, Door, GatedFieldHandling, RootRoute},
 };
 use crate::{
     backend::{WhereClause, projection_generator::PostgresProjectionGenerator},
     error::{FraiseQLError, Result},
+    graphql::selection_set::KeptProjection,
     runtime::{JsonbStrategy, ResultProjector},
     schema::{FieldType, SqlProjectionHint},
     security::SecurityContext,
@@ -244,7 +245,7 @@ impl QueryRunner {
         plan: &crate::runtime::planner::PlannedProjection,
         full_row: bool,
         nearest: Option<&crate::backend::OrderByClause>,
-    ) -> Result<Option<Arc<SqlProjectionHint>>> {
+    ) -> Result<Option<KeptProjection>> {
         let root_fields = query_match
             .selections
             .first()
@@ -274,11 +275,15 @@ impl QueryRunner {
             }
             let sql =
                 generator.generate_merged_projection_sql(&distance_fields).map_err(internal)?;
-            return Ok(Some(Arc::new(SqlProjectionHint::new(
-                self.ctx.adapter.database_type(),
-                sql,
-                0,
-            ))));
+            // The stored row whole: its numbers arrive as written.
+            return Ok(Some(KeptProjection {
+                hint:             Arc::new(SqlProjectionHint::new(
+                    self.ctx.adapter.database_type(),
+                    sql,
+                    0,
+                )),
+                decimals_as_text: false,
+            }));
         }
 
         // A projection of the document's own fields is built from them and the request's
@@ -292,6 +297,7 @@ impl QueryRunner {
             return_type:     &query_match.query_def.return_type,
             database:        self.ctx.adapter.database_type(),
             projected_count: plan.projection_fields.len(),
+            decimals:        &self.ctx.decimals,
         };
         match query_match.prepared() {
             Some(prepared) if distance_fields.is_empty() => prepared
@@ -301,9 +307,7 @@ impl QueryRunner {
                     projection.build(root_fields, Vec::new(), key)
                 })
                 .map(Some),
-            _ => projection
-                .build(root_fields, distance_fields, &key)
-                .map(|hint| Some(Arc::new(hint))),
+            _ => projection.build(root_fields, distance_fields, &key).map(Some),
         }
     }
 
@@ -1370,6 +1374,7 @@ struct DocumentProjection<'a> {
     return_type:     &'a str,
     database:        crate::db::DatabaseType,
     projected_count: usize,
+    decimals:        &'a crate::runtime::DecimalIndex,
 }
 
 impl DocumentProjection<'_> {
@@ -1386,7 +1391,7 @@ impl DocumentProjection<'_> {
         root_fields: &[crate::graphql::FieldSelection],
         computed: Vec<fraiseql_db::projection_generator::ProjectionField>,
         key: &crate::graphql::selection_set::ProjectionKey,
-    ) -> Result<SqlProjectionHint> {
+    ) -> Result<KeptProjection> {
         // #1554: a projection of stored keys alone can be cut to its page and detoasted
         // before it is projected. A computed field (a vector distance) reads native columns
         // the paged subquery does not expose, so that read keeps the single-`SELECT` shape.
@@ -1398,6 +1403,9 @@ impl DocumentProjection<'_> {
             key.request_chain.as_deref(),
         );
         merge_computed_fields(&mut typed_fields, computed);
+        // Decided from the fields the SQL is generated from, so the two cannot disagree.
+        let decimals_as_text =
+            projects_decimals_as_text(&typed_fields, self.schema, self.return_type, self.decimals);
         let projection_sql = PostgresProjectionGenerator::new()
             .generate_typed_projection_sql(&typed_fields)
             .map_err(|e| FraiseQLError::Internal {
@@ -1412,10 +1420,14 @@ impl DocumentProjection<'_> {
             projection_sql,
             compute_projection_reduction(self.projected_count),
         );
-        Ok(if reads_only_document {
+        let hint = if reads_only_document {
             hint.reading_only_the_document()
         } else {
             hint
+        };
+        Ok(KeptProjection {
+            hint: Arc::new(hint),
+            decimals_as_text,
         })
     }
 }
@@ -1466,6 +1478,7 @@ mod document_projection_tests {
             return_type:     "User",
             database:        crate::db::DatabaseType::PostgreSQL,
             projected_count: 2,
+            decimals:        &crate::runtime::DecimalIndex::default(),
         };
         let key = ProjectionKey {
             request_chain: Some(vec!["fr-FR".to_string(), "en-US".to_string()]),
@@ -1478,14 +1491,14 @@ mod document_projection_tests {
             })
             .await;
             assert_eq!(
-                inside.projection_template, outside.projection_template,
+                inside.hint.projection_template, outside.hint.projection_template,
                 "a projection built in {locale} read the request's locale around its key"
             );
         }
         assert!(
-            outside.projection_template.contains("'fr-FR'"),
+            outside.hint.projection_template.contains("'fr-FR'"),
             "{}",
-            outside.projection_template
+            outside.hint.projection_template
         );
     }
 }

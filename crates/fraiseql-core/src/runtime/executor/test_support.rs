@@ -85,6 +85,8 @@ pub struct CapturingMockAdapter {
     pub captured_projection:       std::sync::Mutex<Option<crate::schema::SqlProjectionHint>>,
     /// The source the last projected read named, with its function arguments.
     pub captured_source:           std::sync::Mutex<Option<CapturedSource>>,
+    /// Whether the last projected read was handed a `Decimal` shape to parse its rows with.
+    pub captured_decimals:         std::sync::Mutex<Option<bool>>,
     /// What `supports_composed_reads` answers; `true` unless built
     /// [`without_composed_reads`](Self::without_composed_reads).
     pub composes_reads:            bool,
@@ -130,6 +132,7 @@ impl CapturingMockAdapter {
             captured_composed: std::sync::Mutex::new(None),
             captured_projection: std::sync::Mutex::new(None),
             captured_source: std::sync::Mutex::new(None),
+            captured_decimals: std::sync::Mutex::new(None),
             composes_reads: true,
             projection_addresses: std::sync::Mutex::new(Vec::new()),
             rendezvous: None,
@@ -218,6 +221,11 @@ impl CapturingMockAdapter {
     pub fn captured_source(&self) -> Option<CapturedSource> {
         self.captured_source.lock().unwrap().clone()
     }
+
+    /// Whether the last projected read was handed a `Decimal` shape; `None` before one.
+    pub fn captured_decimals(&self) -> Option<bool> {
+        *self.captured_decimals.lock().unwrap()
+    }
 }
 
 // Reason: DatabaseAdapter is defined with #[async_trait]; all implementations must match
@@ -277,6 +285,7 @@ impl DatabaseAdapter for CapturingMockAdapter {
         routing: crate::backend::types::ReadRouting,
     ) -> Result<std::sync::Arc<Vec<JsonbValue>>> {
         *self.captured_routing.lock().unwrap() = Some(routing);
+        *self.captured_decimals.lock().unwrap() = Some(request.decimals.is_some());
         *self.captured_source.lock().unwrap() = Some(CapturedSource {
             view: request.view.to_string(),
             args: request.source_args.map(<[serde_json::Value]>::to_vec),
