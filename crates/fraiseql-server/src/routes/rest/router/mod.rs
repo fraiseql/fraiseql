@@ -41,7 +41,11 @@ use super::{
     handler::{RestError, RestHandler, RestResponse},
     resource::{HttpMethod, MountedRoutes, RestRouteTable},
 };
-use crate::{extractors::OptionalSecurityContext, routes::graphql::AppState};
+use crate::{
+    admission::{self, AdmissionPolicy, Refusal},
+    extractors::OptionalSecurityContext,
+    routes::graphql::AppState,
+};
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -155,8 +159,6 @@ fn derive_rest_context(
         tenant_routes: Arc::default(),
         idempotency_store,
         error_sanitizer: Arc::clone(&state.error_sanitizer),
-        #[cfg(feature = "auth")]
-        identity: state.identity.clone(),
         #[cfg(feature = "observers")]
         event_fanout: state.entity_event_fanout.clone(),
         #[cfg(feature = "observers")]
@@ -434,6 +436,33 @@ struct RestScope {
     _dispatch:   Option<crate::routes::graphql::tenant_dispatch::TenantDispatch>,
 }
 
+/// The REST answer to an admission refusal: a credential refusal is 401 with its class's
+/// words, an identity refusal 403 or 503, and a tenant or dispatch refusal its error's own.
+fn refusal_response(
+    refusal: Refusal,
+    sanitizer: &crate::config::error_sanitization::ErrorSanitizer,
+) -> Response {
+    let message = refusal.message().unwrap_or_default();
+    let error = match refusal {
+        Refusal::IdentityDenied => RestError::forbidden(),
+        Refusal::IdentityUnavailable => RestError::service_unavailable(
+            fraiseql_core::security::EnrichmentOutcome::UNAVAILABLE_MESSAGE,
+        ),
+        Refusal::Tenant(error) | Refusal::Dispatch(error) | Refusal::Cost(error) => {
+            RestError::from(error)
+        },
+        Refusal::TokenExpired
+        | Refusal::TokenInvalid
+        | Refusal::TokenRevoked
+        | Refusal::AmbiguousCredentials
+        | Refusal::InvalidApiKey => RestError {
+            message: message.to_string(),
+            ..RestError::unauthenticated()
+        },
+    };
+    rest_result_to_response(Err(error), sanitizer)
+}
+
 impl RestState {
     /// Resolve the request's tenant and the executor and routes it runs on.
     ///
@@ -442,30 +471,24 @@ impl RestState {
     /// own compiled schema. An unregistered or suspended tenant, or an exhausted quota, is
     /// refused by the same `dispatch_to_tenant` `/graphql` uses: never answered from the
     /// default executor.
-    fn scope(
-        &self,
-        security_ctx: Option<&SecurityContext>,
-        headers: &axum::http::HeaderMap,
-    ) -> Result<RestScope, Box<Response>> {
-        use crate::routes::graphql::tenant_dispatch::{dispatch_to_tenant, resolve_tenant_key};
-
+    fn scope(&self, tenant: &admission::Tenant) -> Result<RestScope, Box<Response>> {
         let refuse = |error: super::handler::RestError| {
             Box::new(rest_result_to_response(Err(error), &self.error_sanitizer))
         };
-        let key =
-            resolve_tenant_key(&self.app, security_ctx, headers).map_err(|e| refuse(e.into()))?;
         // No registry: every request runs on the default executor, whatever tenant it
         // names. Deriving a route table per named tenant would grow without bound under
         // anonymous callers choosing `X-Tenant-ID` values.
-        let (Some(key), Some(_)) = (key.as_deref(), self.app.tenant_registry()) else {
+        let (Some(key), Some(_)) = (tenant.key(), self.app.tenant_registry()) else {
             return Ok(RestScope {
                 executor:    Arc::clone(&self.executor),
                 route_table: Arc::clone(&self.route_table),
-                tenant:      key,
+                tenant:      tenant.key().map(str::to_owned),
                 _dispatch:   None,
             });
         };
-        let dispatch = dispatch_to_tenant(&self.app, Some(key)).map_err(|e| refuse(e.into()))?;
+        let dispatch = tenant
+            .dispatch(&self.app)
+            .map_err(|refusal| Box::new(refusal_response(refusal, &self.error_sanitizer)))?;
         let executor = Arc::clone(&dispatch.executor);
         let route_table = self.tenant_route_table(key, &executor).map_err(refuse)?;
         Ok(RestScope {
@@ -521,14 +544,6 @@ struct RestState {
     /// Error sanitizer (from `compiled.security.error_sanitization`). Strips raw DB/SQL
     /// detail from 5xx response bodies before they reach the client (H7).
     error_sanitizer:   Arc<crate::config::error_sanitization::ErrorSanitizer>,
-    /// What a principal resolves against (#1336, #1632), forwarded from `AppState` so a
-    /// REST request resolves exactly as a `/graphql` request does.
-    ///
-    /// Its absence used to be structural rather than configured — `RestState` held no
-    /// resolver at all — which is how a documented "every authenticated request"
-    /// contract came to be honoured by one transport.
-    #[cfg(feature = "auth")]
-    identity:          crate::identity::RequestIdentity,
     /// Export-format configuration from `[export]` in `fraiseql.toml` (#917).
     ///
     /// Carried on the state rather than rebuilt per request: the CSV, XLSX and Parquet
@@ -611,8 +626,6 @@ impl FromRequestParts<RestState> for RestSecurityContext {
         state: &RestState,
     ) -> impl Future<Output = Result<Self, Self::Rejection>> + Send {
         let sanitizer = Arc::clone(&state.error_sanitizer);
-        #[cfg(feature = "auth")]
-        let identity = state.identity.clone();
         let state = state.clone();
 
         async move {
@@ -620,40 +633,34 @@ impl FromRequestParts<RestState> for RestSecurityContext {
                 OptionalSecurityContext::from_request_parts(parts, &())
                     .await
                     .map_err(IntoResponse::into_response)?;
+            let refuse = |refusal: Refusal| refusal_response(refusal, &sanitizer);
 
-            #[cfg(feature = "auth")]
-            let security_ctx = {
-                let mut security_ctx = security_ctx;
-                match crate::identity::resolve_request_identity(&identity, security_ctx.as_mut())
-                    .await
-                {
-                    crate::identity::EnrichmentOutcome::Proceed => security_ctx,
-                    crate::identity::EnrichmentOutcome::Denied => {
-                        return Err(rest_result_to_response(
-                            Err(RestError::forbidden()),
-                            &sanitizer,
-                        ));
-                    },
-                    crate::identity::EnrichmentOutcome::Unavailable => {
-                        return Err(rest_result_to_response(
-                            Err(RestError::service_unavailable(
-                                crate::identity::EnrichmentOutcome::UNAVAILABLE_MESSAGE,
-                            )),
-                            &sanitizer,
-                        ));
-                    },
-                }
-            };
-
+            let identified = admission::identify(
+                &state.app,
+                &parts.headers,
+                security_ctx,
+                &AdmissionPolicy::REST,
+            )
+            .await
+            .map_err(refuse)?;
             // The tenant after the identity is complete, as `/graphql` orders them: the
-            // token's tenant decides the key for an authenticated caller.
-            let rest_scope = state.scope(security_ctx.as_ref(), &parts.headers).map_err(|r| *r)?;
-            let executor = Arc::clone(&rest_scope.executor);
-            let require_auth =
-                executor.schema().rest_config.as_ref().is_some_and(|c| c.require_auth);
-            if require_auth && security_ctx.is_none() {
+            // token's tenant decides the key for an authenticated caller. `require_auth` is
+            // that tenant's, read before it is dispatched, so a refused anonymous request
+            // spends none of its quotas.
+            let tenant = identified.tenant(&state.app, &parts.headers).map_err(refuse)?;
+            let require_auth = tenant
+                .executor(&state.app)
+                .map_err(refuse)?
+                .schema()
+                .rest_config
+                .as_ref()
+                .is_some_and(|c| c.require_auth);
+            if require_auth && identified.security_context().is_none() {
                 return Err(rest_result_to_response(Err(RestError::unauthenticated()), &sanitizer));
             }
+            let rest_scope = state.scope(&tenant).map_err(|r| *r)?;
+            let executor = Arc::clone(&rest_scope.executor);
+            let security_ctx = identified.into_security_context();
 
             let query_pairs = parse_query_pairs(parts.uri.query().unwrap_or(""));
             let argument =

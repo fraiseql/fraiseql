@@ -422,7 +422,13 @@ fn refusal_response(refusal: &Refusal) -> Response {
             error_response(tenant_refusal_status(error), &error.to_string())
         },
         Refusal::Cost(error) => error_response(StatusCode::TOO_MANY_REQUESTS, &error.to_string()),
-        Refusal::InvalidApiKey => error_response(StatusCode::UNAUTHORIZED, "Invalid API key"),
+        Refusal::TokenExpired
+        | Refusal::TokenInvalid
+        | Refusal::TokenRevoked
+        | Refusal::AmbiguousCredentials
+        | Refusal::InvalidApiKey => {
+            error_response(StatusCode::UNAUTHORIZED, refusal.message().unwrap_or_default())
+        },
     }
 }
 

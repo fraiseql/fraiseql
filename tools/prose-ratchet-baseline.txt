@@ -17,7 +17,7 @@ fraiseql-kafka 0
 fraiseql-observers 32
 fraiseql-saga 20
 fraiseql-secrets 4
-fraiseql-server 584
+fraiseql-server 583
 fraiseql-storage 47
 fraiseql-test-support 1
 fraiseql-test-utils 1

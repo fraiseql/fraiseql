@@ -17,7 +17,9 @@
 //! difference is a field of their [`AdmissionPolicy`], not a copy of a step.
 
 use axum::http::HeaderMap;
-use fraiseql_core::security::SecurityContext;
+use fraiseql_core::security::{
+    AuthenticatedUser, EnrichmentOutcome, SecurityContext, SecurityError,
+};
 use fraiseql_error::FraiseQLError;
 
 use crate::{
@@ -25,8 +27,18 @@ use crate::{
         app_state::AppState,
         tenant_dispatch::{self, TenantDispatch},
     },
+    service_account::SaAuth,
     tracing_utils,
 };
+
+/// The answer to a refused bearer token whose validity has passed.
+pub const TOKEN_EXPIRED: &str = "Token has expired";
+/// The answer to a bearer token that does not validate.
+pub const TOKEN_INVALID: &str = "Token is invalid";
+/// The answer to a valid bearer token whose session has been revoked.
+pub const TOKEN_REVOKED: &str = "Token has been revoked";
+/// The answer to a static API key that matches none.
+pub const INVALID_API_KEY: &str = "Invalid API key";
 
 /// What a transport's admission runs beyond the steps every transport runs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -59,12 +71,32 @@ impl AdmissionPolicy {
         stamp_trace: true,
         enrich:      true,
     };
+    /// An MCP tool call, over HTTP or stdio.
+    pub const MCP: Self = Self {
+        api_key:     true,
+        stamp_trace: false,
+        enrich:      true,
+    };
+    /// A REST route.
+    pub const REST: Self = Self {
+        api_key:     true,
+        stamp_trace: false,
+        enrich:      true,
+    };
 }
 
 /// Why admission refused a request. A transport maps it to its own wire; the refusal
 /// itself is the same whichever door the request came through.
 #[derive(Debug)]
 pub enum Refusal {
+    /// A bearer token whose validity has passed.
+    TokenExpired,
+    /// A bearer token that does not validate.
+    TokenInvalid,
+    /// A valid bearer token whose session has been revoked.
+    TokenRevoked,
+    /// A bearer token and a service-account secret on one request: neither is trusted.
+    AmbiguousCredentials,
     /// A static API key was presented, and it is not valid.
     InvalidApiKey,
     /// Identity enrichment denied the subject.
@@ -79,6 +111,74 @@ pub enum Refusal {
     Dispatch(FraiseQLError),
     /// The operation's estimated cost exceeds the tenant's budget.
     Cost(FraiseQLError),
+}
+
+impl Refusal {
+    /// The words a refusal of this class is answered with, the same on every transport:
+    /// `None` for a tenant, dispatch or cost refusal, whose words are its error's.
+    #[must_use]
+    pub const fn message(&self) -> Option<&'static str> {
+        match self {
+            Self::TokenExpired => Some(TOKEN_EXPIRED),
+            Self::TokenInvalid => Some(TOKEN_INVALID),
+            Self::TokenRevoked => Some(TOKEN_REVOKED),
+            Self::AmbiguousCredentials => Some(crate::service_account::AMBIGUOUS_CREDENTIALS),
+            Self::InvalidApiKey => Some(INVALID_API_KEY),
+            Self::IdentityDenied => Some(EnrichmentOutcome::DENIED_MESSAGE),
+            Self::IdentityUnavailable => Some(EnrichmentOutcome::UNAVAILABLE_MESSAGE),
+            Self::Tenant(_) | Self::Dispatch(_) | Self::Cost(_) => None,
+        }
+    }
+
+    /// The refusal of a bearer token that did not validate: expired, or otherwise invalid.
+    #[must_use]
+    pub const fn from_token_error(error: &SecurityError) -> Self {
+        match error {
+            SecurityError::TokenExpired { .. } => Self::TokenExpired,
+            _ => Self::TokenInvalid,
+        }
+    }
+}
+
+/// Resolve a service-account secret on `headers`, before any bearer token is validated.
+///
+/// A secret beside a bearer token is refused as ambiguous, fail-closed, rather than one of
+/// them silently taking precedence. A secret that matches no account resolves to no one,
+/// so a static API key on the same header can still be tried.
+///
+/// # Errors
+///
+/// [`Refusal::AmbiguousCredentials`].
+pub fn service_account(
+    state: &AppState,
+    headers: &HeaderMap,
+    bearer_presented: bool,
+) -> Result<Option<SecurityContext>, Refusal> {
+    let Some(ref accounts) = state.service_account_authenticator else {
+        return Ok(None);
+    };
+    match accounts.resolve(headers, bearer_presented) {
+        SaAuth::Authenticated(ctx) => Ok(Some(*ctx)),
+        SaAuth::Ambiguous => Err(Refusal::AmbiguousCredentials),
+        SaAuth::NoSecret | SaAuth::Unmatched => Ok(None),
+    }
+}
+
+/// Refuse a validated bearer token whose session has been revoked: by its `jti`, or by a
+/// "revoke all sessions" that postdates its `iat`.
+///
+/// # Errors
+///
+/// [`Refusal::TokenRevoked`], also when the revocation store cannot answer.
+pub async fn check_revocation(
+    state: &AppState,
+    user: &AuthenticatedUser,
+    token: &str,
+) -> Result<(), Refusal> {
+    crate::middleware::oidc_auth::check_revocation(state.revocation_manager.as_ref(), user, token)
+        .await
+        .map(|_| ())
+        .map_err(|_| Refusal::TokenRevoked)
 }
 
 /// A request whose principal is known: authenticated, stamped and enriched.
@@ -122,10 +222,31 @@ pub struct Tenant {
 }
 
 impl Tenant {
+    /// A tenant named by `key`, for a unit test of what runs after admission.
+    #[cfg(all(test, feature = "rest"))]
+    pub(crate) fn named(key: &str) -> Self {
+        Self {
+            key: Some(key.to_string()),
+        }
+    }
+
     /// The tenant's key, or `None` for the default executor.
     #[must_use]
     pub fn key(&self) -> Option<&str> {
         self.key.as_deref()
+    }
+
+    /// The tenant's executor, for reading its compiled schema before the request is
+    /// dispatched. It charges none of the tenant's quotas and holds no permit.
+    ///
+    /// # Errors
+    ///
+    /// [`Refusal::Dispatch`] for an unregistered key or a suspended tenant.
+    pub fn executor(
+        &self,
+        state: &AppState,
+    ) -> Result<arc_swap::Guard<std::sync::Arc<fraiseql_core::runtime::Executor>>, Refusal> {
+        state.executor_for_tenant(self.key()).map_err(Refusal::Dispatch)
     }
 
     /// The tenant's executor, holding its concurrency permit for as long as the returned

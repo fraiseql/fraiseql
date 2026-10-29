@@ -18,6 +18,18 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **REST and MCP identify a caller as `/graphql` does (#1643).**
+  - A static API key from `[api_keys]` now identifies a caller on a REST route and on an MCP
+    tool call. An unknown key is refused, as `/graphql` refuses it; before, both transports
+    ignored the header and served the caller as anonymous.
+  - An MCP tool call accepts a service account's secret and runs as that account. A bearer
+    token sent beside the secret is refused as ambiguous.
+  - REST refuses an anonymous request to a route that requires authentication before it
+    dispatches the request to its tenant. The refusal no longer spends the tenant's request
+    quota, so it can no longer turn the next request into a `429`.
+  - MCP words a refused token the way `/graphql` does: "Token has expired", "Token is
+    invalid" or "Token has been revoked". It used to answer "Invalid or expired
+    authentication token" for all three.
 - **`fraiseql.toml` refuses four keys `fraiseql run` never applied (#1808).** They were
   parsed and validated, then dropped: setting one had no effect and no error. Each is now
   refused when written, even at its old default, with what to do instead:

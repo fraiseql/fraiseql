@@ -10,7 +10,7 @@ use std::sync::{
 
 use fraiseql_core::{
     schema::CompiledSchema,
-    security::{AuthMiddleware, AuthRequest, AuthenticatedUser, OidcValidator, SecurityContext},
+    security::{AuthMiddleware, AuthRequest, AuthenticatedUser, OidcValidator, SecurityError},
 };
 use rmcp::{
     ServerHandler,
@@ -25,7 +25,10 @@ use rmcp::{
 };
 
 use super::{McpConfig, executor::error_result};
-use crate::routes::graphql::AppState;
+use crate::{
+    admission::{self, AdmissionPolicy, Refusal},
+    routes::graphql::AppState,
+};
 
 /// Extract a Bearer token from an HTTP `Authorization` header.
 ///
@@ -82,14 +85,14 @@ impl McpTokenValidator {
     ///
     /// Returns the validator's error rendered as a string (logged, never sent
     /// to the client verbatim).
-    async fn validate(&self, token: &str) -> Result<AuthenticatedUser, String> {
+    async fn validate(&self, token: &str) -> Result<AuthenticatedUser, SecurityError> {
         match self {
-            Self::Oidc(v) => v.validate_token(token).await.map_err(|e| e.to_string()),
+            Self::Oidc(v) => v.validate_token(token).await,
             Self::Hs256(m) => {
                 // AuthMiddleware validates a whole Authorization header, which
                 // is where this token came from.
                 let req = AuthRequest::new(Some(format!("Bearer {token}")));
-                m.validate_request(&req).map_err(|e| e.to_string())
+                m.validate_request(&req)
             },
         }
     }
@@ -160,9 +163,9 @@ impl FraiseQLMcpService {
     /// HS256, whichever `/graphql` uses (#376 auth parity).
     ///
     /// When present, a `Bearer` token carried by the HTTP transport is validated
-    /// and turned into a [`SecurityContext`] so RLS and `@inject` parameters are
-    /// applied. The stdio transport carries no per-request credentials, so it is
-    /// always governed by the fail-closed policy in
+    /// and turned into a [`SecurityContext`](fraiseql_core::security::SecurityContext) so RLS and
+    /// `@inject` parameters are applied. The stdio transport carries no per-request
+    /// credentials, so it is always governed by the fail-closed policy in
     /// [`executor::call_tool`](super::executor::call_tool).
     #[must_use]
     pub fn with_token_validator(mut self, validator: Option<McpTokenValidator>) -> Self {
@@ -170,91 +173,71 @@ impl FraiseQLMcpService {
         self
     }
 
-    /// Validate a Bearer token (if any) into an optional [`SecurityContext`].
+    /// Identify the caller: a service-account secret, else a validated, unrevoked Bearer
+    /// token, then admission's steps for MCP (a static API key, enrichment).
     ///
-    /// The caller pre-extracts `token` and `request_id` from the transport
-    /// request *before* any `.await`, so the non-`Sync` HTTP request parts need
-    /// not be held across the validation await point.
+    /// The caller pre-extracts `token` and `request_id` from the transport request
+    /// *before* any `.await`, so the non-`Sync` HTTP request parts need not be held across
+    /// the validation await point.
     ///
-    /// The context is built by the same function the `/graphql` extractor uses, so
-    /// the tenant comes from the schema's configured tenant claim and the extra claims
-    /// become `attributes` on this transport too (#858, #1388) — and it goes through the same
-    /// enrichment seam, so a subject the actor table refuses is refused here (#1336).
+    /// The context is built by the same function the `/graphql` extractor uses, so the
+    /// tenant comes from the schema's configured tenant claim and the extra claims become
+    /// `attributes` on this transport too (#858, #1388). No credential, or no validator
+    /// configured, is anonymous: the fail-closed gate in `executor::call_tool` still
+    /// refuses the call when RLS or `require_auth` demand a context.
     ///
-    /// - `Ok(None)` — no validator configured, or no Bearer token present (anonymous). The
-    ///   fail-closed gate in `executor::call_tool` still refuses the call when RLS or
-    ///   `require_auth` demand a context.
-    /// - `Ok(Some(ctx))` — the token validated successfully.
-    /// - `Err(result)` — a token was present but invalid or expired.
+    /// # Errors
+    ///
+    /// The refusal, worded as every transport words it: an ambiguous credential, an
+    /// expired, invalid or revoked token, an invalid API key, or a subject enrichment
+    /// denies or cannot resolve.
     // Reason: the `Err` variant IS the protocol's rejection value — it is returned to
     // the client verbatim. Boxing it to shrink the `Result` would add an allocation
     // on every rejection and force each `?` site to unbox what it is about to return.
     #[allow(clippy::result_large_err)]
-    async fn authenticate(
+    pub(super) async fn authenticate(
         &self,
         token: Option<String>,
         request_id: String,
-    ) -> Result<Option<SecurityContext>, CallToolResult> {
-        let Some(validator) = self.validator.as_ref() else {
-            return Ok(None); // Auth not configured — anonymous; gate decides.
-        };
-        let Some(token) = token else {
-            return Ok(None); // No Bearer credential — anonymous; gate decides.
-        };
+        headers: &axum::http::HeaderMap,
+    ) -> Result<admission::Identified, CallToolResult> {
+        let refuse = |refusal: Refusal| error_result(refusal.message().unwrap_or_default());
 
-        // The transport stamp (#376) rides the framework-reserved `fraiseql.`
-        // attribute namespace, which the shared builder strips from token
-        // claims — so it is set here, by the transport itself, and cannot be
-        // forged by a caller. The mutation runner records it into the
-        // change-log row's `extra_metadata.transport`, making MCP-originated
-        // writes queryable in the audit trail.
-        match validator.validate(&token).await {
-            Ok(user) => {
-                // GHSA-7482-9g53-rj7f: a valid signature is not a live session. The same
-                // revocation check both HTTP middlewares run, against the same store, so
-                // a token revoked by `/auth/revoke` or "revoke all sessions" stops here too.
-                if crate::middleware::oidc_auth::check_revocation(
-                    self.state.revocation_manager.as_ref(),
-                    &user,
-                    &token,
-                )
-                .await
-                .is_err()
-                {
-                    tracing::debug!(user_id = %user.user_id, "MCP Bearer token is revoked");
-                    return Err(error_result("Invalid or expired authentication token"));
-                }
-                let mut ctx = crate::extractors::build_security_context(
+        // A service-account secret is decided before any bearer token is validated, and
+        // one beside a bearer token is refused as ambiguous.
+        let principal =
+            admission::service_account(&self.state, headers, token.is_some()).map_err(refuse)?;
+        let principal = match (principal, self.validator.as_ref(), token) {
+            (Some(principal), _, _) => Some(principal),
+            (None, Some(validator), Some(token)) => {
+                let user = validator.validate(&token).await.map_err(|e| {
+                    tracing::warn!(error = %e, "MCP token validation failed");
+                    refuse(Refusal::from_token_error(&e))
+                })?;
+                // GHSA-7482-9g53-rj7f: a valid signature is not a live session.
+                admission::check_revocation(&self.state, &user, &token).await.map_err(
+                    |refusal| {
+                        tracing::debug!(user_id = %user.user_id, "MCP Bearer token is revoked");
+                        refuse(refusal)
+                    },
+                )?;
+                Some(crate::extractors::build_security_context(
                     &user,
                     request_id,
                     Some(self.schema.tenant_claim()),
-                )
-                .with_transport("mcp");
-                // #1336: resolve the subject's DB identity before the tool call, exactly
-                // as `/graphql` does. MCP reached the engine's authenticated dispatch
-                // already, so it consumed enriched fields correctly — it simply never
-                // produced them, which made every enriched tool call fail and every
-                // unknown subject succeed.
-                match crate::identity::resolve_request_identity(
-                    &self.state.identity,
-                    Some(&mut ctx),
-                )
-                .await
-                {
-                    crate::identity::EnrichmentOutcome::Proceed => Ok(Some(ctx)),
-                    crate::identity::EnrichmentOutcome::Denied => {
-                        Err(error_result(crate::identity::EnrichmentOutcome::DENIED_MESSAGE))
-                    },
-                    crate::identity::EnrichmentOutcome::Unavailable => {
-                        Err(error_result(crate::identity::EnrichmentOutcome::UNAVAILABLE_MESSAGE))
-                    },
-                }
+                ))
             },
-            Err(e) => {
-                tracing::warn!(error = %e, "MCP token validation failed");
-                Err(error_result("Invalid or expired authentication token"))
-            },
-        }
+            // Auth not configured, or no credential: anonymous, and the gate decides.
+            _ => None,
+        };
+        // The transport stamp (#376) rides the framework-reserved `fraiseql.` attribute
+        // namespace, which the shared builder strips from token claims, so it is set here,
+        // by the transport itself, and cannot be forged by a caller. The mutation runner
+        // records it into the change-log row's `extra_metadata.transport`.
+        let principal = principal.map(|ctx| ctx.with_transport("mcp"));
+        admission::identify(&self.state, headers, principal, &AdmissionPolicy::MCP)
+            .await
+            .map_err(refuse)
     }
 
     /// Authenticate, resolve the tenant, and run the tool call on that tenant's
@@ -280,26 +263,28 @@ impl FraiseQLMcpService {
         request_id: String,
         headers: &axum::http::HeaderMap,
     ) -> CallToolResult {
-        use crate::routes::graphql::tenant_dispatch;
-
-        let security_context = match self.authenticate(token, request_id).await {
-            Ok(ctx) => ctx,
+        let identified = match self.authenticate(token, request_id, headers).await {
+            Ok(identified) => identified,
             Err(err_result) => return err_result,
         };
-        let security_context = security_context.as_ref();
+        let security_context = identified.security_context();
 
         let sanitizer = &self.state.error_sanitizer;
+        let refuse = |refusal: Refusal| match refusal {
+            Refusal::Tenant(e) | Refusal::Dispatch(e) | Refusal::Cost(e) => {
+                error_result(&sanitize(sanitizer, &e))
+            },
+            other => error_result(other.message().unwrap_or_default()),
+        };
 
-        let tenant_key =
-            match tenant_dispatch::resolve_tenant_key(&self.state, security_context, headers) {
-                Ok(key) => key,
-                Err(e) => return error_result(&sanitize(sanitizer, &e)),
-            };
+        let tenant = match identified.tenant(&self.state, headers) {
+            Ok(tenant) => tenant,
+            Err(refusal) => return refuse(refusal),
+        };
 
-        let dispatch = match tenant_dispatch::dispatch_to_tenant(&self.state, tenant_key.as_deref())
-        {
+        let dispatch = match tenant.dispatch(&self.state) {
             Ok(d) => d,
-            Err(e) => return error_result(&sanitize(sanitizer, &e)),
+            Err(refusal) => return refuse(refusal),
         };
 
         // Per-thread continuity (#967), when the operator asked for it and the

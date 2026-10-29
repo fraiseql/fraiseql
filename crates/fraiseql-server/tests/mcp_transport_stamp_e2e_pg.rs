@@ -402,8 +402,8 @@ async fn anonymous_call_is_refused_and_writes_nothing() {
     assert_eq!(rows[0].get("n"), Some(&json!(0)), "a refused call reaches no audit row");
 }
 
-/// An invalid HS256 token is refused with the sanitized message — parity with
-/// how an invalid OIDC token behaves.
+/// An invalid HS256 token is refused with the sanitized message every transport
+/// answers an invalid token with.
 #[tokio::test]
 async fn invalid_hs256_token_is_refused() {
     let Some((adapter, service)) = setup().await else {
@@ -427,8 +427,9 @@ async fn invalid_hs256_token_is_refused() {
         .first()
         .and_then(|c| c.as_text().map(|t| t.text.clone()))
         .unwrap_or_default();
-    assert!(
-        text.contains("Invalid or expired"),
-        "sanitized refusal, not a validator internals dump: {text}"
+    assert_eq!(
+        text,
+        fraiseql_server::admission::TOKEN_INVALID,
+        "sanitized refusal, not a validator internals dump"
     );
 }

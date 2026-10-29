@@ -928,9 +928,14 @@ pub(super) fn tree(
 /// The `/graphql` answer to an admission refusal.
 pub(super) fn admission_error(refusal: &Refusal) -> GraphQLError {
     match refusal {
-        Refusal::InvalidApiKey => {
-            GraphQLError::new("Invalid API key", crate::error::ErrorCode::Unauthenticated)
-        },
+        Refusal::TokenExpired
+        | Refusal::TokenInvalid
+        | Refusal::TokenRevoked
+        | Refusal::AmbiguousCredentials
+        | Refusal::InvalidApiKey => GraphQLError::new(
+            refusal.message().unwrap_or_default(),
+            crate::error::ErrorCode::Unauthenticated,
+        ),
         // Generic outward body (DESIGN §5.4): the precise reason is logged server-side,
         // never surfaced (actor-table oracle guard). The wording is shared with every other
         // transport so the response cannot differ by door.

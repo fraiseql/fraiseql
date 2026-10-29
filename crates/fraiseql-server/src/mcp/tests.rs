@@ -589,7 +589,7 @@ mod revocation_tests {
     };
 
     const SECRET: &str = "fraiseql-mcp-revocation-secret-32";
-    const REFUSAL: &str = "Invalid or expired authentication token";
+    const REFUSAL: &str = crate::admission::TOKEN_REVOKED;
 
     fn token(jti: &str) -> String {
         let now = chrono::Utc::now().timestamp();
@@ -964,5 +964,181 @@ mod http_transport_tests {
             0,
             "each refused request left a session in the table (GHSA-9pj6-vhgr-3mwh)"
         );
+    }
+}
+
+/// A tool call is identified by the same credentials as `/graphql`: a service-account
+/// secret, a static API key or a bearer token. Each refusal is worded as every transport
+/// words it.
+mod credential_tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
+    use std::{collections::HashMap, sync::Arc};
+
+    use fraiseql_core::{
+        db::types::JsonbValue,
+        runtime::Executor,
+        schema::{FieldType, McpConfig, ServiceAccountConfig},
+        security::{AuthConfig, AuthMiddleware},
+    };
+    use fraiseql_test_utils::{
+        failing_adapter::FailingAdapter,
+        schema_builder::{TestFieldBuilder, TestQueryBuilder, TestSchemaBuilder, TestTypeBuilder},
+    };
+    use rmcp::model::CallToolResult;
+
+    use crate::{
+        admission::{INVALID_API_KEY, TOKEN_EXPIRED, TOKEN_INVALID},
+        api_key::{ApiKeyAuthenticator, ApiKeyConfig, StaticApiKeyConfig, sha256_hash},
+        mcp::handler::{FraiseQLMcpService, McpTokenValidator},
+        routes::graphql::AppState,
+        service_account::{AMBIGUOUS_CREDENTIALS, ServiceAccountAuthenticator},
+    };
+
+    const SECRET: &str = "fraiseql-mcp-credential-secret-32";
+    const STATIC_KEY: &str = "mcp-static-key";
+    const ACCOUNT_SECRET: &str = "mcp-account-secret";
+
+    /// An MCP service whose `users` tool requires an authenticated caller.
+    fn service() -> FraiseQLMcpService {
+        let schema = TestSchemaBuilder::new()
+            .with_type(
+                TestTypeBuilder::new("User", "v_users")
+                    .with_field(TestFieldBuilder::new("id", FieldType::Int).build())
+                    .build(),
+            )
+            .with_query(
+                TestQueryBuilder::new("users", "User")
+                    .returns_list(true)
+                    .with_sql_source("v_users")
+                    .build(),
+            )
+            .build();
+        let adapter = FailingAdapter::new()
+            .with_response("v_users", vec![JsonbValue::new(serde_json::json!({ "id": 1 }))]);
+        let executor = Arc::new(Executor::new(schema, Arc::new(adapter)));
+        let api_keys = ApiKeyAuthenticator::from_config(&ApiKeyConfig {
+            enabled:        true,
+            header:         "x-api-key".into(),
+            hash_algorithm: "sha256".into(),
+            storage:        "env".into(),
+            static_keys:    vec![StaticApiKeyConfig {
+                key_hash: format!("sha256:{}", hex::encode(sha256_hash(STATIC_KEY.as_bytes()))),
+                scopes:   vec!["read:*".into()],
+                name:     "static".into(),
+            }],
+        })
+        .unwrap();
+        let accounts = ServiceAccountAuthenticator::from_config(
+            &HashMap::from([(
+                "svc".to_string(),
+                ServiceAccountConfig {
+                    secret_env:      "MCP_TEST_ACCOUNT".into(),
+                    roles:           Vec::new(),
+                    scopes:          Vec::new(),
+                    tenant:          None,
+                    static_enriched: HashMap::new(),
+                },
+            )]),
+            |_| Some(ACCOUNT_SECRET.to_string()),
+        );
+        let mut state = AppState::new(executor).with_api_key_authenticator(Arc::new(api_keys));
+        state.service_account_authenticator = accounts;
+        FraiseQLMcpService::new(
+            state,
+            McpConfig {
+                enabled: true,
+                require_auth: true,
+                ..McpConfig::default()
+            },
+        )
+        .with_token_validator(Some(McpTokenValidator::Hs256(Arc::new(
+            AuthMiddleware::from_config(AuthConfig::with_hs256(SECRET)),
+        ))))
+    }
+
+    fn token(exp_offset: i64) -> String {
+        let now = chrono::Utc::now().timestamp();
+        let claims = serde_json::json!({ "sub": "alice", "iat": now, "exp": now + exp_offset });
+        jsonwebtoken::encode(
+            &jsonwebtoken::Header::new(jsonwebtoken::Algorithm::HS256),
+            &claims,
+            &jsonwebtoken::EncodingKey::from_secret(SECRET.as_bytes()),
+        )
+        .unwrap()
+    }
+
+    async fn call(token: Option<String>, api_key: Option<&str>) -> CallToolResult {
+        let mut headers = http::HeaderMap::new();
+        if let Some(key) = api_key {
+            headers.insert("x-api-key", key.parse().unwrap());
+        }
+        service()
+            .call_tool_authenticated("users", None, token, "req-1".to_string(), &headers)
+            .await
+    }
+
+    fn text(result: &CallToolResult) -> String {
+        result
+            .content
+            .iter()
+            .filter_map(|c| c.as_text().map(|t| t.text.clone()))
+            .collect()
+    }
+
+    #[tokio::test]
+    async fn a_service_account_secret_is_admitted_as_its_account() {
+        let result = call(None, Some(ACCOUNT_SECRET)).await;
+        assert_ne!(result.is_error, Some(true), "{}", text(&result));
+    }
+
+    #[tokio::test]
+    async fn a_static_api_key_is_admitted_as_its_principal() {
+        let result = call(None, Some(STATIC_KEY)).await;
+        assert_ne!(result.is_error, Some(true), "{}", text(&result));
+    }
+
+    #[tokio::test]
+    async fn an_api_key_that_matches_none_is_refused() {
+        assert_eq!(text(&call(None, Some("not-a-key")).await), INVALID_API_KEY);
+    }
+
+    #[tokio::test]
+    async fn a_bearer_beside_a_service_account_secret_is_refused_as_ambiguous() {
+        assert_eq!(
+            text(&call(Some(token(3600)), Some(ACCOUNT_SECRET)).await),
+            AMBIGUOUS_CREDENTIALS
+        );
+    }
+
+    #[tokio::test]
+    async fn an_expired_or_invalid_token_is_refused_in_the_shared_words() {
+        assert_eq!(text(&call(Some(token(-3600)), None).await), TOKEN_EXPIRED);
+        assert_eq!(text(&call(Some("not.a.token".to_string()), None).await), TOKEN_INVALID);
+    }
+
+    /// Every principal an MCP call admits carries the transport it arrived on, which the
+    /// change log records (#376): one from a bearer token and one from a service account.
+    #[tokio::test]
+    async fn every_admitted_principal_records_the_mcp_transport() {
+        let mut secret = http::HeaderMap::new();
+        secret.insert("x-api-key", ACCOUNT_SECRET.parse().unwrap());
+        for (token, headers) in [(Some(token(3600)), http::HeaderMap::new()), (None, secret)] {
+            let identified = service()
+                .authenticate(token, "req-1".to_string(), &headers)
+                .await
+                .map_err(|refused| text(&refused))
+                .unwrap();
+            let transport = identified.security_context().and_then(|ctx| ctx.transport());
+            assert_eq!(transport, Some("mcp"));
+        }
+    }
+
+    /// The control: a valid bearer token is admitted, so the refusals above are the
+    /// credentials', not the fixture's.
+    #[tokio::test]
+    async fn a_valid_bearer_token_is_admitted() {
+        let result = call(Some(token(3600)), None).await;
+        assert_ne!(result.is_error, Some(true), "{}", text(&result));
     }
 }

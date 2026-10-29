@@ -424,14 +424,8 @@ fn rest_state(state: &AppState) -> RestState {
     derive_rest_context(state, &mount).expect("REST is enabled").2
 }
 
-fn naming(tenant: &str) -> axum::http::HeaderMap {
-    let mut headers = axum::http::HeaderMap::new();
-    headers.insert("x-tenant-id", tenant.parse().unwrap());
-    headers
-}
-
 fn scope_of(rest: &RestState, tenant: &str) -> RestScope {
-    let scope = rest.scope(None, &naming(tenant));
+    let scope = rest.scope(&crate::admission::Tenant::named(tenant));
     assert!(scope.is_ok(), "{tenant} refused");
     scope.ok().unwrap()
 }
@@ -475,4 +469,104 @@ fn a_deregistered_tenants_route_table_is_dropped() {
 
     let keys: Vec<String> = rest.tenant_routes.lock().keys().cloned().collect();
     assert_eq!(keys, ["live"]);
+}
+
+// -----------------------------------------------------------------------
+// admission (#1643)
+// -----------------------------------------------------------------------
+
+/// A REST route is admitted through the same steps as `/graphql`: a static API key names
+/// a principal, and a request its tenant's schema refuses for want of one is refused
+/// before the tenant is dispatched.
+mod admission {
+    use std::sync::Arc;
+
+    use axum::{body::Body, http::StatusCode};
+    use fraiseql_core::{db::types::JsonbValue, runtime::Executor, schema::RestConfig};
+    use fraiseql_test_utils::failing_adapter::FailingAdapter;
+    use http::Request;
+    use tower::ServiceExt;
+
+    use super::{RestMountConfig, rest_router, schema_with_rest};
+    use crate::{
+        api_key::{ApiKeyAuthenticator, ApiKeyConfig, StaticApiKeyConfig, sha256_hash},
+        routes::graphql::{AppState, TenantExecutorRegistry, tenant_registry::TenantQuota},
+    };
+
+    const KEY: &str = "rest-static-key";
+
+    /// REST over a schema that requires authentication, with a static API key, and tenant
+    /// `acme` allowed one request a second.
+    fn router() -> axum::Router {
+        let mut schema = schema_with_rest();
+        schema.rest_config = Some(RestConfig {
+            enabled: true,
+            require_auth: true,
+            ..RestConfig::default()
+        });
+        let executor = || {
+            let adapter = FailingAdapter::new().with_response(
+                "v_user",
+                vec![JsonbValue::new(
+                    serde_json::json!({ "pk_user_id": 1, "name": "a" }),
+                )],
+            );
+            Arc::new(Executor::new(schema.clone(), Arc::new(adapter)))
+        };
+        let api_keys = ApiKeyAuthenticator::from_config(&ApiKeyConfig {
+            enabled:        true,
+            header:         "x-api-key".into(),
+            hash_algorithm: "sha256".into(),
+            storage:        "env".into(),
+            static_keys:    vec![StaticApiKeyConfig {
+                key_hash: format!("sha256:{}", hex::encode(sha256_hash(KEY.as_bytes()))),
+                scopes:   vec!["read:*".into()],
+                name:     "static".into(),
+            }],
+        })
+        .unwrap();
+        let state = AppState::new(executor()).with_api_key_authenticator(Arc::new(api_keys));
+        let registry = TenantExecutorRegistry::new(Arc::clone(&state.executor));
+        registry.upsert_with_quota(
+            "acme",
+            executor(),
+            TenantQuota {
+                max_requests_per_sec: Some(1),
+                ..TenantQuota::default()
+            },
+        );
+        let state = state.with_tenant_registry(Arc::new(registry));
+        rest_router(&state, &RestMountConfig::default()).unwrap()
+    }
+
+    async fn get(router: &axum::Router, headers: &[(&str, &str)]) -> StatusCode {
+        let mut request = Request::builder().uri("/rest/v1/users");
+        for (name, value) in headers {
+            request = request.header(*name, *value);
+        }
+        router
+            .clone()
+            .oneshot(request.body(Body::empty()).unwrap())
+            .await
+            .unwrap()
+            .status()
+    }
+
+    #[tokio::test]
+    async fn a_static_api_key_is_admitted_as_its_principal() {
+        let router = router();
+        assert_eq!(get(&router, &[]).await, StatusCode::UNAUTHORIZED, "control: anonymous");
+        assert_eq!(get(&router, &[("x-api-key", KEY)]).await, StatusCode::OK);
+    }
+
+    /// Refused for want of a principal, an anonymous request spends none of the tenant's
+    /// quota: with one request a second, the second refusal in the same second is still a
+    /// 401, not a 429.
+    #[tokio::test]
+    async fn an_anonymous_refusal_spends_none_of_its_tenants_quota() {
+        let router = router();
+        let acme = [("x-tenant-id", "acme")];
+        assert_eq!(get(&router, &acme).await, StatusCode::UNAUTHORIZED);
+        assert_eq!(get(&router, &acme).await, StatusCode::UNAUTHORIZED);
+    }
 }
