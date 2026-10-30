@@ -1,32 +1,42 @@
-# FraiseQL v2.3.0 Configuration Template
+# fraiseql.toml: project configuration template
 #
-# Copy to fraiseql.toml in your project root and customize for your environment.
-# All fields support ${ENV_VAR} interpolation (expanded before parsing).
-# See docs/architecture/overview.md for the full architecture reference.
+# Copy to fraiseql.toml in your project root, beside the schema.json your SDK exports.
+# `fraiseql compile schema.json` and `fraiseql run` read it from there.
+#
+# Every table and key below is one the loader accepts; any other is refused when the file
+# is read, naming the key. A setting written `#key = value` (no space after the `#`) is
+# left at its default: remove the `#` to set it. Values shown live are the defaults.
+#
+# `${VAR}` anywhere in the file is replaced by that environment variable when the file is
+# read; an unset variable is left as written.
+#
+# The server's own settings (OIDC, request limits, and anything else `fraiseql-server`
+# reads) live in the server configuration file that FRAISEQL_CONFIG names, not here. See
+# "Config-Driven Runtime" in docs/architecture/overview.md.
 
 # =============================================================================
-# PROJECT METADATA (required)
+# PROJECT
 # =============================================================================
 
-[schema]
+[project]
 name = "my-fraiseql-app"
 version = "1.0.0"
-description = "My GraphQL API"
-database_target = "postgresql"          # PostgreSQL only (MySQL, SQLite, SQL Server removed in v2.15.0)
+#description = "My GraphQL API"
+#database_target = "postgresql"         # PostgreSQL is the only backend; anything else is refused
 
 # =============================================================================
-# DATABASE CONNECTION
+# DATABASE (`fraiseql run`)
 # =============================================================================
 
 [database]
-url = "${DATABASE_URL}"                 # Connection string (env interpolation)
-pool_min = 2                            # Minimum pool connections
-pool_max = 20                           # Maximum pool connections
+#url = "${DATABASE_URL}"
+pool_min = 2
+pool_max = 20
 connect_timeout_ms = 5000               # Connection acquisition timeout
-ssl_mode = "prefer"                     # disable | allow | prefer | require
+#ssl_mode = "require"                   # disable | prefer | require | verify-full; unset: the URL's ?sslmode=
 
 # =============================================================================
-# HTTP SERVER
+# HTTP SERVER (`fraiseql run`)
 # =============================================================================
 
 [server]
@@ -34,290 +44,158 @@ host = "0.0.0.0"
 port = 8080
 
 [server.cors]
-origins = []                            # Empty = http://localhost:3000 only; list yours
+# Each origin a browser app is served from, e.g. ["https://app.example.com"].
+# Empty allows http://localhost:3000 only, and the server refuses to start in production
+# with an empty list. "*" is refused: list the origins.
+origins = []
 
 [server.tls]
 enabled = false
-cert_file = ""                          # PEM certificate (required if enabled)
-key_file = ""                           # PEM private key (required if enabled)
+cert_file = ""                          # PEM certificate (required when enabled)
+key_file = ""                           # PEM private key (required when enabled)
 min_version = "1.2"                     # "1.2" or "1.3"
+
+# =============================================================================
+# COMPILER
+# =============================================================================
+
+[fraiseql]
+schema_file = "schema.json"
+output_file = "schema.compiled.json"
+
+[fraiseql.naming]
+convention = "camelCase"                # camelCase | preserve (keep the names as authored)
+acronyms = []                           # Added to the built-in acronyms, e.g. ["SKU"]
+
+[fraiseql.mutations]
+auto_error_union = false                # Synthesize a shared MutationError type for every mutation
+
+# Per-operation @cost weight overrides, keyed by operation name.
+[fraiseql.cost_weights]
+#searchProducts = 5
+
+# =============================================================================
+# TENANCY
+# =============================================================================
+
+[fraiseql.tenancy]
+mode = "none"                           # none | row | schema
+tenant_claim = "tenant_id"              # JWT claim that carries the tenant
+
+# =============================================================================
+# SESSION VARIABLES
+# =============================================================================
+
+# PostgreSQL settings set on each request's transaction.
+[fraiseql.session_variables]
+inject_started_at = true                # Set fraiseql.started_at on each mutation
+# source: jwt (claim), enrichment (field), literal (value), or header (header).
+# A header is sent by the client: never use one for row-level security or tenant scoping.
+#variables = [{ name = "app.tenant_id", source = "jwt", claim = "tenant_id" }]
 
 # =============================================================================
 # SECURITY
 # =============================================================================
 
-[security]
-default_policy = "authenticated"        # Default authorization policy name
+[fraiseql.security]
+multi_tenant = false                    # Implied by a tenancy mode other than "none"
+#default_role = "viewer"                # Role of an authenticated caller with none
 
-# --- Error Sanitization ---
-[security.error_sanitization]
+# Roles and the scopes they grant.
+#[[fraiseql.security.role_definitions]]
+#name = "admin"
+#description = "Full access"
+#scopes = ["admin:*"]
+
+# Machine service accounts, keyed by name. The secret is read from the environment.
+#[fraiseql.security.service_accounts.reconciler]
+#secret_env = "FRAISEQL_SA_RECONCILER_SECRET"
+#roles = ["reconciler"]
+#scopes = ["write:Invoice"]
+
+[fraiseql.security.audit_logging]
 enabled = true
-hide_implementation_details = true      # Strip stack traces, SQL, file paths
-sanitize_database_errors = true         # Replace DB errors with generic message
-# custom_error_message = "An internal error occurred"
 
-# --- Rate Limiting ---
-[security.rate_limiting]
+[fraiseql.security.error_sanitization]
 enabled = true
-requests_per_second = 100               # Global RPS per IP
-burst_size = 200                        # Token bucket burst allowance
-# requests_per_second_per_user = 250    # Per-authenticated-user RPS (optional)
-# max_buckets = 100000                  # Tracked buckets per map — a MEMORY ceiling
-                                        # (~200 bytes each, so ~20 MiB per map), not a
-                                        # security control: reaching it evicts the
-                                        # least-recently-used entry, it does not refuse
-                                        # the new client. Size it to the host; override
-                                        # per deployment with
-                                        # FRAISEQL_RATE_LIMIT_MAX_BUCKETS.
 
-# Auth endpoint limits (per-IP)
-auth_start_max_requests = 5
+[fraiseql.security.rate_limiting]
+enabled = true
+requests_per_second = 100               # Per client IP, on the GraphQL surface
+burst_size = 500
+# Read the client IP from X-Real-IP / X-Forwarded-For. Production refuses it with no
+# trusted_proxy_cidrs: only a listed proxy may set those headers.
+trust_proxy_headers = false
+trusted_proxy_cidrs = []                # e.g. ["10.0.0.0/8"]
+# A memory ceiling, not a security control: about 200 bytes a bucket, so about 20 MiB per
+# map. Reaching it evicts the least-recently-used bucket; it never refuses a new client.
+# FRAISEQL_RATE_LIMIT_MAX_BUCKETS overrides it.
+max_buckets = 100000
+auth_start_max_requests = 100           # Auth endpoint limits, per window
 auth_start_window_secs = 60
-auth_callback_max_requests = 10
+auth_callback_max_requests = 50
 auth_callback_window_secs = 60
-
-# Authenticated endpoint limits (per-user)
-auth_refresh_max_requests = 20
-auth_refresh_window_secs = 300
-auth_logout_max_requests = 30
+auth_refresh_max_requests = 10
+auth_refresh_window_secs = 60
+auth_logout_max_requests = 20
 auth_logout_window_secs = 60
+failed_login_max_requests = 10
+failed_login_window_secs = 900
 
-# Brute-force protection
-failed_login_max_attempts = 10
-failed_login_lockout_secs = 900         # 15 minutes
-trust_proxy_headers = false             # Trust X-Forwarded-For (set true behind proxy)
-# redis_url = "${REDIS_URL}"            # Redis for distributed rate limiting
-
-# --- State Encryption (PKCE OAuth flows) ---
-[security.state_encryption]
-enabled = true
+# Encrypts PKCE OAuth state. The 32-byte hex key is read from STATE_ENCRYPTION_KEY
+# (generate one with `openssl rand -hex 32`).
+[fraiseql.security.state_encryption]
+enabled = false
 algorithm = "chacha20-poly1305"         # chacha20-poly1305 | aes-256-gcm
-key_source = "env"
-key_env = "STATE_ENCRYPTION_KEY"        # Generate: openssl rand -hex 32
 
-# --- PKCE ---
-[security.pkce]
+[fraiseql.security.constant_time]
 enabled = true
-code_challenge_method = "S256"          # S256 (recommended) | plain
-state_ttl_secs = 600                    # State validity: 10 minutes
-# redis_url = "${REDIS_URL}"            # Redis for multi-replica deployments
+apply_to_jwt = true
+apply_to_session_tokens = true
+apply_to_csrf_tokens = true
+apply_to_refresh_tokens = true
 
-# --- API Keys ---
-# [security.api_keys]
-# enabled = true
-# header = "X-API-Key"
-# hash_algorithm = "sha256"
-# storage = "env"                       # "env" or "postgres"
-#
-# [[security.api_keys.static]]
-# key_hash = "sha256:abc123..."         # Pre-hashed key
-# scopes = ["read:*"]
-# name = "ci-readonly"
-
-# --- Token Revocation ---
-# [security.token_revocation]
-# enabled = true
-# backend = "redis"                     # memory | redis | postgres
-# require_jti = true                    # Require JWT jti claim
-# fail_open = false                     # false = deny if store unreachable
-# redis_url = "${REDIS_URL}"
-
-# --- Trusted Documents (query allowlisting) ---
-# [security.trusted_documents]
-# enabled = true
-# mode = "strict"                       # strict | permissive
-# manifest_path = "./trusted-documents.json"
-# reload_interval_secs = 0              # 0 = no hot-reload
-
-# --- Authorization Policies ---
-# [[security.policies]]
-# name = "admin_only"
-# type = "RBAC"                         # RBAC | ABAC | CUSTOM | HYBRID
-# roles = ["admin", "super_admin"]
-# strategy = "ANY"                      # ANY | ALL | EXACTLY
-# cache_ttl_seconds = 600
-
-# [[security.field_auth]]
-# type_name = "User"
-# field_name = "email"
-# policy = "admin_only"
-
-# --- Enterprise Security ---
-[security.enterprise]
-rate_limiting_enabled = true
-audit_logging_enabled = true
-audit_log_backend = "postgresql"
-audit_retention_days = 365
-error_sanitization = true
-hide_implementation_details = true
-constant_time_comparison = true
-pkce_enabled = true
+# Declares that PostgreSQL Row-Level Security isolates this schema's data; checked
+# against the database's catalog when the server starts.
+[fraiseql.security.rls]
+enabled = false
 
 # =============================================================================
-# AUTHENTICATION (OAuth2/OIDC)
+# INJECTED PARAMETERS
 # =============================================================================
 
-# [auth]
-# discovery_url = "https://accounts.google.com"
-# client_id = "my-fraiseql-client"
-# client_secret_env = "OIDC_CLIENT_SECRET"   # Secret via env var (never in TOML)
-# server_redirect_uri = "https://api.example.com/auth/callback"
+# Parameters every query and mutation receives from the caller's identity.
+#[inject_defaults]
+#tenant_id = "jwt:tenant_id"
 
 # =============================================================================
-# QUERY VALIDATION
+# REQUEST LOCALE
 # =============================================================================
 
-[validation]
-max_query_depth = 10
-max_query_complexity = 100
+# See docs/features/request-locale.md.
+#[locale]
+#default = "en-US"
+#allowed = ["en-US", "fr-FR"]
+#fallback = { "fr-CA" = "fr-FR" }
 
 # =============================================================================
-# QUERY DEFAULTS
+# FUNCTIONS
 # =============================================================================
 
-[query_defaults]
-where = true                            # Auto-add where parameter to list queries
-order_by = true                         # Auto-add order_by parameter
-limit = true                            # Auto-add limit parameter
-offset = true                           # Auto-add offset parameter
-# What orders a LIMIT/OFFSET page, so two pages cannot overlap or skip rows (#1303).
-#   identity - order by the entity id; a query may declare pagination_order = "none"
-#   refuse   - as identity, and the "none" opt-out is a compile error
-#   allow    - derive nothing (pre-2.15.0 behaviour; the compile warns for each query)
-pagination_order = "identity"
+# The operational half of the functions surface; the functions themselves are declared in
+# your SDK. Setting this table when the schema declares no function and no enabled source
+# fails the compile: nothing would use it.
+#[functions]
+#module_dir = "functions"               # Where the .wasm / .js / .ts modules live
+#dlq_store = "postgres"                 # memory (the default; lost on restart) | postgres
+                                        # FRAISEQL_FUNCTIONS_DLQ_STORE overrides it
 
 # =============================================================================
-# SERVERLESS FUNCTIONS
+# OBSERVERS
 # =============================================================================
 
-# The operational half of the functions surface. The definitions themselves —
-# what fires, on which trigger, under what authority — are schema, authored with
-# `@fraiseql.function(...)` in your SDK and carried in schema.json.
-#
-# Configuring this table without declaring a function is a compile error: there
-# would be nothing for the settings to apply to.
-
-# [functions]
-# module_dir = "functions"              # Where the .wasm / .js / .ts modules live
-# dlq_store = "memory"                  # memory | postgres (durable dead-letters, #598)
-
-# =============================================================================
-# CACHING
-# =============================================================================
-
-# [caching]
-# enabled = true
-# backend = "redis"                     # redis | memory | postgresql
-# redis_url = "${REDIS_URL}"
-#
-# [[caching.rules]]
-# query = "users"
-# ttl_seconds = 300
-# invalidation_triggers = ["user_created", "user_updated"]
-
-# =============================================================================
-# OBSERVERS (Event System)
-# =============================================================================
-
-# [observers]
-# enabled = true
-# backend = "nats"                      # redis | nats | postgresql | mysql | in-memory
-# nats_url = "${FRAISEQL_NATS_URL}"
-#
-# [[observers.handlers]]
-# name = "slack_notifier"
-# event = "user_created"
-# action = "slack"
-# webhook_url = "https://hooks.slack.com/..."
-# retry_strategy = "exponential"
-# max_retries = 3
-
-# =============================================================================
-# SUBSCRIPTIONS (WebSocket)
-# =============================================================================
-
-# [subscriptions]
-# max_subscriptions_per_connection = 50
-#
-# [subscriptions.hooks]
-# on_connect = "http://localhost:8001/hooks/ws-connect"
-# on_subscribe = "http://localhost:8001/hooks/ws-subscribe"
-# timeout_ms = 500
-
-# =============================================================================
-# FEDERATION (Apollo Federation v2)
-# =============================================================================
-
-# [federation]
-# enabled = true
-# apollo_version = 2
-#
-# [[federation.entities]]
-# name = "Product"
-# key_fields = ["id"]
-#
-# [federation.circuit_breaker]
-# enabled = true
-# failure_threshold = 5
-# recovery_timeout_secs = 30
-# success_threshold = 2
-
-# =============================================================================
-# OBSERVABILITY
-# =============================================================================
-
-# [observability]
-# prometheus_enabled = true
-# prometheus_port = 9090
-# otel_enabled = true
-# otel_exporter = "jaeger"
-# otel_jaeger_endpoint = "http://localhost:14268/api/traces"
-# health_check_enabled = true
-# health_check_interval_seconds = 30
-# log_level = "info"                    # debug | info | warn | error
-# log_format = "json"                   # json | text
-
-# =============================================================================
-# MODEL CONTEXT PROTOCOL (MCP)
-# =============================================================================
-
-# [mcp]
-# enabled = true
-# transport = "http"                    # http | stdio | both
-# path = "/mcp"
-# require_auth = true
-# include = []                          # Whitelist (empty = all operations)
-# exclude = []                          # Blacklist
-
-# =============================================================================
-# DEBUG (development only)
-# =============================================================================
-
-# [debug]
-# enabled = true
-# database_explain = true               # Run EXPLAIN on queries
-# expose_sql = true                     # Include generated SQL in response
-
-# =============================================================================
-# ANALYTICS (Arrow Flight)
-# =============================================================================
-
-# [analytics]
-# enabled = true
-#
-# [[analytics.queries]]
-# name = "popular_products"
-# sql_source = "SELECT * FROM popular_products"
-# description = "Top-selling products"
-
-# =============================================================================
-# ENVIRONMENT VARIABLE REFERENCE
-#
-# DATABASE_URL          — Database connection string
-# STATE_ENCRYPTION_KEY  — PKCE state encryption key (openssl rand -hex 32)
-# OIDC_CLIENT_SECRET    — OAuth2 client secret
-# REDIS_URL             — Redis connection string
-# FRAISEQL_NATS_URL     — NATS connection string
-# VAULT_ADDR            — HashiCorp Vault address
-# VAULT_TOKEN           — Vault authentication token
-# =============================================================================
+# The server tunes observers under [observers.runtime] in its own configuration file.
+#[observers]
+#enabled = true
+#backend = "nats"                       # postgres (the default) | nats
+#nats_url = "nats://localhost:4222"     # Required with nats; FRAISEQL_NATS_URL overrides it

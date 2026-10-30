@@ -501,6 +501,13 @@ disagreed, and the promise was the part that was wrong.
   right. A client that relied on the old order, reading the first key, sees the selection
   order now: `{ users { name __typename } }` answers `{"name":…,"__typename":"User"}`.
 
+- **`fraiseql.toml.example`, the configuration reference the getting-started guide links,
+  loads (#1830).** It still had the v2.3.0 layout, so a project copied from it failed on
+  its first table, `[schema]`. It now uses the layout the loader reads (`[project]`,
+  `[fraiseql.security.*]`), drops the keys and sections the project file does not accept,
+  and says what an empty `[server.cors] origins` does: it allows `http://localhost:3000`
+  only, and production refuses it. A test loads the template as shipped and with every
+  setting it leaves off turned on.
 - **A `"*"` in `cors_origins` is refused at boot instead of crashing it (#1829).** The CORS
   layer allows exactly the origins listed, and building it panicked on a wildcard among
   them, so a server configuration file or a `fraiseql.toml` (`[server.cors] origins`) that

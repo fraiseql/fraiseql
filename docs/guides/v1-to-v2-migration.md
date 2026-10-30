@@ -74,7 +74,7 @@ class User:
 
 ### 3. Update Configuration
 
-Move security and server configuration to the new `fraiseql.toml` format. See `fraiseql.toml.example` in the repository root for all available options.
+Move security and server configuration to the new `fraiseql.toml` format. See `fraiseql.toml.example` in the repository root for every key it accepts; the server's own settings live in the file `FRAISEQL_CONFIG` names.
 
 ### 4. Compile and Test
 

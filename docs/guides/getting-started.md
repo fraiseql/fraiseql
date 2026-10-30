@@ -146,6 +146,6 @@ functions and printed next steps already follow it.
 ## Next Steps
 
 - [Architecture Documentation](../architecture/README.md) — Understand the compilation pipeline
-- [Configuration Reference](../../fraiseql.toml.example) — All server and security options
+- [Configuration Reference](../../fraiseql.toml.example) — Every key `fraiseql.toml` accepts
 - [Security Checklist](production-security-checklist.md) — Harden for production
 - [Roadmap](../../roadmap.md) — What's coming next
