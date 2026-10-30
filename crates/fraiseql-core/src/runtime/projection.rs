@@ -591,26 +591,6 @@ impl ResultProjector {
         self
     }
 
-    /// Configure typename injection from the query selection set.
-    ///
-    /// Inspects the root selection's nested fields for `__typename`. If found,
-    /// enables typename injection via [`with_typename`](Self::with_typename).
-    #[must_use]
-    pub fn configure_typename_from_selections(
-        self,
-        selections: &[FieldSelection],
-        entity_type: &str,
-    ) -> Self {
-        let wants_typename = selections
-            .first()
-            .is_some_and(|root| root.nested_fields.iter().any(|f| f.name == "__typename"));
-        if wants_typename {
-            self.with_typename(entity_type)
-        } else {
-            self
-        }
-    }
-
     /// Enable federation mode: `__typename` is always injected regardless of selection set.
     ///
     /// Used by the `_entities` federation resolver where the gateway always expects
@@ -1077,11 +1057,15 @@ fn shape_root(
     schema: &CompiledSchema,
     masked: Masked<'_>,
 ) {
+    let level = effective_selections(selections, type_name, schema);
+    // `__typename` is answered where it was selected, under its alias, as at every level
+    // below (§ 6.3): the level is rebuilt in its selection's order.
+    if level.iter().any(|sel| sel.name == "__typename") {
+        *object = shape_level(std::mem::take(object), type_name, selections, schema, masked);
+        return;
+    }
     let type_def = schema.find_type(type_name);
-    for sel in effective_selections(selections, type_name, schema) {
-        if sel.name == "__typename" {
-            continue;
-        }
+    for sel in level {
         // A scalar the projector placed is left where it is: only a masked field or an
         // object is looked up.
         if is_masked(masked, type_name, &sel.name) {

@@ -491,13 +491,13 @@ impl QueryRunner {
         } else {
             let projector = ResultProjector::new(read.access().projected.clone())
                 // #1192: a `String` field whose text parses as JSON must stay a string.
-                .with_declared_scalars(&self.ctx.schema, return_type)
-                .configure_typename_from_selections(&query_match.selections, return_type);
+                .with_declared_scalars(&self.ctx.schema, return_type);
             // #1556: the rows are this request's alone unless the row cache holds them too, so
             // their values are moved into the response rather than cloned.
             let mut projected =
                 projector.project_results_owned(results, query_match.query_def.returns_list)?;
-            // Every level below the root rebuilt from its selection, its masked fields null.
+            // Every level below the root rebuilt from its selection, its masked fields null,
+            // and `__typename` answered where it was selected.
             crate::runtime::shape_projected(
                 &mut projected,
                 return_type,
@@ -1291,11 +1291,7 @@ impl QueryRunner {
         // both GraphQL paths do.
         let projector = ResultProjector::new(access.projected.clone())
             // #1192: a `String` field whose text parses as JSON must stay a string.
-            .with_declared_scalars(&self.ctx.schema, &query_match.query_def.return_type)
-            .configure_typename_from_selections(
-                &query_match.selections,
-                &query_match.query_def.return_type,
-            );
+            .with_declared_scalars(&self.ctx.schema, &query_match.query_def.return_type);
         let mut projected = projector.project_results(rows, returns_list)?;
         // Every level below the root rebuilt from its selection, its masked fields null, as
         // for a GraphQL read. A root object field a leaf selection expanded arrives with its

@@ -16,7 +16,8 @@
 //! `respond` measures a read whose rows need no shaping in Rust both ways, each to the
 //! bytes a transport sends: `value_*` executes to a `Value` and serializes it, `raw_*`
 //! splices the rows' text, which the adapter holds as the database would send it.
-//! `numeric_*` does the same over rows of `Decimal`s and `Float`s. The value path quotes
+//! `numeric_*` does the same over rows of `Decimal`s and `Float`s, and `typename_*` over a
+//! selection holding `__typename`, which the projection writes as a literal. The value path quotes
 //! each row's `Decimal`s before it parses them, as the database adapter does; the raw path
 //! receives them as the strings the projection reads, and writes each `Float`'s fraction
 //! again as `serde_json` would.
@@ -36,7 +37,7 @@ use serde_json::Value;
 
 #[path = "support/fixed_rows.rs"]
 mod fixed_rows;
-use fixed_rows::{FixedRows, plain_user_row, reading_text, user_row};
+use fixed_rows::{FixedRows, plain_user_row, reading_text, typename_user_row, user_row};
 
 const ROWS: usize = 20;
 
@@ -138,6 +139,8 @@ fn teardown_bytes(done: (Fixture, Vec<u8>)) {
 #[bench::raw_by_id_fat(args = (PLAIN_BY_ID, true, true), setup = respond_fixture, teardown = teardown_bytes)]
 #[bench::value_numeric_list(args = (false), setup = numeric_fixture, teardown = teardown_bytes)]
 #[bench::raw_numeric_list(args = (true), setup = numeric_fixture, teardown = teardown_bytes)]
+#[bench::value_typename_list(args = (false), setup = typename_fixture, teardown = teardown_bytes)]
+#[bench::raw_typename_list(args = (true), setup = typename_fixture, teardown = teardown_bytes)]
 fn respond((f, raw): (Fixture, bool)) -> (Fixture, Vec<u8>) {
     let query = black_box(f.query);
     let bytes = if raw {
@@ -154,6 +157,17 @@ fn respond((f, raw): (Fixture, bool)) -> (Fixture, Vec<u8>) {
 /// [`text_fixture`], and which path the measured call takes.
 fn respond_fixture(query: &'static str, fat: bool, raw: bool) -> (Fixture, bool) {
     (text_fixture(query, fat), raw)
+}
+
+const TYPENAME_LIST: &str = "{ users(limit: 20) { id name __typename email bio } }";
+
+/// A fixture over [`typename_user_row`] rows, and which path the measured call takes.
+fn typename_fixture(raw: bool) -> (Fixture, bool) {
+    let rows = (0..ROWS).map(typename_user_row).collect();
+    (
+        text_fixture_over(fixed_rows::SCHEMA, FixedRows::with_text(rows), TYPENAME_LIST),
+        raw,
+    )
 }
 
 const NUMERIC_LIST: &str =

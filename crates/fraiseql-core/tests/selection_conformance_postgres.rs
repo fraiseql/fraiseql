@@ -122,6 +122,8 @@ fn schema() -> CompiledSchema {
         .with_simple_field("secret", FieldType::String)
         // A nested single object, so `__typename` inside one has somewhere to land (#912).
         .with_simple_field("profile", FieldType::Object("Profile".to_string()))
+        // An abstract position: its `__typename` is the concrete type of each value.
+        .with_nullable_field("partner", FieldType::Interface("Node".to_string()))
         .build();
 
     let profile_type = TestTypeBuilder::new("Profile", "v_selection_conformance_profile")
@@ -239,6 +241,12 @@ fn schema() -> CompiledSchema {
         .returns_list(true)
         .with_sql_source(VIEW)
         .build();
+    // One user, picked by a filter: a single root.
+    let mut user_query = TestQueryBuilder::new("user", "User")
+        .returns_list(false)
+        .with_sql_source(VIEW)
+        .build();
+    user_query.auto_params.has_where = true;
 
     // The same rows behind a Relay connection, so the relay runner's arguments
     // can be asserted in rows against a real database (#904).
@@ -269,6 +277,7 @@ fn schema() -> CompiledSchema {
         .with_type(ledger_estimate_type)
         .with_query(ledger_estimates_query)
         .with_query(users_query)
+        .with_query(user_query)
         .with_query(measures_query)
         .with_query(wides_query)
         .with_query(connection_query)
@@ -784,6 +793,54 @@ async fn a_wide_selection_comes_back_whole_and_in_order() {
     assert_eq!(keys_of(&response["data"]["wides"][0]), selected, "{response}");
 }
 
+/// `__typename` is a field like any other in the response: answered where it was selected,
+/// under its alias, at the root as below it (§ 6.3).
+#[tokio::test]
+async fn typename_is_answered_where_it_was_selected_under_its_alias() {
+    let Some(exec) = executor().await else {
+        eprintln!("SKIP: no PostgreSQL (set DATABASE_URL)");
+        return;
+    };
+    for (query, keys) in [
+        ("{ users { name __typename } }", vec!["name", "__typename"]),
+        ("{ users { kind: __typename name } }", vec!["kind", "name"]),
+        ("{ users { name kind: __typename } }", vec!["name", "kind"]),
+    ] {
+        let response = exec.execute(query, None).await.unwrap();
+        let user = &response["data"]["users"][0];
+        assert_eq!(keys_of(user), keys, "{query}: {response}");
+        let typename = user[keys.iter().find(|k| **k != "name").unwrap()].as_str();
+        assert_eq!(typename, Some("User"), "{query}: {response}");
+    }
+}
+
+/// A type name is written into the SQL as a quoted literal: whatever a compiled schema
+/// names its type, the database reads it as data and answers it as written.
+#[tokio::test]
+async fn a_typename_is_quoted_as_data_whatever_it_holds() {
+    let name = "Quote'd'); DROP TABLE x; --";
+    let quoted = TestTypeBuilder::new(name, VIEW)
+        .with_simple_field("name", FieldType::String)
+        .build();
+    let quoted_query = TestQueryBuilder::new("quoted", name)
+        .returns_list(true)
+        .with_sql_source(VIEW)
+        .build();
+    let schema = TestSchemaBuilder::new().with_type(quoted).with_query(quoted_query).build();
+    let Some(exec) = executor_for(schema).await else {
+        eprintln!("SKIP: no PostgreSQL (set DATABASE_URL)");
+        return;
+    };
+
+    let body = exec
+        .execute_operation_body("{ quoted { __typename name } }", None, None)
+        .await
+        .unwrap();
+    assert!(body.is_raw(), "answered from the projection");
+    let response: Value = serde_json::from_slice(&body.into_bytes().unwrap()).unwrap();
+    assert_eq!(response["data"]["quoted"][0]["__typename"], json!(name), "{response}");
+}
+
 /// Reads the database answers whole: every field a stored scalar, or an object whose
 /// sub-fields are. Such a read needs no shaping in Rust, so its body is the bytes the
 /// database returned.
@@ -795,12 +852,24 @@ const RAW_ELIGIBLE: &[&str] = &[
     "query Named { users { name } }",
     "{ wides { kaa kab kbb kep } }",
     "{ measures { price score total count } }",
+    // `__typename` of a statically concrete position is the literal the projection writes,
+    // where it was selected and under its alias, at every depth.
+    "{ users { __typename name } }",
+    "{ users { name __typename } }",
+    "{ users { kind: __typename name } }",
+    "{ users { profile { __typename tier } } }",
+    "{ users { name profile { tier address { city kind: __typename } } __typename } }",
+    r#"{ user(where: { name: { eq: "Alice" } }) { name __typename } }"#,
+    // Selected twice, one response key: merged before the read (§ 5.3.2).
+    "{ users { __typename name __typename } }",
 ];
 
 /// Reads that must stay on the `Value` path: each needs a step the bytes cannot take.
 const RAW_INELIGIBLE: &[(&str, &str)] = &[
-    ("`__typename` at the root", "{ users { __typename name } }"),
-    ("`__typename` in a nested object", "{ users { profile { __typename tier } } }"),
+    (
+        "`__typename` below an interface position",
+        "{ users { name partner { __typename id } } }",
+    ),
     ("two root fields", "{ users { name } wides { kaa } }"),
     (
         "a relay connection",

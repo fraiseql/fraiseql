@@ -1981,14 +1981,13 @@ async fn a_data_root_beside_an_introspection_root_is_not_dropped_silently() {
 //
 // `__typename` is `String!` (spec § Type Name Introspection) — it can never be
 // null, and a requested field can never be absent. It is a meta-field, not a
-// JSONB key, so it is stripped from the SQL projection at every depth (emitting
-// `data->>'__typename'` would produce a literal NULL — the symptom #912 reports
-// from the v1 stack). Something on the Rust side must put it back.
+// JSONB key, so it is never read from the document (reading `data->>'__typename'`
+// would produce a literal NULL — the symptom #912 reports from the v1 stack). An
+// object type's is written as a literal, and the walk answers it at every level.
 //
-// Two of the three levels had an owner: the root object is stamped by
-// `configure_typename_from_selections`, and list elements by `project_entity`.
-// A *single* nested object had none, so a requested nested `__typename` was
-// dropped from the response with no error — a `String!` field simply missing.
+// A *single* nested object used to have no owner, so a requested nested
+// `__typename` was dropped from the response with no error — a `String!` field
+// simply missing.
 
 /// A nested `__typename` resolves to the nested type, in its requested position.
 #[tokio::test]

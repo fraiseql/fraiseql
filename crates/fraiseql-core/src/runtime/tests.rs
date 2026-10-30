@@ -3324,109 +3324,6 @@ mod projection_tests {
     }
 
     // ========================================================================
-    // configure_typename_from_selections tests
-    // ========================================================================
-
-    fn make_selections_with_typename() -> Vec<FieldSelection> {
-        vec![FieldSelection {
-            name:          "users".to_string(),
-            alias:         None,
-            arguments:     vec![],
-            nested_fields: vec![
-                FieldSelection {
-                    name:          "id".to_string(),
-                    alias:         None,
-                    arguments:     vec![],
-                    nested_fields: vec![],
-                    directives:    vec![],
-                },
-                FieldSelection {
-                    name:          "__typename".to_string(),
-                    alias:         None,
-                    arguments:     vec![],
-                    nested_fields: vec![],
-                    directives:    vec![],
-                },
-            ],
-            directives:    vec![],
-        }]
-    }
-
-    fn make_selections_without_typename() -> Vec<FieldSelection> {
-        vec![FieldSelection {
-            name:          "users".to_string(),
-            alias:         None,
-            arguments:     vec![],
-            nested_fields: vec![FieldSelection {
-                name:          "id".to_string(),
-                alias:         None,
-                arguments:     vec![],
-                nested_fields: vec![],
-                directives:    vec![],
-            }],
-            directives:    vec![],
-        }]
-    }
-
-    #[test]
-    fn test_configure_typename_from_selections_present() {
-        let projector = ResultProjector::new(vec!["id".to_string()])
-            .configure_typename_from_selections(&make_selections_with_typename(), "User");
-
-        let data = json!({ "id": "1", "name": "Alice" });
-        let results = vec![JsonbValue::new(data)];
-        let result = projector.project_results(&results, false).unwrap();
-
-        assert_eq!(result, json!({ "__typename": "User", "id": "1" }));
-    }
-
-    #[test]
-    fn test_configure_typename_from_selections_absent() {
-        let projector = ResultProjector::new(vec!["id".to_string()])
-            .configure_typename_from_selections(&make_selections_without_typename(), "User");
-
-        let data = json!({ "id": "1", "name": "Alice" });
-        let results = vec![JsonbValue::new(data)];
-        let result = projector.project_results(&results, false).unwrap();
-
-        // No __typename because selection set didn't request it
-        assert_eq!(result, json!({ "id": "1" }));
-    }
-
-    #[test]
-    fn test_configure_typename_from_selections_list() {
-        let projector = ResultProjector::new(vec!["id".to_string()])
-            .configure_typename_from_selections(&make_selections_with_typename(), "User");
-
-        let results = vec![
-            JsonbValue::new(json!({ "id": "1" })),
-            JsonbValue::new(json!({ "id": "2" })),
-        ];
-        let result = projector.project_results(&results, true).unwrap();
-
-        assert_eq!(
-            result,
-            json!([
-                { "__typename": "User", "id": "1" },
-                { "__typename": "User", "id": "2" }
-            ])
-        );
-    }
-
-    #[test]
-    fn test_configure_typename_empty_selections() {
-        // Empty selections → no typename
-        let projector = ResultProjector::new(vec!["id".to_string()])
-            .configure_typename_from_selections(&[], "User");
-
-        let data = json!({ "id": "1" });
-        let results = vec![JsonbValue::new(data)];
-        let result = projector.project_results(&results, false).unwrap();
-
-        assert_eq!(result, json!({ "id": "1" }));
-    }
-
-    // ========================================================================
     // Federation mode tests
     // ========================================================================
 
@@ -3783,6 +3680,23 @@ mod projection_tests {
         assert_eq!(
             serde_json::to_string(&value).unwrap(),
             r#"{"id":1,"parent":{"id":0,"__typename":"Folder"},"__typename":"Folder"}"#
+        );
+    }
+
+    /// Over a root the projector built, a selected `__typename` is answered where it was
+    /// selected and under its alias, as below the root.
+    #[test]
+    fn shape_projected_writes_the_roots_typename_where_it_was_selected() {
+        let mut value = json!({ "id": 1, "margin": 7 });
+        let selection = [
+            field("id", vec![]),
+            aliased("kind", "__typename", vec![]),
+            field("margin", vec![]),
+        ];
+        crate::runtime::shape_projected(&mut value, "Folder", &selection, &folders(), None);
+        assert_eq!(
+            serde_json::to_string(&value).unwrap(),
+            r#"{"id":1,"kind":"Folder","margin":7}"#
         );
     }
 

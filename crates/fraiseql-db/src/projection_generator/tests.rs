@@ -441,3 +441,29 @@ fn test_typed_projection_of_an_object_with_no_sub_fields_is_empty() {
          THEN JSON_OBJECT(RETURNING json) END RETURNING json)"
     );
 }
+
+#[test]
+fn a_typename_is_its_type_written_as_a_text_literal_where_it_was_selected() {
+    let generator = PostgresProjectionGenerator::new();
+    let fields = vec![
+        ProjectionField::scalar("name"),
+        ProjectionField::typename("kind", "User"),
+    ];
+
+    let sql = generator.generate_typed_projection_sql(&fields).unwrap();
+
+    assert_eq!(
+        sql,
+        "JSON_OBJECT('name' VALUE \"data\"->>'name', 'kind' VALUE ('User'::text) RETURNING json)"
+    );
+}
+
+#[test]
+fn a_typename_is_quoted_as_a_string_literal_whatever_it_holds() {
+    let generator = PostgresProjectionGenerator::new();
+    let fields = vec![ProjectionField::typename("__typename", "O'Brien')--")];
+
+    let sql = generator.generate_typed_projection_sql(&fields).unwrap();
+
+    assert_eq!(sql, "JSON_OBJECT('__typename' VALUE ('O''Brien'')--'::text) RETURNING json)");
+}

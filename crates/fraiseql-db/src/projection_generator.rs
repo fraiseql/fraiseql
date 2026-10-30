@@ -110,10 +110,11 @@ pub(crate) fn json_object_sql(pairs: &[ObjectPair]) -> String {
 /// out of the JSONB column (#959).
 ///
 /// The inner string is private and there is **no public constructor**: the only
-/// way to obtain one is
+/// ways to obtain one are
 /// [`vector_distance_expr`](crate::order_by::vector_distance_expr), which builds
 /// it from a validated identifier, an operator drawn from a fixed set and a
-/// literal whose character set it re-checks. A projection is SQL the caller does
+/// literal whose character set it re-checks, and [`ProjectionField::typename`], which
+/// quotes a type name as a string literal. A projection is SQL the caller does
 /// not get to write, and this type is what enforces that across the crate
 /// boundary — `fraiseql-core` can carry one into a `ProjectionField` but cannot
 /// invent one.
@@ -265,6 +266,19 @@ impl ProjectionField {
             localized: None,
             computed: Some(expr),
         }
+    }
+
+    /// `__typename` of a position whose type is statically one object type: `type_name` as a
+    /// SQL text literal, under the response key `name`.
+    ///
+    /// The name is quoted by the projection's own string-literal escaping, as every key is,
+    /// so it reaches the SQL as data whatever it holds. Only a concrete position may carry
+    /// one: an interface or union position's `__typename` is the type of each value, which
+    /// the SQL does not know.
+    #[must_use]
+    pub fn typename(name: impl Into<String>, type_name: &str) -> Self {
+        let literal = PostgresProjectionGenerator::escape_sql_string(type_name);
+        Self::computed(name, ComputedExpr::from_validated_parts(format!("'{literal}'::text")))
     }
 
     /// Whether this field is a composite type (Object or List).

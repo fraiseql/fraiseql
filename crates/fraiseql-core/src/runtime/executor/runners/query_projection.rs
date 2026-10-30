@@ -31,11 +31,10 @@ use crate::{
 /// cap of 4 used to hand everything below it back as stored — every key of an object
 /// five levels down, gated or not.
 ///
-/// Filter `__typename` from SQL projection fields.
-/// `__typename` is a GraphQL meta-field not stored in JSONB.
-/// The `ResultProjector` handles injection — see `projection.rs`.
-/// Removing this filter causes `data->>'__typename'` (NULL) to overwrite
-/// the value injected by `with_typename()`, depending on field iteration order.
+/// `__typename` is not stored, so it is never read from the document. Selected on an
+/// object type, it is that type's name, written as a literal where it was selected and
+/// under its alias; selected on an interface or a union, it is the type of each
+/// value, which the SQL does not know, so it is left to the walk that resolves it.
 ///
 /// A localized field read without `locale:` reads `request_chain`, the request locale's
 /// chain, which the caller passes rather than this reading the request's scope: the
@@ -49,21 +48,22 @@ pub fn build_typed_projection_fields(
     let type_def = schema.find_type(parent_type_name);
     selections
         .iter()
-        // Skip __typename — it is a GraphQL meta-field not stored in the JSONB column.
-        // Including it would generate `data->>'__typename'` (always NULL) in the SQL
-        // projection and then overwrite the value already injected by `with_typename`.
-        .filter(|sel| sel.name != "__typename")
-        .map(|sel| {
+        .filter_map(|sel| {
+            if sel.name == "__typename" {
+                // `find_type` holds object types alone: an abstract parent finds none.
+                return type_def
+                    .map(|_| ProjectionField::typename(sel.response_key(), parent_type_name));
+            }
             // A localized field's translations sibling reads the field's stored map (#1513).
             if let Some(base) = type_def.and_then(|td| td.translations_of(&sel.name)) {
-                return ProjectionField {
+                return Some(ProjectionField {
                     name:       sel.response_key().to_string(),
                     source:     base.name.to_string(),
                     kind:       FieldKind::Composite,
                     sub_fields: None,
                     localized:  crate::runtime::translations_read(schema, sel),
                     computed:   None,
-                };
+                });
             }
             let field_def =
                 type_def.and_then(|td| td.fields.iter().find(|f| f.name == sel.name.as_str()));
@@ -110,7 +110,7 @@ pub fn build_typed_projection_fields(
                     )
                 });
 
-            ProjectionField {
+            Some(ProjectionField {
                 // Output under the response key (alias when present)…
                 name: sel.response_key().to_string(),
                 // …but read the JSONB column from the *source* field name so an
@@ -124,7 +124,7 @@ pub fn build_typed_projection_fields(
                     .and_then(|_| crate::runtime::selection_chain_in(schema, sel, request_chain))
                     .map(fraiseql_db::LocalizedRead::Label),
                 computed: None,
-            }
+            })
         })
         .collect()
 }

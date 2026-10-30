@@ -251,6 +251,19 @@ pub fn plain_user_row(i: usize, fat: bool) -> JsonbValue {
     }))
 }
 
+/// [`plain_user_row`] as a projection selecting `id name __typename email bio` writes it: the
+/// type's name a literal where it was selected.
+#[allow(dead_code)] // Reason: one of the three benches that include this file reads it
+pub fn typename_user_row(i: usize) -> JsonbValue {
+    JsonbValue::new(json!({
+        "id": format!("00000000-0000-4000-8000-{i:012}"),
+        "name": format!("User {i}"),
+        "__typename": "User",
+        "email": format!("user{i}@example.com"),
+        "bio": "Short bio.",
+    }))
+}
+
 /// A reading's text as PostgreSQL writes its projection: each `Decimal` a string of its
 /// digits, read with `->>`, and each `Float` a number with a fraction, which `serde_json`
 /// writes again.

@@ -253,3 +253,69 @@ fn a_list_or_an_undeclared_parent_can_hold_a_decimal_as_a_number() {
         &crate::runtime::DecimalIndex::new(&schema),
     ));
 }
+
+/// `User { name kind: __typename profile { __typename } partner { __typename } }`, `partner`
+/// an interface position.
+fn typename_schema() -> CompiledSchema {
+    let mut schema = CompiledSchema::new();
+    schema.types.push(
+        TypeDefinition::new("User", "v_user")
+            .with_field(FieldDefinition::new("name", FieldType::String))
+            .with_field(FieldDefinition::new("profile", FieldType::Object("Profile".to_string())))
+            .with_field(FieldDefinition::new("partner", FieldType::Interface("Node".to_string()))),
+    );
+    schema.types.push(
+        TypeDefinition::new("Profile", "v_profile")
+            .with_field(FieldDefinition::new("tier", FieldType::String)),
+    );
+    schema
+}
+
+#[test]
+fn a_typename_of_an_object_type_is_projected_as_its_name_where_it_was_selected() {
+    let selections = [
+        field("name", None, vec![]),
+        field("__typename", Some("kind"), vec![]),
+        field(
+            "profile",
+            None,
+            vec![
+                field("tier", None, vec![]),
+                field("__typename", None, vec![]),
+            ],
+        ),
+    ];
+
+    let sql = projection_sql(&selections, &typename_schema(), "User");
+
+    assert!(
+        sql.contains("'name' VALUE \"data\"->>'name', 'kind' VALUE ('User'::text), "),
+        "the root's, under its alias, after `name`: {sql}"
+    );
+    assert!(
+        sql.contains("'__typename' VALUE ('Profile'::text)"),
+        "the nested level's: {sql}"
+    );
+    assert!(!sql.contains("->'__typename'") && !sql.contains("->>'__typename'"), "{sql}");
+}
+
+#[test]
+fn a_typename_below_an_abstract_position_is_left_to_the_walk() {
+    let selections = [field(
+        "partner",
+        None,
+        vec![field("__typename", None, vec![])],
+    )];
+
+    let typed = build_typed_projection_fields(&selections, &typename_schema(), "User", None);
+    let partner = typed[0].sub_fields.as_deref().unwrap_or_default();
+    assert!(partner.is_empty(), "an interface position writes no literal: {partner:?}");
+
+    let at_an_abstract_root = build_typed_projection_fields(
+        &[field("__typename", None, vec![])],
+        &typename_schema(),
+        "Node",
+        None,
+    );
+    assert!(at_an_abstract_root.is_empty(), "{at_an_abstract_root:?}");
+}

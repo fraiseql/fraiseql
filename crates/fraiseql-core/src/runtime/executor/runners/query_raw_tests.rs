@@ -121,6 +121,31 @@ fn admitted(selections: &[FieldSelection]) -> Option<bool> {
 }
 
 #[test]
+fn a_typename_of_an_object_type_is_admitted_at_every_depth_and_under_an_alias() {
+    let kind = FieldSelection {
+        alias: Some("kind".to_string()),
+        ..leaf("__typename")
+    };
+    assert_eq!(admitted(&[leaf("__typename"), leaf("name")]), Some(false));
+    assert_eq!(admitted(&[leaf("name"), kind.clone()]), Some(false));
+    assert_eq!(admitted(&[select("profile", vec![kind, leaf("tier")])]), Some(false));
+}
+
+#[test]
+fn a_typename_below_an_abstract_position_is_refused() {
+    let mut schema = schema();
+    let user = schema.types.iter_mut().find(|t| t.name == "User").unwrap();
+    user.fields.push(field("partner", FieldType::Interface("Node".to_string())));
+    user.fields.push(field("pet", FieldType::Union("Pet".to_string())));
+    schema.build_indexes();
+    for position in ["partner", "pet"] {
+        let mut shape = RawShape { non_null: false };
+        let selections = [select(position, vec![leaf("__typename")])];
+        assert!(!shape.admits(&selections, &schema, "User"), "{position}");
+    }
+}
+
+#[test]
 fn stored_scalars_and_objects_built_from_their_sub_fields_are_admitted() {
     let selections = [
         leaf("id"),
@@ -156,7 +181,6 @@ fn a_field_rust_would_reshape_is_refused() {
     ] {
         assert_eq!(admitted(&[leaf(name)]), None, "{name}");
     }
-    assert_eq!(admitted(&[leaf("__typename"), leaf("name")]), None, "__typename");
     assert_eq!(admitted(&[leaf("title_translations")]), None, "a translations sibling");
     assert_eq!(admitted(&[leaf("undeclared")]), None, "an undeclared field");
 }
@@ -165,7 +189,6 @@ fn a_field_rust_would_reshape_is_refused() {
 fn an_object_is_admitted_only_through_admitted_sub_fields() {
     assert_eq!(admitted(&[leaf("profile")]), None, "an object with no sub-selection");
     assert_eq!(admitted(&[select("profile", vec![leaf("status")])]), None, "an enum below");
-    assert_eq!(admitted(&[select("profile", vec![leaf("__typename")])]), None);
     assert_eq!(admitted(&[select("name", vec![leaf("x")])]), None, "a scalar with a selection");
 }
 

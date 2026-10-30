@@ -158,17 +158,9 @@ impl QueryPlanner {
     ///
     /// For a query like `{ users { id name } }`, this extracts `["id", "name"]`.
     ///
-    /// Filter `__typename` from SQL projection fields.
-    /// `__typename` is a GraphQL meta-field not stored in JSONB.
-    /// The `ResultProjector` handles injection — see `projection.rs`.
-    /// Removing this filter causes `data->>'__typename'` (NULL) to overwrite
-    /// the value injected by `with_typename()`, depending on field iteration order.
+    /// `__typename` is not a stored key, so it is not one the projector reads: the walk
+    /// after it answers `__typename` where it was selected (`shape_projected`).
     fn extract_projection_fields(&self, selections: &[FieldSelection]) -> Vec<String> {
-        // Get the first (root) selection and extract its nested fields.
-        // Skip `__typename` — it is a GraphQL meta-field handled by the projector
-        // at the Rust level; including it in the field list causes the SQL projection
-        // to emit `data->>'__typename'` which returns NULL and then overwrites the
-        // correctly-computed typename injected by `ResultProjector::with_typename`.
         if let Some(root_selection) = selections.first() {
             root_selection
                 .nested_fields

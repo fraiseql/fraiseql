@@ -7,9 +7,10 @@
 //! [`serde_json::Value`]. Only their numbers are written again, as `serde_json` writes
 //! them.
 //!
-//! Anything Rust would still reshape keeps the read on the `Value` path: `__typename`,
-//! a localized, encrypted or computed field, an enum, a list or a JSON scalar,
-//! an abstract type, a mask, a gated field, a nested level read by a composed statement.
+//! Anything Rust would still reshape keeps the read on the `Value` path: a localized,
+//! encrypted or computed field, an enum, a list or a JSON scalar, an abstract type and any
+//! `__typename` below one, a mask, a gated field, a nested level read by a composed
+//! statement. A `__typename` of an object type is the literal the projection writes.
 
 use std::{collections::HashSet, sync::Arc};
 
@@ -155,10 +156,14 @@ impl RawShape {
         };
         let mut keys = HashSet::with_capacity(selections.len());
         selections.iter().all(|sel| {
-            // Neither `__typename` nor a localized field's translations sibling is a declared
-            // field, so the lookup below refuses both.
             if !sel.arguments.is_empty() || !keys.insert(sel.response_key()) {
                 return false;
+            }
+            // `type_name` is an object type, so its `__typename` is the literal the
+            // projection writes. A localized field's translations sibling is not a
+            // declared field, so the lookup below refuses it.
+            if sel.name == "__typename" {
+                return sel.nested_fields.is_empty();
             }
             let Some(field) = type_def.fields.iter().find(|f| f.name == sel.name.as_str()) else {
                 return false;
