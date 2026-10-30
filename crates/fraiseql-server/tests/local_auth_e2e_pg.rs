@@ -859,6 +859,18 @@ async fn boot_with_smtp(
     scratch_url: &str,
     smtp_port: u16,
 ) -> RunningServer {
+    boot_with_smtp_and_revocation(local, pool, scratch_url, smtp_port, None).await
+}
+
+/// [`boot_with_smtp`], enforcing `revocation` as the binary enforces its revocation store.
+#[cfg(feature = "inbound-email")]
+async fn boot_with_smtp_and_revocation(
+    local: LocalAuthConfig,
+    pool: PgPool,
+    scratch_url: &str,
+    smtp_port: u16,
+    revocation: Option<Arc<fraiseql_server::token_revocation::TokenRevocationManager>>,
+) -> RunningServer {
     let adapter = Arc::new(PostgresAdapter::new(scratch_url).await.expect("PostgresAdapter::new"));
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.expect("bind ephemeral port");
     let port = listener.local_addr().expect("local addr").port();
@@ -866,9 +878,12 @@ async fn boot_with_smtp(
         mailbox: capturing_mailbox(smtp_port),
         ..local_config(scratch_url)
     };
-    let server = Box::pin(Server::new(config, local_schema(local), adapter, Some(pool)))
+    let mut server = Box::pin(Server::new(config, local_schema(local), adapter, Some(pool)))
         .await
         .expect("Server::new with [auth.local] email_verification must succeed");
+    if let Some(revocation) = revocation {
+        server = server.with_revocation_manager(revocation);
+    }
     let (tx, rx) = tokio::sync::oneshot::channel::<()>();
     let handle = tokio::spawn(async move {
         let _ = server
@@ -1499,6 +1514,82 @@ async fn a_session_replaces_a_confirmed_enrollment_only_with_a_current_code() {
     )
     .await;
     assert_eq!(status, reqwest::StatusCode::UNAUTHORIZED, "a forged session is refused");
+
+    server.stop().await;
+    drop_scratch(&url, db).await;
+}
+
+/// A revoked session is no session to the verification routes either: they act on the
+/// caller's account, as every authenticated route does, so they honour the revocation the
+/// server's authentication layer enforces.
+#[cfg(feature = "inbound-email")]
+#[tokio::test]
+async fn a_revoked_session_cannot_start_or_confirm_email_verification() {
+    let Some(url) = database_url_or_skip("a_revoked_session_cannot_start_email_verification")
+    else {
+        return;
+    };
+    set_test_env();
+    let db = "fraiseql_p26_local_verify_revoked";
+    let pool = scratch_pool(&url, db).await;
+    let scratch_url = with_database(&url, db);
+    let revocation = Arc::new(fraiseql_server::token_revocation::TokenRevocationManager::new(
+        Arc::new(fraiseql_server::token_revocation::InMemoryRevocationStore::new()),
+        false,
+        false,
+        3600,
+    ));
+    let smtp = CapturingSmtp::start().await;
+    let server = boot_with_smtp_and_revocation(
+        LocalAuthConfig {
+            password: true,
+            email_verification: true,
+            email_from: Some("support".to_string()),
+            reset_url_template: Some("https://app.example.com/reset?token={token}".to_string()),
+            verification_url_template: Some(
+                "https://app.example.com/verify-email?token={token}".to_string(),
+            ),
+            ..LocalAuthConfig::default()
+        },
+        pool.clone(),
+        &scratch_url,
+        smtp.port,
+        Some(Arc::clone(&revocation)),
+    )
+    .await;
+    let base = &server.base;
+    let (status, body) = post_json(
+        base,
+        "/auth/v1/password/signup",
+        serde_json::json!({ "email": "revoked@example.com", "password": "correct horse battery" }),
+    )
+    .await;
+    assert_eq!(status, reqwest::StatusCode::OK, "signup: {body}");
+    let access = body["access_token"].as_str().expect("access_token").to_string();
+    let jti = {
+        use base64::Engine as _;
+        let payload = access.split('.').nth(1).expect("payload");
+        let claims: serde_json::Value = serde_json::from_slice(
+            &base64::engine::general_purpose::URL_SAFE_NO_PAD
+                .decode(payload)
+                .expect("base64"),
+        )
+        .expect("claims");
+        claims["jti"].as_str().expect("a minted session carries a jti").to_string()
+    };
+    revocation.revoke(&jti, 3600).await.expect("revoke");
+
+    for (path, payload) in [
+        ("/auth/v1/email/verify/start", serde_json::json!({})),
+        ("/auth/v1/email/verify/confirm", serde_json::json!({ "token": "whatever" })),
+    ] {
+        let (status, body) = post_authed(base, path, &access, payload).await;
+        assert_eq!(
+            status,
+            reqwest::StatusCode::UNAUTHORIZED,
+            "{path} with a revoked session: {body}"
+        );
+    }
 
     server.stop().await;
     drop_scratch(&url, db).await;
