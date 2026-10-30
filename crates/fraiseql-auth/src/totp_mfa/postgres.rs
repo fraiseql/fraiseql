@@ -20,7 +20,7 @@ use sha2::{Digest, Sha256};
 use sqlx::{PgPool, Row};
 
 use super::{
-    BCRYPT_COST, CHALLENGE_TTL_SECS, EnrollmentResponse, FAILURE_WINDOW_SECS,
+    BCRYPT_COST, CHALLENGE_TTL_SECS, ChallengeToken, EnrollmentResponse, FAILURE_WINDOW_SECS,
     MAX_CHALLENGE_ATTEMPTS, MAX_USER_FAILURES, MfaStore, RECOVERY_CODE_COUNT, build_totp,
     check_recovery_code, generate_challenge_token, generate_recovery_code, verify_totp_code,
 };
@@ -97,6 +97,33 @@ impl PgMfaStore {
             sqlx::query(stmt).execute(&self.db).await.map_err(db_err)?;
         }
         Ok(())
+    }
+
+    /// A challenge for `user_id` when it has a confirmed enrollment, `None` when it has none
+    /// or one still unconfirmed. Called where every sign-in path mints its session.
+    ///
+    /// A deployment that never enabled `MFA` has no enrollment table, and that one condition
+    /// (the Postgres `undefined_table` code) reads as "not enrolled", as the account check
+    /// beside it does. Every other error refuses the sign-in: answering "not enrolled" to a
+    /// store that cannot answer would skip the second factor.
+    ///
+    /// # Errors
+    ///
+    /// [`AuthError::RateLimited`] while the user's failure budget is spent, and
+    /// [`AuthError::DatabaseError`] if the store fails.
+    pub async fn challenge_if_enrolled(&self, user_id: &str) -> Result<Option<ChallengeToken>> {
+        let confirmed = sqlx::query_scalar::<_, bool>(
+            "SELECT confirmed FROM core.tb_mfa_enrollment WHERE user_id = $1",
+        )
+        .bind(user_id)
+        .fetch_optional(&self.db)
+        .await;
+        match confirmed {
+            Ok(Some(true)) => Ok(Some(ChallengeToken(self.create_challenge(user_id).await?))),
+            Ok(Some(false) | None) => Ok(None),
+            Err(sqlx::Error::Database(e)) if e.code().as_deref() == Some("42P01") => Ok(None),
+            Err(e) => Err(db_err(e)),
+        }
     }
 
     async fn load(&self, user_id: &str) -> Result<Option<EnrollmentRow>> {
@@ -427,9 +454,9 @@ impl MfaStore for PgMfaStore {
     }
 
     async fn is_enrolled(&self, user_id: &str) -> bool {
-        // Fail-closed on a database error: reporting "not enrolled" would let a
-        // caller skip the second factor, so an unreachable store must read as
-        // enrolled-unknown → the challenge endpoint 404s rather than bypassing.
+        // A database error reads as "not enrolled", so this must never decide whether a
+        // sign-in owes the second factor: `challenge_if_enrolled` decides that, and refuses
+        // on an error.
         (self.load(user_id).await).is_ok_and(|row| row.is_some_and(|r| r.confirmed))
     }
 }

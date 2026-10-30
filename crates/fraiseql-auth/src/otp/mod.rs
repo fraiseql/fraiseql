@@ -489,6 +489,9 @@ pub async fn otp_verify(
     let tokens = match state.session_store.create_session(&user_id, expires_at).await {
         Ok(t) => t,
         Err(e) => {
+            if let Some(resp) = crate::totp_mfa::second_factor_response(&e) {
+                return resp;
+            }
             tracing::error!(error = %e, "Session creation failed after OTP verify");
             return (StatusCode::INTERNAL_SERVER_ERROR, "session creation failed").into_response();
         },

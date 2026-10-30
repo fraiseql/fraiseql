@@ -148,6 +148,9 @@ async fn issue_session(state: &LocalPasswordRouteState, user_id: &str) -> Respon
             (StatusCode::OK, Json(tokens)).into_response()
         },
         Err(e) => {
+            if let Some(resp) = crate::totp_mfa::second_factor_response(&e) {
+                return resp;
+            }
             tracing::error!(error = %e, "session creation failed after local-password auth");
             json_error(
                 StatusCode::INTERNAL_SERVER_ERROR,

@@ -371,14 +371,17 @@ pub async fn build_local_auth_states(
     let otp = None;
 
     let mfa = if local.mfa {
-        info!("TOTP MFA enabled (POST /auth/v1/mfa/{{enroll,confirm,challenge,verify,unenroll}})");
+        info!("TOTP MFA enabled (POST /auth/v1/mfa/{{enroll,confirm,verify,unenroll}})");
         Some(Arc::new(fraiseql_auth::MfaRouteState {
-            mfa_store:     Arc::new(fraiseql_auth::PgMfaStore::new(pool.clone())),
-            session_store: Arc::clone(&session_store),
-            issuer:        local
+            mfa_store:      Arc::new(fraiseql_auth::PgMfaStore::new(pool.clone())),
+            session_store:  Arc::clone(&session_store),
+            issuer:         local
                 .mfa_issuer
                 .clone()
                 .unwrap_or_else(|| DEFAULT_MFA_ISSUER.to_string()),
+            verify_limiter: Arc::new(fraiseql_auth::KeyedRateLimiter::new(
+                fraiseql_auth::AuthRateLimitConfig::per_ip_strict(),
+            )),
         }))
     } else {
         None

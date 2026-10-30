@@ -2547,6 +2547,9 @@ mod totp_mfa_tests {
             mfa_store: mfa_store.clone(),
             session_store,
             issuer: "FraiseQL".to_string(),
+            verify_limiter: Arc::new(crate::rate_limiting::KeyedRateLimiter::new(
+                crate::rate_limiting::AuthRateLimitConfig::per_ip_strict(),
+            )),
         });
 
         (state, mfa_store)
@@ -2555,7 +2558,6 @@ mod totp_mfa_tests {
     fn mfa_router(state: Arc<MfaRouteState>) -> Router {
         Router::new()
             .route("/auth/v1/mfa/enroll", post(mfa_enroll))
-            .route("/auth/v1/mfa/challenge", post(mfa_challenge))
             .route("/auth/v1/mfa/verify", post(mfa_verify))
             .route("/auth/v1/mfa/unenroll", post(mfa_unenroll))
             .with_state(state)
@@ -2714,17 +2716,6 @@ mod totp_mfa_tests {
         let unenroll_code = totp.generate_current().unwrap();
         store.unenroll("user-1", &unenroll_code).await.unwrap();
         assert!(!store.is_enrolled("user-1").await);
-    }
-
-    #[tokio::test]
-    async fn test_mfa_challenge_not_enrolled_returns_404() {
-        let (state, _) = build_mfa_state();
-        let app = mfa_router(state);
-
-        let req =
-            post_json("/auth/v1/mfa/challenge", serde_json::json!({ "user_id": "user-no-mfa" }));
-        let resp = app.oneshot(req).await.unwrap();
-        assert_eq!(resp.status(), axum::http::StatusCode::NOT_FOUND);
     }
 }
 

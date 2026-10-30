@@ -14,7 +14,7 @@ use super::super::{
     AuthMeState, AuthPkceState, Server, auth_callback, auth_me, auth_start, oidc_auth_middleware,
 };
 use crate::{
-    auth::{anon_signup, mfa_challenge, mfa_confirm, mfa_enroll, mfa_unenroll, mfa_verify},
+    auth::{anon_signup, mfa_confirm, mfa_enroll, mfa_unenroll, mfa_verify},
     middleware::{AuthUser, hs256_auth_middleware},
 };
 
@@ -150,14 +150,15 @@ impl Server {
                      account, and no [auth_hs256] layer resolves one"
                 );
             }
+            // Verify redeems the challenge a first factor earned; the challenge is issued
+            // where every sign-in path mints its session, never on a route of its own.
             let mfa_router = Router::new()
-                .route("/auth/v1/mfa/challenge", post(mfa_challenge))
                 .route("/auth/v1/mfa/verify", post(mfa_verify))
                 .with_state(Arc::clone(mfa));
             app = app.merge(mfa_router);
             info!(
                 "TOTP MFA routes mounted: POST \
-                 /auth/v1/mfa/{{enroll,confirm,challenge,verify,unenroll}}"
+                 /auth/v1/mfa/{{enroll,confirm,verify,unenroll}}"
             );
         }
 
@@ -309,13 +310,15 @@ mod router_construction {
         let _router: Router = Router::new()
             .route("/auth/v1/mfa/enroll", post(mfa_enroll))
             .route("/auth/v1/mfa/confirm", post(mfa_confirm))
-            .route("/auth/v1/mfa/challenge", post(mfa_challenge))
             .route("/auth/v1/mfa/verify", post(mfa_verify))
             .route("/auth/v1/mfa/unenroll", post(mfa_unenroll))
             .with_state(Arc::new(fraiseql_auth::MfaRouteState {
-                mfa_store:     Arc::new(fraiseql_auth::InMemoryMfaStore::new()),
-                session_store: Arc::new(NoopSessionStore),
-                issuer:        "FraiseQL".to_string(),
+                mfa_store:      Arc::new(fraiseql_auth::InMemoryMfaStore::new()),
+                session_store:  Arc::new(NoopSessionStore),
+                issuer:         "FraiseQL".to_string(),
+                verify_limiter: Arc::new(fraiseql_auth::KeyedRateLimiter::new(
+                    fraiseql_auth::AuthRateLimitConfig::per_ip_strict(),
+                )),
             }));
     }
 }

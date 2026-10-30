@@ -88,6 +88,13 @@ impl AuthError {
             // suspends only the local password credential. Reached at session creation —
             // i.e. after some credential already succeeded — so naming the state discloses
             // nothing to a party that does not already hold a working credential.
+            // Reached only through `into_response`'s own arm below, which carries the
+            // challenge; this is the shape a caller of `response_parts` alone sees.
+            Self::SecondFactorRequired { .. } => (
+                StatusCode::UNAUTHORIZED,
+                "mfa_required",
+                "A second factor is required".to_string(),
+            ),
             Self::AccountDeactivated => (
                 StatusCode::FORBIDDEN,
                 "account_deactivated",
@@ -166,6 +173,7 @@ impl AuthError {
             | Self::InvalidCredentials
             | Self::AccountDisabled
             | Self::AccountDeactivated
+            | Self::SecondFactorRequired { .. }
             | Self::EmailAlreadyRegistered
             | Self::EmailClaimedByAnotherAccount => {},
         }
@@ -174,6 +182,9 @@ impl AuthError {
 
 impl IntoResponse for AuthError {
     fn into_response(self) -> Response {
+        if let Self::SecondFactorRequired { challenge } = &self {
+            return crate::totp_mfa::challenge_response(challenge);
+        }
         self.log_security_details();
         let (status, error_code, sanitized_message) = self.response_parts();
 

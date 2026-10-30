@@ -130,6 +130,24 @@ pub trait SessionStore: Send + Sync {
     /// Returns error if session creation fails
     async fn create_session(&self, user_id: &str, expires_at: u64) -> Result<TokenPair>;
 
+    /// Create a session for a user who has just passed the second factor.
+    ///
+    /// [`SecondFactorPassed`](crate::totp_mfa::SecondFactorPassed) is made only by
+    /// redeeming a challenge, so this is the one way to a session for a user enrolled in
+    /// `MFA`. A store that requires the second factor in [`Self::create_session`]
+    /// overrides this to mint without asking again; a store that requires nothing has
+    /// nothing to skip.
+    ///
+    /// # Errors
+    /// Returns error if session creation fails
+    async fn create_session_after_second_factor(
+        &self,
+        passed: crate::totp_mfa::SecondFactorPassed,
+        expires_at: u64,
+    ) -> Result<TokenPair> {
+        self.create_session(passed.user_id(), expires_at).await
+    }
+
     /// Get session data by refresh token hash
     ///
     /// # Arguments

@@ -244,18 +244,15 @@ async fn account_for_session(db: &PgPool, user_id: &str) -> Result<Option<uuid::
     Ok(tenant)
 }
 
-// Reason: SessionStore is defined with #[async_trait]; all implementations must match
-// its transformed method signatures to satisfy the trait contract
-// async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
-#[async_trait]
-impl SessionStore for PostgresSessionStore {
-    async fn create_session(&self, user_id: &str, expires_at: u64) -> Result<TokenPair> {
-        // Offboarding must block every credential, not just the one the IdP owns (#946).
-        // This is the single place every credential path converges on — password login,
-        // MFA's second factor, social callback, OTP, SAML ACS all end here — which is why
-        // the check lives here rather than in each of them.
-        let tenant = account_for_session(&self.db, user_id).await?;
-
+impl PostgresSessionStore {
+    /// Mint the session: sign the access token, then record the refresh token's hash.
+    /// Reached only after the account check, and the second factor where one is owed.
+    async fn mint(
+        &self,
+        user_id: &str,
+        tenant: Option<uuid::Uuid>,
+        expires_at: u64,
+    ) -> Result<TokenPair> {
         let refresh_token = generate_refresh_token();
         let refresh_token_hash = hash_token(&refresh_token);
 
@@ -299,6 +296,38 @@ impl SessionStore for PostgresSessionStore {
             refresh_token,
             expires_in,
         })
+    }
+}
+
+// Reason: SessionStore is defined with #[async_trait]; all implementations must match
+// its transformed method signatures to satisfy the trait contract
+// async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
+#[async_trait]
+impl SessionStore for PostgresSessionStore {
+    async fn create_session(&self, user_id: &str, expires_at: u64) -> Result<TokenPair> {
+        // Offboarding must block every credential, not just the one the IdP owns (#946).
+        // This is the single place every credential path converges on — password login,
+        // social callback, OTP, SAML ACS, an anonymous session's upgrade all end here —
+        // which is why the check lives here rather than in each of them. The second factor
+        // is required here for the same reason: a path that skipped it would mint a full
+        // session from the first factor alone.
+        let tenant = account_for_session(&self.db, user_id).await?;
+        if let Some(challenge) = crate::totp_mfa::postgres::PgMfaStore::new(self.db.clone())
+            .challenge_if_enrolled(user_id)
+            .await?
+        {
+            return Err(AuthError::SecondFactorRequired { challenge });
+        }
+        self.mint(user_id, tenant, expires_at).await
+    }
+
+    async fn create_session_after_second_factor(
+        &self,
+        passed: crate::totp_mfa::SecondFactorPassed,
+        expires_at: u64,
+    ) -> Result<TokenPair> {
+        let tenant = account_for_session(&self.db, passed.user_id()).await?;
+        self.mint(passed.user_id(), tenant, expires_at).await
     }
 
     async fn get_session(&self, refresh_token_hash: &str) -> Result<SessionData> {

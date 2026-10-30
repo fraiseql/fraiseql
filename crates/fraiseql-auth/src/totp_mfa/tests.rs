@@ -9,7 +9,10 @@ use axum::{
 use tower::ServiceExt as _;
 
 use super::*;
-use crate::session::InMemorySessionStore;
+use crate::{
+    rate_limiting::{AuthRateLimitConfig, KeyedRateLimiter},
+    session::InMemorySessionStore,
+};
 
 /// Build a store, enroll a user, confirm enrollment, and return (store, user_id,
 /// recovery_codes).
@@ -33,13 +36,13 @@ async fn setup_enrolled_user() -> (Arc<InMemoryMfaStore>, String, Vec<String>) {
 fn build_app(session_store: Arc<InMemorySessionStore>) -> Router {
     let mfa_store = Arc::new(InMemoryMfaStore::new());
     let state = Arc::new(MfaRouteState {
-        mfa_store:     mfa_store as Arc<dyn MfaStore>,
-        session_store: session_store as Arc<dyn SessionStore>,
-        issuer:        "FraiseQL".to_string(),
+        mfa_store:      mfa_store as Arc<dyn MfaStore>,
+        session_store:  session_store as Arc<dyn SessionStore>,
+        issuer:         "FraiseQL".to_string(),
+        verify_limiter: Arc::new(KeyedRateLimiter::new(AuthRateLimitConfig::per_ip_strict())),
     });
     Router::new()
         .route("/auth/v1/mfa/enroll", post(mfa_enroll))
-        .route("/auth/v1/mfa/challenge", post(mfa_challenge))
         .route("/auth/v1/mfa/verify", post(mfa_verify))
         .route("/auth/v1/mfa/unenroll", post(mfa_unenroll))
         .with_state(state)
@@ -305,25 +308,6 @@ async fn test_mfa_enroll_http_returns_200() {
     assert_eq!(json["recovery_codes"].as_array().unwrap().len(), 8);
 }
 
-#[tokio::test]
-async fn test_mfa_challenge_not_enrolled_returns_404() {
-    let app = build_app(Arc::new(InMemorySessionStore::new()));
-
-    let resp = app
-        .oneshot(
-            Request::builder()
-                .method("POST")
-                .uri("/auth/v1/mfa/challenge")
-                .header(header::CONTENT_TYPE, "application/json")
-                .body(json_body(serde_json::json!({"user_id": "user_not_enrolled"})))
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-
-    assert_eq!(resp.status(), StatusCode::NOT_FOUND);
-}
-
 // ── The account is the session's, never the request's ───────────────────────
 
 /// A request to a session-bound MFA route: `subject` is what the authentication layer
@@ -342,9 +326,10 @@ fn session_request(uri: &str, subject: Option<&str>, body: serde_json::Value) ->
 /// The routes over `store`.
 fn app_over(store: Arc<InMemoryMfaStore>) -> Router {
     let state = Arc::new(MfaRouteState {
-        mfa_store:     store as Arc<dyn MfaStore>,
-        session_store: Arc::new(InMemorySessionStore::new()) as Arc<dyn SessionStore>,
-        issuer:        "FraiseQL".to_string(),
+        mfa_store:      store as Arc<dyn MfaStore>,
+        session_store:  Arc::new(InMemorySessionStore::new()) as Arc<dyn SessionStore>,
+        issuer:         "FraiseQL".to_string(),
+        verify_limiter: Arc::new(KeyedRateLimiter::new(AuthRateLimitConfig::per_ip_strict())),
     });
     Router::new()
         .route("/auth/v1/mfa/enroll", post(mfa_enroll))
@@ -466,4 +451,100 @@ async fn replacing_a_confirmed_enrollment_needs_a_current_code() {
     let resp = enroll(Some(&recovery[0])).await.unwrap();
     assert_eq!(resp.status(), StatusCode::OK, "a current code replaces it");
     assert!(store.has_pending_enrollment(&user_id), "with a fresh, unconfirmed enrollment");
+}
+
+// ── Verify: the challenge a first factor earned ─────────────────────────────
+
+/// `/verify` over `store`, with a per-client budget of `per_client` requests.
+fn verify_app(store: Arc<InMemoryMfaStore>, per_client: u32) -> Router {
+    let state = Arc::new(MfaRouteState {
+        mfa_store:      store as Arc<dyn MfaStore>,
+        session_store:  Arc::new(InMemorySessionStore::new()) as Arc<dyn SessionStore>,
+        issuer:         "FraiseQL".to_string(),
+        verify_limiter: Arc::new(KeyedRateLimiter::new(AuthRateLimitConfig {
+            enabled:      true,
+            max_requests: per_client,
+            window_secs:  60,
+        })),
+    });
+    Router::new().route("/auth/v1/mfa/verify", post(mfa_verify)).with_state(state)
+}
+
+/// A `/verify` request from `peer`.
+fn verify_request(peer: [u8; 4], challenge: &str, code: &str) -> Request<Body> {
+    Request::builder()
+        .method("POST")
+        .uri("/auth/v1/mfa/verify")
+        .header(header::CONTENT_TYPE, "application/json")
+        .extension(axum::extract::ConnectInfo(std::net::SocketAddr::from((peer, 4000))))
+        .body(json_body(serde_json::json!({ "challenge_token": challenge, "code": code })))
+        .unwrap()
+}
+
+#[tokio::test]
+async fn a_challenge_redeems_once() {
+    let (store, user_id, recovery) = setup_enrolled_user().await;
+    let challenge = store.create_challenge(&user_id).await.unwrap();
+
+    let resp = verify_app(Arc::clone(&store), 50)
+        .oneshot(verify_request([10, 0, 0, 1], &challenge, &recovery[0]))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK, "the challenge redeems into a session");
+
+    let resp = verify_app(Arc::clone(&store), 50)
+        .oneshot(verify_request([10, 0, 0, 1], &challenge, &recovery[1]))
+        .await
+        .unwrap();
+    assert_eq!(
+        resp.status(),
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "a replayed challenge is refused"
+    );
+}
+
+#[tokio::test]
+async fn an_expired_challenge_is_refused() {
+    let (store, user_id, recovery) = setup_enrolled_user().await;
+    let challenge = store.create_challenge(&user_id).await.unwrap();
+    store.challenges.get_mut(&challenge).unwrap().expires = 0;
+
+    let resp = verify_app(Arc::clone(&store), 50)
+        .oneshot(verify_request([10, 0, 0, 1], &challenge, &recovery[0]))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::UNPROCESSABLE_ENTITY);
+}
+
+/// One client guessing across many users' challenges meets a budget of its own, which
+/// the per-user failure budget alone would not give it.
+#[tokio::test]
+async fn verify_is_limited_per_client_address() {
+    let (store, user_id, _) = setup_enrolled_user().await;
+    let app = verify_app(Arc::clone(&store), 2);
+    let mut statuses = Vec::new();
+    for _ in 0..3 {
+        let challenge = store.create_challenge(&user_id).await.unwrap();
+        let resp = app
+            .clone()
+            .oneshot(verify_request([10, 0, 0, 2], &challenge, "000000"))
+            .await
+            .unwrap();
+        statuses.push(resp.status());
+    }
+    assert_eq!(
+        statuses,
+        [
+            StatusCode::UNPROCESSABLE_ENTITY,
+            StatusCode::UNPROCESSABLE_ENTITY,
+            StatusCode::TOO_MANY_REQUESTS
+        ]
+    );
+    let challenge = store.create_challenge(&user_id).await.unwrap();
+    let resp = app.oneshot(verify_request([10, 0, 0, 3], &challenge, "000000")).await.unwrap();
+    assert_eq!(
+        resp.status(),
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "another client has its own budget"
+    );
 }

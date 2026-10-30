@@ -176,6 +176,19 @@ impl RunningServer {
     }
 }
 
+/// Wait for the server's first answer. It provisions its tables before it accepts a
+/// connection, so from then on a fixture may write to them; a fixed sleep raced that.
+async fn wait_until_serving(base: &str) {
+    let ready = async {
+        while reqwest::get(format!("{base}/health")).await.is_err() {
+            tokio::time::sleep(std::time::Duration::from_millis(25)).await;
+        }
+    };
+    tokio::time::timeout(std::time::Duration::from_secs(30), ready)
+        .await
+        .expect("the server answers within 30s");
+}
+
 async fn boot(local: LocalAuthConfig, pool: PgPool, scratch_url: &str) -> RunningServer {
     let adapter = Arc::new(PostgresAdapter::new(scratch_url).await.expect("PostgresAdapter::new"));
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.expect("bind ephemeral port");
@@ -192,9 +205,10 @@ async fn boot(local: LocalAuthConfig, pool: PgPool, scratch_url: &str) -> Runnin
             })
             .await;
     });
-    tokio::time::sleep(std::time::Duration::from_millis(150)).await;
+    let base = format!("http://127.0.0.1:{port}");
+    wait_until_serving(&base).await;
     RunningServer {
-        base: format!("http://127.0.0.1:{port}"),
+        base,
         shutdown: tx,
         handle,
     }
@@ -248,6 +262,21 @@ fn session_for(user_id: &str) -> String {
         &jsonwebtoken::EncodingKey::from_secret(HS256_SECRET.as_bytes()),
     )
     .expect("sign a session token")
+}
+
+/// The challenge a sign-in of `user_id` earns, from where every sign-in path mints its
+/// session.
+async fn challenge_for(pool: &PgPool, user_id: &str) -> String {
+    use fraiseql_auth::SessionStore as _;
+
+    let sessions =
+        fraiseql_auth::PostgresSessionStore::with_hs256_secret(pool.clone(), HS256_SECRET.into());
+    match sessions.create_session(user_id, u64::MAX / 2).await {
+        Err(fraiseql_auth::AuthError::SecondFactorRequired { challenge }) => {
+            challenge.expose().to_string()
+        },
+        other => panic!("a sign-in of {user_id} must owe the second factor, got {other:?}"),
+    }
 }
 
 /// `POST` `body` to `path` as the holder of `bearer`.
@@ -591,18 +620,8 @@ async fn mfa_enrollment_survives_a_restart() {
     .await;
 
     // Challenge + verify against the restarted process.
-    let (status, body) = post_json(
-        &server.base,
-        "/auth/v1/mfa/challenge",
-        serde_json::json!({ "user_id": "user-1" }),
-    )
-    .await;
-    assert_eq!(
-        status,
-        reqwest::StatusCode::OK,
-        "the enrollment must survive the restart (Postgres store): {body}"
-    );
-    let challenge = body["challenge_token"].as_str().expect("challenge_token").to_string();
+    // A sign-in after the restart owes the second factor: the enrollment survived.
+    let challenge = challenge_for(&pool, "user-1").await;
 
     // A wrong code is refused…
     let (status, _) = post_json(
@@ -614,14 +633,7 @@ async fn mfa_enrollment_survives_a_restart() {
     assert_eq!(status, reqwest::StatusCode::UNPROCESSABLE_ENTITY);
 
     // …and a recovery code verifies and mints a session.
-    let (status, body) = post_json(
-        &server.base,
-        "/auth/v1/mfa/challenge",
-        serde_json::json!({ "user_id": "user-1" }),
-    )
-    .await;
-    assert_eq!(status, reqwest::StatusCode::OK);
-    let challenge = body["challenge_token"].as_str().expect("challenge_token").to_string();
+    let challenge = challenge_for(&pool, "user-1").await;
     let (status, body) = post_json(
         &server.base,
         "/auth/v1/mfa/verify",
@@ -865,9 +877,10 @@ async fn boot_with_smtp(
             })
             .await;
     });
-    tokio::time::sleep(std::time::Duration::from_millis(150)).await;
+    let base = format!("http://127.0.0.1:{port}");
+    wait_until_serving(&base).await;
     RunningServer {
-        base: format!("http://127.0.0.1:{port}"),
+        base,
         shutdown: tx,
         handle,
     }

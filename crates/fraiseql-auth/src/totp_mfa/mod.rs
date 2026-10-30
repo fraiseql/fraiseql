@@ -5,10 +5,12 @@
 //! 1. **Enroll** (`POST /auth/v1/mfa/enroll`) — generates a `TOTP` secret and 8 single-use recovery
 //!    codes for the signed-in account. Returns an `otpauth://` `URI` for the authenticator app.
 //!    Replacing a confirmed enrollment needs a current code from it.
-//! 2. **Challenge** (`POST /auth/v1/mfa/challenge`) — creates a short-lived challenge token after
-//!    the first authentication factor is verified.
-//! 3. **Verify** (`POST /auth/v1/mfa/verify`) — verifies a `TOTP` code or recovery code and issues
-//!    a full session token pair.
+//! 2. **Challenge** — a first factor (password, `OTP`, a social or `SAML` sign-in) for a user with
+//!    a confirmed enrollment mints no session. It answers `401` with `"error": "mfa_required"` and
+//!    a short-lived `challenge_token` bound to that user, issued where every path mints its session
+//!    (`PostgresSessionStore::create_session`), so no path can skip it.
+//! 3. **Verify** (`POST /auth/v1/mfa/verify`) — redeems the challenge with a `TOTP` code or
+//!    recovery code and issues a full session token pair.
 //! 4. **Unenroll** (`POST /auth/v1/mfa/unenroll`) — removes `MFA` from the signed-in account
 //!    (requires the current `TOTP` code or a recovery code for re-authentication).
 //!
@@ -33,7 +35,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use axum::{
     Json,
-    extract::State,
+    extract::{ConnectInfo, State},
     http::StatusCode,
     response::{IntoResponse, Response},
 };
@@ -98,6 +100,43 @@ pub struct TotpEnrollment {
     pub recovery_code_hashes: Vec<String>,
     /// Whether enrollment has been confirmed (first `TOTP` code verified).
     pub confirmed:            bool,
+}
+
+/// A challenge a first factor earned: the caller redeems it with a current code at
+/// `/auth/v1/mfa/verify`. Printed by neither `Debug` nor `Display`.
+#[derive(Clone, PartialEq, Eq)]
+pub struct ChallengeToken(String);
+
+impl ChallengeToken {
+    /// The token, for the answer to the caller who passed the first factor.
+    #[must_use]
+    pub fn expose(&self) -> &str {
+        &self.0
+    }
+}
+
+impl std::fmt::Debug for ChallengeToken {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("ChallengeToken(..)")
+    }
+}
+
+/// Proof that a user has just passed the second factor.
+///
+/// Only a redeemed challenge makes one, and
+/// [`SessionStore::create_session_after_second_factor`] takes nothing else, so a session for
+/// a user enrolled in `MFA` cannot be minted around it.
+#[derive(Debug)]
+pub struct SecondFactorPassed {
+    user_id: String,
+}
+
+impl SecondFactorPassed {
+    /// The user who passed it.
+    #[must_use]
+    pub fn user_id(&self) -> &str {
+        &self.user_id
+    }
 }
 
 /// Pending `MFA` challenge record.
@@ -194,6 +233,9 @@ pub trait MfaStore: Send + Sync {
     async fn unenroll(&self, user_id: &str, code: &str) -> Result<()>;
 
     /// Return `true` if the user has an active (confirmed) `MFA` enrollment.
+    ///
+    /// An error reads as `false`, so this answers a display question only: it must not
+    /// decide whether a sign-in owes the second factor.
     async fn is_enrolled(&self, user_id: &str) -> bool;
 }
 
@@ -579,11 +621,14 @@ impl MfaStore for InMemoryMfaStore {
 #[derive(Clone)]
 pub struct MfaRouteState {
     /// `MFA` storage backend.
-    pub mfa_store:     Arc<dyn MfaStore>,
+    pub mfa_store:      Arc<dyn MfaStore>,
     /// Session store (to issue full sessions after `MFA` verification).
-    pub session_store: Arc<dyn SessionStore>,
+    pub session_store:  Arc<dyn SessionStore>,
     /// Service / issuer name shown in authenticator apps.
-    pub issuer:        String,
+    pub issuer:         String,
+    /// Per-IP budget for `/verify`, keyed on the transport peer. The per-user failure budget
+    /// stops one account's code being guessed; this stops one client guessing across many.
+    pub verify_limiter: Arc<crate::rate_limiting::KeyedRateLimiter>,
 }
 
 // ─── Request / Response types ─────────────────────────────────────────────────
@@ -616,24 +661,10 @@ pub struct MfaEnrollResponse {
     pub recovery_codes: Vec<String>,
 }
 
-/// Request for `POST /auth/v1/mfa/challenge`.
-#[derive(Debug, Deserialize)]
-pub struct MfaChallengeRequest {
-    /// User whose `MFA` challenge to initiate.
-    pub user_id: String,
-}
-
-/// Response for `POST /auth/v1/mfa/challenge`.
-#[derive(Debug, Serialize)]
-pub struct MfaChallengeResponse {
-    /// Short-lived challenge token (5 minutes).
-    pub challenge_token: String,
-}
-
 /// Request for `POST /auth/v1/mfa/verify`.
 #[derive(Debug, Deserialize)]
 pub struct MfaVerifyRequest {
-    /// Challenge token from the `/challenge` step.
+    /// Challenge token from the first factor's `mfa_required` answer.
     pub challenge_token: String,
     /// 6-digit `TOTP` code or one of the 8-digit recovery codes.
     pub code:            String,
@@ -690,6 +721,34 @@ fn rate_limited_response(err: &AuthError) -> Option<Response> {
         )
             .into_response(),
     )
+}
+
+/// The answer to a sign-in that passed its first factor and owes the second.
+///
+/// `401` with the challenge to redeem at `/auth/v1/mfa/verify`, or the `429` of a user
+/// whose failure budget is spent. `None` for every other error.
+///
+/// Every route that mints a session renders its session-store error through this, so a
+/// user enrolled in `MFA` is answered the same way whichever first factor they used.
+#[must_use]
+pub fn second_factor_response(err: &AuthError) -> Option<Response> {
+    if let AuthError::SecondFactorRequired { challenge } = err {
+        return Some(challenge_response(challenge));
+    }
+    rate_limited_response(err)
+}
+
+/// `401` with the challenge to redeem at `/auth/v1/mfa/verify`.
+pub(crate) fn challenge_response(challenge: &ChallengeToken) -> Response {
+    (
+        StatusCode::UNAUTHORIZED,
+        Json(serde_json::json!({
+            "error":           "mfa_required",
+            "message":         "a second factor is required: redeem challenge_token at /auth/v1/mfa/verify",
+            "challenge_token": challenge.expose(),
+        })),
+    )
+        .into_response()
 }
 
 /// `POST /auth/v1/mfa/enroll`
@@ -749,47 +808,6 @@ pub async fn mfa_enroll(
     }
 }
 
-/// `POST /auth/v1/mfa/challenge`
-///
-/// Initiates a `MFA` challenge for the given user (called after first-factor auth).
-///
-/// # Errors
-///
-/// Returns 404 if the user has no confirmed `MFA` enrollment.
-pub async fn mfa_challenge(
-    State(state): State<Arc<MfaRouteState>>,
-    Json(req): Json<MfaChallengeRequest>,
-) -> Response {
-    if !state.mfa_store.is_enrolled(&req.user_id).await {
-        return (
-            StatusCode::NOT_FOUND,
-            Json(serde_json::json!({
-                "error": "not_enrolled",
-                "message": "user has no active MFA enrollment"
-            })),
-        )
-            .into_response();
-    }
-
-    match state.mfa_store.create_challenge(&req.user_id).await {
-        Ok(token) => (
-            StatusCode::OK,
-            Json(MfaChallengeResponse {
-                challenge_token: token,
-            }),
-        )
-            .into_response(),
-        Err(e) => {
-            if let Some(resp) = rate_limited_response(&e) {
-                tracing::warn!(user_id = %req.user_id, "MFA challenge refused — user locked out");
-                return resp;
-            }
-            tracing::error!(error = %e, "MFA challenge error");
-            (StatusCode::INTERNAL_SERVER_ERROR, "challenge creation failed").into_response()
-        },
-    }
-}
-
 /// `POST /auth/v1/mfa/verify`
 ///
 /// Verifies the `TOTP` code or recovery code and issues a full session token pair.
@@ -799,9 +817,23 @@ pub async fn mfa_challenge(
 /// Returns 422 if the code is wrong or the challenge is expired.
 pub async fn mfa_verify(
     State(state): State<Arc<MfaRouteState>>,
+    ConnectInfo(peer): ConnectInfo<std::net::SocketAddr>,
     Json(req): Json<MfaVerifyRequest>,
 ) -> Response {
     let logger = get_audit_logger();
+    if let Err(e) = state.verify_limiter.check(&peer.ip().to_string()) {
+        logger.log_failure(
+            AuditEventType::AuthFailure,
+            SecretType::SessionToken,
+            None,
+            "mfa_verify",
+            "rate limited",
+        );
+        if let Some(resp) = rate_limited_response(&e) {
+            return resp;
+        }
+        return (StatusCode::TOO_MANY_REQUESTS, "rate limited").into_response();
+    }
 
     let user_id = match state.mfa_store.verify_challenge(&req.challenge_token, &req.code).await {
         Ok(uid) => uid,
@@ -832,13 +864,18 @@ pub async fn mfa_verify(
         Err(_) => return (StatusCode::INTERNAL_SERVER_ERROR, "internal error").into_response(),
     };
 
-    let tokens = match state.session_store.create_session(&user_id, expires_at).await {
-        Ok(t) => t,
-        Err(e) => {
-            tracing::error!(error = %e, "Session creation failed after MFA verify");
-            return (StatusCode::INTERNAL_SERVER_ERROR, "session creation failed").into_response();
-        },
+    let passed = SecondFactorPassed {
+        user_id: user_id.clone(),
     };
+    let tokens =
+        match state.session_store.create_session_after_second_factor(passed, expires_at).await {
+            Ok(t) => t,
+            Err(e) => {
+                tracing::error!(error = %e, "Session creation failed after MFA verify");
+                return (StatusCode::INTERNAL_SERVER_ERROR, "session creation failed")
+                    .into_response();
+            },
+        };
 
     logger.log_success(
         AuditEventType::AuthSuccess,

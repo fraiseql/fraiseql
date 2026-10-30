@@ -399,6 +399,9 @@ pub async fn saml_acs(State(state): State<SamlAuthState>, Form(form): Form<AcsFo
     {
         Ok(tokens) => tokens,
         Err(e) => {
+            if let Some(resp) = crate::totp_mfa::second_factor_response(&e) {
+                return resp;
+            }
             tracing::error!(error = %e, "session creation failed");
             return json_error(StatusCode::INTERNAL_SERVER_ERROR, "session could not be created");
         },

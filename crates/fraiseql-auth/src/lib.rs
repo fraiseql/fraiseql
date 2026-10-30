@@ -148,9 +148,11 @@ pub use state_store::{InMemoryStateStore, StateStore};
 /// The `tokio` this crate's public API is built against (#1198).
 pub use tokio;
 pub use totp_mfa::{
-    EnrollmentResponse, InMemoryMfaStore, MfaRouteState, MfaStore, SessionSubject, TotpEnrollment,
-    mfa_challenge, mfa_confirm, mfa_enroll, mfa_unenroll, mfa_verify,
+    ChallengeToken, EnrollmentResponse, InMemoryMfaStore, MfaRouteState, MfaStore,
+    SecondFactorPassed, SessionSubject, TotpEnrollment, mfa_confirm, mfa_enroll, mfa_unenroll,
+    mfa_verify,
     postgres::{PG_MFA_SCHEMA_SQL, PgMfaStore},
+    second_factor_response,
 };
 /// The `url` this crate's public API is built against (#1198).
 pub use url;

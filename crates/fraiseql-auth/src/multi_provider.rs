@@ -107,6 +107,21 @@ fn build_redirect_with_tokens(
     )
 }
 
+/// The redirect that hands a sign-in's `MFA` challenge back to the front end, in the
+/// fragment as [`build_redirect_with_tokens`] hands tokens: `error=mfa_required` and the
+/// `challenge_token` to redeem at `/auth/v1/mfa/verify`.
+fn build_redirect_with_challenge(
+    redirect_uri: &str,
+    challenge_token: &str,
+    provider: &str,
+) -> String {
+    format!(
+        "{redirect_uri}#error=mfa_required&challenge_token={}&provider={}",
+        urlencoding::encode(challenge_token),
+        urlencoding::encode(provider),
+    )
+}
+
 /// Shared state for the multi-provider auth endpoints.
 ///
 /// # Rate limiting (#788)
@@ -710,6 +725,21 @@ async fn complete_callback(
     {
         Ok(t) => t,
         Err(e) => {
+            // A user enrolled in MFA gets the challenge where they would have got the
+            // tokens: in the fragment of the bound redirect, else in the JSON answer.
+            if let (crate::AuthError::SecondFactorRequired { challenge }, Some(redirect_uri)) =
+                (&e, &bound_redirect_uri)
+            {
+                return Redirect::to(&build_redirect_with_challenge(
+                    redirect_uri,
+                    challenge.expose(),
+                    &provider_name,
+                ))
+                .into_response();
+            }
+            if let Some(resp) = crate::totp_mfa::second_factor_response(&e) {
+                return resp;
+            }
             tracing::error!(error = %e, "session creation failed");
             return json_error(StatusCode::INTERNAL_SERVER_ERROR, "session could not be created");
         },

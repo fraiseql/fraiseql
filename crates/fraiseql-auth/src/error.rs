@@ -120,6 +120,17 @@ pub enum AuthError {
     #[error("Account deactivated")]
     AccountDeactivated,
 
+    /// The first factor succeeded for a user enrolled in `MFA`, so no session was minted:
+    /// the caller redeems `challenge` with a current code at `/auth/v1/mfa/verify`.
+    ///
+    /// The challenge goes to the caller, who is the one that passed the first factor. It is
+    /// single-use and expires, and neither the message nor `Debug` prints it.
+    #[error("Second factor required")]
+    SecondFactorRequired {
+        /// The challenge to redeem.
+        challenge: crate::totp_mfa::ChallengeToken,
+    },
+
     /// The authenticated user lacks the required permission for the requested operation.
     /// The `message` field contains the specific permission check detail and must not
     /// be forwarded to API clients in full (it reveals internal role/permission names).
