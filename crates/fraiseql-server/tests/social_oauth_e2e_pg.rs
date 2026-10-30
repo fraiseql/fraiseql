@@ -522,6 +522,17 @@ fn jwt_sub(token: &str) -> String {
 
 /// Drive `provider` through authorize → callback; returns the token-response JSON.
 async fn login(base: &str, provider: &str) -> serde_json::Value {
+    let (status, body) = sign_in(base, provider).await;
+    assert_eq!(
+        status,
+        reqwest::StatusCode::OK,
+        "callback must complete the login ({provider}): {body}"
+    );
+    body
+}
+
+/// Drive `provider` through authorize → callback; returns the callback's answer.
+async fn sign_in(base: &str, provider: &str) -> (reqwest::StatusCode, serde_json::Value) {
     let client = no_redirect_client();
     let resp = client
         .get(format!(
@@ -548,13 +559,8 @@ async fn login(base: &str, provider: &str) -> serde_json::Value {
         .send()
         .await
         .expect("callback request");
-    assert_eq!(
-        resp.status(),
-        reqwest::StatusCode::OK,
-        "callback must complete the login ({provider}): {}",
-        resp.text().await.unwrap_or_default()
-    );
-    resp.json().await.expect("token response JSON")
+    let status = resp.status();
+    (status, resp.json().await.unwrap_or(serde_json::Value::Null))
 }
 
 /// Drive Apple through authorize → **form-POST** callback; returns the
@@ -979,4 +985,67 @@ async fn discord_and_facebook_keep_unverified_emails_out_of_the_linking_space() 
 #[test]
 fn the_document_loads_without_a_database() {
     empty_schema();
+}
+
+/// A social sign-in of a user enrolled in `MFA` yields a challenge bound to that user, not
+/// a session.
+#[tokio::test]
+async fn a_social_sign_in_of_an_mfa_user_yields_a_challenge() {
+    use fraiseql_auth::MfaStore as _;
+
+    let Some(url) = database_url_or_skip("a_social_sign_in_of_an_mfa_user_yields_a_challenge")
+    else {
+        return;
+    };
+    set_test_env();
+    let db = "fraiseql_p26_social_mfa";
+    let pool = scratch_pool(&url, db).await;
+    let scratch_url = with_database(&url, db);
+    let stub = stub_idp().await;
+    let (base, tx, handle) =
+        boot_server(social_config(&scratch_url), social_schema(&stub), pool.clone(), &scratch_url)
+            .await;
+
+    let user =
+        jwt_sub(login(&base, "google").await["access_token"].as_str().expect("access_token"));
+    sqlx::raw_sql(fraiseql_auth::PG_MFA_SCHEMA_SQL).execute(&pool).await.unwrap();
+    let mfa = fraiseql_auth::PgMfaStore::new(pool.clone());
+    let enrolled = mfa.begin_enrollment(&user, "FraiseQL", "user@example.com").await.unwrap();
+    mfa.confirm_enrollment(&user, &totp_code(&enrolled.secret_base32))
+        .await
+        .unwrap();
+
+    let (status, body) = sign_in(&base, "google").await;
+    assert!(
+        body.get("access_token").is_none(),
+        "the social callback minted a session for a user enrolled in MFA: {status} {body}"
+    );
+    assert_eq!(status, reqwest::StatusCode::UNAUTHORIZED, "{body}");
+    assert_eq!(body["error"], "mfa_required", "{body}");
+    let challenge = body["challenge_token"].as_str().expect("a challenge to redeem");
+    let redeemed = mfa
+        .verify_challenge(challenge, &totp_code(&enrolled.secret_base32))
+        .await
+        .expect("the challenge redeems");
+    assert_eq!(redeemed, user, "the challenge is bound to the user who signed in");
+
+    let _ = tx.send(());
+    let _ = handle.await;
+    drop_scratch(&url, db).await;
+}
+
+/// The current `TOTP` code for a base32 `secret`.
+fn totp_code(secret: &str) -> String {
+    totp_rs::TOTP::new(
+        totp_rs::Algorithm::SHA1,
+        6,
+        1,
+        30,
+        totp_rs::Secret::Encoded(secret.to_string()).to_bytes().expect("secret decodes"),
+        None,
+        String::new(),
+    )
+    .expect("totp")
+    .generate_current()
+    .expect("generate code")
 }

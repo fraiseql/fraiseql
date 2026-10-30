@@ -1240,3 +1240,84 @@ async fn sp_metadata_publishes_the_certificate_and_reflects_the_signing_posture(
     let body = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
     assert!(String::from_utf8_lossy(&body).contains("SPSSODescriptor"));
 }
+
+/// An ACS for a user enrolled in `MFA` yields a challenge, not a session. Needs PostgreSQL:
+/// the second factor is required where every sign-in path mints its session.
+#[tokio::test]
+#[allow(clippy::print_stderr)] // Reason: the skip without a database says so, as every PostgreSQL test here does
+async fn acs_for_an_mfa_user_yields_a_challenge() {
+    use axum::{extract::Form, response::IntoResponse};
+
+    use crate::{MfaStore as _, PgMfaStore, PostgresSessionStore};
+
+    let Some(url) = fraiseql_test_support::try_database_url() else {
+        eprintln!("skipping acs_for_an_mfa_user_yields_a_challenge: DATABASE_URL not set");
+        return;
+    };
+    let pool = sqlx::PgPool::connect(&url).await.unwrap();
+    let sessions = PostgresSessionStore::with_hs256_secret(
+        pool.clone(),
+        b"saml-mfa-secret-32-bytes-long!!!".to_vec(),
+    );
+    sessions.init().await.unwrap();
+    let mfa = PgMfaStore::new(pool.clone());
+    mfa.init().await.unwrap();
+
+    let test_idp = new_idp();
+    let accounts = Arc::new(InMemoryAccountStore::new());
+    let user = accounts
+        .link_or_create_user(None, None, false, &saml_provider_key("test-idp"), "nameid-mfa")
+        .await
+        .unwrap()
+        .user_id;
+    sqlx::query("DELETE FROM core.tb_mfa_enrollment WHERE user_id = $1")
+        .bind(&user)
+        .execute(&pool)
+        .await
+        .unwrap();
+    let enrolled = mfa.begin_enrollment(&user, "FraiseQL", "u@example.com").await.unwrap();
+    let code = totp_rs::TOTP::new(
+        totp_rs::Algorithm::SHA1,
+        6,
+        1,
+        30,
+        totp_rs::Secret::Encoded(enrolled.secret_base32).to_bytes().unwrap(),
+        None,
+        String::new(),
+    )
+    .unwrap()
+    .generate_current()
+    .unwrap();
+    mfa.confirm_enrollment(&user, &code).await.unwrap();
+
+    let state_store = Arc::new(InMemoryStateStore::new());
+    let state = SamlAuthState::new(state_store.clone(), Arc::new(sessions))
+        .with_idp(config_with_cert(&test_idp.cert))
+        .with_user_store(accounts);
+    let relay = "relay-mfa".to_string();
+    let now = crate::session::unix_now().unwrap();
+    state_store
+        .store(relay.clone(), format!("test-idp\n\n{REQ_ID}"), now + 600)
+        .await
+        .unwrap();
+    let b64 = signed_response(&test_idp, "nameid-mfa", SP_ENTITY, SP_ACS, REQ_ID, &[]);
+
+    let resp = saml_acs(
+        axum::extract::State(state),
+        Form(AcsForm {
+            saml_response: b64,
+            relay_state:   relay,
+        }),
+    )
+    .await
+    .into_response();
+    let status = resp.status();
+    let body = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+    let json: serde_json::Value = serde_json::from_slice(&body).unwrap_or_default();
+    assert!(
+        json.get("access_token").is_none(),
+        "the ACS minted a session for a user enrolled in MFA: {status} {json}"
+    );
+    assert_eq!(status, axum::http::StatusCode::UNAUTHORIZED, "{json}");
+    assert_eq!(json["error"], "mfa_required", "{json}");
+}

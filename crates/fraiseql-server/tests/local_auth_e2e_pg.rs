@@ -1239,3 +1239,142 @@ async fn an_anonymous_caller_cannot_take_over_an_account_through_mfa() {
     server.stop().await;
     drop_scratch(&url, db).await;
 }
+
+/// Enroll `user_id` in `MFA` and confirm it, through the store; returns the secret.
+async fn seed_confirmed_mfa(pool: &PgPool, user_id: &str) -> String {
+    use fraiseql_auth::MfaStore as _;
+
+    let store = fraiseql_auth::PgMfaStore::new(pool.clone());
+    let enrolled = store.begin_enrollment(user_id, "FraiseQL", "user@example.com").await.unwrap();
+    store
+        .confirm_enrollment(user_id, &totp_code(&enrolled.secret_base32))
+        .await
+        .unwrap();
+    enrolled.secret_base32
+}
+
+/// A sign-in answer that asks for the second factor: no session, and a challenge to
+/// redeem at `/auth/v1/mfa/verify`. Returns the challenge.
+fn expect_second_factor(
+    path: &str,
+    status: reqwest::StatusCode,
+    body: &serde_json::Value,
+) -> String {
+    assert!(
+        body.get("access_token").is_none() && body.get("refresh_token").is_none(),
+        "{path} minted a session for a user enrolled in MFA, skipping the second factor: \
+         {status} {body}"
+    );
+    assert_eq!(status, reqwest::StatusCode::UNAUTHORIZED, "{path}: {body}");
+    assert_eq!(body["error"], "mfa_required", "{path}: {body}");
+    body["challenge_token"].as_str().expect("a challenge to redeem").to_string()
+}
+
+/// The code `/auth/v1/otp` last stored for `email`, recovered from its hash.
+#[cfg(feature = "inbound-email")]
+async fn stored_otp_code(pool: &PgPool, email: &str) -> String {
+    let (code_hash,): (Vec<u8>,) =
+        sqlx::query_as("SELECT code_hash FROM core.tb_otp_code WHERE email = $1")
+            .bind(email)
+            .fetch_one(pool)
+            .await
+            .expect("the send must have persisted a code");
+    (0..1_000_000u32)
+        .map(|n| format!("{n:06}"))
+        .find(|candidate| {
+            use sha2::Digest as _;
+            sha2::Sha256::digest(candidate.as_bytes()).to_vec() == code_hash
+        })
+        .expect("a SHA-256 of a 6-digit code")
+}
+
+/// A password sign-in of a user enrolled in `MFA` yields a challenge, not a session, and
+/// the challenge redeems into that user's session.
+#[cfg(feature = "inbound-email")]
+#[tokio::test]
+async fn a_password_sign_in_of_an_mfa_user_yields_a_challenge() {
+    let Some(url) = database_url_or_skip("a_password_sign_in_of_an_mfa_user_yields_a_challenge")
+    else {
+        return;
+    };
+    set_test_env();
+    let db = "fraiseql_p26_local_mfa_password";
+    let pool = scratch_pool(&url, db).await;
+    let scratch_url = with_database(&url, db);
+    let server = boot(
+        LocalAuthConfig {
+            password: true,
+            mfa: true,
+            email_from: Some("support".to_string()),
+            reset_url_template: Some("https://app.example.com/reset?token={token}".to_string()),
+            ..LocalAuthConfig::default()
+        },
+        pool.clone(),
+        &scratch_url,
+    )
+    .await;
+    let base = &server.base;
+    let credentials = serde_json::json!({ "email": "mallory-target@example.com", "password": "correct horse battery" });
+
+    let (status, body) = post_json(base, "/auth/v1/password/signup", credentials.clone()).await;
+    assert_eq!(status, reqwest::StatusCode::OK, "signup: {body}");
+    let user = jwt_sub(body["access_token"].as_str().expect("access_token"));
+    let secret = seed_confirmed_mfa(&pool, &user).await;
+
+    let (status, body) = post_json(base, "/auth/v1/password/login", credentials).await;
+    let challenge = expect_second_factor("/auth/v1/password/login", status, &body);
+    let (status, body) = post_json(
+        base,
+        "/auth/v1/mfa/verify",
+        serde_json::json!({ "challenge_token": challenge, "code": totp_code(&secret) }),
+    )
+    .await;
+    assert_eq!(status, reqwest::StatusCode::OK, "the challenge redeems: {body}");
+    assert_eq!(jwt_sub(body["access_token"].as_str().expect("access_token")), user);
+
+    server.stop().await;
+    drop_scratch(&url, db).await;
+}
+
+/// An `OTP` sign-in of a user enrolled in `MFA` yields a challenge, not a session.
+#[cfg(feature = "inbound-email")]
+#[tokio::test]
+async fn an_otp_sign_in_of_an_mfa_user_yields_a_challenge() {
+    let Some(url) = database_url_or_skip("an_otp_sign_in_of_an_mfa_user_yields_a_challenge") else {
+        return;
+    };
+    set_test_env();
+    let db = "fraiseql_p26_local_mfa_otp";
+    let pool = scratch_pool(&url, db).await;
+    let scratch_url = with_database(&url, db);
+    let server = boot(
+        LocalAuthConfig {
+            otp: true,
+            mfa: true,
+            email_from: Some("support".to_string()),
+            ..LocalAuthConfig::default()
+        },
+        pool.clone(),
+        &scratch_url,
+    )
+    .await;
+    let base = &server.base;
+    let email = "erin-target@example.com";
+    let sign_in = || async {
+        let _ = post_json(base, "/auth/v1/otp", serde_json::json!({ "email": email })).await;
+        let code = stored_otp_code(&pool, email).await;
+        post_json(base, "/auth/v1/verify", serde_json::json!({ "email": email, "code": code }))
+            .await
+    };
+
+    let (status, body) = sign_in().await;
+    assert_eq!(status, reqwest::StatusCode::OK, "the first sign-in creates the account: {body}");
+    let user = jwt_sub(body["access_token"].as_str().expect("access_token"));
+    seed_confirmed_mfa(&pool, &user).await;
+
+    let (status, body) = sign_in().await;
+    expect_second_factor("/auth/v1/verify", status, &body);
+
+    server.stop().await;
+    drop_scratch(&url, db).await;
+}
