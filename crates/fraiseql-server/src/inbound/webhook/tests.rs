@@ -1036,7 +1036,11 @@ mod the_event_is_what_the_scheme_authenticated {
     async fn setup() -> Option<PgPool> {
         let url = fraiseql_test_support::try_database_url()?;
         let pool = PgPoolOptions::new().max_connections(4).connect(&url).await.unwrap();
-        PostgresIdempotencyStore::new(pool.clone()).init().await.unwrap();
+        // Under the migration lock, as boot provisions it: the leg runs these tests in
+        // parallel, and a bare `init()` races its siblings on an empty database (#1831).
+        crate::migration_lock::run_migration(&pool, fraiseql_webhooks::idempotency::SCHEMA_SQL)
+            .await
+            .unwrap();
         WebhookInboundState::init_spine(&pool).await.unwrap();
         Some(pool)
     }
@@ -1095,23 +1099,25 @@ mod the_event_is_what_the_scheme_authenticated {
         assert_eq!(response.status(), StatusCode::OK, "the delivery is genuine and must be taken");
 
         // ── the delivery ledger ────────────────────────────────────────────────
-        let (ledger_event_id, ledger_event_type): (String, String) = sqlx::query_as(
-            "SELECT event_id, event_type FROM webhooks.tb_inbound_delivery WHERE route = $1 \
-             ORDER BY pk_inbound_delivery DESC LIMIT 1",
+        // This run's claims only, by the two ids it could be keyed on: the route is
+        // shared with the other test in this module, so its latest row may be theirs.
+        let claims: Vec<(String, String)> = sqlx::query_as(
+            "SELECT event_id, event_type FROM webhooks.tb_inbound_delivery \
+             WHERE route = $1 AND event_id IN ($2, $3)",
         )
         .bind(SEGMENT)
-        .fetch_one(&pool)
+        .bind(&authenticated_id)
+        .bind(format!("envelope-{run}"))
+        .fetch_all(&pool)
         .await
         .unwrap();
         assert_eq!(
-            ledger_event_id, authenticated_id,
+            claims,
+            [(authenticated_id.clone(), "authenticated.event".to_string())],
             "#1321: the replay defence must be keyed on the id the scheme \
-             authenticated. Keyed on the envelope's own id, a sender that controls \
-             the envelope controls the dedup key of an event it did not sign (#751)."
-        );
-        assert_eq!(
-            ledger_event_type, "authenticated.event",
-            "the claim records the authenticated event's type, not the envelope's"
+             authenticated, and record its type. Keyed on the envelope's own id, a \
+             sender that controls the envelope controls the dedup key of an event it \
+             did not sign (#751)."
         );
 
         // ── the durable spine row ──────────────────────────────────────────────
@@ -1370,7 +1376,11 @@ mod the_credential_need_not_be_a_header_and_the_body_need_not_be_json {
     async fn setup() -> Option<PgPool> {
         let url = fraiseql_test_support::try_database_url()?;
         let pool = PgPoolOptions::new().max_connections(4).connect(&url).await.unwrap();
-        PostgresIdempotencyStore::new(pool.clone()).init().await.unwrap();
+        // Under the migration lock, as boot provisions it: the leg runs these tests in
+        // parallel, and a bare `init()` races its siblings on an empty database (#1831).
+        crate::migration_lock::run_migration(&pool, fraiseql_webhooks::idempotency::SCHEMA_SQL)
+            .await
+            .unwrap();
         WebhookInboundState::init_spine(&pool).await.unwrap();
         Some(pool)
     }

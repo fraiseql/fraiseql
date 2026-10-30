@@ -114,7 +114,9 @@ async fn connect_pool() -> Option<(PgPool, fraiseql_test_support::Service)> {
 
 async fn ready(pool: &PgPool) {
     PostgresInboundSpine::new(pool.clone()).init().await.unwrap();
-    PostgresSourceCursorStore::new(pool.clone()).init().await.unwrap();
+    // Under the migration lock, as boot provisions it: a bare `init()` races the
+    // parallel siblings on an empty database (#1831).
+    crate::inbound::email::init_cursor_store(pool).await.unwrap();
 }
 
 async fn spine_count(pool: &PgPool, message_id: &str) -> i64 {
@@ -440,4 +442,25 @@ async fn a_polled_message_records_its_dispatch_and_the_dispatch_settles_it() {
         seen = state_of().await;
     }
     assert_eq!(seen.as_deref(), Some("dispatched"), "the post-commit dispatch settles it");
+}
+
+/// #1831: the leg runs these tests in parallel, so their setups start together, and on an
+/// empty database only the migration lock keeps them off each other's catalogue rows. Setups
+/// started at once on an empty schema, each on its own task, stand in for that start without
+/// depending on how the scheduler happens to stagger the tests.
+#[tokio::test(flavor = "multi_thread", worker_threads = 8)]
+async fn setups_started_together_on_an_empty_database_all_succeed() {
+    const SCHEMA: &str = "sink_setups_together";
+    let Some((_pool, svc)) = crate::testing::pg_schema::fresh(SCHEMA).await else {
+        eprintln!("SKIP setups_started_together_on_an_empty_database_all_succeed: no postgres");
+        return;
+    };
+    let mut setups = tokio::task::JoinSet::new();
+    for _ in 0..16 {
+        let pool = crate::testing::pg_schema::pool_on(svc.url(), SCHEMA).await;
+        setups.spawn(async move { ready(&pool).await });
+    }
+    while let Some(setup) = setups.join_next().await {
+        setup.unwrap();
+    }
 }

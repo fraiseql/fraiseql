@@ -1610,7 +1610,11 @@ func (m *FraiseqlCi) integrationPostgres(ctx context.Context, source *dagger.Dir
 		// probe/warming and the spine/webhook modules executing in NO leg, and
 		// the tracking suite's fixture-clock time bomb sat unobserved until it
 		// crossed its 30-day TTL.
-		"cargo test -p fraiseql-server --features inbound,inbound-email --lib -- inbound:: server::provision_tests:: --test-threads=1",
+		// #1831: in parallel, not --test-threads=1. A test that owns whole tables does so on
+		// a schema of its own (testing::pg_schema); a serial leg could not see the shared-table
+		// races that made these red under any parallel run. #1787 will rework how legs select
+		// tests: keep this line parallel when it does.
+		"cargo test -p fraiseql-server --features inbound,inbound-email --lib -- inbound:: server::provision_tests::",
 		// #974: the storage bucket-policy admin API (PUT/GET/DELETE) against a
 		// real policy store — the split-token separation, the request-time
 		// refusal that leaves the running policy in place, and the wholesale

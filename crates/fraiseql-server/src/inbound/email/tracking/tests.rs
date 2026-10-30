@@ -272,11 +272,12 @@ async fn challenge_then_reply_suppresses_then_lifts_through_postgres() {
     assert_eq!(tracker.suppression_reason(None, &hash).await.unwrap(), None, "lifted on reply");
 }
 
-/// The unique definitions on the two tracking tables.
+/// The unique definitions on the two tracking tables the pool resolves.
 async fn tracking_unique_indexes(pool: &PgPool) -> Vec<String> {
     sqlx::query_scalar(
         "SELECT indexdef FROM pg_indexes \
-         WHERE tablename IN ('_fraiseql_send_status', '_fraiseql_suppression') \
+         WHERE schemaname = current_schema() \
+           AND tablename IN ('_fraiseql_send_status', '_fraiseql_suppression') \
            AND indexdef LIKE 'CREATE UNIQUE INDEX%' AND indexname NOT LIKE '%_pkey' \
          ORDER BY indexname",
     )
@@ -289,9 +290,12 @@ async fn tracking_unique_indexes(pool: &PgPool) -> Vec<String> {
 /// expression. `init` replaces each with a `NULLS NOT DISTINCT` index in place (#1452),
 /// and the exactly-once and suppression upserts then conflict on the new key — for the
 /// single-tenant (NULL) space too, which a bare `(tenant_id, …)` key would never collide.
+///
+/// On a schema of its own (#1831): dropping the keys of the shared tables, even briefly,
+/// fails the upserts of every other tracking test running beside it.
 #[tokio::test]
 async fn init_moves_the_tracking_keys_to_nulls_not_distinct_and_the_upserts_follow() {
-    let Some((pool, _svc)) = connect_pool().await else {
+    let Some((pool, _svc)) = crate::testing::pg_schema::fresh("tracking_key_upgrade").await else {
         eprintln!("SKIP init_moves_the_tracking_keys_to_nulls_not_distinct: no postgres");
         return;
     };
@@ -303,9 +307,7 @@ async fn init_moves_the_tracking_keys_to_nulls_not_distinct_and_the_upserts_foll
          CREATE UNIQUE INDEX IF NOT EXISTS uq_send_status_tenant_send \
              ON _fraiseql_send_status (COALESCE(tenant_id, ''), send_id); \
          CREATE UNIQUE INDEX IF NOT EXISTS uq_suppression_tenant_addr \
-             ON _fraiseql_suppression (COALESCE(tenant_id, ''), address_hash); \
-         DELETE FROM _fraiseql_send_status WHERE send_id = 'send-nnd'; \
-         DELETE FROM _fraiseql_suppression WHERE address_hash = 'hash-nnd';",
+             ON _fraiseql_suppression (COALESCE(tenant_id, ''), address_hash);",
     )
     .execute(&pool)
     .await

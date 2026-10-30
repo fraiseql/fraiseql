@@ -58,3 +58,4 @@
 #1668  clippy clean with the auth feature off (const/must_use on the auth stubs, test cfg gates) plus feature-matrix combos that keep it so; lint and CI only, no behaviour change
 #1716  CI perf gate: the instruction benches run with glibc fastbins off, and the baseline is re-measured; bench and CI only, no shipped artifact changes
 #1726  CI: the release-smoke `fraiseql run` step asserts the boot and /health capabilities instead of a warning 2.18.0 deleted; CI only, no shipped artifact changes
+#1831  test isolation only: inbound tests on per-test schemas, integration leg runs them in parallel; no shipped behaviour changes

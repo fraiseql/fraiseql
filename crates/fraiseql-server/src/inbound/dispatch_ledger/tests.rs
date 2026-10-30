@@ -4,6 +4,12 @@
 
 //! #1175 on PostgreSQL: the ledger is written with the spine row, a dispatch lost to a crash
 //! is replayed by the sweep exactly once per lease, and a settled dispatch is never swept.
+//!
+//! **Each test owns its own copy of the ledger** (#1831), on a schema of its own
+//! ([`crate::testing::pg_schema`]). The sweep claims every due row in the table and these
+//! tests assert the whole ledger, so they cannot share one: they used to `TRUNCATE` the
+//! shared tables on entry, which also wiped the rows of every other inbound test running
+//! beside them, and a sweep could claim another test's row.
 
 use std::{
     future::Future,
@@ -69,15 +75,11 @@ fn message(key: &str) -> InboundMessage {
     )
 }
 
-async fn pool() -> Option<(PgPool, fraiseql_test_support::Service)> {
-    let svc = fraiseql_test_support::postgres().await?;
-    let pool = PgPool::connect(svc.url()).await.unwrap();
+/// A pool on a fresh `schema` holding an empty spine and ledger. `None` when no database is
+/// available, so the test skips.
+async fn pool(schema: &str) -> Option<(PgPool, fraiseql_test_support::Service)> {
+    let (pool, svc) = crate::testing::pg_schema::fresh(schema).await?;
     PostgresInboundSpine::new(pool.clone()).init().await.unwrap();
-    // Each test owns the ledger while it runs (`--test-threads=1` in the integration leg).
-    sqlx::query("TRUNCATE _fraiseql_inbound_message CASCADE")
-        .execute(&pool)
-        .await
-        .unwrap();
     Some((pool, svc))
 }
 
@@ -114,7 +116,7 @@ fn due_now() -> LedgerSettings {
 /// The ledger rows commit or roll back with the spine row.
 #[tokio::test]
 async fn the_ledger_is_written_in_the_receivers_transaction() {
-    let Some((pool, _svc)) = pool().await else {
+    let Some((pool, _svc)) = pool("ledger_receivers_tx").await else {
         eprintln!("SKIP the_ledger_is_written_in_the_receivers_transaction: no postgres");
         return;
     };
@@ -151,7 +153,7 @@ async fn the_ledger_is_written_in_the_receivers_transaction() {
 /// out, and not before; once settled it is not dispatched again.
 #[tokio::test]
 async fn a_dispatch_lost_after_commit_is_replayed_once_its_lease_runs_out() {
-    let Some((pool, _svc)) = pool().await else {
+    let Some((pool, _svc)) = pool("ledger_lost_after_commit").await else {
         return;
     };
     receive(&pool, "in-flight", &["classify"], Duration::from_mins(10)).await;
@@ -170,7 +172,7 @@ async fn a_dispatch_lost_after_commit_is_replayed_once_its_lease_runs_out() {
 /// Two sweepers racing for one due row dispatch it once.
 #[tokio::test]
 async fn two_sweepers_dispatch_a_due_row_once() {
-    let Some((pool, _svc)) = pool().await else {
+    let Some((pool, _svc)) = pool("ledger_two_sweepers").await else {
         return;
     };
     receive(&pool, "contended", &["classify"], Duration::ZERO).await;
@@ -190,7 +192,7 @@ async fn two_sweepers_dispatch_a_due_row_once() {
 /// `pending` and is swept again when its lease runs out.
 #[tokio::test]
 async fn terminal_dispatches_are_never_swept_and_unsettled_ones_are() {
-    let Some((pool, _svc)) = pool().await else {
+    let Some((pool, _svc)) = pool("ledger_terminal_never_swept").await else {
         return;
     };
     let id = receive(&pool, "settled", &["dlq", "ok", "unsettled"], Duration::ZERO).await;
@@ -272,7 +274,7 @@ fn a_replayed_dispatch_carries_the_first_dispatchs_token() {
 /// (`SKIP LOCKED`), so one stuck claim cannot stall every replica's sweep.
 #[tokio::test]
 async fn a_sweeper_skips_a_row_another_transaction_holds() {
-    let Some((pool, _svc)) = pool().await else {
+    let Some((pool, _svc)) = pool("ledger_skips_held_row").await else {
         return;
     };
     receive(&pool, "held", &["classify"], Duration::ZERO).await;
@@ -295,7 +297,7 @@ async fn a_sweeper_skips_a_row_another_transaction_holds() {
 /// so a replay still in flight is not replayed a second time.
 #[tokio::test]
 async fn a_claimed_dispatch_is_left_alone_while_its_renewed_lease_runs() {
-    let Some((pool, _svc)) = pool().await else {
+    let Some((pool, _svc)) = pool("ledger_renewed_lease").await else {
         return;
     };
     receive(&pool, "renewed", &["classify"], Duration::ZERO).await;
@@ -312,7 +314,7 @@ async fn a_claimed_dispatch_is_left_alone_while_its_renewed_lease_runs() {
 /// Settling is once: a late outcome for a row already terminal changes nothing.
 #[tokio::test]
 async fn a_settled_dispatch_keeps_its_first_outcome() {
-    let Some((pool, _svc)) = pool().await else {
+    let Some((pool, _svc)) = pool("ledger_settled_once").await else {
         return;
     };
     let id = receive(&pool, "settled-once", &["classify"], Duration::from_mins(1)).await;

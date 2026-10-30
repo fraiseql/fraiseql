@@ -231,7 +231,7 @@ test-integration-postgres: db-up db-failover-reset
 	@echo ""
 	@echo "### inbound spine, storage policy admin, sources, functions runtime"
 	@cargo test -p fraiseql-webhooks --test inbound_pipeline_pg -- --test-threads=1
-	@cargo test -p fraiseql-server --features inbound,inbound-email --lib -- inbound:: server::provision_tests:: --test-threads=1
+	@cargo test -p fraiseql-server --features inbound,inbound-email --lib -- inbound:: server::provision_tests::
 	@cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks' --lib server::routing::storage_policy_admin_tests -- --test-threads=1
 	@cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks' --lib tenancy::tests::runtime_config_drift -- --test-threads=1
 	@cargo test -p fraiseql-server --features inbound-email --test inbound_email_dedup_scope_pg -- --test-threads=1
