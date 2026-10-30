@@ -269,6 +269,47 @@ pub fn minting_session_store(
         .with_tenant_claim(tenant_claim)
 }
 
+/// Refuse to boot with `MFA` off while an account has a confirmed enrollment.
+///
+/// Such an account's every sign-in owes the second factor wherever its session is minted,
+/// whatever this server enables, and only `[auth.local] mfa = true` mounts the
+/// `/auth/v1/mfa/verify` that takes it. Booting would lock those accounts out without a
+/// word. The refusal names both ways forward: turn `MFA` back on, or remove the
+/// enrollments deliberately.
+///
+/// Only a count read from the store refuses. A store this cannot read is logged and let
+/// through: the sign-in itself refuses on the same failure, so nothing is skipped.
+///
+/// # Errors
+///
+/// [`ServerError::ConfigError`] when confirmed enrollments exist.
+pub async fn refuse_stranded_mfa_enrollments(pool: &sqlx::PgPool) -> Result<()> {
+    let confirmed =
+        sqlx::query_scalar::<_, i64>("SELECT count(*) FROM core.tb_mfa_enrollment WHERE confirmed")
+            .fetch_one(pool)
+            .await;
+    match confirmed {
+        Ok(0) => Ok(()),
+        Ok(accounts) => Err(ServerError::ConfigError(format!(
+            "{accounts} account(s) have a confirmed TOTP MFA enrollment, but [auth.local] mfa \
+             is not enabled. Their sign-ins owe a second factor that only \
+             POST /auth/v1/mfa/verify takes, and it is mounted only with mfa = true, so they \
+             could not sign in at all. Either set [auth.local] mfa = true, or remove the \
+             enrollments deliberately: DELETE FROM core.tb_mfa_challenge; \
+             DELETE FROM core.tb_mfa_enrollment;"
+        ))),
+        Err(sqlx::Error::Database(e)) if e.code().as_deref() == Some("42P01") => Ok(()),
+        Err(e) => {
+            tracing::warn!(
+                error = %e,
+                "could not count MFA enrollments at boot; a sign-in that cannot read them \
+                 refuses on its own"
+            );
+            Ok(())
+        },
+    }
+}
+
 /// Build every state `[auth.local]` enables.
 ///
 /// # Errors

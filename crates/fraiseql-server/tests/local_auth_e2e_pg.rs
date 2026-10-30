@@ -1335,6 +1335,7 @@ async fn seed_confirmed_mfa(pool: &PgPool, user_id: &str) -> String {
 
 /// A sign-in answer that asks for the second factor: no session, and a challenge to
 /// redeem at `/auth/v1/mfa/verify`. Returns the challenge.
+#[cfg(feature = "inbound-email")]
 fn expect_second_factor(
     path: &str,
     status: reqwest::StatusCode,
@@ -1698,5 +1699,49 @@ async fn a_forwarded_address_from_an_untrusted_peer_buys_no_budget() {
     );
 
     server.stop().await;
+    drop_scratch(&url, db).await;
+}
+
+/// With MFA off, an account enrolled in it could not sign in: its sign-ins owe the second
+/// factor, and nothing would take it. The server refuses to boot, and says what to do,
+/// rather than lock the account out without a word.
+#[cfg(feature = "inbound-email")]
+#[tokio::test]
+async fn mfa_off_with_confirmed_enrollments_refuses_to_boot() {
+    let Some(url) = database_url_or_skip("mfa_off_with_confirmed_enrollments") else {
+        return;
+    };
+    set_test_env();
+    let db = "fraiseql_p26_local_mfa_off";
+    let pool = scratch_pool(&url, db).await;
+    let scratch_url = with_database(&url, db);
+    fraiseql_auth::PgMfaStore::new(pool.clone()).init().await.unwrap();
+    let password_only = || LocalAuthConfig {
+        password: true,
+        email_from: Some("support".to_string()),
+        reset_url_template: Some("https://app.example.com/reset?token={token}".to_string()),
+        ..LocalAuthConfig::default()
+    };
+    let boots = |pool: PgPool| async {
+        let adapter = Arc::new(PostgresAdapter::new(&scratch_url).await.unwrap());
+        Box::pin(Server::new(
+            local_config(&scratch_url),
+            local_schema(password_only()),
+            adapter,
+            Some(pool),
+        ))
+        .await
+        .map(|_| ())
+    };
+
+    boots(pool.clone()).await.expect("no enrollment: MFA off boots");
+    seed_confirmed_mfa(&pool, "enrolled-1").await;
+    let refused = boots(pool.clone()).await.expect_err("a confirmed enrollment with MFA off");
+    let message = refused.to_string();
+    assert!(
+        message.contains("1 account(s)") && message.contains("mfa = true"),
+        "the refusal names the accounts and the way forward: {message}"
+    );
+
     drop_scratch(&url, db).await;
 }

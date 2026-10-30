@@ -771,6 +771,25 @@ impl Server {
             },
         };
 
+        // With MFA off, an account enrolled in it could not sign in through any path that
+        // mints a session here: refuse loudly. Without such a path the enrollments are
+        // inert.
+        #[cfg(feature = "auth")]
+        {
+            #[cfg(feature = "auth-saml")]
+            let saml_mints = config.saml.is_some();
+            #[cfg(not(feature = "auth-saml"))]
+            let saml_mints = false;
+            let mints_sessions = local_auth.password.is_some()
+                || local_auth.otp.is_some()
+                || local_auth.anon.is_some()
+                || social_login.is_some()
+                || saml_mints;
+            if let (true, None, Some(pool)) = (mints_sessions, &local_auth.mfa, &db_pool) {
+                crate::auth_local::refuse_stranded_mfa_enrollments(pool).await?;
+            }
+        }
+
         // SAML SP state (#381): built here, where the pool is in scope. The
         // `[saml]` section is validated by ServerConfig::validate (shape +
         // [auth_hs256] requirement); this adds the runtime requirements — a
