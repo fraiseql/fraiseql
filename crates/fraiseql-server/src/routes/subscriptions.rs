@@ -66,8 +66,9 @@ use tracing::{debug, error, info, warn};
 // transports cannot answer "is this principal still allowed?" differently.
 use crate::middleware::stream_auth::StreamAuthGuard;
 use crate::{
+    admission::{Refusal, Tenant},
     extractors::OptionalSecurityContext,
-    routes::graphql::{DomainRegistry, TenantStatusSource},
+    routes::graphql::{AppState, TenantStatusSource},
     subscriptions::{
         lifecycle::SubscriptionLifecycle,
         protocol::{ProtocolCodec, WsProtocol},
@@ -151,13 +152,13 @@ pub struct SubscriptionState {
     pub lifecycle: Arc<dyn SubscriptionLifecycle>,
     /// Maximum subscriptions per connection (`None` = unlimited).
     pub max_subscriptions_per_connection: Option<u32>,
-    /// Host-header → tenant-key domain registry. `None` until a host binary
-    /// installs one (mirrors `AppState::domain_registry`).
-    pub domain_registry: Option<Arc<DomainRegistry>>,
-    /// Reject conflicting tenant sources (JWT vs `X-Tenant-ID` vs Host) on the
-    /// upgrade. Driven by `schema.has_rls_configured()`, mirroring the GraphQL
-    /// handler's strict tenant validation.
-    pub strict_tenant_validation: bool,
+    /// What an upgrade and each subscription are admitted through, as a `/graphql`
+    /// request is: the tenant the connection runs as, its registration, suspension and
+    /// quotas, and each subscription's cost. `None` in a harness that mounts no
+    /// application: the connection then runs as no tenant.
+    pub app: Option<AppState>,
+    /// Refuse an upgrade that resolved no principal.
+    pub require_auth: bool,
     /// Optional operation-level authorizer (#422). When set, each subscription is
     /// authorized at establishment with [`OperationKind::Subscription`], the
     /// subscription field name, and the connection's principal. `None` until a host
@@ -237,8 +238,8 @@ impl SubscriptionState {
             manager,
             lifecycle: Arc::new(crate::subscriptions::lifecycle::NoopLifecycle),
             max_subscriptions_per_connection: None,
-            domain_registry: None,
-            strict_tenant_validation: false,
+            app: None,
+            require_auth: false,
             authorizer: None,
             tenant_status_source: None,
             subscription_policies: Arc::new(HashMap::new()),
@@ -381,20 +382,17 @@ impl SubscriptionState {
         self
     }
 
-    /// Install the tenant-resolution context — the Host-header domain registry
-    /// and strict-validation flag — so the subscription upgrade dispatches the
-    /// tenant key the same way the GraphQL handler does (JWT `tenant_id` >
-    /// `X-Tenant-ID` header > Host domain, with cross-source conflict rejection
-    /// when `strict_tenant_validation` is set). See
-    /// [`crate::routes::graphql::TenantKeyResolver`].
+    /// Install the application the upgrade and each subscription are admitted through.
     #[must_use]
-    pub fn with_tenant_context(
-        mut self,
-        domain_registry: Arc<DomainRegistry>,
-        strict_tenant_validation: bool,
-    ) -> Self {
-        self.domain_registry = Some(domain_registry);
-        self.strict_tenant_validation = strict_tenant_validation;
+    pub fn with_app(mut self, app: AppState) -> Self {
+        self.app = Some(app);
+        self
+    }
+
+    /// Refuse an upgrade that resolved no principal.
+    #[must_use]
+    pub const fn with_require_auth(mut self, require_auth: bool) -> Self {
+        self.require_auth = require_auth;
         self
     }
 
@@ -551,17 +549,19 @@ pub async fn subscription_handler(
         return axum::http::StatusCode::UNAUTHORIZED.into_response();
     }
 
-    // Resolve the tenant key exactly as the GraphQL handler does: the JWT
-    // `tenant_id` (trusted) takes precedence over the `X-Tenant-ID` header and
-    // the Host-domain lookup, and conflicting sources are rejected when strict
-    // validation is enabled. Previously this passed `None, None, false`,
-    // silently dropping JWT precedence, ignoring an installed domain registry,
-    // and disabling strict cross-source validation (#331).
-    let tenant_id = match resolve_subscription_tenant(security_context.as_ref(), &headers, &state) {
-        Ok(tenant_id) => tenant_id,
-        Err(e) => {
-            warn!(error = %e, "Subscription tenant resolution rejected the upgrade");
-            return axum::http::StatusCode::BAD_REQUEST.into_response();
+    if state.require_auth && security_context.is_none() {
+        warn!("Subscription upgrade rejected: no principal");
+        return axum::http::StatusCode::UNAUTHORIZED.into_response();
+    }
+
+    let tenant = match admit_upgrade(&state, security_context.as_ref(), &headers) {
+        Ok(tenant) => tenant,
+        Err(refusal) => {
+            warn!(?refusal, "Subscription upgrade refused by admission");
+            return crate::error::ErrorResponse::from_error(
+                crate::routes::graphql::admission_error(&refusal),
+            )
+            .into_response();
         },
     };
 
@@ -571,7 +571,7 @@ pub async fn subscription_handler(
                 socket,
                 state,
                 protocol,
-                tenant_id,
+                tenant,
                 security_context,
                 token_claims.map(|axum::Extension(claims)| claims),
                 headers,
@@ -580,26 +580,58 @@ pub async fn subscription_handler(
         .into_response()
 }
 
-/// Resolve the subscription's tenant key, mirroring the GraphQL handler's
-/// dispatch (`routes/graphql/handler.rs`): JWT `tenant_id` > `X-Tenant-ID`
-/// header > Host-domain registry, with cross-source conflict rejection when the
-/// schema has RLS configured (`strict_tenant_validation`).
+/// Admit an upgrade as `/graphql` admits a request: resolve the tenant the connection
+/// runs as, then pass it through the tenant registry, which refuses an unregistered key,
+/// a suspended tenant or an exhausted quota. The concurrency permit is released when
+/// this returns: a connection holds no permit for as long as it stays open.
 ///
 /// # Errors
 ///
-/// Returns `FraiseQLError::Validation` when the `X-Tenant-ID` header is invalid,
-/// or — under `strict_tenant_validation` — when the resolved sources disagree.
-fn resolve_subscription_tenant(
+/// [`Refusal::Tenant`] or [`Refusal::Dispatch`].
+fn admit_upgrade(
+    state: &SubscriptionState,
     security_context: Option<&SecurityContext>,
     headers: &HeaderMap,
-    state: &SubscriptionState,
-) -> fraiseql_error::Result<Option<String>> {
-    super::graphql::TenantKeyResolver::resolve(
-        security_context,
-        headers,
-        state.domain_registry.as_deref(),
-        state.strict_tenant_validation,
-    )
+) -> Result<Option<Tenant>, Refusal> {
+    let Some(app) = state.app.as_ref() else {
+        return Ok(None);
+    };
+    let tenant = Tenant::of(app, security_context, headers)?;
+    drop(tenant.dispatch(app)?);
+    Ok(Some(tenant))
+}
+
+/// Charge a subscription to its tenant, as `/graphql` charges an operation: the tenant
+/// must still be registered and active, and the document's estimated cost must fit the
+/// tenant's budget.
+///
+/// # Errors
+///
+/// [`Refusal::Dispatch`] or [`Refusal::Cost`].
+fn admit_subscription(
+    app: &AppState,
+    tenant: &Tenant,
+    query: &str,
+    variables: &serde_json::Value,
+    principal: Option<&SecurityContext>,
+) -> Result<(), Refusal> {
+    let executor = tenant.executor(app)?;
+    let cost = crate::routes::graphql::tenant_dispatch::estimate_request_cost(
+        query,
+        Some(variables),
+        &executor,
+    );
+    tenant.charge(app, principal, cost)
+}
+
+/// The `/ws` error frame for an admission refusal: `/graphql`'s words and code.
+fn refusal_error(refusal: &Refusal) -> GraphQLError {
+    let error = crate::routes::graphql::admission_error(refusal);
+    let code = serde_json::to_value(error.code)
+        .ok()
+        .and_then(|code| code.as_str().map(str::to_owned))
+        .unwrap_or_default();
+    GraphQLError::with_code(error.message, code)
 }
 
 /// What the pre-ack wait produced (#786): the init message, a client close,
@@ -627,7 +659,7 @@ async fn handle_subscription_connection(
     socket: WebSocket,
     state: SubscriptionState,
     protocol: WsProtocol,
-    tenant_id: Option<String>,
+    tenant: Option<Tenant>,
     principal: Option<SecurityContext>,
     token_claims: Option<crate::middleware::oidc_auth::SessionTokenClaims>,
     // The upgrade request's headers, for the request locale (#1512): a subscription is
@@ -636,6 +668,7 @@ async fn handle_subscription_connection(
 ) {
     let connection_id = uuid::Uuid::new_v4().to_string();
     let codec = ProtocolCodec::new(protocol);
+    let tenant_id = tenant.as_ref().and_then(Tenant::key).map(str::to_owned);
     info!(
         connection_id = %connection_id,
         protocol = %protocol.as_str(),
@@ -775,6 +808,20 @@ async fn handle_subscription_connection(
             msg = receiver.next() => {
                 match msg {
                     Some(Ok(Message::Text(text))) => {
+                        // A client acts as its principal only while the principal's token
+                        // is valid: nothing it sends is served once it has expired.
+                        if auth_guard.expired() {
+                            warn!(
+                                connection_id = %connection_id,
+                                "Token expired before a client message; closing WebSocket"
+                            );
+                            // Best-effort: the connection is being terminated either way.
+                            let _ = sender.send(Message::Close(Some(axum::extract::ws::CloseFrame {
+                                code: CloseCode::Unauthorized.code(),
+                                reason: crate::admission::TOKEN_EXPIRED.into(),
+                            }))).await;
+                            break;
+                        }
                         if let Err(close_code) = handle_client_message(
                             &text,
                             &connection_id,
@@ -782,7 +829,7 @@ async fn handle_subscription_connection(
                             &codec,
                             &mut active_operations,
                             &mut sender,
-                            tenant_id.as_deref(),
+                            tenant.as_ref(),
                             principal.as_ref(),
                             &ConnectionLocale { headers: &headers, init_payload: init_payload.as_ref() },
                         ).await {
@@ -892,7 +939,7 @@ async fn handle_subscription_connection(
                             // Best-effort: the connection is being terminated either way.
                             let _ = sender.send(Message::Close(Some(axum::extract::ws::CloseFrame {
                                 code: CloseCode::Unauthorized.code(),
-                                reason: "Token expired".into(),
+                                reason: crate::admission::TOKEN_EXPIRED.into(),
                             }))).await;
                             break;
                         }
@@ -1130,10 +1177,11 @@ async fn handle_client_message(
     codec: &ProtocolCodec,
     active_operations: &mut HashMap<String, ActiveOperation>,
     sender: &mut futures::stream::SplitSink<WebSocket, Message>,
-    tenant_id: Option<&str>,
+    tenant: Option<&Tenant>,
     principal: Option<&SecurityContext>,
     locale: &ConnectionLocale<'_>,
 ) -> Result<(), CloseCode> {
+    let tenant_id = tenant.and_then(Tenant::key);
     let client_msg: ClientMessage = codec.decode(text).map_err(|e| {
         warn!(error = %e, "Failed to parse client message");
         // graphql-transport-ws: undecodable message → 4400 Bad Request (#786).
@@ -1317,6 +1365,27 @@ async fn handle_client_message(
                 }
             }
 
+            // Each subscription is admitted as a `/graphql` operation is: its tenant must be
+            // registered and active, and its estimated cost must fit the tenant's budget.
+            if let (Some(app), Some(tenant)) = (state.app.as_ref(), tenant) {
+                if let Err(refusal) =
+                    admit_subscription(app, tenant, &payload.query, &variables_value, principal)
+                {
+                    WS_SUBSCRIPTIONS_REJECTED.fetch_add(1, Ordering::Relaxed);
+                    warn!(
+                        connection_id = %connection_id,
+                        subscription = %subscription_name,
+                        ?refusal,
+                        "Admission refused the subscription"
+                    );
+                    let error = ServerMessage::error(&op_id, vec![refusal_error(&refusal)]);
+                    if let Err(e) = send_server_message(codec, sender, error).await {
+                        debug!(connection_id = %connection_id, error = %e, "Could not send admission refusal to client");
+                    }
+                    return Ok(());
+                }
+            }
+
             // Ruling AA 4: a subscription is a read of its type. The executor plans it from
             // the client's selection and this connection's principal — before any lifecycle
             // side effect — and every event is served through the plan. A refusal is the
@@ -1402,25 +1471,6 @@ async fn handle_client_message(
                     );
                     if let Err(send_err) = send_server_message(codec, sender, error).await {
                         debug!(connection_id = %connection_id, error = %send_err, "Could not send tenant mismatch error to client");
-                    }
-                    return Ok(());
-                }
-            }
-
-            // M-tenant-ws-suspended: refuse to start a subscription whose tenant
-            // is suspended, mirroring the GraphQL data plane's 503 response.
-            if let (Some(tid), Some(src)) = (tenant_id, state.tenant_status_source.as_ref()) {
-                if src.is_suspended(tid) {
-                    WS_SUBSCRIPTIONS_REJECTED.fetch_add(1, Ordering::Relaxed);
-                    let error = ServerMessage::error(
-                        &op_id,
-                        vec![GraphQLError::with_code(
-                            format!("Tenant '{tid}' is suspended"),
-                            "TENANT_SUSPENDED",
-                        )],
-                    );
-                    if let Err(send_err) = send_server_message(codec, sender, error).await {
-                        debug!(connection_id = %connection_id, error = %send_err, "Could not send tenant-suspended error to client");
                     }
                     return Ok(());
                 }

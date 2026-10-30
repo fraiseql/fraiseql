@@ -84,7 +84,7 @@ impl StreamAuthGuard {
     /// could not be checked under a fail-closed revocation posture.
     pub async fn check(&self) -> Result<(), &'static str> {
         if self.expired() {
-            return Err("Token expired");
+            return Err(crate::admission::TOKEN_EXPIRED);
         }
         if let (Some(revocation), Some(sub), Some(claims)) =
             (self.revocation.as_ref(), self.sub.as_deref(), self.claims.as_ref())
@@ -92,7 +92,7 @@ impl StreamAuthGuard {
             use crate::token_revocation::TokenRejection;
             match revocation.check_token(claims.jti.as_deref(), sub, claims.iat).await {
                 Ok(()) => {},
-                Err(TokenRejection::Revoked) => return Err("Token revoked"),
+                Err(TokenRejection::Revoked) => return Err(crate::admission::TOKEN_REVOKED),
                 Err(TokenRejection::MissingJti) => return Err("Token lacks required jti claim"),
                 // The manager already applied its fail-open posture internally; an
                 // error here means fail-closed is configured — terminate.

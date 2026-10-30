@@ -1188,12 +1188,28 @@ async fn ws_ae1_a_routed_subscription_is_still_planned() {
     );
 }
 
+/// `state` admitting through an application over `schema` where `tenant_a` is registered,
+/// so an upgrade naming it runs as that tenant.
+fn admitting_tenant_a(state: SubscriptionState, schema: &CompiledSchema) -> SubscriptionState {
+    let executor = || {
+        Arc::new(fraiseql_core::runtime::Executor::new(
+            schema.clone(),
+            Arc::new(fraiseql_test_utils::failing_adapter::FailingAdapter::new()),
+        ))
+    };
+    let app = fraiseql_server::routes::graphql::AppState::new(executor());
+    let registry =
+        fraiseql_server::routes::graphql::TenantExecutorRegistry::new(Arc::clone(&app.executor));
+    registry.upsert("tenant_a", executor());
+    state.with_app(app.with_tenant_registry(Arc::new(registry)))
+}
+
 /// A client-supplied tenant that contradicts the server-resolved one is refused.
 #[tokio::test]
 async fn ws_ae1_a_routed_subscription_still_answers_the_tenant_check() {
-    let schema = Arc::new(schema_with_subscription("orderCreated", "Order"));
-    let manager = Arc::new(SubscriptionManager::new(schema));
-    let state = SubscriptionState::new(manager);
+    let schema = schema_with_subscription("orderCreated", "Order");
+    let manager = Arc::new(SubscriptionManager::new(Arc::new(schema.clone())));
+    let state = admitting_tenant_a(SubscriptionState::new(manager), &schema);
     let answer = answer_to_subscribe(
         state,
         &[("x-tenant-id", "tenant_a")],
@@ -1220,9 +1236,8 @@ async fn ws_a_defaulted_tenant_variable_still_answers_the_tenant_check() {
             "tenant_id",
             FieldType::String,
         ));
-    let schema = Arc::new(schema);
-    let manager = Arc::new(SubscriptionManager::new(schema));
-    let state = SubscriptionState::new(manager);
+    let manager = Arc::new(SubscriptionManager::new(Arc::new(schema.clone())));
+    let state = admitting_tenant_a(SubscriptionState::new(manager), &schema);
     let answer = answer_to_subscribe(
         state,
         &[("x-tenant-id", "tenant_a")],
@@ -1245,7 +1260,10 @@ async fn ws_an_inline_tenant_argument_still_answers_the_tenant_check() {
             "tenant_id",
             FieldType::String,
         ));
-    let state = SubscriptionState::new(Arc::new(SubscriptionManager::new(Arc::new(schema))));
+    let state = admitting_tenant_a(
+        SubscriptionState::new(Arc::new(SubscriptionManager::new(Arc::new(schema.clone())))),
+        &schema,
+    );
     let answer = answer_to_subscribe(
         state,
         &[("x-tenant-id", "tenant_a")],

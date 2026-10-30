@@ -472,10 +472,13 @@ pub struct ServerConfig {
 
     /// Require authentication for the `WebSocket` subscription endpoint (default: None).
     ///
-    /// Controls the `/subscriptions` endpoint independently of introspection auth.
-    /// When `Some(true)`, the subscription endpoint requires OIDC auth. When `Some(false)`,
-    /// subscriptions are publicly accessible. When `None` (default), falls back to
-    /// `introspection_require_auth` for backwards compatibility.
+    /// Controls the `/subscriptions` endpoint independently of introspection auth. The
+    /// endpoint is authenticated by the deployment's configured authentication (OIDC or
+    /// HS256) either way. When `Some(true)`, an upgrade that resolved no principal is
+    /// refused, and the endpoint is not mounted without configured authentication. When
+    /// `Some(false)`, an upgrade without a principal is served where that authentication
+    /// lets it through. When `None` (default), falls back to `introspection_require_auth`
+    /// for backwards compatibility.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub subscription_require_auth: Option<bool>,
 

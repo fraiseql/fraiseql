@@ -99,15 +99,15 @@ async fn recv_json_or_close(ws: &mut WsStream) -> Option<serde_json::Value> {
     }
 }
 
-/// Helper: wait for the close frame and return its code (skipping data frames).
-async fn recv_close_code(ws: &mut WsStream) -> Option<u16> {
+/// Helper: wait for the close frame and return its code and reason (skipping data frames).
+async fn recv_close_frame(ws: &mut WsStream) -> Option<(u16, String)> {
     loop {
         let msg = tokio::time::timeout(std::time::Duration::from_secs(5), ws.next())
             .await
             .expect("timed out waiting for close frame")?;
         match msg {
             Ok(tungstenite::Message::Close(frame)) => {
-                return frame.map(|f| u16::from(f.code));
+                return frame.map(|f| (u16::from(f.code), f.reason.to_string()));
             },
             Ok(_) => {},
             Err(_) => return None,
@@ -316,10 +316,10 @@ async fn expired_token_stops_event_delivery_and_closes_4401() {
                 }
             },
             Ok(tungstenite::Message::Close(frame)) => {
-                let code = frame.as_ref().map(|f| u16::from(f.code));
+                let close = frame.as_ref().map(|f| (u16::from(f.code), f.reason.to_string()));
                 assert_eq!(
-                    code,
-                    Some(4401),
+                    close,
+                    Some((4401, fraiseql_server::admission::TOKEN_EXPIRED.to_string())),
                     "expired token must close with 4401 Unauthorized, got {frame:?}"
                 );
                 break;
@@ -360,11 +360,15 @@ async fn idle_expired_stream_is_closed_by_the_periodic_recheck() {
 
     // No events are published. Within expiry (300ms) + one recheck interval
     // (100ms) + slack, the server must close the socket with 4401.
-    let code =
-        tokio::time::timeout(std::time::Duration::from_secs(3), recv_close_code(&mut stream))
+    let close =
+        tokio::time::timeout(std::time::Duration::from_secs(3), recv_close_frame(&mut stream))
             .await
             .expect("idle expired stream was not closed by the periodic re-check (#771)");
-    assert_eq!(code, Some(4401), "expired token must close with 4401 Unauthorized");
+    assert_eq!(
+        close,
+        Some((4401, fraiseql_server::admission::TOKEN_EXPIRED.to_string())),
+        "expired token must close with 4401 Unauthorized, in every transport's words"
+    );
 }
 
 /// Revoking the session's token (here: a `revoke-all` for the user, the "log
@@ -441,7 +445,7 @@ async fn revoked_token_terminates_live_subscription_with_4401() {
                     );
                 },
                 Ok(tungstenite::Message::Close(frame)) => {
-                    return frame.map(|f| u16::from(f.code));
+                    return frame.map(|f| (u16::from(f.code), f.reason.to_string()));
                 },
                 Ok(_) => {},
                 Err(_) => return None,
@@ -450,7 +454,11 @@ async fn revoked_token_terminates_live_subscription_with_4401() {
     })
     .await
     .expect("revoked-token stream was not closed within the re-check interval (#771)");
-    assert_eq!(code, Some(4401), "revoked token must close with 4401 Unauthorized");
+    assert_eq!(
+        code,
+        Some((4401, fraiseql_server::admission::TOKEN_REVOKED.to_string())),
+        "revoked token must close with 4401 Unauthorized, in every transport's words"
+    );
 
     // And the manager no longer holds the subscription.
     let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(2);
@@ -735,8 +743,22 @@ async fn tenant_fail_closed_gate_activates_on_the_live_ws_path() {
     });
     assert!(schema.is_multi_tenant(), "tenancy.mode=row must flip the #758 gate on");
 
-    let manager = Arc::new(SubscriptionManager::new(Arc::new(schema)));
-    let state = SubscriptionState::new(manager.clone());
+    // The connection's tenant is admitted as `/graphql` admits one: through the
+    // application's registry, where both tenants are registered.
+    let executor = || {
+        Arc::new(fraiseql_core::runtime::Executor::new(
+            schema.clone(),
+            Arc::new(fraiseql_test_utils::failing_adapter::FailingAdapter::new()),
+        ))
+    };
+    let app = fraiseql_server::routes::graphql::AppState::new(executor());
+    let registry =
+        fraiseql_server::routes::graphql::TenantExecutorRegistry::new(Arc::clone(&app.executor));
+    registry.upsert("tenant_a", executor());
+    registry.upsert("tenant_b", executor());
+    let manager = Arc::new(SubscriptionManager::new(Arc::new(schema.clone())));
+    let state = SubscriptionState::new(manager.clone())
+        .with_app(app.with_tenant_registry(Arc::new(registry)));
     let url = spawn_ws_server(state).await;
 
     let (mut sink_a, mut stream_a) = connect_ws_with_tenant(&url, Some("tenant_a")).await;
@@ -800,5 +822,191 @@ async fn tenant_fail_closed_gate_activates_on_the_live_ws_path() {
             got.is_err(),
             "{name} subscriber must receive NOTHING, got {got:?} (#758 tenant gate)"
         );
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Admission: a subscription is admitted as a `/graphql` operation is
+// ---------------------------------------------------------------------------
+
+/// A client whose token has expired is served nothing more, whether or not an event
+/// arrives: the subscribe it sends closes the socket with 4401, in the words every
+/// transport answers an expired token with.
+#[tokio::test]
+async fn a_subscribe_sent_after_the_token_expired_closes_4401() {
+    let schema = Arc::new(schema_with_subscription("orderChanged", "Order"));
+    let manager = Arc::new(SubscriptionManager::new(schema));
+    // No periodic re-check: only the client's own message can observe the expiry.
+    let state = SubscriptionState::new(manager.clone())
+        .with_auth_recheck_interval(std::time::Duration::ZERO);
+
+    let url = spawn_ws_server_with_principal(
+        state,
+        user_expiring_in(chrono::Duration::milliseconds(300)),
+    )
+    .await;
+    let (mut sink, mut stream) = connect_ws(&url).await;
+    send_json(&mut sink, json!({"type": "connection_init"})).await;
+    let ack = recv_json_or_close(&mut stream).await.expect("expected connection_ack");
+    assert_eq!(ack["type"], "connection_ack", "{ack}");
+
+    tokio::time::sleep(std::time::Duration::from_millis(400)).await;
+    send_json(
+        &mut sink,
+        json!({"type": "subscribe", "id": "op_1",
+               "payload": {"query": "subscription { orderChanged { id } }"}}),
+    )
+    .await;
+
+    let close = recv_close_frame(&mut stream).await;
+    assert_eq!(
+        close,
+        Some((4401, fraiseql_server::admission::TOKEN_EXPIRED.to_string())),
+        "an expired principal's subscribe must close the socket"
+    );
+    assert_eq!(manager.subscription_count(), 0, "nothing is registered for it");
+}
+
+/// Where subscriptions require authentication, an upgrade that resolved no principal is
+/// refused before it becomes a socket.
+#[tokio::test]
+async fn an_anonymous_upgrade_is_refused_where_auth_is_required() {
+    let schema = Arc::new(schema_with_subscription("orderChanged", "Order"));
+    let manager = Arc::new(SubscriptionManager::new(schema));
+    let url = spawn_ws_server(SubscriptionState::new(manager).with_require_auth(true)).await;
+    match connect_async(&url).await {
+        Err(tungstenite::Error::Http(response)) => {
+            assert_eq!(response.status(), http::StatusCode::UNAUTHORIZED);
+        },
+        other => panic!("an anonymous upgrade must be refused, got {other:?}"),
+    }
+}
+
+mod tenant_admission {
+    use fraiseql_core::runtime::Executor;
+    use fraiseql_server::routes::graphql::{
+        AppState, TenantExecutorRegistry, tenant_registry::TenantQuota,
+    };
+    use fraiseql_test_utils::failing_adapter::FailingAdapter;
+    use tokio_tungstenite::tungstenite::client::IntoClientRequest;
+
+    use super::*;
+
+    fn executor() -> Arc<Executor> {
+        Arc::new(Executor::new(
+            schema_with_subscription("orderChanged", "Order"),
+            Arc::new(FailingAdapter::new()),
+        ))
+    }
+
+    /// `/ws` admitting through an application with tenant `acme` registered under `quota`,
+    /// and the registry, to suspend `acme` later.
+    async fn serve(
+        quota: TenantQuota,
+    ) -> (String, Arc<SubscriptionManager>, Arc<TenantExecutorRegistry>) {
+        let app = AppState::new(executor());
+        let registry = Arc::new(TenantExecutorRegistry::new(Arc::clone(&app.executor)));
+        registry.upsert_with_quota("acme", executor(), quota);
+        let manager = Arc::new(SubscriptionManager::new(Arc::new(schema_with_subscription(
+            "orderChanged",
+            "Order",
+        ))));
+        let state = SubscriptionState::new(Arc::clone(&manager))
+            .with_app(app.with_tenant_registry(Arc::clone(&registry)));
+        (spawn_ws_server(state).await, manager, registry)
+    }
+
+    async fn connect_as_acme(url: &str) -> (WsSink, WsStream) {
+        let mut request = url.into_client_request().unwrap();
+        request
+            .headers_mut()
+            .insert("x-tenant-id", http::HeaderValue::from_static("acme"));
+        let (ws, _) = connect_async(request).await.expect("WebSocket connect failed");
+        let (mut sink, mut stream) = ws.split();
+        send_json(&mut sink, json!({"type": "connection_init"})).await;
+        let ack = recv_json_or_close(&mut stream).await.expect("expected connection_ack");
+        assert_eq!(ack["type"], "connection_ack", "{ack}");
+        (sink, stream)
+    }
+
+    /// Subscribe and return the error frame's code, or `None` when it was registered.
+    async fn subscribe_code(
+        sink: &mut WsSink,
+        stream: &mut WsStream,
+        manager: &SubscriptionManager,
+    ) -> Option<String> {
+        send_json(
+            sink,
+            json!({"type": "subscribe", "id": "op_1",
+                   "payload": {"query": "subscription { orderChanged { id } }"}}),
+        )
+        .await;
+        let deadline = tokio::time::Instant::now() + std::time::Duration::from_millis(500);
+        while tokio::time::Instant::now() < deadline {
+            if manager.subscription_count() == 1 {
+                return None;
+            }
+            if let Ok(Some(Ok(tungstenite::Message::Text(text)))) =
+                tokio::time::timeout(std::time::Duration::from_millis(50), stream.next()).await
+            {
+                let frame: serde_json::Value = serde_json::from_str(&text).unwrap();
+                if frame["type"] == "error" {
+                    return frame["payload"][0]["extensions"]["code"].as_str().map(str::to_owned);
+                }
+            }
+        }
+        panic!("the subscribe was neither registered nor refused");
+    }
+
+    #[tokio::test]
+    async fn a_registered_tenants_subscription_is_admitted() {
+        let (url, manager, _) = serve(TenantQuota::default()).await;
+        let (mut sink, mut stream) = connect_as_acme(&url).await;
+        assert_eq!(subscribe_code(&mut sink, &mut stream, &manager).await, None);
+    }
+
+    #[tokio::test]
+    async fn a_subscription_over_its_tenants_cost_budget_is_refused() {
+        let quota = TenantQuota {
+            cost_budget: Some(0),
+            ..TenantQuota::default()
+        };
+        let (url, manager, _) = serve(quota).await;
+        let (mut sink, mut stream) = connect_as_acme(&url).await;
+        assert_eq!(
+            subscribe_code(&mut sink, &mut stream, &manager).await.as_deref(),
+            Some("OPERATION_COST_EXCEEDED"),
+            "/graphql's code for the same refusal"
+        );
+        assert_eq!(manager.subscription_count(), 0);
+    }
+
+    #[tokio::test]
+    async fn a_subscription_for_a_tenant_suspended_since_the_upgrade_is_refused() {
+        let (url, manager, registry) = serve(TenantQuota::default()).await;
+        let (mut sink, mut stream) = connect_as_acme(&url).await;
+        registry.suspend("acme").unwrap();
+        assert_eq!(
+            subscribe_code(&mut sink, &mut stream, &manager).await.as_deref(),
+            Some("SERVICE_UNAVAILABLE"),
+            "/graphql's code for the same refusal"
+        );
+        assert_eq!(manager.subscription_count(), 0);
+    }
+
+    #[tokio::test]
+    async fn a_suspended_tenants_upgrade_is_refused_with_graphqls_status() {
+        let (url, _, registry) = serve(TenantQuota::default()).await;
+        registry.suspend("acme").unwrap();
+        let mut request = url.as_str().into_client_request().unwrap();
+        request
+            .headers_mut()
+            .insert("x-tenant-id", http::HeaderValue::from_static("acme"));
+        match connect_async(request).await {
+            Err(tungstenite::Error::Http(response)) => {
+                assert_eq!(response.status(), http::StatusCode::SERVICE_UNAVAILABLE);
+            },
+            other => panic!("a suspended tenant's upgrade must be refused, got {other:?}"),
+        }
     }
 }

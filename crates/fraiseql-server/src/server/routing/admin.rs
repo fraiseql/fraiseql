@@ -210,12 +210,7 @@ impl Server {
         app
     }
 
-    fn mount_subscriptions(&self, mut app: Router, state: &AppState) -> Router {
-        // Mirror the GraphQL handler's tenant dispatch on the subscription
-        // upgrade: install the Host-domain registry and drive strict cross-source
-        // validation from the schema's RLS configuration (#331).
-        let strict_tenant_validation = self.executor.schema().has_rls_configured();
-
+    fn mount_subscriptions(&self, app: Router, state: &AppState) -> Router {
         // #596: row-level visibility policies, resolved once from the compiled schema.
         let subscription_policies = Arc::new(
             crate::routes::subscriptions::build_subscription_policies(self.executor.schema()),
@@ -248,7 +243,8 @@ impl Server {
         let mut subscription_state = SubscriptionState::new(self.subscription_manager.clone())
             .with_lifecycle(self.subscription_lifecycle.clone())
             .with_max_subscriptions(self.max_subscriptions_per_connection)
-            .with_tenant_context(state.domain_registry().clone(), strict_tenant_validation)
+            // The upgrade and each subscription are admitted as a `/graphql` request is.
+            .with_app(state.clone())
             // #422: enforce the operation-level authorizer (if any) at subscribe-time.
             .with_authorizer(self.executor.config().authorizer.clone())
             // #596: server-owned row-visibility policies (fail-closed at subscribe time).
@@ -296,44 +292,28 @@ impl Server {
             .subscription_require_auth
             .unwrap_or(self.config.introspection_require_auth);
 
-        if subscription_require_auth {
-            if let Some(ref validator) = self.oidc_validator {
-                info!(
-                    subscription_path = %self.config.subscription_path,
-                    "GraphQL subscriptions enabled (graphql-transport-ws + graphql-ws protocols, OIDC auth required)"
-                );
-                let auth_state = self
-                    .oidc_auth_state(validator.clone())
-                    .with_service_accounts(self.service_account_authenticator.clone());
-                let subscription_router = Router::new()
-                    .route(&self.config.subscription_path, get(subscription_handler))
-                    .route_layer(middleware::from_fn_with_state(auth_state, oidc_auth_middleware))
-                    .with_state(subscription_state);
-                app = app.merge(subscription_router);
-            } else {
-                warn!(
-                    subscription_path = %self.config.subscription_path,
-                    "subscription_require_auth is true but no OIDC configured — subscriptions disabled"
-                );
-            }
-        } else {
-            info!(
+        let authenticates = self.oidc_validator.is_some() || self.hs256_auth.is_some();
+        if subscription_require_auth && !authenticates {
+            warn!(
                 subscription_path = %self.config.subscription_path,
-                "GraphQL subscriptions enabled (graphql-transport-ws + graphql-ws protocols)"
+                "subscription_require_auth is true but no authentication configured — subscriptions disabled"
             );
-            let mut subscription_router =
-                Router::new().route(&self.config.subscription_path, get(subscription_handler));
-            // #1650: the auth layer resolves a service account, here as on every transport.
-            if let Some(ref accounts) = self.service_account_authenticator {
-                subscription_router =
-                    subscription_router.route_layer(middleware::from_fn_with_state(
-                        Arc::clone(accounts),
-                        crate::service_account::service_account_middleware,
-                    ));
-            }
-            app = app.merge(subscription_router.with_state(subscription_state));
+            return app;
         }
-        app
+        info!(
+            subscription_path = %self.config.subscription_path,
+            require_auth = subscription_require_auth,
+            "GraphQL subscriptions enabled (graphql-transport-ws + graphql-ws protocols)"
+        );
+        let subscription_router = self.attach_auth(
+            Router::new().route(&self.config.subscription_path, get(subscription_handler)),
+            super::AuthPosture::Authenticated,
+            "subscriptions",
+        );
+        app.merge(
+            subscription_router
+                .with_state(subscription_state.with_require_auth(subscription_require_auth)),
+        )
     }
 
     fn mount_introspection(&self, mut app: Router, state: &AppState) -> Router {

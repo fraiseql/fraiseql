@@ -60,6 +60,27 @@ disagreed, and the promise was the part that was wrong.
   the server already refuses an artifact from any other build, so recompiling is the whole
   migration.
 
+- **GraphQL subscriptions admit a connection as `/graphql` admits a request (#1643).**
+  - `/ws` authenticates a subscriber with the deployment's configured authentication, as
+    `/graphql` does. Under `[auth_hs256]` a bearer token now identifies a subscriber, and
+    an upgrade without one is refused as `/graphql` refuses the request. Before, `/ws`
+    validated only OIDC tokens, and with `subscription_require_auth` an HS256 deployment
+    mounted no `/ws` at all.
+  - `subscription_require_auth` refuses an upgrade that resolved no principal with a `401`.
+  - The upgrade resolves its tenant as `/graphql` does, and is refused when the tenant is
+    unregistered (`403`), suspended (`503`) or over its request quota (`429`), with
+    `/graphql`'s status and body. A tenant that could not be resolved used to get a bare
+    `400`.
+  - Each subscribe is charged to its tenant's cost budget, and one over it is refused with
+    `/graphql`'s `OPERATION_COST_EXCEEDED` or `COST_BUDGET_EXHAUSTED`. A subscribe for a
+    suspended tenant is refused with `SERVICE_UNAVAILABLE`; it used to be
+    `TENANT_SUSPENDED`.
+  - A message a client sends after its token expired closes the socket with `4401`. A
+    socket or `@stream` delivery closed for its token says so in the same words as
+    elsewhere: "Token has expired" or "Token has been revoked". It used to say "Token
+    expired" or "Token revoked".
+  - `SubscriptionState::with_tenant_context` is removed: install the application with
+    `SubscriptionState::with_app`, which the upgrade and each subscribe admit through.
 - **`fraiseql.toml` refuses four keys `fraiseql run` never applied (#1808).** They were
   parsed and validated, then dropped: setting one had no effect and no error. Each is now
   refused when written, even at its old default, with what to do instead:

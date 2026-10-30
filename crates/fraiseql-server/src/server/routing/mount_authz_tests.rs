@@ -332,3 +332,98 @@ mod storage_revocation {
         assert_ne!(status("j-live", "j-revoked").await, StatusCode::UNAUTHORIZED);
     }
 }
+
+/// `/ws` as the server mounts it: behind the deployment's authentication, and admitting
+/// through the application as `/graphql` does.
+mod ws_admission {
+    use fraiseql_core::schema::SubscriptionDefinition;
+    use tokio_tungstenite::{
+        connect_async,
+        tungstenite::{self, client::IntoClientRequest},
+    };
+
+    use super::*;
+    use crate::routes::graphql::TenantExecutorRegistry;
+
+    const SECRET_ENV: &str = "FRAISEQL_TEST_WS_HS256";
+    const SECRET: &str = "ws-admission-hs256-secret-32-by!";
+
+    /// The server's `/ws` under `[auth_hs256]`, with tenant `acme` registered (suspended
+    /// when `suspended`), served on an ephemeral port.
+    async fn mounted_ws(require_auth: bool, suspended: bool) -> String {
+        let mut schema = CompiledSchema::new();
+        schema.subscriptions.push(SubscriptionDefinition::new("orderChanged", "Order"));
+        std::env::set_var(SECRET_ENV, SECRET);
+        let config = ServerConfig {
+            cors_enabled: false,
+            subscriptions_enabled: true,
+            subscription_require_auth: Some(require_auth),
+            auth_hs256: Some(crate::server_config::hs256::Hs256Config {
+                secret_env: SECRET_ENV.to_string(),
+                issuer:     None,
+                audience:   Some("fraiseql".to_string()),
+            }),
+            ..ServerConfig::default()
+        };
+        let server = Box::pin(Server::new(config, schema, Arc::new(FailingAdapter::new()), None))
+            .await
+            .expect("Server::new with subscriptions and [auth_hs256]");
+        let state = server.build_app_state();
+        let registry = TenantExecutorRegistry::new(Arc::clone(&state.executor));
+        registry.upsert("acme", state.executor.load_full());
+        if suspended {
+            registry.suspend("acme").unwrap();
+        }
+        let state = state.with_tenant_registry(Arc::new(registry));
+        let app = server.mount_base_and_admin_routes(Router::new(), &state);
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        format!("ws://{addr}/ws")
+    }
+
+    /// A bearer for `alice`, of tenant `acme`.
+    fn token() -> String {
+        let now = chrono::Utc::now().timestamp();
+        let claims = serde_json::json!({
+            "sub": "alice", "tenant_id": "acme", "aud": "fraiseql", "iat": now, "exp": now + 3600,
+        });
+        jsonwebtoken::encode(
+            &jsonwebtoken::Header::new(jsonwebtoken::Algorithm::HS256),
+            &claims,
+            &jsonwebtoken::EncodingKey::from_secret(SECRET.as_bytes()),
+        )
+        .unwrap()
+    }
+
+    /// The upgrade's status: 101 when it became a socket.
+    #[allow(clippy::panic)] // Reason: test code, panics are the failure mechanism.
+    async fn upgrade_status(url: &str, headers: &[(&'static str, String)]) -> u16 {
+        let mut request = url.into_client_request().unwrap();
+        for (name, value) in headers {
+            request.headers_mut().insert(*name, value.parse().unwrap());
+        }
+        match connect_async(request).await {
+            Ok((_, response)) => response.status().as_u16(),
+            Err(tungstenite::Error::Http(response)) => response.status().as_u16(),
+            Err(e) => panic!("upgrade failed below HTTP: {e}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn an_hs256_bearer_is_admitted_where_subscriptions_require_auth() {
+        let url = mounted_ws(true, false).await;
+        let bearer = format!("Bearer {}", token());
+        assert_eq!(upgrade_status(&url, &[("authorization", bearer)]).await, 101);
+        assert_eq!(upgrade_status(&url, &[]).await, 401, "and an anonymous upgrade is refused");
+    }
+
+    #[tokio::test]
+    async fn a_suspended_tenants_upgrade_is_refused() {
+        let url = mounted_ws(false, true).await;
+        let tenant = [("authorization", format!("Bearer {}", token()))];
+        assert_eq!(upgrade_status(&url, &tenant).await, 503);
+        let active = mounted_ws(false, false).await;
+        assert_eq!(upgrade_status(&active, &tenant).await, 101);
+    }
+}

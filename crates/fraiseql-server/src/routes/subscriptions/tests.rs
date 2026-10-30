@@ -1,9 +1,7 @@
-//! Tests for subscription tenant resolution (#331).
+//! Tests for the `/ws` upgrade's admission and its row-visibility policies.
 //!
-//! The `WebSocket` upgrade must mirror the GraphQL handler's tenant dispatch — JWT
-//! `tenant_id` precedence, strict cross-source conflict rejection, and
-//! Host-domain resolution — rather than the former `None, None, false` call that
-//! silently dropped all three.
+//! The upgrade resolves its tenant exactly as `/graphql` does — the token's tenant, with a
+//! header or Host that may only agree — and passes it through the tenant registry.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)] // Reason: test code.
 
@@ -12,22 +10,38 @@ use std::{collections::HashMap, sync::Arc};
 use axum::http::{HeaderMap, HeaderName, HeaderValue};
 use chrono::Utc;
 use fraiseql_core::{
-    runtime::SubscriptionManager,
+    runtime::{Executor, SubscriptionManager},
     schema::CompiledSchema,
     security::SecurityContext,
     types::{TenantId, UserId},
 };
+use fraiseql_test_utils::failing_adapter::FailingAdapter;
 
-use super::{DomainRegistry, SubscriptionState, resolve_subscription_tenant};
+use super::{SubscriptionState, admit_upgrade};
+use crate::{
+    admission::Refusal,
+    routes::graphql::{AppState, TenantExecutorRegistry},
+};
 
-/// Build a `SubscriptionState` with the given strict flag and Host→key mappings.
-fn state(strict: bool, domains: &[(&str, &str)]) -> SubscriptionState {
-    let manager = Arc::new(SubscriptionManager::new(Arc::new(CompiledSchema::default())));
-    let registry = DomainRegistry::new();
-    for (host, key) in domains {
-        registry.register(*host, *key);
+fn executor() -> Arc<Executor> {
+    Arc::new(Executor::new(CompiledSchema::default(), Arc::new(FailingAdapter::new())))
+}
+
+/// A `SubscriptionState` admitting through an application with tenants `foo` and `bar`
+/// registered, `bar` suspended when `suspended`, and Host→key mappings `domains`.
+fn state(suspended: bool, domains: &[(&str, &str)]) -> SubscriptionState {
+    let app = AppState::new(executor());
+    let registry = TenantExecutorRegistry::new(Arc::clone(&app.executor));
+    registry.upsert("foo", executor());
+    registry.upsert("bar", executor());
+    if suspended {
+        registry.suspend("bar").unwrap();
     }
-    SubscriptionState::new(manager).with_tenant_context(Arc::new(registry), strict)
+    for (host, key) in domains {
+        app.domain_registry().register(*host, *key);
+    }
+    let manager = Arc::new(SubscriptionManager::new(Arc::new(CompiledSchema::default())));
+    SubscriptionState::new(manager).with_app(app.with_tenant_registry(Arc::new(registry)))
 }
 
 /// A minimal `SecurityContext` carrying a JWT `tenant_id`.
@@ -62,47 +76,92 @@ fn headers(pairs: &[(&str, &str)]) -> HeaderMap {
     h
 }
 
+/// The key the upgrade admitted, or its refusal.
+fn admitted(
+    state: &SubscriptionState,
+    ctx: Option<&SecurityContext>,
+    h: &HeaderMap,
+) -> Result<Option<String>, Refusal> {
+    admit_upgrade(state, ctx, h)
+        .map(|tenant| tenant.and_then(|tenant| tenant.key().map(str::to_owned)))
+}
+
 #[test]
 fn a_header_naming_another_tenant_than_the_token_is_refused() {
-    // The subscription transport resolves through the same rule as /graphql: an
-    // authenticated caller's tenant is its token's, and a header may only agree
-    // (GHSA-24pq-hx78-766q). It used to win over the header only in strict mode.
+    // An authenticated caller's tenant is its token's, and a header may only agree
+    // (GHSA-24pq-hx78-766q).
     let ctx = ctx_with_tenant("bar");
-    let h = headers(&[("X-Tenant-ID", "foo")]);
-    for strict in [false, true] {
-        let result = resolve_subscription_tenant(Some(&ctx), &h, &state(strict, &[]));
-        assert!(
-            matches!(result, Err(fraiseql_error::FraiseQLError::Authorization { .. })),
-            "strict={strict}: {result:?}"
-        );
-    }
-    let agreeing = headers(&[("X-Tenant-ID", "bar")]);
-    let resolved = resolve_subscription_tenant(Some(&ctx), &agreeing, &state(false, &[])).unwrap();
-    assert_eq!(resolved.as_deref(), Some("bar"));
+    let result = admitted(&state(false, &[]), Some(&ctx), &headers(&[("X-Tenant-ID", "foo")]));
+    assert!(matches!(result, Err(Refusal::Tenant(_))), "{result:?}");
+    let agreeing =
+        admitted(&state(false, &[]), Some(&ctx), &headers(&[("X-Tenant-ID", "bar")])).unwrap();
+    assert_eq!(agreeing.as_deref(), Some("bar"));
 }
 
 #[test]
 fn header_resolves_when_no_jwt() {
-    let h = headers(&[("X-Tenant-ID", "foo")]);
-    let resolved = resolve_subscription_tenant(None, &h, &state(false, &[])).unwrap();
+    let resolved = admitted(&state(false, &[]), None, &headers(&[("X-Tenant-ID", "foo")])).unwrap();
     assert_eq!(resolved.as_deref(), Some("foo"));
 }
 
 #[test]
-fn domain_registry_is_consulted_under_strict() {
-    // Host maps to "bar"; the header says "foo" → conflict → strict Err. Proves
-    // the domain registry is now threaded into the subscription path (was None).
-    let h = headers(&[("X-Tenant-ID", "foo"), ("Host", "tenant-a.example.com")]);
-    let result =
-        resolve_subscription_tenant(None, &h, &state(true, &[("tenant-a.example.com", "bar")]));
-    assert!(result.is_err(), "Host-vs-header conflict must be rejected under strict mode");
+fn the_applications_domain_registry_is_consulted() {
+    let resolved = admitted(
+        &state(false, &[("tenant-a.example.com", "bar")]),
+        None,
+        &headers(&[("Host", "tenant-a.example.com")]),
+    )
+    .unwrap();
+    assert_eq!(resolved.as_deref(), Some("bar"));
 }
 
 #[test]
 fn no_tenant_sources_resolves_to_none() {
-    let resolved =
-        resolve_subscription_tenant(None, &HeaderMap::new(), &state(false, &[])).unwrap();
+    let resolved = admitted(&state(false, &[]), None, &HeaderMap::new()).unwrap();
     assert!(resolved.is_none());
+}
+
+#[test]
+fn an_unregistered_tenant_is_refused_at_the_upgrade() {
+    let result = admitted(&state(false, &[]), None, &headers(&[("X-Tenant-ID", "nobody")]));
+    assert!(matches!(result, Err(Refusal::Dispatch(_))), "{result:?}");
+}
+
+#[test]
+fn a_suspended_tenant_is_refused_at_the_upgrade() {
+    let result = admitted(&state(true, &[]), None, &headers(&[("X-Tenant-ID", "bar")]));
+    assert!(
+        matches!(
+            result,
+            Err(Refusal::Dispatch(fraiseql_error::FraiseQLError::ServiceUnavailable { .. }))
+        ),
+        "{result:?}"
+    );
+    let active = admitted(&state(true, &[]), None, &headers(&[("X-Tenant-ID", "foo")])).unwrap();
+    assert_eq!(active.as_deref(), Some("foo"), "a sibling tenant is still admitted");
+}
+
+#[test]
+fn the_upgrade_holds_no_permit_once_admitted() {
+    // One concurrent request is the tenant's whole quota: a connection that kept its
+    // permit for as long as it stays open would refuse every later request.
+    let app = AppState::new(executor());
+    let registry = TenantExecutorRegistry::new(Arc::clone(&app.executor));
+    registry.upsert_with_quota(
+        "foo",
+        executor(),
+        crate::routes::graphql::tenant_registry::TenantQuota {
+            max_concurrent: Some(1),
+            ..Default::default()
+        },
+    );
+    let manager = Arc::new(SubscriptionManager::new(Arc::new(CompiledSchema::default())));
+    let state =
+        SubscriptionState::new(manager).with_app(app.with_tenant_registry(Arc::new(registry)));
+    let h = headers(&[("X-Tenant-ID", "foo")]);
+    for _ in 0..2 {
+        assert_eq!(admitted(&state, None, &h).unwrap().as_deref(), Some("foo"));
+    }
 }
 
 /// Row-level visibility policy derivation on the `/ws` seam (#596). Exercises the

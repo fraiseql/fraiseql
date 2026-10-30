@@ -926,7 +926,7 @@ pub(super) fn tree(
 }
 
 /// The `/graphql` answer to an admission refusal.
-pub(super) fn admission_error(refusal: &Refusal) -> GraphQLError {
+pub(crate) fn admission_error(refusal: &Refusal) -> GraphQLError {
     match refusal {
         Refusal::TokenExpired
         | Refusal::TokenInvalid

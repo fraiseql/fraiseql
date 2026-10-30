@@ -216,9 +216,7 @@ impl Identified {
     /// [`Refusal::Tenant`] for a malformed hint, or hints that disagree under strict
     /// validation.
     pub fn tenant(&self, state: &AppState, headers: &HeaderMap) -> Result<Tenant, Refusal> {
-        tenant_dispatch::resolve_tenant_key(state, self.security_context(), headers)
-            .map(|key| Tenant { key })
-            .map_err(Refusal::Tenant)
+        Tenant::of(state, self.security_context(), headers)
     }
 }
 
@@ -229,6 +227,23 @@ pub struct Tenant {
 }
 
 impl Tenant {
+    /// The tenant `security_context` runs as: the principal's for an authenticated caller,
+    /// the request's hints otherwise, as [`Identified::tenant`] resolves it.
+    ///
+    /// # Errors
+    ///
+    /// [`Refusal::Tenant`] for a malformed hint, or hints that disagree under strict
+    /// validation.
+    pub fn of(
+        state: &AppState,
+        security_context: Option<&SecurityContext>,
+        headers: &HeaderMap,
+    ) -> Result<Self, Refusal> {
+        tenant_dispatch::resolve_tenant_key(state, security_context, headers)
+            .map(|key| Self { key })
+            .map_err(Refusal::Tenant)
+    }
+
     /// A tenant named by `key`, for a unit test of what runs after admission.
     #[cfg(all(test, feature = "rest"))]
     pub(crate) fn named(key: &str) -> Self {

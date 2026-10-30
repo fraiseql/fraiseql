@@ -16,6 +16,7 @@ pub mod tenant_registry;
 mod tests;
 
 pub use app_state::AppState;
+pub(crate) use handler::admission_error;
 pub use handler::{graphql_get_handler, graphql_handler};
 pub use request::{GraphQLGetParams, GraphQLRequest, GraphQLResponse};
 pub use tenant_key::{DomainRegistry, TenantKeyResolver};
