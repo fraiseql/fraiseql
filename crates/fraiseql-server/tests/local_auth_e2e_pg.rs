@@ -1121,3 +1121,121 @@ async fn email_verification_without_a_link_template_refuses_to_boot() {
 fn the_document_loads_without_a_database() {
     empty_schema();
 }
+
+/// The current `TOTP` code for a base32 `secret`.
+fn totp_code(secret: &str) -> String {
+    totp_rs::TOTP::new(
+        totp_rs::Algorithm::SHA1,
+        6,
+        1,
+        30,
+        totp_rs::Secret::Encoded(secret.to_string()).to_bytes().expect("secret decodes"),
+        None,
+        String::new(),
+    )
+    .expect("totp")
+    .generate_current()
+    .expect("generate code")
+}
+
+/// The base32 secret of an `otpauth://` URI.
+fn otpauth_secret(uri: &str) -> String {
+    uri.split("secret=")
+        .nth(1)
+        .and_then(|s| s.split('&').next())
+        .expect("secret in otpauth URI")
+        .to_string()
+}
+
+/// An anonymous caller cannot take over an account through the `MFA` routes.
+///
+/// The victim has a confirmed enrollment. The caller has no credential of any kind, only
+/// the victim's id. Each step the caller tries is recorded, so a failure shows how far
+/// the chain got: enroll a secret of their own for the victim, confirm it, open a
+/// challenge, and verify it into a session.
+#[tokio::test]
+async fn an_anonymous_caller_cannot_take_over_an_account_through_mfa() {
+    use fraiseql_auth::MfaStore as _;
+
+    let Some(url) =
+        database_url_or_skip("an_anonymous_caller_cannot_take_over_an_account_through_mfa")
+    else {
+        return;
+    };
+    set_test_env();
+    let db = "fraiseql_p26_local_mfa_takeover";
+    let pool = scratch_pool(&url, db).await;
+    let scratch_url = with_database(&url, db);
+    let server = boot(
+        LocalAuthConfig {
+            mfa: true,
+            ..LocalAuthConfig::default()
+        },
+        pool.clone(),
+        &scratch_url,
+    )
+    .await;
+
+    // The victim's own enrollment, made and confirmed through the store.
+    let victim = "victim-1";
+    let store = fraiseql_auth::PgMfaStore::new(pool.clone());
+    let enrolled = store.begin_enrollment(victim, "FraiseQL", "victim@example.com").await.unwrap();
+    store
+        .confirm_enrollment(victim, &totp_code(&enrolled.secret_base32))
+        .await
+        .unwrap();
+    let stored_secret = || async {
+        sqlx::query_as::<_, (String, bool)>(
+            "SELECT secret_base32, confirmed FROM core.tb_mfa_enrollment WHERE user_id = $1",
+        )
+        .bind(victim)
+        .fetch_one(&pool)
+        .await
+        .expect("the victim's enrollment row")
+    };
+
+    let base = &server.base;
+    let mut steps = Vec::new();
+    let mut session_sub = None;
+    let (status, body) = post_json(
+        base,
+        "/auth/v1/mfa/enroll",
+        serde_json::json!({ "user_id": victim, "account_name": "attacker@example.com" }),
+    )
+    .await;
+    steps.push(format!("enroll → {status}"));
+    if let Some(uri) = body["otpauth_uri"].as_str() {
+        let secret = otpauth_secret(uri);
+        let (status, _) = post_json(
+            base,
+            "/auth/v1/mfa/confirm",
+            serde_json::json!({ "user_id": victim, "code": totp_code(&secret) }),
+        )
+        .await;
+        steps.push(format!("confirm → {status}"));
+        let (status, body) =
+            post_json(base, "/auth/v1/mfa/challenge", serde_json::json!({ "user_id": victim }))
+                .await;
+        steps.push(format!("challenge → {status}"));
+        if let Some(challenge) = body["challenge_token"].as_str() {
+            let (status, body) = post_json(
+                base,
+                "/auth/v1/mfa/verify",
+                serde_json::json!({ "challenge_token": challenge, "code": totp_code(&secret) }),
+            )
+            .await;
+            steps.push(format!("verify → {status}"));
+            session_sub = body["access_token"].as_str().map(jwt_sub);
+        }
+    }
+
+    assert_eq!(session_sub, None, "an anonymous caller obtained a session; steps: {steps:?}");
+    assert_eq!(
+        stored_secret().await,
+        (enrolled.secret_base32.clone(), true),
+        "an anonymous caller replaced or unconfirmed the victim's enrollment; steps: {steps:?}"
+    );
+
+    server.stop().await;
+    drop_scratch(&url, db).await;
+}
