@@ -21,7 +21,8 @@ disagreed, and the promise was the part that was wrong.
 - **A document's kept projection is keyed by the caller's masks (#1785).** `ProjectionKey`
   is built with `ProjectionKey::new(request_chain, masked)`, which keeps the masked
   `(type, field)` pairs as a set, and is no longer built as a struct literal.
-  `KeptProjection` has a `masks_written` field.
+  `KeptProjection` has a `masks_written` field. `RawRows::has_null` is no longer a
+  `const fn`; `RawRows::has_null_where` says under which keys a `null` sits.
 
 - **`ResultProjector::configure_typename_from_selections` is removed (#1785).** It wrote a
   root `__typename` ahead of every other field, wherever it was selected. The walk that
@@ -460,6 +461,16 @@ disagreed, and the promise was the part that was wrong.
   authorizer decides per row still needs the row, so a read holding one keeps the `Value`
   path. Cached results of one read are now held per set of masks, where they used to be
   shared by callers masked differently and masked after the cache.
+
+- **A raw read is completed in Rust only when a `null` may sit at a non-null field
+  (#1785).** The completion of § 6.4.4 used to run whenever a read selecting any non-null
+  field returned any `null`, which a masked field always writes. The compacted rows now
+  record the key each `null` is the value of. Completion runs when one sits under a key a
+  non-null field is selected under at any depth, or under no key; any other `null` is a
+  nullable field's, and the rows are served as written. A `null`'s key is found when the
+  `null` is, by scanning back from it. Rows of 20 with two `null`s each cost about 175
+  instructions a `null` more (`respond.raw_null_list`: 69,359 against 62,342), and raw
+  reads that hold none 0.9% to 2.2% more (`respond.raw_list_lean`, `raw_list_fat`).
 
 - **A read that selects `__typename` on an object type is answered as the bytes the
   database wrote (#1785).** The projection writes the type's name as a SQL literal where it

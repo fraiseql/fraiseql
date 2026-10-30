@@ -49,6 +49,35 @@ pub struct Compacted {
 /// database guarantees for a `json` or `jsonb` column; on anything else the output is
 /// whatever the scan copied.
 pub fn compact_json(src: &[u8], out: &mut Vec<u8>) -> Compacted {
+    compact(src, out, None)
+}
+
+/// Where the `null`s of compacted text sit: under which member keys, each once, and
+/// whether one sits where no key names it, an array element or the text itself.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+struct Nulls {
+    /// The distinct keys a `null` is the value of, as ranges of the compacted text.
+    keyed:   Vec<std::ops::Range<usize>>,
+    /// A `null` that is no member's value.
+    unkeyed: bool,
+}
+
+impl Nulls {
+    /// Note a `null` under the key at `key` of `out`, or under none.
+    fn note(&mut self, out: &[u8], key: Option<std::ops::Range<usize>>) {
+        match key {
+            Some(key) => {
+                if !self.keyed.iter().any(|seen| out[seen.clone()] == out[key.clone()]) {
+                    self.keyed.push(key);
+                }
+            },
+            None => self.unkeyed = true,
+        }
+    }
+}
+
+/// [`compact_json`], noting in `nulls` where each `null` sits.
+fn compact(src: &[u8], out: &mut Vec<u8>, mut nulls: Option<&mut Nulls>) -> Compacted {
     let mut found = Compacted {
         exact: true,
         ..Compacted::default()
@@ -110,7 +139,14 @@ pub fn compact_json(src: &[u8], out: &mut Vec<u8>) -> Compacted {
             b'n' | b't' | b'f' => {
                 count_element(&open, tally);
                 tally.literals += 1;
-                found.null |= b == b'n';
+                if b == b'n' {
+                    found.null = true;
+                    if let Some(nulls) = nulls.as_deref_mut() {
+                        // In an object, a literal is a member's value: the key just written.
+                        let key = (open.last() == Some(&true)).then(|| member_key(out)).flatten();
+                        nulls.note(out, key);
+                    }
+                }
                 // The rest of the literal is copied below as plain bytes.
             },
             b'0'..=b'9' | b'-' => {
@@ -127,6 +163,17 @@ pub fn compact_json(src: &[u8], out: &mut Vec<u8>) -> Compacted {
         found.exact &= write_number(&src[start..], out, out_start);
     }
     found
+}
+
+/// The key of the member whose value `out` is about to receive, as the range of `out`
+/// between its quotes: `out` ends `"key":`, compacted. A key's opening quote follows the
+/// `{` or `,` before it; a quote inside a key is escaped, so `None` when the quote found
+/// follows anything else: the key holds one, and is not placed.
+fn member_key(out: &[u8]) -> Option<std::ops::Range<usize>> {
+    let close = out.len().checked_sub(2)?;
+    let open = memchr::memrchr(b'"', &out[..close])?;
+    matches!(open.checked_sub(1).map(|before| out[before]), Some(b'{' | b','))
+        .then_some(open + 1..close)
 }
 
 /// Copy a string's contents from `from`, just past its opening quote, through its closing
@@ -207,7 +254,7 @@ pub struct RawRows {
     bytes: Vec<u8>,
     rows:  Vec<RawRow>,
     exact: bool,
-    null:  bool,
+    nulls: Nulls,
 }
 
 /// One row of a [`RawRows`]: where it ends, and its tokens.
@@ -227,7 +274,10 @@ impl RawRows {
             bytes: Vec::new(),
             rows:  Vec::new(),
             exact: true,
-            null:  false,
+            nulls: Nulls {
+                keyed:   Vec::new(),
+                unkeyed: false,
+            },
         }
     }
 
@@ -236,9 +286,8 @@ impl RawRows {
         if !self.rows.is_empty() {
             self.bytes.push(b',');
         }
-        let found = compact_json(src, &mut self.bytes);
+        let found = compact(src, &mut self.bytes, Some(&mut self.nulls));
         self.exact &= found.exact;
-        self.null |= found.null;
         self.rows.push(RawRow {
             end:   self.bytes.len(),
             tally: found.tally,
@@ -277,8 +326,17 @@ impl RawRows {
 
     /// Whether any row holds a `null`.
     #[must_use]
-    pub const fn has_null(&self) -> bool {
-        self.null
+    pub fn has_null(&self) -> bool {
+        self.has_null_where(|_| true)
+    }
+
+    /// Whether any row holds a `null` where `at` says one matters: `at` is asked of each
+    /// distinct key a `null` is a member's value under, and of `None` when a `null` is no
+    /// member's value. A key is asked as the compact text holds it, between its quotes.
+    #[must_use]
+    pub fn has_null_where(&self, at: impl Fn(Option<&[u8]>) -> bool) -> bool {
+        (self.nulls.unkeyed && at(None))
+            || self.nulls.keyed.iter().any(|key| at(Some(&self.bytes[key.clone()])))
     }
 
     /// The rows, parsed.

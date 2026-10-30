@@ -311,3 +311,50 @@ fn a_mask_is_served_raw_only_when_the_projection_wrote_it() {
     read.gated_present = true;
     assert!(!RawShape::flat(&read), "a gated field needs the row, written mask or not");
 }
+
+/// A non-null field is found under its response key at any depth, and under its alias.
+#[test]
+fn a_non_null_field_is_found_under_its_response_key_at_any_depth() {
+    let mut schema = schema();
+    let profile = schema.types.iter_mut().find(|t| t.name == "Profile").unwrap();
+    let mut code = field("code", FieldType::String);
+    code.nullable = false;
+    profile.fields.push(code);
+    schema.build_indexes();
+    let under = |selections: &[FieldSelection], key: &str| {
+        selects_non_null_under(selections, &schema, "User", key.as_bytes())
+    };
+    let tier = FieldSelection {
+        alias: Some("tier".to_string()),
+        ..leaf("handle")
+    };
+
+    assert!(under(&[leaf("handle")], "handle"));
+    assert!(under(&[tier.clone(), select("profile", vec![leaf("tier")])], "tier"));
+    assert!(under(&[select("profile", vec![leaf("code")])], "code"), "below the root");
+    assert!(!under(&[leaf("name"), leaf("secret")], "secret"), "a nullable field");
+    assert!(!under(&[select("profile", vec![leaf("tier")])], "tier"), "nullable below");
+    assert!(!under(&[tier], "handle"), "a field is found under its alias, not its name");
+}
+
+/// A `null` under a non-null field's key, or under no key, may need completion; one under a
+/// nullable field's key alone does not, nor any `null` of a read with no non-null field.
+#[test]
+fn a_null_needs_completion_under_a_non_null_key_or_none() {
+    let schema = schema();
+    let selections = [
+        leaf("handle"),
+        leaf("secret"),
+        select("profile", vec![leaf("tier")]),
+    ];
+    let needs = |non_null: bool, texts: &[&str]| {
+        RawShape { non_null }.may_hold_null_at_non_null(&rows(texts), &selections, &schema, "User")
+    };
+    assert!(!needs(true, &[r#"{"handle":"h","secret":null}"#]));
+    assert!(!needs(true, &[r#"{"handle":"h","profile":{"tier":null}}"#]));
+    assert!(needs(true, &[r#"{"handle":null}"#]));
+    assert!(needs(true, &[r#"{"secret":null}"#, r#"{"handle":null}"#]));
+    assert!(needs(true, &[r#"{"tags":["a",null]}"#]), "an element no key names");
+    assert!(needs(true, &["null"]), "a row that is null");
+    assert!(!needs(false, &[r#"{"handle":null}"#]), "no non-null field is selected");
+}

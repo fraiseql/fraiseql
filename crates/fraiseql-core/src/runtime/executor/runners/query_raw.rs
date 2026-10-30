@@ -67,8 +67,17 @@ impl QueryRunner {
 
         // § 6.4.4 completion leaves the response as it is unless a non-null position holds
         // `null`: a selected non-null field, or a non-null single root with no row.
-        let completes_unchanged = !(shape.non_null && rows.has_null())
-            && (query_def.returns_list || query_def.nullable || !rows.rows().is_empty());
+        let selections = query_match
+            .selections
+            .first()
+            .map_or(&[][..], |root| root.nested_fields.as_slice());
+        let completes_unchanged =
+            !shape.may_hold_null_at_non_null(
+                &rows,
+                selections,
+                &self.ctx.schema,
+                &query_def.return_type,
+            ) && (query_def.returns_list || query_def.nullable || !rows.rows().is_empty());
         if !rows.exact() || !completes_unchanged {
             let parsed = rows.parse().map_err(|e| FraiseQLError::Internal {
                 message: format!("a row the database serialized is not valid JSON: {e}"),
@@ -115,6 +124,25 @@ struct RawShape {
 }
 
 impl RawShape {
+    /// Whether `rows`, read through `selections` of a `type_name`, may hold `null` at a
+    /// non-null field: under a key a non-null field is selected under, at any depth, or
+    /// where no key names it. Under any other key a `null` is a nullable field's, a mask's
+    /// among them, and needs no completion.
+    ///
+    /// The selection is walked only for a key a `null` sits under.
+    fn may_hold_null_at_non_null(
+        &self,
+        rows: &RawRows,
+        selections: &[FieldSelection],
+        schema: &CompiledSchema,
+        type_name: &str,
+    ) -> bool {
+        self.non_null
+            && rows.has_null_where(|key| {
+                key.is_none_or(|key| selects_non_null_under(selections, schema, type_name, key))
+            })
+    }
+
     fn of(read: &RootRead, query_match: &QueryMatch, schema: &CompiledSchema) -> Option<Self> {
         if !Self::flat(read) {
             return None;
@@ -198,6 +226,31 @@ impl RawShape {
             }
         })
     }
+}
+
+/// Whether `selections` of a `type_name`, at any depth, select a non-null field under the
+/// response key `key`.
+fn selects_non_null_under(
+    selections: &[FieldSelection],
+    schema: &CompiledSchema,
+    type_name: &str,
+    key: &[u8],
+) -> bool {
+    let Some(type_def) = schema.find_type(type_name) else {
+        return true;
+    };
+    selections.iter().any(|sel| {
+        let Some(field) = type_def.fields.iter().find(|f| f.name == sel.name.as_str()) else {
+            return false;
+        };
+        (!field.nullable && sel.response_key().as_bytes() == key)
+            || match &field.field_type {
+                FieldType::Object(child) => {
+                    selects_non_null_under(&sel.nested_fields, schema, child, key)
+                },
+                _ => false,
+            }
+    })
 }
 
 #[cfg(test)]

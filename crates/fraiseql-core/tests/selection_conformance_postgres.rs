@@ -29,8 +29,8 @@ use fraiseql_core::{
     db::{postgres::PostgresAdapter, traits::DatabaseAdapter},
     runtime::{Executor, relay::encode_node_id},
     schema::{
-        CompiledSchema, FieldDefinition, FieldType, InterfaceDefinition, SessionVariableMapping,
-        SessionVariableSource, SourceKind,
+        CompiledSchema, FieldDefinition, FieldDenyPolicy, FieldType, InterfaceDefinition,
+        RoleDefinition, SecurityConfig, SessionVariableMapping, SessionVariableSource, SourceKind,
     },
     security::SecurityContext,
 };
@@ -1010,6 +1010,196 @@ async fn an_authenticated_eligible_read_is_answered_raw_with_the_value_paths_byt
             failures.push(format!("{query}: answered as a `Value`, not raw"));
         } else if body.into_bytes().unwrap() != expected {
             failures.push(format!("{query}: the raw body differs from the `Value` body"));
+        }
+    }
+    assert!(
+        failures.is_empty(),
+        "{} read(s) failed:\n  {}",
+        failures.len(),
+        failures.join("\n  ")
+    );
+}
+
+/// [`schema`] with `User.secret` and `Profile.zone` masked for a caller without the
+/// `auditor` role, which grants their scopes, and `nullable` or not.
+fn masked_schema(nullable: bool) -> CompiledSchema {
+    let mut schema = schema();
+    for (type_name, field, scope) in [
+        ("User", "secret", "read:secret"),
+        ("Profile", "zone", "read:zone"),
+    ] {
+        let field = schema
+            .types
+            .iter_mut()
+            .find(|t| t.name == type_name)
+            .and_then(|t| t.fields.iter_mut().find(|f| f.name == field))
+            .unwrap();
+        field.requires_scope = Some(scope.to_string());
+        field.on_deny = FieldDenyPolicy::Mask;
+        field.nullable = nullable;
+    }
+    let mut security = SecurityConfig::new();
+    security.add_role(RoleDefinition::new(
+        "auditor",
+        vec!["read:secret".to_string(), "read:zone".to_string()],
+    ));
+    schema.security = Some(security);
+    schema
+}
+
+/// Reads that select a masked field, at the root and below it, under an alias or not.
+/// Masked fields are nullable here, as a field that can read as `null` is.
+const MASKED_READS: &[&str] = &[
+    "{ users { name secret } }",
+    "{ users { hidden: secret name profile { tier zone } } }",
+    "{ users { profile { address { city } region: zone } secret } }",
+    r#"{ user(where: { name: { eq: "Alice" } }) { secret name } }"#,
+];
+
+/// A caller masked alike reads the masked fields as `null` raw, with the bytes the `Value`
+/// path serializes; a caller allowed to read them reads them raw. On one executor, in
+/// turn, so a projection kept for one caller is in place when the other reads: it never
+/// serves the stored value to the masked caller, nor `null` to the allowed one.
+#[tokio::test]
+async fn a_masked_read_is_answered_raw_with_the_value_paths_bytes() {
+    let Some(exec) = executor_for(masked_schema(true)).await else {
+        eprintln!("SKIP: no PostgreSQL (set DATABASE_URL)");
+        return;
+    };
+    let masked = principal();
+    let allowed = SecurityContext {
+        roles: vec!["auditor".to_string()],
+        ..principal()
+    };
+
+    let mut failures = Vec::new();
+    for query in MASKED_READS {
+        for (who, caller) in [
+            ("allowed", &allowed),
+            ("masked", &masked),
+            ("allowed", &allowed),
+        ] {
+            let value = exec
+                .execute_operation_with_security(query, None, caller, None)
+                .await
+                .unwrap_or_else(|e| panic!("{query}: {e}"));
+            let expected = serde_json::to_vec(&value).unwrap();
+            assert!(holds_rows(&expected), "{query}: the fixture returned no rows");
+            let body = exec
+                .execute_operation_with_security_body(query, None, caller, None)
+                .await
+                .unwrap_or_else(|e| panic!("{query}: {e}"));
+            if !body.is_raw() {
+                failures.push(format!("{who} {query}: answered as a `Value`, not raw"));
+                continue;
+            }
+            let bytes = body.into_bytes().unwrap();
+            let text = String::from_utf8_lossy(&bytes);
+            let stored = ["SECRET-VALUE", "\"eu\""].iter().any(|v| text.contains(v));
+            if bytes != expected {
+                failures.push(format!(
+                    "{who} {query}:\n    raw   {text}\n    value {}",
+                    String::from_utf8_lossy(&expected)
+                ));
+            } else if stored != (who == "allowed") {
+                failures.push(format!("{who} {query}: {text}"));
+            }
+        }
+    }
+    assert!(
+        failures.is_empty(),
+        "{} read(s) failed:\n  {}",
+        failures.len(),
+        failures.join("\n  ")
+    );
+}
+
+/// Whether `query`, for `caller`, is answered with the `Value` path's bytes or its error,
+/// and whether raw: `Err` with what differs.
+async fn as_the_value_path(
+    exec: &Executor,
+    query: &str,
+    caller: &SecurityContext,
+) -> Result<bool, String> {
+    let value = exec.execute_operation_with_security(query, None, caller, None).await;
+    let body = exec.execute_operation_with_security_body(query, None, caller, None).await;
+    match (value, body) {
+        (Ok(value), Ok(body)) => {
+            let expected = serde_json::to_vec(&value).unwrap();
+            let raw = body.is_raw();
+            let bytes = body.into_bytes().unwrap();
+            if bytes == expected {
+                Ok(raw)
+            } else {
+                Err(format!(
+                    "{query}:\n    body  {}\n    value {}",
+                    String::from_utf8_lossy(&bytes),
+                    String::from_utf8_lossy(&expected)
+                ))
+            }
+        },
+        (Err(value), Err(body)) if value.to_string() == body.to_string() => Ok(false),
+        (value, body) => Err(format!("{query}: value {value:?}, body {body:?}")),
+    }
+}
+
+/// A `null` under a key some non-null field is selected under, or where no key names it,
+/// is completed in Rust (§ 6.4.4); under a nullable field's key alone it is served raw.
+/// Each is answered with the `Value` path's bytes, or its error.
+#[tokio::test]
+async fn a_null_at_a_non_null_position_is_completed_as_the_value_path_completes_it() {
+    let mut strict = masked_schema(false);
+    let ledger = TestTypeBuilder::new("StrictLedger", LEDGER_VIEW)
+        .with_simple_field(
+            "rates",
+            FieldType::List {
+                item:           Box::new(FieldType::List {
+                    item:           Box::new(FieldType::Decimal),
+                    nullable_items: true,
+                }),
+                nullable_items: false,
+            },
+        )
+        .build();
+    strict.types.push(ledger);
+    strict.queries.push(
+        TestQueryBuilder::new("strictLedgers", "StrictLedger")
+            .returns_list(true)
+            .with_sql_source(LEDGER_VIEW)
+            .build(),
+    );
+    strict.build_indexes();
+    let nullable = masked_schema(true);
+    let caller = principal();
+
+    // (schema, query, answered raw)
+    let cases: [(&CompiledSchema, &str, bool); 6] = [
+        // A masked nullable field: its `null` needs no completion.
+        (&nullable, "{ users { id name secret } }", true),
+        // `zone` is non-null at the root (an alias of `name`) and masked, so `null`, below:
+        // the key is non-null somewhere, so the read is completed in Rust.
+        (&nullable, "{ users { zone: name profile { zone } } }", false),
+        // The `null` under the non-null use of the key: completed, up to the nearest
+        // nullable parent.
+        (&strict, "{ users { name profile { secret: tier } secret } }", false),
+        // A masked non-null field.
+        (&strict, "{ users { name secret } }", false),
+        (&strict, "{ users { name profile { tier zone } } }", false),
+        // A `null` element of a `[T]!` whose elements are non-null: a list is never raw.
+        (&strict, "{ strictLedgers { rates } }", false),
+    ];
+    let mut failures = Vec::new();
+    for (schema, query, raw) in cases {
+        let Some(exec) = executor_for(schema.clone()).await else {
+            eprintln!("SKIP: no PostgreSQL (set DATABASE_URL)");
+            return;
+        };
+        match as_the_value_path(&exec, query, &caller).await {
+            Ok(answered_raw) if answered_raw == raw => {},
+            Ok(answered_raw) => {
+                failures.push(format!("{query}: raw {answered_raw}, expected {raw}"));
+            },
+            Err(differs) => failures.push(differs),
         }
     }
     assert!(

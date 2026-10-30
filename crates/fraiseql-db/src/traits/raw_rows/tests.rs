@@ -162,3 +162,32 @@ fn one_inexact_row_makes_the_rows_inexact() {
     rows.push(br#"{"a" : 1e400}"#);
     assert!(!rows.exact());
 }
+
+/// The key each `null` is a member's value under, and a `null` no key names.
+#[test]
+fn a_null_is_reported_under_the_key_it_is_the_value_of() {
+    let nulls = |texts: &[&str]| {
+        let mut rows = RawRows::new();
+        for text in texts {
+            rows.push(text.as_bytes());
+        }
+        let keys: Vec<String> = ["a", "b", "c", "d", "null"]
+            .into_iter()
+            .filter(|key| rows.has_null_where(|at| at == Some(key.as_bytes())))
+            .map(str::to_string)
+            .collect();
+        (keys, rows.has_null_where(|at| at.is_none()))
+    };
+    let keys = |names: &[&str]| names.iter().map(ToString::to_string).collect::<Vec<_>>();
+
+    assert_eq!(nulls(&[r#"{"a" : null, "b" : {"c" : null}}"#]), (keys(&["a", "c"]), false));
+    assert_eq!(nulls(&[r#"{"a" : {"b" : 1}, "c" : null}"#]), (keys(&["c"]), false));
+    assert_eq!(nulls(&[r#"{"a" : 1}"#, r#"{"d" : null}"#]), (keys(&["d"]), false));
+    assert_eq!(nulls(&[r#"{"a" : "null", "null" : 1}"#]), (keys(&[]), false));
+    assert_eq!(nulls(&[r#"{"a" : [1, null]}"#]), (keys(&[]), true), "an element");
+    assert_eq!(nulls(&["null"]), (keys(&[]), true), "the text itself");
+    assert_eq!(nulls(&[r#"{"a" : [{"b" : null}]}"#]), (keys(&["b"]), false));
+    assert_eq!(nulls(&[r#"{"a\"b" : null}"#]), (keys(&[]), true), "a key with a quote");
+    assert_eq!(nulls(&[r#"{"x" : 1, "a,\"b" : null}"#]), (keys(&[]), true), "and a comma");
+    assert_eq!(nulls(&[r#"{"a\\" : null}"#]), (keys(&[]), false), "an escaped backslash");
+}
