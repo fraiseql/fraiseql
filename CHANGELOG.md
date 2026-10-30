@@ -628,6 +628,10 @@ disagreed, and the promise was the part that was wrong.
   corrupt memory when an allocation failed. FraiseQL builds no wasm32 target; the lock
   no longer carries the affected version.
 
+- **wasmtime and wasmtime-wasi 48.0.8 (RUSTSEC-2026-0420, -0422, -0423 and -0424).**
+  The lock moves wasmtime, wasmtime-wasi and their internal crates from 48.0.7 to 48.0.8,
+  and cranelift from 0.135.7 to 0.135.8.
+
 - **RUSTSEC-2026-0391, -0398 and -0403 (zstd) are accepted, with a 2027-01-31 deadline,
   each behind a gate that voids it.** Their fixes need zstd 0.14, which parquet 59 does not
   yet accept (#1747).
