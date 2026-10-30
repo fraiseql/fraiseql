@@ -18,6 +18,13 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **`ResultProjector::configure_typename_from_selections` is removed (#1785).** It wrote a
+  root `__typename` ahead of every other field, wherever it was selected. The walk that
+  shapes a read's levels now answers `__typename` where it was selected and under its
+  alias, at the root as below it, so nothing calls it. A caller that projected rows itself
+  with it writes `__typename` with `ResultProjector::with_typename`, or shapes the result
+  with `shape_projected`.
+
 - **An Arrow Flight principal carries the claims of the token it came from (#1643).** The
   handshake's session token used to keep only the subject and scopes, so a Flight request
   ran with no tenant, no roles from the token and no claim attributes. The session token
@@ -438,6 +445,15 @@ disagreed, and the promise was the part that was wrong.
 
 ### Changed
 
+- **A read that selects `__typename` on an object type is answered as the bytes the
+  database wrote (#1785).** The projection writes the type's name as a SQL literal where it
+  was selected and under its alias, at every depth, so such a read no longer falls back
+  to building and serializing a `serde_json::Value`. A list of 20 rows selecting
+  `__typename` costs 88,190 instructions instead of 616,662, about 7× fewer
+  (`respond.raw_typename_list` against `respond.value_typename_list`). A `__typename` of
+  an interface or union position is the type of each value, which the SQL does not know,
+  so a read holding one keeps the `Value` path.
+
 - **The release publishes the crates in an order derived from the workspace, not written
   by hand (#1784).** `tools/publish-order.py` reads the publishable crates and their
   dependencies from `cargo metadata`, optional ones included, and release.yml publishes
@@ -477,6 +493,13 @@ disagreed, and the promise was the part that was wrong.
   hold, in place of six.
 
 ### Fixed
+
+- **A root `__typename` is answered where it was selected, under its alias (#1785).** It
+  was always the first key of each root object, whatever its position in the selection,
+  contrary to GraphQL's field order (§ 6.3), and always under the key `__typename`, so
+  `{ users { kind: __typename } }` answered no `kind`. Below the root both were already
+  right. A client that relied on the old order, reading the first key, sees the selection
+  order now: `{ users { name __typename } }` answers `{"name":…,"__typename":"User"}`.
 
 - **A `"*"` in `cors_origins` is refused at boot instead of crashing it (#1829).** The CORS
   layer allows exactly the origins listed, and building it panicked on a wildcard among
