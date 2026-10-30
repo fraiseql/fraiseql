@@ -245,6 +245,7 @@ impl QueryRunner {
         plan: &crate::runtime::planner::PlannedProjection,
         full_row: bool,
         nearest: Option<&crate::backend::OrderByClause>,
+        masked: &std::collections::HashSet<(String, String)>,
     ) -> Result<Option<KeptProjection>> {
         let root_fields = query_match
             .selections
@@ -283,15 +284,19 @@ impl QueryRunner {
                     0,
                 )),
                 decimals_as_text: false,
+                masks_written:    false,
             }));
         }
 
         // A projection of the document's own fields is built from them and the request's
-        // `ProjectionKey` alone, so a repeated document builds it once per key. A distance
-        // field reads the request's `nearest`, so a projection with one is built per request.
-        let key = crate::graphql::selection_set::ProjectionKey {
-            request_chain: crate::runtime::localization_chain(&self.ctx.schema),
-        };
+        // `ProjectionKey` alone, so a repeated document builds it once per key: the caller's
+        // masks are in the key, so a projection kept for one caller never answers another
+        // masked otherwise. A distance field reads the request's `nearest`, so a projection
+        // with one is built per request.
+        let key = crate::graphql::selection_set::ProjectionKey::new(
+            crate::runtime::localization_chain(&self.ctx.schema),
+            masked.iter().cloned(),
+        );
         let projection = DocumentProjection {
             schema:          &self.ctx.schema,
             return_type:     &query_match.query_def.return_type,
@@ -1392,12 +1397,8 @@ impl DocumentProjection<'_> {
         // before it is projected. A computed field (a vector distance) reads native columns
         // the paged subquery does not expose, so that read keeps the single-`SELECT` shape.
         let reads_only_document = computed.is_empty();
-        let mut typed_fields = build_typed_projection_fields(
-            root_fields,
-            self.schema,
-            self.return_type,
-            key.request_chain.as_deref(),
-        );
+        let mut typed_fields =
+            build_typed_projection_fields(root_fields, self.schema, self.return_type, key);
         merge_computed_fields(&mut typed_fields, computed);
         // Decided from the fields the SQL is generated from, so the two cannot disagree.
         let decimals_as_text =
@@ -1424,6 +1425,7 @@ impl DocumentProjection<'_> {
         Ok(KeptProjection {
             hint: Arc::new(hint),
             decimals_as_text,
+            masks_written: true,
         })
     }
 }
@@ -1476,9 +1478,7 @@ mod document_projection_tests {
             projected_count: 2,
             decimals:        &crate::runtime::DecimalIndex::default(),
         };
-        let key = ProjectionKey {
-            request_chain: Some(vec!["fr-FR".to_string(), "en-US".to_string()]),
-        };
+        let key = ProjectionKey::new(Some(vec!["fr-FR".to_string(), "en-US".to_string()]), []);
         let fields = [leaf("id"), leaf("name")];
         let outside = projection.build(&fields, Vec::new(), &key).unwrap();
         for locale in ["de-DE", "en-US"] {

@@ -244,6 +244,7 @@ fn read(schema: &CompiledSchema, selections: &[FieldSelection]) -> RootRead {
             "JSON_OBJECT('name' VALUE \"data\"->>'name' RETURNING json)".to_string(),
             0,
         ))),
+        masked_in_sql:  false,
         nested:         Vec::new(),
         gated_present:  false,
         abstract_read:  false,
@@ -296,11 +297,17 @@ fn a_read_with_anything_to_do_after_the_database_is_not_flat() {
     }
 }
 
+/// A mask the projection did not write keeps the read off the raw path; one it wrote is in
+/// the rows already.
 #[test]
-fn a_masked_field_keeps_the_read_off_the_raw_path() {
+fn a_mask_is_served_raw_only_when_the_projection_wrote_it() {
     let schema = schema();
     let selections = [leaf("name"), leaf("secret")];
-    let read = read(&schema, &selections);
+    let mut read = read(&schema, &selections);
     assert!(!read.selection.masks_nothing(), "the anonymous caller lacks the scope");
-    assert!(!RawShape::flat(&read));
+    assert!(!RawShape::flat(&read), "a mask left to the walk after the read");
+    read.masked_in_sql = true;
+    assert!(RawShape::flat(&read), "a mask the projection wrote");
+    read.gated_present = true;
+    assert!(!RawShape::flat(&read), "a gated field needs the row, written mask or not");
 }

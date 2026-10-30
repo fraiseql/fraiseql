@@ -190,6 +190,9 @@ pub struct KeptProjection {
     /// Every `Decimal` a projected row can hold is a leaf the projection prints as text, so
     /// the rows are parsed without quoting their numbers.
     pub decimals_as_text: bool,
+    /// The projection writes every mask of the key it was built under as `null`: a
+    /// projection of the selected fields. One of the stored document whole writes none.
+    pub masks_written:    bool,
 }
 
 /// A check whose verdict depends on a document's collected fields alone. Each has its own
@@ -213,15 +216,56 @@ pub enum FieldsCheck {
 /// - the schema and the adapter's database type, fixed for the executor whose document cache holds
 ///   the fields: a reload builds a new executor, with an empty cache.
 ///
+/// The caller is read through [`masked`](Self::masked) alone: the fields its scopes mask,
+/// which the projection writes as `null` instead of reading them. Two callers masked alike
+/// read through the same SQL; a projection kept for one caller is never another's whose
+/// masks differ, so an unmasked projection cannot answer a masked caller.
+///
 /// Not read at all: variables (a `locale:` given by a variable rewrites the selection
-/// for that request, which then reads no kept projection), the tenant, the caller and
-/// its field masks (applied to the rows in Rust, never in this SQL), and a vector
-/// `nearest` (a projection with a distance field is built per request and not kept).
+/// for that request, which then reads no kept projection), the tenant, the rest of the
+/// caller, the field authorizer's decisions (they need the row, and a read that meets one
+/// reads the stored document whole), and a vector `nearest` (a projection with a distance
+/// field is built per request and not kept).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProjectionKey {
     /// The request locale's fallback chain, which a localized field read without
     /// `locale:` reads; `None` when the schema declares no locale.
     pub request_chain: Option<Vec<String>>,
+    /// Every `(type, field)` the caller's scopes mask, sorted, each once.
+    masked:            Vec<(String, String)>,
+}
+
+impl ProjectionKey {
+    /// The key of a request reading `request_chain`, for a caller whose scopes mask
+    /// `masked`, each a `(type, field)`.
+    #[must_use]
+    pub fn new(
+        request_chain: Option<Vec<String>>,
+        masked: impl IntoIterator<Item = (String, String)>,
+    ) -> Self {
+        let mut masked: Vec<_> = masked.into_iter().collect();
+        masked.sort_unstable();
+        masked.dedup();
+        Self {
+            request_chain,
+            masked,
+        }
+    }
+
+    /// Whether the caller may not read `field` of `type_name`, which the projection then
+    /// writes as `null`.
+    #[must_use]
+    pub fn masks(&self, type_name: &str, field: &str) -> bool {
+        self.masked
+            .binary_search_by(|(t, f)| (t.as_str(), f.as_str()).cmp(&(type_name, field)))
+            .is_ok()
+    }
+
+    /// Every `(type, field)` the caller's scopes mask, sorted.
+    #[must_use]
+    pub fn masked(&self) -> &[(String, String)] {
+        &self.masked
+    }
 }
 
 impl Collected {

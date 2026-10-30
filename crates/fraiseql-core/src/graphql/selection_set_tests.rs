@@ -407,9 +407,7 @@ fn a_projection_of_collected_fields_is_kept_only_once_it_is_built() {
 
     let fields = written("{ users { id } }");
     let vars = variables_map(None);
-    let first_key = ProjectionKey {
-        request_chain: None,
-    };
+    let first_key = ProjectionKey::new(None, []);
     let builds = std::cell::Cell::new(0);
     let fail = |_: &[FieldSelection], _: &ProjectionKey| {
         builds.set(builds.get() + 1);
@@ -426,6 +424,7 @@ fn a_projection_of_collected_fields_is_kept_only_once_it_is_built() {
                 0,
             )),
             decimals_as_text: false,
+            masks_written:    true,
         })
     };
     let first = fields.collect(&vars).unwrap().projection_once(&first_key, build).unwrap();
@@ -436,13 +435,38 @@ fn a_projection_of_collected_fields_is_kept_only_once_it_is_built() {
         "the second read shares the first's"
     );
 
-    let other_key = ProjectionKey {
-        request_chain: Some(vec!["de-DE".to_string()]),
-    };
+    let other_key = ProjectionKey::new(Some(vec!["de-DE".to_string()]), []);
     let other = fields.collect(&vars).unwrap().projection_once(&other_key, build).unwrap();
     assert_eq!(builds.get(), 4, "another key builds its own");
     assert!(!std::sync::Arc::ptr_eq(&first.hint, &other.hint), "another key reads its own");
     let again = fields.collect(&vars).unwrap().projection_once(&first_key, build).unwrap();
     assert_eq!(builds.get(), 4, "the first key's is still kept");
     assert!(std::sync::Arc::ptr_eq(&first.hint, &again.hint));
+}
+
+/// A key is the caller's masks as a set: the order they were found in and a repeat do not
+/// fork it, and a mask of another field does.
+#[test]
+fn a_projection_key_holds_the_callers_masks_as_a_set() {
+    use crate::graphql::selection_set::ProjectionKey;
+
+    let mask = |t: &str, f: &str| (t.to_string(), f.to_string());
+    let key = ProjectionKey::new(None, [mask("User", "salary"), mask("Profile", "email")]);
+    assert_eq!(
+        key,
+        ProjectionKey::new(
+            None,
+            [
+                mask("Profile", "email"),
+                mask("User", "salary"),
+                mask("User", "salary")
+            ]
+        )
+    );
+    assert_ne!(key, ProjectionKey::new(None, [mask("User", "salary")]));
+    assert_ne!(key, ProjectionKey::new(None, []));
+    assert!(key.masks("User", "salary"));
+    assert!(key.masks("Profile", "email"));
+    assert!(!key.masks("Profile", "salary"), "a mask is of one type's field");
+    assert!(!key.masks("User", "email"), "a mask is of one type's field");
 }

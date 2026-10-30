@@ -12,9 +12,14 @@
 use super::build_typed_projection_fields;
 use crate::{
     backend::projection_generator::PostgresProjectionGenerator,
-    graphql::FieldSelection,
+    graphql::{FieldSelection, selection_set::ProjectionKey},
     schema::{CompiledSchema, FieldDefinition, FieldType, TypeDefinition},
 };
+
+/// The key of a request with no locale chain, for a caller nothing masks.
+fn unmasked() -> ProjectionKey {
+    ProjectionKey::new(None, [])
+}
 
 /// Build a bare field selection (no arguments / directives).
 fn field(name: &str, alias: Option<&str>, nested: Vec<FieldSelection>) -> FieldSelection {
@@ -30,12 +35,8 @@ fn field(name: &str, alias: Option<&str>, nested: Vec<FieldSelection>) -> FieldS
 /// Run the selection set through the projection builder + the PostgreSQL
 /// `jsonb_build_object` generator and return the rendered SQL fragment.
 fn projection_sql(selections: &[FieldSelection], schema: &CompiledSchema, root: &str) -> String {
-    let typed = build_typed_projection_fields(
-        selections,
-        schema,
-        root,
-        crate::runtime::localization_chain(schema).as_deref(),
-    );
+    let key = ProjectionKey::new(crate::runtime::localization_chain(schema), []);
+    let typed = build_typed_projection_fields(selections, schema, root, &key);
     PostgresProjectionGenerator::new()
         .generate_typed_projection_sql(&typed)
         .unwrap()
@@ -214,7 +215,7 @@ fn decimal_schema() -> CompiledSchema {
 /// print every `Decimal` they can hold as text.
 fn decimals_as_text(selections: &[FieldSelection], parent: &str) -> bool {
     let schema = decimal_schema();
-    let fields = build_typed_projection_fields(selections, &schema, parent, None);
+    let fields = build_typed_projection_fields(selections, &schema, parent, &unmasked());
     super::projects_decimals_as_text(
         &fields,
         &schema,
@@ -307,7 +308,7 @@ fn a_typename_below_an_abstract_position_is_left_to_the_walk() {
         vec![field("__typename", None, vec![])],
     )];
 
-    let typed = build_typed_projection_fields(&selections, &typename_schema(), "User", None);
+    let typed = build_typed_projection_fields(&selections, &typename_schema(), "User", &unmasked());
     let partner = typed[0].sub_fields.as_deref().unwrap_or_default();
     assert!(partner.is_empty(), "an interface position writes no literal: {partner:?}");
 
@@ -315,7 +316,44 @@ fn a_typename_below_an_abstract_position_is_left_to_the_walk() {
         &[field("__typename", None, vec![])],
         &typename_schema(),
         "Node",
-        None,
+        &unmasked(),
     );
     assert!(at_an_abstract_root.is_empty(), "{at_an_abstract_root:?}");
+}
+
+/// A masked field is written as its masked value under its response key, its stored key
+/// never read: `null`, or `[]` for a translations sibling, whose list has no `null`. A
+/// field the key does not mask is read as stored.
+#[test]
+fn a_masked_field_is_projected_as_its_masked_value() {
+    let mut name = FieldDefinition::nullable("name", FieldType::String);
+    name.localized = true;
+    let mut schema = CompiledSchema::new();
+    schema.types.push(
+        TypeDefinition::new("User", "v_user")
+            .with_field(FieldDefinition::new("id", FieldType::Int))
+            .with_field(name),
+    );
+    let masked = |field: &str| ("User".to_string(), field.to_string());
+    let key = ProjectionKey::new(None, [masked("name"), masked("nameTranslations")]);
+    let selections = [
+        field("id", None, vec![]),
+        field("name", Some("label"), vec![]),
+        field("nameTranslations", Some("labels"), vec![]),
+    ];
+
+    let typed = build_typed_projection_fields(&selections, &schema, "User", &key);
+    let written: Vec<_> = typed
+        .iter()
+        .map(|f| (f.name.as_str(), f.computed.as_ref().map(|e| e.as_sql())))
+        .collect();
+
+    assert_eq!(
+        written,
+        [
+            ("id", None),
+            ("label", Some("NULL::json")),
+            ("labels", Some("'[]'::json"))
+        ]
+    );
 }

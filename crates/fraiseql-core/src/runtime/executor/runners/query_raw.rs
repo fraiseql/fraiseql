@@ -9,8 +9,9 @@
 //!
 //! Anything Rust would still reshape keeps the read on the `Value` path: a localized,
 //! encrypted or computed field, an enum, a list or a JSON scalar, an abstract type and any
-//! `__typename` below one, a mask, a gated field, a nested level read by a composed
-//! statement. A `__typename` of an object type is the literal the projection writes.
+//! `__typename` below one, a mask the projection did not write, a gated field, a nested
+//! level read by a composed statement. A `__typename` of an object type is the literal the
+//! projection writes, and so is the `null` of a field the caller's scopes mask.
 
 use std::{collections::HashSet, sync::Arc};
 
@@ -126,8 +127,12 @@ impl RawShape {
     }
 
     /// Whether the read is one projected statement over a relation, every row served as
-    /// it is: no mask to null, no gated field to adjudicate, no row to project as its own
-    /// type, no nested level to merge, no `nearest` search to settle.
+    /// it is: no mask the projection did not write, no gated field to adjudicate, no row to
+    /// project as its own type, no nested level to merge, no `nearest` search to settle.
+    ///
+    /// A mask the projection writes is at a position it builds from sub-fields, which is
+    /// every position [`admits`](Self::admits) admits. A mask of any other kind needs the
+    /// row: the field authorizer's is a gated field, and keeps the read off this path.
     fn flat(read: &RootRead) -> bool {
         read.projection.is_some()
             && read.nested.is_empty()
@@ -136,7 +141,7 @@ impl RawShape {
             && !read.abstract_read
             && read.nearest_k.is_none()
             && read.nearest_count.is_none()
-            && read.selection.masks_nothing()
+            && (read.masked_in_sql || read.selection.masks_nothing())
     }
 
     /// Whether every field of `selections`, at every depth, is served as the projection

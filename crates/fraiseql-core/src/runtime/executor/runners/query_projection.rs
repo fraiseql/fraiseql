@@ -11,7 +11,7 @@ use crate::{
         projection_generator::FieldKind,
         where_clause::{SharedFieldTypes, WhereFieldSchema},
     },
-    graphql::FieldSelection,
+    graphql::{FieldSelection, selection_set::ProjectionKey},
     schema::CompiledSchema,
 };
 
@@ -36,16 +36,20 @@ use crate::{
 /// under its alias; selected on an interface or a union, it is the type of each
 /// value, which the SQL does not know, so it is left to the walk that resolves it.
 ///
-/// A localized field read without `locale:` reads `request_chain`, the request locale's
-/// chain, which the caller passes rather than this reading the request's scope: the
-/// projection is built from its arguments alone.
+/// What the request varies is read from `key` alone, never from the request's scope, so
+/// the projection is built from its arguments and nothing else: a localized field read
+/// without `locale:` reads the request locale's chain, and a field the caller's scopes mask
+/// is written as `null` (`[]` for a translations sibling) under its response key, its stored
+/// key never read. A mask is of a field of an object type; below an interface or a union
+/// the walk that resolves each value's type applies it.
 pub fn build_typed_projection_fields(
     selections: &[FieldSelection],
     schema: &CompiledSchema,
     parent_type_name: &str,
-    request_chain: Option<&[String]>,
+    key: &ProjectionKey,
 ) -> Vec<ProjectionField> {
     let type_def = schema.find_type(parent_type_name);
+    let request_chain = key.request_chain.as_deref();
     selections
         .iter()
         .filter_map(|sel| {
@@ -53,6 +57,10 @@ pub fn build_typed_projection_fields(
                 // `find_type` holds object types alone: an abstract parent finds none.
                 return type_def
                     .map(|_| ProjectionField::typename(sel.response_key(), parent_type_name));
+            }
+            if type_def.is_some() && key.masks(parent_type_name, &sel.name) {
+                let list = type_def.and_then(|td| td.translations_of(&sel.name)).is_some();
+                return Some(ProjectionField::masked(sel.response_key(), list));
             }
             // A localized field's translations sibling reads the field's stored map (#1513).
             if let Some(base) = type_def.and_then(|td| td.translations_of(&sel.name)) {
@@ -102,12 +110,7 @@ pub fn build_typed_projection_fields(
                 })
                 .and_then(|fd| fd.field_type.type_name())
                 .map(|child_type| {
-                    build_typed_projection_fields(
-                        &sel.nested_fields,
-                        schema,
-                        child_type,
-                        request_chain,
-                    )
+                    build_typed_projection_fields(&sel.nested_fields, schema, child_type, key)
                 });
 
             Some(ProjectionField {

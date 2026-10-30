@@ -113,8 +113,9 @@ pub(crate) fn json_object_sql(pairs: &[ObjectPair]) -> String {
 /// ways to obtain one are
 /// [`vector_distance_expr`](crate::order_by::vector_distance_expr), which builds
 /// it from a validated identifier, an operator drawn from a fixed set and a
-/// literal whose character set it re-checks, and [`ProjectionField::typename`], which
-/// quotes a type name as a string literal. A projection is SQL the caller does
+/// literal whose character set it re-checks, [`ProjectionField::typename`], which
+/// quotes a type name as a string literal, and [`ProjectionField::masked`], which writes a
+/// constant. A projection is SQL the caller does
 /// not get to write, and this type is what enforces that across the crate
 /// boundary — `fraiseql-core` can carry one into a `ProjectionField` but cannot
 /// invent one.
@@ -279,6 +280,18 @@ impl ProjectionField {
     pub fn typename(name: impl Into<String>, type_name: &str) -> Self {
         let literal = PostgresProjectionGenerator::escape_sql_string(type_name);
         Self::computed(name, ComputedExpr::from_validated_parts(format!("'{literal}'::text")))
+    }
+
+    /// A field the caller may not read, under the response key `name`: `null`, or `[]` for
+    /// a localized field's translations sibling (`list`), whose `[LocalizedString!]!` has no
+    /// `null` (#1523).
+    ///
+    /// The stored key is never read, so what the document holds there cannot reach the
+    /// response through this field.
+    #[must_use]
+    pub fn masked(name: impl Into<String>, list: bool) -> Self {
+        let value = if list { "'[]'::json" } else { "NULL::json" };
+        Self::computed(name, ComputedExpr::from_validated_parts(value.to_string()))
     }
 
     /// Whether this field is a composite type (Object or List).

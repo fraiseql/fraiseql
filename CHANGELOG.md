@@ -18,6 +18,11 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **A document's kept projection is keyed by the caller's masks (#1785).** `ProjectionKey`
+  is built with `ProjectionKey::new(request_chain, masked)`, which keeps the masked
+  `(type, field)` pairs as a set, and is no longer built as a struct literal.
+  `KeptProjection` has a `masks_written` field.
+
 - **`ResultProjector::configure_typename_from_selections` is removed (#1785).** It wrote a
   root `__typename` ahead of every other field, wherever it was selected. The walk that
   shapes a read's levels now answers `__typename` where it was selected and under its
@@ -444,6 +449,17 @@ disagreed, and the promise was the part that was wrong.
     the `mcp-session-id` header, which stdio cannot carry, so nothing is held there.
 
 ### Changed
+
+- **A read that selects a field the caller's scopes mask is answered as the bytes the
+  database wrote (#1785).** The projection writes a masked field as `null`, or `[]` for a
+  localized field's translations, where it was selected and under its alias, and never
+  reads its stored key. The projection a document keeps is keyed by the caller's masks,
+  so a projection kept for one caller never answers a caller masked otherwise. A list of
+  20 rows with two masked fields costs 118,261 instructions instead of 660,324, about
+  5.6× fewer (`respond.raw_masked_list` against `respond.value_masked_list`). A mask the field
+  authorizer decides per row still needs the row, so a read holding one keeps the `Value`
+  path. Cached results of one read are now held per set of masks, where they used to be
+  shared by callers masked differently and masked after the cache.
 
 - **A read that selects `__typename` on an object type is answered as the bytes the
   database wrote (#1785).** The projection writes the type's name as a SQL literal where it

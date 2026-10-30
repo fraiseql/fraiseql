@@ -467,3 +467,29 @@ fn a_typename_is_quoted_as_a_string_literal_whatever_it_holds() {
 
     assert_eq!(sql, "JSON_OBJECT('__typename' VALUE ('O''Brien'')--'::text) RETURNING json)");
 }
+
+#[test]
+fn a_masked_field_is_written_as_null_and_never_read() {
+    let generator = PostgresProjectionGenerator::new();
+    let fields = vec![
+        ProjectionField::scalar("name"),
+        ProjectionField::masked("hidden", false),
+    ];
+
+    let sql = generator.generate_typed_projection_sql(&fields).unwrap();
+
+    assert_eq!(
+        sql,
+        "JSON_OBJECT('name' VALUE \"data\"->>'name', 'hidden' VALUE (NULL::json) RETURNING json)"
+    );
+}
+
+#[test]
+fn a_masked_translations_sibling_is_written_as_an_empty_list() {
+    let generator = PostgresProjectionGenerator::new();
+    let fields = vec![ProjectionField::masked("nameTranslations", true)];
+
+    let sql = generator.generate_typed_projection_sql(&fields).unwrap();
+
+    assert_eq!(sql, "JSON_OBJECT('nameTranslations' VALUE ('[]'::json) RETURNING json)");
+}
