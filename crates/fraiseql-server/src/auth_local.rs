@@ -303,20 +303,12 @@ pub async fn build_local_auth_states(
     })?;
     let secret = hs.load_secret().map_err(ServerError::ConfigError)?;
     // Mint the claims the configured validator demands, or every login would
-    // "succeed" and then 401 on the first validated request. The same triple is
-    // handed to the bearer authenticator below, so what this server signs is
-    // exactly what it accepts back (#945) — one binding, not two that can drift.
-    let token_issuer = hs
-        .issuer
-        .clone()
-        .unwrap_or_else(|| fraiseql_auth::session_postgres::DEFAULT_TOKEN_ISSUER.to_string());
-    let token_audience = hs
-        .audience
-        .clone()
-        .unwrap_or_else(|| fraiseql_auth::session_postgres::DEFAULT_TOKEN_AUDIENCE.to_string());
+    // "succeed" and then 401 on the first validated request. The routes that act on the
+    // caller's own account validate against that same `[auth_hs256]`, so what this
+    // server signs is exactly what it accepts back (#945).
     let secret_bytes = secret.into_bytes();
     let session_store: Arc<dyn fraiseql_auth::SessionStore> =
-        Arc::new(minting_session_store(pool.clone(), hs, secret_bytes.clone(), tenant_claim));
+        Arc::new(minting_session_store(pool.clone(), hs, secret_bytes, tenant_claim));
     let account_store = Arc::new(fraiseql_auth::PostgresAccountStore::new(pool.clone()));
 
     // The mail sender is built once and shared by OTP, password reset and email
@@ -447,24 +439,13 @@ pub async fn build_local_auth_states(
                     .to_string(),
             ));
         }
-        let session_bearer = fraiseql_auth::SessionBearerAuthenticator::new(
-            secret_bytes,
-            &token_issuer,
-            &token_audience,
-        )
-        .map_err(|e| {
-            ServerError::ConfigError(format!(
-                "[auth.local] email_verification could not build its session validator: {e}"
-            ))
-        })?;
         info!(
             "Email verification enabled (POST /auth/v1/email/verify/{{start,confirm}}, \
              authenticated)"
         );
         Some(Arc::new(fraiseql_auth::EmailVerificationRouteState {
-            authenticator:  Arc::clone(authenticator),
-            session_bearer: Arc::new(session_bearer),
-            rate_limiters:  Arc::new(fraiseql_auth::RateLimiters::default()),
+            authenticator: Arc::clone(authenticator),
+            rate_limiters: Arc::new(fraiseql_auth::RateLimiters::default()),
         }))
     } else {
         None

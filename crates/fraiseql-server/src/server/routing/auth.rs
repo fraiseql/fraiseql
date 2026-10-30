@@ -38,6 +38,24 @@ async fn session_subject(
 }
 
 impl Server {
+    /// `router` behind the sessions this server mints: the HS256 layer, revocation
+    /// included, naming the authenticated account as the [`SessionSubject`] its handlers
+    /// act on. `None` without that layer: a route that acts on the caller's own account is
+    /// not mounted at all rather than served to no one in particular. `[auth.local]`
+    /// refuses to boot without `[auth_hs256]`, so `None` is for an embedder that attached
+    /// such state by hand.
+    ///
+    /// [`SessionSubject`]: fraiseql_auth::SessionSubject
+    fn behind_session(&self, router: Router) -> Option<Router> {
+        let validator = self.hs256_auth.as_ref()?;
+        let session = self.hs256_auth_state(Arc::clone(validator), self.hs256_realm());
+        Some(
+            router
+                .route_layer(middleware::from_fn(session_subject))
+                .route_layer(middleware::from_fn_with_state(session, hs256_auth_middleware)),
+        )
+    }
+
     /// Mount all `#[cfg(feature = "auth")]`-gated authentication routes.
     pub(super) fn mount_auth_routes(&self, mut app: Router) -> Router {
         // PKCE OAuth2 auth routes — mounted only when both pkce and [auth] are configured.
@@ -113,37 +131,40 @@ impl Server {
         }
 
         // Email verification (#945) — mounted when [auth.local] email_verification = true.
-        // Both routes require an authenticated caller and act only on that caller's own
-        // account; the bearer check lives in the handlers (they need the subject, not
-        // just a pass/refuse), so no route_layer here.
+        // Both routes act only on the caller's own account, so they sit behind the session.
         if let Some(ref verify) = self.email_verification_state {
-            app = app.merge(fraiseql_auth::email_verification_routes(Arc::clone(verify)));
-            info!(
-                "Email verification routes mounted: POST \
-                 /auth/v1/email/verify/{{start,confirm}}"
-            );
+            if let Some(routes) =
+                self.behind_session(fraiseql_auth::email_verification_routes(Arc::clone(verify)))
+            {
+                app = app.merge(routes);
+                info!(
+                    "Email verification routes mounted: POST \
+                     /auth/v1/email/verify/{{start,confirm}}"
+                );
+            } else {
+                tracing::warn!(
+                    "email verification not mounted: it acts on the signed-in account, and no \
+                     [auth_hs256] layer resolves one"
+                );
+            }
         }
 
         // TOTP MFA endpoints — mounted when mfa_state is configured.
         if let Some(ref mfa) = self.mfa_state {
             // Enroll, confirm and unenroll act on the signed-in account, so they sit behind
-            // the sessions this server mints: the HS256 layer, revocation included. Without
-            // that layer they are not mounted at all, rather than served to no one in
-            // particular. `[auth.local]` refuses to boot without `[auth_hs256]`, so this
-            // branch is for an embedder that attached MFA state by hand.
-            if let Some(ref validator) = self.hs256_auth {
-                let session = self.hs256_auth_state(Arc::clone(validator), self.hs256_realm());
-                let management = Router::new()
+            // the session.
+            let management = self.behind_session(
+                Router::new()
                     .route("/auth/v1/mfa/enroll", post(mfa_enroll))
                     // `/confirm` completes what `/enroll` begins. Without it an enrollment
                     // stays unconfirmed forever and `create_challenge` refuses to issue
                     // against it, so MFA was enrollable but unusable through the API (#950).
                     .route("/auth/v1/mfa/confirm", post(mfa_confirm))
                     .route("/auth/v1/mfa/unenroll", post(mfa_unenroll))
-                    .with_state(Arc::clone(mfa))
-                    .route_layer(middleware::from_fn(session_subject))
-                    .route_layer(middleware::from_fn_with_state(session, hs256_auth_middleware));
-                app = app.merge(management);
+                    .with_state(Arc::clone(mfa)),
+            );
+            if let Some(routes) = management {
+                app = app.merge(routes);
             } else {
                 tracing::warn!(
                     "TOTP MFA enroll/confirm/unenroll not mounted: they act on the signed-in \

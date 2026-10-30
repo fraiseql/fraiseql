@@ -18,3 +18,35 @@ async fn local_password_router_constructs() {
     };
     let _router = local_password_routes(Arc::new(state));
 }
+
+/// The verification routes act on the [`SessionSubject`] the server's authentication layer
+/// resolved, and refuse a request that carries none: mounted without that layer, they
+/// serve no one rather than an account they were never told. The refusal comes before any
+/// store is touched, which is why a lazy pool serves here.
+#[tokio::test]
+async fn email_verification_refuses_a_request_with_no_session() {
+    use axum::{body::Body, http::Request};
+    use tower::ServiceExt as _;
+
+    let pool =
+        sqlx::PgPool::connect_lazy("postgres://unused/unused").expect("lazy pool needs no server");
+    let accounts = Arc::new(crate::InMemoryAccountStore::new());
+    let router = email_verification_routes(Arc::new(EmailVerificationRouteState {
+        authenticator: Arc::new(LocalPasswordAuthenticator::new(pool, accounts)),
+        rate_limiters: Arc::new(crate::RateLimiters::default()),
+    }));
+    for (path, body) in [
+        ("/auth/v1/email/verify/start", "{}"),
+        ("/auth/v1/email/verify/confirm", r#"{"token":"whatever"}"#),
+    ] {
+        let request = Request::builder()
+            .method("POST")
+            .uri(path)
+            .header("content-type", "application/json")
+            .extension(ConnectInfo(SocketAddr::from(([10, 0, 0, 1], 4000))))
+            .body(Body::from(body))
+            .unwrap();
+        let response = router.clone().oneshot(request).await.unwrap();
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED, "{path} without a session");
+    }
+}

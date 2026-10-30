@@ -17,8 +17,8 @@
 //! The two verification routes form their own group
 //! ([`email_verification_routes`]) mounted by `[auth.local] email_verification`, and
 //! are the only routes here that require an authenticated caller: both act on the
-//! account the bearer token was minted for, resolved through
-//! [`SessionBearerAuthenticator`] rather than read from the request body.
+//! account the session was minted for, the [`SessionSubject`] the server's authentication
+//! layer resolves, revocation included, rather than one read from the request body.
 //!
 //! # Security
 //!
@@ -34,7 +34,7 @@ use std::{net::SocketAddr, sync::Arc};
 use axum::{
     Json, Router,
     extract::{ConnectInfo, State},
-    http::{HeaderMap, StatusCode},
+    http::StatusCode,
     response::{IntoResponse, Response},
     routing::post,
 };
@@ -46,7 +46,7 @@ use crate::{
     error::AuthError,
     rate_limiting::RateLimiters,
     session::{SessionStore, unix_now},
-    session_bearer::SessionBearerAuthenticator,
+    session_subject::SessionSubject,
 };
 
 /// Session lifetime granted by a successful password signup/login (1 hour), matching
@@ -301,16 +301,14 @@ pub async fn password_reset_confirm(
 /// Axum state for the email-verification routes.
 ///
 /// Separate from [`LocalPasswordRouteState`] because the group mounts on its own
-/// `[auth.local] email_verification` switch and needs one thing the password routes
-/// do not: a way to learn *who* is calling.
+/// `[auth.local] email_verification` switch, behind the server's authentication layer:
+/// it acts on *who* is calling, the [`SessionSubject`] that layer resolves.
 #[derive(Clone)]
 pub struct EmailVerificationRouteState {
     /// The authenticator (owns the verification token store and the promotion gate).
-    pub authenticator:  Arc<LocalPasswordAuthenticator>,
-    /// Resolves the caller's `user_id` from the request's bearer session token.
-    pub session_bearer: Arc<SessionBearerAuthenticator>,
+    pub authenticator: Arc<LocalPasswordAuthenticator>,
     /// Per-IP limiters; the `auth_start` bucket governs both routes.
-    pub rate_limiters:  Arc<RateLimiters>,
+    pub rate_limiters: Arc<RateLimiters>,
 }
 
 /// Body of `POST /auth/v1/email/verify/confirm`.
@@ -360,20 +358,20 @@ fn verify_rate_limit(
     )
 }
 
-/// Resolve the caller, or render the `401`.
+/// The caller's account, or the `401` for a request the authentication layer resolved to
+/// no one. A group mounted without that layer refuses every request this way.
 // Reason: the boxed `Response` keeps the Err variant small (clippy::result_large_err).
 fn caller(
-    state: &EmailVerificationRouteState,
-    headers: &HeaderMap,
+    subject: Option<axum::Extension<SessionSubject>>,
     op: &str,
 ) -> Result<String, Box<Response>> {
-    state.session_bearer.subject(headers).map_err(|e| {
+    subject.map(|axum::Extension(SessionSubject(user_id))| user_id).ok_or_else(|| {
         get_audit_logger().log_failure(
             AuditEventType::AuthFailure,
             SecretType::SessionToken,
             None,
             op,
-            &e.to_string(),
+            "no authenticated session",
         );
         Box::new(
             (
@@ -406,12 +404,12 @@ fn caller(
 pub async fn email_verify_start(
     State(state): State<Arc<EmailVerificationRouteState>>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
-    headers: HeaderMap,
+    subject: Option<axum::Extension<SessionSubject>>,
 ) -> Response {
     if let Some(limited) = verify_rate_limit(&state, addr, "email_verify_start") {
         return limited;
     }
-    let user_id = match caller(&state, &headers, "email_verify_start") {
+    let user_id = match caller(subject, "email_verify_start") {
         Ok(user_id) => user_id,
         Err(unauthorized) => return *unauthorized,
     };
@@ -443,13 +441,13 @@ pub async fn email_verify_start(
 pub async fn email_verify_confirm(
     State(state): State<Arc<EmailVerificationRouteState>>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
-    headers: HeaderMap,
+    subject: Option<axum::Extension<SessionSubject>>,
     Json(req): Json<EmailVerifyConfirmRequest>,
 ) -> Response {
     if let Some(limited) = verify_rate_limit(&state, addr, "email_verify_confirm") {
         return limited;
     }
-    let user_id = match caller(&state, &headers, "email_verify_confirm") {
+    let user_id = match caller(subject, "email_verify_confirm") {
         Ok(user_id) => user_id,
         Err(unauthorized) => return *unauthorized,
     };

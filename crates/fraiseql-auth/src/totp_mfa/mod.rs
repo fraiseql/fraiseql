@@ -44,6 +44,7 @@ use rand::RngCore as _;
 use serde::{Deserialize, Serialize};
 use totp_rs::{Algorithm, Secret, TOTP};
 
+pub use crate::session_subject::SessionSubject;
 use crate::{
     audit::logger::{AuditEventType, SecretType, get_audit_logger},
     error::{AuthError, Result},
@@ -632,14 +633,6 @@ pub struct MfaRouteState {
 }
 
 // ─── Request / Response types ─────────────────────────────────────────────────
-
-/// The account an authenticated session was minted for, which the server's
-/// authentication layer puts on the request.
-///
-/// Enroll, confirm and unenroll act on this account and on no other: an account named in
-/// a request body is a parameter, not an identity.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SessionSubject(pub String);
 
 /// Request for `POST /auth/v1/mfa/enroll`. The account is the caller's own.
 #[derive(Debug, Deserialize)]

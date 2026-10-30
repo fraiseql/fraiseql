@@ -30,9 +30,9 @@ pub mod saml;
 /// SCIM 2.0 provisioning storage and credentials (#946).
 pub mod scim;
 pub mod session;
-pub mod session_bearer;
 pub mod session_postgres;
 pub mod session_state;
+pub mod session_subject;
 pub mod state_encryption;
 pub mod state_store;
 pub mod totp_mfa;
@@ -45,10 +45,6 @@ mod error_sanitization_tests;
 
 #[cfg(test)]
 mod constant_time_tests;
-
-#[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
-#[cfg(test)]
-mod session_bearer_tests;
 
 #[cfg(test)]
 mod state_encryption_tests;
@@ -136,8 +132,8 @@ pub use saml::{
 /// The `serde_json` this crate's public API is built against (#1198).
 pub use serde_json;
 pub use session::{SessionData, SessionStore, TokenPair, unix_now};
-pub use session_bearer::SessionBearerAuthenticator;
 pub use session_postgres::PostgresSessionStore;
+pub use session_subject::SessionSubject;
 /// The `sqlx` this crate's public API is built against (#1198).
 pub use sqlx;
 pub use state_encryption::{
@@ -149,8 +145,7 @@ pub use state_store::{InMemoryStateStore, StateStore};
 pub use tokio;
 pub use totp_mfa::{
     ChallengeToken, EnrollmentResponse, InMemoryMfaStore, MfaRouteState, MfaStore,
-    SecondFactorPassed, SessionSubject, TotpEnrollment, mfa_confirm, mfa_enroll, mfa_unenroll,
-    mfa_verify,
+    SecondFactorPassed, TotpEnrollment, mfa_confirm, mfa_enroll, mfa_unenroll, mfa_verify,
     postgres::{PG_MFA_SCHEMA_SQL, PgMfaStore},
     second_factor_response,
 };
