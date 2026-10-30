@@ -17,7 +17,10 @@
 //! bytes a transport sends: `value_*` executes to a `Value` and serializes it, `raw_*`
 //! splices the rows' text, which the adapter holds as the database would send it.
 //! `numeric_*` does the same over rows of `Decimal`s and `Float`s, and `typename_*` over a
-//! selection holding `__typename`, which the projection writes as a literal. The value path quotes
+//! selection holding `__typename`, which the projection writes as a literal. `masked_*` reads two
+//! fields the caller's scopes mask, which the projection writes as `null`, and `raw_null_list`
+//! nullable fields that hold `null`: forty `null`s a read, each one the compactor places
+//! under its key. The value path quotes
 //! each row's `Decimal`s before it parses them, as the database adapter does; the raw path
 //! receives them as the strings the projection reads, and writes each `Float`'s fraction
 //! again as `serde_json` would.
@@ -31,13 +34,19 @@
 
 use std::{hint::black_box, sync::Arc};
 
-use fraiseql_core::{runtime::Executor, schema::CompiledSchema};
+use fraiseql_core::{
+    runtime::Executor,
+    schema::{CompiledSchema, FieldDefinition, FieldDenyPolicy, FieldType},
+};
 use iai_callgrind::{LibraryBenchmarkConfig, library_benchmark, library_benchmark_group, main};
 use serde_json::Value;
 
 #[path = "support/fixed_rows.rs"]
 mod fixed_rows;
-use fixed_rows::{FixedRows, plain_user_row, reading_text, typename_user_row, user_row};
+use fixed_rows::{
+    FixedRows, null_user_row, nullable_user_row, plain_user_row, reading_text, typename_user_row,
+    user_row,
+};
 
 const ROWS: usize = 20;
 
@@ -100,6 +109,11 @@ fn text_fixture(query: &'static str, fat: bool) -> Fixture {
 /// [`text_fixture`] over `schema` and `adapter`.
 fn text_fixture_over(schema: &str, adapter: FixedRows, query: &'static str) -> Fixture {
     let schema = CompiledSchema::from_json(schema, false).expect("bench schema loads");
+    text_fixture_of(schema, adapter, query)
+}
+
+/// [`text_fixture_over`] a schema already loaded.
+fn text_fixture_of(schema: CompiledSchema, adapter: FixedRows, query: &'static str) -> Fixture {
     let executor = Executor::new(schema, Arc::new(adapter));
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -141,6 +155,9 @@ fn teardown_bytes(done: (Fixture, Vec<u8>)) {
 #[bench::raw_numeric_list(args = (true), setup = numeric_fixture, teardown = teardown_bytes)]
 #[bench::value_typename_list(args = (false), setup = typename_fixture, teardown = teardown_bytes)]
 #[bench::raw_typename_list(args = (true), setup = typename_fixture, teardown = teardown_bytes)]
+#[bench::value_masked_list(args = (MASKED_LIST, true, false), setup = null_fixture, teardown = teardown_bytes)]
+#[bench::raw_masked_list(args = (MASKED_LIST, true, true), setup = null_fixture, teardown = teardown_bytes)]
+#[bench::raw_null_list(args = (NULL_LIST, false, true), setup = null_fixture, teardown = teardown_bytes)]
 fn respond((f, raw): (Fixture, bool)) -> (Fixture, Vec<u8>) {
     let query = black_box(f.query);
     let bytes = if raw {
@@ -168,6 +185,34 @@ fn typename_fixture(raw: bool) -> (Fixture, bool) {
         text_fixture_over(fixed_rows::SCHEMA, FixedRows::with_text(rows), TYPENAME_LIST),
         raw,
     )
+}
+
+const MASKED_LIST: &str = "{ users(limit: 20) { id name ssn email salary bio } }";
+const NULL_LIST: &str = "{ users(limit: 20) { bio ssn salary } }";
+
+/// A fixture whose `ssn` and `salary` read as `null`: masked for the anonymous caller
+/// ([`null_user_row`]), or nullable fields that hold `null` ([`nullable_user_row`]). And
+/// which path the measured call takes.
+fn null_fixture(query: &'static str, masked: bool, raw: bool) -> (Fixture, bool) {
+    let mut schema =
+        CompiledSchema::from_json(fixed_rows::SCHEMA, false).expect("bench schema loads");
+    let user = schema.types.iter_mut().find(|t| t.name == "User").expect("a User type");
+    for name in ["ssn", "salary"] {
+        let mut field = FieldDefinition::nullable(name, FieldType::String);
+        if masked {
+            field.requires_scope = Some(format!("read:{name}"));
+            field.on_deny = FieldDenyPolicy::Mask;
+        }
+        user.fields.push(field);
+    }
+    schema.build_indexes();
+    let row = if masked {
+        null_user_row
+    } else {
+        nullable_user_row
+    };
+    let rows = (0..ROWS).map(row).collect();
+    (text_fixture_of(schema, FixedRows::with_text(rows), query), raw)
 }
 
 const NUMERIC_LIST: &str =

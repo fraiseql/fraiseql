@@ -264,6 +264,26 @@ pub fn typename_user_row(i: usize) -> JsonbValue {
     }))
 }
 
+/// A user row as a projection selecting `id name ssn email salary bio` writes it when `ssn`
+/// and `salary` are masked: each `null`.
+#[allow(dead_code)] // Reason: one of the three benches that include this file reads it
+pub fn null_user_row(i: usize) -> JsonbValue {
+    JsonbValue::new(json!({
+        "id": format!("00000000-0000-4000-8000-{i:012}"),
+        "name": format!("User {i}"),
+        "ssn": null,
+        "email": format!("user{i}@example.com"),
+        "salary": null,
+        "bio": "Short bio.",
+    }))
+}
+
+/// [`null_user_row`] as a projection selecting `bio ssn salary` writes it.
+#[allow(dead_code)] // Reason: one of the three benches that include this file reads it
+pub fn nullable_user_row(_: usize) -> JsonbValue {
+    JsonbValue::new(json!({ "bio": "Short bio.", "ssn": null, "salary": null }))
+}
+
 /// A reading's text as PostgreSQL writes its projection: each `Decimal` a string of its
 /// digits, read with `->>`, and each `Float` a number with a fraction, which `serde_json`
 /// writes again.
