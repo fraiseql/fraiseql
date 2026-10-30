@@ -216,6 +216,7 @@ async fn a_redeemed_challenge_mints_the_session() {
     let response = fraiseql_auth::mfa_verify(
         axum::extract::State(state),
         axum::extract::ConnectInfo(std::net::SocketAddr::from(([127, 0, 0, 1], 1))),
+        None,
         axum::Json(
             serde_json::from_value(serde_json::json!({
                 "challenge_token": challenge.expose(),

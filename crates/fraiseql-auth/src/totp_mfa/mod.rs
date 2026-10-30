@@ -627,8 +627,11 @@ pub struct MfaRouteState {
     pub session_store:  Arc<dyn SessionStore>,
     /// Service / issuer name shown in authenticator apps.
     pub issuer:         String,
-    /// Per-IP budget for `/verify`, keyed on the transport peer. The per-user failure budget
-    /// stops one account's code being guessed; this stops one client guessing across many.
+    /// Per-client budget for `/verify`, keyed on the [`ClientAddress`] the server resolved,
+    /// else the transport peer. The per-user failure budget stops one account's code being
+    /// guessed; this stops one client guessing across many.
+    ///
+    /// [`ClientAddress`]: crate::rate_limiting::ClientAddress
     pub verify_limiter: Arc<crate::rate_limiting::KeyedRateLimiter>,
 }
 
@@ -811,10 +814,12 @@ pub async fn mfa_enroll(
 pub async fn mfa_verify(
     State(state): State<Arc<MfaRouteState>>,
     ConnectInfo(peer): ConnectInfo<std::net::SocketAddr>,
+    client: Option<axum::Extension<crate::rate_limiting::ClientAddress>>,
     Json(req): Json<MfaVerifyRequest>,
 ) -> Response {
     let logger = get_audit_logger();
-    if let Err(e) = state.verify_limiter.check(&peer.ip().to_string()) {
+    let client = client.map_or_else(|| peer.ip().to_string(), |axum::Extension(address)| address.0);
+    if let Err(e) = state.verify_limiter.check(&client) {
         logger.log_failure(
             AuditEventType::AuthFailure,
             SecretType::SessionToken,

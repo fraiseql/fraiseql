@@ -110,6 +110,15 @@ impl Clock for SystemClock {
     }
 }
 
+/// The client a per-address auth budget is keyed on, as the server resolved it.
+///
+/// Behind a reverse proxy every request arrives from the proxy, so the transport peer
+/// would put all clients in one bucket. The server puts the address here: the one a
+/// trusted proxy reported, under the same rule its request limiter applies, and the peer's
+/// otherwise. A handler that finds none keys on the transport peer.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ClientAddress(pub String);
+
 /// Rate limit configuration for authentication endpoints (sliding-window algorithm).
 ///
 /// Uses a per-key sliding-window counter for brute-force protection on

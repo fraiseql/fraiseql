@@ -18,6 +18,24 @@ use crate::{
     middleware::{AuthUser, hs256_auth_middleware},
 };
 
+/// Resolve the client a per-address auth budget keys on: the address a trusted proxy
+/// reported, else the peer, exactly as the request limiter resolves it.
+async fn client_address(
+    axum::extract::State(limiter): axum::extract::State<Arc<crate::middleware::RateLimiter>>,
+    axum::extract::ConnectInfo(peer): axum::extract::ConnectInfo<std::net::SocketAddr>,
+    mut request: axum::extract::Request,
+    next: middleware::Next,
+) -> axum::response::Response {
+    let address = crate::middleware::rate_limit::extract_real_ip(
+        request.headers(),
+        limiter.config().trust_proxy_headers,
+        &limiter.config().trusted_proxy_cidrs,
+        Some(peer.ip()),
+    );
+    request.extensions_mut().insert(fraiseql_auth::ClientAddress(address));
+    next.run(request).await
+}
+
 /// Name the account the HS256 layer authenticated as the [`SessionSubject`] the MFA
 /// handlers act on. A request the layer did not authenticate carries none, and the
 /// handlers refuse it.
@@ -173,9 +191,18 @@ impl Server {
             }
             // Verify redeems the challenge a first factor earned; the challenge is issued
             // where every sign-in path mints its session, never on a route of its own.
-            let mfa_router = Router::new()
+            let mut mfa_router = Router::new()
                 .route("/auth/v1/mfa/verify", post(mfa_verify))
                 .with_state(Arc::clone(mfa));
+            // Its per-client budget keys on the client a trusted proxy reported, by the rule
+            // the request limiter applies; without a limiter there is no proxy setting, and
+            // the handler keys on the peer.
+            if let Some(ref limiter) = self.rate_limiter {
+                mfa_router = mfa_router.route_layer(middleware::from_fn_with_state(
+                    Arc::clone(limiter),
+                    client_address,
+                ));
+            }
             app = app.merge(mfa_router);
             info!(
                 "TOTP MFA routes mounted: POST \

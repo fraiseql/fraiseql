@@ -23,8 +23,8 @@ pub(crate) use config::{DEFAULT_FAILED_LOGIN_LOCKOUT_SECS, DEFAULT_FAILED_LOGIN_
 pub use dispatch::RateLimiter;
 pub use identity::VerifiedSubject;
 pub use key::build_rate_limit_key;
-// gRPC keys its IP limit by the HTTP rule (#1638).
-#[cfg(feature = "grpc")]
+// gRPC (#1638) and the MFA verify budget key their client by the HTTP rule.
+#[cfg(any(feature = "grpc", feature = "auth"))]
 pub(crate) use middleware_fn::extract_real_ip;
 pub use middleware_fn::{RateLimitExceeded, rate_limit_middleware};
 // Re-export redis metrics for use by the metrics endpoint

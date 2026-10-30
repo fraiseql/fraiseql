@@ -190,13 +190,22 @@ async fn wait_until_serving(base: &str) {
 }
 
 async fn boot(local: LocalAuthConfig, pool: PgPool, scratch_url: &str) -> RunningServer {
+    boot_with(local_config(scratch_url), local, pool, scratch_url).await
+}
+
+/// [`boot`] with `config` in place of [`local_config`].
+async fn boot_with(
+    config: ServerConfig,
+    local: LocalAuthConfig,
+    pool: PgPool,
+    scratch_url: &str,
+) -> RunningServer {
     let adapter = Arc::new(PostgresAdapter::new(scratch_url).await.expect("PostgresAdapter::new"));
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.expect("bind ephemeral port");
     let port = listener.local_addr().expect("local addr").port();
-    let server =
-        Box::pin(Server::new(local_config(scratch_url), local_schema(local), adapter, Some(pool)))
-            .await
-            .expect("Server::new with [auth.local] + [auth_hs256] + pool must succeed");
+    let server = Box::pin(Server::new(config, local_schema(local), adapter, Some(pool)))
+        .await
+        .expect("Server::new with [auth.local] + [auth_hs256] + pool must succeed");
     let (tx, rx) = tokio::sync::oneshot::channel::<()>();
     let handle = tokio::spawn(async move {
         let _ = server
@@ -1590,6 +1599,103 @@ async fn a_revoked_session_cannot_start_or_confirm_email_verification() {
             "{path} with a revoked session: {body}"
         );
     }
+
+    server.stop().await;
+    drop_scratch(&url, db).await;
+}
+
+/// The `/auth/v1/mfa/verify` budget per client, which `auth_local` fixes.
+const VERIFY_BUDGET: usize = 50;
+
+/// A server whose request limiter trusts forwarded addresses from `trusted_proxies`.
+async fn boot_behind(trusted_proxies: &str, pool: PgPool, scratch_url: &str) -> RunningServer {
+    let config = ServerConfig {
+        rate_limiting: Some(fraiseql_server::middleware::RateLimitConfig {
+            trust_proxy_headers: true,
+            trusted_proxy_cidrs: vec![trusted_proxies.parse().expect("a CIDR")],
+            ..fraiseql_server::middleware::RateLimitConfig::default()
+        }),
+        ..local_config(scratch_url)
+    };
+    let local = LocalAuthConfig {
+        mfa: true,
+        ..LocalAuthConfig::default()
+    };
+    boot_with(config, local, pool, scratch_url).await
+}
+
+/// One `/verify` guess forwarded for `client`.
+async fn guess_as(base: &str, client: &str) -> reqwest::StatusCode {
+    reqwest::Client::new()
+        .post(format!("{base}/auth/v1/mfa/verify"))
+        .header("x-forwarded-for", client)
+        .header("x-real-ip", client)
+        .json(&serde_json::json!({ "challenge_token": "unknown", "code": "000000" }))
+        .send()
+        .await
+        .expect("request")
+        .status()
+}
+
+/// Behind a trusted proxy every request arrives from the proxy, so the verify budget
+/// keys on the client the proxy reports: one client spending its budget leaves another's.
+#[tokio::test]
+async fn the_verify_budget_is_per_client_behind_a_trusted_proxy() {
+    let Some(url) = database_url_or_skip("the_verify_budget_is_per_client") else {
+        return;
+    };
+    set_test_env();
+    let db = "fraiseql_p26_local_mfa_proxy";
+    let pool = scratch_pool(&url, db).await;
+    let scratch_url = with_database(&url, db);
+    let server = boot_behind("127.0.0.0/8", pool, &scratch_url).await;
+
+    for _ in 0..VERIFY_BUDGET {
+        assert_eq!(
+            guess_as(&server.base, "203.0.113.1").await,
+            reqwest::StatusCode::UNPROCESSABLE_ENTITY
+        );
+    }
+    assert_eq!(
+        guess_as(&server.base, "203.0.113.1").await,
+        reqwest::StatusCode::TOO_MANY_REQUESTS,
+        "the first client has spent its budget"
+    );
+    assert_eq!(
+        guess_as(&server.base, "203.0.113.2").await,
+        reqwest::StatusCode::UNPROCESSABLE_ENTITY,
+        "another client behind the same proxy has its own"
+    );
+
+    server.stop().await;
+    drop_scratch(&url, db).await;
+}
+
+/// A forwarded address from a peer that is not a trusted proxy is a claim, not an
+/// address: rotating it does not buy a client a fresh budget.
+#[tokio::test]
+async fn a_forwarded_address_from_an_untrusted_peer_buys_no_budget() {
+    let Some(url) = database_url_or_skip("a_forwarded_address_from_an_untrusted_peer") else {
+        return;
+    };
+    set_test_env();
+    let db = "fraiseql_p26_local_mfa_spoof";
+    let pool = scratch_pool(&url, db).await;
+    let scratch_url = with_database(&url, db);
+    let server = boot_behind("10.0.0.0/8", pool, &scratch_url).await;
+
+    for n in 0..VERIFY_BUDGET {
+        let spoofed = format!("198.51.100.{}", n + 1);
+        assert_eq!(
+            guess_as(&server.base, &spoofed).await,
+            reqwest::StatusCode::UNPROCESSABLE_ENTITY
+        );
+    }
+    assert_eq!(
+        guess_as(&server.base, "198.51.100.200").await,
+        reqwest::StatusCode::TOO_MANY_REQUESTS,
+        "the loopback peer is not a trusted proxy, so its forwarded addresses are ignored"
+    );
 
     server.stop().await;
     drop_scratch(&url, db).await;
