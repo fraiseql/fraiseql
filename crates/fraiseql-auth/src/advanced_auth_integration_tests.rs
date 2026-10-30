@@ -41,7 +41,7 @@ async fn test_mfa_enroll_then_challenge_verify_integration() {
 
     // Enroll and confirm via store API
     let enrollment = mfa_store
-        .begin_enrollment("user-42", "FraiseQL-Test", "user42@example.com")
+        .begin_enrollment("user-42", "FraiseQL-Test", "user42@example.com", None)
         .await
         .unwrap();
 

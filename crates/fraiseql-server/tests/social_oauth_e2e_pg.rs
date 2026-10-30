@@ -1010,7 +1010,7 @@ async fn a_social_sign_in_of_an_mfa_user_yields_a_challenge() {
         jwt_sub(login(&base, "google").await["access_token"].as_str().expect("access_token"));
     sqlx::raw_sql(fraiseql_auth::PG_MFA_SCHEMA_SQL).execute(&pool).await.unwrap();
     let mfa = fraiseql_auth::PgMfaStore::new(pool.clone());
-    let enrolled = mfa.begin_enrollment(&user, "FraiseQL", "user@example.com").await.unwrap();
+    let enrolled = mfa.begin_enrollment(&user, "FraiseQL", "user@example.com", None).await.unwrap();
     mfa.confirm_enrollment(&user, &totp_code(&enrolled.secret_base32))
         .await
         .unwrap();

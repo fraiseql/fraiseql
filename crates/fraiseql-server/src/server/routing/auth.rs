@@ -13,7 +13,29 @@ use tracing::info;
 use super::super::{
     AuthMeState, AuthPkceState, Server, auth_callback, auth_me, auth_start, oidc_auth_middleware,
 };
-use crate::auth::{anon_signup, mfa_challenge, mfa_confirm, mfa_enroll, mfa_unenroll, mfa_verify};
+use crate::{
+    auth::{anon_signup, mfa_challenge, mfa_confirm, mfa_enroll, mfa_unenroll, mfa_verify},
+    middleware::{AuthUser, hs256_auth_middleware},
+};
+
+/// Name the account the HS256 layer authenticated as the [`SessionSubject`] the MFA
+/// handlers act on. A request the layer did not authenticate carries none, and the
+/// handlers refuse it.
+///
+/// [`SessionSubject`]: fraiseql_auth::SessionSubject
+async fn session_subject(
+    mut request: axum::extract::Request,
+    next: middleware::Next,
+) -> axum::response::Response {
+    let subject = request
+        .extensions()
+        .get::<AuthUser>()
+        .map(|AuthUser(user)| user.user_id.to_string());
+    if let Some(user_id) = subject {
+        request.extensions_mut().insert(fraiseql_auth::SessionSubject(user_id));
+    }
+    next.run(request).await
+}
 
 impl Server {
     /// Mount all `#[cfg(feature = "auth")]`-gated authentication routes.
@@ -104,15 +126,33 @@ impl Server {
 
         // TOTP MFA endpoints — mounted when mfa_state is configured.
         if let Some(ref mfa) = self.mfa_state {
+            // Enroll, confirm and unenroll act on the signed-in account, so they sit behind
+            // the sessions this server mints: the HS256 layer, revocation included. Without
+            // that layer they are not mounted at all, rather than served to no one in
+            // particular. `[auth.local]` refuses to boot without `[auth_hs256]`, so this
+            // branch is for an embedder that attached MFA state by hand.
+            if let Some(ref validator) = self.hs256_auth {
+                let session = self.hs256_auth_state(Arc::clone(validator), self.hs256_realm());
+                let management = Router::new()
+                    .route("/auth/v1/mfa/enroll", post(mfa_enroll))
+                    // `/confirm` completes what `/enroll` begins. Without it an enrollment
+                    // stays unconfirmed forever and `create_challenge` refuses to issue
+                    // against it, so MFA was enrollable but unusable through the API (#950).
+                    .route("/auth/v1/mfa/confirm", post(mfa_confirm))
+                    .route("/auth/v1/mfa/unenroll", post(mfa_unenroll))
+                    .with_state(Arc::clone(mfa))
+                    .route_layer(middleware::from_fn(session_subject))
+                    .route_layer(middleware::from_fn_with_state(session, hs256_auth_middleware));
+                app = app.merge(management);
+            } else {
+                tracing::warn!(
+                    "TOTP MFA enroll/confirm/unenroll not mounted: they act on the signed-in \
+                     account, and no [auth_hs256] layer resolves one"
+                );
+            }
             let mfa_router = Router::new()
-                .route("/auth/v1/mfa/enroll", post(mfa_enroll))
-                // `/confirm` completes what `/enroll` begins. Without it an enrollment
-                // stays unconfirmed forever and `create_challenge` refuses to issue
-                // against it, so MFA was enrollable but unusable through the API (#950).
-                .route("/auth/v1/mfa/confirm", post(mfa_confirm))
                 .route("/auth/v1/mfa/challenge", post(mfa_challenge))
                 .route("/auth/v1/mfa/verify", post(mfa_verify))
-                .route("/auth/v1/mfa/unenroll", post(mfa_unenroll))
                 .with_state(Arc::clone(mfa));
             app = app.merge(mfa_router);
             info!(

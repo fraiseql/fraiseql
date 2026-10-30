@@ -17,7 +17,10 @@ async fn setup_enrolled_user() -> (Arc<InMemoryMfaStore>, String, Vec<String>) {
     let store = Arc::new(InMemoryMfaStore::new());
     let user_id = "user_test_mfa_001";
 
-    let resp = store.begin_enrollment(user_id, "FraiseQL", "alice@example.com").await.unwrap();
+    let resp = store
+        .begin_enrollment(user_id, "FraiseQL", "alice@example.com", None)
+        .await
+        .unwrap();
 
     // Generate a valid TOTP code to confirm enrollment.
     let totp = build_totp(&resp.secret_base32, None, "").unwrap();
@@ -52,7 +55,7 @@ fn json_body(body: serde_json::Value) -> Body {
 async fn test_enroll_returns_otpauth_uri_and_recovery_codes() {
     let store = InMemoryMfaStore::new();
     let resp = store
-        .begin_enrollment("user_001", "FraiseQL", "alice@example.com")
+        .begin_enrollment("user_001", "FraiseQL", "alice@example.com", None)
         .await
         .unwrap();
 
@@ -78,7 +81,7 @@ async fn test_enroll_returns_otpauth_uri_and_recovery_codes() {
 async fn test_confirm_enrollment_with_valid_totp() {
     let store = InMemoryMfaStore::new();
     let resp = store
-        .begin_enrollment("user_001", "FraiseQL", "alice@example.com")
+        .begin_enrollment("user_001", "FraiseQL", "alice@example.com", None)
         .await
         .unwrap();
 
@@ -93,7 +96,7 @@ async fn test_confirm_enrollment_with_valid_totp() {
 async fn test_confirm_enrollment_wrong_code_fails() {
     let store = InMemoryMfaStore::new();
     store
-        .begin_enrollment("user_001", "FraiseQL", "alice@example.com")
+        .begin_enrollment("user_001", "FraiseQL", "alice@example.com", None)
         .await
         .unwrap();
 
@@ -270,7 +273,7 @@ async fn test_unenroll_wrong_code_fails() {
 async fn test_recovery_codes_are_unique() {
     let store = InMemoryMfaStore::new();
     let resp = store
-        .begin_enrollment("user_001", "FraiseQL", "alice@example.com")
+        .begin_enrollment("user_001", "FraiseQL", "alice@example.com", None)
         .await
         .unwrap();
 
@@ -288,10 +291,8 @@ async fn test_mfa_enroll_http_returns_200() {
                 .method("POST")
                 .uri("/auth/v1/mfa/enroll")
                 .header(header::CONTENT_TYPE, "application/json")
-                .body(json_body(serde_json::json!({
-                    "user_id":      "user_001",
-                    "account_name": "alice@example.com"
-                })))
+                .extension(SessionSubject("user_001".to_string()))
+                .body(json_body(serde_json::json!({ "account_name": "alice@example.com" })))
                 .unwrap(),
         )
         .await
@@ -321,4 +322,148 @@ async fn test_mfa_challenge_not_enrolled_returns_404() {
         .unwrap();
 
     assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+}
+
+// ── The account is the session's, never the request's ───────────────────────
+
+/// A request to a session-bound MFA route: `subject` is what the authentication layer
+/// resolved, `None` for a request it resolved to no one.
+fn session_request(uri: &str, subject: Option<&str>, body: serde_json::Value) -> Request<Body> {
+    let mut builder = Request::builder()
+        .method("POST")
+        .uri(uri)
+        .header(header::CONTENT_TYPE, "application/json");
+    if let Some(user_id) = subject {
+        builder = builder.extension(SessionSubject(user_id.to_string()));
+    }
+    builder.body(json_body(body)).unwrap()
+}
+
+/// The routes over `store`.
+fn app_over(store: Arc<InMemoryMfaStore>) -> Router {
+    let state = Arc::new(MfaRouteState {
+        mfa_store:     store as Arc<dyn MfaStore>,
+        session_store: Arc::new(InMemorySessionStore::new()) as Arc<dyn SessionStore>,
+        issuer:        "FraiseQL".to_string(),
+    });
+    Router::new()
+        .route("/auth/v1/mfa/enroll", post(mfa_enroll))
+        .route("/auth/v1/mfa/confirm", post(mfa_confirm))
+        .route("/auth/v1/mfa/unenroll", post(mfa_unenroll))
+        .with_state(state)
+}
+
+#[tokio::test]
+async fn enroll_confirm_and_unenroll_refuse_a_request_with_no_session() {
+    let (store, user_id, _) = setup_enrolled_user().await;
+    for (uri, body) in [
+        ("/auth/v1/mfa/enroll", serde_json::json!({ "account_name": "x@example.com" })),
+        ("/auth/v1/mfa/confirm", serde_json::json!({ "code": "000000" })),
+        ("/auth/v1/mfa/unenroll", serde_json::json!({ "code": "000000" })),
+    ] {
+        let resp = app_over(Arc::clone(&store))
+            .oneshot(session_request(uri, None, body))
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::UNAUTHORIZED, "{uri} without a session");
+    }
+    assert!(store.is_enrolled(&user_id).await, "the enrollment is untouched");
+}
+
+/// An account named in the body is refused, not read: the request is the caller's own.
+/// Each request is otherwise one that succeeds for the caller, so the body's `user_id`
+/// is the only reason for the refusal.
+#[tokio::test]
+async fn an_account_named_in_the_body_is_refused() {
+    let (store, victim, _) = setup_enrolled_user().await;
+    let caller = "caller";
+    let pending = store.begin_enrollment(caller, "FraiseQL", "c@example.com", None).await.unwrap();
+    let code = || {
+        build_totp(&pending.secret_base32, None, "")
+            .unwrap()
+            .generate_current()
+            .unwrap()
+    };
+    let send = |uri: &'static str, body: serde_json::Value| {
+        app_over(Arc::clone(&store)).oneshot(session_request(uri, Some(caller), body))
+    };
+
+    let resp = send(
+        "/auth/v1/mfa/enroll",
+        serde_json::json!({ "user_id": victim, "account_name": "x@example.com" }),
+    )
+    .await
+    .unwrap();
+    assert_eq!(resp.status(), StatusCode::UNPROCESSABLE_ENTITY, "enroll with a body user_id");
+    let resp =
+        send("/auth/v1/mfa/confirm", serde_json::json!({ "user_id": victim, "code": code() }))
+            .await
+            .unwrap();
+    assert_eq!(resp.status(), StatusCode::UNPROCESSABLE_ENTITY, "confirm with a body user_id");
+    assert!(
+        store.has_pending_enrollment(caller),
+        "the caller's enrollment was not confirmed"
+    );
+
+    store.confirm_enrollment(caller, &code()).await.unwrap();
+    let resp = send(
+        "/auth/v1/mfa/unenroll",
+        serde_json::json!({ "user_id": victim, "code": code() }),
+    )
+    .await
+    .unwrap();
+    assert_eq!(resp.status(), StatusCode::UNPROCESSABLE_ENTITY, "unenroll with a body user_id");
+    assert!(store.is_enrolled(caller).await, "the caller's enrollment was not removed");
+    assert!(store.is_enrolled(&victim).await, "the victim's enrollment is untouched");
+}
+
+/// Enroll acts on the session's account: another account's confirmed enrollment is not
+/// what a caller's enroll replaces.
+#[tokio::test]
+async fn enroll_acts_on_the_sessions_account() {
+    let (store, victim, _) = setup_enrolled_user().await;
+    let resp = app_over(Arc::clone(&store))
+        .oneshot(session_request(
+            "/auth/v1/mfa/enroll",
+            Some("attacker"),
+            serde_json::json!({ "account_name": "x@example.com" }),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    assert!(store.has_pending_enrollment("attacker"));
+    assert!(store.is_enrolled(&victim).await);
+}
+
+/// A confirmed enrollment is replaced only on a current code of it; a wrong one is charged
+/// to the failure budget.
+#[tokio::test]
+async fn replacing_a_confirmed_enrollment_needs_a_current_code() {
+    let (store, user_id, recovery) = setup_enrolled_user().await;
+    let enroll = |code: Option<&str>| {
+        let mut body = serde_json::json!({ "account_name": "x@example.com" });
+        if let Some(code) = code {
+            body["code"] = serde_json::json!(code);
+        }
+        app_over(Arc::clone(&store)).oneshot(session_request(
+            "/auth/v1/mfa/enroll",
+            Some(&user_id),
+            body,
+        ))
+    };
+
+    for code in [None, Some("000000")] {
+        let resp = enroll(code).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::UNPROCESSABLE_ENTITY, "code {code:?}");
+        assert!(store.is_enrolled(&user_id).await, "the confirmed enrollment stands");
+    }
+    assert_eq!(
+        store.failures.get(&user_id).map(|f| f.count),
+        Some(1),
+        "the wrong code is charged; the absent one is not a guess"
+    );
+
+    let resp = enroll(Some(&recovery[0])).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK, "a current code replaces it");
+    assert!(store.has_pending_enrollment(&user_id), "with a fresh, unconfirmed enrollment");
 }

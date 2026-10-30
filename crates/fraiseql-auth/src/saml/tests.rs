@@ -1275,7 +1275,7 @@ async fn acs_for_an_mfa_user_yields_a_challenge() {
         .execute(&pool)
         .await
         .unwrap();
-    let enrolled = mfa.begin_enrollment(&user, "FraiseQL", "u@example.com").await.unwrap();
+    let enrolled = mfa.begin_enrollment(&user, "FraiseQL", "u@example.com", None).await.unwrap();
     let code = totp_rs::TOTP::new(
         totp_rs::Algorithm::SHA1,
         6,

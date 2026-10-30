@@ -94,14 +94,8 @@ impl Server {
 
         if let Some(ref validator) = self.hs256_auth {
             info!(transport, "transport protected by HS256 authentication");
-            let realm = self
-                .config
-                .auth_hs256
-                .as_ref()
-                .and_then(|h| h.issuer.clone())
-                .unwrap_or_else(|| "fraiseql".to_string());
             let auth_state = self
-                .hs256_auth_state(Arc::clone(validator), realm)
+                .hs256_auth_state(Arc::clone(validator), self.hs256_realm())
                 .with_service_accounts(self.service_account_authenticator.clone());
             return router.route_layer(from_fn_with_state(auth_state, hs256_auth_middleware));
         }
@@ -147,6 +141,15 @@ impl Server {
     /// the auth mode of every social-login and local-password deployment.
     ///
     /// This helper exists for the same reason its OIDC twin does: a bare
+    /// The realm an HS256 challenge names: the configured issuer, else `fraiseql`.
+    pub(super) fn hs256_realm(&self) -> String {
+        self.config
+            .auth_hs256
+            .as_ref()
+            .and_then(|h| h.issuer.clone())
+            .unwrap_or_else(|| "fraiseql".to_string())
+    }
+
     /// `Hs256AuthState::new` at a mount would silently skip revocation for that mount.
     pub(super) fn hs256_auth_state(
         &self,

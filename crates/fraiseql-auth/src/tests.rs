@@ -2575,10 +2575,12 @@ mod totp_mfa_tests {
         let (state, _) = build_mfa_state();
         let app = mfa_router(state);
 
-        let req = post_json(
+        let mut req = post_json(
             "/auth/v1/mfa/enroll",
-            serde_json::json!({ "user_id": "user-1", "account_name": "alice@example.com" }),
+            serde_json::json!({ "account_name": "alice@example.com" }),
         );
+        req.extensions_mut()
+            .insert(crate::totp_mfa::SessionSubject("user-1".to_string()));
         let resp = app.oneshot(req).await.unwrap();
         assert_eq!(resp.status(), axum::http::StatusCode::OK);
 
@@ -2594,8 +2596,10 @@ mod totp_mfa_tests {
     async fn test_mfa_store_begin_and_confirm_enrollment() {
         let store = InMemoryMfaStore::new();
 
-        let enrollment =
-            store.begin_enrollment("user-1", "FraiseQL", "alice@example.com").await.unwrap();
+        let enrollment = store
+            .begin_enrollment("user-1", "FraiseQL", "alice@example.com", None)
+            .await
+            .unwrap();
 
         assert!(!enrollment.secret_base32.is_empty());
         assert!(enrollment.otpauth_uri.starts_with("otpauth://"));
@@ -2625,8 +2629,10 @@ mod totp_mfa_tests {
         let store = InMemoryMfaStore::new();
 
         // Enroll and confirm
-        let enrollment =
-            store.begin_enrollment("user-1", "FraiseQL", "alice@example.com").await.unwrap();
+        let enrollment = store
+            .begin_enrollment("user-1", "FraiseQL", "alice@example.com", None)
+            .await
+            .unwrap();
 
         let totp = totp_rs::TOTP::new(
             totp_rs::Algorithm::SHA1,
@@ -2652,8 +2658,10 @@ mod totp_mfa_tests {
     async fn test_mfa_verify_with_recovery_code() {
         let store = InMemoryMfaStore::new();
 
-        let enrollment =
-            store.begin_enrollment("user-1", "FraiseQL", "alice@example.com").await.unwrap();
+        let enrollment = store
+            .begin_enrollment("user-1", "FraiseQL", "alice@example.com", None)
+            .await
+            .unwrap();
         let recovery_code = enrollment.recovery_codes[0].clone();
 
         // Confirm enrollment with TOTP
@@ -2685,8 +2693,10 @@ mod totp_mfa_tests {
     async fn test_mfa_unenroll_with_valid_code() {
         let store = InMemoryMfaStore::new();
 
-        let enrollment =
-            store.begin_enrollment("user-1", "FraiseQL", "alice@example.com").await.unwrap();
+        let enrollment = store
+            .begin_enrollment("user-1", "FraiseQL", "alice@example.com", None)
+            .await
+            .unwrap();
 
         let totp = totp_rs::TOTP::new(
             totp_rs::Algorithm::SHA1,

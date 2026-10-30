@@ -159,7 +159,7 @@ async fn otp_verify_consumes_the_code_when_the_delete_succeeds() {
 
 /// Enroll a user and confirm the enrollment through the real API.
 async fn enrolled(mfa: &PgMfaStore, user_id: &str) -> String {
-    let enrollment = mfa.begin_enrollment(user_id, "fraiseql", user_id).await.unwrap();
+    let enrollment = mfa.begin_enrollment(user_id, "fraiseql", user_id, None).await.unwrap();
     let secret = enrollment.secret_base32;
     mfa.confirm_enrollment(user_id, &totp_now(&secret)).await.unwrap();
     secret

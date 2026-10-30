@@ -74,7 +74,7 @@ fn totp_code(secret: &str) -> String {
 /// Enroll `user_id` and confirm the enrollment.
 async fn enroll(pool: &PgPool, user_id: &str) {
     let mfa = PgMfaStore::new(pool.clone());
-    let enrolled = mfa.begin_enrollment(user_id, "FraiseQL", "u@example.com").await.unwrap();
+    let enrolled = mfa.begin_enrollment(user_id, "FraiseQL", "u@example.com", None).await.unwrap();
     mfa.confirm_enrollment(user_id, &totp_code(&enrolled.secret_base32))
         .await
         .unwrap();
@@ -122,7 +122,7 @@ async fn a_user_without_a_confirmed_enrollment_gets_a_session() {
 
     let pending = "mfa-gate-pending";
     PgMfaStore::new(pool.clone())
-        .begin_enrollment(pending, "FraiseQL", "p@example.com")
+        .begin_enrollment(pending, "FraiseQL", "p@example.com", None)
         .await
         .unwrap();
     store.create_session(pending, in_an_hour()).await.unwrap();

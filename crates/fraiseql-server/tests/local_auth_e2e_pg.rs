@@ -236,6 +236,39 @@ async fn post_json(
     (status, json)
 }
 
+/// A session access token for `user_id`, signed as this server signs its own.
+fn session_for(user_id: &str) -> String {
+    let now = chrono::Utc::now().timestamp();
+    jsonwebtoken::encode(
+        &jsonwebtoken::Header::new(jsonwebtoken::Algorithm::HS256),
+        &serde_json::json!({
+            "sub": user_id, "iss": HS256_ISSUER, "aud": [HS256_AUDIENCE],
+            "iat": now, "exp": now + 3600, "jti": format!("test-{user_id}-{now}"),
+        }),
+        &jsonwebtoken::EncodingKey::from_secret(HS256_SECRET.as_bytes()),
+    )
+    .expect("sign a session token")
+}
+
+/// `POST` `body` to `path` as the holder of `bearer`.
+async fn post_json_as(
+    base: &str,
+    path: &str,
+    bearer: &str,
+    body: serde_json::Value,
+) -> (reqwest::StatusCode, serde_json::Value) {
+    let resp = reqwest::Client::new()
+        .post(format!("{base}{path}"))
+        .bearer_auth(bearer)
+        .json(&body)
+        .send()
+        .await
+        .expect("request");
+    let status = resp.status();
+    let json = resp.json().await.unwrap_or(serde_json::Value::Null);
+    (status, json)
+}
+
 // ── Tests ────────────────────────────────────────────────────────────────────
 
 // Requires the SMTP transport (`inbound-email`): both flows deliver mail, and
@@ -474,11 +507,14 @@ async fn mfa_enrollment_survives_a_restart() {
     )
     .await;
 
-    // Enroll, then confirm with a live TOTP code derived from the returned URI.
-    let (status, body) = post_json(
+    // Enroll, then confirm with a live TOTP code derived from the returned URI, both as
+    // the account's own session.
+    let session = session_for("user-1");
+    let (status, body) = post_json_as(
         &server.base,
         "/auth/v1/mfa/enroll",
-        serde_json::json!({ "user_id": "user-1", "account_name": "erin@example.com" }),
+        &session,
+        serde_json::json!({ "account_name": "erin@example.com" }),
     )
     .await;
     assert_eq!(status, reqwest::StatusCode::OK, "enroll must succeed: {body}");
@@ -523,10 +559,11 @@ async fn mfa_enrollment_survives_a_restart() {
     )
     .expect("totp");
     let code = totp.generate_current().expect("generate code");
-    let (status, body) = post_json(
+    let (status, body) = post_json_as(
         &server.base,
         "/auth/v1/mfa/confirm",
-        serde_json::json!({ "user_id": "user-1", "code": code }),
+        &session,
+        serde_json::json!({ "code": code }),
     )
     .await;
     assert_eq!(status, 200, "confirm through the route: {body}");
@@ -1179,7 +1216,10 @@ async fn an_anonymous_caller_cannot_take_over_an_account_through_mfa() {
     // The victim's own enrollment, made and confirmed through the store.
     let victim = "victim-1";
     let store = fraiseql_auth::PgMfaStore::new(pool.clone());
-    let enrolled = store.begin_enrollment(victim, "FraiseQL", "victim@example.com").await.unwrap();
+    let enrolled = store
+        .begin_enrollment(victim, "FraiseQL", "victim@example.com", None)
+        .await
+        .unwrap();
     store
         .confirm_enrollment(victim, &totp_code(&enrolled.secret_base32))
         .await
@@ -1245,7 +1285,10 @@ async fn seed_confirmed_mfa(pool: &PgPool, user_id: &str) -> String {
     use fraiseql_auth::MfaStore as _;
 
     let store = fraiseql_auth::PgMfaStore::new(pool.clone());
-    let enrolled = store.begin_enrollment(user_id, "FraiseQL", "user@example.com").await.unwrap();
+    let enrolled = store
+        .begin_enrollment(user_id, "FraiseQL", "user@example.com", None)
+        .await
+        .unwrap();
     store
         .confirm_enrollment(user_id, &totp_code(&enrolled.secret_base32))
         .await
@@ -1374,6 +1417,75 @@ async fn an_otp_sign_in_of_an_mfa_user_yields_a_challenge() {
 
     let (status, body) = sign_in().await;
     expect_second_factor("/auth/v1/verify", status, &body);
+
+    server.stop().await;
+    drop_scratch(&url, db).await;
+}
+
+/// The account's own session replaces its confirmed enrollment only on a current code of
+/// it: whoever holds a session, a stolen one included, cannot swap the factor out from
+/// under its owner.
+#[tokio::test]
+async fn a_session_replaces_a_confirmed_enrollment_only_with_a_current_code() {
+    let Some(url) = database_url_or_skip("a_session_replaces_a_confirmed_enrollment") else {
+        return;
+    };
+    set_test_env();
+    let db = "fraiseql_p26_local_mfa_replace";
+    let pool = scratch_pool(&url, db).await;
+    let scratch_url = with_database(&url, db);
+    let server = boot(
+        LocalAuthConfig {
+            mfa: true,
+            ..LocalAuthConfig::default()
+        },
+        pool.clone(),
+        &scratch_url,
+    )
+    .await;
+    let user = "owner-1";
+    let secret = seed_confirmed_mfa(&pool, user).await;
+    let session = session_for(user);
+    let enroll = |code: Option<String>| {
+        let mut body = serde_json::json!({ "account_name": "owner@example.com" });
+        if let Some(code) = code {
+            body["code"] = serde_json::json!(code);
+        }
+        post_json_as(&server.base, "/auth/v1/mfa/enroll", &session, body)
+    };
+
+    for code in [None, Some("000000".to_string())] {
+        let (status, body) = enroll(code.clone()).await;
+        assert_eq!(status, reqwest::StatusCode::UNPROCESSABLE_ENTITY, "code {code:?}: {body}");
+    }
+    let stored: (String, bool) = sqlx::query_as(
+        "SELECT secret_base32, confirmed FROM core.tb_mfa_enrollment WHERE user_id = $1",
+    )
+    .bind(user)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(stored, (secret.clone(), true), "the confirmed enrollment stands");
+
+    let (status, body) = enroll(Some(totp_code(&secret))).await;
+    assert_eq!(status, reqwest::StatusCode::OK, "a current code replaces it: {body}");
+
+    // A token this server did not sign is no session.
+    let forged = jsonwebtoken::encode(
+        &jsonwebtoken::Header::new(jsonwebtoken::Algorithm::HS256),
+        &serde_json::json!({ "sub": user, "iss": HS256_ISSUER, "aud": [HS256_AUDIENCE],
+                             "exp": chrono::Utc::now().timestamp() + 3600 }),
+        &jsonwebtoken::EncodingKey::from_secret(b"not-this-servers-secret-32-bytes"),
+    )
+    .unwrap();
+    let (status, _) = post_json_as(
+        &server.base,
+        "/auth/v1/mfa/unenroll",
+        &forged,
+        serde_json::json!({ "code": totp_code(&secret) }),
+    )
+    .await;
+    assert_eq!(status, reqwest::StatusCode::UNAUTHORIZED, "a forged session is refused");
 
     server.stop().await;
     drop_scratch(&url, db).await;

@@ -3,16 +3,20 @@
 //! Provides a full `TOTP`-based multi-factor authentication flow:
 //!
 //! 1. **Enroll** (`POST /auth/v1/mfa/enroll`) — generates a `TOTP` secret and 8 single-use recovery
-//!    codes. Returns an `otpauth://` `URI` for the authenticator app.
+//!    codes for the signed-in account. Returns an `otpauth://` `URI` for the authenticator app.
+//!    Replacing a confirmed enrollment needs a current code from it.
 //! 2. **Challenge** (`POST /auth/v1/mfa/challenge`) — creates a short-lived challenge token after
 //!    the first authentication factor is verified.
 //! 3. **Verify** (`POST /auth/v1/mfa/verify`) — verifies a `TOTP` code or recovery code and issues
 //!    a full session token pair.
-//! 4. **Unenroll** (`POST /auth/v1/mfa/unenroll`) — removes `MFA` from an account (requires the
-//!    current `TOTP` code or a recovery code for re-authentication).
+//! 4. **Unenroll** (`POST /auth/v1/mfa/unenroll`) — removes `MFA` from the signed-in account
+//!    (requires the current `TOTP` code or a recovery code for re-authentication).
 //!
 //! # Security
 //!
+//! - Enroll, confirm and unenroll act on the account the caller's session was minted for, the
+//!   [`SessionSubject`] the server's authentication layer resolves. They never take an account from
+//!   the request: a handler that did would let anyone act on anyone's factor.
 //! - `TOTP` uses `SHA-1`, 6-digit codes, and a 30-second window with `±1` step tolerance (RFC 6238
 //!   §5.2).
 //! - Recovery codes are 16 random hex characters (64 bits of entropy) and are `bcrypt`-hashed at
@@ -129,14 +133,21 @@ pub trait MfaStore: Send + Sync {
     /// The plaintext recovery codes are returned **once** and never stored; only
     /// their `bcrypt` hashes are persisted.
     ///
+    /// A confirmed enrollment is replaced only on `current_code`, a `TOTP` or recovery
+    /// code of that enrollment: a session alone does not prove control of the factor it
+    /// would remove. A wrong code is charged to the user's failure budget.
+    ///
     /// # Errors
     ///
-    /// Returns [`AuthError::DatabaseError`] if the store fails.
+    /// Returns [`AuthError::InvalidToken`] when a confirmed enrollment exists and
+    /// `current_code` is absent or wrong, [`AuthError::RateLimited`] while the user's
+    /// failure budget is spent, and [`AuthError::DatabaseError`] if the store fails.
     async fn begin_enrollment(
         &self,
         user_id: &str,
         issuer: &str,
         account_name: &str,
+        current_code: Option<&str>,
     ) -> Result<EnrollmentResponse>;
 
     /// Complete enrollment by verifying the first `TOTP` code.
@@ -338,7 +349,31 @@ impl MfaStore for InMemoryMfaStore {
         user_id: &str,
         issuer: &str,
         account_name: &str,
+        current_code: Option<&str>,
     ) -> Result<EnrollmentResponse> {
+        let now = unix_now()?;
+        let confirmed = self.enrollments.get(user_id).filter(|e| e.confirmed).map(|e| e.clone());
+        if let Some(enrollment) = confirmed {
+            if let Some(retry_after_secs) = self.lockout_remaining(user_id, now) {
+                return Err(AuthError::RateLimited { retry_after_secs });
+            }
+            let proven = match current_code {
+                Some(code) => {
+                    verify_totp_code(&enrollment.secret_base32, code)?
+                        || check_recovery_code(code, &enrollment.recovery_code_hashes).is_some()
+                },
+                None => false,
+            };
+            if !proven {
+                if current_code.is_some() {
+                    self.record_failure(user_id, now);
+                }
+                return Err(AuthError::InvalidToken {
+                    reason: "replacing a confirmed MFA enrollment needs a current code".into(),
+                });
+            }
+        }
+
         // Generate a new TOTP secret.
         let secret = Secret::generate_secret();
         let secret_base32 = secret.to_encoded().to_string();
@@ -553,13 +588,23 @@ pub struct MfaRouteState {
 
 // ─── Request / Response types ─────────────────────────────────────────────────
 
-/// Request for `POST /auth/v1/mfa/enroll`.
+/// The account an authenticated session was minted for, which the server's
+/// authentication layer puts on the request.
+///
+/// Enroll, confirm and unenroll act on this account and on no other: an account named in
+/// a request body is a parameter, not an identity.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SessionSubject(pub String);
+
+/// Request for `POST /auth/v1/mfa/enroll`. The account is the caller's own.
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct MfaEnrollRequest {
-    /// Authenticated user identifier.
-    pub user_id:      String,
     /// Display name shown in the authenticator app.
     pub account_name: String,
+    /// A current `TOTP` or recovery code of the confirmed enrollment this replaces.
+    #[serde(default)]
+    pub code:         Option<String>,
 }
 
 /// Response for `POST /auth/v1/mfa/enroll`.
@@ -594,25 +639,37 @@ pub struct MfaVerifyRequest {
     pub code:            String,
 }
 
-/// Request for `POST /auth/v1/mfa/confirm`.
+/// Request for `POST /auth/v1/mfa/confirm`. The enrollment is the caller's own.
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct MfaConfirmRequest {
-    /// User whose pending enrollment to confirm.
-    pub user_id: String,
     /// The first `TOTP` code from the authenticator, proving the secret was stored.
-    pub code:    String,
+    pub code: String,
 }
 
-/// Request for `POST /auth/v1/mfa/unenroll`.
+/// Request for `POST /auth/v1/mfa/unenroll`. The enrollment is the caller's own.
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct MfaUnenrollRequest {
-    /// User to unenroll.
-    pub user_id: String,
     /// Current `TOTP` code or a recovery code (re-authentication).
-    pub code:    String,
+    pub code: String,
 }
 
 // ─── Handlers ─────────────────────────────────────────────────────────────────
+
+/// The `401` for a request the authentication layer resolved to no one. A route mounted
+/// without that layer refuses every request this way rather than acting on an account it
+/// was never told.
+fn authentication_required() -> Response {
+    (
+        StatusCode::UNAUTHORIZED,
+        Json(serde_json::json!({
+            "error":   "authentication_required",
+            "message": "sign in to manage MFA"
+        })),
+    )
+        .into_response()
+}
 
 /// Render a lockout as `429 Too Many Requests` with a `Retry-After` header.
 ///
@@ -637,18 +694,24 @@ fn rate_limited_response(err: &AuthError) -> Option<Response> {
 
 /// `POST /auth/v1/mfa/enroll`
 ///
-/// Generates a `TOTP` secret and recovery codes for the given user.
+/// Generates a `TOTP` secret and recovery codes for the signed-in account.
 ///
 /// # Errors
 ///
-/// Returns 500 if the `MFA` store fails.
+/// Returns 401 without a session, 422 when replacing a confirmed enrollment without a
+/// current code of it, 429 while the failure budget is spent, and 500 if the `MFA` store
+/// fails.
 pub async fn mfa_enroll(
     State(state): State<Arc<MfaRouteState>>,
+    subject: Option<axum::Extension<SessionSubject>>,
     Json(req): Json<MfaEnrollRequest>,
 ) -> Response {
+    let Some(axum::Extension(SessionSubject(user_id))) = subject else {
+        return authentication_required();
+    };
     match state
         .mfa_store
-        .begin_enrollment(&req.user_id, &state.issuer, &req.account_name)
+        .begin_enrollment(&user_id, &state.issuer, &req.account_name, req.code.as_deref())
         .await
     {
         Ok(resp) => (
@@ -660,6 +723,26 @@ pub async fn mfa_enroll(
         )
             .into_response(),
         Err(e) => {
+            if let Some(resp) = rate_limited_response(&e) {
+                return resp;
+            }
+            if let AuthError::InvalidToken { .. } = e {
+                get_audit_logger().log_failure(
+                    AuditEventType::AuthFailure,
+                    SecretType::SessionToken,
+                    Some(user_id),
+                    "mfa_enroll",
+                    &e.to_string(),
+                );
+                return (
+                    StatusCode::UNPROCESSABLE_ENTITY,
+                    Json(serde_json::json!({
+                        "error":   "invalid_code",
+                        "message": "replacing an MFA enrollment needs a current code from it"
+                    })),
+                )
+                    .into_response();
+            }
             tracing::error!(error = %e, "MFA enroll error");
             (StatusCode::INTERNAL_SERVER_ERROR, "enrollment failed").into_response()
         },
@@ -776,19 +859,24 @@ pub async fn mfa_verify(
 ///
 /// # Errors
 ///
-/// Returns 422 if there is no pending enrollment for the user or the code is wrong.
+/// Returns 401 without a session, and 422 if there is no pending enrollment or the code
+/// is wrong.
 pub async fn mfa_confirm(
     State(state): State<Arc<MfaRouteState>>,
+    subject: Option<axum::Extension<SessionSubject>>,
     Json(req): Json<MfaConfirmRequest>,
 ) -> Response {
+    let Some(axum::Extension(SessionSubject(user_id))) = subject else {
+        return authentication_required();
+    };
     let logger = get_audit_logger();
 
-    match state.mfa_store.confirm_enrollment(&req.user_id, &req.code).await {
+    match state.mfa_store.confirm_enrollment(&user_id, &req.code).await {
         Ok(()) => {
             logger.log_success(
                 AuditEventType::AuthSuccess,
                 SecretType::SessionToken,
-                Some(req.user_id),
+                Some(user_id),
                 "mfa_confirm",
             );
             StatusCode::OK.into_response()
@@ -797,16 +885,14 @@ pub async fn mfa_confirm(
             logger.log_failure(
                 AuditEventType::AuthFailure,
                 SecretType::SessionToken,
-                Some(req.user_id.clone()),
+                Some(user_id.clone()),
                 "mfa_confirm",
                 &e.to_string(),
             );
             if let Some(resp) = rate_limited_response(&e) {
                 return resp;
             }
-            // One generic answer for "no pending enrollment" and "wrong code" alike:
-            // distinguishing them would tell an unauthenticated caller whether a given
-            // user has an enrollment in flight.
+            // One answer for "no pending enrollment" and "wrong code" alike.
             (
                 StatusCode::UNPROCESSABLE_ENTITY,
                 Json(serde_json::json!({
@@ -821,23 +907,27 @@ pub async fn mfa_confirm(
 
 /// `POST /auth/v1/mfa/unenroll`
 ///
-/// Removes `MFA` from the account after re-authentication.
+/// Removes `MFA` from the signed-in account after re-authentication.
 ///
 /// # Errors
 ///
-/// Returns 422 if re-authentication fails.
+/// Returns 401 without a session, and 422 if re-authentication fails.
 pub async fn mfa_unenroll(
     State(state): State<Arc<MfaRouteState>>,
+    subject: Option<axum::Extension<SessionSubject>>,
     Json(req): Json<MfaUnenrollRequest>,
 ) -> Response {
+    let Some(axum::Extension(SessionSubject(user_id))) = subject else {
+        return authentication_required();
+    };
     let logger = get_audit_logger();
 
-    match state.mfa_store.unenroll(&req.user_id, &req.code).await {
+    match state.mfa_store.unenroll(&user_id, &req.code).await {
         Ok(()) => {
             logger.log_success(
                 AuditEventType::SessionTokenRevoked,
                 SecretType::SessionToken,
-                Some(req.user_id),
+                Some(user_id),
                 "mfa_unenroll",
             );
             StatusCode::OK.into_response()
@@ -846,7 +936,7 @@ pub async fn mfa_unenroll(
             logger.log_failure(
                 AuditEventType::AuthFailure,
                 SecretType::SessionToken,
-                Some(req.user_id.clone()),
+                Some(user_id.clone()),
                 "mfa_unenroll",
                 &e.to_string(),
             );

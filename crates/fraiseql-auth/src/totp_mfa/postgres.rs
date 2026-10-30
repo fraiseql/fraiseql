@@ -182,7 +182,30 @@ impl MfaStore for PgMfaStore {
         user_id: &str,
         issuer: &str,
         account_name: &str,
+        current_code: Option<&str>,
     ) -> Result<EnrollmentResponse> {
+        let now = unix_now()?;
+        if let Some(row) = self.load(user_id).await?.filter(|row| row.confirmed) {
+            if let Some(retry_after_secs) = Self::lockout_remaining(&row, now) {
+                return Err(AuthError::RateLimited { retry_after_secs });
+            }
+            let proven = match current_code {
+                Some(code) => {
+                    verify_totp_code(&row.secret_base32, code)?
+                        || check_recovery_code(code, &row.recovery_code_hashes).is_some()
+                },
+                None => false,
+            };
+            if !proven {
+                if current_code.is_some() {
+                    self.record_failure(user_id, now).await?;
+                }
+                return Err(AuthError::InvalidToken {
+                    reason: "replacing a confirmed MFA enrollment needs a current code".into(),
+                });
+            }
+        }
+
         let secret = totp_rs::Secret::generate_secret();
         let secret_base32 = secret.to_encoded().to_string();
         let totp = build_totp(&secret_base32, Some(issuer), account_name)?;
@@ -199,9 +222,8 @@ impl MfaStore for PgMfaStore {
             recovery_code_hashes.push(hash);
         }
 
-        // Re-enrolling replaces the previous (possibly confirmed) enrollment and
-        // resets the failure budget — the user proved control of the account to
-        // reach this endpoint.
+        // Re-enrolling replaces the previous enrollment and resets the failure budget: a
+        // confirmed one only after a current code of it was proven above.
         sqlx::query(
             "INSERT INTO core.tb_mfa_enrollment
                  (user_id, secret_base32, recovery_code_hashes, confirmed,
