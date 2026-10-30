@@ -24,9 +24,11 @@
 //!
 //! - The reset-start response is a constant `202 Accepted` whether or not the address has an
 //!   account (the underlying call is already non-enumerable and constant-cost).
-//! - Signup and login are per-IP rate-limited through the shared [`RateLimiters`] `auth_start`
-//!   bucket: password verification is deliberately expensive (Argon2id), so an unthrottled endpoint
-//!   is both a credential-stuffing surface and a `CPU` `DoS`.
+//! - Every route here must be per-client rate-limited: password verification is deliberately
+//!   expensive (Argon2id), so an unthrottled endpoint is both a credential-stuffing surface and a
+//!   `CPU` `DoS`. The server does it with one configured rule per route (`[security.rate_limiting]
+//!   auth_password_*`) and passes `rate_limiters: None`; a caller mounting these routes itself
+//!   passes `Some` and gets one shared in-handler bucket.
 //! - Failed logins return one generic message; the specific reason is audit-logged only.
 
 use std::{net::SocketAddr, sync::Arc};
@@ -60,8 +62,11 @@ pub struct LocalPasswordRouteState {
     pub authenticator: Arc<LocalPasswordAuthenticator>,
     /// Session store issuing tokens after a successful signup/login.
     pub session_store: Arc<dyn SessionStore>,
-    /// Per-IP limiters; the `auth_start` bucket governs signup and login.
-    pub rate_limiters: Arc<RateLimiters>,
+    /// In-handler per-IP limiter (the `auth_start` bucket, shared by every route), or
+    /// `None` when something in front of the routes limits each one — the server's
+    /// configured rules do. Two limiters on one route meant the stricter, fixed
+    /// one silently overrode the operator's setting.
+    pub rate_limiters: Option<Arc<RateLimiters>>,
 }
 
 /// Body of `POST /auth/v1/password/signup` and `/login`.
@@ -107,11 +112,12 @@ fn json_error(status: StatusCode, error: &str, message: &str) -> Response {
 /// Enforce the per-IP `auth_start` budget, keyed on the transport peer only —
 /// never an attacker-spoofable forwarded header.
 fn rate_limit(state: &LocalPasswordRouteState, addr: SocketAddr, op: &str) -> Option<Response> {
+    let limiters = state.rate_limiters.as_ref()?;
     let client_ip = addr.ip().to_string();
-    if state.rate_limiters.auth_start.check(&client_ip).is_ok() {
+    if limiters.auth_start.check(&client_ip).is_ok() {
         return None;
     }
-    let retry_after = state.rate_limiters.auth_start.clone_config().window_secs;
+    let retry_after = limiters.auth_start.clone_config().window_secs;
     get_audit_logger().log_failure(
         AuditEventType::AuthFailure,
         SecretType::SessionToken,
@@ -307,8 +313,9 @@ pub async fn password_reset_confirm(
 pub struct EmailVerificationRouteState {
     /// The authenticator (owns the verification token store and the promotion gate).
     pub authenticator: Arc<LocalPasswordAuthenticator>,
-    /// Per-IP limiters; the `auth_start` bucket governs both routes.
-    pub rate_limiters: Arc<RateLimiters>,
+    /// In-handler per-IP limiter, or `None` when something in front of the routes limits
+    /// them; see [`LocalPasswordRouteState::rate_limiters`].
+    pub rate_limiters: Option<Arc<RateLimiters>>,
 }
 
 /// Body of `POST /auth/v1/email/verify/confirm`.
@@ -333,11 +340,12 @@ fn verify_rate_limit(
     addr: SocketAddr,
     op: &str,
 ) -> Option<Response> {
+    let limiters = state.rate_limiters.as_ref()?;
     let client_ip = addr.ip().to_string();
-    if state.rate_limiters.auth_start.check(&client_ip).is_ok() {
+    if limiters.auth_start.check(&client_ip).is_ok() {
         return None;
     }
-    let retry_after = state.rate_limiters.auth_start.clone_config().window_secs;
+    let retry_after = limiters.auth_start.clone_config().window_secs;
     get_audit_logger().log_failure(
         AuditEventType::AuthFailure,
         SecretType::SessionToken,

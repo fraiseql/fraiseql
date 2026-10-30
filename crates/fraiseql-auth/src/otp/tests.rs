@@ -238,3 +238,24 @@ fn otp_clock_failure_treats_code_as_expired() {
     assert!(super::OtpRecord::is_expired_at(100, Some(100)), "now == expires → expired");
     assert!(!super::OtpRecord::is_expired_at(100, Some(99)), "before expiry → valid");
 }
+
+// ── guesses are bounded per address, not per code ───────────────
+
+/// A resend issues a fresh code, and it used to issue a fresh attempt count with it: three
+/// sends a window made nine guesses, not the three the module doc promises. The fourth
+/// guess inside the window is refused even when it is the right code.
+#[tokio::test]
+async fn a_resend_does_not_buy_more_guesses_inside_the_window() {
+    let store = InMemoryOtpStore::new();
+    let email = "victim@example.com";
+
+    store.create_otp(email).await.unwrap();
+    for _ in 0..MAX_VERIFY_ATTEMPTS {
+        let wrong = store.verify_otp(email, "not-a-code").await.unwrap_err();
+        assert!(matches!(wrong, AuthError::InvalidToken { .. }), "got {wrong:?}");
+    }
+
+    let code = store.create_otp(email).await.unwrap();
+    let fourth = store.verify_otp(email, &code).await.unwrap_err();
+    assert!(matches!(fourth, AuthError::RateLimited { .. }), "got {fourth:?}");
+}

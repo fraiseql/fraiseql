@@ -227,6 +227,7 @@ test-integration-postgres: db-up db-failover-reset
 	@cargo test -p fraiseql-auth --test social_linking -- --test-threads=1
 	@cargo test -p fraiseql-auth --test postgres_single_use_consume -- --test-threads=1
 	@cargo test -p fraiseql-auth --test postgres_expiry_sweep -- --test-threads=1
+	@cargo test -p fraiseql-auth --test postgres_otp_guess_budget -- --test-threads=1
 	@cargo test -p fraiseql-server --features auth --test integration -- --test-threads=1
 	@cargo test -p fraiseql-auth --test session_state_integration -- --test-threads=1
 	@echo ""

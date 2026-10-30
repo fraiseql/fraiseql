@@ -55,6 +55,10 @@ impl ErrorSanitizationConfig {
     }
 }
 
+/// The consumer's defaults for the auth endpoint budgets, which this table mirrors.
+const DEFAULT_AUTH: fraiseql_core::schema::RateLimitingSecurityConfig =
+    fraiseql_core::schema::RateLimitingSecurityConfig::DEFAULT;
+
 /// Rate limiting configuration
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
@@ -81,6 +85,22 @@ pub struct RateLimitConfig {
     pub auth_logout_max_requests: u32,
     /// Time window for auth logout in seconds
     pub auth_logout_window_secs:  u64,
+
+    /// Max `OTP` send requests (`/auth/v1/otp`) per client per window
+    pub auth_otp_send_max_requests:   u32,
+    /// Time window for `OTP` send in seconds
+    pub auth_otp_send_window_secs:    u64,
+    /// Max `OTP` verify requests (`/auth/v1/verify`) per client per window
+    pub auth_otp_verify_max_requests: u32,
+    /// Time window for `OTP` verify in seconds
+    pub auth_otp_verify_window_secs:  u64,
+    /// Max requests per client per window to each local-password endpoint
+    pub auth_password_max_requests:   u32,
+    /// Time window for the local-password endpoints in seconds
+    pub auth_password_window_secs:    u64,
+    /// Apply the per-client auth endpoint rules. On unless written `false`; the
+    /// rules run whether or not `enabled` turns the global limit on.
+    pub auth_rules_enabled:           bool,
 
     /// Max failed login attempts per IP.
     ///
@@ -116,26 +136,37 @@ pub struct RateLimitConfig {
 impl Default for RateLimitConfig {
     fn default() -> Self {
         Self {
-            enabled:                    true,
-            auth_start_max_requests:    100,
-            auth_start_window_secs:     60,
-            auth_callback_max_requests: 50,
-            auth_callback_window_secs:  60,
-            auth_refresh_max_requests:  10,
-            auth_refresh_window_secs:   60,
-            auth_logout_max_requests:   20,
-            auth_logout_window_secs:    60,
+            enabled: true,
+            // The consumer's defaults, so a project that writes `[fraiseql.security]`
+            // gets the same budgets as one that does not. They differed: this
+            // table allowed 100 starts and 50 callbacks a minute where the server's own
+            // default allowed 5 and 10.
+            auth_start_max_requests: DEFAULT_AUTH.auth_start_max_requests,
+            auth_start_window_secs: DEFAULT_AUTH.auth_start_window_secs,
+            auth_callback_max_requests: DEFAULT_AUTH.auth_callback_max_requests,
+            auth_callback_window_secs: DEFAULT_AUTH.auth_callback_window_secs,
+            auth_refresh_max_requests: DEFAULT_AUTH.auth_refresh_max_requests,
+            auth_refresh_window_secs: DEFAULT_AUTH.auth_refresh_window_secs,
+            auth_logout_max_requests: DEFAULT_AUTH.auth_logout_max_requests,
+            auth_logout_window_secs: DEFAULT_AUTH.auth_logout_window_secs,
+            auth_otp_send_max_requests: DEFAULT_AUTH.auth_otp_send_max_requests,
+            auth_otp_send_window_secs: DEFAULT_AUTH.auth_otp_send_window_secs,
+            auth_otp_verify_max_requests: DEFAULT_AUTH.auth_otp_verify_max_requests,
+            auth_otp_verify_window_secs: DEFAULT_AUTH.auth_otp_verify_window_secs,
+            auth_password_max_requests: DEFAULT_AUTH.auth_password_max_requests,
+            auth_password_window_secs: DEFAULT_AUTH.auth_password_window_secs,
+            auth_rules_enabled: DEFAULT_AUTH.auth_rules_enabled,
             // Matching `DEFAULT_FAILED_LOGIN_MAX_ATTEMPTS` / `_LOCKOUT_SECS` in the
             // consumer, so an untouched config is recognisably untouched. The previous
             // 5 / 3600 read as deliberately tuned, and now that this section actually
             // reaches the runtime that would refuse every production boot (#356).
-            failed_login_max_requests:  10,
-            failed_login_window_secs:   900,
-            requests_per_second:        100,
-            burst_size:                 500,
-            trust_proxy_headers:        false,
-            trusted_proxy_cidrs:        Vec::new(),
-            max_buckets:                fraiseql_core::schema::DEFAULT_RATE_LIMIT_MAX_BUCKETS,
+            failed_login_max_requests: 10,
+            failed_login_window_secs: 900,
+            requests_per_second: 100,
+            burst_size: 500,
+            trust_proxy_headers: false,
+            trusted_proxy_cidrs: Vec::new(),
+            max_buckets: fraiseql_core::schema::DEFAULT_RATE_LIMIT_MAX_BUCKETS,
         }
     }
 }
@@ -153,6 +184,9 @@ impl RateLimitConfig {
             ("auth_callback_window_secs", self.auth_callback_window_secs),
             ("auth_refresh_window_secs", self.auth_refresh_window_secs),
             ("auth_logout_window_secs", self.auth_logout_window_secs),
+            ("auth_otp_send_window_secs", self.auth_otp_send_window_secs),
+            ("auth_otp_verify_window_secs", self.auth_otp_verify_window_secs),
+            ("auth_password_window_secs", self.auth_password_window_secs),
             ("failed_login_window_secs", self.failed_login_window_secs),
         ] {
             if *window == 0 {
@@ -164,6 +198,9 @@ impl RateLimitConfig {
             ("auth_callback_max_requests", self.auth_callback_max_requests),
             ("auth_refresh_max_requests", self.auth_refresh_max_requests),
             ("auth_logout_max_requests", self.auth_logout_max_requests),
+            ("auth_otp_send_max_requests", self.auth_otp_send_max_requests),
+            ("auth_otp_verify_max_requests", self.auth_otp_verify_max_requests),
+            ("auth_password_max_requests", self.auth_password_max_requests),
             ("failed_login_max_requests", self.failed_login_max_requests),
         ] {
             if *max_req == 0 {
@@ -197,6 +234,13 @@ impl RateLimitConfig {
             "auth_refresh_window_secs": self.auth_refresh_window_secs,
             "auth_logout_max_requests": self.auth_logout_max_requests,
             "auth_logout_window_secs": self.auth_logout_window_secs,
+            "auth_otp_send_max_requests": self.auth_otp_send_max_requests,
+            "auth_otp_send_window_secs": self.auth_otp_send_window_secs,
+            "auth_otp_verify_max_requests": self.auth_otp_verify_max_requests,
+            "auth_otp_verify_window_secs": self.auth_otp_verify_window_secs,
+            "auth_password_max_requests": self.auth_password_max_requests,
+            "auth_password_window_secs": self.auth_password_window_secs,
+            "auth_rules_enabled": self.auth_rules_enabled,
             "failed_login_max_attempts": self.failed_login_max_requests,
             "failed_login_lockout_secs": self.failed_login_window_secs,
         })
@@ -591,6 +635,13 @@ impl SecurityConfig {
                 auth_refresh_window_secs: self.rate_limiting.auth_refresh_window_secs,
                 auth_logout_max_requests: self.rate_limiting.auth_logout_max_requests,
                 auth_logout_window_secs: self.rate_limiting.auth_logout_window_secs,
+                auth_otp_send_max_requests: self.rate_limiting.auth_otp_send_max_requests,
+                auth_otp_send_window_secs: self.rate_limiting.auth_otp_send_window_secs,
+                auth_otp_verify_max_requests: self.rate_limiting.auth_otp_verify_max_requests,
+                auth_otp_verify_window_secs: self.rate_limiting.auth_otp_verify_window_secs,
+                auth_password_max_requests: self.rate_limiting.auth_password_max_requests,
+                auth_password_window_secs: self.rate_limiting.auth_password_window_secs,
+                auth_rules_enabled: self.rate_limiting.auth_rules_enabled,
                 failed_login_max_attempts: self.rate_limiting.failed_login_max_requests,
                 failed_login_lockout_secs: self.rate_limiting.failed_login_window_secs,
                 requests_per_second_per_user: None,
@@ -727,7 +778,7 @@ secret_env = "FRAISEQL_SA_GHOST_SECRET"
         assert!(rl.get("authStart").is_none(), "the nested camelCase shape must be gone");
         assert_eq!(
             rl.get("auth_start_max_requests").and_then(serde_json::Value::as_u64),
-            Some(100)
+            Some(u64::from(DEFAULT_AUTH.auth_start_max_requests))
         );
 
         // The trap in #893: a section emitted without these two keys deserializes them
@@ -736,6 +787,27 @@ secret_env = "FRAISEQL_SA_GHOST_SECRET"
         let burst = rl.get("burst_size").and_then(serde_json::Value::as_u64).unwrap();
         assert!(rps > 0, "a default project config must not compile to a zero-rps limiter");
         assert!(burst > 0, "a default project config must not compile to a zero-burst limiter");
+    }
+
+    /// This table and the runtime's kept two sets of auth budgets, and this one
+    /// was the looser — 100 starts and 50 callbacks a minute against the runtime's 5 and
+    /// 10 — so writing `[fraiseql.security]` weakened sign-in throttling. Every auth field
+    /// an untouched project emits must be the runtime default. The fields this table owns
+    /// on purpose (the global switch and budget, the proxy list) are taken from the output;
+    /// a new auth field is compared without being listed here.
+    #[test]
+    fn an_untouched_project_emits_the_runtime_auth_budgets() {
+        let json = SecurityConfig::default().to_json();
+        let emitted: fraiseql_core::schema::RateLimitingSecurityConfig =
+            serde_json::from_value(json["rate_limiting"].clone()).expect("the consumer's shape");
+        let expected = fraiseql_core::schema::RateLimitingSecurityConfig {
+            enabled: emitted.enabled,
+            requests_per_second: emitted.requests_per_second,
+            burst_size: emitted.burst_size,
+            trusted_proxy_cidrs: emitted.trusted_proxy_cidrs.clone(),
+            ..DEFAULT_AUTH
+        };
+        assert_eq!(emitted, expected);
     }
 
     #[test]

@@ -239,10 +239,10 @@ impl RedisRateLimiter {
     /// Check a key against the token bucket, failing open on Redis error.
     ///
     /// Returns `(allowed, remaining_tokens, retry_after_ms)`.
+    ///
+    /// Not gated on `config.enabled`: that switch is the global limit's, and the per-IP and
+    /// per-user checks consult it. Gating here too switched the auth rules off with it.
     async fn check_key(&self, key: &str, capacity: u32, rate_per_sec: f64) -> (bool, f64, u64) {
-        if !self.config.enabled {
-            return (true, f64::from(self.config.burst_size), 0);
-        }
         match self.check_and_decrement(key, capacity, rate_per_sec).await {
             Ok(r) => (r.allowed, r.remaining_tokens, r.retry_after_ms),
             Err(e) => {
@@ -255,6 +255,9 @@ impl RedisRateLimiter {
 
     /// Check IP limit using the Redis token bucket.
     pub(super) async fn check_ip_limit(&self, ip: &str) -> CheckResult {
+        if !self.config.enabled {
+            return CheckResult::allow(f64::from(self.config.burst_size));
+        }
         let key = format!("fraiseql:rl:ip:{ip}");
         let (allowed, remaining, retry_after_ms) = self
             .check_key(&key, self.config.burst_size, f64::from(self.config.rps_per_ip))
@@ -269,6 +272,9 @@ impl RedisRateLimiter {
 
     /// Check user limit using the Redis token bucket.
     pub(super) async fn check_user_limit(&self, user_id: &str) -> CheckResult {
+        if !self.config.enabled {
+            return CheckResult::allow(f64::from(self.config.burst_size));
+        }
         let key = format!("fraiseql:rl:user:{user_id}");
         let (allowed, remaining, retry_after_ms) = self
             .check_key(&key, self.config.burst_size, f64::from(self.config.rps_per_user))
@@ -285,9 +291,9 @@ impl RedisRateLimiter {
     ///
     /// Returns an allowed [`CheckResult`] when no rule governs the path.
     pub(super) async fn check_path_limit(&self, path: &str, ip: &str) -> CheckResult {
-        if !self.config.enabled {
-            return CheckResult::allow(f64::from(self.config.burst_size));
-        }
+        // Not gated on `config.enabled`: that switch is the global per-IP and
+        // per-user limit. The path rules are the auth endpoints' own, and an empty rule
+        // table is how they are switched off.
         let rule = self.path_rules.iter().find(|r| path_matches_rule(path, &r.path_prefix));
         let Some(rule) = rule else {
             return CheckResult::allow(f64::from(self.config.burst_size));

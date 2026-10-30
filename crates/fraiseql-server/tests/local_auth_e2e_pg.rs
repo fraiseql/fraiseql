@@ -200,10 +200,25 @@ async fn boot_with(
     pool: PgPool,
     scratch_url: &str,
 ) -> RunningServer {
+    Box::pin(boot_config_schema(config, local_schema(local), pool, scratch_url)).await
+}
+
+/// [`boot`] with `schema` in place of [`local_schema`].
+#[cfg(feature = "inbound-email")]
+async fn boot_schema(schema: CompiledSchema, pool: PgPool, scratch_url: &str) -> RunningServer {
+    Box::pin(boot_config_schema(local_config(scratch_url), schema, pool, scratch_url)).await
+}
+
+async fn boot_config_schema(
+    config: ServerConfig,
+    schema: CompiledSchema,
+    pool: PgPool,
+    scratch_url: &str,
+) -> RunningServer {
     let adapter = Arc::new(PostgresAdapter::new(scratch_url).await.expect("PostgresAdapter::new"));
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.expect("bind ephemeral port");
     let port = listener.local_addr().expect("local addr").port();
-    let server = Box::pin(Server::new(config, local_schema(local), adapter, Some(pool)))
+    let server = Box::pin(Server::new(config, schema, adapter, Some(pool)))
         .await
         .expect("Server::new with [auth.local] + [auth_hs256] + pool must succeed");
     let (tx, rx) = tokio::sync::oneshot::channel::<()>();
@@ -715,6 +730,189 @@ async fn only_enabled_methods_are_mounted() {
             "{path} must not be mounted when its method is disabled"
         );
     }
+
+    server.stop().await;
+    drop_scratch(&url, db).await;
+}
+
+// ── the auth routes are limited per client address, with no section ───
+
+/// POST `body` to `base` + `path` from the loopback address `from`, returning the status.
+#[cfg(feature = "inbound-email")]
+async fn post_from(
+    from: std::net::IpAddr,
+    base: &str,
+    path: &str,
+    body: serde_json::Value,
+) -> reqwest::StatusCode {
+    reqwest::Client::builder()
+        .local_address(from)
+        .build()
+        .expect("client bound to a loopback address")
+        .post(format!("{base}{path}"))
+        .json(&body)
+        .send()
+        .await
+        .expect("request")
+        .status()
+}
+
+/// The schema carries no `[security.rate_limiting]` section, as a project that never
+/// wrote one compiles. Each route's budget is spent from one address, a different email
+/// every request, so the per-address limits inside the stores never fire: only a
+/// per-client rule can answer 429. A second loopback address keeps its own budget.
+///
+/// Requires the SMTP transport (`inbound-email`), as the password test above does.
+#[cfg(feature = "inbound-email")]
+#[tokio::test]
+async fn otp_and_password_routes_are_limited_per_client_with_no_section() {
+    let Some(url) = database_url_or_skip("auth_routes_limited_per_client") else {
+        return;
+    };
+    set_test_env();
+    let db = "fraiseql_p26_local_per_ip";
+    let pool = scratch_pool(&url, db).await;
+    let scratch_url = with_database(&url, db);
+
+    let server = boot(
+        LocalAuthConfig {
+            otp: true,
+            password: true,
+            email_from: Some("support".to_string()),
+            reset_url_template: Some("https://app.example.com/reset?token={token}".to_string()),
+            ..LocalAuthConfig::default()
+        },
+        pool.clone(),
+        &scratch_url,
+    )
+    .await;
+    let base = &server.base;
+    let one: std::net::IpAddr = [127, 0, 0, 1].into();
+    let other: std::net::IpAddr = [127, 0, 0, 2].into();
+
+    let defaults = fraiseql_core::schema::RateLimitingSecurityConfig::default();
+    let routes = [
+        (
+            "/auth/v1/otp",
+            defaults.auth_otp_send_max_requests,
+            defaults.auth_otp_send_window_secs,
+        ),
+        (
+            "/auth/v1/verify",
+            defaults.auth_otp_verify_max_requests,
+            defaults.auth_otp_verify_window_secs,
+        ),
+        (
+            "/auth/v1/password/login",
+            defaults.auth_password_max_requests,
+            defaults.auth_password_window_secs,
+        ),
+    ];
+    for (path, budget, window_secs) in routes {
+        let body = |n: u32| {
+            serde_json::json!({
+                "email": format!("client-{n}@example.com"),
+                "code": "000000",
+                "password": "not-the-password",
+            })
+        };
+        let started = std::time::Instant::now();
+        for n in 0..budget {
+            let status = post_from(one, base, path, body(n)).await;
+            assert_ne!(
+                status,
+                reqwest::StatusCode::TOO_MANY_REQUESTS,
+                "{path}: request {n} of a budget of {budget} was refused"
+            );
+        }
+        // The bucket refills at budget / window while the budget is being spent, so it
+        // may admit that many more; the request after those must be refused.
+        #[allow(
+            clippy::cast_possible_truncation,
+            clippy::cast_sign_loss,
+            clippy::cast_precision_loss
+        )]
+        // Reason: a few seconds times a small rate is a small non-negative count, and the
+        // window is a small config value
+        let refilled = (started.elapsed().as_secs_f64() * f64::from(budget) / window_secs as f64)
+            .ceil() as u32;
+        let refused = {
+            let mut refused = false;
+            for n in budget..=budget + refilled {
+                if post_from(one, base, path, body(n)).await
+                    == reqwest::StatusCode::TOO_MANY_REQUESTS
+                {
+                    refused = true;
+                    break;
+                }
+            }
+            refused
+        };
+        assert!(
+            refused,
+            "{path}: past a budget of {budget} (+{refilled} refilled) from one address, a \
+             request must be refused"
+        );
+        assert_ne!(
+            post_from(other, base, path, body(budget)).await,
+            reqwest::StatusCode::TOO_MANY_REQUESTS,
+            "{path}: another address must keep its own budget"
+        );
+    }
+
+    server.stop().await;
+    drop_scratch(&url, db).await;
+}
+
+/// The password endpoints had a second limiter inside the handlers: fixed at 100 a minute,
+/// one bucket for all four routes, deaf to `[security.rate_limiting]`. The configured rule
+/// is now the only one, so a budget above 100 is honoured to the request.
+#[cfg(feature = "inbound-email")]
+#[tokio::test]
+async fn the_configured_password_budget_is_the_only_one() {
+    const BUDGET: u32 = 120;
+
+    let Some(url) = database_url_or_skip("configured_password_budget") else {
+        return;
+    };
+    set_test_env();
+    let db = "fraiseql_p26_local_pw_budget";
+    let pool = scratch_pool(&url, db).await;
+    let scratch_url = with_database(&url, db);
+
+    let mut schema = local_schema(LocalAuthConfig {
+        password: true,
+        email_from: Some("support".to_string()),
+        reset_url_template: Some("https://app.example.com/reset?token={token}".to_string()),
+        ..LocalAuthConfig::default()
+    });
+    schema.security = Some(fraiseql_core::schema::SecurityConfig {
+        rate_limiting: Some(fraiseql_core::schema::RateLimitingSecurityConfig {
+            auth_password_max_requests: BUDGET,
+            // A rule is a token bucket refilling at budget / window. An hour makes the
+            // refill over this test's ~10 s of Argon2 logins a third of a token.
+            auth_password_window_secs: 3_600,
+            ..fraiseql_core::schema::RateLimitingSecurityConfig::default()
+        }),
+        ..fraiseql_core::schema::SecurityConfig::default()
+    });
+    let server = boot_schema(schema, pool.clone(), &scratch_url).await;
+    let base = &server.base;
+    let one: std::net::IpAddr = [127, 0, 0, 1].into();
+
+    let login = |n: u32| serde_json::json!({ "email": format!("user-{n}@example.com"), "password": "wrong" });
+    for n in 0..BUDGET {
+        assert_ne!(
+            post_from(one, base, "/auth/v1/password/login", login(n)).await,
+            reqwest::StatusCode::TOO_MANY_REQUESTS,
+            "login {n} of a configured budget of {BUDGET} was refused"
+        );
+    }
+    assert_eq!(
+        post_from(one, base, "/auth/v1/password/login", login(BUDGET)).await,
+        reqwest::StatusCode::TOO_MANY_REQUESTS,
+        "the login past the configured budget must be refused"
+    );
 
     server.stop().await;
     drop_scratch(&url, db).await;

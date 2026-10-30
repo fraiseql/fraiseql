@@ -289,6 +289,84 @@ mod key_tests {
             );
         }
     }
+
+    // ── the OTP and password endpoints, each with its own bucket ─────
+
+    #[test]
+    fn security_path_rules_cover_the_otp_and_password_endpoints() {
+        use super::super::{config::RateLimitingSecurityConfig, key::PathRateLimit};
+
+        let sec = RateLimitingSecurityConfig {
+            auth_otp_send_max_requests: 7,
+            auth_otp_verify_max_requests: 8,
+            auth_password_max_requests: 9,
+            ..RateLimitingSecurityConfig::default()
+        };
+        let rules = PathRateLimit::rules_from_security(&sec);
+        let burst_of =
+            |prefix: &str| rules.iter().find(|r| r.path_prefix == prefix).map(|r| r.burst as u32);
+        assert_eq!(burst_of("/auth/v1/otp"), Some(7), "{rules:?}");
+        assert_eq!(burst_of("/auth/v1/verify"), Some(8), "{rules:?}");
+        for path in [
+            "/auth/v1/password/signup",
+            "/auth/v1/password/login",
+            "/auth/v1/password/reset",
+            "/auth/v1/password/reset/confirm",
+            "/auth/v1/email/verify/start",
+            "/auth/v1/email/verify/confirm",
+        ] {
+            assert_eq!(burst_of(path), Some(9), "{path}: {rules:?}");
+        }
+    }
+}
+
+/// The password endpoints used to share one in-handler bucket, so a signup flood
+/// spent the budget for login. And `/auth/v1/password/reset` prefix-matches
+/// `/auth/v1/password/reset/confirm`, so a rule table that lists reset first gives
+/// confirm the reset bucket. Spending one endpoint's budget must leave the others whole.
+#[tokio::test]
+async fn each_password_endpoint_spends_its_own_budget() {
+    let sec = RateLimitingSecurityConfig {
+        auth_password_max_requests: 2,
+        ..RateLimitingSecurityConfig::default()
+    };
+    let limiter = RateLimiter::new(RateLimitConfig::default()).with_path_rules_from_security(&sec);
+    let ip = "203.0.113.9";
+
+    for spent in ["/auth/v1/password/reset", "/auth/v1/password/signup"] {
+        for _ in 0..2 {
+            assert!(limiter.check_path_limit(spent, ip).await.allowed, "{spent}");
+        }
+        assert!(!limiter.check_path_limit(spent, ip).await.allowed, "{spent} past its budget");
+    }
+    for whole in ["/auth/v1/password/reset/confirm", "/auth/v1/password/login"] {
+        assert!(
+            limiter.check_path_limit(whole, ip).await.allowed,
+            "{whole} must not share another endpoint's bucket"
+        );
+    }
+}
+
+/// The global per-IP limit is a separate decision from the auth rules: an
+/// operator who turns the first off has not turned sign-in throttling off.
+#[tokio::test]
+async fn the_auth_rules_hold_with_the_global_limit_off() {
+    let sec = RateLimitingSecurityConfig {
+        auth_otp_send_max_requests: 1,
+        ..RateLimitingSecurityConfig::default()
+    };
+    let config = RateLimitConfig {
+        enabled: false,
+        ..RateLimitConfig::default()
+    };
+    let limiter = RateLimiter::new(config).with_path_rules_from_security(&sec);
+
+    assert!(limiter.check_path_limit("/auth/v1/otp", "198.51.100.4").await.allowed);
+    assert!(!limiter.check_path_limit("/auth/v1/otp", "198.51.100.4").await.allowed);
+    // …and the global limit stays off.
+    for _ in 0..1_000 {
+        assert!(limiter.check_ip_limit("198.51.100.4").await.allowed);
+    }
 }
 
 // ── middleware_fn_tests ──────────────────────────────────────────────────────
@@ -601,6 +679,9 @@ fn test_with_path_rules_generates_auth_start_rule() {
         auth_refresh_window_secs: 0,
         auth_logout_max_requests: 0,
         auth_logout_window_secs: 0,
+        auth_otp_send_max_requests: 0,
+        auth_otp_verify_max_requests: 0,
+        auth_password_max_requests: 0,
         ..Default::default()
     };
     let config = RateLimitConfig::from_security_config(&sec);
@@ -956,6 +1037,30 @@ async fn cleanup_evicts_a_stale_tenant_bucket() {
         0,
         "cleanup must evict a stale tenant bucket, not only IP and user buckets"
     );
+}
+
+/// On the Redis backend: the auth rules are not gated on the global switch.
+#[cfg(feature = "redis-rate-limiting")]
+#[tokio::test]
+#[ignore = "requires Redis — set REDIS_URL=redis://localhost:6379"]
+async fn test_redis_auth_rules_hold_with_the_global_limit_off() {
+    let url = std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://localhost:6379".to_string());
+    let config = RateLimitConfig {
+        enabled: false,
+        ..RateLimitConfig::default()
+    };
+    let sec = RateLimitingSecurityConfig {
+        auth_otp_send_max_requests: 1,
+        auth_otp_send_window_secs: 3_600,
+        ..RateLimitingSecurityConfig::default()
+    };
+    let rl = RateLimiter::new_redis(&url, config)
+        .await
+        .expect("Redis connection failed")
+        .with_path_rules_from_security(&sec);
+    let ip = format!("test_auth_rules:{}", uuid::Uuid::new_v4());
+    assert!(rl.check_path_limit("/auth/v1/otp", &ip).await.allowed);
+    assert!(!rl.check_path_limit("/auth/v1/otp", &ip).await.allowed, "past the auth budget");
 }
 
 #[cfg(feature = "redis-rate-limiting")]
@@ -1419,5 +1524,70 @@ mod verified_per_user_tests {
             StatusCode::TOO_MANY_REQUESTS,
             "no validator means no per-user bucket, for anyone"
         );
+    }
+}
+
+// ── the middleware with the global limit off ─────────────────────────
+
+mod global_off_middleware_tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code.
+    use std::{net::SocketAddr, sync::Arc};
+
+    use axum::{
+        Extension, Router,
+        body::Body,
+        extract::connect_info::MockConnectInfo,
+        http::{Request, StatusCode},
+        middleware,
+        routing::post,
+    };
+    use tower::ServiceExt as _;
+
+    use super::super::{
+        config::{RateLimitConfig, RateLimitingSecurityConfig},
+        dispatch::RateLimiter,
+        middleware_fn::rate_limit_middleware,
+    };
+
+    fn app() -> Router {
+        let limiter = RateLimiter::new(RateLimitConfig {
+            enabled: false,
+            ..RateLimitConfig::default()
+        })
+        .with_path_rules_from_security(&RateLimitingSecurityConfig {
+            auth_otp_send_max_requests: 1,
+            ..RateLimitingSecurityConfig::default()
+        });
+        Router::new()
+            .route("/auth/v1/otp", post(|| async { "sent" }))
+            .route("/graphql", post(|| async { "ok" }))
+            .layer(middleware::from_fn(rate_limit_middleware))
+            .layer(Extension(Arc::new(limiter)))
+            .layer(MockConnectInfo(SocketAddr::from(([203, 0, 113, 7], 4000))))
+    }
+
+    async fn post_to(app: &Router, path: &str) -> axum::response::Response {
+        app.clone()
+            .oneshot(Request::post(path).body(Body::empty()).unwrap())
+            .await
+            .unwrap()
+    }
+
+    /// With the global limit off the middleware still runs the auth rules, and reports
+    /// no per-IP budget it is not enforcing.
+    #[tokio::test]
+    async fn the_auth_rule_refuses_and_no_global_budget_is_reported() {
+        let app = app();
+
+        let first = post_to(&app, "/auth/v1/otp").await;
+        assert_eq!(first.status(), StatusCode::OK);
+        assert!(first.headers().get("X-RateLimit-Limit").is_none(), "{:?}", first.headers());
+        assert_eq!(post_to(&app, "/auth/v1/otp").await.status(), StatusCode::TOO_MANY_REQUESTS);
+
+        for _ in 0..500 {
+            let other = post_to(&app, "/graphql").await;
+            assert_eq!(other.status(), StatusCode::OK);
+            assert!(other.headers().get("X-RateLimit-Limit").is_none());
+        }
     }
 }

@@ -72,9 +72,23 @@ impl PathRateLimit {
     /// `/auth/v1/authorize` flood fills the same bounded CSRF state store the
     /// `/auth/start` budget protects (#788/H25), and `/auth/v1/callback`
     /// performs the same provider round-trips as `/auth/callback`.
+    ///
+    /// The `OTP`, local-password and email-verification endpoints each get a rule of
+    /// their own, so a
+    /// flood on one does not spend another's budget. Rules match by prefix and the first
+    /// match wins, so `/auth/v1/password/reset/confirm` is listed before
+    /// `/auth/v1/password/reset`, which would otherwise claim it.
+    ///
+    /// Empty when the operator wrote `auth_rules_enabled = false`.
     pub(super) fn rules_from_security(
         sec: &super::config::RateLimitingSecurityConfig,
     ) -> Vec<Self> {
+        if !sec.auth_rules_enabled {
+            return Vec::new();
+        }
+        let password = |prefix| {
+            Self::rule(prefix, sec.auth_password_max_requests, sec.auth_password_window_secs)
+        };
         [
             Self::rule("/auth/start", sec.auth_start_max_requests, sec.auth_start_window_secs),
             Self::rule(
@@ -98,6 +112,24 @@ impl PathRateLimit {
                 sec.auth_refresh_window_secs,
             ),
             Self::rule("/auth/logout", sec.auth_logout_max_requests, sec.auth_logout_window_secs),
+            Self::rule(
+                "/auth/v1/otp",
+                sec.auth_otp_send_max_requests,
+                sec.auth_otp_send_window_secs,
+            ),
+            Self::rule(
+                "/auth/v1/verify",
+                sec.auth_otp_verify_max_requests,
+                sec.auth_otp_verify_window_secs,
+            ),
+            password("/auth/v1/password/signup"),
+            password("/auth/v1/password/login"),
+            password("/auth/v1/password/reset/confirm"),
+            password("/auth/v1/password/reset"),
+            // Email verification mails a link and redeems a token for a local
+            // account; it had the password routes' in-handler limiter, so it has their budget.
+            password("/auth/v1/email/verify/start"),
+            password("/auth/v1/email/verify/confirm"),
         ]
         .into_iter()
         .flatten()

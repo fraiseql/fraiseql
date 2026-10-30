@@ -126,11 +126,19 @@ pub fn extract_real_ip(
         && !PROXY_WARNING_LOGGED.load(std::sync::atomic::Ordering::Relaxed)
         && !PROXY_WARNING_LOGGED.swap(true, std::sync::atomic::Ordering::Relaxed)
     {
+        // The one reliable signal that a proxy sits in front: a request actually arriving
+        // from a private address. The bind address is not one — `0.0.0.0` in a container
+        // looks the same behind a proxy and exposed directly — so nothing is guessed at
+        // boot. The auth endpoint rules run in every deployment, so this is
+        // no longer only a global-limit concern: every user's sign-in shares one bucket.
         warn!(
             peer_ip = ?peer,
             "Rate limiter: peer address is loopback/RFC-1918 — server appears to be \
-             behind a reverse proxy. All requests will share a single rate-limit bucket \
-             unless you set `trust_proxy_headers = true` in [security.rate_limiting]."
+             behind a reverse proxy. All requests will share a single rate-limit bucket, \
+             including the per-client auth endpoint rules, so once one fills, sign-in fails \
+             for every user behind the proxy. Set `trust_proxy_headers = true` and \
+             `trusted_proxy_cidrs` in [security.rate_limiting] to key on the forwarded \
+             client address."
         );
     }
     peer_key()
@@ -172,6 +180,21 @@ pub async fn rate_limit_middleware(
     );
     let path = req.uri().path().to_string();
 
+    // ── Per-path limit (strictest, always enforced) ───────────────────────
+    let path_result = limiter.check_path_limit(&path, &ip).await;
+    if !path_result.allowed {
+        warn!(ip = %ip, path = %path, "Per-path rate limit exceeded");
+        return Err(RateLimitExceeded {
+            retry_after_secs: path_result.retry_after_secs,
+        });
+    }
+
+    // The auth rules run without the global limit. With it off there is no
+    // per-IP or per-user budget to charge, and none to report in the headers.
+    if !limiter.config().enabled {
+        return Ok(next.run(req).await);
+    }
+
     // #1143: `X-Tenant-ID` is still not read here, and an *unverified* JWT `sub` never
     // will be. Both were folded into bucket keys without validation, and a fresh key is
     // a fresh *full* bucket — so varying either did not merely grow the map, it handed
@@ -188,15 +211,6 @@ pub async fn rate_limit_middleware(
         Some(identity) => identity.subject(req.headers()).await,
         None => None,
     };
-
-    // ── Per-path limit (strictest, always enforced) ───────────────────────
-    let path_result = limiter.check_path_limit(&path, &ip).await;
-    if !path_result.allowed {
-        warn!(ip = %ip, path = %path, "Per-path rate limit exceeded");
-        return Err(RateLimitExceeded {
-            retry_after_secs: path_result.retry_after_secs,
-        });
-    }
 
     // ── Per-user limit, or per-IP ─────────────────────────────────────────
     //

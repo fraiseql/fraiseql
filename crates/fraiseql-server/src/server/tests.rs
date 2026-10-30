@@ -1025,22 +1025,99 @@ mod rate_limit_boot_guard_tests {
         );
     }
 
-    #[tokio::test]
-    async fn an_absent_section_is_not_an_error() {
-        let limiter = resolve_rate_limiter(&bare_schema(), &ServerConfig::default(), PRODUCTION)
+    /// The limiter an unconfigured deployment gets: the auth rules and nothing else.
+    async fn assert_auth_rules_only(schema: &CompiledSchema, deployment: Deployment) {
+        let limiter = resolve_rate_limiter(schema, &ServerConfig::default(), deployment)
             .await
-            .expect("no rate-limit configuration anywhere is a valid deployment");
-        assert!(limiter.is_none());
+            .expect("no rate-limit configuration anywhere is a valid deployment")
+            .expect("the auth endpoints are limited with no section written");
+        let defaults = fraiseql_core::schema::RateLimitingSecurityConfig::default();
+        assert_eq!(
+            limiter.path_rule_count(),
+            fraiseql_server_rule_count(&defaults),
+            "every auth endpoint rule is attached"
+        );
+        assert!(!limiter.config().enabled, "the global per-IP limit stays off");
+    }
+
+    fn fraiseql_server_rule_count(
+        sec: &fraiseql_core::schema::RateLimitingSecurityConfig,
+    ) -> usize {
+        crate::middleware::RateLimiter::new(RateLimitConfig::default())
+            .with_path_rules_from_security(sec)
+            .path_rule_count()
     }
 
     #[tokio::test]
-    async fn an_explicit_json_null_section_is_not_an_error() {
+    async fn an_absent_section_still_limits_the_auth_endpoints() {
+        assert_auth_rules_only(&bare_schema(), PRODUCTION).await;
+        assert_auth_rules_only(&bare_schema(), DEVELOPMENT).await;
+    }
+
+    #[tokio::test]
+    async fn an_explicit_json_null_section_still_limits_the_auth_endpoints() {
         // The compiler serialises an absent `SecurityConfig.rate_limiting` as null.
-        let schema = schema_with_rate_limiting(serde_json::Value::Null);
+        assert_auth_rules_only(&schema_with_rate_limiting(serde_json::Value::Null), PRODUCTION)
+            .await;
+    }
+
+    // ── the auth rules are their own decision ─────────────────────────
+
+    #[tokio::test]
+    async fn a_section_with_the_global_limit_off_keeps_the_auth_rules() {
+        let schema = schema_with_rate_limiting(json!({ "enabled": false }));
+        assert_auth_rules_only(&schema, PRODUCTION).await;
+    }
+
+    #[tokio::test]
+    async fn auth_rules_enabled_false_turns_the_auth_rules_off() {
+        let schema =
+            schema_with_rate_limiting(json!({ "enabled": false, "auth_rules_enabled": false }));
         let limiter = resolve_rate_limiter(&schema, &ServerConfig::default(), PRODUCTION)
             .await
-            .expect("a null section means absent, not malformed");
-        assert!(limiter.is_none());
+            .expect("an operator may switch the auth rules off");
+        assert!(limiter.is_none(), "nothing left to limit");
+
+        let schema =
+            schema_with_rate_limiting(json!({ "enabled": true, "auth_rules_enabled": false }));
+        let limiter = resolve_rate_limiter(&schema, &ServerConfig::default(), PRODUCTION)
+            .await
+            .unwrap()
+            .expect("the global limit is still on");
+        assert_eq!(limiter.path_rule_count(), 0);
+    }
+
+    /// A zero budget used to drop its rule, so writing `0` meant "unlimited" — the
+    /// opposite of what it reads as. The off switch is `auth_rules_enabled = false`.
+    #[tokio::test]
+    async fn a_zero_auth_budget_refuses_to_boot() {
+        for key in [
+            "auth_start_max_requests",
+            "auth_start_window_secs",
+            "auth_callback_max_requests",
+            "auth_callback_window_secs",
+            "auth_refresh_max_requests",
+            "auth_refresh_window_secs",
+            "auth_logout_max_requests",
+            "auth_logout_window_secs",
+            "auth_otp_send_max_requests",
+            "auth_otp_send_window_secs",
+            "auth_otp_verify_max_requests",
+            "auth_otp_verify_window_secs",
+            "auth_password_max_requests",
+            "auth_password_window_secs",
+        ] {
+            for deployment in [PRODUCTION, DEVELOPMENT] {
+                let schema = schema_with_rate_limiting(json!({ key: 0 }));
+                let result =
+                    resolve_rate_limiter(&schema, &ServerConfig::default(), deployment).await;
+                assert!(result.is_err(), "{key} = 0 must refuse to boot");
+                let err = result.err().unwrap();
+                let msg = err.to_string();
+                assert!(msg.contains(key), "the error must name {key}: {msg}");
+                assert!(msg.contains("auth_rules_enabled"), "and name the off switch: {msg}");
+            }
+        }
     }
 
     // ── #837: the guard runs whichever source configures the limiter ─────────
@@ -1162,11 +1239,14 @@ mod rate_limit_boot_guard_tests {
             ..ServerConfig::default()
         };
 
-        let limiter = resolve_rate_limiter(&schema, &config, PRODUCTION).await.unwrap();
+        let limiter = resolve_rate_limiter(&schema, &config, PRODUCTION)
+            .await
+            .unwrap()
+            .expect("the auth endpoint rules outlive the global switch");
         assert!(
-            limiter.is_none(),
-            "FRAISEQL_RATE_LIMITING_ENABLED=false is the documented off-switch; the compiled \
-             schema must not shadow it (#774)"
+            !limiter.config().enabled,
+            "FRAISEQL_RATE_LIMITING_ENABLED=false is the documented off-switch for the global \
+             limit; the compiled schema must not shadow it (#774)"
         );
     }
 

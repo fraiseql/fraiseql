@@ -12,7 +12,12 @@
 //! - Codes are 6 random decimal digits (10⁶ space, ~20 bits).
 //! - Each code is **single-use**: consumed on first successful verify.
 //! - `TTL` is 10 minutes.
-//! - Verification attempts are rate-limited to **3 per 15 minutes** per email.
+//! - Verification attempts are limited to **3 per 15 minutes** per email. The budget belongs to the
+//!   address, not the code: a resend issues a new code but no new guesses, and the budget returns
+//!   only when the 15-minute send window does.
+//! - Anyone who knows an address can spend its guesses and its sends, and so keep its owner from
+//!   signing in by `OTP` for up to 15 minutes. The send cap always allowed that; the per-IP rules
+//!   on `/auth/v1/otp` and `/auth/v1/verify` bound how many addresses one client can do it to.
 //! - Codes are compared with constant-time equality to prevent timing attacks.
 
 use std::sync::Arc;
@@ -90,6 +95,8 @@ struct RateRecord {
     count:        u32,
     /// Unix timestamp when the window started.
     window_start: u64,
+    /// Verification attempts against any of this address's codes in the window.
+    guesses:      u32,
 }
 
 // ─── OtpStore trait ───────────────────────────────────────────────────────────
@@ -158,6 +165,25 @@ impl InMemoryOtpStore {
         }
     }
 
+    /// Charge one guess to `email`'s window and return the window's count.
+    ///
+    /// The code's own count restarts with every send; this one restarts only with the
+    /// send window, so a resend issues a new code without issuing new guesses.
+    fn charge_guess(&self, email: &str, now: u64) -> u32 {
+        let mut entry = self.rate_limits.entry(email.to_string()).or_insert(RateRecord {
+            count:        0,
+            window_start: now,
+            guesses:      0,
+        });
+        if now >= entry.window_start + OTP_RATE_WINDOW_SECS {
+            entry.count = 0;
+            entry.window_start = now;
+            entry.guesses = 0;
+        }
+        entry.guesses += 1;
+        entry.guesses
+    }
+
     /// Return the number of pending `OTP` codes (useful for tests).
     #[must_use]
     pub fn pending_count(&self) -> usize {
@@ -192,11 +218,13 @@ impl OtpStore for InMemoryOtpStore {
             let mut entry = self.rate_limits.entry(email.to_string()).or_insert(RateRecord {
                 count:        0,
                 window_start: now,
+                guesses:      0,
             });
-            // Reset window if it has expired.
+            // Reset window if it has expired. Only a new window returns the guesses.
             if now >= entry.window_start + OTP_RATE_WINDOW_SECS {
                 entry.count = 0;
                 entry.window_start = now;
+                entry.guesses = 0;
             }
             if entry.count >= OTP_RATE_MAX {
                 return Err(AuthError::RateLimited {
@@ -238,7 +266,8 @@ impl OtpStore for InMemoryOtpStore {
         }
 
         entry.attempts += 1;
-        if entry.attempts > MAX_VERIFY_ATTEMPTS {
+        let guesses = self.charge_guess(email, unix_now()?);
+        if entry.attempts > MAX_VERIFY_ATTEMPTS || guesses > MAX_VERIFY_ATTEMPTS {
             drop(entry);
             self.codes.remove(email);
             return Err(AuthError::RateLimited {

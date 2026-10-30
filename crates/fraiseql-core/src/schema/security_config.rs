@@ -407,6 +407,29 @@ pub struct RateLimitingSecurityConfig {
     pub auth_logout_max_requests: u32,
     /// Logout window in seconds.
     pub auth_logout_window_secs: u64,
+    /// `OTP` send endpoint (`/auth/v1/otp`) — max requests per window, per client.
+    ///
+    /// Each request mails a code through the operator's account, so this bounds how many
+    /// addresses one client can mail; the store's per-address cap cannot.
+    pub auth_otp_send_max_requests: u32,
+    /// `OTP` send window in seconds.
+    pub auth_otp_send_window_secs: u64,
+    /// `OTP` verify endpoint (`/auth/v1/verify`) — max requests per window, per client.
+    /// Bounds guessing spread across many addresses.
+    pub auth_otp_verify_max_requests: u32,
+    /// `OTP` verify window in seconds.
+    pub auth_otp_verify_window_secs: u64,
+    /// Each local-password endpoint (`/auth/v1/password/{signup,login,reset,reset/confirm}`)
+    /// — max requests per window, per client and per endpoint.
+    pub auth_password_max_requests: u32,
+    /// Local-password window in seconds.
+    pub auth_password_window_secs: u64,
+    /// Apply the per-client rules on the auth endpoints.
+    ///
+    /// On unless an operator writes `false`. The rules run whether or not the global
+    /// limit (`enabled`) is on, and with no `[security.rate_limiting]` section at all: an
+    /// absent section is not a decision to leave sign-in unthrottled.
+    pub auth_rules_enabled: bool,
     /// Maximum failed first-factor login attempts before lockout.
     ///
     /// The off-the-shelf binary performs no first-factor login of its own, so it
@@ -453,28 +476,49 @@ pub struct RateLimitingSecurityConfig {
     pub max_buckets: usize,
 }
 
+impl RateLimitingSecurityConfig {
+    /// The defaults, as a constant so the CLI's own table can mirror them.
+    ///
+    /// The auth endpoint budgets are **per client address**, and they apply
+    /// with no section written. One address can carry many people: an office or campus
+    /// NAT, a mobile carrier's CGNAT, or every client at once behind a reverse proxy the
+    /// operator has not declared in `trusted_proxy_cidrs`. So they are sized for a shared
+    /// egress, not for one browser — about one sign-in start, callback, logout or password
+    /// request every two seconds, one refresh a second, and two `OTP` mails a minute —
+    /// and they still cap a single client far below what brute force or mail abuse needs.
+    /// The per-address limits inside the stores are what protect one account.
+    pub const DEFAULT: Self = Self {
+        enabled: false,
+        requests_per_second: 100,
+        requests_per_second_per_user: None,
+        burst_size: 200,
+        auth_start_max_requests: 30,
+        auth_start_window_secs: 60,
+        auth_callback_max_requests: 30,
+        auth_callback_window_secs: 60,
+        auth_refresh_max_requests: 300,
+        auth_refresh_window_secs: 300,
+        auth_logout_max_requests: 30,
+        auth_logout_window_secs: 60,
+        auth_otp_send_max_requests: 30,
+        auth_otp_send_window_secs: 900,
+        auth_otp_verify_max_requests: 60,
+        auth_otp_verify_window_secs: 900,
+        auth_password_max_requests: 30,
+        auth_password_window_secs: 60,
+        auth_rules_enabled: true,
+        failed_login_max_attempts: 10,
+        failed_login_lockout_secs: 900,
+        redis_url: None,
+        trust_proxy_headers: false,
+        trusted_proxy_cidrs: None,
+        max_buckets: DEFAULT_RATE_LIMIT_MAX_BUCKETS,
+    };
+}
+
 impl Default for RateLimitingSecurityConfig {
     fn default() -> Self {
-        Self {
-            enabled: false,
-            requests_per_second: 100,
-            requests_per_second_per_user: None,
-            burst_size: 200,
-            auth_start_max_requests: 5,
-            auth_start_window_secs: 60,
-            auth_callback_max_requests: 10,
-            auth_callback_window_secs: 60,
-            auth_refresh_max_requests: 20,
-            auth_refresh_window_secs: 300,
-            auth_logout_max_requests: 30,
-            auth_logout_window_secs: 60,
-            failed_login_max_attempts: 10,
-            failed_login_lockout_secs: 900,
-            redis_url: None,
-            trust_proxy_headers: false,
-            trusted_proxy_cidrs: None,
-            max_buckets: DEFAULT_RATE_LIMIT_MAX_BUCKETS,
-        }
+        Self::DEFAULT
     }
 }
 

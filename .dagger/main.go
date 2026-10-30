@@ -1597,6 +1597,9 @@ func (m *FraiseqlCi) integrationPostgres(ctx context.Context, source *dagger.Dir
 		// #950 expiry sweeps for the MFA/OTP tables. Two-sided: the expired row goes and
 		// the live one stays, so a sweep that deleted everything would fail here.
 		"cargo test -p fraiseql-auth --test postgres_expiry_sweep -- --test-threads=1",
+		// #1857 OTP guesses are the address's, not the code's: a resend issues a new code
+		// but no new guesses, and the budget returns only with the send window.
+		"cargo test -p fraiseql-auth --test postgres_otp_guess_budget -- --test-threads=1",
 		// #1029 `integration` is a `mod` aggregator: the suite-coverage gate counted
 		// only its entry file, scored it zero tests and dropped it from every check,
 		// so its 36 tests — several of which self-skip without DATABASE_URL — ran

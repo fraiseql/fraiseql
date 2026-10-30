@@ -316,8 +316,6 @@ output_file = "schema.compiled.json"
 
 [fraiseql.security.rate_limiting]
 enabled = true
-auth_start_max_requests = 100
-auth_start_window_secs = 60
 
 [fraiseql.security.audit_logging]
 enabled = true

@@ -27,6 +27,37 @@ disagreed, and the promise was the part that was wrong.
   `ProjectionField::object_list` builds one. `KeptProjection::built` says the projection
   built every level from the selection, lists of objects included.
 
+- **The auth endpoints are limited per client address in every deployment (#1857).** The
+  per-path rules on `/auth/start`, `/auth/v1/authorize`, the two callbacks, `/auth/refresh`
+  and `/auth/logout` used to run only when `[security.rate_limiting] enabled = true`, so a
+  project that never wrote the section had none. They now run with the section absent and
+  with `enabled = false`, which governs only the global per-IP and per-user limit; so does
+  `FRAISEQL_RATE_LIMITING_ENABLED=false`. To switch them off, write
+  `auth_rules_enabled = false`.
+  - **New rules**: `/auth/v1/otp` (`auth_otp_send_*`, 30 per 15 minutes), `/auth/v1/verify`
+    (`auth_otp_verify_*`, 60 per 15 minutes), and each `/auth/v1/password/*` and
+    `/auth/v1/email/verify/*` route, each with its own bucket (`auth_password_*`, 30 per
+    minute).
+  - **Defaults are sized for a shared address** (an office NAT, a proxy): 30 a minute for
+    start, callback and logout, which were 5, 10 and 30 in the server's defaults and 100,
+    50 and 20 in `[fraiseql.security]`'s; refresh is 300 per 5 minutes, which was 20 per 5
+    minutes and 10 a minute. The two tables now agree.
+  - **A zero budget refuses to boot.** It used to drop its rule, so `0` meant unlimited.
+  - **`FRAISEQL_REQUIRE_REDIS` now covers the auth rules.** A deployment that sets it
+    with no `[security.rate_limiting] redis_url` refuses to boot, because the rules'
+    budgets would be per replica.
+  - **To upgrade:** with `FRAISEQL_REQUIRE_REDIS` set, add `redis_url` to
+    `[security.rate_limiting]` (it serves the auth rules with `enabled = false` too). If
+    you relied on `enabled = false` or `FRAISEQL_RATE_LIMITING_ENABLED=false` to leave the
+    auth endpoints unlimited, write `auth_rules_enabled = false`. Behind a reverse proxy,
+    list it in `trusted_proxy_cidrs` with `trust_proxy_headers = true`; otherwise every
+    client shares the proxy's address, and one bucket per rule.
+- **`LocalPasswordRouteState::rate_limiters` and `EmailVerificationRouteState::rate_limiters`
+  are `Option<Arc<RateLimiters>>` (#1857).** The server passes `None`: its configured
+  per-route rules replace the fixed in-handler limiter (100 a minute, one bucket for every
+  route), which ignored `[security.rate_limiting]`. A caller mounting these routes itself
+  passes `Some` to keep it.
+
 - **A document's kept projection is keyed by the caller's masks (#1785).** `ProjectionKey`
   is built with `ProjectionKey::new(request_chain, masked)`, which keeps the masked
   `(type, field)` pairs as a set, and is no longer built as a struct literal.
@@ -616,6 +647,14 @@ disagreed, and the promise was the part that was wrong.
   commands, and test targets that are gone. The one true point they held that `docs/` did
   not (the compile reports every unknown type at once, with suggestions) is now in
   `docs/authoring-ir-format.md`.
+
+- **An `OTP` resend no longer buys more guesses (#1857).** The verify cap was per code and
+  every send reset it, so three sends a window allowed nine guesses at a six-digit code
+  where the module promised three. The three guesses now belong to the address and return
+  only with the 15-minute send window. Anyone who knows an address can still spend its
+  guesses, as they could already spend its sends; the per-client rules bound how many
+  addresses one client can do that to. `PgOtpStore::init` adds the
+  `tb_otp_send_budget.guesses` column to an existing table.
 
 - **A root `__typename` is answered where it was selected, under its alias (#1785).** It
   was always the first key of each root object, whatever its position in the selection,

@@ -29,7 +29,9 @@ jq '.security.rate_limiting' /etc/fraiseql/schema.compiled.json
 # Key fields: enabled, requests_per_second (per-IP), burst_size,
 # trust_proxy_headers, trusted_proxy_cidrs, max_buckets, and the per-auth-endpoint
 # pairs auth_start_max_requests / auth_start_window_secs (likewise auth_callback_*,
-# auth_refresh_*, auth_logout_*, failed_login_*).
+# auth_refresh_*, auth_logout_*, auth_otp_send_*, auth_otp_verify_*, auth_password_*,
+# failed_login_*), and auth_rules_enabled. The auth endpoint rules are per client
+# address and run even with enabled = false or no section at all.
 #
 # max_buckets is a MEMORY ceiling on each tracking map, not a throttle: reaching it
 # evicts the least-recently-used bucket, so a client resumes with a full one. If it
@@ -177,6 +179,12 @@ docker logs fraiseql-server | grep "429\|rate limit" | \
    export FRAISEQL_RATE_LIMITING_ENABLED=false
    docker restart fraiseql-server
    ```
+
+   This switches off the global per-IP and per-user limit only. The auth endpoint rules
+   keep running: they are switched off by compiling `auth_rules_enabled = false`, never by
+   omission. If sign-in is what is being refused, check first that every client is not
+   sharing one address — a reverse proxy missing from `trusted_proxy_cidrs` makes one
+   bucket of everyone (the server logs a warning on the first such request).
 
 ### Short-term (5-30 minutes)
 

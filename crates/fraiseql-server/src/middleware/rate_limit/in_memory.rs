@@ -124,9 +124,9 @@ impl InMemoryRateLimiter {
     /// is empty.  `CheckResult::retry_after_secs` is set to the path-window
     /// interval (`ceil(1 / tokens_per_sec)`).
     pub(super) async fn check_path_limit(&self, path: &str, ip: &str) -> CheckResult {
-        if !self.config.enabled {
-            return CheckResult::allow(f64::from(self.config.burst_size));
-        }
+        // Not gated on `config.enabled`: that switch is the global per-IP and
+        // per-user limit. The path rules are the auth endpoints' own, and an empty rule
+        // table is how they are switched off.
 
         let rule = self.path_rules.iter().find(|r| path_matches_rule(path, &r.path_prefix));
         let Some(rule) = rule else {

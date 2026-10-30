@@ -804,7 +804,9 @@ pub fn build_grpc_service(
     if oidc_validator.is_some() {
         info!("gRPC transport: OIDC authentication enabled");
     }
-    if rate_limiter.is_some() {
+    // A limiter exists in every deployment for the HTTP auth endpoint rules;
+    // gRPC has no auth paths, so what applies to it is the global limit.
+    if rate_limiter.as_ref().is_some_and(|rl| rl.config().enabled) {
         info!("gRPC transport: rate limiting enabled");
     }
 

@@ -751,33 +751,62 @@ pub(super) async fn resolve_rate_limiter(
     let schema_sec = rate_limiting_from_schema(schema);
     let overrides = &config.rate_limit_overrides;
 
+    // The auth endpoint rules come from the section when there is one and from
+    // the defaults when there is not: an absent section is not a decision to leave
+    // sign-in unthrottled. Only `auth_rules_enabled = false`, written, turns them off.
+    let auth_rules = schema_sec.clone().unwrap_or_default();
+    auth_rule_budgets_check(&auth_rules)?;
+
     // Base: compiled schema first, then the server's own table. Both are checked, so
     // whichever supplies the values also faces the guards.
-    let (mut effective, path_rules_source) = match (&schema_sec, &config.rate_limiting) {
-        (Some(sec), _) => (rate_limit_config_checked(sec, deployment)?, Some(sec)),
+    let mut effective = match (&schema_sec, &config.rate_limiting) {
+        (Some(sec), _) => rate_limit_config_checked(sec, deployment)?,
         (None, Some(server_cfg)) => {
             proxy_trust_check_parsed(
                 server_cfg.trust_proxy_headers,
                 &server_cfg.trusted_proxy_cidrs,
                 deployment,
             )?;
-            (server_cfg.clone(), None)
+            server_cfg.clone()
         },
         // Nothing configured anywhere. An override may still switch it on, in which
-        // case the defaults apply.
-        (None, None) if overrides.enables() => {
-            (crate::middleware::RateLimitConfig::default(), None)
+        // case the defaults apply; otherwise the global limit is off and only the auth
+        // rules run.
+        (None, None) if overrides.enables() => crate::middleware::RateLimitConfig::default(),
+        (None, None) => crate::middleware::RateLimitConfig {
+            enabled: false,
+            ..crate::middleware::RateLimitConfig::default()
         },
-        (None, None) => return Ok(None),
     };
 
     overrides.apply_to(&mut effective);
 
     if !effective.enabled {
-        info!("Rate limiting disabled by configuration");
-        return Ok(None);
+        if !auth_rules.auth_rules_enabled {
+            info!("Rate limiting disabled by configuration, auth endpoint rules included");
+            return Ok(None);
+        }
+        info!("Global rate limit off; the auth endpoint rules still apply");
+    } else {
+        zero_global_budget_check(&effective)?;
     }
 
+    // Re-check: an override can turn proxy-header trust on over a base that was
+    // clean, and a guard that only ran on the base would miss it. It guards the auth
+    // rules too: they key on the same client address.
+    proxy_trust_check_parsed(
+        effective.trust_proxy_headers,
+        &effective.trusted_proxy_cidrs,
+        deployment,
+    )?;
+
+    let limiter =
+        build_rate_limiter(effective, &auth_rules, schema_sec.as_ref(), deployment).await?;
+    Ok(Some(Arc::new(limiter)))
+}
+
+/// Refuse a global limit whose budget is zero.
+fn zero_global_budget_check(effective: &crate::middleware::RateLimitConfig) -> crate::Result<()> {
     // A limiter enabled with a budget of zero denies every request. Nobody configures
     // that on purpose — it is what a producer omitting `requests_per_second` used to
     // yield, since the consumer struct's derived `Default` made the missing key `0`
@@ -791,17 +820,44 @@ pub(super) async fn resolve_rate_limiter(
             effective.rps_per_ip, effective.burst_size
         )));
     }
+    Ok(())
+}
 
-    // Re-check: an override can turn proxy-header trust on over a base that was
-    // clean, and a guard that only ran on the base would miss it.
-    proxy_trust_check_parsed(
-        effective.trust_proxy_headers,
-        &effective.trusted_proxy_cidrs,
-        deployment,
-    )?;
-
-    let limiter = build_rate_limiter(effective, path_rules_source, deployment).await?;
-    Ok(Some(Arc::new(limiter)))
+/// Refuse an auth endpoint budget of zero.
+///
+/// A zero used to drop its rule, so writing `0` meant "unlimited": the opposite of
+/// how it reads, and the permissive value reached by omission rather than by choice.
+/// The one way to switch the rules off is `auth_rules_enabled = false`.
+fn auth_rule_budgets_check(
+    sec: &crate::middleware::RateLimitingSecurityConfig,
+) -> crate::Result<()> {
+    if !sec.auth_rules_enabled {
+        return Ok(());
+    }
+    let budgets: [(&str, u64); 14] = [
+        ("auth_start_max_requests", u64::from(sec.auth_start_max_requests)),
+        ("auth_start_window_secs", sec.auth_start_window_secs),
+        ("auth_callback_max_requests", u64::from(sec.auth_callback_max_requests)),
+        ("auth_callback_window_secs", sec.auth_callback_window_secs),
+        ("auth_refresh_max_requests", u64::from(sec.auth_refresh_max_requests)),
+        ("auth_refresh_window_secs", sec.auth_refresh_window_secs),
+        ("auth_logout_max_requests", u64::from(sec.auth_logout_max_requests)),
+        ("auth_logout_window_secs", sec.auth_logout_window_secs),
+        ("auth_otp_send_max_requests", u64::from(sec.auth_otp_send_max_requests)),
+        ("auth_otp_send_window_secs", sec.auth_otp_send_window_secs),
+        ("auth_otp_verify_max_requests", u64::from(sec.auth_otp_verify_max_requests)),
+        ("auth_otp_verify_window_secs", sec.auth_otp_verify_window_secs),
+        ("auth_password_max_requests", u64::from(sec.auth_password_max_requests)),
+        ("auth_password_window_secs", sec.auth_password_window_secs),
+    ];
+    match budgets.iter().find(|(_, v)| *v == 0) {
+        Some((key, _)) => Err(crate::ServerError::ConfigError(format!(
+            "[security.rate_limiting] {key} = 0. A zero does not mean unlimited: every auth \
+             endpoint rule needs a positive budget and window. To switch the auth endpoint \
+             rules off, write auth_rules_enabled = false."
+        ))),
+        None => Ok(()),
+    }
 }
 
 /// Construct the limiter, choosing the Redis or in-memory backend.
@@ -814,13 +870,11 @@ pub(super) async fn resolve_rate_limiter(
 /// enforces N times the configured rate while the startup log reads healthy.
 async fn build_rate_limiter(
     config: crate::middleware::RateLimitConfig,
+    auth_rules: &crate::middleware::RateLimitingSecurityConfig,
     sec: Option<&crate::middleware::RateLimitingSecurityConfig>,
     deployment: Deployment,
 ) -> crate::Result<RateLimiter> {
-    let with_rules = |limiter: RateLimiter| match sec {
-        Some(sec) => limiter.with_path_rules_from_security(sec),
-        None => limiter,
-    };
+    let with_rules = |limiter: RateLimiter| limiter.with_path_rules_from_security(auth_rules);
 
     let redis_url = sec.and_then(|s| s.redis_url.as_deref());
 

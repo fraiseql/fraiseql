@@ -131,14 +131,26 @@ trusted_proxy_cidrs = []                # e.g. ["10.0.0.0/8"]
 # map. Reaching it evicts the least-recently-used bucket; it never refuses a new client.
 # FRAISEQL_RATE_LIMIT_MAX_BUCKETS overrides it.
 max_buckets = 100000
-auth_start_max_requests = 100           # Auth endpoint limits, per window
+# Auth endpoint limits, per client address and per window. They apply whether or not
+# `enabled` turns the global limit on, and with no section written. One address can carry
+# many users (an office NAT, or every client behind a proxy missing from
+# trusted_proxy_cidrs), so the defaults are sized for that. A 0 refuses to boot; to switch
+# the rules off, write auth_rules_enabled = false.
+auth_rules_enabled = true
+auth_start_max_requests = 30            # /auth/start, /auth/v1/authorize
 auth_start_window_secs = 60
-auth_callback_max_requests = 50
+auth_callback_max_requests = 30         # /auth/callback, /auth/v1/callback
 auth_callback_window_secs = 60
-auth_refresh_max_requests = 10
-auth_refresh_window_secs = 60
-auth_logout_max_requests = 20
+auth_refresh_max_requests = 300
+auth_refresh_window_secs = 300
+auth_logout_max_requests = 30
 auth_logout_window_secs = 60
+auth_otp_send_max_requests = 30         # /auth/v1/otp: each request mails a code
+auth_otp_send_window_secs = 900
+auth_otp_verify_max_requests = 60       # /auth/v1/verify
+auth_otp_verify_window_secs = 900
+auth_password_max_requests = 30         # each /auth/v1/password/* and /auth/v1/email/verify/*
+auth_password_window_secs = 60
 failed_login_max_requests = 10
 failed_login_window_secs = 900
 

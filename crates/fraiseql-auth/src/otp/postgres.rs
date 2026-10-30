@@ -35,6 +35,7 @@ CREATE TABLE IF NOT EXISTS core.tb_otp_send_budget (
     count        INTEGER NOT NULL DEFAULT 0,
     window_start BIGINT NOT NULL
 );
+ALTER TABLE core.tb_otp_send_budget ADD COLUMN IF NOT EXISTS guesses INTEGER NOT NULL DEFAULT 0;
 REVOKE ALL ON core.tb_otp_code FROM PUBLIC;
 REVOKE ALL ON core.tb_otp_send_budget FROM PUBLIC;
 ";
@@ -109,7 +110,8 @@ impl OtpStore for PgOtpStore {
 
         // Reserve one send atomically: the window reset and the increment happen
         // in a single UPSERT, so two concurrent requests cannot both read a
-        // stale count and each grant themselves a send.
+        // stale count and each grant themselves a send. A new window also returns
+        // the address's guesses; a send inside one does not.
         let reserved = sqlx::query(
             "INSERT INTO core.tb_otp_send_budget (email, count, window_start)
              VALUES ($1, 1, $2)
@@ -117,6 +119,9 @@ impl OtpStore for PgOtpStore {
                  count = CASE
                      WHEN $2 - core.tb_otp_send_budget.window_start >= $3 THEN 1
                      ELSE core.tb_otp_send_budget.count + 1 END,
+                 guesses = CASE
+                     WHEN $2 - core.tb_otp_send_budget.window_start >= $3 THEN 0
+                     ELSE core.tb_otp_send_budget.guesses END,
                  window_start = CASE
                      WHEN $2 - core.tb_otp_send_budget.window_start >= $3 THEN $2
                      ELSE core.tb_otp_send_budget.window_start END
@@ -176,6 +181,33 @@ impl OtpStore for PgOtpStore {
             reason: "no pending OTP for email".into(),
         })?;
 
+        // Then charge the address. The code's own count restarts with every
+        // send; this one restarts only with the send window, so a resend issues a new
+        // code without issuing new guesses. Charged after the code lookup, so probing
+        // an address with no pending code leaves no row behind.
+        let guesses: i32 = sqlx::query(
+            "INSERT INTO core.tb_otp_send_budget (email, count, window_start, guesses)
+             VALUES ($1, 0, $2, 1)
+             ON CONFLICT (email) DO UPDATE SET
+                 count = CASE
+                     WHEN $2 - core.tb_otp_send_budget.window_start >= $3 THEN 0
+                     ELSE core.tb_otp_send_budget.count END,
+                 guesses = CASE
+                     WHEN $2 - core.tb_otp_send_budget.window_start >= $3 THEN 1
+                     ELSE core.tb_otp_send_budget.guesses + 1 END,
+                 window_start = CASE
+                     WHEN $2 - core.tb_otp_send_budget.window_start >= $3 THEN $2
+                     ELSE core.tb_otp_send_budget.window_start END
+             RETURNING guesses",
+        )
+        .bind(email)
+        .bind(now as i64)
+        .bind(OTP_RATE_WINDOW_SECS as i64)
+        .fetch_one(&self.db)
+        .await
+        .map_err(db_err)?
+        .get("guesses");
+
         let stored_hash: Vec<u8> = row.get("code_hash");
         let expires_at: i64 = row.get("expires_at");
         let attempts: i32 = row.get("attempts");
@@ -200,7 +232,7 @@ impl OtpStore for PgOtpStore {
                 reason: "OTP has expired".into(),
             });
         }
-        if attempts > MAX_VERIFY_ATTEMPTS as i32 {
+        if attempts > MAX_VERIFY_ATTEMPTS as i32 || guesses > MAX_VERIFY_ATTEMPTS as i32 {
             consume().await?;
             return Err(AuthError::RateLimited {
                 retry_after_secs: OTP_RATE_WINDOW_SECS,
