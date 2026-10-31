@@ -864,8 +864,9 @@ EXAMPLES:
         #[arg(long)]
         mock_http: Option<std::path::PathBuf>,
 
-        /// Canned query responses (JSON array of `{query_contains?, response}`) for the
-        /// `fraiseql_query` bridge; a query matching none fails loud.
+        /// Canned query responses (JSON array of `{query_contains?, variables?, response}`)
+        /// for the `fraiseql_query` bridge. An entry with `variables` matches only a call
+        /// bound with exactly those variables; a query matching none fails loud.
         #[arg(long)]
         mock_query: Option<std::path::PathBuf>,
 

@@ -368,6 +368,12 @@ disagreed, and the promise was the part that was wrong.
 
 ### Added
 
+- **A `fraiseql functions invoke --mock-query` entry can match on the call's variables
+  (#1863).** An entry is `{query_contains?, variables?, response}`; with `variables` it
+  answers only a call bound with exactly those variables, so a mock for one customer no
+  longer answers the read of another. The CLI's function fixtures now bind their values as
+  variables, and their tests pin it.
+
 - **A function bundled by esbuild runs as written, and the docs list what a function's
   runtime provides (#1860).** esbuild's `--format=esm` output names its entry point in an
   export list, `export { handler_default as default };`, which the Deno runtime refused as

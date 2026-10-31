@@ -417,8 +417,18 @@ struct QueryMock {
     /// Match when the GraphQL/SQL text contains this substring; omit to match any.
     #[serde(default)]
     query_contains: Option<String>,
+    /// Match only when the call's variables equal this value; omit to match any.
+    #[serde(default)]
+    variables:      Option<serde_json::Value>,
     /// The canned response value returned to the guest.
     response:       serde_json::Value,
+}
+
+impl QueryMock {
+    fn matches(&self, graphql: &str, variables: &serde_json::Value) -> bool {
+        self.query_contains.as_ref().is_none_or(|c| graphql.contains(c.as_str()))
+            && self.variables.as_ref().is_none_or(|v| v == variables)
+    }
 }
 
 impl HostMocks {
@@ -477,7 +487,7 @@ impl HostContext for RecordingHost {
         match self.mocks.query.as_ref() {
             Some(mocks) => mocks
                 .iter()
-                .find(|m| m.query_contains.as_ref().is_none_or(|c| graphql.contains(c.as_str())))
+                .find(|m| m.matches(graphql, &variables))
                 .map(|m| m.response.clone())
                 .ok_or_else(|| {
                     fraiseql_error::FraiseQLError::validation(format!(

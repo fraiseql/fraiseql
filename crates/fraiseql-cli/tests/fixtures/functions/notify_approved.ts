@@ -11,8 +11,8 @@ export default async (event: { event_kind: string; old: unknown; new: { id: stri
   const token = Deno.core.ops.fraiseql_idempotency_token();
   Deno.core.ops.fraiseql_log(1, `notifying order ${order.id}`);
   const raw = await Deno.core.ops.fraiseql_query(
-    `mutation { markNotified(id: "${order.id}") { id } }`,
-    "{}",
+    `mutation ($id: ID!) { markNotified(id: $id) { id } }`,
+    JSON.stringify({ id: order.id }),
   );
   return { notified: true, order_id: order.id, token, query: JSON.parse(raw) };
 };

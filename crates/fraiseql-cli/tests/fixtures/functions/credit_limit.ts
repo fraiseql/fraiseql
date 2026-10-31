@@ -18,8 +18,8 @@ export default async (args: { input: { customer_id: string; amount: number } }) 
   const { customer_id, amount } = args.input;
 
   const raw = await Deno.core.ops.fraiseql_query(
-    `query { customer(id: "${customer_id}") { creditLimit outstanding } }`,
-    "{}",
+    `query ($id: ID!) { customer(id: $id) { creditLimit outstanding } }`,
+    JSON.stringify({ id: customer_id }),
   );
   const customer = JSON.parse(raw)?.data?.customer;
   if (!customer) {

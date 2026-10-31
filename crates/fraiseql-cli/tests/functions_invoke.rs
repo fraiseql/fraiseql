@@ -128,11 +128,15 @@ fn matching_payload_runs_and_reports_result_and_host_ops() {
             "new": { "id": "o-1", "status": "approved" }
         }),
     );
-    // A query mock matching any query (no `query_contains`) returns a canned row.
+    // A query mock matching any query text (no `query_contains`) bound to the order's id
+    // as a variable returns a canned row.
     let mock_query = write_json(
         &dir,
         "query.json",
-        &serde_json::json!([ { "response": { "data": { "markNotified": { "id": "o-1" } } } } ]),
+        &serde_json::json!([ {
+            "variables": { "id": "o-1" },
+            "response": { "data": { "markNotified": { "id": "o-1" } } }
+        } ]),
     );
 
     let out = cli()
@@ -362,12 +366,15 @@ fn write_before_mutation_schema(dir: &TempDir) -> PathBuf {
 }
 
 /// The read is mocked with a customer whose remaining credit is `limit - outstanding`.
+/// It answers only the read bound to `c-1` as a variable: a fixture that writes the id
+/// into the query text instead misses it.
 fn credit_mock(dir: &TempDir, limit: i64, outstanding: i64) -> PathBuf {
     write_json(
         dir,
         "query.json",
         &serde_json::json!([{
             "query_contains": "customer",
+            "variables": { "id": "c-1" },
             "response": { "data": { "customer": {
                 "creditLimit": limit, "outstanding": outstanding,
             } } }
@@ -452,6 +459,47 @@ fn the_same_rule_proceeds_and_rewrites_when_the_read_allows_it() {
     assert_eq!(decision["decision"], "proceed");
     assert_eq!(decision["rewritten"], true, "the hook stamped the input: {decision}");
     assert_eq!(decision["arguments_or_reason"]["credit_checked"], true);
+}
+
+/// A query mock that names `variables` answers only a call bound with exactly those
+/// variables: the same query text, bound for another customer, is a miss, not a read of
+/// the customer the mock describes.
+#[test]
+fn a_query_mock_for_other_variables_is_a_miss() {
+    let dir = TempDir::new().unwrap();
+    let schema = write_before_mutation_schema(&dir);
+    let payload = write_json(
+        &dir,
+        "payload.json",
+        &serde_json::json!({ "input": { "customer_id": "c-1", "amount": 100 } }),
+    );
+    let mock_query = write_json(
+        &dir,
+        "query.json",
+        &serde_json::json!([{
+            "query_contains": "customer",
+            "variables": { "id": "c-2" },
+            "response": { "data": { "customer": { "creditLimit": 1000, "outstanding": 0 } } }
+        }]),
+    );
+
+    let out = cli()
+        .args(["functions", "invoke", "credit_limit"])
+        .arg("--payload")
+        .arg(&payload)
+        .arg("--schema")
+        .arg(&schema)
+        .arg("--mock-query")
+        .arg(&mock_query)
+        .output()
+        .unwrap();
+
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert_eq!(
+        out.status.code().unwrap_or(-1),
+        4,
+        "a mock for other variables must miss and fail the op loud; stdout:\n{stdout}"
+    );
 }
 
 /// A `before:mutation` fixture is the arguments object. A bare array or scalar is a
