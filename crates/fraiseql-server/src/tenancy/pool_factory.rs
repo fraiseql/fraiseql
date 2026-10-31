@@ -313,10 +313,21 @@ pub async fn create_tenant_executor_with_adapter<A: FromPoolConfig + Writer>(
     //    the operator sets in the server configuration, which bind every tenant. Today
     //    that is the runtime `[validation] max_response_bytes` (#1534), carried as
     //    `RuntimeConfig::operator_max_response_bytes`.
-    let config = runtime_config
+    let mut config = runtime_config
         .clone()
         .with_compiled_schema(&schema)
         .map_err(|msg| FraiseQLError::validation(format!("Incompatible compiled schema: {msg}")))?;
+
+    // 7. The server's after-mutation observer, bound to this tenant. A write this executor commits
+    //    is the tenant's even when no principal says so (an unauthenticated request addressed by
+    //    its host or `X-Tenant-ID`), and what the observer runs in response must stay within it.
+    if let Some(bound) = config
+        .after_mutation_observer
+        .as_ref()
+        .and_then(|observer| observer.bind_tenant(tenant_key))
+    {
+        config = config.with_after_mutation_observer(bound);
+    }
 
     let adapter = Arc::new(adapter);
     Ok((Arc::new(Executor::with_config(schema, Arc::clone(&adapter), config)), adapter))

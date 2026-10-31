@@ -282,6 +282,7 @@ mod durable_dispatch {
             query_executor_factory: None,
             run_as: None,
             caller: None,
+            tenant: None,
         }
     }
 
@@ -587,6 +588,7 @@ mod query_bridge_wiring {
             query_executor_factory,
             run_as,
             caller: None,
+            tenant: None,
         }
     }
 
@@ -718,6 +720,51 @@ mod query_bridge_wiring {
             user_id: None,
         };
         assert_eq!(tenant_of(Some(pinned)).await.as_deref(), Some("acme"), "pinned: its own");
+    }
+
+    /// A write committed by a tenant's executor dispatches within that tenant, whoever made
+    /// it: an unauthenticated write addressed to the tenant by its host or `X-Tenant-ID` has
+    /// no caller to read a tenant off, and must not reach the default executor. The
+    /// executor's tenant is the write's, so it wins over a caller's; a pinned ceiling still
+    /// keeps its own.
+    #[tokio::test]
+    async fn the_bridge_writes_within_the_tenant_whose_executor_committed_the_write() {
+        let tenant_of = |run_as: Option<RunAs>, caller_tenant: Option<&'static str>| async move {
+            let (factory, captured) = recording_factory();
+            let mut dispatcher = dispatcher(Some(factory), run_as);
+            dispatcher.tenant = Some("tenant-9".to_string());
+            dispatcher.caller = caller_tenant.map(|tenant| {
+                SecurityContext::system_job(
+                    "caller",
+                    "req",
+                    Vec::new(),
+                    Vec::new(),
+                    Some(tenant.into()),
+                )
+            });
+            let host = dispatcher.build_host("recordApproval", payload(), "tok-7");
+            let _ = host.query("mutation { x }", serde_json::json!({})).await;
+            let identity = captured.lock().unwrap().clone().expect("identity captured");
+            identity.tenant_id.map(|t| t.0)
+        };
+
+        assert_eq!(
+            tenant_of(None, None).await.as_deref(),
+            Some("tenant-9"),
+            "anonymous: the write's"
+        );
+        assert_eq!(
+            tenant_of(None, Some("tenant-7")).await.as_deref(),
+            Some("tenant-9"),
+            "a caller's tenant does not override the write's"
+        );
+        let pinned = RunAs {
+            roles:   Vec::new(),
+            scopes:  Vec::new(),
+            tenant:  Some("acme".to_string()),
+            user_id: None,
+        };
+        assert_eq!(tenant_of(Some(pinned), None).await.as_deref(), Some("acme"), "pinned: its own");
     }
 
     /// #803: an after:mutation dispatch triggered by an authenticated request
@@ -1175,8 +1222,13 @@ mod declared_limits {
         let hooks = hooks_from(vec![def]);
         let plans = plan(&hooks, "Order", &insert("tb_order"), &json!({ "id": 1 }));
         assert_eq!(plans.len(), 1, "the trigger matches the committed insert");
-        let base =
-            base_dispatcher(&hooks, fraiseql_observers::DispatchSource::AfterMutation, None, None);
+        let base = base_dispatcher(
+            &hooks,
+            fraiseql_observers::DispatchSource::AfterMutation,
+            None,
+            None,
+            None,
+        );
         let (dispatcher, _setting) = plan_dispatcher(&base, &hooks, &plans[0]);
         dispatcher.limits.max_duration
     }

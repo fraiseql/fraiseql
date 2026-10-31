@@ -101,4 +101,15 @@ async fn under_the_tenancy_runtime_the_observer_dispatches_through_the_registry(
         .registry()
         .expect("the tenancy runtime is on: the observer must be bound to the registry");
     assert!(Arc::ptr_eq(bound, state.tenant_registry().unwrap()), "the serving registry");
+
+    // A tenant executor's copy dispatches within its tenant, through the same registry.
+    let observer = server.after_mutation_observer.as_ref().unwrap();
+    assert_eq!(observer.tenant(), None, "the default executor's copy is bound to no tenant");
+    let copy = observer.for_tenant("acme");
+    assert_eq!(copy.tenant(), Some("acme"));
+    let copy_bound = copy.bound_executor().expect("the copy shares the binding");
+    assert!(
+        Arc::ptr_eq(copy_bound.registry().unwrap(), state.tenant_registry().unwrap()),
+        "a tenant's copy shares the observer's executor binding"
+    );
 }

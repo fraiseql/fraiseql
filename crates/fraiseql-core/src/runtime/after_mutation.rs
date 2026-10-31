@@ -24,7 +24,7 @@
 //! runtimes. `fraiseql-server` installs one that dispatches into the compiled schema's
 //! `functions` section.
 
-use std::future::Future;
+use std::{future::Future, sync::Arc};
 
 use crate::{schema::MutationOperation, security::SecurityContext};
 
@@ -82,6 +82,20 @@ pub struct CommittedMutation<'a> {
 pub trait AfterMutationObserver: Send + Sync {
     /// A mutation committed successfully.
     fn on_committed(&self, mutation: &CommittedMutation<'_>);
+
+    /// This observer as installed on the executor serving `tenant`, or `None` to install it
+    /// unchanged.
+    ///
+    /// A tenant's executor is built from the server's configuration, so it inherits the
+    /// server's observer. Its writes commit in the tenant's schema, but a
+    /// [`CommittedMutation`] does not say which tenant that was: an unauthenticated write
+    /// addressed to a tenant by its host or header carries no principal, so no
+    /// [`SecurityContext::tenant_id`] either. An observer whose work must stay within the
+    /// tenant (one that writes back, say) returns a copy bound to `tenant` here.
+    fn bind_tenant(&self, tenant: &str) -> Option<Arc<dyn AfterMutationObserver>> {
+        let _ = tenant;
+        None
+    }
 }
 
 tokio::task_local! {

@@ -120,8 +120,22 @@ pub fn plan_after_mutation_dispatch(
 /// `after:mutation` function that writes the entity it is triggered by would otherwise
 /// trigger itself without end. This used to hold only because dispatch sat in the route
 /// handlers, which a bridge write bypasses; it is now a rule the observer checks.
+///
+/// **A tenant's write dispatches within that tenant.** Each tenant executor carries a copy
+/// of this observer [bound](AfterMutationObserver::bind_tenant) to its tenant, and the
+/// functions it dispatches write back through that tenant's executor, whoever made the
+/// write: an unauthenticated request addressed to the tenant by its host or `X-Tenant-ID`
+/// carries no principal, so no tenant to read off it.
 #[cfg(feature = "functions-runtime")]
 pub struct FunctionDispatchObserver {
+    shared: std::sync::Arc<DispatchShared>,
+    /// The tenant whose executor this copy is installed on; `None` on the default executor.
+    tenant: Option<String>,
+}
+
+/// What every tenant's copy of a [`FunctionDispatchObserver`] shares.
+#[cfg(feature = "functions-runtime")]
+struct DispatchShared {
     hooks:    std::sync::Arc<BeforeMutationHooks>,
     /// Where the dispatched functions' `fraiseql_query` bridge finds its executor: the
     /// serving one, or the tenant's under the tenancy runtime (#1550). Bound once the
@@ -135,23 +149,44 @@ impl FunctionDispatchObserver {
     /// An observer dispatching into `hooks`; [`bind_executor`](Self::bind_executor) gives
     /// its functions a query bridge.
     #[must_use]
-    pub const fn new(hooks: std::sync::Arc<BeforeMutationHooks>) -> Self {
+    pub fn new(hooks: std::sync::Arc<BeforeMutationHooks>) -> Self {
         Self {
-            hooks,
-            executor: std::sync::OnceLock::new(),
+            shared: std::sync::Arc::new(DispatchShared {
+                hooks,
+                executor: std::sync::OnceLock::new(),
+            }),
+            tenant: None,
         }
     }
 
     /// Give dispatched functions a `fraiseql_query` bridge over `source`. The first
     /// binding wins: there is one serving state per server.
     pub fn bind_executor(&self, source: &crate::query_bridge::ExecutorSource) {
-        let _ = self.executor.set(source.downgrade());
+        let _ = self.shared.executor.set(source.downgrade());
     }
 
     /// The source this observer is bound to, if it is still alive.
     #[cfg(test)]
     pub(crate) fn bound_executor(&self) -> Option<crate::query_bridge::ExecutorSource> {
-        self.executor.get().and_then(crate::query_bridge::WeakExecutorSource::upgrade)
+        self.shared
+            .executor
+            .get()
+            .and_then(crate::query_bridge::WeakExecutorSource::upgrade)
+    }
+
+    /// The copy installed on `tenant`'s executor: the same hooks and executor binding,
+    /// dispatching within `tenant`.
+    pub(crate) fn for_tenant(&self, tenant: &str) -> Self {
+        Self {
+            shared: std::sync::Arc::clone(&self.shared),
+            tenant: Some(tenant.to_owned()),
+        }
+    }
+
+    /// The tenant this copy dispatches within, if it is bound to one.
+    #[cfg(test)]
+    pub(crate) fn tenant(&self) -> Option<&str> {
+        self.tenant.as_deref()
     }
 
     /// The dispatches a committed write calls for: none for a bridge write (M-bridge, see
@@ -160,7 +195,7 @@ impl FunctionDispatchObserver {
         if mutation.dispatch_depth > 0 {
             return Vec::new();
         }
-        plan_after_mutation_dispatch(&self.hooks, mutation)
+        plan_after_mutation_dispatch(&self.shared.hooks, mutation)
     }
 }
 
@@ -174,17 +209,23 @@ impl AfterMutationObserver for FunctionDispatchObserver {
         // #594: each dispatched function gets the `fraiseql_query` bridge, run under its
         // own `run_as` ceiling.
         let query_executor_factory = self
+            .shared
             .executor
             .get()
             .and_then(crate::query_bridge::WeakExecutorSource::upgrade)
             .map(make_query_executor_factory);
         spawn_after_mutation(
-            &self.hooks,
+            &self.shared.hooks,
             plans,
             query_executor_factory,
             // #803: the dispatched host reflects the caller whose write triggered it.
             mutation.security_ctx.cloned(),
+            self.tenant.clone(),
         );
+    }
+
+    fn bind_tenant(&self, tenant: &str) -> Option<std::sync::Arc<dyn AfterMutationObserver>> {
+        Some(std::sync::Arc::new(self.for_tenant(tenant)))
     }
 }
 
@@ -599,6 +640,10 @@ struct DurableDispatcher {
     /// `auth_context` reflects this caller where present, else the function's
     /// `run_as` identity — never a fabricated anonymous placeholder.
     caller:                 Option<fraiseql_core::security::SecurityContext>,
+    /// The tenant whose executor committed the triggering write: `Some` on the
+    /// after:mutation path of a tenant's executor, whoever made the write. The
+    /// bridge writes within it ([`build_host`](Self::build_host)).
+    tenant:                 Option<String>,
 }
 
 #[cfg(feature = "functions-runtime")]
@@ -673,10 +718,15 @@ impl DurableDispatcher {
         // A ceiling scoped to no tenant writes within the tenant whose write triggered the
         // function (#1550 review), so the write reaches that tenant's executor (its schema,
         // its storage quota). This narrows the ceiling, never widens it: a ceiling pinned to
-        // a tenant keeps its own.
+        // a tenant keeps its own. The tenant is the executor's that committed the write,
+        // which an unauthenticated write has too; the caller's where none was recorded.
         if let Some(factory) = self.query_executor_factory.as_ref() {
-            let caller_tenant = self.caller.as_ref().and_then(|c| c.tenant_id.clone());
-            let bridge_identity = match (run_as_identity.tenant_id.is_none(), caller_tenant) {
+            let write_tenant = self
+                .tenant
+                .clone()
+                .map(fraiseql_core::types::TenantId::from)
+                .or_else(|| self.caller.as_ref().and_then(|c| c.tenant_id.clone()));
+            let bridge_identity = match (run_as_identity.tenant_id.is_none(), write_tenant) {
                 (true, Some(tenant)) => run_as_identity.with_tenant(tenant),
                 _ => run_as_identity,
             };
@@ -850,6 +900,7 @@ pub fn spawn_after_mutation(
     plans: Vec<AfterMutationDispatch>,
     query_executor_factory: Option<QueryExecutorFactory>,
     caller: Option<fraiseql_core::security::SecurityContext>,
+    tenant: Option<String>,
 ) {
     spawn_dispatch(
         hooks,
@@ -857,6 +908,7 @@ pub fn spawn_after_mutation(
         fraiseql_observers::DispatchSource::AfterMutation,
         query_executor_factory,
         caller,
+        tenant,
     );
 }
 
@@ -889,6 +941,7 @@ pub fn spawn_after_ingest(
         hooks,
         fraiseql_observers::DispatchSource::AfterIngest,
         query_executor_factory.cloned(),
+        None,
         None,
     );
     for plan in plans {
@@ -958,6 +1011,7 @@ impl HooksIngestDispatcher {
             fraiseql_observers::DispatchSource::AfterIngest,
             self.query_executor_factory.clone(),
             None,
+            None,
         );
         let (dispatcher, setting) = plan_dispatcher(&base, &self.hooks, &plan);
         dispatcher.dispatch(plan.module, plan.payload, &setting).await
@@ -997,6 +1051,7 @@ pub fn spawn_after_capture(
         fraiseql_observers::DispatchSource::AfterCapture,
         query_executor_factory,
         None,
+        None,
     );
 }
 
@@ -1008,8 +1063,9 @@ fn spawn_dispatch(
     source: fraiseql_observers::DispatchSource,
     query_executor_factory: Option<QueryExecutorFactory>,
     caller: Option<fraiseql_core::security::SecurityContext>,
+    tenant: Option<String>,
 ) {
-    let base = base_dispatcher(hooks, source, query_executor_factory, caller);
+    let base = base_dispatcher(hooks, source, query_executor_factory, caller, tenant);
     for plan in plans {
         let (dispatcher, setting) = plan_dispatcher(&base, hooks, &plan);
         tokio::spawn(async move {
@@ -1028,6 +1084,7 @@ fn base_dispatcher(
     source: fraiseql_observers::DispatchSource,
     query_executor_factory: Option<QueryExecutorFactory>,
     caller: Option<fraiseql_core::security::SecurityContext>,
+    tenant: Option<String>,
 ) -> DurableDispatcher {
     DurableDispatcher {
         observer: std::sync::Arc::clone(&hooks.observer),
@@ -1043,6 +1100,7 @@ fn base_dispatcher(
         // Set per-plan by `plan_dispatcher`, from the function's definition.
         run_as: None,
         caller,
+        tenant,
     }
 }
 

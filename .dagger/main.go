@@ -2261,6 +2261,10 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		// they are feature-gated and would silently vanish from this leg otherwise.
 		"cargo test -p fraiseql-server --features '" + serverTestFeatures + ",inbound-email' --test local_auth_e2e_pg -- --test-threads=1",
 		"cargo test -p fraiseql-server --features mcp --test mcp_tenant_dispatch_e2e_pg -- --test-threads=1",
+		// A function a tenant's write triggers runs within that tenant. File-level
+		// `#![cfg(feature = "functions-runtime-deno")]`: without the feature the binary is
+		// empty and reports "0 passed".
+		"cargo test -p fraiseql-server --features functions-runtime-deno --test function_tenant_dispatch_e2e_pg -- --test-threads=1",
 		// pipeline_e2e is env-gated (FRAISEQL_PIPELINE_E2E); it compiles a schema and drives a server.
 		"cargo test -p fraiseql-server --test pipeline_e2e_test -- --test-threads=1",
 		// P18 verification gate (PG half): the FULL subscription delivery path —

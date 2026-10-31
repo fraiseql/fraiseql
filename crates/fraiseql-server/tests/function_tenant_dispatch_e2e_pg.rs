@@ -7,7 +7,7 @@
 //! by tenant data that reads or writes another tenant's (here the default executor's)
 //! carries data across the boundary the request was confined to.
 //!
-//! Driven on a booted server, over HTTP, with a real TypeScript function, against
+//! Driven on a booted server, over HTTP, with a real `TypeScript` function, against
 //! PostgreSQL in schema mode: the default executor serves `public`, the tenant serves
 //! `tenant_<key>`, and both hold the same relations, so where the function's row lands says
 //! which executor its bridge used.
