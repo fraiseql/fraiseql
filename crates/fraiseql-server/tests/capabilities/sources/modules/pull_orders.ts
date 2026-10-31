@@ -2,7 +2,10 @@
 export default async () => {
   const before = JSON.parse(await Deno.core.ops.fraiseql_cursor_get());
   const page = (before && before.page ? before.page : 0) + 1;
-  await Deno.core.ops.fraiseql_query(`mutation { recordPage(page: ${page}) { id } }`, "{}");
+  await Deno.core.ops.fraiseql_query(
+    `mutation ($page: Int!) { recordPage(page: $page) { id } }`,
+    JSON.stringify({ page }),
+  );
   await Deno.core.ops.fraiseql_cursor_advance(JSON.stringify({ page }));
   return { page };
 };
