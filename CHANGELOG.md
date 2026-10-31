@@ -343,7 +343,7 @@ disagreed, and the promise was the part that was wrong.
 - **`DatabaseWarning::TemporalKeyInDocument` carries a `remedy`, not `column_exists`
   (#1815).** The warning now covers every relation, and the fix differs by relation, so it
   says which one applies: `TemporalKeyRemedy::{MapColumn, AddToTview, AddToTable,
-  ExposeFromView, TviewRowTimestamp}`. `column_exists: true` is `MapColumn`.
+  ExposeFromView}`. `column_exists: true` is `MapColumn`.
 
 - **An invalidation of a view, a type read by id or a collection's child type no longer
   counts entries (#1778).** These invalidations now raise a version counter per name, and
@@ -463,6 +463,15 @@ disagreed, and the promise was the part that was wrong.
 
 ### Changed
 
+- **pg_tviews 0.1.0-beta.34 is the version FraiseQL is tested against (#1871).** Upgrading:
+  install the new library, restart PostgreSQL, then run `ALTER EXTENSION pg_tviews UPDATE;`
+  in each database that has it (catalog revision 10). The update drops the `created_at` and
+  `updated_at` columns pg_tviews appended to every TVIEW, and fails, naming it, on a view of
+  yours that reads them. Under `REPEATABLE READ` and `SERIALIZABLE`, a write whose refresh
+  would re-create a TVIEW row a concurrent transaction deleted now fails with `40001`
+  (retryable). FraiseQL's mutations run under `READ COMMITTED`; a webhook handler set to
+  `RepeatableRead` or `Serializable` can now see it.
+
 - **A read that selects a field the caller's scopes mask is answered as the bytes the
   database wrote (#1785).** The projection writes a masked field as `null`, or `[]` for a
   localized field's translations, where it was selected and under its alias, and never
@@ -579,12 +588,13 @@ disagreed, and the promise was the part that was wrong.
   expose the base table's from a view, or add one to a TVIEW's definition. A TVIEW is
   recognised from pg_tviews' catalog, from its first releases to the current one, and no
   longer from a `tv_` name: a plain table named `tv_…` is a table.
-- **`compile --database` no longer tells a TVIEW's `createdAt` to map to `created_at`
-  (#1818).** pg_tviews appends `created_at` and `updated_at` to every TVIEW and stamps them
-  when it materialises a row, so following the advice sorted and filtered by materialisation
-  time, with no error. The warning now says that column is not the field, that the TVIEW's definition
-  cannot project another of that name, and to read the field through a view over the base
-  table that exposes the table's own column, indexed there as `(created_at DESC, id)`.
+- **`compile --database` maps a TVIEW's `createdAt` only to a `created_at` its definition
+  projects (#1818, #1871).** Before 0.1.0-beta.34, pg_tviews appended a `created_at` and an
+  `updated_at` of its own to every TVIEW and stamped them when it wrote a row, so the advice
+  to map `createdAt` to that column sorted and filtered by write time, with no error, and a
+  definition could not project the base table's. On beta.34 a TVIEW's table holds only its
+  definition's columns: its `created_at`, when it has one, is the definition's, and the
+  advice maps it as any other column.
 - **Arrow Flight's `GetSchema`, `GetFlightInfo`, `PollFlightInfo` and `ListFlights` send a
   schema a Flight client can decode (#1820).** Each sent the bare flatbuffer `Message`, not
   the framed IPC form the Flight spec defines, so arrow-flight's own

@@ -10,8 +10,8 @@
 ARG PG_IMAGE=pgvector/pgvector:pg18
 
 FROM ${PG_IMAGE} AS build
-ARG PG_TVIEWS_TAG=v0.1.0-beta.31
-ARG PG_TVIEWS_COMMIT=79c1fa8554d70f2d9411ea92b84ac5a1f9f80fc3
+ARG PG_TVIEWS_TAG=v0.1.0-beta.34
+ARG PG_TVIEWS_COMMIT=c36b32686860ecfe057ca55e9218051997156377
 ARG PGRX_VERSION=0.17.0
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \

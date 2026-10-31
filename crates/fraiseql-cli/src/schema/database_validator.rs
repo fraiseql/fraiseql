@@ -296,10 +296,6 @@ pub enum TemporalKeyRemedy {
     AddToTable,
     /// A view without the column: it can expose its base table's, where the index lives.
     ExposeFromView,
-    /// A TVIEW's `created_at` or `updated_at`: `pg_tviews` stamps it when it materialises the
-    /// row, so it is not the field, and the TVIEW's definition cannot project another column of
-    /// that name.
-    TviewRowTimestamp,
 }
 
 impl DatabaseWarning {
@@ -623,15 +619,6 @@ impl fmt::Display for DatabaseWarning {
                          type (e.g. `timestamptz`), index it on the base table with the page's \
                          tie-breaker (`({column} DESC, id)`), then give the query an argument \
                          named `{field}` so this compile maps it to the column"
-                    ),
-                    TemporalKeyRemedy::TviewRowTimestamp => format!(
-                        "`{sql_source}.{column}` is not this field: pg_tviews appends it to every \
-                         TVIEW and stamps it itself when it materialises the row, so mapping \
-                         `{field}` to it would sort and filter by materialisation time, and the \
-                         TVIEW's definition cannot project another `{column}`. No column of \
-                         `{sql_source}` can serve `{field}` under this name: read it through a \
-                         view over the base table that exposes the table's own `{column}`, \
-                         indexed there as `({column} DESC, id)`"
                     ),
                 };
                 write!(
@@ -1190,7 +1177,7 @@ fn unify_tview_index_advice(warnings: &mut [DatabaseWarning]) {
 /// that [`compares_document_keys`]: one that does not never compares the key. The remedy
 /// depends on what
 /// `source` is: a TVIEW (`is_tview`, from `pg_tviews`' catalog, never from a name), a view or a
-/// table. A TVIEW's `created_at` and `updated_at` are `pg_tviews`' own.
+/// table.
 fn temporal_keys_in_document(
     schema: &CompiledSchema,
     query: &fraiseql_core::schema::QueryDefinition,
@@ -1209,9 +1196,6 @@ fn temporal_keys_in_document(
         .map(|f| {
             let column = fraiseql_core::utils::to_snake_case(f.name.as_str());
             let remedy = match backing {
-                TemporalBacking::Tview if TVIEW_ROW_TIMESTAMPS.contains(&column.as_str()) => {
-                    TemporalKeyRemedy::TviewRowTimestamp
-                },
                 _ if column_map.contains_key(&column) => TemporalKeyRemedy::MapColumn,
                 TemporalBacking::Tview => TemporalKeyRemedy::AddToTview,
                 TemporalBacking::View => TemporalKeyRemedy::ExposeFromView,
@@ -1227,9 +1211,6 @@ fn temporal_keys_in_document(
         })
         .collect()
 }
-
-/// The columns `pg_tviews` appends to every TVIEW's table, stamped when it writes a row.
-const TVIEW_ROW_TIMESTAMPS: [&str; 2] = ["created_at", "updated_at"];
 
 /// Whether `query` compares its document's keys: it exposes `orderBy` or `where`.
 const fn compares_document_keys(query: &fraiseql_core::schema::QueryDefinition) -> bool {

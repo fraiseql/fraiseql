@@ -483,13 +483,17 @@ connection and merges the report into the function's `cascade`:
   fails naming pg_tviews, and commits nothing.
 * **Observed** as the histogram `fraiseql_cascade_derived_entries` on `/metrics`.
 
-The tests run against `docker/pg-tviews` (PostgreSQL 18 with pg_tviews v0.1.0-beta.31 built
+The tests run against `docker/pg-tviews` (PostgreSQL 18 with pg_tviews v0.1.0-beta.34 built
 from source, preloaded): `make test-pg-tviews`.
 
-**Upgrading pg_tviews from beta.30 to beta.31:** install the new library, restart PostgreSQL,
-then run `ALTER EXTENSION pg_tviews UPDATE;` in each database that has the extension. The
-library refuses the beta.30 catalog until then (catalog revision 9). No TVIEW needs to be
-registered again.
+**Upgrading pg_tviews to beta.34:** install the new library, restart PostgreSQL, then run
+`ALTER EXTENSION pg_tviews UPDATE;` in each database that has the extension (catalog
+revision 10). The update drops the `created_at` and `updated_at` columns pg_tviews used to
+append to every TVIEW's table, and fails, naming it, on any view of yours that reads them. A
+TVIEW's table now holds only its definition's columns, so a definition can project the base
+table's own `created_at`. Under `REPEATABLE READ` and `SERIALIZABLE`, a write whose refresh
+would re-create a TVIEW row a concurrent transaction deleted now fails with `40001`
+(retryable).
 
 ### Success fields (#1397)
 

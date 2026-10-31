@@ -1,6 +1,5 @@
 //! `compile --database` advises every relation whose query sorts or filters a date it reads out
-//! of the document (#1815), and never offers a TVIEW's `pg_tviews` row timestamps as that date
-//! (#1818).
+//! of the document (#1815).
 //!
 //! FraiseQL compares such a key as `(data->>'key')::timestamptz`, a cast PostgreSQL will not
 //! index, on a view or a table as much as on a TVIEW. What fixes it depends on the relation,
@@ -8,9 +7,10 @@
 //!
 //! - without `pg_tviews` (`DATABASE_URL`), a `tv_` table is a table, and its `created_at` is its
 //!   own;
-//! - with `pg_tviews` (`TVIEWS_DATABASE_URL`, the `postgres-tviews-test` service), the `created_at`
-//!   it appends to a TVIEW holds the time it wrote each row, so no row's equals the document's
-//!   date, and the advice must not name it.
+//! - with `pg_tviews` (`TVIEWS_DATABASE_URL`, the `postgres-tviews-test` service), a TVIEW's table
+//!   holds only its definition's columns (since 0.1.0-beta.34; before, `pg_tviews` appended a
+//!   `created_at` of its own holding when it wrote each row, #1818), so the `created_at` its
+//!   definition projects is the document's date and is mapped as any other column.
 //!
 //! Both cases are `#[ignore]`d, so a leg without these databases (the workspace test leg)
 //! reports them as ignored rather than passed. The server leg binds both databases and runs
@@ -159,7 +159,7 @@ async fn without_pg_tviews_every_relation_is_advised_by_what_it_is() {
 
 #[tokio::test]
 #[ignore = "needs PostgreSQL with pg_tviews: the server leg runs it with --ignored"]
-async fn a_tviews_row_timestamps_are_never_offered_as_its_documents_date() {
+async fn a_tviews_columns_are_its_definitions_own() {
     let url = url("TVIEWS_DATABASE_URL");
     let admin = client(&url).await;
     admin
@@ -174,7 +174,7 @@ async fn a_tviews_row_timestamps_are_never_offered_as_its_documents_date() {
              -- A TVIEW's name is unique across schemas, and the leg's other suites
              -- share this database, so this one is named for this suite alone.
              SELECT tviews.pg_tviews_create('{SCHEMA}.tv_dated_post', $T$
-               SELECT p.pk_post AS pk_dated_post, p.id,
+               SELECT p.pk_post AS pk_dated_post, p.id, p.created_at,
                  jsonb_build_object('id', p.id, 'created_at', p.created_at,
                    'published_at', p.published_at) AS data
                FROM {SCHEMA}.tb_post p $T$, '{{\"typename\": \"DatedPost\"}}');
@@ -185,19 +185,30 @@ async fn a_tviews_row_timestamps_are_never_offered_as_its_documents_date() {
         .await
         .unwrap();
 
-    // The premise: pg_tviews' `created_at` holds when it wrote the row, not the post's date.
-    let same: i64 = admin
-        .query_one(
-            &format!(
-                "SELECT count(*) FROM {SCHEMA}.tv_dated_post \
-                 WHERE created_at = (data->>'created_at')::timestamptz"
-            ),
-            &[],
-        )
-        .await
-        .unwrap()
-        .get(0);
-    assert_eq!(same, 0, "no row's pg_tviews created_at is its document's date");
+    // The premise: the TVIEW's `created_at` is the one its definition projects, the post's
+    // date, on every row, and pg_tviews appended no column of its own.
+    let (rows, same, appended): (i64, i64, i64) = {
+        let row = admin
+            .query_one(
+                &format!(
+                    "SELECT count(*), count(*) FILTER (WHERE created_at = \
+                       (data->>'created_at')::timestamptz),
+                     (SELECT count(*) FROM information_schema.columns
+                      WHERE table_schema = '{SCHEMA}' AND table_name = 'tv_dated_post'
+                        AND column_name = 'updated_at')
+                     FROM {SCHEMA}.tv_dated_post"
+                ),
+                &[],
+            )
+            .await
+            .unwrap();
+        (row.get(0), row.get(1), row.get(2))
+    };
+    assert_eq!(
+        (rows, same, appended),
+        (50, 50, 0),
+        "rows, rows dated as their document, updated_at"
+    );
 
     let (remedies, messages) =
         advice(&url, &schema(&["tv_dated_post", "tv_plain", "v_post"])).await;
@@ -205,7 +216,7 @@ async fn a_tviews_row_timestamps_are_never_offered_as_its_documents_date() {
     assert_eq!(
         remedies,
         BTreeMap::from([
-            (key("tv_dated_post", "createdAt"), TemporalKeyRemedy::TviewRowTimestamp),
+            (key("tv_dated_post", "createdAt"), TemporalKeyRemedy::MapColumn),
             (key("tv_dated_post", "publishedAt"), TemporalKeyRemedy::AddToTview),
             // pg_tviews is installed, but its catalog does not list this table.
             (key("tv_plain", "createdAt"), TemporalKeyRemedy::AddToTable),
@@ -214,11 +225,12 @@ async fn a_tviews_row_timestamps_are_never_offered_as_its_documents_date() {
             (key("v_post", "publishedAt"), TemporalKeyRemedy::ExposeFromView),
         ])
     );
-    let row_timestamp = messages
+    let published = messages
         .iter()
-        .find(|m| {
-            m.contains("`tv_dated_post.created_at`") || m.contains(".tv_dated_post.created_at`")
-        })
+        .find(|m| m.contains("`publishedAt`") && m.contains("tv_dated_post"))
         .unwrap_or_else(|| panic!("{messages:?}"));
-    assert!(!row_timestamp.contains("give the query an argument"), "{row_timestamp}");
+    assert!(
+        published.contains("Add `published_at` to the TVIEW's definition"),
+        "{published}"
+    );
 }

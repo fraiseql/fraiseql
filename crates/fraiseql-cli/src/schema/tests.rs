@@ -1182,7 +1182,7 @@ mod database_validator_tests {
     }
 
     /// The remedy follows what the relation is, never its name: a TVIEW is what `pg_tviews`'
-    /// catalog lists, and its `created_at` / `updated_at` are `pg_tviews`' own.
+    /// catalog lists, and a column it has is its definition's, mapped as any other.
     #[tokio::test]
     async fn the_advice_follows_what_the_relation_is() {
         use TemporalKeyRemedy::*;
@@ -1192,8 +1192,7 @@ mod database_validator_tests {
             ("v_event", Backing::View, "occurredAt", dated("occurred_at"), MapColumn),
             ("tv_event", Backing::Table, "occurredAt", vec![], AddToTable),
             ("event_doc", Backing::Tview, "occurredAt", vec![], AddToTview),
-            ("tv_event", Backing::Tview, "createdAt", dated("created_at"), TviewRowTimestamp),
-            ("tv_event", Backing::Tview, "updatedAt", dated("updated_at"), TviewRowTimestamp),
+            ("tv_event", Backing::Tview, "createdAt", dated("created_at"), MapColumn),
             ("tb_event", Backing::Table, "createdAt", dated("created_at"), MapColumn),
         ];
         for (source, backing, field, columns, remedy) in cases {
@@ -1214,28 +1213,8 @@ mod database_validator_tests {
                 "{source}"
             );
             let message = temporal_message(&warnings);
-            assert_eq!(message.contains("TVIEW"), matches!(backing, Backing::Tview), "{message}");
+            assert_eq!(message.contains("TVIEW"), remedy == AddToTview, "{message}");
         }
-    }
-
-    /// Mapping a field to a TVIEW's row timestamp sorts by materialisation time, and its
-    /// definition cannot project another column of that name: the advice offers neither.
-    #[tokio::test]
-    async fn a_tviews_row_timestamp_is_never_offered_as_the_documents_date() {
-        let warnings = temporal_report_for(
-            "tv_event",
-            Backing::Tview,
-            "createdAt",
-            FieldType::DateTime,
-            sorting(),
-            vec![("created_at", TIMESTAMPTZ, false)],
-            false,
-        )
-        .await;
-        let message = temporal_message(&warnings);
-        assert!(message.contains("pg_tviews"), "{message}");
-        assert!(!message.contains("give the query an argument"), "{message}");
-        assert!(!message.contains("to the TVIEW's definition"), "{message}");
     }
 }
 
