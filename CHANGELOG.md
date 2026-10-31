@@ -529,6 +529,15 @@ disagreed, and the promise was the part that was wrong.
   preflight and the shell-gates leg) fails on any `fraiseql_query` call under `docs/` or
   `examples/` whose query is a template literal holding `${`.
 
+- **The three documents under `crates/fraiseql-cli/docs/` are removed.** `rich-filters.md`,
+  `schema-compilation.md` and `testing-and-qa.md` were linked from nowhere and wrong
+  throughout: filter operators (`domainEq`, `distanceWithin`) and PostGIS support that do
+  not exist, a `fraiseql.toml` example `deny_unknown_fields` refuses, environment variables
+  with no reader, the `validate --detailed`, `schema-diff` and `analyze --unused-types`
+  commands, and test targets that are gone. The one true point they held that `docs/` did
+  not (the compile reports every unknown type at once, with suggestions) is now in
+  `docs/authoring-ir-format.md`.
+
 - **A root `__typename` is answered where it was selected, under its alias (#1785).** It
   was always the first key of each root object, whatever its position in the selection,
   contrary to GraphQL's field order (§ 6.3), and always under the key `__typename`, so

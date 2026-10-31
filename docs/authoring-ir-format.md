@@ -185,8 +185,10 @@ meaning: the declaration wins.
 
 A field type that is none of these, not a built-in scalar and not declared (as a type,
 enum, interface, union or `custom_scalars` entry) **fails the compile**, naming the field
-and the type. A server also refuses, at load, an artifact whose field names an object,
-interface or union that is not declared.
+and the type, with the declared names closest to it (`did you mean: User?`). The compile
+reports every such error in one run, not only the first, so three typos take one cycle. A
+server also refuses, at load, an artifact whose field names an object, interface or union
+that is not declared.
 
 Rich scalars do **not** carry type-specific filter operators: the
 `<RichType>WhereInput` surface was removed in v2.15 because the runtime WHERE
