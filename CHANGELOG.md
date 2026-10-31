@@ -44,6 +44,11 @@ disagreed, and the promise was the part that was wrong.
     start, callback and logout, which were 5, 10 and 30 in the server's defaults and 100,
     50 and 20 in `[fraiseql.security]`'s; refresh is 300 per 5 minutes, which was 20 per 5
     minutes and 10 a minute. The two tables now agree.
+  - **Behind a reverse proxy not listed in `trusted_proxy_cidrs`, every client shares one
+    budget per rule.** The rules key on the client address, and without a trusted proxy
+    that address is the proxy's: all its clients together get 30 OTP sends per 15
+    minutes, 30 anonymous signups per 10 minutes, and so on. List the proxy in
+    `trusted_proxy_cidrs` with `trust_proxy_headers = true` to give each client its own.
   - **A zero budget refuses to boot.** It used to drop its rule, so `0` meant unlimited.
   - **A router served without connect info is limited, not refused.** Its callers have no
     peer address, so they share one `unknown` bucket per rule, as the bearer-auth failure
@@ -55,8 +60,7 @@ disagreed, and the promise was the part that was wrong.
     `[security.rate_limiting]` (it serves the auth rules with `enabled = false` too). If
     you relied on `enabled = false` or `FRAISEQL_RATE_LIMITING_ENABLED=false` to leave the
     auth endpoints unlimited, write `auth_rules_enabled = false`. Behind a reverse proxy,
-    list it in `trusted_proxy_cidrs` with `trust_proxy_headers = true`; otherwise every
-    client shares the proxy's address, and one bucket per rule.
+    list it in `trusted_proxy_cidrs` with `trust_proxy_headers = true`.
 - **`LocalPasswordRouteState::rate_limiters` and `EmailVerificationRouteState::rate_limiters`
   are `Option<Arc<RateLimiters>>` (#1857).** The server passes `None`: its configured
   per-route rules replace the fixed in-handler limiter (100 a minute, one bucket for every
