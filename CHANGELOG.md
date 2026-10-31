@@ -22,10 +22,15 @@ disagreed, and the promise was the part that was wrong.
   comments and no item, so no path into it resolved to anything; code naming the module
   itself no longer compiles.
 
+- **A projection builds a list of objects element by element (#1785).** `FieldKind` has an
+  `ObjectList` variant, so a `match` over it needs an arm for it, and
+  `ProjectionField::object_list` builds one. `KeptProjection::built` says the projection
+  built every level from the selection, lists of objects included.
+
 - **A document's kept projection is keyed by the caller's masks (#1785).** `ProjectionKey`
   is built with `ProjectionKey::new(request_chain, masked)`, which keeps the masked
   `(type, field)` pairs as a set, and is no longer built as a struct literal.
-  `KeptProjection` has a `masks_written` field. `RawRows::has_null` is no longer a
+  `KeptProjection` has a `built` field. `RawRows::has_null` is no longer a
   `const fn`; `RawRows::has_null_where` says under which keys a `null` sits.
 
 - **`ResultProjector::configure_typename_from_selections` is removed (#1785).** It wrote a

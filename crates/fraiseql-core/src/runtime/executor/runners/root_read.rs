@@ -397,9 +397,10 @@ pub(in super::super) struct RootRead {
     pub(super) selection:      SelectionAccess,
     /// Projection for the read, or `None` to read the stored document whole.
     pub(super) projection:     Option<std::sync::Arc<SqlProjectionHint>>,
-    /// The projection writes every field [`selection`](Self::selection) masks as `null`,
-    /// so its rows need no masking after the read.
-    pub(super) masked_in_sql:  bool,
+    /// The projection builds every level from the selection, writing every field
+    /// [`selection`](Self::selection) masks as `null`, so its rows need no masking after the
+    /// read and its levels are read under their response keys.
+    pub(super) built_in_sql:   bool,
     /// The nested levels whose type scopes its rows, read as levels of a composed
     /// statement rooted at this read. Empty: the read is flat.
     pub(super) nested:         Vec<ComposedEmbed>,
@@ -727,7 +728,7 @@ impl QueryRunner {
                 leaf_fields: 0,
                 selection,
                 projection: None,
-                masked_in_sql: false,
+                built_in_sql: false,
                 nested,
                 gated_present,
                 abstract_read: false,
@@ -836,7 +837,7 @@ impl QueryRunner {
             order_by.as_ref().and_then(|c| c.first()),
             selection.masked_set(),
         )?;
-        let masked_in_sql = projection.as_ref().is_some_and(|kept| kept.masks_written);
+        let built_in_sql = projection.as_ref().is_some_and(|kept| kept.built);
         // A projection that prints every `Decimal` its rows can hold as text leaves
         // the rows' quoting nothing to keep; any other read is parsed with its shape.
         let decimals = match &projection {
@@ -868,7 +869,7 @@ impl QueryRunner {
             leaf_fields: plan.projection_fields.len(),
             selection,
             projection,
-            masked_in_sql,
+            built_in_sql,
             nested,
             gated_present,
             abstract_read: abstract_read.is_some(),

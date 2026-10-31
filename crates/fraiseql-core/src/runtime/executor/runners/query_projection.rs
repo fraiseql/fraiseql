@@ -88,7 +88,14 @@ pub fn build_typed_projection_fields(
                 )
             });
 
-            let kind = if is_composite {
+            // A list of objects is built element by element, from the same sub-fields.
+            let element = field_def
+                .and_then(|fd| fd.field_type.inner_type())
+                .filter(|item| item.is_object())
+                .and_then(crate::schema::FieldType::type_name);
+            let kind = if element.is_some() {
+                FieldKind::ObjectList
+            } else if is_composite {
                 FieldKind::Composite
             } else if is_text {
                 FieldKind::Text
@@ -96,9 +103,9 @@ pub fn build_typed_projection_fields(
                 FieldKind::Native
             };
 
-            // Recurse into a single object — an enum is composite too, and is its stored
-            // value. A list falls back to its stored array, which `shape_projected`
-            // re-projects element by element.
+            // Recurse into a single object or a list's — an enum is composite too, and is
+            // its stored value. Any other list falls back to its stored array, which
+            // `shape_projected` re-projects element by element.
             let sub_fields = field_def
                 .filter(|fd| {
                     matches!(
@@ -109,6 +116,7 @@ pub fn build_typed_projection_fields(
                     )
                 })
                 .and_then(|fd| fd.field_type.type_name())
+                .or(element)
                 .map(|child_type| {
                     build_typed_projection_fields(&sel.nested_fields, schema, child_type, key)
                 });
@@ -137,11 +145,12 @@ pub fn build_typed_projection_fields(
 /// a `Decimal`'s digits.
 ///
 /// Proven per field, never assumed: a `->>` leaf of a declared field, an object built from
-/// sub-fields that are themselves proven, or a value whose declared type reaches no
-/// `Decimal`. Anything else can carry a `Decimal` as a number and fails the read: a list
-/// or an object taken whole, a field below a union or an interface (projected without its
-/// type, so with `->`), and a field the parent type does not declare. A wrong `true` would
-/// round a `Decimal` silently, so an unrecognised shape is a `false`.
+/// sub-fields that are themselves proven, a list of objects whose elements are, or a value
+/// whose declared type reaches no `Decimal`. Anything else can carry a `Decimal` as a
+/// number and fails the read: a list or an object taken whole, a field below a union or an
+/// interface (projected without its type, so with `->`), and a field the parent type does
+/// not declare. A wrong `true` would round a `Decimal` silently, so an unrecognised shape
+/// is a `false`.
 #[must_use]
 pub fn projects_decimals_as_text(
     fields: &[ProjectionField],
@@ -164,6 +173,11 @@ pub fn projects_decimals_as_text(
             (FieldKind::Text, _, _) => true,
             (FieldKind::Composite, crate::schema::FieldType::Object(child), Some(sub_fields)) => {
                 projects_decimals_as_text(sub_fields, schema, child, decimals)
+            },
+            (FieldKind::ObjectList, list, Some(sub_fields)) => {
+                list.inner_type().and_then(crate::schema::FieldType::type_name).is_some_and(
+                    |child| projects_decimals_as_text(sub_fields, schema, child, decimals),
+                )
             },
             _ => !decimals.holds_decimal(&field_def.field_type),
         }

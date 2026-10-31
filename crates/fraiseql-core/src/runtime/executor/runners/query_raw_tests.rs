@@ -93,6 +93,8 @@ fn schema() -> CompiledSchema {
         field("status", FieldType::Enum("Status".to_string())),
         field("tags", FieldType::list(FieldType::String)),
         field("profile", FieldType::Object("Profile".to_string())),
+        field("profiles", FieldType::list(FieldType::Object("Profile".to_string()))),
+        field("partners", FieldType::list(FieldType::Interface("Node".to_string()))),
         localized,
         encrypted,
         authorized,
@@ -193,6 +195,15 @@ fn an_object_is_admitted_only_through_admitted_sub_fields() {
 }
 
 #[test]
+fn a_list_of_objects_is_admitted_only_through_admitted_sub_fields() {
+    assert_eq!(admitted(&[select("profiles", vec![leaf("tier")])]), Some(false));
+    assert_eq!(admitted(&[leaf("profiles")]), None, "a list with no sub-selection");
+    assert_eq!(admitted(&[select("profiles", vec![leaf("status")])]), None, "an enum below");
+    assert_eq!(admitted(&[select("partners", vec![leaf("id")])]), None, "an abstract element");
+    assert_eq!(admitted(&[leaf("tags")]), None, "a list of scalars");
+}
+
+#[test]
 fn a_selection_the_projection_would_merge_or_read_with_arguments_is_refused() {
     let twice = [
         leaf("name"),
@@ -244,7 +255,7 @@ fn read(schema: &CompiledSchema, selections: &[FieldSelection]) -> RootRead {
             "JSON_OBJECT('name' VALUE \"data\"->>'name' RETURNING json)".to_string(),
             0,
         ))),
-        masked_in_sql:  false,
+        built_in_sql:   false,
         nested:         Vec::new(),
         gated_present:  false,
         abstract_read:  false,
@@ -306,7 +317,7 @@ fn a_mask_is_served_raw_only_when_the_projection_wrote_it() {
     let mut read = read(&schema, &selections);
     assert!(!read.selection.masks_nothing(), "the anonymous caller lacks the scope");
     assert!(!RawShape::flat(&read), "a mask left to the walk after the read");
-    read.masked_in_sql = true;
+    read.built_in_sql = true;
     assert!(RawShape::flat(&read), "a mask the projection wrote");
     read.gated_present = true;
     assert!(!RawShape::flat(&read), "a gated field needs the row, written mask or not");
@@ -332,6 +343,7 @@ fn a_non_null_field_is_found_under_its_response_key_at_any_depth() {
     assert!(under(&[leaf("handle")], "handle"));
     assert!(under(&[tier.clone(), select("profile", vec![leaf("tier")])], "tier"));
     assert!(under(&[select("profile", vec![leaf("code")])], "code"), "below the root");
+    assert!(under(&[select("profiles", vec![leaf("code")])], "code"), "in a list's elements");
     assert!(!under(&[leaf("name"), leaf("secret")], "secret"), "a nullable field");
     assert!(!under(&[select("profile", vec![leaf("tier")])], "tier"), "nullable below");
     assert!(!under(&[tier], "handle"), "a field is found under its alias, not its name");

@@ -493,3 +493,34 @@ fn a_masked_translations_sibling_is_written_as_an_empty_list() {
 
     assert_eq!(sql, "JSON_OBJECT('nameTranslations' VALUE ('[]'::json) RETURNING json)");
 }
+
+/// A list of objects is built element by element from its sub-fields, never read whole:
+/// in the stored order, a `null` element kept as `null`, no elements as `[]`, and a value
+/// that is no array as `NULL`. A list inside an element reads its own elements.
+#[test]
+fn a_list_of_objects_is_built_from_its_elements_sub_fields() {
+    let generator = PostgresProjectionGenerator::new();
+    let fields = vec![ProjectionField::object_list(
+        "lines",
+        vec![
+            ProjectionField::scalar("memo"),
+            ProjectionField::object_list("splits", vec![ProjectionField::scalar("rate")]),
+        ],
+    )];
+    let sql = generator.generate_typed_projection_sql(&fields).unwrap();
+    for part in [
+        "'lines' VALUE CASE WHEN jsonb_typeof(\"data\"->'lines') = 'array' THEN (SELECT \
+         COALESCE(JSON_ARRAYAGG(CASE WHEN jsonb_typeof(e0.value) = 'object' THEN JSON_OBJECT(",
+        "e0.value->>'memo'",
+        "ORDER BY e0.ordinality NULL ON NULL RETURNING json), '[]'::json) FROM \
+         jsonb_array_elements(\"data\"->'lines') WITH ORDINALITY AS e0) END",
+        "jsonb_array_elements(e0.value->'splits') WITH ORDINALITY AS e1",
+        "e1.value->>'rate'",
+    ] {
+        assert!(sql.contains(part), "{part} missing from {sql}");
+    }
+    assert!(
+        !sql.contains("\"data\"->'lines' "),
+        "the stored list is never read whole: {sql}"
+    );
+}

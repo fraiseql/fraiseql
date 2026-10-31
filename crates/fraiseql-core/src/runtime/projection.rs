@@ -1009,8 +1009,9 @@ fn project_list_element(
 /// - `__typename` is written where it was selected, as `type_name`;
 /// - a field in `masked` reads as `null` (`[]` for a translations sibling);
 /// - a single object is shaped the same way, one level down;
-/// - a list of objects, which the SQL projection leaves as the stored sub-documents, is projected
-///   element by element from their stored keys ([`project_entity`]).
+/// - a list of objects is shaped element by element the same way when the projection `built` it,
+///   and otherwise, the stored sub-documents, projected from their stored keys
+///   ([`project_entity`]).
 ///
 /// No level below the root is taken as the adapter shaped it: an adapter that ignored
 /// the projection serves no key the query did not select.
@@ -1020,15 +1021,18 @@ pub fn shape_projected(
     selections: &[FieldSelection],
     schema: &CompiledSchema,
     masked: Option<&HashSet<(String, String)>>,
+    built: bool,
 ) {
     match value {
         // A list-returning query: each element is an entity of `type_name`.
         JsonValue::Array(items) => {
             for item in items {
-                shape_projected(item, type_name, selections, schema, masked);
+                shape_projected(item, type_name, selections, schema, masked, built);
             }
         },
-        JsonValue::Object(object) => shape_root(object, type_name, selections, schema, masked),
+        JsonValue::Object(object) => {
+            shape_root(object, type_name, selections, schema, masked, built);
+        },
         _ => {},
     }
 }
@@ -1041,9 +1045,10 @@ pub fn shape_unprojected_root(
     selections: &[FieldSelection],
     schema: &CompiledSchema,
     masked: Option<&HashSet<(String, String)>>,
+    built: bool,
 ) {
     if let JsonValue::Object(object) = value {
-        *object = shape_level(std::mem::take(object), type_name, selections, schema, masked);
+        *object = shape_level(std::mem::take(object), type_name, selections, schema, masked, built);
     }
 }
 
@@ -1056,12 +1061,13 @@ fn shape_root(
     selections: &[FieldSelection],
     schema: &CompiledSchema,
     masked: Masked<'_>,
+    built: bool,
 ) {
     let level = effective_selections(selections, type_name, schema);
     // `__typename` is answered where it was selected, under its alias, as at every level
     // below (§ 6.3): the level is rebuilt in its selection's order.
     if level.iter().any(|sel| sel.name == "__typename") {
-        *object = shape_level(std::mem::take(object), type_name, selections, schema, masked);
+        *object = shape_level(std::mem::take(object), type_name, selections, schema, masked, built);
         return;
     }
     let type_def = schema.find_type(type_name);
@@ -1082,7 +1088,7 @@ fn shape_root(
             continue;
         }
         if let Some(slot) = object.get_mut(sel.response_key()) {
-            *slot = shape_field(std::mem::take(slot), field_def, sel, schema, masked);
+            *slot = shape_field(std::mem::take(slot), field_def, sel, schema, masked, built);
         }
     }
 }
@@ -1094,6 +1100,7 @@ fn shape_level(
     selections: &[FieldSelection],
     schema: &CompiledSchema,
     masked: Masked<'_>,
+    built: bool,
 ) -> Map<String, JsonValue> {
     let type_def = schema.find_type(type_name);
     let level = effective_selections(selections, type_name, schema);
@@ -1126,7 +1133,9 @@ fn shape_level(
         }
         let field_def = type_def.and_then(|td| td.fields.iter().find(|f| f.name == sel.name));
         let value = match field_def {
-            Some(fd) if !fd.field_type.is_scalar() => shape_field(value, fd, sel, schema, masked),
+            Some(fd) if !fd.field_type.is_scalar() => {
+                shape_field(value, fd, sel, schema, masked, built)
+            },
             _ => value,
         };
         out.insert(key, value);
@@ -1141,6 +1150,7 @@ fn shape_field(
     sel: &FieldSelection,
     schema: &CompiledSchema,
     masked: Masked<'_>,
+    built: bool,
 ) -> JsonValue {
     let nested = sel.nested_fields.as_slice();
     if field_def.field_type.is_list() {
@@ -1152,7 +1162,13 @@ fn shape_field(
             // next is built, so the allocator reuses it.
             JsonValue::Array(mut items) => {
                 for item in &mut items {
-                    *item = project_list_element(item, child, nested, schema, masked);
+                    *item = match std::mem::take(item) {
+                        // Built by the projection, under its response keys, as an object is.
+                        JsonValue::Object(element) if built => JsonValue::Object(shape_level(
+                            element, child, nested, schema, masked, built,
+                        )),
+                        stored => project_list_element(&stored, child, nested, schema, masked),
+                    };
                 }
                 JsonValue::Array(items)
             },
@@ -1168,7 +1184,7 @@ fn shape_field(
     };
     match value {
         JsonValue::Object(object) => {
-            JsonValue::Object(shape_level(object, child, nested, schema, masked))
+            JsonValue::Object(shape_level(object, child, nested, schema, masked, built))
         },
         // An object as JSON text holds its stored keys: projected as a stored document.
         text @ JsonValue::String(_) => {
