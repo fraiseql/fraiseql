@@ -97,6 +97,23 @@ INSERT INTO v_selection_conformance_parity (data) VALUES
   ('{"id":"c2","display_name":"Bob","home_address":null,"past_orders":[]}'::jsonb);
 "#;
 
+/// Lists of objects: an empty list, a `null` list, a missing one, a `null` element, elements
+/// holding keys nobody selects and objects of their own, in an order the rows must keep.
+const ROSTER_VIEW: &str = "v_selection_conformance_roster";
+const ROSTER_FIXTURE: &str = r#"
+DROP TABLE IF EXISTS v_selection_conformance_roster;
+CREATE TABLE v_selection_conformance_roster (pk_roster bigint, data jsonb);
+INSERT INTO v_selection_conformance_roster (pk_roster, data) VALUES
+  (1, '{"name":"r1","members":[{"name":"c","role":"lead","unselected":"E1"},
+       {"name":"a","role":null}],"reserves":[{"name":"q","role":"cook"},null],
+     "crew":[{"name":"z","role":"cook","home":{"city":"Lyon","zip":"1"},
+         "tasks":[{"what":"fry"},{"what":"boil"}]},
+       {"name":"y","role":"mate","home":null,"tasks":[]},{"name":"x","role":"cook"}]}'::jsonb),
+  (2, '{"name":"r2","members":[],"crew":[{"name":"w","role":"mate","home":{"city":"Nice"}}]}'::jsonb),
+  (3, '{"name":"r3","members":null,"crew":[]}'::jsonb),
+  (4, '{"name":"r4","crew":[]}'::jsonb);
+"#;
+
 /// Decimals at the root, in a nested object, in a list of objects and in a list of lists.
 const LEDGER_VIEW: &str = "v_selection_conformance_ledger";
 /// A set-returning function over [`LEDGER_VIEW`]'s rows.
@@ -202,6 +219,52 @@ fn schema() -> CompiledSchema {
             },
         )
         .build();
+    let home_type = TestTypeBuilder::new("RosterHome", "v_selection_conformance_home")
+        .with_simple_field("city", FieldType::String)
+        .build();
+    let task_type = TestTypeBuilder::new("RosterTask", "v_selection_conformance_task")
+        .with_simple_field("what", FieldType::String)
+        .build();
+    let member_type = TestTypeBuilder::new("Member", "v_selection_conformance_member")
+        .with_simple_field("name", FieldType::String)
+        .with_nullable_field("role", FieldType::String)
+        .with_nullable_field("home", FieldType::Object("RosterHome".to_string()))
+        .with_nullable_field(
+            "tasks",
+            FieldType::List {
+                item:           Box::new(FieldType::Object("RosterTask".to_string())),
+                nullable_items: false,
+            },
+        )
+        .build();
+    let roster_type = TestTypeBuilder::new("Roster", ROSTER_VIEW)
+        .with_simple_field("name", FieldType::String)
+        .with_nullable_field(
+            "members",
+            FieldType::List {
+                item:           Box::new(FieldType::Object("Member".to_string())),
+                nullable_items: true,
+            },
+        )
+        .with_simple_field(
+            "crew",
+            FieldType::List {
+                item:           Box::new(FieldType::Object("Member".to_string())),
+                nullable_items: false,
+            },
+        )
+        .with_nullable_field(
+            "reserves",
+            FieldType::List {
+                item:           Box::new(FieldType::Object("Member".to_string())),
+                nullable_items: true,
+            },
+        )
+        .build();
+    let rosters_query = TestQueryBuilder::new("rosters", "Roster")
+        .returns_list(true)
+        .with_sql_source(ROSTER_VIEW)
+        .build();
     let customers_query = TestQueryBuilder::new("customers", "ParityCustomer")
         .returns_list(true)
         .with_sql_source(PARITY_VIEW)
@@ -274,6 +337,11 @@ fn schema() -> CompiledSchema {
         .with_type(order_type)
         .with_type(customer_type)
         .with_query(customers_query)
+        .with_type(home_type)
+        .with_type(task_type)
+        .with_type(member_type)
+        .with_type(roster_type)
+        .with_query(rosters_query)
         .with_type(ledger_estimate_type)
         .with_query(ledger_estimates_query)
         .with_query(users_query)
@@ -300,6 +368,7 @@ async fn executor_for(schema: CompiledSchema) -> Option<Executor> {
         .split(";\n")
         .chain(MEASURE_FIXTURE.split(";\n"))
         .chain(PARITY_FIXTURE.split(";\n"))
+        .chain(ROSTER_FIXTURE.split(";\n"))
     {
         if stmt.trim().is_empty() {
             continue;
@@ -862,6 +931,16 @@ const RAW_ELIGIBLE: &[&str] = &[
     r#"{ user(where: { name: { eq: "Alice" } }) { name __typename } }"#,
     // Selected twice, one response key: merged before the read (§ 5.3.2).
     "{ users { __typename name __typename } }",
+    // A list of objects is built from its elements' selected sub-fields, in element order:
+    // an empty list, a `null` list and a missing one stay what they are.
+    "{ rosters { name members { name role } } }",
+    "{ rosters { members { who: name } crew { role name } } }",
+    "{ rosters { crew { name home { city } } name } }",
+    "{ rosters { crew { __typename name } } }",
+    "{ rosters { crew { name tasks { what } } } }",
+    "{ customers { id pastOrders { orderTotal shipTo { postalCode } } } }",
+    "{ customers { pastOrders { orderTotal } displayName } }",
+    "{ ledgers { lines { amount qty } } }",
 ];
 
 /// Reads that must stay on the `Value` path: each needs a step the bytes cannot take.
@@ -871,6 +950,8 @@ const RAW_INELIGIBLE: &[(&str, &str)] = &[
         "{ users { name partner { __typename id } } }",
     ),
     ("two root fields", "{ users { name } wides { kaa } }"),
+    ("a list of scalars", "{ ledgers { entry { splits } } }"),
+    ("a list of lists", "{ ledgers { rates } }"),
     (
         "a relay connection",
         "{ usersConnection(first: 1) { edges { node { name } } } }",
@@ -1208,6 +1289,69 @@ async fn a_null_at_a_non_null_position_is_completed_as_the_value_path_completes_
         failures.len(),
         failures.join("\n  ")
     );
+}
+
+/// A list of objects answers the elements it stored, in their order, each holding what its
+/// selection names: `[]` for no elements, `null` for a `null` or missing list, a `null`
+/// element kept, and a list inside an element read from that element's own.
+#[tokio::test]
+async fn a_list_of_objects_answers_its_stored_elements_in_order() {
+    let Some(exec) = executor().await else {
+        eprintln!("SKIP: no PostgreSQL (set DATABASE_URL)");
+        return;
+    };
+    let response = exec
+        .execute(
+            "{ rosters { members { name } crew { who: name tasks { what } } reserves { name } } }",
+            None,
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        column(&response, "rosters", "members"),
+        vec![
+            json!([{"name": "c"}, {"name": "a"}]),
+            json!([]),
+            Value::Null,
+            Value::Null
+        ],
+        "{response}"
+    );
+    assert_eq!(
+        column(&response, "rosters", "crew")[0],
+        json!([
+            {"who": "z", "tasks": [{"what": "fry"}, {"what": "boil"}]},
+            {"who": "y", "tasks": []},
+            {"who": "x", "tasks": null},
+        ]),
+        "{response}"
+    );
+    assert_eq!(
+        column(&response, "rosters", "reserves"),
+        vec![
+            json!([{"name": "q"}, null]),
+            Value::Null,
+            Value::Null,
+            Value::Null
+        ],
+        "{response}"
+    );
+}
+
+/// A `null` element sits under no key, so a list holding one may hold it at a non-null
+/// element type, and the read is completed in Rust (§ 6.4.4), with the `Value` path's bytes.
+#[tokio::test]
+async fn a_list_holding_a_null_element_is_completed_as_the_value_path_completes_it() {
+    let Some(exec) = executor().await else {
+        eprintln!("SKIP: no PostgreSQL (set DATABASE_URL)");
+        return;
+    };
+    for query in [
+        "{ rosters { name reserves { name role } } }",
+        "{ rosters { reserves { who: name } crew { role name } } }",
+    ] {
+        assert_eq!(as_the_value_path(&exec, query, &principal()).await, Ok(false), "{query}");
+    }
 }
 
 /// What PostgreSQL itself prints for `expr` over `view`'s rows, in table order: the digits a

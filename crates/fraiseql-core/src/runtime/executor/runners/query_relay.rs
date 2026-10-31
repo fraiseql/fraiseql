@@ -708,6 +708,7 @@ impl QueryRunner {
                 selections,
                 &self.ctx.schema,
                 Some(selection_access.masked_set()),
+                true,
             );
             value
         } else {

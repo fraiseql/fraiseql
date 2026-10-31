@@ -284,7 +284,7 @@ impl QueryRunner {
                     0,
                 )),
                 decimals_as_text: false,
-                masks_written:    false,
+                built:            false,
             }));
         }
 
@@ -509,6 +509,7 @@ impl QueryRunner {
                 root_fields,
                 &self.ctx.schema,
                 Some(read.selection.masked_set()),
+                read.built_in_sql,
             );
             projected
         };
@@ -708,6 +709,7 @@ impl QueryRunner {
             &resolved.selection,
             &results,
             query_match.query_def.returns_list,
+            resolved.built_in_sql,
         )?;
 
         // Wrap in GraphQL data envelope.
@@ -1248,6 +1250,7 @@ impl QueryRunner {
         // has to cut it where it crosses rather than let it run: `max_page_size`
         // does not bound a stream, which is the point of a stream.
         let budget = resolved.budget();
+        let built = resolved.built_in_sql;
         let access = resolved.selection;
         Ok(Box::pin(rows.map(move |row| {
             let row = row?;
@@ -1257,7 +1260,8 @@ impl QueryRunner {
             // Projected as a one-element list so the row goes through the list
             // element path — the same one a buffered list read uses, including
             // `project_entity`'s `__typename` stamping.
-            let projected = runner.project_direct_rows(&query_match, &access, &[row], true)?;
+            let projected =
+                runner.project_direct_rows(&query_match, &access, &[row], true, built)?;
             match projected {
                 serde_json::Value::Array(mut items) if items.len() == 1 => Ok(items.remove(0)),
                 serde_json::Value::Array(items) => Err(FraiseQLError::Internal {
@@ -1287,6 +1291,7 @@ impl QueryRunner {
         selection: &super::query_nested::SelectionAccess,
         rows: &[crate::backend::types::JsonbValue],
         returns_list: bool,
+        built: bool,
     ) -> Result<serde_json::Value> {
         let access = &selection.root;
         let root_fields =
@@ -1307,6 +1312,7 @@ impl QueryRunner {
             root_fields,
             &self.ctx.schema,
             Some(selection.masked_set()),
+            built,
         );
         Ok(projected)
     }
@@ -1425,7 +1431,7 @@ impl DocumentProjection<'_> {
         Ok(KeptProjection {
             hint: Arc::new(hint),
             decimals_as_text,
-            masks_written: true,
+            built: true,
         })
     }
 }

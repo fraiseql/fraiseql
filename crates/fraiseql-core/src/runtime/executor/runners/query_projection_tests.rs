@@ -231,12 +231,14 @@ fn decimal_leaves_and_objects_built_from_them_are_printed_as_text() {
     let nested = [field("entry", None, vec![field("amount", None, vec![])])];
     assert!(decimals_as_text(&nested, "Ledger"));
     assert!(decimals_as_text(&[field("memo", None, vec![])], "Entry"));
+    let list = [field("lines", None, vec![field("amount", None, vec![])])];
+    assert!(decimals_as_text(&list, "Ledger"), "each element is built from its fields");
 }
 
 #[test]
-fn a_list_or_an_undeclared_parent_can_hold_a_decimal_as_a_number() {
-    let list = [field("lines", None, vec![field("memo", None, vec![])])];
-    assert!(!decimals_as_text(&list, "Ledger"), "a list is read as its stored array");
+fn a_scalar_list_or_an_undeclared_parent_can_hold_a_decimal_as_a_number() {
+    let list = [field("lines", None, vec![field("splits", None, vec![])])];
+    assert!(!decimals_as_text(&list, "Ledger"), "an element is as covered as its fields");
     let nested_list = [field("entry", None, vec![field("splits", None, vec![])])];
     assert!(
         !decimals_as_text(&nested_list, "Ledger"),

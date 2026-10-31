@@ -1,17 +1,18 @@
 //! A root read answered as the bytes the database serialized.
 //!
 //! The projection already shapes a row the way the response wants it — its keys the
-//! response keys, in selection order, each nested object built from its selected
-//! sub-fields. Where nothing after the read would change a byte of it, the rows are
-//! spliced into the `data` envelope as the database wrote them, and no row becomes a
-//! [`serde_json::Value`]. Only their numbers are written again, as `serde_json` writes
-//! them.
+//! response keys, in selection order, each nested object and each element of a list of
+//! objects built from its selected sub-fields. Where nothing after the read would change a
+//! byte of it, the rows are spliced into the `data` envelope as the database wrote them,
+//! and no row becomes a [`serde_json::Value`]. Only their numbers are written again, as
+//! `serde_json` writes them.
 //!
 //! Anything Rust would still reshape keeps the read on the `Value` path: a localized,
-//! encrypted or computed field, an enum, a list or a JSON scalar, an abstract type and any
-//! `__typename` below one, a mask the projection did not write, a gated field, a nested
-//! level read by a composed statement. A `__typename` of an object type is the literal the
-//! projection writes, and so is the `null` of a field the caller's scopes mask.
+//! encrypted or computed field, an enum, a list of anything but objects, a JSON scalar, an
+//! abstract type and any `__typename` below one, a mask the projection did not write, a
+//! gated field, a nested level read by a composed statement. A `__typename` of an object
+//! type is the literal the projection writes, and so is the `null` of a field the caller's
+//! scopes mask.
 
 use std::{collections::HashSet, sync::Arc};
 
@@ -169,15 +170,15 @@ impl RawShape {
             && !read.abstract_read
             && read.nearest_k.is_none()
             && read.nearest_count.is_none()
-            && (read.masked_in_sql || read.selection.masks_nothing())
+            && (read.built_in_sql || read.selection.masks_nothing())
     }
 
     /// Whether every field of `selections`, at every depth, is served as the projection
     /// reads it.
     ///
-    /// A nested object is admitted only through its own selected sub-fields, each admitted
-    /// in turn: the projection builds such an object from them, and a value read whole
-    /// from below a field is never served as it was stored.
+    /// A nested object, or a list of them, is admitted only through its own selected
+    /// sub-fields, each admitted in turn: the projection builds such an object from them,
+    /// and a value read whole from below a field is never served as it was stored.
     fn admits(
         &mut self,
         selections: &[FieldSelection],
@@ -219,10 +220,9 @@ impl RawShape {
                 | FieldType::Float
                 | FieldType::Decimal
                 | FieldType::Boolean => sel.nested_fields.is_empty(),
-                FieldType::Object(child) => {
+                ty => object_type(ty).is_some_and(|child| {
                     !sel.nested_fields.is_empty() && self.admits(&sel.nested_fields, schema, child)
-                },
-                _ => false,
+                }),
             }
         })
     }
@@ -244,13 +244,17 @@ fn selects_non_null_under(
             return false;
         };
         (!field.nullable && sel.response_key().as_bytes() == key)
-            || match &field.field_type {
-                FieldType::Object(child) => {
-                    selects_non_null_under(&sel.nested_fields, schema, child, key)
-                },
-                _ => false,
-            }
+            || object_type(&field.field_type)
+                .is_some_and(|child| selects_non_null_under(&sel.nested_fields, schema, child, key))
     })
+}
+
+/// The object type of a single object, or of a list's elements.
+fn object_type(field_type: &FieldType) -> Option<&str> {
+    match field_type {
+        FieldType::Object(child) => Some(child),
+        list => list.inner_type().filter(|item| item.is_object()).and_then(FieldType::type_name),
+    }
 }
 
 #[cfg(test)]

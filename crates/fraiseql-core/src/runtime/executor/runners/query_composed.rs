@@ -331,6 +331,7 @@ impl QueryRunner {
             &plan.resolved.selection,
             &documents,
             returns_list,
+            plan.resolved.built_in_sql,
         )?;
 
         match &mut projected {

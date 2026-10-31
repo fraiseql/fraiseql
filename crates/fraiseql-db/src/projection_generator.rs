@@ -45,6 +45,8 @@ pub enum FieldKind {
     Native,
     /// Object or list — extracted with `->` to preserve JSONB structure.
     Composite,
+    /// A list of objects, each element built from the field's `sub_fields`.
+    ObjectList,
 }
 /// The most key/value pairs one `jsonb_build_object` call can carry.
 ///
@@ -294,10 +296,19 @@ impl ProjectionField {
         Self::computed(name, ComputedExpr::from_validated_parts(value.to_string()))
     }
 
+    /// A list of objects whose elements are each built from `sub_fields`.
+    #[must_use]
+    pub fn object_list(name: impl Into<String>, sub_fields: Vec<Self>) -> Self {
+        Self {
+            kind: FieldKind::ObjectList,
+            ..Self::composite_with_sub_fields(name, sub_fields)
+        }
+    }
+
     /// Whether this field is a composite type (Object or List).
     #[must_use]
     pub const fn is_composite(&self) -> bool {
-        matches!(self.kind, FieldKind::Composite)
+        matches!(self.kind, FieldKind::Composite | FieldKind::ObjectList)
     }
 }
 
@@ -752,6 +763,29 @@ impl PostgresProjectionGenerator {
         // yields NULL, and recursion applies the guard at every depth.
         if let Some(subs) = &field.sub_fields {
             let nested_path = format!("{}->'{}'", path, safe_jsonb_key);
+            // A list's elements, each built as an object is, in their stored order. A `null`
+            // element stays one (`NULL ON NULL`), and no elements aggregate to `[]`, not
+            // the `NULL` an aggregate over no rows is. A nested list's elements are named
+            // by their depth, so no list reads another's.
+            if field.kind == FieldKind::ObjectList {
+                let element = format!("e{}", path.matches(".value").count());
+                let item = format!("{element}.value");
+                let inner = subs
+                    .iter()
+                    .map(|sf| Self::render_field(sf, &item))
+                    .collect::<Result<Vec<_>>>()?;
+                return Ok(ObjectPair::new(
+                    format!("'{resp_key}'"),
+                    format!(
+                        "CASE WHEN jsonb_typeof({nested_path}) = 'array' THEN (SELECT \
+                         COALESCE(JSON_ARRAYAGG(CASE WHEN jsonb_typeof({item}) = 'object' THEN \
+                         {} END ORDER BY {element}.ordinality NULL ON NULL RETURNING json), \
+                         '[]'::json) FROM jsonb_array_elements({nested_path}) WITH ORDINALITY \
+                         AS {element}) END",
+                        json_object_sql(&inner)
+                    ),
+                ));
+            }
             let inner = subs
                 .iter()
                 .map(|sf| Self::render_field(sf, &nested_path))
