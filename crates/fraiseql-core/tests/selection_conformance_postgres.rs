@@ -31,6 +31,7 @@ use fraiseql_core::{
     schema::{
         CompiledSchema, FieldDefinition, FieldDenyPolicy, FieldType, InterfaceDefinition,
         RoleDefinition, SecurityConfig, SessionVariableMapping, SessionVariableSource, SourceKind,
+        UnionDefinition,
     },
     security::SecurityContext,
 };
@@ -77,8 +78,10 @@ DROP TABLE IF EXISTS v_selection_conformance_ledger CASCADE;
 CREATE TABLE v_selection_conformance_ledger (pk_ledger bigint, data jsonb);
 INSERT INTO v_selection_conformance_ledger (pk_ledger, data) VALUES
   (1, '{"total":1.50,"entry":{"amount":100.00,"memo":"m","splits":[0.10,2.500]},
-     "lines":[{"amount":-0.001,"qty":2},{"amount":0,"qty":1}],"rates":[0.10,[2.50],null]}'::jsonb),
-  (2, '{"total":12345678901234567890.12,"entry":null,"lines":[],"rates":[]}'::jsonb);
+     "lines":[{"amount":-0.001,"qty":2},{"amount":0,"qty":1}],"rates":[0.10,[2.50],null],
+     "party":{"__typename":"Org","credit":12345678901234567.80,"name":"o"}}'::jsonb),
+  (2, '{"total":12345678901234567890.12,"entry":null,"lines":[],"rates":[],
+     "party":{"__typename":"Person","limit":0.10,"name":"p"}}'::jsonb);
 CREATE OR REPLACE FUNCTION fn_selection_conformance_ledger() RETURNS SETOF v_selection_conformance_ledger LANGUAGE sql STABLE AS 'SELECT * FROM v_selection_conformance_ledger';
 "#;
 
@@ -97,7 +100,8 @@ INSERT INTO v_selection_conformance_parity (data) VALUES
   ('{"id":"c2","display_name":"Bob","home_address":null,"past_orders":[]}'::jsonb);
 "#;
 
-/// Decimals at the root, in a nested object, in a list of objects and in a list of lists.
+/// Decimals at the root, in a nested object, in a list of objects, in a list of lists and in
+/// a union member.
 const LEDGER_VIEW: &str = "v_selection_conformance_ledger";
 /// A set-returning function over [`LEDGER_VIEW`]'s rows.
 const LEDGER_FUNCTION: &str = "fn_selection_conformance_ledger";
@@ -177,6 +181,16 @@ fn schema() -> CompiledSchema {
                 nullable_items: true,
             },
         )
+        .with_nullable_field("party", FieldType::Union("Party".to_string()))
+        .build();
+    // The members of the union `Party`, each holding a `Decimal`.
+    let org_type = TestTypeBuilder::new("Org", "v_selection_conformance_org")
+        .with_simple_field("credit", FieldType::Decimal)
+        .with_simple_field("name", FieldType::String)
+        .build();
+    let person_type = TestTypeBuilder::new("Person", "v_selection_conformance_person")
+        .with_simple_field("limit", FieldType::Decimal)
+        .with_simple_field("name", FieldType::String)
         .build();
     let region_type = TestTypeBuilder::new("ParityRegion", "v_selection_conformance_region")
         .with_simple_field("regionName", FieldType::String)
@@ -268,6 +282,8 @@ fn schema() -> CompiledSchema {
         .with_type(ledger_type)
         .with_query(ledgers_query)
         .with_query(ledger_rows_query)
+        .with_type(org_type)
+        .with_type(person_type)
         .with_type(entry_estimate_type)
         .with_type(region_type)
         .with_type(parity_address_type)
@@ -285,6 +301,9 @@ fn schema() -> CompiledSchema {
     schema.interfaces.push(
         InterfaceDefinition::new("Node").with_field(FieldDefinition::new("id", FieldType::Id)),
     );
+    let mut party = UnionDefinition::new("Party");
+    party.member_types = vec!["Org".to_string(), "Person".to_string()];
+    schema.unions.push(party);
     schema
 }
 
@@ -1334,6 +1353,41 @@ async fn a_decimal_read_from_a_function_keeps_its_digits() {
         "a list inside a projected object is read as its stored array: {nested}"
     );
     assert_eq!(first["lines"], json!([{"amount": "-0.001"}, {"amount": "0"}]), "{response}");
+}
+
+/// A union field read through inline fragments answers each row's member with the fields
+/// its own fragment selects, a `Decimal` among them with its digits, and `{}` for a member
+/// no fragment names (#1825).
+#[tokio::test]
+async fn a_union_field_answers_the_fields_its_members_fragments_select() {
+    let Some(exec) = executor().await else {
+        eprintln!("SKIP: no PostgreSQL (set DATABASE_URL)");
+        return;
+    };
+    let org_only = exec
+        .execute("{ ledgers { party { ... on Org { credit name } } } }", None)
+        .await
+        .unwrap();
+    assert_eq!(
+        column(&org_only, "ledgers", "party"),
+        vec![json!({"credit": "12345678901234567.80", "name": "o"}), json!({})],
+        "{org_only}"
+    );
+    let both = exec
+        .execute(
+            "{ ledgers { party { __typename ... on Org { credit } ... on Person { limit } } } }",
+            None,
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        column(&both, "ledgers", "party"),
+        vec![
+            json!({"__typename": "Org", "credit": "12345678901234567.80"}),
+            json!({"__typename": "Person", "limit": "0.10"}),
+        ],
+        "{both}"
+    );
 }
 
 /// A read answered from the cache hands back the digits the first read did, and a read
