@@ -93,8 +93,7 @@
   ┌─ postgres/   ─── Postgres adapter  (primary, most features)
   └─ types/      ─── OrderByClause, OrderDirection, SqlProjectionHint
 
-  Features: postgres(default) | mysql | sqlite | sqlserver
-            wire-backend | rich-filters | test-postgres | test-mysql | test-sqlserver
+  Features: postgres(default) | wire-backend | test-postgres
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  LAYER 4 — fraiseql-core  (query engine)
@@ -484,9 +483,7 @@
     testing           Test helpers exposed publicly
 
   fraiseql-db:
-    postgres(default) | mysql | sqlite | sqlserver
-    wire-backend | rich-filters
-    test-postgres | test-mysql | test-sqlserver
+    postgres(default) | wire-backend | test-postgres
 
   fraiseql-error:
     axum-compat       IntoResponse impl (avoids hard axum dep in non-server code)

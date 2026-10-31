@@ -18,6 +18,10 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **`fraiseql_cli::schema::advanced_types` is removed (#1865).** The module held only
+  comments and no item, so no path into it resolved to anything; code naming the module
+  itself no longer compiles.
+
 - **A document's kept projection is keyed by the caller's masks (#1785).** `ProjectionKey`
   is built with `ProjectionKey::new(request_chain, masked)`, which keeps the masked
   `(type, field)` pairs as a set, and is no longer built as a struct literal.
@@ -364,6 +368,13 @@ disagreed, and the promise was the part that was wrong.
 
 ### Added
 
+- **A `fraiseql functions invoke --mock-query` entry can match on the call's variables
+  (#1863).** An entry is `{query_contains?, variables?, response}`; with `variables` it
+  answers only a call bound with exactly those variables, so a mock for one customer no
+  longer answers the read of another. Every test fixture that called `fraiseql_query` with
+  an interpolated value now binds it as a variable, and `make lint-query-variables` checks
+  `tests/` and every crate's `tests/` as well as `docs/` and `examples/`.
+
 - **A function bundled by esbuild runs as written, and the docs list what a function's
   runtime provides (#1860).** esbuild's `--format=esm` output names its entry point in an
   export list, `export { handler_default as default };`, which the Deno runtime refused as
@@ -541,6 +552,16 @@ disagreed, and the promise was the part that was wrong.
   hold, in place of six.
 
 ### Fixed
+
+- **The last multi-dialect and rich-filter claims are gone (#1865).** The fraiseql-db
+  README and `architecture.md` listed the `mysql`, `sqlite`, `sqlserver`, `rich-filters`,
+  `test-mysql` and `test-sqlserver` features, none of which exist; the README now lists
+  `postgres`, `wire-backend` and `test-postgres`, and the `where` operators the crate has.
+  `docs/authoring.md` said `compile` generated SQL templates per dialect and built lookup
+  indexes: it binds each operation to the relation its `sql_source` names, and the server
+  generates SQL per request and builds its indexes at load. The comment-only
+  `fraiseql_cli::schema::advanced_types` module, which repeated the same claims and held no
+  item, is deleted.
 
 - **The `request:query` example in `docs/architecture/functions.md` binds its value as a
   variable (#1859).** It built the `fraiseql_query` document by interpolation,

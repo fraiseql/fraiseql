@@ -512,9 +512,12 @@ npx fraiseql compile schema.json
 The `fraiseql-cli compile` command performs:
 
 1. **Validation** — checks type references, argument types, SQL identifier safety
-2. **SQL template generation** — produces parameterized query templates per database dialect
-3. **Index building** — generates O(1) lookup structures for runtime performance
-4. **Config embedding** — merges `fraiseql.toml` security/caching config into the output
+2. **Binding** — binds each query and mutation to the view or SQL function its `sql_source`
+   names; with `--database`, checks those relations against the live database
+3. **Config embedding** — merges `fraiseql.toml` security/caching config into the output
+
+SQL is not generated at compile time: the server generates it for PostgreSQL per request,
+and builds its lookup indexes when it loads the compiled schema.
 
 ```bash
 # Compile with custom config

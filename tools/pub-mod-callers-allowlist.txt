@@ -24,7 +24,6 @@ fraiseql_core::prelude api the engine's glob import for embedders
 fraiseql_server::prelude api the server's glob import for embedders
 
 # ── Deleted by M1 (WP-1.2) ───────────────────────────────────────────────────────────
-fraiseql_cli::schema::advanced_types pending used by nothing, not even a test; deleted by #1640
 fraiseql_functions::runtime::deno::tests pending a test module compiled into the library; made cfg(test) by #1640
 
 # ── Promoted, rebuilt or deleted by a later milestone ────────────────────────────────

@@ -4,10 +4,10 @@
 The bridge's second argument binds GraphQL variables
 (`fraiseql_query(graphql: string, variables: string)`). An example that builds the
 query by interpolation, `` `{ price(sku: "${sku}") { amount } }` ``, lets a crafted
-value change the document, and examples are what new code copies. So every
-`fraiseql_query(` call under docs/ and examples/ is found, its first argument read
-past whitespace and comments, and a template literal holding an unescaped `${` there
-fails the gate. A `${` in the variables argument is fine: that one is data.
+value change the document, and examples and test fixtures are what new code copies.
+So every `fraiseql_query(` call under docs/, examples/, tests/ and any `tests/`
+directory below crates/ is found, its first argument read past whitespace and
+comments, and a template literal holding an unescaped `${` there fails the gate. A `${` in the variables argument is fine: that one is data.
 
 A tree with no call at all also fails: a gate that found nothing to check proved
 nothing.
@@ -78,12 +78,15 @@ def scan(path: Path, rel: str) -> tuple[int, list[str]]:
 
 
 def files(root: Path):
-    for top in ("docs", "examples"):
+    """Every checked file under docs/, examples/, tests/ and any `tests/` below crates/."""
+    for top in ("docs", "examples", "tests", "crates"):
         base = root / top
         if not base.is_dir():
             continue
         for dirpath, dirnames, filenames in os.walk(base):
             dirnames[:] = sorted(d for d in dirnames if d not in SKIP_DIRS)
+            if top == "crates" and "tests" not in Path(dirpath).relative_to(base).parts:
+                continue
             for name in sorted(filenames):
                 path = Path(dirpath) / name
                 if path.suffix in SUFFIXES:
@@ -103,7 +106,7 @@ def main() -> int:
         print(f"query variables: {len(errors)} of {calls} calls interpolate into the query")
         return 1
     if calls == 0:
-        print("query variables: no fraiseql_query call found under docs/ or examples/")
+        print("query variables: no fraiseql_query call found under docs/, examples/ or tests/")
         return 1
     print(f"query variables: ok ({calls} calls in {holders} files)")
     return 0

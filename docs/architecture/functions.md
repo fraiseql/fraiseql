@@ -813,7 +813,10 @@ The module is loaded exactly as the server loads it (from the compiled schema's
 `module_dir`). Host ops are answered by a recording mock: `fraiseql_query` /
 `fraiseql_http_request` from `--mock-query` / `--mock-http` (a matched entry → its
 canned response; a miss against a configured mock **fails loud**, surfacing as a
-guest error); other ops return benign defaults so a first run reveals which ops a
+guest error). A `--mock-query` entry is `{query_contains?, variables?, response}`:
+`query_contains` matches a substring of the query text, and `variables` matches only a
+call bound with exactly those variables, so a mock for one customer does not answer the
+read of another. Other ops return benign defaults so a first run reveals which ops a
 function calls before its mocks are written. `--idempotency-token` injects the token
 the guest reads via the host op.
 
