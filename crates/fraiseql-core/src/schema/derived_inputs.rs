@@ -252,9 +252,9 @@ pub fn order_by_field_enum_name(owner: &str) -> String {
 /// schema cannot advertise a key the engine refuses, nor the engine accept one the schema
 /// hides.
 ///
-/// A native column is named by its key, which reaches the column only when the key is its
-/// own storage key (`snake_case`): the engine resolves a sort key to a native column through
-/// that conversion, so any other spelling never reached it.
+/// A native column keyed by a field's name (`createdAt`) is sorted on as that field. One the
+/// type has no field for is listed only when its key is its own storage key (`snake_case`),
+/// the column's name; a key in any other spelling names no field and no column.
 ///
 /// `None` when the schema cannot adjudicate the type (#939): absent, or carrying no fields.
 #[must_use]
