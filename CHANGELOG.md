@@ -479,6 +479,18 @@ disagreed, and the promise was the part that was wrong.
 
 ### Changed
 
+- **A crate's size budget counts its production code only (#1882).**
+  `tools/check-crate-sizes.sh` counted every line of every `.rs` under `src/`: unit tests,
+  doc comments and blank lines too. In `fraiseql-core` that was 159K budgeted lines for 50K
+  of production code, so a new test cost the budget as much as new code did. It now
+  budgets the non-blank, non-comment lines compiled outside `cfg(test)`, and reports docs,
+  unit tests and each crate's `tests/` beside them without gating them. The counting rules
+  are written out in `tools/check-crate-sizes.py` and pinned rule by rule by
+  `make test-crate-sizes-gate`: test file names and directories, test-only `mod`
+  declarations, `cfg(test)` items, comments and literals. Every budget is re-baselined at
+  production lines plus about 20%, for example `fraiseql-core` 60,500 and
+  `fraiseql-server` 61,500.
+
 - **pg_tviews 0.1.0-beta.34 is the version FraiseQL is tested against (#1871).** Upgrading:
   install the new library, restart PostgreSQL, then run `ALTER EXTENSION pg_tviews UPDATE;`
   in each database that has it (catalog revision 10). The update drops the `created_at` and

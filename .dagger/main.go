@@ -733,7 +733,9 @@ func (m *FraiseqlCi) ShellGates(
 		// budget at all. Its only caller was the orphaned tools/lint.sh, so it ran
 		// nowhere while four crates went over budget and five acquired no budget
 		// row — and Cargo.toml claimed all along that CI enforced it (#1055/#990).
+		// It counts production lines only, by rules its self-test pins (#1882).
 		"bash tools/check-crate-sizes.sh",
+		"bash tools/tests/crate_sizes_test.sh",
 		// Every official SDK's own suite runs under ONE unfiltered, required check,
 		// sdk-suites.yml. Four of eleven per-SDK workflows could not run on a branch
 		// push (#1119), and the rest were paths-filtered, which a required check

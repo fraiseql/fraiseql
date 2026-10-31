@@ -399,45 +399,43 @@ unused_imports = "warn"
 unused_variables = "warn"
 
 # ---------------------------------------------------------------------------
-# Crate size budgets — enforced by tools/check-crate-sizes.sh, which runs in the
-# `preflight` make target and the Dagger ShellGates leg (the required check).
+# Crate size budgets: production lines only, enforced by tools/check-crate-sizes.sh
+# (counting in tools/check-crate-sizes.py), which runs in the `preflight` make target
+# and the Dagger ShellGates leg (the required check).
 #
-# ⚠ That sentence was false until #1055/#990. The gate's only caller was
-# `tools/lint.sh`, which no Makefile target, Dagger function or workflow invoked,
-# so this table went unread for long enough to stop describing the workspace:
-# four crates were over budget (fraiseql-server by 91%) and five had no row at
-# all. Both directions now fail, so neither can recur silently.
+# A crate's production lines are the non-blank, non-comment lines of its src/ compiled
+# outside cfg(test). Unit tests, docs and the crate's tests/ are reported beside the
+# budget and never gated, so a test costs no budget (#1882). A crate with a src/ and no
+# row here fails.
 #
-# What this is: a runaway-growth ratchet, not a split mandate. Lines are counted
-# across every *.rs under the crate's src/, which includes unit-test modules.
-# Budgets were re-baselined 2026-08-22 at roughly 20% above the then-current size
-# — enough room for ordinary work, little enough that a crate cannot double
-# unnoticed. Raising one is a one-line edit; add a comment saying why.
+# A runaway-growth ratchet, not a split mandate. Every budget was set 2026-10-31 at the
+# crate's production lines plus about 20%, rounded up to 500. Raising one is a one-line
+# edit with a comment saying why; the history of a row is `git log -L` on it.
 # ---------------------------------------------------------------------------
 [workspace.metadata.crate-size-budget]
-fraiseql = 2_000
-fraiseql-arrow = 15_000
-fraiseql-auth = 35_000        # lowered after the superseded OAuth client, middleware, proxy, sanitizer and RBAC copies went (#1640; was 48_000, actual 33_012)
-fraiseql-cdc-sinks = 10_000
-fraiseql-cli = 59_500         # raised for refusing fraiseql.toml keys `run` never applied and booting a "*" CORS origin through `run` in a test (#1808, #1829; was 59_250, actual 59_325); raised for the temporal-key advice on every relation and pg_tviews' catalog check (#1815, #1818; was 59_000, actual 59_193); raised for `[observers]` in the project config and its reconcile with `observers_config` (#1719; was 58_500, actual 58_543); raised for the function-root contract check and its unit, compile and real-PG tests (#1690; was 58_000, actual 58_189), re-baselined #1055 (was 40_000, actual 48_681)
-fraiseql-codegen = 8_000      # first budget; the crate predates #1055 and had none
-fraiseql-core = 159_600       # raised for a list of objects built by the projection element by element and served raw, and for the walk that reads a built list under its response keys and a stored one under its stored keys (#1785; was 159_500, actual 159_520 on dev f92bd120d at 159_429): +44 of source (projection +16 for the built flag, query_projection +14 for the list's sub-fields and Decimal proof, query_regular +6, query_raw +4, the rest +4) and +47 of pins; raised for a masked field written by the projection, the masks in the kept projection's key, and a raw read completed only for a null at a non-null field (#1785; was 159_000, actual 159_431 on dev ed6e62857 at 158_910): +119 of source (selection_set +44 for the key, query_raw +60 for the completion walk, root_read +11, query_projection +3, query_relay +1), and +402 of pins, 286 of them the mask tests with the property that a kept projection is the one its caller would build; raised for the pins of a cache whose name invalidations stamp a counter and evict nothing (#1778; was 158_500, actual 158_929 on dev 737642688 at 158_251): its non-test source nets -3 (names.rs +124 for the registry, fence.rs +54 for counters and floors, result.rs -171 for one row index with fill confirmation in place of six, -10 elsewhere), and its +681 are the name, row, deterministic-race and threaded stress pins; the put_*_with insert hooks predate it (#1584) and are the release path; raised for the one mapping from a validated token to a principal, `SecurityContext::from_token_claims`, moved in from the server so every transport and Flight build the same principal (#1643 C3 Flight +37; was 158_250, actual 158_251 on dev 4f5e50f9b at 158_214); raised for a read that skips the Decimal quoting pass when its projection prints every Decimal as text: the coverage rule, the kept projection's verdict, and their unit and real-PG pins (#1792; was 158_000, actual 158_214 on dev c2725a0fb at 157_876); raised for a warm read that runs none of the checks its document passes on its own: a per-check record of having passed on each collected set, and its counter, reload and refusal pins (#1779; was 157_750, actual 157_856 on dev 65fbfcc4a at 157_731); raised for a projection built once per document and keyed by every input a request can vary, and a warm read's level classification and nested-read plan over borrowed selections, with their unit, key, concurrency and dhat pins (#1779; was 157_500, actual 157_702 on dev 53026b4d5 at 157_319); raised for the role tags the federation service SDL carries: the per-role reach that decides which object types a contract may drop, and its pins (#1717; was 157_000, actual 157_319); held after the direct read moved onto the shaping walk: its four passes, `project_nested_lists`, `stamp_nested_typenames` and `project_object_fields` went (#1758; actual 156_962 with the `suggestions` switch of #1717); raised for a Decimal answered as its exact digits: the schema's Decimal index, the write's decimal shape and success-field digit check, the aggregate and window exact aliases, the Decimal input rule, and their unit and real-PG pins (#1751; was 156_500, actual 156_827); raised for the one shaping walk: a SQL-projected read rebuilt from its selection at every depth, masks and `__typename` in the same pass, and its unit and whole-document pins (#1646), and for the one `suggestions` switch every "Did you mean" site reads, and its per-site pins (#1717; was 156_000, actual 156_427 with both); raised for reads answered as the bytes the database serialized: the eligibility rule, the raw read and envelope, the response body, the budget's token pricing, the cache wrapper's forwarding, and their unit pins, on top of per-caller introspection (#1565, #1717; was 155_000, actual 155_605); raised for the shared compiled operation: fields collected per set of @skip/@include outcomes, the scored-document memo, the response-key merge, and their unit and dhat tests (#1722; was 154_000, actual 154_430); lowered after the superseded compiler, cache, security and validation copies went (#1640; was 166_000, actual 152_386), re-baselined for null-in-place projection and native inject columns read off embedded documents (#1618, #1579: their unit pins; was 165_000, actual 165_133), for reads by id evicted by their row (#1576: by_id.rs, the row index and fence slots, invalidate_written, their tests; was 163_000, actual 163_129), for composed reads in the cache and pg_tviews' change feed (#1589: tviews_feed.rs, collections.rs, the composed key and collection index, their tests; was 160_000, actual 161_473), after the per-view insert fence (#1584/#1585: fence.rs, its unit and real-PG tests; was 158_000, actual 158_118), after the request locale and localized fields (#1512/#1513: resolution, locale arguments, translations, write coercion, index report; was 152_000, actual 154_189), after multiple trusted token issuers (#1400, 150_000 → 152_000)
-fraiseql-db = 27_800          # raised for a list of objects built element by element in SQL, its `null` elements, order and empty list kept, and its pin (#1785; was 27_750, actual 27_762 on dev f92bd120d at 27_697): +34 of source, +31 of pins; raised for a row read's Decimal column and Flight's described raw read: the exact decode in the four row reads, `execute_described_query`, `DescribedRows` and the numeric type-modifier decode, and their unit pins (#1765 +67, #1766 +161; was 27_500, actual 27_536 on dev 0abd44fd1 at 27_308); raised for a Decimal answered as its exact digits: the type-directed quoting pass over a row's text, composed and cascade rows, the write's per-column shapes, the exact aggregate read, and their unit tests (#1751; was 26_000, actual 27_176); raised for rows read as text: the JSON compactor and its token tally, `RawRows`, the raw projection read and its shared statement, and their unit tests (#1565; was 25_500, actual 25_822); re-baselined for the routed relay page and its replica-routing and trait-default tests (#1622; was 25_000, actual 25_073)
-fraiseql-error = 5_000
-fraiseql-federation = 12_500  # re-baselined #1354, which moved the saga half out (was 22_000, actual 10_293)
-fraiseql-functions = 23_000   # first budget; the crate predates #1055 and had none
-fraiseql-guard = 5_000
-fraiseql-jwks = 5_000         # new in #1335; fetch + bound + select a key, and nothing else
-fraiseql-kafka = 5_000        # new in #1102; connect + produce and nothing else
-fraiseql-observers = 26_000   # lowered after the superseded queue, dedup, bridge, factory, failover and sink copies went (#1640; was 45_000, actual 24_305)
-fraiseql-secrets = 20_000
-fraiseql-saga = 9_500         # new in #1354; the saga half of fraiseql-federation, moved above core (actual 7_724)
-fraiseql-server = 133_600     # raised for `/ws` admitting its upgrade and each subscribe through the admission module, with its unit, socket and mount pins (#1643 C4 +203; was 133_250, actual 133_385 on dev 37d495a4e at 133_182, #1836 +19); raised for one admission module every transport goes through, and the REST, MCP, storage and Flight moves onto it, with their RED and mutation pins (#1643 C1 +327, C2 +394, C3 storage +225, C3 Flight +7; was 132_500, actual 133_163 on dev 4f5e50f9b at 132_210; C5 deletes the per-transport copies); raised for a federated server with strict trusted documents refusing to boot, and its unit and boot pins (#1801; was 132_000, actual 132_014 on dev 131_937); holds the per-mailbox IMAP `ca_file` and the one admin failure limiter every admin router shares, with their tests, on top of #1717 (#1757, #1760; combined actual 131_909), raised for `suggestions_enabled` resolved against the deployment, its boot warning and its boot, config and `/ws` pins (#1717; was 131_500, actual 131_518), raised for the per-caller schema exports, the service-SDL gate and its boot warning, with their tests (#1717; was 131_000, actual 131_155), raised for the `/graphql` raw body and its handler tests (#1565; was 130_500, actual 130_538), raised for the section JSON Schemas `fraiseql capabilities --json` reports and their tests (#1644; was 130_000, actual 130_103), raised for the boot-to-effect fixture harness, the one scheduled poller with timezones, the `[egress]` list and their tests (#1644, #1658, #1715; was 129_500, actual 129_563), raised for one `Capability` impl per registry entry, the entry-point parity, provisioning-plan and boot-path gates, and their real-PG tests (#1644; was 128_000, actual 129_289), raised for the boot-DDL lock gate, the provisioning step table, the one start loop, the shared PG assembly and their real-PG tests (#1677; was 127_500, actual 127_972), raised for the observer admin API's webhook template check and its tests (#1670; was 127_000, actual 127_037), raised for the capability registry and its manifest tests, which replace a Python gate and hand lists (#1644; was 126_500, actual 126_791), lowered after the Studio endpoints that only answered 501 went (#1640; was 127_500, actual 126_052), lowered after the unserved OpenAPI literal and the bare Flight executor adapter went (#1640; was 128_500, actual 126_909), re-baselined for the per-function limits on every trigger kind and the auth layer resolving service accounts, with their route-level tests (#1627, #1650; was 127_500, actual 127_889), for the constructor boot-gate tests and the observer auto-reload ticker (#1623, #1655; was 127_000, actual 127_027), for the pg_tviews feed-gap watch and its real-PG tests (#1603, #1604: own-write collection and full-NOTIFY-queue e2e tests; was 126_000, actual 126_055), for the cross-server cache feed (#1577: cache_feed.rs, its config, boot warning and two-server real-PG tests; was 125_000, actual 125_440), after #1055 (was 55_000, actual 105_420)
-fraiseql-storage = 20_000     # first budget; the crate predates #1055 and had none
-fraiseql-test-support = 5_000
-fraiseql-test-utils = 2_500   # lowered after the unused mock, fixture, observer and saga doubles went (#1640; was 5_000, actual 1_860)
-fraiseql-webhooks = 10_000
-fraiseql-wire = 20_000
+fraiseql = 500
+fraiseql-arrow = 5_500
+fraiseql-auth = 13_500
+fraiseql-cdc-sinks = 1_500
+fraiseql-cli = 30_500
+fraiseql-codegen = 4_500
+fraiseql-core = 60_500
+fraiseql-db = 14_000
+fraiseql-error = 1_500
+fraiseql-federation = 5_000
+fraiseql-functions = 7_000
+fraiseql-guard = 1_000
+fraiseql-jwks = 1_000
+fraiseql-kafka = 500
+fraiseql-observers = 10_500
+fraiseql-saga = 3_500
+fraiseql-secrets = 3_000
+fraiseql-server = 61_500
+fraiseql-storage = 8_500
+fraiseql-test-support = 1_000
+fraiseql-test-utils = 1_500
+fraiseql-webhooks = 3_000
+fraiseql-wire = 6_500
 
 [workspace.package]
 authors = ["FraiseQL Team <team@fraiseql.dev>"]
