@@ -44,8 +44,8 @@ use serde_json::Value;
 #[path = "support/fixed_rows.rs"]
 mod fixed_rows;
 use fixed_rows::{
-    FixedRows, null_user_row, nullable_user_row, plain_user_row, reading_text, typename_user_row,
-    user_row,
+    FixedRows, null_user_row, nullable_user_row, plain_user_row, posts_user_row, reading_text,
+    typename_user_row, user_row,
 };
 
 const ROWS: usize = 20;
@@ -158,6 +158,8 @@ fn teardown_bytes(done: (Fixture, Vec<u8>)) {
 #[bench::value_masked_list(args = (MASKED_LIST, true, false), setup = null_fixture, teardown = teardown_bytes)]
 #[bench::raw_masked_list(args = (MASKED_LIST, true, true), setup = null_fixture, teardown = teardown_bytes)]
 #[bench::raw_null_list(args = (NULL_LIST, false, true), setup = null_fixture, teardown = teardown_bytes)]
+#[bench::value_post_list(args = (false), setup = posts_fixture, teardown = teardown_bytes)]
+#[bench::raw_post_list(args = (true), setup = posts_fixture, teardown = teardown_bytes)]
 fn respond((f, raw): (Fixture, bool)) -> (Fixture, Vec<u8>) {
     let query = black_box(f.query);
     let bytes = if raw {
@@ -213,6 +215,17 @@ fn null_fixture(query: &'static str, masked: bool, raw: bool) -> (Fixture, bool)
     };
     let rows = (0..ROWS).map(row).collect();
     (text_fixture_of(schema, FixedRows::with_text(rows), query), raw)
+}
+
+const POST_LIST: &str = "{ users(limit: 20) { id name posts { id title published } } }";
+
+/// A fixture over [`posts_user_row`] rows, and which path the measured call takes.
+fn posts_fixture(raw: bool) -> (Fixture, bool) {
+    let rows = (0..ROWS).map(posts_user_row).collect();
+    (
+        text_fixture_over(fixed_rows::SCHEMA, FixedRows::with_text(rows), POST_LIST),
+        raw,
+    )
 }
 
 const NUMERIC_LIST: &str =
