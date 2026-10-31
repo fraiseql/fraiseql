@@ -578,6 +578,16 @@ disagreed, and the promise was the part that was wrong.
   `fraiseql_cli::schema::advanced_types` module, which repeated the same claims and held no
   item, is deleted.
 
+- **`orderBy` on a field of several words reads its native column (#1877).** The sort
+  looked the column up under the field's storage key (`created_at`), but `native_columns` is
+  keyed by the field's name (`createdAt`), so only a one-word field (`status`, `id`) found its
+  column. `orderBy: {createdAt: DESC}` on a query that `compile --database` had mapped to a
+  `created_at` column sorted `(data->>'created_at')::timestamptz` instead, which no index on
+  the column serves. The lookup now uses the field's name, then its storage key, the spelling
+  of an argument authored in `snake_case`. The check that leaves a locale's `COLLATE` off a
+  column that is not text reads the same key, so a `String` field mapped to an enum column
+  sorts in the enum's order, with no `COLLATE` (which PostgreSQL refuses on an enum).
+
 - **The `request:query` example in `docs/architecture/functions.md` binds its value as a
   variable (#1859).** It built the `fraiseql_query` document by interpolation,
   `` `{ price(sku: "${sku}") { amount } }` ``, so a crafted argument could change the

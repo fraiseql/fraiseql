@@ -478,8 +478,7 @@ pub fn enrich_order_by_clauses(
                 )?;
                 clause.field_type = field_type_to_order_by_type(&field_def.field_type);
                 if matches!(field_def.field_type, crate::schema::FieldType::String)
-                    && native_columns
-                        .get(&clause.storage_key())
+                    && native_column_of(native_columns, clause)
                         .is_none_or(|native| sorts_as_text(&native.pg_type))
                 {
                     clause.collation.clone_from(&collation);
@@ -492,17 +491,30 @@ pub fn enrich_order_by_clauses(
         }
 
         // Check if the query definition has a native column mapping for this field.
-        // `native_columns` keys are the GraphQL argument names (camelCase).
-        let storage_key = clause.storage_key();
-        if let Some(native) = native_columns.get(&storage_key) {
+        if let Some(native) = native_column_of(native_columns, clause) {
             // #1521: the keyset binds the cursor's value for this key as this type.
             clause.native_type = Some(native.pg_type.clone());
             // #1533: whether the keyset may seek on this key.
             clause.native_not_null = native.not_null;
-            clause.native_column = Some(storage_key);
+            clause.native_column = Some(clause.storage_key());
         }
     }
     Ok(clauses)
+}
+
+/// The native column a sort key reads, if the query maps one (#1877).
+///
+/// `native_columns` is keyed by the GraphQL argument name (`createdAt`), or by a column name
+/// authored as such (`rank_n`); the column itself is the key's `snake_case`. A sort key is a
+/// field name, so it is looked up as given first and as its storage key second, the spelling
+/// a `snake_case` argument has.
+fn native_column_of<'a>(
+    native_columns: &'a std::collections::HashMap<String, crate::schema::NativeColumn>,
+    clause: &OrderByClause,
+) -> Option<&'a crate::schema::NativeColumn> {
+    native_columns
+        .get(&clause.field)
+        .or_else(|| native_columns.get(&clause.storage_key()))
 }
 
 /// Whether a native column of PostgreSQL type `cast` is text, and so takes a `COLLATE`

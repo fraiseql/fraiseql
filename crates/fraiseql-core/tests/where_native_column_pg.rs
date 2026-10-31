@@ -11,8 +11,12 @@
 //! read. The text column is collated by bytes, unlike the database, so a comparison
 //! that took the column's collation instead of the document's would also disagree.
 //!
+//! A third table's columns sort in the reverse of its documents' order: an `orderBy` on a
+//! mapped field returns the rows in the column's order, whatever the field's name (#1877).
+//!
 //! **Execution engine:** `PostgreSQL` · **Infrastructure:** `DATABASE_URL` ·
-//! **Parallelism:** creates and drops its own `tv_wnc_item` and `tv_wnc_drift` tables.
+//! **Parallelism:** creates and drops its own `tv_wnc_item`, `tv_wnc_drift` and
+//! `tv_wnc_order` tables.
 
 use std::sync::Arc;
 
@@ -28,6 +32,7 @@ use serde_json::{Value, json};
 
 const TABLE: &str = "tv_wnc_item";
 const DRIFT: &str = "tv_wnc_drift";
+const ORDER: &str = "tv_wnc_order";
 
 const U1: &str = "0b7e3c1a-6d1f-4c2e-9a51-1f0a2b3c4d01";
 const U2: &str = "0b7e3c1a-6d1f-4c2e-9a51-1f0a2b3c4d02";
@@ -50,6 +55,7 @@ fn query(name: &str, source: &str, native: bool) -> fraiseql_core::schema::Query
         .with_sql_source(source)
         .build();
     query.auto_params.has_where = true;
+    query.auto_params.has_order_by = true;
     if native {
         for (field, _, pg_type) in FIELDS {
             query.native_columns.insert(field.to_string(), NativeColumn::nullable(pg_type));
@@ -76,6 +82,8 @@ fn schema() -> CompiledSchema {
         .with_query(query("documentItems", TABLE, false))
         .with_query(query("driftItems", DRIFT, true))
         .with_query(query("documentDriftItems", DRIFT, false))
+        .with_query(query("orderItems", ORDER, true))
+        .with_query(query("documentOrderItems", ORDER, false))
         .build();
     schema.build_indexes();
     schema
@@ -115,6 +123,7 @@ async fn setup() -> Option<(PostgresAdapter, Executor)> {
     for ddl in [
         format!("DROP TABLE IF EXISTS {TABLE}"),
         format!("DROP TABLE IF EXISTS {DRIFT}"),
+        format!("DROP TABLE IF EXISTS {ORDER}"),
         format!("CREATE TABLE {TABLE} ({columns})"),
         format!(
             "INSERT INTO {TABLE} (pk, id, name, qty, amount, active, created_at, day, at_time) \
@@ -138,6 +147,17 @@ async fn setup() -> Option<(PostgresAdapter, Executor)> {
              'name', 'document', 'qty', 9, 'amount', 9.5, 'active', false, 'created_at', \
              '2025-01-01T00:00:00Z', 'day', '2025-01-01', 'at_time', '09:00'))"
         ),
+        // Each row's columns sort in the reverse of its document's order.
+        format!("CREATE TABLE {ORDER} ({columns})"),
+        format!(
+            "INSERT INTO {ORDER} (pk, created_at, at_time, qty, data) VALUES \
+             (1, '2024-01-03T00:00:00Z', '12:00', 3, jsonb_build_object('pk', 1, \
+             'created_at', '2024-01-01T00:00:00Z', 'at_time', '10:00', 'qty', 1)), \
+             (2, '2024-01-02T00:00:00Z', '11:00', 2, jsonb_build_object('pk', 2, \
+             'created_at', '2024-01-02T00:00:00Z', 'at_time', '11:00', 'qty', 2)), \
+             (3, '2024-01-01T00:00:00Z', '10:00', 1, jsonb_build_object('pk', 3, \
+             'created_at', '2024-01-03T00:00:00Z', 'at_time', '12:00', 'qty', 3))"
+        ),
     ] {
         adapter.execute_raw_query(&ddl).await.unwrap();
     }
@@ -158,6 +178,16 @@ async fn pks(executor: &Executor, query: &str, filter: &Value) -> Result<Vec<i64
     let mut pks: Vec<i64> = rows.iter().map(|r| r["pk"].as_i64().unwrap()).collect();
     pks.sort_unstable();
     Ok(pks)
+}
+
+/// The pks `query` returns sorted ascending by `field`, in the order they came back.
+async fn sorted_pks(executor: &Executor, query: &str, field: &str) -> Result<Vec<i64>, String> {
+    let document = format!("{{ {query}(orderBy: {{{field}: ASC}}) {{ pk }} }}");
+    let response = executor.execute(&document, None).await.map_err(|e| e.to_string())?;
+    let rows = response["data"][query]
+        .as_array()
+        .unwrap_or_else(|| panic!("{query} by {field}: {response}"));
+    Ok(rows.iter().map(|r| r["pk"].as_i64().unwrap()).collect())
 }
 
 /// Every operator the column route takes, on every field type it takes.
@@ -295,4 +325,21 @@ async fn a_field_the_caller_may_not_read_is_refused_on_a_column_too() {
     let document = pks(&executor, "documentDriftItems", &filter).await;
     assert!(column.is_err(), "the filter on an unreadable field is refused: {column:?}");
     assert_eq!(column, document, "refused the same way as on the document");
+}
+
+/// #1877: a sort on a mapped field reads the column, as a filter does. The map is keyed by
+/// the field's name, so a name of several words (`createdAt`, `atTime`) must reach its
+/// column as a name of one word (`qty`) does.
+#[tokio::test]
+async fn a_mapped_field_is_sorted_on_its_column() {
+    let Some((_adapter, executor)) = setup().await else {
+        eprintln!("skipped: DATABASE_URL not set");
+        return;
+    };
+    for field in ["qty", "createdAt", "atTime"] {
+        let column = sorted_pks(&executor, "orderItems", field).await;
+        let document = sorted_pks(&executor, "documentOrderItems", field).await;
+        assert_eq!(column, Ok(vec![3, 2, 1]), "{field} sorts on the column");
+        assert_eq!(document, Ok(vec![1, 2, 3]), "{field} sorts on the document");
+    }
 }
