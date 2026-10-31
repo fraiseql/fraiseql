@@ -371,8 +371,9 @@ disagreed, and the promise was the part that was wrong.
 - **A `fraiseql functions invoke --mock-query` entry can match on the call's variables
   (#1863).** An entry is `{query_contains?, variables?, response}`; with `variables` it
   answers only a call bound with exactly those variables, so a mock for one customer no
-  longer answers the read of another. The CLI's function fixtures now bind their values as
-  variables, and their tests pin it.
+  longer answers the read of another. Every test fixture that called `fraiseql_query` with
+  an interpolated value now binds it as a variable, and `make lint-query-variables` checks
+  `tests/` and every crate's `tests/` as well as `docs/` and `examples/`.
 
 - **A function bundled by esbuild runs as written, and the docs list what a function's
   runtime provides (#1860).** esbuild's `--format=esm` output names its entry point in an

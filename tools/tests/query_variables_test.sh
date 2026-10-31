@@ -3,7 +3,8 @@
 #
 # Each case is a tree with docs/ and examples/. A `fraiseql_query(` call whose first
 # argument is a template literal holding `${` is RED, wherever the literal starts and
-# whatever file under docs/ or examples/ holds it, as is a tree with no call at all.
+# whatever file under docs/, examples/, tests/ or a crate's tests/ holds it, as is a tree
+# with no call at all.
 set -uo pipefail
 
 repo_root="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -76,6 +77,25 @@ expect 1 "examples/guide/README.md:1: fraiseql_query interpolates" "a README und
 new_case js
 printf 'Deno.core.ops.fraiseql_query(`{ a(x: ${x}) }`, "{}");\n' > "${root}/examples/fns/a.js"
 expect 1 "examples/fns/a.js:1: fraiseql_query interpolates" "a .js example is checked"
+
+new_case crate_test_fixture
+mkdir -p "${root}/crates/demo/tests/capabilities/cron/modules"
+printf 'Deno.core.ops.fraiseql_query(`mutation { recordTick(zone: ${zone}) { id } }`, "{}");\n' \
+  > "${root}/crates/demo/tests/capabilities/cron/modules/every_minute.ts"
+expect 1 "crates/demo/tests/capabilities/cron/modules/every_minute.ts:1: fraiseql_query interpolates" \
+  "a module under a crate's tests/ is checked"
+
+new_case repo_test_fixture
+mkdir -p "${root}/tests/fixtures/functions"
+printf 'Deno.core.ops.fraiseql_query(`{ customer(id: "${id}") { name } }`, "{}");\n' \
+  > "${root}/tests/fixtures/functions/read.ts"
+expect 1 "tests/fixtures/functions/read.ts:1: fraiseql_query interpolates" \
+  "a fixture under the repository's tests/ is checked"
+
+new_case crate_source
+mkdir -p "${root}/crates/demo/src"
+printf 'Deno.core.ops.fraiseql_query(`{ a(x: ${x}) }`, "{}");\n' > "${root}/crates/demo/src/embed.ts"
+expect 0 "query variables: ok (2 calls" "a crate's src/ is not in scope"
 
 new_case no_calls
 rm "${root}/docs/architecture/functions.md" "${root}/examples/fns/write.ts"

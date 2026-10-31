@@ -892,8 +892,9 @@ lint-docs-rust-examples:
 test-docs-rust-examples-gate:
 	@bash tools/tests/docs_rust_examples_test.sh
 
-# Gate: no `fraiseql_query` example under docs/ or examples/ interpolates a value into
-# the query text; values go through the variables argument, which no value can escape.
+# Gate: no `fraiseql_query` call under docs/, examples/, tests/ or a crate's tests/
+# interpolates a value into the query text; values go through the variables argument,
+# which no value can escape.
 .PHONY: lint-query-variables
 lint-query-variables:
 	@python3 tools/check-query-variables.py
