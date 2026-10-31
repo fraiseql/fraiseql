@@ -834,7 +834,7 @@ fn auth_rule_budgets_check(
     if !sec.auth_rules_enabled {
         return Ok(());
     }
-    let budgets: [(&str, u64); 14] = [
+    let budgets: [(&str, u64); 16] = [
         ("auth_start_max_requests", u64::from(sec.auth_start_max_requests)),
         ("auth_start_window_secs", sec.auth_start_window_secs),
         ("auth_callback_max_requests", u64::from(sec.auth_callback_max_requests)),
@@ -849,6 +849,11 @@ fn auth_rule_budgets_check(
         ("auth_otp_verify_window_secs", sec.auth_otp_verify_window_secs),
         ("auth_password_max_requests", u64::from(sec.auth_password_max_requests)),
         ("auth_password_window_secs", sec.auth_password_window_secs),
+        (
+            "auth_anonymous_signup_max_requests",
+            u64::from(sec.auth_anonymous_signup_max_requests),
+        ),
+        ("auth_anonymous_signup_window_secs", sec.auth_anonymous_signup_window_secs),
     ];
     match budgets.iter().find(|(_, v)| *v == 0) {
         Some((key, _)) => Err(crate::ServerError::ConfigError(format!(

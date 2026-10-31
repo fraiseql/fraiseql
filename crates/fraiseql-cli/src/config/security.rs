@@ -87,20 +87,24 @@ pub struct RateLimitConfig {
     pub auth_logout_window_secs:  u64,
 
     /// Max `OTP` send requests (`/auth/v1/otp`) per client per window
-    pub auth_otp_send_max_requests:   u32,
+    pub auth_otp_send_max_requests:         u32,
     /// Time window for `OTP` send in seconds
-    pub auth_otp_send_window_secs:    u64,
+    pub auth_otp_send_window_secs:          u64,
     /// Max `OTP` verify requests (`/auth/v1/verify`) per client per window
-    pub auth_otp_verify_max_requests: u32,
+    pub auth_otp_verify_max_requests:       u32,
     /// Time window for `OTP` verify in seconds
-    pub auth_otp_verify_window_secs:  u64,
+    pub auth_otp_verify_window_secs:        u64,
     /// Max requests per client per window to each local-password endpoint
-    pub auth_password_max_requests:   u32,
+    pub auth_password_max_requests:         u32,
     /// Time window for the local-password endpoints in seconds
-    pub auth_password_window_secs:    u64,
+    pub auth_password_window_secs:          u64,
+    /// Max anonymous signups (`/auth/v1/signup`) per client per window
+    pub auth_anonymous_signup_max_requests: u32,
+    /// Time window for anonymous signup in seconds
+    pub auth_anonymous_signup_window_secs:  u64,
     /// Apply the per-client auth endpoint rules. On unless written `false`; the
     /// rules run whether or not `enabled` turns the global limit on.
-    pub auth_rules_enabled:           bool,
+    pub auth_rules_enabled:                 bool,
 
     /// Max failed login attempts per IP.
     ///
@@ -155,6 +159,8 @@ impl Default for RateLimitConfig {
             auth_otp_verify_window_secs: DEFAULT_AUTH.auth_otp_verify_window_secs,
             auth_password_max_requests: DEFAULT_AUTH.auth_password_max_requests,
             auth_password_window_secs: DEFAULT_AUTH.auth_password_window_secs,
+            auth_anonymous_signup_max_requests: DEFAULT_AUTH.auth_anonymous_signup_max_requests,
+            auth_anonymous_signup_window_secs: DEFAULT_AUTH.auth_anonymous_signup_window_secs,
             auth_rules_enabled: DEFAULT_AUTH.auth_rules_enabled,
             // Matching `DEFAULT_FAILED_LOGIN_MAX_ATTEMPTS` / `_LOCKOUT_SECS` in the
             // consumer, so an untouched config is recognisably untouched. The previous
@@ -187,6 +193,7 @@ impl RateLimitConfig {
             ("auth_otp_send_window_secs", self.auth_otp_send_window_secs),
             ("auth_otp_verify_window_secs", self.auth_otp_verify_window_secs),
             ("auth_password_window_secs", self.auth_password_window_secs),
+            ("auth_anonymous_signup_window_secs", self.auth_anonymous_signup_window_secs),
             ("failed_login_window_secs", self.failed_login_window_secs),
         ] {
             if *window == 0 {
@@ -201,6 +208,7 @@ impl RateLimitConfig {
             ("auth_otp_send_max_requests", self.auth_otp_send_max_requests),
             ("auth_otp_verify_max_requests", self.auth_otp_verify_max_requests),
             ("auth_password_max_requests", self.auth_password_max_requests),
+            ("auth_anonymous_signup_max_requests", self.auth_anonymous_signup_max_requests),
             ("failed_login_max_requests", self.failed_login_max_requests),
         ] {
             if *max_req == 0 {
@@ -240,6 +248,8 @@ impl RateLimitConfig {
             "auth_otp_verify_window_secs": self.auth_otp_verify_window_secs,
             "auth_password_max_requests": self.auth_password_max_requests,
             "auth_password_window_secs": self.auth_password_window_secs,
+            "auth_anonymous_signup_max_requests": self.auth_anonymous_signup_max_requests,
+            "auth_anonymous_signup_window_secs": self.auth_anonymous_signup_window_secs,
             "auth_rules_enabled": self.auth_rules_enabled,
             "failed_login_max_attempts": self.failed_login_max_requests,
             "failed_login_lockout_secs": self.failed_login_window_secs,
@@ -641,6 +651,12 @@ impl SecurityConfig {
                 auth_otp_verify_window_secs: self.rate_limiting.auth_otp_verify_window_secs,
                 auth_password_max_requests: self.rate_limiting.auth_password_max_requests,
                 auth_password_window_secs: self.rate_limiting.auth_password_window_secs,
+                auth_anonymous_signup_max_requests: self
+                    .rate_limiting
+                    .auth_anonymous_signup_max_requests,
+                auth_anonymous_signup_window_secs: self
+                    .rate_limiting
+                    .auth_anonymous_signup_window_secs,
                 auth_rules_enabled: self.rate_limiting.auth_rules_enabled,
                 failed_login_max_attempts: self.rate_limiting.failed_login_max_requests,
                 failed_login_lockout_secs: self.rate_limiting.failed_login_window_secs,

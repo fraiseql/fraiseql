@@ -500,7 +500,11 @@ pub async fn build_local_auth_states(
              caller with no credentials. Ensure downstream authorization treats anon_* \
              subjects as untrusted."
         );
-        Some(Arc::new(fraiseql_auth::AnonSignupState::new(Arc::clone(&session_store))))
+        // The server's configured per-client rule limits /auth/v1/signup, keyed on the
+        // trusted-proxy client address; the state keeps no counters of its own.
+        Some(Arc::new(fraiseql_auth::AnonSignupState::new_without_limiter(Arc::clone(
+            &session_store,
+        ))))
     } else {
         None
     };

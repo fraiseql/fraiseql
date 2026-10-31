@@ -151,6 +151,8 @@ auth_otp_verify_max_requests = 60       # /auth/v1/verify
 auth_otp_verify_window_secs = 900
 auth_password_max_requests = 30         # each /auth/v1/password/* and /auth/v1/email/verify/*
 auth_password_window_secs = 60
+auth_anonymous_signup_max_requests = 30 # /auth/v1/signup: each request mints a guest session
+auth_anonymous_signup_window_secs = 600
 failed_login_max_requests = 10
 failed_login_window_secs = 900
 

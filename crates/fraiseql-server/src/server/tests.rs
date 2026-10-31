@@ -1106,6 +1106,8 @@ mod rate_limit_boot_guard_tests {
             "auth_otp_verify_window_secs",
             "auth_password_max_requests",
             "auth_password_window_secs",
+            "auth_anonymous_signup_max_requests",
+            "auth_anonymous_signup_window_secs",
         ] {
             for deployment in [PRODUCTION, DEVELOPMENT] {
                 let schema = schema_with_rate_limiting(json!({ key: 0 }));

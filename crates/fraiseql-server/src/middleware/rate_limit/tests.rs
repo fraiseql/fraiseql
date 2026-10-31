@@ -306,6 +306,11 @@ mod key_tests {
         let burst_of =
             |prefix: &str| rules.iter().find(|r| r.path_prefix == prefix).map(|r| r.burst as u32);
         assert_eq!(burst_of("/auth/v1/otp"), Some(7), "{rules:?}");
+        assert_eq!(
+            burst_of("/auth/v1/signup"),
+            Some(sec.auth_anonymous_signup_max_requests),
+            "anonymous signup: {rules:?}"
+        );
         assert_eq!(burst_of("/auth/v1/verify"), Some(8), "{rules:?}");
         for path in [
             "/auth/v1/password/signup",
@@ -682,6 +687,7 @@ fn test_with_path_rules_generates_auth_start_rule() {
         auth_otp_send_max_requests: 0,
         auth_otp_verify_max_requests: 0,
         auth_password_max_requests: 0,
+        auth_anonymous_signup_max_requests: 0,
         ..Default::default()
     };
     let config = RateLimitConfig::from_security_config(&sec);
@@ -1550,6 +1556,11 @@ mod global_off_middleware_tests {
     };
 
     fn app() -> Router {
+        rules_only().layer(MockConnectInfo(SocketAddr::from(([203, 0, 113, 7], 4000))))
+    }
+
+    /// The router with no peer address: served by `into_make_service`, or called directly.
+    fn rules_only() -> Router {
         let limiter = RateLimiter::new(RateLimitConfig {
             enabled: false,
             ..RateLimitConfig::default()
@@ -1563,7 +1574,6 @@ mod global_off_middleware_tests {
             .route("/graphql", post(|| async { "ok" }))
             .layer(middleware::from_fn(rate_limit_middleware))
             .layer(Extension(Arc::new(limiter)))
-            .layer(MockConnectInfo(SocketAddr::from(([203, 0, 113, 7], 4000))))
     }
 
     async fn post_to(app: &Router, path: &str) -> axum::response::Response {
@@ -1589,5 +1599,17 @@ mod global_off_middleware_tests {
             assert_eq!(other.status(), StatusCode::OK);
             assert!(other.headers().get("X-RateLimit-Limit").is_none());
         }
+    }
+
+    /// A router served without connect info still serves: every caller is the one
+    /// `unknown` client, which the auth rules limit together, as the bearer-auth
+    /// failure limiter does. Extracting the peer would answer 500 to every request.
+    #[tokio::test]
+    async fn without_a_peer_address_every_caller_shares_one_bucket() {
+        let app = rules_only();
+
+        assert_eq!(post_to(&app, "/graphql").await.status(), StatusCode::OK);
+        assert_eq!(post_to(&app, "/auth/v1/otp").await.status(), StatusCode::OK);
+        assert_eq!(post_to(&app, "/auth/v1/otp").await.status(), StatusCode::TOO_MANY_REQUESTS);
     }
 }

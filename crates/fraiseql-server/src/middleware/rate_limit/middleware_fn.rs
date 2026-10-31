@@ -161,7 +161,6 @@ pub fn extract_real_ip(
 /// Returns `RateLimitExceeded` if the per-path, per-user, or per-IP rate limit is exceeded.
 #[allow(clippy::cognitive_complexity)] // Reason: multi-dimension rate limiting (per-path, per-user, per-IP) with config lookups
 pub async fn rate_limit_middleware(
-    ConnectInfo(addr): ConnectInfo<SocketAddr>,
     req: Request<Body>,
     next: Next,
 ) -> Result<Response, RateLimitExceeded> {
@@ -172,11 +171,16 @@ pub async fn rate_limit_middleware(
         .cloned()
         .unwrap_or_else(|| Arc::new(RateLimiter::new(RateLimitConfig::default())));
 
+    // The shipped binary serves with connect info. A router served without it (an
+    // embedding, a direct call) has no peer: every such caller is the one `unknown`
+    // client, limited together, rather than refused with a 500 the auth rules never
+    // reach.
+    let peer = req.extensions().get::<ConnectInfo<SocketAddr>>().map(|ci| ci.0.ip());
     let ip = extract_real_ip(
         req.headers(),
         limiter.config().trust_proxy_headers,
         &limiter.config().trusted_proxy_cidrs,
-        Some(addr.ip()),
+        peer,
     );
     let path = req.uri().path().to_string();
 

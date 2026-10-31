@@ -37,12 +37,17 @@ disagreed, and the promise was the part that was wrong.
   - **New rules**: `/auth/v1/otp` (`auth_otp_send_*`, 30 per 15 minutes), `/auth/v1/verify`
     (`auth_otp_verify_*`, 60 per 15 minutes), and each `/auth/v1/password/*` and
     `/auth/v1/email/verify/*` route, each with its own bucket (`auth_password_*`, 30 per
-    minute).
+    minute). `/auth/v1/signup` (`auth_anonymous_signup_*`, 30 per 10 minutes) replaces the
+    in-handler limiter, which keyed on the socket address and so, behind a proxy, gave
+    every client one shared budget.
   - **Defaults are sized for a shared address** (an office NAT, a proxy): 30 a minute for
     start, callback and logout, which were 5, 10 and 30 in the server's defaults and 100,
     50 and 20 in `[fraiseql.security]`'s; refresh is 300 per 5 minutes, which was 20 per 5
     minutes and 10 a minute. The two tables now agree.
   - **A zero budget refuses to boot.** It used to drop its rule, so `0` meant unlimited.
+  - **A router served without connect info is limited, not refused.** Its callers have no
+    peer address, so they share one `unknown` bucket per rule, as the bearer-auth failure
+    limiter's do. The rate-limit layer used to answer every such request with a 500.
   - **`FRAISEQL_REQUIRE_REDIS` now covers the auth rules.** A deployment that sets it
     with no `[security.rate_limiting] redis_url` refuses to boot, because the rules'
     budgets would be per replica.
@@ -56,7 +61,8 @@ disagreed, and the promise was the part that was wrong.
   are `Option<Arc<RateLimiters>>` (#1857).** The server passes `None`: its configured
   per-route rules replace the fixed in-handler limiter (100 a minute, one bucket for every
   route), which ignored `[security.rate_limiting]`. A caller mounting these routes itself
-  passes `Some` to keep it.
+  passes `Some` to keep it. Likewise the server builds `AnonSignupState` with the new
+  `AnonSignupState::new_without_limiter`; `AnonSignupState::new` keeps its own limiter.
 
 - **A document's kept projection is keyed by the caller's masks (#1785).** `ProjectionKey`
   is built with `ProjectionKey::new(request_chain, masked)`, which keeps the masked
@@ -655,6 +661,11 @@ disagreed, and the promise was the part that was wrong.
   guesses, as they could already spend its sends; the per-client rules bound how many
   addresses one client can do that to. `PgOtpStore::init` adds the
   `tb_otp_send_budget.guesses` column to an existing table.
+
+- **`AnonSignupState`'s own limiter counts an `IPv6` client by its /64, and holds at most
+  100,000 counters.** It keyed on the full address and never removed a counter, so one
+  client with a routine /64 had a fresh budget per address and could grow the map without
+  bound. Closed windows are dropped first when it fills, then the oldest live counters.
 
 - **A root `__typename` is answered where it was selected, under its alias (#1785).** It
   was always the first key of each root object, whatever its position in the selection,

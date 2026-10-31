@@ -114,7 +114,7 @@ async fn test_upgrade_anonymous_session_calls_revoke_and_create() {
 #[tokio::test]
 async fn test_new_anon_state_creates_empty_rate_counters() {
     let state = make_state();
-    assert!(state.rate_counters.is_empty(), "new state should have no rate counters");
+    assert_eq!(state.tracked_count(), 0, "new state should have no rate counters");
 }
 
 #[tokio::test]
@@ -130,4 +130,75 @@ async fn test_different_ips_get_independent_counters() {
     for i in 0..ANON_RATE_MAX {
         assert!(state.check_rate_limit("10.0.0.2", now), "IP B signup #{i} should be allowed");
     }
+}
+
+// ── The per-IP map is bounded ─────────────────────────────────────────
+
+/// A routine `IPv6` allocation is a /64, so keying on the full address let one client
+/// mint 2^64 counters — each a fresh full budget, and none ever removed.
+#[tokio::test]
+async fn ipv6_addresses_in_one_slash64_share_one_counter() {
+    let state = make_state();
+    let now = unix_now().unwrap();
+
+    for host in 0..1_000u32 {
+        let ip = format!("2001:db8:1:2::{host:x}");
+        let _ = state.check_rate_limit(&ip, now);
+    }
+    assert_eq!(state.tracked_count(), 1, "one /64, one counter");
+    assert!(
+        !state.check_rate_limit("2001:db8:1:2:ffff::1", now),
+        "a new address in a spent /64 gets no fresh budget"
+    );
+}
+
+/// Distinct /64s are distinct clients, so they get distinct counters, and the map still
+/// stays under its cap.
+#[tokio::test]
+async fn the_counter_map_stays_bounded_across_many_prefixes() {
+    let state = AnonSignupState::new(Arc::new(MockSessionStore)).with_max_tracked(64);
+    let now = unix_now().unwrap();
+
+    for prefix in 0..1_000u32 {
+        let ip = format!("2001:db8:{:x}:{:x}::1", prefix >> 16, prefix & 0xffff);
+        let _ = state.check_rate_limit(&ip, now);
+        assert!(
+            state.tracked_count() <= 64,
+            "{} counters past a cap of 64",
+            state.tracked_count()
+        );
+    }
+}
+
+/// A counter whose window has closed holds no enforcement: the next signup from that
+/// address opens a fresh window anyway. Those go first when room is needed.
+#[tokio::test]
+async fn closed_windows_are_swept_before_a_live_counter_is_evicted() {
+    let state = AnonSignupState::new(Arc::new(MockSessionStore)).with_max_tracked(4);
+    let now = unix_now().unwrap();
+    let old = now - ANON_RATE_WINDOW_SECS - 1;
+
+    for n in 0..3u8 {
+        let _ = state.check_rate_limit(&format!("198.51.100.{n}"), old);
+    }
+    // The live counter: spent.
+    for _ in 0..ANON_RATE_MAX {
+        let _ = state.check_rate_limit("203.0.113.7", now);
+    }
+    // Room for a newcomer is made from the closed windows, so the spent counter stays.
+    let _ = state.check_rate_limit("203.0.113.8", now);
+    assert_eq!(state.tracked_count(), 2, "the three closed windows are swept");
+    assert!(!state.check_rate_limit("203.0.113.7", now), "the spent counter still refuses");
+}
+
+/// A caller whose router already limits `/auth/v1/signup` per client (the server does)
+/// builds the state with no limiter of its own: one limit per route, the configured one.
+#[tokio::test]
+async fn a_state_without_a_limiter_keeps_no_counters() {
+    let state = AnonSignupState::new_without_limiter(Arc::new(MockSessionStore));
+    let now = unix_now().unwrap();
+    for _ in 0..(ANON_RATE_MAX * 3) {
+        assert!(state.check_rate_limit("192.0.2.1", now));
+    }
+    assert_eq!(state.tracked_count(), 0);
 }

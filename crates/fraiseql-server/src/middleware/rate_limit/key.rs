@@ -130,6 +130,13 @@ impl PathRateLimit {
             // account; it had the password routes' in-handler limiter, so it has their budget.
             password("/auth/v1/email/verify/start"),
             password("/auth/v1/email/verify/confirm"),
+            // Anonymous signup mints a guest account and a session per call, with no
+            // credential to check.
+            Self::rule(
+                "/auth/v1/signup",
+                sec.auth_anonymous_signup_max_requests,
+                sec.auth_anonymous_signup_window_secs,
+            ),
         ]
         .into_iter()
         .flatten()

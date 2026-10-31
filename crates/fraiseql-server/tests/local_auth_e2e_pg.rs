@@ -738,7 +738,6 @@ async fn only_enabled_methods_are_mounted() {
 // ── the auth routes are limited per client address, with no section ───
 
 /// POST `body` to `base` + `path` from the loopback address `from`, returning the status.
-#[cfg(feature = "inbound-email")]
 async fn post_from(
     from: std::net::IpAddr,
     base: &str,
@@ -859,6 +858,76 @@ async fn otp_and_password_routes_are_limited_per_client_with_no_section() {
             "{path}: another address must keep its own budget"
         );
     }
+
+    server.stop().await;
+    drop_scratch(&url, db).await;
+}
+
+/// Anonymous signup mints a guest account and a session on every call, with no
+/// credential to check; with no per-client rule, one client could mint them without limit.
+#[tokio::test]
+async fn anonymous_signup_is_limited_per_client_with_no_section() {
+    let Some(url) = database_url_or_skip("anonymous_signup_limited_per_client") else {
+        return;
+    };
+    set_test_env();
+    let db = "fraiseql_p26_local_anon_per_ip";
+    let pool = scratch_pool(&url, db).await;
+    let scratch_url = with_database(&url, db);
+
+    let server = boot(
+        LocalAuthConfig {
+            anonymous: true,
+            ..LocalAuthConfig::default()
+        },
+        pool.clone(),
+        &scratch_url,
+    )
+    .await;
+    let base = &server.base;
+    let one: std::net::IpAddr = [127, 0, 0, 1].into();
+    let other: std::net::IpAddr = [127, 0, 0, 2].into();
+
+    let defaults = fraiseql_core::schema::RateLimitingSecurityConfig::default();
+    let (budget, window_secs) = (
+        defaults.auth_anonymous_signup_max_requests,
+        defaults.auth_anonymous_signup_window_secs,
+    );
+    let started = std::time::Instant::now();
+    for n in 0..budget {
+        assert_eq!(
+            post_from(one, base, "/auth/v1/signup", serde_json::json!({})).await,
+            reqwest::StatusCode::OK,
+            "signup {n} of a budget of {budget} must mint a guest"
+        );
+    }
+    #[allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        clippy::cast_precision_loss
+    )]
+    // Reason: a few seconds times a small rate is a small non-negative count, and the
+    // window is a small config value
+    let refilled =
+        (started.elapsed().as_secs_f64() * f64::from(budget) / window_secs as f64).ceil() as u32;
+    let mut refused = false;
+    for _ in 0..=refilled {
+        if post_from(one, base, "/auth/v1/signup", serde_json::json!({})).await
+            == reqwest::StatusCode::TOO_MANY_REQUESTS
+        {
+            refused = true;
+            break;
+        }
+    }
+    assert!(
+        refused,
+        "past a budget of {budget} (+{refilled} refilled), a signup must be refused"
+    );
+    assert_eq!(
+        post_from(other, base, "/auth/v1/signup", serde_json::json!({})).await,
+        reqwest::StatusCode::OK,
+        "another address keeps its own budget"
+    );
 
     server.stop().await;
     drop_scratch(&url, db).await;

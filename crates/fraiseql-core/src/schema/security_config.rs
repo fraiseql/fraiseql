@@ -424,6 +424,11 @@ pub struct RateLimitingSecurityConfig {
     pub auth_password_max_requests: u32,
     /// Local-password window in seconds.
     pub auth_password_window_secs: u64,
+    /// Anonymous signup (`/auth/v1/signup`) — max requests per window, per client. Each
+    /// request mints a guest account and a session with no credential to check.
+    pub auth_anonymous_signup_max_requests: u32,
+    /// Anonymous signup window in seconds.
+    pub auth_anonymous_signup_window_secs: u64,
     /// Apply the per-client rules on the auth endpoints.
     ///
     /// On unless an operator writes `false`. The rules run whether or not the global
@@ -506,6 +511,8 @@ impl RateLimitingSecurityConfig {
         auth_otp_verify_window_secs: 900,
         auth_password_max_requests: 30,
         auth_password_window_secs: 60,
+        auth_anonymous_signup_max_requests: 30,
+        auth_anonymous_signup_window_secs: 600,
         auth_rules_enabled: true,
         failed_login_max_attempts: 10,
         failed_login_lockout_secs: 900,
