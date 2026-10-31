@@ -326,7 +326,7 @@ else. Each line below is pinned by a test: `runtime::deno::runtime_surface_tests
 | `import` | **no**: a static `import` is a syntax error, a dynamic `import()` fails. There is no module loader. |
 | JavaScript built-ins (`JSON`, `Math`, `Date`, `Promise`, `Intl`, `WebAssembly`, typed arrays) | yes |
 | `queueMicrotask` | yes |
-| `console` | present |
+| `console` | present. Each `console` call, and each `Deno.core.print`, is one of the function's log entries (`info`; a `Deno.core.print(…, true)` is `error`), under the same limit as `fraiseql_log`. Nothing reaches the server's stdout or stderr. |
 | `TextEncoder`, `TextDecoder`, `atob`, `btoa`, `URL`, `structuredClone` | **no**. Bundle a polyfill if a library needs one. |
 | `setTimeout` and the other timers | **no** |
 | `crypto` (`getRandomValues`, `subtle`) | **no**. `Math.random` is not a secure source. A WASM function gets WASI's random source. |
@@ -362,7 +362,7 @@ reach it.
 |---|---|---|
 | duration | `timeout_ms`; when undeclared, 5 s (a `request:query` function: the request budget) | the **author**, per function. A `before:mutation` chain budget or a `request:query` budget can only lower it (see above and [Timeouts](#timeouts)). On WASM it is checked every 100 ms. |
 | memory | 128 MiB (the V8 heap; the WASM store's linear memory) | fixed: neither an author nor an operator can change it |
-| log entries | 10,000 `fraiseql_log` calls; later ones are dropped | fixed |
+| log entries | 10,000 `fraiseql_log`, `console` and `Deno.core.print` calls together; later ones are dropped | fixed |
 
 ### Declarative `when` predicates (#597)
 

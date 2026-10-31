@@ -641,6 +641,14 @@ disagreed, and the promise was the part that was wrong.
   column that is not text reads the same key, so a `String` field mapped to an enum column
   sorts in the enum's order, with no `COLLATE` (which PostgreSQL refuses on an enum).
 
+- **A Deno function's console output is one of its log entries.** `console.log`,
+  `console.error` and `Deno.core.print` wrote straight to the server process's stdout and
+  stderr: outside the function's limit of 10,000 log entries, and outside the server's own
+  log format, so a value a function logged from its event reached the server's log stream
+  as written, line breaks included. Each call is now one entry in the function's result
+  (`info`, or `error` for `Deno.core.print(…, true)`), counted against that limit, and
+  nothing a function prints reaches the process's streams.
+
 - **The `request:query` example in `docs/architecture/functions.md` binds its value as a
   variable (#1859).** It built the `fraiseql_query` document by interpolation,
   `` `{ price(sku: "${sku}") { amount } }` ``, so a crafted argument could change the

@@ -92,6 +92,20 @@ struct LogCollector {
     max_entries: usize,
 }
 
+impl LogCollector {
+    /// Keep `message` as one entry, unless the invocation already holds `max_entries`.
+    fn push(&self, level: LogLevel, message: String) {
+        let mut logs = self.logs.lock().expect("log mutex poisoned");
+        if logs.len() < self.max_entries {
+            logs.push(LogEntry {
+                level,
+                message,
+                timestamp: chrono::Utc::now(),
+            });
+        }
+    }
+}
+
 // ── Op definitions ─────────────────────────────────────────────────────────────
 
 /// Log a message from Deno guest code.
@@ -102,21 +116,37 @@ struct LogCollector {
 #[allow(clippy::inline_always)] // Reason: emitted by the `#[op2]` proc-macro, not our code
 #[allow(clippy::needless_pass_by_value)] // Reason: `#[op2]` requires owned `String` for `#[string]`
 fn fraiseql_log(state: Rc<RefCell<OpState>>, #[smi] level: u8, #[string] message: String) {
-    let state = state.borrow();
-    let collector = state.borrow::<LogCollector>();
-    let mut logs = collector.logs.lock().expect("log mutex poisoned");
-    if logs.len() < collector.max_entries {
-        let log_level = match level {
-            0 => LogLevel::Debug,
-            2 => LogLevel::Warn,
-            3 => LogLevel::Error,
-            _ => LogLevel::Info,
-        };
-        logs.push(LogEntry {
-            level: log_level,
-            message,
-            timestamp: chrono::Utc::now(),
-        });
+    let level = match level {
+        0 => LogLevel::Debug,
+        2 => LogLevel::Warn,
+        3 => LogLevel::Error,
+        _ => LogLevel::Info,
+    };
+    state.borrow().borrow::<LogCollector>().push(level, message);
+}
+
+/// What `deno_core`'s own `op_print` runs instead: its `console` and `Deno.core.print`
+/// both call that op, which writes to the server process's stdout and stderr. Here each
+/// call is one of the function's log entries, under the same limit as `fraiseql_log`,
+/// with the line break `console` appends removed.
+#[op2(fast)]
+#[allow(clippy::inline_always)] // Reason: emitted by the `#[op2]` proc-macro, not our code
+fn fraiseql_print(state: &OpState, #[string] message: &str, is_err: bool) {
+    let level = if is_err {
+        LogLevel::Error
+    } else {
+        LogLevel::Info
+    };
+    let message = message.strip_suffix('\n').unwrap_or(message);
+    state.borrow::<LogCollector>().push(level, message.to_string());
+}
+
+/// Route `op_print` to [`fraiseql_print`]; every other op is left as it is.
+fn print_to_log(op: deno_core::OpDecl) -> deno_core::OpDecl {
+    if op.name == "op_print" {
+        op.with_implementation_from(&fraiseql_print())
+    } else {
+        op
     }
 }
 
@@ -143,6 +173,7 @@ fn make_fraiseql_extension(
             ops::fraiseql_cursor_get(),
             ops::fraiseql_cursor_advance(),
         ]),
+        middleware_fn: Some(Box::new(print_to_log)),
         op_state_fn: Some(Box::new(move |state: &mut OpState| {
             state.put(collector);
             if let Some(host) = host {

@@ -24,6 +24,8 @@ pub mod transpile;
 pub mod watchdog;
 
 #[cfg(test)]
+mod console_tests;
+#[cfg(test)]
 mod default_export_tests;
 #[cfg(test)]
 mod follow_up_tests;
