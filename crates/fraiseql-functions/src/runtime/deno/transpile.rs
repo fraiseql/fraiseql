@@ -19,7 +19,7 @@ use std::ops::Range;
 use deno_ast::{
     EmitOptions, MediaType, ModuleSpecifier, ParseParams, SourceMapOption, SourceRangedForSpanned,
     TranspileModuleOptions, TranspileOptions,
-    swc::ast::{ModuleDecl, ModuleItem},
+    swc::ast::{ExportSpecifier, ModuleDecl, ModuleExportName, ModuleItem},
 };
 
 /// The synthetic specifier the guest source is parsed under. It surfaces in
@@ -74,6 +74,11 @@ pub fn transpile_typescript(source: &str) -> Result<String, String> {
 /// Where the module's `export default` item is, and the expression or declaration it
 /// exports, as byte ranges of `source`.
 ///
+/// An export list naming a local binding as the default, `export { handler as default };`,
+/// counts too: it is how esbuild's `--format=esm` output names a bundle's entry point.
+/// One that re-exports another module's (`... from "./x"`) does not, as there is no module
+/// loader to reach it.
+///
 /// Found by parsing the `JavaScript` the isolate will run, so the words `export default`
 /// in a comment or a string literal are not mistaken for the entry point.
 ///
@@ -110,6 +115,19 @@ pub fn default_export(source: &str) -> Result<(Range<usize>, Range<usize>), Stri
                 export.range().as_byte_range(start),
                 export.decl.range().as_byte_range(start),
             )),
+            ModuleItem::ModuleDecl(ModuleDecl::ExportNamed(export)) if export.src.is_none() => {
+                export.specifiers.iter().find_map(|specifier| match specifier {
+                    ExportSpecifier::Named(named)
+                        if matches!(&named.exported, Some(ModuleExportName::Ident(name)) if &*name.sym == "default") =>
+                    {
+                        Some((
+                            export.range().as_byte_range(start),
+                            named.orig.range().as_byte_range(start),
+                        ))
+                    },
+                    _ => None,
+                })
+            },
             _ => None,
         })
         .ok_or_else(|| {

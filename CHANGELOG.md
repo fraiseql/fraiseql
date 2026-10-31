@@ -364,6 +364,18 @@ disagreed, and the promise was the part that was wrong.
 
 ### Added
 
+- **A function bundled by esbuild runs as written, and the docs list what a function's
+  runtime provides (#1860).** esbuild's `--format=esm` output names its entry point in an
+  export list, `export { handler_default as default };`, which the Deno runtime refused as
+  "no default export", so a function using a library had no supported shape. It now runs,
+  under either `enable_typescript` setting; a re-export from another file still has no
+  loader to reach it. `docs/architecture/functions.md` ("What a function's runtime
+  provides") states the Deno globals (no `import`, no `TextEncoder`, `atob`, `URL`,
+  `crypto`, timers or `fetch`), the WASI surface (no environment, arguments, filesystem or
+  sockets; clocks and random work) and the limits (`timeout_ms` is the author's; 128 MiB
+  and 10,000 log entries are fixed). Each line is pinned by a test, the WASI one against a
+  new probe guest, `tests/fixtures/functions/guest-runtime-probe`.
+
 - **A mailbox can trust a private CA: `[mailbox.<name>.imap] ca_file`** (#1757). A PEM
   bundle added, for that mailbox only, to the webpki roots its IMAP connection trusts, so
   a mail server behind a private CA can be polled. A missing or unreadable file, or one

@@ -42,6 +42,8 @@ mod qonto_tests;
 #[cfg(test)]
 mod reply_awareness_tests;
 #[cfg(test)]
+mod runtime_surface_tests;
+#[cfg(test)]
 mod scoring_tests;
 
 use std::sync::Arc;

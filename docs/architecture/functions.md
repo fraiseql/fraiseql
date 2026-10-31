@@ -312,6 +312,58 @@ op itself is one implementation (`host::outbound_http::perform`) shared by every
 surface that has one, so "the SSRF allowlist, unchanged" is a fact about the binary
 rather than a promise.
 
+### What a function's runtime provides (#1860)
+
+A function gets the host calls above and the language's own built-ins, and nothing
+else. Each line below is pinned by a test: `runtime::deno::runtime_surface_tests`,
+`runtime::wasm::runtime_surface_tests` (against the probe guest
+`tests/fixtures/functions/guest-runtime-probe`) and `runtime::deno::default_export_tests`.
+
+**Deno.** The isolate runs `deno_core` with the fraiseql ops and no web-API extension.
+
+| | Available |
+|---|---|
+| `import` | **no**: a static `import` is a syntax error, a dynamic `import()` fails. There is no module loader. |
+| JavaScript built-ins (`JSON`, `Math`, `Date`, `Promise`, `Intl`, `WebAssembly`, typed arrays) | yes |
+| `queueMicrotask` | yes |
+| `console` | present |
+| `TextEncoder`, `TextDecoder`, `atob`, `btoa`, `URL`, `structuredClone` | **no**. Bundle a polyfill if a library needs one. |
+| `setTimeout` and the other timers | **no** |
+| `crypto` (`getRandomValues`, `subtle`) | **no**. `Math.random` is not a secure source. A WASM function gets WASI's random source. |
+| `fetch` | **no**. Use `fraiseql_http_request`, which applies the egress allowlist. |
+
+**Using a library: bundle it.** A function is one file. esbuild's ESM output runs as
+is, including the `export { handler_default as default };` list it ends with:
+
+```bash
+esbuild src/notify.ts --bundle --format=esm --platform=neutral --outfile=functions/notify.js
+```
+
+The bundle is the function's module, so it sits at `<module_dir>/<name>.js` like any
+other (see [Authoring a function](#authoring-a-function-1325)). The entry point is the module's default
+export, whether it is written `export default …` or named in an export list. A
+re-export from another file (`export { x as default } from "./x.js"`) has no loader to
+reach it.
+
+**WASM.** A `wasm32-wasip2` component runs with an empty WASI context:
+
+| | Available |
+|---|---|
+| environment variables, command-line arguments | **none**. Read configuration with `env_var`. |
+| filesystem | **none**: no directory is preopened. |
+| sockets | **denied**. Use `http_request`. |
+| wall clock, monotonic clock | yes |
+| random | yes (WASI's random source) |
+| stdout, stderr | writable, and discarded |
+
+**Limits, per invocation, on both runtimes:**
+
+| Limit | Value | Who sets it |
+|---|---|---|
+| duration | `timeout_ms`; when undeclared, 5 s (a `request:query` function: the request budget) | the **author**, per function. A `before:mutation` chain budget or a `request:query` budget can only lower it (see above and [Timeouts](#timeouts)). On WASM it is checked every 100 ms. |
+| memory | 128 MiB (the V8 heap; the WASM store's linear memory) | fixed: neither an author nor an operator can change it |
+| log entries | 10,000 `fraiseql_log` calls; later ones are dropped | fixed |
+
 ### Declarative `when` predicates (#597)
 
 An `after:mutation` (or `after:capture`, #366) function can declare *when* it fires,

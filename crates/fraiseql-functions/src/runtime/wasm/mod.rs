@@ -533,3 +533,6 @@ impl DynHostContext for HostContextSnapshot {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod runtime_surface_tests;
