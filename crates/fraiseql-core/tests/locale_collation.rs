@@ -20,7 +20,7 @@ use fraiseql_core::{
     compiler::fact_table::{DimensionColumn, FactTableMetadata, MeasureColumn, SqlType},
     db::{DatabaseAdapter, postgres::PostgresAdapter},
     runtime::{Executor, with_request_locale},
-    schema::{CompiledSchema, FieldType, LocaleConfig, LocaleSource},
+    schema::{CompiledSchema, FieldType, LocaleConfig, LocaleSource, NativeColumn},
     security::SecurityContext,
 };
 use fraiseql_test_utils::schema_builder::{TestQueryBuilder, TestSchemaBuilder, TestTypeBuilder};
@@ -28,6 +28,13 @@ use serde_json::Value;
 
 const VIEW: &str = "v_locale_word";
 const WORDS: [&str; 7] = ["cote", "côte", "coté", "côté", "apfel", "Äpfel", "Zebra"];
+/// The `word_class` enum's members in declared order, which is the reverse of their text order.
+const CLASSES: [&str; 2] = ["zulu", "alpha"];
+
+/// The class of the `i`th word: the first three are `alpha`, the rest `zulu`.
+fn word_class(i: usize) -> &'static str {
+    CLASSES[usize::from(i < 3)]
+}
 
 fn schema() -> CompiledSchema {
     let word = TestTypeBuilder::new("Word", VIEW)
@@ -36,12 +43,17 @@ fn schema() -> CompiledSchema {
         .with_simple_field("id", FieldType::Id)
         .with_simple_field("word", FieldType::String)
         .with_simple_field("rank", FieldType::Int)
+        .with_simple_field("wordClass", FieldType::String)
         .build();
     let mut words = TestQueryBuilder::new("words", "Word")
         .returns_list(true)
         .with_sql_source(VIEW)
         .build();
     words.auto_params.has_order_by = true;
+    // A text field whose column is an enum: it sorts in the enum's declared order.
+    words
+        .native_columns
+        .insert("wordClass".to_string(), NativeColumn::nullable("word_class"));
     let mut connection = TestQueryBuilder::new("wordsConnection", "Word")
         .returns_list(true)
         .with_sql_source(VIEW)
@@ -79,17 +91,21 @@ async fn adapter() -> Option<PostgresAdapter> {
         .enumerate()
         .map(|(i, w)| {
             format!(
-                "({i}, jsonb_build_object('id', '{i}', 'word', '{w}', 'rank', {}, 'pk_word', {i}))",
-                10 - i
+                "({i}, '{c}', jsonb_build_object('id', '{i}', 'word', '{w}', 'rank', {}, \
+                 'pk_word', {i}, 'word_class', '{c}'))",
+                10 - i,
+                c = word_class(i),
             )
         })
         .collect();
     for ddl in [
         format!("DROP TABLE IF EXISTS {VIEW}"),
+        "DROP TYPE IF EXISTS word_class".to_string(),
+        format!("CREATE TYPE word_class AS ENUM ('{}', '{}')", CLASSES[0], CLASSES[1]),
         format!(
-            "CREATE TABLE {VIEW} (pk_word bigint, data jsonb, id text GENERATED ALWAYS AS (data->>'id') STORED)"
+            "CREATE TABLE {VIEW} (pk_word bigint, word_class word_class, data jsonb, id text GENERATED ALWAYS AS (data->>'id') STORED)"
         ),
-        format!("INSERT INTO {VIEW} (pk_word, data) VALUES {}", values.join(", ")),
+        format!("INSERT INTO {VIEW} (pk_word, word_class, data) VALUES {}", values.join(", ")),
     ] {
         adapter.execute_raw_query(&ddl).await.unwrap();
     }
@@ -138,6 +154,33 @@ async fn a_text_sort_follows_the_request_locale() {
         .unwrap();
         assert_eq!(words_of(&response), expected, "{locale}: {response}");
     }
+}
+
+/// #1877: a text field mapped to a column that is not text sorts on the column, untouched by
+/// the locale. Its column is an enum, which orders by declaration (`zulu` before `alpha`), and
+/// a `COLLATE` on it would be a SQL error. Read as the document's text instead, under any
+/// collation, `alpha` would come first.
+#[tokio::test]
+async fn a_text_field_on_a_column_that_is_not_text_sorts_as_the_column() {
+    let Some(adapter) = adapter().await else {
+        return;
+    };
+    let executor = Executor::new(schema(), Arc::new(adapter));
+    let response = with_request_locale(
+        "sv-SE",
+        executor.execute("{ words(orderBy: {wordClass: ASC}) { wordClass } }", None),
+    )
+    .await
+    .unwrap_or_else(|e| panic!("a sort on an enum column in a locale must run: {e}"));
+    let classes: Vec<&str> = response["data"]["words"]
+        .as_array()
+        .unwrap_or_else(|| panic!("no words in {response}"))
+        .iter()
+        .map(|w| w["wordClass"].as_str().unwrap())
+        .collect();
+    let mut expected: Vec<&str> = (0..WORDS.len()).map(word_class).collect();
+    expected.sort_by_key(|c| CLASSES.iter().position(|k| k == c));
+    assert_eq!(classes, expected, "{response}");
 }
 
 /// A collation applies to text only: a numeric key sorted in a locale sorts as a number (a

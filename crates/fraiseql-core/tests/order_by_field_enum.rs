@@ -96,8 +96,8 @@ fn diverging_schema() -> CompiledSchema {
     by_rank
         .native_columns
         .insert("rank_n".to_string(), fraiseql_core::schema::NativeColumn::nullable("integer"));
-    // A key no spelling reaches: the engine resolves a sort key to a native column through
-    // `snake_case`, which never yields `rankAlt`. Neither listed nor accepted.
+    // A key that is neither a field of `Item` nor a column's own (`snake_case`) name: no
+    // sort key names it. Neither listed nor accepted.
     by_rank
         .native_columns
         .insert("rankAlt".to_string(), fraiseql_core::schema::NativeColumn::nullable("integer"));
