@@ -477,6 +477,16 @@ disagreed, and the promise was the part that was wrong.
   (retryable). FraiseQL's mutations run under `READ COMMITTED`; a webhook handler set to
   `RepeatableRead` or `Serializable` can now see it.
 
+- **A read that selects a list of objects is answered as the bytes the database wrote
+  (#1785).** The projection builds the list in SQL, each element an object of its selected
+  fields under their aliases, in stored order, at every depth; a stored `null` element stays
+  `null`, an empty list is `[]`. Such a read used to fetch the stored array and re-project it
+  in Rust. Twenty users with twenty posts each cost 727,498 instructions instead of
+  5,753,808, about 7.9× fewer (`respond.raw_post_list` against `respond.value_post_list`),
+  and `execute.nested_fat` 37% fewer (3,297,234 against 5,266,400). A list of scalars or of
+  an interface or union keeps the `Value` path, and so does a read whose list holds a `null`
+  element, which is completed in Rust, and an enum, which is coerced on output.
+
 - **A read that selects a field the caller's scopes mask is answered as the bytes the
   database wrote (#1785).** The projection writes a masked field as `null`, or `[]` for a
   localized field's translations, where it was selected and under its alias, and never
