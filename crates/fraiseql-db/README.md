@@ -1,18 +1,20 @@
 # fraiseql-db
 
-Database abstraction layer for FraiseQL v2. This crate provides runtime SQL generation and database adapters for multiple backends, enabling FraiseQL to target different databases without an ORM layer.
+Database layer for FraiseQL v2: the PostgreSQL adapter and the SQL it generates at
+request time, without an ORM layer. PostgreSQL is the only backend.
 
 ## Features
 
 - PostgreSQL adapter
-- Runtime SQL generation tailored to each backend's dialect
+- SQL generated per request from the compiled schema
 - Connection pooling with configurable bounds
 - Database introspection for schema discovery
-- Rich filter operators for advanced query predicates
+- `where` operators: comparison, containment, string, null checks, arrays, pgvector,
+  full-text search, network (`INET`/`CIDR`), JSONB and `ltree`
 
 ## Cargo Features
 
-`postgres` (default), `mysql`, `sqlite`, `sqlserver`, `wire-backend`, `rich-filters`
+`postgres` (default), `wire-backend`, `test-postgres`
 
 ## Usage
 
