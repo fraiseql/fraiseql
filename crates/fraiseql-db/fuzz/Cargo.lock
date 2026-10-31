@@ -309,6 +309,7 @@ dependencies = [
  "deadpool-postgres",
  "fraiseql-error",
  "futures",
+ "memchr",
  "rustls",
  "rustls-native-certs",
  "serde",
