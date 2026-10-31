@@ -190,9 +190,10 @@ pub struct KeptProjection {
     /// Every `Decimal` a projected row can hold is a leaf the projection prints as text, so
     /// the rows are parsed without quoting their numbers.
     pub decimals_as_text: bool,
-    /// The projection writes every mask of the key it was built under as `null`: a
-    /// projection of the selected fields. One of the stored document whole writes none.
-    pub masks_written:    bool,
+    /// The projection builds every level from the selection: a projection of the selected
+    /// fields, writing each mask of the key it was built under as `null` and each object
+    /// and list of objects from its sub-fields. One of the stored document whole builds none.
+    pub built:            bool,
 }
 
 /// A check whose verdict depends on a document's collected fields alone. Each has its own

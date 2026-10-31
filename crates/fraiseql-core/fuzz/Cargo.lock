@@ -616,6 +616,7 @@ dependencies = [
  "chrono",
  "fraiseql-error",
  "futures",
+ "memchr",
  "serde",
  "serde_json",
  "tokio",

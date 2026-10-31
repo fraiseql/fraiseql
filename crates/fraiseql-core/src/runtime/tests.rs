@@ -3623,7 +3623,14 @@ mod projection_tests {
         selection: &[FieldSelection],
         masked: Option<&std::collections::HashSet<(String, String)>>,
     ) -> serde_json::Value {
-        crate::runtime::shape_unprojected_root(&mut value, "Folder", selection, &folders(), masked);
+        crate::runtime::shape_unprojected_root(
+            &mut value,
+            "Folder",
+            selection,
+            &folders(),
+            masked,
+            false,
+        );
         value
     }
 
@@ -3643,6 +3650,7 @@ mod projection_tests {
             &selection,
             &folders(),
             Some(&masked),
+            false,
         );
         assert_eq!(serde_json::to_string(&value).unwrap(), r#"{"margin":null,"parent":{"id":0}}"#);
     }
@@ -3693,7 +3701,7 @@ mod projection_tests {
             aliased("kind", "__typename", vec![]),
             field("margin", vec![]),
         ];
-        crate::runtime::shape_projected(&mut value, "Folder", &selection, &folders(), None);
+        crate::runtime::shape_projected(&mut value, "Folder", &selection, &folders(), None, false);
         assert_eq!(
             serde_json::to_string(&value).unwrap(),
             r#"{"id":1,"kind":"Folder","margin":7}"#
@@ -3742,14 +3750,14 @@ mod projection_tests {
         ];
         let mut value =
             json!({ "id": 1, "parent": { "id": 0, "owner_name": "ada", "audit": "x" } });
-        crate::runtime::shape_projected(&mut value, "Folder", &selection, &folders(), None);
+        crate::runtime::shape_projected(&mut value, "Folder", &selection, &folders(), None, false);
         assert_eq!(
             serde_json::to_string(&value).unwrap(),
             r#"{"id":1,"parent":{"ownerName":"ada","owner":"ada","id":0}}"#
         );
 
         let mut value = json!({ "parent": { "ownerName": "projected", "owner_name": "stored" } });
-        crate::runtime::shape_projected(&mut value, "Folder", &selection, &folders(), None);
+        crate::runtime::shape_projected(&mut value, "Folder", &selection, &folders(), None, false);
         assert_eq!(value["parent"]["ownerName"], "projected", "{value}");
     }
 
@@ -3781,9 +3789,31 @@ mod projection_tests {
             |inner, _| vec![field("parent", inner)],
         );
         let mut value = doc;
-        crate::runtime::shape_projected(&mut value, "Folder", &selection, &folders(), None);
+        crate::runtime::shape_projected(&mut value, "Folder", &selection, &folders(), None, false);
         let children = (0..7).fold(&value, |level, _| &level["parent"])["children"].clone();
         assert_eq!(children, json!([{ "id": 3, "parent": { "id": 2 } }]), "{value}");
+    }
+
+    /// A list the projection built is read under its response keys, as an object is: an
+    /// alias naming another field's stored key reads the value built under it, and a `null`
+    /// element stays one. A stored list is read under its stored keys.
+    #[test]
+    fn shape_projected_reads_a_built_list_under_its_response_keys() {
+        let selection = [field(
+            "children",
+            vec![
+                aliased("margin", "id", vec![]),
+                aliased("id", "margin", vec![]),
+            ],
+        )];
+        let built = json!({ "children": [{ "margin": 3, "id": 7 }, null] });
+        let mut value = built.clone();
+        crate::runtime::shape_projected(&mut value, "Folder", &selection, &folders(), None, true);
+        assert_eq!(value, built);
+
+        let mut stored = json!({ "children": [{ "id": 7, "margin": 3 }] });
+        crate::runtime::shape_projected(&mut stored, "Folder", &selection, &folders(), None, false);
+        assert_eq!(stored, json!({ "children": [{ "margin": 7, "id": 3 }] }));
     }
 
     /// A list the SQL projection left as its stored sub-document, `snake_case` keys and
@@ -3814,7 +3844,7 @@ mod projection_tests {
             field("id", vec![]),
             field("lineItems", vec![field("unitPrice", vec![]), field("skuCode", vec![])]),
         ];
-        crate::runtime::shape_projected(&mut value, "Order", &selection, &schema, None);
+        crate::runtime::shape_projected(&mut value, "Order", &selection, &schema, None, false);
         assert_eq!(
             serde_json::to_string(&value).unwrap(),
             r#"{"id":"o1","lineItems":[{"unitPrice":9.99,"skuCode":"ABC"}]}"#

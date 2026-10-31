@@ -235,6 +235,15 @@ pub fn user_row(i: usize, fat: bool) -> JsonbValue {
     }))
 }
 
+/// A user row as a projection selecting `id name posts { id title published }` writes it:
+/// twenty posts, each built from its selected fields.
+#[allow(dead_code)] // Reason: one of the three benches that include this file reads it
+pub fn posts_user_row(i: usize) -> JsonbValue {
+    let row = user_row(i, true);
+    let row = row.as_value();
+    JsonbValue::new(json!({ "id": row["id"], "name": row["name"], "posts": row["posts"] }))
+}
+
 /// A user row holding only the fields a plain read selects, in its selection order.
 #[allow(dead_code)] // Reason: one of the three benches that include this file reads it
 pub fn plain_user_row(i: usize, fat: bool) -> JsonbValue {

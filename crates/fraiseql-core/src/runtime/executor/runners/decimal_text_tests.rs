@@ -121,6 +121,9 @@ async fn a_read_whose_decimals_are_all_projected_leaves_is_parsed_without_its_sh
         "{ ledgers { t: total } }",
         "{ ledgers { entry { amount memo } } }",
         "{ ledgers { count tag { name } } }",
+        // Each element of a list of objects is built from its sub-fields.
+        "{ ledgers { total lines { amount } } }",
+        "{ ledgers { lines { memo } } }",
     ] {
         assert_eq!(parsed_with_shape(document).await, Some(false), "{document}");
     }
@@ -129,10 +132,10 @@ async fn a_read_whose_decimals_are_all_projected_leaves_is_parsed_without_its_sh
 #[tokio::test]
 async fn a_read_that_can_meet_a_decimal_as_a_number_keeps_its_shape() {
     for document in [
-        // A list is projected as its stored array, so its numbers arrive as written.
-        "{ ledgers { total lines { amount } } }",
-        "{ ledgers { lines { memo } } }",
+        // A list of scalars is projected as its stored array, so its numbers arrive as
+        // written, in an element of a list of objects too.
         "{ ledgers { rates } }",
+        "{ ledgers { lines { splits } } }",
         // An object built from its sub-fields is only as covered as they are.
         "{ ledgers { entry { amount splits } } }",
         // A member's fields are read without their type, as numbers.

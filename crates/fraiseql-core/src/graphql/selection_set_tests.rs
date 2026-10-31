@@ -424,7 +424,7 @@ fn a_projection_of_collected_fields_is_kept_only_once_it_is_built() {
                 0,
             )),
             decimals_as_text: false,
-            masks_written:    true,
+            built:            true,
         })
     };
     let first = fields.collect(&vars).unwrap().projection_once(&first_key, build).unwrap();

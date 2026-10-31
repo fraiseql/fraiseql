@@ -18,10 +18,15 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **A projection builds a list of objects element by element (#1785).** `FieldKind` has an
+  `ObjectList` variant, so a `match` over it needs an arm for it, and
+  `ProjectionField::object_list` builds one. `KeptProjection::built` says the projection
+  built every level from the selection, lists of objects included.
+
 - **A document's kept projection is keyed by the caller's masks (#1785).** `ProjectionKey`
   is built with `ProjectionKey::new(request_chain, masked)`, which keeps the masked
   `(type, field)` pairs as a set, and is no longer built as a struct literal.
-  `KeptProjection` has a `masks_written` field. `RawRows::has_null` is no longer a
+  `KeptProjection` has a `built` field. `RawRows::has_null` is no longer a
   `const fn`; `RawRows::has_null_where` says under which keys a `null` sits.
 
 - **`ResultProjector::configure_typename_from_selections` is removed (#1785).** It wrote a
@@ -471,6 +476,16 @@ disagreed, and the promise was the part that was wrong.
   would re-create a TVIEW row a concurrent transaction deleted now fails with `40001`
   (retryable). FraiseQL's mutations run under `READ COMMITTED`; a webhook handler set to
   `RepeatableRead` or `Serializable` can now see it.
+
+- **A read that selects a list of objects is answered as the bytes the database wrote
+  (#1785).** The projection builds the list in SQL, each element an object of its selected
+  fields under their aliases, in stored order, at every depth; a stored `null` element stays
+  `null`, an empty list is `[]`. Such a read used to fetch the stored array and re-project it
+  in Rust. Twenty users with twenty posts each cost 727,498 instructions instead of
+  5,753,808, about 7.9× fewer (`respond.raw_post_list` against `respond.value_post_list`),
+  and `execute.nested_fat` 37% fewer (3,297,234 against 5,266,400). A list of scalars or of
+  an interface or union keeps the `Value` path, and so does a read whose list holds a `null`
+  element, which is completed in Rust, and an enum, which is coerced on output.
 
 - **A read that selects a field the caller's scopes mask is answered as the bytes the
   database wrote (#1785).** The projection writes a masked field as `null`, or `[]` for a
