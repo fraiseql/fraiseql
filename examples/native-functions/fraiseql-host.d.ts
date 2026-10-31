@@ -15,7 +15,10 @@ interface FraiseqlHttpResponse {
 }
 
 interface FraiseqlHostOps {
-  /** Execute a GraphQL query/mutation. `variables` is a JSON string; returns a JSON string. */
+  /**
+   * Execute a GraphQL query/mutation. `variables` is a JSON string; returns a JSON string.
+   * Pass every value through `variables`, never interpolated into `graphql`.
+   */
   fraiseql_query(graphql: string, variables: string): Promise<string>;
   /**
    * NOT IMPLEMENTED (#871): no execution backend is wired — every call throws

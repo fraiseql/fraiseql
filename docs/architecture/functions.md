@@ -388,6 +388,10 @@ SSRF/validation policy is defined once, not per runtime. A host op invoked on a
 path that has no live host context (the sync `invoke` path) **fails loud** rather
 than silently returning empty data.
 
+Never interpolate a value into the query text that `fraiseql_query` sends: bind it as a
+variable through the second argument, so no value can change the document.
+`make lint-query-variables` holds every example under `docs/` and `examples/` to that.
+
 ## Observability (#598)
 
 Function dispatch is observable on `/metrics` (Prometheus facade; exported when the
@@ -586,7 +590,8 @@ def quote_preview(sku: str) -> Quote | None: ...
 export default async function (event) {
   const { sku } = event.data;                 // the field's resolved arguments
   const rows = await Deno.core.ops.fraiseql_query(
-    `{ price(sku: "${sku}") { amount } }`, "{}",   // read-only, as the caller
+    `query ($sku: String!) { price(sku: $sku) { amount } }`,   // read-only, as the caller
+    JSON.stringify({ sku }),                                    // values go here, as variables
   );
   return { id: sku, total: computeTotal(JSON.parse(rows)) };  // the field's data
 }

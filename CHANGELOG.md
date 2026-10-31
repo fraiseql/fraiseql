@@ -521,6 +521,14 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **The `request:query` example in `docs/architecture/functions.md` binds its value as a
+  variable (#1859).** It built the `fraiseql_query` document by interpolation,
+  `` `{ price(sku: "${sku}") { amount } }` ``, so a crafted argument could change the
+  query, and examples are what new code copies. It now passes `JSON.stringify({ sku })` as
+  the variables argument, the docs state the rule, and `make lint-query-variables` (in
+  preflight and the shell-gates leg) fails on any `fraiseql_query` call under `docs/` or
+  `examples/` whose query is a template literal holding `${`.
+
 - **A root `__typename` is answered where it was selected, under its alias (#1785).** It
   was always the first key of each root object, whatever its position in the selection,
   contrary to GraphQL's field order (§ 6.3), and always under the key `__typename`, so
