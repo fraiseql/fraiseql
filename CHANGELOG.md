@@ -16,6 +16,8 @@ disagreed, and the promise was the part that was wrong.
 
 ## [Unreleased]
 
+## [2.19.0] - 2026-11-01
+
 ### Breaking
 
 - **A sign-in of a user enrolled in TOTP MFA answers with a challenge, not tokens.** With
@@ -478,6 +480,30 @@ disagreed, and the promise was the part that was wrong.
   An eviction by row still counts what it evicts: `invalidate_by_entity`,
   `invalidate_by_id` and `invalidate_collection`. `CachedResult` is no longer `Clone`,
   and carries the read's snapshot, its name counters and whether it may be served.
+
+- **More public fields on structs a caller can build:** `ProjectionRequest.decimals` and
+  `ComposedLevel.decimals` in `fraiseql-db` (#1751), `EntitySource.decimals` in
+  `fraiseql-federation` (#1764), `ImapConfig.ca_file` in `fraiseql-server` (#1757), and
+  `auth_password_*`, `auth_otp_send_*`, `auth_otp_verify_*` and `auth_anonymous_signup_*`
+  (each `_max_requests` and `_window_secs`) on `RateLimitConfig` in `fraiseql-cli` and
+  `RateLimitingSecurityConfig` in `fraiseql-core` (#1857). A struct literal that lists every
+  field must add them. `fraiseql-core`'s `Document`, and `fraiseql-server`'s `SourcesConfig`
+  (#1644) and `ObserverTransportConfig`, gain a private field, so none can be built with a
+  struct literal. `SubscriptionState` gains `require_auth` and loses `domain_registry` and
+  `strict_tenant_validation` (#1643).
+- **Library functions removed or with new parameters:**
+  - `fraiseql_core::runtime::stamp_nested_typenames` and `project_nested_lists` are removed
+    (#1758): a direct read is shaped by the walk the GraphQL read uses.
+  - `RelayDatabaseAdapter::execute_relay_page_with_session` takes one more parameter, the
+    read's `Option<&DecimalShape>` (#1751).
+  - `fraiseql_server::sources::source_host_config` takes the allowed hosts (#1644).
+  - `export_sdl_handler` and `export_json_handler` take the caller's
+    `OptionalSecurityContext` (#1717).
+  - `rate_limit_middleware` no longer takes `ConnectInfo` (#1857).
+  - `fraiseql_functions::triggers::CronSchedule::matches` is generic over any
+    `Datelike + Timelike` value (#1715).
+  - `fraiseql-auth`'s `mfa_enroll`, `mfa_confirm` and `mfa_unenroll` take the caller's
+    `SessionSubject`, and `mfa_verify` takes the peer address and the `ClientAddress`.
 
 ### Added
 
@@ -23804,7 +23830,8 @@ being written.
 link for it would be a guaranteed 404. An undefined reference renders as literal
 text, which is the honest outcome; a broken link is not.
 -->
-[Unreleased]: https://github.com/fraiseql/fraiseql/compare/v2.18.0...HEAD
+[Unreleased]: https://github.com/fraiseql/fraiseql/compare/v2.19.0...HEAD
+[2.19.0]: https://github.com/fraiseql/fraiseql/compare/v2.18.0...v2.19.0
 [2.18.0]: https://github.com/fraiseql/fraiseql/compare/v2.17.1...v2.18.0
 [2.17.1]: https://github.com/fraiseql/fraiseql/compare/v2.17.0...v2.17.1
 [2.17.0]: https://github.com/fraiseql/fraiseql/compare/v2.16.0...v2.17.0

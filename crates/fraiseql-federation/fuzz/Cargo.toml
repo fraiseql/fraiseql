@@ -15,7 +15,7 @@ path = ".."
 edition = "2021"
 name = "fraiseql-federation-fuzz"
 publish = false
-version = "2.18.0"
+version = "2.19.0"
 
 [package.metadata]
 cargo-fuzz = true
