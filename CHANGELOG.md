@@ -18,6 +18,41 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **A sign-in of a user enrolled in TOTP MFA answers with a challenge, not tokens.** With
+  `[auth.local] mfa = true`:
+  - Every sign-in path (password, email OTP, social, SAML, the upgrade of an anonymous
+    session) answers an enrolled user `401 {"error": "mfa_required", "challenge_token":
+    "..."}`. `POST /auth/v1/mfa/verify {"challenge_token", "code"}` with a TOTP or
+    recovery code redeems it for the token pair. A challenge is single-use, expires after
+    5 minutes, and is consumed after 5 wrong codes. Social sign-in with a bound
+    `redirect_uri` puts it in the redirect fragment, where the tokens went:
+    `#error=mfa_required&challenge_token=...&provider=...`. A client that checks only for
+    `access_token` sees no session.
+  - `POST /auth/v1/mfa/challenge` is removed: only a first factor issues a challenge.
+  - `enroll`, `confirm` and `unenroll` take `Authorization: Bearer <session>` and no
+    `user_id`; a body that carries `user_id` is refused with `422`. Replacing a confirmed
+    enrollment needs a current code from it: `POST /auth/v1/mfa/enroll {"account_name",
+    "code"}`.
+  - `/auth/v1/mfa/verify` has a per-client budget, 50 requests a minute, besides the
+    per-user failure budget. The client is the address a trusted proxy reports
+    (`trust_proxy_headers` with `trusted_proxy_cidrs`), else the peer; behind a proxy not
+    listed there, every client shares one budget.
+  - A server that mints sessions refuses to boot with `mfa` off while any account has a
+    confirmed enrollment, whose sign-ins would owe a second factor nothing takes. Set
+    `mfa = true`, or remove the enrollments deliberately
+    (`DELETE FROM core.tb_mfa_challenge; DELETE FROM core.tb_mfa_enrollment;`).
+  - Email verification refuses a revoked session.
+- **`fraiseql-auth`'s MFA and session API changed.** `MfaStore::begin_enrollment` takes
+  `current_code: Option<&str>`; `MfaRouteState` gains `verify_limiter`; `mfa_challenge`,
+  `MfaChallengeRequest` and `MfaChallengeResponse` are removed;
+  `AuthError::SecondFactorRequired { challenge }` and `ClientAddress` are new.
+  `SessionStore::create_session_after_second_factor` is new: it takes a
+  `SecondFactorPassed`, which only a redeemed challenge makes, and its default delegates
+  to `create_session`, so a store that requires the second factor overrides it.
+  `SessionBearerAuthenticator` is removed, because it skipped revocation: a route that acts
+  on the caller's account reads the `SessionSubject` the server's session layer resolves,
+  and `EmailVerificationRouteState` loses `session_bearer`.
+
 - **`fraiseql_cli::schema::advanced_types` is removed (#1865).** The module held only
   comments and no item, so no path into it resolved to anything; code naming the module
   itself no longer compiles.
@@ -917,6 +952,21 @@ disagreed, and the promise was the part that was wrong.
   classified the document without that name, so a mutation selected from a
   multi-operation document could run over GET or QUERY, and could run twice under one
   key. Each check now selects the operation exactly as execution does.
+
+- **TOTP MFA: the routes act on the signed-in account, and MFA gates sign-in.** Affects
+  2.15.0 through 2.18.0 with `[auth.local] mfa = true`. `/auth/v1/mfa/*` took the account
+  from the request body and had no authentication, so anyone who knew an account's id could
+  enroll a factor of their own for it and sign in as that account; and no sign-in path asked
+  an enrolled user for the second factor. `enroll`, `confirm` and `unenroll` now require
+  the account's own session (the HS256 bearer this server minted, with the revocation
+  check), and every sign-in path asks an enrolled user for the second factor.
+
+- **A function a tenant's write triggers runs within that tenant.** Affects 2.13.0 through
+  2.18.0. Under the multi-tenant runtime, an `after:mutation` function triggered by a write
+  served by a tenant's executor ran its `fraiseql_query` bridge on the default executor
+  whenever the write was anonymous (and, before 2.17.0, for every write), so it read and
+  wrote the default tenant's data. The bridge now uses the tenant whose executor committed
+  the write; a `run_as` that pins a tenant still takes precedence.
 
 ## [2.18.0] - 2026-10-25
 
