@@ -60,6 +60,15 @@ const (
 	// lib tests run here (they need no live Redis — closed ports and URL parsing);
 	// the Redis-requiring tests stay #[ignore]d and run in the redis integration leg.
 	serverTestFeatures = "arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks"
+	// serverIntegrationExtraFeatures: what the server integration leg's suites need on
+	// top of serverTestFeatures, so the whole leg builds fraiseql-server once (#1885).
+	// admin-sql: the SQL console suite. export-csv/export-xlsx: the REST export
+	// suites. inbound-email (implies inbound and functions-runtime): local auth's
+	// SMTP transport, the inbound webhook suites and the function-dispatch suites.
+	// functions-runtime-deno: the tenant function-dispatch suite's TypeScript
+	// function. It only registers the Deno runtime, which starts no V8 isolate until
+	// a Deno function runs, so a suite that declares none behaves as without it.
+	serverIntegrationExtraFeatures = "admin-sql,export-csv,export-xlsx,functions-runtime-deno,inbound-email"
 	// testWorkspaceSkip: the skip patterns the `Test` shard's workspace sweep
 	// carries — the testcontainers lib tests (storage + functions); wire's
 	// container tests live in tests/*, so only its lib unit tests run.
@@ -1932,36 +1941,44 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 	tviewsURL := fmt.Sprintf("postgresql://%s:%s@%s:5432/%s", pgUser, pgPassword, pgTviewsBindHost, pgDatabase)
 	standbyURL := fmt.Sprintf("postgresql://%s:%s@%s:5432/%s", pgUser, pgPassword, pgStandbyBindHost, pgDatabase)
 
+	// Every fraiseql-server suite in this leg runs under ONE feature set (#1885).
+	// Each distinct `--features` list rebuilds fraiseql-server and whatever of its
+	// dependency tree the list changes, and those builds run one after another: at
+	// 16 sets they took ~16 min of a warm 25-min run; the tests took seconds. A
+	// suite that needs a feature OFF gets its own line, with a comment saying which
+	// feature and why; no suite here does today (none carries a `not(feature)` gate).
+	serverLegFeatures := "--features '" + serverTestFeatures + "," + serverIntegrationExtraFeatures + "'"
+
 	script := strings.Join([]string{
 		"set -e",
 		suiteCountPrelude,
 		"echo \"### toolchain: $(rustc --version)\"",
 		"echo '### integration: server database (Dagger-bound postgres)'",
-		"bash tools/ci-target-canary.sh -- test -p fraiseql-server --test database_query_test", // #880 canary
-		"cargo test -p fraiseql-server --test database_query_test -- --test-threads=1",
+		"bash tools/ci-target-canary.sh -- test -p fraiseql-server " + serverLegFeatures + " --test database_query_test", // #880 canary
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test database_query_test -- --test-threads=1",
 		// Tier-C migrated (each helper creates + TRUNCATE/DROP its tables for shared-DB isolation).
-		"cargo test -p fraiseql-server --test usage_postgres_backend_test -- --test-threads=1",
-		"cargo test -p fraiseql-server --features observers --test observer_repository_test -- --test-threads=1",
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test usage_postgres_backend_test -- --test-threads=1",
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test observer_repository_test -- --test-threads=1",
 		// #1625: every observer admin route acts only on the caller's organisation, driven
 		// through the real routers against the stats view and tables the API reads.
-		"cargo test -p fraiseql-server --features observers --test observer_admin_scope_pg -- --test-threads=1",
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test observer_admin_scope_pg -- --test-threads=1",
 		// #1670: a webhook body_template is checked against the observed entity's fields at
 		// create and update; an update reads the stored observer it leaves.
-		"cargo test -p fraiseql-server --features observers --test observer_admin_templates_pg -- --test-threads=1",
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test observer_admin_templates_pg -- --test-threads=1",
 		// #751: the inbound webhook replay defence is only provable against a real
 		// idempotency claim — the defect it guards lived precisely where no
 		// real-system test reached.
-		"cargo test -p fraiseql-server --features inbound --test webhook_replay_header_dedup_pg -- --test-threads=1",
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test webhook_replay_header_dedup_pg -- --test-threads=1",
 		// #1046: both dedup layers are scoped per route, not per provider. Two
 		// routes on one provider, each sender's own event 1001, driven through the
 		// real route + real claim + real spine. Only a live database can show it:
 		// the ledger and the spine fail in the same direction, and fixing just the
 		// ledger still answers 200 "processed" while dropping the message.
-		"cargo test -p fraiseql-server --features inbound --test webhook_route_dedup_scope_pg -- --test-threads=1",
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test webhook_route_dedup_scope_pg -- --test-threads=1",
 		// #781/#787: genuine provider-shaped deliveries (Slack timestamp threading,
 		// Twilio public_url, LemonSqueezy hex) through the real route + real
 		// idempotency claim, plus the boot-time route validation.
-		"cargo test -p fraiseql-server --features inbound --test webhook_provider_matrix_pg -- --test-threads=1",
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test webhook_provider_matrix_pg -- --test-threads=1",
 		// #1322: what a token-authenticated delivery WRITES. The scheme's own suite
 		// pins what verification reports; this pins that the route's spine row and
 		// ledger row come from the signed claims and not from the outer envelope,
@@ -1970,33 +1987,33 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		// tell — and only a live database has rows. It is also the one place a
 		// `jwt-jwks` route meets a real `JwksSource` over HTTP rather than a
 		// substituted key source.
-		"cargo test -p fraiseql-server --features inbound --test webhook_jwt_jwks_dispatch_pg -- --test-threads=1",
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test webhook_jwt_jwks_dispatch_pg -- --test-threads=1",
 		// #794/#795 (CRITICAL): the analytics injection guards. Both holes were reachable
 		// by any client that can POST a GraphQL query, and both were invisible to unit
 		// tests because the allowlist that "covered" them was only ever consulted by a
 		// planner the shipped binary never calls. This drives the real handler against a
 		// real database and asserts both that the request is refused and that no catalog
 		// data reaches the response.
-		"cargo test -p fraiseql-server --test analytics_injection_e2e_pg -- --test-threads=1",
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test analytics_injection_e2e_pg -- --test-threads=1",
 		// #386 — pgvector similarity search, executed: `nearest` row ORDER per
 		// metric against real pgvector (the service image ships the extension),
 		// threshold WHERE filters returning rows, dimension-mismatch and
 		// binary-metric refusals. The first vector suite that runs SQL at all —
 		// every prior "vector test" was sql.contains("<=>").
-		"cargo test -p fraiseql-server --test graphql_vector_e2e_pg -- --test-threads=1",
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test graphql_vector_e2e_pg -- --test-threads=1",
 		// #387 — GraphQL-over-SSE + root-field @stream, through the real
 		// `Server::serve_on_listener` mount: negotiation is opt-in, batches
 		// re-enter the full pipeline, auth is enforced before the stream and
 		// re-checked per batch, the delivery survives request_timeout_secs, and
 		// the compression predicate exempts text/event-stream.
-		"cargo test -p fraiseql-server --test graphql_sse_e2e_pg -- --test-threads=1",
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test graphql_sse_e2e_pg -- --test-threads=1",
 		// #938 — the `<name>Count` sibling, through the real mount. A count is a
 		// second door onto the rows the list query guards, so most of what this
 		// pins is refusals: the total ignores limit/offset but not `where`, and
 		// it inherits inject-param tenant scoping, `requires_role` and the
 		// anonymous refusal. A count that dropped the tenant filter returns no
 		// row and leaks another tenant's row total.
-		"cargo test -p fraiseql-server --test graphql_count_e2e_pg -- --test-threads=1",
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test graphql_count_e2e_pg -- --test-threads=1",
 		// #962 — the operator SQL console (G4: mount the full arbitrary-SQL
 		// endpoint, gated). The most powerful endpoint the server has, so what
 		// this pins is the containment, and every part of it is a *database*
@@ -2005,7 +2022,7 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		// by the transaction's mode, the row cap and statement timeout fire, one
 		// statement is all the protocol accepts, and impersonation sets the
 		// session variables the executor would set.
-		"cargo test -p fraiseql-server --features admin-sql --test admin_sql_console_e2e_pg -- --test-threads=1",
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test admin_sql_console_e2e_pg -- --test-threads=1",
 		// #966 — `requires_actor` enforced at execution on EVERY transport. The
 		// claim is not "the predicate works" (a unit test covers that) but "no
 		// door around it exists", so this drives GraphQL query, GraphQL mutation,
@@ -2013,14 +2030,14 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		// refusal from each. Its REST case found a real hole: the direct-read
 		// path does not go through the GraphQL entry gates, so a predicate placed
 		// only there served every restricted row over REST (#808's shape).
-		"cargo test -p fraiseql-server --features rest,mcp --test actor_predicate_e2e_pg -- --test-threads=1",
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test actor_predicate_e2e_pg -- --test-threads=1",
 		// #812/#739/#810: the REST read surface carried no authentication, discarded the
 		// resolved tenant filter, and honoured `require_auth` on one route out of six.
 		// None of it was visible to the existing REST suite, which builds its router with
 		// `rest_router(...)` directly and so never exercises the server's actual mount.
 		// This boots the real mount over a real socket against a real database and
 		// asserts two tenants' rows stay apart — authenticated and anonymous.
-		"cargo test -p fraiseql-server --features rest --test rest_tenant_isolation_e2e_pg -- --test-threads=1",
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test rest_tenant_isolation_e2e_pg -- --test-threads=1",
 		// #1336 — `[identity.enrichment]`'s "every authenticated request resolves and
 		// fail-closes" was true of /graphql only. Drives one deployment through two
 		// transports and requires the same verdict from each: the GraphQL cases are the
@@ -2028,23 +2045,23 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		// rather than a broken fixture. Needs a real resolver against a real actor
 		// table — the defect is invisible without one, because an unwired resolver and
 		// an unreached one look identical from the response.
-		"cargo test -p fraiseql-server --features rest,mcp --test enrichment_transport_parity_e2e_pg -- --test-threads=1",
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test enrichment_transport_parity_e2e_pg -- --test-threads=1",
 		// #1512 — the request locale: `[locale]` compiled through the real compiler, loaded
 		// through `from_json`, resolved per request and read back as `fraiseql.locale`
 		// through a view, on every transport the suite drives; never on a write.
-		"cargo test -p fraiseql-server --features rest,mcp,federation --test locale_context_e2e_pg -- --test-threads=1",
-		"cargo test -p fraiseql-server --features grpc --test locale_grpc_e2e_pg -- --test-threads=1",
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test locale_context_e2e_pg -- --test-threads=1",
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test locale_grpc_e2e_pg -- --test-threads=1",
 		// #1520 — a `source = "header"` session variable is the request's header, never a
 		// claim of the same name, on every transport the suite drives; an anonymous request
 		// gets its header and literal variables.
-		"cargo test -p fraiseql-server --features rest,mcp,federation --test session_variable_header_source_e2e_pg -- --test-threads=1",
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test session_variable_header_source_e2e_pg -- --test-threads=1",
 		// #1528 — a mutation value of the wrong type (top-level, nested in a list of inputs,
 		// an undeclared input key) is refused before the function runs, on GraphQL, REST and
 		// MCP; the function's own call log proves it never ran.
-		"cargo test -p fraiseql-server --features rest,mcp --test mutation_value_types_e2e_pg -- --test-threads=1",
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test mutation_value_types_e2e_pg -- --test-threads=1",
 		// #1522 — a stored value missing from a non-null field, on `_entities`, a mutation
 		// payload, REST (refused) and MCP (an error result).
-		"cargo test -p fraiseql-server --features rest,mcp,federation --test non_null_completion_transports_e2e_pg -- --test-threads=1",
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test non_null_completion_transports_e2e_pg -- --test-threads=1",
 		// P13 — the REST write surface (#865) and the four defects that had to be green
 		// before it could be mounted. Every one of these suites drives real PostgreSQL;
 		// three of them drive the real `Server::serve_on_listener` mount rather than
@@ -2055,38 +2072,38 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		// OpenAPI advertised every write path (405 on each), and the document was
 		// generated from the route table rather than from the router, so the two could
 		// disagree in both directions.
-		"cargo test -p fraiseql-server --features rest --test rest_write_mount_e2e_pg -- --test-threads=1",
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test rest_write_mount_e2e_pg -- --test-threads=1",
 		// #391: durable submit/status/cancel through the production mount, with each of
 		// P19's six recovery failure modes pinned (terminal-never-reclaimed, staleness-
 		// gated claiming, claim-guarded completion, idempotent submission, truthful
 		// cancellation, status-reads-the-row). Owns _system.async_operations + a
 		// changelog table → serial.
-		"cargo test -p fraiseql-server --test async_operations_e2e_pg -- --test-threads=1",
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test async_operations_e2e_pg -- --test-threads=1",
 		// #376: an MCP-originated write is tagged transport=mcp in the change-log and
 		// HS256 Bearer tokens authenticate MCP calls (auth parity with /graphql).
 		// Recreates core.tb_entity_change_log → serial, changelog-owning binary.
-		"cargo test -p fraiseql-server --features mcp --test mcp_transport_stamp_e2e_pg -- --test-threads=1",
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test mcp_transport_stamp_e2e_pg -- --test-threads=1",
 		// #1546: a tool whose operation returns a union, an interface or an auto_error_union
 		// result is called through the MCP service against PostgreSQL.
-		"cargo test -p fraiseql-server --features mcp --test mcp_abstract_returns_e2e_pg -- --test-threads=1",
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test mcp_abstract_returns_e2e_pg -- --test-threads=1",
 		// #390: every authenticated write path (graphql + REST) records a derived,
 		// unforgeable actor in the change-log; unauthenticated writes are refused, not
 		// recorded unattributed. Recreates core.tb_entity_change_log → serial, and must
 		// not share a process with another changelog-owning binary.
-		"cargo test -p fraiseql-server --features rest --test actor_attribution_e2e_pg -- --test-threads=1",
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test actor_attribution_e2e_pg -- --test-threads=1",
 		// #862/#913/#914/#916: bulk update/delete reported rows it never touched, and the
 		// "at least one filter" guard was satisfied by parameters contributing no WHERE.
 		// Asserts the *table*, because `affected_rows` is exactly the number #913 fabricates.
-		"cargo test -p fraiseql-server --features rest --test rest_bulk_safety_e2e_pg -- --test-threads=1",
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test rest_bulk_safety_e2e_pg -- --test-threads=1",
 		// #863/#864: a client embedding filter could overwrite the parent join key and
 		// return another parent's children, and nested embeddings were depth-validated
 		// then silently dropped at execution.
-		"cargo test -p fraiseql-server --features rest --test rest_embedding_safety_e2e_pg -- --test-threads=1",
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test rest_embedding_safety_e2e_pg -- --test-threads=1",
 		// #1266: the same surface, but served from a schema `fraiseql compile` produced
 		// rather than a hand-built CompiledSchema. Until relationships had an authoring
 		// producer, every embed request against a compiled schema was a 400 reading
 		// "Available: none" — so the four fixes above were made in code no user reached.
-		"cargo test -p fraiseql-server --features rest --test rest_embedding_compiled_schema_e2e_pg -- --test-threads=1",
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test rest_embedding_compiled_schema_e2e_pg -- --test-threads=1",
 		// #1351/#379: `?select=` embedding is one composed statement, so the request's
 		// cost and bytes ceilings bound it whole: the cost is scored over the nested
 		// projection before the statement is sent, and must equal what the old
@@ -2095,24 +2112,24 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		// the embedded levels' own gates (target RLS, target field RBAC) are only
 		// visible in the rows the statement returns. Drops and recreates its own schema
 		// per rig.
-		"cargo test -p fraiseql-server --features rest --test rest_embedding_read_budget_e2e_pg -- --test-threads=1",
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test rest_embedding_read_budget_e2e_pg -- --test-threads=1",
 		// The composed `?select=` statement gates each embedded level as a read of its own
 		// target: the target's RLS predicate in that level's LATERAL, its field-level RBAC
 		// (Mask as NULL, Reject refused), its counts scoped alike. Needs a database because
 		// what the unit tests cannot show is that PostgreSQL binds each level's unqualified
 		// predicate to that level's own view — which only the rows it returns reveal.
 		// Creates and drops its own schema.
-		"cargo test -p fraiseql-server --features rest --test rest_embedding_composed_gates_e2e_pg -- --test-threads=1",
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test rest_embedding_composed_gates_e2e_pg -- --test-threads=1",
 		// A GraphQL selection into a nested type — `users { orders { ... } }`, served from
 		// the parent view's `data` — against the nested type's own field RBAC and RLS
 		// policy. The reproductions are `#[ignore]`d until the fix lands; what runs here
 		// are their controls (the same reads at the root, which are gated) and the one
 		// case the view composition already covers. Creates and drops its own schema.
-		"cargo test -p fraiseql-server --test graphql_nested_type_gates_e2e_pg -- --test-threads=1",
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test graphql_nested_type_gates_e2e_pg -- --test-threads=1",
 		// #1579: a type scoped by a native `inject_params` column it publishes is embedded
 		// (a read, a write's result, a relation filter) and filtered on its document key;
 		// one that does not publish it is still refused. Creates and drops its own schema.
-		"cargo test -p fraiseql-server --test nested_inject_document_key_e2e_pg -- --test-threads=1",
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test nested_inject_document_key_e2e_pg -- --test-threads=1",
 		// #1271: a declared field name and the stored JSONB key it reads are two
 		// different strings. The REST runner reads the whole `data` document and
 		// projects in Rust, and that projector took the declared name verbatim
@@ -2120,25 +2137,25 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		// — so every multi-word camelCase field was absent from a REST 200 while
 		// GraphQL served it correctly. Asserts REST against GraphQL on one seeded
 		// row, which is the only way to see a key that is simply not there.
-		"cargo test -p fraiseql-server --features rest --test rest_declared_name_stored_key_e2e_pg -- --test-threads=1",
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test rest_declared_name_stored_key_e2e_pg -- --test-threads=1",
 		// #1268: the three export representations accepted a `?select=` naming an embed
 		// or a count, validated it, and emitted rows without it — NDJSON dropped the key,
 		// CSV and XLSX carried a column named after the relationship that was empty on
-		// every row. Same feature requirement as the export-integrity suite below, and
-		// the binary refuses to compile without it rather than dropping those cases.
-		"cargo test -p fraiseql-server --features rest,export-csv,export-xlsx --test rest_export_embedding_e2e_pg -- --test-threads=1",
+		// every row. Needs `export-csv` and `export-xlsx` (in serverLegFeatures): the
+		// binary refuses to compile without them rather than dropping those cases.
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test rest_export_embedding_e2e_pg -- --test-threads=1",
 		// #811/#917: exports paginated through `variables`, which the executor ignores —
 		// so every export either truncated to one page or looped forever emitting
 		// duplicates. Needs the export features compiled in: the CSV and XLSX cases are
-		// `#[cfg]`-gated, and under `--features rest` alone they would silently not run.
-		"cargo test -p fraiseql-server --features rest,export-csv,export-xlsx --test rest_export_integrity_e2e_pg -- --test-threads=1",
+		// `#[cfg]`-gated, and without `export-csv`/`export-xlsx` they would silently not run.
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test rest_export_integrity_e2e_pg -- --test-threads=1",
 		// #1284: `?search=` with no `?sort=` answered 400 on every representation —
 		// the implicit relevance ordering emitted a shape no consumer parses, and no
 		// `ts_rank` existed to signal. The handler-level half runs on the required
 		// test leg; whether the SQL it builds actually ORDERS rows is a question only
 		// a database answers, and it is the assertion that separates ranking from
 		// merely no longer refusing.
-		"cargo test -p fraiseql-server --features rest,export-csv --test rest_search_relevance_e2e_pg -- --test-threads=1",
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test rest_search_relevance_e2e_pg -- --test-threads=1",
 		// #1303: an offset page is a slice of a sequence, and an unordered read is
 		// not a sequence — two pages of the same relation overlap and skip rows
 		// under a 200. Which clause reaches the adapter is pinned on the required
@@ -2147,49 +2164,49 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		// row exactly once, and that a view's own ORDER BY survives the declared
 		// `pagination_order = "none"` opt-out — the one case this change would
 		// otherwise make worse.
-		"cargo test -p fraiseql-server --features rest --test rest_pagination_stability_e2e_pg -- --test-threads=1",
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test rest_pagination_stability_e2e_pg -- --test-threads=1",
 		// #1306: `[validation] max_offset` refuses a deep offset before any statement, on
 		// GraphQL, REST and an embedded level. Owns its p1306_offset schema → serial.
-		"cargo test -p fraiseql-server --features rest --test offset_ceiling_e2e_pg -- --test-threads=1",
-		"cargo test -p fraiseql-server --features mcp --test engine_refusal_rendering_e2e_pg -- --test-threads=1",
-		"cargo test -p fraiseql-server --test response_bytes_override_e2e_pg -- --test-threads=1",
-		"cargo test -p fraiseql-server --test rich_scalar_serving_e2e_pg -- --test-threads=1",
-		"cargo test -p fraiseql-server --features rest,mcp --test constraint_violation_identifier_e2e_pg -- --test-threads=1",
-		"cargo test -p fraiseql-server --features rest,mcp --test mutation_success_fields_e2e_pg -- --test-threads=1",
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test offset_ceiling_e2e_pg -- --test-threads=1",
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test engine_refusal_rendering_e2e_pg -- --test-threads=1",
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test response_bytes_override_e2e_pg -- --test-threads=1",
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test rich_scalar_serving_e2e_pg -- --test-threads=1",
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test constraint_violation_identifier_e2e_pg -- --test-threads=1",
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test mutation_success_fields_e2e_pg -- --test-threads=1",
 		// #1550: a tenant's REST request and function write run on its own executor
 		// (schema mode, public decoys).
-		"cargo test -p fraiseql-server --features rest,functions-runtime --test tenant_rest_dispatch_e2e_pg -- --test-threads=1",
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test tenant_rest_dispatch_e2e_pg -- --test-threads=1",
 		// #1700: a function's run_as.user_id reaches a mutation's UUID `jwt:sub` inject
 		// through the fraiseql_query bridge. Owns its p1700 schema → serial.
-		"cargo test -p fraiseql-server --features functions-runtime --test function_run_as_user_id_e2e_pg -- --test-threads=1",
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test function_run_as_user_id_e2e_pg -- --test-threads=1",
 		// #633: a schema-mode tenant over its storage quota is refused writes until it is back under.
-		"cargo test -p fraiseql-server --features rest --test tenant_storage_quota_e2e_pg -- --test-threads=1",
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test tenant_storage_quota_e2e_pg -- --test-threads=1",
 		// #1391: a cascade derived from pg_tviews' affected set, against a real pg_tviews
 		// (pgTviewsService); its runtime-absent case reads DATABASE_URL, which has none.
-		"cargo test -p fraiseql-server --features metrics --test tviews_cascade_e2e_pg -- --test-threads=1",
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test tviews_cascade_e2e_pg -- --test-threads=1",
 		// #1575: a write evicts the cached reads of views embedding what it wrote (the graph
 		// from pg_tviews' registry and pg_depend), and every type a derived cascade reports.
-		"cargo test -p fraiseql-server --test cache_embedding_eviction_e2e_pg -- --test-threads=1",
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test cache_embedding_eviction_e2e_pg -- --test-threads=1",
 		// #1576: a cached read of one TVIEW row by id survives writes to other rows and is
 		// evicted by every write that changes its row, as pg_tviews reports it.
-		"cargo test -p fraiseql-server --test cache_by_id_eviction_e2e_pg -- --test-threads=1",
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test cache_by_id_eviction_e2e_pg -- --test-threads=1",
 		// #1589: pg_tviews' change feed evicts what a write this server did not run made
 		// stale, and composed lists by collection. Fails, rather than skips, on a pg_tviews
 		// without tviews.registry.typename.
-		"cargo test -p fraiseql-server --features rest --test cache_tviews_feed_e2e_pg -- --test-threads=1",
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test cache_tviews_feed_e2e_pg -- --test-threads=1",
 		// #1587: compile --database proves a relationship's native join from pg_tviews'
 		// registry, and the REST composed read correlates on it.
-		"cargo test -p fraiseql-server --features rest --test rest_embedding_native_join_e2e_pg -- --test-threads=1",
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test rest_embedding_native_join_e2e_pg -- --test-threads=1",
 		// #1614: a null item at a `[T!]` filter operand is refused over REST (it read as
 		// `NOT IN (NULL, …)`, no rows, under a 200). Owns its p1614_items schema → serial.
-		"cargo test -p fraiseql-server --features rest --test null_list_items_rest_e2e_pg -- --test-threads=1",
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test null_list_items_rest_e2e_pg -- --test-threads=1",
 		// #1577: with `cache_cross_instance = "notify"`, a write through one server evicts on
 		// another over the same database, and a server that cannot hear the others (feed
 		// unreachable, severed, or receiving nothing) caches nothing. DATABASE_URL only.
-		"cargo test -p fraiseql-server --test cache_cross_instance_e2e_pg -- --test-threads=1",
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test cache_cross_instance_e2e_pg -- --test-threads=1",
 		// #1391/#1392, the CLI side: compile --database with and without pg_tviews, and
 		// doctor's pg_tviews health (both databases are bound in this leg).
-		"cargo test -p fraiseql-cli --test cascade_source_compile_test -- --test-threads=1",
+		"cargo test -p fraiseql-cli --features test-postgres --test cascade_source_compile_test -- --test-threads=1",
 		"cargo test -p fraiseql-cli --features test-postgres --test doctor_pg_tviews_pg -- --test-threads=1",
 		// #1571: compile --database advises the pg_tviews `indexes` option for the document
 		// keys a TVIEW query filters on, and FraiseQL's reads are served by the index it declares.
@@ -2202,32 +2219,32 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		// one pooled connection. Every other connection resolved against `public`, so
 		// the leak is only visible under concurrency — a single-connection test passes
 		// against the broken code, which is why it shipped.
-		"cargo test -p fraiseql-server --test tenant_schema_isolation_e2e_pg -- --test-threads=1",
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test tenant_schema_isolation_e2e_pg -- --test-threads=1",
 		// #859: DELETE /admin/tenants answered "removed" while every row survived, and
 		// `destroy_tenant_schema` had no callers. Needs real DDL against a real database.
-		"cargo test -p fraiseql-server --test tenant_lifecycle_e2e_pg -- --test-threads=1",
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test tenant_lifecycle_e2e_pg -- --test-threads=1",
 		// #628: the shipped multi-tenant examples now carry real RLS + session-variable
 		// wiring. This applies their SQL, compiles them through the real compile path,
 		// and asserts two tenants never cross — connecting as the examples' own
 		// unprivileged role, because the harness role bypasses RLS entirely.
-		"cargo test -p fraiseql-server --test example_multitenant_rls_e2e_pg -- --test-threads=1",
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test example_multitenant_rls_e2e_pg -- --test-threads=1",
 		// #1512/#1513: the localized-catalog example, Python-authored, compiled and served:
 		// labels per request locale and per tenant's stored locale, a merged localized
 		// write under the example's write-session guard, and its projection catalog check.
-		"cargo test -p fraiseql-server --test example_localized_catalog_e2e_pg -- --test-threads=1",
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test example_localized_catalog_e2e_pg -- --test-threads=1",
 		// #748/#769/#768: the RBAC management API had never executed one statement
 		// against PostgreSQL — its schema DDL did not parse, so setting `admin_token`
 		// made the shipped -full binary refuse to boot. Its four test files were ~90
 		// empty-bodied `#[test]` functions, which is why `cargo test` was green
 		// throughout. Needs a real database (the subject is SQL PostgreSQL either
 		// accepts or rejects) and a real boot (the DDL runs in the serve prologue).
-		"cargo test -p fraiseql-server --features observers --test rbac_admin_e2e_pg -- --test-threads=1",
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test rbac_admin_e2e_pg -- --test-threads=1",
 		// #749: five Studio admin write endpoints answered `{"success": true}` having
 		// performed no side effect, and six reads answered a hard-coded empty
 		// collection. The corpus derives its route list from the router source at
 		// compile time, so the next handler that drifts from the 501 convention fails
 		// here rather than shipping.
-		"cargo test -p fraiseql-server --features observers --test studio_admin_no_fabricated_success_e2e -- --test-threads=1",
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test studio_admin_no_fabricated_success_e2e -- --test-threads=1",
 		// #858: MCP tool calls captured the default executor at session construction
 		// and never consulted the tenant registry, so an authenticated caller read the
 		// boot database and a suspended tenant kept reading over MCP while /graphql
@@ -2238,41 +2255,41 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		// full lifecycle (create/authenticate/revoke/rotate) plus the server mount
 		// (admin REST management + live authenticator on one store).
 		"echo '### cargo test -p fraiseql-server --test api_key_postgres_e2e_pg (#627 postgres api keys)'",
-		"cargo test -p fraiseql-server --features '" + serverTestFeatures + "' --test api_key_postgres_e2e_pg -- --test-threads=1",
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test api_key_postgres_e2e_pg -- --test-threads=1",
 		// #934 service accounts under [auth_hs256]: the bearer-less x-api-key request
 		// must reach the handler's ADR-0018 seam, while a credential-less request, an
 		// invalid bearer and an unmatched secret all still 401 at the layer.
 		"echo '### cargo test -p fraiseql-server --test service_account_auth_layers_e2e_pg (#934, #1650)'",
-		"cargo test -p fraiseql-server --features '" + serverTestFeatures + "' --test service_account_auth_layers_e2e_pg -- --test-threads=1",
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test service_account_auth_layers_e2e_pg -- --test-threads=1",
 		// #1112 token revocation under [auth_hs256]: only the OIDC layer ever consulted
 		// the revocation store, so a configured [security.token_revocation] was inert and
 		// Studio's "revoke all sessions" reported success over tokens that kept working.
 		// Both revocation shapes (single jti, revoke-all epoch) plus the accepting half
 		// and require_jti, through the real mount.
 		"echo '### cargo test -p fraiseql-server --test hs256_revocation_e2e_pg (#1112)'",
-		"cargo test -p fraiseql-server --features '" + serverTestFeatures + "' --test hs256_revocation_e2e_pg -- --test-threads=1",
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test hs256_revocation_e2e_pg -- --test-threads=1",
 		// #368 P26 — social login through the shipped mount, against a stub IdP:
 		// Google OIDC full loop, the GitHub /user/emails second hop (email-keyed
 		// linking), the auth_start path bucket on /auth/v1/authorize (#788), and
 		// state/provider refusals.
 		"echo '### cargo test -p fraiseql-server --test social_oauth_e2e_pg (#368 social login mount)'",
-		"cargo test -p fraiseql-server --features '" + serverTestFeatures + "' --test social_oauth_e2e_pg -- --test-threads=1",
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test social_oauth_e2e_pg -- --test-threads=1",
 		// #367 P26 — the [auth.local] reachability tier through the shipped mount:
 		// password signup/login/reset, OTP whose identity resolves through the
 		// account store, MFA whose Postgres enrollment survives a server restart,
 		// anonymous signup, and the disabled-method-is-absent invariant.
 		"echo '### cargo test -p fraiseql-server --test local_auth_e2e_pg (#367 local auth mount)'",
-		// `inbound-email` is added explicitly: the password/OTP tests need the SMTP
-		// transport, and without it `[auth.local]` refuses to boot (by design), so
-		// they are feature-gated and would silently vanish from this leg otherwise.
-		"cargo test -p fraiseql-server --features '" + serverTestFeatures + ",inbound-email' --test local_auth_e2e_pg -- --test-threads=1",
-		"cargo test -p fraiseql-server --features mcp --test mcp_tenant_dispatch_e2e_pg -- --test-threads=1",
+		// `inbound-email` is in serverLegFeatures for this suite: the password/OTP tests
+		// need the SMTP transport, and without it `[auth.local]` refuses to boot (by
+		// design), so they are feature-gated and would silently vanish otherwise.
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test local_auth_e2e_pg -- --test-threads=1",
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test mcp_tenant_dispatch_e2e_pg -- --test-threads=1",
 		// A function a tenant's write triggers runs within that tenant. File-level
 		// `#![cfg(feature = "functions-runtime-deno")]`: without the feature the binary is
 		// empty and reports "0 passed".
-		"cargo test -p fraiseql-server --features functions-runtime-deno --test function_tenant_dispatch_e2e_pg -- --test-threads=1",
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test function_tenant_dispatch_e2e_pg -- --test-threads=1",
 		// pipeline_e2e is env-gated (FRAISEQL_PIPELINE_E2E); it compiles a schema and drives a server.
-		"cargo test -p fraiseql-server --test pipeline_e2e_test -- --test-threads=1",
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test pipeline_e2e_test -- --test-threads=1",
 		// P18 verification gate (PG half): the FULL subscription delivery path —
 		// tb_entity_change_log row → observer runtime loop → EventBridge → manager
 		// → real WebSocket client. Proves a CUSTOM/Debezium-'r' snapshot row is
@@ -2280,18 +2297,18 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		// capacity is delivered completely (#772). --test-threads=1: the tests
 		// share the observer schema DDL.
 		"echo '### P18: subscription pipeline e2e (change log → runtime → bridge → /ws)'",
-		"cargo test -p fraiseql-server --features observers --test subscription_pipeline_e2e_pg -- --include-ignored --test-threads=1",
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test subscription_pipeline_e2e_pg -- --include-ignored --test-threads=1",
 		// #992: DB-needing binaries that ran in NO leg — each self-skips without
 		// DATABASE_URL, and only the DB-less test leg compiled them.
 		"echo '### cargo test -p fraiseql-server DB-backed strays (#992)'",
-		"cargo test -p fraiseql-server --test revocation_pg_test -- --test-threads=1",
-		"cargo test -p fraiseql-server --test sql_source_boot_check -- --test-threads=1",
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test revocation_pg_test -- --test-threads=1",
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test sql_source_boot_check -- --test-threads=1",
 		// #1558: FRAISEQL_POOL_MAX_SIZE sizes the pool the server opens.
-		"cargo test -p fraiseql-server --test pool_size_pg -- --test-threads=1",
-		"cargo test -p fraiseql-server --test storage_wiring_test -- --test-threads=1",
-		"cargo test -p fraiseql-server --test tenant_provisioning_test -- --test-threads=1",
-		"cargo test -p fraiseql-server --test test_helpers -- --test-threads=1",
-		"cargo test -p fraiseql-server --features observers --test observer_test_helpers -- --test-threads=1",
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test pool_size_pg -- --test-threads=1",
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test storage_wiring_test -- --test-threads=1",
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test tenant_provisioning_test -- --test-threads=1",
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test test_helpers -- --test-threads=1",
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test observer_test_helpers -- --test-threads=1",
 		// #936: the seed-fixture integrity gate runs LAST (pipeline_e2e ran above).
 		"echo '### cargo test -p fraiseql-db --test seed_fixture_integrity (#936 gate, runs last)'",
 		"cargo test -p fraiseql-db --features postgres,wire-backend,test-postgres --test seed_fixture_integrity -- --test-threads=1",

@@ -59,3 +59,4 @@
 #1716  CI perf gate: the instruction benches run with glibc fastbins off, and the baseline is re-measured; bench and CI only, no shipped artifact changes
 #1726  CI: the release-smoke `fraiseql run` step asserts the boot and /health capabilities instead of a warning 2.18.0 deleted; CI only, no shipped artifact changes
 #1831  test isolation only: inbound tests on per-test schemas, integration leg runs them in parallel; no shipped behaviour changes
+#1885  CI: the server integration leg builds fraiseql-server under one feature set instead of sixteen, and the integration timeouts are set against measured runtimes; CI only, no shipped artifact changes
