@@ -16,6 +16,8 @@ disagreed, and the promise was the part that was wrong.
 
 ## [Unreleased]
 
+## [2.19.0] - 2026-11-01
+
 ### Breaking
 
 - **A sign-in of a user enrolled in TOTP MFA answers with a challenge, not tokens.** With
@@ -23828,7 +23830,8 @@ being written.
 link for it would be a guaranteed 404. An undefined reference renders as literal
 text, which is the honest outcome; a broken link is not.
 -->
-[Unreleased]: https://github.com/fraiseql/fraiseql/compare/v2.18.0...HEAD
+[Unreleased]: https://github.com/fraiseql/fraiseql/compare/v2.19.0...HEAD
+[2.19.0]: https://github.com/fraiseql/fraiseql/compare/v2.18.0...v2.19.0
 [2.18.0]: https://github.com/fraiseql/fraiseql/compare/v2.17.1...v2.18.0
 [2.17.1]: https://github.com/fraiseql/fraiseql/compare/v2.17.0...v2.17.1
 [2.17.0]: https://github.com/fraiseql/fraiseql/compare/v2.16.0...v2.17.0

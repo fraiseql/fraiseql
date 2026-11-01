@@ -32,7 +32,7 @@
  * @packageDocumentation
  */
 
-export const version = "2.18.0";
+export const version = "2.19.0";
 
 // Export type system
 export {

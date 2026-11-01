@@ -907,7 +907,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-arrow"
-version = "2.18.0"
+version = "2.19.0"
 dependencies = [
  "arrow",
  "arrow-flight",
@@ -932,7 +932,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-arrow-fuzz"
-version = "2.18.0"
+version = "2.19.0"
 dependencies = [
  "arrow",
  "fraiseql-arrow",
@@ -942,7 +942,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-core"
-version = "2.18.0"
+version = "2.19.0"
 dependencies = [
  "ahash",
  "apollo-parser",
@@ -985,7 +985,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-db"
-version = "2.18.0"
+version = "2.19.0"
 dependencies = [
  "async-trait",
  "bytes",
@@ -1002,7 +1002,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-error"
-version = "2.18.0"
+version = "2.19.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -1012,7 +1012,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-guard"
-version = "2.18.0"
+version = "2.19.0"
 dependencies = [
  "tokio",
  "tracing",
@@ -1020,7 +1020,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-jwks"
-version = "2.18.0"
+version = "2.19.0"
 dependencies = [
  "fraiseql-guard",
  "jsonwebtoken",

@@ -1,6 +1,6 @@
 {
   "name": "fraiseql",
-  "version": "2.18.0",
+  "version": "2.19.0",
   "description": "FraiseQL v2 - Compiled GraphQL execution engine (schema authoring + HTTP client)",
   "repository": {
     "type": "git",

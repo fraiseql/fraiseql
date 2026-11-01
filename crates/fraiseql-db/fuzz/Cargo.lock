@@ -301,7 +301,7 @@ checksum = "d9c4f5dac5e15c24eb999c26181a6ca40b39fe946cbe4c263c7209467bc83af2"
 
 [[package]]
 name = "fraiseql-db"
-version = "2.18.0"
+version = "2.19.0"
 dependencies = [
  "async-trait",
  "bytes",
@@ -323,7 +323,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-db-fuzz"
-version = "2.18.0"
+version = "2.19.0"
 dependencies = [
  "fraiseql-db",
  "libfuzzer-sys",
@@ -332,7 +332,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-error"
-version = "2.18.0"
+version = "2.19.0"
 dependencies = [
  "serde",
  "serde_json",
