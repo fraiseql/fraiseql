@@ -51,7 +51,13 @@ jobs:
     # has no test leg to compete with. It is a lint/compile gate that starts at once,
     # so forge's slower cores land nowhere near the push's critical path.
     runs-on: [self-hosted, forge]
-    timeout-minutes: 45
+    # 60 is a floor for a cold run, not a measured maximum. Warm first attempts
+    # take 11-21 min (job runtime, queue excluded, measured for #1885), but 45 has
+    # cancelled two runs on forge: on 2026-10-06, a cold compile on a runner
+    # shared with a non-CI workload, and on 2026-11-01, a cold build of a changed
+    # tree still in `clippy --workspace --all-features`. Neither completed, so no
+    # cold runtime is measured; re-derive this from measured completions.
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
 
