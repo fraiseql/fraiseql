@@ -466,6 +466,21 @@ jobs:
             || { echo "::error::the -full binary is missing 'functions invoke' — the platform surface is not compiled in"; exit 1; }
           echo "OK: -full aarch64 binary ships 'fraiseql functions invoke'."
 
+      # `federation sdl` is the offline composition path #1717's Breaking note points
+      # to; it compiles in only when the umbrella forwards `federation` to the CLI
+      # (#1892). clap exits 2 on an unknown subcommand, so the exit code is the assertion.
+      - name: Smoke the -full binary's federation sdl command
+        shell: bash
+        run: |
+          set -u
+          code=0
+          ./target/aarch64-unknown-linux-gnu/release/fraiseql federation sdl --help >/dev/null 2>&1 || code=$?
+          if [ "$code" -ne 0 ]; then
+            echo "::error::the -full binary's 'federation sdl --help' exited $code — the CLI half of federation is not compiled in"
+            exit 1
+          fi
+          echo "OK: -full aarch64 binary ships 'fraiseql federation sdl'."
+
       - name: Apply E2E database schema
         run: |
           set -eu

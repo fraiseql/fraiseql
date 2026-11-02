@@ -16,6 +16,18 @@ disagreed, and the promise was the part that was wrong.
 
 ## [Unreleased]
 
+### Fixed
+
+- **The `-full` release binary ships `fraiseql federation sdl` (#1892).** The `fraiseql`
+  crate's `federation` feature enabled the core and server halves of federation but not
+  the CLI's, so the `release-full` binary answered `federation sdl` with `unrecognized
+  subcommand`. That command is the offline composition path #1717's Breaking note points
+  to now that `_service { sdl }` requires an authenticated caller. The feature now also
+  enables `fraiseql-cli/federation`. `tools/check-artifact-features.py` requires
+  `release-full` to forward every `fraiseql-cli` feature except the test-only ones, and
+  the release smoke runs `fraiseql federation sdl --help` on the arm64 `-full` binary and
+  fails on a non-zero exit.
+
 ## [2.19.0] - 2026-11-01
 
 ### Breaking

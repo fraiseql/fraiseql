@@ -26,6 +26,7 @@ FILES=(
     tools/check-suite-coverage.py
     crates/fraiseql/Cargo.toml
     crates/fraiseql-server/Cargo.toml
+    crates/fraiseql-cli/Cargo.toml
     docs/releases.md
     .dagger/image.go
     .github/workflows/release.yml
@@ -87,7 +88,7 @@ expect pass P0 "repository as it stands" "" noop
 echo
 echo "── a recipe drops a promised feature ──"
 expect fail R1 "umbrella federation stops forwarding to the server (the #1621 shape)" 'crates/fraiseql/Cargo.toml `release-full` does not compile: federation' \
-    sed -i 's|^federation = \["fraiseql-core/federation", "fraiseql-server?/federation"\]|federation = ["fraiseql-core/federation"]|' crates/fraiseql/Cargo.toml
+    sed -i '/^federation = \[/,/^\]/{/^  "fraiseql-server?\/federation",$/d}' crates/fraiseql/Cargo.toml
 expect fail R2 "release-full drops rest" 'crates/fraiseql/Cargo.toml `release-full` does not compile: rest' \
     sed -i '/^release-full = \[/,/^\]/{/^  "rest",$/d}' crates/fraiseql/Cargo.toml
 expect fail R3 "one release.yml server build drops cdc-outbound" '\.github/workflows/release\.yml:[0-9]+ does not compile: cdc-outbound' \
@@ -98,6 +99,16 @@ expect fail R5 "the multi-line arm64 build drops federation" '\.github/workflows
     sed -i 's|^\( *--features rest,arrow,cdc-outbound,.*\),federation$|\1|' .github/workflows/release-smoke.yml
 expect fail R6 "the platform image drops cdc-outbound" 'fraiseql-server-platform` does not compile: cdc-outbound' \
     sed -i '/name: "fraiseql-server-platform"/s|CARGO_FEATURES=rest,arrow,cdc-outbound,|CARGO_FEATURES=rest,arrow,|' .dagger/image.go
+
+
+echo
+echo "── release-full drops a CLI subcommand ──"
+expect fail R9 "umbrella federation stops forwarding to the cli (the #1892 shape)" 'does not forward fraiseql-cli feature\(s\): federation' \
+    sed -i '/^federation = \[/,/^\]/{/^  "fraiseql-cli?\/federation",$/d}' crates/fraiseql/Cargo.toml
+expect fail R10 "release-full drops functions-invoke" 'does not forward fraiseql-cli feature\(s\): functions-invoke' \
+    sed -i '/^release-full = \[/,/^\]/{/^  "functions-invoke",$/d}' crates/fraiseql/Cargo.toml
+expect fail R11 "the cli gains a feature the umbrella never forwards" 'does not forward fraiseql-cli feature\(s\): zz-new' \
+    sed -i 's|^test-postgres = \[\]$|test-postgres = []\nzz-new = []|' crates/fraiseql-cli/Cargo.toml
 
 echo
 echo "── a recipe compiles what the docs do not promise ──"
@@ -137,6 +148,9 @@ expect fatal F9 "an optional dependency no feature names as dep:" 'the optional 
 
 expect fatal F10 "a feature only re-enables the optional dependency of its own name" 'the feature `rmcp` only re-enables the optional dependency `rmcp`' \
     sed -i 's|^webhooks = \["dep:fraiseql-webhooks"\]$|webhooks = ["dep:fraiseql-webhooks"]\nrmcp = ["dep:rmcp"]|' crates/fraiseql-server/Cargo.toml
+
+expect fatal F11 "CLI_TEST_ONLY names a feature the cli no longer has" 'CLI_TEST_ONLY names test-postgres' \
+    sed -i 's|^test-postgres = \[\]$|test-pg = []|' crates/fraiseql-cli/Cargo.toml
 echo
 if [ "$TESTS_FAILED" -gt 0 ]; then
     echo "❌ $TESTS_FAILED of $TESTS_RUN assertions failed"

@@ -28,6 +28,13 @@ that forgets one is visible), and two recipes agree when they compile the same
 server features. `inbound-email` and `inbound, inbound-email` are the same build;
 `federation` on the umbrella without `fraiseql-server?/federation` is not.
 
+The umbrella `fraiseql` binary is also the compiler CLI, whose subcommands are gated
+on `fraiseql-cli` features (`federation sdl`, `functions invoke`, `run`). The docs
+row cannot see those, so `release-full` is held to a second rule: it forwards every
+`fraiseql-cli` feature except the test-only ones in `CLI_TEST_ONLY`. #1892 is what
+the gap produced: the umbrella's `federation` reached the server and not the CLI, so
+the `-full` binary shipped without `federation sdl`.
+
 Anything this gate cannot read is FATAL rather than skipped: a recipe that moved
 out of the shape parsed here would otherwise report a parity never checked.
 
@@ -49,6 +56,9 @@ REPO = Path(__file__).resolve().parent.parent
 
 UMBRELLA_MANIFEST = "crates/fraiseql/Cargo.toml"
 SERVER_MANIFEST = "crates/fraiseql-server/Cargo.toml"
+CLI_MANIFEST = "crates/fraiseql-cli/Cargo.toml"
+# `fraiseql-cli` features that gate tests, not anything the binary ships.
+CLI_TEST_ONLY = frozenset({"test-postgres"})
 DOC = "docs/releases.md"
 DOC_ROW = "| `fraiseql-full-<target>`"
 BUNDLE = "release-full"
@@ -173,6 +183,49 @@ def umbrella_closure(
     return server_closure(reached, server, origin)
 
 
+def cli_closure(
+    names: set[str],
+    umbrella: dict[str, list[str] | None],
+    cli: dict[str, list[str] | None],
+    origin: str,
+) -> frozenset[str]:
+    """The `fraiseql-cli` features a set of `fraiseql` crate features compiles in."""
+    pending = list(names)
+    seen: set[str] = set()
+    reached: list[str] = []
+    while pending:
+        name = pending.pop()
+        if name in seen:
+            continue
+        if name not in umbrella:
+            die(f"{origin}: `{name}` is not a feature of the fraiseql crate")
+        seen.add(name)
+        for entry in umbrella[name] or []:
+            if entry.startswith(("fraiseql-cli/", "fraiseql-cli?/")):
+                reached.append(entry.split("/", 1)[1])
+            elif not entry.startswith("dep:") and "/" not in entry:
+                pending.append(entry)
+    closure: set[str] = set()
+    while reached:
+        name = reached.pop()
+        if name in closure:
+            continue
+        if name not in cli:
+            die(f"{origin}: `{name}` is not a fraiseql-cli feature")
+        closure.add(name)
+        reached.extend(e for e in cli[name] or [] if not e.startswith("dep:") and "/" not in e)
+    return frozenset(closure)
+
+
+def cli_surface(cli: dict[str, list[str] | None]) -> frozenset[str]:
+    """Every `fraiseql-cli` feature the `-full` binary must ship."""
+    stale = sorted(CLI_TEST_ONLY - cli.keys())
+    if stale:
+        die(f"{CLI_MANIFEST}: CLI_TEST_ONLY names {', '.join(stale)}, "
+            "which is not a fraiseql-cli feature")
+    return frozenset(cli.keys() - {"default"} - CLI_TEST_ONLY)
+
+
 def doc_closure(
     names: set[str],
     umbrella: dict[str, list[str] | None],
@@ -286,6 +339,13 @@ def main() -> int:
             recipes.append((origin, server_closure(names, server, origin)))
 
     problems: list[str] = []
+    cli = feature_table(repo / CLI_MANIFEST)
+    unforwarded = sorted(
+        cli_surface(cli) - cli_closure({BUNDLE}, umbrella, cli, UMBRELLA_MANIFEST)
+    )
+    if unforwarded:
+        problems.append(f"{UMBRELLA_MANIFEST} `{BUNDLE}` does not forward fraiseql-cli "
+                        f"feature(s): {', '.join(unforwarded)}")
     for origin, compiled in recipes:
         missing = sorted(promised - compiled)
         extra = sorted(compiled - promised)

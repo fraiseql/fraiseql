@@ -33,7 +33,11 @@ full = [
   "cli",
   "federation",
 ]
-federation = ["fraiseql-core/federation", "fraiseql-server?/federation"]
+federation = [
+  "fraiseql-core/federation",
+  "fraiseql-server?/federation",
+  "fraiseql-cli?/federation",
+]
 # Platform-feature pass-throughs to the server (mirror `observers`). These let the
 # umbrella `fraiseql` binary — the published release artifact — be built with the
 # stable opt-in platform features that were previously reachable only via
