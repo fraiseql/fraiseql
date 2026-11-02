@@ -827,13 +827,19 @@ mod tenant_scoped_fact_tables {
         sql: Option<&String>,
         what: &str,
     ) {
-        match res {
-            Err(FraiseQLError::Validation { message, .. }) => {
-                assert!(message.contains(REFUSAL), "{what}: {message}");
-            },
-            other => panic!("{what}: expected the #1799 refusal, got {other:?}"),
-        }
+        assert!(
+            refusal(res).contains(REFUSAL),
+            "{what}: expected the #1799 refusal, got {res:?}"
+        );
         assert!(sql.is_none(), "{what}: the statement reached the database: {sql:?}");
+    }
+
+    /// The message of a validation refusal; empty for anything else.
+    fn refusal(res: &crate::error::Result<serde_json::Value>) -> &str {
+        match res {
+            Err(FraiseQLError::Validation { message, .. }) => message,
+            _ => "",
+        }
     }
 
     #[tokio::test]
@@ -846,9 +852,7 @@ mod tenant_scoped_fact_tables {
         )
         .await;
         assert_refused(&res, sql.as_ref(), "aggregate");
-        let Err(FraiseQLError::Validation { message, .. }) = res else {
-            unreachable!()
-        };
+        let message = refusal(&res);
         assert!(
             message.contains("its column 'tenant_id' is injected by query 'rows'"),
             "the reason names the matched inject key: {message}"
@@ -889,9 +893,7 @@ mod tenant_scoped_fact_tables {
             graphql(schema, RuntimeConfig::default(), "{ sales_aggregate }", &aggregate_vars())
                 .await;
         assert_refused(&res, sql.as_ref(), "linked aggregate");
-        let Err(FraiseQLError::Validation { message, .. }) = res else {
-            unreachable!()
-        };
+        let message = refusal(&res);
         assert!(
             message.contains("type 'Sale', which query 'sales' reads injecting 'owner_id'"),
             "{message}"

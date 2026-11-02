@@ -86,9 +86,8 @@ async fn compile_refuses_a_tenant_scoped_fact_table_nothing_scopes() {
 
     // A schema that injects nothing does not scope the fact table: either declaration compiles.
     for extra in [json!({}), json!({"row_scope": "relation"})] {
-        compile(&schema(false, &extra))
-            .await
-            .unwrap_or_else(|e| panic!("{extra}: an unscoped schema compiles: {e:#}"));
+        let result = compile(&schema(false, &extra)).await;
+        assert!(result.is_ok(), "{extra}: an unscoped schema compiles: {:?}", result.err());
     }
 
     // Only the one mode is accepted.
