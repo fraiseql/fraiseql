@@ -33,6 +33,8 @@ disagreed, and the promise was the part that was wrong.
     table. The server then adds no tenant predicate, so the relation must filter on a value
     the server sets per request (a `current_setting(...)` fed by a JWT-sourced
     `[session_variables]` entry), never on client input. See `docs/modules/fact-table.md`.
+    The Go SDK declares it with `.RowScope(fraiseql.RowScopeRelation)`, the TypeScript SDK
+    with `registerFactTable(..., { rowScope: "relation" })`.
   - `FactTableMetadata` gains `row_scope: FactRowScope`; a struct literal must set it.
 
 ### Fixed
