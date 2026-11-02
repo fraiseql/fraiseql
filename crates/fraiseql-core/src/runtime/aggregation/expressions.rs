@@ -73,9 +73,12 @@ impl AggregationSqlGenerator {
             GroupByExpression::JsonbPath {
                 jsonb_column, path, ..
             } => Ok(self.jsonb_extract_sql(jsonb_column, path)),
-            GroupByExpression::TemporalBucket { column, bucket, .. } => {
-                Ok(self.temporal_bucket_sql(column, *bucket))
-            },
+            GroupByExpression::TemporalBucket {
+                column,
+                bucket,
+                date,
+                ..
+            } => Ok(self.temporal_bucket_sql(column, *bucket, *date)),
             GroupByExpression::CalendarPath {
                 calendar_column,
                 json_key,
@@ -102,11 +105,25 @@ impl AggregationSqlGenerator {
         }
     }
 
-    /// Generate temporal bucket SQL
-    pub(super) fn temporal_bucket_sql(&self, column: &str, bucket: TemporalBucket) -> String {
+    /// The bucket of `column` by `bucket`.
+    ///
+    /// A `date` column's bucket is read back as a date (#1798). `DATE_TRUNC` on the date
+    /// itself resolves to the `timestamptz` overload, which returns the bucket as the instant
+    /// of midnight in the session's time zone, rendered in UTC: the `::date` makes the key a
+    /// date, and truncating a `timestamp` keeps the session zone out of the truncation.
+    pub(super) fn temporal_bucket_sql(
+        &self,
+        column: &str,
+        bucket: TemporalBucket,
+        date: bool,
+    ) -> String {
+        let column = self.quote_identifier(column);
         match self.database_type {
+            DatabaseType::PostgreSQL if date => {
+                format!("DATE_TRUNC('{}', {column}::timestamp)::date", bucket.postgres_arg())
+            },
             DatabaseType::PostgreSQL => {
-                format!("DATE_TRUNC('{}', {})", bucket.postgres_arg(), column)
+                format!("DATE_TRUNC('{}', {column})", bucket.postgres_arg())
             },
         }
     }

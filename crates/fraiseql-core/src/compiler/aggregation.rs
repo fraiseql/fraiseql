@@ -39,13 +39,13 @@
 //! ```sql
 //! SELECT
 //!   data->>'category' AS category,
-//!   DATE_TRUNC('day', occurred_at) AS occurred_at_day,
+//!   DATE_TRUNC('day', "occurred_at") AS occurred_at_day,
 //!   COUNT(*) AS count,
 //!   SUM(revenue) AS revenue_sum,
 //!   AVG(revenue) AS revenue_avg
 //! FROM tf_sales
 //! WHERE customer_id = $1
-//! GROUP BY data->>'category', DATE_TRUNC('day', occurred_at)
+//! GROUP BY data->>'category', DATE_TRUNC('day', "occurred_at")
 //! HAVING SUM(revenue) > $2
 //! ```
 
@@ -269,6 +269,8 @@ pub enum GroupByExpression {
         bucket: TemporalBucket,
         /// Result alias
         alias:  String,
+        /// Whether `column` is a `date`: its bucket is then a date, in no time zone (#1798).
+        date:   bool,
     },
     /// Pre-computed calendar dimension extraction
     CalendarPath {
@@ -526,10 +528,9 @@ impl AggregationPlanner {
                     alias,
                 } => {
                     // Validate column exists in denormalized filters
-                    let filter_exists =
-                        metadata.denormalized_filters.iter().any(|f| f.name == *column);
-
-                    if !filter_exists {
+                    let Some(filter) =
+                        metadata.denormalized_filters.iter().find(|f| f.name == *column)
+                    else {
                         return Err(FraiseQLError::Validation {
                             message: format!(
                                 "Column '{}' not found in fact table '{}'",
@@ -537,12 +538,13 @@ impl AggregationPlanner {
                             ),
                             path:    None,
                         });
-                    }
+                    };
 
                     expressions.push(GroupByExpression::TemporalBucket {
                         column: column.clone(),
                         bucket: *bucket,
                         alias:  alias.clone(),
+                        date:   filter.sql_type == super::fact_table::SqlType::Date,
                     });
                 },
                 GroupBySelection::CalendarDimension {

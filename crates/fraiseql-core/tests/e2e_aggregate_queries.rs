@@ -604,7 +604,7 @@ fn test_temporal_bucket_day() {
     assert_sql_contains(
         &sql,
         &[
-            "DATE_TRUNC('day', occurred_at)", // PostgreSQL
+            "DATE_TRUNC('day', \"occurred_at\")", // PostgreSQL
             "GROUP BY",
         ],
     );
@@ -621,7 +621,7 @@ fn test_temporal_bucket_month() {
 
     let sql = parse_plan_generate(&query);
 
-    assert_sql_contains(&sql, &["DATE_TRUNC('month', occurred_at)", "GROUP BY"]);
+    assert_sql_contains(&sql, &["DATE_TRUNC('month', \"occurred_at\")", "GROUP BY"]);
 }
 
 #[test]
@@ -641,7 +641,7 @@ fn test_temporal_bucket_with_dimension() {
         &sql,
         &[
             "data->>'category'",
-            "DATE_TRUNC('day', occurred_at)",
+            "DATE_TRUNC('day', \"occurred_at\")",
             "GROUP BY",
         ],
     );
@@ -692,7 +692,7 @@ fn test_temporal_bucket_with_where_having() {
         &[
             "WHERE",
             "customer_id",
-            "DATE_TRUNC('month', occurred_at)",
+            "DATE_TRUNC('month', \"occurred_at\")",
             "GROUP BY",
             "HAVING",
             "SUM(revenue) >",
@@ -719,7 +719,7 @@ fn test_temporal_bucket_week_quarter_year() {
         let sql = parse_plan_generate(&query);
 
         // PostgreSQL generates DATE_TRUNC for all types
-        assert!(sql.contains(&format!("DATE_TRUNC('{}', occurred_at)", bucket)));
+        assert!(sql.contains(&format!("DATE_TRUNC('{}', \"occurred_at\")", bucket)));
         assert!(sql.contains("GROUP BY"));
         assert!(sql.contains("COUNT(*)"));
         assert!(sql.contains("SUM(revenue)"));

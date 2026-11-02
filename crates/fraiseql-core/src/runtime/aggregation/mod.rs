@@ -8,12 +8,12 @@
 //! ```sql
 //! SELECT
 //!   data->>'category' AS category,
-//!   DATE_TRUNC('day', occurred_at) AS occurred_at_day,
+//!   DATE_TRUNC('day', "occurred_at") AS occurred_at_day,
 //!   COUNT(*) AS count,
 //!   SUM(revenue) AS revenue_sum
 //! FROM tf_sales
 //! WHERE customer_id = $1
-//! GROUP BY data->>'category', DATE_TRUNC('day', occurred_at)
+//! GROUP BY data->>'category', DATE_TRUNC('day', "occurred_at")
 //! HAVING SUM(revenue) > $2
 //! ORDER BY revenue_sum DESC
 //! LIMIT 10

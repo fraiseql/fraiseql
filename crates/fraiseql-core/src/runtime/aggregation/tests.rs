@@ -103,7 +103,7 @@ fn test_postgres_sql_generation() {
     let sql = generator.generate_parameterized(&plan).unwrap();
 
     assert!(sql.sql.contains("dimensions->>'category'"));
-    assert!(sql.sql.contains("DATE_TRUNC('day', occurred_at)"));
+    assert!(sql.sql.contains("DATE_TRUNC('day', \"occurred_at\")"));
     assert!(sql.sql.contains("COUNT(*)"));
     assert!(sql.sql.contains("SUM(revenue)"));
     assert!(sql.sql.contains("GROUP BY"));

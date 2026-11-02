@@ -205,6 +205,27 @@ A schema whose filter names an undeclared hierarchy, or links one to a column th
 
 ---
 
+## Temporal buckets
+
+`groupBy: {occurred_at: "month"}` (keyed `occurred_at`) and `groupBy: {occurred_at_month: true}`
+(keyed `occurred_at_month`) group by a bucket of a denormalized time column: `second`,
+`minute`, `hour`, `day`, `week` (starting Monday), `month`, `quarter` or `year`. The key
+follows the column's declared `sql_type`:
+
+| Column | Bucket key | Example (`month`) |
+|--------|-----------|-------------------|
+| `date` | the date the bucket starts on, in no time zone | `"2026-07-01"` |
+| `timestamp` (without time zone) | the timestamp the bucket starts at | `"2026-07-01 00:00:00"` |
+| `timestamptz` | the instant the bucket starts at, in the session's `TimeZone`, rendered in UTC | `"2026-06-30T15:00:00+00:00"` under `Asia/Tokyo` |
+
+A `date` bucket does not depend on the session time zone. A sub-day grain (`hour`, `minute`,
+`second`) of a `date` column is the date itself.
+
+The aggregate and window roots are not part of the published schema (introspection and
+SDL), so a bucket key has no declared GraphQL type: it is the JSON string above.
+
+---
+
 ## Calendar Dimensions (Performance Optimization)
 
 Fact tables can include pre-computed temporal bucket columns for fast time-series aggregation:

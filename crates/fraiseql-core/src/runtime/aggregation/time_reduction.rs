@@ -160,14 +160,22 @@ impl AggregationSqlGenerator {
         })
     }
 
+    /// Every bucket from the filter's low bound to its high bound. Over a `date` column the
+    /// buckets are dates, as the grouping's are (#1798).
     fn bucket_series(reduction: &TimeReduction, filter: &CarryFilter) -> String {
         let grain = reduction.bucket.postgres_arg();
-        format!(
-            "generate_series(DATE_TRUNC('{grain}', {lo}), DATE_TRUNC('{grain}', {hi}), {step})",
-            lo = filter.lo,
-            hi = filter.hi,
-            step = bucket_step(reduction.bucket),
-        )
+        let step = bucket_step(reduction.bucket);
+        let (lo, hi) = (&filter.lo, &filter.hi);
+        if reduction.over_date {
+            format!(
+                "CAST(generate_series(DATE_TRUNC('{grain}', ({lo})::timestamp), \
+                 DATE_TRUNC('{grain}', ({hi})::timestamp), {step}) AS date)"
+            )
+        } else {
+            format!(
+                "generate_series(DATE_TRUNC('{grain}', {lo}), DATE_TRUNC('{grain}', {hi}), {step})"
+            )
+        }
     }
 
     fn entity_columns(&self, reduction: &TimeReduction) -> Vec<String> {
@@ -299,7 +307,8 @@ impl AggregationSqlGenerator {
                 },
                 None => String::new(),
             };
-            let bucket_expr = self.temporal_bucket_sql(&over, reduction.bucket);
+            let bucket_expr =
+                self.temporal_bucket_sql(&reduction.over, reduction.bucket, reduction.over_date);
             let mut columns = vec![format!("{bucket_expr} AS {bucket_alias}")];
             columns.extend(groupings.iter().map(|(expr, alias)| format!("{expr} AS {alias}")));
             for (i, m) in measures.iter().enumerate() {

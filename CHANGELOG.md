@@ -84,6 +84,11 @@ disagreed, and the promise was the part that was wrong.
   argument and the reason. A schema like that booted on 2.19 and published the default
   wrong; fix the default and recompile. `fraiseql compile` refuses the same defaults.
 
+- **A temporal bucket of a `date` column is keyed by a date (#1798).**
+  `groupBy: {day: "month"}` over a column declared `date` answers `"2026-07-01"`, where it
+  answered a UTC timestamp such as `"2026-06-30T15:00:00+00:00"`. A client parsing the key
+  as a timestamp reads a date instead. `timestamp` and `timestamptz` columns bucket as before.
+
 ### Added
 
 - **`[auth.local] otp_allowed_query` restricts `OTP` sign-in to approved addresses (#1852).**
@@ -132,6 +137,14 @@ disagreed, and the promise was the part that was wrong.
   (`direction: SortDirection = ASC`). The federation-compose CI leg now holds the
   published SDL and introspection to graphql-js: every default must survive `buildSchema`
   and `buildClientSchema`, and an operation that omits a defaulted field must validate.
+
+- **A temporal bucket of a `date` column no longer falls on the previous day east of UTC
+  (#1798).** `DATE_TRUNC` on a date resolved to its `timestamptz` overload, which read the
+  date as midnight in the session's `TimeZone` and returned that instant, rendered in UTC: in
+  any zone east of UTC every day, week, month, quarter and year bucket was keyed one day
+  early, and month and year buckets showed the previous month or year. Sums were unaffected.
+  The bucket is now truncated as a `timestamp` and returned as a date, in the grouping and in
+  the series a semi-additive measure carries forward. The bucketed column is also quoted.
 
 - **The `-full` release binary ships `fraiseql federation sdl` (#1892).** The `fraiseql`
   crate's `federation` feature enabled the core and server halves of federation but not
