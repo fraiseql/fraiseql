@@ -2038,6 +2038,12 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		// This boots the real mount over a real socket against a real database and
 		// asserts two tenants' rows stay apart — authenticated and anonymous.
 		"cargo test -p fraiseql-server " + serverLegFeatures + " --test rest_tenant_isolation_e2e_pg -- --test-threads=1",
+		// #1799: a fact table's aggregate and window roots carried no tenant predicate in a
+		// schema that scopes its reads by inject_params, so one tenant's aggregate counted
+		// every tenant's rows. Boots the real mount with HS256 tokens for two tenants and
+		// requires both roots to refuse rather than read across them, anonymous included,
+		// and a `row_scope = "relation"` fact table to see its own tenant's rows only.
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test fact_table_tenant_isolation_e2e_pg -- --test-threads=1",
 		// #1336 — `[identity.enrichment]`'s "every authenticated request resolves and
 		// fail-closes" was true of /graphql only. Drives one deployment through two
 		// transports and requires the same verdict from each: the GraphQL cases are the
