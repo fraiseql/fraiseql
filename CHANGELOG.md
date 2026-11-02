@@ -92,6 +92,14 @@ disagreed, and the promise was the part that was wrong.
   - The key governs `OTP` only. Password signup and social sign-in still create accounts for
     any address, and the compiler warns when either is enabled beside it.
 
+### Changed
+
+- **The reference dead-letter-queue DDL names `core` too (#1893).**
+  `crates/fraiseql-observers/migrations/01_create_dlq_schema.sql` (`observer_events`,
+  `observer_dlq_items`, `observer_dlq_history` and their three views) and the crate's
+  `schema.md` and README now use `core.<name>`, matching the observer tables. The server
+  never applies this file. It is reference DDL for an operator who keeps a database DLQ.
+
 ### Fixed
 
 - **The `-full` release binary ships `fraiseql federation sdl` (#1892).** The `fraiseql`

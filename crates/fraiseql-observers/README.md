@@ -266,9 +266,9 @@ HAS_FIELD(email) AND (status = 'active' OR priority = 'high')
 
 The observer system uses three main tables for reliability:
 
-- **observer_events**: Event audit log
-- **observer_dlq_items**: Failed actions queue
-- **observer_dlq_history**: Retry attempt history
+- **core.observer_events**: Event audit log
+- **core.observer_dlq_items**: Failed actions queue
+- **core.observer_dlq_history**: Retry attempt history
 
 See [schema.md](./schema.md) for complete schema documentation and maintenance procedures.
 
@@ -304,19 +304,19 @@ cargo test -p fraiseql-observers -- --nocapture
 Check pending retries:
 
 ```sql
-SELECT * FROM observer_pending_retries;
+SELECT * FROM core.observer_pending_retries;
 ```
 
 Find exhausted items:
 
 ```sql
-SELECT * FROM observer_retry_exhausted;
+SELECT * FROM core.observer_retry_exhausted;
 ```
 
 View recent failures:
 
 ```sql
-SELECT * FROM observer_recent_failures;
+SELECT * FROM core.observer_recent_failures;
 ```
 
 ### Metrics
