@@ -398,7 +398,8 @@ fn order_by_inputs(schema: &CompiledSchema) -> (Vec<InputObjectDefinition>, Vec<
                         .with_nullable(false)
                         .with_description("Field to sort by."),
                     InputFieldDefinition::new("direction", SORT_DIRECTION_ENUM)
-                        .with_default_value("ASC")
+                        // JSON text, as every stored default is: published as `ASC`.
+                        .with_default_value(r#""ASC""#)
                         .with_description("Sort direction; ascending when omitted."),
                 ])
                 .with_description(format!("One sort key over `{}`.", query.return_type)),

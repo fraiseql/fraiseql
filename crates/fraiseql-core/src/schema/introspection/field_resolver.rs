@@ -5,8 +5,8 @@
 
 use super::{
     super::{
-        FieldDefinition, FieldType, LOCALIZED_INPUT_TYPE, LOCALIZED_STRING_INPUT_TYPE,
-        LOCALIZED_STRING_TYPE, TRANSLATIONS_SUFFIX,
+        CompiledSchema, FieldDefinition, FieldType, LOCALIZED_INPUT_TYPE,
+        LOCALIZED_STRING_INPUT_TYPE, LOCALIZED_STRING_TYPE, TRANSLATIONS_SUFFIX,
     },
     types::{
         IntrospectionField, IntrospectionInputValue, IntrospectionType,
@@ -481,22 +481,33 @@ pub(super) fn build_validation_rule(
     }
 }
 
+/// The type reference an argument publishes.
+pub(super) fn arg_type_ref(arg: &super::super::ArgumentDefinition) -> IntrospectionType {
+    // #1513: a localized argument takes `LocalizedInput`.
+    if arg.localized {
+        field_type_to_introspection(
+            &FieldType::Input(LOCALIZED_INPUT_TYPE.to_string()),
+            arg.nullable,
+        )
+    } else {
+        field_type_to_introspection(&arg.arg_type, arg.nullable)
+    }
+}
+
 /// Build `__InputValue` for a query/mutation/subscription argument.
 pub(super) fn build_arg_input_value(
     arg: &super::super::ArgumentDefinition,
+    schema: &CompiledSchema,
 ) -> IntrospectionInputValue {
-    // #1513: a localized argument takes `LocalizedInput`.
-    let localized = FieldType::Input(LOCALIZED_INPUT_TYPE.to_string());
-    let arg_type = if arg.localized {
-        &localized
-    } else {
-        &arg.arg_type
-    };
     IntrospectionInputValue {
         name:               arg.name.clone(),
         description:        arg.description.clone(),
-        input_type:         field_type_to_introspection(arg_type, arg.nullable),
-        default_value:      arg.default_value.as_ref().map(|v| v.to_string()),
+        input_type:         arg_type_ref(arg),
+        default_value:      super::type_resolver::published_default(
+            super::default_literal::argument_default(arg, schema),
+            "argument",
+            &arg.name,
+        ),
         is_deprecated:      arg.is_deprecated(),
         deprecation_reason: arg.deprecation_reason().map(ToString::to_string),
         validation_rules:   vec![],

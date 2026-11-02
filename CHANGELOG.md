@@ -77,6 +77,13 @@ disagreed, and the promise was the part that was wrong.
   - An enabled runtime that loads 0 observers now logs a warning, at start and on every
     reload that still finds none. Before, that was an info line.
 
+- **A compiled schema whose default value has no GraphQL literal of its type no longer
+  loads (#1888).** An enum default the enum does not declare, an input-object default with
+  a key the input does not declare, a custom-scalar object whose key is not a GraphQL name,
+  or an input-field default that is not JSON text is refused at boot, naming the field or
+  argument and the reason. A schema like that booted on 2.19 and published the default
+  wrong; fix the default and recompile. `fraiseql compile` refuses the same defaults.
+
 ### Added
 
 - **`[auth.local] otp_allowed_query` restricts `OTP` sign-in to approved addresses (#1852).**
@@ -100,6 +107,12 @@ disagreed, and the promise was the part that was wrong.
   `schema.md` and README now use `core.<name>`, matching the observer tables. The server
   never applies this file. It is reference DDL for an operator who keeps a database DLQ.
 
+- **Published defaults are GraphQL literals, not JSON text (#1888).** For gateway and
+  client-generator users: the SDL and introspection's `__InputValue.defaultValue` now print
+  an enum default bare (`ACTIVE`, was `"ACTIVE"`) and an object default with bare keys
+  (`{status: ACTIVE}`, was `{"status":"ACTIVE"}`), as the GraphQL spec requires.
+  Tooling that parsed `defaultValue` as JSON must parse it as a GraphQL value.
+
 ### Fixed
 
 - **The mixed types-and-queries schema roundtrip property no longer generates the duplicate
@@ -109,6 +122,16 @@ disagreed, and the promise was the part that was wrong.
   at random in `integration (postgres)`, and a run at 200 000 cases failed within 1.4 s. Its
   names now come from `hash_set`, as the two count properties' names have since #1367. A
   sweep of every property test found no other copy.
+
+- **The published SDL keeps input-field default values (#1888).** The SDL (`_service {
+  sdl }` and the one a gateway composes) dropped every input-field default, so a non-null
+  field with a default (`isActive: Boolean! = false`) was published as required, and a
+  client validating against it rejected an operation the server accepts. Each default is
+  now printed from one renderer, shared with introspection and driven by the declared
+  type. The derived order-by input's `direction` default also survives composition
+  (`direction: SortDirection = ASC`). The federation-compose CI leg now holds the
+  published SDL and introspection to graphql-js: every default must survive `buildSchema`
+  and `buildClientSchema`, and an operation that omits a defaulted field must validate.
 
 - **The `-full` release binary ships `fraiseql federation sdl` (#1892).** The `fraiseql`
   crate's `federation` feature enabled the core and server halves of federation but not

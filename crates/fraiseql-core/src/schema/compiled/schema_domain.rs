@@ -509,9 +509,18 @@ impl CompiledSchema {
             }
 
             // Input object types (`field_type` is a pre-rendered GraphQL string;
-            // normalise the trailing non-null marker against the `nullable` flag).
+            // normalise the trailing non-null marker against the `nullable` flag). A
+            // default is the literal introspection publishes as `defaultValue`,
+            // so the SDL and `__type` cannot disagree on it either.
+            let introspection = crate::schema::IntrospectionBuilder::build(self);
             for input in &self.input_types {
                 let _ = writeln!(sdl, "input {} {{", input.name);
+                let published = introspection
+                    .types
+                    .iter()
+                    .find(|t| t.name.as_deref() == Some(input.name.as_str()))
+                    .and_then(|t| t.input_fields.as_deref())
+                    .unwrap_or_default();
                 for field in &input.fields {
                     let base = if field.localized {
                         crate::schema::LOCALIZED_INPUT_TYPE
@@ -519,7 +528,12 @@ impl CompiledSchema {
                         field.field_type.trim_end_matches('!')
                     };
                     let non_null = if field.nullable { "" } else { "!" };
-                    let _ = writeln!(sdl, "  {}: {base}{non_null}", field.name);
+                    let default = published
+                        .iter()
+                        .find(|v| v.name == field.name)
+                        .and_then(|v| v.default_value.as_deref())
+                        .map_or_else(String::new, |d| format!(" = {d}"));
+                    let _ = writeln!(sdl, "  {}: {base}{non_null}{default}", field.name);
                 }
                 sdl.push_str("}\n\n");
             }
@@ -552,7 +566,6 @@ impl CompiledSchema {
             // name, arguments or type (#1522): responses are completed against that model,
             // and an SDL that published other nullability would advertise what the runtime
             // refuses. A type it does not carry is rendered with no fields.
-            let introspection = crate::schema::IntrospectionBuilder::build(self);
             let published = |name: &str| {
                 introspection
                     .types

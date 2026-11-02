@@ -1,0 +1,385 @@
+{
+  "__schema": {
+    "description": "FraiseQL GraphQL Schema",
+    "types": [
+      {
+        "kind": "SCALAR",
+        "name": "Int",
+        "description": "Built-in Int scalar"
+      },
+      {
+        "kind": "SCALAR",
+        "name": "Float",
+        "description": "Built-in Float scalar"
+      },
+      {
+        "kind": "SCALAR",
+        "name": "String",
+        "description": "Built-in String scalar"
+      },
+      {
+        "kind": "SCALAR",
+        "name": "Boolean",
+        "description": "Built-in Boolean scalar"
+      },
+      {
+        "kind": "SCALAR",
+        "name": "ID",
+        "description": "Built-in ID scalar"
+      },
+      {
+        "kind": "SCALAR",
+        "name": "DateTime",
+        "description": "ISO-8601 datetime string",
+        "specifiedByURL": "https://scalars.graphql.org/andimarek/date-time"
+      },
+      {
+        "kind": "SCALAR",
+        "name": "Date",
+        "description": "ISO-8601 date string",
+        "specifiedByURL": "https://scalars.graphql.org/andimarek/local-date"
+      },
+      {
+        "kind": "SCALAR",
+        "name": "Time",
+        "description": "ISO-8601 time string",
+        "specifiedByURL": "https://scalars.graphql.org/andimarek/local-time"
+      },
+      {
+        "kind": "SCALAR",
+        "name": "UUID",
+        "description": "UUID string",
+        "specifiedByURL": "https://tools.ietf.org/html/rfc4122"
+      },
+      {
+        "kind": "SCALAR",
+        "name": "JSON",
+        "description": "Arbitrary JSON value",
+        "specifiedByURL": "https://www.ecma-international.org/publications/files/ECMA-ST/ECMA-404.pdf"
+      },
+      {
+        "kind": "SCALAR",
+        "name": "Decimal",
+        "description": "Exact decimal number, as a string of its digits (\"12.50\"). Written as such a string, or as an integer."
+      },
+      {
+        "kind": "OBJECT",
+        "name": "Item",
+        "fields": [
+          {
+            "name": "id",
+            "args": [],
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "ID"
+              }
+            },
+            "isDeprecated": false
+          }
+        ],
+        "interfaces": []
+      },
+      {
+        "kind": "ENUM",
+        "name": "Status",
+        "enumValues": [
+          {
+            "name": "ACTIVE",
+            "isDeprecated": false
+          },
+          {
+            "name": "ARCHIVED",
+            "isDeprecated": false
+          }
+        ]
+      },
+      {
+        "kind": "INPUT_OBJECT",
+        "name": "ItemFilter",
+        "inputFields": [
+          {
+            "name": "status",
+            "type": {
+              "kind": "ENUM",
+              "name": "Status"
+            },
+            "defaultValue": "ACTIVE",
+            "isDeprecated": false,
+            "validationRules": []
+          },
+          {
+            "name": "tags",
+            "type": {
+              "kind": "LIST",
+              "ofType": {
+                "kind": "NON_NULL",
+                "ofType": {
+                  "kind": "ENUM",
+                  "name": "Status"
+                }
+              }
+            },
+            "defaultValue": "[ACTIVE]",
+            "isDeprecated": false,
+            "validationRules": []
+          }
+        ]
+      },
+      {
+        "kind": "INPUT_OBJECT",
+        "name": "CreateItemInput",
+        "inputFields": [
+          {
+            "name": "name",
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "String"
+              }
+            },
+            "isDeprecated": false,
+            "validationRules": []
+          },
+          {
+            "name": "isActive",
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "Boolean"
+              }
+            },
+            "defaultValue": "false",
+            "isDeprecated": false,
+            "validationRules": []
+          },
+          {
+            "name": "count",
+            "type": {
+              "kind": "SCALAR",
+              "name": "Int"
+            },
+            "defaultValue": "0",
+            "isDeprecated": false,
+            "validationRules": []
+          },
+          {
+            "name": "ratio",
+            "type": {
+              "kind": "SCALAR",
+              "name": "Float"
+            },
+            "defaultValue": "1.5",
+            "isDeprecated": false,
+            "validationRules": []
+          },
+          {
+            "name": "label",
+            "type": {
+              "kind": "SCALAR",
+              "name": "String"
+            },
+            "defaultValue": "\"a \\\"quoted\\\"\\nline\"",
+            "isDeprecated": false,
+            "validationRules": []
+          },
+          {
+            "name": "status",
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {
+                "kind": "ENUM",
+                "name": "Status"
+              }
+            },
+            "defaultValue": "ARCHIVED",
+            "isDeprecated": false,
+            "validationRules": []
+          },
+          {
+            "name": "filter",
+            "type": {
+              "kind": "INPUT_OBJECT",
+              "name": "ItemFilter"
+            },
+            "defaultValue": "{status: ARCHIVED, tags: [ACTIVE]}",
+            "isDeprecated": false,
+            "validationRules": []
+          },
+          {
+            "name": "meta",
+            "type": {
+              "kind": "SCALAR",
+              "name": "JSON"
+            },
+            "defaultValue": "{k: 1}",
+            "isDeprecated": false,
+            "validationRules": []
+          }
+        ]
+      },
+      {
+        "kind": "OBJECT",
+        "name": "Query",
+        "description": "Root query type",
+        "fields": [
+          {
+            "name": "items",
+            "args": [
+              {
+                "name": "orderStatus",
+                "type": {
+                  "kind": "ENUM",
+                  "name": "Status"
+                },
+                "defaultValue": "ACTIVE",
+                "isDeprecated": false,
+                "validationRules": []
+              },
+              {
+                "name": "limit",
+                "type": {
+                  "kind": "SCALAR",
+                  "name": "Int"
+                },
+                "defaultValue": "10",
+                "isDeprecated": false,
+                "validationRules": []
+              }
+            ],
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {
+                "kind": "LIST",
+                "ofType": {
+                  "kind": "NON_NULL",
+                  "ofType": {
+                    "kind": "SCALAR",
+                    "name": "Item"
+                  }
+                }
+              }
+            },
+            "isDeprecated": false
+          }
+        ],
+        "interfaces": []
+      },
+      {
+        "kind": "OBJECT",
+        "name": "Mutation",
+        "description": "Root mutation type",
+        "fields": [
+          {
+            "name": "createItem",
+            "args": [
+              {
+                "name": "input",
+                "type": {
+                  "kind": "NON_NULL",
+                  "ofType": {
+                    "kind": "INPUT_OBJECT",
+                    "name": "CreateItemInput"
+                  }
+                },
+                "isDeprecated": false,
+                "validationRules": []
+              }
+            ],
+            "type": {
+              "kind": "SCALAR",
+              "name": "Item"
+            },
+            "isDeprecated": false
+          }
+        ],
+        "interfaces": []
+      }
+    ],
+    "queryType": {
+      "name": "Query"
+    },
+    "mutationType": {
+      "name": "Mutation"
+    },
+    "directives": [
+      {
+        "name": "skip",
+        "description": "Directs the executor to skip this field or fragment when the `if` argument is true.",
+        "locations": [
+          "FIELD",
+          "FRAGMENT_SPREAD",
+          "INLINE_FRAGMENT"
+        ],
+        "args": [
+          {
+            "name": "if",
+            "description": "Skipped when true.",
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "Boolean"
+              }
+            },
+            "isDeprecated": false,
+            "validationRules": []
+          }
+        ],
+        "isRepeatable": false
+      },
+      {
+        "name": "include",
+        "description": "Directs the executor to include this field or fragment only when the `if` argument is true.",
+        "locations": [
+          "FIELD",
+          "FRAGMENT_SPREAD",
+          "INLINE_FRAGMENT"
+        ],
+        "args": [
+          {
+            "name": "if",
+            "description": "Included when true.",
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "Boolean"
+              }
+            },
+            "isDeprecated": false,
+            "validationRules": []
+          }
+        ],
+        "isRepeatable": false
+      },
+      {
+        "name": "deprecated",
+        "description": "Marks an element of a GraphQL schema as no longer supported.",
+        "locations": [
+          "FIELD_DEFINITION",
+          "ENUM_VALUE",
+          "ARGUMENT_DEFINITION",
+          "INPUT_FIELD_DEFINITION"
+        ],
+        "args": [
+          {
+            "name": "reason",
+            "description": "Explains why this element was deprecated.",
+            "type": {
+              "kind": "SCALAR",
+              "name": "String"
+            },
+            "defaultValue": "\"No longer supported\"",
+            "isDeprecated": false,
+            "validationRules": []
+          }
+        ],
+        "isRepeatable": false
+      }
+    ]
+  }
+}

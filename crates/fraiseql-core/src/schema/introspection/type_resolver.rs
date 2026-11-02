@@ -6,8 +6,8 @@
 
 use super::{
     super::{
-        CompiledSchema, EnumDefinition, InputObjectDefinition, InterfaceDefinition, TypeDefinition,
-        UnionDefinition,
+        CompiledSchema, EnumDefinition, InputFieldDefinition, InputObjectDefinition,
+        InterfaceDefinition, TypeDefinition, UnionDefinition,
     },
     field_resolver::{build_field, build_validation_rule, type_ref_with_kind},
     types::{
@@ -230,6 +230,59 @@ fn input_type_ref(written: &str, schema: &CompiledSchema) -> IntrospectionType {
     type_ref_with_kind(written, kind)
 }
 
+/// The type reference an input field publishes.
+pub(super) fn input_field_type_ref(
+    f: &InputFieldDefinition,
+    schema: &CompiledSchema,
+) -> IntrospectionType {
+    // An input field's type is stored as a *string*, so the reference has
+    // to be reconstructed from it: the list and non-null wrappers become
+    // LIST/NON_NULL nodes and the leaf name is resolved against the
+    // schema for its kind. Publishing the whole string as one SCALAR name
+    // advertised types like `"[OrderWhereInput!]"` — a name no client can
+    // look up, and one that collapses a generated client's filter
+    // argument into an opaque scalar.
+    //
+    // The field's own trailing `!` is dropped rather than read: `nullable`
+    // is what carries requiredness (#414), and a filter operator field can
+    // legitimately be optional while its type string is non-null.
+    // #1513: a localized input field takes `LocalizedInput`.
+    let named = if f.localized {
+        type_ref_with_kind(crate::schema::LOCALIZED_INPUT_TYPE, TypeKind::InputObject)
+    } else {
+        input_type_ref(f.field_type.trim_end_matches('!'), schema)
+    };
+    if f.nullable {
+        named
+    } else {
+        IntrospectionType {
+            kind:               TypeKind::NonNull,
+            name:               None,
+            description:        None,
+            fields:             None,
+            interfaces:         None,
+            possible_types:     None,
+            enum_values:        None,
+            input_fields:       None,
+            of_type:            Some(Box::new(named)),
+            specified_by_u_r_l: None,
+        }
+    }
+}
+
+/// A default the schema loader accepted always renders; were one ever not to, it is
+/// published as absent, which the load-time refusal is there to prevent.
+pub(super) fn published_default(
+    rendered: Result<Option<String>, String>,
+    owner: &str,
+    name: &str,
+) -> Option<String> {
+    rendered.unwrap_or_else(|reason| {
+        tracing::error!(owner, name, %reason, "default value has no GraphQL literal; publishing none");
+        None
+    })
+}
+
 /// Build `__Type` for an input object definition.
 pub(super) fn build_input_object_type(
     input_def: &InputObjectDefinition,
@@ -241,45 +294,17 @@ pub(super) fn build_input_object_type(
         .map(|f| {
             let validation_rules = f.validation_rules.iter().map(build_validation_rule).collect();
 
-            // An input field's type is stored as a *string*, so the reference has
-            // to be reconstructed from it: the list and non-null wrappers become
-            // LIST/NON_NULL nodes and the leaf name is resolved against the
-            // schema for its kind. Publishing the whole string as one SCALAR name
-            // advertised types like `"[OrderWhereInput!]"` — a name no client can
-            // look up, and one that collapses a generated client's filter
-            // argument into an opaque scalar.
-            //
-            // The field's own trailing `!` is dropped rather than read: `nullable`
-            // is what carries requiredness (#414), and a filter operator field can
-            // legitimately be optional while its type string is non-null.
-            // #1513: a localized input field takes `LocalizedInput`.
-            let named = if f.localized {
-                type_ref_with_kind(crate::schema::LOCALIZED_INPUT_TYPE, TypeKind::InputObject)
-            } else {
-                input_type_ref(f.field_type.trim_end_matches('!'), schema)
-            };
-            let input_type = if f.nullable {
-                named
-            } else {
-                IntrospectionType {
-                    kind:               TypeKind::NonNull,
-                    name:               None,
-                    description:        None,
-                    fields:             None,
-                    interfaces:         None,
-                    possible_types:     None,
-                    enum_values:        None,
-                    input_fields:       None,
-                    of_type:            Some(Box::new(named)),
-                    specified_by_u_r_l: None,
-                }
-            };
+            let input_type = input_field_type_ref(f, schema);
 
             IntrospectionInputValue {
                 name: f.name.clone(),
                 description: f.description.clone(),
                 input_type,
-                default_value: f.default_value.clone(),
+                default_value: published_default(
+                    super::default_literal::input_field_default(f, schema),
+                    &input_def.name,
+                    &f.name,
+                ),
                 is_deprecated: f.is_deprecated(),
                 deprecation_reason: f.deprecation.as_ref().and_then(|d| d.reason.clone()),
                 validation_rules,

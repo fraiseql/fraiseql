@@ -296,6 +296,45 @@ fn committed_sdl_fixtures_are_current() {
     }
 }
 
+/// #1888: the SDL and the `__schema` response a schema with every kind of default
+/// publishes, committed so the federation-compose leg can hold them to graphql-js
+/// (`tools/federation/default-literals-check.mjs`): `buildSchema` and `buildClientSchema`
+/// must keep every default, and an operation omitting a defaulted field must validate.
+/// Re-bless as [`committed_sdl_fixtures_are_current`] says.
+#[test]
+fn committed_default_literal_fixtures_are_current() {
+    let compiled = std::fs::read_to_string(fixture_path("default_literals.input.json")).unwrap();
+    let schema = CompiledSchema::from_json(&compiled, false).unwrap();
+    let introspection = fraiseql_core::schema::IntrospectionResponses::build(&schema);
+    let cases = [
+        ("default_literals.graphql", format!("{}\n", schema.raw_schema().trim_end())),
+        (
+            "default_literals.introspection.json",
+            format!(
+                "{}\n",
+                serde_json::to_string_pretty(&introspection.schema_response["data"]).unwrap()
+            ),
+        ),
+    ];
+    let bless = std::env::var_os("BLESS_FEDERATION_SDL").is_some();
+
+    for (file, rendered) in cases {
+        let path = fixture_path(file);
+        if bless {
+            std::fs::write(&path, &rendered).unwrap();
+            continue;
+        }
+        let committed = std::fs::read_to_string(&path)
+            .expect("missing default-literal fixture; re-bless with BLESS_FEDERATION_SDL=1");
+        assert_eq!(
+            committed,
+            rendered,
+            "{} is stale; re-bless with BLESS_FEDERATION_SDL=1",
+            path.display()
+        );
+    }
+}
+
 /// The shared `Money` value type must be byte-identical across subgraphs, or
 /// Apollo composition rejects the supergraph even with `@shareable`. This guards
 /// the field set the two builders emit (a drift here would only surface at real

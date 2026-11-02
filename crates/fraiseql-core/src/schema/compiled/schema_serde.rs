@@ -632,6 +632,19 @@ impl CompiledSchema {
                 path:    Some("subscriptions.filter".to_string()),
             });
         }
+        // A default publishes as a GraphQL literal of its type. One with no such
+        // literal would be published as absent, which makes an optional field required.
+        let violations = self.default_literal_violations();
+        if !violations.is_empty() {
+            return Err(FraiseQLError::Validation {
+                message: format!(
+                    "default values have no GraphQL literal of their type; fix each default \
+                     and recompile the schema:\n  - {}",
+                    violations.join("\n  - ")
+                ),
+                path:    Some("default_value".to_string()),
+            });
+        }
         let violations = self.scope_violations();
         if !violations.is_empty() {
             return Err(FraiseQLError::Validation {
@@ -823,6 +836,38 @@ impl CompiledSchema {
             );
         }
         violations
+    }
+
+    /// Defaults that have no GraphQL literal of their declared type, one entry
+    /// per input field (`Input.field`) or argument (`query(arg:)`, `@directive(arg:)`).
+    ///
+    /// The compiler loads what it writes through this path, so it refuses the same
+    /// defaults a server refuses at boot.
+    fn default_literal_violations(&self) -> Vec<String> {
+        use crate::schema::introspection::{argument_default, input_field_default};
+
+        let inputs = self.input_types.iter().flat_map(|input| {
+            input.fields.iter().filter_map(move |f| {
+                input_field_default(f, self)
+                    .err()
+                    .map(|reason| format!("`{}.{}`: {reason}", input.name, f.name))
+            })
+        });
+        let roots = self
+            .queries
+            .iter()
+            .map(|q| (q.name.as_str(), "", &q.arguments))
+            .chain(self.mutations.iter().map(|m| (m.name.as_str(), "", &m.arguments)))
+            .chain(self.subscriptions.iter().map(|s| (s.name.as_str(), "", &s.arguments)))
+            .chain(self.directives.iter().map(|d| (d.name.as_str(), "@", &d.arguments)));
+        let args = roots.flat_map(|(owner, sigil, arguments)| {
+            arguments.iter().filter_map(move |a| {
+                argument_default(a, self)
+                    .err()
+                    .map(|reason| format!("`{sigil}{owner}({}:)`: {reason}", a.name))
+            })
+        });
+        inputs.chain(args).collect()
     }
 
     /// Subscriptions whose filter names an argument they do not declare (#1262).

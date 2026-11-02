@@ -1,0 +1,34 @@
+scalar JSON
+
+enum Status {
+  ACTIVE
+  ARCHIVED
+}
+
+input ItemFilter {
+  status: Status = ACTIVE
+  tags: [Status!] = [ACTIVE]
+}
+
+input CreateItemInput {
+  name: String!
+  isActive: Boolean! = false
+  count: Int = 0
+  ratio: Float = 1.5
+  label: String = "a \"quoted\"\nline"
+  status: Status! = ARCHIVED
+  filter: ItemFilter = {status: ARCHIVED, tags: [ACTIVE]}
+  meta: JSON = {k: 1}
+}
+
+type Item {
+  id: ID!
+}
+
+type Query {
+  items(orderStatus: Status = ACTIVE, limit: Int = 10): [Item!]!
+}
+
+type Mutation {
+  createItem(input: CreateItemInput!): Item
+}

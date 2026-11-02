@@ -23,6 +23,8 @@ mod type_scopes;
 pub mod validation;
 
 #[cfg(test)]
+mod default_literal_tests;
+#[cfg(test)]
 mod federation_keys_tests;
 #[cfg(test)]
 mod tests;

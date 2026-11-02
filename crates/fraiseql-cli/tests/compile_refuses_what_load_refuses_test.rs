@@ -197,6 +197,30 @@ async fn compile_refuses_what_the_server_would_refuse_to_load() {
         .expect_err("a localized field without [locale] must not compile");
     assert!(format!("{err:#}").contains("declares no [locale]"), "{err:#}");
 
+    // #1888: a default publishes as a GraphQL literal of its type; an enum default the
+    // enum does not declare has none, and publishing it as absent would make the field
+    // required.
+    let enum_default = |default: &str| {
+        format!(
+            r#"{{"enums": [{{"name": "Status", "values": [{{"name": "ACTIVE"}}]}}],
+                "input_types": [{{"name": "CreateItemInput", "fields": [
+                    {{"name": "status", "type": "Status", "nullable": false, "default": "{default}"}}
+                ]}}]}}"#
+        )
+    };
+    let err = compile(&enum_default("GONE"))
+        .await
+        .expect_err("an enum default the enum does not declare must not compile");
+    let msg = format!("{err:#}");
+    assert!(
+        msg.contains("`CreateItemInput.status`")
+            && msg.contains("`GONE` is not a value of enum `Status`"),
+        "names the field and why: {msg}"
+    );
+    compile(&enum_default("ACTIVE"))
+        .await
+        .expect("a declared enum default compiles");
+
     // Control: the complete link compiles.
     let complete =
         fact_table_schema(r#"{"name": "revenue", "sql_type": "numeric", "nullable": false}"#);

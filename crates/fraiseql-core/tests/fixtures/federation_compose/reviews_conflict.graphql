@@ -38,7 +38,7 @@ input EntityChangeLogWhereInput {
 
 input EntityChangeLogOrderByInput {
   field: EntityChangeLogOrderByField!
-  direction: SortDirection
+  direction: SortDirection = ASC
 }
 
 input DateTimeFilter {

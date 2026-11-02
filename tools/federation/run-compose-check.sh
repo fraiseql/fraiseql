@@ -8,6 +8,9 @@
 #     role tags catalog's gated query and its type carry (#1717), which is what a
 #     gateway contract filters on
 #   - catalog + reviews_conflict     → rejected with INVALID_FIELD_SHARING (#497)
+#   - default_literals               → every published default is a GraphQL literal of
+#     its type (#1888): graphql-js keeps each SDL and introspection default, and an
+#     operation omitting a defaulted non-null field validates
 #   - cascade_orders + cascade_users → composes cleanly (#698): two cascade-enabled
 #     subgraphs synthesize the identical envelope value types, which compose only
 #     because the cli marks them @shareable. Without the fix this fails with 21
@@ -30,8 +33,9 @@ if [[ ! -d node_modules ]]; then
   npm ci --no-audit --no-fund
 fi
 
-echo "→ positive: catalog + reviews must compose, keeping catalog's role tags"
+echo "→ positive: catalog + reviews must compose, keeping catalog's role tags and input defaults"
 node compose-check.mjs \
+  '--expect-supergraph=^  direction: SortDirection = ASC$' \
   '--expect-supergraph=^  productCosts: .* @tag\(name: "requires-role/catalog-admin"\)$' \
   '--expect-supergraph=^type ProductCost\n(  @.*\n)*  @tag\(name: "requires-role/catalog-admin"\)\n\{' \
   "catalog=$fixtures/catalog.graphql" \
@@ -46,5 +50,11 @@ echo "→ positive: cascade_orders + cascade_users must compose (#698)"
 node compose-check.mjs \
   "cascade_orders=$fixtures/cascade_orders.graphql" \
   "cascade_users=$fixtures/cascade_users.graphql"
+
+echo "→ default literals: graphql-js keeps every published default (#1888)"
+node default-literals-check.mjs \
+  "$fixtures/default_literals.graphql" \
+  "$fixtures/default_literals.introspection.json" \
+  'mutation { createItem(input: {name: "x"}) { id } }'
 
 echo "✓ federation compose check passed"

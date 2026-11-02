@@ -28,6 +28,7 @@
 mod caller_view;
 #[cfg(feature = "federation")]
 pub mod contract_tags;
+mod default_literal;
 mod directive_builder;
 mod field_resolver;
 mod schema_builder;
@@ -36,6 +37,7 @@ mod types;
 
 // Re-export the complete public API (unchanged from the old flat module).
 pub use caller_view::CallerIntrospection;
+pub use default_literal::{argument_default, input_field_default};
 pub use schema_builder::{IntrospectionBuilder, IntrospectionResponses};
 pub use type_resolver::published_scalar_names;
 pub use types::{

@@ -107,7 +107,7 @@ impl IntrospectionBuilder {
 
         // Build directives: built-in + custom
         let mut directives = builtin_directives();
-        directives.extend(build_custom_directives(&schema.directives));
+        directives.extend(build_custom_directives(&schema.directives, schema));
 
         IntrospectionSchema {
             description: Some("FraiseQL GraphQL Schema".to_string()),
@@ -289,8 +289,11 @@ fn build_query_field(query: &QueryDefinition, schema: &CompiledSchema) -> Intros
     // Build arguments, including the auto-wired `where`/`orderBy`/`limit`/`offset`
     // arguments derived from `auto_params` so introspection matches the `_service`
     // SDL and generated clients.
-    let args: Vec<IntrospectionInputValue> =
-        query.graphql_arguments(schema).iter().map(build_arg_input_value).collect();
+    let args: Vec<IntrospectionInputValue> = query
+        .graphql_arguments(schema)
+        .iter()
+        .map(|a| build_arg_input_value(a, schema))
+        .collect();
 
     IntrospectionField {
         name: schema.display_name(&query.name),
@@ -325,8 +328,11 @@ fn build_count_query_field(query: &QueryDefinition, schema: &CompiledSchema) -> 
     // `graphql_arguments()` yields `where` alone here: `count_sibling` clears the
     // pagination auto-params, because a total that shrank with the page would not
     // be the total.
-    let args: Vec<IntrospectionInputValue> =
-        query.graphql_arguments(schema).iter().map(build_arg_input_value).collect();
+    let args: Vec<IntrospectionInputValue> = query
+        .graphql_arguments(schema)
+        .iter()
+        .map(|a| build_arg_input_value(a, schema))
+        .collect();
 
     IntrospectionField {
         name: schema.display_name(&query.name),
@@ -426,7 +432,12 @@ fn build_relay_query_field(query: &QueryDefinition, schema: &CompiledSchema) -> 
     ];
     // A connection filters and sorts like a list, through the same derived `where` and
     // `orderBy` (#1159, #1535; ordered relay paging resumes past the sort keys since #1521).
-    relay_args.extend(query.connection_arguments(schema).iter().map(build_arg_input_value));
+    relay_args.extend(
+        query
+            .connection_arguments(schema)
+            .iter()
+            .map(|a| build_arg_input_value(a, schema)),
+    );
 
     IntrospectionField {
         name:               schema.display_name(&query.name),
@@ -502,7 +513,7 @@ fn build_mutation_field(
 
     // Build arguments
     let args: Vec<IntrospectionInputValue> =
-        mutation.arguments.iter().map(build_arg_input_value).collect();
+        mutation.arguments.iter().map(|a| build_arg_input_value(a, schema)).collect();
 
     IntrospectionField {
         name: schema.display_name(&mutation.name),
@@ -523,8 +534,11 @@ fn build_subscription_field(
     let return_type = type_ref(&subscription.return_type);
 
     // Build arguments
-    let args: Vec<IntrospectionInputValue> =
-        subscription.arguments.iter().map(build_arg_input_value).collect();
+    let args: Vec<IntrospectionInputValue> = subscription
+        .arguments
+        .iter()
+        .map(|a| build_arg_input_value(a, schema))
+        .collect();
 
     IntrospectionField {
         name: schema.display_name(&subscription.name),

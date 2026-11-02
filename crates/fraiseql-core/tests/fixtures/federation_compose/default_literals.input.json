@@ -1,0 +1,36 @@
+{
+  "types": [
+    {"name": "Item", "sql_source": "v_item", "fields": [{"name": "id", "field_type": "ID"}]}
+  ],
+  "enums": [
+    {"name": "Status", "values": [{"name": "ACTIVE"}, {"name": "ARCHIVED"}]}
+  ],
+  "input_types": [
+    {"name": "ItemFilter", "fields": [
+      {"name": "status", "field_type": "Status", "default_value": "\"ACTIVE\""},
+      {"name": "tags", "field_type": "[Status!]", "default_value": "[\"ACTIVE\"]"}
+    ]},
+    {"name": "CreateItemInput", "fields": [
+      {"name": "name", "field_type": "String", "nullable": false},
+      {"name": "isActive", "field_type": "Boolean", "nullable": false, "default_value": "false"},
+      {"name": "count", "field_type": "Int", "default_value": "0"},
+      {"name": "ratio", "field_type": "Float", "default_value": "1.5"},
+      {"name": "label", "field_type": "String", "default_value": "\"a \\\"quoted\\\"\\nline\""},
+      {"name": "status", "field_type": "Status", "nullable": false, "default_value": "\"ARCHIVED\""},
+      {"name": "filter", "field_type": "ItemFilter", "default_value": "{\"status\":\"ARCHIVED\",\"tags\":[\"ACTIVE\"]}"},
+      {"name": "meta", "field_type": "JSON", "default_value": "{\"k\":1}"}
+    ]}
+  ],
+  "queries": [
+    {"name": "items", "return_type": "Item", "returns_list": true, "sql_source": "v_item", "arguments": [
+      {"name": "orderStatus", "arg_type": {"Enum": "Status"}, "nullable": true, "default_value": "ACTIVE"},
+      {"name": "limit", "arg_type": "Int", "nullable": true, "default_value": 10}
+    ]}
+  ],
+  "mutations": [
+    {"name": "createItem", "return_type": "Item", "sql_source": "fn_create_item", "arguments": [
+      {"name": "input", "arg_type": {"Input": "CreateItemInput"}, "nullable": false}
+    ]}
+  ],
+  "subscriptions": []
+}

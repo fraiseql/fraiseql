@@ -4,7 +4,7 @@
 //! `build_custom_directives()` for schema-defined directives.
 
 use super::{
-    super::DirectiveDefinition,
+    super::{CompiledSchema, DirectiveDefinition},
     field_resolver::{build_arg_input_value, type_ref},
     types::{
         DirectiveLocation, IntrospectionDirective, IntrospectionInputValue, IntrospectionType,
@@ -111,17 +111,21 @@ pub(super) fn builtin_directives() -> Vec<IntrospectionDirective> {
 /// Build introspection directives from custom directive definitions.
 pub(super) fn build_custom_directives(
     directives: &[DirectiveDefinition],
+    schema: &CompiledSchema,
 ) -> Vec<IntrospectionDirective> {
-    directives.iter().map(build_custom_directive).collect()
+    directives.iter().map(|d| build_custom_directive(d, schema)).collect()
 }
 
 /// Build a single introspection directive from a custom directive definition.
-fn build_custom_directive(directive: &DirectiveDefinition) -> IntrospectionDirective {
+fn build_custom_directive(
+    directive: &DirectiveDefinition,
+    schema: &CompiledSchema,
+) -> IntrospectionDirective {
     let locations: Vec<DirectiveLocation> =
         directive.locations.iter().map(|loc| DirectiveLocation::from(*loc)).collect();
 
     let args: Vec<IntrospectionInputValue> =
-        directive.arguments.iter().map(build_arg_input_value).collect();
+        directive.arguments.iter().map(|a| build_arg_input_value(a, schema)).collect();
 
     IntrospectionDirective {
         name: directive.name.clone(),
