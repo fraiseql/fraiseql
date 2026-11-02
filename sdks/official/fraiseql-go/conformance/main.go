@@ -281,9 +281,12 @@ func authorFull() error {
 
 	// AF 3 / ruling AK: a fact table read as `Order`. The link is what gates an aggregate
 	// over the table as a read of the type; every name it declares is a field of `Order`.
+	// `tenantOrders` reads `Order` per tenant, so the relation declares that it filters its
+	// own rows (#1799).
 	if err := fraiseql.NewFactTable("data").
 		TableName("tf_sale").
 		TypeName("Order").
+		RowScope(fraiseql.RowScopeRelation).
 		Measure("total", "numeric", false).
 		Dimension("status", "data->>'status'", "text").
 		DenormalizedFilter("fk_user", "uuid", true).

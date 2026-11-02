@@ -300,6 +300,7 @@ Methods:
 - `NewFactTable(dimensionsColumn string)` - Start a fact table whose dimensions live in that JSONB column
 - `TableName(string)` - Underlying database table name
 - `TypeName(string)` - The type the fact table is read as
+- `RowScope(fraiseql.RowScopeRelation)` - The relation filters its own rows by tenant, on a value the server sets per request; the server adds no tenant predicate. Required on a fact table read per tenant that no row policy scopes
 - `Measure(name, sqlType string, nullable bool)` - Add a measure column
 - `Dimension(name, jsonPath, dataType string)` - Add a dimension path reading the dimensions column
 - `DenormalizedFilter(name, sqlType string, indexed bool)` - Add a filter column

@@ -5,6 +5,7 @@ type FactTableBuilder struct {
 	name        string
 	tableName   string
 	typeName    string
+	rowScope    string
 	measures    []MeasureDefinition
 	dimensions  []DimensionPathDefinition
 	filters     []FilterDefinition
@@ -34,6 +35,15 @@ func (b *FactTableBuilder) TableName(name string) *FactTableBuilder {
 // is refused when it loads. An unlinked fact table declares no field gate.
 func (b *FactTableBuilder) TypeName(name string) *FactTableBuilder {
 	b.typeName = name
+	return b
+}
+
+// RowScope declares who keeps one tenant's aggregate or window from reading another's rows
+// (#1799). The only mode is RowScopeRelation ("relation"): the relation filters its own
+// rows. In a schema that scopes its reads by inject params, a fact table read as such a
+// type, or with a column they inject, is refused at compile without it.
+func (b *FactTableBuilder) RowScope(scope string) *FactTableBuilder {
+	b.rowScope = scope
 	return b
 }
 
@@ -112,6 +122,7 @@ func (b *FactTableBuilder) Register() error {
 	return RegisterFactTable(FactTableDefinition{
 		TableName: b.tableName,
 		TypeName:  b.typeName,
+		RowScope:  b.rowScope,
 		Measures:  b.measures,
 		Dimensions: DimensionsDefinition{
 			Name:  b.name,

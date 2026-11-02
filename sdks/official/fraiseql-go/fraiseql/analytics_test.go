@@ -53,6 +53,32 @@ func TestFactTableWithoutTypeNameOmitsTheKey(t *testing.T) {
 	}
 }
 
+// #1799: a relation that filters its own rows says so under `row_scope`; a fact table that
+// does not declare it emits no key.
+func TestFactTableRowScopeIsEmitted(t *testing.T) {
+	Reset()
+	err := NewFactTable("data").
+		TableName("tf_sales").
+		RowScope(RowScopeRelation).
+		Measure("revenue", "Float", false).
+		Register()
+	if err != nil {
+		t.Fatalf("Register failed: %v", err)
+	}
+	if got := onlyFactTable(t)["row_scope"]; got != "relation" {
+		t.Errorf("row_scope: want %q, got %v", "relation", got)
+	}
+
+	Reset()
+	err = NewFactTable("data").TableName("tf_sales").Measure("revenue", "Float", false).Register()
+	if err != nil {
+		t.Fatalf("Register failed: %v", err)
+	}
+	if got, present := onlyFactTable(t)["row_scope"]; present {
+		t.Errorf("row_scope: want the key absent, got %v", got)
+	}
+}
+
 // #1459: a measure declares how it aggregates over time. A balance is reduced per account
 // and per bucket (its last known value), then summed across accounts: summed across days it
 // is wrong. The declaration travels to the compiler under `additivity`; an additive measure

@@ -180,6 +180,12 @@ const (
 	ReduceMax   = "max"
 )
 
+// RowScopeRelation declares that a fact table's relation filters its own rows by tenant
+// (#1799), on a value the server sets per request: a `current_setting(...)` fed by a
+// JWT-sourced session variable, never client input. The server then adds no tenant
+// predicate to the table's aggregate and window roots.
+const RowScopeRelation = "relation"
+
 // DimensionPathDefinition locates one dimension inside the fact table's JSONB.
 type DimensionPathDefinition struct {
 	Name     string `json:"name"`
@@ -210,6 +216,7 @@ type FilterDefinition struct {
 type FactTableDefinition struct {
 	TableName           string               `json:"table_name"`
 	TypeName            string               `json:"type_name,omitempty"`
+	RowScope            string               `json:"row_scope,omitempty"`
 	Measures            []MeasureDefinition  `json:"measures"`
 	Dimensions          DimensionsDefinition `json:"dimensions"`
 	DenormalizedFilters []FilterDefinition   `json:"denormalized_filters"`
