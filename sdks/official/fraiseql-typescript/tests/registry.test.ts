@@ -215,6 +215,29 @@ describe("SchemaRegistry", () => {
       const schema = SchemaRegistry.getSchema();
       expect(schema.fact_tables![0]).not.toHaveProperty("type_name");
     });
+
+    it("emits row_scope when the relation filters its own rows (#1799)", () => {
+      SchemaRegistry.registerFactTable(
+        "tf_sales",
+        [{ name: "revenue", sql_type: "Float", nullable: false }],
+        { name: "data", paths: [] },
+        [],
+        { rowScope: "relation" }
+      );
+
+      expect(SchemaRegistry.getSchema().fact_tables![0].row_scope).toBe("relation");
+    });
+
+    it("omits row_scope when none is declared", () => {
+      SchemaRegistry.registerFactTable(
+        "tf_sales",
+        [{ name: "revenue", sql_type: "Float", nullable: false }],
+        { name: "data", paths: [] },
+        []
+      );
+
+      expect(SchemaRegistry.getSchema().fact_tables![0]).not.toHaveProperty("row_scope");
+    });
   });
 
   describe("registerSubscription", () => {

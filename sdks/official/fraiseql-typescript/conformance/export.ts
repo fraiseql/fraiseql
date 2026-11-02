@@ -332,12 +332,14 @@ function authorFull(): void {
 
   // AF 3 / ruling AK: a fact table read as `Order`. The link is what gates an aggregate
   // over the table as a read of the type; every name it declares is a field of `Order`.
+  // `tenantOrders` reads `Order` per tenant, so the relation declares that it filters its
+  // own rows (#1799).
   SchemaRegistry.registerFactTable(
     "tf_sale",
     [{ name: "total", sql_type: "numeric", nullable: false }],
     { name: "data", paths: [{ name: "status", json_path: "data->>'status'", data_type: "text" }] },
     [{ name: "fk_user", sql_type: "uuid", indexed: true }],
-    { typeName: "Order" }
+    { typeName: "Order", rowScope: "relation" }
   );
 
   // #1459: an unlinked fact table of balances. A balance is reduced per account and per

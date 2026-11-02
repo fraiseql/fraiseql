@@ -316,6 +316,8 @@ export interface FactTableDefinition {
   table_name: string;
   /** The type the fact table is read as (see `registerFactTable`). */
   type_name?: string;
+  /** Who scopes its rows per tenant (see `registerFactTable`). */
+  row_scope?: "relation";
   measures: Measure[];
   dimensions: Dimension;
   denormalized_filters: DenormalizedFilter[];
@@ -1281,13 +1283,18 @@ export class SchemaRegistry {
    *   over the table is gated as a read of it: the type's `requires_scope` and `authorize`
    *   fields and its `requires_role`. A schema whose linked type lacks one of the names the
    *   table declares is refused when it loads. An unlinked fact table declares no field gate.
+   * @param options.rowScope - `"relation"`: the relation filters its own rows by tenant, on a
+   *   value the server sets per request (a `current_setting(...)` fed by a JWT-sourced session
+   *   variable, never client input), and the server adds no tenant predicate to its aggregate
+   *   and window roots (#1799). In a schema that scopes its reads by inject params, a fact
+   *   table read as such a type, or with a column they inject, is refused at compile without it.
    */
   static registerFactTable(
     tableName: string,
     measures: Measure[],
     dimensions: Dimension,
     denormalizedFilters: DenormalizedFilter[],
-    options?: { typeName?: string }
+    options?: { typeName?: string; rowScope?: "relation" }
   ): void {
     const factTable: FactTableDefinition = {
       table_name: tableName,
@@ -1296,6 +1303,7 @@ export class SchemaRegistry {
       denormalized_filters: denormalizedFilters,
     };
     if (options?.typeName) factTable.type_name = options.typeName;
+    if (options?.rowScope) factTable.row_scope = options.rowScope;
     this.factTables.set(tableName, factTable);
   }
 
