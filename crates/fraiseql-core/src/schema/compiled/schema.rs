@@ -522,6 +522,14 @@ pub struct LocalAuthConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub magic_link_template: Option<String>,
 
+    /// `SELECT` deciding who may sign in by `OTP`, with `$email` bound to the normalized
+    /// address — e.g. `SELECT 1 FROM tb_member WHERE email = $email AND active`. A row
+    /// admits the address; no row or a failed query refuses it. A refused address gets the
+    /// same answers as an admitted one, and no mail and no account. Unset admits every
+    /// address. It governs `OTP` only: password signup and social sign-in stay open.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub otp_allowed_query: Option<String>,
+
     /// Template for the email-verification link, with `{token}` substituted for
     /// the opaque verification token — e.g.
     /// `https://app.example.com/verify-email?token={token}`. Required when

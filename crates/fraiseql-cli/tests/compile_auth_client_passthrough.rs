@@ -520,3 +520,129 @@ fn a_jwt_only_auth_block_produces_no_compiled_auth_client() {
         "a JWT-only [auth] block must not populate the PKCE client config"
     );
 }
+
+/// Compile `[auth.local]` with `extra` added to a valid `otp` block.
+fn merge_otp_with(extra: &str) -> anyhow::Result<fraiseql_cli::schema::IntermediateSchema> {
+    let mut f = NamedTempFile::new().unwrap();
+    write!(
+        f,
+        r#"
+        [schema]
+        name = "app"
+
+        [types.User]
+        sql_source = "v_user"
+
+        [auth.local]
+        email_from = "support"
+        {extra}
+    "#
+    )
+    .unwrap();
+    f.flush().unwrap();
+    SchemaMerger::merge_toml_only(f.path().to_str().unwrap())
+}
+
+#[test]
+fn otp_allowed_query_reaches_the_compiled_schema() {
+    let intermediate = merge_otp_with(
+        r#"otp = true
+        otp_allowed_query = "SELECT 1 FROM tb_member WHERE email = $email AND active""#,
+    )
+    .unwrap();
+    let compiled = SchemaConverter::convert(intermediate).expect("convert to compiled schema");
+    let local = compiled.auth.as_ref().and_then(|a| a.local.as_ref()).expect("auth.local");
+    assert_eq!(
+        local.otp_allowed_query.as_deref(),
+        Some("SELECT 1 FROM tb_member WHERE email = $email AND active")
+    );
+}
+
+#[test]
+fn otp_allowed_query_is_refused_without_otp() {
+    let err = merge_otp_with(
+        r#"mfa = true
+        otp_allowed_query = "SELECT 1 FROM tb_member WHERE email = $email""#,
+    )
+    .err()
+    .map(|e| format!("{e:#}"))
+    .expect("the key without otp must be refused");
+    assert!(err.contains("otp_allowed_query"), "the refusal must name the key: {err}");
+}
+
+#[test]
+fn otp_allowed_query_that_could_not_work_is_refused() {
+    let err = merge_otp_with(
+        r#"otp = true
+        otp_allowed_query = "SELECT 1 FROM tb_member""#,
+    )
+    .err()
+    .map(|e| format!("{e:#}"))
+    .expect("a query that never reads the address must be refused");
+    assert!(err.contains("$email"), "the refusal must name the parameter: {err}");
+}
+
+/// What compiling `[auth.local]` with `extra` logs at `WARN` or above.
+fn warnings_merging_otp_with(extra: &str, section: &str) -> String {
+    #[derive(Clone, Default)]
+    struct Captured(std::sync::Arc<std::sync::Mutex<Vec<u8>>>);
+    impl Write for Captured {
+        fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+            self.0.lock().unwrap().extend_from_slice(bytes);
+            Ok(bytes.len())
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    let captured = Captured::default();
+    let writer = captured.clone();
+    let subscriber = tracing_subscriber::fmt()
+        .with_max_level(tracing::Level::WARN)
+        .with_writer(move || writer.clone())
+        .finish();
+    let toml = format!(
+        r#"otp = true
+        otp_allowed_query = "SELECT 1 FROM tb_member WHERE email = $email"
+        {extra}
+
+        {section}"#
+    );
+    fraiseql_test_support::tracing_capture::with_default(subscriber, || {
+        merge_otp_with(&toml).expect("a valid [auth.local] block");
+    });
+    let logged = captured.0.lock().unwrap().clone();
+    String::from_utf8(logged).unwrap()
+}
+
+/// The list governs OTP alone, so a deployment that believes it is invite-only must hear that
+/// another open sign-in method sits beside it.
+#[test]
+fn otp_allowed_query_warns_when_password_signup_stays_open() {
+    let logged = warnings_merging_otp_with(
+        r#"password = true
+        reset_url_template = "https://app.example.com/reset?token={token}""#,
+        "",
+    );
+    assert!(logged.contains("otp_allowed_query governs OTP only"), "logged: {logged}");
+}
+
+#[test]
+fn otp_allowed_query_warns_when_social_sign_in_stays_open() {
+    let logged = warnings_merging_otp_with(
+        "",
+        r#"[auth.social.google]
+        client_id         = "id"
+        client_secret_env = "GOOGLE_SECRET"
+        redirect_uri      = "https://app.example.com/callback""#,
+    );
+    assert!(logged.contains("otp_allowed_query governs OTP only"), "logged: {logged}");
+}
+
+#[test]
+fn otp_allowed_query_alone_does_not_warn() {
+    let logged = warnings_merging_otp_with("", "");
+    assert!(!logged.contains("otp_allowed_query"), "logged: {logged}");
+}

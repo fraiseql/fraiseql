@@ -2012,3 +2012,444 @@ async fn mfa_off_with_confirmed_enrollments_refuses_to_boot() {
 
     drop_scratch(&url, db).await;
 }
+
+// ── #1852: `otp_allowed_query` ───────────────────────────────────────────────────────
+
+/// The allow-list every test below configures.
+#[cfg(feature = "inbound-email")]
+const MEMBERS_QUERY: &str = "SELECT 1 FROM app_member WHERE email = $email";
+#[cfg(feature = "inbound-email")]
+const APPROVED: &str = "approved@example.com";
+#[cfg(feature = "inbound-email")]
+const UNAPPROVED: &str = "stranger@example.com";
+
+#[cfg(feature = "inbound-email")]
+fn allow_listed(query: &str) -> LocalAuthConfig {
+    LocalAuthConfig {
+        otp: true,
+        email_from: Some("support".to_string()),
+        otp_allowed_query: Some(query.to_string()),
+        ..LocalAuthConfig::default()
+    }
+}
+
+/// A scratch database with [`APPROVED`] as the only member.
+#[cfg(feature = "inbound-email")]
+async fn members_pool(url: &str, db: &str) -> PgPool {
+    let pool = scratch_pool(url, db).await;
+    sqlx::query("CREATE TABLE app_member (email TEXT PRIMARY KEY)")
+        .execute(&pool)
+        .await
+        .expect("create the member table");
+    sqlx::query("INSERT INTO app_member (email) VALUES ($1)")
+        .bind(APPROVED)
+        .execute(&pool)
+        .await
+        .expect("seed the member");
+    pool
+}
+
+#[cfg(feature = "inbound-email")]
+async fn accounts_for(pool: &PgPool, email: &str) -> i64 {
+    sqlx::query_scalar("SELECT count(*) FROM core.tb_user WHERE email = $1")
+        .bind(email)
+        .fetch_one(pool)
+        .await
+        .expect("count accounts")
+}
+
+/// Every message the sink has received once the approved address's mail has arrived. The
+/// approved send comes last, so its arrival is the positive control that the transport works
+/// and the queue has drained up to it; the settle covers a mail reordered behind it.
+#[cfg(feature = "inbound-email")]
+async fn messages_after_the_approved_one(sink: &CapturingSmtp) -> Vec<String> {
+    sink.next_message().await;
+    tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+    sink.captured.lock().unwrap().clone()
+}
+
+/// The issue's acceptance: no mail, no `core.tb_user` row and no session for an address the
+/// query refuses, even presenting the code the store holds for it; the approved address
+/// completes the same flow on the same server.
+#[cfg(feature = "inbound-email")]
+#[tokio::test]
+async fn an_unapproved_address_gets_no_mail_no_account_and_no_session() {
+    let Some(url) = database_url_or_skip("otp_allow_list_refuses") else {
+        return;
+    };
+    set_test_env();
+    let db = "fraiseql_p26_local_allow_refuses";
+    let pool = members_pool(&url, db).await;
+    let sink = CapturingSmtp::start().await;
+    let server = boot_with_smtp(
+        allow_listed(MEMBERS_QUERY),
+        pool.clone(),
+        &with_database(&url, db),
+        sink.port,
+    )
+    .await;
+    let base = &server.base;
+
+    for email in [UNAPPROVED, APPROVED] {
+        let (status, _) =
+            post_json(base, "/auth/v1/otp", serde_json::json!({ "email": email })).await;
+        assert_eq!(status, reqwest::StatusCode::OK, "send for {email}");
+    }
+    let messages = messages_after_the_approved_one(&sink).await;
+    assert_eq!(messages.len(), 1, "only the approved address gets mail: {messages:?}");
+    assert!(messages[0].contains(APPROVED), "the one mail is the approved one: {messages:?}");
+
+    let code = stored_otp_code(&pool, UNAPPROVED).await;
+    let (status, body) = post_json(
+        base,
+        "/auth/v1/verify",
+        serde_json::json!({ "email": UNAPPROVED, "code": code }),
+    )
+    .await;
+    assert_eq!(status, reqwest::StatusCode::UNPROCESSABLE_ENTITY, "{body}");
+    assert_eq!(body["error"], "invalid_otp", "the answer a wrong code gets: {body}");
+    assert!(body.get("access_token").is_none(), "no session: {body}");
+    assert_eq!(accounts_for(&pool, UNAPPROVED).await, 0, "no account for the refused address");
+
+    let code = stored_otp_code(&pool, APPROVED).await;
+    let (status, body) =
+        post_json(base, "/auth/v1/verify", serde_json::json!({ "email": APPROVED, "code": code }))
+            .await;
+    assert_eq!(status, reqwest::StatusCode::OK, "{body}");
+    assert!(body["access_token"].is_string(), "the approved address signs in: {body}");
+    assert_eq!(accounts_for(&pool, APPROVED).await, 1);
+
+    server.stop().await;
+    sink.stop();
+    pool.close().await;
+    drop_scratch(&url, db).await;
+}
+
+/// What one address sees across both budgets: statuses and bodies of a send, guesses past
+/// the guess budget, then sends past the send budget. `retry_after_secs` counts down from
+/// when each window opened, so it is the one field a clock tick can move.
+#[cfg(feature = "inbound-email")]
+async fn transcript(base: &str, email: &str) -> Vec<(reqwest::StatusCode, serde_json::Value)> {
+    let send = serde_json::json!({ "email": email });
+    let guess = serde_json::json!({ "email": email, "code": "not-a-code" });
+    let mut seen = vec![post_json(base, "/auth/v1/otp", send.clone()).await];
+    for _ in 0..5 {
+        seen.push(post_json(base, "/auth/v1/verify", guess.clone()).await);
+    }
+    for _ in 0..3 {
+        seen.push(post_json(base, "/auth/v1/otp", send.clone()).await);
+    }
+    for (_, body) in &mut seen {
+        if let Some(fields) = body.as_object_mut() {
+            fields.remove("retry_after_secs");
+        }
+    }
+    seen
+}
+
+/// Neither budget tells the two apart. The per-address limits are the trap: an address with
+/// no code row is never charged a guess, and one that skips the store never reaches the send
+/// limit, so a list checked before the store would answer 429 only for members.
+#[cfg(feature = "inbound-email")]
+#[tokio::test]
+async fn approved_and_unapproved_answers_cannot_be_told_apart() {
+    let Some(url) = database_url_or_skip("otp_allow_list_indistinguishable") else {
+        return;
+    };
+    set_test_env();
+    let db = "fraiseql_p26_local_allow_same";
+    let pool = members_pool(&url, db).await;
+    let sink = CapturingSmtp::start().await;
+    let server = boot_with_smtp(
+        allow_listed(MEMBERS_QUERY),
+        pool.clone(),
+        &with_database(&url, db),
+        sink.port,
+    )
+    .await;
+
+    let unapproved = transcript(&server.base, UNAPPROVED).await;
+    let approved = transcript(&server.base, APPROVED).await;
+    assert_eq!(approved, unapproved, "the two addresses must get the same answers");
+    let limited = reqwest::StatusCode::TOO_MANY_REQUESTS;
+    assert_eq!(
+        approved.iter().filter(|(status, _)| *status == limited).count(),
+        2,
+        "the transcript must reach both per-address limits, or it compared nothing: {approved:?}"
+    );
+    assert!(sink.next_message().await.contains(APPROVED), "the approved address got mail");
+
+    server.stop().await;
+    sink.stop();
+    pool.close().await;
+    drop_scratch(&url, db).await;
+}
+
+/// A mail outage must not answer 500 for members alone: that names who is approved to anyone
+/// asking while the relay is down.
+#[cfg(feature = "inbound-email")]
+#[tokio::test]
+async fn a_mail_outage_does_not_reveal_an_approved_address() {
+    let Some(url) = database_url_or_skip("otp_allow_list_outage") else {
+        return;
+    };
+    set_test_env();
+    let db = "fraiseql_p26_local_allow_outage";
+    let pool = members_pool(&url, db).await;
+    let server = boot(allow_listed(MEMBERS_QUERY), pool.clone(), &with_database(&url, db)).await;
+
+    for email in [APPROVED, UNAPPROVED] {
+        let (status, body) =
+            post_json(&server.base, "/auth/v1/otp", serde_json::json!({ "email": email })).await;
+        assert_eq!(status, reqwest::StatusCode::OK, "{email} with the relay down: {body}");
+        assert_eq!(body, serde_json::json!({ "message_id": "" }), "{email}");
+    }
+
+    server.stop().await;
+    pool.close().await;
+    drop_scratch(&url, db).await;
+}
+
+/// With no list, a send still delivers on the request and still reports a failure: the
+/// off-request queue belongs to the list, and a deployment without one must not lose its 500.
+#[cfg(feature = "inbound-email")]
+#[tokio::test]
+async fn with_no_list_a_failed_delivery_still_answers_500() {
+    let Some(url) = database_url_or_skip("otp_no_list_inline") else {
+        return;
+    };
+    set_test_env();
+    let db = "fraiseql_p26_local_no_list";
+    let pool = scratch_pool(&url, db).await;
+    let server = boot(
+        LocalAuthConfig {
+            otp: true,
+            email_from: Some("support".to_string()),
+            ..LocalAuthConfig::default()
+        },
+        pool.clone(),
+        &with_database(&url, db),
+    )
+    .await;
+
+    let (status, _) =
+        post_json(&server.base, "/auth/v1/otp", serde_json::json!({ "email": APPROVED })).await;
+    assert_eq!(status, reqwest::StatusCode::INTERNAL_SERVER_ERROR);
+
+    server.stop().await;
+    pool.close().await;
+    drop_scratch(&url, db).await;
+}
+
+/// Removing an address invalidates a code it already holds.
+#[cfg(feature = "inbound-email")]
+#[tokio::test]
+async fn removing_an_address_invalidates_the_code_already_sent() {
+    let Some(url) = database_url_or_skip("otp_allow_list_removed") else {
+        return;
+    };
+    set_test_env();
+    let db = "fraiseql_p26_local_allow_removed";
+    let pool = members_pool(&url, db).await;
+    let sink = CapturingSmtp::start().await;
+    let server = boot_with_smtp(
+        allow_listed(MEMBERS_QUERY),
+        pool.clone(),
+        &with_database(&url, db),
+        sink.port,
+    )
+    .await;
+
+    let (status, _) =
+        post_json(&server.base, "/auth/v1/otp", serde_json::json!({ "email": APPROVED })).await;
+    assert_eq!(status, reqwest::StatusCode::OK);
+    sink.next_message().await;
+    let code = stored_otp_code(&pool, APPROVED).await;
+    sqlx::query("DELETE FROM app_member")
+        .execute(&pool)
+        .await
+        .expect("remove the member");
+
+    let (status, body) = post_json(
+        &server.base,
+        "/auth/v1/verify",
+        serde_json::json!({ "email": APPROVED, "code": code }),
+    )
+    .await;
+    assert_eq!(status, reqwest::StatusCode::UNPROCESSABLE_ENTITY, "{body}");
+    assert_eq!(accounts_for(&pool, APPROVED).await, 0, "no account for a removed address");
+
+    server.stop().await;
+    sink.stop();
+    pool.close().await;
+    drop_scratch(&url, db).await;
+}
+
+/// A query that fails refuses at both ends: no mail at send, no session at verify.
+#[cfg(feature = "inbound-email")]
+#[tokio::test]
+async fn a_failing_query_fails_closed() {
+    let Some(url) = database_url_or_skip("otp_allow_list_query_error") else {
+        return;
+    };
+    set_test_env();
+    let db = "fraiseql_p26_local_allow_error";
+    let pool = members_pool(&url, db).await;
+    let sink = CapturingSmtp::start().await;
+    let server = boot_with_smtp(
+        allow_listed("SELECT 1 FROM no_such_table WHERE email = $email"),
+        pool.clone(),
+        &with_database(&url, db),
+        sink.port,
+    )
+    .await;
+
+    let (status, _) =
+        post_json(&server.base, "/auth/v1/otp", serde_json::json!({ "email": APPROVED })).await;
+    assert_eq!(status, reqwest::StatusCode::OK, "the answer does not change");
+    tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+    assert!(sink.captured.lock().unwrap().is_empty(), "no mail on a failed query");
+
+    let code = stored_otp_code(&pool, APPROVED).await;
+    let (status, body) = post_json(
+        &server.base,
+        "/auth/v1/verify",
+        serde_json::json!({ "email": APPROVED, "code": code }),
+    )
+    .await;
+    assert_eq!(status, reqwest::StatusCode::UNPROCESSABLE_ENTITY, "{body}");
+    assert_eq!(accounts_for(&pool, APPROVED).await, 0, "no account on a failed query");
+
+    server.stop().await;
+    sink.stop();
+    pool.close().await;
+    drop_scratch(&url, db).await;
+}
+
+/// The list answers a question and changes nothing: a function that writes is refused by the
+/// read-only transaction, which fails closed.
+#[cfg(feature = "inbound-email")]
+#[tokio::test]
+async fn the_query_runs_read_only() {
+    let Some(url) = database_url_or_skip("otp_allow_list_read_only") else {
+        return;
+    };
+    set_test_env();
+    let db = "fraiseql_p26_local_allow_read_only";
+    let pool = members_pool(&url, db).await;
+    sqlx::raw_sql(
+        "CREATE TABLE app_written (email TEXT);
+         CREATE FUNCTION app_write(address TEXT) RETURNS INT LANGUAGE plpgsql AS $$
+         BEGIN INSERT INTO app_written VALUES (address); RETURN 1; END $$;",
+    )
+    .execute(&pool)
+    .await
+    .expect("create the writing function");
+    let sink = CapturingSmtp::start().await;
+    let server = boot_with_smtp(
+        allow_listed("SELECT app_write($email)"),
+        pool.clone(),
+        &with_database(&url, db),
+        sink.port,
+    )
+    .await;
+
+    let (status, _) =
+        post_json(&server.base, "/auth/v1/otp", serde_json::json!({ "email": APPROVED })).await;
+    assert_eq!(status, reqwest::StatusCode::OK);
+    tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+    let written: i64 = sqlx::query_scalar("SELECT count(*) FROM app_written")
+        .fetch_one(&pool)
+        .await
+        .expect("count writes");
+    assert_eq!(written, 0, "the query must not have written");
+    assert!(sink.captured.lock().unwrap().is_empty(), "a refused query sends no mail");
+
+    server.stop().await;
+    sink.stop();
+    pool.close().await;
+    drop_scratch(&url, db).await;
+}
+
+/// A list that takes too long refuses, within its timeout: every sign-in waits on it, so a
+/// hung query must not hang the endpoint.
+#[cfg(feature = "inbound-email")]
+#[tokio::test]
+async fn a_query_past_its_timeout_fails_closed() {
+    let Some(url) = database_url_or_skip("otp_allow_list_timeout") else {
+        return;
+    };
+    set_test_env();
+    let db = "fraiseql_p26_local_allow_timeout";
+    let pool = members_pool(&url, db).await;
+    let sink = CapturingSmtp::start().await;
+    let server = boot_with_smtp(
+        allow_listed("SELECT 1 FROM pg_sleep(30) WHERE $email <> ''"),
+        pool.clone(),
+        &with_database(&url, db),
+        sink.port,
+    )
+    .await;
+
+    let started = std::time::Instant::now();
+    let (status, _) =
+        post_json(&server.base, "/auth/v1/otp", serde_json::json!({ "email": APPROVED })).await;
+    assert_eq!(status, reqwest::StatusCode::OK);
+    assert!(
+        started.elapsed().as_secs() < 10,
+        "the list has a timeout: {:?}",
+        started.elapsed()
+    );
+    tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+    assert!(sink.captured.lock().unwrap().is_empty(), "a timed-out query sends no mail");
+
+    server.stop().await;
+    sink.stop();
+    pool.close().await;
+    drop_scratch(&url, db).await;
+}
+
+/// A config the compiler would refuse also refuses to boot, for a hand-written schema.
+#[cfg(feature = "inbound-email")]
+#[tokio::test]
+async fn a_list_the_compiler_would_refuse_refuses_to_boot() {
+    let Some(url) = database_url_or_skip("otp_allow_list_boot") else {
+        return;
+    };
+    set_test_env();
+    let db = "fraiseql_p26_local_allow_boot";
+    let pool = scratch_pool(&url, db).await;
+    let scratch_url = with_database(&url, db);
+
+    for (local, expected) in [
+        (allow_listed("SELECT 1 FROM app_member"), "$email"),
+        (
+            LocalAuthConfig {
+                otp: false,
+                mfa: true,
+                ..allow_listed(MEMBERS_QUERY)
+            },
+            "otp is not enabled",
+        ),
+    ] {
+        let adapter =
+            Arc::new(PostgresAdapter::new(&scratch_url).await.expect("PostgresAdapter::new"));
+        let err = Box::pin(Server::new(
+            local_config(&scratch_url),
+            local_schema(local),
+            adapter,
+            Some(pool.clone()),
+        ))
+        .await
+        .err()
+        .unwrap_or_else(|| panic!("this list must refuse to boot: {expected}"));
+        let message = err.to_string();
+        assert!(
+            message.contains("otp_allowed_query") && message.contains(expected),
+            "the refusal must name the key and the problem: {message}"
+        );
+    }
+
+    pool.close().await;
+    drop_scratch(&url, db).await;
+}
