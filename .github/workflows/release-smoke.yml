@@ -567,10 +567,15 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-    # Generous: this job POLLS for the -full asset, which release.yml's build-binaries
-    # job produces in parallel (V8 + two binaries — tens of minutes), then downloads
-    # and boots it. It exits as soon as the asset appears (typically well under the cap).
-    timeout-minutes: 90
+    # This job POLLS for the -full asset, which release.yml uploads once
+    # validate-release, create-github-release and the x86_64-unknown-linux-gnu
+    # build-binaries job have run; then it downloads and boots it, in about a minute.
+    # The asset appeared 39.1, 51.0, 60.8, 45.6 and 53.4 min after the poll began on
+    # v2.15.0-v2.18.0, then 87.9 on v2.19.0, the first cut whose validate-release
+    # verify-builds every crate (35.5 min, against ~3 before c2725a0fb). The ~80-min
+    # wait cancelled that one 7 min early (#1890; #1903 tracks the delay). The wait
+    # loop allows 87.9 ×1.3 = 115 min; this cap leaves 10 more for the download and boot.
+    timeout-minutes: 125
     services:
       postgres:
         image: postgres:18
@@ -616,7 +621,7 @@ jobs:
           set -eu
           TAG="${GITHUB_REF_NAME}"
           echo "Waiting for $ASSET on release $TAG (release.yml builds it in parallel)..."
-          for i in $(seq 1 120); do
+          for i in $(seq 1 173); do
             if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets \
                  --jq '.assets[].name' 2>/dev/null | grep -qx "$ASSET"; then
               echo "Asset present after ~$((i * 40))s."
@@ -626,7 +631,7 @@ jobs:
             fi
             sleep 40
           done
-          echo "::error::$ASSET never appeared on release $TAG within ~80min — the -full build failed or did not upload." >&2
+          echo "::error::$ASSET never appeared on release $TAG within ~115min — the -full build failed or did not upload." >&2
           exit 1
 
       - name: Extract and assert BOTH binaries are present (#643)
