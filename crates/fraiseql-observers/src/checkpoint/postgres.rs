@@ -38,7 +38,7 @@ impl CheckpointStore for PostgresCheckpointStore {
         let record = sqlx::query_as::<_, (String, i64, chrono::DateTime<Utc>, i32, i32)>(
             r"
             SELECT listener_id, last_processed_id, last_processed_at, batch_size, event_count
-            FROM observer_checkpoints
+            FROM core.observer_checkpoints
             WHERE listener_id = $1
             ",
         )
@@ -66,7 +66,7 @@ impl CheckpointStore for PostgresCheckpointStore {
         #[allow(clippy::cast_possible_wrap)] // Reason: checkpoint sequence numbers are positive and won't exceed i64::MAX
         sqlx::query(
             r"
-            INSERT INTO observer_checkpoints
+            INSERT INTO core.observer_checkpoints
                 (listener_id, last_processed_id, last_processed_at, batch_size, event_count, updated_at)
             VALUES ($1, $2, $3, $4, $5, NOW())
             ON CONFLICT (listener_id)
@@ -98,7 +98,7 @@ impl CheckpointStore for PostgresCheckpointStore {
         // Fast path: update an existing row atomically.
         let result = sqlx::query(
             r"
-            UPDATE observer_checkpoints
+            UPDATE core.observer_checkpoints
             SET last_processed_id = $3, updated_at = NOW()
             WHERE listener_id = $1 AND last_processed_id = $2
             ",
@@ -119,7 +119,7 @@ impl CheckpointStore for PostgresCheckpointStore {
         if expected_id == 0 {
             let inserted = sqlx::query(
                 r"
-                INSERT INTO observer_checkpoints
+                INSERT INTO core.observer_checkpoints
                     (listener_id, last_processed_id, last_processed_at, batch_size, event_count, updated_at)
                 VALUES ($1, $2, NOW(), 0, 0, NOW())
                 ON CONFLICT (listener_id) DO NOTHING
@@ -137,7 +137,7 @@ impl CheckpointStore for PostgresCheckpointStore {
     }
 
     async fn delete(&self, listener_id: &str) -> Result<()> {
-        sqlx::query("DELETE FROM observer_checkpoints WHERE listener_id = $1")
+        sqlx::query("DELETE FROM core.observer_checkpoints WHERE listener_id = $1")
             .bind(listener_id)
             .execute(&self.pool)
             .await?;

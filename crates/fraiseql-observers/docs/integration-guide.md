@@ -106,7 +106,7 @@ EOF
 cargo run --features checkpoint
 
 # 3. Check checkpoint saved
-psql $DATABASE_URL -c "SELECT * FROM observer_checkpoints;"
+psql $DATABASE_URL -c "SELECT * FROM core.observer_checkpoints;"
 
 # 4. Verify recovery
 # Restart and verify event not reprocessed
@@ -115,7 +115,7 @@ psql $DATABASE_URL -c "SELECT * FROM observer_checkpoints;"
 **Expected Output**:
 
 ```
-observer_checkpoints:
+core.observer_checkpoints:
  listener_id | last_processed_id | last_processed_at
 -------------+-------------------+-------------------------------
  orders      |               100 | 2026-01-22 12:00:00+00

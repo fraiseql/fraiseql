@@ -20,7 +20,7 @@ The observer runtime is compiled into `fraiseql-server` by Cargo features:
 
 Configuration lives in `fraiseql.toml`. `[observers]` is shared with the compiler
 (`enabled`, `backend`, `nats_url`; `[[observers.handlers]]` is refused, since observers
-come from `tb_observer`). `backend` selects the event transport: `"postgres"` (the
+come from `core.tb_observer`). `backend` selects the event transport: `"postgres"` (the
 default) or `"nats"`, with `nats_url` as the broker URL. `backend = "redis"` and
 `redis_url` are refused at compile: the runtime has no Redis transport. The compiler reads it in both workflows: from a TOML
 schema, and from the `fraiseql.toml` beside an SDK's `schema.json`. A `schema.json` that
@@ -32,12 +32,42 @@ sub-tables `[observers.runtime.transport]`, `[observers.runtime.email]`,
 `[observers.runtime.pool]` and `[observers.runtime.redis]`. `[observers.runtime]`
 rejects unknown keys, so a typo stops the server at boot instead of being ignored.
 
-Each replica loads `tb_observer` at start. With `auto_reload = true` (the default) it
+Each replica loads `core.tb_observer` at start. With `auto_reload = true` (the default) it
 reloads every `reload_interval_secs` (default 60), so an observer created, edited or
 disabled through any replica's admin API takes effect on every replica within one
 interval. `POST /api/observers/runtime/reload` applies it at once, but only on the
 replica that serves the request. With `auto_reload = false`, that endpoint is the only
 way to reload. `reload_interval_secs = 0` with `auto_reload = true` is refused at boot.
+An enabled runtime that loads no observers logs a warning, at start and on every reload
+that still finds none.
+
+### Where the tables live
+
+The runtime's tables live in `core`, beside the change log: `core.tb_observer`,
+`core.tb_observer_log`, `core.vw_observer_stats`, `core.observer_checkpoints` and
+`core.tb_observer_dispatch`. Boot provisioning and every query name the schema, so the
+connection's `search_path` does not decide which table is read (#1893).
+
+Earlier releases created `tb_observer` and `observer_checkpoints` unqualified, in
+whichever schema came first on that deployment's `search_path`, usually `public`. If
+such a table still holds rows while its `core` counterpart is empty, the server refuses
+to start and prints the statements that move it into `core`. Run them, then restart:
+
+```sql
+BEGIN;
+DROP TABLE IF EXISTS core.tb_observer_log, core.tb_observer CASCADE;  -- empty, created by boot
+ALTER TABLE public.tb_observer SET SCHEMA core;
+ALTER TABLE IF EXISTS public.tb_observer_log SET SCHEMA core;
+COMMIT;
+BEGIN;
+DROP TABLE IF EXISTS core.observer_checkpoints_history, core.observer_checkpoints CASCADE;
+ALTER TABLE public.observer_checkpoints SET SCHEMA core;
+ALTER TABLE IF EXISTS public.observer_checkpoints_history SET SCHEMA core;
+COMMIT;
+```
+
+The next boot recreates the stats view, the helper functions and the triggers in `core`.
+The old `public` view and functions are no longer used and can be dropped.
 
 The compiled schema decides whether the runtime runs: `fraiseql.toml [observers] enabled`
 compiles into its `observers_config`, and `fraiseql run` and `fraiseql-server` both read it
@@ -162,7 +192,7 @@ curl -H "Authorization: Bearer $ADMIN_TOKEN" \
 
 ## Checkpoints
 
-With the PostgreSQL transport the runtime keeps its cursor in `observer_checkpoints`
+With the PostgreSQL transport the runtime keeps its cursor in `core.observer_checkpoints`
 under the listener id `change_log`. It reads the cursor once at start and writes it
 after every dispatched batch, so a running server overwrites any value set through
 `PUT /api/observers/checkpoint/change_log`.

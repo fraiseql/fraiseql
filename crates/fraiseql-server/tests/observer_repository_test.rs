@@ -44,7 +44,7 @@ async fn setup_pg() -> (PgPool, fraiseql_test_support::Service) {
     let pool = sqlx::PgPool::connect(svc.url()).await.unwrap();
     setup_observer_schema(&pool).await.unwrap();
     sqlx::query(
-        "TRUNCATE tb_observer_log, tb_observer, observer_checkpoints, core.tb_entity_change_log \
+        "TRUNCATE core.tb_observer_log, core.tb_observer, core.observer_checkpoints, core.tb_entity_change_log \
          RESTART IDENTITY CASCADE",
     )
     .execute(&pool)
@@ -66,7 +66,7 @@ async fn insert_observer(
     org_id: Option<i64>,
 ) -> i64 {
     let row: (i64,) = sqlx::query_as(
-        r"INSERT INTO tb_observer
+        r"INSERT INTO core.tb_observer
             (name, entity_type, event_type, actions, fk_customer_org)
           VALUES ($1, $2, $3, '[]', $4)
           RETURNING pk_observer",
@@ -86,7 +86,7 @@ async fn insert_log(pool: &PgPool, pk_observer: i64, status: &str, trace_id: Opt
     let event_id = Uuid::new_v4();
     let entity_id = Uuid::new_v4();
     sqlx::query(
-        r"INSERT INTO tb_observer_log
+        r"INSERT INTO core.tb_observer_log
             (fk_observer, event_id, entity_type, entity_id, event_type, status, trace_id)
           VALUES ($1, $2, 'TestEntity', $3, 'INSERT', $4, $5)",
     )
@@ -249,11 +249,12 @@ async fn test_list_logs_filters() {
     // so a status no deployment could ever hold is rejected here too.
     insert_log(&pool, pk, "failed", None).await;
 
-    let obs_uuid: (Uuid,) = sqlx::query_as("SELECT id FROM tb_observer WHERE pk_observer = $1")
-        .bind(pk)
-        .fetch_one(&pool)
-        .await
-        .unwrap();
+    let obs_uuid: (Uuid,) =
+        sqlx::query_as("SELECT id FROM core.tb_observer WHERE pk_observer = $1")
+            .bind(pk)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
 
     let repo = ObserverRepository::new(pool);
 
@@ -321,7 +322,7 @@ async fn test_delete_tenant_isolation() {
     insert_observer(&pool, &format!("del-org1-{id}"), "Thing", "INSERT", Some(1)).await;
     insert_observer(&pool, &format!("del-org2-{id}"), "Thing", "INSERT", Some(2)).await;
 
-    let (uuid_org2,): (Uuid,) = sqlx::query_as("SELECT id FROM tb_observer WHERE name = $1")
+    let (uuid_org2,): (Uuid,) = sqlx::query_as("SELECT id FROM core.tb_observer WHERE name = $1")
         .bind(format!("del-org2-{id}"))
         .fetch_one(&pool)
         .await
@@ -335,7 +336,7 @@ async fn test_delete_tenant_isolation() {
 
     // The row must still be alive
     let still_there: Option<(Uuid,)> =
-        sqlx::query_as("SELECT id FROM tb_observer WHERE name = $1 AND deleted_at IS NULL")
+        sqlx::query_as("SELECT id FROM core.tb_observer WHERE name = $1 AND deleted_at IS NULL")
             .bind(format!("del-org2-{id}"))
             .fetch_optional(&pool)
             .await
@@ -348,7 +349,7 @@ async fn test_delete_tenant_isolation() {
 // ---------------------------------------------------------------------------
 
 /// Start a runtime with a 1-second reload interval and `auto_reload` as given, over
-/// an empty `tb_observer`; then insert one observer behind its back and return how
+/// an empty `core.tb_observer`; then insert one observer behind its back and return how
 /// many observers it has loaded 3 seconds later.
 async fn observers_loaded_after_an_insert(auto_reload: bool) -> usize {
     use fraiseql_server::observers::runtime::{ObserverRuntime, ObserverRuntimeConfig};
@@ -385,4 +386,296 @@ async fn auto_reload_false_never_reloads() {
         0,
         "with auto_reload off, only an explicit reload loads new observers"
     );
+}
+
+// ---------------------------------------------------------------------------
+// #1893: the observer tables have one home, `core`, whatever the search_path
+// ---------------------------------------------------------------------------
+
+/// A schema an application puts first on its `search_path`.
+const APP_FIRST: &str = "app_first_1893";
+
+/// The DDL the server provisions the observer tables with at boot
+/// (`capabilities/observers.rs`), applied through `pool`.
+async fn apply_boot_ddl(pool: &PgPool) {
+    for migration in [
+        fraiseql_observers::migrations::observer_management_sql(),
+        fraiseql_observers::migrations::observer_dispatch_sql(),
+        fraiseql_observers::checkpoint::migration_sql(),
+    ] {
+        sqlx::raw_sql(migration).execute(pool).await.unwrap();
+    }
+}
+
+/// A pool on the same database whose every connection resolves names through
+/// `search_path`.
+async fn pool_with_search_path(svc: &fraiseql_test_support::Service, search_path: &str) -> PgPool {
+    let options: sqlx::postgres::PgConnectOptions = svc.url().parse().unwrap();
+    sqlx::postgres::PgPoolOptions::new()
+        .max_connections(2)
+        .connect_with(options.options([("search_path", search_path)]))
+        .await
+        .unwrap()
+}
+
+/// Install the observer tables in `core`, as an application that ships them with
+/// the rest of its schema does, and empty them. Returns that pool.
+async fn observer_tables_in_core(svc: &fraiseql_test_support::Service) -> PgPool {
+    let core_first = pool_with_search_path(svc, "core").await;
+    apply_boot_ddl(&core_first).await;
+    sqlx::query(
+        "TRUNCATE core.tb_observer_log, core.tb_observer, core.observer_checkpoints \
+         RESTART IDENTITY CASCADE",
+    )
+    .execute(&core_first)
+    .await
+    .unwrap();
+    core_first
+}
+
+async fn reset_app_first_schema(pool: &PgPool) {
+    sqlx::raw_sql(&format!("DROP SCHEMA IF EXISTS {APP_FIRST} CASCADE; CREATE SCHEMA {APP_FIRST}"))
+        .execute(pool)
+        .await
+        .unwrap();
+}
+
+async fn start_runtime_and_count(pool: &PgPool) -> Result<usize, fraiseql_server::ServerError> {
+    use fraiseql_server::observers::runtime::{ObserverRuntime, ObserverRuntimeConfig};
+
+    let mut runtime = ObserverRuntime::new(ObserverRuntimeConfig::new(pool.clone()));
+    runtime.start().await?;
+    let loaded = runtime.health().observer_count;
+    runtime.stop().await.expect("the observer runtime stops");
+    Ok(loaded)
+}
+
+#[tokio::test]
+async fn observers_in_core_load_when_the_search_path_starts_with_another_schema() {
+    let (pool, svc) = setup_pg().await;
+    reset_app_first_schema(&pool).await;
+    let core_first = observer_tables_in_core(&svc).await;
+    sqlx::query(
+        "INSERT INTO core.tb_observer (name, entity_type, event_type, actions) \
+         VALUES ('lives-in-core', 'Order', 'INSERT', '[]')",
+    )
+    .execute(&core_first)
+    .await
+    .unwrap();
+
+    // The server boots on a database whose search_path puts an application schema
+    // first: it provisions its tables, then loads.
+    let app_first = pool_with_search_path(&svc, &format!("{APP_FIRST},core,public")).await;
+    apply_boot_ddl(&app_first).await;
+    let loaded = start_runtime_and_count(&app_first).await.expect("the runtime starts");
+
+    let shadows: Vec<(String,)> = sqlx::query_as(
+        "SELECT c.relname::text FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace \
+         WHERE n.nspname = $1 ORDER BY 1",
+    )
+    .bind(APP_FIRST)
+    .fetch_all(&pool)
+    .await
+    .unwrap();
+    reset_app_first_schema(&pool).await;
+
+    assert_eq!(loaded, 1, "the enabled observer in core.tb_observer must load");
+    assert!(shadows.is_empty(), "boot must create nothing in {APP_FIRST}: {shadows:?}");
+}
+
+#[tokio::test]
+async fn an_observer_created_through_the_repository_lands_in_core() {
+    let (pool, svc) = setup_pg().await;
+    reset_app_first_schema(&pool).await;
+    let core_first = observer_tables_in_core(&svc).await;
+    let app_first = pool_with_search_path(&svc, &format!("{APP_FIRST},core,public")).await;
+    apply_boot_ddl(&app_first).await;
+
+    let request: fraiseql_server::observers::CreateObserverRequest =
+        serde_json::from_value(serde_json::json!({
+            "name": "created-through-the-api",
+            "entity_type": "Order",
+            "event_type": "INSERT",
+            "actions": [],
+        }))
+        .unwrap();
+    ObserverRepository::new(app_first.clone())
+        .create(&request, ObserverScope::Operator, None)
+        .await
+        .expect("the repository creates the observer");
+
+    let in_core: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM core.tb_observer")
+        .fetch_one(&core_first)
+        .await
+        .unwrap();
+    reset_app_first_schema(&pool).await;
+
+    assert_eq!(in_core.0, 1, "the created observer must be stored in core.tb_observer");
+}
+
+/// A deployment that ran an earlier release has its observers in `public`. A
+/// release that reads `core` must refuse to start over an empty `core.tb_observer`
+/// rather than run with none, and say how to move them.
+#[tokio::test]
+async fn a_populated_legacy_tb_observer_beside_an_empty_core_one_refuses_to_start() {
+    let (pool, svc) = setup_pg().await;
+    let core_first = observer_tables_in_core(&svc).await;
+    sqlx::raw_sql(
+        "CREATE TABLE IF NOT EXISTS public.tb_observer (LIKE core.tb_observer INCLUDING ALL);
+         INSERT INTO public.tb_observer (name, entity_type, event_type, actions)
+             VALUES ('left-behind', 'Order', 'INSERT', '[]');",
+    )
+    .execute(&core_first)
+    .await
+    .unwrap();
+
+    let message = start_runtime_and_count(&pool)
+        .await
+        .expect_err("an empty core.tb_observer beside a populated legacy one")
+        .to_string();
+    assert!(
+        message.contains("ALTER TABLE public.tb_observer SET SCHEMA core"),
+        "the refusal must name the migration to run: {message}"
+    );
+
+    // The statements it names are the whole migration: run them, boot again.
+    let (_, statements) = message.split_once("restart:\n").expect("the refusal lists statements");
+    sqlx::raw_sql(statements).execute(&pool).await.unwrap();
+    apply_boot_ddl(&pool).await;
+    let loaded = start_runtime_and_count(&pool).await.expect("the runtime starts once moved");
+    assert_eq!(loaded, 1, "the moved observer must load from core.tb_observer");
+}
+
+/// The same for the change-log cursor: a runtime that starts on an empty
+/// `core.observer_checkpoints` while `public.observer_checkpoints` holds this
+/// listener's position would replay the whole change log.
+#[tokio::test]
+async fn a_populated_legacy_checkpoint_table_beside_an_empty_core_one_refuses_to_start() {
+    let (pool, svc) = setup_pg().await;
+    let core_first = observer_tables_in_core(&svc).await;
+    sqlx::query(
+        "INSERT INTO core.tb_observer (name, entity_type, event_type, actions) \
+         VALUES ('lives-in-core', 'Order', 'INSERT', '[]')",
+    )
+    .execute(&core_first)
+    .await
+    .unwrap();
+    sqlx::raw_sql(
+        "CREATE TABLE IF NOT EXISTS public.observer_checkpoints
+             (LIKE core.observer_checkpoints INCLUDING ALL);
+         INSERT INTO public.observer_checkpoints (listener_id, last_processed_id)
+             VALUES ('change_log', 42);",
+    )
+    .execute(&core_first)
+    .await
+    .unwrap();
+
+    let outcome = start_runtime_and_count(&pool).await;
+    sqlx::raw_sql("DROP TABLE IF EXISTS public.observer_checkpoints CASCADE")
+        .execute(&pool)
+        .await
+        .unwrap();
+
+    let message = outcome
+        .expect_err("an empty core cursor beside a populated legacy one")
+        .to_string();
+    assert!(
+        message.contains("ALTER TABLE public.observer_checkpoints SET SCHEMA core"),
+        "the refusal must name the migration to run: {message}"
+    );
+}
+
+/// The earlier boot created its tables in whatever schema came first on that
+/// deployment's `search_path`, which need not be on today's: the check must find
+/// them anywhere outside `core`.
+#[tokio::test]
+async fn a_populated_legacy_tb_observer_off_the_search_path_refuses_to_start() {
+    let (pool, svc) = setup_pg().await;
+    let core_first = observer_tables_in_core(&svc).await;
+    sqlx::raw_sql(
+        "DROP SCHEMA IF EXISTS old_home_1893 CASCADE;
+         CREATE SCHEMA old_home_1893;
+         CREATE TABLE old_home_1893.tb_observer (LIKE core.tb_observer INCLUDING ALL);
+         INSERT INTO old_home_1893.tb_observer (name, entity_type, event_type, actions)
+             VALUES ('left-behind', 'Order', 'INSERT', '[]');",
+    )
+    .execute(&core_first)
+    .await
+    .unwrap();
+
+    let outcome = start_runtime_and_count(&pool).await;
+    sqlx::raw_sql("DROP SCHEMA IF EXISTS old_home_1893 CASCADE")
+        .execute(&pool)
+        .await
+        .unwrap();
+
+    let message = outcome
+        .expect_err("an empty core.tb_observer beside a populated legacy one")
+        .to_string();
+    assert!(
+        message.contains("ALTER TABLE old_home_1893.tb_observer SET SCHEMA core"),
+        "the refusal must name the migration to run: {message}"
+    );
+}
+
+/// Once `core` holds the observers, a copy left elsewhere is not a reason to
+/// refuse: the runtime starts and reads `core`.
+#[tokio::test]
+async fn a_populated_core_tb_observer_starts_whatever_copy_is_left_elsewhere() {
+    let (pool, svc) = setup_pg().await;
+    let core_first = observer_tables_in_core(&svc).await;
+    sqlx::raw_sql(
+        "INSERT INTO core.tb_observer (name, entity_type, event_type, actions)
+             VALUES ('lives-in-core', 'Order', 'INSERT', '[]');
+         CREATE TABLE IF NOT EXISTS public.tb_observer (LIKE core.tb_observer INCLUDING ALL);
+         INSERT INTO public.tb_observer (name, entity_type, event_type, actions)
+             VALUES ('stale-copy', 'Order', 'INSERT', '[]'), ('stale-copy-2', 'Order', 'INSERT', '[]');",
+    )
+    .execute(&core_first)
+    .await
+    .unwrap();
+
+    let outcome = start_runtime_and_count(&pool).await;
+    sqlx::raw_sql("DROP TABLE IF EXISTS public.tb_observer CASCADE")
+        .execute(&pool)
+        .await
+        .unwrap();
+
+    assert_eq!(outcome.expect("a populated core starts"), 1, "only core.tb_observer is read");
+}
+
+/// The runtime's checkpoint store reads and writes `core.observer_checkpoints` on its
+/// load, save, swap and delete paths.
+#[tokio::test]
+async fn the_checkpoint_store_keeps_its_cursor_in_core() {
+    use fraiseql_observers::checkpoint::{
+        CheckpointState, CheckpointStore, PostgresCheckpointStore,
+    };
+
+    let (pool, _svc) = setup_pg().await;
+    let store = PostgresCheckpointStore::new(pool.clone());
+    let in_core = || async {
+        sqlx::query_as::<_, (i64,)>(
+            "SELECT last_processed_id FROM core.observer_checkpoints WHERE listener_id = 'cas'",
+        )
+        .fetch_optional(&pool)
+        .await
+        .unwrap()
+        .map(|(id,)| id)
+    };
+    let state = CheckpointState {
+        listener_id:       "cas".to_string(),
+        last_processed_id: 5,
+        last_processed_at: chrono::Utc::now(),
+        batch_size:        1,
+        event_count:       1,
+    };
+
+    store.save("cas", &state).await.unwrap();
+    assert_eq!(in_core().await, Some(5));
+    assert!(store.compare_and_swap("cas", 5, 7).await.unwrap(), "a current swap updates");
+    assert_eq!(in_core().await, Some(7));
+    assert!(!store.compare_and_swap("cas", 5, 9).await.unwrap(), "a stale swap is refused");
+    store.delete("cas").await.unwrap();
+    assert_eq!(in_core().await, None, "delete resets the listener");
 }

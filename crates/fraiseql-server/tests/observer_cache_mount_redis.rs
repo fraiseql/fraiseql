@@ -53,22 +53,22 @@ fn redis_config() -> RedisConfig {
 
 /// Drop any `cache` observer this suite left behind (P03 fixture ownership).
 ///
-/// `tb_observer` is shared and `load_observers` loads every enabled row, so a
+/// `core.tb_observer` is shared and `load_observers` loads every enabled row, so a
 /// leftover from an earlier aborted run would make the "no cache action" case
 /// see one. This suite owns the `cache-obs-`/`cache-noredis-` name prefixes and
 /// clears only those — never another suite's rows.
 async fn clear_suite_observers(pool: &PgPool) {
     const OWNED: &str = "name LIKE 'cache-obs-%' OR name LIKE 'cache-noredis-%'";
-    // `tb_observer_log.fk_observer` references `tb_observer`, so the audit rows
+    // `core.tb_observer_log.fk_observer` references `core.tb_observer`, so the audit rows
     // go first — the delete is otherwise refused by the constraint.
     sqlx::query(&format!(
-        "DELETE FROM tb_observer_log WHERE fk_observer IN \
-         (SELECT pk_observer FROM tb_observer WHERE {OWNED})"
+        "DELETE FROM core.tb_observer_log WHERE fk_observer IN \
+         (SELECT pk_observer FROM core.tb_observer WHERE {OWNED})"
     ))
     .execute(pool)
     .await
     .unwrap();
-    sqlx::query(&format!("DELETE FROM tb_observer WHERE {OWNED}"))
+    sqlx::query(&format!("DELETE FROM core.tb_observer WHERE {OWNED}"))
         .execute(pool)
         .await
         .unwrap();
@@ -83,7 +83,7 @@ async fn create_cache_observer(
 ) -> i64 {
     let actions = json!([{ "type": "cache", "key_pattern": key_pattern, "action": "invalidate" }]);
     let row: (i64,) = sqlx::query_as(
-        r"INSERT INTO tb_observer (name, entity_type, event_type, actions, enabled)
+        r"INSERT INTO core.tb_observer (name, entity_type, event_type, actions, enabled)
           VALUES ($1, $2, 'INSERT', $3, true)
           RETURNING pk_observer",
     )

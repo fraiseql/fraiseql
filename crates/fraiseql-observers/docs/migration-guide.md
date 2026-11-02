@@ -42,7 +42,7 @@ The server refuses keys and variables it does not run, rather than ignoring them
 
 ```bash
 # 1. Verify checkpoint saved
-psql $DATABASE_URL -c "SELECT * FROM observer_checkpoints LIMIT 5;"
+psql $DATABASE_URL -c "SELECT * FROM core.observer_checkpoints LIMIT 5;"
 
 # 2. Test recovery: restart fraiseql-server, verify no re-processing.
 #    On start its log shows "Restored observer change-log checkpoint; resuming (no replay)"
@@ -63,7 +63,7 @@ curl -s -H "Authorization: Bearer $METRICS_TOKEN" \
 curl -s -H "Authorization: Bearer $ADMIN_TOKEN" http://localhost:8000/api/observers/dlq/stats
 
 # Saved checkpoints
-psql $DATABASE_URL -c "SELECT listener_id, last_processed_id, updated_at FROM observer_checkpoints;"
+psql $DATABASE_URL -c "SELECT listener_id, last_processed_id, updated_at FROM core.observer_checkpoints;"
 ```
 
 ---

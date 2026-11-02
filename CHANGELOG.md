@@ -43,6 +43,40 @@ disagreed, and the promise was the part that was wrong.
 - **`LocalAuthConfig` has an `otp_allowed_query` field (#1852).** A struct literal naming every
   field needs `otp_allowed_query: None`, or `..LocalAuthConfig::default()`.
 
+- **The observer tables live in `core`, whatever the `search_path` (#1893).** Boot
+  provisioning created `tb_observer`, `tb_observer_log`, `vw_observer_stats`, the observer
+  helper functions and `observer_checkpoints` unqualified, and the runtime and the admin
+  API queried them unqualified. All of these resolved through the connection's
+  `search_path`. On a database whose path put an application schema first, boot created
+  a second, empty `tb_observer` there, and the runtime loaded 0 observers from it without a
+  warning, even though the real ones sat in `core.tb_observer`. Every observer object is
+  now created and queried as `core.<name>`, like `core.tb_entity_change_log` and
+  `core.tb_observer_dispatch`.
+  - **A deployment upgraded from an earlier release has these tables in `public`** (or
+    whichever schema led its path). If such a `tb_observer` or `observer_checkpoints`
+    holds rows while its `core` counterpart is empty, the server refuses to start rather
+    than run with no observers or replay the change log from cursor 0. The error prints
+    the statements that move the tables. For `public` they are:
+
+    ```sql
+    BEGIN;
+    DROP TABLE IF EXISTS core.tb_observer_log, core.tb_observer CASCADE;  -- empty, created by boot
+    ALTER TABLE public.tb_observer SET SCHEMA core;
+    ALTER TABLE IF EXISTS public.tb_observer_log SET SCHEMA core;
+    COMMIT;
+    BEGIN;
+    DROP TABLE IF EXISTS core.observer_checkpoints_history, core.observer_checkpoints CASCADE;
+    ALTER TABLE public.observer_checkpoints SET SCHEMA core;
+    ALTER TABLE IF EXISTS public.observer_checkpoints_history SET SCHEMA core;
+    COMMIT;
+    ```
+
+    The next boot recreates the view, the functions and the triggers in `core`. Grants on
+    the moved tables move with them. Grants on the old `public` view and functions do not:
+    give them again on the `core` ones.
+  - An enabled runtime that loads 0 observers now logs a warning, at start and on every
+    reload that still finds none. Before, that was an info line.
+
 ### Added
 
 - **`[auth.local] otp_allowed_query` restricts `OTP` sign-in to approved addresses (#1852).**

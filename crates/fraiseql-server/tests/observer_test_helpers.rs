@@ -78,9 +78,9 @@ pub async fn setup_observer_schema(pool: &PgPool) -> Result<(), sqlx::Error> {
     //    which must not survive step 2's rebuilt change log: a retained cursor points past its new
     //    pks, and the runtime would skip every new row (#805).
     sqlx::raw_sql(
-        "DROP VIEW IF EXISTS vw_observer_stats;
-         DROP TABLE IF EXISTS tb_observer_log, tb_observer, observer_checkpoints,
-             observer_checkpoints_history CASCADE",
+        "DROP VIEW IF EXISTS core.vw_observer_stats;
+         DROP TABLE IF EXISTS core.tb_observer_log, core.tb_observer, core.observer_checkpoints,
+             core.observer_checkpoints_history CASCADE",
     )
     .execute(pool)
     .await?;
@@ -98,13 +98,13 @@ pub async fn setup_observer_schema(pool: &PgPool) -> Result<(), sqlx::Error> {
 /// Clean up test data for a specific test run
 pub async fn cleanup_test_data(pool: &PgPool, test_id: &str) -> Result<(), sqlx::Error> {
     // Delete in dependency order
-    sqlx::query("DELETE FROM tb_observer_log WHERE event_id::text LIKE $1")
+    sqlx::query("DELETE FROM core.tb_observer_log WHERE event_id::text LIKE $1")
         .bind(format!("%{test_id}%"))
         .execute(pool)
         .await
         .ok();
 
-    sqlx::query("DELETE FROM tb_observer WHERE name LIKE $1")
+    sqlx::query("DELETE FROM core.tb_observer WHERE name LIKE $1")
         .bind(format!("%{test_id}%"))
         .execute(pool)
         .await
@@ -116,7 +116,7 @@ pub async fn cleanup_test_data(pool: &PgPool, test_id: &str) -> Result<(), sqlx:
         .await
         .ok();
 
-    sqlx::query("DELETE FROM observer_checkpoints WHERE listener_id LIKE $1")
+    sqlx::query("DELETE FROM core.observer_checkpoints WHERE listener_id LIKE $1")
         .bind(format!("%{test_id}%"))
         .execute(pool)
         .await
@@ -287,7 +287,7 @@ pub async fn create_test_observer(
 
     let row: (i64,) = sqlx::query_as(
         r"
-        INSERT INTO tb_observer (
+        INSERT INTO core.tb_observer (
             name, entity_type, event_type, condition_expression,
             actions, retry_config, enabled
         )
@@ -453,7 +453,7 @@ pub async fn wait_for_webhook(
 /// returning them ordered by attempt number.
 ///
 /// **Use this instead of reading the log straight after [`wait_for_webhook`].**
-/// `wait_for_webhook` waits for the HTTP call, but the `tb_observer_log` INSERT
+/// `wait_for_webhook` waits for the HTTP call, but the `core.tb_observer_log` INSERT
 /// happens *after* the dispatch returns, so the two are not the same event. A
 /// single read taken the moment the webhook lands is a read-before-write race:
 /// it passes whenever the writer happens to win and fails otherwise, and the
@@ -545,7 +545,7 @@ pub async fn assert_observer_log(
         let row: Option<(String, i32, Option<i32>)> = sqlx::query_as(
             r"
             SELECT status, attempt_number, duration_ms
-            FROM tb_observer_log
+            FROM core.tb_observer_log
             WHERE entity_id = $1::uuid
             ORDER BY created_at DESC
             LIMIT 1
@@ -596,10 +596,11 @@ pub fn assert_webhook_payload(
 
 /// Get count of observer logs with specific status
 pub async fn get_observer_log_count(pool: &PgPool, status: &str) -> Result<i64, sqlx::Error> {
-    let count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM tb_observer_log WHERE status = $1")
-        .bind(status)
-        .fetch_one(pool)
-        .await?;
+    let count: (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM core.tb_observer_log WHERE status = $1")
+            .bind(status)
+            .fetch_one(pool)
+            .await?;
 
     Ok(count.0)
 }
@@ -607,7 +608,7 @@ pub async fn get_observer_log_count(pool: &PgPool, status: &str) -> Result<i64, 
 /// Get count of observer logs with a specific status for ONE entity.
 ///
 /// The unscoped [`get_observer_log_count`] counts every row in
-/// `tb_observer_log`, which in a shared test database includes ambient rows
+/// `core.tb_observer_log`, which in a shared test database includes ambient rows
 /// from earlier tests — an exact-count assertion against it measures history,
 /// not this test (#928).
 pub async fn get_observer_log_count_for_entity(
@@ -616,7 +617,7 @@ pub async fn get_observer_log_count_for_entity(
     status: &str,
 ) -> Result<i64, sqlx::Error> {
     let count: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM tb_observer_log WHERE status = $1 AND entity_id = $2::uuid",
+        "SELECT COUNT(*) FROM core.tb_observer_log WHERE status = $1 AND entity_id = $2::uuid",
     )
     .bind(status)
     .bind(entity_id)
@@ -626,7 +627,7 @@ pub async fn get_observer_log_count_for_entity(
     Ok(count.0)
 }
 
-/// Per-action audit columns of a `tb_observer_log` row (#468).
+/// Per-action audit columns of a `core.tb_observer_log` row (#468).
 #[derive(Debug, Clone)]
 pub struct ObserverLogAudit {
     pub status:               String,
@@ -655,7 +656,7 @@ pub async fn get_observer_log_audit(
         r"
         SELECT status, action_index, action_type, response_status_code,
                response_payload, request_payload, duration_ms
-        FROM tb_observer_log
+        FROM core.tb_observer_log
         WHERE entity_id = $1::uuid
         ORDER BY created_at DESC
         LIMIT 1
@@ -694,7 +695,7 @@ pub async fn get_observer_logs_for_entity(
     sqlx::query_as(
         r"
         SELECT status, attempt_number, duration_ms
-        FROM tb_observer_log
+        FROM core.tb_observer_log
         WHERE entity_id = $1::uuid
         ORDER BY attempt_number ASC
         ",
@@ -710,7 +711,7 @@ pub async fn check_checkpoint_exists(
     listener_id: &str,
 ) -> Result<bool, sqlx::Error> {
     let row: Option<(i64,)> =
-        sqlx::query_as("SELECT COUNT(*) FROM observer_checkpoints WHERE listener_id = $1")
+        sqlx::query_as("SELECT COUNT(*) FROM core.observer_checkpoints WHERE listener_id = $1")
             .bind(listener_id)
             .fetch_optional(pool)
             .await?;
@@ -720,11 +721,12 @@ pub async fn check_checkpoint_exists(
 
 /// Get checkpoint value (last processed ID) for a listener
 pub async fn get_checkpoint_value(pool: &PgPool, listener_id: &str) -> Result<i64, sqlx::Error> {
-    let row: Option<(i64,)> =
-        sqlx::query_as("SELECT last_processed_id FROM observer_checkpoints WHERE listener_id = $1")
-            .bind(listener_id)
-            .fetch_optional(pool)
-            .await?;
+    let row: Option<(i64,)> = sqlx::query_as(
+        "SELECT last_processed_id FROM core.observer_checkpoints WHERE listener_id = $1",
+    )
+    .bind(listener_id)
+    .fetch_optional(pool)
+    .await?;
 
     Ok(row.map_or(0, |(id,)| id))
 }

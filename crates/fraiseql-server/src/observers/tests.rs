@@ -132,7 +132,7 @@ mod repository_tests {
     fn test_list_entity_type_not_inlined() {
         let malicious = "' OR '1'='1";
         let mut qb: sqlx::QueryBuilder<sqlx::Postgres> =
-            sqlx::QueryBuilder::new("SELECT COUNT(*) AS count FROM tb_observer WHERE 1=1");
+            sqlx::QueryBuilder::new("SELECT COUNT(*) AS count FROM core.tb_observer WHERE 1=1");
         qb.push(" AND entity_type = ").push_bind(malicious);
         let sql = qb.sql();
         assert!(!sql.contains(malicious), "user input must not appear in SQL string");
@@ -143,7 +143,7 @@ mod repository_tests {
     fn test_list_event_type_not_inlined() {
         let malicious = "'; DROP TABLE tb_observer; --";
         let mut qb: sqlx::QueryBuilder<sqlx::Postgres> =
-            sqlx::QueryBuilder::new("SELECT COUNT(*) AS count FROM tb_observer WHERE 1=1");
+            sqlx::QueryBuilder::new("SELECT COUNT(*) AS count FROM core.tb_observer WHERE 1=1");
         qb.push(" AND event_type = ").push_bind(malicious);
         let sql = qb.sql();
         assert!(!sql.contains(malicious));
@@ -154,7 +154,7 @@ mod repository_tests {
     fn test_list_logs_status_not_inlined() {
         let malicious = "' UNION SELECT * FROM secrets --";
         let mut qb: sqlx::QueryBuilder<sqlx::Postgres> =
-            sqlx::QueryBuilder::new("SELECT COUNT(*) FROM tb_observer_log WHERE 1=1");
+            sqlx::QueryBuilder::new("SELECT COUNT(*) FROM core.tb_observer_log WHERE 1=1");
         qb.push(" AND status = ").push_bind(malicious);
         let sql = qb.sql();
         assert!(!sql.contains(malicious));
@@ -165,7 +165,7 @@ mod repository_tests {
     fn test_list_logs_trace_id_not_inlined() {
         let malicious = "x' OR fk_customer_org IS NOT NULL--";
         let mut qb: sqlx::QueryBuilder<sqlx::Postgres> =
-            sqlx::QueryBuilder::new("SELECT COUNT(*) FROM tb_observer_log WHERE 1=1");
+            sqlx::QueryBuilder::new("SELECT COUNT(*) FROM core.tb_observer_log WHERE 1=1");
         qb.push(" AND trace_id = ").push_bind(malicious);
         let sql = qb.sql();
         assert!(!sql.contains(malicious));
@@ -175,7 +175,7 @@ mod repository_tests {
     #[test]
     fn test_list_no_filters_produces_minimal_sql() {
         let qb: sqlx::QueryBuilder<sqlx::Postgres> =
-            sqlx::QueryBuilder::new("SELECT COUNT(*) AS count FROM tb_observer WHERE 1=1");
+            sqlx::QueryBuilder::new("SELECT COUNT(*) AS count FROM core.tb_observer WHERE 1=1");
         let sql = qb.sql();
         assert!(!sql.contains("entity_type"));
         assert!(!sql.contains("event_type"));
@@ -187,7 +187,7 @@ mod repository_tests {
     #[test]
     fn test_list_exclude_deleted_adds_condition() {
         let mut qb: sqlx::QueryBuilder<sqlx::Postgres> =
-            sqlx::QueryBuilder::new("SELECT COUNT(*) AS count FROM tb_observer WHERE 1=1");
+            sqlx::QueryBuilder::new("SELECT COUNT(*) AS count FROM core.tb_observer WHERE 1=1");
         qb.push(" AND deleted_at IS NULL");
         let sql = qb.sql();
         assert!(sql.contains("deleted_at IS NULL"));
@@ -197,8 +197,8 @@ mod repository_tests {
     fn test_list_logs_observer_id_uses_placeholder() {
         let observer_id = uuid::Uuid::new_v4();
         let mut qb: sqlx::QueryBuilder<sqlx::Postgres> =
-            sqlx::QueryBuilder::new("SELECT COUNT(*) FROM tb_observer_log WHERE 1=1");
-        qb.push(" AND fk_observer = (SELECT pk_observer FROM tb_observer WHERE id = ")
+            sqlx::QueryBuilder::new("SELECT COUNT(*) FROM core.tb_observer_log WHERE 1=1");
+        qb.push(" AND fk_observer = (SELECT pk_observer FROM core.tb_observer WHERE id = ")
             .push_bind(observer_id)
             .push(")");
         let sql = qb.sql();
@@ -209,7 +209,7 @@ mod repository_tests {
     #[test]
     fn test_multiple_filters_use_sequential_placeholders() {
         let mut qb: sqlx::QueryBuilder<sqlx::Postgres> =
-            sqlx::QueryBuilder::new("SELECT COUNT(*) AS count FROM tb_observer WHERE 1=1");
+            sqlx::QueryBuilder::new("SELECT COUNT(*) AS count FROM core.tb_observer WHERE 1=1");
         qb.push(" AND entity_type = ").push_bind("Order");
         qb.push(" AND event_type = ").push_bind("INSERT");
         qb.push(" AND enabled = ").push_bind(true);

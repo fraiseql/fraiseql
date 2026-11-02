@@ -140,7 +140,7 @@ running runtime overwrites the checkpoint after every batch), then clear both:
 
 ```sql
 DELETE FROM core.tb_observer_dispatch WHERE listener_id = 'change_log';
-DELETE FROM observer_checkpoints WHERE listener_id = 'change_log';
+DELETE FROM core.observer_checkpoints WHERE listener_id = 'change_log';
 ```
 
 On restart every action runs again for every row, with the same event ids, so an idempotent

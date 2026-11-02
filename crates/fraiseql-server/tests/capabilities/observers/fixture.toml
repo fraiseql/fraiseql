@@ -8,7 +8,7 @@ FRAISEQL_ENV = "development"
 FRAISEQL_OBSERVERS_ALLOW_INSECURE = "true"
 
 [[stimulus]]
-sql = { statement = "INSERT INTO tb_observer (name, entity_type, event_type, actions) VALUES ('notify_orders', 'Order', 'INSERT', '[{\"type\": \"webhook\", \"url\": \"$RECEIVER_URL/orders\", \"method\": \"POST\"}]')" }
+sql = { statement = "INSERT INTO core.tb_observer (name, entity_type, event_type, actions) VALUES ('notify_orders', 'Order', 'INSERT', '[{\"type\": \"webhook\", \"url\": \"$RECEIVER_URL/orders\", \"method\": \"POST\"}]')" }
 
 # One reload interval, so the runtime has read the new observer.
 [[stimulus]]

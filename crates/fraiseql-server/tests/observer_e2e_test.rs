@@ -293,7 +293,7 @@ async fn test_multiple_observers_single_event() {
     assert_eq!(mock_server_1.request_count().await, 1, "Observer 1 should fire once");
     assert_eq!(mock_server_2.request_count().await, 1, "Observer 2 should fire once");
 
-    // Verify tb_observer_log has 2 success entries for THIS entity
+    // Verify core.tb_observer_log has 2 success entries for THIS entity
     let success_count = get_observer_log_count_for_entity(&pool, &order_id.to_string(), "success")
         .await
         .expect("Failed to query observer logs");
@@ -353,7 +353,7 @@ async fn test_observer_retry_exponential_backoff() {
     // With exponential backoff: 100ms + 200ms + 300ms = 600ms minimum, plus processing
     wait_for_webhook(&mock_server, 1, Duration::from_secs(15)).await;
 
-    // Verify retry attempts in tb_observer_log.
+    // Verify retry attempts in core.tb_observer_log.
     //
     // Waits for the success row rather than reading once: the webhook landing
     // and the log INSERT are different events, and on a retried dispatch the

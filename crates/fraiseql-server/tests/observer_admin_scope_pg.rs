@@ -56,7 +56,7 @@ async fn setup_pg() -> (PgPool, fraiseql_test_support::Service) {
     let pool = PgPool::connect(svc.url()).await.unwrap();
     setup_observer_schema(&pool).await.unwrap();
     sqlx::query(
-        "TRUNCATE tb_observer_log, tb_observer, observer_checkpoints, core.tb_entity_change_log \
+        "TRUNCATE core.tb_observer_log, core.tb_observer, core.observer_checkpoints, core.tb_entity_change_log \
          RESTART IDENTITY CASCADE",
     )
     .execute(&pool)
@@ -135,7 +135,7 @@ async fn call(
 
 async fn insert_observer(pool: &PgPool, name: &str, org: Option<i64>) -> (i64, Uuid) {
     sqlx::query_as(
-        "INSERT INTO tb_observer (name, entity_type, event_type, actions, fk_customer_org)
+        "INSERT INTO core.tb_observer (name, entity_type, event_type, actions, fk_customer_org)
          VALUES ($1, 'Order', 'INSERT', '[]', $2)
          RETURNING pk_observer, id",
     )
@@ -150,7 +150,7 @@ async fn insert_observer(pool: &PgPool, name: &str, org: Option<i64>) -> (i64, U
 async fn insert_log(pool: &PgPool, pk_observer: i64) -> Uuid {
     let event_id = Uuid::new_v4();
     sqlx::query(
-        "INSERT INTO tb_observer_log
+        "INSERT INTO core.tb_observer_log
             (fk_observer, event_id, entity_type, entity_id, event_type, status)
          VALUES ($1, $2, 'Order', $3, 'INSERT', 'success')",
     )
@@ -165,7 +165,7 @@ async fn insert_log(pool: &PgPool, pk_observer: i64) -> Uuid {
 
 async fn is_live(pool: &PgPool, id: Uuid) -> bool {
     let (live,): (bool,) =
-        sqlx::query_as("SELECT deleted_at IS NULL FROM tb_observer WHERE id = $1")
+        sqlx::query_as("SELECT deleted_at IS NULL FROM core.tb_observer WHERE id = $1")
             .bind(id)
             .fetch_one(pool)
             .await
@@ -174,7 +174,7 @@ async fn is_live(pool: &PgPool, id: Uuid) -> bool {
 }
 
 async fn is_enabled(pool: &PgPool, id: Uuid) -> bool {
-    let (enabled,): (bool,) = sqlx::query_as("SELECT enabled FROM tb_observer WHERE id = $1")
+    let (enabled,): (bool,) = sqlx::query_as("SELECT enabled FROM core.tb_observer WHERE id = $1")
         .bind(id)
         .fetch_one(pool)
         .await
@@ -269,7 +269,7 @@ mod another_organisations_observer {
     async fn cannot_be_enabled() {
         let (pool, _svc) = setup_pg().await;
         let (_, theirs) = insert_observer(&pool, "theirs", Some(ORG_B)).await;
-        sqlx::query("UPDATE tb_observer SET enabled = false WHERE id = $1")
+        sqlx::query("UPDATE core.tb_observer SET enabled = false WHERE id = $1")
             .bind(theirs)
             .execute(&pool)
             .await
@@ -480,6 +480,26 @@ mod the_operator {
 
         assert_eq!(status, StatusCode::OK);
     }
+
+    /// The checkpoint the API reads is the one in `core.observer_checkpoints`.
+    #[tokio::test]
+    async fn reads_a_checkpoint() {
+        let (pool, _svc) = setup_pg().await;
+        sqlx::query(
+            "INSERT INTO core.observer_checkpoints (listener_id, last_processed_id) \
+             VALUES ('consumer', 9)",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+
+        let (status, body) =
+            call(&pool, Caller::Operator, Method::GET, "/api/observers/checkpoint/consumer", None)
+                .await;
+
+        assert_eq!(status, StatusCode::OK, "{body}");
+        assert_eq!(body["last_cursor"], 9, "{body}");
+    }
 }
 
 mod an_organisation {
@@ -551,7 +571,7 @@ mod an_organisation {
             let (status, _) = call(&pool, Caller::Org(ORG_A), method.clone(), uri, body).await;
             assert_eq!(status, StatusCode::FORBIDDEN, "{method} {uri}");
         }
-        let (count,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM observer_checkpoints")
+        let (count,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM core.observer_checkpoints")
             .fetch_one(&pool)
             .await
             .unwrap();
@@ -582,7 +602,7 @@ mod a_tenant_that_is_not_an_organisation_id {
 #[tokio::test]
 async fn a_database_error_is_not_echoed_to_the_caller() {
     let (pool, _svc) = setup_pg().await;
-    sqlx::query("DROP VIEW vw_observer_stats").execute(&pool).await.unwrap();
+    sqlx::query("DROP VIEW core.vw_observer_stats").execute(&pool).await.unwrap();
 
     let (status, body) =
         call(&pool, Caller::Operator, Method::GET, "/api/observers/stats", None).await;
@@ -591,7 +611,7 @@ async fn a_database_error_is_not_echoed_to_the_caller() {
     assert_eq!(status, StatusCode::INTERNAL_SERVER_ERROR);
     let text = body.to_string();
     assert!(
-        !text.contains("vw_observer_stats") && !text.contains("relation"),
+        !text.contains("core.vw_observer_stats") && !text.contains("relation"),
         "database text reached the caller: {text}"
     );
 }

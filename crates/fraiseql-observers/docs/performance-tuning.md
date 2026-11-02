@@ -204,15 +204,15 @@ SELECT count(*) FROM pg_stat_activity WHERE datname = 'fraiseql_observers';
 ```sql
 -- For checkpoint retrieval (by listener_id)
 CREATE INDEX CONCURRENTLY idx_checkpoint_listener
-ON observer_checkpoints(listener_id);
+ON core.observer_checkpoints(listener_id);
 
 -- For cleanup (by timestamp)
 CREATE INDEX CONCURRENTLY idx_checkpoint_created
-ON observer_checkpoints(created_at);
+ON core.observer_checkpoints(created_at);
 
 -- For recent updates
 CREATE INDEX CONCURRENTLY idx_checkpoint_updated
-ON observer_checkpoints(updated_at DESC);
+ON core.observer_checkpoints(updated_at DESC);
 
 -- Verify indexes
 SELECT * FROM pg_stat_user_indexes

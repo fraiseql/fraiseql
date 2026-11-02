@@ -1,19 +1,21 @@
 -- FraiseQL Observer System - Observer Management Schema
 -- This migration creates the database schema for observer management:
--- - tb_observer: Observer definitions (entity type, event type, actions)
--- - tb_observer_log: Execution logs for tracking and debugging
+-- - core.tb_observer: Observer definitions (entity type, event type, actions)
+-- - core.tb_observer_log: Execution logs for tracking and debugging
 --
 -- Follows the Trinity pattern:
 -- - Table names: tb_<name> (singular)
 -- - Primary keys: pk_<table_name>
 -- - Foreign keys: fk_<referenced_table>
 
+CREATE SCHEMA IF NOT EXISTS core;
+
 -- ============================================================================
 -- Observer Definitions Table
 -- ============================================================================
 -- Stores observer configurations that define which events trigger which actions.
 
-CREATE TABLE IF NOT EXISTS tb_observer (
+CREATE TABLE IF NOT EXISTS core.tb_observer (
     -- Primary key (Trinity pattern)
     pk_observer BIGSERIAL PRIMARY KEY,
 
@@ -78,25 +80,25 @@ CREATE TABLE IF NOT EXISTS tb_observer (
 );
 
 -- Comments for documentation
-COMMENT ON TABLE tb_observer IS 'Observer definitions that map entity events to actions';
-COMMENT ON COLUMN tb_observer.pk_observer IS 'Internal primary key (Trinity pattern)';
-COMMENT ON COLUMN tb_observer.id IS 'External UUID for API references';
-COMMENT ON COLUMN tb_observer.entity_type IS 'Entity type to observe (NULL = all types)';
-COMMENT ON COLUMN tb_observer.event_type IS 'Event type to observe (NULL = all events)';
-COMMENT ON COLUMN tb_observer.condition_expression IS 'Optional filter condition in DSL format';
-COMMENT ON COLUMN tb_observer.actions IS 'JSON array of action configurations';
-COMMENT ON COLUMN tb_observer.retry_config IS 'Retry policy configuration';
+COMMENT ON TABLE core.tb_observer IS 'Observer definitions that map entity events to actions';
+COMMENT ON COLUMN core.tb_observer.pk_observer IS 'Internal primary key (Trinity pattern)';
+COMMENT ON COLUMN core.tb_observer.id IS 'External UUID for API references';
+COMMENT ON COLUMN core.tb_observer.entity_type IS 'Entity type to observe (NULL = all types)';
+COMMENT ON COLUMN core.tb_observer.event_type IS 'Event type to observe (NULL = all events)';
+COMMENT ON COLUMN core.tb_observer.condition_expression IS 'Optional filter condition in DSL format';
+COMMENT ON COLUMN core.tb_observer.actions IS 'JSON array of action configurations';
+COMMENT ON COLUMN core.tb_observer.retry_config IS 'Retry policy configuration';
 
 -- Indexes for efficient querying
-CREATE INDEX IF NOT EXISTS idx_observer_entity_type ON tb_observer(entity_type) WHERE deleted_at IS NULL;
-CREATE INDEX IF NOT EXISTS idx_observer_event_type ON tb_observer(event_type) WHERE deleted_at IS NULL;
-CREATE INDEX IF NOT EXISTS idx_observer_enabled ON tb_observer(enabled) WHERE deleted_at IS NULL;
-CREATE INDEX IF NOT EXISTS idx_observer_customer_org ON tb_observer(fk_customer_org) WHERE deleted_at IS NULL;
-CREATE INDEX IF NOT EXISTS idx_observer_priority ON tb_observer(priority) WHERE deleted_at IS NULL AND enabled = true;
+CREATE INDEX IF NOT EXISTS idx_observer_entity_type ON core.tb_observer(entity_type) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_observer_event_type ON core.tb_observer(event_type) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_observer_enabled ON core.tb_observer(enabled) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_observer_customer_org ON core.tb_observer(fk_customer_org) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_observer_priority ON core.tb_observer(priority) WHERE deleted_at IS NULL AND enabled = true;
 
 -- Unique constraint on name per tenant (or global if no tenant)
 CREATE UNIQUE INDEX IF NOT EXISTS idx_observer_name_unique
-ON tb_observer(name, COALESCE(fk_customer_org, -1))
+ON core.tb_observer(name, COALESCE(fk_customer_org, -1))
 WHERE deleted_at IS NULL;
 
 -- ============================================================================
@@ -104,7 +106,7 @@ WHERE deleted_at IS NULL;
 -- ============================================================================
 -- Stores execution logs for each observer invocation for tracking and debugging.
 
-CREATE TABLE IF NOT EXISTS tb_observer_log (
+CREATE TABLE IF NOT EXISTS core.tb_observer_log (
     -- Primary key (Trinity pattern)
     pk_observer_log BIGSERIAL PRIMARY KEY,
 
@@ -112,7 +114,7 @@ CREATE TABLE IF NOT EXISTS tb_observer_log (
     id UUID NOT NULL DEFAULT gen_random_uuid() UNIQUE,
 
     -- Reference to the observer that was executed
-    fk_observer BIGINT NOT NULL REFERENCES tb_observer(pk_observer) ON DELETE CASCADE,
+    fk_observer BIGINT NOT NULL REFERENCES core.tb_observer(pk_observer) ON DELETE CASCADE,
 
     -- Reference to the event that triggered this execution (from tb_entity_change_log)
     fk_entity_change_log BIGINT,
@@ -176,25 +178,25 @@ CREATE TABLE IF NOT EXISTS tb_observer_log (
 );
 
 -- Comments for documentation
-COMMENT ON TABLE tb_observer_log IS 'Execution logs for observer invocations';
-COMMENT ON COLUMN tb_observer_log.pk_observer_log IS 'Internal primary key (Trinity pattern)';
-COMMENT ON COLUMN tb_observer_log.fk_observer IS 'Reference to the observer definition';
-COMMENT ON COLUMN tb_observer_log.fk_entity_change_log IS 'Reference to the triggering event';
-COMMENT ON COLUMN tb_observer_log.status IS 'Execution status: pending, running, success, failed, skipped, timeout, cancelled';
-COMMENT ON COLUMN tb_observer_log.attempt_number IS 'Current retry attempt (1 = first attempt)';
+COMMENT ON TABLE core.tb_observer_log IS 'Execution logs for observer invocations';
+COMMENT ON COLUMN core.tb_observer_log.pk_observer_log IS 'Internal primary key (Trinity pattern)';
+COMMENT ON COLUMN core.tb_observer_log.fk_observer IS 'Reference to the observer definition';
+COMMENT ON COLUMN core.tb_observer_log.fk_entity_change_log IS 'Reference to the triggering event';
+COMMENT ON COLUMN core.tb_observer_log.status IS 'Execution status: pending, running, success, failed, skipped, timeout, cancelled';
+COMMENT ON COLUMN core.tb_observer_log.attempt_number IS 'Current retry attempt (1 = first attempt)';
 
 -- Indexes for efficient querying
-CREATE INDEX IF NOT EXISTS idx_observer_log_observer ON tb_observer_log(fk_observer);
-CREATE INDEX IF NOT EXISTS idx_observer_log_event_id ON tb_observer_log(event_id);
-CREATE INDEX IF NOT EXISTS idx_observer_log_status ON tb_observer_log(status);
-CREATE INDEX IF NOT EXISTS idx_observer_log_created_at ON tb_observer_log(created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_observer_log_entity ON tb_observer_log(entity_type, entity_id);
-CREATE INDEX IF NOT EXISTS idx_observer_log_customer_org ON tb_observer_log(fk_customer_org);
-CREATE INDEX IF NOT EXISTS idx_observer_log_trace_id ON tb_observer_log(trace_id) WHERE trace_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_observer_log_observer ON core.tb_observer_log(fk_observer);
+CREATE INDEX IF NOT EXISTS idx_observer_log_event_id ON core.tb_observer_log(event_id);
+CREATE INDEX IF NOT EXISTS idx_observer_log_status ON core.tb_observer_log(status);
+CREATE INDEX IF NOT EXISTS idx_observer_log_created_at ON core.tb_observer_log(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_observer_log_entity ON core.tb_observer_log(entity_type, entity_id);
+CREATE INDEX IF NOT EXISTS idx_observer_log_customer_org ON core.tb_observer_log(fk_customer_org);
+CREATE INDEX IF NOT EXISTS idx_observer_log_trace_id ON core.tb_observer_log(trace_id) WHERE trace_id IS NOT NULL;
 
 -- Composite index for retry queries (find failed items that need retry)
 CREATE INDEX IF NOT EXISTS idx_observer_log_retry
-ON tb_observer_log(status, next_retry_at)
+ON core.tb_observer_log(status, next_retry_at)
 WHERE status = 'failed' AND next_retry_at IS NOT NULL;
 
 -- ============================================================================
@@ -202,7 +204,7 @@ WHERE status = 'failed' AND next_retry_at IS NOT NULL;
 -- ============================================================================
 -- Aggregated statistics for observer execution monitoring.
 
-CREATE OR REPLACE VIEW vw_observer_stats AS
+CREATE OR REPLACE VIEW core.vw_observer_stats AS
 SELECT
     o.pk_observer,
     o.id AS observer_id,
@@ -224,19 +226,19 @@ SELECT
     MAX(l.duration_ms) AS max_duration_ms,
     MIN(l.duration_ms) AS min_duration_ms,
     MAX(l.created_at) AS last_execution_at
-FROM tb_observer o
-LEFT JOIN tb_observer_log l ON o.pk_observer = l.fk_observer
+FROM core.tb_observer o
+LEFT JOIN core.tb_observer_log l ON o.pk_observer = l.fk_observer
 WHERE o.deleted_at IS NULL
 GROUP BY o.pk_observer, o.id, o.name, o.entity_type, o.event_type, o.enabled;
 
-COMMENT ON VIEW vw_observer_stats IS 'Aggregated statistics for observer execution monitoring';
+COMMENT ON VIEW core.vw_observer_stats IS 'Aggregated statistics for observer execution monitoring';
 
 -- ============================================================================
 -- Helper Functions
 -- ============================================================================
 
 -- Function to get active observers for an entity/event type combination
-CREATE OR REPLACE FUNCTION fn_get_active_observers(
+CREATE OR REPLACE FUNCTION core.fn_get_active_observers(
     p_entity_type VARCHAR(255),
     p_event_type VARCHAR(50),
     p_customer_org BIGINT DEFAULT NULL
@@ -263,7 +265,7 @@ AS $$
         o.retry_config,
         o.timeout_ms,
         o.priority
-    FROM tb_observer o
+    FROM core.tb_observer o
     WHERE o.deleted_at IS NULL
       AND o.enabled = true
       AND (o.entity_type IS NULL OR o.entity_type = p_entity_type)
@@ -272,10 +274,10 @@ AS $$
     ORDER BY o.priority ASC, o.pk_observer ASC;
 $$;
 
-COMMENT ON FUNCTION fn_get_active_observers IS 'Returns active observers matching the given entity/event type';
+COMMENT ON FUNCTION core.fn_get_active_observers IS 'Returns active observers matching the given entity/event type';
 
 -- Function to log observer execution start
-CREATE OR REPLACE FUNCTION fn_log_observer_start(
+CREATE OR REPLACE FUNCTION core.fn_log_observer_start(
     p_fk_observer BIGINT,
     p_event_id UUID,
     p_entity_type VARCHAR(255),
@@ -290,7 +292,7 @@ CREATE OR REPLACE FUNCTION fn_log_observer_start(
 RETURNS UUID
 LANGUAGE SQL
 AS $$
-    INSERT INTO tb_observer_log (
+    INSERT INTO core.tb_observer_log (
         fk_observer,
         event_id,
         entity_type,
@@ -320,10 +322,10 @@ AS $$
     RETURNING id;
 $$;
 
-COMMENT ON FUNCTION fn_log_observer_start IS 'Creates a log entry when an observer starts execution';
+COMMENT ON FUNCTION core.fn_log_observer_start IS 'Creates a log entry when an observer starts execution';
 
 -- Function to log observer execution completion
-CREATE OR REPLACE FUNCTION fn_log_observer_complete(
+CREATE OR REPLACE FUNCTION core.fn_log_observer_complete(
     p_log_id UUID,
     p_status VARCHAR(50),
     p_error_code VARCHAR(100) DEFAULT NULL,
@@ -335,7 +337,7 @@ CREATE OR REPLACE FUNCTION fn_log_observer_complete(
 RETURNS VOID
 LANGUAGE SQL
 AS $$
-    UPDATE tb_observer_log
+    UPDATE core.tb_observer_log
     SET
         status = p_status,
         completed_at = NOW(),
@@ -348,13 +350,13 @@ AS $$
     WHERE id = p_log_id;
 $$;
 
-COMMENT ON FUNCTION fn_log_observer_complete IS 'Updates a log entry when an observer completes execution';
+COMMENT ON FUNCTION core.fn_log_observer_complete IS 'Updates a log entry when an observer completes execution';
 
 -- ============================================================================
 -- Trigger for updated_at timestamp
 -- ============================================================================
 
-CREATE OR REPLACE FUNCTION fn_update_timestamp()
+CREATE OR REPLACE FUNCTION core.fn_update_timestamp()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 AS $$
@@ -364,8 +366,8 @@ BEGIN
 END;
 $$;
 
-DROP TRIGGER IF EXISTS tr_observer_updated_at ON tb_observer;
+DROP TRIGGER IF EXISTS tr_observer_updated_at ON core.tb_observer;
 CREATE TRIGGER tr_observer_updated_at
-    BEFORE UPDATE ON tb_observer
+    BEFORE UPDATE ON core.tb_observer
     FOR EACH ROW
-    EXECUTE FUNCTION fn_update_timestamp();
+    EXECUTE FUNCTION core.fn_update_timestamp();

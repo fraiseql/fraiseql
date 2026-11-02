@@ -527,7 +527,7 @@ has_field('deleted_at')
 
 ### Configuration
 
-Observers are not declared in TOML. They are rows of `tb_observer`, created and edited
+Observers are not declared in TOML. They are rows of `core.tb_observer`, created and edited
 through the admin API (`POST /api/observers`); the compiler refuses an
 `[[observers.handlers]]` block (#631). The TOML side only switches the runtime on
 (`[observers] enabled = true` in `fraiseql.toml`, compiled into the schema) and tunes it

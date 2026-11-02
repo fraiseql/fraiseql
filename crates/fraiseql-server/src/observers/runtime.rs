@@ -469,7 +469,14 @@ impl ObserverRuntime {
             }
         }
 
-        info!("Loaded {} observers from database", definitions.len());
+        if definitions.is_empty() {
+            warn!(
+                "Loaded 0 observers from core.tb_observer: the observer runtime is enabled \
+                 and nothing will fire"
+            );
+        } else {
+            info!("Loaded {} observers from core.tb_observer", definitions.len());
+        }
         Ok((definitions, entity_type_index))
     }
 
@@ -494,7 +501,7 @@ impl ObserverRuntime {
                         observer = %observer.name,
                         error = %e,
                         "Observer retry_config could not be deserialized; using defaults. \
-                         Check the stored JSON in tb_observer."
+                         Check the stored JSON in core.tb_observer."
                     );
                     ObserverRetryConfig::default()
                 },
@@ -563,6 +570,7 @@ impl ObserverRuntime {
         if self.running.load(Ordering::SeqCst) {
             return Err(ServerError::ConfigError("Observer runtime already running".to_string()));
         }
+        self.repository.refuse_stranded_legacy_tables().await?;
 
         // Listener-selection seam (#350): a non-Postgres transport runs through
         // the generic EventTransport stream path, never the PG listener. Box the
@@ -1885,7 +1893,7 @@ async fn write_observer_log(
     if let Err(e) = sqlx::query(
         // entity_id is bound as text (Uuid::to_string) and cast to the column's
         // uuid type — sqlx will not implicitly coerce text to uuid on INSERT.
-        "INSERT INTO tb_observer_log
+        "INSERT INTO core.tb_observer_log
          (fk_observer, event_id, entity_type, entity_id, event_type, status,
           action_index, action_type, response_status_code, response_payload,
           request_payload, duration_ms, error_message, attempt_number, max_attempts)

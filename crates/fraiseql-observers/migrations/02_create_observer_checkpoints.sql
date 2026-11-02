@@ -1,7 +1,9 @@
 -- Phase 8.1: Persistent Checkpoints Table
 -- Stores listener checkpoint state for recovery on restart
 
-CREATE TABLE IF NOT EXISTS observer_checkpoints (
+CREATE SCHEMA IF NOT EXISTS core;
+
+CREATE TABLE IF NOT EXISTS core.observer_checkpoints (
     listener_id VARCHAR(255) PRIMARY KEY,
     last_processed_id BIGINT NOT NULL DEFAULT 0,
     last_processed_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
@@ -20,10 +22,10 @@ CREATE TABLE IF NOT EXISTS observer_checkpoints (
 
 -- Index for recovery queries
 CREATE INDEX IF NOT EXISTS idx_observer_checkpoints_updated_at
-    ON observer_checkpoints(updated_at DESC);
+    ON core.observer_checkpoints(updated_at DESC);
 
 -- Audit trail: Track all checkpoint updates
-CREATE TABLE IF NOT EXISTS observer_checkpoints_history (
+CREATE TABLE IF NOT EXISTS core.observer_checkpoints_history (
     id BIGSERIAL PRIMARY KEY,
     listener_id VARCHAR(255) NOT NULL,
     last_processed_id BIGINT NOT NULL,
@@ -36,25 +38,25 @@ CREATE TABLE IF NOT EXISTS observer_checkpoints_history (
 );
 
 CREATE INDEX IF NOT EXISTS idx_checkpoints_history_listener_id
-    ON observer_checkpoints_history(listener_id);
+    ON core.observer_checkpoints_history(listener_id);
 
 CREATE INDEX IF NOT EXISTS idx_checkpoints_history_updated_at
-    ON observer_checkpoints_history(updated_at DESC);
+    ON core.observer_checkpoints_history(updated_at DESC);
 
 -- Trigger to auto-populate history (optional, but useful for debugging)
 -- This creates an audit trail of all checkpoint changes
-CREATE OR REPLACE FUNCTION observer_checkpoints_audit()
+CREATE OR REPLACE FUNCTION core.observer_checkpoints_audit()
 RETURNS TRIGGER AS $$
 BEGIN
-    INSERT INTO observer_checkpoints_history (listener_id, last_processed_id, batch_size, event_count, reason)
+    INSERT INTO core.observer_checkpoints_history (listener_id, last_processed_id, batch_size, event_count, reason)
     VALUES (NEW.listener_id, NEW.last_processed_id, NEW.batch_size, NEW.event_count, 'auto_update');
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
 
 -- Create trigger only if it doesn't exist
-DROP TRIGGER IF EXISTS observer_checkpoints_audit_trigger ON observer_checkpoints;
+DROP TRIGGER IF EXISTS observer_checkpoints_audit_trigger ON core.observer_checkpoints;
 CREATE TRIGGER observer_checkpoints_audit_trigger
-AFTER INSERT OR UPDATE ON observer_checkpoints
+AFTER INSERT OR UPDATE ON core.observer_checkpoints
 FOR EACH ROW
-EXECUTE FUNCTION observer_checkpoints_audit();
+EXECUTE FUNCTION core.observer_checkpoints_audit();

@@ -1,7 +1,7 @@
 //! HTTP handlers for the changelog and checkpoint REST endpoints.
 //!
 //! These endpoints expose the `tb_entity_change_log` table and the
-//! `observer_checkpoints` table over HTTP, enabling external consumers
+//! `core.observer_checkpoints` table over HTTP, enabling external consumers
 //! (e.g. the Python `ChangelogConsumer` SDK) to poll for changes and
 //! persist cursor state without direct database access.
 
@@ -23,7 +23,7 @@ use super::OperatorOnly;
 #[derive(Clone)]
 pub struct ChangelogState {
     /// PostgreSQL pool for reading `tb_entity_change_log` and
-    /// `observer_checkpoints`.
+    /// `core.observer_checkpoints`.
     pub pool: PgPool,
 }
 
@@ -248,7 +248,7 @@ pub async fn checkpoint_get_handler(
     let result = sqlx::query_as::<_, (String, i64, Option<DateTime<Utc>>)>(
         r"
         SELECT listener_id, last_processed_id, updated_at
-        FROM observer_checkpoints
+        FROM core.observer_checkpoints
         WHERE listener_id = $1
         ",
     )
@@ -293,7 +293,7 @@ pub async fn checkpoint_save_handler(
 ) -> impl IntoResponse {
     let result = sqlx::query(
         r"
-        INSERT INTO observer_checkpoints
+        INSERT INTO core.observer_checkpoints
             (listener_id, last_processed_id, last_processed_at, batch_size, event_count, updated_at)
         VALUES ($1, $2, NOW(), 0, 0, NOW())
         ON CONFLICT (listener_id) DO UPDATE SET

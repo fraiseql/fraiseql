@@ -91,7 +91,7 @@ DATABASE_URL="postgresql://user:pass@host:5432/db" fraiseql-server
 # Grant needed permissions
 psql postgresql://postgres:postgres@localhost/fraiseql << EOF
 GRANT LISTEN ON DATABASE fraiseql TO observer_user;
-GRANT ALL ON TABLE observer_checkpoints TO observer_user;
+GRANT ALL ON TABLE core.observer_checkpoints TO observer_user;
 GRANT ALL ON SEQUENCE observer_checkpoints_id_seq TO observer_user;
 EOF
 ```
@@ -361,7 +361,7 @@ redis-cli INFO memory
 psql $DATABASE_URL -c "SELECT count(*) FROM pg_stat_activity WHERE datname = 'fraiseql_observers';"
 
 # 4. Check checkpoint table size
-psql $DATABASE_URL -c "SELECT pg_size_pretty(pg_total_relation_size('observer_checkpoints'));"
+psql $DATABASE_URL -c "SELECT pg_size_pretty(pg_total_relation_size('core.observer_checkpoints'));"
 ```
 
 **Solutions**:
@@ -400,14 +400,14 @@ Redis connections are a separate setting: `[redis] pool_size`.
 ```bash
 # Add retention policy (keep 30 days)
 psql $DATABASE_URL << EOF
-DELETE FROM observer_checkpoints
+DELETE FROM core.observer_checkpoints
 WHERE created_at < NOW() - INTERVAL '30 days'
 AND listener_id NOT IN (SELECT DISTINCT listener_id FROM observer_listeners WHERE status = 'active');
 EOF
 
 # Or create scheduled cleanup (using pg_cron)
 SELECT cron.schedule('cleanup_old_checkpoints', '0 2 * * *', $$
-  DELETE FROM observer_checkpoints
+  DELETE FROM core.observer_checkpoints
   WHERE created_at < NOW() - INTERVAL '30 days'
 $$);
 ```

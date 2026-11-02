@@ -74,7 +74,7 @@ async fn rig() -> Rig {
         .expect("DATABASE_URL must be set (or enable fraiseql-test-support/local-testcontainers)");
     let pool = PgPool::connect(svc.url()).await.unwrap();
     setup_observer_schema(&pool).await.unwrap();
-    sqlx::query("TRUNCATE tb_observer_log, tb_observer RESTART IDENTITY CASCADE")
+    sqlx::query("TRUNCATE core.tb_observer_log, core.tb_observer RESTART IDENTITY CASCADE")
         .execute(&pool)
         .await
         .unwrap();
@@ -137,7 +137,7 @@ impl Rig {
 
     async fn stored_template(&self, id: &str) -> String {
         let (actions,): (Value,) =
-            sqlx::query_as("SELECT actions FROM tb_observer WHERE id = $1::uuid")
+            sqlx::query_as("SELECT actions FROM core.tb_observer WHERE id = $1::uuid")
                 .bind(id)
                 .fetch_one(&self.pool)
                 .await
@@ -147,7 +147,7 @@ impl Rig {
 
     async fn stored_entity_type(&self, id: &str) -> String {
         let (entity_type,): (String,) =
-            sqlx::query_as("SELECT entity_type FROM tb_observer WHERE id = $1::uuid")
+            sqlx::query_as("SELECT entity_type FROM core.tb_observer WHERE id = $1::uuid")
                 .bind(id)
                 .fetch_one(&self.pool)
                 .await
@@ -156,7 +156,7 @@ impl Rig {
     }
 
     async fn count(&self) -> i64 {
-        let (n,): (i64,) = sqlx::query_as("SELECT count(*) FROM tb_observer")
+        let (n,): (i64,) = sqlx::query_as("SELECT count(*) FROM core.tb_observer")
             .fetch_one(&self.pool)
             .await
             .unwrap();

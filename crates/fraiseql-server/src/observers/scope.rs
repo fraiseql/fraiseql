@@ -93,7 +93,7 @@ impl ObserverScope {
             query
                 .push(" AND ")
                 .push(observer_key)
-                .push(" IN (SELECT pk_observer FROM tb_observer WHERE fk_customer_org = ")
+                .push(" IN (SELECT pk_observer FROM core.tb_observer WHERE fk_customer_org = ")
                 .push_bind(org)
                 .push(")");
         }

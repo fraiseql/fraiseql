@@ -86,11 +86,11 @@ async fn test_runtime_start_stop_lifecycle() {
     setup_observer_schema(&pool).await.expect("Failed to setup schema");
 
     // Clean up old test data (order matters due to foreign keys)
-    sqlx::query("DELETE FROM tb_observer_log")
+    sqlx::query("DELETE FROM core.tb_observer_log")
         .execute(&pool)
         .await
         .expect("Failed to clean observer logs");
-    sqlx::query("DELETE FROM tb_observer")
+    sqlx::query("DELETE FROM core.tb_observer")
         .execute(&pool)
         .await
         .expect("Failed to clean observers");
@@ -214,11 +214,11 @@ async fn test_observer_log_populates_audit_columns() {
     setup_observer_schema(&pool).await.expect("Failed to setup schema");
 
     // Clean up old test data (order matters due to foreign keys)
-    sqlx::query("DELETE FROM tb_observer_log")
+    sqlx::query("DELETE FROM core.tb_observer_log")
         .execute(&pool)
         .await
         .expect("Failed to clean observer logs");
-    sqlx::query("DELETE FROM tb_observer")
+    sqlx::query("DELETE FROM core.tb_observer")
         .execute(&pool)
         .await
         .expect("Failed to clean observers");
@@ -335,11 +335,11 @@ async fn test_checkpoint_recovery_after_restart() {
     setup_observer_schema(&pool).await.expect("Failed to setup schema");
 
     // Clean up old test data (order matters due to foreign keys)
-    sqlx::query("DELETE FROM tb_observer_log")
+    sqlx::query("DELETE FROM core.tb_observer_log")
         .execute(&pool)
         .await
         .expect("Failed to clean observer logs");
-    sqlx::query("DELETE FROM tb_observer")
+    sqlx::query("DELETE FROM core.tb_observer")
         .execute(&pool)
         .await
         .expect("Failed to clean observers");
@@ -347,7 +347,7 @@ async fn test_checkpoint_recovery_after_restart() {
         .execute(&pool)
         .await
         .expect("Failed to clean change log");
-    sqlx::query("DELETE FROM observer_checkpoints")
+    sqlx::query("DELETE FROM core.observer_checkpoints")
         .execute(&pool)
         .await
         .expect("Failed to clean checkpoints");
@@ -482,11 +482,11 @@ async fn test_hot_reload_observers() {
     setup_observer_schema(&pool).await.expect("Failed to setup schema");
 
     // Clean up old test data (order matters due to foreign keys)
-    sqlx::query("DELETE FROM tb_observer_log")
+    sqlx::query("DELETE FROM core.tb_observer_log")
         .execute(&pool)
         .await
         .expect("Failed to clean observer logs");
-    sqlx::query("DELETE FROM tb_observer")
+    sqlx::query("DELETE FROM core.tb_observer")
         .execute(&pool)
         .await
         .expect("Failed to clean observers");
@@ -605,11 +605,11 @@ async fn test_graceful_shutdown_mid_processing() {
     setup_observer_schema(&pool).await.expect("Failed to setup schema");
 
     // Clean up old test data (order matters due to foreign keys)
-    sqlx::query("DELETE FROM tb_observer_log")
+    sqlx::query("DELETE FROM core.tb_observer_log")
         .execute(&pool)
         .await
         .expect("Failed to clean observer logs");
-    sqlx::query("DELETE FROM tb_observer")
+    sqlx::query("DELETE FROM core.tb_observer")
         .execute(&pool)
         .await
         .expect("Failed to clean observers");
@@ -707,11 +707,11 @@ async fn test_runtime_continues_after_errors() {
     setup_observer_schema(&pool).await.expect("Failed to setup schema");
 
     // Clean up old test data (order matters due to foreign keys)
-    sqlx::query("DELETE FROM tb_observer_log")
+    sqlx::query("DELETE FROM core.tb_observer_log")
         .execute(&pool)
         .await
         .expect("Failed to clean observer logs");
-    sqlx::query("DELETE FROM tb_observer")
+    sqlx::query("DELETE FROM core.tb_observer")
         .execute(&pool)
         .await
         .expect("Failed to clean observers");
@@ -770,7 +770,7 @@ async fn test_runtime_continues_after_errors() {
 
     // Verify log shows attempt tracking.
     //
-    // Polled, not read once: the webhook arriving and the `tb_observer_log` row
+    // Polled, not read once: the webhook arriving and the `core.tb_observer_log` row
     // being written are two different events, and the INSERT happens after the
     // dispatch returns. Reading here the instant `wait_for_webhook` returned is
     // what made this the suite's one CI flake — the preceding `requests.len()`
@@ -831,11 +831,11 @@ async fn test_high_throughput_processing() {
     setup_observer_schema(&pool).await.expect("Failed to setup schema");
 
     // Clean up old test data (order matters due to foreign keys)
-    sqlx::query("DELETE FROM tb_observer_log")
+    sqlx::query("DELETE FROM core.tb_observer_log")
         .execute(&pool)
         .await
         .expect("Failed to clean observer logs");
-    sqlx::query("DELETE FROM tb_observer")
+    sqlx::query("DELETE FROM core.tb_observer")
         .execute(&pool)
         .await
         .expect("Failed to clean observers");
@@ -935,11 +935,11 @@ async fn test_runtime_basic_lifecycle() {
     setup_observer_schema(&pool).await.expect("Failed to setup schema");
 
     // Clean up old test data (order matters due to foreign keys)
-    sqlx::query("DELETE FROM tb_observer_log")
+    sqlx::query("DELETE FROM core.tb_observer_log")
         .execute(&pool)
         .await
         .expect("Failed to clean observer logs");
-    sqlx::query("DELETE FROM tb_observer")
+    sqlx::query("DELETE FROM core.tb_observer")
         .execute(&pool)
         .await
         .expect("Failed to clean observers");
@@ -979,11 +979,11 @@ async fn test_debug_event_processing() {
     setup_observer_schema(&pool).await.expect("Failed to setup schema");
 
     // Clean up old test data (order matters due to foreign keys)
-    sqlx::query("DELETE FROM tb_observer_log")
+    sqlx::query("DELETE FROM core.tb_observer_log")
         .execute(&pool)
         .await
         .expect("Failed to clean observer logs");
-    sqlx::query("DELETE FROM tb_observer")
+    sqlx::query("DELETE FROM core.tb_observer")
         .execute(&pool)
         .await
         .expect("Failed to clean observers");
@@ -1009,7 +1009,7 @@ async fn test_debug_event_processing() {
 
     // Check that observer was created
     let observer_count: (i64,) =
-        sqlx::query_as("SELECT COUNT(*) FROM tb_observer WHERE enabled = true")
+        sqlx::query_as("SELECT COUNT(*) FROM core.tb_observer WHERE enabled = true")
             .fetch_one(&pool)
             .await
             .expect("Failed to count observers");
@@ -1056,7 +1056,7 @@ async fn test_debug_event_processing() {
     println!("✓ Webhook calls received: {}", requests.len());
 
     // Check observer log
-    let log_count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM tb_observer_log")
+    let log_count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM core.tb_observer_log")
         .fetch_one(&pool)
         .await
         .ok()
@@ -1099,7 +1099,7 @@ async fn test_observer_loading() {
 
     // Manually query observer to verify it's in database
     let observer: Option<(String, Option<String>, Option<String>)> = sqlx::query_as(
-        "SELECT name, entity_type, event_type FROM tb_observer WHERE name = 'load-test-observer'",
+        "SELECT name, entity_type, event_type FROM core.tb_observer WHERE name = 'load-test-observer'",
     )
     .fetch_optional(&pool)
     .await
@@ -1113,7 +1113,7 @@ async fn test_observer_loading() {
 
     // Check actions column
     let actions: Option<(serde_json::Value,)> =
-        sqlx::query_as("SELECT actions FROM tb_observer WHERE name = 'load-test-observer'")
+        sqlx::query_as("SELECT actions FROM core.tb_observer WHERE name = 'load-test-observer'")
             .fetch_optional(&pool)
             .await
             .expect("Failed to query actions");
@@ -1138,11 +1138,11 @@ async fn test_runtime_loads_observers() {
     setup_observer_schema(&pool).await.expect("Failed to setup schema");
 
     // Clean up old test data (order matters due to foreign keys)
-    sqlx::query("DELETE FROM tb_observer_log")
+    sqlx::query("DELETE FROM core.tb_observer_log")
         .execute(&pool)
         .await
         .expect("Failed to clean observer logs");
-    sqlx::query("DELETE FROM tb_observer")
+    sqlx::query("DELETE FROM core.tb_observer")
         .execute(&pool)
         .await
         .expect("Failed to clean observers");
@@ -1193,11 +1193,11 @@ async fn test_debug_debezium_envelope() {
     setup_observer_schema(&pool).await.expect("Failed to setup schema");
 
     // Clean up old test data (order matters due to foreign keys)
-    sqlx::query("DELETE FROM tb_observer_log")
+    sqlx::query("DELETE FROM core.tb_observer_log")
         .execute(&pool)
         .await
         .expect("Failed to clean observer logs");
-    sqlx::query("DELETE FROM tb_observer")
+    sqlx::query("DELETE FROM core.tb_observer")
         .execute(&pool)
         .await
         .expect("Failed to clean observers");
@@ -1300,11 +1300,11 @@ async fn test_with_longer_polling() {
     setup_observer_schema(&pool).await.expect("Failed to setup schema");
 
     // Clean up old test data (order matters due to foreign keys)
-    sqlx::query("DELETE FROM tb_observer_log")
+    sqlx::query("DELETE FROM core.tb_observer_log")
         .execute(&pool)
         .await
         .expect("Failed to clean observer logs");
-    sqlx::query("DELETE FROM tb_observer")
+    sqlx::query("DELETE FROM core.tb_observer")
         .execute(&pool)
         .await
         .expect("Failed to clean observers");
@@ -1385,7 +1385,7 @@ async fn test_with_longer_polling() {
 
         // Check observer
         let obs_count: (i64,) =
-            sqlx::query_as("SELECT COUNT(*) FROM tb_observer WHERE enabled = true")
+            sqlx::query_as("SELECT COUNT(*) FROM core.tb_observer WHERE enabled = true")
                 .fetch_one(&pool)
                 .await
                 .ok()
@@ -1393,7 +1393,7 @@ async fn test_with_longer_polling() {
         println!("  Observers enabled: {}", obs_count.0);
 
         // Check observer log
-        let logs: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM tb_observer_log")
+        let logs: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM core.tb_observer_log")
             .fetch_one(&pool)
             .await
             .ok()
@@ -1414,11 +1414,11 @@ async fn test_listener_direct() {
     setup_observer_schema(&pool).await.expect("Failed to setup schema");
 
     // Clean up old test data (order matters due to foreign keys)
-    sqlx::query("DELETE FROM tb_observer_log")
+    sqlx::query("DELETE FROM core.tb_observer_log")
         .execute(&pool)
         .await
         .expect("Failed to clean observer logs");
-    sqlx::query("DELETE FROM tb_observer")
+    sqlx::query("DELETE FROM core.tb_observer")
         .execute(&pool)
         .await
         .expect("Failed to clean observers");
@@ -1484,7 +1484,7 @@ async fn test_listener_direct() {
 /// Test: a successful admin CRUD write refreshes the in-process matcher (#466).
 ///
 /// Before this fix the `/api/observers` create/update/delete/enable/disable
-/// handlers persisted to `tb_observer` but did NOT reload the runtime's
+/// handlers persisted to `core.tb_observer` but did NOT reload the runtime's
 /// `EventMatcher`, so an admin write silently had no effect until a separate
 /// `POST /api/observers/runtime/reload`. This drives the real `create_observer`
 /// handler with the runtime injected and asserts the matcher reflects the new
@@ -1511,11 +1511,11 @@ async fn test_admin_create_reloads_matcher() {
     setup_observer_schema(&pool).await.expect("Failed to setup schema");
 
     // Start from a clean table (order matters due to foreign keys).
-    sqlx::query("DELETE FROM tb_observer_log")
+    sqlx::query("DELETE FROM core.tb_observer_log")
         .execute(&pool)
         .await
         .expect("clean logs");
-    sqlx::query("DELETE FROM tb_observer")
+    sqlx::query("DELETE FROM core.tb_observer")
         .execute(&pool)
         .await
         .expect("clean observers");
@@ -1578,8 +1578,8 @@ async fn seed_replica_test(
 ) -> (MockWebhookServer, String) {
     setup_observer_schema(pool).await.expect("Failed to setup schema");
     for table in [
-        "tb_observer_log",
-        "tb_observer",
+        "core.tb_observer_log",
+        "core.tb_observer",
         "core.tb_entity_change_log",
     ] {
         sqlx::query(&format!("DELETE FROM {table}"))
@@ -1715,7 +1715,7 @@ async fn test_standby_replica_takes_over_when_the_poller_stops() {
         .filter_map(|r| r["id"].as_str().map(str::to_string))
         .collect();
     let (event_count,): (i32,) =
-        sqlx::query_as("SELECT event_count FROM observer_checkpoints WHERE listener_id = $1")
+        sqlx::query_as("SELECT event_count FROM core.observer_checkpoints WHERE listener_id = $1")
             .bind(&listener_id)
             .fetch_one(&pool_a)
             .await
