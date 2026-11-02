@@ -2634,11 +2634,16 @@ func (m *FraiseqlCi) fedBase(source *dagger.Directory) *dagger.Container {
 
 // fedServerBinary builds the fraiseql-server binary with the federation feature and
 // returns it as a File (extracted from the cache-mounted target dir to a plain path).
+//
+// It builds through the suite's own test invocation, which links the package's bins
+// too, so the binary and the test share one dependency graph. A `cargo build` of the
+// bin leaves the dev-dependencies' features out and resolves 377 of the test's 698
+// units differently; on a cold volume the leg compiled both graphs (#1890).
 func (m *FraiseqlCi) fedServerBinary(source *dagger.Directory) *dagger.File {
 	built := rustSource(m.rustBaseFor(rustMsrv), source, fedTargetVol).
 		WithExec([]string{
 			"bash", "-c",
-			"bash tools/ci-target-canary.sh -- build -p fraiseql-server --features federation && cp target/debug/fraiseql-server /usr/local/bin/fraiseql-server",
+			"bash tools/ci-target-canary.sh -- test -p fraiseql-server --features federation --test federation_integration_test && cp target/debug/fraiseql-server /usr/local/bin/fraiseql-server",
 		})
 	return built.File("/usr/local/bin/fraiseql-server")
 }
