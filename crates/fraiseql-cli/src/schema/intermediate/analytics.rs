@@ -4,6 +4,7 @@
 
 use std::collections::HashMap;
 
+use fraiseql_core::compiler::fact_table::FactRowScope;
 use serde::{Deserialize, Serialize};
 
 // =============================================================================
@@ -19,6 +20,10 @@ pub struct IntermediateFactTable {
     /// fields of that type, gated as a read of it (accepts `type` too).
     #[serde(default, alias = "type", skip_serializing_if = "Option::is_none")]
     pub type_name:                Option<String>,
+    /// `"relation"` when the relation filters its own rows by tenant, on values the server
+    /// sets per request (#1799). Absent: the server scopes them, or refuses the read.
+    #[serde(default, skip_serializing_if = "FactRowScope::is_server")]
+    pub row_scope:                FactRowScope,
     /// Measure columns (numeric aggregates)
     pub measures:                 Vec<IntermediateMeasure>,
     /// Dimension metadata

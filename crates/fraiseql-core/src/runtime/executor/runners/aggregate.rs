@@ -212,6 +212,37 @@ impl AggregateRunner {
         Ok(())
     }
 
+    /// Refuse a read of a tenant-scoped fact table that nothing scopes (#1799).
+    ///
+    /// An aggregate or a window has no `inject_params` of its own, so the only tenant clause
+    /// composed below is the row policy's. In a schema that scopes the fact table's rows by
+    /// tenant ([`CompiledSchema::unenforced_tenant_scope`]) and installs no policy, the read
+    /// would cover every tenant: it is refused instead, whoever the caller is. In the two
+    /// executors, so the GraphQL dispatch and the public embedder entries all meet it.
+    ///
+    /// [`CompiledSchema::unenforced_tenant_scope`]: crate::schema::CompiledSchema::unenforced_tenant_scope
+    fn refuse_an_unscoped_tenant_read(
+        &self,
+        query_name: &str,
+        metadata: &crate::compiler::fact_table::FactTableMetadata,
+    ) -> Result<()> {
+        if self.ctx.config.rls_policy.is_some() {
+            return Ok(());
+        }
+        match self.ctx.schema.unenforced_tenant_scope(metadata) {
+            Some(reason) => Err(FraiseQLError::Validation {
+                message: format!(
+                    "Query '{query_name}' reads fact table '{}', which this schema scopes by \
+                     tenant ({reason}), but no row policy scopes its aggregate and window \
+                     roots: refused rather than read across tenants",
+                    metadata.table_name
+                ),
+                path:    None,
+            }),
+            None => Ok(()),
+        }
+    }
+
     /// Execute an aggregate query dispatch.
     ///
     /// # Errors
@@ -390,6 +421,7 @@ impl AggregateRunner {
         security_context: Option<&SecurityContext>,
     ) -> Result<serde_json::Value> {
         self.refuse_anonymous_under_a_row_policy(query_name, security_context)?;
+        self.refuse_an_unscoped_tenant_read(query_name, metadata)?;
 
         // 1. Parse JSON query into AggregationRequest. Build native_columns from
         //    denormalized_filters so the parser can emit direct column references instead of JSONB
@@ -609,6 +641,7 @@ impl AggregateRunner {
         security_context: Option<&SecurityContext>,
     ) -> Result<serde_json::Value> {
         self.refuse_anonymous_under_a_row_policy(query_name, security_context)?;
+        self.refuse_an_unscoped_tenant_read(query_name, metadata)?;
 
         // 1. Parse JSON query into WindowRequest
         let mut request = crate::runtime::WindowQueryParser::parse(query_json, metadata)?;

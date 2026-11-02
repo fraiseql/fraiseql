@@ -22,7 +22,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use fraiseql_core::{
     compiler::fact_table::{
-        DimensionColumn, FactTableMetadata, FilterColumn, MeasureColumn, SqlType,
+        DimensionColumn, FactRowScope, FactTableMetadata, FilterColumn, MeasureColumn, SqlType,
     },
     db::{DatabaseAdapter, postgres::PostgresAdapter},
     runtime::Executor,
@@ -60,6 +60,7 @@ fn metadata(mapping: &[(&str, &str)]) -> FactTableMetadata {
     FactTableMetadata {
         table_name:               TABLE.to_string(),
         type_name:                None,
+        row_scope:                FactRowScope::Server,
         measures:                 vec![MeasureColumn {
             name:       "revenue".to_string(),
             sql_type:   SqlType::Decimal,

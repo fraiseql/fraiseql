@@ -14,7 +14,9 @@ use std::sync::Arc;
 use serde_json::{Value, json};
 
 use crate::{
-    compiler::fact_table::{DimensionColumn, FactTableMetadata, MeasureColumn, SqlType},
+    compiler::fact_table::{
+        DimensionColumn, FactRowScope, FactTableMetadata, MeasureColumn, SqlType,
+    },
     runtime::{
         Executor, RuntimeConfig,
         executor::test_support::{MockAdapter, mock_user_results, test_schema},
@@ -45,6 +47,7 @@ fn schema() -> CompiledSchema {
         FactTableMetadata {
             table_name:               "tf_sale".to_string(),
             type_name:                None,
+            row_scope:                FactRowScope::Server,
             measures:                 vec![MeasureColumn {
                 name:       "revenue".to_string(),
                 sql_type:   SqlType::Decimal,

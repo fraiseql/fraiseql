@@ -828,7 +828,7 @@ fn operation_count_zero_for_empty_schema() {
 
 #[test]
 fn fact_table_add_and_get() {
-    use crate::compiler::fact_table::{DimensionColumn, FactTableMetadata};
+    use crate::compiler::fact_table::{DimensionColumn, FactRowScope, FactTableMetadata};
 
     let mut schema = CompiledSchema::new();
     assert!(!schema.has_fact_tables());
@@ -836,6 +836,7 @@ fn fact_table_add_and_get() {
     let meta = FactTableMetadata {
         table_name:               "tf_sales".to_string(),
         type_name:                None,
+        row_scope:                FactRowScope::Server,
         measures:                 vec![],
         dimensions:               DimensionColumn {
             name:  "data".to_string(),
@@ -860,6 +861,7 @@ fn list_fact_tables_returns_all_names() {
     let make_meta = |name: &str| FactTableMetadata {
         table_name:               name.to_string(),
         type_name:                None,
+        row_scope:                crate::compiler::fact_table::FactRowScope::Server,
         measures:                 vec![],
         dimensions:               DimensionColumn {
             name:  "data".to_string(),
@@ -2590,6 +2592,7 @@ mod fact_table_hierarchy {
             FactTableMetadata {
                 table_name:               "tf_org".to_string(),
                 type_name:                None,
+                row_scope:                crate::compiler::fact_table::FactRowScope::Server,
                 measures:                 vec![],
                 dimensions:               DimensionColumn {
                     name:  "data".to_string(),

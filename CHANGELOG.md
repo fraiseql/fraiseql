@@ -16,6 +16,25 @@ disagreed, and the promise was the part that was wrong.
 
 ## [Unreleased]
 
+### Breaking
+
+- **A tenant-scoped fact table's `_aggregate` and `_window` roots are refused unless something
+  scopes them (#1799).** A fact table is tenant-scoped when the type it is read as
+  (`type_name`) declares `inject_params` or is returned by a query that does, or when one of
+  its `denormalized_filters` is a column a query or a type injects.
+  - `fraiseql compile` refuses a schema with such a fact table, naming it and the injected
+    column or type that scopes it. An existing fact table linked to an inject-scoped type
+    no longer compiles until it declares `row_scope` or something scopes it.
+  - With no row policy installed (`fraiseql-server` installs none), the server refuses those
+    roots for every caller, anonymous included, before any SQL runs. The public
+    `Executor::execute_aggregate_query` and `execute_window_query` entries refuse the same
+    way; metadata passed to them can make a table tenant-scoped, never the reverse.
+  - A relation that filters its own rows declares `"row_scope": "relation"` on the fact
+    table. The server then adds no tenant predicate, so the relation must filter on a value
+    the server sets per request (a `current_setting(...)` fed by a JWT-sourced
+    `[session_variables]` entry), never on client input. See `docs/modules/fact-table.md`.
+  - `FactTableMetadata` gains `row_scope: FactRowScope`; a struct literal must set it.
+
 ### Fixed
 
 - **The `-full` release binary ships `fraiseql federation sdl` (#1892).** The `fraiseql`
@@ -27,6 +46,14 @@ disagreed, and the promise was the part that was wrong.
   `release-full` to forward every `fraiseql-cli` feature except the test-only ones, and
   the release smoke runs `fraiseql federation sdl --help` on the arm64 `-full` binary and
   fails on a non-zero exit.
+
+### Security
+
+- **One tenant's aggregate or window read every tenant's rows (#1799).** In a schema that
+  scoped its list roots by `inject_params`, a fact table's `_aggregate` and `_window` roots
+  carried no tenant predicate: their only tenant clause came from a row policy, which the
+  server never installs. An aggregate grouped by `tenant_id` counted every tenant's rows,
+  and an anonymous caller read them all. Those roots are now refused (see Breaking).
 
 ## [2.19.0] - 2026-11-01
 

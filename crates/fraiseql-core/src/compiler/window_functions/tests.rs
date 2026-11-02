@@ -6,6 +6,7 @@ fn create_test_metadata() -> FactTableMetadata {
     FactTableMetadata {
         table_name:               "tf_sales".to_string(),
         type_name:                None,
+        row_scope:                crate::compiler::fact_table::FactRowScope::Server,
         measures:                 vec![
             MeasureColumn {
                 name:       "revenue".to_string(),

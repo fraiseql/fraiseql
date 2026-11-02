@@ -530,7 +530,7 @@ fn header_doctor_schema() -> fraiseql_core::schema::CompiledSchema {
 async fn doctor_names_a_carried_forward_measure_no_index_serves() {
     use fraiseql_cli::commands::doctor::semi_additive_index_checks;
     use fraiseql_core::compiler::fact_table::{
-        Additivity, DimensionColumn, FactTableMetadata, FilterColumn, MeasureColumn,
+        Additivity, DimensionColumn, FactRowScope, FactTableMetadata, FilterColumn, MeasureColumn,
         SemiAdditiveReduction, SqlType,
     };
 
@@ -573,6 +573,7 @@ async fn doctor_names_a_carried_forward_measure_no_index_serves() {
         FactTableMetadata {
             table_name:               TABLE.to_string(),
             type_name:                None,
+            row_scope:                FactRowScope::Server,
             measures:                 vec![
                 measure("closing_balance", semi(SemiAdditiveReduction::Last)),
                 measure("average_balance", semi(SemiAdditiveReduction::Avg)),

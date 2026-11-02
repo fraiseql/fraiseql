@@ -505,6 +505,7 @@ OLAP-style fact table for aggregate queries.
 |-------|------|-------------|
 | `table_name` | `string` | Fact table name (`tf_*`) |
 | `type_name` | `string?` | The type the table is read as (alias `type`) |
+| `row_scope` | `"relation"?` | The relation filters its own rows by tenant, on values the server sets per request; the server adds no tenant predicate. Required on a tenant-scoped fact table that no row policy scopes ([fact tables](../modules/fact-table.md#tenant-scoping-of-aggregate-and-window-roots)) |
 | `measures` | `{name, sql_type, nullable}[]` | Numeric measures |
 | `dimensions` | `{name, paths: {name, json_path, data_type}[]}` | The JSONB dimensions column |
 | `denormalized_filters` | `{name, sql_type, indexed, hierarchy?}[]` | Filter columns. `hierarchy` names the `[hierarchies.<name>]` an `LTREE` path column belongs to, for node-id filters |

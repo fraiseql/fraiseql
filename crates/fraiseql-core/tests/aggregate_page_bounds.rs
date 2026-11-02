@@ -23,7 +23,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use fraiseql_core::{
     compiler::fact_table::{
-        DimensionColumn, DimensionPath, FactTableMetadata, MeasureColumn, SqlType,
+        DimensionColumn, DimensionPath, FactRowScope, FactTableMetadata, MeasureColumn, SqlType,
     },
     db::{DatabaseAdapter, postgres::PostgresAdapter},
     runtime::{Executor, RuntimeConfig},
@@ -40,6 +40,7 @@ fn fact_table(table: &str) -> FactTableMetadata {
     FactTableMetadata {
         table_name:               table.to_string(),
         type_name:                None,
+        row_scope:                FactRowScope::Server,
         measures:                 vec![MeasureColumn {
             name:       "qty".to_string(),
             sql_type:   SqlType::BigInt,

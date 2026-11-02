@@ -28,11 +28,15 @@ use std::sync::Arc;
 
 use fraiseql_core::{
     compiler::fact_table::{
-        Additivity, DimensionColumn, FactTableMetadata, FilterColumn, MeasureColumn, SqlType,
+        Additivity, DimensionColumn, FactRowScope, FactTableMetadata, FilterColumn, MeasureColumn,
+        SqlType,
     },
     db::postgres::PostgresAdapter,
     prelude::DatabaseAdapter as _,
-    schema::{CompiledSchema, FieldType, InjectedParamSource},
+    schema::{
+        CompiledSchema, FieldType, InjectedParamSource, SessionVariableMapping,
+        SessionVariableSource, SessionVariablesConfig,
+    },
 };
 use fraiseql_server::server_config::{Hs256Config, ServerConfig};
 use fraiseql_test_support::try_database_url;
@@ -47,6 +51,11 @@ use crate::common::server_harness::TestServer;
 
 /// The fact table `tenant_probe_aggregate` / `tenant_probe_window` resolve to.
 const FACT_TABLE: &str = "tf_tenant_probe";
+/// A relation over [`FACT_TABLE`] that filters its own rows on the session variable the
+/// server sets from the caller's token: the `row_scope = "relation"` shape.
+const SCOPED_FACT_TABLE: &str = "tf_tenant_probe_scoped";
+/// The setting [`SCOPED_FACT_TABLE`] filters on.
+const TENANT_SETTING: &str = "app.tenant_id";
 /// The table behind the injected list root.
 const ROW_TABLE: &str = "tb_tenant_probe_row";
 /// The view the injected list root reads.
@@ -77,6 +86,7 @@ const REFUSAL: &str = "no row policy scopes its aggregate and window roots";
 async fn seed(adapter: &PostgresAdapter) {
     let mut stmts = vec![
         format!("DROP VIEW IF EXISTS {ROW_VIEW}"),
+        format!("DROP VIEW IF EXISTS {SCOPED_FACT_TABLE}"),
         format!("DROP TABLE IF EXISTS {ROW_TABLE}"),
         format!("DROP TABLE IF EXISTS {FACT_TABLE}"),
         format!(
@@ -97,6 +107,10 @@ async fn seed(adapter: &PostgresAdapter) {
         }
     }
     stmts.push(format!("CREATE VIEW {ROW_VIEW} AS SELECT id, data FROM {ROW_TABLE}"));
+    stmts.push(format!(
+        "CREATE VIEW {SCOPED_FACT_TABLE} AS SELECT * FROM {FACT_TABLE} \
+         WHERE tenant_id = NULLIF(current_setting('{TENANT_SETTING}', true), '')"
+    ));
     for stmt in stmts {
         let _: Vec<std::collections::HashMap<String, Value>> =
             adapter.execute_raw_query(&stmt).await.expect("fixture setup");
@@ -104,28 +118,29 @@ async fn seed(adapter: &PostgresAdapter) {
 }
 
 /// A fact table with a `tenant_id` denormalized filter and no link to a type.
-fn fact_table() -> FactTableMetadata {
+fn fact_table(table_name: &str, row_scope: FactRowScope) -> FactTableMetadata {
     FactTableMetadata {
-        table_name:               FACT_TABLE.to_string(),
-        type_name:                None,
-        measures:                 vec![MeasureColumn {
+        table_name: table_name.to_string(),
+        type_name: None,
+        row_scope,
+        measures: vec![MeasureColumn {
             name:       "amount".to_string(),
             sql_type:   SqlType::Decimal,
             nullable:   false,
             additivity: Additivity::Additive,
         }],
-        dimensions:               DimensionColumn {
+        dimensions: DimensionColumn {
             name:  "data".to_string(),
             paths: vec![],
         },
-        denormalized_filters:     vec![FilterColumn {
+        denormalized_filters: vec![FilterColumn {
             name:      "tenant_id".to_string(),
             sql_type:  SqlType::Text,
             indexed:   true,
             hierarchy: None,
         }],
-        calendar_dimensions:      vec![],
-        native_measures:          std::collections::HashMap::new(),
+        calendar_dimensions: vec![],
+        native_measures: std::collections::HashMap::new(),
         native_dimension_mapping: std::collections::HashMap::new(),
     }
 }
@@ -150,7 +165,28 @@ fn build_schema() -> CompiledSchema {
         )
         .with_query(query)
         .build();
-    schema.add_fact_table(FACT_TABLE.to_string(), fact_table());
+    schema.add_fact_table(FACT_TABLE.to_string(), fact_table(FACT_TABLE, FactRowScope::Server));
+    schema.build_indexes();
+    schema
+}
+
+/// [`build_schema`] plus a fact table whose relation filters its own rows on a session
+/// variable the server sets from the token's tenant claim.
+fn build_relation_scoped_schema() -> CompiledSchema {
+    let mut schema = build_schema();
+    schema.add_fact_table(
+        SCOPED_FACT_TABLE.to_string(),
+        fact_table(SCOPED_FACT_TABLE, FactRowScope::Relation),
+    );
+    schema.session_variables = SessionVariablesConfig {
+        variables: vec![SessionVariableMapping {
+            name:   TENANT_SETTING.to_string(),
+            source: SessionVariableSource::Jwt {
+                claim: CLAIM.to_string(),
+            },
+        }],
+        ..SessionVariablesConfig::default()
+    };
     schema.build_indexes();
     schema
 }
@@ -232,10 +268,15 @@ async fn post_graphql(base: &str, token: Option<&str>, body: &Value) -> Value {
 
 /// Count per tenant, grouped by the fact table's `tenant_id` column.
 fn aggregate_body() -> Value {
+    aggregate_body_over("tenant_probe", FACT_TABLE)
+}
+
+/// [`aggregate_body`] over the root `{root}_aggregate` and its fact table.
+fn aggregate_body_over(root: &str, table: &str) -> Value {
     json!({
-        "query": "{ tenant_probe_aggregate { count } }",
+        "query": format!("{{ {root}_aggregate {{ count }} }}"),
         "variables": {
-            "table":      FACT_TABLE,
+            "table":      table,
             "groupBy":    {"tenant_id": true},
             "aggregates": [{"count": {}}]
         }
@@ -244,10 +285,15 @@ fn aggregate_body() -> Value {
 
 /// Every row's `tenant_id`, numbered.
 fn window_body() -> Value {
+    window_body_over("tenant_probe", FACT_TABLE)
+}
+
+/// [`window_body`] over the root `{root}_window` and its fact table.
+fn window_body_over(root: &str, table: &str) -> Value {
     json!({
-        "query": "{ tenant_probe_window { rank } }",
+        "query": format!("{{ {root}_window {{ rank }} }}"),
         "variables": {
-            "table":   FACT_TABLE,
+            "table":   table,
             "select":  [{"type": "filter", "name": "tenant_id", "alias": "tenant_id"}],
             "windows": [{"function": {"type": "row_number"}, "alias": "rank"}]
         }
@@ -297,7 +343,8 @@ async fn an_aggregate_does_not_read_another_tenants_rows() {
             eprintln!("skipping: DATABASE_URL not set");
             return;
         };
-        let response = post_graphql(&server.url, Some(&token_for(TENANT_B)), &aggregate_body()).await;
+        let response =
+            post_graphql(&server.url, Some(&token_for(TENANT_B)), &aggregate_body()).await;
         assert_refused_without_rows(&response, &[TENANT_A], "aggregate as tenant B");
     })
     .await;
@@ -342,6 +389,78 @@ async fn an_anonymous_window_reads_no_tenants_rows() {
         };
         let response = post_graphql(&server.url, None, &window_body()).await;
         assert_refused_without_rows(&response, &[TENANT_A, TENANT_B], "anonymous window");
+    })
+    .await;
+}
+
+/// How many of `tenant`'s rows [`FACT_TABLE`] holds, read straight from the database: the
+/// rows a scoped read must leave out are really there.
+async fn rows_in_the_table(tenant: &str) -> i64 {
+    let url = try_database_url().expect("DATABASE_URL");
+    let adapter = PostgresAdapter::new(&url).await.expect("connect to the test database");
+    let rows: Vec<std::collections::HashMap<String, Value>> = adapter
+        .execute_raw_query(&format!(
+            "SELECT count(*)::bigint AS n FROM {FACT_TABLE} WHERE tenant_id = '{tenant}'"
+        ))
+        .await
+        .expect("count rows");
+    rows[0]["n"].as_i64().expect("a count")
+}
+
+/// A `row_scope = "relation"` fact table is served, and its relation's own filter is what
+/// scopes it: tenant B sees exactly its own rows while tenant A's are in the table.
+#[tokio::test]
+async fn a_relation_scoped_aggregate_reads_exactly_the_callers_tenant() {
+    with_secret(async {
+        let Some(server) = start(true, build_relation_scoped_schema()).await else {
+            eprintln!("skipping: DATABASE_URL not set");
+            return;
+        };
+        assert_eq!(rows_in_the_table(TENANT_A).await, 2, "tenant A's rows must be present");
+        let body = aggregate_body_over("tenant_probe_scoped", SCOPED_FACT_TABLE);
+        let response = post_graphql(&server.url, Some(&token_for(TENANT_B)), &body).await;
+        assert_eq!(
+            response["data"]["tenant_probe_scoped_aggregate"],
+            json!([{"tenant_id": TENANT_B, "count": 3}]),
+            "{response}"
+        );
+    })
+    .await;
+}
+
+/// As [`a_relation_scoped_aggregate_reads_exactly_the_callers_tenant`], for the window root.
+#[tokio::test]
+async fn a_relation_scoped_window_reads_exactly_the_callers_tenant() {
+    with_secret(async {
+        let Some(server) = start(true, build_relation_scoped_schema()).await else {
+            eprintln!("skipping: DATABASE_URL not set");
+            return;
+        };
+        assert_eq!(rows_in_the_table(TENANT_A).await, 2, "tenant A's rows must be present");
+        let body = window_body_over("tenant_probe_scoped", SCOPED_FACT_TABLE);
+        let response = post_graphql(&server.url, Some(&token_for(TENANT_B)), &body).await;
+        let rows = response["data"]["tenant_probe_scoped_window"]
+            .as_array()
+            .cloned()
+            .unwrap_or_default();
+        assert_eq!(rows.len(), 3, "tenant B owns 3 rows: {response}");
+        assert!(rows.iter().all(|r| r["tenant_id"] == TENANT_B), "{response}");
+    })
+    .await;
+}
+
+/// A relation-scoped fact table read with no token: no setting, so the relation's own
+/// filter keeps every row out.
+#[tokio::test]
+async fn an_anonymous_relation_scoped_aggregate_reads_no_rows() {
+    with_secret(async {
+        let Some(server) = start(false, build_relation_scoped_schema()).await else {
+            eprintln!("skipping: DATABASE_URL not set");
+            return;
+        };
+        let body = aggregate_body_over("tenant_probe_scoped", SCOPED_FACT_TABLE);
+        let response = post_graphql(&server.url, None, &body).await;
+        assert_eq!(response["data"]["tenant_probe_scoped_aggregate"], json!([]), "{response}");
     })
     .await;
 }

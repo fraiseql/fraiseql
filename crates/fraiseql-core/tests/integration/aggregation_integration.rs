@@ -27,7 +27,7 @@ use fraiseql_core::{
         aggregation::{AggregateSelection, AggregationRequest, GroupBySelection},
         fact_table::{
             CalendarBucket, CalendarDimension, CalendarGranularity, DimensionColumn, DimensionPath,
-            FactTableMetadata, FilterColumn, MeasureColumn, SqlType,
+            FactRowScope, FactTableMetadata, FilterColumn, MeasureColumn, SqlType,
         },
     },
     runtime::{AggregateQueryParser, AggregationProjector, AggregationSqlGenerator},
@@ -39,6 +39,7 @@ fn create_test_metadata() -> FactTableMetadata {
     FactTableMetadata {
         table_name:               "tf_sales".to_string(),
         type_name:                None,
+        row_scope:                FactRowScope::Server,
         measures:                 vec![
             MeasureColumn {
                 name:       "revenue".to_string(),

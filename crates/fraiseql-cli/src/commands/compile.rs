@@ -646,6 +646,9 @@ pub async fn compile_to_schema(
     // 5g. Refuse authorization declarations no enforcer reads (#983).
     refuse_unenforced_authz_declarations(&schema)?;
 
+    // 5g'. Refuse a tenant-scoped fact table whose analytics roots nothing scopes.
+    refuse_unscoped_fact_tables(&schema)?;
+
     // 5h. Refuse a schema a server would refuse to load (ruling AF 4).
     refuse_what_a_server_would_not_load(&schema)?;
 
@@ -719,6 +722,37 @@ fn refuse_what_a_server_would_not_load(schema: &CompiledSchema) -> Result<()> {
         anyhow::anyhow!("the compiled schema would be refused when a server loads it: {e}")
     })?;
     Ok(())
+}
+
+/// Refuse a tenant-scoped fact table whose aggregate and window roots nothing scopes (#1799).
+///
+/// An aggregate or a window root has no `inject_params`; the server scopes it only through
+/// a row policy, which it does not install, and refuses it otherwise. A schema that scopes
+/// a fact table's rows by tenant ([`CompiledSchema::unenforced_tenant_scope`]) would serve
+/// those roots as refusals only, so it is refused here, naming the way out: a relation that
+/// filters its own rows declares `row_scope = "relation"`.
+///
+/// Not at load: an embedder that installs a row policy scopes the roots, and a load-time
+/// check cannot see one.
+///
+/// # Errors
+///
+/// Returns an error naming every such fact table and why it is tenant-scoped.
+fn refuse_unscoped_fact_tables(schema: &CompiledSchema) -> Result<()> {
+    let violations = schema.fact_table_scope_violations();
+    if violations.is_empty() {
+        return Ok(());
+    }
+    anyhow::bail!(
+        "tenant-scoped fact table(s) whose _aggregate and _window roots nothing scopes:\n  - \
+         {}\n\n\
+         The server applies no tenant predicate to an aggregate or a window root, so it refuses \
+         them rather than read across tenants. If the relation filters its own rows by tenant \
+         (on a current_setting(...) the server sets from [session_variables], never on client \
+         input), declare `row_scope = \"relation\"` on the fact table; otherwise give it such \
+         a filter first.",
+        violations.join("\n  - ")
+    )
 }
 
 /// Refuse `security.rules`, `security.field_auth` and `security.default_policy` (#983).

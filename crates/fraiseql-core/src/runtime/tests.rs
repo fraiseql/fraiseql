@@ -11,7 +11,8 @@ mod aggregate_parser_tests {
             aggregate_types::{AggregateFunction, HavingOperator, TemporalBucket},
             aggregation::{AggregateSelection, GroupBySelection, OrderDirection},
             fact_table::{
-                DimensionColumn, FactTableMetadata, FilterColumn, MeasureColumn, SqlType,
+                DimensionColumn, FactRowScope, FactTableMetadata, FilterColumn, MeasureColumn,
+                SqlType,
             },
         },
         error::FraiseQLError,
@@ -24,6 +25,7 @@ mod aggregate_parser_tests {
         FactTableMetadata {
             table_name:               "tf_sales".to_string(),
             type_name:                None,
+            row_scope:                FactRowScope::Server,
             measures:                 vec![
                 MeasureColumn {
                     name:       "revenue".to_string(),
@@ -396,6 +398,7 @@ mod aggregate_parser_tests {
         let metadata = FactTableMetadata {
             table_name:               "mv_daily_sales".to_string(),
             type_name:                None,
+            row_scope:                FactRowScope::Server,
             measures:                 vec![],
             dimensions:               DimensionColumn {
                 name:  "data".to_string(),
@@ -442,6 +445,7 @@ mod aggregate_parser_tests {
         let metadata = FactTableMetadata {
             table_name:               "mv_daily_sales".to_string(),
             type_name:                None,
+            row_scope:                FactRowScope::Server,
             measures:                 vec![],
             dimensions:               DimensionColumn {
                 name:  "data".to_string(),
@@ -480,6 +484,7 @@ mod aggregate_parser_tests {
         let metadata = FactTableMetadata {
             table_name:               "mv_daily_sales".to_string(),
             type_name:                None,
+            row_scope:                FactRowScope::Server,
             measures:                 vec![MeasureColumn {
                 name:       "volume".to_string(),
                 sql_type:   SqlType::BigInt,
@@ -540,6 +545,7 @@ mod aggregate_projector_tests {
         let metadata = FactTableMetadata {
             table_name:               "tf_sales".to_string(),
             type_name:                None,
+            row_scope:                crate::compiler::fact_table::FactRowScope::Server,
             measures:                 vec![MeasureColumn {
                 name:       "revenue".to_string(),
                 sql_type:   SqlType::Decimal,
@@ -4729,6 +4735,7 @@ mod window_parser_tests {
         FactTableMetadata {
             table_name:               "tf_sales".to_string(),
             type_name:                None,
+            row_scope:                crate::compiler::fact_table::FactRowScope::Server,
             measures:                 vec![
                 MeasureColumn {
                     name:       "revenue".to_string(),

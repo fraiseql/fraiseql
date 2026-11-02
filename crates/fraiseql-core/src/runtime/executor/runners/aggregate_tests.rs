@@ -8,7 +8,7 @@ use chrono::Utc;
 
 use crate::{
     compiler::fact_table::{
-        DimensionColumn, FactTableMetadata, FilterColumn, MeasureColumn, SqlType,
+        DimensionColumn, FactRowScope, FactTableMetadata, FilterColumn, MeasureColumn, SqlType,
     },
     runtime::{Executor, RuntimeConfig, executor::test_support::CapturingMockAdapter},
     security::{DefaultRLSPolicy, SecurityContext},
@@ -62,6 +62,7 @@ fn schema_with_fact_table() -> crate::schema::CompiledSchema {
         FactTableMetadata {
             table_name:               "tf_sales".to_string(),
             type_name:                None,
+            row_scope:                FactRowScope::Server,
             measures:                 vec![MeasureColumn {
                 name:       "revenue".to_string(),
                 sql_type:   SqlType::Decimal,
@@ -741,5 +742,260 @@ mod anonymous_under_a_row_policy {
             .await
             .expect("the policy is evaluated for the principal");
         assert!(adapter.captured_aggregate_sql().is_some());
+    }
+}
+
+// ── Tenant-scoped fact tables (#1799) ───────────────────────────────────────
+//
+// An aggregate or a window root has no `inject_params`, so in a schema that scopes a fact
+// table's rows by tenant, nothing but a row policy can scope it: without one it is refused,
+// from every door, before any SQL runs.
+mod tenant_scoped_fact_tables {
+    use super::*;
+    use crate::{
+        error::FraiseQLError,
+        schema::{
+            CompiledSchema, FieldDefinition, FieldType, InjectedParamSource, QueryDefinition,
+            TypeDefinition,
+        },
+    };
+
+    const REFUSAL: &str = "no row policy scopes its aggregate and window roots";
+
+    fn aggregate_vars() -> serde_json::Value {
+        serde_json::json!({ "table": "tf_sales", "aggregates": [{"count": {}}] })
+    }
+
+    fn window_vars() -> serde_json::Value {
+        serde_json::json!({
+            "table": "tf_sales",
+            "select": [{"type": "filter", "name": "tenant_id", "alias": "tenant_id"}],
+            "windows": [{"function": {"type": "row_number"}, "alias": "rank"}]
+        })
+    }
+
+    /// A query injecting `column` from the token, returning `return_type`.
+    fn injecting_query(name: &str, return_type: &str, column: &str) -> QueryDefinition {
+        let mut query = QueryDefinition::new(name, return_type);
+        query
+            .inject_params
+            .insert(column.to_string(), InjectedParamSource::Jwt("tid".to_string()));
+        query
+    }
+
+    /// `tf_sales` (with its `tenant_id` filter) beside a list root injecting `tenant_id`.
+    fn injected_column_schema() -> CompiledSchema {
+        let mut schema = schema_with_fact_table();
+        schema.queries.push(injecting_query("rows", "Row", "tenant_id"));
+        schema.build_indexes();
+        schema
+    }
+
+    fn with_row_scope(mut schema: CompiledSchema, row_scope: FactRowScope) -> CompiledSchema {
+        let mut table = schema.get_fact_table("tf_sales").unwrap().clone();
+        table.row_scope = row_scope;
+        schema.add_fact_table("tf_sales".to_string(), table);
+        schema
+    }
+
+    /// `metadata` with every name that could tie it to a tenant removed: what an embedder
+    /// could hand the public entries.
+    fn stripped(metadata: &FactTableMetadata) -> FactTableMetadata {
+        FactTableMetadata {
+            type_name: None,
+            denormalized_filters: vec![],
+            ..metadata.clone()
+        }
+    }
+
+    async fn graphql(
+        schema: CompiledSchema,
+        config: RuntimeConfig,
+        root: &str,
+        vars: &serde_json::Value,
+    ) -> (crate::error::Result<serde_json::Value>, Option<String>) {
+        let adapter = Arc::new(CapturingMockAdapter::new(vec![]));
+        let ctx = tenant_security_context("tenant-abc");
+        let res = Executor::with_config(schema, adapter.clone(), config)
+            .execute_with_security(root, Some(vars), &ctx)
+            .await;
+        (res, adapter.captured_aggregate_sql())
+    }
+
+    fn assert_refused(
+        res: &crate::error::Result<serde_json::Value>,
+        sql: Option<&String>,
+        what: &str,
+    ) {
+        match res {
+            Err(FraiseQLError::Validation { message, .. }) => {
+                assert!(message.contains(REFUSAL), "{what}: {message}");
+            },
+            other => panic!("{what}: expected the #1799 refusal, got {other:?}"),
+        }
+        assert!(sql.is_none(), "{what}: the statement reached the database: {sql:?}");
+    }
+
+    #[tokio::test]
+    async fn an_aggregate_over_a_fact_table_with_an_injected_column_is_refused() {
+        let (res, sql) = graphql(
+            injected_column_schema(),
+            RuntimeConfig::default(),
+            "{ sales_aggregate }",
+            &aggregate_vars(),
+        )
+        .await;
+        assert_refused(&res, sql.as_ref(), "aggregate");
+        let Err(FraiseQLError::Validation { message, .. }) = res else {
+            unreachable!()
+        };
+        assert!(
+            message.contains("its column 'tenant_id' is injected by query 'rows'"),
+            "the reason names the matched inject key: {message}"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_window_over_a_fact_table_with_an_injected_column_is_refused() {
+        let (res, sql) = graphql(
+            injected_column_schema(),
+            RuntimeConfig::default(),
+            "{ sales_window }",
+            &window_vars(),
+        )
+        .await;
+        assert_refused(&res, sql.as_ref(), "window");
+    }
+
+    /// A fact table read as a type its queries inject is scoped, whatever its columns are
+    /// called: here the injected column is not one of the fact table's.
+    #[tokio::test]
+    async fn an_aggregate_over_a_fact_table_read_as_an_injected_type_is_refused() {
+        let mut schema = schema_with_fact_table();
+        schema.types.push(TypeDefinition {
+            fields: vec![
+                FieldDefinition::new("revenue", FieldType::Float),
+                FieldDefinition::new("tenant_id", FieldType::String),
+            ],
+            ..TypeDefinition::new("Sale", "v_sale")
+        });
+        schema.queries.push(injecting_query("sales", "Sale", "owner_id"));
+        let mut table = schema.get_fact_table("tf_sales").unwrap().clone();
+        table.type_name = Some("Sale".to_string());
+        schema.add_fact_table("tf_sales".to_string(), table);
+        schema.build_indexes();
+
+        let (res, sql) =
+            graphql(schema, RuntimeConfig::default(), "{ sales_aggregate }", &aggregate_vars())
+                .await;
+        assert_refused(&res, sql.as_ref(), "linked aggregate");
+        let Err(FraiseQLError::Validation { message, .. }) = res else {
+            unreachable!()
+        };
+        assert!(
+            message.contains("type 'Sale', which query 'sales' reads injecting 'owner_id'"),
+            "{message}"
+        );
+    }
+
+    /// The type's own `inject_params` scope it as its queries' do.
+    #[tokio::test]
+    async fn an_aggregate_over_a_fact_table_read_as_a_type_injecting_itself_is_refused() {
+        let mut schema = schema_with_fact_table();
+        let mut sale = TypeDefinition {
+            fields: vec![
+                FieldDefinition::new("revenue", FieldType::Float),
+                FieldDefinition::new("tenant_id", FieldType::String),
+            ],
+            ..TypeDefinition::new("Sale", "v_sale")
+        };
+        sale.inject_params
+            .insert("owner_id".to_string(), InjectedParamSource::Jwt("sub".to_string()));
+        schema.types.push(sale);
+        let mut table = schema.get_fact_table("tf_sales").unwrap().clone();
+        table.type_name = Some("Sale".to_string());
+        schema.add_fact_table("tf_sales".to_string(), table);
+        schema.build_indexes();
+
+        let (res, sql) =
+            graphql(schema, RuntimeConfig::default(), "{ sales_aggregate }", &aggregate_vars())
+                .await;
+        assert_refused(&res, sql.as_ref(), "type-level inject");
+    }
+
+    #[tokio::test]
+    async fn the_public_aggregate_entry_is_refused_even_with_stripped_metadata() {
+        let schema = injected_column_schema();
+        let registered = schema.get_fact_table("tf_sales").unwrap().clone();
+        let adapter = Arc::new(CapturingMockAdapter::new(vec![]));
+        let executor = Executor::new(schema, adapter.clone());
+        for metadata in [registered.clone(), stripped(&registered)] {
+            let res = executor
+                .execute_aggregate_query(&aggregate_vars(), "sales_aggregate", &metadata)
+                .await;
+            assert_refused(&res, adapter.captured_aggregate_sql().as_ref(), "embedder aggregate");
+        }
+    }
+
+    #[tokio::test]
+    async fn the_public_window_entry_is_refused_even_with_stripped_metadata() {
+        let schema = injected_column_schema();
+        let registered = schema.get_fact_table("tf_sales").unwrap().clone();
+        let adapter = Arc::new(CapturingMockAdapter::new(vec![]));
+        let executor = Executor::new(schema, adapter.clone());
+        for metadata in [registered.clone(), stripped(&registered)] {
+            let res =
+                executor.execute_window_query(&window_vars(), "sales_window", &metadata).await;
+            assert_refused(&res, adapter.captured_aggregate_sql().as_ref(), "embedder window");
+        }
+    }
+
+    /// A row policy scopes the roots: the read is served, under the policy's predicate.
+    #[tokio::test]
+    async fn a_row_policy_scopes_the_roots_instead() {
+        let config = RuntimeConfig::default().with_rls_policy(Arc::new(DefaultRLSPolicy::new()));
+        let (res, sql) =
+            graphql(injected_column_schema(), config, "{ sales_aggregate }", &aggregate_vars())
+                .await;
+        assert!(res.is_ok(), "{res:?}");
+        assert!(sql.unwrap().contains("tenant_id"), "the policy's predicate scopes it");
+    }
+
+    /// A relation that filters its own rows is served, and the server adds no predicate.
+    #[tokio::test]
+    async fn a_relation_scoped_fact_table_is_served_unfiltered_by_the_server() {
+        let schema = with_row_scope(injected_column_schema(), FactRowScope::Relation);
+        let (res, sql) =
+            graphql(schema, RuntimeConfig::default(), "{ sales_aggregate }", &aggregate_vars())
+                .await;
+        assert!(res.is_ok(), "{res:?}");
+        assert!(!sql.unwrap().contains("tenant_id"), "the relation scopes itself");
+    }
+
+    /// An embedder's metadata cannot declare the relation scoped for a table the schema
+    /// registers as scoped by the server.
+    #[tokio::test]
+    async fn embedder_metadata_cannot_declare_a_registered_table_relation_scoped() {
+        let schema = injected_column_schema();
+        let mut metadata = schema.get_fact_table("tf_sales").unwrap().clone();
+        metadata.row_scope = FactRowScope::Relation;
+        let adapter = Arc::new(CapturingMockAdapter::new(vec![]));
+        let res = Executor::new(schema, adapter.clone())
+            .execute_aggregate_query(&aggregate_vars(), "sales_aggregate", &metadata)
+            .await;
+        assert_refused(&res, adapter.captured_aggregate_sql().as_ref(), "embedder opt-out");
+    }
+
+    /// `row_scope = "relation"` on a fact table no injected read concerns changes nothing.
+    #[tokio::test]
+    async fn row_scope_on_a_fact_table_that_is_not_tenant_scoped_is_harmless() {
+        for row_scope in [FactRowScope::Server, FactRowScope::Relation] {
+            let schema = with_row_scope(schema_with_fact_table(), row_scope);
+            let (res, sql) =
+                graphql(schema, RuntimeConfig::default(), "{ sales_aggregate }", &aggregate_vars())
+                    .await;
+            assert!(res.is_ok(), "{row_scope:?}: {res:?}");
+            assert!(sql.is_some(), "{row_scope:?}: served");
+        }
     }
 }

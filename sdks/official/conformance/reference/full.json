@@ -610,6 +610,7 @@
     {
       "table_name": "tf_sale",
       "type_name": "Order",
+      "row_scope": "relation",
       "measures": [
         {
           "name": "total",

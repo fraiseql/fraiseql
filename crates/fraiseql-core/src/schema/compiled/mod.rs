@@ -6,6 +6,7 @@
 pub mod argument;
 pub mod directive;
 mod fact_table_links;
+mod fact_table_scope;
 mod federation_keys;
 mod localized_indexes;
 pub mod mutation;

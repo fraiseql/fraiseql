@@ -29,7 +29,7 @@ use std::sync::Arc;
 use axum::{Router, body::Body, routing::post};
 use fraiseql_core::{
     compiler::fact_table::{
-        DimensionColumn, DimensionPath, FactTableMetadata, MeasureColumn, SqlType,
+        DimensionColumn, DimensionPath, FactRowScope, FactTableMetadata, MeasureColumn, SqlType,
     },
     db::postgres::PostgresAdapter,
     prelude::DatabaseAdapter as _,
@@ -55,6 +55,7 @@ fn sales_metadata() -> FactTableMetadata {
     FactTableMetadata {
         table_name:               FACT_TABLE.to_string(),
         type_name:                None,
+        row_scope:                FactRowScope::Server,
         measures:                 vec![MeasureColumn {
             name:       "revenue".to_string(),
             sql_type:   SqlType::Decimal,

@@ -3,7 +3,9 @@ use super::*;
 use crate::compiler::{
     aggregate_types::HavingOperator,
     aggregation::{AggregateSelection, AggregationRequest, GroupBySelection},
-    fact_table::{DimensionColumn, FactTableMetadata, FilterColumn, MeasureColumn, SqlType},
+    fact_table::{
+        DimensionColumn, FactRowScope, FactTableMetadata, FilterColumn, MeasureColumn, SqlType,
+    },
 };
 
 /// Metadata helper for integration tests — includes `customer_id` as a native int8 column.
@@ -12,6 +14,7 @@ fn create_aggregation_test_metadata() -> crate::compiler::fact_table::FactTableM
     crate::compiler::fact_table::FactTableMetadata {
         table_name:               "tf_sales".to_string(),
         type_name:                None,
+        row_scope:                FactRowScope::Server,
         measures:                 vec![MeasureColumn {
             name:       "revenue".to_string(),
             sql_type:   SqlType::Decimal,
@@ -38,6 +41,7 @@ fn create_test_plan() -> AggregationPlan {
     let metadata = FactTableMetadata {
         table_name:               "tf_sales".to_string(),
         type_name:                None,
+        row_scope:                FactRowScope::Server,
         measures:                 vec![MeasureColumn {
             name:       "revenue".to_string(),
             sql_type:   SqlType::Decimal,
@@ -664,6 +668,7 @@ fn make_string_where_plan(_db: DatabaseType) -> AggregationPlan {
     let metadata = FactTableMetadata {
         table_name:               "tf_sales".to_string(),
         type_name:                None,
+        row_scope:                FactRowScope::Server,
         measures:                 vec![],
         dimensions:               DimensionColumn {
             name:  "data".to_string(),
@@ -729,6 +734,7 @@ fn test_parameterized_postgres_placeholder_numbering() {
     let metadata = FactTableMetadata {
         table_name:               "tf_sales".to_string(),
         type_name:                None,
+        row_scope:                FactRowScope::Server,
         measures:                 vec![MeasureColumn {
             name:       "revenue".to_string(),
             sql_type:   SqlType::Decimal,
@@ -811,6 +817,7 @@ fn test_parameterized_in_array_expands_to_multiple_placeholders() {
     let metadata = FactTableMetadata {
         table_name:               "tf_sales".to_string(),
         type_name:                None,
+        row_scope:                FactRowScope::Server,
         measures:                 vec![],
         dimensions:               DimensionColumn {
             name:  "data".to_string(),
@@ -866,6 +873,7 @@ fn test_aggregation_plan_uses_native_measure() {
     let metadata = FactTableMetadata {
         table_name:               "mv_daily_sales".to_string(),
         type_name:                None,
+        row_scope:                FactRowScope::Server,
         measures:                 vec![MeasureColumn {
             name:       "volume".to_string(),
             sql_type:   SqlType::BigInt,
@@ -917,6 +925,7 @@ fn test_native_measure_sql_uses_quoted_identifier() {
     let metadata = FactTableMetadata {
         table_name:               "mv_daily_sales".to_string(),
         type_name:                None,
+        row_scope:                FactRowScope::Server,
         measures:                 vec![],
         dimensions:               DimensionColumn {
             name:  "data".to_string(),
@@ -970,6 +979,7 @@ fn test_non_native_measure_unchanged() {
     let metadata = FactTableMetadata {
         table_name:               "tf_sales".to_string(),
         type_name:                None,
+        row_scope:                FactRowScope::Server,
         measures:                 vec![MeasureColumn {
             name:       "revenue".to_string(),
             sql_type:   SqlType::Decimal,
@@ -1026,6 +1036,7 @@ fn test_native_dimension_mapping_sql_output() {
     let metadata = FactTableMetadata {
         table_name:               "mv_daily_sales".to_string(),
         type_name:                None,
+        row_scope:                FactRowScope::Server,
         measures:                 vec![],
         dimensions:               DimensionColumn {
             name:  "data".to_string(),

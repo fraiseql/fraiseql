@@ -940,6 +940,7 @@ impl SchemaConverter {
         FactTableMetadata {
             table_name:               ft.table_name,
             type_name:                ft.type_name,
+            row_scope:                ft.row_scope,
             measures:                 ft
                 .measures
                 .into_iter()

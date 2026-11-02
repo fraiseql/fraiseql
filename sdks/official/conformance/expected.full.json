@@ -83,6 +83,7 @@
           "sql_type": "Decimal"
         }
       ],
+      "row_scope": null,
       "type_name": null
     },
     "tf_sale": {
@@ -111,6 +112,7 @@
           "sql_type": "Decimal"
         }
       ],
+      "row_scope": "relation",
       "type_name": "Order"
     }
   },

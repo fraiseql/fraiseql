@@ -2224,12 +2224,13 @@ mod introspect_facts_tests {
     #[test]
     fn test_format_as_python() {
         use fraiseql_core::compiler::fact_table::{
-            DimensionColumn, FactTableMetadata, FilterColumn, MeasureColumn, SqlType,
+            DimensionColumn, FactRowScope, FactTableMetadata, FilterColumn, MeasureColumn, SqlType,
         };
 
         let metadata = FactTableMetadata {
             table_name:               "tf_sales".to_string(),
             type_name:                None,
+            row_scope:                FactRowScope::Server,
             measures:                 vec![
                 MeasureColumn {
                     name:       "revenue".to_string(),
@@ -3961,6 +3962,7 @@ mod validate_facts_tests {
         FactTableMetadata {
             table_name: "tf_sales".to_string(),
             type_name: None,
+            row_scope: fraiseql_core::compiler::fact_table::FactRowScope::Server,
             measures,
             dimensions: DimensionColumn {
                 name:  dim_name.to_string(),

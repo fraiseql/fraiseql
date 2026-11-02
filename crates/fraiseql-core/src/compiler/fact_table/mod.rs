@@ -61,6 +61,9 @@ pub struct FactTableMetadata {
     /// gate, and none applies.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub type_name:                Option<String>,
+    /// Who keeps one tenant's aggregate and window from reading another's rows (#1799).
+    #[serde(default, skip_serializing_if = "FactRowScope::is_server")]
+    pub row_scope:                FactRowScope,
     /// Measures (aggregatable numeric columns)
     pub measures:                 Vec<MeasureColumn>,
     /// Dimension column (JSONB)
@@ -427,6 +430,32 @@ pub struct FilterColumn {
     /// (#1498). `None`: the column takes the path operators only.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hierarchy: Option<String>,
+}
+
+/// Who scopes the rows an aggregate or a window over a fact table reads (#1799).
+///
+/// In a schema that scopes its reads by `inject_params`, an aggregate or a window root has
+/// no `inject_params` of its own: the server can scope it only through a row policy, and
+/// refuses it otherwise. A relation that filters its own rows says so here.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[non_exhaustive]
+pub enum FactRowScope {
+    /// The server scopes the rows, or refuses the read when it cannot.
+    #[default]
+    Server,
+    /// The relation filters its own rows, on values the server sets per request (a
+    /// `current_setting(...)` fed by `[session_variables]`), never on client input. The
+    /// server adds no tenant predicate.
+    Relation,
+}
+
+impl FactRowScope {
+    /// `true` for the default, [`FactRowScope::Server`].
+    #[must_use]
+    pub const fn is_server(&self) -> bool {
+        matches!(self, Self::Server)
+    }
 }
 
 /// Aggregation strategy for fact tables

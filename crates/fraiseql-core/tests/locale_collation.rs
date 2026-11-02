@@ -17,7 +17,9 @@ use std::{
 };
 
 use fraiseql_core::{
-    compiler::fact_table::{DimensionColumn, FactTableMetadata, MeasureColumn, SqlType},
+    compiler::fact_table::{
+        DimensionColumn, FactRowScope, FactTableMetadata, MeasureColumn, SqlType,
+    },
     db::{DatabaseAdapter, postgres::PostgresAdapter},
     runtime::{Executor, with_request_locale},
     schema::{CompiledSchema, FieldType, LocaleConfig, LocaleSource, NativeColumn},
@@ -271,6 +273,7 @@ fn fact_table() -> FactTableMetadata {
     FactTableMetadata {
         table_name:               VIEW.to_string(),
         type_name:                None,
+        row_scope:                FactRowScope::Server,
         measures:                 vec![MeasureColumn {
             name:       "pk_word".to_string(),
             sql_type:   SqlType::BigInt,

@@ -17,7 +17,7 @@ use std::{
 
 use fraiseql_core::{
     compiler::fact_table::{
-        DimensionColumn, DimensionPath, FactTableMetadata, MeasureColumn, SqlType,
+        DimensionColumn, DimensionPath, FactRowScope, FactTableMetadata, MeasureColumn, SqlType,
     },
     db::{DatabaseAdapter, postgres::PostgresAdapter},
     runtime::{Executor, with_request_locale},
@@ -32,6 +32,7 @@ fn fact_table() -> FactTableMetadata {
     FactTableMetadata {
         table_name:               TABLE.to_string(),
         type_name:                Some("Sale".to_string()),
+        row_scope:                FactRowScope::Server,
         measures:                 vec![MeasureColumn {
             name:       "qty".to_string(),
             sql_type:   SqlType::BigInt,

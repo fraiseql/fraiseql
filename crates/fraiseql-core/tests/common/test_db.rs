@@ -12,7 +12,8 @@ use std::sync::Arc;
 
 use fraiseql_core::{
     compiler::fact_table::{
-        DimensionColumn, DimensionPath, FactTableMetadata, FilterColumn, MeasureColumn, SqlType,
+        DimensionColumn, DimensionPath, FactRowScope, FactTableMetadata, FilterColumn,
+        MeasureColumn, SqlType,
     },
     db::{
         ArcDatabaseAdapter, postgres::PostgresAdapter, traits::DatabaseAdapter, types::DatabaseType,
@@ -167,6 +168,7 @@ pub fn create_sales_metadata() -> FactTableMetadata {
     FactTableMetadata {
         table_name:               "tf_sales".to_string(),
         type_name:                None,
+        row_scope:                FactRowScope::Server,
         measures:                 vec![
             MeasureColumn {
                 name:       "revenue".to_string(),

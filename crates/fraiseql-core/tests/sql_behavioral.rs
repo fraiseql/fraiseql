@@ -287,7 +287,9 @@ fn aggregate_sum_produces_correct_sql() {
         compiler::{
             aggregate_types::AggregateFunction,
             aggregation::{AggregateSelection, AggregationPlanner, AggregationRequest},
-            fact_table::{DimensionColumn, FactTableMetadata, MeasureColumn, SqlType},
+            fact_table::{
+                DimensionColumn, FactRowScope, FactTableMetadata, MeasureColumn, SqlType,
+            },
         },
         db::types::DatabaseType,
         runtime::AggregationSqlGenerator,
@@ -296,6 +298,7 @@ fn aggregate_sum_produces_correct_sql() {
     let metadata = FactTableMetadata {
         table_name:               "tf_sales".to_string(),
         type_name:                None,
+        row_scope:                FactRowScope::Server,
         measures:                 vec![MeasureColumn {
             name:       "amount".to_string(),
             sql_type:   SqlType::Decimal,
@@ -364,6 +367,7 @@ fn aggregate_group_by_produces_correct_sql() {
     let metadata = FactTableMetadata {
         table_name:               "tf_sales".to_string(),
         type_name:                None,
+        row_scope:                fraiseql_core::compiler::fact_table::FactRowScope::Server,
         measures:                 vec![MeasureColumn {
             name:       "amount".to_string(),
             sql_type:   SqlType::Decimal,

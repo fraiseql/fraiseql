@@ -400,6 +400,72 @@ Independently of the link, when a row-level security policy is configured an agg
 window without a principal is refused, as a regular query is: the policy cannot be
 evaluated without one.
 
+## Tenant scoping of aggregate and window roots
+
+An `<name>_aggregate` or `<name>_window` root has no `inject_params` of its own. The server
+applies **no tenant predicate** to it: the only clause it can compose there is a row policy's
+(`RuntimeConfig::with_rls_policy`, which an embedder installs; `fraiseql-server` installs
+none). So in a schema that scopes its reads by tenant, these roots would read every tenant's
+rows, and they are refused instead.
+
+A fact table is **tenant-scoped** when either:
+
+- the type it is read as (`type_name`) declares `inject_params`, or is returned by a query
+  that does; or
+- one of its `denormalized_filters` is a column some query or type injects (a `tenant_id`
+  column beside list roots that inject `tenant_id`, say).
+
+`[fraiseql.tenancy] mode = "row"` counts: `@tenant_id` is lowered onto the queries'
+`inject_params` before this is decided.
+
+For a tenant-scoped fact table:
+
+- `fraiseql compile` refuses the schema, naming the fact table and the injected column or
+  type that scopes it.
+- With no row policy installed, the server refuses its aggregate and window roots, for every
+  caller, anonymous included: `Query '<root>' reads fact table '<table>', which this schema
+  scopes by tenant (…), but no row policy scopes its aggregate and window roots: refused
+  rather than read across tenants`. The public `Executor::execute_aggregate_query` and
+  `execute_window_query` entries refuse the same way. Metadata passed to them can make a
+  table tenant-scoped, never the reverse: the schema's registration of the table decides.
+
+### A relation that filters its own rows: `row_scope = "relation"`
+
+When the relation behind the fact table filters its rows by tenant itself, declare it:
+
+```json
+"fact_tables": [{
+  "table_name": "tf_sales",
+  "row_scope": "relation",
+  "measures": [ … ],
+  "dimensions": { … },
+  "denormalized_filters": [{"name": "tenant_id", "sql_type": "text", "indexed": true}]
+}]
+```
+
+The server then adds **no** predicate of its own: the relation is the only thing keeping one
+tenant's rows from another's. It must filter on a value the **server** sets per request, never
+on anything the client sends:
+
+```toml
+# fraiseql.toml
+[[session_variables.variables]]
+name = "app.tenant_id"
+source = "jwt"
+claim = "tenant_id"
+```
+
+```sql
+CREATE VIEW tf_sales AS
+SELECT * FROM tb_sales
+WHERE tenant_id = NULLIF(current_setting('app.tenant_id', true), '');
+```
+
+A request with no token sets no value, so the view returns no rows. A `header` session
+variable is client-controlled and must never feed such a filter.
+
+`row_scope = "relation"` on a fact table that is not tenant-scoped changes nothing.
+
 ---
 
 ## Aggregation Result Caching
