@@ -59,7 +59,10 @@ pub(super) const OTP_RATE_MAX: u32 = 3;
 /// receiving the code *is* the proof of control.
 pub const OTP_PROVIDER: &str = "otp";
 
+mod allow_list;
 pub mod postgres;
+
+pub use allow_list::{OTP_DELIVERY_QUEUE_CAPACITY, OtpAllowGate, OtpAllowList, PgOtpAllowList};
 
 // ─── OTP record ───────────────────────────────────────────────────────────────
 
@@ -344,6 +347,9 @@ pub struct OtpRouteState {
     /// identities as sign-in methods. The server always supplies one; the
     /// option exists for library callers with their own identity model.
     pub account_store:  Option<Arc<dyn crate::account_linking::AccountStore>>,
+    /// Who may sign in (`[auth.local] otp_allowed_query`, #1852). `None` admits every address
+    /// and delivers on the request.
+    pub allow_gate:     Option<OtpAllowGate>,
 }
 
 // ─── Request / Response types ─────────────────────────────────────────────────
@@ -379,6 +385,10 @@ pub struct VerifyRequest {
 /// email backend. Returns 200 with a `message_id` on success.
 ///
 /// Returns 429 if the per-email send rate limit is exceeded.
+///
+/// Under an [`OtpAllowGate`] an address the list refuses still gets a stored code, and so the
+/// same budgets and the same answers as one it admits; only the mail is withheld. The mail
+/// then leaves off the request, so neither its latency nor its failure answers who is approved.
 ///
 /// # Errors
 ///
@@ -419,12 +429,17 @@ pub async fn otp_send(
         },
     };
 
-    let message_id = match state.email_delivery.send_otp(&email, &code).await {
-        Ok(id) => id,
-        Err(e) => {
-            tracing::error!(error = %e, "Email delivery failed");
-            return (StatusCode::INTERNAL_SERVER_ERROR, "delivery failed").into_response();
-        },
+    let message_id = if let Some(gate) = &state.allow_gate {
+        gate.deliver_if_admitted(&email, code).await;
+        String::new()
+    } else {
+        match state.email_delivery.send_otp(&email, &code).await {
+            Ok(id) => id,
+            Err(e) => {
+                tracing::error!(error = %e, "Email delivery failed");
+                return (StatusCode::INTERNAL_SERVER_ERROR, "delivery failed").into_response();
+            },
+        }
     };
 
     let logger = get_audit_logger();
@@ -436,6 +451,18 @@ pub async fn otp_send(
     );
 
     (StatusCode::OK, Json(OtpResponse { message_id })).into_response()
+}
+
+/// The answer to a wrong, expired or refused code: one body, so they cannot be told apart.
+fn invalid_otp() -> Response {
+    (
+        StatusCode::UNPROCESSABLE_ENTITY,
+        Json(serde_json::json!({
+            "error":   "invalid_otp",
+            "message": "invalid or expired OTP code"
+        })),
+    )
+        .into_response()
 }
 
 /// `POST /auth/v1/verify`
@@ -476,15 +503,23 @@ pub async fn otp_verify(
                 "otp_verify",
                 &e.to_string(),
             );
-            return (
-                StatusCode::UNPROCESSABLE_ENTITY,
-                Json(serde_json::json!({
-                    "error":   "invalid_otp",
-                    "message": "invalid or expired OTP code"
-                })),
-            )
-                .into_response();
+            return invalid_otp();
         },
+    }
+
+    // Checked again here, not only at send: removing an address invalidates a code it already
+    // holds, and a code the list refused at send was never mailed. Same answer as a wrong code.
+    if let Some(gate) = &state.allow_gate {
+        if !gate.admits(&email).await {
+            logger.log_failure(
+                AuditEventType::AuthFailure,
+                SecretType::CsrfToken,
+                None,
+                "otp_verify",
+                "address refused by otp_allowed_query",
+            );
+            return invalid_otp();
+        }
     }
 
     // OTP verified — resolve the local account (#367).

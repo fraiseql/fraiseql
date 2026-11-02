@@ -342,6 +342,25 @@ pub async fn build_local_auth_states(
                 .to_string(),
         )
     })?;
+    // The compiler refuses both shapes; this is the same check for a hand-written config.
+    // Reason: only the inbound-email-gated OTP state below consumes the statement
+    #[cfg_attr(not(feature = "inbound-email"), allow(unused_variables))]
+    let otp_allowed_statement = local
+        .otp_allowed_query
+        .as_deref()
+        .map(|query| {
+            if !local.otp {
+                return Err(ServerError::ConfigError(
+                    "[auth.local] otp_allowed_query is set, but otp is not enabled.".to_string(),
+                ));
+            }
+            fraiseql_core::schema::otp_allowed_statement(query).map_err(|problem| {
+                ServerError::ConfigError(format!(
+                    "[auth.local] otp_allowed_query is refused: {problem}: {query}"
+                ))
+            })
+        })
+        .transpose()?;
     let secret = hs.load_secret().map_err(ServerError::ConfigError)?;
     // Mint the claims the configured validator demands, or every login would
     // "succeed" and then 401 on the first validated request. The routes that act on the
@@ -388,14 +407,22 @@ pub async fn build_local_auth_states(
             .clone()
             .ok_or_else(|| ServerError::ConfigError("[auth.local] otp needs email".into()))?;
         info!("Local OTP sign-in enabled (POST /auth/v1/otp, POST /auth/v1/verify)");
+        let allow_gate = otp_allowed_statement.map(|statement| {
+            fraiseql_auth::OtpAllowGate::new(
+                Arc::new(fraiseql_auth::PgOtpAllowList::new(pool.clone(), statement)),
+                Arc::clone(&delivery),
+                fraiseql_auth::OTP_DELIVERY_QUEUE_CAPACITY,
+            )
+        });
         Some(Arc::new(fraiseql_auth::OtpRouteState {
-            otp_store:      Arc::new(fraiseql_auth::PgOtpStore::new(pool.clone())),
+            otp_store: Arc::new(fraiseql_auth::PgOtpStore::new(pool.clone())),
             email_delivery: delivery,
-            session_store:  Arc::clone(&session_store),
+            session_store: Arc::clone(&session_store),
             // #367: OTP identities resolve through the account store, so the
             // same person's OTP, social and password sign-ins converge on one
             // account instead of a parallel `otp:<email>` pseudo-identity.
-            account_store:  Some(Arc::clone(&account_store) as Arc<dyn fraiseql_auth::AccountStore>),
+            account_store: Some(Arc::clone(&account_store) as Arc<dyn fraiseql_auth::AccountStore>),
+            allow_gate,
         }))
     } else {
         None

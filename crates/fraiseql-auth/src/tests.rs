@@ -2182,6 +2182,7 @@ mod otp_tests {
             email_delivery,
             session_store,
             account_store: None,
+            allow_gate: None,
         });
 
         (state, otp_store)

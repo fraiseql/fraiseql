@@ -19,6 +19,7 @@ fn build_route_state() -> Arc<OtpRouteState> {
         email_delivery: Arc::new(NoopEmailDelivery),
         session_store:  Arc::new(InMemorySessionStore::new()),
         account_store:  None,
+        allow_gate:     None,
     })
 }
 
@@ -70,6 +71,7 @@ async fn test_otp_verify_valid_code_returns_session_token() {
         email_delivery: Arc::new(NoopEmailDelivery),
         session_store:  Arc::new(InMemorySessionStore::new()),
         account_store:  None,
+        allow_gate:     None,
     });
 
     // Directly create an OTP so we know the code.
@@ -109,6 +111,7 @@ async fn test_otp_verify_wrong_code_returns_422() {
         email_delivery: Arc::new(NoopEmailDelivery),
         session_store:  Arc::new(InMemorySessionStore::new()),
         account_store:  None,
+        allow_gate:     None,
     });
     otp_store.create_otp("alice@example.com").await.unwrap();
 

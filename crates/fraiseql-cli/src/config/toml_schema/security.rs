@@ -414,6 +414,23 @@ impl OidcClientConfig {
                      reset_url_template = \"https://app.example.com/reset?token={{token}}\""
                 );
             }
+            if let Some(query) = &local.otp_allowed_query {
+                if !local.otp {
+                    anyhow::bail!(
+                        "[auth.local] otp_allowed_query decides who may sign in by OTP, but otp \
+                         is not enabled. Set otp = true, or remove the key."
+                    );
+                }
+                fraiseql_core::schema::otp_allowed_statement(query).map_err(|problem| {
+                    anyhow::anyhow!("[auth.local] otp_allowed_query is refused: {problem}: {query}")
+                })?;
+                if local.password || self.social.is_some() {
+                    tracing::warn!(
+                        "[auth.local] otp_allowed_query governs OTP only: password signup and \
+                         social sign-in still create accounts for any address"
+                    );
+                }
+            }
             for (field, template, placeholder) in [
                 ("reset_url_template", local.reset_url_template.as_ref(), "{token}"),
                 ("magic_link_template", local.magic_link_template.as_ref(), "{code}"),

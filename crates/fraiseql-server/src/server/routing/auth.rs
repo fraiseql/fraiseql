@@ -349,6 +349,7 @@ mod router_construction {
                 email_delivery: Arc::new(fraiseql_auth::NoopEmailDelivery),
                 session_store:  Arc::new(NoopSessionStore),
                 account_store:  None,
+                allow_gate:     None,
             }));
     }
 

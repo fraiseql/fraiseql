@@ -72,7 +72,7 @@ pub use compiled::{
     FederationKeyProblem, GitHubSocialConfig, GoogleSocialConfig, InputStyle, LocalAuthConfig,
     LocalizedIndexAdvice, MutationDefinition, MutationOperation, NativeColumn, PaginationOrder,
     PkceClientConfig, ProducerVersion, QueryDefinition, SocialAuthConfig, SubscribableEntity,
-    canonicalize_json, content_hash_of, is_safe_sql_identifier,
+    canonicalize_json, content_hash_of, is_safe_sql_identifier, otp_allowed_statement,
 };
 pub use config_types::{
     AuthorizationPolicy, AuthorizationRule, Cardinality, ChangelogConfig, CircuitBreakerConfig,

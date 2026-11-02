@@ -10,6 +10,7 @@ mod fact_table_scope;
 mod federation_keys;
 mod localized_indexes;
 pub mod mutation;
+mod otp_allowed_query;
 pub mod query;
 pub mod schema;
 mod schema_domain;
@@ -32,6 +33,7 @@ pub use fact_table_links::fact_field;
 pub use federation_keys::FederationKeyProblem;
 pub use localized_indexes::LocalizedIndexAdvice;
 pub use mutation::{CascadeSource, InputStyle, MutationDefinition, MutationOperation};
+pub use otp_allowed_query::otp_allowed_statement;
 pub use query::{CursorType, NativeColumn, PaginationOrder, QueryDefinition};
 pub use schema::{
     AppleSocialConfig, AuthClientConfig, CURRENT_FRAISEQL_VERSION, CompiledSchema, DerivedState,
