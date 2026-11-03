@@ -440,13 +440,36 @@ impl CompiledSchema {
 pub struct AuthClientConfig {
     /// PKCE OAuth client for server-side login (`/auth/start`, `/auth/callback`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub pkce:   Option<PkceClientConfig>,
+    pub pkce:    Option<PkceClientConfig>,
     /// Social-login provider registry (`/auth/v1/authorize`, `/auth/v1/callback`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub social: Option<SocialAuthConfig>,
+    pub social:  Option<SocialAuthConfig>,
     /// First-party auth methods this server operates itself (`[auth.local]`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub local:  Option<LocalAuthConfig>,
+    pub local:   Option<LocalAuthConfig>,
+    /// How long the sessions this server mints last, and whether they can be
+    /// refreshed (`[auth.session]`, #1853).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub session: Option<SessionConfig>,
+}
+
+/// `[auth.session]` — the lifetime of the sessions this server mints (#1853).
+///
+/// Governs password, `OTP`, `MFA`, social and `SAML` sign-in. Anonymous guest
+/// sessions keep their fixed lifetime.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SessionConfig {
+    /// Lifetime of an access token, in seconds. Unset, each sign-in method keeps
+    /// its own lifetime.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ttl_secs: Option<u64>,
+
+    /// How long a session can be kept alive by refreshing, in seconds from
+    /// sign-in. Setting it mounts `/auth/v1/session/refresh` and
+    /// `/auth/v1/session/logout`; unset, neither is mounted.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub absolute_ttl_secs: Option<u64>,
 }
 
 /// `[auth.local]` — the auth methods `FraiseQL` operates itself, rather than

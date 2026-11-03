@@ -2289,6 +2289,12 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		// need the SMTP transport, and without it `[auth.local]` refuses to boot (by
 		// design), so they are feature-gated and would silently vanish otherwise.
 		"cargo test -p fraiseql-server " + serverLegFeatures + " --test local_auth_e2e_pg -- --test-threads=1",
+		// #1853 — [auth.session]: access-token lifetime on every sign-in path, refresh
+		// rotation with its 10-second reuse window, the absolute limit, logout, the
+		// session routes' rate limits and the sweep. One test sleeps ~2 minutes past a
+		// real expiry to pin the HS256 validator's 60-second leeway.
+		"echo '### cargo test -p fraiseql-server --test session_refresh_e2e_pg (#1853 session lifetime)'",
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test session_refresh_e2e_pg -- --test-threads=1",
 		"cargo test -p fraiseql-server " + serverLegFeatures + " --test mcp_tenant_dispatch_e2e_pg -- --test-threads=1",
 		// A function a tenant's write triggers runs within that tenant. File-level
 		// `#![cfg(feature = "functions-runtime-deno")]`: without the feature the binary is

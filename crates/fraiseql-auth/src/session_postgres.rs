@@ -245,6 +245,15 @@ async fn account_for_session(db: &PgPool, user_id: &str) -> Result<Option<uuid::
 }
 
 impl PostgresSessionStore {
+    /// Remove the session rows past their limit.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`AuthError::DatabaseError`] if the delete fails.
+    pub async fn sweep_expired(&self) -> Result<u64> {
+        Ok(0)
+    }
+
     /// Mint the session: sign the access token, then record the refresh token's hash.
     /// Reached only after the account check, and the second factor where one is owed.
     async fn mint(

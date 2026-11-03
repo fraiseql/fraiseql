@@ -383,9 +383,10 @@ fn empty_schema() -> CompiledSchema {
 fn social_schema(stub_base: &str) -> CompiledSchema {
     let mut schema = empty_schema();
     schema.auth = Some(fraiseql_core::schema::AuthClientConfig {
-        pkce:   None,
-        local:  None,
-        social: Some(fraiseql_core::schema::SocialAuthConfig {
+        pkce:    None,
+        local:   None,
+        session: None,
+        social:  Some(fraiseql_core::schema::SocialAuthConfig {
             redirect_uri_allowlist: Vec::new(),
             google:                 Some(fraiseql_core::schema::GoogleSocialConfig {
                 client_id:         "google-client".to_string(),

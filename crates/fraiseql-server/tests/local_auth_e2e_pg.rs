@@ -110,9 +110,10 @@ fn empty_schema() -> CompiledSchema {
 fn local_schema(local: LocalAuthConfig) -> CompiledSchema {
     let mut schema = empty_schema();
     schema.auth = Some(AuthClientConfig {
-        pkce:   None,
-        social: None,
-        local:  Some(local),
+        pkce:    None,
+        social:  None,
+        local:   Some(local),
+        session: None,
     });
     schema
 }

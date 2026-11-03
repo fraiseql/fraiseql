@@ -790,9 +790,10 @@ async fn library_construction_path_runs_config_validate() {
 fn schema_with_github_social(secret_env: &str) -> CompiledSchema {
     let mut schema = fully_configured_schema();
     schema.auth = Some(fraiseql_core::schema::AuthClientConfig {
-        pkce:   None,
-        local:  None,
-        social: Some(fraiseql_core::schema::SocialAuthConfig {
+        pkce:    None,
+        local:   None,
+        session: None,
+        social:  Some(fraiseql_core::schema::SocialAuthConfig {
             redirect_uri_allowlist: Vec::new(),
             google:                 None,
             github:                 Some(fraiseql_core::schema::GitHubSocialConfig {
@@ -883,9 +884,10 @@ async fn social_login_without_a_pool_refuses_to_boot() {
 fn schema_with_local_auth(local: fraiseql_core::schema::LocalAuthConfig) -> CompiledSchema {
     let mut schema = fully_configured_schema();
     schema.auth = Some(fraiseql_core::schema::AuthClientConfig {
-        pkce:   None,
-        social: None,
-        local:  Some(local),
+        pkce:    None,
+        social:  None,
+        local:   Some(local),
+        session: None,
     });
     schema
 }

@@ -646,3 +646,90 @@ fn otp_allowed_query_alone_does_not_warn() {
     let logged = warnings_merging_otp_with("", "");
     assert!(!logged.contains("otp_allowed_query"), "logged: {logged}");
 }
+
+// ── #1853: [auth.session] ────────────────────────────────────────────────────
+
+/// Compile an `OTP` `[auth.local]` block followed by `[auth.session]` holding `session`.
+fn merge_session(session: &str) -> anyhow::Result<fraiseql_cli::schema::IntermediateSchema> {
+    let mut f = NamedTempFile::new().unwrap();
+    write!(
+        f,
+        r#"
+        [schema]
+        name = "app"
+
+        [types.User]
+        sql_source = "v_user"
+
+        [auth.local]
+        otp = true
+        email_from = "support"
+
+        [auth.session]
+        {session}
+    "#
+    )
+    .unwrap();
+    f.flush().unwrap();
+    SchemaMerger::merge_toml_only(f.path().to_str().unwrap())
+}
+
+fn session_refusal(session: &str) -> String {
+    merge_session(session)
+        .err()
+        .map(|e| format!("{e:#}"))
+        .unwrap_or_else(|| panic!("[auth.session] {session:?} must be refused"))
+}
+
+/// A refusal of a value, made by the section's own check rather than by the section
+/// being unknown.
+fn session_value_refusal(session: &str) -> String {
+    let err = session_refusal(session);
+    assert!(
+        !err.contains("unknown field"),
+        "{session:?} must be refused for its value, not as an unknown section: {err}"
+    );
+    err
+}
+
+#[test]
+fn auth_session_reaches_the_compiled_schema() {
+    let intermediate = merge_session("ttl_secs = 900\nabsolute_ttl_secs = 86400").unwrap();
+    let compiled = SchemaConverter::convert(intermediate).expect("convert to compiled schema");
+    let session = compiled.auth.as_ref().and_then(|a| a.session.as_ref()).expect("auth.session");
+    assert_eq!(session.ttl_secs, Some(900));
+    assert_eq!(session.absolute_ttl_secs, Some(86_400));
+}
+
+#[test]
+fn auth_session_refuses_an_unknown_key() {
+    let err = session_refusal("ttl_secs = 900\nrefresh = true");
+    assert!(err.contains("refresh"), "the refusal must name the key: {err}");
+}
+
+#[test]
+fn auth_session_refuses_a_limit_not_above_the_ttl() {
+    for session in [
+        "ttl_secs = 900\nabsolute_ttl_secs = 900",
+        "ttl_secs = 900\nabsolute_ttl_secs = 600",
+        // Unset, the access token lasts 3600 s; a limit below that ends a session before
+        // its first token does.
+        "absolute_ttl_secs = 1800",
+    ] {
+        let err = session_value_refusal(session);
+        assert!(err.contains("absolute_ttl_secs"), "{session:?}: {err}");
+    }
+}
+
+#[test]
+fn auth_session_refuses_a_ttl_under_a_minute() {
+    let err = session_value_refusal("ttl_secs = 59");
+    assert!(err.contains("ttl_secs"), "{err}");
+}
+
+#[test]
+fn auth_session_refuses_a_ttl_of_zero_and_a_limit_of_zero() {
+    for session in ["ttl_secs = 0", "ttl_secs = 900\nabsolute_ttl_secs = 0"] {
+        session_value_refusal(session);
+    }
+}
