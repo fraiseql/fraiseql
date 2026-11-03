@@ -125,6 +125,13 @@ disagreed, and the promise was the part that was wrong.
   it), still needs the preload, and must be installed by a superuser. Upgrade both in one
   step: see "Upgrading pg_tviews to beta.35" in `docs/architecture/mutation-response.md`.
 
+- **`WebhookIsolation` offers only `ReadCommitted` (#1894).** `RepeatableRead` and
+  `Serializable` are removed. pg_tviews beta.35 refuses a write to a table a TVIEW reads, and
+  its refresh, at either level (`0A000`), so a webhook handler writing such a table could not
+  commit there. `WebhookPipeline::with_isolation(WebhookIsolation::ReadCommitted)` and the
+  default are unchanged. The pipeline was the only FraiseQL writer that could open a
+  transaction above `READ COMMITTED`; no configuration key or SDK took the level.
+
 ### Added
 
 - **`[auth.local] otp_allowed_query` restricts `OTP` sign-in to approved addresses (#1852).**

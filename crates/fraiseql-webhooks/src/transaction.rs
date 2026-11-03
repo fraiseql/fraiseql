@@ -12,17 +12,17 @@ use sqlx::{PgPool, Postgres, Transaction};
 
 use super::{Result, WebhookError};
 
-/// Transaction isolation levels for webhook processing
+/// Transaction isolation levels for webhook processing.
+///
+/// Only READ COMMITTED is offered. `pg_tviews` refuses a write to a table a TVIEW reads, and
+/// the refresh after it, in a REPEATABLE READ or SERIALIZABLE transaction (SQLSTATE `0A000`),
+/// so a handler that writes such a table could never commit at those levels.
 #[derive(Debug, Clone, Copy, Default)]
 #[non_exhaustive]
 pub enum WebhookIsolation {
-    /// Read Committed - default, good for most cases
+    /// Read Committed: the default, and the level `pg_tviews` writers run at
     #[default]
     ReadCommitted,
-    /// Repeatable Read - for handlers that read-then-write
-    RepeatableRead,
-    /// Serializable - for handlers with complex consistency requirements
-    Serializable,
 }
 
 impl WebhookIsolation {
@@ -31,8 +31,6 @@ impl WebhookIsolation {
     pub fn as_sql(self) -> &'static str {
         match self {
             Self::ReadCommitted => "READ COMMITTED",
-            Self::RepeatableRead => "REPEATABLE READ",
-            Self::Serializable => "SERIALIZABLE",
         }
     }
 }
@@ -60,8 +58,8 @@ where
     let mut tx = pool.begin().await.map_err(|e| WebhookError::Database(e.to_string()))?;
 
     // Set isolation level
-    // Safety: `isolation.as_sql()` is a match expression that returns only one of three
-    // hardcoded `&'static str` literals ("READ COMMITTED", "REPEATABLE READ", "SERIALIZABLE").
+    // Safety: `isolation.as_sql()` is a match expression that returns only hardcoded
+    // `&'static str` literals ("READ COMMITTED").
     // No user input reaches this call; PostgreSQL does not accept parameters for SET commands.
     sqlx::query(&format!("SET TRANSACTION ISOLATION LEVEL {}", isolation.as_sql()))
         .execute(&mut *tx)

@@ -490,7 +490,9 @@ jsonb_delta it requires, built from source, preloaded): `make test-pg-tviews`.
 superuser; without the preload its functions fail with `55000`. It requires the jsonb_delta
 extension: `CREATE EXTENSION pg_tviews CASCADE` installs both. A transaction that writes a
 table a TVIEW reads, or flushes, must run at `READ COMMITTED`: at `REPEATABLE READ` or
-`SERIALIZABLE` pg_tviews refuses it with `0A000`.
+`SERIALIZABLE` pg_tviews refuses it with `0A000`. FraiseQL opens its write transactions at
+the database's default level, `READ COMMITTED` unless `default_transaction_isolation` is set
+otherwise, and the webhook pipeline offers no other level (#1894).
 
 **Upgrading pg_tviews to beta.35.** Only beta.34 updates to beta.35; an older install is
 dropped and recreated. Move any writer of yours that runs at `REPEATABLE READ` or

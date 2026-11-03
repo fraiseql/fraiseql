@@ -2221,6 +2221,10 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		// is, recognising a TVIEW from pg_tviews' catalog. Its cases are #[ignore]d so the DB-less
 		// test leg cannot pass them; here both databases are bound and a missing one fails.
 		"cargo test -p fraiseql-cli --features test-postgres --test temporal_key_advice_pg -- --ignored --test-threads=1",
+		// #1894: a webhook handler that writes a table a TVIEW reads commits at every isolation
+		// level the pipeline offers (pg_tviews refuses such a write above READ COMMITTED). Needs
+		// pgTviewsService, so it runs here rather than beside inbound_pipeline_pg.
+		"cargo test -p fraiseql-webhooks --test webhook_tviews_isolation_pg -- --test-threads=1",
 		// #809: schema-per-tenant isolation was a single session `SET search_path` on
 		// one pooled connection. Every other connection resolved against `public`, so
 		// the leak is only visible under concurrency — a single-connection test passes
