@@ -130,9 +130,9 @@ async fn an_aggregate_of_a_decimal_measure_keeps_every_digit() {
         json!({
             "groupBy": { "region": true },
             "aggregates": [
-                { "amount_sum": {} }, { "amount_avg": {} }, { "amount_min": {} },
-                { "amount_max": {} }, { "amount_stddev": {} }, { "amount_variance": {} },
-                { "qty_sum": {} }, { "score_sum": {} }, { "count": {} }
+                { "amount_sum": true }, { "amount_avg": true }, { "amount_min": true },
+                { "amount_max": true }, { "amount_stddev": true }, { "amount_variance": true },
+                { "qty_sum": true }, { "score_sum": true }, { "count": true }
             ],
             "where": { "region_eq": "big" }
         }),
@@ -160,7 +160,7 @@ async fn ordering_by_a_decimal_aggregate_sorts_its_value_not_its_text() {
         table,
         json!({
             "groupBy": { "region": true },
-            "aggregates": [{ "amount_sum": {} }],
+            "aggregates": [{ "amount_sum": true }],
             "having": { "amount_sum_lt": 100 },
             "orderBy": { "amount_sum": "DESC" }
         }),
@@ -274,7 +274,7 @@ async fn a_carried_forward_decimal_balance_keeps_every_digit() {
             &json!({
                 "where": { "day_gte": "2026-01-01", "day_lt": "2026-03-01" },
                 "groupBy": { "day_month": true },
-                "aggregates": [{ "balance_sum": {} }],
+                "aggregates": [{ "balance_sum": true }],
                 "orderBy": { "day_month": "ASC" }
             }),
             "decimal_digits_balances_aggregate",

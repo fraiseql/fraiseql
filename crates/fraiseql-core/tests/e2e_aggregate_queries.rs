@@ -40,7 +40,7 @@ fn parse_plan_generate(query: &serde_json::Value) -> String {
 #[test]
 fn test_simple_count_all() {
     let query = json!({
-        "aggregates": [{"count": {}}]
+        "aggregates": [{"count": true}]
     });
 
     let sql = parse_plan_generate(&query);
@@ -52,8 +52,8 @@ fn test_simple_count_all() {
 fn test_count_with_sum() {
     let query = json!({
         "aggregates": [
-            {"count": {}},
-            {"revenue_sum": {}}
+            {"count": true},
+            {"revenue_sum": true}
         ]
     });
 
@@ -66,13 +66,13 @@ fn test_count_with_sum() {
 fn test_all_aggregate_functions() {
     let query = json!({
         "aggregates": [
-            {"count": {}},
-            {"revenue_sum": {}},
-            {"revenue_avg": {}},
-            {"revenue_min": {}},
-            {"revenue_max": {}},
-            {"quantity_sum": {}},
-            {"quantity_avg": {}}
+            {"count": true},
+            {"revenue_sum": true},
+            {"revenue_avg": true},
+            {"revenue_min": true},
+            {"revenue_max": true},
+            {"quantity_sum": true},
+            {"quantity_avg": true}
         ]
     });
 
@@ -101,8 +101,8 @@ fn test_group_by_single_dimension() {
     let query = json!({
         "groupBy": {"category": true},
         "aggregates": [
-            {"count": {}},
-            {"revenue_sum": {}}
+            {"count": true},
+            {"revenue_sum": true}
         ]
     });
 
@@ -119,8 +119,8 @@ fn test_group_by_multiple_dimensions() {
             "region": true
         },
         "aggregates": [
-            {"count": {}},
-            {"revenue_sum": {}}
+            {"count": true},
+            {"revenue_sum": true}
         ]
     });
 
@@ -139,7 +139,7 @@ fn test_where_denormalized_filter() {
         "where": {
             "customer_id_eq": "cust-001"
         },
-        "aggregates": [{"count": {}}]
+        "aggregates": [{"count": true}]
     });
 
     let result = parse_plan_generate_full(&query);
@@ -154,7 +154,7 @@ fn test_where_jsonb_dimension() {
         "where": {
             "category_eq": "Electronics"
         },
-        "aggregates": [{"count": {}}]
+        "aggregates": [{"count": true}]
     });
 
     let result = parse_plan_generate_full(&query);
@@ -170,7 +170,7 @@ fn test_where_with_comparison_operators() {
             "revenue_gt": 100.0,
             "quantity_lte": 10
         },
-        "aggregates": [{"count": {}}]
+        "aggregates": [{"count": true}]
     });
 
     let sql = parse_plan_generate(&query);
@@ -184,7 +184,7 @@ fn test_where_with_like_operator() {
         "where": {
             "category_contains": "electr"
         },
-        "aggregates": [{"count": {}}]
+        "aggregates": [{"count": true}]
     });
 
     let result = parse_plan_generate_full(&query);
@@ -206,8 +206,8 @@ fn test_order_by_aggregate_desc() {
     let query = json!({
         "groupBy": {"category": true},
         "aggregates": [
-            {"count": {}},
-            {"revenue_sum": {}}
+            {"count": true},
+            {"revenue_sum": true}
         ],
         "orderBy": {
             "revenue_sum": "DESC"
@@ -223,7 +223,7 @@ fn test_order_by_aggregate_desc() {
 fn test_order_by_dimension_asc() {
     let query = json!({
         "groupBy": {"category": true},
-        "aggregates": [{"count": {}}],
+        "aggregates": [{"count": true}],
         "orderBy": {
             "category": "ASC"
         }
@@ -238,7 +238,7 @@ fn test_order_by_dimension_asc() {
 fn test_limit_only() {
     let query = json!({
         "groupBy": {"category": true},
-        "aggregates": [{"count": {}}],
+        "aggregates": [{"count": true}],
         "limit": 10
     });
 
@@ -251,7 +251,7 @@ fn test_limit_only() {
 fn test_limit_and_offset() {
     let query = json!({
         "groupBy": {"category": true},
-        "aggregates": [{"count": {}}],
+        "aggregates": [{"count": true}],
         "limit": 5,
         "offset": 10
     });
@@ -276,9 +276,9 @@ fn test_complex_query_all_clauses() {
             "category": true
         },
         "aggregates": [
-            {"count": {}},
-            {"revenue_sum": {}},
-            {"revenue_avg": {}}
+            {"count": true},
+            {"revenue_sum": true},
+            {"revenue_avg": true}
         ],
         "orderBy": {
             "revenue_sum": "DESC"
@@ -313,7 +313,7 @@ fn test_multiple_where_conditions() {
             "category_eq": "Electronics",
             "revenue_gte": 50.0
         },
-        "aggregates": [{"count": {}}]
+        "aggregates": [{"count": true}]
     });
 
     let sql = parse_plan_generate(&query);
@@ -338,12 +338,12 @@ fn test_group_by_with_multiple_aggregates() {
             "region": true
         },
         "aggregates": [
-            {"count": {}},
-            {"revenue_sum": {}},
-            {"revenue_avg": {}},
-            {"revenue_min": {}},
-            {"revenue_max": {}},
-            {"quantity_sum": {}}
+            {"count": true},
+            {"revenue_sum": true},
+            {"revenue_avg": true},
+            {"revenue_min": true},
+            {"revenue_max": true},
+            {"quantity_sum": true}
         ]
     });
 
@@ -375,8 +375,8 @@ fn test_sql_structure_validity() {
     let query = json!({
         "groupBy": {"category": true},
         "aggregates": [
-            {"count": {}},
-            {"revenue_sum": {}}
+            {"count": true},
+            {"revenue_sum": true}
         ]
     });
 
@@ -394,7 +394,7 @@ fn test_sql_structure_validity() {
 #[test]
 fn test_sql_no_unnecessary_clauses() {
     let query = json!({
-        "aggregates": [{"count": {}}]
+        "aggregates": [{"count": true}]
     });
 
     let sql = parse_plan_generate(&query);
@@ -415,7 +415,7 @@ fn test_sql_no_unnecessary_clauses() {
 fn test_having_simple_count() {
     let query = json!({
         "groupBy": {"category": true},
-        "aggregates": [{"count": {}}],
+        "aggregates": [{"count": true}],
         "having": {
             "count_gt": 5
         }
@@ -432,8 +432,8 @@ fn test_having_aggregate_sum() {
     let query = json!({
         "groupBy": {"category": true},
         "aggregates": [
-            {"count": {}},
-            {"revenue_sum": {}}
+            {"count": true},
+            {"revenue_sum": true}
         ],
         "having": {
             "revenue_sum_gte": 1000.0
@@ -451,9 +451,9 @@ fn test_having_multiple_conditions() {
     let query = json!({
         "groupBy": {"category": true},
         "aggregates": [
-            {"count": {}},
-            {"revenue_sum": {}},
-            {"revenue_avg": {}}
+            {"count": true},
+            {"revenue_sum": true},
+            {"revenue_avg": true}
         ],
         "having": {
             "count_gt": 10,
@@ -477,7 +477,7 @@ fn test_having_with_where() {
             "region_eq": "North"
         },
         "groupBy": {"category": true},
-        "aggregates": [{"revenue_sum": {}}],
+        "aggregates": [{"revenue_sum": true}],
         "having": {
             "revenue_sum_gt": 5000.0
         }
@@ -504,7 +504,7 @@ fn test_sql_clause_order_with_having() {
     let query = json!({
         "where": {"customer_id_eq": "cust-001"},
         "groupBy": {"category": true},
-        "aggregates": [{"count": {}}, {"revenue_sum": {}}],
+        "aggregates": [{"count": true}, {"revenue_sum": true}],
         "having": {"count_gt": 5},
         "orderBy": {"revenue_sum": "DESC"},
         "limit": 10
@@ -536,11 +536,11 @@ fn test_having_different_operators() {
     let query = json!({
         "groupBy": {"category": true},
         "aggregates": [
-            {"count": {}},
-            {"revenue_sum": {}},
-            {"revenue_avg": {}},
-            {"revenue_min": {}},
-            {"revenue_max": {}}
+            {"count": true},
+            {"revenue_sum": true},
+            {"revenue_avg": true},
+            {"revenue_min": true},
+            {"revenue_max": true}
         ],
         "having": {
             "count_gt": 10,
@@ -579,11 +579,11 @@ fn test_having_different_operators() {
 fn test_temporal_bucket_day() {
     let query = json!({
         "groupBy": {
-            "occurred_at": "day"
+            "occurred_at_day": true
         },
         "aggregates": [
-            {"count": {}},
-            {"revenue_sum": {}}
+            {"count": true},
+            {"revenue_sum": true}
         ]
     });
 
@@ -602,9 +602,9 @@ fn test_temporal_bucket_day() {
 fn test_temporal_bucket_month() {
     let query = json!({
         "groupBy": {
-            "occurred_at": "month"
+            "occurred_at_month": true
         },
-        "aggregates": [{"count": {}}]
+        "aggregates": [{"count": true}]
     });
 
     let sql = parse_plan_generate(&query);
@@ -618,9 +618,9 @@ fn test_temporal_bucket_with_dimension() {
     let query = json!({
         "groupBy": {
             "category": true,
-            "occurred_at": "day"
+            "occurred_at_day": true
         },
-        "aggregates": [{"count": {}}, {"revenue_sum": {}}]
+        "aggregates": [{"count": true}, {"revenue_sum": true}]
     });
 
     let sql = parse_plan_generate(&query);
@@ -642,9 +642,9 @@ fn test_temporal_bucket_all_types() {
     ] {
         let query = json!({
             "groupBy": {
-                "occurred_at": bucket
+                format!("occurred_at_{bucket}"): true
             },
-            "aggregates": [{"count": {}}]
+            "aggregates": [{"count": true}]
         });
 
         let sql = parse_plan_generate(&query);
@@ -662,9 +662,9 @@ fn test_temporal_bucket_with_where_having() {
             "customer_id_eq": "cust-001"
         },
         "groupBy": {
-            "occurred_at": "month"
+            "occurred_at_month": true
         },
-        "aggregates": [{"revenue_sum": {}}],
+        "aggregates": [{"revenue_sum": true}],
         "having": {
             "revenue_sum_gt": 1000.0
         },
@@ -699,9 +699,9 @@ fn test_temporal_bucket_week_quarter_year() {
     for bucket in &["week", "quarter", "year"] {
         let query = json!({
             "groupBy": {
-                "occurred_at": bucket
+                format!("occurred_at_{bucket}"): true
             },
-            "aggregates": [{"count": {}}, {"revenue_sum": {}}]
+            "aggregates": [{"count": true}, {"revenue_sum": true}]
         });
 
         let sql = parse_plan_generate(&query);
@@ -723,8 +723,8 @@ fn test_string_agg_simple() {
     let query = json!({
         "groupBy": {"category": true},
         "aggregates": [
-            {"count": {}},
-            {"customer_id_string_agg": {}}
+            {"count": true},
+            {"customer_id_string_agg": true}
         ]
     });
 
@@ -739,8 +739,8 @@ fn test_array_agg_simple() {
     let query = json!({
         "groupBy": {"category": true},
         "aggregates": [
-            {"count": {}},
-            {"customer_id_array_agg": {}}
+            {"count": true},
+            {"customer_id_array_agg": true}
         ]
     });
 
@@ -758,8 +758,8 @@ fn test_native_measures_and_dimension_mapping_combined() {
 
     let query = json!({
         "aggregates": [
-            {"measures.volume_sum": {}},
-            {"measures.latency_avg": {}}
+            {"measures.volume_sum": true},
+            {"measures.latency_avg": true}
         ],
         "groupBy": {"dimensions.category.id": true}
     });
@@ -789,7 +789,7 @@ fn test_native_and_jsonb_dimensions_coexist() {
     let generator = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
 
     let query = json!({
-        "aggregates": [{"measures.volume_sum": {}}],
+        "aggregates": [{"measures.volume_sum": true}],
         "groupBy": {"dimensions.category.id": true, "source": true}
     });
 
@@ -813,7 +813,7 @@ fn test_native_measures_with_where_filter() {
 
     let query = json!({
         "where": { "device_id_eq": "sensor-42" },
-        "aggregates": [{"measures.volume_sum": {}}],
+        "aggregates": [{"measures.volume_sum": true}],
         "groupBy": {"dimensions.region.code": true}
     });
 
@@ -854,7 +854,7 @@ mod table_reconciliation {
         let metadata = create_sales_metadata();
         let query = json!({
             "table": table,
-            "aggregates": [{"count": {}}]
+            "aggregates": [{"count": true}]
         });
         let parsed =
             AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new())?;

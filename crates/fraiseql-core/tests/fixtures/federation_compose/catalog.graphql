@@ -19,6 +19,54 @@ enum SortDirection {
   DESC
 }
 
+enum WindowColumnKind {
+  measure
+  dimension
+  filter
+}
+
+enum WindowFunctionKind {
+  row_number
+  rank
+  dense_rank
+  ntile
+  percent_rank
+  cume_dist
+  lag
+  lead
+  first_value
+  last_value
+  nth_value
+  running_sum
+  running_avg
+  running_count
+  running_min
+  running_max
+  running_stddev
+  running_variance
+}
+
+enum WindowFrameType {
+  ROWS
+  RANGE
+  GROUPS
+}
+
+enum WindowFrameBoundaryKind {
+  unbounded_preceding
+  n_preceding
+  current_row
+  n_following
+  unbounded_following
+}
+
+enum WindowFrameExclusion {
+  current_row
+  group
+  ties
+  no_others
+}
+
 input EntityChangeLogWhereInput {
   id: IDFilter
   pkEntityChangeLog: IntFilter
@@ -130,6 +178,347 @@ input StringFilter {
   niregex: String
 }
 
+input ProductCostAggregateWhere {
+  region_eq: String
+  region_neq: String
+  region_gt: String
+  region_gte: String
+  region_lt: String
+  region_lte: String
+  region_in: [String!]
+  region_nin: [String!]
+  region_isnull: Boolean
+  region_is_not_null: Boolean
+  region_contains: String
+  region_icontains: String
+  region_startswith: String
+  region_istartswith: String
+  region_endswith: String
+  region_iendswith: String
+  region_like: String
+  region_ilike: String
+}
+
+input ProductCostAggregateGroupBy {
+  region: Boolean
+}
+
+input ProductCostAggregateSelection {
+  count: Boolean
+  units_sum: Boolean
+  units_avg: Boolean
+  units_min: Boolean
+  units_max: Boolean
+  units_stddev: Boolean
+  units_variance: Boolean
+  units_count_distinct: Boolean
+  units_json_agg: Boolean
+  units_jsonb_agg: Boolean
+  region_array_agg: Boolean
+  region_string_agg: Boolean
+  region_json_agg: Boolean
+  region_jsonb_agg: Boolean
+}
+
+input ProductCostAggregateHaving {
+  count_gt: Int
+  count_gte: Int
+  count_lt: Int
+  count_lte: Int
+  count_eq: Int
+  count_neq: Int
+  units_sum_gt: Int
+  units_sum_gte: Int
+  units_sum_lt: Int
+  units_sum_lte: Int
+  units_sum_eq: Int
+  units_sum_neq: Int
+  units_avg_gt: Float
+  units_avg_gte: Float
+  units_avg_lt: Float
+  units_avg_lte: Float
+  units_avg_eq: Float
+  units_avg_neq: Float
+  units_min_gt: Int
+  units_min_gte: Int
+  units_min_lt: Int
+  units_min_lte: Int
+  units_min_eq: Int
+  units_min_neq: Int
+  units_max_gt: Int
+  units_max_gte: Int
+  units_max_lt: Int
+  units_max_lte: Int
+  units_max_eq: Int
+  units_max_neq: Int
+  units_stddev_gt: Float
+  units_stddev_gte: Float
+  units_stddev_lt: Float
+  units_stddev_lte: Float
+  units_stddev_eq: Float
+  units_stddev_neq: Float
+  units_variance_gt: Float
+  units_variance_gte: Float
+  units_variance_lt: Float
+  units_variance_lte: Float
+  units_variance_eq: Float
+  units_variance_neq: Float
+  units_count_distinct_gt: Int
+  units_count_distinct_gte: Int
+  units_count_distinct_lt: Int
+  units_count_distinct_lte: Int
+  units_count_distinct_eq: Int
+  units_count_distinct_neq: Int
+  units_json_agg_gt: JSON
+  units_json_agg_gte: JSON
+  units_json_agg_lt: JSON
+  units_json_agg_lte: JSON
+  units_json_agg_eq: JSON
+  units_json_agg_neq: JSON
+  units_jsonb_agg_gt: JSON
+  units_jsonb_agg_gte: JSON
+  units_jsonb_agg_lt: JSON
+  units_jsonb_agg_lte: JSON
+  units_jsonb_agg_eq: JSON
+  units_jsonb_agg_neq: JSON
+  region_array_agg_gt: [String]
+  region_array_agg_gte: [String]
+  region_array_agg_lt: [String]
+  region_array_agg_lte: [String]
+  region_array_agg_eq: [String]
+  region_array_agg_neq: [String]
+  region_string_agg_gt: String
+  region_string_agg_gte: String
+  region_string_agg_lt: String
+  region_string_agg_lte: String
+  region_string_agg_eq: String
+  region_string_agg_neq: String
+  region_json_agg_gt: JSON
+  region_json_agg_gte: JSON
+  region_json_agg_lt: JSON
+  region_json_agg_lte: JSON
+  region_json_agg_eq: JSON
+  region_json_agg_neq: JSON
+  region_jsonb_agg_gt: JSON
+  region_jsonb_agg_gte: JSON
+  region_jsonb_agg_lt: JSON
+  region_jsonb_agg_lte: JSON
+  region_jsonb_agg_eq: JSON
+  region_jsonb_agg_neq: JSON
+}
+
+input ProductCostAggregateOrderBy {
+  region: SortDirection
+  count: SortDirection
+  units_sum: SortDirection
+  units_avg: SortDirection
+  units_min: SortDirection
+  units_max: SortDirection
+  units_stddev: SortDirection
+  units_variance: SortDirection
+  units_count_distinct: SortDirection
+  units_json_agg: SortDirection
+  units_jsonb_agg: SortDirection
+  region_array_agg: SortDirection
+  region_string_agg: SortDirection
+  region_json_agg: SortDirection
+  region_jsonb_agg: SortDirection
+}
+
+input ProductSaleAggregateWhere {
+  region_eq: String
+  region_neq: String
+  region_gt: String
+  region_gte: String
+  region_lt: String
+  region_lte: String
+  region_in: [String!]
+  region_nin: [String!]
+  region_isnull: Boolean
+  region_is_not_null: Boolean
+  region_contains: String
+  region_icontains: String
+  region_startswith: String
+  region_istartswith: String
+  region_endswith: String
+  region_iendswith: String
+  region_like: String
+  region_ilike: String
+}
+
+input ProductSaleAggregateGroupBy {
+  region: Boolean
+}
+
+input ProductSaleAggregateSelection {
+  count: Boolean
+  units_sum: Boolean
+  units_avg: Boolean
+  units_min: Boolean
+  units_max: Boolean
+  units_stddev: Boolean
+  units_variance: Boolean
+  units_count_distinct: Boolean
+  units_json_agg: Boolean
+  units_jsonb_agg: Boolean
+  region_array_agg: Boolean
+  region_string_agg: Boolean
+  region_json_agg: Boolean
+  region_jsonb_agg: Boolean
+}
+
+input ProductSaleAggregateHaving {
+  count_gt: Int
+  count_gte: Int
+  count_lt: Int
+  count_lte: Int
+  count_eq: Int
+  count_neq: Int
+  units_sum_gt: Int
+  units_sum_gte: Int
+  units_sum_lt: Int
+  units_sum_lte: Int
+  units_sum_eq: Int
+  units_sum_neq: Int
+  units_avg_gt: Float
+  units_avg_gte: Float
+  units_avg_lt: Float
+  units_avg_lte: Float
+  units_avg_eq: Float
+  units_avg_neq: Float
+  units_min_gt: Int
+  units_min_gte: Int
+  units_min_lt: Int
+  units_min_lte: Int
+  units_min_eq: Int
+  units_min_neq: Int
+  units_max_gt: Int
+  units_max_gte: Int
+  units_max_lt: Int
+  units_max_lte: Int
+  units_max_eq: Int
+  units_max_neq: Int
+  units_stddev_gt: Float
+  units_stddev_gte: Float
+  units_stddev_lt: Float
+  units_stddev_lte: Float
+  units_stddev_eq: Float
+  units_stddev_neq: Float
+  units_variance_gt: Float
+  units_variance_gte: Float
+  units_variance_lt: Float
+  units_variance_lte: Float
+  units_variance_eq: Float
+  units_variance_neq: Float
+  units_count_distinct_gt: Int
+  units_count_distinct_gte: Int
+  units_count_distinct_lt: Int
+  units_count_distinct_lte: Int
+  units_count_distinct_eq: Int
+  units_count_distinct_neq: Int
+  units_json_agg_gt: JSON
+  units_json_agg_gte: JSON
+  units_json_agg_lt: JSON
+  units_json_agg_lte: JSON
+  units_json_agg_eq: JSON
+  units_json_agg_neq: JSON
+  units_jsonb_agg_gt: JSON
+  units_jsonb_agg_gte: JSON
+  units_jsonb_agg_lt: JSON
+  units_jsonb_agg_lte: JSON
+  units_jsonb_agg_eq: JSON
+  units_jsonb_agg_neq: JSON
+  region_array_agg_gt: [String]
+  region_array_agg_gte: [String]
+  region_array_agg_lt: [String]
+  region_array_agg_lte: [String]
+  region_array_agg_eq: [String]
+  region_array_agg_neq: [String]
+  region_string_agg_gt: String
+  region_string_agg_gte: String
+  region_string_agg_lt: String
+  region_string_agg_lte: String
+  region_string_agg_eq: String
+  region_string_agg_neq: String
+  region_json_agg_gt: JSON
+  region_json_agg_gte: JSON
+  region_json_agg_lt: JSON
+  region_json_agg_lte: JSON
+  region_json_agg_eq: JSON
+  region_json_agg_neq: JSON
+  region_jsonb_agg_gt: JSON
+  region_jsonb_agg_gte: JSON
+  region_jsonb_agg_lt: JSON
+  region_jsonb_agg_lte: JSON
+  region_jsonb_agg_eq: JSON
+  region_jsonb_agg_neq: JSON
+}
+
+input ProductSaleAggregateOrderBy {
+  region: SortDirection
+  count: SortDirection
+  units_sum: SortDirection
+  units_avg: SortDirection
+  units_min: SortDirection
+  units_max: SortDirection
+  units_stddev: SortDirection
+  units_variance: SortDirection
+  units_count_distinct: SortDirection
+  units_json_agg: SortDirection
+  units_jsonb_agg: SortDirection
+  region_array_agg: SortDirection
+  region_string_agg: SortDirection
+  region_json_agg: SortDirection
+  region_jsonb_agg: SortDirection
+}
+
+input WindowColumn {
+  type: WindowColumnKind!
+  name: String
+  path: String
+  alias: String!
+}
+
+input WindowPartition {
+  type: WindowColumnKind!
+  name: String
+  path: String
+}
+
+input WindowFunction {
+  type: WindowFunctionKind!
+  field: String
+  measure: String
+  n: Int
+  offset: Int
+  default: JSON
+}
+
+input WindowFrameBoundary {
+  type: WindowFrameBoundaryKind!
+  n: Int
+}
+
+input WindowFrame {
+  frame_type: WindowFrameType!
+  start: WindowFrameBoundary!
+  end: WindowFrameBoundary!
+  exclusion: WindowFrameExclusion
+}
+
+input WindowOrderBy {
+  field: String!
+  direction: SortDirection = ASC
+}
+
+input WindowSpec {
+  function: WindowFunction!
+  alias: String!
+  partitionBy: [WindowPartition!]
+  orderBy: [WindowOrderBy!]
+  frame: WindowFrame
+}
+
 type Money @shareable {
   amount: Int!
   currency: String!
@@ -167,11 +556,51 @@ type TransportCheckpoint {
   updatedAt: DateTime!
 }
 
+type ProductCostAggregateRow @tag(name: "requires-role/catalog-admin") {
+  region: String
+  count: Int
+  units_sum: Int
+  units_avg: Float
+  units_min: Int
+  units_max: Int
+  units_stddev: Float
+  units_variance: Float
+  units_count_distinct: Int
+  units_json_agg: JSON
+  units_jsonb_agg: JSON
+  region_array_agg: [String]
+  region_string_agg: String
+  region_json_agg: JSON
+  region_jsonb_agg: JSON
+}
+
+type ProductSaleAggregateRow {
+  region: String
+  count: Int
+  units_sum: Int
+  units_avg: Float
+  units_min: Int
+  units_max: Int
+  units_stddev: Float
+  units_variance: Float
+  units_count_distinct: Int
+  units_json_agg: JSON
+  units_jsonb_agg: JSON
+  region_array_agg: [String]
+  region_string_agg: String
+  region_json_agg: JSON
+  region_jsonb_agg: JSON
+}
+
 type Query {
   products: [Product!]!
   productCosts: [ProductCost!]! @tag(name: "requires-role/catalog-admin")
   entityChangeLogs(where: EntityChangeLogWhereInput, orderBy: [EntityChangeLogOrderByInput!], limit: Int): [EntityChangeLog!]! @tag(name: "requires-role/changelog_reader")
   transportCheckpoint(transportName: String!): TransportCheckpoint @tag(name: "requires-role/changelog_reader")
+  product_cost_aggregate(where: ProductCostAggregateWhere, groupBy: ProductCostAggregateGroupBy, aggregates: [ProductCostAggregateSelection!], having: ProductCostAggregateHaving, orderBy: ProductCostAggregateOrderBy, limit: Int, offset: Int): [ProductCostAggregateRow!]! @tag(name: "requires-role/catalog-admin")
+  product_cost_window(select: [WindowColumn!], windows: [WindowSpec!], where: ProductCostAggregateWhere, orderBy: [WindowOrderBy!], limit: Int, offset: Int): [JSON!]! @tag(name: "requires-role/catalog-admin")
+  product_sale_aggregate(where: ProductSaleAggregateWhere, groupBy: ProductSaleAggregateGroupBy, aggregates: [ProductSaleAggregateSelection!], having: ProductSaleAggregateHaving, orderBy: ProductSaleAggregateOrderBy, limit: Int, offset: Int): [ProductSaleAggregateRow!]!
+  product_sale_window(select: [WindowColumn!], windows: [WindowSpec!], where: ProductSaleAggregateWhere, orderBy: [WindowOrderBy!], limit: Int, offset: Int): [JSON!]!
 }
 
 type Mutation {

@@ -72,7 +72,7 @@ mod aggregate_parser_tests {
         let metadata = create_test_metadata();
         let query = json!({
             "aggregates": [
-                {"count": {}}
+                {"count": true}
             ]
         });
 
@@ -93,7 +93,7 @@ mod aggregate_parser_tests {
                 "category": true
             },
             "aggregates": [
-                {"count": {}}
+                {"count": true}
             ]
         });
 
@@ -119,7 +119,7 @@ mod aggregate_parser_tests {
                 "occurred_at_day": true
             },
             "aggregates": [
-                {"count": {}}
+                {"count": true}
             ]
         });
 
@@ -147,10 +147,10 @@ mod aggregate_parser_tests {
         let metadata = create_test_metadata();
         let query = json!({
             "aggregates": [
-                {"count": {}},
-                {"revenue_sum": {}},
-                {"revenue_avg": {}},
-                {"quantity_max": {}}
+                {"count": true},
+                {"revenue_sum": true},
+                {"revenue_avg": true},
+                {"quantity_max": true}
             ]
         });
 
@@ -170,7 +170,7 @@ mod aggregate_parser_tests {
         let metadata = create_test_metadata();
         let query = json!({
             "aggregates": [
-                {"revenue_sum": {}}
+                {"revenue_sum": true}
             ],
             "having": {
                 "revenue_sum_gt": 1000
@@ -191,7 +191,7 @@ mod aggregate_parser_tests {
         let metadata = create_test_metadata();
         let query = json!({
             "aggregates": [
-                {"revenue_sum": {}}
+                {"revenue_sum": true}
             ],
             "orderBy": {
                 "revenue_sum": "DESC"
@@ -212,7 +212,7 @@ mod aggregate_parser_tests {
         let metadata = create_test_metadata();
         let query = json!({
             "aggregates": [
-                {"count": {}}
+                {"count": true}
             ],
             "limit": 10,
             "offset": 5
@@ -235,10 +235,10 @@ mod aggregate_parser_tests {
                 "occurred_at_month": true
             },
             "aggregates": [
-                {"count": {}},
-                {"revenue_sum": {}},
-                {"revenue_avg": {}},
-                {"quantity_sum": {}}
+                {"count": true},
+                {"revenue_sum": true},
+                {"revenue_avg": true},
+                {"quantity_sum": true}
             ],
             "having": {
                 "revenue_sum_gt": 1000,
@@ -268,7 +268,7 @@ mod aggregate_parser_tests {
         let metadata = create_test_metadata();
         let query = json!({
             "aggregates": [
-                {"count_distinct": {}}
+                {"count_distinct": true}
             ]
         });
 
@@ -292,7 +292,7 @@ mod aggregate_parser_tests {
         let metadata = create_test_metadata();
         let query = json!({
             "aggregates": [
-                {"product_count_distinct": {}}
+                {"product_count_distinct": true}
             ]
         });
 
@@ -315,7 +315,7 @@ mod aggregate_parser_tests {
         let metadata = create_test_metadata();
         let query = json!({
             "aggregates": [
-                {"revenue_count_distinct": {}}
+                {"revenue_count_distinct": true}
             ]
         });
 
@@ -338,7 +338,7 @@ mod aggregate_parser_tests {
         let metadata = create_test_metadata();
         let query = json!({
             "aggregates": [
-                {"nonexistent_count_distinct": {}}
+                {"nonexistent_count_distinct": true}
             ]
         });
 
@@ -362,10 +362,10 @@ mod aggregate_parser_tests {
         let metadata = create_test_metadata();
         let query = json!({
             "aggregates": [
-                {"count": {}},
-                {"category_count_distinct": {}},
-                {"product_count_distinct": {}},
-                {"revenue_sum": {}}
+                {"count": true},
+                {"category_count_distinct": true},
+                {"product_count_distinct": true},
+                {"revenue_sum": true}
             ]
         });
 
@@ -402,7 +402,7 @@ mod aggregate_parser_tests {
 
         let query = json!({
             "aggregates": [
-                {"measures.volume_sum": {}}
+                {"measures.volume_sum": true}
             ]
         });
 
@@ -448,7 +448,7 @@ mod aggregate_parser_tests {
 
         let query = json!({
             "groupBy": {"dimensions.category.id": true},
-            "aggregates": [{"count": {}}]
+            "aggregates": [{"count": true}]
         });
 
         let request =
@@ -491,7 +491,7 @@ mod aggregate_parser_tests {
 
         // Query selects only an aggregate, NOT the mapped dimension
         let query = json!({
-            "aggregates": [{"volume_sum": {}}]
+            "aggregates": [{"volume_sum": true}]
         });
 
         let request =
@@ -5370,5 +5370,283 @@ mod runtime_config_from_schema_tests {
         assert_eq!(offset_precedence(Some("none"), Some(250)), None);
         assert_eq!(offset_precedence(Some("0"), Some(250)), None);
         assert_eq!(offset_precedence(Some("deep"), Some(250)), Some(250));
+    }
+}
+
+/// The published argument forms of a fact table's `_aggregate` root (#1800): every `groupBy`
+/// field is a `Boolean` (an ltree level an `Int`), every `aggregates` item a `Boolean`, and
+/// every `orderBy` value `ASC` or `DESC`. A form the published type cannot carry is refused,
+/// naming the one it can, rather than served to clients that validate against the SDL.
+mod aggregate_argument_forms {
+    use std::collections::HashMap;
+
+    use serde_json::{Value, json};
+
+    use crate::{
+        compiler::{
+            aggregation::{AggregationRequest, GroupBySelection, TreeGrouping},
+            fact_table::{
+                Additivity, DimensionColumn, DimensionPath, FactRowScope, FactTableMetadata,
+                FilterColumn, MeasureColumn, SqlType,
+            },
+        },
+        runtime::aggregate_parser::AggregateQueryParser,
+    };
+
+    fn metadata() -> FactTableMetadata {
+        let filter = |name: &str, sql_type| FilterColumn {
+            name: name.to_string(),
+            sql_type,
+            indexed: true,
+            hierarchy: None,
+        };
+        FactTableMetadata {
+            table_name:               "tf_sales".to_string(),
+            type_name:                None,
+            row_scope:                FactRowScope::Server,
+            measures:                 vec![MeasureColumn {
+                name:       "revenue".to_string(),
+                sql_type:   SqlType::Decimal,
+                nullable:   false,
+                additivity: Additivity::Additive,
+            }],
+            dimensions:               DimensionColumn {
+                name:  "data".to_string(),
+                paths: vec![DimensionPath {
+                    name:      "category".to_string(),
+                    json_path: "data->>'category'".to_string(),
+                    data_type: "text".to_string(),
+                }],
+            },
+            denormalized_filters:     vec![
+                filter("occurred_at", SqlType::Timestamp),
+                filter("org_path", SqlType::Ltree),
+            ],
+            calendar_dimensions:      vec![],
+            native_measures:          HashMap::new(),
+            native_dimension_mapping: HashMap::new(),
+        }
+    }
+
+    fn parse(request: &Value) -> crate::error::Result<AggregationRequest> {
+        AggregateQueryParser::parse(request, &metadata(), &HashMap::new())
+    }
+
+    fn refusal(request: &Value) -> String {
+        parse(request)
+            .expect_err("an unpublished argument form must be refused")
+            .to_string()
+    }
+
+    #[test]
+    fn a_bucket_named_by_string_is_refused_naming_its_boolean_key() {
+        let message = refusal(&json!({"groupBy": {"occurred_at": "day"}}));
+        assert!(message.contains("`occurred_at_day: true`"), "{message}");
+    }
+
+    #[test]
+    fn a_tree_depth_named_by_string_is_refused_naming_its_boolean_key() {
+        let message = refusal(&json!({"groupBy": {"org_path": "depth"}}));
+        assert!(message.contains("`org_path_depth: true`"), "{message}");
+    }
+
+    #[test]
+    fn a_tree_level_named_by_object_is_refused_naming_its_int_key() {
+        let message = refusal(&json!({"groupBy": {"org_path": {"level": 2}}}));
+        assert!(message.contains("`org_path_level: 2`"), "{message}");
+    }
+
+    #[test]
+    fn a_tree_depth_is_grouped_by_its_boolean_key() {
+        let request = parse(&json!({"groupBy": {"org_path_depth": true}})).unwrap();
+        assert!(
+            matches!(
+                request.group_by.as_slice(),
+                [GroupBySelection::TreeLevel { column, grouping: TreeGrouping::Depth, alias }]
+                    if column == "org_path" && alias == "org_path_depth"
+            ),
+            "{:?}",
+            request.group_by
+        );
+    }
+
+    /// The level answers under `<col>_level`, not `<col>`, so it cannot collide with the
+    /// column grouped whole in the same request.
+    #[test]
+    fn a_tree_level_is_grouped_by_its_int_key_and_answers_under_it() {
+        let request = parse(&json!({"groupBy": {"org_path": true, "org_path_level": 2}})).unwrap();
+        let aliases: Vec<&str> = request.group_by.iter().map(GroupBySelection::alias).collect();
+        assert_eq!(aliases, ["org_path", "org_path_level"]);
+        assert!(
+            request.group_by.iter().any(|s| matches!(
+                s,
+                GroupBySelection::TreeLevel { column, grouping: TreeGrouping::Level(2), .. }
+                    if column == "org_path"
+            )),
+            "{:?}",
+            request.group_by
+        );
+    }
+
+    #[test]
+    fn a_tree_level_that_is_not_a_positive_int_is_refused() {
+        for level in [json!(0), json!(-1), json!(true), json!("2")] {
+            let message = refusal(&json!({"groupBy": {"org_path_level": level}}));
+            assert!(message.contains("org_path_level"), "{level}: {message}");
+        }
+    }
+
+    #[test]
+    fn a_group_by_key_set_false_is_not_grouped() {
+        let request =
+            parse(&json!({"groupBy": {"category": false, "occurred_at_day": false}})).unwrap();
+        assert!(request.group_by.is_empty(), "{:?}", request.group_by);
+    }
+
+    #[test]
+    fn a_group_by_key_that_is_not_a_boolean_is_refused() {
+        let message = refusal(&json!({"groupBy": {"category": 1}}));
+        assert!(message.contains("`category`") && message.contains("true"), "{message}");
+    }
+
+    #[test]
+    fn an_aggregate_set_true_is_computed_and_one_set_false_is_not() {
+        let request =
+            parse(&json!({"aggregates": [{"revenue_sum": true}, {"count": false}]})).unwrap();
+        let aliases: Vec<&str> = request.aggregates.iter().map(|a| a.alias()).collect();
+        assert_eq!(aliases, ["revenue_sum"]);
+    }
+
+    #[test]
+    fn an_aggregate_that_is_not_a_boolean_is_refused() {
+        for value in [json!({}), json!(1), json!("yes"), json!(null)] {
+            let message = refusal(&json!({"aggregates": [{"revenue_sum": value}]}));
+            assert!(
+                message.contains("`revenue_sum`") && message.contains("`true`"),
+                "{value}: {message}"
+            );
+        }
+    }
+
+    #[test]
+    fn an_order_by_direction_other_than_asc_or_desc_is_refused() {
+        for direction in [json!("asc"), json!("desc"), json!("sideways"), json!(1)] {
+            let message = refusal(&json!({
+                "aggregates": [{"revenue_sum": true}],
+                "orderBy": {"revenue_sum": direction},
+            }));
+            assert!(
+                message.contains("`revenue_sum`") && message.contains("`ASC`"),
+                "{direction}: {message}"
+            );
+        }
+    }
+}
+
+/// A window `orderBy` item's `direction` is the published `SortDirection` (#1800): absent it
+/// is `ASC`, and a value other than `ASC` or `DESC` is refused rather than read as `ASC`.
+mod window_argument_forms {
+    use std::collections::HashMap;
+
+    use serde_json::json;
+
+    use crate::{
+        compiler::{
+            aggregation::OrderDirection,
+            fact_table::{DimensionColumn, FactRowScope, FactTableMetadata},
+            window_functions::FrameExclusion,
+        },
+        runtime::window_parser::WindowQueryParser,
+    };
+
+    fn metadata() -> FactTableMetadata {
+        FactTableMetadata {
+            table_name:               "tf_sales".to_string(),
+            type_name:                None,
+            row_scope:                FactRowScope::Server,
+            measures:                 vec![],
+            dimensions:               DimensionColumn {
+                name:  "data".to_string(),
+                paths: vec![],
+            },
+            denormalized_filters:     vec![],
+            calendar_dimensions:      vec![],
+            native_measures:          HashMap::new(),
+            native_dimension_mapping: HashMap::new(),
+        }
+    }
+
+    #[test]
+    fn an_order_by_item_without_a_direction_is_ascending() {
+        let request = WindowQueryParser::parse(
+            &json!({"orderBy": [{"field": "occurred_at"}, {"field": "id", "direction": "DESC"}]}),
+            &metadata(),
+        )
+        .unwrap();
+        let directions: Vec<OrderDirection> =
+            request.order_by.iter().map(|o| o.direction).collect();
+        assert_eq!(directions, [OrderDirection::Asc, OrderDirection::Desc]);
+    }
+
+    #[test]
+    fn an_order_by_direction_other_than_asc_or_desc_is_refused() {
+        for direction in [json!("desc"), json!("asc"), json!("sideways"), json!(1)] {
+            let message = WindowQueryParser::parse(
+                &json!({"orderBy": [{"field": "occurred_at", "direction": direction}]}),
+                &metadata(),
+            )
+            .expect_err("an unpublished direction must be refused")
+            .to_string();
+            assert!(
+                message.contains("`occurred_at`") && message.contains("`ASC`"),
+                "{direction}: {message}"
+            );
+        }
+    }
+
+    fn frame_exclusion(
+        exclusion: &serde_json::Value,
+    ) -> crate::error::Result<Option<FrameExclusion>> {
+        let request = WindowQueryParser::parse(
+            &json!({"windows": [{
+                "function": {"type": "row_number"},
+                "alias": "position",
+                "frame": {
+                    "frame_type": "ROWS",
+                    "start": {"type": "unbounded_preceding"},
+                    "end": {"type": "current_row"},
+                    "exclusion": exclusion
+                }
+            }]}),
+            &metadata(),
+        )?;
+        Ok(request.windows[0].frame.as_ref().and_then(|frame| frame.exclusion))
+    }
+
+    /// Each published `WindowFrameExclusion` value is its exclusion, `no_others` included.
+    #[test]
+    fn each_published_frame_exclusion_is_read() {
+        for (value, expected) in [
+            ("current_row", FrameExclusion::CurrentRow),
+            ("group", FrameExclusion::Group),
+            ("ties", FrameExclusion::Ties),
+            ("no_others", FrameExclusion::NoOthers),
+        ] {
+            assert_eq!(frame_exclusion(&json!(value)).unwrap(), Some(expected), "{value}");
+        }
+    }
+
+    /// A value no exclusion is named was read as `no_others`, or dropped when not a string.
+    #[test]
+    fn an_unpublished_frame_exclusion_is_refused() {
+        for value in [json!("bogus"), json!("TIES"), json!(5)] {
+            let message = frame_exclusion(&value)
+                .expect_err("an unpublished exclusion must be refused")
+                .to_string();
+            assert!(
+                message.contains("`exclusion`") && message.contains("`no_others`"),
+                "{value}: {message}"
+            );
+        }
     }
 }

@@ -1,4 +1,252 @@
 extend schema @link(url: "https://specs.apollo.dev/federation/v2.0", import: ["@key", "@external", "@requires", "@provides", "@shareable", "@inaccessible", "@override", "@extends", "@tag"])
+scalar JSON
+
+enum WindowColumnKind {
+  measure
+  dimension
+  filter
+}
+
+enum WindowFunctionKind {
+  row_number
+  rank
+  dense_rank
+  ntile
+  percent_rank
+  cume_dist
+  lag
+  lead
+  first_value
+  last_value
+  nth_value
+  running_sum
+  running_avg
+  running_count
+  running_min
+  running_max
+  running_stddev
+  running_variance
+}
+
+enum WindowFrameType {
+  ROWS
+  RANGE
+  GROUPS
+}
+
+enum WindowFrameBoundaryKind {
+  unbounded_preceding
+  n_preceding
+  current_row
+  n_following
+  unbounded_following
+}
+
+enum WindowFrameExclusion {
+  current_row
+  group
+  ties
+  no_others
+}
+
+enum SortDirection {
+  ASC
+  DESC
+}
+
+input ReviewVoteAggregateWhere {
+  region_eq: String
+  region_neq: String
+  region_gt: String
+  region_gte: String
+  region_lt: String
+  region_lte: String
+  region_in: [String!]
+  region_nin: [String!]
+  region_isnull: Boolean
+  region_is_not_null: Boolean
+  region_contains: String
+  region_icontains: String
+  region_startswith: String
+  region_istartswith: String
+  region_endswith: String
+  region_iendswith: String
+  region_like: String
+  region_ilike: String
+}
+
+input ReviewVoteAggregateGroupBy {
+  region: Boolean
+}
+
+input ReviewVoteAggregateSelection {
+  count: Boolean
+  score_sum: Boolean
+  score_avg: Boolean
+  score_min: Boolean
+  score_max: Boolean
+  score_stddev: Boolean
+  score_variance: Boolean
+  score_count_distinct: Boolean
+  score_json_agg: Boolean
+  score_jsonb_agg: Boolean
+  region_array_agg: Boolean
+  region_string_agg: Boolean
+  region_json_agg: Boolean
+  region_jsonb_agg: Boolean
+}
+
+input ReviewVoteAggregateHaving {
+  count_gt: Int
+  count_gte: Int
+  count_lt: Int
+  count_lte: Int
+  count_eq: Int
+  count_neq: Int
+  score_sum_gt: Int
+  score_sum_gte: Int
+  score_sum_lt: Int
+  score_sum_lte: Int
+  score_sum_eq: Int
+  score_sum_neq: Int
+  score_avg_gt: Float
+  score_avg_gte: Float
+  score_avg_lt: Float
+  score_avg_lte: Float
+  score_avg_eq: Float
+  score_avg_neq: Float
+  score_min_gt: Int
+  score_min_gte: Int
+  score_min_lt: Int
+  score_min_lte: Int
+  score_min_eq: Int
+  score_min_neq: Int
+  score_max_gt: Int
+  score_max_gte: Int
+  score_max_lt: Int
+  score_max_lte: Int
+  score_max_eq: Int
+  score_max_neq: Int
+  score_stddev_gt: Float
+  score_stddev_gte: Float
+  score_stddev_lt: Float
+  score_stddev_lte: Float
+  score_stddev_eq: Float
+  score_stddev_neq: Float
+  score_variance_gt: Float
+  score_variance_gte: Float
+  score_variance_lt: Float
+  score_variance_lte: Float
+  score_variance_eq: Float
+  score_variance_neq: Float
+  score_count_distinct_gt: Int
+  score_count_distinct_gte: Int
+  score_count_distinct_lt: Int
+  score_count_distinct_lte: Int
+  score_count_distinct_eq: Int
+  score_count_distinct_neq: Int
+  score_json_agg_gt: JSON
+  score_json_agg_gte: JSON
+  score_json_agg_lt: JSON
+  score_json_agg_lte: JSON
+  score_json_agg_eq: JSON
+  score_json_agg_neq: JSON
+  score_jsonb_agg_gt: JSON
+  score_jsonb_agg_gte: JSON
+  score_jsonb_agg_lt: JSON
+  score_jsonb_agg_lte: JSON
+  score_jsonb_agg_eq: JSON
+  score_jsonb_agg_neq: JSON
+  region_array_agg_gt: [String]
+  region_array_agg_gte: [String]
+  region_array_agg_lt: [String]
+  region_array_agg_lte: [String]
+  region_array_agg_eq: [String]
+  region_array_agg_neq: [String]
+  region_string_agg_gt: String
+  region_string_agg_gte: String
+  region_string_agg_lt: String
+  region_string_agg_lte: String
+  region_string_agg_eq: String
+  region_string_agg_neq: String
+  region_json_agg_gt: JSON
+  region_json_agg_gte: JSON
+  region_json_agg_lt: JSON
+  region_json_agg_lte: JSON
+  region_json_agg_eq: JSON
+  region_json_agg_neq: JSON
+  region_jsonb_agg_gt: JSON
+  region_jsonb_agg_gte: JSON
+  region_jsonb_agg_lt: JSON
+  region_jsonb_agg_lte: JSON
+  region_jsonb_agg_eq: JSON
+  region_jsonb_agg_neq: JSON
+}
+
+input ReviewVoteAggregateOrderBy {
+  region: SortDirection
+  count: SortDirection
+  score_sum: SortDirection
+  score_avg: SortDirection
+  score_min: SortDirection
+  score_max: SortDirection
+  score_stddev: SortDirection
+  score_variance: SortDirection
+  score_count_distinct: SortDirection
+  score_json_agg: SortDirection
+  score_jsonb_agg: SortDirection
+  region_array_agg: SortDirection
+  region_string_agg: SortDirection
+  region_json_agg: SortDirection
+  region_jsonb_agg: SortDirection
+}
+
+input WindowColumn {
+  type: WindowColumnKind!
+  name: String
+  path: String
+  alias: String!
+}
+
+input WindowPartition {
+  type: WindowColumnKind!
+  name: String
+  path: String
+}
+
+input WindowFunction {
+  type: WindowFunctionKind!
+  field: String
+  measure: String
+  n: Int
+  offset: Int
+  default: JSON
+}
+
+input WindowFrameBoundary {
+  type: WindowFrameBoundaryKind!
+  n: Int
+}
+
+input WindowFrame {
+  frame_type: WindowFrameType!
+  start: WindowFrameBoundary!
+  end: WindowFrameBoundary!
+  exclusion: WindowFrameExclusion
+}
+
+input WindowOrderBy {
+  field: String!
+  direction: SortDirection = ASC
+}
+
+input WindowSpec {
+  function: WindowFunction!
+  alias: String!
+  partitionBy: [WindowPartition!]
+  orderBy: [WindowOrderBy!]
+  frame: WindowFrame
+}
 
 type Money @shareable {
   amount: Int!
@@ -16,8 +264,28 @@ extend type Product @key(fields: "id") {
   reviews: [Review!]!
 }
 
+type ReviewVoteAggregateRow {
+  region: String
+  count: Int
+  score_sum: Int
+  score_avg: Float
+  score_min: Int
+  score_max: Int
+  score_stddev: Float
+  score_variance: Float
+  score_count_distinct: Int
+  score_json_agg: JSON
+  score_jsonb_agg: JSON
+  region_array_agg: [String]
+  region_string_agg: String
+  region_json_agg: JSON
+  region_jsonb_agg: JSON
+}
+
 type Query {
   reviews: [Review!]!
+  review_vote_aggregate(where: ReviewVoteAggregateWhere, groupBy: ReviewVoteAggregateGroupBy, aggregates: [ReviewVoteAggregateSelection!], having: ReviewVoteAggregateHaving, orderBy: ReviewVoteAggregateOrderBy, limit: Int, offset: Int): [ReviewVoteAggregateRow!]!
+  review_vote_window(select: [WindowColumn!], windows: [WindowSpec!], where: ReviewVoteAggregateWhere, orderBy: [WindowOrderBy!], limit: Int, offset: Int): [JSON!]!
 }
 
 

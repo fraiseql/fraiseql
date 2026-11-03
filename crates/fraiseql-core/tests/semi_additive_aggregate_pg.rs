@@ -178,7 +178,7 @@ fn quarter(aggregates: &[&str]) -> Value {
     json!({
         "where": { "day_gte": "2026-01-01", "day_lt": "2026-04-01" },
         "groupBy": { "day_month": true },
-        "aggregates": aggregates.iter().map(|a| json!({ *a: {} })).collect::<Vec<_>>(),
+        "aggregates": aggregates.iter().map(|a| json!({ *a: true })).collect::<Vec<_>>(),
         "orderBy": { "day_month": "ASC" },
     })
 }
@@ -188,12 +188,23 @@ async fn aggregate(
     table: &str,
     request: &Value,
 ) -> Result<Vec<Value>, String> {
-    let document = format!("{{ {} {{ day_month }} }}", root(table));
+    let document = format!("{{ {} {{ {} }} }}", root(table), selection(request));
     let response = executor.execute(&document, Some(request)).await.map_err(|e| e.to_string())?;
     Ok(response["data"][root(table)]
         .as_array()
         .unwrap_or_else(|| panic!("{response}"))
         .clone())
+}
+
+/// Every field `request` computes: its `groupBy` keys, then its aggregates.
+fn selection(request: &Value) -> String {
+    let keys = request["groupBy"].as_object().into_iter().flat_map(|keys| keys.keys().cloned());
+    let aggregates = request["aggregates"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|item| item.as_object()?.keys().next().cloned());
+    keys.chain(aggregates).collect::<Vec<_>>().join(" ")
 }
 
 /// A number however the driver renders it (a `numeric` sum may arrive as a string).
@@ -281,7 +292,7 @@ async fn each_grain_steps_one_bucket_at_a_time() {
         let key = format!("day_{grain}");
         let request = json!({
             "groupBy": { &key: true },
-            "aggregates": [{ "closing_balance_sum": {} }],
+            "aggregates": [{ "closing_balance_sum": true }],
             "orderBy": { &key: "ASC" },
         });
         let groups = aggregate(&executor, TABLE, &request).await.unwrap();
@@ -292,7 +303,7 @@ async fn each_grain_steps_one_bucket_at_a_time() {
     // Q4 2025: account 3's 1000 and account 1's December 100.
     let request = json!({
         "groupBy": { "day_quarter": true },
-        "aggregates": [{ "closing_balance_sum": {} }],
+        "aggregates": [{ "closing_balance_sum": true }],
         "orderBy": { "day_quarter": "ASC" },
     });
     let groups = aggregate(&executor, TABLE, &request).await.unwrap();
@@ -355,11 +366,11 @@ async fn a_timestamp_column_steps_by_second_minute_and_hour() {
         let request = json!({
             "where": { "at_gte": from, "at_lt": to },
             "groupBy": { &key: true },
-            "aggregates": [{ "reading_sum": {} }],
+            "aggregates": [{ "reading_sum": true }],
             "orderBy": { &key: "ASC" },
         });
         let response = meter
-            .execute(&format!("{{ sa_meter_aggregate {{ {key} }} }}"), Some(&request))
+            .execute(&format!("{{ sa_meter_aggregate {{ {key} reading_sum }} }}"), Some(&request))
             .await
             .unwrap();
         let groups = response["data"]["sa_meter_aggregate"].as_array().unwrap().clone();
@@ -555,7 +566,7 @@ async fn a_window_aggregate_over_a_semi_additive_measure_is_refused() {
         async move {
             let root = format!("{}_window", table.strip_prefix("tf_").unwrap());
             executor
-                .execute(&format!("{{ {root} {{ day w }} }}"), Some(&request))
+                .execute(&format!("{{ {root} }}"), Some(&request))
                 .await
                 .map_err(|e| e.to_string())
         }

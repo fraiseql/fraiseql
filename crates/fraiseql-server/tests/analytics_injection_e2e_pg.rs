@@ -166,7 +166,7 @@ async fn window_measure_alias_cannot_exfiltrate_pg_authid() {
     };
 
     let body = json!({
-        "query": "{ injprobe_window { rank } }",
+        "query": "{ injprobe_window }",
         "variables": {
             "select": [{
                 "type":  "measure",
@@ -195,7 +195,7 @@ async fn window_dimension_path_cannot_break_out_of_the_jsonb_key() {
     };
 
     let body = json!({
-        "query": "{ injprobe_window { rank } }",
+        "query": "{ injprobe_window }",
         "variables": {
             "select": [{
                 "type":  "dimension",
@@ -224,7 +224,7 @@ async fn window_function_alias_cannot_exfiltrate_the_current_user() {
     };
 
     let body = json!({
-        "query": "{ injprobe_window { rank } }",
+        "query": "{ injprobe_window }",
         "variables": {
             "select":  [],
             "windows": [{
@@ -246,7 +246,7 @@ async fn window_partition_by_path_cannot_break_out_of_the_jsonb_key() {
     };
 
     let body = json!({
-        "query": "{ injprobe_window { rank } }",
+        "query": "{ injprobe_window }",
         "variables": {
             "select":  [],
             "windows": [{
@@ -269,7 +269,7 @@ async fn window_table_cannot_substitute_the_relation() {
     };
 
     let body = json!({
-        "query": "{ injprobe_window { rank } }",
+        "query": "{ injprobe_window }",
         "variables": {
             "table": "(SELECT jsonb_build_object('category', rolname) AS dimensions \
                       FROM pg_authid) AS x",
@@ -299,7 +299,7 @@ async fn aggregate_table_cannot_substitute_the_relation() {
             "table": "(SELECT jsonb_build_object('category', rolname) AS dimensions \
                       FROM pg_authid) AS x",
             "groupBy":    {"category": true},
-            "aggregates": [{"count": {}}]
+            "aggregates": [{"count": true}]
         }
     });
 
@@ -320,7 +320,7 @@ async fn aggregate_table_cannot_name_another_relation() {
         "query": "{ injprobe_aggregate { count } }",
         "variables": {
             "table":      "pg_authid",
-            "aggregates": [{"count": {}}]
+            "aggregates": [{"count": true}]
         }
     });
 
@@ -344,7 +344,7 @@ async fn a_legitimate_window_query_still_succeeds_over_http() {
     };
 
     let body = json!({
-        "query": "{ injprobe_window { rank } }",
+        "query": "{ injprobe_window }",
         "variables": {
             "select":  [
                 {"type": "measure",   "name": "revenue",  "alias": "revenue"},

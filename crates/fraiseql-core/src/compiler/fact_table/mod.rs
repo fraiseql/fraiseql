@@ -40,10 +40,14 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
 mod detector;
+mod group_keys;
 // Re-export from fraiseql-db to avoid duplication
 pub use fraiseql_db::{introspector::DatabaseIntrospector, types::DatabaseType};
 
-pub use self::detector::FactTableDetector;
+pub use self::{
+    detector::FactTableDetector,
+    group_keys::{GroupKey, GroupKeySource},
+};
 
 #[cfg(test)]
 mod tests;

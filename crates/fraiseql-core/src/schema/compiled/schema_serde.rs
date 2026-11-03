@@ -666,6 +666,32 @@ impl CompiledSchema {
                 path:    Some("fact_tables".to_string()),
             });
         }
+        // Each `groupBy` key names one grouping.
+        let mut tables: Vec<_> = self.fact_tables.values().collect();
+        tables.sort_by(|a, b| a.table_name.cmp(&b.table_name));
+        let violations: Vec<String> =
+            tables.iter().flat_map(|t| t.group_key_collisions()).collect();
+        if !violations.is_empty() {
+            return Err(FraiseQLError::Validation {
+                message: format!(
+                    "fact table groupBy keys have two meanings:\n  - {}",
+                    violations.join("\n  - ")
+                ),
+                path:    Some("fact_tables".to_string()),
+            });
+        }
+        // Each key a fact table's roots publish is a GraphQL name, each row field has one
+        // source, and no declared type takes a name the roots publish.
+        let violations = self.fact_table_surface_violations(&tables);
+        if !violations.is_empty() {
+            return Err(FraiseQLError::Validation {
+                message: format!(
+                    "fact table roots cannot be published:\n  - {}",
+                    violations.join("\n  - ")
+                ),
+                path:    Some("fact_tables".to_string()),
+            });
+        }
         let violations = self.fact_table_link_violations();
         if !violations.is_empty() {
             return Err(FraiseQLError::Validation {

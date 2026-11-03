@@ -174,14 +174,14 @@ CREATE INDEX ON tf_headcount USING gist (org_path);
 **Roll up** to a level of the tree, or group by depth:
 
 ```json
-{ "groupBy": { "org_path": { "level": 2 } }, "aggregates": [{ "salary_sum": {} }] }
-{ "groupBy": { "org_path": "depth" },        "aggregates": [{ "salary_sum": {} }] }
+{ "groupBy": { "org_path_level": 2 },     "aggregates": [{ "salary_sum": true }] }
+{ "groupBy": { "org_path_depth": true },  "aggregates": [{ "salary_sum": true }] }
 ```
 
-`{"level": n}` groups by `subpath(org_path, 0, n)`: each path cut to its first `n` labels,
-with a shorter path kept whole. The result keeps the column's name (`org_path`).
-`"depth"` groups by `nlevel(org_path)` and answers as `org_path_depth`. Both need the
-column to be an `LTREE` denormalized filter.
+`org_path_level: n` groups by `subpath(org_path, 0, n)`: each path cut to its first `n`
+labels, with a shorter path kept whole, answering as `org_path_level`. `org_path_depth: true`
+groups by `nlevel(org_path)` and answers as `org_path_depth`. Both need the column to be an
+`LTREE` denormalized filter.
 
 **Filter by node id.** `org_path_descendant_of_id` and `org_path_ancestor_of_id` take the
 `id` of a node and compare against that node's path. The column names the hierarchy the
@@ -207,10 +207,9 @@ A schema whose filter names an undeclared hierarchy, or links one to a column th
 
 ## Temporal buckets
 
-`groupBy: {occurred_at: "month"}` (keyed `occurred_at`) and `groupBy: {occurred_at_month: true}`
-(keyed `occurred_at_month`) group by a bucket of a denormalized time column: `second`,
-`minute`, `hour`, `day`, `week` (starting Monday), `month`, `quarter` or `year`. The key
-follows the column's declared `sql_type`:
+`groupBy: {occurred_at_month: true}` (keyed `occurred_at_month`) groups by a bucket of a
+denormalized time column: `second`, `minute`, `hour`, `day`, `week` (starting Monday),
+`month`, `quarter` or `year`. The key follows the column's declared `sql_type`:
 
 | Column | Bucket key | Example (`month`) |
 |--------|-----------|-------------------|
@@ -221,8 +220,10 @@ follows the column's declared `sql_type`:
 A `date` bucket does not depend on the session time zone. A sub-day grain (`hour`, `minute`,
 `second`) of a `date` column is the date itself.
 
-The aggregate and window roots are not part of the published schema (introspection and
-SDL), so a bucket key has no declared GraphQL type: it is the JSON string above.
+A bucket key is published as `Date` for a `date` column and as `DateTime` otherwise, and
+answers with the string above. A `timestamp` column without a time zone answers
+`YYYY-MM-DD HH:MM:SS`, with a space and no offset, so a client parsing `DateTime` strictly
+as RFC 3339 must accept that shape too (#1929).
 
 ---
 
@@ -382,6 +383,70 @@ fraiseql.fact_table(
 
 Explicit declarations override introspected metadata and are preferred in production
 deployments where sample-based discovery may be unreliable.
+
+---
+
+## The published roots
+
+Each fact table `tf_<name>` publishes two `Query` fields, in introspection and in the SDL,
+under their literal names (they are not camel-cased):
+
+```graphql
+sales_aggregate(where: SalesAggregateWhere, groupBy: SalesAggregateGroupBy,
+                aggregates: [SalesAggregateSelection!], having: SalesAggregateHaving,
+                orderBy: SalesAggregateOrderBy, limit: Int, offset: Int): [SalesAggregateRow!]!
+sales_window(select: [WindowColumn!], windows: [WindowSpec!], where: SalesAggregateWhere,
+             orderBy: [WindowOrderBy!], limit: Int, offset: Int): [JSON!]!
+```
+
+The arguments decide what is computed, and the selection set decides what is returned:
+
+```graphql
+{
+  sales_aggregate(groupBy: {category: true, occurred_at_month: true},
+                  aggregates: [{revenue_sum: true}, {count: true}],
+                  orderBy: {revenue_sum: DESC}) {
+    category occurred_at_month revenue_sum count
+  }
+}
+```
+
+- `groupBy` takes `true` (grouped) or `false` per key, and `<column>_level: n` for an `LTREE`
+  roll-up. `aggregates` is a list of `{<alias>: true}`. `orderBy` takes `ASC` or `DESC`.
+- An aggregate row holds exactly the fields its selection set selects, under their response
+  keys (aliases and `__typename` included). A selected field the arguments did not compute
+  is `null`. Every row field is nullable, and the root must select at least one.
+- A window row is `JSON` keyed by the `select` and `windows` aliases. The window root takes no
+  selection set.
+
+A row field's type follows what the database returns:
+
+| Field | Type |
+|-------|------|
+| `count`, `<measure>_count_distinct`, a tree depth | `Int` |
+| `sum`, `min`, `max` of an `int` measure; `min`, `max` of a `bigint` measure; a `bigint` key | `Int` |
+| any reduction of a `numeric` measure | `Decimal`, exact |
+| any other reduction of a measure | `Float`, approximate (a double) |
+| a `date` bucket / a calendar bucket / any other bucket | `Date` / `String` / `DateTime` |
+| a dimension, a tree level, `<filter>_string_agg` | `String` |
+| `<filter>_bool_and`, `<filter>_bool_or` | `Boolean` |
+| `<filter>_array_agg` of a text filter | `[String]` |
+| `<filter>_json_agg`, `<filter>_jsonb_agg`, `<measure>_json_agg`, `<measure>_jsonb_agg` | `JSON` |
+| a denormalized filter used as a key | its column's scalar |
+
+An `Int` is a signed 32-bit integer. A count or a `bigint` value outside that range is a field
+error at its path, and the field is `null`. It is never a wrong number.
+
+A row type has no declaration of its own, and `@inaccessible` on its fields is not
+supported.
+
+A schema whose roots cannot be published is refused when the server loads it, naming each
+cause:
+
+- a measure, dimension or filter whose name is not a GraphQL name;
+- a generated key (a `_<bucket>`, `_depth` or `_level` key) spelled like a column, a dimension
+  or another generated key;
+- a declared type, input or enum named like one the roots publish.
 
 ---
 

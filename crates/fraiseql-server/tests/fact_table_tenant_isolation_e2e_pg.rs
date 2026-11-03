@@ -269,10 +269,10 @@ fn aggregate_body() -> Value {
 /// [`aggregate_body`] over the root `{root}_aggregate`.
 fn aggregate_body_over(root: &str) -> Value {
     json!({
-        "query": format!("{{ {root}_aggregate {{ count }} }}"),
+        "query": format!("{{ {root}_aggregate {{ tenant_id count }} }}"),
         "variables": {
             "groupBy":    {"tenant_id": true},
-            "aggregates": [{"count": {}}]
+            "aggregates": [{"count": true}]
         }
     })
 }
@@ -285,7 +285,7 @@ fn window_body() -> Value {
 /// [`window_body`] over the root `{root}_window`.
 fn window_body_over(root: &str) -> Value {
     json!({
-        "query": format!("{{ {root}_window {{ rank }} }}"),
+        "query": format!("{{ {root}_window }}"),
         "variables": {
             "select":  [{"type": "filter", "name": "tenant_id", "alias": "tenant_id"}],
             "windows": [{"function": {"type": "row_number"}, "alias": "rank"}]

@@ -120,7 +120,7 @@ async fn a_localized_dimension_groups_by_its_label_in_the_request_locale() {
     };
     let query = json!({
         "groupBy": { "name": true },
-        "aggregates": [{ "count": {} }],
+        "aggregates": [{ "count": true }],
         "orderBy": { "name": "ASC" }
     });
     assert_eq!(
@@ -146,7 +146,7 @@ async fn a_filter_on_a_localized_dimension_reads_the_label() {
     };
     let query = json!({
         "groupBy": { "name": true },
-        "aggregates": [{ "count": {} }],
+        "aggregates": [{ "count": true }],
         "where": { "name_eq": "Pomme" }
     });
     assert_eq!(groups(&executor, "fr-FR", &query).await, vec![(json!("Pomme"), json!(2))]);

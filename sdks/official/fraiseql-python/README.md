@@ -102,9 +102,9 @@ There is no aggregate query to declare: `tf_sales` gets the GraphQL roots
 ```graphql
 {
   sales_aggregate(
-    groupBy: { category: true, occurred_at: "month" }
-    aggregates: [{ revenue_sum: {} }, { count: {} }]
-  )
+    groupBy: { category: true, occurred_at_month: true }
+    aggregates: [{ revenue_sum: true }, { count: true }]
+  ) { category occurred_at_month revenue_sum count }
 }
 ```
 

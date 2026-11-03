@@ -108,12 +108,13 @@ impl Kind {
         }
     }
 
-    /// The selection the projector reads: `region` on both shapes.
+    /// The document: the aggregate root selects `region`, and the window root, a leaf, takes
+    /// no selection set, its rows holding `region` from `select`.
     fn document(self, table: &str, inline: &str) -> String {
         let root = self.root(table);
         match self {
             Self::Aggregate => format!("{{ {root}{inline} {{ region count }} }}"),
-            Self::Window => format!("{{ {root}{inline} {{ region position }} }}"),
+            Self::Window => format!("{{ {root}{inline} }}"),
         }
     }
 
@@ -122,7 +123,7 @@ impl Kind {
         let mut request = match self {
             Self::Aggregate => json!({
                 "groupBy": { "region": true },
-                "aggregates": [{ "count": {} }],
+                "aggregates": [{ "count": true }],
                 "orderBy": { "region": "ASC" },
             }),
             Self::Window => json!({

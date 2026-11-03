@@ -122,7 +122,8 @@ async fn seed(adapter: &PostgresAdapter) {
 }
 
 async fn start(schema: CompiledSchema, auth: Auth) -> Option<Running> {
-    start_with(schema, auth, |_| {}).await
+    // Boxed: it holds the schema across its awaits, past `clippy::large_futures`.
+    Box::pin(start_with(schema, auth, |_| {})).await
 }
 
 async fn start_with(

@@ -107,7 +107,7 @@ fn test_parse_simple_aggregate_query() {
     let metadata = create_test_metadata();
     let query = json!({
         "aggregates": [
-            {"count": {}}
+            {"count": true}
         ]
     });
 
@@ -128,9 +128,9 @@ fn test_parse_group_by_with_aggregates() {
             "occurred_at_day": true
         },
         "aggregates": [
-            {"count": {}},
-            {"revenue_sum": {}},
-            {"revenue_avg": {}}
+            {"count": true},
+            {"revenue_sum": true},
+            {"revenue_avg": true}
         ]
     });
 
@@ -345,8 +345,8 @@ async fn test_end_to_end_aggregate_query() {
             "category": true
         },
         "aggregates": [
-            {"count": {}},
-            {"revenue_sum": {}}
+            {"count": true},
+            {"revenue_sum": true}
         ],
         "limit": 10
     });

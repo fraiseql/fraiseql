@@ -105,9 +105,9 @@ async fn aggregate_query_with_rls_includes_tenant_filter_in_sql() {
     let executor = Executor::with_config(schema, adapter.clone(), config);
 
     let ctx = tenant_security_context("tenant-abc");
-    let vars = serde_json::json!({ "aggregates": [{"count": {}}] });
+    let vars = serde_json::json!({ "aggregates": [{"count": true}] });
     let _result = executor
-        .execute_with_security("{ sales_aggregate }", Some(&vars), &ctx)
+        .execute_with_security("{ sales_aggregate { count } }", Some(&vars), &ctx)
         .await
         .unwrap();
 
@@ -126,9 +126,9 @@ async fn aggregate_query_admin_bypasses_rls() {
     let executor = Executor::with_config(schema, adapter.clone(), config);
 
     let ctx = admin_security_context();
-    let vars = serde_json::json!({ "aggregates": [{"count": {}}] });
+    let vars = serde_json::json!({ "aggregates": [{"count": true}] });
     let _result = executor
-        .execute_with_security("{ sales_aggregate }", Some(&vars), &ctx)
+        .execute_with_security("{ sales_aggregate { count } }", Some(&vars), &ctx)
         .await
         .unwrap();
 
@@ -148,9 +148,9 @@ async fn aggregate_query_no_rls_policy_returns_unfiltered() {
     let executor = Executor::new(schema, adapter.clone());
 
     let ctx = tenant_security_context("tenant-abc");
-    let vars = serde_json::json!({ "aggregates": [{"count": {}}] });
+    let vars = serde_json::json!({ "aggregates": [{"count": true}] });
     let _result = executor
-        .execute_with_security("{ sales_aggregate }", Some(&vars), &ctx)
+        .execute_with_security("{ sales_aggregate { count } }", Some(&vars), &ctx)
         .await
         .unwrap();
 
@@ -174,11 +174,11 @@ async fn aggregate_rls_composes_with_user_where() {
     // The nested `{"tenant_id": {"eq": …}}` this test used to send was never an aggregate
     // filter: the parser skipped it and the test passed on the RLS predicate alone (#1460).
     let vars = serde_json::json!({
-        "aggregates": [{"count": {}}],
+        "aggregates": [{"count": true}],
         "where": {"tenant_id_eq": "tenant-abc"}
     });
     let _result = executor
-        .execute_with_security("{ sales_aggregate }", Some(&vars), &ctx)
+        .execute_with_security("{ sales_aggregate { count } }", Some(&vars), &ctx)
         .await
         .unwrap();
 
@@ -355,14 +355,14 @@ mod gated_fact_tables {
     #[tokio::test]
     async fn aggregating_a_measure_the_caller_may_not_read_is_refused() {
         assert_refused(
-            serde_json::json!({"aggregates": [{"margin_sum": {}}]}),
-            "{ sales_aggregate }",
+            serde_json::json!({"aggregates": [{"margin_sum": true}]}),
+            "{ sales_aggregate { count } }",
             "the sum of a masked measure discloses it",
         )
         .await;
         assert_refused(
-            serde_json::json!({"aggregates": [{"cost_max": {}}]}),
-            "{ sales_aggregate }",
+            serde_json::json!({"aggregates": [{"cost_max": true}]}),
+            "{ sales_aggregate { count } }",
             "the max of a refused measure is its value",
         )
         .await;
@@ -371,8 +371,8 @@ mod gated_fact_tables {
     #[tokio::test]
     async fn grouping_by_a_dimension_the_caller_may_not_read_is_refused() {
         assert_refused(
-            serde_json::json!({"groupBy": {"segment": true}, "aggregates": [{"count": {}}]}),
-            "{ sales_aggregate }",
+            serde_json::json!({"groupBy": {"segment": true}, "aggregates": [{"count": true}]}),
+            "{ sales_aggregate { count } }",
             "a group key is served as the value itself",
         )
         .await;
@@ -381,8 +381,8 @@ mod gated_fact_tables {
     #[tokio::test]
     async fn an_aggregate_filter_on_a_field_the_caller_may_not_read_is_refused() {
         assert_refused(
-            serde_json::json!({"where": {"margin_gt": 10}, "aggregates": [{"count": {}}]}),
-            "{ sales_aggregate }",
+            serde_json::json!({"where": {"margin_gt": 10}, "aggregates": [{"count": true}]}),
+            "{ sales_aggregate { count } }",
             "a count filtered by a masked measure answers a question about it",
         )
         .await;
@@ -393,10 +393,10 @@ mod gated_fact_tables {
         assert_refused(
             serde_json::json!({
                 "groupBy": {"category": true},
-                "aggregates": [{"count": {}}],
+                "aggregates": [{"count": true}],
                 "orderBy": {"margin": "DESC"}
             }),
-            "{ sales_aggregate }",
+            "{ sales_aggregate { count } }",
             "an order by a masked measure ranks by it",
         )
         .await;
@@ -405,8 +405,8 @@ mod gated_fact_tables {
     #[tokio::test]
     async fn an_aggregate_over_an_authorize_field_is_refused() {
         assert_refused(
-            serde_json::json!({"groupBy": {"note": true}, "aggregates": [{"count": {}}]}),
-            "{ sales_aggregate }",
+            serde_json::json!({"groupBy": {"note": true}, "aggregates": [{"count": true}]}),
+            "{ sales_aggregate { count } }",
             "an authorize field is decided per row, after a read",
         )
         .await;
@@ -465,8 +465,8 @@ mod gated_fact_tables {
     #[tokio::test]
     async fn a_name_the_linked_type_does_not_declare_is_refused() {
         let vars =
-            serde_json::json!({"where": {"salary_gt": 100_000}, "aggregates": [{"count": {}}]});
-        let (res, sql) = run(schema(), "{ sales_aggregate }", &vars, &principal()).await;
+            serde_json::json!({"where": {"salary_gt": 100_000}, "aggregates": [{"count": true}]});
+        let (res, sql) = run(schema(), "{ sales_aggregate { count } }", &vars, &principal()).await;
         assert!(
             matches!(res, Err(crate::error::FraiseQLError::Validation { .. })),
             "an undeclared JSONB key of a linked fact table is no field of its type: {res:?}"
@@ -474,27 +474,143 @@ mod gated_fact_tables {
         assert!(sql.is_none(), "the statement reached the database: {sql:?}");
     }
 
-    #[tokio::test]
-    async fn a_fact_table_of_a_role_gated_type_is_refused() {
+    fn finance_gated() -> CompiledSchema {
         let mut schema = schema();
         schema.types.iter_mut().find(|t| t.name == "Sale").unwrap().requires_role =
             Some("finance".to_string());
         schema.build_indexes();
-        let vars = serde_json::json!({"aggregates": [{"revenue_sum": {}}]});
-        let (res, sql) = run(schema, "{ sales_aggregate }", &vars, &principal()).await;
+        schema
+    }
+
+    fn finance() -> SecurityContext {
+        SecurityContext {
+            roles: vec!["finance".to_string()],
+            ..principal()
+        }
+    }
+
+    fn message(res: &crate::error::Result<serde_json::Value>) -> String {
+        match res {
+            Err(crate::error::FraiseQLError::Validation { message, .. }) => message.clone(),
+            other => format!("not a validation error: {other:?}"),
+        }
+    }
+
+    /// A fact table read as a type whose role the caller lacks is absent to it, as a
+    /// role-gated query is (#1122): its roots answer exactly as a table that does not exist,
+    /// before anything else about the document is checked, so neither the refusal nor a
+    /// suggestion tells the caller the table exists.
+    #[tokio::test]
+    async fn the_roots_of_a_fact_table_of_a_role_gated_type_are_absent_without_the_role() {
+        let vars = serde_json::json!({"aggregates": [{"revenue_sum": true}]});
+        for document in [
+            "{ sales_aggregate { count } }",
+            "{ sales_aggregate }",
+            "{ sales_aggregate { bogus } }",
+            "{ sales_window }",
+            "{ sales_window { rank } }",
+        ] {
+            let (res, sql) = run(finance_gated(), document, &vars, &principal()).await;
+            assert_eq!(
+                message(&res),
+                "Fact table 'tf_sales' not found in schema",
+                "{document}: answered as a table that does not exist"
+            );
+            assert!(sql.is_none(), "{document}: the statement reached the database: {sql:?}");
+        }
+        let (res, _) =
+            run(finance_gated(), "{ sale_aggregate { count } }", &vars, &principal()).await;
+        assert_eq!(message(&res), "Fact table 'tf_sale' not found in schema", "no suggestion");
+    }
+
+    /// Control: the role's holder is served, and is suggested the table.
+    #[tokio::test]
+    async fn the_holder_of_the_role_is_served_the_roots() {
+        let vars = serde_json::json!({"aggregates": [{"revenue_sum": true}]});
+        let (res, sql) =
+            run(finance_gated(), "{ sales_aggregate { count } }", &vars, &finance()).await;
+        res.expect("`finance` is held");
+        assert!(sql.is_some());
+        let (res, _) =
+            run(finance_gated(), "{ sale_aggregate { count } }", &vars, &finance()).await;
+        assert!(message(&res).contains("Did you mean 'tf_sales'"), "{res:?}");
+    }
+
+    /// Introspection lists the roots and their row type only to a caller who may run them.
+    #[tokio::test]
+    async fn introspection_lists_the_roots_only_to_the_holder_of_the_role() {
+        let document = r#"{ query: __type(name: "Query") { fields { name } }
+                           row: __type(name: "SalesAggregateRow") { name } }"#;
+        for (caller, listed) in [(principal(), false), (finance(), true)] {
+            let (res, _) = run(finance_gated(), document, &serde_json::json!({}), &caller).await;
+            let response = res.expect("introspection is served");
+            let fields = response["data"]["query"]["fields"].to_string();
+            assert!(response["data"]["query"]["fields"].is_array(), "{response}");
+            assert_eq!(
+                fields.contains("\"sales_aggregate\""),
+                listed,
+                "{:?}: {fields}",
+                caller.roles
+            );
+            assert_eq!(fields.contains("\"sales_window\""), listed, "{:?}: {fields}", caller.roles);
+            assert_eq!(
+                response["data"]["row"].is_object(),
+                listed,
+                "{:?}: {response}",
+                caller.roles
+            );
+        }
+    }
+
+    /// The schema a caller is shown, which the exports describe, lacks the roots and their row
+    /// type, not only the introspection that prunes what nothing reaches.
+    #[test]
+    fn the_visible_schema_lacks_the_roots_and_row_type_without_the_role() {
+        for (caller, shown) in [(principal(), false), (finance(), true)] {
+            let visible =
+                crate::security::role_gate::visible_schema(&finance_gated(), Some(&caller));
+            assert_eq!(visible.fact_root("sales_aggregate").is_some(), shown, "{:?}", caller.roles);
+            assert_eq!(
+                visible.derived.fact_rows.iter().any(|t| t.name == "SalesAggregateRow"),
+                shown,
+                "{:?}",
+                caller.roles
+            );
+            assert_eq!(
+                visible.raw_schema().contains("type SalesAggregateRow"),
+                shown,
+                "{:?}",
+                caller.roles
+            );
+        }
+    }
+
+    /// The embedder entries take the metadata, not a root: the type's role refuses there.
+    #[tokio::test]
+    async fn the_embedder_entry_refuses_a_fact_table_of_a_role_gated_type() {
+        let schema = finance_gated();
+        let metadata = schema.get_fact_table("tf_sales").unwrap().clone();
+        let adapter = Arc::new(CapturingMockAdapter::new(vec![]));
+        let res = Executor::new(schema, adapter.clone())
+            .execute_aggregate_query(
+                &serde_json::json!({"aggregates": [{"revenue_sum": true}]}),
+                "sales_aggregate",
+                &metadata,
+            )
+            .await;
         assert!(
             matches!(res, Err(crate::error::FraiseQLError::Authorization { .. })),
             "`Sale` requires `finance`: {res:?}"
         );
-        assert!(sql.is_none(), "the statement reached the database: {sql:?}");
+        assert!(adapter.captured_aggregate_sql().is_none());
     }
 
     // A temporal bucket reads its source column.
     #[tokio::test]
     async fn a_temporal_bucket_of_a_column_the_caller_may_not_read_is_refused() {
         assert_refused(
-            serde_json::json!({"groupBy": {"closed_at_day": true}, "aggregates": [{"count": {}}]}),
-            "{ sales_aggregate }",
+            serde_json::json!({"groupBy": {"closed_at_day": true}, "aggregates": [{"count": true}]}),
+            "{ sales_aggregate { count } }",
             "a day bucket of a masked timestamp is the timestamp, truncated",
         )
         .await;
@@ -510,8 +626,9 @@ mod gated_fact_tables {
             .unwrap()
             .native_dimension_mapping
             .insert("segment".to_string(), "segment_col".to_string());
-        let vars = serde_json::json!({"groupBy": {"segment": true}, "aggregates": [{"count": {}}]});
-        let (res, sql) = run(schema, "{ sales_aggregate }", &vars, &principal()).await;
+        let vars =
+            serde_json::json!({"groupBy": {"segment": true}, "aggregates": [{"count": true}]});
+        let (res, sql) = run(schema, "{ sales_aggregate { count } }", &vars, &principal()).await;
         assert!(
             matches!(res, Err(crate::error::FraiseQLError::Authorization { .. })),
             "`segment_col` holds `Sale.segment`: {res:?}"
@@ -528,7 +645,7 @@ mod gated_fact_tables {
         unlinked.type_name = None;
         let res = Executor::new(schema(), adapter.clone())
             .execute_aggregate_query(
-                &serde_json::json!({"aggregates": [{"margin_sum": {}}]}),
+                &serde_json::json!({"aggregates": [{"margin_sum": true}]}),
                 "sales_aggregate",
                 &unlinked,
             )
@@ -589,8 +706,8 @@ mod gated_fact_tables {
     #[tokio::test]
     async fn a_filter_on_a_gated_native_column_is_refused() {
         assert_refused(
-            serde_json::json!({"where": {"closed_at_gte": "2026-01-01"}, "aggregates": [{"count": {}}]}),
-            "{ sales_aggregate }",
+            serde_json::json!({"where": {"closed_at_gte": "2026-01-01"}, "aggregates": [{"count": true}]}),
+            "{ sales_aggregate { count } }",
             "a count of rows closed after a date asks about the masked timestamp",
         )
         .await;
@@ -635,10 +752,10 @@ mod gated_fact_tables {
         let vars = serde_json::json!({
             "where": {"tenant_id_eq": "tenant-abc"},
             "groupBy": {"category": true},
-            "aggregates": [{"revenue_sum": {}}, {"count": {}}],
+            "aggregates": [{"revenue_sum": true}, {"count": true}],
             "orderBy": {"revenue_sum": "DESC"}
         });
-        let (res, sql) = run(schema(), "{ sales_aggregate }", &vars, &principal()).await;
+        let (res, sql) = run(schema(), "{ sales_aggregate { count } }", &vars, &principal()).await;
         res.expect("an ungated aggregate is served");
         assert!(sql.is_some());
     }
@@ -650,8 +767,8 @@ mod gated_fact_tables {
             roles: vec!["analyst".to_string()],
             ..principal()
         };
-        let vars = serde_json::json!({"aggregates": [{"margin_sum": {}}]});
-        let (res, sql) = run(schema(), "{ sales_aggregate }", &vars, &analyst).await;
+        let vars = serde_json::json!({"aggregates": [{"margin_sum": true}]});
+        let (res, sql) = run(schema(), "{ sales_aggregate { count } }", &vars, &analyst).await;
         res.expect("`read:margin` is held");
         assert!(sql.is_some());
     }
@@ -673,8 +790,8 @@ mod anonymous_under_a_row_policy {
     #[tokio::test]
     async fn an_anonymous_aggregate_is_refused() {
         let adapter = Arc::new(CapturingMockAdapter::new(vec![]));
-        let vars = serde_json::json!({"aggregates": [{"count": {}}]});
-        let res = executor(&adapter).execute("{ sales_aggregate }", Some(&vars)).await;
+        let vars = serde_json::json!({"aggregates": [{"count": true}]});
+        let res = executor(&adapter).execute("{ sales_aggregate { count } }", Some(&vars)).await;
         assert!(res.is_err(), "no principal, no policy to evaluate: {res:?}");
         let sql = adapter.captured_aggregate_sql();
         assert!(sql.is_none(), "every tenant's rows were read: {sql:?}");
@@ -700,7 +817,7 @@ mod anonymous_under_a_row_policy {
         let exec = executor(&adapter);
         let agg = exec
             .execute_aggregate_query(
-                &serde_json::json!({"aggregates": [{"count": {}}]}),
+                &serde_json::json!({"aggregates": [{"count": true}]}),
                 "sales_aggregate",
                 &metadata,
             )
@@ -725,10 +842,10 @@ mod anonymous_under_a_row_policy {
     #[tokio::test]
     async fn an_authenticated_aggregate_is_served_under_the_policy() {
         let adapter = Arc::new(CapturingMockAdapter::new(vec![]));
-        let vars = serde_json::json!({"aggregates": [{"count": {}}]});
+        let vars = serde_json::json!({"aggregates": [{"count": true}]});
         executor(&adapter)
             .execute_with_security(
-                "{ sales_aggregate }",
+                "{ sales_aggregate { count } }",
                 Some(&vars),
                 &tenant_security_context("tenant-abc"),
             )
@@ -756,7 +873,7 @@ mod tenant_scoped_fact_tables {
     const REFUSAL: &str = "no row policy scopes its aggregate and window roots";
 
     fn aggregate_vars() -> serde_json::Value {
-        serde_json::json!({ "aggregates": [{"count": {}}] })
+        serde_json::json!({ "aggregates": [{"count": true}] })
     }
 
     fn window_vars() -> serde_json::Value {
@@ -839,7 +956,7 @@ mod tenant_scoped_fact_tables {
         let (res, sql) = graphql(
             injected_column_schema(),
             RuntimeConfig::default(),
-            "{ sales_aggregate }",
+            "{ sales_aggregate { count } }",
             &aggregate_vars(),
         )
         .await;
@@ -881,9 +998,13 @@ mod tenant_scoped_fact_tables {
         schema.add_fact_table("tf_sales".to_string(), table);
         schema.build_indexes();
 
-        let (res, sql) =
-            graphql(schema, RuntimeConfig::default(), "{ sales_aggregate }", &aggregate_vars())
-                .await;
+        let (res, sql) = graphql(
+            schema,
+            RuntimeConfig::default(),
+            "{ sales_aggregate { count } }",
+            &aggregate_vars(),
+        )
+        .await;
         assert_refused(&res, sql.as_ref(), "linked aggregate");
         let message = refusal(&res);
         assert!(
@@ -911,9 +1032,13 @@ mod tenant_scoped_fact_tables {
         schema.add_fact_table("tf_sales".to_string(), table);
         schema.build_indexes();
 
-        let (res, sql) =
-            graphql(schema, RuntimeConfig::default(), "{ sales_aggregate }", &aggregate_vars())
-                .await;
+        let (res, sql) = graphql(
+            schema,
+            RuntimeConfig::default(),
+            "{ sales_aggregate { count } }",
+            &aggregate_vars(),
+        )
+        .await;
         assert_refused(&res, sql.as_ref(), "type-level inject");
     }
 
@@ -948,9 +1073,13 @@ mod tenant_scoped_fact_tables {
     #[tokio::test]
     async fn a_row_policy_scopes_the_roots_instead() {
         let config = RuntimeConfig::default().with_rls_policy(Arc::new(DefaultRLSPolicy::new()));
-        let (res, sql) =
-            graphql(injected_column_schema(), config, "{ sales_aggregate }", &aggregate_vars())
-                .await;
+        let (res, sql) = graphql(
+            injected_column_schema(),
+            config,
+            "{ sales_aggregate { count } }",
+            &aggregate_vars(),
+        )
+        .await;
         assert!(res.is_ok(), "{res:?}");
         assert!(sql.unwrap().contains("tenant_id"), "the policy's predicate scopes it");
     }
@@ -959,9 +1088,13 @@ mod tenant_scoped_fact_tables {
     #[tokio::test]
     async fn a_relation_scoped_fact_table_is_served_unfiltered_by_the_server() {
         let schema = with_row_scope(injected_column_schema(), FactRowScope::Relation);
-        let (res, sql) =
-            graphql(schema, RuntimeConfig::default(), "{ sales_aggregate }", &aggregate_vars())
-                .await;
+        let (res, sql) = graphql(
+            schema,
+            RuntimeConfig::default(),
+            "{ sales_aggregate { count } }",
+            &aggregate_vars(),
+        )
+        .await;
         assert!(res.is_ok(), "{res:?}");
         assert!(!sql.unwrap().contains("tenant_id"), "the relation scopes itself");
     }
@@ -985,9 +1118,13 @@ mod tenant_scoped_fact_tables {
     async fn row_scope_on_a_fact_table_that_is_not_tenant_scoped_is_harmless() {
         for row_scope in [FactRowScope::Server, FactRowScope::Relation] {
             let schema = with_row_scope(schema_with_fact_table(), row_scope);
-            let (res, sql) =
-                graphql(schema, RuntimeConfig::default(), "{ sales_aggregate }", &aggregate_vars())
-                    .await;
+            let (res, sql) = graphql(
+                schema,
+                RuntimeConfig::default(),
+                "{ sales_aggregate { count } }",
+                &aggregate_vars(),
+            )
+            .await;
             assert!(res.is_ok(), "{row_scope:?}: {res:?}");
             assert!(sql.is_some(), "{row_scope:?}: served");
         }
@@ -1000,7 +1137,7 @@ mod fact_table_roots {
     use super::*;
     use crate::error::FraiseQLError;
 
-    const COUNT: &str = "aggregates: [{count: {}}]";
+    const COUNT: &str = "aggregates: [{count: true}]";
     const RANK: &str = r#"select: [{type: "filter", name: "tenant_id", alias: "tenant_id"}], windows: [{function: {type: "row_number"}, alias: "rank"}]"#;
 
     async fn run(
@@ -1025,7 +1162,7 @@ mod fact_table_roots {
     #[tokio::test]
     async fn a_root_without_table_is_served() {
         for document in [
-            format!("{{ sales_aggregate({COUNT}) }}"),
+            format!("{{ sales_aggregate({COUNT}) {{ count }} }}"),
             format!("{{ sales_window({RANK}) }}"),
         ] {
             let (res, sql) = run(&document, &serde_json::json!({})).await;
@@ -1038,7 +1175,7 @@ mod fact_table_roots {
     #[tokio::test]
     async fn an_aliased_root_answers_under_its_alias() {
         for (document, alias) in [
-            (format!("{{ totals: sales_aggregate({COUNT}) }}"), "totals"),
+            (format!("{{ totals: sales_aggregate({COUNT}) {{ count }} }}"), "totals"),
             (format!("{{ ranked: sales_window({RANK}) }}"), "ranked"),
         ] {
             let (res, _) = run(&document, &serde_json::json!({})).await;
@@ -1056,11 +1193,11 @@ mod fact_table_roots {
         let expected = "`table` is no longer an argument: the root reads fact table `tf_sales`";
         for (document, vars) in [
             (
-                format!(r#"{{ sales_aggregate(table: "tf_sales", {COUNT}) }}"#),
+                format!(r#"{{ sales_aggregate(table: "tf_sales", {COUNT}) {{ count }} }}"#),
                 serde_json::json!({}),
             ),
             (
-                format!("{{ sales_aggregate({COUNT}) }}"),
+                format!("{{ sales_aggregate({COUNT}) {{ count }} }}"),
                 serde_json::json!({"table": "tf_sales"}),
             ),
             (
@@ -1085,7 +1222,7 @@ mod fact_table_roots {
         let executor = Executor::new(schema, adapter.clone());
         let aggregate = executor
             .execute_aggregate_query(
-                &serde_json::json!({"table": "tf_sales", "aggregates": [{"count": {}}]}),
+                &serde_json::json!({"table": "tf_sales", "aggregates": [{"count": true}]}),
                 "sales_aggregate",
                 &metadata,
             )
@@ -1112,7 +1249,9 @@ mod fact_table_roots {
     #[tokio::test]
     async fn a_document_with_a_fact_table_root_and_another_root_is_refused() {
         let (res, _) = run(
-            &format!("{{ totals: sales_aggregate({COUNT}) orders {{ id }} __typename }}"),
+            &format!(
+                "{{ totals: sales_aggregate({COUNT}) {{ count }} orders {{ id }} __typename }}"
+            ),
             &serde_json::json!({}),
         )
         .await;
@@ -1123,9 +1262,11 @@ mod fact_table_roots {
             "names the root by its response key and every other root: {res:?}"
         );
         for document in [
-            format!("{{ sales_aggregate({COUNT}) orders {{ id }} }}"),
-            format!("{{ orders {{ id }} sales_aggregate({COUNT}) }}"),
-            format!("{{ a: sales_aggregate({COUNT}) b: sales_aggregate({COUNT}) }}"),
+            format!("{{ sales_aggregate({COUNT}) {{ count }} orders {{ id }} }}"),
+            format!("{{ orders {{ id }} sales_aggregate({COUNT}) {{ count }} }}"),
+            format!(
+                "{{ a: sales_aggregate({COUNT}) {{ count }} b: sales_aggregate({COUNT}) {{ count }} }}"
+            ),
             format!("{{ sales_window({RANK}) __typename }}"),
             format!("{{ __typename sales_window({RANK}) }}"),
         ] {
@@ -1149,5 +1290,176 @@ mod fact_table_roots {
             !validation_message(&res).contains("must be the only root"),
             "a mutation is not a fact-table root: {res:?}"
         );
+    }
+}
+
+/// An aggregate root's rows are its published `<Stem>AggregateRow` objects (#1800): each row
+/// holds the fields the selection set selects, under their response keys, and nothing else.
+mod row_projection {
+    use super::*;
+    use crate::error::FraiseQLError;
+
+    const ARGS: &str = "groupBy: {tenant_id: true}, aggregates: [{count: true}]";
+
+    fn published_schema() -> crate::schema::CompiledSchema {
+        let mut schema = schema_with_fact_table();
+        schema.build_indexes();
+        schema
+    }
+
+    async fn run(
+        document: &str,
+        rows: &[serde_json::Value],
+    ) -> (crate::error::Result<serde_json::Value>, Option<String>) {
+        let rows = rows
+            .iter()
+            .map(|row| serde_json::from_value(row.clone()).expect("a row is an object"))
+            .collect();
+        let adapter = Arc::new(CapturingMockAdapter::new(vec![]).with_aggregate_rows(rows));
+        let res = Executor::new(published_schema(), adapter.clone())
+            .execute_with_security(document, None, &tenant_security_context("tenant-abc"))
+            .await;
+        (res, adapter.captured_aggregate_sql())
+    }
+
+    fn validation_message(res: &crate::error::Result<serde_json::Value>) -> &str {
+        match res {
+            Err(FraiseQLError::Validation { message, .. }) => message,
+            _ => "",
+        }
+    }
+
+    /// Aliases and `__typename` are honoured, a key the selection does not select is dropped,
+    /// and a selected field the arguments did not compute is `null`.
+    #[tokio::test]
+    async fn a_row_holds_exactly_the_selected_fields_under_their_response_keys() {
+        let (res, _) = run(
+            &format!(
+                "{{ s: sales_aggregate({ARGS}) {{ t: tenant_id count __typename revenue_sum \
+                 again: count }} }}"
+            ),
+            &[serde_json::json!({"tenant_id": "a", "count": 3, "other": 1})],
+        )
+        .await;
+        let response = res.expect("served");
+        assert_eq!(
+            response["data"]["s"],
+            serde_json::json!([{
+                "t": "a", "count": 3, "__typename": "SalesAggregateRow", "revenue_sum": null,
+                "again": 3
+            }]),
+            "{response}"
+        );
+        assert!(response.get("errors").is_none(), "{response}");
+        let keys: Vec<&String> = response["data"]["s"][0].as_object().unwrap().keys().collect();
+        assert_eq!(keys, ["t", "count", "__typename", "revenue_sum", "again"], "document order");
+    }
+
+    /// Fragments on the row type apply, and `@skip`/`@include` drop what they exclude.
+    #[tokio::test]
+    async fn fragments_and_directives_select_as_on_any_object() {
+        for document in [
+            format!(
+                "{{ sales_aggregate({ARGS}) {{ ... on SalesAggregateRow {{ count }} \
+                 tenant_id @skip(if: true) }} }}"
+            ),
+            format!(
+                "{{ sales_aggregate({ARGS}) {{ ...Counts tenant_id @include(if: false) }} }} \
+                 fragment Counts on SalesAggregateRow {{ count }}"
+            ),
+        ] {
+            let (res, _) =
+                run(&document, &[serde_json::json!({"tenant_id": "a", "count": 3})]).await;
+            assert!(res.is_ok(), "{document}: {res:?}");
+            let response = res.unwrap();
+            assert_eq!(
+                response["data"]["sales_aggregate"],
+                serde_json::json!([{"count": 3}]),
+                "{document}"
+            );
+        }
+    }
+
+    /// An `Int` holds a signed 32-bit integer (§ 3.5.1), and a count or an `int8` key is wider:
+    /// a value outside the range is a field error at its path, its field `null`, never a
+    /// silently wrong number.
+    #[tokio::test]
+    async fn an_int_outside_the_32_bit_range_is_a_field_error() {
+        for (count, served) in [
+            (serde_json::json!(2_147_483_647_i64), true),
+            (serde_json::json!(-2_147_483_648_i64), true),
+            (serde_json::json!(2_147_483_648_i64), false),
+            (serde_json::json!(-2_147_483_649_i64), false),
+        ] {
+            let (res, _) = run(
+                &format!("{{ s: sales_aggregate({ARGS}) {{ tenant_id n: count }} }}"),
+                &[
+                    serde_json::json!({"tenant_id": "a", "count": 1}),
+                    serde_json::json!({"tenant_id": "b", "count": count}),
+                ],
+            )
+            .await;
+            let response = res.expect("served");
+            let rows = &response["data"]["s"];
+            assert_eq!(rows[0]["n"], 1, "{response}");
+            assert_eq!(rows[1]["tenant_id"], "b", "the row stays: {response}");
+            if served {
+                assert_eq!(rows[1]["n"], count, "{response}");
+                assert!(response.get("errors").is_none(), "{response}");
+            } else {
+                assert_eq!(rows[1]["n"], serde_json::Value::Null, "{response}");
+                let errors = response["errors"].as_array().expect("an error");
+                assert_eq!(errors.len(), 1, "{response}");
+                assert_eq!(errors[0]["path"], serde_json::json!(["s", 1, "n"]), "{response}");
+                let message = errors[0]["message"].as_str().unwrap();
+                assert!(
+                    message.contains("SalesAggregateRow.count")
+                        && message.contains("32-bit")
+                        && message.contains(&count.to_string()),
+                    "{message}"
+                );
+            }
+        }
+    }
+
+    /// A row is an object (§ 5.3.3): a root with no selection set, a field the row does not
+    /// publish (§ 5.3.1) and a selection set on a leaf are refused before the database is read.
+    #[tokio::test]
+    async fn a_selection_the_row_type_does_not_publish_is_refused() {
+        for (document, expected) in [
+            (
+                format!("{{ s: sales_aggregate({ARGS}) }}"),
+                "`s` returns `[SalesAggregateRow!]!` and must select its fields",
+            ),
+            (
+                format!("{{ sales_aggregate({ARGS}) {{ count bogus revenue_total }} }}"),
+                "`SalesAggregateRow` has no field `bogus`, `revenue_total`",
+            ),
+            (
+                format!("{{ sales_aggregate({ARGS}) {{ count {{ value }} }} }}"),
+                "`SalesAggregateRow.count` is a leaf and takes no selection set",
+            ),
+        ] {
+            let (res, sql) = run(&document, &[]).await;
+            assert!(validation_message(&res).contains(expected), "{document}: {res:?}");
+            assert!(sql.is_none(), "{document}: reached the database: {sql:?}");
+        }
+    }
+
+    /// A window root returns `[JSON!]!`, a leaf: its rows are the `select` and `windows`
+    /// aliases, and a selection set on it is refused rather than ignored.
+    #[tokio::test]
+    async fn a_window_root_takes_no_selection_set() {
+        let (res, sql) = run(
+            r#"{ sales_window(select: [{type: "filter", name: "tenant_id", alias: "tenant_id"}]) { tenant_id } }"#,
+            &[],
+        )
+        .await;
+        assert!(
+            validation_message(&res)
+                .contains("`sales_window` returns `[JSON!]!`, a leaf, and takes no selection set"),
+            "{res:?}"
+        );
+        assert!(sql.is_none(), "reached the database: {sql:?}");
     }
 }

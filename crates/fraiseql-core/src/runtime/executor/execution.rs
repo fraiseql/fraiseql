@@ -683,6 +683,9 @@ impl Executor {
                     .execute_aggregate_dispatch(
                         query_name,
                         maybe_parsed.as_deref(),
+                        completion
+                            .as_deref()
+                            .and_then(|target| target.selections.written().first()),
                         variables,
                         security_context,
                     )

@@ -579,8 +579,8 @@ impl CompiledSchema {
                 }
             };
 
-            // Add output/object types
-            for type_def in &self.types {
+            // Add output/object types, the fact-table rows among them
+            for type_def in self.types.iter().chain(&self.derived.fact_rows) {
                 let _ = writeln!(sdl, "type {} {{", type_def.name);
                 render_fields(&mut sdl, type_def.name.as_str());
                 sdl.push_str("}\n\n");
@@ -594,7 +594,7 @@ impl CompiledSchema {
             }
 
             // Root Query and Mutation types (never present in `types`).
-            if !self.queries.is_empty() {
+            if !self.queries.is_empty() || !self.derived.fact_roots.is_empty() {
                 sdl.push_str("type Query {\n");
                 render_fields(&mut sdl, "Query");
                 sdl.push_str("}\n\n");
@@ -630,7 +630,7 @@ impl CompiledSchema {
 
         // Names the schema defines as composite types — never re-declared as scalars.
         let mut defined: HashSet<&str> = HashSet::new();
-        for t in &self.types {
+        for t in self.types.iter().chain(&self.derived.fact_rows) {
             defined.insert(t.name.as_str());
         }
         for e in &self.enums {
@@ -654,10 +654,16 @@ impl CompiledSchema {
                 set.insert(leaf);
             }
         };
-        for type_def in &self.types {
+        for type_def in self.types.iter().chain(&self.derived.fact_rows) {
             for field in &type_def.fields {
                 add(&field.field_type.to_string(), &mut referenced);
             }
+        }
+        for root in &self.derived.fact_roots {
+            for arg in &root.arguments {
+                add(&arg.arg_type.to_string(), &mut referenced);
+            }
+            add(root.row_type.as_deref().unwrap_or("JSON"), &mut referenced);
         }
         for iface in &self.interfaces {
             for field in &iface.fields {

@@ -120,29 +120,13 @@ async fn executor_in(zone: &str) -> Option<Executor> {
     Some(Executor::new(schema, Arc::new(adapter)))
 }
 
-/// The bucket keys of `{column}` by `grain`, in order, spelled `groupBy: {column: grain}`
-/// (keyed by the column's name) or, with `flag`, `groupBy: {column_grain: true}` (keyed by
-/// `column_grain`).
-async fn keys(
-    executor: &Executor,
-    column: &str,
-    grain: &str,
-    flag: bool,
-    measure: &str,
-) -> Vec<Value> {
-    let alias = if flag {
-        format!("{column}_{grain}")
-    } else {
-        column.to_string()
-    };
-    let group_by = if flag {
-        json!({ alias.clone(): true })
-    } else {
-        json!({ column: grain })
-    };
+/// The bucket keys of `{column}` by `grain`, in order: `groupBy: {column_grain: true}`, keyed
+/// by `column_grain`.
+async fn keys(executor: &Executor, column: &str, grain: &str, measure: &str) -> Vec<Value> {
+    let alias = format!("{column}_{grain}");
     let request = json!({
-        "groupBy": group_by,
-        "aggregates": [{ measure: {} }],
+        "groupBy": { alias.clone(): true },
+        "aggregates": [{ measure: true }],
         "orderBy": { alias.clone(): "ASC" },
     });
     let response = executor
@@ -166,7 +150,7 @@ const DATE_BUCKETS: [(&str, &[&str]); 5] = [
     ("year", &["2026-01-01"]),
 ];
 
-async fn assert_date_buckets(zone: &str, flag: bool) {
+async fn assert_date_buckets(zone: &str) {
     let Some(executor) = executor_in(zone).await else {
         eprintln!("skipping: DATABASE_URL not set");
         return;
@@ -174,7 +158,7 @@ async fn assert_date_buckets(zone: &str, flag: bool) {
     for (grain, dates) in DATE_BUCKETS {
         let expected: Vec<Value> = dates.iter().map(|d| json!(d)).collect();
         assert_eq!(
-            keys(&executor, "day", grain, flag, "amount_sum").await,
+            keys(&executor, "day", grain, "amount_sum").await,
             expected,
             "{zone}: a {grain} bucket of a date column is the date it starts on"
         );
@@ -184,20 +168,14 @@ async fn assert_date_buckets(zone: &str, flag: bool) {
 /// East of UTC: the zone the old key shifted to the day before.
 #[tokio::test]
 async fn a_date_bucket_is_its_date_east_of_utc() {
-    assert_date_buckets(EAST, false).await;
-}
-
-/// The `<column>_<grain>: true` spelling is the same grouping.
-#[tokio::test]
-async fn a_date_bucket_flag_is_its_date_east_of_utc() {
-    assert_date_buckets(EAST, true).await;
+    assert_date_buckets(EAST).await;
 }
 
 /// West of UTC the old key had the right date part: what this asserts beyond it is the key
 /// being a date at all.
 #[tokio::test]
 async fn a_date_bucket_is_its_date_west_of_utc() {
-    assert_date_buckets(WEST, false).await;
+    assert_date_buckets(WEST).await;
 }
 
 /// The control for the east test: west of UTC the key's date part was already right, so a
@@ -209,7 +187,7 @@ async fn west_of_utc_the_date_part_was_already_right() {
         return;
     };
     for (grain, dates) in DATE_BUCKETS {
-        let parts: Vec<String> = keys(&executor, "day", grain, false, "amount_sum")
+        let parts: Vec<String> = keys(&executor, "day", grain, "amount_sum")
             .await
             .iter()
             .map(|k| k.as_str().unwrap_or_default().chars().take(10).collect())
@@ -227,7 +205,7 @@ async fn a_carried_forward_date_bucket_is_its_date_east_of_utc() {
         return;
     };
     let months: Vec<Value> = (7..=12).map(|m| json!(format!("2026-{m:02}-01"))).collect();
-    assert_eq!(keys(&executor, "day", "month", true, "balance_sum").await, months);
+    assert_eq!(keys(&executor, "day", "month", "balance_sum").await, months);
 }
 
 /// A `timestamp` column buckets as it did: a timestamp, in no zone.
@@ -239,7 +217,7 @@ async fn a_timestamp_bucket_is_unchanged() {
             return;
         };
         assert_eq!(
-            keys(&executor, "at_ts", "month", false, "amount_sum").await,
+            keys(&executor, "at_ts", "month", "amount_sum").await,
             vec![json!("2026-07-01 00:00:00"), json!("2026-12-01 00:00:00")],
             "{zone}"
         );
@@ -272,7 +250,7 @@ async fn a_timestamptz_bucket_is_unchanged() {
             return;
         };
         assert_eq!(
-            keys(&executor, "at_tz", "day", false, "amount_sum").await,
+            keys(&executor, "at_tz", "day", "amount_sum").await,
             expected.map(|k| json!(k)).to_vec(),
             "{zone}"
         );

@@ -6,7 +6,10 @@
 use std::{collections::HashMap, sync::Arc};
 
 use super::{
-    super::{CompiledSchema, MutationDefinition, QueryDefinition, SubscriptionDefinition},
+    super::{
+        CompiledSchema, MutationDefinition, QueryDefinition, SubscriptionDefinition,
+        fact_table_surface::FactRoot,
+    },
     directive_builder::{build_custom_directives, builtin_directives},
     field_resolver::{build_arg_input_value, type_ref},
     type_resolver::{
@@ -36,8 +39,8 @@ impl IntrospectionBuilder {
         // Add built-in scalar types
         types.extend(builtin_scalars());
 
-        // Add user-defined types
-        for type_def in &schema.types {
+        // Add user-defined types, and the fact-table rows
+        for type_def in schema.types.iter().chain(&schema.derived.fact_rows) {
             types.push(build_object_type(type_def));
         }
         // The element type of every translations sibling (#1513).
@@ -160,6 +163,7 @@ impl IntrospectionBuilder {
 fn build_query_type(schema: &CompiledSchema) -> IntrospectionType {
     let mut fields: Vec<IntrospectionField> =
         schema.queries.iter().map(|q| build_query_field(q, schema)).collect();
+    fields.extend(schema.derived.fact_roots.iter().map(|root| build_fact_root_field(root, schema)));
 
     // Inject synthetic `node(id: ID!): Node` field when relay types exist.
     let has_relay_types =
@@ -180,6 +184,28 @@ fn build_query_type(schema: &CompiledSchema) -> IntrospectionType {
         of_type:            None,
         specified_by_u_r_l: None,
     }
+}
+
+/// Build a fact-table root (#1800): a non-null list of its rows, under its routed name, which
+/// the naming convention does not recase.
+fn build_fact_root_field(root: &FactRoot, schema: &CompiledSchema) -> IntrospectionField {
+    let mut query =
+        QueryDefinition::new(root.name.as_str(), root.row_type.as_deref().unwrap_or("JSON"))
+            .returning_list();
+    query.nullable = false;
+    query.arguments.clone_from(&root.arguments);
+    query.description = Some(format!(
+        "{} over fact table `{}`.",
+        if root.row_type.is_some() {
+            "Aggregates"
+        } else {
+            "Window functions"
+        },
+        root.fact_table
+    ));
+    let mut field = build_query_field(&query, schema);
+    field.name.clone_from(&root.name);
+    field
 }
 
 /// Build Mutation root type.

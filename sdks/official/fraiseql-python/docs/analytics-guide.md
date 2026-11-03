@@ -174,14 +174,13 @@ Once declared, you can query with:
 ```graphql
 query {
   sales_aggregate(
-    groupBy: { category: true, region: true, occurred_at: "month" }
-    aggregates: [{ revenue_sum: {} }, { revenue_avg: {} }, { quantity_sum: {} }, { count: {} }]
-  )
+    groupBy: { category: true, region: true, occurred_at_month: true }
+    aggregates: [{ revenue_sum: true }, { revenue_avg: true }, { quantity_sum: true }, { count: true }]
+  ) { category region occurred_at_month revenue_sum revenue_avg quantity_sum count }
 }
 ```
 
-A time bucket is spelled either `groupBy: { occurred_at: "month" }` or
-`groupBy: { occurred_at_month: true }`.
+A time bucket is the column name and the bucket: `groupBy: { occurred_at_month: true }`.
 
 Generated dimensions:
 
@@ -343,7 +342,7 @@ if __name__ == "__main__":
 Orders by category, by country and by month are three requests to the one derived root:
 
 ```graphql
-{ orders_aggregate(groupBy: { product_category: true }, aggregates: [{ total_sum: {} }, { count: {} }]) }
-{ orders_aggregate(groupBy: { customer_country: true }, aggregates: [{ total_sum: {} }, { count: {} }]) }
-{ orders_aggregate(groupBy: { occurred_at: "month" }, aggregates: [{ total_sum: {} }, { count: {} }]) }
+{ orders_aggregate(groupBy: { product_category: true }, aggregates: [{ total_sum: true }, { count: true }]) { product_category total_sum count } }
+{ orders_aggregate(groupBy: { customer_country: true }, aggregates: [{ total_sum: true }, { count: true }]) { customer_country total_sum count } }
+{ orders_aggregate(groupBy: { occurred_at_month: true }, aggregates: [{ total_sum: true }, { count: true }]) { occurred_at_month total_sum count } }
 ```

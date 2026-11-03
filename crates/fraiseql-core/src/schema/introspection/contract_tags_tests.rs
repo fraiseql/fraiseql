@@ -232,3 +232,40 @@ fn a_role_no_contract_tag_can_name_refuses_the_sdl() {
         assert!(err.to_string().contains(&role), "{err}");
     }
 }
+
+/// A fact table is read as its linked type (#1800): the roots of one read as `Payroll`, which
+/// `hr` gates, carry `hr`'s tag, as a query returning `Payroll` does; an unlinked one's carry
+/// none.
+#[test]
+fn the_roots_of_a_fact_table_read_as_a_gated_type_carry_its_roles_tag() {
+    let table = |name: &str, linked: Option<&str>| {
+        serde_json::from_value::<crate::compiler::fact_table::FactTableMetadata>(
+            serde_json::json!({
+                "table_name": name,
+                "type_name": linked,
+                "measures": [{"name": "gross", "sql_type": "Int", "nullable": false}],
+                "dimensions": {"name": "data", "paths": []},
+                "denormalized_filters": []
+            }),
+        )
+        .unwrap()
+    };
+    let mut schema = subgraph();
+    schema.add_fact_table("tf_payroll".to_string(), table("tf_payroll", Some("Payroll")));
+    schema.add_fact_table("tf_ledger_entry".to_string(), table("tf_ledger_entry", None));
+    schema.build_indexes();
+    let sdl = schema.federation_service_sdl().unwrap();
+    for root in ["payroll_aggregate", "payroll_window"] {
+        let line = field_line(&sdl, root);
+        assert!(line.trim_end().ends_with(&tag("hr")), "{line}");
+    }
+    for root in ["ledger_entry_aggregate", "ledger_entry_window"] {
+        let line = field_line(&sdl, root);
+        assert!(!line.contains("@tag"), "{line}");
+    }
+    // A row type only the role's roots reach is tagged as any such type is.
+    let row = type_line(&sdl, "type", "PayrollAggregateRow");
+    assert!(row.contains(&tag("hr")), "{row}");
+    let row = type_line(&sdl, "type", "LedgerEntryAggregateRow");
+    assert!(!row.contains("@tag"), "{row}");
+}

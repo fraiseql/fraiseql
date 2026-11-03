@@ -100,7 +100,7 @@ async fn an_aggregate_offset_past_the_ceiling_is_refused_before_any_statement() 
     let query = |offset: u32| {
         json!({
             "groupBy": { "region": true },
-            "aggregates": [{ "count": {} }],
+            "aggregates": [{ "count": true }],
             "orderBy": { "region": "ASC" },
             "offset": offset
         })

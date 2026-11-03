@@ -30,9 +30,12 @@
 
 use std::path::PathBuf;
 
-use fraiseql_core::schema::{
-    ChangelogConfig, CompiledSchema, FederationConfig, FederationEntity, FieldDefinition,
-    FieldType, NamingConvention, QueryDefinition, TypeDefinition, inject_changelog,
+use fraiseql_core::{
+    compiler::fact_table::FactTableMetadata,
+    schema::{
+        ChangelogConfig, CompiledSchema, FederationConfig, FederationEntity, FieldDefinition,
+        FieldType, NamingConvention, QueryDefinition, TypeDefinition, inject_changelog,
+    },
 };
 
 /// Render a subgraph's Apollo-Federation `_service { sdl }` exactly as the server
@@ -52,9 +55,24 @@ fn money_type() -> TypeDefinition {
         .with_field(FieldDefinition::new("currency", FieldType::String))
 }
 
+/// A fact table `name`, read as `linked`, with an `Int` measure `measure` and a text filter
+/// `region` (#1800): it publishes `<stem>_aggregate` and `<stem>_window`, and every subgraph
+/// with a fact table declares the same window inputs and enums.
+fn fact_table(name: &str, linked: Option<&str>, measure: &str) -> FactTableMetadata {
+    serde_json::from_value(serde_json::json!({
+        "table_name": name,
+        "type_name": linked,
+        "measures": [{"name": measure, "sql_type": "Int", "nullable": false}],
+        "dimensions": {"name": "data", "paths": []},
+        "denormalized_filters": [{"name": "region", "sql_type": "Text", "indexed": true}]
+    }))
+    .expect("a fact table")
+}
+
 /// `catalog` subgraph — owns `Product @key(id)`, defines the shared `@shareable`
 /// `Money`, exposes a root query + the camelCase #149 change-log, and a root query a
-/// role gates, returning a type nothing else reaches: both carry the role's `@tag`.
+/// role gates, returning a type the role gates: both carry the role's `@tag`, as do the
+/// roots of the fact table read as that type.
 fn subgraph_catalog() -> CompiledSchema {
     let mut s = CompiledSchema::new();
     s.naming_convention = NamingConvention::CamelCase;
@@ -76,17 +94,25 @@ fn subgraph_catalog() -> CompiledSchema {
             .with_sql_source("public.v_product"),
     );
 
-    s.types.push(
-        TypeDefinition::new("ProductCost", "public.v_product_cost")
+    s.types.push(TypeDefinition {
+        requires_role: Some("catalog-admin".to_string()),
+        ..TypeDefinition::new("ProductCost", "public.v_product_cost")
             .with_field(FieldDefinition::new("productId", FieldType::Id))
-            .with_field(FieldDefinition::new("unitCost", FieldType::Object("Money".into()))),
-    );
+            .with_field(FieldDefinition::new("unitCost", FieldType::Object("Money".into())))
+    });
     s.queries.push(QueryDefinition {
         requires_role: Some("catalog-admin".to_string()),
         ..QueryDefinition::new("productCosts", "ProductCost")
             .returning_list()
             .with_sql_source("public.v_product_cost")
     });
+
+    // A fact table, and one read as the gated `ProductCost`: its roots carry the role's tag.
+    s.add_fact_table("tf_product_sale".to_string(), fact_table("tf_product_sale", None, "units"));
+    s.add_fact_table(
+        "tf_product_cost".to_string(),
+        fact_table("tf_product_cost", Some("ProductCost"), "units"),
+    );
 
     s.federation = Some(FederationConfig {
         enabled: true,
@@ -142,6 +168,8 @@ fn subgraph_reviews() -> CompiledSchema {
             .returning_list()
             .with_sql_source("public.v_review"),
     );
+
+    s.add_fact_table("tf_review_vote".to_string(), fact_table("tf_review_vote", None, "score"));
 
     s.federation = Some(FederationConfig {
         enabled: true,
@@ -216,6 +244,17 @@ fn catalog_sdl_holds_every_federation_invariant() {
     assert!(sdl.contains("union _Entity = Product"), "Product missing from _Entity union");
     assert!(!sdl.contains("Money |"), "keyless Money leaked into _Entity union (#496)");
     assert!(!sdl.contains("| Money"), "keyless Money leaked into _Entity union (#496)");
+
+    // #1800 — a fact table's roots are Query fields under their literal names, returning its
+    // row type; the roots of one read as a gated type carry the role's tag.
+    assert!(sdl.contains("  product_sale_aggregate("), "fact table root missing: {sdl}");
+    assert!(sdl.contains("type ProductSaleAggregateRow"), "row type missing: {sdl}");
+    assert!(sdl.contains("input WindowSpec"), "window inputs missing: {sdl}");
+    let gated = sdl
+        .lines()
+        .find(|l| l.starts_with("  product_cost_aggregate("))
+        .expect("gated fact table root");
+    assert!(gated.ends_with(r#"@tag(name: "requires-role/catalog-admin")"#), "{gated}");
 
     // #498 — the injected change-log honours the camelCase naming convention.
     assert!(sdl.contains("entityChangeLogs"), "change-log query not camelCased (#498)");

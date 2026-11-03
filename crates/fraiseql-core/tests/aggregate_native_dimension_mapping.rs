@@ -113,7 +113,7 @@ async fn revenue_where(executor: &Executor, metadata: &FactTableMetadata, filter
     let rows = run(
         executor,
         metadata,
-        json!({ "where": filter, "aggregates": [{ "revenue_sum": {} }] }),
+        json!({ "where": filter, "aggregates": [{ "revenue_sum": true }] }),
     )
     .await;
     rows.first().map_or(0.0, total)
@@ -128,7 +128,7 @@ async fn grouped(
     let rows = run(
         executor,
         metadata,
-        json!({ "groupBy": { key: true }, "aggregates": [{ "revenue_sum": {} }] }),
+        json!({ "groupBy": { key: true }, "aggregates": [{ "revenue_sum": true }] }),
     )
     .await;
     let mut groups: Vec<(String, f64)> = rows

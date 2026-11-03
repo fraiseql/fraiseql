@@ -86,7 +86,7 @@ disagreed, and the promise was the part that was wrong.
   wrong; fix the default and recompile. `fraiseql compile` refuses the same defaults.
 
 - **A temporal bucket of a `date` column is keyed by a date (#1798).**
-  `groupBy: {day: "month"}` over a column declared `date` answers `"2026-07-01"`, where it
+  `groupBy: {day_month: true}` over a column declared `date` answers `"2026-07-01"`, where it
   answered a UTC timestamp such as `"2026-06-30T15:00:00+00:00"`. A client parsing the key
   as a timestamp reads a date instead. `timestamp` and `timestamptz` columns bucket as before.
   - `GroupByExpression::TemporalBucket` (`fraiseql-core`) gains `date: bool`, `true` for a
@@ -192,6 +192,49 @@ disagreed, and the promise was the part that was wrong.
   compiled schema, then the schema the caller may see. Pass the same schema twice for a caller
   who sees all of it, or call `Executor::validate_variable_types_for`, which picks the view.
 
+- **An aggregate root takes only the argument forms it publishes (#1800).** Each form was
+  accepted beside another spelling of the same request, and an unknown value was read as a
+  default. Each other spelling is now refused before any SQL runs, naming the form to send:
+  - `groupBy` takes `true` or `false` per key. `{occurred_at: "day"}` is now
+    `{occurred_at_day: true}`, `{path: "depth"}` is now `{path_depth: true}`, and
+    `{path: {level: 2}}` is now `{path_level: 2}`.
+  - A tree level answers under `<column>_level`, where it answered under `<column>`.
+  - An `aggregates` item takes `true` (computed) or `false`. `{revenue_sum: {}}` is now
+    `{revenue_sum: true}`.
+  - `orderBy` takes `ASC` or `DESC`, for an aggregate and for a window. `asc`, `desc` and any
+    other value were read as `ASC`.
+  - A window frame's `exclusion` takes `current_row`, `group`, `ties` or `no_others`. Any
+    other value was read as `no_others`.
+  - In a schema whose only inputs are a fact table's, a variable declared with a type the
+    schema does not publish is refused, as it is in any schema with input types.
+
+- **An aggregate root answers with its published row type, projected onto its selection set
+  (#1800).** A row held every key the arguments computed, whatever the document selected.
+  Now a row holds exactly the fields the selection set selects, under their response keys,
+  with `__typename` and fragments as on any object:
+  - A selected field the arguments did not compute is `null`. A computed key nothing selects
+    is dropped. Select every field you read: `{ sales_aggregate(...) { category revenue_sum } }`.
+  - A root with no selection set, a field the row type does not publish, and a selection set
+    on a row field are refused before any SQL runs.
+  - A count, or another `Int` field, whose value is outside the signed 32-bit range is a field
+    error at its path, and the field is `null`.
+  - A window root returns `[JSON!]!`, a leaf: a selection set on it is refused. Its rows are
+    unchanged.
+
+  `Executor::execute_aggregate_query` serves the rows as computed: it takes no document.
+
+- **A compiled schema whose fact-table roots cannot be published no longer loads (#1800).**
+  The server refuses it at boot, naming each case:
+  - a measure, dimension, filter or native key whose name is not a GraphQL name, with the
+    `snake_case` name to give it;
+  - a generated `groupBy` key (`<column>_<bucket>`, `<column>_depth`, `<column>_level`)
+    spelled like a column, a dimension or another generated key, naming both;
+  - a row field two sources produce;
+  - a declared type, input or enum named like one the roots publish (`SalesAggregateRow`,
+    `SalesAggregateWhere`, `WindowSpec`, ...), unless it is that same declaration.
+
+  Rename it and recompile.
+
 ### Added
 
 - **A mutation's transaction can run again when PostgreSQL aborts it with `40P01` (deadlock)
@@ -207,6 +250,16 @@ disagreed, and the promise was the part that was wrong.
   - Tenant pools follow the server's setting. Counted on
     `fraiseql_mutation_transaction_retries_total` and `…_retries_exhausted_total`. See
     `docs/features/mutation-transaction-retry.md`.
+
+- **A fact table's `_aggregate` and `_window` roots are published (#1800).** Introspection,
+  the SDL and a subgraph's `_service { sdl }` list `sales_aggregate(where:, groupBy:,
+  aggregates:, having:, orderBy:, limit:, offset:): [SalesAggregateRow!]!` and
+  `sales_window(select:, windows:, where:, orderBy:, limit:, offset:): [JSON!]!` with typed
+  arguments, so a client generated from the schema can call them, and a variable can be
+  declared `$where: SalesAggregateWhere`. Row field types are listed in
+  `docs/modules/fact-table.md`. A role that gates the type a fact table is read as gates its
+  roots too: they are listed to, and served for, a caller holding the role only, and carry
+  the role's `@tag`.
 
 - **`[auth.local] otp_allowed_query` restricts `OTP` sign-in to approved addresses (#1852).**
   A `SELECT` with `$email` decides who may sign in; a row admits the address. A refused
@@ -295,6 +348,12 @@ disagreed, and the promise was the part that was wrong.
   database deletes the rows past their `expires_at`. Those refresh tokens could no longer
   be used, so nothing that worked stops working, but the table now shrinks where it only
   grew. A refreshable session's rows stay until its absolute limit.
+
+- **The roots of a fact table read as a role-gated type answer as absent to a caller without
+  the role (#1800).** They were refused with `FORBIDDEN`, which told the caller the table
+  exists; they now answer `Fact table 'tf_sales' not found in schema`, as a table that does
+  not exist, and are not suggested. `Executor::execute_aggregate_query` still refuses with
+  `FORBIDDEN`.
 
 - **The reference dead-letter-queue DDL names `core` too (#1893).**
   `crates/fraiseql-observers/migrations/01_create_dlq_schema.sql` (`observer_events`,

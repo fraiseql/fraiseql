@@ -6,7 +6,9 @@
 # and asserts the golden cases:
 #   - catalog + reviews              → composes cleanly, and the supergraph keeps the
 #     role tags catalog's gated query and its type carry (#1717), which is what a
-#     gateway contract filters on
+#     gateway contract filters on; both publish fact-table roots (#1800), so the window
+#     inputs and enums every such subgraph declares compose, and the roots of the fact
+#     table read as the gated type keep its tag
 #   - catalog + reviews_conflict     → rejected with INVALID_FIELD_SHARING (#497)
 #   - default_literals               → every published default is a GraphQL literal of
 #     its type (#1888): graphql-js keeps each SDL and introspection default, and an
@@ -38,6 +40,9 @@ node compose-check.mjs \
   '--expect-supergraph=^  direction: SortDirection = ASC$' \
   '--expect-supergraph=^  productCosts: .* @tag\(name: "requires-role/catalog-admin"\)$' \
   '--expect-supergraph=^type ProductCost\n(  @.*\n)*  @tag\(name: "requires-role/catalog-admin"\)\n\{' \
+  '--expect-supergraph=^  product_cost_aggregate\(.*\): \[ProductCostAggregateRow!\]! .*@tag\(name: "requires-role/catalog-admin"\)$' \
+  '--expect-supergraph=^  product_sale_aggregate\(.*\): \[ProductSaleAggregateRow!\]!.*$' \
+  '--expect-supergraph=^  review_vote_window\(.*\): \[JSON!\]!.*$' \
   "catalog=$fixtures/catalog.graphql" \
   "reviews=$fixtures/reviews.graphql"
 

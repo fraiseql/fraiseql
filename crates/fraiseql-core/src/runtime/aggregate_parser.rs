@@ -86,8 +86,8 @@ impl AggregateQueryParser {
     ///     "occurred_at_day": true
     ///   },
     ///   "aggregates": [
-    ///     {"count": {}},
-    ///     {"revenue_sum": {}}
+    ///     {"count": true},
+    ///     {"revenue_sum": true}
     ///   ],
     ///   "having": {
     ///     "revenue_sum_gt": 1000
@@ -206,10 +206,13 @@ impl AggregateQueryParser {
 
     /// Parse GROUP BY selections.
     ///
-    /// Supports two formats:
-    /// 1. Boolean true: {"category": true} -> regular dimension
-    /// 2. Boolean true with suffix: {"`occurred_at_day"`: true} -> temporal bucket
-    /// 3. String bucket name: {"`occurred_at"`: "day"} -> temporal bucket
+    /// Each key takes the form the root's published `groupBy` type gives it (#1800):
+    /// - `true` groups by a dimension, a filter column or a native mapping (`category`), by a
+    ///   temporal bucket (`occurred_at_day`), or by an ltree column's depth (`org_path_depth`);
+    /// - a positive `Int` rolls an ltree column up to that level (`org_path_level: 2`);
+    /// - `false` does not group by the key.
+    ///
+    /// Any other value is refused, naming the key that carries it.
     ///
     /// When a field name matches an entry in `native_columns`, the selection is emitted
     /// as [`GroupBySelection::NativeDimension`] rather than [`GroupBySelection::Dimension`].
@@ -220,107 +223,118 @@ impl AggregateQueryParser {
     ) -> Result<Vec<GroupBySelection>> {
         let mut selections = Vec::new();
 
-        if let Some(obj) = group_by_obj.as_object() {
-            for (key, value) in obj {
-                if value.as_bool() == Some(true) {
-                    // Format 1 & 2: Boolean true (with or without suffix)
-                    // Priority 1: Try calendar dimension first (highest performance)
-                    if let Some(calendar_sel) = Self::try_parse_calendar_bucket(key, metadata)? {
-                        selections.push(calendar_sel);
-                    } else if let Some(bucket_sel) = Self::parse_temporal_bucket(key, metadata)? {
-                        // Priority 2: Fall back to DATE_TRUNC if no calendar dimension
-                        selections.push(bucket_sel);
-                    } else if let Some(mapped_col) = mapped_column(metadata, key) {
-                        // Priority 3: Deep JSONB path mapped to a native column
-                        selections.push(GroupBySelection::NativeDimension {
-                            column:  mapped_col.clone(),
-                            pg_cast: native_columns
-                                .get(mapped_col.as_str())
-                                .cloned()
-                                .unwrap_or_default(),
-                            alias:   key.clone(),
-                        });
-                    } else if let Some(pg_cast) = native_columns.get(key.as_str()) {
-                        // Priority 4: Native SQL column (filter-derived) — direct reference
-                        selections.push(GroupBySelection::NativeDimension {
-                            column:  key.clone(),
-                            pg_cast: pg_cast.clone(),
-                            alias:   key.clone(),
-                        });
-                    } else {
-                        // Priority 5: Regular JSONB dimension. Unlike priorities 1-4
-                        // (each gated by a lookup against server-defined calendar/
-                        // temporal/native metadata), this fallback echoes the raw
-                        // GraphQL key as the SELECT alias (quoted since #1516; it
-                        // was once interpolated bare). Reject keys
-                        // that are not safe identifiers so an attacker cannot inject an
-                        // extra SELECT column (H1) — e.g. `a, (SELECT …) AS leak`. This
-                        // fires at parse time, independent of the compiler's dimension
-                        // allowlist (which is skipped when `dimensions.paths` is empty).
-                        validate_dimension_key(key)?;
-                        selections.push(GroupBySelection::Dimension {
-                            // The `path` is the JSONB extraction key → recase to
-                            // snake_case so a camelCase dimension (`machineStatus`)
-                            // groups by `data->>'machine_status'` (#486). The `alias`
-                            // is the result/response column name, consumed verbatim by
-                            // `AggregationProjector`, so it keeps the camel surface name
-                            // (the #418/#410 "output key is the alias" rule).
-                            path:  crate::utils::to_snake_case(key),
-                            alias: key.clone(),
-                        });
-                    }
-                } else if value.as_str() == Some("depth") {
-                    // Format 4: tree depth of an ltree path {"path": "depth"} (#1498)
-                    selections.push(Self::tree_level(key, TreeGrouping::Depth, metadata)?);
-                } else if let Some(level) = value.as_object().and_then(|o| o.get("level")) {
-                    // Format 5: roll a path up to a tree level {"path": {"level": 2}} (#1498)
-                    let level = level
-                        .as_u64()
-                        .filter(|n| *n >= 1)
-                        .and_then(|n| u32::try_from(n).ok())
-                        .ok_or_else(|| FraiseQLError::Validation {
-                            message: format!(
-                                "groupBy '{key}': level must be a positive integer, got {level}"
-                            ),
-                            path:    None,
-                        })?;
-                    selections.push(Self::tree_level(key, TreeGrouping::Level(level), metadata)?);
-                } else if let Some(bucket_str) = value.as_str() {
-                    // Format 3: String bucket name {"occurred_at": "day"}
-                    let bucket = TemporalBucket::from_str(bucket_str)?;
-
-                    // Priority 1: Try calendar dimension first
-                    if let Some(calendar_sel) =
-                        Self::try_find_calendar_bucket(key, bucket, metadata)
-                    {
-                        selections.push(calendar_sel);
-                    } else {
-                        // Priority 2: Fall back to DATE_TRUNC
-                        // Verify this column exists in denormalized_filters
-                        let column_exists =
-                            metadata.denormalized_filters.iter().any(|f| f.name == *key);
-
-                        if !column_exists {
-                            return Err(FraiseQLError::Validation {
-                                message: format!(
-                                    "Temporal bucketing column '{}' not found in denormalized filters",
-                                    key
-                                ),
-                                path:    None,
-                            });
-                        }
-
-                        selections.push(GroupBySelection::TemporalBucket {
-                            column: key.clone(),
-                            bucket,
-                            alias: key.clone(),
-                        });
-                    }
-                }
+        let Some(obj) = group_by_obj.as_object() else {
+            return Ok(selections);
+        };
+        for (key, value) in obj {
+            if let Some(column) = Self::tree_column(key, "_level", metadata) {
+                let level = value
+                    .as_u64()
+                    .filter(|n| *n >= 1)
+                    .and_then(|n| u32::try_from(n).ok())
+                    .ok_or_else(|| FraiseQLError::Validation {
+                        message: format!("groupBy `{key}` takes a positive Int level, got {value}"),
+                        path:    None,
+                    })?;
+                selections.push(Self::tree_level(column, TreeGrouping::Level(level), metadata)?);
+                continue;
+            }
+            match value {
+                Value::Bool(false) => {},
+                Value::Bool(true) => {
+                    selections.push(Self::group_by_key(key, metadata, native_columns)?);
+                },
+                other => return Err(Self::unpublished_group_by_form(key, other)),
             }
         }
 
         Ok(selections)
+    }
+
+    /// The selection a `groupBy` key set to `true` names.
+    fn group_by_key(
+        key: &str,
+        metadata: &FactTableMetadata,
+        native_columns: &std::collections::HashMap<String, String>,
+    ) -> Result<GroupBySelection> {
+        if let Some(column) = Self::tree_column(key, "_depth", metadata) {
+            return Self::tree_level(column, TreeGrouping::Depth, metadata);
+        }
+        // Priority 1: a calendar dimension (highest performance)
+        if let Some(calendar_sel) = Self::try_parse_calendar_bucket(key, metadata)? {
+            return Ok(calendar_sel);
+        }
+        // Priority 2: DATE_TRUNC when no calendar dimension serves the bucket
+        if let Some(bucket_sel) = Self::parse_temporal_bucket(key, metadata)? {
+            return Ok(bucket_sel);
+        }
+        // Priority 3: a deep JSONB path mapped to a native column
+        if let Some(mapped_col) = mapped_column(metadata, key) {
+            return Ok(GroupBySelection::NativeDimension {
+                column:  mapped_col.clone(),
+                pg_cast: native_columns.get(mapped_col.as_str()).cloned().unwrap_or_default(),
+                alias:   key.to_string(),
+            });
+        }
+        // Priority 4: a native SQL column (filter-derived), referenced directly
+        if let Some(pg_cast) = native_columns.get(key) {
+            return Ok(GroupBySelection::NativeDimension {
+                column:  key.to_string(),
+                pg_cast: pg_cast.clone(),
+                alias:   key.to_string(),
+            });
+        }
+        // Priority 5: a regular JSONB dimension. Unlike priorities 1-4 (each gated by a
+        // lookup against server-defined calendar/temporal/native metadata), this fallback
+        // echoes the raw GraphQL key as the SELECT alias (quoted since #1516; it was once
+        // interpolated bare). Reject keys that are not safe identifiers so an attacker
+        // cannot inject an extra SELECT column (H1) — e.g. `a, (SELECT …) AS leak`. This
+        // fires at parse time, independent of the compiler's dimension allowlist (which is
+        // skipped when `dimensions.paths` is empty).
+        validate_dimension_key(key)?;
+        Ok(GroupBySelection::Dimension {
+            // The `path` is the JSONB extraction key → recase to snake_case so a camelCase
+            // dimension (`machineStatus`) groups by `data->>'machine_status'` (#486). The
+            // `alias` is the result/response column name, consumed verbatim by
+            // `AggregationProjector`, so it keeps the camel surface name (the #418/#410
+            // "output key is the alias" rule).
+            path:  crate::utils::to_snake_case(key),
+            alias: key.to_string(),
+        })
+    }
+
+    /// The denormalized filter column `key` names with `suffix` (`org_path_level` →
+    /// `org_path`), when there is one.
+    fn tree_column<'k>(
+        key: &'k str,
+        suffix: &str,
+        metadata: &FactTableMetadata,
+    ) -> Option<&'k str> {
+        key.strip_suffix(suffix)
+            .filter(|column| metadata.denormalized_filters.iter().any(|f| f.name == *column))
+    }
+
+    /// The refusal of a `groupBy` value the published type cannot carry, naming the key that
+    /// carries it where there is one.
+    fn unpublished_group_by_form(key: &str, value: &Value) -> FraiseQLError {
+        let replacement = match value {
+            Value::String(form) if form == "depth" => Some(format!("`{key}_depth: true`")),
+            Value::String(form) => TemporalBucket::from_str(form)
+                .ok()
+                .map(|bucket| format!("`{key}_{}: true`", bucket.postgres_arg())),
+            Value::Object(form) => form.get("level").map(|level| format!("`{key}_level: {level}`")),
+            _ => None,
+        };
+        let message = replacement.map_or_else(
+            || format!("groupBy `{key}` takes `true` (grouped) or `false`, got {value}"),
+            |replacement| {
+                format!("groupBy `{key}: {value}` is no longer accepted: send {replacement}")
+            },
+        );
+        FraiseQLError::Validation {
+            message,
+            path: None,
+        }
     }
 
     /// A tree grouping of the denormalized filter column `key` (#1498). The column's
@@ -342,7 +356,7 @@ impl AggregateQueryParser {
         }
         let alias = match grouping {
             TreeGrouping::Depth => format!("{key}_depth"),
-            TreeGrouping::Level(_) => key.to_string(),
+            TreeGrouping::Level(_) => format!("{key}_level"),
         };
         Ok(GroupBySelection::TreeLevel {
             column: key.to_string(),
@@ -422,30 +436,6 @@ impl AggregateQueryParser {
         Ok(None)
     }
 
-    /// Try to find calendar bucket for explicit temporal request
-    ///
-    /// Used when user provides explicit bucket like {"`occurred_at"`: "day"}
-    fn try_find_calendar_bucket(
-        column: &str,
-        bucket: TemporalBucket,
-        metadata: &FactTableMetadata,
-    ) -> Option<GroupBySelection> {
-        for calendar_dim in &metadata.calendar_dimensions {
-            if calendar_dim.source_column == column {
-                if let Some((gran, cal_bucket)) = Self::find_calendar_bucket(calendar_dim, bucket) {
-                    return Some(GroupBySelection::CalendarDimension {
-                        source_column:   calendar_dim.source_column.clone(),
-                        calendar_column: gran.column_name.clone(),
-                        json_key:        cal_bucket.json_key.clone(),
-                        bucket:          cal_bucket.bucket_type,
-                        alias:           column.to_string(),
-                    });
-                }
-            }
-        }
-        None
-    }
-
     /// Find calendar bucket in available granularities
     ///
     /// Searches through calendar dimension granularities to find a matching bucket type.
@@ -477,9 +467,23 @@ impl AggregateQueryParser {
         if let Some(arr) = agg_array.as_array() {
             for item in arr {
                 if let Some(obj) = item.as_object() {
-                    // Each object should have one key (the aggregate name)
-                    for (agg_name, _value) in obj {
-                        aggregates.push(Self::parse_aggregate_selection(agg_name, metadata)?);
+                    // Each object should have one key (the aggregate name), set to the
+                    // published `Boolean`: `true` computes it, `false` does not.
+                    for (agg_name, value) in obj {
+                        match value {
+                            Value::Bool(true) => aggregates
+                                .push(Self::parse_aggregate_selection(agg_name, metadata)?),
+                            Value::Bool(false) => {},
+                            other => {
+                                return Err(FraiseQLError::Validation {
+                                    message: format!(
+                                        "aggregates item `{agg_name}` takes `true` (computed) \
+                                         or `false`, got {other}"
+                                    ),
+                                    path:    None,
+                                });
+                            },
+                        }
                     }
                 }
             }
@@ -715,19 +719,24 @@ impl AggregateQueryParser {
         None
     }
 
-    /// Parse ORDER BY clauses
+    /// Parse ORDER BY clauses: each key takes the published `SortDirection`, `ASC` or `DESC`
+    /// (#1800). Any other value is refused rather than read as `ASC`.
     fn parse_order_by(order_obj: &Value) -> Result<Vec<OrderByClause>> {
         let mut clauses = Vec::new();
 
         if let Some(obj) = order_obj.as_object() {
             for (field, value) in obj {
-                #[allow(clippy::match_same_arms)]
-                // Reason: explicit ASC arm documents accepted values; wildcard handles malformed
-                // input
                 let direction = match value.as_str() {
-                    Some("ASC" | "asc") => OrderDirection::Asc,
-                    Some("DESC" | "desc") => OrderDirection::Desc,
-                    _ => OrderDirection::Asc, // Default to ASC
+                    Some("ASC") => OrderDirection::Asc,
+                    Some("DESC") => OrderDirection::Desc,
+                    _ => {
+                        return Err(FraiseQLError::Validation {
+                            message: format!(
+                                "orderBy `{field}` takes `ASC` or `DESC`, got {value}"
+                            ),
+                            path:    None,
+                        });
+                    },
                 };
 
                 clauses.push(OrderByClause::new(field.clone(), direction));

@@ -121,7 +121,7 @@ async fn a_camel_case_jsonb_dimension_answers_under_its_requested_key() {
         &executor,
         &metadata(&[]),
         json!({ "groupBy": { "itemCategory": true },
-                "aggregates": [{ "revenue_sum": {} }] }),
+                "aggregates": [{ "revenue_sum": true }] }),
     )
     .await;
     assert_keys(&rows, &["itemCategory", "revenue_sum"], "jsonb dimension");
@@ -134,7 +134,7 @@ async fn a_camel_case_mapped_dimension_answers_under_its_requested_key() {
         &executor,
         &metadata(&[("itemCategory", "category_id")]),
         json!({ "groupBy": { "itemCategory": true },
-                "aggregates": [{ "revenue_sum": {} }] }),
+                "aggregates": [{ "revenue_sum": true }] }),
     )
     .await;
     assert_keys(&rows, &["itemCategory", "revenue_sum"], "mapped dimension");
@@ -150,7 +150,7 @@ async fn a_camel_case_dimension_can_be_ordered_by_its_alias() {
             &executor,
             &metadata(&[]),
             json!({ "groupBy": { "itemCategory": true },
-                    "aggregates": [{ "revenue_sum": {} }],
+                    "aggregates": [{ "revenue_sum": true }],
                     "orderBy": { "itemCategory": direction } }),
         )
         .await;

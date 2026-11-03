@@ -3070,3 +3070,86 @@ fn a_fact_table_registered_under_another_name_is_refused_at_load() {
     assert!(message.contains("`tf_sales`"), "names the key: {message}");
     assert!(message.contains("`tf_orders`"), "names the table: {message}");
 }
+
+/// A fact table whose generated `groupBy` keys (#1800) are each spelled from a real column:
+/// `occurred_at` (a time column: `occurred_at_day`, ...), `org_path` (an ltree column:
+/// `org_path_depth`, `org_path_level`).
+fn group_key_fixture(extra_filters: &[(&str, &str)], dimensions: &[&str]) -> serde_json::Value {
+    let mut doc = fact_root_fixture();
+    let table = &mut doc["fact_tables"]["tf_sales"];
+    let mut filters = vec![
+        serde_json::json!({"name": "occurred_at", "sql_type": "Timestamp", "indexed": true}),
+        serde_json::json!({"name": "org_path", "sql_type": "Ltree", "indexed": true}),
+    ];
+    filters.extend(extra_filters.iter().map(|(name, sql_type)| {
+        serde_json::json!({"name": name, "sql_type": sql_type, "indexed": false})
+    }));
+    table["denormalized_filters"] = filters.into();
+    table["dimensions"]["paths"] = dimensions
+        .iter()
+        .map(|name| {
+            serde_json::json!({"name": name, "json_path": format!("data->>'{name}'"), "data_type": "text"})
+        })
+        .collect();
+    doc
+}
+
+fn group_key_refusal(doc: &serde_json::Value) -> String {
+    CompiledSchema::from_json(&doc.to_string(), false)
+        .expect_err("a groupBy key with two meanings must not load")
+        .to_string()
+}
+
+/// The positive control: the generated keys of distinct columns, and a dimension that is also
+/// a filter (one key, read from the column), load.
+#[test]
+fn a_fact_table_whose_group_keys_are_distinct_loads() {
+    let doc = group_key_fixture(&[("category", "Text")], &["category", "region"]);
+    CompiledSchema::from_json(&doc.to_string(), false).expect("distinct groupBy keys load");
+}
+
+/// Each generated key against each real source of the same name: the key would mean two
+/// groupings, and the published type one field.
+#[test]
+fn a_generated_group_key_spelled_like_a_column_or_dimension_is_refused() {
+    let cases = [
+        ("occurred_at_day", "the `day` bucket of `occurred_at`"),
+        ("org_path_depth", "the depth of `org_path`"),
+        ("org_path_level", "the level of `org_path`"),
+    ];
+    for (key, generated) in cases {
+        for (doc, real) in [
+            (
+                group_key_fixture(&[(key, "Text")], &[]),
+                format!("the denormalized filter `{key}`"),
+            ),
+            (group_key_fixture(&[], &[key]), format!("the dimension `{key}`")),
+        ] {
+            let message = group_key_refusal(&doc);
+            assert!(message.contains("`tf_sales`"), "names the table: {message}");
+            assert!(
+                message.contains(&format!("groupBy key `{key}` is both")),
+                "refused as a groupBy key, before its row field: {message}"
+            );
+            assert!(message.contains(generated), "names the generated key: {message}");
+            assert!(message.contains(&real), "names the real source: {message}");
+            assert!(message.contains("recompile"), "says how to fix it: {message}");
+        }
+    }
+}
+
+/// A calendar dimension serves a time column's own buckets faster: its `<column>_<bucket>`
+/// key is the same grouping as the filter's, not a second meaning.
+#[test]
+fn a_calendar_bucket_and_the_columns_own_bucket_are_one_key() {
+    let mut doc = group_key_fixture(&[], &[]);
+    doc["fact_tables"]["tf_sales"]["calendar_dimensions"] = serde_json::json!([{
+        "source_column": "occurred_at",
+        "granularities": [{
+            "column_name": "date_info",
+            "buckets": [{"json_key": "date", "bucket_type": "Day", "data_type": "date"}]
+        }]
+    }]);
+    CompiledSchema::from_json(&doc.to_string(), false)
+        .expect("a calendar bucket of a filter column is that column's bucket");
+}

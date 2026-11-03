@@ -60,6 +60,8 @@ async fn executor() -> Option<Executor> {
     PROVISIONED.get_or_init(|| provision(&adapter)).await;
     let mut schema = CompiledSchema::new();
     schema.fact_tables.insert(TABLE.to_string(), fact_table());
+    // The roots and their row types are published, as in a loaded schema: rows are projected.
+    schema.build_indexes();
     Some(Executor::new(schema, Arc::new(adapter)))
 }
 
@@ -96,7 +98,7 @@ async fn an_aggregate_takes_its_arguments_inline_or_as_variables_alike() {
     let inline = executor
         .execute(
             r"{ inline_sale_aggregate(groupBy: {region: true},
-                 aggregates: [{qty_sum: {}}], having: {qty_sum_gt: 1},
+                 aggregates: [{qty_sum: true}], having: {qty_sum_gt: 1},
                  orderBy: {qty_sum: DESC, region: DESC}, limit: 2) { region qty_sum } }",
             None,
         )
@@ -106,7 +108,7 @@ async fn an_aggregate_takes_its_arguments_inline_or_as_variables_alike() {
         .execute(
             "{ inline_sale_aggregate { region qty_sum } }",
             Some(&json!({
-                "groupBy": {"region": true}, "aggregates": [{"qty_sum": {}}],
+                "groupBy": {"region": true}, "aggregates": [{"qty_sum": true}],
                 "having": {"qty_sum_gt": 1}, "orderBy": {"qty_sum": "DESC", "region": "DESC"},
                 "limit": 2
             })),
@@ -117,7 +119,7 @@ async fn an_aggregate_takes_its_arguments_inline_or_as_variables_alike() {
     let region_first = executor
         .execute(
             r"{ inline_sale_aggregate(groupBy: {region: true},
-                 aggregates: [{qty_sum: {}}], orderBy: {region: ASC, qty_sum: DESC}) { region } }",
+                 aggregates: [{qty_sum: true}], orderBy: {region: ASC, qty_sum: DESC}) { region } }",
             None,
         )
         .await
@@ -128,6 +130,12 @@ async fn an_aggregate_takes_its_arguments_inline_or_as_variables_alike() {
     assert_eq!(
         regions(&region_first, "inline_sale_aggregate"),
         ["r1", "r2", "r3", "r4"],
+        "{region_first}"
+    );
+    // A row holds what its selection set selects: the `qty_sum` it computed is not selected.
+    assert_eq!(
+        region_first["data"]["inline_sale_aggregate"][0],
+        json!({"region": "r1"}),
         "{region_first}"
     );
 }
@@ -143,7 +151,7 @@ async fn a_variable_wins_over_the_same_argument_written_inline() {
     let response = executor
         .execute(
             r"{ inline_sale_aggregate(groupBy: {region: true},
-                 aggregates: [{count: {}}], orderBy: {region: ASC}, limit: 3) { region } }",
+                 aggregates: [{count: true}], orderBy: {region: ASC}, limit: 3) { region } }",
             Some(&json!({ "limit": 1 })),
         )
         .await
@@ -160,7 +168,7 @@ async fn an_argument_no_parser_reads_is_refused_naming_it() {
 
     let err = executor
         .execute(
-            r"{ inline_sale_aggregate(aggregates: [{count: {}}],
+            r"{ inline_sale_aggregate(aggregates: [{count: true}],
                  limt: 1) { count } }",
             None,
         )
@@ -181,14 +189,14 @@ async fn a_window_takes_its_arguments_inline_or_as_variables_alike() {
         .execute(
             r#"{ inline_sale_window(                 select: [{type: "dimension", path: "region", alias: "region"}],
                  windows: [{function: {type: "row_number"}, alias: "position"}],
-                 orderBy: [{field: "region", direction: "DESC"}], limit: 2) { region } }"#,
+                 orderBy: [{field: "region", direction: "DESC"}], limit: 2) }"#,
             None,
         )
         .await
         .unwrap();
     let variables = executor
         .execute(
-            "{ inline_sale_window { region } }",
+            "{ inline_sale_window }",
             Some(&json!({
                 "select": [{"type": "dimension", "path": "region", "alias": "region"}],
                 "windows": [{"function": {"type": "row_number"}, "alias": "position"}],

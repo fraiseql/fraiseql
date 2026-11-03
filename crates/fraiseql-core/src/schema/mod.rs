@@ -49,6 +49,7 @@ mod config_types;
 mod dependency_graph;
 pub mod derived_inputs;
 pub mod domain_types;
+pub mod fact_table_surface;
 mod field_type;
 mod graphql_type_defs;
 pub mod graphql_value;

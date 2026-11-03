@@ -37,7 +37,8 @@ pub fn caller_holds(required: Option<&str>, security_context: Option<&SecurityCo
 /// The schema as `caller` may see it.
 ///
 /// It lacks the queries and mutations the caller may not run, the types whose role it
-/// lacks, and those types' union memberships. A stored SDL names every declaration, so it
+/// lacks, those types' union memberships, and the fact tables read as them with their roots
+/// and row types. A stored SDL names every declaration, so it
 /// is dropped when anything is hidden.
 ///
 /// Introspection and the schema exports describe the schema through this one answer, so
@@ -72,6 +73,25 @@ pub(crate) fn visible_schema_where(
     for union in &mut visible.unions {
         union.member_types.retain(|member| !hidden.contains(&member.as_str()));
     }
+    // A fact table is read as its linked type: its roots and their row types go with it.
+    visible
+        .fact_tables
+        .retain(|_, table| table.type_name.as_deref().is_none_or(|name| !hidden.contains(&name)));
+    let hidden_rows: Vec<&str> = schema
+        .derived
+        .fact_roots
+        .iter()
+        .filter(|root| !visible.fact_tables.contains_key(&root.fact_table))
+        .filter_map(|root| root.row_type.as_deref())
+        .collect();
+    visible
+        .derived
+        .fact_roots
+        .retain(|root| visible.fact_tables.contains_key(&root.fact_table));
+    visible
+        .derived
+        .fact_rows
+        .retain(|row| !hidden_rows.contains(&row.name.as_str()));
     if visible.queries.len() < schema.queries.len()
         || visible.mutations.len() < schema.mutations.len()
         || !hidden.is_empty()

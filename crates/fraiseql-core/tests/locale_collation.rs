@@ -303,7 +303,7 @@ async fn an_aggregate_ordered_by_a_text_dimension_sorts_in_the_request_locale() 
     };
     let query = serde_json::json!({
         "groupBy": { "word": true },
-        "aggregates": [{ "count": {} }],
+        "aggregates": [{ "count": true }],
         "orderBy": { "word": "ASC" }
     });
     let response = with_request_locale(

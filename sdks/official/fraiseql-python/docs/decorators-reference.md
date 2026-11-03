@@ -402,14 +402,13 @@ CREATE INDEX ON tf_sales(occurred_at);
 ```graphql
 {
   sales_aggregate(
-    groupBy: { category: true, occurred_at: "month" }
-    aggregates: [{ revenue_sum: {} }, { count: {} }]
-  )
+    groupBy: { category: true, occurred_at_month: true }
+    aggregates: [{ revenue_sum: true }, { count: true }]
+  ) { category occurred_at_month revenue_sum count }
 }
 ```
 
-A time bucket is spelled either `groupBy: { occurred_at: "month" }` or
-`groupBy: { occurred_at_month: true }`. Aggregates are named `<measure>_<function>`
+A time bucket is the column name and the bucket: `groupBy: { occurred_at_month: true }`. Aggregates are named `<measure>_<function>`
 (`revenue_sum`, `revenue_avg`, `revenue_min`, `revenue_max`, ...) plus `count`.
 
 ---

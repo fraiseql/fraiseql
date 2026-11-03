@@ -6,6 +6,7 @@ use super::super::context::ExecutorContext;
 use crate::{
     backend::WhereClause,
     error::{FraiseQLError, Result},
+    graphql::FieldSelection,
     runtime::suggestions_for,
     security::{RlsWhereClause, SecurityContext, rls_policy::RlsTarget},
 };
@@ -259,6 +260,7 @@ impl AggregateRunner {
         &self,
         query_name: &str,
         parsed: Option<&crate::graphql::ParsedQuery>,
+        selection: Option<&FieldSelection>,
         variables: Option<&serde_json::Value>,
         security_context: Option<&SecurityContext>,
     ) -> Result<serde_json::Value> {
@@ -271,20 +273,7 @@ impl AggregateRunner {
 
         let fact_table_name = format!("tf_{}", table_name);
 
-        // Get fact table metadata from schema
-        let metadata = self.ctx.schema.get_fact_table(&fact_table_name).ok_or_else(|| {
-            let known: Vec<&str> = self.ctx.schema.list_fact_tables();
-            let suggestion = suggestions_for(self.ctx.config.suggestions, &fact_table_name, &known);
-            let base = format!("Fact table '{}' not found in schema", fact_table_name);
-            let message = match suggestion.as_slice() {
-                [s] => format!("{base}. Did you mean '{s}'?"),
-                _ => base,
-            };
-            FraiseQLError::Validation {
-                message,
-                path: Some(format!("fact_tables.{}", fact_table_name)),
-            }
-        })?;
+        let metadata = self.visible_fact_table(&fact_table_name, security_context)?;
 
         let query_json = root_request(
             query_name,
@@ -308,14 +297,149 @@ impl AggregateRunner {
         let response_key = parsed
             .and_then(|p| p.selections.first())
             .map_or(query_name, |root| root.response_key());
-        self.execute_aggregate_query(
-            query_json,
-            query_name,
+        let projection = match parsed.and_then(|p| p.selections.first()) {
+            Some(_) => self.row_selection(query_name, response_key, selection, variables)?,
+            None => None,
+        };
+        let mut response = self
+            .execute_aggregate_query(
+                query_json,
+                query_name,
+                response_key,
+                metadata,
+                security_context,
+            )
+            .await?;
+        if let Some((row_type, root)) = projection {
+            self.project_rows(&mut response, row_type, root, variables, response_key);
+        }
+        Ok(response)
+    }
+
+    /// The row type an aggregate root publishes and the selection made on it (#1800), once the
+    /// schema's derived surface is built; `None` before, when the rows are served as computed.
+    ///
+    /// # Errors
+    ///
+    /// [`FraiseQLError::Validation`] — the root selects no field (§ 5.3.3), or selects one the
+    /// row type does not publish (§ 5.3.1), or gives a field a selection set, or its fragment
+    /// spreads cannot be expanded. Refused before the database is read.
+    fn row_selection<'s>(
+        &'s self,
+        query_name: &str,
+        response_key: &str,
+        selection: Option<&'s FieldSelection>,
+        variables: Option<&serde_json::Value>,
+    ) -> Result<Option<(&'s str, &'s FieldSelection)>> {
+        let Some(row_type) = self
+            .ctx
+            .schema
+            .fact_root(query_name)
+            .and_then(|root| root.row_type.as_deref())
+            .filter(|row_type| self.ctx.output_types.publishes_object(row_type))
+        else {
+            return Ok(None);
+        };
+        let refusal = |message: String| FraiseQLError::Validation {
+            message,
+            path: Some(response_key.to_string()),
+        };
+        let root = selection.ok_or_else(|| {
+            refusal(format!("the fragment spreads selected on `{response_key}` cannot be expanded"))
+        })?;
+        if root.nested_fields.is_empty() {
+            return Err(refusal(format!(
+                "`{response_key}` returns `[{row_type}!]!` and must select its fields"
+            )));
+        }
+        if let Some(message) =
+            self.ctx
+                .output_types
+                .row_selection_violation(row_type, &root.nested_fields, variables)
+        {
+            return Err(refusal(message));
+        }
+        Ok(Some((row_type, root)))
+    }
+
+    /// Replace the computed rows under `response_key` with their projection onto `root`'s
+    /// selection set, adding the field errors it raises to `errors`.
+    fn project_rows(
+        &self,
+        response: &mut serde_json::Value,
+        row_type: &str,
+        root: &FieldSelection,
+        variables: Option<&serde_json::Value>,
+        response_key: &str,
+    ) {
+        let Some(rows) = response
+            .get_mut("data")
+            .and_then(|data| data.get_mut(response_key))
+            .map(serde_json::Value::take)
+        else {
+            return;
+        };
+        let rows = match rows {
+            serde_json::Value::Array(rows) => rows,
+            other => vec![other],
+        };
+        let (rows, errors) = self.ctx.output_types.project_rows(
+            rows,
+            row_type,
+            &root.nested_fields,
+            variables,
             response_key,
-            metadata,
-            security_context,
-        )
-        .await
+        );
+        response["data"][response_key] = rows;
+        if errors.is_empty() {
+            return;
+        }
+        match response.get_mut("errors").and_then(serde_json::Value::as_array_mut) {
+            Some(existing) => existing.extend(errors),
+            None => response["errors"] = serde_json::Value::Array(errors),
+        }
+    }
+
+    /// The fact table a root reads, as `security_context` may see it: one read as a type whose
+    /// role the caller lacks is absent, answered exactly as a table that does not exist and
+    /// never suggested, as a role-gated query is (#1122).
+    ///
+    /// # Errors
+    ///
+    /// [`FraiseQLError::Validation`] — no fact table of that name is visible to the caller.
+    fn visible_fact_table(
+        &self,
+        fact_table_name: &str,
+        security_context: Option<&SecurityContext>,
+    ) -> Result<&crate::compiler::fact_table::FactTableMetadata> {
+        let schema = &self.ctx.schema;
+        let visible = |table: &crate::compiler::fact_table::FactTableMetadata| {
+            let role = schema
+                .fact_table_type(table)
+                .and_then(|type_def| type_def.requires_role.as_deref());
+            crate::security::role_gate::caller_holds(role, security_context)
+        };
+        schema
+            .get_fact_table(fact_table_name)
+            .filter(|table| visible(table))
+            .ok_or_else(|| {
+                let known: Vec<&str> = schema
+                    .list_fact_tables()
+                    .into_iter()
+                    .filter(|name| schema.get_fact_table(name).is_some_and(visible))
+                    .collect();
+                let suggestion =
+                    suggestions_for(self.ctx.config.suggestions, fact_table_name, &known);
+                let base = format!("Fact table '{fact_table_name}' not found in schema");
+                let message = match suggestion.as_slice() {
+                    [s] => format!("{base}. Did you mean '{s}'?"),
+                    _ => base,
+                };
+                FraiseQLError::Validation {
+                    message,
+                    path: Some(format!("fact_tables.{fact_table_name}")),
+                }
+            })
     }
 
     /// Execute a window query dispatch.
@@ -342,20 +466,7 @@ impl AggregateRunner {
 
         let fact_table_name = format!("tf_{}", table_name);
 
-        // Get fact table metadata from schema
-        let metadata = self.ctx.schema.get_fact_table(&fact_table_name).ok_or_else(|| {
-            let known: Vec<&str> = self.ctx.schema.list_fact_tables();
-            let suggestion = suggestions_for(self.ctx.config.suggestions, &fact_table_name, &known);
-            let base = format!("Fact table '{}' not found in schema", fact_table_name);
-            let message = match suggestion.as_slice() {
-                [s] => format!("{base}. Did you mean '{s}'?"),
-                _ => base,
-            };
-            FraiseQLError::Validation {
-                message,
-                path: Some(format!("fact_tables.{}", fact_table_name)),
-            }
-        })?;
+        let metadata = self.visible_fact_table(&fact_table_name, security_context)?;
 
         let query_json = root_request(
             query_name,
@@ -368,9 +479,18 @@ impl AggregateRunner {
 
         // Execute window query
         // The response answers under the root's response key: its alias when it has one.
-        let response_key = parsed
-            .and_then(|p| p.selections.first())
-            .map_or(query_name, |root| root.response_key());
+        let root = parsed.and_then(|p| p.selections.first());
+        let response_key = root.map_or(query_name, |root| root.response_key());
+        // Its rows are `JSON`, keyed by the `select` and `windows` aliases: a leaf (§ 5.3.3).
+        if root.is_some_and(|root| !root.nested_fields.is_empty()) {
+            return Err(FraiseQLError::Validation {
+                message: format!(
+                    "`{response_key}` returns `[JSON!]!`, a leaf, and takes no selection set: \
+                     its rows hold the `select` and `windows` aliases"
+                ),
+                path:    Some(response_key.to_string()),
+            });
+        }
         self.execute_window_query(query_json, query_name, response_key, metadata, security_context)
             .await
     }
@@ -410,7 +530,7 @@ impl AggregateRunner {
     /// # use serde_json::json;
     /// let query_json = json!({
     ///     "groupBy": { "category": true },
-    ///     "aggregates": [{"count": {}}]
+    ///     "aggregates": [{"count": true}]
     /// });
     /// // let result = executor.execute_aggregate_query(&query_json, "sales_aggregate", &metadata).await?;
     /// ```

@@ -12,8 +12,9 @@
 //! The `classify_query()` method determines the operation type:
 //! - **Regular queries**: Standard field selections (e.g., `{ users { id name } }`)
 //! - **Mutations**: Write operations (e.g., `mutation { createUser(...) { id } }`)
-//! - **Aggregate queries**: Analytics (e.g., `sales_aggregate { total revenue }`)
-//! - **Window queries**: Time-series (e.g., `sales_window { hourly average }`)
+//! - **Aggregate queries**: Analytics (e.g., `sales_aggregate(...) { category revenue_sum }`)
+//! - **Window queries**: Window functions over rows (e.g., `sales_window(select: ..., windows:
+//!   ...)`)
 //! - **Federation queries**: GraphQL federation support (`_service`, `_entities`)
 //! - **Introspection**: Schema introspection (`__schema`, `__type`)
 //! - **Relay node**: Global ID lookup (`.node(id: "...")`)

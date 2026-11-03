@@ -408,6 +408,16 @@ pub struct DerivedState {
     /// no `bogus`, rather than lowering to a JSON path that matches nothing.
     /// Built at construction time by `build_indexes()`; not serialized.
     pub where_relation_fields: fraiseql_db::where_clause::RelationFieldMaps,
+
+    /// The aggregate row types the fact-table roots return (#1800). Not in
+    /// [`types`](CompiledSchema::types): they are no entity, and nothing reads them but
+    /// introspection, the SDL and the row projection. Built by `build_indexes()`.
+    pub fact_rows: Vec<crate::schema::TypeDefinition>,
+
+    /// The published fact-table roots (#1800). Not in [`queries`](CompiledSchema::queries):
+    /// the dispatch routes them by name, before any declared query is looked up. Built by
+    /// `build_indexes()`.
+    pub fact_roots: Vec<crate::schema::fact_table_surface::FactRoot>,
 }
 
 // Reason: equality of a compiled schema is equality of its serialized form; this state is

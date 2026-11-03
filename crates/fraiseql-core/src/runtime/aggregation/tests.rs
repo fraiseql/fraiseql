@@ -306,7 +306,7 @@ mod native_columns_integration {
         let query_json = serde_json::json!({
             "where": { "customer_id_eq": 42 },
             "groupBy": { "status": true },
-            "aggregates": [{ "count": {} }]
+            "aggregates": [{ "count": true }]
         });
         let metadata = create_aggregation_test_metadata();
         let native = native_cols();
@@ -328,7 +328,7 @@ mod native_columns_integration {
     fn parser_emits_native_groupby_when_column_in_map() {
         let query_json = serde_json::json!({
             "groupBy": { "customer_id": true, "status": true },
-            "aggregates": [{ "count": {} }]
+            "aggregates": [{ "count": true }]
         });
         let metadata = create_aggregation_test_metadata();
         let native = native_cols();
@@ -357,7 +357,7 @@ mod native_columns_integration {
         let query_json = serde_json::json!({
             "where": { "customer_id_eq": 42 },
             "groupBy": { "customer_id": true },
-            "aggregates": [{ "count": {} }]
+            "aggregates": [{ "count": true }]
         });
         let metadata = create_aggregation_test_metadata();
         let native = native_cols();
@@ -376,7 +376,7 @@ mod native_columns_integration {
     fn empty_native_map_falls_back_to_jsonb() {
         let query_json = serde_json::json!({
             "groupBy": { "customer_id": true },
-            "aggregates": [{ "count": {} }]
+            "aggregates": [{ "count": true }]
         });
         let metadata = create_aggregation_test_metadata();
         let empty: HashMap<String, String> = HashMap::new();
@@ -1223,7 +1223,7 @@ mod fail_closed_filters {
         for key in ["customer_id_eqq", "customer", "customer_id_descendant_off"] {
             let query = serde_json::json!({
                 "where": { key: 1 },
-                "groupBy": { "status": true }, "aggregates": [{ "count": {} }]
+                "groupBy": { "status": true }, "aggregates": [{ "count": true }]
             });
             let err = AggregateQueryParser::parse(&query, &metadata, &HashMap::new())
                 .expect_err("must be refused");
@@ -1236,7 +1236,7 @@ mod fail_closed_filters {
         key: &str,
     ) -> crate::Result<WhereClause> {
         let query = serde_json::json!({
-            "where": { key: 1 }, "aggregates": [{ "count": {} }]
+            "where": { key: 1 }, "aggregates": [{ "count": true }]
         });
         AggregateQueryParser::parse(&query, metadata, &HashMap::new())
             .map(|r| r.where_clause.expect("a where clause"))

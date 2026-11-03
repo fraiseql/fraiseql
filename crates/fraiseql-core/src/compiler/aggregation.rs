@@ -115,9 +115,9 @@ pub enum GroupBySelection {
         /// Alias for result
         alias:           String,
     },
-    /// Group by a level or the depth of an `ltree` path column (#1498): `{"path":
-    /// {"level": n}}` rolls each path up to its first `n` labels, `{"path": "depth"}`
-    /// groups by the number of labels.
+    /// Group by a level or the depth of an `ltree` path column (#1498): `{"path_level": n}`
+    /// rolls each path up to its first `n` labels, `{"path_depth": true}` groups by the
+    /// number of labels.
     TreeLevel {
         /// The denormalized filter column holding the path.
         column:   String,

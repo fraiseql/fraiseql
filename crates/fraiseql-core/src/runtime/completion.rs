@@ -572,5 +572,7 @@ impl<'a> Walk<'a> {
     }
 }
 
+mod rows;
+
 #[cfg(test)]
 mod tests;

@@ -357,7 +357,7 @@ fn entity_sort_keys_agree(schema: &CompiledSchema, entity: &str) -> bool {
 }
 
 /// `itemsByRank` → `ItemsByRank`.
-fn pascal_case(name: &str) -> String {
+pub(crate) fn pascal_case(name: &str) -> String {
     let camel = crate::utils::casing::to_camel_case(name);
     let mut chars = camel.chars();
     chars

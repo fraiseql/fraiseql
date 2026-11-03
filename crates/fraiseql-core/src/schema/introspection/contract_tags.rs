@@ -1,9 +1,10 @@
 //! The `@tag`s a federated subgraph's service SDL carries for what roles gate.
 //!
-//! A root query or mutation with a `requires_role` is tagged with that role's tag. So is
-//! a type gated by the role, and a type nothing reaches once that role's declarations are
-//! gone: a contract excluding the role then leaves out what only they expose. A type two
-//! roles reach is tagged with neither, since excluding one leaves it reached by the other.
+//! A root query or mutation with a `requires_role` is tagged with that role's tag, and so
+//! are the roots of a fact table read as a type the role gates. So is a type gated by the
+//! role, and a type nothing reaches once that role's declarations are gone: a contract
+//! excluding the role then leaves out what only they expose. A type two roles reach is
+//! tagged with neither, since excluding one leaves it reached by the other.
 //!
 //! Only an object type of this subgraph's own is tagged. A tag on a supergraph type is a
 //! tag on every subgraph's declaration of it, so tagging a type another subgraph declares
@@ -54,6 +55,20 @@ pub fn contract_tags(schema: &CompiledSchema) -> Result<ContractTags> {
         }
     }
 
+    // A fact table's roots read it as its linked type, and are gated by that type's role.
+    for root in &schema.derived.fact_roots {
+        let role = schema
+            .get_fact_table(&root.fact_table)
+            .and_then(|table| schema.fact_table_type(table))
+            .and_then(|type_def| type_def.requires_role.as_deref());
+        if let Some(role) = role {
+            tags.fields
+                .entry("Query".to_string())
+                .or_default()
+                .insert(root.name.clone(), role_tag(role)?);
+        }
+    }
+
     let gated_types = schema.types.iter().filter_map(|t| t.requires_role.as_deref());
     let roles: BTreeSet<&str> = schema
         .queries
@@ -80,6 +95,7 @@ pub fn contract_tags(schema: &CompiledSchema) -> Result<ContractTags> {
     let own: HashSet<&str> = schema
         .types
         .iter()
+        .chain(&schema.derived.fact_rows)
         .map(|t| t.name.as_str())
         .filter(|name| !shared.contains(name))
         .collect();

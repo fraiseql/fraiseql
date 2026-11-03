@@ -7,16 +7,23 @@
 //! ```graphql
 //! query {
 //!   sales_window(
-//!     where: { customer_id_eq: "uuid-123" }
-//!     orderBy: { occurred_at: ASC }
+//!     select: [{ type: "dimension", path: "category", alias: "category" }]
+//!     windows: [{ function: { type: "row_number" }, alias: "rank",
+//!                 orderBy: [{ field: "revenue", direction: DESC }] }]
+//!     orderBy: [{ field: "category", direction: ASC }]
 //!     limit: 100
-//!   ) {
-//!     revenue
-//!     category
-//!     rank: row_number(partitionBy: ["category"], orderBy: { revenue: DESC })
-//!     running_total: sum(field: "revenue", orderBy: { occurred_at: ASC })
-//!     prev_revenue: lag(field: "revenue", offset: 1, default: 0)
-//!   }
+//!   )
+//! }
+//! ```
+//!
+//! The root returns `[JSON!]!`, a leaf, so it takes no selection set: each row holds the
+//! `select` and `windows` aliases.
+//!
+//! The same request as variables:
+//!
+//! ```graphql
+//! query($select: [WindowColumn!], $windows: [WindowSpec!]) {
+//!   sales_window(select: $select, windows: $windows)
 //! }
 //! ```
 //!
@@ -441,7 +448,7 @@ impl WindowQueryParser {
             .collect()
     }
 
-    /// Parse ORDER BY from JSON array.
+    /// Parse ORDER BY from JSON array: `[{field, direction}]`.
     fn parse_order_by(order_array: &Value) -> Result<Vec<WindowOrderBy>> {
         let Some(arr) = order_array.as_array() else {
             return Ok(vec![]);
@@ -458,9 +465,22 @@ impl WindowQueryParser {
                     })?
                     .to_string();
 
-                let direction = match item.get("direction").and_then(|v| v.as_str()) {
-                    Some("DESC" | "desc") => OrderDirection::Desc,
-                    _ => OrderDirection::Asc,
+                // The published `SortDirection`, `ASC` when absent.
+                let direction = match item.get("direction") {
+                    None => OrderDirection::Asc,
+                    Some(value) => match value.as_str() {
+                        Some("ASC") => OrderDirection::Asc,
+                        Some("DESC") => OrderDirection::Desc,
+                        _ => {
+                            return Err(FraiseQLError::Validation {
+                                message: format!(
+                                    "orderBy `{field}` direction takes `ASC` or `DESC`, got \
+                                     {value}"
+                                ),
+                                path:    None,
+                            });
+                        },
+                    },
                 };
 
                 Ok(WindowOrderBy { field, direction })
@@ -517,12 +537,24 @@ impl WindowQueryParser {
             })
             .and_then(Self::parse_frame_boundary)?;
 
-        let exclusion = frame.get("exclusion").and_then(|v| v.as_str()).map(|s| match s {
-            "current_row" => FrameExclusion::CurrentRow,
-            "group" => FrameExclusion::Group,
-            "ties" => FrameExclusion::Ties,
-            _ => FrameExclusion::NoOthers,
-        });
+        let exclusion = match frame.get("exclusion") {
+            None | Some(Value::Null) => None,
+            Some(value) => Some(match value.as_str() {
+                Some("current_row") => FrameExclusion::CurrentRow,
+                Some("group") => FrameExclusion::Group,
+                Some("ties") => FrameExclusion::Ties,
+                Some("no_others") => FrameExclusion::NoOthers,
+                _ => {
+                    return Err(FraiseQLError::Validation {
+                        message: format!(
+                            "frame `exclusion` takes `current_row`, `group`, `ties` or \
+                             `no_others`, got {value}"
+                        ),
+                        path:    None,
+                    });
+                },
+            }),
+        };
 
         Ok(WindowFrame {
             frame_type,

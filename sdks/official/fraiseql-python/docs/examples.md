@@ -254,8 +254,8 @@ Event analytics by type, page, browser and country, and trends over time, are re
 derived `events_aggregate` root; there is no aggregate query to declare:
 
 ```graphql
-{ events_aggregate(groupBy: { event_type: true, country: true }, aggregates: [{ duration_ms_avg: {} }, { count: {} }]) }
-{ events_aggregate(groupBy: { occurred_at: "day" }, aggregates: [{ value_sum: {} }, { count: {} }]) }
+{ events_aggregate(groupBy: { event_type: true, country: true }, aggregates: [{ duration_ms_avg: true }, { count: true }]) { event_type country duration_ms_avg count } }
+{ events_aggregate(groupBy: { occurred_at_day: true }, aggregates: [{ value_sum: true }, { count: true }]) { occurred_at_day value_sum count } }
 ```
 
 ## 4. Inventory Management System

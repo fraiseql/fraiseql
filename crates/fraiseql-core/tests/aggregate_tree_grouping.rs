@@ -130,9 +130,12 @@ fn total(row: &Value) -> f64 {
 
 /// `{group key → revenue}` for a grouped aggregate.
 async fn grouped(executor: &Executor, group_by: Value, key: &str) -> HashMap<String, f64> {
-    let rows = run(executor, json!({ "groupBy": group_by, "aggregates": [{ "revenue_sum": {} }] }))
-        .await
-        .unwrap_or_else(|e| panic!("group by failed: {e}"));
+    let rows = run(
+        executor,
+        json!({ "groupBy": group_by, "aggregates": [{ "revenue_sum": true }] }),
+    )
+    .await
+    .unwrap_or_else(|e| panic!("group by failed: {e}"));
     rows.iter()
         .map(|row| {
             let k = row.get(key).unwrap_or_else(|| panic!("no `{key}` in {row}"));
@@ -142,7 +145,7 @@ async fn grouped(executor: &Executor, group_by: Value, key: &str) -> HashMap<Str
 }
 
 async fn revenue_where(executor: &Executor, filter: Value) -> f64 {
-    let rows = run(executor, json!({ "where": filter, "aggregates": [{ "revenue_sum": {} }] }))
+    let rows = run(executor, json!({ "where": filter, "aggregates": [{ "revenue_sum": true }] }))
         .await
         .unwrap_or_else(|e| panic!("aggregate with where {filter} failed: {e}"));
     total(&rows[0])
@@ -152,11 +155,11 @@ async fn revenue_where(executor: &Executor, filter: Value) -> f64 {
 async fn a_path_rolls_up_to_a_tree_level() {
     let executor = executor().await;
 
-    let level_1 = grouped(&executor, json!({ "path": { "level": 1 } }), "path").await;
+    let level_1 = grouped(&executor, json!({ "path_level": 1 }), "path_level").await;
     assert_eq!(level_1, HashMap::from([("a".into(), 15.0), ("z".into(), 16.0)]));
 
     // A path shallower than the level keeps its own value: `a` stays `a` at level 2.
-    let level_2 = grouped(&executor, json!({ "path": { "level": 2 } }), "path").await;
+    let level_2 = grouped(&executor, json!({ "path_level": 2 }), "path_level").await;
     assert_eq!(
         level_2,
         HashMap::from([
@@ -171,7 +174,7 @@ async fn a_path_rolls_up_to_a_tree_level() {
 #[tokio::test]
 async fn a_path_groups_by_its_depth() {
     let executor = executor().await;
-    let depth = grouped(&executor, json!({ "path": "depth" }), "path_depth").await;
+    let depth = grouped(&executor, json!({ "path_depth": true }), "path_depth").await;
     assert_eq!(
         depth,
         HashMap::from([("1".into(), 17.0), ("2".into(), 10.0), ("3".into(), 4.0)])
@@ -183,8 +186,8 @@ async fn a_tree_level_combines_with_another_dimension() {
     let executor = executor().await;
     let rows = run(
         &executor,
-        json!({ "groupBy": { "path": { "level": 1 }, "region": true },
-                "aggregates": [{ "revenue_sum": {} }] }),
+        json!({ "groupBy": { "path_level": 1, "region": true },
+                "aggregates": [{ "revenue_sum": true }] }),
     )
     .await
     .unwrap();
@@ -193,7 +196,7 @@ async fn a_tree_level_combines_with_another_dimension() {
         .map(|r| {
             (
                 (
-                    r["path"].as_str().unwrap().to_string(),
+                    r["path_level"].as_str().unwrap().to_string(),
                     r["region"].as_str().unwrap().to_string(),
                 ),
                 total(r),
@@ -225,8 +228,8 @@ async fn a_tree_level_needs_an_ltree_column() {
     let executor = executor().await;
     let err = run(
         &executor,
-        json!({ "groupBy": { "region": { "level": 1 } },
-                "aggregates": [{ "revenue_sum": {} }] }),
+        json!({ "groupBy": { "region_level": 1 },
+                "aggregates": [{ "revenue_sum": true }] }),
     )
     .await
     .unwrap_err()
@@ -240,7 +243,7 @@ async fn a_node_id_filter_needs_a_declared_hierarchy() {
     let err = run(
         &executor,
         json!({ "where": { "region_descendant_of_id": NODE_AB },
-                "aggregates": [{ "revenue_sum": {} }] }),
+                "aggregates": [{ "revenue_sum": true }] }),
     )
     .await
     .unwrap_err()

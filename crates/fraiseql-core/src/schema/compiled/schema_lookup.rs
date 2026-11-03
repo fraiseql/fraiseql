@@ -104,6 +104,22 @@ impl CompiledSchema {
         self.enums.extend(derived.enums);
         self.derived.where_relation_fields =
             crate::schema::derived_inputs::relation_field_maps(self);
+        // The fact-table roots' surface, on the same terms: a name already present
+        // is not derived over, which keeps a second call inert. A declared name that differs
+        // from the derived one is refused at load.
+        let surface = crate::schema::fact_table_surface::derive(self);
+        for input in surface.input_types {
+            if self.find_input_type(&input.name).is_none() {
+                self.input_types.push(input);
+            }
+        }
+        for enum_def in surface.enums {
+            if self.find_enum(&enum_def.name).is_none() {
+                self.enums.push(enum_def);
+            }
+        }
+        self.derived.fact_rows = surface.row_types;
+        self.derived.fact_roots = surface.roots;
 
         let camel = matches!(self.naming_convention, NamingConvention::CamelCase);
 

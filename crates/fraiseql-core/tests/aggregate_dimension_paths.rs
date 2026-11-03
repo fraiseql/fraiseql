@@ -100,7 +100,7 @@ async fn a_deep_declared_path_groups_at_its_location() {
     let rows = aggregate(
         &executor,
         json!({ "groupBy": { "machine_model_category": true },
-                "aggregates": [{ "revenue_sum": {} }],
+                "aggregates": [{ "revenue_sum": true }],
                 "orderBy": { "machine_model_category": "ASC" } }),
     )
     .await;
@@ -115,7 +115,7 @@ async fn a_deep_declared_path_filters_at_its_location() {
     let rows = aggregate(
         &executor,
         json!({ "where": { "machine_model_category_eq": "A" },
-                "aggregates": [{ "revenue_sum": {} }] }),
+                "aggregates": [{ "revenue_sum": true }] }),
     )
     .await;
     assert_eq!(rows.first().map_or(0.0, total), 3.0, "where reads the declared path");

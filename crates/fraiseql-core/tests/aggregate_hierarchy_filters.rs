@@ -104,7 +104,7 @@ async fn executor() -> Executor {
 async fn revenue(executor: &Executor, filter: Value) -> f64 {
     let query = json!({
         "where": filter,
-        "aggregates": [{ "revenue_sum": {} }],
+        "aggregates": [{ "revenue_sum": true }],
     });
     let response = executor
         .execute_aggregate_query(&query, "sales_aggregate", &metadata())
