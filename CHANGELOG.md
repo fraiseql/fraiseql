@@ -37,6 +37,27 @@ disagreed, and the promise was the part that was wrong.
     with `registerFactTable(..., { rowScope: "relation" })`.
   - `FactTableMetadata` gains `row_scope: FactRowScope`; a struct literal must set it.
 
+- **`OtpRouteState` has an `allow_gate` field (#1852).** A struct literal naming every field
+  needs `allow_gate: None`, which keeps today's behaviour.
+
+- **`LocalAuthConfig` has an `otp_allowed_query` field (#1852).** A struct literal naming every
+  field needs `otp_allowed_query: None`, or `..LocalAuthConfig::default()`.
+
+### Added
+
+- **`[auth.local] otp_allowed_query` restricts `OTP` sign-in to approved addresses (#1852).**
+  A `SELECT` with `$email` decides who may sign in; a row admits the address. A refused
+  address gets no mail, no account and no session, and the same answers as an approved one
+  at both endpoints, past both per-address limits and during a mail outage. The query runs
+  read-only with a 2-second timeout, and refuses the address if it fails. It is also checked
+  at verify, so removing an address invalidates a code it already holds.
+  - With the key set, mail leaves through a queue of 256 rather than on the request, so a
+    delivery failure answers 200 and is logged at error level with the address removed. A full
+    queue drops the mail and logs the same way. No request waits on the relay. With the key
+    unset, delivery and its 500 are unchanged.
+  - The key governs `OTP` only. Password signup and social sign-in still create accounts for
+    any address, and the compiler warns when either is enabled beside it.
+
 ### Fixed
 
 - **The `-full` release binary ships `fraiseql federation sdl` (#1892).** The `fraiseql`
