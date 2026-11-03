@@ -139,10 +139,15 @@ disagreed, and the promise was the part that was wrong.
   - The token validator accepts a token 60 s past its expiry, so `ttl_secs` below 60 is
     refused, by the compiler and at boot. Anonymous sessions keep their fixed seven days.
   - `_system.sessions` gains `family_id`, `rotated_at` and `access_jti`, added at boot.
-    Every server that mints sessions now deletes rows past their `expires_at` every five
-    minutes. See `docs/auth/sessions.md`.
+    See `docs/auth/sessions.md`.
 
 ### Changed
+
+- **Every server that mints sessions deletes expired `_system.sessions` rows (#1853).**
+  Every five minutes, a server with password, OTP, anonymous, social or SAML sign-in and a
+  database deletes the rows past their `expires_at`. Those refresh tokens could no longer
+  be used, so nothing that worked stops working, but the table now shrinks where it only
+  grew. A refreshable session's rows stay until its absolute limit.
 
 - **The reference dead-letter-queue DDL names `core` too (#1893).**
   `crates/fraiseql-observers/migrations/01_create_dlq_schema.sql` (`observer_events`,

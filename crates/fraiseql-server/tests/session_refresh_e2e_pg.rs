@@ -38,7 +38,9 @@ use fraiseql_core::{
 use fraiseql_server::{
     Server,
     server_config::{ServerConfig, hs256::Hs256Config},
-    token_revocation::{InMemoryRevocationStore, TokenRevocationManager},
+    token_revocation::{
+        InMemoryRevocationStore, RevocationError, RevocationStore, TokenRevocationManager,
+    },
 };
 use fraiseql_test_support::try_database_url;
 use reqwest::StatusCode;
@@ -769,6 +771,56 @@ async fn with_token_revocation_logout_ends_the_access_token() {
         StatusCode::UNAUTHORIZED,
         "with token revocation, logout ends the access token"
     );
+
+    finish(&url, db, server).await;
+}
+
+/// A revocation store that reads but cannot write: a logout whose denial fails.
+struct UnwritableRevocations;
+
+// Reason: implements the dyn-dispatched `RevocationStore`, an `async_trait`
+#[async_trait::async_trait]
+impl RevocationStore for UnwritableRevocations {
+    async fn is_revoked(&self, _jti: &str) -> Result<bool, RevocationError> {
+        Ok(false)
+    }
+
+    async fn revoke(&self, _jti: &str, _ttl_secs: u64) -> Result<(), RevocationError> {
+        Err(RevocationError::Backend("the store refuses writes".to_string()))
+    }
+
+    async fn revoke_all_for_user(&self, _sub: &str, _ttl: u64) -> Result<(), RevocationError> {
+        Err(RevocationError::Backend("the store refuses writes".to_string()))
+    }
+
+    async fn user_revoked_after(&self, _sub: &str) -> Result<Option<i64>, RevocationError> {
+        Ok(None)
+    }
+}
+
+/// With token revocation configured, a logout that cannot deny the access token answers
+/// 500: a caller told it logged out must have been. The session's refresh tokens still end.
+#[tokio::test]
+async fn a_logout_that_cannot_deny_its_access_token_says_so() {
+    let db = "fraiseql_session_logout_unwritable";
+    let revocation =
+        Arc::new(TokenRevocationManager::new(Arc::new(UnwritableRevocations), false, false, 3600));
+    let Some((url, _pool, server)) =
+        start("a_logout_that_cannot_deny", db, refreshable(), Some(revocation)).await
+    else {
+        return;
+    };
+    let base = &server.base;
+
+    let session = signup(base, "logout-unwritable@example.com").await;
+    let (status, body) = post_json(base, LOGOUT, json!({ "refresh_token": session.refresh })).await;
+    assert_eq!(
+        status,
+        StatusCode::INTERNAL_SERVER_ERROR,
+        "a denial that failed must not answer 204: {body}"
+    );
+    let (status, body) = refresh(base, &session.refresh).await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED, "the refresh tokens still ended: {body}");
 
     finish(&url, db, server).await;
 }
