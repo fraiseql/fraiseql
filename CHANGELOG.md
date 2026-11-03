@@ -89,6 +89,8 @@ disagreed, and the promise was the part that was wrong.
   `groupBy: {day: "month"}` over a column declared `date` answers `"2026-07-01"`, where it
   answered a UTC timestamp such as `"2026-06-30T15:00:00+00:00"`. A client parsing the key
   as a timestamp reads a date instead. `timestamp` and `timestamptz` columns bucket as before.
+  - `GroupByExpression::TemporalBucket` (`fraiseql-core`) gains `date: bool`, `true` for a
+    `date` column. A struct literal must set it; a pattern must name it or end in `..`.
 
 - **`AuthClientConfig`, and `fraiseql-cli`'s `OidcClientConfig`, have a `session` field
   (#1853).** A struct literal naming every field needs `session: None`, which keeps today's
