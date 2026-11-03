@@ -123,6 +123,7 @@ fn root_request(
     query_name: &str,
     parsed: Option<&crate::graphql::ParsedQuery>,
     variables: Option<&serde_json::Value>,
+    fact_table: &str,
     accepted: &[&str],
 ) -> Result<serde_json::Value> {
     let mut request = match variables {
@@ -134,6 +135,9 @@ fn root_request(
     };
     let variable_map = crate::runtime::matcher::QueryMatcher::extract_arguments(variables);
     for argument in &root.arguments {
+        if argument.name == "table" {
+            return Err(crate::runtime::aggregate_parser::table_argument_refusal(fact_table));
+        }
         if !accepted.contains(&argument.name.as_str()) {
             return Err(FraiseQLError::Validation {
                 message: format!(
@@ -286,8 +290,8 @@ impl AggregateRunner {
             query_name,
             parsed,
             variables,
+            &metadata.table_name,
             &[
-                "table",
                 "where",
                 "groupBy",
                 "aggregates",
@@ -300,8 +304,18 @@ impl AggregateRunner {
         let query_json = &query_json;
 
         // Execute aggregate query
-        self.execute_aggregate_query(query_json, query_name, metadata, security_context)
-            .await
+        // The response answers under the root's response key: its alias when it has one.
+        let response_key = parsed
+            .and_then(|p| p.selections.first())
+            .map_or(query_name, |root| root.response_key());
+        self.execute_aggregate_query(
+            query_json,
+            query_name,
+            response_key,
+            metadata,
+            security_context,
+        )
+        .await
     }
 
     /// Execute a window query dispatch.
@@ -347,14 +361,17 @@ impl AggregateRunner {
             query_name,
             parsed,
             variables,
-            &[
-                "table", "select", "windows", "where", "orderBy", "limit", "offset",
-            ],
+            &metadata.table_name,
+            &["select", "windows", "where", "orderBy", "limit", "offset"],
         )?;
         let query_json = &query_json;
 
         // Execute window query
-        self.execute_window_query(query_json, query_name, metadata, security_context)
+        // The response answers under the root's response key: its alias when it has one.
+        let response_key = parsed
+            .and_then(|p| p.selections.first())
+            .map_or(query_name, |root| root.response_key());
+        self.execute_window_query(query_json, query_name, response_key, metadata, security_context)
             .await
     }
 
@@ -364,6 +381,7 @@ impl AggregateRunner {
     ///
     /// * `query_json` - JSON representation of the aggregate query
     /// * `query_name` - GraphQL field name (e.g., "`sales_aggregate`")
+    /// * `response_key` - the key the result answers under: the root's alias, or its name
     /// * `metadata` - Fact table metadata
     ///
     /// # Returns
@@ -391,7 +409,6 @@ impl AggregateRunner {
     /// // See: tests/integration/ for runnable examples.
     /// # use serde_json::json;
     /// let query_json = json!({
-    ///     "table": "tf_sales",
     ///     "groupBy": { "category": true },
     ///     "aggregates": [{"count": {}}]
     /// });
@@ -417,6 +434,7 @@ impl AggregateRunner {
         &self,
         query_json: &serde_json::Value,
         query_name: &str,
+        response_key: &str,
         metadata: &crate::compiler::fact_table::FactTableMetadata,
         security_context: Option<&SecurityContext>,
     ) -> Result<serde_json::Value> {
@@ -583,7 +601,7 @@ impl AggregateRunner {
 
         // 6. Wrap in GraphQL data envelope
         let response =
-            crate::runtime::AggregationProjector::wrap_in_data_envelope(projected, query_name);
+            crate::runtime::AggregationProjector::wrap_in_data_envelope(projected, response_key);
 
         // 7. Serialize to JSON string
         Ok(response)
@@ -595,6 +613,7 @@ impl AggregateRunner {
     ///
     /// * `query_json` - JSON representation of the window query
     /// * `query_name` - GraphQL field name (e.g., "`sales_window`")
+    /// * `response_key` - the key the result answers under: the root's alias, or its name
     /// * `metadata` - Fact table metadata
     ///
     /// # Returns
@@ -622,7 +641,6 @@ impl AggregateRunner {
     /// // See: tests/integration/ for runnable examples.
     /// # use serde_json::json;
     /// let query_json = json!({
-    ///     "table": "tf_sales",
     ///     "select": [{"type": "measure", "name": "revenue", "alias": "revenue"}],
     ///     "windows": [{
     ///         "function": {"type": "row_number"},
@@ -637,6 +655,7 @@ impl AggregateRunner {
         &self,
         query_json: &serde_json::Value,
         query_name: &str,
+        response_key: &str,
         metadata: &crate::compiler::fact_table::FactTableMetadata,
         security_context: Option<&SecurityContext>,
     ) -> Result<serde_json::Value> {
@@ -748,7 +767,7 @@ impl AggregateRunner {
 
         // 6. Wrap in GraphQL data envelope
         let response =
-            crate::runtime::WindowProjector::wrap_in_data_envelope(projected, query_name);
+            crate::runtime::WindowProjector::wrap_in_data_envelope(projected, response_key);
 
         // 7. Serialize to JSON string
         Ok(response)

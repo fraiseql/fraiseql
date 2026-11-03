@@ -304,7 +304,6 @@ mod native_columns_integration {
     #[test]
     fn parser_emits_native_where_when_column_in_map() {
         let query_json = serde_json::json!({
-            "table": "tf_sales",
             "where": { "customer_id_eq": 42 },
             "groupBy": { "status": true },
             "aggregates": [{ "count": {} }]
@@ -328,7 +327,6 @@ mod native_columns_integration {
     #[test]
     fn parser_emits_native_groupby_when_column_in_map() {
         let query_json = serde_json::json!({
-            "table": "tf_sales",
             "groupBy": { "customer_id": true, "status": true },
             "aggregates": [{ "count": {} }]
         });
@@ -357,7 +355,6 @@ mod native_columns_integration {
     #[test]
     fn full_sql_uses_native_column_references() {
         let query_json = serde_json::json!({
-            "table": "tf_sales",
             "where": { "customer_id_eq": 42 },
             "groupBy": { "customer_id": true },
             "aggregates": [{ "count": {} }]
@@ -378,7 +375,6 @@ mod native_columns_integration {
     #[test]
     fn empty_native_map_falls_back_to_jsonb() {
         let query_json = serde_json::json!({
-            "table": "tf_sales",
             "groupBy": { "customer_id": true },
             "aggregates": [{ "count": {} }]
         });
@@ -1226,7 +1222,7 @@ mod fail_closed_filters {
         let metadata = create_aggregation_test_metadata();
         for key in ["customer_id_eqq", "customer", "customer_id_descendant_off"] {
             let query = serde_json::json!({
-                "table": "tf_sales", "where": { key: 1 },
+                "where": { key: 1 },
                 "groupBy": { "status": true }, "aggregates": [{ "count": {} }]
             });
             let err = AggregateQueryParser::parse(&query, &metadata, &HashMap::new())
@@ -1240,7 +1236,7 @@ mod fail_closed_filters {
         key: &str,
     ) -> crate::Result<WhereClause> {
         let query = serde_json::json!({
-            "table": "tf_sales", "where": { key: 1 }, "aggregates": [{ "count": {} }]
+            "where": { key: 1 }, "aggregates": [{ "count": {} }]
         });
         AggregateQueryParser::parse(&query, metadata, &HashMap::new())
             .map(|r| r.where_clause.expect("a where clause"))

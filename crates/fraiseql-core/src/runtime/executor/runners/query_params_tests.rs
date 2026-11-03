@@ -127,7 +127,6 @@ fn camel_filter_recasing_is_identical_across_surfaces() {
     let native = HashMap::new();
     let agg = crate::runtime::AggregateQueryParser::parse(
         &serde_json::json!({
-            "table": "tf_x",
             "where": { "organizationId_eq": "x" },
             "groupBy": { "organizationId": true },
         }),
@@ -156,7 +155,6 @@ fn camel_filter_recasing_is_identical_across_surfaces() {
     // 5. Window `where`.
     let win = crate::runtime::WindowQueryParser::parse(
         &serde_json::json!({
-            "table": "tf_x",
             "where": { "organizationId_eq": "x" },
         }),
         &metadata,

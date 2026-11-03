@@ -72,7 +72,6 @@ fn select_occurred_at_and_revenue() -> serde_json::Value {
 #[test]
 fn test_row_number_simple() {
     let query = json!({
-        "table": "tf_sales",
         "select": select_revenue_and_category(),
         "windows": [{
             "function": {"type": "row_number"},
@@ -102,7 +101,6 @@ fn test_row_number_simple() {
 #[test]
 fn test_rank_with_gaps() {
     let query = json!({
-        "table": "tf_sales",
         "select": select_revenue(),
         "windows": [{
             "function": {"type": "rank"},
@@ -128,7 +126,6 @@ fn test_rank_with_gaps() {
 #[test]
 fn test_dense_rank_no_gaps() {
     let query = json!({
-        "table": "tf_sales",
         "select": select_revenue(),
         "windows": [{
             "function": {"type": "dense_rank"},
@@ -146,7 +143,6 @@ fn test_dense_rank_no_gaps() {
 #[test]
 fn test_ntile_quartiles() {
     let query = json!({
-        "table": "tf_sales",
         "select": select_revenue(),
         "windows": [{
             "function": {"type": "ntile", "n": 4},
@@ -172,7 +168,6 @@ fn test_ntile_quartiles() {
 #[test]
 fn test_percent_rank() {
     let query = json!({
-        "table": "tf_sales",
         "select": select_revenue(),
         "windows": [{
             "function": {"type": "percent_rank"},
@@ -198,7 +193,6 @@ fn test_percent_rank() {
 #[test]
 fn test_cume_dist() {
     let query = json!({
-        "table": "tf_sales",
         "select": select_revenue(),
         "windows": [{
             "function": {"type": "cume_dist"},
@@ -220,7 +214,6 @@ fn test_cume_dist() {
 #[test]
 fn test_lag_previous_value() {
     let query = json!({
-        "table": "tf_sales",
         "select": select_occurred_at_and_revenue(),
         "windows": [{
             "function": {
@@ -251,7 +244,6 @@ fn test_lag_previous_value() {
 #[test]
 fn test_lead_next_value() {
     let query = json!({
-        "table": "tf_sales",
         "select": select_occurred_at_and_revenue(),
         "windows": [{
             "function": {
@@ -282,7 +274,6 @@ fn test_lead_next_value() {
 #[test]
 fn test_first_value() {
     let query = json!({
-        "table": "tf_sales",
         "select": select_occurred_at_and_revenue(),
         "windows": [{
             "function": {
@@ -311,7 +302,6 @@ fn test_first_value() {
 #[test]
 fn test_last_value() {
     let query = json!({
-        "table": "tf_sales",
         "select": select_occurred_at_and_revenue(),
         "windows": [{
             "function": {
@@ -346,7 +336,6 @@ fn test_last_value() {
 #[test]
 fn test_nth_value() {
     let query = json!({
-        "table": "tf_sales",
         "select": select_occurred_at_and_revenue(),
         "windows": [{
             "function": {
@@ -380,7 +369,6 @@ fn test_nth_value() {
 #[test]
 fn test_running_total_sum() {
     let query = json!({
-        "table": "tf_sales",
         "select": select_occurred_at_and_revenue(),
         "windows": [{
             "function": {
@@ -415,7 +403,6 @@ fn test_running_total_sum() {
 #[test]
 fn test_moving_average() {
     let query = json!({
-        "table": "tf_sales",
         "select": select_occurred_at_and_revenue(),
         "windows": [{
             "function": {
@@ -450,7 +437,6 @@ fn test_moving_average() {
 #[test]
 fn test_running_count() {
     let query = json!({
-        "table": "tf_sales",
         "select": [{"type": "filter", "name": "occurred_at", "alias": "occurred_at"}],
         "windows": [{
             "function": {
@@ -485,7 +471,6 @@ fn test_running_count_of_field() {
     // `running_count` with a `field` counts non-null values of that field rather than
     // rows. The dead planner had no spelling for this arm, so nothing exercised it.
     let query = json!({
-        "table": "tf_sales",
         "select": select_occurred_at_and_revenue(),
         "windows": [{
             "function": {
@@ -506,7 +491,6 @@ fn test_running_count_of_field() {
 #[test]
 fn test_running_min_max() {
     let query = json!({
-        "table": "tf_sales",
         "select": select_occurred_at_and_revenue(),
         "windows": [
             {
@@ -555,7 +539,6 @@ fn test_running_min_max() {
 #[test]
 fn test_frame_rows_preceding_following() {
     let query = json!({
-        "table": "tf_sales",
         "select": select_occurred_at_and_revenue(),
         "windows": [{
             "function": {"type": "running_avg", "measure": "revenue"},
@@ -585,7 +568,6 @@ fn test_frame_rows_preceding_following() {
 #[test]
 fn test_frame_range() {
     let query = json!({
-        "table": "tf_sales",
         "select": select_occurred_at_and_revenue(),
         "windows": [{
             "function": {"type": "running_sum", "measure": "revenue"},
@@ -615,7 +597,6 @@ fn test_frame_range() {
 #[test]
 fn test_frame_groups_postgres_only() {
     let query = json!({
-        "table": "tf_sales",
         "select": select_occurred_at_and_revenue(),
         "windows": [{
             "function": {"type": "running_sum", "measure": "revenue"},
@@ -645,7 +626,6 @@ fn test_frame_groups_postgres_only() {
 #[test]
 fn test_frame_exclusion_postgres() {
     let query = json!({
-        "table": "tf_sales",
         "select": select_occurred_at_and_revenue(),
         "windows": [{
             "function": {"type": "running_avg", "measure": "revenue"},
@@ -681,7 +661,6 @@ fn test_frame_exclusion_postgres() {
 #[test]
 fn test_multiple_window_functions() {
     let query = json!({
-        "table": "tf_sales",
         "select": [
             {"type": "filter", "name": "occurred_at", "alias": "occurred_at"},
             {"type": "measure", "name": "revenue", "alias": "revenue"},
@@ -733,7 +712,6 @@ fn test_multiple_window_functions() {
 #[test]
 fn test_window_with_limit_offset() {
     let query = json!({
-        "table": "tf_sales",
         "select": select_revenue(),
         "windows": [{
             "function": {"type": "row_number"},
@@ -762,7 +740,6 @@ fn test_window_with_limit_offset() {
 #[test]
 fn test_window_with_final_order_by() {
     let query = json!({
-        "table": "tf_sales",
         "select": select_occurred_at_and_revenue(),
         "windows": [{
             "function": {"type": "row_number"},
@@ -793,7 +770,6 @@ fn test_window_with_final_order_by() {
 #[test]
 fn measure_not_in_metadata_is_rejected() {
     let query = json!({
-        "table": "tf_sales",
         "select": [{"type": "measure", "name": "profit", "alias": "profit"}],
         "windows": [{
             "function": {"type": "running_sum", "measure": "profit"},
@@ -814,7 +790,6 @@ fn undeclared_dimension_path_is_rejected() {
     // `create_sales_metadata` enumerates `category` and `region`, so the allowlist is
     // live and an undeclared path must not reach `data->>'…'`.
     let query = json!({
-        "table": "tf_sales",
         "select": [{"type": "dimension", "path": "secret", "alias": "secret"}],
         "windows": [{
             "function": {"type": "row_number"},

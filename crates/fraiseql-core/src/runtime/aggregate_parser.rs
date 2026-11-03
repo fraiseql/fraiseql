@@ -60,6 +60,18 @@ use crate::{
     error::{FraiseQLError, Result},
 };
 
+/// The refusal of a `table` argument, inline or as a variable: an aggregate or window root
+/// names its fact table, so the argument is no longer read (#1800).
+pub fn table_argument_refusal(table_name: &str) -> FraiseQLError {
+    FraiseQLError::Validation {
+        message: format!(
+            "`table` is no longer an argument: the root reads fact table `{table_name}`; \
+             remove it"
+        ),
+        path:    Some("table".to_string()),
+    }
+}
+
 /// Aggregate query parser
 pub struct AggregateQueryParser;
 
@@ -69,7 +81,6 @@ impl AggregateQueryParser {
     /// For we'll accept a JSON structure that represents the query:
     /// ```json
     /// {
-    ///   "table": "tf_sales",
     ///   "groupBy": {
     ///     "category": true,
     ///     "occurred_at_day": true
@@ -101,15 +112,11 @@ impl AggregateQueryParser {
         metadata: &FactTableMetadata,
         native_columns: &std::collections::HashMap<String, String>,
     ) -> Result<AggregationRequest> {
-        // Extract table name
-        let table_name = query_json
-            .get("table")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| FraiseQLError::Validation {
-                message: "Missing 'table' field in aggregate query".to_string(),
-                path:    None,
-            })?
-            .to_string();
+        // The root names its fact table: a `table` key is refused, not checked.
+        if query_json.get("table").is_some() {
+            return Err(table_argument_refusal(&metadata.table_name));
+        }
+        let table_name = metadata.table_name.clone();
 
         // Parse WHERE clause (if present)
         let where_clause = if let Some(where_obj) = query_json.get("where") {
@@ -923,7 +930,6 @@ mod alias_injection_tests {
         // `dimensions.paths` empty the compiler allowlist never fires, so parse-
         // time validation must reject this on its own.
         let query = serde_json::json!({
-            "table": "tf_sales",
             "groupBy": {
                 "a, (SELECT string_agg(rolpassword, ',') FROM pg_authid) AS leak": true
             }
@@ -936,7 +942,6 @@ mod alias_injection_tests {
     #[test]
     fn parse_accepts_plain_group_by_key() {
         let query = serde_json::json!({
-            "table": "tf_sales",
             "groupBy": { "category": true }
         });
         let req = AggregateQueryParser::parse(&query, &empty_metadata(), &HashMap::new())
@@ -951,7 +956,6 @@ mod alias_injection_tests {
         // alias stays the camel surface name because `AggregationProjector` uses it
         // verbatim as the GraphQL response key (#418/#410 "output key is the alias").
         let query = serde_json::json!({
-            "table": "tf_sales",
             "groupBy": { "machineStatus": true }
         });
         let req = AggregateQueryParser::parse(&query, &empty_metadata(), &HashMap::new())

@@ -168,7 +168,6 @@ async fn window_measure_alias_cannot_exfiltrate_pg_authid() {
     let body = json!({
         "query": "{ injprobe_window { rank } }",
         "variables": {
-            "table":  FACT_TABLE,
             "select": [{
                 "type":  "measure",
                 "name":  "revenue",
@@ -198,7 +197,6 @@ async fn window_dimension_path_cannot_break_out_of_the_jsonb_key() {
     let body = json!({
         "query": "{ injprobe_window { rank } }",
         "variables": {
-            "table":  FACT_TABLE,
             "select": [{
                 "type":  "dimension",
                 "path":  "category'||(SELECT rolname FROM pg_authid LIMIT 1)||'",
@@ -228,7 +226,6 @@ async fn window_function_alias_cannot_exfiltrate_the_current_user() {
     let body = json!({
         "query": "{ injprobe_window { rank } }",
         "variables": {
-            "table":   FACT_TABLE,
             "select":  [],
             "windows": [{
                 "function": {"type": "row_number"},
@@ -251,7 +248,6 @@ async fn window_partition_by_path_cannot_break_out_of_the_jsonb_key() {
     let body = json!({
         "query": "{ injprobe_window { rank } }",
         "variables": {
-            "table":   FACT_TABLE,
             "select":  [],
             "windows": [{
                 "function":    {"type": "row_number"},
@@ -350,7 +346,6 @@ async fn a_legitimate_window_query_still_succeeds_over_http() {
     let body = json!({
         "query": "{ injprobe_window { rank } }",
         "variables": {
-            "table":   FACT_TABLE,
             "select":  [
                 {"type": "measure",   "name": "revenue",  "alias": "revenue"},
                 {"type": "dimension", "path": "category", "alias": "category"}

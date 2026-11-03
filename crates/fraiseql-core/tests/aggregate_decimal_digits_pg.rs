@@ -99,8 +99,7 @@ async fn computed(adapter: &PostgresAdapter, table: &str, expr: &str) -> String 
     rows[0]["v"].as_str().unwrap().to_string()
 }
 
-async fn groups(adapter: PostgresAdapter, table: &str, mut request: Value) -> Vec<Value> {
-    request["table"] = json!(table);
+async fn groups(adapter: PostgresAdapter, table: &str, request: Value) -> Vec<Value> {
     let executor = Executor::new(CompiledSchema::new(), Arc::new(adapter));
     let response = executor
         .execute_aggregate_query(&request, "decimal_digits_sales_aggregate", &fact_table(table))
@@ -186,7 +185,6 @@ async fn a_window_over_a_decimal_measure_keeps_every_digit() {
         })
     };
     let request = json!({
-        "table": table,
         "select": [
             { "type": "filter", "name": "id", "alias": "id" },
             { "type": "measure", "name": "amount", "alias": "amount" },
@@ -274,7 +272,6 @@ async fn a_carried_forward_decimal_balance_keeps_every_digit() {
     let response = executor
         .execute_aggregate_query(
             &json!({
-                "table": table,
                 "where": { "day_gte": "2026-01-01", "day_lt": "2026-03-01" },
                 "groupBy": { "day_month": true },
                 "aggregates": [{ "balance_sum": {} }],

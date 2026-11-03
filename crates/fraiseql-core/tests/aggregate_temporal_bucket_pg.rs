@@ -141,7 +141,6 @@ async fn keys(
         json!({ column: grain })
     };
     let request = json!({
-        "table": TABLE,
         "groupBy": group_by,
         "aggregates": [{ measure: {} }],
         "orderBy": { alias.clone(): "ASC" },

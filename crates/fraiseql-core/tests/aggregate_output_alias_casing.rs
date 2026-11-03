@@ -120,7 +120,7 @@ async fn a_camel_case_jsonb_dimension_answers_under_its_requested_key() {
     let rows = aggregate(
         &executor,
         &metadata(&[]),
-        json!({ "table": TABLE, "groupBy": { "itemCategory": true },
+        json!({ "groupBy": { "itemCategory": true },
                 "aggregates": [{ "revenue_sum": {} }] }),
     )
     .await;
@@ -133,7 +133,7 @@ async fn a_camel_case_mapped_dimension_answers_under_its_requested_key() {
     let rows = aggregate(
         &executor,
         &metadata(&[("itemCategory", "category_id")]),
-        json!({ "table": TABLE, "groupBy": { "itemCategory": true },
+        json!({ "groupBy": { "itemCategory": true },
                 "aggregates": [{ "revenue_sum": {} }] }),
     )
     .await;
@@ -149,7 +149,7 @@ async fn a_camel_case_dimension_can_be_ordered_by_its_alias() {
         let rows = aggregate(
             &executor,
             &metadata(&[]),
-            json!({ "table": TABLE, "groupBy": { "itemCategory": true },
+            json!({ "groupBy": { "itemCategory": true },
                     "aggregates": [{ "revenue_sum": {} }],
                     "orderBy": { "itemCategory": direction } }),
         )
@@ -173,7 +173,6 @@ async fn window_aliases_answer_under_their_requested_keys() {
     let response = executor
         .execute_window_query(
             &json!({
-                "table": TABLE,
                 "select": [
                     { "type": "dimension", "path": "item_category", "alias": "itemCategory" },
                     { "type": "measure", "name": "revenue", "alias": "dailyRevenue" }

@@ -24,7 +24,6 @@
 //!
 //! ```json
 //! {
-//!   "table": "tf_sales",
 //!   "select": [
 //!     {"type": "measure", "name": "revenue", "alias": "revenue"},
 //!     {"type": "dimension", "path": "category", "alias": "category"}
@@ -80,15 +79,13 @@ impl WindowQueryParser {
     ///
     /// Returns error if the query structure is invalid.
     pub fn parse(query_json: &Value, metadata: &FactTableMetadata) -> Result<WindowRequest> {
-        // Extract table name
-        let table_name = query_json
-            .get("table")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| FraiseQLError::Validation {
-                message: "Missing 'table' field in window query".to_string(),
-                path:    None,
-            })?
-            .to_string();
+        // The root names its fact table: a `table` key is refused, not checked.
+        if query_json.get("table").is_some() {
+            return Err(crate::runtime::aggregate_parser::table_argument_refusal(
+                &metadata.table_name,
+            ));
+        }
+        let table_name = metadata.table_name.clone();
 
         // Parse SELECT columns
         let select = if let Some(select_array) = query_json.get("select") {

@@ -71,7 +71,6 @@ async fn a_having_bound_against_a_sum_of_integers_keeps_the_groups_over_it() {
     let response = executor
         .execute_aggregate_query(
             &json!({
-                "table": TABLE,
                 "groupBy": { "region": true },
                 "aggregates": [{ "qty_sum": {} }],
                 "having": { "qty_sum_gt": 1 },

@@ -95,9 +95,9 @@ async fn an_aggregate_takes_its_arguments_inline_or_as_variables_alike() {
 
     let inline = executor
         .execute(
-            r#"{ inline_sale_aggregate(table: "tf_inline_sale", groupBy: {region: true},
+            r"{ inline_sale_aggregate(groupBy: {region: true},
                  aggregates: [{qty_sum: {}}], having: {qty_sum_gt: 1},
-                 orderBy: {qty_sum: DESC, region: DESC}, limit: 2) { region qty_sum } }"#,
+                 orderBy: {qty_sum: DESC, region: DESC}, limit: 2) { region qty_sum } }",
             None,
         )
         .await
@@ -106,7 +106,7 @@ async fn an_aggregate_takes_its_arguments_inline_or_as_variables_alike() {
         .execute(
             "{ inline_sale_aggregate { region qty_sum } }",
             Some(&json!({
-                "table": TABLE, "groupBy": {"region": true}, "aggregates": [{"qty_sum": {}}],
+                "groupBy": {"region": true}, "aggregates": [{"qty_sum": {}}],
                 "having": {"qty_sum_gt": 1}, "orderBy": {"qty_sum": "DESC", "region": "DESC"},
                 "limit": 2
             })),
@@ -116,8 +116,8 @@ async fn an_aggregate_takes_its_arguments_inline_or_as_variables_alike() {
     // The written key order decides: region first sorts the groups by region alone.
     let region_first = executor
         .execute(
-            r#"{ inline_sale_aggregate(table: "tf_inline_sale", groupBy: {region: true},
-                 aggregates: [{qty_sum: {}}], orderBy: {region: ASC, qty_sum: DESC}) { region } }"#,
+            r"{ inline_sale_aggregate(groupBy: {region: true},
+                 aggregates: [{qty_sum: {}}], orderBy: {region: ASC, qty_sum: DESC}) { region } }",
             None,
         )
         .await
@@ -142,8 +142,8 @@ async fn a_variable_wins_over_the_same_argument_written_inline() {
 
     let response = executor
         .execute(
-            r#"{ inline_sale_aggregate(table: "tf_inline_sale", groupBy: {region: true},
-                 aggregates: [{count: {}}], orderBy: {region: ASC}, limit: 3) { region } }"#,
+            r"{ inline_sale_aggregate(groupBy: {region: true},
+                 aggregates: [{count: {}}], orderBy: {region: ASC}, limit: 3) { region } }",
             Some(&json!({ "limit": 1 })),
         )
         .await
@@ -160,8 +160,8 @@ async fn an_argument_no_parser_reads_is_refused_naming_it() {
 
     let err = executor
         .execute(
-            r#"{ inline_sale_aggregate(table: "tf_inline_sale", aggregates: [{count: {}}],
-                 limt: 1) { count } }"#,
+            r"{ inline_sale_aggregate(aggregates: [{count: {}}],
+                 limt: 1) { count } }",
             None,
         )
         .await
@@ -179,8 +179,7 @@ async fn a_window_takes_its_arguments_inline_or_as_variables_alike() {
 
     let inline = executor
         .execute(
-            r#"{ inline_sale_window(table: "tf_inline_sale",
-                 select: [{type: "dimension", path: "region", alias: "region"}],
+            r#"{ inline_sale_window(                 select: [{type: "dimension", path: "region", alias: "region"}],
                  windows: [{function: {type: "row_number"}, alias: "position"}],
                  orderBy: [{field: "region", direction: "DESC"}], limit: 2) { region } }"#,
             None,
@@ -191,7 +190,6 @@ async fn a_window_takes_its_arguments_inline_or_as_variables_alike() {
         .execute(
             "{ inline_sale_window { region } }",
             Some(&json!({
-                "table": TABLE,
                 "select": [{"type": "dimension", "path": "region", "alias": "region"}],
                 "windows": [{"function": {"type": "row_number"}, "alias": "position"}],
                 "orderBy": [{"field": "region", "direction": "DESC"}],

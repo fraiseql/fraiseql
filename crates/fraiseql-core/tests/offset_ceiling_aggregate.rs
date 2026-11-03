@@ -97,9 +97,8 @@ async fn an_aggregate_offset_past_the_ceiling_is_refused_before_any_statement() 
         eprintln!("skipping #1306: DATABASE_URL not set");
         return;
     };
-    let query = |table: &str, offset: u32| {
+    let query = |offset: u32| {
         json!({
-            "table": table,
             "groupBy": { "region": true },
             "aggregates": [{ "count": {} }],
             "orderBy": { "region": "ASC" },
@@ -107,13 +106,13 @@ async fn an_aggregate_offset_past_the_ceiling_is_refused_before_any_statement() 
         })
     };
     let served = executor
-        .execute_aggregate_query(&query(SALE, 2), "sales_aggregate", &fact_table(SALE))
+        .execute_aggregate_query(&query(2), "sales_aggregate", &fact_table(SALE))
         .await
         .unwrap();
     assert_eq!(regions(&served, "sales_aggregate"), vec![json!("r3"), json!("r4")]);
 
     let err = executor
-        .execute_aggregate_query(&query(BOOM, 3), "booms_aggregate", &fact_table(BOOM))
+        .execute_aggregate_query(&query(3), "booms_aggregate", &fact_table(BOOM))
         .await
         .expect_err("refused")
         .to_string();
@@ -125,9 +124,8 @@ async fn a_window_offset_past_the_ceiling_is_refused_before_any_statement() {
     let Some(executor) = executor().await else {
         return;
     };
-    let query = |table: &str, offset: u32| {
+    let query = |offset: u32| {
         json!({
-            "table": table,
             "select": [{ "type": "dimension", "path": "region", "alias": "region" }],
             "windows": [{ "function": { "type": "row_number" }, "alias": "position" }],
             "orderBy": [{ "field": "region", "direction": "ASC" }],
@@ -135,13 +133,13 @@ async fn a_window_offset_past_the_ceiling_is_refused_before_any_statement() {
         })
     };
     let served = executor
-        .execute_window_query(&query(SALE, 2), "sales_window", &fact_table(SALE))
+        .execute_window_query(&query(2), "sales_window", &fact_table(SALE))
         .await
         .unwrap();
     assert_eq!(regions(&served, "sales_window"), vec![json!("r3"), json!("r4")]);
 
     let err = executor
-        .execute_window_query(&query(BOOM, 3), "booms_window", &fact_table(BOOM))
+        .execute_window_query(&query(3), "booms_window", &fact_table(BOOM))
         .await
         .expect_err("refused")
         .to_string();

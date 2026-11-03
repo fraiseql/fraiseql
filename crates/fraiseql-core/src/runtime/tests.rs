@@ -71,7 +71,6 @@ mod aggregate_parser_tests {
     fn test_parse_simple_count() {
         let metadata = create_test_metadata();
         let query = json!({
-            "table": "tf_sales",
             "aggregates": [
                 {"count": {}}
             ]
@@ -90,7 +89,6 @@ mod aggregate_parser_tests {
     fn test_parse_group_by_dimension() {
         let metadata = create_test_metadata();
         let query = json!({
-            "table": "tf_sales",
             "groupBy": {
                 "category": true
             },
@@ -117,7 +115,6 @@ mod aggregate_parser_tests {
     fn test_parse_temporal_bucket() {
         let metadata = create_test_metadata();
         let query = json!({
-            "table": "tf_sales",
             "groupBy": {
                 "occurred_at_day": true
             },
@@ -149,7 +146,6 @@ mod aggregate_parser_tests {
     fn test_parse_multiple_aggregates() {
         let metadata = create_test_metadata();
         let query = json!({
-            "table": "tf_sales",
             "aggregates": [
                 {"count": {}},
                 {"revenue_sum": {}},
@@ -173,7 +169,6 @@ mod aggregate_parser_tests {
     fn test_parse_having_condition() {
         let metadata = create_test_metadata();
         let query = json!({
-            "table": "tf_sales",
             "aggregates": [
                 {"revenue_sum": {}}
             ],
@@ -195,7 +190,6 @@ mod aggregate_parser_tests {
     fn test_parse_order_by() {
         let metadata = create_test_metadata();
         let query = json!({
-            "table": "tf_sales",
             "aggregates": [
                 {"revenue_sum": {}}
             ],
@@ -217,7 +211,6 @@ mod aggregate_parser_tests {
     fn test_parse_limit_offset() {
         let metadata = create_test_metadata();
         let query = json!({
-            "table": "tf_sales",
             "aggregates": [
                 {"count": {}}
             ],
@@ -237,7 +230,6 @@ mod aggregate_parser_tests {
     fn test_parse_complex_query() {
         let metadata = create_test_metadata();
         let query = json!({
-            "table": "tf_sales",
             "groupBy": {
                 "category": true,
                 "occurred_at_month": true
@@ -275,7 +267,6 @@ mod aggregate_parser_tests {
     fn test_parse_count_distinct_default() {
         let metadata = create_test_metadata();
         let query = json!({
-            "table": "tf_sales",
             "aggregates": [
                 {"count_distinct": {}}
             ]
@@ -300,7 +291,6 @@ mod aggregate_parser_tests {
     fn test_parse_count_distinct_with_field() {
         let metadata = create_test_metadata();
         let query = json!({
-            "table": "tf_sales",
             "aggregates": [
                 {"product_count_distinct": {}}
             ]
@@ -324,7 +314,6 @@ mod aggregate_parser_tests {
     fn test_parse_count_distinct_on_measure() {
         let metadata = create_test_metadata();
         let query = json!({
-            "table": "tf_sales",
             "aggregates": [
                 {"revenue_count_distinct": {}}
             ]
@@ -348,7 +337,6 @@ mod aggregate_parser_tests {
     fn test_parse_count_distinct_invalid_field() {
         let metadata = create_test_metadata();
         let query = json!({
-            "table": "tf_sales",
             "aggregates": [
                 {"nonexistent_count_distinct": {}}
             ]
@@ -373,7 +361,6 @@ mod aggregate_parser_tests {
     fn test_parse_multiple_count_distinct() {
         let metadata = create_test_metadata();
         let query = json!({
-            "table": "tf_sales",
             "aggregates": [
                 {"count": {}},
                 {"category_count_distinct": {}},
@@ -414,7 +401,6 @@ mod aggregate_parser_tests {
         };
 
         let query = json!({
-            "table": "mv_daily_sales",
             "aggregates": [
                 {"measures.volume_sum": {}}
             ]
@@ -461,7 +447,6 @@ mod aggregate_parser_tests {
         };
 
         let query = json!({
-            "table": "mv_daily_sales",
             "groupBy": {"dimensions.category.id": true},
             "aggregates": [{"count": {}}]
         });
@@ -506,7 +491,6 @@ mod aggregate_parser_tests {
 
         // Query selects only an aggregate, NOT the mapped dimension
         let query = json!({
-            "table": "mv_daily_sales",
             "aggregates": [{"volume_sum": {}}]
         });
 
@@ -4778,7 +4762,6 @@ mod window_parser_tests {
     fn test_parse_simple_window_query() {
         let metadata = create_test_metadata();
         let query = json!({
-            "table": "tf_sales",
             "select": [
                 {"type": "measure", "name": "revenue", "alias": "revenue"}
             ],
@@ -4805,7 +4788,6 @@ mod window_parser_tests {
     fn test_parse_running_sum() {
         let metadata = create_test_metadata();
         let query = json!({
-            "table": "tf_sales",
             "select": [],
             "windows": [
                 {
@@ -4837,7 +4819,6 @@ mod window_parser_tests {
     fn test_parse_lag_function() {
         let metadata = create_test_metadata();
         let query = json!({
-            "table": "tf_sales",
             "windows": [
                 {
                     "function": {"type": "lag", "field": "revenue", "offset": 1, "default": 0},
@@ -4867,7 +4848,6 @@ mod window_parser_tests {
     fn test_parse_ntile_function() {
         let metadata = create_test_metadata();
         let query = json!({
-            "table": "tf_sales",
             "windows": [
                 {
                     "function": {"type": "ntile", "n": 4},
@@ -4891,7 +4871,6 @@ mod window_parser_tests {
     fn test_parse_select_columns() {
         let metadata = create_test_metadata();
         let query = json!({
-            "table": "tf_sales",
             "select": [
                 {"type": "measure", "name": "revenue", "alias": "rev"},
                 {"type": "dimension", "path": "category", "alias": "cat"},
@@ -4920,7 +4899,6 @@ mod window_parser_tests {
     fn test_parse_partition_by() {
         let metadata = create_test_metadata();
         let query = json!({
-            "table": "tf_sales",
             "windows": [
                 {
                     "function": {"type": "row_number"},
@@ -4951,7 +4929,6 @@ mod window_parser_tests {
     fn test_parse_limit_offset() {
         let metadata = create_test_metadata();
         let query = json!({
-            "table": "tf_sales",
             "limit": 100,
             "offset": 50
         });
@@ -4966,7 +4943,6 @@ mod window_parser_tests {
     fn test_parse_final_order_by() {
         let metadata = create_test_metadata();
         let query = json!({
-            "table": "tf_sales",
             "orderBy": [
                 {"field": "revenue", "direction": "DESC"},
                 {"field": "occurred_at", "direction": "ASC"}
@@ -4986,7 +4962,6 @@ mod window_parser_tests {
     fn test_parse_complex_window_query() {
         let metadata = create_test_metadata();
         let query = json!({
-            "table": "tf_sales",
             "select": [
                 {"type": "measure", "name": "revenue", "alias": "revenue"},
                 {"type": "dimension", "path": "category", "alias": "category"}
@@ -5032,24 +5007,24 @@ mod window_parser_tests {
         assert_eq!(request.limit, Some(100));
     }
 
+    /// The root names its fact table, so a request carries no `table`: it reads the table the
+    /// metadata names (#1800).
     #[test]
-    fn test_parse_error_missing_table() {
+    fn a_request_reads_the_fact_table_its_metadata_names() {
         let metadata = create_test_metadata();
         let query = json!({
             "select": [],
             "windows": []
         });
 
-        let result = WindowQueryParser::parse(&query, &metadata);
-        let err = result.expect_err("expected Err for missing table field");
-        assert!(err.to_string().contains("table"), "unexpected error message: {err}");
+        let request = WindowQueryParser::parse(&query, &metadata).unwrap();
+        assert_eq!(request.table_name, metadata.table_name);
     }
 
     #[test]
     fn test_parse_error_invalid_function_type() {
         let metadata = create_test_metadata();
         let query = json!({
-            "table": "tf_sales",
             "windows": [
                 {
                     "function": {"type": "invalid_function"},
@@ -5065,7 +5040,6 @@ mod window_parser_tests {
 
     fn window_where(key: &str, value: &serde_json::Value) -> crate::Result<WindowRequest> {
         let query = json!({
-            "table": "tf_sales",
             "where": { key: value },
             "windows": [{ "function": {"type": "row_number"}, "alias": "rank",
                           "orderBy": [{"field": "revenue"}] }]

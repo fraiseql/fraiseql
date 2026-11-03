@@ -444,15 +444,13 @@ impl AggregationPlanner {
         metadata: FactTableMetadata,
     ) -> Result<AggregationPlan> {
         // SECURITY (#795): the relation is determined by the GraphQL root field, which
-        // already resolved `metadata`. The request's `table` key was a second, unchecked
-        // channel selecting the same thing, so it could name any relation — or a whole
-        // subquery — and the RLS policy, looked up by that same name
-        // (`runners/aggregate.rs` `policy.evaluate(ctx, &request.table_name)`), returned
-        // `None` for an unpolicied table and composed no WHERE clause at all.
+        // already resolved `metadata`. The parser fills `table_name` from it and refuses a
+        // `table` key; a request built by hand is still held to the same table, since
+        // a second channel naming the relation could name any relation, or a subquery.
         if request.table_name != metadata.table_name {
             return Err(FraiseQLError::Validation {
                 message: format!(
-                    "aggregate query 'table' ({}) does not match the fact table resolved from \
+                    "aggregate request table ({}) does not match the fact table resolved from \
                      the query field ({}); the relation is determined by the schema, not the \
                      request",
                     request.table_name, metadata.table_name

@@ -769,7 +769,7 @@ impl Executor {
             )?;
         }
         self.aggregate_runner()
-            .execute_aggregate_query(query_json, query_name, metadata, None)
+            .execute_aggregate_query(query_json, query_name, query_name, metadata, None)
             .await
     }
 
@@ -802,7 +802,7 @@ impl Executor {
             )?;
         }
         self.aggregate_runner()
-            .execute_window_query(query_json, query_name, metadata, None)
+            .execute_window_query(query_json, query_name, query_name, metadata, None)
             .await
     }
 

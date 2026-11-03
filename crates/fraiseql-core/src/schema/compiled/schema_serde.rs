@@ -655,6 +655,17 @@ impl CompiledSchema {
                 path:    Some("security.requires_scope".to_string()),
             });
         }
+        // Every fact table's roots reach it, and no declared query answers to one.
+        let violations = self.fact_table_root_violations();
+        if !violations.is_empty() {
+            return Err(FraiseQLError::Validation {
+                message: format!(
+                    "fact table roots cannot be reached:\n  - {}",
+                    violations.join("\n  - ")
+                ),
+                path:    Some("fact_tables".to_string()),
+            });
+        }
         let violations = self.fact_table_link_violations();
         if !violations.is_empty() {
             return Err(FraiseQLError::Validation {

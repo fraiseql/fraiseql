@@ -263,15 +263,14 @@ async fn post_graphql(base: &str, token: Option<&str>, body: &Value) -> Value {
 
 /// Count per tenant, grouped by the fact table's `tenant_id` column.
 fn aggregate_body() -> Value {
-    aggregate_body_over("tenant_probe", FACT_TABLE)
+    aggregate_body_over("tenant_probe")
 }
 
-/// [`aggregate_body`] over the root `{root}_aggregate` and its fact table.
-fn aggregate_body_over(root: &str, table: &str) -> Value {
+/// [`aggregate_body`] over the root `{root}_aggregate`.
+fn aggregate_body_over(root: &str) -> Value {
     json!({
         "query": format!("{{ {root}_aggregate {{ count }} }}"),
         "variables": {
-            "table":      table,
             "groupBy":    {"tenant_id": true},
             "aggregates": [{"count": {}}]
         }
@@ -280,15 +279,14 @@ fn aggregate_body_over(root: &str, table: &str) -> Value {
 
 /// Every row's `tenant_id`, numbered.
 fn window_body() -> Value {
-    window_body_over("tenant_probe", FACT_TABLE)
+    window_body_over("tenant_probe")
 }
 
-/// [`window_body`] over the root `{root}_window` and its fact table.
-fn window_body_over(root: &str, table: &str) -> Value {
+/// [`window_body`] over the root `{root}_window`.
+fn window_body_over(root: &str) -> Value {
     json!({
         "query": format!("{{ {root}_window {{ rank }} }}"),
         "variables": {
-            "table":   table,
             "select":  [{"type": "filter", "name": "tenant_id", "alias": "tenant_id"}],
             "windows": [{"function": {"type": "row_number"}, "alias": "rank"}]
         }
@@ -412,7 +410,7 @@ async fn a_relation_scoped_aggregate_reads_exactly_the_callers_tenant() {
             return;
         };
         assert_eq!(rows_in_the_table(TENANT_A).await, 2, "tenant A's rows must be present");
-        let body = aggregate_body_over("tenant_probe_scoped", SCOPED_FACT_TABLE);
+        let body = aggregate_body_over("tenant_probe_scoped");
         let response = post_graphql(&server.url, Some(&token_for(TENANT_B)), &body).await;
         assert_eq!(
             response["data"]["tenant_probe_scoped_aggregate"],
@@ -432,7 +430,7 @@ async fn a_relation_scoped_window_reads_exactly_the_callers_tenant() {
             return;
         };
         assert_eq!(rows_in_the_table(TENANT_A).await, 2, "tenant A's rows must be present");
-        let body = window_body_over("tenant_probe_scoped", SCOPED_FACT_TABLE);
+        let body = window_body_over("tenant_probe_scoped");
         let response = post_graphql(&server.url, Some(&token_for(TENANT_B)), &body).await;
         let rows = response["data"]["tenant_probe_scoped_window"]
             .as_array()
@@ -453,7 +451,7 @@ async fn an_anonymous_relation_scoped_aggregate_reads_no_rows() {
             eprintln!("skipping: DATABASE_URL not set");
             return;
         };
-        let body = aggregate_body_over("tenant_probe_scoped", SCOPED_FACT_TABLE);
+        let body = aggregate_body_over("tenant_probe_scoped");
         let response = post_graphql(&server.url, None, &body).await;
         assert_eq!(response["data"]["tenant_probe_scoped_aggregate"], json!([]), "{response}");
     }))

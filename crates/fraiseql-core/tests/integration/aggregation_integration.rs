@@ -106,7 +106,6 @@ fn create_test_metadata() -> FactTableMetadata {
 fn test_parse_simple_aggregate_query() {
     let metadata = create_test_metadata();
     let query = json!({
-        "table": "tf_sales",
         "aggregates": [
             {"count": {}}
         ]
@@ -124,7 +123,6 @@ fn test_parse_simple_aggregate_query() {
 fn test_parse_group_by_with_aggregates() {
     let metadata = create_test_metadata();
     let query = json!({
-        "table": "tf_sales",
         "groupBy": {
             "category": true,
             "occurred_at_day": true
@@ -343,7 +341,6 @@ async fn test_end_to_end_aggregate_query() {
 
     // Create aggregate query
     let query_json = json!({
-        "table": "tf_sales",
         "groupBy": {
             "category": true
         },

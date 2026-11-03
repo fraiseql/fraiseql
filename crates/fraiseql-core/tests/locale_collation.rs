@@ -302,7 +302,6 @@ async fn an_aggregate_ordered_by_a_text_dimension_sorts_in_the_request_locale() 
         return;
     };
     let query = serde_json::json!({
-        "table": VIEW,
         "groupBy": { "word": true },
         "aggregates": [{ "count": {} }],
         "orderBy": { "word": "ASC" }
@@ -329,7 +328,6 @@ async fn a_window_ordered_by_a_text_dimension_sorts_in_the_request_locale() {
         return;
     };
     let query = serde_json::json!({
-        "table": VIEW,
         "select": [{ "type": "dimension", "path": "word", "alias": "word" }],
         "windows": [{
             "function": { "type": "row_number" },

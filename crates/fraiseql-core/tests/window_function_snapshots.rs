@@ -49,7 +49,6 @@ mod row_number {
 
     fn query() -> serde_json::Value {
         json!({
-            "table": "tf_sales",
             "select": [
                 {"type": "measure", "name": "revenue", "alias": "revenue"},
                 {"type": "dimension", "path": "category", "alias": "category"}
@@ -78,7 +77,6 @@ mod rank {
 
     fn query() -> serde_json::Value {
         json!({
-            "table": "tf_sales",
             "select": [{"type": "measure", "name": "revenue", "alias": "revenue"}],
             "windows": [{
                 "function": {"type": "rank"},
@@ -104,7 +102,6 @@ mod dense_rank {
 
     fn query() -> serde_json::Value {
         json!({
-            "table": "tf_sales",
             "select": [{"type": "measure", "name": "revenue", "alias": "revenue"}],
             "windows": [{
                 "function": {"type": "dense_rank"},
@@ -130,7 +127,6 @@ mod lag {
 
     fn query() -> serde_json::Value {
         json!({
-            "table": "tf_sales",
             "select": [
                 {"type": "filter", "name": "occurred_at", "alias": "occurred_at"},
                 {"type": "measure", "name": "revenue", "alias": "revenue"}
@@ -164,7 +160,6 @@ mod lead {
 
     fn query() -> serde_json::Value {
         json!({
-            "table": "tf_sales",
             "select": [
                 {"type": "filter", "name": "occurred_at", "alias": "occurred_at"},
                 {"type": "measure", "name": "revenue", "alias": "revenue"}
@@ -198,7 +193,6 @@ mod cumulative_sum {
 
     fn query() -> serde_json::Value {
         json!({
-            "table": "tf_sales",
             "select": [
                 {"type": "filter", "name": "occurred_at", "alias": "occurred_at"},
                 {"type": "measure", "name": "revenue", "alias": "revenue"}
@@ -232,7 +226,6 @@ mod moving_average {
 
     fn query() -> serde_json::Value {
         json!({
-            "table": "tf_sales",
             "select": [
                 {"type": "filter", "name": "occurred_at", "alias": "occurred_at"},
                 {"type": "measure", "name": "revenue", "alias": "revenue"}
@@ -267,7 +260,6 @@ mod multiple_windows {
     #[test]
     fn postgres() {
         let query = json!({
-            "table": "tf_sales",
             "select": [
                 {"type": "filter", "name": "occurred_at", "alias": "occurred_at"},
                 {"type": "measure", "name": "revenue", "alias": "revenue"},
@@ -313,7 +305,6 @@ mod last_value {
     #[test]
     fn postgres() {
         let query = json!({
-            "table": "tf_sales",
             "select": [
                 {"type": "filter", "name": "occurred_at", "alias": "occurred_at"},
                 {"type": "measure", "name": "revenue", "alias": "revenue"}
@@ -344,7 +335,6 @@ mod ntile {
     #[test]
     fn postgres() {
         let query = json!({
-            "table": "tf_sales",
             "select": [{"type": "measure", "name": "revenue", "alias": "revenue"}],
             "windows": [{
                 "function": {"type": "ntile", "n": 4},
@@ -366,7 +356,6 @@ mod stddev_variance {
 
     fn stddev_query() -> serde_json::Value {
         json!({
-            "table": "tf_sales",
             "select": [{"type": "measure", "name": "revenue", "alias": "revenue"}],
             "windows": [{
                 "function": {"type": "running_stddev", "measure": "revenue"},
@@ -379,7 +368,6 @@ mod stddev_variance {
 
     fn variance_query() -> serde_json::Value {
         json!({
-            "table": "tf_sales",
             "select": [{"type": "measure", "name": "revenue", "alias": "revenue"}],
             "windows": [{
                 "function": {"type": "running_variance", "measure": "revenue"},
@@ -413,7 +401,6 @@ mod frame_exclusion {
     #[test]
     fn exclude_current_row_postgres() {
         let query = json!({
-            "table": "tf_sales",
             "select": [
                 {"type": "filter", "name": "occurred_at", "alias": "occurred_at"},
                 {"type": "measure", "name": "revenue", "alias": "revenue"}
@@ -445,7 +432,6 @@ mod with_limit_offset {
     #[test]
     fn postgres() {
         let query = json!({
-            "table": "tf_sales",
             "select": [{"type": "measure", "name": "revenue", "alias": "revenue"}],
             "windows": [{
                 "function": {"type": "row_number"},
@@ -474,7 +460,6 @@ mod filtered {
     #[test]
     fn postgres() {
         let query = json!({
-            "table": "tf_sales",
             "select": [
                 {"type": "filter", "name": "occurred_at", "alias": "occurred_at"},
                 {"type": "measure", "name": "revenue", "alias": "revenue"}

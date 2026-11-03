@@ -132,6 +132,40 @@ disagreed, and the promise was the part that was wrong.
   default are unchanged. The pipeline was the only FraiseQL writer that could open a
   transaction above `READ COMMITTED`; no configuration key or SDK took the level.
 
+- **An aggregate or window root no longer takes a `table` argument (#1800).** The root names
+  its fact table (`sales_aggregate` reads `tf_sales`), and since #795 the argument could only
+  repeat that name. It is now refused, written inline or sent as a variable named `table`,
+  and in the request JSON of `Executor::execute_aggregate_query` and
+  `execute_window_query`, before any SQL runs:
+
+  ```text
+  `table` is no longer an argument: the root reads fact table `tf_sales`; remove it
+  ```
+
+  Remove the argument; the request is otherwise unchanged.
+
+- **A document holding an aggregate or window root beside any other root is refused
+  (#1800).** The runner answered the first root only and silently dropped the others:
+  `{ sales_aggregate(...) orders { id } }` returned no `orders` and no error, and
+  `{ orders { id } sales_aggregate(...) }` failed with an unknown-query error. Both are now
+  refused before any SQL runs, naming the roots:
+
+  ```text
+  `sales_aggregate` must be the only root of its document; it was sent with `orders`: send each in its own request
+  ```
+
+  Send such a root in its own request. Executing several roots together is #1925.
+
+- **A compiled schema whose fact-table roots cannot be reached no longer loads (#1800).**
+  The server refuses it at boot, and `fraiseql compile` refuses it, naming each case:
+  - a declared query named `<name>_aggregate` or `<name>_window`, which the dispatch routes
+    to a fact table, so the query was never reached;
+  - a fact table not named `tf_<name>`, which no root reaches;
+  - a fact table registered under one name whose `table_name` is another, whose roots read
+    that other table.
+
+  Rename it and recompile.
+
 ### Added
 
 - **A mutation's transaction can run again when PostgreSQL aborts it with `40P01` (deadlock)
@@ -244,6 +278,11 @@ disagreed, and the promise was the part that was wrong.
   at random in `integration (postgres)`, and a run at 200 000 cases failed within 1.4 s. Its
   names now come from `hash_set`, as the two count properties' names have since #1367. A
   sweep of every property test found no other copy.
+
+- **An aliased aggregate or window root answers under its alias (#1800).**
+  `{ totals: sales_aggregate(...) }` answered under `sales_aggregate`, so a client reading
+  `data.totals` found nothing. The response is now keyed by the alias, as for every other
+  field.
 
 - **The published SDL keeps input-field default values (#1888).** The SDL (`_service {
   sdl }` and the one a gateway composes) dropped every input-field default, so a non-null

@@ -103,7 +103,6 @@ async fn executor() -> Executor {
 /// two, so the total names exactly which rows were aggregated.
 async fn revenue(executor: &Executor, filter: Value) -> f64 {
     let query = json!({
-        "table": TABLE,
         "where": filter,
         "aggregates": [{ "revenue_sum": {} }],
     });

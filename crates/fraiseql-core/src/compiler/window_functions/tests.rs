@@ -108,7 +108,6 @@ fn test_frame_boundary_n_preceding() {
 fn test_parse_row_number_query() {
     let metadata = create_test_metadata();
     let query = serde_json::json!({
-        "table": "tf_sales",
         "select": [{"type": "measure", "name": "revenue", "alias": "revenue"}],
         "windows": [{
             "function": {"type": "row_number"},
@@ -130,7 +129,6 @@ fn test_parse_row_number_query() {
 fn test_parse_lag_function() {
     let metadata = create_test_metadata();
     let query = serde_json::json!({
-        "table": "tf_sales",
         "windows": [{
             "function": {
                 "type": "lag",
@@ -576,7 +574,6 @@ mod live_path_injection {
     #[test]
     fn measure_alias_cannot_smuggle_a_subquery() {
         let variables = serde_json::json!({
-            "table": "tf_sales",
             "select": [{
                 "type":  "measure",
                 "name":  "revenue",
@@ -598,7 +595,6 @@ mod live_path_injection {
     #[test]
     fn dimension_path_cannot_break_out_of_the_jsonb_key() {
         let variables = serde_json::json!({
-            "table": "tf_sales",
             "select": [{
                 "type":  "dimension",
                 "path":  "category'||(SELECT rolname FROM pg_authid LIMIT 1)||'",
@@ -619,7 +615,6 @@ mod live_path_injection {
     #[test]
     fn window_function_alias_cannot_smuggle_a_subquery() {
         let variables = serde_json::json!({
-            "table":   "tf_sales",
             "select":  [],
             "windows": [{
                 "function": {"type": "row_number"},
@@ -640,7 +635,6 @@ mod live_path_injection {
     #[test]
     fn partition_by_dimension_path_cannot_break_out_of_the_jsonb_key() {
         let variables = serde_json::json!({
-            "table":   "tf_sales",
             "select":  [],
             "windows": [{
                 "function":    {"type": "row_number"},
@@ -658,10 +652,10 @@ mod live_path_injection {
         );
     }
 
-    /// #795: the FROM target comes from the client's `table` key and is never reconciled
-    /// against the fact table the root field already resolved. A subquery substitutes the
-    /// relation outright; naming a different table also drops the RLS policy, which is
-    /// looked up by that same unvalidated name.
+    /// #795: the FROM target came from the client's `table` key, never reconciled against the
+    /// fact table the root field already resolved. A subquery substituted the relation outright;
+    /// naming a different table also dropped the RLS policy, looked up by that same name. The
+    /// key is now refused whatever it names (#1800).
     #[test]
     fn table_cannot_substitute_the_relation_with_a_subquery() {
         let variables = serde_json::json!({
@@ -672,15 +666,12 @@ mod live_path_injection {
 
         let result = sql_from_variables(&variables);
 
-        assert!(
-            result.is_err(),
-            "a subquery in `table` must be rejected, got SQL: {:?}",
-            result.ok()
-        );
+        let err = result.expect_err("a subquery in `table` must be rejected");
+        assert!(err.to_string().contains("`table` is no longer an argument"), "{err}");
     }
 
-    /// #795: even a plain, well-formed identifier must be refused when it is not the fact
-    /// table the root field resolved — that is the RLS-bypass half of the issue.
+    /// #795: even a plain, well-formed identifier is refused — that was the RLS-bypass half of
+    /// the issue.
     #[test]
     fn table_cannot_name_a_different_relation() {
         let variables = serde_json::json!({
@@ -690,18 +681,29 @@ mod live_path_injection {
 
         let result = sql_from_variables(&variables);
 
-        assert!(
-            result.is_err(),
-            "a `table` other than the resolved fact table must be rejected, got SQL: {:?}",
-            result.ok()
-        );
+        let err = result.expect_err("a `table` naming another relation must be rejected");
+        assert!(err.to_string().contains("`table` is no longer an argument"), "{err}");
+    }
+
+    /// #795: a request built by hand is held by the planner to the fact table the root resolved.
+    #[test]
+    fn a_hand_built_request_naming_another_table_is_refused() {
+        let metadata = create_test_metadata();
+        let mut request = WindowQueryParser::parse(
+            &serde_json::json!({"select": [{"type": "measure", "name": "revenue", "alias": "r"}]}),
+            &metadata,
+        )
+        .unwrap();
+        request.table_name = "pg_authid".to_string();
+
+        let err = WindowPlanner::plan(request, &metadata).expect_err("another table is refused");
+        assert!(err.to_string().contains("does not match the fact table"), "{err}");
     }
 
     /// The guard must not break the legitimate query shape it protects.
     #[test]
     fn a_well_formed_window_query_still_plans_and_generates() {
         let variables = serde_json::json!({
-            "table":   "tf_sales",
             "select":  [
                 {"type": "measure",   "name": "revenue",  "alias": "revenue"},
                 {"type": "dimension", "path": "category", "alias": "category"}

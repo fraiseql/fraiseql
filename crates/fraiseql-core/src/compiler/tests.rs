@@ -378,6 +378,31 @@ mod aggregation_tests {
         );
     }
 
+    /// #795: the parser takes the table from the metadata (#1800); a request built by hand is
+    /// held to the same table by the planner, so no second channel names the relation.
+    #[test]
+    fn a_hand_built_request_naming_another_table_is_refused() {
+        let request = AggregationRequest {
+            table_name:   "pg_authid".to_string(),
+            where_clause: None,
+            group_by:     vec![],
+            aggregates:   vec![AggregateSelection::Count {
+                alias: "count".to_string(),
+            }],
+            having:       vec![],
+            order_by:     vec![],
+            limit:        None,
+            offset:       None,
+        };
+
+        let result = AggregationPlanner::plan(request, create_test_metadata());
+        assert!(
+            matches!(&result, Err(FraiseQLError::Validation { message, .. })
+                if message.contains("does not match the fact table")),
+            "got: {result:?}"
+        );
+    }
+
     #[test]
     fn test_validate_invalid_temporal_column() {
         let metadata = create_test_metadata();

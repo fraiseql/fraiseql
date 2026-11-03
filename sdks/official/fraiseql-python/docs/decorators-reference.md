@@ -402,7 +402,6 @@ CREATE INDEX ON tf_sales(occurred_at);
 ```graphql
 {
   sales_aggregate(
-    table: "tf_sales"
     groupBy: { category: true, occurred_at: "month" }
     aggregates: [{ revenue_sum: {} }, { count: {} }]
   )

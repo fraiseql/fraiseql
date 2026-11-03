@@ -119,7 +119,6 @@ async fn a_localized_dimension_groups_by_its_label_in_the_request_locale() {
         return;
     };
     let query = json!({
-        "table": TABLE,
         "groupBy": { "name": true },
         "aggregates": [{ "count": {} }],
         "orderBy": { "name": "ASC" }
@@ -146,7 +145,6 @@ async fn a_filter_on_a_localized_dimension_reads_the_label() {
         return;
     };
     let query = json!({
-        "table": TABLE,
         "groupBy": { "name": true },
         "aggregates": [{ "count": {} }],
         "where": { "name_eq": "Pomme" }
@@ -183,7 +181,6 @@ async fn a_window_reads_a_localized_dimension_as_its_label() {
         return;
     };
     let query = json!({
-        "table": TABLE,
         "select": [{ "type": "dimension", "path": "name", "alias": "name" }],
         "windows": [{
             "function": { "type": "row_number" },
@@ -223,7 +220,6 @@ async fn a_window_filter_on_a_localized_dimension_reads_the_label() {
         return;
     };
     let query = json!({
-        "table": TABLE,
         "select": [{ "type": "dimension", "path": "name", "alias": "name" }],
         "windows": [{ "function": { "type": "row_number" }, "alias": "position" }],
         "where": { "name_eq": "Pomme" }
@@ -251,7 +247,6 @@ async fn a_window_ordered_by_an_unselected_localized_dimension_sorts_by_its_labe
         return;
     };
     let query = json!({
-        "table": TABLE,
         "select": [{ "type": "measure", "name": "qty", "alias": "qty" }],
         "windows": [{ "function": { "type": "row_number" }, "alias": "position" }],
         "orderBy": [{ "field": "name", "direction": "ASC" }, { "field": "qty", "direction": "ASC" }]

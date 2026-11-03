@@ -130,12 +130,9 @@ fn total(row: &Value) -> f64 {
 
 /// `{group key → revenue}` for a grouped aggregate.
 async fn grouped(executor: &Executor, group_by: Value, key: &str) -> HashMap<String, f64> {
-    let rows = run(
-        executor,
-        json!({ "table": TABLE, "groupBy": group_by, "aggregates": [{ "revenue_sum": {} }] }),
-    )
-    .await
-    .unwrap_or_else(|e| panic!("group by failed: {e}"));
+    let rows = run(executor, json!({ "groupBy": group_by, "aggregates": [{ "revenue_sum": {} }] }))
+        .await
+        .unwrap_or_else(|e| panic!("group by failed: {e}"));
     rows.iter()
         .map(|row| {
             let k = row.get(key).unwrap_or_else(|| panic!("no `{key}` in {row}"));
@@ -145,12 +142,9 @@ async fn grouped(executor: &Executor, group_by: Value, key: &str) -> HashMap<Str
 }
 
 async fn revenue_where(executor: &Executor, filter: Value) -> f64 {
-    let rows = run(
-        executor,
-        json!({ "table": TABLE, "where": filter, "aggregates": [{ "revenue_sum": {} }] }),
-    )
-    .await
-    .unwrap_or_else(|e| panic!("aggregate with where {filter} failed: {e}"));
+    let rows = run(executor, json!({ "where": filter, "aggregates": [{ "revenue_sum": {} }] }))
+        .await
+        .unwrap_or_else(|e| panic!("aggregate with where {filter} failed: {e}"));
     total(&rows[0])
 }
 
@@ -189,7 +183,7 @@ async fn a_tree_level_combines_with_another_dimension() {
     let executor = executor().await;
     let rows = run(
         &executor,
-        json!({ "table": TABLE, "groupBy": { "path": { "level": 1 }, "region": true },
+        json!({ "groupBy": { "path": { "level": 1 }, "region": true },
                 "aggregates": [{ "revenue_sum": {} }] }),
     )
     .await
@@ -231,7 +225,7 @@ async fn a_tree_level_needs_an_ltree_column() {
     let executor = executor().await;
     let err = run(
         &executor,
-        json!({ "table": TABLE, "groupBy": { "region": { "level": 1 } },
+        json!({ "groupBy": { "region": { "level": 1 } },
                 "aggregates": [{ "revenue_sum": {} }] }),
     )
     .await
@@ -245,7 +239,7 @@ async fn a_node_id_filter_needs_a_declared_hierarchy() {
     let executor = executor().await;
     let err = run(
         &executor,
-        json!({ "table": TABLE, "where": { "region_descendant_of_id": NODE_AB },
+        json!({ "where": { "region_descendant_of_id": NODE_AB },
                 "aggregates": [{ "revenue_sum": {} }] }),
     )
     .await

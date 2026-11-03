@@ -22,20 +22,8 @@ fn parse_plan_generate_full(query: &serde_json::Value) -> ParameterizedAggregati
     let metadata = create_sales_metadata();
     let generator = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
 
-    let mut query_with_table = query.clone();
-    if query_with_table.as_object_mut().unwrap().get("table").is_none() {
-        query_with_table
-            .as_object_mut()
-            .unwrap()
-            .insert("table".to_string(), json!("tf_sales"));
-    }
-
-    let parsed = AggregateQueryParser::parse(
-        &query_with_table,
-        &metadata,
-        &std::collections::HashMap::new(),
-    )
-    .unwrap();
+    let parsed =
+        AggregateQueryParser::parse(query, &metadata, &std::collections::HashMap::new()).unwrap();
     let plan =
         fraiseql_core::compiler::aggregation::AggregationPlanner::plan(parsed, metadata).unwrap();
     generator.generate_parameterized(&plan).unwrap()
@@ -769,7 +757,6 @@ fn test_native_measures_and_dimension_mapping_combined() {
     let generator = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
 
     let query = json!({
-        "table": "tf_metrics",
         "aggregates": [
             {"measures.volume_sum": {}},
             {"measures.latency_avg": {}}
@@ -802,7 +789,6 @@ fn test_native_and_jsonb_dimensions_coexist() {
     let generator = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
 
     let query = json!({
-        "table": "tf_metrics",
         "aggregates": [{"measures.volume_sum": {}}],
         "groupBy": {"dimensions.category.id": true, "source": true}
     });
@@ -826,7 +812,6 @@ fn test_native_measures_with_where_filter() {
     let generator = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
 
     let query = json!({
-        "table": "tf_metrics",
         "where": { "device_id_eq": "sensor-42" },
         "aggregates": [{"measures.volume_sum": {}}],
         "groupBy": {"dimensions.region.code": true}
@@ -857,9 +842,9 @@ fn test_native_measures_with_where_filter() {
 // `executor/runners/aggregate.rs` resolves `FactTableMetadata` from the GraphQL root
 // field (`sales_aggregate` -> `tf_sales`), but the FROM target was taken from a separate
 // client-controlled `table` key that nothing reconciled against it. Beyond reading an
-// arbitrary relation, `policy.evaluate(ctx, &request.table_name)` is looked up by that
-// same unvalidated name — naming an unpolicied table yields `None`, so no RLS WHERE is
-// composed and the tenant filter disappears.
+// arbitrary relation, the RLS policy was looked up by that same unvalidated name — naming
+// an unpolicied table yielded `None`, so no RLS WHERE was composed and the tenant filter
+// disappeared. The key is now refused whatever it names (#1800).
 // =============================================================================
 
 mod table_reconciliation {
@@ -868,7 +853,7 @@ mod table_reconciliation {
     fn plan_with_table(table: &serde_json::Value) -> fraiseql_core::error::Result<()> {
         let metadata = create_sales_metadata();
         let query = json!({
-            "table":      table,
+            "table": table,
             "aggregates": [{"count": {}}]
         });
         let parsed =
@@ -877,44 +862,44 @@ mod table_reconciliation {
         Ok(())
     }
 
+    fn assert_refused(table: &serde_json::Value, what: &str) {
+        let err = plan_with_table(table).expect_err(what);
+        assert!(err.to_string().contains("`table` is no longer an argument"), "{what}: {err}");
+    }
+
     #[test]
     fn a_subquery_cannot_substitute_the_relation() {
-        let result = plan_with_table(&json!(
-            "(SELECT jsonb_build_object('category', rolname) AS dimensions FROM pg_authid) AS x"
-        ));
-        assert!(
-            result.is_err(),
-            "a subquery in `table` must be rejected before it reaches `FROM`"
+        assert_refused(
+            &json!(
+                "(SELECT jsonb_build_object('category', rolname) AS dimensions FROM pg_authid) \
+                 AS x"
+            ),
+            "a subquery in `table` must be rejected before it reaches `FROM`",
         );
     }
 
     #[test]
     fn another_relation_cannot_be_named() {
-        let result = plan_with_table(&json!("pg_authid"));
-        assert!(
-            result.is_err(),
-            "`table` must not select a relation other than the resolved one"
+        assert_refused(
+            &json!("pg_authid"),
+            "`table` must not select a relation other than the resolved one",
         );
     }
 
-    /// The RLS-bypass half: another tenant's fact table is a well-formed identifier, so
-    /// only reconciliation against the resolved metadata catches it.
+    /// The RLS-bypass half: another tenant's fact table is a well-formed identifier.
     #[test]
     fn another_tenants_fact_table_cannot_be_named() {
-        let result = plan_with_table(&json!("tf_sales_tenant_b"));
-        assert!(
-            result.is_err(),
+        assert_refused(
+            &json!("tf_sales_tenant_b"),
             "naming another tenant's fact table must be rejected — the RLS policy is looked \
-             up by this same name, so an unpolicied table silently drops the tenant filter"
+             up by this same name, so an unpolicied table silently drops the tenant filter",
         );
     }
 
+    /// Even the resolved table is refused: the root names it, so the key is never read.
     #[test]
-    fn the_resolved_fact_table_is_still_accepted() {
-        assert!(
-            plan_with_table(&json!("tf_sales")).is_ok(),
-            "the legitimate table name must still plan"
-        );
+    fn the_resolved_fact_table_is_refused_too() {
+        assert_refused(&json!("tf_sales"), "the root already names its table");
     }
 }
 

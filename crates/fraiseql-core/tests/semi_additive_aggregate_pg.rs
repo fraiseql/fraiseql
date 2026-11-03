@@ -174,9 +174,8 @@ fn root(table: &str) -> String {
 }
 
 /// The first quarter of 2026, by month.
-fn quarter(table: &str, aggregates: &[&str]) -> Value {
+fn quarter(aggregates: &[&str]) -> Value {
     json!({
-        "table": table,
         "where": { "day_gte": "2026-01-01", "day_lt": "2026-04-01" },
         "groupBy": { "day_month": true },
         "aggregates": aggregates.iter().map(|a| json!({ *a: {} })).collect::<Vec<_>>(),
@@ -184,8 +183,11 @@ fn quarter(table: &str, aggregates: &[&str]) -> Value {
     })
 }
 
-async fn aggregate(executor: &Executor, request: &Value) -> Result<Vec<Value>, String> {
-    let table = request["table"].as_str().unwrap();
+async fn aggregate(
+    executor: &Executor,
+    table: &str,
+    request: &Value,
+) -> Result<Vec<Value>, String> {
     let document = format!("{{ {} {{ day_month }} }}", root(table));
     let response = executor.execute(&document, Some(request)).await.map_err(|e| e.to_string())?;
     Ok(response["data"][root(table)]
@@ -207,7 +209,7 @@ fn column(groups: &[Value], key: &str) -> Vec<f64> {
 }
 
 async fn monthly(executor: &Executor, aggregate_name: &str) -> Vec<f64> {
-    let groups = aggregate(executor, &quarter(TABLE, &[aggregate_name])).await.unwrap();
+    let groups = aggregate(executor, TABLE, &quarter(&[aggregate_name])).await.unwrap();
     column(&groups, aggregate_name)
 }
 
@@ -229,9 +231,9 @@ async fn an_unbounded_range_starts_at_the_first_row() {
     let Some(executor) = executor(1_000).await else {
         return;
     };
-    let mut request = quarter(TABLE, &["closing_balance_sum"]);
+    let mut request = quarter(&["closing_balance_sum"]);
     request.as_object_mut().unwrap().remove("where");
-    let groups = aggregate(&executor, &request).await.unwrap();
+    let groups = aggregate(&executor, TABLE, &request).await.unwrap();
     assert_eq!(
         column(&groups, "closing_balance_sum"),
         vec![1000.0, 1100.0, 1310.0, 1290.0, 1150.0],
@@ -254,9 +256,9 @@ async fn each_bound_spelling_bounds_its_own_range() {
         // January as it stood on the 15th: account 1's 200, not its later 260.
         (json!({ "day_eq": "2026-01-15" }), vec![1250.0]),
     ] {
-        let mut request = quarter(TABLE, &["closing_balance_sum"]);
+        let mut request = quarter(&["closing_balance_sum"]);
         request["where"] = bounds.clone();
-        let groups = aggregate(&executor, &request).await.unwrap();
+        let groups = aggregate(&executor, TABLE, &request).await.unwrap();
         assert_eq!(column(&groups, "closing_balance_sum"), expected, "{bounds}");
     }
 }
@@ -278,24 +280,22 @@ async fn each_grain_steps_one_bucket_at_a_time() {
     ] {
         let key = format!("day_{grain}");
         let request = json!({
-            "table": TABLE,
             "groupBy": { &key: true },
             "aggregates": [{ "closing_balance_sum": {} }],
             "orderBy": { &key: "ASC" },
         });
-        let groups = aggregate(&executor, &request).await.unwrap();
+        let groups = aggregate(&executor, TABLE, &request).await.unwrap();
         let sums = column(&groups, "closing_balance_sum");
         assert_eq!(sums.len(), buckets, "{grain}");
         assert_eq!(sums.last().copied(), Some(last), "{grain}");
     }
     // Q4 2025: account 3's 1000 and account 1's December 100.
     let request = json!({
-        "table": TABLE,
         "groupBy": { "day_quarter": true },
         "aggregates": [{ "closing_balance_sum": {} }],
         "orderBy": { "day_quarter": "ASC" },
     });
-    let groups = aggregate(&executor, &request).await.unwrap();
+    let groups = aggregate(&executor, TABLE, &request).await.unwrap();
     assert_eq!(column(&groups, "closing_balance_sum"), vec![1100.0, 1150.0]);
 }
 
@@ -353,7 +353,6 @@ async fn a_timestamp_column_steps_by_second_minute_and_hour() {
     ] {
         let key = format!("at_{grain}");
         let request = json!({
-            "table": "tf_sa_meter",
             "where": { "at_gte": from, "at_lt": to },
             "groupBy": { &key: true },
             "aggregates": [{ "reading_sum": {} }],
@@ -377,8 +376,8 @@ async fn a_carried_bucket_key_is_the_plain_aggregates_key() {
     let keys =
         |groups: Vec<Value>| groups.iter().map(|g| g["day_month"].clone()).collect::<Vec<_>>();
     let reduced =
-        keys(aggregate(&executor, &quarter(TABLE, &["closing_balance_sum"])).await.unwrap());
-    let plain = keys(aggregate(&executor, &quarter(TABLE, &["deposits_sum"])).await.unwrap());
+        keys(aggregate(&executor, TABLE, &quarter(&["closing_balance_sum"])).await.unwrap());
+    let plain = keys(aggregate(&executor, TABLE, &quarter(&["deposits_sum"])).await.unwrap());
     assert_eq!(reduced, plain);
 }
 
@@ -418,10 +417,10 @@ async fn another_grouping_is_read_from_the_carried_row() {
     let Some(executor) = executor(1_000).await else {
         return;
     };
-    let mut request = quarter(TABLE, &["closing_balance_sum"]);
+    let mut request = quarter(&["closing_balance_sum"]);
     request["groupBy"]["region"] = json!(true);
     request["orderBy"] = json!({ "day_month": "ASC", "region": "ASC" });
-    let groups = aggregate(&executor, &request).await.unwrap();
+    let groups = aggregate(&executor, TABLE, &request).await.unwrap();
     let cells: Vec<(String, f64)> = groups
         .iter()
         .map(|g| (g["region"].as_str().unwrap().to_string(), number(&g["closing_balance_sum"])))
@@ -453,34 +452,30 @@ async fn a_request_the_reduction_cannot_answer_is_refused() {
         return;
     };
     let no_time_grouping = {
-        let mut r = quarter(BOOM, &["closing_balance_sum"]);
+        let mut r = quarter(&["closing_balance_sum"]);
         r["groupBy"] = json!({ "region": true });
         r["orderBy"] = json!({ "region": "ASC" });
         r
     };
     let two_time_groupings = {
-        let mut r = quarter(BOOM, &["closing_balance_sum"]);
+        let mut r = quarter(&["closing_balance_sum"]);
         r["groupBy"]["day_week"] = json!(true);
         r
     };
     let another_time_column = {
-        let mut r = quarter(BOOM, &["closing_balance_sum"]);
+        let mut r = quarter(&["closing_balance_sum"]);
         r["groupBy"] = json!({ "booked_on_month": true });
         r["orderBy"] = json!({ "booked_on_month": "ASC" });
         r
     };
     let a_time_inequality = {
-        let mut r = quarter(BOOM, &["closing_balance_sum"]);
+        let mut r = quarter(&["closing_balance_sum"]);
         r["where"]["day_neq"] = json!("2026-02-01");
         r
     };
     for (request, names, why) in [
-        (quarter(BOOM, &["ratio_sum"]), "ratio", "a non-additive measure"),
-        (
-            quarter(BOOM, &["ratio_max"]),
-            "ratio",
-            "any function over a non-additive measure",
-        ),
+        (quarter(&["ratio_sum"]), "ratio", "a non-additive measure"),
+        (quarter(&["ratio_max"]), "ratio", "any function over a non-additive measure"),
         (no_time_grouping, "closing_balance", "no time grouping"),
         (two_time_groupings, "closing_balance", "two time groupings"),
         (
@@ -488,28 +483,24 @@ async fn a_request_the_reduction_cannot_answer_is_refused() {
             "closing_balance",
             "a bucket of a column it is not reduced over",
         ),
+        (quarter(&["closing_balance_sum", "count"]), "closing_balance", "with a count"),
         (
-            quarter(BOOM, &["closing_balance_sum", "count"]),
-            "closing_balance",
-            "with a count",
-        ),
-        (
-            quarter(BOOM, &["closing_balance_sum", "deposits_sum"]),
+            quarter(&["closing_balance_sum", "deposits_sum"]),
             "closing_balance",
             "with an additive measure",
         ),
         (
-            quarter(BOOM, &["closing_balance_sum", "bal_avg_sum"]),
+            quarter(&["closing_balance_sum", "bal_avg_sum"]),
             "closing_balance",
             "with a measure reduced differently",
         ),
         (a_time_inequality, "closing_balance", "a time filter that is not a bound"),
     ] {
-        assert_refused(aggregate(&executor, &request).await, names, why);
+        assert_refused(aggregate(&executor, BOOM, &request).await, names, why);
     }
     for list in ["array_agg", "json_agg", "jsonb_agg", "string_agg"] {
-        let request = quarter(BOOM, &[&format!("closing_balance_{list}")]);
-        assert_refused(aggregate(&executor, &request).await, "closing_balance", list);
+        let request = quarter(&[&format!("closing_balance_{list}")]);
+        assert_refused(aggregate(&executor, BOOM, &request).await, "closing_balance", list);
     }
 }
 
@@ -523,7 +514,7 @@ async fn a_request_over_more_cells_than_the_bound_is_refused_before_any_measure_
     assert_eq!(monthly(&at_bound, "closing_balance_sum").await, vec![1310.0, 1290.0, 1150.0]);
 
     let below = executor(8).await.unwrap();
-    let result = aggregate(&below, &quarter(BOOM, &["closing_balance_sum"])).await;
+    let result = aggregate(&below, BOOM, &quarter(&["closing_balance_sum"])).await;
     let err = result.as_ref().expect_err("nine cells over a bound of eight").clone();
     assert_refused(result, "closing_balance", "over the bound");
     assert!(err.contains("3 buckets by 3 entities"), "{err}");
@@ -536,9 +527,9 @@ async fn a_range_with_no_entity_is_bounded_by_its_buckets() {
     let Some(executor) = executor(2).await else {
         return;
     };
-    let mut request = quarter(BOOM, &["closing_balance_sum"]);
+    let mut request = quarter(&["closing_balance_sum"]);
     request["where"]["account_id_eq"] = json!(999);
-    let result = aggregate(&executor, &request).await;
+    let result = aggregate(&executor, BOOM, &request).await;
     let err = result.as_ref().expect_err("three buckets over a bound of two").clone();
     assert!(err.contains("3 buckets by 0 entities"), "{err}");
 }
@@ -550,9 +541,8 @@ async fn a_window_aggregate_over_a_semi_additive_measure_is_refused() {
     let Some(executor) = executor(1_000).await else {
         return;
     };
-    let window = |table: &str, function: Value| {
+    let window = |function: Value| {
         json!({
-            "table": table,
             "select": [{ "type": "filter", "name": "day", "alias": "day" }],
             "windows": [{ "function": function, "alias": "w",
                           "orderBy": [{ "field": "day", "direction": "ASC" }] }],
@@ -560,7 +550,7 @@ async fn a_window_aggregate_over_a_semi_additive_measure_is_refused() {
         })
     };
     let run = |table: &'static str, function: Value| {
-        let request = window(table, function);
+        let request = window(function);
         let executor = &executor;
         async move {
             let root = format!("{}_window", table.strip_prefix("tf_").unwrap());

@@ -174,7 +174,6 @@ Once declared, you can query with:
 ```graphql
 query {
   sales_aggregate(
-    table: "tf_sales"
     groupBy: { category: true, region: true, occurred_at: "month" }
     aggregates: [{ revenue_sum: {} }, { revenue_avg: {} }, { quantity_sum: {} }, { count: {} }]
   )
@@ -344,7 +343,7 @@ if __name__ == "__main__":
 Orders by category, by country and by month are three requests to the one derived root:
 
 ```graphql
-{ orders_aggregate(table: "tf_orders", groupBy: { product_category: true }, aggregates: [{ total_sum: {} }, { count: {} }]) }
-{ orders_aggregate(table: "tf_orders", groupBy: { customer_country: true }, aggregates: [{ total_sum: {} }, { count: {} }]) }
-{ orders_aggregate(table: "tf_orders", groupBy: { occurred_at: "month" }, aggregates: [{ total_sum: {} }, { count: {} }]) }
+{ orders_aggregate(groupBy: { product_category: true }, aggregates: [{ total_sum: {} }, { count: {} }]) }
+{ orders_aggregate(groupBy: { customer_country: true }, aggregates: [{ total_sum: {} }, { count: {} }]) }
+{ orders_aggregate(groupBy: { occurred_at: "month" }, aggregates: [{ total_sum: {} }, { count: {} }]) }
 ```

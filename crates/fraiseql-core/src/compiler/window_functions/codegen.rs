@@ -153,14 +153,13 @@ impl WindowPlanner {
         locale: WindowLocale<'_>,
     ) -> Result<WindowExecutionPlan> {
         // SECURITY (#795): the FROM target must be the fact table the root field already
-        // resolved, never the client's `table` key. Two separate channels selected the
-        // relation; only this one was checked, so a request could name any relation — or a
-        // whole subquery — and, because the RLS policy is looked up by that same name,
-        // naming an unpolicied table dropped the tenant filter entirely.
+        // resolved. The parser fills `table_name` from it and refuses a `table` key;
+        // a request built by hand is still held to the same table, since a second channel
+        // naming the relation could name any relation, or a subquery, past the RLS policy.
         if request.table_name != metadata.table_name {
             return Err(FraiseQLError::Validation {
                 message: format!(
-                    "window query 'table' ({}) does not match the fact table resolved from the \
+                    "window request table ({}) does not match the fact table resolved from the \
                      query field ({}); the relation is determined by the schema, not the request",
                     request.table_name, metadata.table_name
                 ),

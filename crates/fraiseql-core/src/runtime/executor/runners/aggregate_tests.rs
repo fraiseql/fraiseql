@@ -105,7 +105,7 @@ async fn aggregate_query_with_rls_includes_tenant_filter_in_sql() {
     let executor = Executor::with_config(schema, adapter.clone(), config);
 
     let ctx = tenant_security_context("tenant-abc");
-    let vars = serde_json::json!({ "table": "tf_sales", "aggregates": [{"count": {}}] });
+    let vars = serde_json::json!({ "aggregates": [{"count": {}}] });
     let _result = executor
         .execute_with_security("{ sales_aggregate }", Some(&vars), &ctx)
         .await
@@ -126,7 +126,7 @@ async fn aggregate_query_admin_bypasses_rls() {
     let executor = Executor::with_config(schema, adapter.clone(), config);
 
     let ctx = admin_security_context();
-    let vars = serde_json::json!({ "table": "tf_sales", "aggregates": [{"count": {}}] });
+    let vars = serde_json::json!({ "aggregates": [{"count": {}}] });
     let _result = executor
         .execute_with_security("{ sales_aggregate }", Some(&vars), &ctx)
         .await
@@ -148,7 +148,7 @@ async fn aggregate_query_no_rls_policy_returns_unfiltered() {
     let executor = Executor::new(schema, adapter.clone());
 
     let ctx = tenant_security_context("tenant-abc");
-    let vars = serde_json::json!({ "table": "tf_sales", "aggregates": [{"count": {}}] });
+    let vars = serde_json::json!({ "aggregates": [{"count": {}}] });
     let _result = executor
         .execute_with_security("{ sales_aggregate }", Some(&vars), &ctx)
         .await
@@ -174,7 +174,6 @@ async fn aggregate_rls_composes_with_user_where() {
     // The nested `{"tenant_id": {"eq": …}}` this test used to send was never an aggregate
     // filter: the parser skipped it and the test passed on the RLS predicate alone (#1460).
     let vars = serde_json::json!({
-        "table": "tf_sales",
         "aggregates": [{"count": {}}],
         "where": {"tenant_id_eq": "tenant-abc"}
     });
@@ -204,7 +203,6 @@ async fn window_query_with_rls_includes_tenant_filter_in_sql() {
 
     let ctx = tenant_security_context("tenant-abc");
     let vars = serde_json::json!({
-        "table": "tf_sales",
         "select": [{"type": "measure", "name": "revenue", "alias": "revenue"}],
         "windows": [{
             "function": {"type": "row_number"},
@@ -233,7 +231,6 @@ async fn window_query_admin_bypasses_rls() {
 
     let ctx = admin_security_context();
     let vars = serde_json::json!({
-        "table": "tf_sales",
         "select": [{"type": "measure", "name": "revenue", "alias": "revenue"}],
         "windows": [{
             "function": {"type": "row_number"},
@@ -339,11 +336,9 @@ mod gated_fact_tables {
         vars: &serde_json::Value,
         ctx: &SecurityContext,
     ) -> (crate::error::Result<serde_json::Value>, Option<String>) {
-        let mut vars = vars.clone();
-        vars["table"] = serde_json::json!("tf_sales");
         let adapter = Arc::new(CapturingMockAdapter::new(vec![]));
         let res = Executor::new(schema, adapter.clone())
-            .execute_with_security(root, Some(&vars), ctx)
+            .execute_with_security(root, Some(vars), ctx)
             .await;
         (res, adapter.captured_aggregate_sql())
     }
@@ -533,7 +528,7 @@ mod gated_fact_tables {
         unlinked.type_name = None;
         let res = Executor::new(schema(), adapter.clone())
             .execute_aggregate_query(
-                &serde_json::json!({"table": "tf_sales", "aggregates": [{"margin_sum": {}}]}),
+                &serde_json::json!({"aggregates": [{"margin_sum": {}}]}),
                 "sales_aggregate",
                 &unlinked,
             )
@@ -678,7 +673,7 @@ mod anonymous_under_a_row_policy {
     #[tokio::test]
     async fn an_anonymous_aggregate_is_refused() {
         let adapter = Arc::new(CapturingMockAdapter::new(vec![]));
-        let vars = serde_json::json!({"table": "tf_sales", "aggregates": [{"count": {}}]});
+        let vars = serde_json::json!({"aggregates": [{"count": {}}]});
         let res = executor(&adapter).execute("{ sales_aggregate }", Some(&vars)).await;
         assert!(res.is_err(), "no principal, no policy to evaluate: {res:?}");
         let sql = adapter.captured_aggregate_sql();
@@ -689,7 +684,6 @@ mod anonymous_under_a_row_policy {
     async fn an_anonymous_window_is_refused() {
         let adapter = Arc::new(CapturingMockAdapter::new(vec![]));
         let vars = serde_json::json!({
-            "table": "tf_sales",
             "select": [{"type": "measure", "name": "revenue", "alias": "revenue"}],
             "windows": []
         });
@@ -706,7 +700,7 @@ mod anonymous_under_a_row_policy {
         let exec = executor(&adapter);
         let agg = exec
             .execute_aggregate_query(
-                &serde_json::json!({"table": "tf_sales", "aggregates": [{"count": {}}]}),
+                &serde_json::json!({"aggregates": [{"count": {}}]}),
                 "sales_aggregate",
                 &metadata,
             )
@@ -715,7 +709,6 @@ mod anonymous_under_a_row_policy {
         let win = exec
             .execute_window_query(
                 &serde_json::json!({
-                    "table": "tf_sales",
                     "select": [{"type": "measure", "name": "revenue", "alias": "revenue"}],
                     "windows": []
                 }),
@@ -732,7 +725,7 @@ mod anonymous_under_a_row_policy {
     #[tokio::test]
     async fn an_authenticated_aggregate_is_served_under_the_policy() {
         let adapter = Arc::new(CapturingMockAdapter::new(vec![]));
-        let vars = serde_json::json!({"table": "tf_sales", "aggregates": [{"count": {}}]});
+        let vars = serde_json::json!({"aggregates": [{"count": {}}]});
         executor(&adapter)
             .execute_with_security(
                 "{ sales_aggregate }",
@@ -763,12 +756,11 @@ mod tenant_scoped_fact_tables {
     const REFUSAL: &str = "no row policy scopes its aggregate and window roots";
 
     fn aggregate_vars() -> serde_json::Value {
-        serde_json::json!({ "table": "tf_sales", "aggregates": [{"count": {}}] })
+        serde_json::json!({ "aggregates": [{"count": {}}] })
     }
 
     fn window_vars() -> serde_json::Value {
         serde_json::json!({
-            "table": "tf_sales",
             "select": [{"type": "filter", "name": "tenant_id", "alias": "tenant_id"}],
             "windows": [{"function": {"type": "row_number"}, "alias": "rank"}]
         })
@@ -999,5 +991,163 @@ mod tenant_scoped_fact_tables {
             assert!(res.is_ok(), "{row_scope:?}: {res:?}");
             assert!(sql.is_some(), "{row_scope:?}: served");
         }
+    }
+}
+
+/// The request surface of a fact table's roots (#1800): the response key, the document around
+/// the root, and the arguments it reads.
+mod fact_table_roots {
+    use super::*;
+    use crate::error::FraiseQLError;
+
+    const COUNT: &str = "aggregates: [{count: {}}]";
+    const RANK: &str = r#"select: [{type: "filter", name: "tenant_id", alias: "tenant_id"}], windows: [{function: {type: "row_number"}, alias: "rank"}]"#;
+
+    async fn run(
+        document: &str,
+        vars: &serde_json::Value,
+    ) -> (crate::error::Result<serde_json::Value>, Option<String>) {
+        let adapter = Arc::new(CapturingMockAdapter::new(vec![]));
+        let res = Executor::new(schema_with_fact_table(), adapter.clone())
+            .execute_with_security(document, Some(vars), &tenant_security_context("tenant-abc"))
+            .await;
+        (res, adapter.captured_aggregate_sql())
+    }
+
+    fn validation_message(res: &crate::error::Result<serde_json::Value>) -> &str {
+        match res {
+            Err(FraiseQLError::Validation { message, .. }) => message,
+            _ => "",
+        }
+    }
+
+    /// The positive control: a root written with no `table` is served.
+    #[tokio::test]
+    async fn a_root_without_table_is_served() {
+        for document in [
+            format!("{{ sales_aggregate({COUNT}) }}"),
+            format!("{{ sales_window({RANK}) }}"),
+        ] {
+            let (res, sql) = run(&document, &serde_json::json!({})).await;
+            assert!(res.is_ok(), "{document}: {res:?}");
+            assert!(sql.is_some(), "{document}: reached the database");
+        }
+    }
+
+    /// An aliased root answers under its alias, as every field does (§ 2.7).
+    #[tokio::test]
+    async fn an_aliased_root_answers_under_its_alias() {
+        for (document, alias) in [
+            (format!("{{ totals: sales_aggregate({COUNT}) }}"), "totals"),
+            (format!("{{ ranked: sales_window({RANK}) }}"), "ranked"),
+        ] {
+            let (res, _) = run(&document, &serde_json::json!({})).await;
+            assert!(res.is_ok(), "{document}: {res:?}");
+            let data = res.unwrap()["data"].clone();
+            assert!(data.get(alias).is_some(), "{document}: answers under `{alias}`: {data}");
+            assert_eq!(data.as_object().map(serde_json::Map::len), Some(1), "{document}: {data}");
+        }
+    }
+
+    /// The root names its fact table, so `table` is refused, written inline or sent as a
+    /// variable of that name, rather than checked against it.
+    #[tokio::test]
+    async fn a_table_argument_is_refused() {
+        let expected = "`table` is no longer an argument: the root reads fact table `tf_sales`";
+        for (document, vars) in [
+            (
+                format!(r#"{{ sales_aggregate(table: "tf_sales", {COUNT}) }}"#),
+                serde_json::json!({}),
+            ),
+            (
+                format!("{{ sales_aggregate({COUNT}) }}"),
+                serde_json::json!({"table": "tf_sales"}),
+            ),
+            (
+                format!(r#"{{ sales_window(table: "tf_sales", {RANK}) }}"#),
+                serde_json::json!({}),
+            ),
+            (format!("{{ sales_window({RANK}) }}"), serde_json::json!({"table": "tf_sales"})),
+        ] {
+            let (res, sql) = run(&document, &vars).await;
+            let message = validation_message(&res);
+            assert!(message.contains(expected), "{document} {vars}: {res:?}");
+            assert!(sql.is_none(), "{document} {vars}: reached the database: {sql:?}");
+        }
+    }
+
+    /// The public embedder entries read the same request, so they refuse it too.
+    #[tokio::test]
+    async fn the_embedder_entries_refuse_a_table_key() {
+        let schema = schema_with_fact_table();
+        let metadata = schema.get_fact_table("tf_sales").unwrap().clone();
+        let adapter = Arc::new(CapturingMockAdapter::new(vec![]));
+        let executor = Executor::new(schema, adapter.clone());
+        let aggregate = executor
+            .execute_aggregate_query(
+                &serde_json::json!({"table": "tf_sales", "aggregates": [{"count": {}}]}),
+                "sales_aggregate",
+                &metadata,
+            )
+            .await;
+        let window = executor
+            .execute_window_query(
+                &serde_json::json!({"table": "tf_sales", "windows": []}),
+                "sales_window",
+                &metadata,
+            )
+            .await;
+        for res in [aggregate, window] {
+            assert!(
+                validation_message(&res).contains("`table` is no longer an argument"),
+                "{res:?}"
+            );
+        }
+        assert!(adapter.captured_aggregate_sql().is_none(), "nothing reached the database");
+    }
+
+    /// A fact-table root is executed alone: a document holding it and any other root was
+    /// answered for the first root only, and the others were silently dropped. Refused, naming
+    /// the roots, whichever comes first.
+    #[tokio::test]
+    async fn a_document_with_a_fact_table_root_and_another_root_is_refused() {
+        let (res, _) = run(
+            &format!("{{ totals: sales_aggregate({COUNT}) orders {{ id }} __typename }}"),
+            &serde_json::json!({}),
+        )
+        .await;
+        assert_eq!(
+            validation_message(&res),
+            "`totals` must be the only root of its document; it was sent with `orders`, \
+             `__typename`: send each in its own request",
+            "names the root by its response key and every other root: {res:?}"
+        );
+        for document in [
+            format!("{{ sales_aggregate({COUNT}) orders {{ id }} }}"),
+            format!("{{ orders {{ id }} sales_aggregate({COUNT}) }}"),
+            format!("{{ a: sales_aggregate({COUNT}) b: sales_aggregate({COUNT}) }}"),
+            format!("{{ sales_window({RANK}) __typename }}"),
+            format!("{{ __typename sales_window({RANK}) }}"),
+        ] {
+            let (res, sql) = run(&document, &serde_json::json!({})).await;
+            let message = validation_message(&res);
+            assert!(
+                message.contains("must be the only root of its document"),
+                "{document}: {res:?}"
+            );
+            assert!(sql.is_none(), "{document}: reached the database: {sql:?}");
+        }
+    }
+
+    /// A mutation is routed by the mutation branch, which runs every root: a mutation whose
+    /// name ends in `_aggregate` is not a fact-table root, so the rule does not refuse it.
+    #[tokio::test]
+    async fn a_mutation_document_is_not_held_to_the_fact_table_root_rule() {
+        let (res, _) =
+            run("mutation { log_aggregate { id } other { id } }", &serde_json::json!({})).await;
+        assert!(
+            !validation_message(&res).contains("must be the only root"),
+            "a mutation is not a fact-table root: {res:?}"
+        );
     }
 }

@@ -99,7 +99,7 @@ async fn a_deep_declared_path_groups_at_its_location() {
     let executor = executor().await;
     let rows = aggregate(
         &executor,
-        json!({ "table": TABLE, "groupBy": { "machine_model_category": true },
+        json!({ "groupBy": { "machine_model_category": true },
                 "aggregates": [{ "revenue_sum": {} }],
                 "orderBy": { "machine_model_category": "ASC" } }),
     )
@@ -114,7 +114,7 @@ async fn a_deep_declared_path_filters_at_its_location() {
     let executor = executor().await;
     let rows = aggregate(
         &executor,
-        json!({ "table": TABLE, "where": { "machine_model_category_eq": "A" },
+        json!({ "where": { "machine_model_category_eq": "A" },
                 "aggregates": [{ "revenue_sum": {} }] }),
     )
     .await;
@@ -129,7 +129,6 @@ async fn a_window_filters_a_deep_declared_path_at_its_location() {
     let response = executor
         .execute_window_query(
             &json!({
-                "table": TABLE,
                 "select": [{ "type": "measure", "name": "revenue", "alias": "revenue" }],
                 "windows": [{ "function": { "type": "row_number" }, "alias": "n",
                               "orderBy": [{ "field": "revenue", "direction": "ASC" }] }],

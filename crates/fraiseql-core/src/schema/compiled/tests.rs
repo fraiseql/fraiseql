@@ -2996,3 +2996,73 @@ fn input_fields_without_validation_rules_load() {
 
     CompiledSchema::from_json(json, false).expect("an input field with no rules loads");
 }
+
+/// A fact table publishes two roots, `<name>_aggregate` and `<name>_window`, where `<name>` is
+/// its table name without `tf_`: the dispatch routes a root by that suffix and reads the
+/// table registered as `tf_<name>`.
+fn fact_root_fixture() -> serde_json::Value {
+    let mut doc = policy_fixture();
+    doc["fact_tables"] = serde_json::json!({
+        "tf_sales": {
+            "table_name": "tf_sales",
+            "measures": [{"name": "revenue", "sql_type": "Decimal", "nullable": false}],
+            "dimensions": {"name": "data", "paths": []},
+            "denormalized_filters": []
+        }
+    });
+    doc
+}
+
+fn fact_root_refusal_for(mutate: impl FnOnce(&mut serde_json::Value)) -> String {
+    let mut doc = fact_root_fixture();
+    mutate(&mut doc);
+    CompiledSchema::from_json(&doc.to_string(), false)
+        .expect_err("a schema whose fact-table roots cannot be reached must not load")
+        .to_string()
+}
+
+/// The positive control: without it every refusal below would pass against a check that
+/// refused every schema with a fact table.
+#[test]
+fn a_fact_table_named_tf_loads() {
+    let schema = CompiledSchema::from_json(&fact_root_fixture().to_string(), false)
+        .expect("a fact table named tf_<name> loads");
+    assert!(schema.get_fact_table("tf_sales").is_some());
+}
+
+/// The dispatch routes every query root ending in `_aggregate` or `_window` to a fact table, so
+/// a declared query with that suffix is never reached, and its name is the one the fact
+/// table's own root answers to.
+#[test]
+fn a_query_named_like_a_fact_table_root_is_refused_at_load() {
+    for name in ["sales_aggregate", "orders_window"] {
+        let message = fact_root_refusal_for(|d| {
+            d["queries"][0]["name"] = name.into();
+        });
+        assert!(message.contains(&format!("query `{name}`")), "names the query: {message}");
+        assert!(message.contains("recompile"), "says how to fix it: {message}");
+    }
+}
+
+/// A fact table not named `tf_<name>` has no root the dispatch reaches.
+#[test]
+fn a_fact_table_not_named_tf_is_refused_at_load() {
+    let message = fact_root_refusal_for(|d| {
+        let mut table = d["fact_tables"]["tf_sales"].take();
+        table["table_name"] = "sales".into();
+        d["fact_tables"] = serde_json::json!({ "sales": table });
+    });
+    assert!(message.contains("fact table `sales`"), "names the table: {message}");
+    assert!(message.contains("tf_"), "names the rule: {message}");
+}
+
+/// The dispatch looks a table up by its key and reads the table its metadata names: a key that
+/// names another table answers one root with another table's rows.
+#[test]
+fn a_fact_table_registered_under_another_name_is_refused_at_load() {
+    let message = fact_root_refusal_for(|d| {
+        d["fact_tables"]["tf_sales"]["table_name"] = "tf_orders".into();
+    });
+    assert!(message.contains("`tf_sales`"), "names the key: {message}");
+    assert!(message.contains("`tf_orders`"), "names the table: {message}");
+}

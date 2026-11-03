@@ -7,6 +7,7 @@ pub mod argument;
 mod auth_email;
 pub mod directive;
 mod fact_table_links;
+mod fact_table_roots;
 mod fact_table_scope;
 mod federation_keys;
 mod localized_indexes;
@@ -37,6 +38,7 @@ pub use auth_email::{
 };
 pub use directive::{DirectiveDefinition, DirectiveLocationKind};
 pub use fact_table_links::fact_field;
+pub use fact_table_roots::is_fact_table_root;
 pub use federation_keys::FederationKeyProblem;
 pub use localized_indexes::LocalizedIndexAdvice;
 pub use mutation::{CascadeSource, InputStyle, MutationDefinition, MutationOperation};

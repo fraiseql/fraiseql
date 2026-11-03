@@ -118,16 +118,14 @@ impl Kind {
     }
 
     /// The request, ordered by region, with `bounds` merged in.
-    fn variables(self, table: &str, bounds: &Value) -> Value {
+    fn variables(self, bounds: &Value) -> Value {
         let mut request = match self {
             Self::Aggregate => json!({
-                "table": table,
                 "groupBy": { "region": true },
                 "aggregates": [{ "count": {} }],
                 "orderBy": { "region": "ASC" },
             }),
             Self::Window => json!({
-                "table": table,
                 "select": [{ "type": "dimension", "path": "region", "alias": "region" }],
                 "windows": [{ "function": { "type": "row_number" }, "alias": "position" }],
                 "orderBy": [{ "field": "region", "direction": "ASC" }],
@@ -147,7 +145,7 @@ async fn run(
     bounds: &Value,
 ) -> Result<Value, String> {
     executor
-        .execute(&kind.document(table, ""), Some(&kind.variables(table, bounds)))
+        .execute(&kind.document(table, ""), Some(&kind.variables(bounds)))
         .await
         .map_err(|e| e.to_string())
 }
@@ -246,7 +244,7 @@ async fn an_inline_limit_on_the_root_bounds_the_page() {
     };
     for kind in Kind::BOTH {
         let served = executor
-            .execute(&kind.document(SALE, "(limit: 1)"), Some(&kind.variables(SALE, &json!({}))))
+            .execute(&kind.document(SALE, "(limit: 1)"), Some(&kind.variables(&json!({}))))
             .await
             .unwrap_or_else(|e| panic!("{kind:?}: {e}"));
         assert_eq!(regions(&served, kind, SALE).len(), 1, "{kind:?}: {served}");
