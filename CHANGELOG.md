@@ -35,7 +35,8 @@ disagreed, and the promise was the part that was wrong.
     `[session_variables]` entry), never on client input. See `docs/modules/fact-table.md`.
     The Go SDK declares it with `.RowScope(fraiseql.RowScopeRelation)`, the TypeScript SDK
     with `registerFactTable(..., { rowScope: "relation" })`.
-  - `FactTableMetadata` gains `row_scope: FactRowScope`; a struct literal must set it.
+  - `FactTableMetadata` (`fraiseql-core`) and `IntermediateFactTable` (`fraiseql-cli`) gain
+    `row_scope: FactRowScope`; a struct literal of either must set it.
 
 - **`OtpRouteState` has an `allow_gate` field (#1852).** A struct literal naming every field
   needs `allow_gate: None`, which keeps today's behaviour.
