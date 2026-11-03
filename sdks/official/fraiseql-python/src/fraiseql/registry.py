@@ -106,6 +106,8 @@ class SchemaRegistry:
     _sources: ClassVar[dict[str, SchemaElement]] = {}
     # Serverless function definitions (#1325).
     _functions: ClassVar[dict[str, SchemaElement]] = {}
+    # Fact tables, by table name (#1797): what `<name>_aggregate` / `<name>_window` read.
+    _fact_tables: ClassVar[dict[str, SchemaElement]] = {}
     # Maps scalar name -> (CustomScalar class, optional description)
     # A NewType declared as a custom scalar (#1530) has no CustomScalar class: ``None``.
     _custom_scalars: ClassVar[dict[str, tuple[type | None, str | None]]] = {}
@@ -572,6 +574,21 @@ class SchemaRegistry:
         cls._sources[camel_name] = definition
 
     @classmethod
+    def register_fact_table(cls, definition: SchemaElement) -> None:
+        """Register a fact table, as the compiler's ``IntermediateFactTable`` reads it (#1797).
+
+        Raises:
+            ValueError: A fact table of the same ``table_name`` is already registered.
+        """
+        table_name = definition["table_name"]
+        if table_name in cls._fact_tables:
+            raise ValueError(
+                f"Fact table {table_name!r} is already registered. "
+                "Each table name must be unique within a schema."
+            )
+        cls._fact_tables[table_name] = definition
+
+    @classmethod
     def register_function(  # noqa: PLR0913 — public API; all parameters are meaningful
         cls,
         name: str,
@@ -735,6 +752,10 @@ class SchemaRegistry:
         if cls._functions:
             schema["functions"] = list(cls._functions.values())
 
+        # Fact tables only when present, as the Go and TypeScript SDKs emit them (#1797).
+        if cls._fact_tables:
+            schema["fact_tables"] = list(cls._fact_tables.values())
+
         # Include inject_defaults if any are set
         if cls._inject_defaults:
             schema["inject_defaults"] = cls._inject_defaults
@@ -783,6 +804,7 @@ class SchemaRegistry:
         cls._subscriptions.clear()
         cls._sources.clear()
         cls._functions.clear()
+        cls._fact_tables.clear()
         cls._custom_scalars.clear()
         cls._inject_defaults.clear()
 

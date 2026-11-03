@@ -337,3 +337,43 @@ def preview_quote() -> None:
 @fraiseql.query(function="preview_quote")
 def quote_preview(sku: str) -> Order | None:
     pass
+
+
+# AF 3 / ruling AK: a fact table read as `Order`. The link is what gates an aggregate over
+# the table as a read of the type; every name it declares is a field of `Order`.
+# `tenant_orders` reads `Order` per tenant, so the relation declares that it filters its
+# own rows (#1799).
+fraiseql.fact_table(
+    "tf_sale",
+    type_name="Order",
+    row_scope="relation",
+    measures=[{"name": "total", "sql_type": "numeric", "nullable": False}],
+    dimensions={
+        "name": "data",
+        "paths": [{"name": "status", "json_path": "data->>'status'", "data_type": "text"}],
+    },
+    denormalized_filters=[{"name": "fk_user", "sql_type": "uuid", "indexed": True}],
+)
+
+# #1459: an unlinked fact table of balances. A balance is reduced per account and per
+# bucket (its last known value) before it is summed across accounts.
+fraiseql.fact_table(
+    "tf_account_day",
+    measures=[
+        {
+            "name": "closing_balance",
+            "sql_type": "numeric",
+            "nullable": False,
+            "additivity": {
+                "kind": "semi_additive",
+                "over": "day",
+                "using": "last",
+                "entity": ["account_id"],
+            },
+        }
+    ],
+    denormalized_filters=[
+        {"name": "account_id", "sql_type": "bigint", "indexed": True},
+        {"name": "day", "sql_type": "date", "indexed": True},
+    ],
+)

@@ -22,7 +22,7 @@ reason shown here, and the suite fails if a declared gap is no longer true.
 
 | Directory | Language | Distribution | Conformance | Declared gaps |
 |-----------|----------|--------------|-------------|---------------|
-| `fraiseql-python/` | Python 3.11+ | PyPI | 33/34 | fact_tables: the SDK has no fact-table authoring |
+| `fraiseql-python/` | Python 3.11+ | PyPI | 34/34 | — |
 | `fraiseql-typescript/` | TypeScript / Node.js | npm | 34/34 | — |
 | `fraiseql-go/` | Go 1.23+ | — (source-only) | 32/34 | type_crud: the SDK ships no CRUD generator; subscription_policy: no authoring surface (#1657) |
 | `fraiseql-php/` | PHP 8.2+ | — (source-only) | 32/34 | fact_tables: the SDK has no fact-table authoring; subscription_policy: no authoring surface (#1657) |

@@ -1824,6 +1824,92 @@ def source(  # noqa: PLR0913 — public API; all parameters are meaningful
     return decorator
 
 
+_ADDITIVITY_KINDS = frozenset({"additive", "semi_additive", "delta", "non_additive"})
+
+
+def fact_table(  # noqa: PLR0913 — public API; all parameters are meaningful
+    table_name: str,
+    *,
+    measures: list[dict[str, Any]],
+    dimensions: dict[str, Any] | None = None,
+    denormalized_filters: list[dict[str, Any]] | None = None,
+    type_name: str | None = None,
+    row_scope: str | None = None,
+    native_measures: dict[str, str] | None = None,
+    native_dimension_mapping: dict[str, str] | None = None,
+) -> None:
+    """Declare a fact table: what its ``<name>_aggregate`` and ``<name>_window`` roots read (#1797).
+
+    The entry is the one the Go (``NewFactTable``) and TypeScript (``registerFactTable``)
+    SDKs emit. NO runtime behavior — only used for schema compilation, which validates the
+    rest (a linked type's fields, measure additivity, native mappings, hierarchies).
+
+    Args:
+        table_name: The relation, ``tf_<name>``; its roots are ``<name>_aggregate`` and
+            ``<name>_window``.
+        measures: Aggregatable columns: ``{"name", "sql_type", "nullable"}``, and an optional
+            ``"additivity"`` (``{"kind": "additive" | "semi_additive" | "delta" |
+            "non_additive", ...}``) for a measure not additive over time.
+        dimensions: The JSONB dimensions column: ``{"name", "paths": [{"name", "json_path",
+            "data_type"}]}``. Absent: column ``data``, no declared paths.
+        denormalized_filters: Flat columns to filter and bucket by: ``{"name", "sql_type",
+            "indexed"}``, and an optional ``"hierarchy"`` naming the hierarchy an ``ltree``
+            path column belongs to.
+        type_name: The type the fact table is read as: its measures, filters and dimension
+            paths are fields of it, gated as a read of it.
+        row_scope: ``"relation"`` when the relation filters its own rows by tenant, on a
+            value the server sets per request (a ``current_setting(...)`` fed by a
+            JWT-sourced session variable, never client input); the server then adds no
+            tenant predicate. Required on a fact table read per tenant that no row policy
+            scopes.
+        native_measures: Measure paths stored as flat columns: ``{path: column}``.
+        native_dimension_mapping: Dimension paths stored as flat columns: ``{path: column}``.
+            Each column must be a denormalized filter.
+
+    Raises:
+        ValueError: A duplicate ``table_name``, a ``row_scope`` other than ``"relation"``,
+            or a measure whose additivity kind is unknown.
+
+    Examples:
+        >>> fraiseql.fact_table(
+        ...     "tf_sales",
+        ...     type_name="Sale",
+        ...     measures=[{"name": "revenue", "sql_type": "numeric", "nullable": False}],
+        ...     denormalized_filters=[{"name": "occurred_at", "sql_type": "date", "indexed": True}],
+        ... )
+    """
+    if row_scope is not None and row_scope != "relation":
+        raise ValueError(
+            f"fraiseql.fact_table({table_name!r}): row_scope={row_scope!r} is not a mode; "
+            "the only one is 'relation' (omit it to let the server scope the rows)"
+        )
+    for measure in measures:
+        additivity = measure.get("additivity")
+        if additivity is not None and additivity.get("kind") not in _ADDITIVITY_KINDS:
+            raise ValueError(
+                f"fraiseql.fact_table({table_name!r}): measure {measure.get('name')!r} has "
+                f"additivity kind {additivity.get('kind')!r}; expected one of "
+                f"{sorted(_ADDITIVITY_KINDS)}"
+            )
+    definition: dict[str, Any] = {"table_name": table_name}
+    if type_name is not None:
+        definition["type_name"] = type_name
+    if row_scope is not None:
+        definition["row_scope"] = row_scope
+    definition["measures"] = measures
+    definition["dimensions"] = (
+        dimensions if dimensions is not None else {"name": "data", "paths": []}
+    )
+    definition["denormalized_filters"] = (
+        denormalized_filters if denormalized_filters is not None else []
+    )
+    if native_measures is not None:
+        definition["native_measures"] = native_measures
+    if native_dimension_mapping is not None:
+        definition["native_dimension_mapping"] = native_dimension_mapping
+    SchemaRegistry.register_fact_table(definition)
+
+
 def function(  # noqa: PLR0913 — public API; all parameters are meaningful
     *,
     trigger: str,
