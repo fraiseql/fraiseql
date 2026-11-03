@@ -68,12 +68,12 @@ pub use changelog::inject_changelog;
 pub use compiled::{
     AUTO_PARAM_NAMES, AppleSocialConfig, ArgumentDefinition, AuthClientConfig, AutoParams,
     CURRENT_FRAISEQL_VERSION, CascadeSource, CompiledSchema, CursorType, DerivedState,
-    DirectiveDefinition, DirectiveLocationKind, DiscordSocialConfig, FacebookSocialConfig,
-    FederationKeyProblem, GitHubSocialConfig, GoogleSocialConfig, InputStyle, LocalAuthConfig,
-    LocalizedIndexAdvice, MutationDefinition, MutationOperation, NativeColumn, PaginationOrder,
-    PkceClientConfig, ProducerVersion, QueryDefinition, SessionConfig, SocialAuthConfig,
-    SubscribableEntity, canonicalize_json, content_hash_of, is_safe_sql_identifier,
-    otp_allowed_statement,
+    DirectiveDefinition, DirectiveLocationKind, DiscordSocialConfig, EmailTemplate,
+    FacebookSocialConfig, FederationKeyProblem, GitHubSocialConfig, GoogleSocialConfig, InputStyle,
+    LocalAuthConfig, LocalEmailConfig, LocalizedIndexAdvice, MutationDefinition, MutationOperation,
+    NativeColumn, PaginationOrder, PkceClientConfig, ProducerVersion, QueryDefinition,
+    SessionConfig, SocialAuthConfig, SubscribableEntity, canonicalize_json, content_hash_of,
+    is_safe_sql_identifier, otp_allowed_statement,
 };
 pub use config_types::{
     AuthorizationPolicy, AuthorizationRule, Cardinality, ChangelogConfig, CircuitBreakerConfig,

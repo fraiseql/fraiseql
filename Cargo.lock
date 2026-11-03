@@ -4184,6 +4184,7 @@ dependencies = [
  "ipnet",
  "jsonwebtoken",
  "lettre",
+ "mail-parser",
  "metrics",
  "metrics-exporter-prometheus",
  "openssl",

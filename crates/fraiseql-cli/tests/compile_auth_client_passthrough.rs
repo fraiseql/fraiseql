@@ -773,3 +773,207 @@ fn auth_session_refuses_a_ttl_of_zero_and_a_limit_of_zero() {
         session_value_refusal(session);
     }
 }
+
+// ── [auth.local.email] (#1854) ─────────────────────────────────────────────────────────
+
+/// Compile a project whose `fraiseql.toml` has `[auth.local]` with `local` appended, beside
+/// `files` (path relative to the project, contents).
+fn compile_project_with(
+    local: &str,
+    files: &[(&str, &str)],
+) -> anyhow::Result<fraiseql_core::schema::CompiledSchema> {
+    let project = tempfile::tempdir().unwrap();
+    for (path, contents) in files {
+        let path = project.path().join(path);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(path, contents).unwrap();
+    }
+    let toml = project.path().join("fraiseql.toml");
+    std::fs::write(
+        &toml,
+        format!(
+            r#"
+            [schema]
+            name = "app"
+
+            [types.User]
+            sql_source = "v_user"
+
+            [auth.local]
+            otp        = true
+            email_from = "support"
+            {local}
+            "#
+        ),
+    )
+    .unwrap();
+    // The project is not the working directory: paths resolve against fraiseql.toml.
+    let intermediate = SchemaMerger::merge_toml_only(toml.to_str().unwrap())?;
+    SchemaConverter::convert(intermediate)
+}
+
+/// The refusal compiling `local` and `files` must produce.
+fn refusal_compiling(local: &str, files: &[(&str, &str)]) -> String {
+    compile_project_with(local, files)
+        .err()
+        .map_or_else(|| panic!("must be refused: {local}"), |e| format!("{e:#}"))
+}
+
+const OTP_TEXT: (&str, &str) = ("templates/otp.txt", "Votre code : {code}\nLien : {link}\n");
+const OTP_HTML: (&str, &str) = ("templates/otp.html", "<p>{code} <a href=\"{link}\">ici</a></p>");
+const RESET_TEXT: (&str, &str) = ("templates/reset.txt", "Lien : {link}\n");
+const VERIFY_TEXT: (&str, &str) = ("templates/verify.txt", "Confirmer : {link}\n");
+const MAGIC: &str = r#"magic_link_template = "https://app.example.com/magic#token={token}""#;
+
+/// The compiler reads each template into the compiled schema and drops its path: the server
+/// may run where the project's files are not.
+#[test]
+fn templates_are_embedded_in_the_compiled_schema() {
+    let compiled = compile_project_with(
+        &format!(
+            r#"{MAGIC}
+            email_from_name = "Équipe Exemple"
+            password = true
+            email_verification = true
+            reset_url_template = "https://app.example.com/reset?token={{token}}"
+            verification_url_template = "https://app.example.com/verify?token={{token}}"
+
+            [auth.local.email.otp]
+            subject       = "Votre code de connexion"
+            text_template = "templates/otp.txt"
+            html_template = "templates/otp.html"
+
+            [auth.local.email.reset]
+            text_template = "templates/reset.txt"
+
+            [auth.local.email.verification]
+            text_template = "templates/verify.txt""#
+        ),
+        &[OTP_TEXT, OTP_HTML, RESET_TEXT, VERIFY_TEXT],
+    )
+    .expect("a valid [auth.local.email]");
+    let local = compiled.auth.as_ref().and_then(|a| a.local.as_ref()).expect("auth.local");
+    assert_eq!(local.email_from_name.as_deref(), Some("Équipe Exemple"));
+    let email = local.email.as_ref().expect("auth.local.email");
+    let otp = email.otp.as_ref().expect("email.otp");
+    assert_eq!(otp.subject.as_deref(), Some("Votre code de connexion"));
+    assert_eq!(otp.text.as_deref(), Some(OTP_TEXT.1));
+    assert_eq!(otp.html.as_deref(), Some(OTP_HTML.1));
+    for (template, file) in [
+        (&email.reset, RESET_TEXT),
+        (&email.verification, VERIFY_TEXT),
+    ] {
+        assert_eq!(template.as_ref().and_then(|t| t.text.as_deref()), Some(file.1), "{}", file.0);
+    }
+    for template in [&email.otp, &email.reset, &email.verification].into_iter().flatten() {
+        assert_eq!(
+            (template.text_template.as_deref(), template.html_template.as_deref()),
+            (None, None)
+        );
+    }
+}
+
+#[test]
+fn a_missing_template_is_refused() {
+    let err = refusal_compiling(
+        &format!("{MAGIC}\n[auth.local.email.otp]\ntext_template = \"templates/otp.txt\""),
+        &[],
+    );
+    assert!(err.contains("templates/otp.txt"), "the refusal names the file: {err}");
+}
+
+#[test]
+fn a_misspelt_placeholder_is_refused() {
+    let err = refusal_compiling(
+        "[auth.local.email.otp]\ntext_template = \"templates/otp.txt\"",
+        &[("templates/otp.txt", "Votre code : {cdoe}\n")],
+    );
+    assert!(err.contains("{cdoe}"), "the refusal names the placeholder: {err}");
+}
+
+/// Braces that are not a placeholder, such as `HTML` styles, are text.
+#[test]
+fn braces_that_are_not_a_placeholder_compile() {
+    compile_project_with(
+        &format!(
+            "{MAGIC}\n[auth.local.email.otp]\ntext_template = \"templates/otp.txt\"\n\
+             html_template = \"templates/otp.html\""
+        ),
+        &[
+            OTP_TEXT,
+            ("templates/otp.html", "<style>a {color: red}</style><p>{code}</p>"),
+        ],
+    )
+    .expect("CSS braces are not placeholders");
+}
+
+#[test]
+fn a_sign_in_mail_without_its_code_or_link_is_refused() {
+    let err = refusal_compiling(
+        "[auth.local.email.otp]\ntext_template = \"templates/otp.txt\"",
+        &[("templates/otp.txt", "Bonjour.\n")],
+    );
+    assert!(err.contains("{code}") && err.contains("{link}"), "{err}");
+}
+
+/// `{link}` is the magic link, so a project with no `magic_link_template` has none to give.
+#[test]
+fn a_link_with_no_magic_link_template_is_refused() {
+    let err = refusal_compiling(
+        "[auth.local.email.otp]\ntext_template = \"templates/otp.txt\"",
+        &[OTP_TEXT],
+    );
+    assert!(err.contains("magic_link_template"), "{err}");
+}
+
+#[test]
+fn a_reset_mail_without_its_link_is_refused() {
+    let err = refusal_compiling(
+        r#"password = true
+        reset_url_template = "https://app.example.com/reset?token={token}"
+
+        [auth.local.email.reset]
+        text_template = "templates/reset.txt""#,
+        &[("templates/reset.txt", "Valable {expires_minutes} minutes.\n")],
+    );
+    assert!(err.contains("reset") && err.contains("{link}"), "{err}");
+}
+
+/// The subject is sent as written, so a code never shows on a lock screen.
+#[test]
+fn a_placeholder_in_the_subject_is_refused() {
+    let err = refusal_compiling("[auth.local.email.otp]\nsubject = \"Code {code}\"", &[]);
+    assert!(err.contains("subject"), "{err}");
+}
+
+#[test]
+fn a_line_break_in_a_header_is_refused() {
+    for local in [
+        "[auth.local.email.otp]\nsubject = \"Code\\r\\nBcc: x@example.com\"",
+        "email_from_name = \"Support\\nBcc: x@example.com\"",
+    ] {
+        let err = refusal_compiling(local, &[]);
+        assert!(err.contains("line break"), "{local}: {err}");
+    }
+}
+
+/// An `HTML` body travels beside a text one, which the operator writes too.
+#[test]
+fn an_html_body_without_a_text_body_is_refused() {
+    let err = refusal_compiling(
+        &format!("{MAGIC}\n[auth.local.email.otp]\nhtml_template = \"templates/otp.html\""),
+        &[OTP_HTML],
+    );
+    assert!(err.contains("text_template"), "{err}");
+}
+
+/// The bodies come from files, which the compiler reads. A body written inline is refused,
+/// naming the key to use.
+#[test]
+fn a_body_written_inline_is_refused() {
+    let err = refusal_compiling(
+        &format!("{MAGIC}\n[auth.local.email.otp]\ntext = \"Votre code : {{code}}\""),
+        &[],
+    );
+    assert!(err.contains("text_template"), "{err}");
+}

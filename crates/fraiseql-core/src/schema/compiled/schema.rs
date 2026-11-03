@@ -573,6 +573,17 @@ pub struct LocalAuthConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub email_from: Option<String>,
 
+    /// The sender name shown beside [`email_from`](Self::email_from)'s address. Unset sends
+    /// the bare address.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub email_from_name: Option<String>,
+
+    /// The subject and bodies of each mail these methods send (`[auth.local.email]`). Unset
+    /// keeps the built-in English text. Boxed: every compiled schema carries this struct, and
+    /// few carry mail templates.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub email: Option<Box<super::LocalEmailConfig>>,
+
     /// Template for the password-reset link, with `{token}` substituted for the
     /// opaque reset token — e.g. `https://app.example.com/reset?token={token}`.
     /// Required when `password` is enabled: the link points at the operator's

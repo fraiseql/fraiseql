@@ -2787,3 +2787,335 @@ async fn a_magic_link_of_an_mfa_user_yields_a_challenge() {
     pool.close().await;
     drop_scratch(&url, db).await;
 }
+
+// ── Mail templates (#1854) ──────────────────────────────────────────────────────────────
+
+/// What a reader of a mail sees: decoded subject, sender name and bodies.
+#[cfg(feature = "inbound-email")]
+struct ReadMail {
+    subject:   String,
+    from_name: Option<String>,
+    text:      String,
+    html:      Option<String>,
+}
+
+#[cfg(feature = "inbound-email")]
+fn read_mail(raw: &str) -> ReadMail {
+    use mail_parser::MimeHeaders as _;
+
+    let message = mail_parser::MessageParser::default()
+        .parse(raw.as_bytes())
+        .unwrap_or_else(|| panic!("the relay received a message that does not parse:\n{raw}"));
+    let part_of = |subtype: &str| {
+        message
+            .parts
+            .iter()
+            .find(|part| {
+                part.content_type().is_some_and(|ct| {
+                    ct.ctype().eq_ignore_ascii_case("text")
+                        && ct.subtype().is_some_and(|s| s.eq_ignore_ascii_case(subtype))
+                })
+            })
+            .and_then(|part| part.text_contents())
+            .map(|body| body.replace("\r\n", "\n"))
+    };
+    ReadMail {
+        subject:   message.subject().unwrap_or_default().to_string(),
+        from_name: message
+            .from()
+            .and_then(|from| from.first())
+            .and_then(|addr| addr.name())
+            .map(str::to_string),
+        text:      part_of("plain").expect("a text/plain body"),
+        html:      part_of("html"),
+    }
+}
+
+/// Every mail `[auth.local]` sends, in French, under a sender name, with an `HTML` body. The
+/// links carry `&`, which the `HTML` body must escape and the text body must not.
+#[cfg(feature = "inbound-email")]
+fn french_mail() -> LocalAuthConfig {
+    use fraiseql_core::schema::{EmailTemplate, LocalEmailConfig};
+
+    let template = |subject: &str, text: &str, html: &str| EmailTemplate {
+        subject: Some(subject.to_string()),
+        text: Some(text.to_string()),
+        html: Some(html.to_string()),
+        ..EmailTemplate::default()
+    };
+    LocalAuthConfig {
+        otp: true,
+        password: true,
+        email_verification: true,
+        email_from: Some("support".to_string()),
+        email_from_name: Some("Équipe Exemple".to_string()),
+        magic_link_template: Some("https://app.example.com/magic?from=mail&token={token}".into()),
+        reset_url_template: Some("https://app.example.com/reset?from=mail&token={token}".into()),
+        verification_url_template: Some(
+            "https://app.example.com/verify?from=mail&token={token}".into(),
+        ),
+        email: Some(Box::new(LocalEmailConfig {
+            otp:          Some(template(
+                "Votre code de connexion",
+                "Votre code : {code}\nLien : {link}\nValable {expires_minutes} minutes.\n",
+                "<p>Votre code : <b>{code}</b></p><p><a href=\"{link}\">Se connecter</a> \
+                 ({expires_minutes} min)</p>",
+            )),
+            reset:        Some(template(
+                "Réinitialiser votre mot de passe",
+                "Lien : {link}\nValable {expires_minutes} minutes.\n",
+                "<a href=\"{link}\">Réinitialiser</a>",
+            )),
+            verification: Some(template(
+                "Confirmer votre adresse",
+                "Lien : {link}\nValable {expires_minutes} minutes.\n",
+                "<a href=\"{link}\">Confirmer</a>",
+            )),
+        })),
+        ..LocalAuthConfig::default()
+    }
+}
+
+/// The link the text body carries after `Lien : `.
+#[cfg(feature = "inbound-email")]
+fn link_in(text: &str) -> String {
+    let start = text.find("Lien : ").unwrap_or_else(|| panic!("no link in:\n{text}")) + 7;
+    text[start..].lines().next().unwrap_or_default().to_string()
+}
+
+/// A configured sign-in mail reaches the relay as written: subject, sender name, text and
+/// `HTML` bodies, with the code, the magic link and its lifetime substituted. The link is the
+/// one that signs in.
+#[cfg(feature = "inbound-email")]
+#[tokio::test]
+async fn a_sign_in_mail_is_sent_as_configured() {
+    let Some(url) = database_url_or_skip("a_sign_in_mail_is_sent_as_configured") else {
+        return;
+    };
+    set_test_env();
+    let db = "fraiseql_p26_local_mail_otp";
+    let pool = scratch_pool(&url, db).await;
+    let sink = CapturingSmtp::start().await;
+    let server =
+        boot_with_smtp(french_mail(), pool.clone(), &with_database(&url, db), sink.port).await;
+    let email = "lea@example.com";
+
+    let (status, body) =
+        post_json(&server.base, "/auth/v1/otp", serde_json::json!({ "email": email })).await;
+    assert_eq!(status, reqwest::StatusCode::OK, "{body}");
+    let mail = read_mail(&nth_message(&sink, 0).await);
+    let code = stored_otp_code(&pool, email).await;
+    let link = link_in(&mail.text);
+    let token = link
+        .strip_prefix("https://app.example.com/magic?from=mail&token=")
+        .unwrap_or_else(|| panic!("the magic link is substituted: {link}"));
+    let token = urlencoding::decode(token).unwrap().into_owned();
+
+    assert_eq!(mail.subject, "Votre code de connexion");
+    assert_eq!(mail.from_name.as_deref(), Some("Équipe Exemple"));
+    assert_eq!(mail.text, format!("Votre code : {code}\nLien : {link}\nValable 10 minutes.\n"));
+    let escaped = link.replace('&', "&amp;");
+    assert_eq!(
+        mail.html.as_deref(),
+        Some(
+            format!(
+                "<p>Votre code : <b>{code}</b></p><p><a href=\"{escaped}\">Se connecter</a> \
+                 (10 min)</p>"
+            )
+            .as_str()
+        ),
+        "the HTML body, with its values escaped"
+    );
+    let (status, body) = redeem(&server.base, &token).await;
+    assert_eq!(status, reqwest::StatusCode::OK, "the mailed link signs in: {body}");
+
+    server.stop().await;
+    sink.stop();
+    pool.close().await;
+    drop_scratch(&url, db).await;
+}
+
+/// The reset and verification mails take their templates the same way.
+#[cfg(feature = "inbound-email")]
+#[tokio::test]
+async fn reset_and_verification_mails_are_sent_as_configured() {
+    let Some(url) = database_url_or_skip("reset_and_verification_mails_are_sent_as_configured")
+    else {
+        return;
+    };
+    set_test_env();
+    let db = "fraiseql_p26_local_mail_links";
+    let pool = scratch_pool(&url, db).await;
+    let sink = CapturingSmtp::start().await;
+    let server =
+        boot_with_smtp(french_mail(), pool.clone(), &with_database(&url, db), sink.port).await;
+    let base = &server.base;
+
+    let (status, body) = post_json(
+        base,
+        "/auth/v1/password/signup",
+        serde_json::json!({ "email": "noe@example.com", "password": "correct horse battery" }),
+    )
+    .await;
+    assert_eq!(status, reqwest::StatusCode::OK, "{body}");
+    let access = body["access_token"].as_str().expect("access_token").to_string();
+
+    let (status, body) = post_json(
+        base,
+        "/auth/v1/password/reset",
+        serde_json::json!({ "email": "noe@example.com" }),
+    )
+    .await;
+    assert_eq!(status, reqwest::StatusCode::ACCEPTED, "{body}");
+    let reset = read_mail(&nth_message(&sink, 0).await);
+    let link = link_in(&reset.text);
+    assert!(link.starts_with("https://app.example.com/reset?from=mail&token="), "{link}");
+    assert_eq!(reset.subject, "Réinitialiser votre mot de passe");
+    assert_eq!(reset.from_name.as_deref(), Some("Équipe Exemple"));
+    assert_eq!(reset.text, format!("Lien : {link}\nValable 60 minutes.\n"));
+    let escaped = link.replace('&', "&amp;");
+    assert_eq!(
+        reset.html.as_deref(),
+        Some(format!("<a href=\"{escaped}\">Réinitialiser</a>").as_str())
+    );
+
+    let (status, body) =
+        post_authed(base, "/auth/v1/email/verify/start", &access, serde_json::json!({})).await;
+    assert_eq!(status, reqwest::StatusCode::ACCEPTED, "{body}");
+    let verify = read_mail(&nth_message(&sink, 1).await);
+    let link = link_in(&verify.text);
+    assert!(link.starts_with("https://app.example.com/verify?from=mail&token="), "{link}");
+    assert_eq!(verify.subject, "Confirmer votre adresse");
+    assert_eq!(verify.from_name.as_deref(), Some("Équipe Exemple"));
+    assert_eq!(verify.text, format!("Lien : {link}\nValable 60 minutes.\n"));
+    let escaped = link.replace('&', "&amp;");
+    assert_eq!(
+        verify.html.as_deref(),
+        Some(format!("<a href=\"{escaped}\">Confirmer</a>").as_str())
+    );
+
+    server.stop().await;
+    sink.stop();
+    pool.close().await;
+    drop_scratch(&url, db).await;
+}
+
+/// Without `[auth.local.email]` or a sender name the mail is today's: English, text only, from
+/// the bare address.
+#[cfg(feature = "inbound-email")]
+#[tokio::test]
+async fn an_unconfigured_mail_keeps_the_built_in_text() {
+    let Some(url) = database_url_or_skip("an_unconfigured_mail_keeps_the_built_in_text") else {
+        return;
+    };
+    set_test_env();
+    let db = "fraiseql_p26_local_mail_default";
+    let pool = scratch_pool(&url, db).await;
+    let sink = CapturingSmtp::start().await;
+    let server =
+        boot_with_smtp(magic_links(), pool.clone(), &with_database(&url, db), sink.port).await;
+
+    let (status, body) =
+        post_json(&server.base, "/auth/v1/otp", serde_json::json!({ "email": "sam@example.com" }))
+            .await;
+    assert_eq!(status, reqwest::StatusCode::OK, "{body}");
+    let mail = read_mail(&nth_message(&sink, 0).await);
+    assert_eq!(mail.subject, "Your sign-in code");
+    assert_eq!(mail.from_name, None);
+    assert!(mail.text.starts_with("Use the link below to sign in."), "{}", mail.text);
+    assert_eq!(mail.html, None);
+
+    server.stop().await;
+    sink.stop();
+    pool.close().await;
+    drop_scratch(&url, db).await;
+}
+
+/// Why `Server::new` refused `local`, which must not boot.
+#[cfg(feature = "inbound-email")]
+async fn boot_refusal(url: &str, db: &str, local: LocalAuthConfig) -> String {
+    let pool = scratch_pool(url, db).await;
+    let scratch_url = with_database(url, db);
+    let adapter = Arc::new(PostgresAdapter::new(&scratch_url).await.expect("PostgresAdapter::new"));
+    let refused = Box::pin(Server::new(
+        ServerConfig {
+            mailbox: capturing_mailbox(2525),
+            ..local_config(&scratch_url)
+        },
+        local_schema(local),
+        adapter,
+        Some(pool.clone()),
+    ))
+    .await
+    .err()
+    .map(|e| e.to_string());
+    pool.close().await;
+    drop_scratch(url, db).await;
+    refused.unwrap_or_else(|| panic!("the config must refuse to boot"))
+}
+
+/// A hand-written compiled schema meets the compiler's rules at boot: a misspelt placeholder
+/// would mail itself verbatim.
+#[cfg(feature = "inbound-email")]
+#[tokio::test]
+async fn a_template_with_an_unknown_placeholder_refuses_to_boot() {
+    let Some(url) = database_url_or_skip("a_template_with_an_unknown_placeholder") else {
+        return;
+    };
+    set_test_env();
+    let mut local = french_mail();
+    local.email.as_mut().unwrap().otp.as_mut().unwrap().text =
+        Some("Votre code : {cdoe}\n".to_string());
+    let refused = boot_refusal(&url, "fraiseql_p26_local_mail_typo", local).await;
+    assert!(refused.contains("{cdoe}") && refused.contains("otp"), "{refused}");
+}
+
+/// A template path is the compiler's input. The server reads only what the compiler embedded.
+#[cfg(feature = "inbound-email")]
+#[tokio::test]
+async fn a_template_path_the_compiler_did_not_embed_refuses_to_boot() {
+    let Some(url) = database_url_or_skip("a_template_path_the_compiler_did_not_embed") else {
+        return;
+    };
+    set_test_env();
+    let mut local = french_mail();
+    let otp = local.email.as_mut().unwrap().otp.as_mut().unwrap();
+    otp.text = None;
+    otp.text_template = Some("templates/otp.txt".to_string());
+    let refused = boot_refusal(&url, "fraiseql_p26_local_mail_path", local).await;
+    assert!(
+        refused.contains("templates/otp.txt") && refused.contains("fraiseql compile"),
+        "{refused}"
+    );
+}
+
+/// A magic-link template may carry `{code}`, for a front end that already knows the address.
+#[cfg(feature = "inbound-email")]
+#[tokio::test]
+async fn a_magic_link_template_may_carry_the_code() {
+    let Some(url) = database_url_or_skip("a_magic_link_template_may_carry_the_code") else {
+        return;
+    };
+    set_test_env();
+    let db = "fraiseql_p26_local_mail_code";
+    let pool = scratch_pool(&url, db).await;
+    let sink = CapturingSmtp::start().await;
+    let local = LocalAuthConfig {
+        magic_link_template: Some("https://app.example.com/magic?code={code}".to_string()),
+        ..magic_links()
+    };
+    let server = boot_with_smtp(local, pool.clone(), &with_database(&url, db), sink.port).await;
+    let email = "ines@example.com";
+
+    let (status, body) =
+        post_json(&server.base, "/auth/v1/otp", serde_json::json!({ "email": email })).await;
+    assert_eq!(status, reqwest::StatusCode::OK, "{body}");
+    let mailed =
+        token_from_message(&nth_message(&sink, 0).await, "https://app.example.com/magic?code=");
+    assert_eq!(mailed, stored_otp_code(&pool, email).await, "the link carries the code");
+
+    server.stop().await;
+    sink.stop();
+    pool.close().await;
+    drop_scratch(&url, db).await;
+}

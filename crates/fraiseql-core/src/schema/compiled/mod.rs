@@ -4,6 +4,7 @@
 //! All data is owned by Rust - no foreign object references.
 
 pub mod argument;
+mod auth_email;
 pub mod directive;
 mod fact_table_links;
 mod fact_table_scope;
@@ -30,6 +31,7 @@ mod federation_keys_tests;
 mod tests;
 
 pub use argument::{AUTO_PARAM_NAMES, ArgumentDefinition, AutoParams};
+pub use auth_email::{EmailTemplate, LocalEmailConfig};
 pub use directive::{DirectiveDefinition, DirectiveLocationKind};
 pub use fact_table_links::fact_field;
 pub use federation_keys::FederationKeyProblem;

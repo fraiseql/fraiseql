@@ -204,6 +204,9 @@ fraiseql-kafka = { workspace = true }
 # tree — samael already pulls the same openssl.
 openssl = "0.10"
 samael = { version = "0.0.22" }
+# Test-only: read back the subject, sender name and MIME parts of the mail `[auth.local]`
+# sends (#1854). Already in the tree through fraiseql-functions.
+mail-parser = { version = "0.11", default-features = false }
 # Test-only: derive a live TOTP code for the #367 [auth.local] MFA e2e.
 totp-rs = { version = "5", features = ["gen_secret", "otpauth"] }
 # Performance testing
