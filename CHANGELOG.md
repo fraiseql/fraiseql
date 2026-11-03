@@ -89,8 +89,9 @@ disagreed, and the promise was the part that was wrong.
   answered a UTC timestamp such as `"2026-06-30T15:00:00+00:00"`. A client parsing the key
   as a timestamp reads a date instead. `timestamp` and `timestamptz` columns bucket as before.
 
-- **`AuthClientConfig` has a `session` field (#1853).** A struct literal naming every field
-  needs `session: None`, which keeps today's behaviour.
+- **`AuthClientConfig`, and `fraiseql-cli`'s `OidcClientConfig`, have a `session` field
+  (#1853).** A struct literal naming every field needs `session: None`, which keeps today's
+  behaviour.
 
 - **`fraiseql_auth` no longer has `auth_refresh`, `auth_logout`, `AuthRefreshRequest`,
   `AuthRefreshResponse` or `AuthLogoutRequest` (#1853).** No server mounted them, and

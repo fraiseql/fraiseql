@@ -728,7 +728,7 @@ impl Server {
         // The compiled `[auth.social]` block declares the providers; every
         // configured-but-unusable shape (missing [auth_hs256], unset secret
         // env, no pool, unreachable Google discovery) refuses to boot.
-        // `[auth.session]` (#1853): how long every minted session lasts, and whether it can
+        // `[auth.session]`: how long every minted session lasts, and whether it can
         // be refreshed. The compiler runs the same check; this one covers a hand-written
         // schema.
         #[cfg(feature = "auth")]
@@ -804,7 +804,7 @@ impl Server {
             }
         }
 
-        // `POST /auth/v1/session/{refresh,logout}` (#1853): only when `[auth.session]`
+        // `POST /auth/v1/session/{refresh,logout}`: only when `[auth.session]`
         // opts in to refresh. Anonymous sign-up mints sessions that never refresh, so it
         // alone does not count.
         #[cfg(feature = "auth")]
@@ -825,7 +825,7 @@ impl Server {
             )?
         };
 
-        // Every session-minting server sweeps `_system.sessions` (#1853): a row past its
+        // Every session-minting server sweeps `_system.sessions`: a row past its
         // `expires_at` can no longer be used, refreshable or not.
         #[cfg(feature = "auth")]
         let session_sweep = {

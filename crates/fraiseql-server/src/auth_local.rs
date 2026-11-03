@@ -447,7 +447,7 @@ pub async fn build_local_auth_states(
         lifetime,
     ));
     // Anonymous sign-up mints through its own store, without `[auth.session]`: an
-    // anonymous session keeps its fixed seven days and is never refreshable (#1853).
+    // anonymous session keeps its fixed seven days and is never refreshable.
     let anon_session_store = local.anonymous.then(|| {
         Arc::new(minting_session_store(
             pool.clone(),

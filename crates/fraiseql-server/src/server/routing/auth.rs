@@ -120,7 +120,7 @@ impl Server {
             );
         }
 
-        // Session refresh and logout (#1853) — mounted only when `[auth.session]
+        // Session refresh and logout — mounted only when `[auth.session]
         // absolute_ttl_secs` opts in. Logout denies the session's access tokens only when
         // `[security.token_revocation]` is configured; otherwise they live out ttl_secs.
         if let Some(ref sessions) = self.session_routes_store {

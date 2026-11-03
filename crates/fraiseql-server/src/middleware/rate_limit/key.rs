@@ -106,7 +106,7 @@ impl PathRateLimit {
                 sec.auth_callback_max_requests,
                 sec.auth_callback_window_secs,
             ),
-            // The session routes (#1853). The refresh and logout budgets predate them, and
+            // The session routes. The refresh and logout budgets predate them, and
             // named paths no route ever served.
             Self::rule(
                 "/auth/v1/session/refresh",
