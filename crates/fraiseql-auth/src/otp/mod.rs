@@ -46,7 +46,7 @@ use crate::{
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 /// `OTP` validity window in seconds (10 minutes).
-pub(super) const OTP_TTL_SECS: u64 = 600;
+pub const OTP_TTL_SECS: u64 = 600;
 
 /// Maximum verification attempts per code before it is invalidated.
 pub(super) const MAX_VERIFY_ATTEMPTS: u32 = 3;

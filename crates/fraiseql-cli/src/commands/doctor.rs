@@ -272,7 +272,8 @@ pub fn check_toml_parses(path: &Path) -> DoctorCheck {
             );
         },
     };
-    match TomlSchema::parse_toml(&content) {
+    let project = path.parent().unwrap_or_else(|| Path::new(""));
+    match TomlSchema::parse_toml_in(&content, project) {
         Ok(_) => DoctorCheck::pass("TOML syntax valid", ""),
         Err(e) => {
             // Keep only the first line of the error to avoid overwhelming output.

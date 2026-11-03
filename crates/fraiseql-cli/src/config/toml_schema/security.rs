@@ -1,5 +1,6 @@
 //! Security configuration types for `[security.*]` and `[auth]` TOML sections.
 
+use anyhow::Context as _;
 use fraiseql_core::security::oidc::MeEndpointConfig;
 use serde::{Deserialize, Serialize};
 
@@ -455,6 +456,7 @@ impl OidcClientConfig {
                     );
                 }
             }
+            local.check_email().map_err(anyhow::Error::msg)?;
             for (field, template, placeholder) in [
                 ("reset_url_template", local.reset_url_template.as_ref(), "{token}"),
                 ("verification_url_template", local.verification_url_template.as_ref(), "{token}"),
@@ -484,4 +486,51 @@ impl OidcClientConfig {
 
         Ok(())
     }
+}
+
+/// Read each `[auth.local.email]` template file, relative to `project`, into the body the
+/// compiled schema carries, and drop its path: the server may run where the files are not.
+///
+/// # Errors
+///
+/// Returns an error naming the key and the file when a file cannot be read, and refuses a body
+/// written inline, which has no file to come from.
+pub(crate) fn embed_email_templates(
+    local: &mut fraiseql_core::schema::LocalAuthConfig,
+    project: &std::path::Path,
+) -> anyhow::Result<()> {
+    let Some(email) = local.email.as_mut() else {
+        return Ok(());
+    };
+    for (kind, template) in [
+        ("otp", email.otp.as_mut()),
+        ("reset", email.reset.as_mut()),
+        ("verification", email.verification.as_mut()),
+    ] {
+        let Some(template) = template else {
+            continue;
+        };
+        for (key, inline, path, body) in [
+            ("text_template", "text", &mut template.text_template, &mut template.text),
+            ("html_template", "html", &mut template.html_template, &mut template.html),
+        ] {
+            if body.is_some() {
+                anyhow::bail!(
+                    "[auth.local.email.{kind}] {inline} is the compiled body. In fraiseql.toml, \
+                     write it in a file and name the file with {key}."
+                );
+            }
+            if let Some(file) = path.take() {
+                let read = project.join(&file);
+                let contents = std::fs::read_to_string(&read).with_context(|| {
+                    format!(
+                        "[auth.local.email.{kind}] {key} = {file:?}: cannot read {}",
+                        read.display()
+                    )
+                })?;
+                *body = Some(contents);
+            }
+        }
+    }
+    Ok(())
 }

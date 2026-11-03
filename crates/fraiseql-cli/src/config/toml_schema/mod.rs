@@ -327,6 +327,8 @@ impl HierarchyConfig {
 impl TomlSchema {
     /// Load schema from TOML file
     ///
+    /// Files the TOML names, such as mail templates, are read relative to the TOML file.
+    ///
     /// # Errors
     ///
     /// Returns an error if the file cannot be read or cannot be parsed as a
@@ -334,20 +336,32 @@ impl TomlSchema {
     pub fn from_file(path: &str) -> Result<Self> {
         let content =
             std::fs::read_to_string(path).context(format!("Failed to read TOML file: {path}"))?;
-        Self::parse_toml(&content)
+        let project = std::path::Path::new(path).parent().unwrap_or(std::path::Path::new(""));
+        Self::parse_toml_in(&content, project)
     }
 
     /// Parse schema from TOML string.
     ///
-    /// Expands `${VAR}` environment variable placeholders before parsing.
+    /// Expands `${VAR}` environment variable placeholders before parsing. Files the TOML
+    /// names, such as mail templates, are read relative to the working directory: for a
+    /// `fraiseql.toml` on disk, use [`Self::from_file`], which reads them beside it.
     ///
     /// # Errors
     ///
     /// Returns an error if the TOML string cannot be deserialized into a
-    /// `TomlSchema`.
+    /// `TomlSchema`, or a file it names cannot be read.
     pub fn parse_toml(content: &str) -> Result<Self> {
+        Self::parse_toml_in(content, std::path::Path::new(""))
+    }
+
+    /// [`Self::parse_toml`], reading the files the TOML names relative to `project`.
+    pub(crate) fn parse_toml_in(content: &str, project: &std::path::Path) -> Result<Self> {
         let expanded = expand_env_vars(content)?;
-        toml::from_str(&expanded).context("Failed to parse TOML schema")
+        let mut schema: Self = toml::from_str(&expanded).context("Failed to parse TOML schema")?;
+        if let Some(local) = schema.auth.as_mut().and_then(|auth| auth.local.as_mut()) {
+            security::embed_email_templates(local, project)?;
+        }
+        Ok(schema)
     }
 
     /// Reject config sections the CLI accepts but no runtime consumes (#612).

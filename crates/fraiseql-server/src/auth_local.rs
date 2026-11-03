@@ -23,25 +23,23 @@ use crate::{ServerError, server_config::ServerConfig};
 /// Local alias mirroring the server's result type.
 type Result<T> = std::result::Result<T, ServerError>;
 
-/// Placeholder the reset-link template substitutes the opaque token for.
-/// Kept as a constant so the CLI validation, the docs and this substitution
-/// cannot drift on the spelling.
+/// What a reset or verification link template substitutes the opaque token for. Kept as a
+/// constant so the CLI validation, the docs and this substitution cannot drift on the spelling.
 #[cfg(feature = "inbound-email")]
-const RESET_TOKEN_PLACEHOLDER: &str = "{token}";
+const LINK_TOKEN: &str = "token";
 
-/// Placeholder the magic-link template substitutes the link token for: the token alone signs
-/// in, from any device.
+/// What the magic-link template substitutes the OTP code for. A link carrying only the code
+/// needs the address too, so it signs in only where the address is known.
 #[cfg(feature = "inbound-email")]
-const MAGIC_TOKEN_PLACEHOLDER: &str = "{token}";
+const MAGIC_CODE: &str = "code";
 
-/// Placeholder the magic-link template substitutes the OTP code for. A link carrying only the
-/// code needs the address too, so it signs in only where the address is known.
+/// The built-in subjects, sent when `[auth.local.email]` sets none.
 #[cfg(feature = "inbound-email")]
-const MAGIC_CODE_PLACEHOLDER: &str = "{code}";
-
-/// Placeholder the verification-link template substitutes the opaque token for (#945).
+const OTP_SUBJECT: &str = "Your sign-in code";
 #[cfg(feature = "inbound-email")]
-const VERIFICATION_TOKEN_PLACEHOLDER: &str = "{token}";
+const RESET_SUBJECT: &str = "Reset your password";
+#[cfg(feature = "inbound-email")]
+const VERIFICATION_SUBJECT: &str = "Verify your email address";
 
 /// Default `MFA` issuer shown in authenticator apps.
 const DEFAULT_MFA_ISSUER: &str = "FraiseQL";
@@ -73,16 +71,37 @@ pub struct MailboxEmailSender {
     /// `{token}`-templated email-verification link. `None` disables verification
     /// delivery.
     verification_url_template: Option<String>,
+    /// The operator's subjects and bodies, checked at boot. A kind left unset sends the
+    /// built-in text.
+    email: fraiseql_core::schema::LocalEmailConfig,
 }
 
 #[cfg(feature = "inbound-email")]
 impl MailboxEmailSender {
-    async fn send(&self, to: &str, subject: &str, body: String) -> Result<()> {
+    /// Send the `template` mail, or the built-in one where it sets no subject or body.
+    /// `values` fill the template's placeholders, escaped in its `HTML` body.
+    async fn send(
+        &self,
+        to: &str,
+        template: Option<&fraiseql_core::schema::EmailTemplate>,
+        built_in: (&str, String),
+        values: &[(&str, &str)],
+    ) -> fraiseql_auth::Result<()> {
+        use fraiseql_core::schema::render_email_template;
+
+        let (built_in_subject, built_in_text) = built_in;
+        let subject = template.and_then(|t| t.subject.as_deref()).unwrap_or(built_in_subject);
+        let text = template
+            .and_then(|t| t.text.as_deref())
+            .map_or(built_in_text, |text| render_email_template(text, values, false));
+        let html = template
+            .and_then(|t| t.html.as_deref())
+            .map(|html| render_email_template(html, values, true));
         let request = fraiseql_functions::outbound::SendEmailRequest {
-            to:       to.to_string(),
-            subject:  subject.to_string(),
-            text:     Some(body),
-            html:     None,
+            to: to.to_string(),
+            subject: subject.to_string(),
+            text: Some(text),
+            html,
             reply_to: None,
         };
         // No send-id: these are transactional auth mails, not tracked campaign
@@ -95,8 +114,16 @@ impl MailboxEmailSender {
             .send(&self.from, &request, context)
             .await
             .map(|_| ())
-            .map_err(|e| ServerError::ConfigError(format!("auth email delivery failed: {e}")))
+            .map_err(|e| fraiseql_auth::AuthError::Internal {
+                message: format!("auth email delivery failed: {e}"),
+            })
     }
+}
+
+/// Whole minutes of a lifetime in seconds, for `{expires_minutes}`.
+#[cfg(feature = "inbound-email")]
+fn minutes(secs: u64) -> String {
+    (secs / 60).to_string()
 }
 
 #[cfg(feature = "inbound-email")]
@@ -111,20 +138,22 @@ impl fraiseql_auth::ResetEmailSender for MailboxEmailSender {
                 message: "[auth.local] reset_url_template is not configured".to_string(),
             }
         })?;
-        let link = template.replace(RESET_TOKEN_PLACEHOLDER, &urlencoding::encode(token));
+        let link = fraiseql_core::schema::render_link_template(template, &[(LINK_TOKEN, token)]);
+        let expires = minutes(fraiseql_auth::RESET_TOKEN_TTL_SECS.unsigned_abs());
         self.send(
             to,
-            "Reset your password",
-            format!(
-                "Use the link below to choose a new password. It expires in one hour and can \
-                 only be used once.\n\n{link}\n\nIf you did not request this, you can ignore \
-                 this message."
+            self.email.reset.as_ref(),
+            (
+                RESET_SUBJECT,
+                format!(
+                    "Use the link below to choose a new password. It expires in one hour and \
+                     can only be used once.\n\n{link}\n\nIf you did not request this, you can \
+                     ignore this message."
+                ),
             ),
+            &[("link", &link), ("expires_minutes", &expires)],
         )
         .await
-        .map_err(|e| fraiseql_auth::AuthError::Internal {
-            message: e.to_string(),
-        })
     }
 }
 
@@ -140,21 +169,23 @@ impl fraiseql_auth::VerificationEmailSender for MailboxEmailSender {
                 message: "[auth.local] verification_url_template is not configured".to_string(),
             }
         })?;
-        let link = template.replace(VERIFICATION_TOKEN_PLACEHOLDER, &urlencoding::encode(token));
+        let link = fraiseql_core::schema::render_link_template(template, &[(LINK_TOKEN, token)]);
+        let expires = minutes(fraiseql_auth::EMAIL_VERIFICATION_TOKEN_TTL_SECS.unsigned_abs());
         self.send(
             to,
-            "Verify your email address",
-            format!(
-                "Use the link below to confirm this address. It expires in one hour and can \
-                 only be used once, and it only works while you are signed in to the account \
-                 that asked for it.\n\n{link}\n\nIf you did not request this, you can ignore \
-                 this message — nothing changes until the link is used."
+            self.email.verification.as_ref(),
+            (
+                VERIFICATION_SUBJECT,
+                format!(
+                    "Use the link below to confirm this address. It expires in one hour and \
+                     can only be used once, and it only works while you are signed in to the \
+                     account that asked for it.\n\n{link}\n\nIf you did not request this, you \
+                     can ignore this message — nothing changes until the link is used."
+                ),
             ),
+            &[("link", &link), ("expires_minutes", &expires)],
         )
         .await
-        .map_err(|e| fraiseql_auth::AuthError::Internal {
-            message: e.to_string(),
-        })
     }
 }
 
@@ -166,29 +197,41 @@ impl fraiseql_auth::EmailDelivery for MailboxEmailSender {
         email: &str,
         issue: &fraiseql_auth::OtpIssue,
     ) -> fraiseql_auth::Result<String> {
-        let code = &issue.code;
-        let body = self.magic_link_template.as_ref().map_or_else(
+        let code = issue.code.as_str();
+        let link = self.magic_link_template.as_deref().map(|template| {
+            fraiseql_core::schema::render_link_template(
+                template,
+                &[(LINK_TOKEN, &issue.link_token), (MAGIC_CODE, code)],
+            )
+        });
+        let built_in = link.as_ref().map_or_else(
             || {
                 format!(
                     "Your sign-in code is {code}. It expires in 10 minutes and can only be \
                      used once."
                 )
             },
-            |template| {
-                let link = template
-                    .replace(MAGIC_TOKEN_PLACEHOLDER, &urlencoding::encode(&issue.link_token))
-                    .replace(MAGIC_CODE_PLACEHOLDER, &urlencoding::encode(code));
+            |link| {
                 format!(
                     "Use the link below to sign in. It expires in 10 minutes and can only be \
                      used once.\n\n{link}\n\nOr enter this code: {code}"
                 )
             },
         );
-        self.send(email, "Your sign-in code", body).await.map_err(|e| {
-            fraiseql_auth::AuthError::Internal {
-                message: e.to_string(),
-            }
-        })?;
+        let expires = minutes(fraiseql_auth::OTP_TTL_SECS);
+        // Boot refuses a template with `{link}` and no magic-link template, so an empty link
+        // is never substituted.
+        self.send(
+            email,
+            self.email.otp.as_ref(),
+            (OTP_SUBJECT, built_in),
+            &[
+                ("code", code),
+                ("link", link.as_deref().unwrap_or_default()),
+                ("expires_minutes", &expires),
+            ],
+        )
+        .await?;
         // The transport does not surface a provider message id here; the caller
         // only uses it for correlation/debugging.
         Ok(String::new())
@@ -237,11 +280,12 @@ fn build_email_sender(
         transport,
         from: fraiseql_functions::outbound::SenderIdentity {
             address:      from_address,
-            display_name: None,
+            display_name: local.email_from_name.clone(),
         },
         reset_url_template: local.reset_url_template.clone(),
         magic_link_template: local.magic_link_template.clone(),
         verification_url_template: local.verification_url_template.clone(),
+        email: local.email.as_deref().cloned().unwrap_or_default(),
     }))
 }
 
@@ -446,6 +490,7 @@ pub async fn build_local_auth_states(
             })
         })
         .transpose()?;
+    local.check_email().map_err(ServerError::ConfigError)?;
     let secret = hs.load_secret().map_err(ServerError::ConfigError)?;
     // Mint the claims the configured validator demands, or every login would
     // "succeed" and then 401 on the first validated request. The routes that act on the

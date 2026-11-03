@@ -72,6 +72,9 @@ protection holds only if the landing page needs a person:
   "Signed in as alice@example.com" after the redeem lets a person notice they are in someone
   else's account.
 
+To write the mail itself in another language, with the link inside, see
+[mail-templates.md](mail-templates.md).
+
 ## A template with only `{code}`
 
 A template may carry `{code}` instead of, or beside, `{token}`. A code alone needs the

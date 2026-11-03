@@ -31,7 +31,10 @@ mod federation_keys_tests;
 mod tests;
 
 pub use argument::{AUTO_PARAM_NAMES, ArgumentDefinition, AutoParams};
-pub use auth_email::{EmailTemplate, LocalEmailConfig};
+pub use auth_email::{
+    EmailKind, EmailTemplate, LocalEmailConfig, check_email_header, render_email_template,
+    render_link_template,
+};
 pub use directive::{DirectiveDefinition, DirectiveLocationKind};
 pub use fact_table_links::fact_field;
 pub use federation_keys::FederationKeyProblem;

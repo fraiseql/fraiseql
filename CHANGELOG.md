@@ -110,6 +110,11 @@ disagreed, and the promise was the part that was wrong.
   - `VerifyRequest`'s `email` and `code` are `Option<String>`, and it gains `token`. It no
     longer implements `Debug`, because it carries a live credential.
 
+- **`LocalAuthConfig` has `email_from_name: Option<String>` and
+  `email: Option<Box<LocalEmailConfig>>` fields (#1854).** A struct literal naming every
+  field needs both as `None`, or `..LocalAuthConfig::default()`. `email` is boxed so that
+  every compiled schema does not grow by the size of the mail templates.
+
 ### Added
 
 - **`[auth.local] otp_allowed_query` restricts `OTP` sign-in to approved addresses (#1852).**
@@ -161,6 +166,23 @@ disagreed, and the promise was the part that was wrong.
     a `link_token_hash` column and a unique index at boot; only the hash is stored.
   - `fraiseql compile` warns about a template with `{code}` and no `{token}`, and still
     refuses one with neither. See `docs/auth/magic-links.md`.
+
+- **The mail `[auth.local]` sends can be written in your language, with an `HTML` body and a
+  sender name (#1854).** `[auth.local.email.{otp,reset,verification}]` take a `subject`, a
+  `text_template` and an optional `html_template`; `[auth.local] email_from_name` names the
+  sender. A mail with no section keeps its built-in English text.
+  - Placeholders: `{code}` (sign-in only), `{link}` and `{expires_minutes}`. Values are
+    substituted in one pass and escaped in the `HTML` body. The subject takes no
+    placeholder, so a code never shows on a lock screen.
+  - `fraiseql compile` reads the template files, relative to `fraiseql.toml`, into the
+    compiled schema, so the server needs no access to them. It refuses a missing file, an
+    unknown placeholder, a body without its `{code}` or `{link}`, `{link}` in a sign-in mail
+    with no `magic_link_template`, an `HTML` body without a text one, and a line break in the
+    subject or sender name. The server checks a hand-written schema the same way at boot.
+    See `docs/auth/mail-templates.md`.
+  - `fraiseql_auth::OTP_TTL_SECS` is public, for a caller that states how long a code lasts.
+  - `fraiseql_core::schema::render_link_template` builds every link these mails carry: one
+    pass, values percent-encoded.
 
 ### Changed
 

@@ -1525,6 +1525,24 @@ mod doctor_tests {
         assert_eq!(result.status, CheckStatus::Pass);
     }
 
+    /// A mail template path is relative to `fraiseql.toml`, wherever `doctor` runs from.
+    #[test]
+    fn test_toml_parses_reads_mail_templates_beside_the_toml() {
+        let project = tempfile::tempdir().unwrap();
+        std::fs::create_dir(project.path().join("templates")).unwrap();
+        std::fs::write(project.path().join("templates/otp.txt"), "Votre code : {code}\n").unwrap();
+        let toml = project.path().join("fraiseql.toml");
+        std::fs::write(
+            &toml,
+            "[schema]\nname = \"app\"\n\n[auth.local]\notp = true\nemail_from = \"support\"\n\n\
+             [auth.local.email.otp]\ntext_template = \"templates/otp.txt\"\n",
+        )
+        .unwrap();
+        // The test runs from the crate directory, not from the project.
+        let result = check_toml_parses(&toml);
+        assert_eq!(result.status, CheckStatus::Pass, "{}", result.detail);
+    }
+
     #[test]
     fn test_toml_parses_invalid_syntax() {
         let f = temp_file_with("this is not [[[ valid toml");
