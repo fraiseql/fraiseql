@@ -27,9 +27,7 @@
         "python",
         "conformance/export.py"
       ],
-      "unsupported": {
-        "fact_tables": "the SDK has no fact-table authoring surface \u2014 its only `fact_table` matches are the mutation key `invalidates_fact_tables` (AF 1). Fact-table authoring is a feature, not a key rename."
-      }
+      "unsupported": {}
     },
     "typescript": {
       "dir": "fraiseql-typescript",
