@@ -15,6 +15,7 @@ pub use adapter::test_hooks;
 pub use adapter::{
     HnswIterativeScan, IvfflatIterativeScan, PoolPrewarmConfig, PostgresAdapter,
     READ_STATEMENT_CACHE_CAP, ReadReplicaConfig, ReadReplicaPolicy, SearchPath, VectorScanConfig,
+    transaction_retry::{MAX_BACKOFF_MS, RetryEvent, RetryObserver, TransactionRetry},
 };
 pub use introspector::{IndexInfo, PostgresIntrospector};
 pub use notify::{NOTIFY_APPLICATION_NAME, Notification, NotifyConnector, NotifySession};

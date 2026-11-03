@@ -1839,3 +1839,106 @@ mod suggestions_enabled {
         }
     }
 }
+
+mod transaction_retry {
+    use std::time::Duration;
+
+    use fraiseql_core::db::postgres::{RetryEvent, TransactionRetry};
+
+    use super::*;
+
+    /// `toml` over a configuration `validate` accepts.
+    fn parsed(toml: &str) -> ServerConfig {
+        let config: ServerConfig = toml::from_str(toml).unwrap();
+        ServerConfig {
+            cors_enabled: false,
+            ..config
+        }
+    }
+
+    #[test]
+    fn without_the_section_a_mutation_runs_once() {
+        let policy = ServerConfig::default().transaction_retry().unwrap();
+        assert_eq!(policy.max_attempts(), 1);
+    }
+
+    #[test]
+    fn the_section_sets_the_policy() {
+        let config = parsed("[transaction_retry]\nmax_attempts = 4\nbase_ms = 5\nmax_ms = 50\n");
+        let policy = config.transaction_retry().unwrap();
+        assert_eq!(policy.max_attempts(), 4);
+        assert_eq!(
+            format!("{policy:?}"),
+            format!("{:?}", TransactionRetry::new(4, 5, 50).unwrap())
+        );
+    }
+
+    /// An empty section opts in with the documented defaults.
+    #[test]
+    fn an_empty_section_opts_in_with_the_defaults() {
+        let policy = parsed("[transaction_retry]\n").transaction_retry().unwrap();
+        assert_eq!(
+            format!("{policy:?}"),
+            format!("{:?}", TransactionRetry::new(3, 10, 200).unwrap())
+        );
+    }
+
+    #[test]
+    fn a_misspelt_key_is_refused() {
+        let err = toml::from_str::<ServerConfig>("[transaction_retry]\nmax_attempt = 4\n")
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("max_attempt"), "{err}");
+    }
+
+    #[test]
+    fn each_bound_is_refused_by_name_at_validation() {
+        for (section, named) in [
+            ("max_attempts = 0", "max_attempts"),
+            ("base_ms = 300\nmax_ms = 200", "base_ms"),
+            ("max_ms = 60000", "max_ms"),
+        ] {
+            let config = parsed(&format!("[transaction_retry]\n{section}\n"));
+            let valid = ServerConfig {
+                transaction_retry: None,
+                ..config.clone()
+            };
+            valid.validate().unwrap();
+            let err = config.validate().expect_err(named);
+            assert!(err.contains("transaction_retry") && err.contains(named), "{named}: {err}");
+        }
+    }
+
+    #[test]
+    fn a_retry_and_an_exhaustion_count_on_their_own_counters_by_function_and_sqlstate() {
+        let labels = |function: &str, sqlstate: &str| {
+            [
+                ("function", function.to_string()),
+                ("sqlstate", sqlstate.to_string()),
+            ]
+        };
+        assert_eq!(
+            retry_metric(RetryEvent::Retrying {
+                function:  "app.fn_create_post",
+                sql_state: "40P01",
+                attempt:   1,
+                backoff:   Duration::from_millis(3),
+            }),
+            (
+                "fraiseql_mutation_transaction_retries_total",
+                labels("app.fn_create_post", "40P01")
+            )
+        );
+        assert_eq!(
+            retry_metric(RetryEvent::Exhausted {
+                function:  "app.fn_create_post",
+                sql_state: "40001",
+                attempts:  3,
+            }),
+            (
+                "fraiseql_mutation_transaction_retries_exhausted_total",
+                labels("app.fn_create_post", "40001")
+            )
+        );
+    }
+}

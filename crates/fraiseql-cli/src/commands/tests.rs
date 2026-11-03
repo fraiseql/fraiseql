@@ -2659,6 +2659,7 @@ mod migrate_tests {
 mod run_tests {
     use std::net::SocketAddr;
 
+    use fraiseql_server::ServerConfig;
     use tempfile::TempDir;
 
     use super::super::run::{
@@ -2973,6 +2974,11 @@ mod run_tests {
                 "[database_tls]\npostgres_ssl_mode = \"require\"\n",
                 "[database] ssl_mode",
             ),
+            (
+                "[database.transaction_retry]\nmax_attempts = 2\n",
+                "[transaction_retry]\nmax_attempts = 3\n",
+                "[database] transaction_retry",
+            ),
         ] {
             let (dir, schema) = project(project_toml);
             let file = server_file(&dir, file_toml);
@@ -2988,6 +2994,62 @@ mod run_tests {
                 .to_string()
             });
             assert!(err.contains(setting) && err.contains("FRAISEQL_CONFIG"), "{setting}: {err}");
+        }
+    }
+
+    /// The server configuration `fraiseql run` builds from `project_toml` and, when given,
+    /// a server file with `file_toml`.
+    fn run_config(project_toml: &str, file_toml: Option<&str>) -> anyhow::Result<ServerConfig> {
+        let (dir, schema) = project(project_toml);
+        let file = file_toml.map(|contents| server_file(&dir, contents));
+        temp_env::with_vars_unset(["DATABASE_URL", "FRAISEQL_HOST", "FRAISEQL_PORT"], || {
+            let (db_url, addr, srv, db) = resolve_runtime_config(
+                &schema,
+                Some("postgresql://cli/db".into()),
+                None,
+                None,
+                file.as_ref(),
+            )?;
+            build_config_from(&db_url, addr, &srv, &db, false, file.as_ref())
+        })
+    }
+
+    /// #1879: `[database.transaction_retry]` in `fraiseql.toml` and `[transaction_retry]` in
+    /// the server file give the pool the same policy, defaults included.
+    #[test]
+    fn transaction_retry_gives_the_same_policy_from_either_file() {
+        for section in ["max_attempts = 4\nbase_ms = 5\nmax_ms = 50\n", ""] {
+            let from_project =
+                run_config(&format!("[database.transaction_retry]\n{section}"), None).unwrap();
+            let from_file = run_config(
+                "[project]\nname = \"p\"\n",
+                Some(&format!("[transaction_retry]\n{section}")),
+            )
+            .unwrap();
+            let (project, file) = (
+                from_project.transaction_retry().unwrap(),
+                from_file.transaction_retry().unwrap(),
+            );
+            assert!(project.max_attempts() > 1, "{section:?}: {project:?}");
+            assert_eq!(format!("{project:?}"), format!("{file:?}"), "{section:?}");
+        }
+    }
+
+    #[test]
+    fn transaction_retry_in_fraiseql_toml_refuses_a_misspelt_key_and_each_bound_by_name() {
+        for (section, named) in [
+            ("max_attempt = 4", "max_attempt"),
+            ("max_attempts = 0", "max_attempts"),
+            ("base_ms = 300\nmax_ms = 200", "base_ms"),
+            ("max_ms = 60000", "max_ms"),
+        ] {
+            // The whole chain: the loader wraps the refusal in its own context.
+            let err = format!(
+                "{:#}",
+                run_config(&format!("[database.transaction_retry]\n{section}\n"), None)
+                    .expect_err(named)
+            );
+            assert!(err.contains(named), "{named}: {err}");
         }
     }
 

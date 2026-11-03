@@ -9,6 +9,7 @@ mod relay;
 mod streaming;
 #[cfg(feature = "test-postgres")]
 pub mod test_hooks;
+pub mod transaction_retry;
 
 #[cfg(test)]
 mod composed_tests;
@@ -28,6 +29,7 @@ use deadpool_postgres::{Config, ManagerConfig, Pool, RecyclingMethod, Runtime};
 use fraiseql_error::{FraiseQLError, Result};
 use tokio::sync::Semaphore;
 use tokio_postgres::{NoTls, Row};
+use transaction_retry::TransactionRetry;
 
 use super::{
     server_version::require_supported_server,
@@ -1067,6 +1069,8 @@ pub struct PostgresAdapter {
     /// Shared across clones, because they share the pool the slots protect.
     /// See [`PoolPrewarmConfig::max_streaming_reads`].
     streaming_permits:       Arc<Semaphore>,
+    /// How often a mutation's transaction runs when PostgreSQL aborts it (#1879).
+    transaction_retry:       TransactionRetry,
 }
 
 /// The built replica pools plus the shared read-your-writes watermark.
@@ -1311,6 +1315,7 @@ impl std::fmt::Debug for PostgresAdapter {
                 &self.read_replicas.as_ref().map(|r| r.pools.len()).unwrap_or_default(),
             )
             .field("streaming_permits", &self.streaming_permits.available_permits())
+            .field("transaction_retry", &self.transaction_retry)
             .finish()
     }
 }
@@ -1413,6 +1418,7 @@ impl PostgresAdapter {
                 cfg.max_streaming_reads,
                 cfg.max_size,
             ))),
+            transaction_retry: TransactionRetry::off(),
         };
 
         // Pre-warm to `min_size` — NOT `min_size - 1`. The health-check connection
@@ -1526,6 +1532,20 @@ impl PostgresAdapter {
         self.mutation_timing_enabled = true;
         self.timing_variable_name = variable_name.to_string();
         self
+    }
+
+    /// Re-run a mutation's transaction that PostgreSQL aborts with `40P01` or `40001`, as
+    /// `policy` says. Without it, one attempt.
+    #[must_use]
+    pub fn with_transaction_retry(mut self, policy: TransactionRetry) -> Self {
+        self.transaction_retry = policy;
+        self
+    }
+
+    /// How often a mutation's transaction runs when PostgreSQL aborts it.
+    #[must_use]
+    pub const fn transaction_retry(&self) -> &TransactionRetry {
+        &self.transaction_retry
     }
 
     /// Returns whether mutation timing injection is enabled.

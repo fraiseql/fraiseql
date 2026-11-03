@@ -64,6 +64,49 @@ fn notifications_are_withheld_only_when_asked_however_the_bytes_are_split() {
     }
 }
 
+fn error(sql_state: &str) -> Vec<u8> {
+    message(b'E', format!("SERROR\0VERROR\0C{sql_state}\0Mboom\0\0").as_bytes())
+}
+
+#[test]
+fn forwarding_stops_after_the_armed_error_response_however_the_bytes_are_split() {
+    let stream = [
+        message(b'R', b"\0\0\0\0"),
+        error("40001"),
+        message(b'Z', b"E"),
+        error("40P01"),
+        message(b'Z', b"E"),
+    ]
+    .concat();
+    let through_40p01 = [
+        message(b'R', b"\0\0\0\0"),
+        error("40001"),
+        message(b'Z', b"E"),
+        error("40P01"),
+    ]
+    .concat();
+    for chunk in [1, 3, 7, stream.len()] {
+        for (armed, expected, severed) in [
+            (None, &stream, false),
+            (Some(b"40P01".to_vec()), &through_40p01, true),
+        ] {
+            let mut framer = BackendFramer {
+                sever_on: armed.clone(),
+                ..BackendFramer::default()
+            };
+            let mut out = Vec::new();
+            for piece in stream.chunks(chunk) {
+                out.extend(framer.forwardable(piece, &Withheld::Nothing));
+                if framer.severed {
+                    break;
+                }
+            }
+            assert_eq!(&out, expected, "split every {chunk} bytes, armed {armed:?}");
+            assert_eq!(framer.severed, severed, "split every {chunk} bytes, armed {armed:?}");
+        }
+    }
+}
+
 #[test]
 fn only_the_named_channels_notifications_are_withheld_however_the_bytes_are_split() {
     let stream = [

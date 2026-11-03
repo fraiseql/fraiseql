@@ -36,3 +36,22 @@ async fn fraiseql_pool_max_size_sizes_the_pool_and_a_bad_value_is_refused() {
     let message = refused.unwrap_err();
     assert!(message.contains("FRAISEQL_POOL_MAX_SIZE"), "{message}");
 }
+
+/// #1879: the pool the server opens retries a mutation's transaction as
+/// `[transaction_retry]` says.
+#[tokio::test]
+async fn the_pool_retries_as_transaction_retry_says() {
+    let Some(url) = try_database_url() else {
+        eprintln!("skipping: DATABASE_URL not set");
+        return;
+    };
+    let config: ServerConfig =
+        toml::from_str("[transaction_retry]\nmax_attempts = 4\nbase_ms = 5\nmax_ms = 50\n")
+            .unwrap();
+    let config = ServerConfig {
+        database_url: url,
+        ..config
+    };
+    let adapter = build_postgres_adapter(&config).await.unwrap();
+    assert_eq!(adapter.transaction_retry().max_attempts(), 4, "the pool the server opened");
+}

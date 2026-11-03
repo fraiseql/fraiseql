@@ -25,6 +25,7 @@ pub mod session_state;
 pub mod storage;
 pub mod subscription_kafka;
 pub mod tls;
+mod transaction_retry;
 
 /// `[inbound_dispatch]` (#1175): the dispatch ledger's lease, sweep interval and batch.
 #[cfg(feature = "inbound")]
@@ -115,6 +116,7 @@ pub use session_state::SessionStateServerConfig;
 pub use storage::{ResolvedStorage, build_storage_state, resolve_storage_section};
 pub use subscription_kafka::SubscriptionKafkaConfig;
 pub use tls::{DatabaseTlsConfig, PlaygroundTool, TlsServerConfig};
+pub use transaction_retry::{TransactionRetryConfig, retry_metric};
 
 use crate::middleware::{RateLimitConfig, RateLimitOverrides};
 
@@ -778,6 +780,11 @@ pub struct ServerConfig {
     /// ```
     #[serde(default)]
     pub database_tls: Option<DatabaseTlsConfig>,
+
+    /// Re-run a mutation's transaction that PostgreSQL aborts with `40P01` or `40001`
+    /// (#1879). Absent, one attempt. See [`TransactionRetryConfig`].
+    #[serde(default)]
+    pub transaction_retry: Option<TransactionRetryConfig>,
 
     /// Require `Content-Type: application/json` on POST requests (default: true).
     ///
@@ -1543,17 +1550,18 @@ impl Default for ServerConfig {
             tls: None,             // TLS disabled by default
             database_tls: None,    /* Database TLS disabled
                                     * by default */
+            transaction_retry: None, // One attempt, as without the section
             require_json_content_type: true, // CSRF protection
             max_request_body_bytes: default_max_request_body_bytes(), // 1 MB
             max_header_count: default_max_header_count(), // 100 headers
             max_header_bytes: default_max_header_bytes(), // 32 KiB
-            rate_limiting: None,             // Rate limiting uses defaults
+            rate_limiting: None,     // Rate limiting uses defaults
             rate_limit_overrides: RateLimitOverrides::default(), // Set from CLI flags / env vars
             #[cfg(feature = "observers")]
             observers: None, // Observers disabled by default
             #[cfg(feature = "sources")]
             sources: None, /* Source scheduler configured from the compiled
-                                              * schema by default */
+                                      * schema by default */
             pool_tuning: None,       // Pool pressure monitoring disabled by default
             admission_control: None, // Admission control disabled by default
             security_contact: None,  // No security.txt by default

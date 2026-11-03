@@ -105,6 +105,8 @@ struct Faults {
     connections: AtomicU64,
     /// Both ends of every connection forwarded so far, to close them on `sever`.
     live:        Mutex<Vec<TcpStream>>,
+    /// The SQLSTATE after whose `ErrorResponse` the next connection to forward one is closed.
+    sever_after: Mutex<Option<Vec<u8>>>,
 }
 
 /// A running proxy. It lives until the process ends.
@@ -187,6 +189,18 @@ impl CountingProxy {
         self.faults.refusing.store(false, Ordering::SeqCst);
     }
 
+    /// Close the connection that next forwards an `ErrorResponse` with `sql_state`, right
+    /// after forwarding it: the client receives the error, and then nothing — what it sends
+    /// next fails as if the connection were lost. Once; new connections are accepted.
+    ///
+    /// # Panics
+    ///
+    /// If a thread panicked holding the armed SQLSTATE.
+    pub fn sever_after_error(&self, sql_state: &str) {
+        *self.faults.sever_after.lock().expect("the armed SQLSTATE") =
+            Some(sql_state.as_bytes().to_vec());
+    }
+
     /// Swallow (`true`) or forward (`false`, the default) every `NotificationResponse`.
     ///
     /// # Panics
@@ -262,9 +276,24 @@ fn forward(client: TcpStream, server: TcpStream, wire: &Arc<Wire>, faults: &Arc<
             // Before forwarding: the client cannot answer bytes it has not received.
             down.server_spoke.store(true, Ordering::SeqCst);
             let withheld = faults.withheld.lock().expect("the withheld notifications").clone();
+            framer
+                .sever_on
+                .clone_from(&faults.sever_after.lock().expect("the armed SQLSTATE"));
             let out = framer.forwardable(&buffer[..n], &withheld);
             if !out.is_empty() && client_tx.write_all(&out).is_err() {
                 break;
+            }
+            if framer.severed {
+                {
+                    // Only the connection that fired disarms it: another may have re-armed it.
+                    let mut armed = faults.sever_after.lock().expect("the armed SQLSTATE");
+                    if *armed == framer.sever_on {
+                        *armed = None;
+                    }
+                }
+                let _ = server_rx.shutdown(Shutdown::Both);
+                let _ = client_tx.shutdown(Shutdown::Both);
+                return;
             }
         }
         let _ = client_tx.shutdown(Shutdown::Write);
@@ -274,8 +303,12 @@ fn forward(client: TcpStream, server: TcpStream, wire: &Arc<Wire>, faults: &Arc<
 /// Splits the server's byte stream into protocol messages, so one kind can be withheld.
 #[derive(Default)]
 struct BackendFramer {
-    state:   BackendState,
-    pending: Vec<u8>,
+    state:    BackendState,
+    pending:  Vec<u8>,
+    /// Stop after forwarding an `ErrorResponse` with this SQLSTATE.
+    sever_on: Option<Vec<u8>>,
+    /// An `ErrorResponse` with `sever_on` was forwarded: nothing more is.
+    severed:  bool,
 }
 
 #[derive(Default, PartialEq, Eq)]
@@ -290,8 +323,28 @@ enum BackendState {
 }
 
 impl BackendFramer {
+    /// `ErrorResponse`.
+    const ERROR: u8 = b'E';
     /// `NotificationResponse`.
     const NOTIFICATION: u8 = b'A';
+
+    /// Whether `message` is an `ErrorResponse` whose `C` (SQLSTATE) field is `sql_state`.
+    fn is_error_with(message: &[u8], sql_state: &[u8]) -> bool {
+        if message.first() != Some(&Self::ERROR) {
+            return false;
+        }
+        let mut fields = message.get(5..).unwrap_or_default();
+        while let Some((&kind, rest)) = fields.split_first() {
+            let Some(end) = rest.iter().position(|&b| b == 0) else {
+                return false;
+            };
+            if kind == b'C' {
+                return &rest[..end] == sql_state;
+            }
+            fields = &rest[end + 1..];
+        }
+        false
+    }
 
     /// The bytes of `bytes` (with what earlier calls held back) to forward now: every
     /// complete message, less the notifications `withheld` swallows.
@@ -329,6 +382,11 @@ impl BackendFramer {
             let message: Vec<u8> = self.pending.drain(..length).collect();
             if !(message[0] == Self::NOTIFICATION && withheld.withholds(&message)) {
                 out.extend_from_slice(&message);
+            }
+            if self.sever_on.as_deref().is_some_and(|code| Self::is_error_with(&message, code)) {
+                self.severed = true;
+                self.pending.clear();
+                break;
             }
         }
         out
