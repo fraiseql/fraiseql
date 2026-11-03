@@ -307,6 +307,29 @@ mod cli_tests {
     }
 
     #[test]
+    fn cli_parse_transaction_retry_max_attempts() {
+        let cli = Cli::parse_from(["fraiseql-server", "--transaction-retry-max-attempts", "5"]);
+        assert_eq!(cli.server.transaction_retry_max_attempts, Some(5));
+    }
+
+    /// #1879: the override wins over `[transaction_retry]`, and opts in without it.
+    #[test]
+    fn apply_transaction_retry_max_attempts_override() {
+        let args = ServerArgs {
+            transaction_retry_max_attempts: Some(5),
+            ..Default::default()
+        };
+        for file in [
+            "",
+            "[transaction_retry]\nmax_attempts = 2\nbase_ms = 1\nmax_ms = 9\n",
+        ] {
+            let mut config: ServerConfig = toml::from_str(file).unwrap();
+            args.apply_to_config(&mut config);
+            assert_eq!(config.transaction_retry().unwrap().max_attempts(), 5, "{file:?}");
+        }
+    }
+
+    #[test]
     fn apply_shutdown_timeout_override() {
         let args = ServerArgs {
             shutdown_timeout_secs: Some(11),

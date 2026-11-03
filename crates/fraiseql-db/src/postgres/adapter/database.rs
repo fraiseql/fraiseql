@@ -12,8 +12,11 @@ use tokio_postgres::{
 
 use super::{
     Decimals, JsonText, PostgresAdapter, build_projection_select_sql, build_where_select_sql,
-    build_where_select_sql_ordered, composed::build_composed_select_sql, document_cell,
+    build_where_select_sql_ordered,
+    composed::build_composed_select_sql,
+    document_cell,
     numeric::PgNumericText,
+    transaction_retry::{RetryEvent, TransactionRetry},
 };
 use crate::{
     identifier::quote_postgres_identifier,
@@ -287,128 +290,240 @@ async fn run_functions_in_txn(
         .iter()
         .find(|call| !call.mechanism.is_empty())
         .map_or("", |call| call.mechanism);
-    let txn = client.build_transaction().start().await.map_err(|e| {
-        crate::postgres::database_error(
-            format!("Failed to start mutation{mechanism} transaction: {}", pg_detail(&e)),
-            &e,
-        )
-    })?;
 
-    // The configuration and the call in one flight (#1572): the driver sends both before
-    // reading either answer, and PostgreSQL runs them in order, so the function sees the
-    // configuration. Only once `BEGIN` is confirmed, so neither can run outside the txn.
-    // A failed configuration aborts the txn and the call with it; its own error is the one
-    // reported, not the call's "current transaction is aborted".
-    //
-    // A call that reports what it changed (#1576) sends the report in the same flight, after
-    // it: no round trip of its own.
-    let flight = |index: usize| {
-        let (call, (stmt, configure, report)) = (&calls[index], &statements[index]);
-        let configure_params = &configurations[index].1;
-        let txn = &txn;
-        async move {
-            let params = call.params();
-            let max_entities = call.report_changes.unwrap_or_default();
-            futures::join!(
-                txn.execute(configure, configure_params),
-                txn.query(stmt, params.as_slice()),
-                async {
-                    match report {
-                        Some(report) => Some(txn.query_one(report, &[&max_entities]).await),
-                        None => None,
-                    }
-                }
-            )
-        }
-    };
-    // What a flight answered, as the call's rows: its errors, then (#1391) the rows pg_tviews
-    // reports this transaction changed, read on this connection before the gate adjudicates
-    // the row they are attached to.
-    let settle = |index: usize,
-                  (configured, called, reported): (
-        std::result::Result<u64, tokio_postgres::Error>,
-        std::result::Result<Vec<Row>, tokio_postgres::Error>,
-        Option<std::result::Result<Row, tokio_postgres::Error>>,
-    )| {
-        let call = &calls[index];
-        let txn = &txn;
-        async move {
-            configured.map_err(|e| call.configuration_failed(&e))?;
-            let rows = called.map_err(|e| call.call_failed(&e))?;
-            let mut results: Vec<RowMap> = rows
-                .iter()
-                .map(|row| write_row_to_map(row, call.decimals))
-                .collect::<Result<_>>()?;
-            if let Some(reported) = reported {
-                let report: serde_json::Value =
-                    reported.map_err(|e| changes_report_failed(&e))?.get("report");
-                if let Some(first) = results.first_mut() {
-                    first.insert(crate::traits::CHANGED_ROWS_KEY.to_string(), report);
-                }
-            }
-            if let Some(derived) = call.derived {
-                if let Some(first) = results.first_mut() {
-                    if first.get("succeeded").and_then(serde_json::Value::as_bool) == Some(true) {
-                        let report = derived_cascade_report(txn, derived, call.decimals).await?;
-                        first.insert(crate::traits::DERIVED_CASCADE_KEY.to_string(), report);
-                    }
-                }
-            }
-            Ok::<_, FraiseQLError>(results)
-        }
-    };
-
-    // Every flight at once (#1574), unless a call reports a derived cascade: its report is
-    // read after its own call and before the next, so those calls go one flight at a time.
-    let answers: Vec<Option<_>> = if calls.iter().all(|call| call.derived.is_none()) {
-        in_order((0..count).map(flight).collect()).await.into_iter().map(Some).collect()
-    } else {
-        std::iter::repeat_with(|| None).take(count).collect()
-    };
-    let mut results = Vec::with_capacity(count);
-    for (index, answer) in answers.into_iter().enumerate() {
-        let answer = match answer {
-            Some(answer) => answer,
-            None => flight(index).await,
-        };
-        let rows = settle(index, answer).await.map_err(|e| at(index, e))?;
-
-        // The gate decides the commit. It sees the rows the function returned — the
-        // only thing a per-row decision can be keyed on — while they are still
-        // uncommitted, so a refusal takes the write with it rather than leaving the
-        // caller refused and the side effect standing (#1353).
-        if let Err(refusal) = gate(index, &rows) {
-            txn.rollback().await.map_err(|e| {
-                crate::postgres::database_error(
-                    format!("Failed to roll back refused mutation transaction: {}", pg_detail(&e)),
-                    &e,
-                )
-            })?;
-            return Err(refusal);
-        }
-        results.push(rows);
-    }
-
-    if !commit {
-        // The whole point of a dry run: discard every write, the outbox row included.
-        txn.rollback().await.map_err(|e| {
+    // A mutation whose transaction PostgreSQL aborts as a deadlock victim or a serialization
+    // failure runs again, as the adapter's policy says: on this connection, with the
+    // statements already prepared, from `BEGIN`. Each attempt re-sends its whole flight, so
+    // it runs against the data as it is then. Nothing is retried once `COMMIT` succeeds.
+    let policy = adapter.transaction_retry();
+    let mut attempt: u32 = 1;
+    loop {
+        let txn = client.build_transaction().start().await.map_err(|e| {
             crate::postgres::database_error(
-                format!("Failed to roll back dry-run transaction: {}", pg_detail(&e)),
+                format!("Failed to start mutation{mechanism} transaction: {}", pg_detail(&e)),
                 &e,
             )
         })?;
-        return Ok(results);
+        let ran: std::result::Result<Vec<Vec<RowMap>>, Ended> = async {
+            // The configuration and the call in one flight (#1572): the driver sends both before
+            // reading either answer, and PostgreSQL runs them in order, so the function sees the
+            // configuration. Only once `BEGIN` is confirmed, so neither can run outside the txn.
+            // A failed configuration aborts the txn and the call with it; its own error is the one
+            // reported, not the call's "current transaction is aborted".
+            //
+            // A call that reports what it changed (#1576) sends the report in the same flight,
+            // after it: no round trip of its own.
+            let flight = |index: usize| {
+                let (call, (stmt, configure, report)) = (&calls[index], &statements[index]);
+                let configure_params = &configurations[index].1;
+                let txn = &txn;
+                async move {
+                    let params = call.params();
+                    let max_entities = call.report_changes.unwrap_or_default();
+                    futures::join!(
+                        txn.execute(configure, configure_params),
+                        txn.query(stmt, params.as_slice()),
+                        async {
+                            match report {
+                                Some(report) => Some(txn.query_one(report, &[&max_entities]).await),
+                                None => None,
+                            }
+                        }
+                    )
+                }
+            };
+            // What a flight answered, as the call's rows: its errors, then (#1391) the rows
+            // pg_tviews reports this transaction changed, read on this connection
+            // before the gate adjudicates the row they are attached to.
+            let settle = |index: usize,
+                          (configured, called, reported): (
+                std::result::Result<u64, tokio_postgres::Error>,
+                std::result::Result<Vec<Row>, tokio_postgres::Error>,
+                Option<std::result::Result<Row, tokio_postgres::Error>>,
+            )| {
+                let call = &calls[index];
+                let txn = &txn;
+                async move {
+                    configured.map_err(|e| call.configuration_failed(&e))?;
+                    let rows = called.map_err(|e| call.call_failed(&e))?;
+                    let mut results: Vec<RowMap> = rows
+                        .iter()
+                        .map(|row| write_row_to_map(row, call.decimals))
+                        .collect::<Result<_>>()?;
+                    if let Some(reported) = reported {
+                        let report: serde_json::Value =
+                            reported.map_err(|e| changes_report_failed(&e))?.get("report");
+                        if let Some(first) = results.first_mut() {
+                            first.insert(crate::traits::CHANGED_ROWS_KEY.to_string(), report);
+                        }
+                    }
+                    if let Some(derived) = call.derived {
+                        if let Some(first) = results.first_mut() {
+                            if first.get("succeeded").and_then(serde_json::Value::as_bool)
+                                == Some(true)
+                            {
+                                let report =
+                                    derived_cascade_report(txn, derived, call.decimals).await?;
+                                first
+                                    .insert(crate::traits::DERIVED_CASCADE_KEY.to_string(), report);
+                            }
+                        }
+                    }
+                    Ok::<_, FraiseQLError>(results)
+                }
+            };
+
+            // Every flight at once (#1574), unless a call reports a derived cascade: its report is
+            // read after its own call and before the next, so those calls go one flight at a time.
+            let answers: Vec<Option<_>> = if calls.iter().all(|call| call.derived.is_none()) {
+                in_order((0..count).map(flight).collect()).await.into_iter().map(Some).collect()
+            } else {
+                std::iter::repeat_with(|| None).take(count).collect()
+            };
+            let mut results = Vec::with_capacity(count);
+            for (index, answer) in answers.into_iter().enumerate() {
+                let answer = match answer {
+                    Some(answer) => answer,
+                    None => flight(index).await,
+                };
+                let rows =
+                    settle(index, answer).await.map_err(|e| Ended::Failed(index, at(index, e)))?;
+
+                // The gate decides the commit. It sees the rows the function returned — the
+                // only thing a per-row decision can be keyed on — while they are still
+                // uncommitted, so a refusal takes the write with it rather than leaving the
+                // caller refused and the side effect standing (#1353).
+                if let Err(refusal) = gate(index, &rows) {
+                    return Err(Ended::Refused(refusal));
+                }
+                results.push(rows);
+            }
+            Ok(results)
+        }
+        .await;
+
+        let (failed, error) = match ran {
+            // A refusal is a decision, not a failure: never retried.
+            Err(Ended::Refused(refusal)) => {
+                txn.rollback().await.map_err(|e| {
+                    crate::postgres::database_error(
+                        format!(
+                            "Failed to roll back refused mutation transaction: {}",
+                            pg_detail(&e)
+                        ),
+                        &e,
+                    )
+                })?;
+                return Err(refusal);
+            },
+            Err(Ended::Failed(index, error)) => {
+                if !retries(policy, attempt, &error, calls[index].function_name) {
+                    return Err(error);
+                }
+                // Ruling (a): end the failed transaction explicitly, on this connection,
+                // before the next `BEGIN`. A `ROLLBACK` that fails means the connection is
+                // gone and the outcome unknown: the attempt's own error is returned.
+                if txn.rollback().await.is_err() {
+                    return Err(error);
+                }
+                (index, error)
+            },
+            Ok(results) if !commit => {
+                // The whole point of a dry run: discard every write, the outbox row included.
+                txn.rollback().await.map_err(|e| {
+                    crate::postgres::database_error(
+                        format!("Failed to roll back dry-run transaction: {}", pg_detail(&e)),
+                        &e,
+                    )
+                })?;
+                return Ok(results);
+            },
+            Ok(results) => match txn.commit().await {
+                Ok(()) => {
+                    adapter.mark_write();
+                    return Ok(results);
+                },
+                Err(e) => {
+                    let error = crate::postgres::database_error(
+                        format!(
+                            "Failed to commit mutation{mechanism} transaction: {}",
+                            pg_detail(&e)
+                        ),
+                        &e,
+                    );
+                    // A `COMMIT` names no call: the first one stands for the batch.
+                    if !retries(policy, attempt, &error, calls[0].function_name) {
+                        return Err(error);
+                    }
+                    // The failed `COMMIT` ended the transaction; the explicit `ROLLBACK`
+                    // still proves the connection is there before the next `BEGIN`.
+                    if client.batch_execute("ROLLBACK").await.is_err() {
+                        return Err(error);
+                    }
+                    (0, error)
+                },
+            },
+        };
+
+        let backoff = policy.draw_backoff(attempt);
+        let sql_state = retryable_sql_state(&error).unwrap_or_default();
+        let function = calls[failed].function_name;
+        tracing::debug!(function, sql_state, attempt, ?backoff, "retrying mutation transaction");
+        policy.observe(RetryEvent::Retrying {
+            function,
+            sql_state,
+            attempt,
+            backoff,
+        });
+        tokio::time::sleep(backoff).await;
+        attempt += 1;
     }
+}
 
-    txn.commit().await.map_err(|e| {
-        crate::postgres::database_error(
-            format!("Failed to commit mutation{mechanism} transaction: {}", pg_detail(&e)),
-            &e,
-        )
-    })?;
-    adapter.mark_write();
+/// How an attempt at a mutation's transaction ended short of its `COMMIT`.
+enum Ended {
+    /// The gate refused call `index`'s rows.
+    Refused(FraiseQLError),
+    /// Call `index` (or its configuration, or its report) failed.
+    Failed(usize, FraiseQLError),
+}
 
-    Ok(results)
+/// The SQLSTATE that makes `error` worth another attempt: `40P01` (deadlock detected) or
+/// `40001` (serialization failure). An error with no SQLSTATE — a lost connection — never
+/// is: whether the write committed is unknown.
+fn retryable_sql_state(error: &FraiseQLError) -> Option<&str> {
+    match error {
+        FraiseQLError::Database {
+            sql_state: Some(state),
+            ..
+        } if matches!(state.as_str(), "40P01" | "40001") => Some(state),
+        _ => None,
+    }
+}
+
+/// Whether `attempt`, which failed with `error`, runs again under `policy`. An attempt that
+/// would have been retried but was the last is reported as an exhaustion.
+fn retries(policy: &TransactionRetry, attempt: u32, error: &FraiseQLError, function: &str) -> bool {
+    let Some(sql_state) = retryable_sql_state(error) else {
+        return false;
+    };
+    if policy.allows_after(attempt) {
+        return true;
+    }
+    if policy.max_attempts() > 1 {
+        tracing::debug!(
+            function,
+            sql_state,
+            attempts = attempt,
+            "mutation transaction retries exhausted"
+        );
+        policy.observe(RetryEvent::Exhausted {
+            function,
+            sql_state,
+            attempts: attempt,
+        });
+    }
+    false
 }
 
 /// Await `futures` together, polling each for the first time in order: what one sends

@@ -197,6 +197,11 @@ pub struct DatabaseRuntimeConfig {
     /// default here would override an explicit `?sslmode=require` in `url` with a
     /// value the operator never wrote.
     pub ssl_mode: Option<String>,
+
+    /// `[database.transaction_retry]`: how often a mutation's transaction runs when
+    /// PostgreSQL aborts it with `40P01` or `40001` (#1879). Absent, once. An empty table
+    /// opts in at its defaults. The server file's `[transaction_retry]`, in the same shape.
+    pub transaction_retry: Option<fraiseql_db::TransactionRetryConfig>,
 }
 
 impl Default for DatabaseRuntimeConfig {
@@ -207,6 +212,7 @@ impl Default for DatabaseRuntimeConfig {
             pool_max:           20,
             connect_timeout_ms: 5_000,
             ssl_mode:           None,
+            transaction_retry:  None,
         }
     }
 }
@@ -226,6 +232,12 @@ impl DatabaseRuntimeConfig {
                 self.pool_min,
                 self.pool_max
             );
+        }
+
+        if let Some(retry) = &self.transaction_retry {
+            retry
+                .policy()
+                .map_err(|e| anyhow::anyhow!("[database.transaction_retry] {e}"))?;
         }
 
         if self.connect_timeout_ms == 0 {

@@ -398,6 +398,7 @@ pub(crate) const SETTINGS_IN_BOTH: &[(&str, &str)] = &[
     ("database.pool_max", "pool_max_size"),
     ("database.connect_timeout_ms", "pool_timeout_secs"),
     ("database.ssl_mode", "database_tls"),
+    ("database.transaction_retry", "transaction_retry"),
 ];
 
 impl ServerFile {
@@ -501,6 +502,9 @@ pub(crate) fn build_config_from(
     }
     if unset("pool_timeout_secs") {
         config.pool_timeout_secs = db_cfg.pool_timeout_secs();
+    }
+    if unset("transaction_retry") {
+        config.transaction_retry.clone_from(&db_cfg.transaction_retry);
     }
     // `--introspection` serves it without requiring auth (development convenience;
     // production setups use fraiseql-server directly). Without the flag, the server file

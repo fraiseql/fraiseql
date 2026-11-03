@@ -76,6 +76,15 @@ pub struct TenantPoolConfig {
     #[serde(skip)]
     pub vector_scan: fraiseql_core::db::postgres::VectorScanConfig,
 
+    /// How often a mutation's transaction runs when PostgreSQL aborts it, inherited from
+    /// the server's `[transaction_retry]` — never supplied by the caller (#1879).
+    ///
+    /// `#[serde(skip)]` for the same reason as [`tls`](Self::tls): whether a tenant's
+    /// function bodies may run twice is the operator's answer, not the registration
+    /// payload's.
+    #[serde(skip)]
+    pub transaction_retry: fraiseql_core::db::postgres::TransactionRetry,
+
     /// Read-replica URLs for this tenant, or empty for a primary-only tenant
     /// (#957).
     ///
@@ -170,6 +179,7 @@ impl FromPoolConfig for PostgresAdapter {
             },
         )
         .await
+        .map(|adapter| adapter.with_transaction_retry(config.transaction_retry.clone()))
     }
 }
 

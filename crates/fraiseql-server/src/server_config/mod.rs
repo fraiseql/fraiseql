@@ -96,6 +96,7 @@ use defaults::{
     default_subscription_path,
 };
 pub use egress::EgressConfig;
+pub use fraiseql_core::db::postgres::TransactionRetryConfig;
 use fraiseql_core::{
     db::postgres::{HnswIterativeScan, IvfflatIterativeScan},
     security::OidcConfig,
@@ -116,7 +117,7 @@ pub use session_state::SessionStateServerConfig;
 pub use storage::{ResolvedStorage, build_storage_state, resolve_storage_section};
 pub use subscription_kafka::SubscriptionKafkaConfig;
 pub use tls::{DatabaseTlsConfig, PlaygroundTool, TlsServerConfig};
-pub use transaction_retry::{TransactionRetryConfig, retry_metric};
+pub use transaction_retry::{retry_metric, retry_metrics_observer};
 
 use crate::middleware::{RateLimitConfig, RateLimitOverrides};
 

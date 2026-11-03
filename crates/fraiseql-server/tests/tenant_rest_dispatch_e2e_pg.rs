@@ -164,6 +164,7 @@ fn registration(url: &str) -> TenantRegistrationRequest {
             read_replica_urls:    Vec::new(),
             read_replica_policy:  ReadReplicaPolicy::default(),
             vector_scan:          fraiseql_core::db::postgres::VectorScanConfig::default(),
+            transaction_retry:    fraiseql_core::db::postgres::TransactionRetry::off(),
         },
         max_requests_per_sec:   None,
         max_concurrent:         None,
@@ -204,6 +205,7 @@ async fn setup() -> Option<(PostgresAdapter, AppState)> {
             PostgresTlsConfig::default(),
             ReadReplicaPolicy::default(),
             fraiseql_core::db::postgres::VectorScanConfig::default(),
+            fraiseql_core::db::postgres::TransactionRetry::off(),
         ));
 
     let _ = upsert_tenant_handler(

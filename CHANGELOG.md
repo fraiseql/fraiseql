@@ -134,6 +134,20 @@ disagreed, and the promise was the part that was wrong.
 
 ### Added
 
+- **A mutation's transaction can run again when PostgreSQL aborts it with `40P01` (deadlock)
+  or `40001` (serialization failure) (#1879).** Off by default: a retried function runs its
+  body again, so an effect outside the transaction (`dblink`, `pg_background`, a sequence)
+  can repeat. Set `[transaction_retry]` in the server file, `[database.transaction_retry]` in
+  `fraiseql.toml`, or `FRAISEQL_TRANSACTION_RETRY_MAX_ATTEMPTS`.
+  - An empty section opts in at `max_attempts = 3`, `base_ms = 10`, `max_ms = 200`.
+  - The whole transaction runs again from `BEGIN`, a batch from its first call, after an
+    explicit `ROLLBACK` and a random wait capped at `max_ms`. A lost connection, any other
+    error, a gate refusal and anything after a successful `COMMIT` are never retried. An
+    exhausted retry returns the error a single attempt returns.
+  - Tenant pools follow the server's setting. Counted on
+    `fraiseql_mutation_transaction_retries_total` and `…_retries_exhausted_total`. See
+    `docs/features/mutation-transaction-retry.md`.
+
 - **`[auth.local] otp_allowed_query` restricts `OTP` sign-in to approved addresses (#1852).**
   A `SELECT` with `$email` decides who may sign in; a row admits the address. A refused
   address gets no mail, no account and no session, and the same answers as an approved one

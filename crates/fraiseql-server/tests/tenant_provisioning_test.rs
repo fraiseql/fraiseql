@@ -26,6 +26,7 @@ async fn postgres_adapter_builds_from_tenant_pool_config() {
         read_replica_urls:    Vec::new(),
         read_replica_policy:  ReadReplicaPolicy::default(),
         vector_scan:          fraiseql_core::db::postgres::VectorScanConfig::default(),
+        transaction_retry:    fraiseql_core::db::postgres::TransactionRetry::off(),
     };
 
     // `from_pool_config` opens a connection (the startup health check inside

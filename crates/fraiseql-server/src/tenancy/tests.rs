@@ -268,6 +268,7 @@ mod pool_factory_tests {
             read_replica_urls:    Vec::new(),
             read_replica_policy:  ReadReplicaPolicy::default(),
             vector_scan:          fraiseql_core::db::postgres::VectorScanConfig::default(),
+            transaction_retry:    fraiseql_core::db::postgres::TransactionRetry::off(),
         }
     }
 
@@ -1087,6 +1088,7 @@ mod runtime_config_drift {
             read_replica_urls:    Vec::new(),
             read_replica_policy:  ReadReplicaPolicy::default(),
             vector_scan:          VectorScanConfig::default(),
+            transaction_retry:    fraiseql_core::db::postgres::TransactionRetry::off(),
         }
     }
 
@@ -1165,6 +1167,7 @@ mod runtime_config_drift {
             PostgresTlsConfig::default(),
             ReadReplicaPolicy::default(),
             VectorScanConfig::default(),
+            fraiseql_core::db::postgres::TransactionRetry::off(),
         );
 
         // The config as it stands when the factory is built: no gate yet.
@@ -1265,5 +1268,61 @@ mod runtime_config_drift {
              HTTP constructor routes through `executor_runtime_config`, the seam whose \
              own doc calls itself the single one every entry point takes. Drifted: {found:?}"
         );
+    }
+}
+
+/// #1879: a tenant pool retries a mutation's transaction as the operator's
+/// `[transaction_retry]` says, whatever the registration carried.
+mod transaction_retry_tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+    #![allow(clippy::print_stderr)] // Reason: skip diagnostics for the DATABASE_URL-less leg
+
+    use fraiseql_core::db::postgres::{
+        PostgresAdapter, PostgresTlsConfig, ReadReplicaPolicy, TransactionRetry, VectorScanConfig,
+    };
+
+    use super::super::{FromPoolConfig as _, OperatorPoolSettings, TenantPoolConfig};
+
+    fn registration(url: &str, transaction_retry: TransactionRetry) -> TenantPoolConfig {
+        TenantPoolConfig {
+            connection_string: url.to_string(),
+            max_connections: 2,
+            connect_timeout_secs: 10,
+            idle_timeout_secs: 300,
+            search_path: None,
+            tls: PostgresTlsConfig::default(),
+            read_replica_urls: Vec::new(),
+            read_replica_policy: ReadReplicaPolicy::default(),
+            vector_scan: VectorScanConfig::default(),
+            transaction_retry,
+        }
+    }
+
+    #[test]
+    fn the_operators_policy_is_stamped_over_the_registrations() {
+        let operator = OperatorPoolSettings {
+            database_tls:        PostgresTlsConfig::default(),
+            read_replica_policy: ReadReplicaPolicy::default(),
+            vector_scan:         VectorScanConfig::default(),
+            transaction_retry:   TransactionRetry::new(4, 1, 5).unwrap(),
+        };
+        let stamped = operator
+            .stamp(registration("postgresql://tenant/db", TransactionRetry::new(7, 1, 5).unwrap()));
+        assert_eq!(stamped.transaction_retry.max_attempts(), 4);
+    }
+
+    #[tokio::test]
+    async fn a_tenant_pool_carries_its_policy() {
+        let Some(url) = fraiseql_test_support::try_database_url() else {
+            eprintln!("skipping #1879 tenant pool pin: DATABASE_URL not set");
+            return;
+        };
+        let adapter = PostgresAdapter::from_pool_config(&registration(
+            &url,
+            TransactionRetry::new(4, 1, 5).unwrap(),
+        ))
+        .await
+        .unwrap();
+        assert_eq!(adapter.transaction_retry().max_attempts(), 4);
     }
 }

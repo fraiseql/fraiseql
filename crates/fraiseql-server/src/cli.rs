@@ -110,6 +110,12 @@ pub struct ServerArgs {
     #[arg(long, env = "FRAISEQL_POOL_MAX_SIZE")]
     pub pool_max_size: Option<usize>,
 
+    /// Attempts a mutation's transaction gets when PostgreSQL aborts it with `40P01` or
+    /// `40001`, the first included. Overrides `[transaction_retry] max_attempts`; without
+    /// that section, opts in with its other defaults. `1` turns retry off (#1879).
+    #[arg(long, env = "FRAISEQL_TRANSACTION_RETRY_MAX_ATTEMPTS")]
+    pub transaction_retry_max_attempts: Option<u32>,
+
     /// Arrow Flight gRPC bind address (`host:port`).
     #[cfg(feature = "arrow")]
     #[arg(long, env = "FRAISEQL_FLIGHT_BIND_ADDR")]
@@ -236,6 +242,9 @@ impl ServerArgs {
             bind_addr: parse_env_opt("FRAISEQL_BIND_ADDR")?,
             schema_path: std::env::var("FRAISEQL_SCHEMA_PATH").ok(),
             pool_max_size: parse_env_opt("FRAISEQL_POOL_MAX_SIZE")?,
+            transaction_retry_max_attempts: parse_env_opt(
+                "FRAISEQL_TRANSACTION_RETRY_MAX_ATTEMPTS",
+            )?,
             #[cfg(feature = "arrow")]
             flight_bind_addr: parse_env_opt("FRAISEQL_FLIGHT_BIND_ADDR")?,
             validate_sql_sources: parse_bool_env_opt("FRAISEQL_VALIDATE_SQL_SOURCES")?,
@@ -279,6 +288,9 @@ impl ServerArgs {
         }
         if let Some(max) = self.pool_max_size {
             config.pool_max_size = max;
+        }
+        if let Some(attempts) = self.transaction_retry_max_attempts {
+            config.transaction_retry.get_or_insert_with(Default::default).max_attempts = attempts;
         }
         #[cfg(feature = "arrow")]
         if let Some(addr) = self.flight_bind_addr {

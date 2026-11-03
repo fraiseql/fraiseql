@@ -234,6 +234,7 @@ async fn rig() -> Option<Rig> {
             PostgresTlsConfig::default(),
             ReadReplicaPolicy::default(),
             VectorScanConfig::default(),
+            fraiseql_core::db::postgres::TransactionRetry::off(),
         ));
 
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();

@@ -1,44 +1,11 @@
 //! `[transaction_retry]`: re-running a mutation's transaction that PostgreSQL aborts as a
 //! deadlock victim (`40P01`) or a serialization failure (`40001`) (#1879).
 
-use fraiseql_core::db::postgres::{RetryEvent, TransactionRetry};
-use serde::{Deserialize, Serialize};
+use std::sync::Arc;
+
+use fraiseql_core::db::postgres::{RetryEvent, RetryObserver, TransactionRetry};
 
 use super::ServerConfig;
-
-/// How often a mutation's transaction runs when PostgreSQL aborts it.
-///
-/// Absent, a mutation runs once, as it always has. A retried function runs its body again,
-/// so an effect outside the transaction (`dblink`, `pg_background`, a sequence) can repeat:
-/// that is why retry is opt-in.
-///
-/// ```toml
-/// [transaction_retry]
-/// max_attempts = 3   # the first attempt included
-/// base_ms = 10       # the first retry waits up to this long
-/// max_ms = 200       # no wait exceeds this
-/// ```
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields, default)]
-pub struct TransactionRetryConfig {
-    /// Attempts, the first included. Default: 3.
-    pub max_attempts: u32,
-    /// The first retry waits a random duration up to this many milliseconds; each later
-    /// retry up to twice the one before. Default: 10.
-    pub base_ms:      u64,
-    /// No wait exceeds this many milliseconds. Default: 200.
-    pub max_ms:       u64,
-}
-
-impl Default for TransactionRetryConfig {
-    fn default() -> Self {
-        Self {
-            max_attempts: 3,
-            base_ms:      10,
-            max_ms:       200,
-        }
-    }
-}
 
 impl ServerConfig {
     /// The policy `[transaction_retry]` describes: one attempt when it is absent.
@@ -47,12 +14,42 @@ impl ServerConfig {
     ///
     /// A message naming the bound `[transaction_retry]` breaks.
     pub fn transaction_retry(&self) -> Result<TransactionRetry, String> {
-        Ok(TransactionRetry::off())
+        self.transaction_retry.as_ref().map_or_else(
+            || Ok(TransactionRetry::off()),
+            |section| section.policy().map_err(|e| format!("[transaction_retry] {e}")),
+        )
     }
 }
 
 /// The counter a retry decision increments, and its labels.
 #[must_use]
-pub fn retry_metric(_event: RetryEvent<'_>) -> (&'static str, [(&'static str, String); 2]) {
-    ("", [("function", String::new()), ("sqlstate", String::new())])
+pub fn retry_metric(event: RetryEvent<'_>) -> (&'static str, [(&'static str, String); 2]) {
+    let (name, function, sql_state) = match event {
+        RetryEvent::Retrying {
+            function,
+            sql_state,
+            ..
+        } => ("fraiseql_mutation_transaction_retries_total", function, sql_state),
+        RetryEvent::Exhausted {
+            function,
+            sql_state,
+            ..
+        } => ("fraiseql_mutation_transaction_retries_exhausted_total", function, sql_state),
+    };
+    (
+        name,
+        [
+            ("function", function.to_string()),
+            ("sqlstate", sql_state.to_string()),
+        ],
+    )
+}
+
+/// Count each retry decision on its [`retry_metric`] counter.
+#[must_use]
+pub fn retry_metrics_observer() -> RetryObserver {
+    Arc::new(|event| {
+        let (name, [(function_key, function), (sql_state_key, sql_state)]) = retry_metric(event);
+        metrics::counter!(name, function_key => function, sql_state_key => sql_state).increment(1);
+    })
 }

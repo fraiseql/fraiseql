@@ -86,6 +86,11 @@ pub async fn build_postgres_server(
     // the read-replica routing policy (#957).
     let tenant_read_replica_policy = config.read_replica_policy();
     let tenant_vector_scan = config.vector_scan();
+    // And how often a mutation's transaction runs when PostgreSQL aborts it.
+    let tenant_transaction_retry = config
+        .transaction_retry()
+        .map_err(|e| anyhow::anyhow!(e))?
+        .with_observer(crate::server_config::retry_metrics_observer());
 
     // Arrow Flight path: only available with the `arrow` feature, only on PG.
     #[cfg(feature = "arrow")]
@@ -120,14 +125,17 @@ pub async fn build_postgres_server(
         // tenant factory must produce cached executors to match the server's adapter
         // type — the same expression the non-arrow branch uses.
         // Tenant pools inherit the server's `[database_tls]`, its read-replica
-        // routing policy and its vector-scan settings; the registration request body
-        // cannot influence any of them (see `make_executor_factory`). It does supply
-        // its own replica URLs.
+        // routing policy, its vector-scan settings and its `[transaction_retry]`; the
+        // registration request body cannot influence any of them (see
+        // `make_executor_factory`). It does supply its own replica URLs.
         let tenant_factory = tenancy_runtime_enabled.then(|| {
             crate::tenancy::make_executor_factory::<
                 fraiseql_core::cache::CachedDatabaseAdapter<PostgresAdapter>,
             >(
-                database_tls.clone(), tenant_read_replica_policy.clone(), tenant_vector_scan
+                database_tls.clone(),
+                tenant_read_replica_policy.clone(),
+                tenant_vector_scan,
+                tenant_transaction_retry.clone(),
             )
         });
         let server = match storage_state {
@@ -166,14 +174,17 @@ pub async fn build_postgres_server(
         // `CachedDatabaseAdapter`, so the tenant factory must produce cached executors
         // to match the server's adapter type.
         // Tenant pools inherit the server's `[database_tls]`, its read-replica
-        // routing policy and its vector-scan settings; the registration request body
-        // cannot influence any of them (see `make_executor_factory`). It does supply
-        // its own replica URLs.
+        // routing policy, its vector-scan settings and its `[transaction_retry]`; the
+        // registration request body cannot influence any of them (see
+        // `make_executor_factory`). It does supply its own replica URLs.
         let tenant_factory = tenancy_runtime_enabled.then(|| {
             crate::tenancy::make_executor_factory::<
                 fraiseql_core::cache::CachedDatabaseAdapter<PostgresAdapter>,
             >(
-                database_tls.clone(), tenant_read_replica_policy.clone(), tenant_vector_scan
+                database_tls.clone(),
+                tenant_read_replica_policy.clone(),
+                tenant_vector_scan,
+                tenant_transaction_retry.clone(),
             )
         });
         let server = match storage_state {

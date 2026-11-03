@@ -76,7 +76,9 @@ pub use fraiseql_wire_adapter::FraiseWireAdapter;
 pub use identifier::quote_postgres_identifier;
 pub use introspector::{DatabaseIntrospector, RelationInfo, RelationKind, TviewDeclaration};
 #[cfg(feature = "postgres")]
-pub use postgres::{PostgresAdapter, PostgresIntrospector, RetryEvent, TransactionRetry};
+pub use postgres::{
+    PostgresAdapter, PostgresIntrospector, RetryEvent, TransactionRetry, TransactionRetryConfig,
+};
 pub use projection_generator::{
     FieldKind, LocalizedRead, PostgresProjectionGenerator, ProjectionField, TranslationPart,
 };

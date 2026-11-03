@@ -112,6 +112,13 @@ const MANIFEST: &[(&str, &str)] = &[
     ("pool_max_size", "DB pool max size"),
     ("pool_timeout_secs", "DB pool acquire timeout"),
     (
+        "transaction_retry",
+        "main.rs / fraiseql-cli run → boot::build_postgres_server → build_postgres_adapter → \
+         PostgresAdapter::with_transaction_retry: run_functions_in_txn runs a mutation's \
+         transaction again on 40P01 / 40001 (#1879); the same boot step stamps it onto \
+         tenant pools",
+    ),
+    (
         "inbound_dispatch*",
         "Server::spawn_inbound_dispatch_sweep → InboundDispatchConfig::settings → \
          dispatch_ledger::LedgerSettings: the lease, the sweep interval and the batch \

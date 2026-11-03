@@ -8,7 +8,9 @@ use super::ServerConfig;
 ///
 /// Its pool bounds (`pool_min_size`, `pool_max_size`, which `FRAISEQL_POOL_MAX_SIZE`
 /// overrides), `[database_tls]`, read replicas, the streaming-read share and the vector scan
-/// settings.
+/// settings, and how often a mutation's transaction runs when PostgreSQL aborts it
+/// (`[transaction_retry]`, which `FRAISEQL_TRANSACTION_RETRY_MAX_ATTEMPTS` overrides), each
+/// retry decision counted on the server's metrics.
 ///
 /// `[database_tls]` is consumed *here*, at the site that opens the connections it describes.
 /// It used to be read only by a log line inside `serve()`, several hundred lines after the
@@ -16,9 +18,13 @@ use super::ServerConfig;
 ///
 /// # Errors
 ///
-/// When `[database_tls]` is invalid, or the pool cannot be opened.
+/// When `[database_tls]` or `[transaction_retry]` is invalid, or the pool cannot be opened.
 pub async fn build_postgres_adapter(config: &ServerConfig) -> anyhow::Result<PostgresAdapter> {
     let tls = config.postgres_tls().map_err(|e| anyhow::anyhow!(e))?;
+    let retry = config
+        .transaction_retry()
+        .map_err(|e| anyhow::anyhow!(e))?
+        .with_observer(super::retry_metrics_observer());
     tls.warn_if_unverified();
 
     tracing::info!(
@@ -46,7 +52,8 @@ pub async fn build_postgres_adapter(config: &ServerConfig) -> anyhow::Result<Pos
             vector_scan: config.vector_scan(),
         },
     )
-    .await?;
+    .await?
+    .with_transaction_retry(retry);
     tracing::info!("PostgreSQL adapter ready");
     Ok(adapter)
 }

@@ -478,6 +478,7 @@ impl ServerConfig {
         // `allow` and `verify-ca`, which the connector cannot honour, so validation
         // passing said nothing about whether the setting could take effect (#801).
         self.postgres_tls()?;
+        self.transaction_retry()?;
         if let Some(ref db_tls) = self.database_tls {
             if let Some(ref ca_path) = db_tls.ca_bundle_path {
                 if !ca_path.exists() {

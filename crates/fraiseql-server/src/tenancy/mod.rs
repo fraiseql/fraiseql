@@ -57,6 +57,9 @@ pub type TenantExecutorFactory = Arc<
 /// filtered similarity search may quietly return fewer rows than it was asked for
 /// is the operator's answer, not the registration payload's.
 ///
+/// `transaction_retry` is stamped too (#1879): whether a tenant's mutation runs again
+/// after a deadlock is the operator's answer, as it is for the server's own pool.
+///
 /// The server's [`RuntimeConfig`](fraiseql_core::runtime::RuntimeConfig) is the fourth
 /// (#1333), and it is deliberately **not** captured here like the three above. The
 /// booting server rebuilds its executor after this factory is made —
@@ -69,14 +72,39 @@ pub fn make_executor_factory<A: FromPoolConfig + fraiseql_core::db::traits::Writ
     database_tls: fraiseql_core::db::postgres::PostgresTlsConfig,
     read_replica_policy: fraiseql_core::db::postgres::ReadReplicaPolicy,
     vector_scan: fraiseql_core::db::postgres::VectorScanConfig,
+    transaction_retry: fraiseql_core::db::postgres::TransactionRetry,
 ) -> TenantExecutorFactory {
-    Arc::new(move |tenant_key, schema_json, mut pool_config, runtime_config| {
-        pool_config.tls = database_tls.clone();
-        pool_config.read_replica_policy = read_replica_policy.clone();
-        pool_config.vector_scan = vector_scan;
+    let operator = OperatorPoolSettings {
+        database_tls,
+        read_replica_policy,
+        vector_scan,
+        transaction_retry,
+    };
+    Arc::new(move |tenant_key, schema_json, pool_config, runtime_config| {
+        let pool_config = operator.stamp(pool_config);
         Box::pin(async move {
             create_tenant_executor::<A>(&tenant_key, &schema_json, &pool_config, &runtime_config)
                 .await
         })
     })
+}
+
+/// The pool settings the operator owns, stamped over a tenant registration's.
+struct OperatorPoolSettings {
+    database_tls:        fraiseql_core::db::postgres::PostgresTlsConfig,
+    read_replica_policy: fraiseql_core::db::postgres::ReadReplicaPolicy,
+    vector_scan:         fraiseql_core::db::postgres::VectorScanConfig,
+    transaction_retry:   fraiseql_core::db::postgres::TransactionRetry,
+}
+
+impl OperatorPoolSettings {
+    fn stamp(&self, pool_config: TenantPoolConfig) -> TenantPoolConfig {
+        TenantPoolConfig {
+            tls: self.database_tls.clone(),
+            read_replica_policy: self.read_replica_policy.clone(),
+            vector_scan: self.vector_scan,
+            transaction_retry: self.transaction_retry.clone(),
+            ..pool_config
+        }
+    }
 }

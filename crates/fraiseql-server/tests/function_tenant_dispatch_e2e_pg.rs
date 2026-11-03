@@ -191,6 +191,7 @@ async fn an_anonymous_tenant_writes_function_runs_within_that_tenant() {
             PostgresTlsConfig::default(),
             ReadReplicaPolicy::default(),
             fraiseql_core::db::postgres::VectorScanConfig::default(),
+            fraiseql_core::db::postgres::TransactionRetry::off(),
         ));
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.expect("bind");
     let base = format!("http://127.0.0.1:{}", listener.local_addr().unwrap().port());

@@ -91,6 +91,7 @@ fn pool_config(url: &str) -> TenantPoolConfig {
         read_replica_policy:  ReadReplicaPolicy::default(),
         // Also stamped by `make_executor_factory` in the binary (#1116).
         vector_scan:          fraiseql_core::db::postgres::VectorScanConfig::default(),
+        transaction_retry:    fraiseql_core::db::postgres::TransactionRetry::off(),
     }
 }
 
