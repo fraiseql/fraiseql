@@ -128,7 +128,10 @@ async fn compile_against_a_database_with_pg_tviews_accepts_the_source() {
     };
     let (client, connection) = tokio_postgres::connect(&url, tokio_postgres::NoTls).await.unwrap();
     tokio::spawn(connection);
-    client.batch_execute("CREATE EXTENSION IF NOT EXISTS pg_tviews").await.unwrap();
+    client
+        .batch_execute("CREATE EXTENSION IF NOT EXISTS pg_tviews CASCADE")
+        .await
+        .unwrap();
     compile_against(&url).await.unwrap();
 }
 

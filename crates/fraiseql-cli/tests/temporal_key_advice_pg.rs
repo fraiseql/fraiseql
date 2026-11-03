@@ -164,7 +164,7 @@ async fn a_tviews_columns_are_its_definitions_own() {
     let admin = client(&url).await;
     admin
         .batch_execute(&format!(
-            "CREATE EXTENSION IF NOT EXISTS pg_tviews;
+            "CREATE EXTENSION IF NOT EXISTS pg_tviews CASCADE;
              DO $$ DECLARE t text; BEGIN
                FOR t IN SELECT schema || '.' || name FROM tviews.registry
                         WHERE schema = '{SCHEMA}' LOOP

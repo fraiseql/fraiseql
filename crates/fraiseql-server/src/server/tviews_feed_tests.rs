@@ -6,7 +6,7 @@ use super::{Beat, GapRead, Gaps, gap_read};
 
 fn failed(sql_state: &str) -> FraiseQLError {
     FraiseQLError::Database {
-        message:    "tviews.pg_tviews_feed_gaps() failed".to_string(),
+        message:    "tviews.pg_tviews_count_feed_gaps() failed".to_string(),
         sql_state:  Some(sql_state.to_string()),
         constraint: None,
     }

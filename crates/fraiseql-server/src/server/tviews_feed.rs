@@ -40,7 +40,7 @@ const MAX_BACKOFF: Duration = Duration::from_secs(30);
 /// queue was over 90 % full) since it started (#1604). Any session can read it; the count
 /// moves only once such a transaction is committed and visible, so a read after a clear
 /// sees what it wrote.
-const FEED_GAPS: &str = "SELECT tviews.pg_tviews_feed_gaps()";
+const FEED_GAPS: &str = "SELECT tviews.pg_tviews_count_feed_gaps()";
 
 /// The SQLSTATEs of a [`FEED_GAPS`] read that cannot tell: `55000`, `pg_tviews` is not in
 /// `shared_preload_libraries`; `42883`, an older `pg_tviews` release has no such function.
@@ -109,9 +109,10 @@ impl Gaps {
                     warn!(
                         %reason,
                         "Query result cache: pg_tviews cannot count the transactions it commits \
-                         unpublished (preload a release with tviews.pg_tviews_feed_gaps()); a \
-                         write this server does not run, committed while the NOTIFY queue is \
-                         full, stays cached until the feed reconnects or the TTL expires"
+                         unpublished (preload a release with \
+                         tviews.pg_tviews_count_feed_gaps()); a write this server does not run, \
+                         committed while the NOTIFY queue is full, stays cached until the feed \
+                         reconnects or the TTL expires"
                     );
                 }
                 false
@@ -160,8 +161,8 @@ pub async fn run(connector: NotifyConnector, listener: TviewsListener, instance:
                 if gaps.beat(read_gaps(&session).await) == Beat::End {
                     warn!(
                         retry_in_ms = backoff.as_millis(),
-                        "Query result cache: cannot read tviews.pg_tviews_feed_gaps(); writes \
-                         this server does not run are not heard until it can"
+                        "Query result cache: cannot read tviews.pg_tviews_count_feed_gaps(); \
+                         writes this server does not run are not heard until it can"
                     );
                     tokio::time::sleep(backoff).await;
                     backoff = (backoff * 2).min(MAX_BACKOFF);

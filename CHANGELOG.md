@@ -117,6 +117,14 @@ disagreed, and the promise was the part that was wrong.
   field needs both as `None`, or `..LocalAuthConfig::default()`. `email` is boxed so that
   every compiled schema does not grow by the size of the mail templates.
 
+- **pg_tviews 0.1.0-beta.35 is the supported release (#1896).** It renamed its public functions,
+  and FraiseQL now calls the new names: the cache's change-feed gap count reads
+  `tviews.pg_tviews_count_feed_gaps()` (it was `pg_tviews_feed_gaps()`). Against beta.34 the
+  server cannot count gaps; it logs that once and falls back on reconnects and the cache TTL.
+  beta.35 requires the jsonb_delta extension (`CREATE EXTENSION pg_tviews CASCADE` installs
+  it), still needs the preload, and must be installed by a superuser. Upgrade both in one
+  step: see "Upgrading pg_tviews to beta.35" in `docs/architecture/mutation-response.md`.
+
 ### Added
 
 - **`[auth.local] otp_allowed_query` restricts `OTP` sign-in to approved addresses (#1852).**

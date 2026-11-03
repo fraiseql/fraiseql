@@ -5,8 +5,8 @@
 //! the author's `tv_user` row carries its posts' titles, so `pg_tviews` refreshes it too, and
 //! `tviews.pg_tviews_flush_and_report()` says so. The response lists both.
 //!
-//! Needs `pg_tviews`: the `postgres-tviews-test` service (`docker/pg-tviews`, pinned to
-//! `v0.1.0-beta.34`), through `TVIEWS_DATABASE_URL`. Without it the suite skips.
+//! Needs `pg_tviews`: the `postgres-tviews-test` service (`docker/pg-tviews`, pinned in its
+//! Dockerfile), through `TVIEWS_DATABASE_URL`. Without it the suite skips.
 //!
 //! **Execution engine:** `PostgreSQL` + `pg_tviews` · **Infrastructure:** `TVIEWS_DATABASE_URL`
 //! · **Parallelism:** drops and recreates its own `p1391` schema; installs the helper library
@@ -36,7 +36,7 @@ async fn provision(url: &str) {
     tokio::spawn(connection);
     client
         .batch_execute(
-            "CREATE EXTENSION IF NOT EXISTS pg_tviews;
+            "CREATE EXTENSION IF NOT EXISTS pg_tviews CASCADE;
              CREATE EXTENSION IF NOT EXISTS pg_stat_statements;",
         )
         .await

@@ -77,7 +77,10 @@ async fn own_database(url: &str) -> String {
 /// one, so the suite fails on it instead.
 async fn require_typename(url: &str) {
     let client = client(url).await;
-    client.batch_execute("CREATE EXTENSION IF NOT EXISTS pg_tviews;").await.unwrap();
+    client
+        .batch_execute("CREATE EXTENSION IF NOT EXISTS pg_tviews CASCADE;")
+        .await
+        .unwrap();
     let has: bool = client
         .query_one(
             "SELECT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = to_regclass('tviews.registry') \
@@ -105,9 +108,9 @@ async fn provision(url: &str) {
     }
     client
         .batch_execute(&format!(
-            "CREATE EXTENSION IF NOT EXISTS pg_tviews;
+            "CREATE EXTENSION IF NOT EXISTS pg_tviews CASCADE;
              -- A run that stopped before it gave it back (#1604).
-             GRANT EXECUTE ON FUNCTION tviews.pg_tviews_feed_gaps() TO PUBLIC;
+             GRANT EXECUTE ON FUNCTION tviews.pg_tviews_count_feed_gaps() TO PUBLIC;
              DO $$ DECLARE t text; BEGIN
                FOR t IN SELECT schema || '.' || name FROM tviews.registry
                         WHERE schema = '{SCHEMA}' ORDER BY entity LOOP
@@ -676,8 +679,8 @@ impl QueueHold {
 
 /// #1604: while the NOTIFY queue is over 90 % full (a listener somewhere stopped reading),
 /// `pg_tviews` commits transactions without publishing them, and counts them
-/// (`tviews.`pg_tviews`_feed_gaps()`). A server that stays connected would never hear the
-/// write: it reads the count on its heartbeat and clears its cache when it moved.
+/// (`tviews.pg_tviews_count_feed_gaps()`). A server that stays connected would never hear
+/// the write: it reads the count on its heartbeat and clears its cache when it moved.
 #[tokio::test]
 async fn a_write_committed_unpublished_clears_the_cache_on_the_next_heartbeat() {
     let Some(server) = serve().await else {
@@ -696,7 +699,7 @@ async fn a_write_committed_unpublished_clears_the_cache_on_the_next_heartbeat() 
     let gaps = || async {
         let gaps: i64 = client(&server.url)
             .await
-            .query_one("SELECT tviews.pg_tviews_feed_gaps()", &[])
+            .query_one("SELECT tviews.pg_tviews_count_feed_gaps()", &[])
             .await
             .unwrap()
             .get(0);
@@ -743,7 +746,7 @@ async fn a_count_the_server_cannot_read_ends_its_session() {
     assert!(shows(&server.get(POSTS).await, "A"), "the read is cached");
 
     server
-        .sql("REVOKE EXECUTE ON FUNCTION tviews.pg_tviews_feed_gaps() FROM PUBLIC")
+        .sql("REVOKE EXECUTE ON FUNCTION tviews.pg_tviews_count_feed_gaps() FROM PUBLIC")
         .await;
     let start = std::time::Instant::now();
     let mut cleared = false;
@@ -755,7 +758,7 @@ async fn a_count_the_server_cannot_read_ends_its_session() {
         tokio::time::sleep(Duration::from_millis(250)).await;
     }
     server
-        .sql("GRANT EXECUTE ON FUNCTION tviews.pg_tviews_feed_gaps() TO PUBLIC")
+        .sql("GRANT EXECUTE ON FUNCTION tviews.pg_tviews_count_feed_gaps() TO PUBLIC")
         .await;
     assert!(cleared, "the count could not be read, and the session went on with its cache");
 }

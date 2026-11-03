@@ -50,7 +50,10 @@ async fn client(url: &str) -> tokio_postgres::Client {
 
 async fn provision(url: &str) {
     let client = client(url).await;
-    client.batch_execute("CREATE EXTENSION IF NOT EXISTS pg_tviews;").await.unwrap();
+    client
+        .batch_execute("CREATE EXTENSION IF NOT EXISTS pg_tviews CASCADE;")
+        .await
+        .unwrap();
     client
         .batch_execute(include_str!("../../fraiseql-cli/sql/helpers/mutation_response.sql"))
         .await

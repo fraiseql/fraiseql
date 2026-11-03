@@ -30,7 +30,7 @@ async fn provision(url: &str) {
     tokio::spawn(connection);
     client
         .batch_execute(&format!(
-            "CREATE EXTENSION IF NOT EXISTS pg_tviews;
+            "CREATE EXTENSION IF NOT EXISTS pg_tviews CASCADE;
              SET search_path = {SCHEMA}, public;
              DROP VIEW IF EXISTS v_book, v_author;
              RESET search_path;
@@ -192,7 +192,7 @@ async fn the_replica_refusal_prints_the_statements_that_lift_it() {
     tokio::spawn(connection);
     client
         .batch_execute(&format!(
-            "CREATE EXTENSION IF NOT EXISTS pg_tviews;
+            "CREATE EXTENSION IF NOT EXISTS pg_tviews CASCADE;
              DROP VIEW IF EXISTS {UNLOGGED}.v_draft, {UNLOGGED}.v_draft_again;
              DO $$ DECLARE t text; BEGIN
                FOR t IN SELECT schema || '.' || name FROM tviews.registry

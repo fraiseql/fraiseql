@@ -48,7 +48,7 @@ async fn client(url: &str) -> tokio_postgres::Client {
 async fn provision(client: &tokio_postgres::Client) {
     client
         .batch_execute(&format!(
-            "CREATE EXTENSION IF NOT EXISTS pg_tviews;
+            "CREATE EXTENSION IF NOT EXISTS pg_tviews CASCADE;
              DO $$ DECLARE t text; BEGIN
                FOR t IN SELECT schema || '.' || name FROM tviews.registry
                         WHERE schema = '{SCHEMA}' LOOP

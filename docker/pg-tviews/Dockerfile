@@ -1,5 +1,5 @@
-# PostgreSQL 18 + pgvector + pg_tviews, for the suites that exercise pg_tviews (#1391,
-# #1392). Built from source: pg_tviews ships no binaries.
+# PostgreSQL 18 + pgvector + pg_tviews and the jsonb_delta it requires, for the suites that
+# exercise pg_tviews (#1391, #1392). Built from source: neither ships binaries.
 #
 # The pin lives here and nowhere else: the tag a reader recognises, and the commit it must
 # resolve to (a tag can move; a commit cannot). `tools/check-pg-tviews-pin.sh` holds the docs
@@ -10,15 +10,24 @@
 ARG PG_IMAGE=pgvector/pgvector:pg18
 
 FROM ${PG_IMAGE} AS build
-ARG PG_TVIEWS_TAG=v0.1.0-beta.34
-ARG PG_TVIEWS_COMMIT=c36b32686860ecfe057ca55e9218051997156377
+ARG PG_TVIEWS_TAG=v0.1.0-beta.35
+# Interim (#1896): v0.1.0-beta.35 is not tagged yet, so the commit below is one on its release
+# branch, fetched by hash. When the tag lands, set `PG_TVIEWS_COMMIT` to the commit the tag
+# resolves to, fetch the tag and check its peeled commit against it (as jsonb_delta's is
+# below), and remove this note.
+ARG PG_TVIEWS_COMMIT=0d4c08a523981fdc74ecc72195f16fbf0c9a9291
 ARG PGRX_VERSION=0.17.0
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
        build-essential pkg-config git ca-certificates curl libclang-dev clang \
        "postgresql-server-dev-${PG_MAJOR}" \
     && rm -rf /var/lib/apt/lists/*
-RUN git clone --depth 1 --branch "${PG_TVIEWS_TAG}" https://github.com/fraiseql/pg_tviews.git /src \
+# The exact commit is fetched and checked, so the checkout cannot be anything else: a new
+# pg_tviews commit arrives only as a deliberate change of the pin.
+RUN git init -q /src \
+    && git -C /src remote add origin https://github.com/fraiseql/pg_tviews.git \
+    && git -C /src fetch -q --depth 1 origin "${PG_TVIEWS_COMMIT}" \
+    && git -C /src checkout -q --detach FETCH_HEAD \
     && test "$(git -C /src rev-parse HEAD)" = "${PG_TVIEWS_COMMIT}"
 # The toolchain pg_tviews pins (rust-toolchain.toml), installed by rustup on first use.
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
@@ -27,6 +36,21 @@ ENV PATH=/root/.cargo/bin:${PATH}
 WORKDIR /src
 RUN cargo install --locked cargo-pgrx --version "${PGRX_VERSION}"
 RUN cargo pgrx init "--pg${PG_MAJOR}" "/usr/lib/postgresql/${PG_MAJOR}/bin/pg_config"
+RUN cargo pgrx package --no-default-features --features "pg${PG_MAJOR}" \
+       --pg-config "/usr/lib/postgresql/${PG_MAJOR}/bin/pg_config" --out-dir /out
+# pg_tviews requires jsonb_delta (`requires = 'jsonb_delta'` in its control file), so
+# `CREATE EXTENSION pg_tviews CASCADE` installs it. Pinned the same way: the tag a reader
+# recognises, and the commit its peeled object must be. It ships no toolchain file and builds
+# with pg_tviews' toolchain and pgrx.
+ARG JSONB_DELTA_TAG=v0.3.0
+ARG JSONB_DELTA_COMMIT=f5c495030a92fcf112be098e9ef15f8f24d4a728
+RUN git init -q /jsonb_delta \
+    && git -C /jsonb_delta remote add origin https://github.com/evoludigit/jsonb_delta.git \
+    && git -C /jsonb_delta fetch -q --depth 1 origin "refs/tags/${JSONB_DELTA_TAG}" \
+    && test "$(git -C /jsonb_delta rev-parse 'FETCH_HEAD^{commit}')" = "${JSONB_DELTA_COMMIT}" \
+    && git -C /jsonb_delta checkout -q --detach FETCH_HEAD \
+    && cp /src/rust-toolchain.toml /jsonb_delta/
+WORKDIR /jsonb_delta
 RUN cargo pgrx package --no-default-features --features "pg${PG_MAJOR}" \
        --pg-config "/usr/lib/postgresql/${PG_MAJOR}/bin/pg_config" --out-dir /out
 

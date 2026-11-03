@@ -159,10 +159,10 @@ What adds it depends on the relation:
 document, on any relation, and says which of these applies or that the column already exists.
 It recognises a TVIEW from pg_tviews' catalog, not from a `tv_` name.
 
-A TVIEW's table holds only its definition's columns (pg_tviews 0.1.0-beta.34), so its
-`created_at` is the one the definition projects, normally the base table's. Before beta.34,
-pg_tviews appended a `created_at` and an `updated_at` of its own to every TVIEW and stamped
-them with materialisation times (#1818); its upgrade drops them.
+A TVIEW's table holds only its definition's columns, so its `created_at` is the one the
+definition projects, normally the base table's. Earlier pg_tviews releases appended a
+`created_at` and an `updated_at` of their own to every TVIEW and stamped them with
+materialisation times (#1818); the upgrade that removed them drops them.
 
 FraiseQL does not sort these keys as text instead. pg_tviews renders them in UTC ISO 8601
 (a documented contract since beta.26), but a value it did not render (text copied through, a

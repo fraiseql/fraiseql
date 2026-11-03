@@ -162,13 +162,13 @@ services:
       retries: 5
 
   postgres-tviews-test:
-    # PostgreSQL 18 + pgvector + pg_tviews, built from the pinned source tag in
-    # docker/pg-tviews/Dockerfile (pg_tviews ships no binaries). Only the pg_tviews suites
+    # PostgreSQL 18 + pgvector + pg_tviews and jsonb_delta, built from the pinned source in
+    # docker/pg-tviews/Dockerfile (neither ships binaries). Only the pg_tviews suites
     # (#1391, #1392) use it, through TVIEWS_DATABASE_URL; every other suite keeps
     # postgres-test. The image's command preloads pg_tviews and pg_stat_statements.
     build:
       context: ./pg-tviews
-    image: fraiseql/pg-tviews-test:pg18-v0.1.0-beta.34
+    image: fraiseql/pg-tviews-test:pg18-v0.1.0-beta.35
     environment:
       POSTGRES_DB: test_fraiseql
       POSTGRES_USER: fraiseql_test

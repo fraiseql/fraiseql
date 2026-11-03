@@ -483,17 +483,25 @@ connection and merges the report into the function's `cascade`:
   fails naming pg_tviews, and commits nothing.
 * **Observed** as the histogram `fraiseql_cascade_derived_entries` on `/metrics`.
 
-The tests run against `docker/pg-tviews` (PostgreSQL 18 with pg_tviews v0.1.0-beta.34 built
-from source, preloaded): `make test-pg-tviews`.
+The tests run against `docker/pg-tviews` (PostgreSQL 18 with pg_tviews v0.1.0-beta.35 and the
+jsonb_delta it requires, built from source, preloaded): `make test-pg-tviews`.
 
-**Upgrading pg_tviews to beta.34:** install the new library, restart PostgreSQL, then run
-`ALTER EXTENSION pg_tviews UPDATE;` in each database that has the extension (catalog
-revision 10). The update drops the `created_at` and `updated_at` columns pg_tviews used to
-append to every TVIEW's table, and fails, naming it, on any view of yours that reads them. A
-TVIEW's table now holds only its definition's columns, so a definition can project the base
-table's own `created_at`. Under `REPEATABLE READ` and `SERIALIZABLE`, a write whose refresh
-would re-create a TVIEW row a concurrent transaction deleted now fails with `40001`
-(retryable).
+**What pg_tviews needs.** pg_tviews must be in `shared_preload_libraries` and installed by a
+superuser; without the preload its functions fail with `55000`. It requires the jsonb_delta
+extension: `CREATE EXTENSION pg_tviews CASCADE` installs both. A transaction that writes a
+table a TVIEW reads, or flushes, must run at `READ COMMITTED`: at `REPEATABLE READ` or
+`SERIALIZABLE` pg_tviews refuses it with `0A000`.
+
+**Upgrading pg_tviews to beta.35.** Only beta.34 updates to beta.35; an older install is
+dropped and recreated. Move any writer of yours that runs at `REPEATABLE READ` or
+`SERIALIZABLE` to `READ COMMITTED`, and remove the settings beta.35 dropped from
+`postgresql.conf` and `ALTER … SET` (setting one now fails). Install both libraries, restart
+PostgreSQL, then in each database that has the extension run `CREATE EXTENSION IF NOT EXISTS
+jsonb_delta;` and `ALTER EXTENSION pg_tviews UPDATE;` (the update refuses to run without
+jsonb_delta). Upgrade FraiseQL in the same step: beta.35 renamed the change-feed gap count
+FraiseQL reads (#1896), so a FraiseQL and a pg_tviews from either side of the rename cannot
+count gaps; the server logs that once and falls back on reconnects and the cache TTL
+([cache](../modules/cache.md)). pg_tviews' own upgrade notes list the rest.
 
 ### Success fields (#1397)
 

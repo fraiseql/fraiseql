@@ -47,7 +47,10 @@ async fn client(url: &str) -> tokio_postgres::Client {
 /// Two posts, with two comments and one; `false` when the registry has no references.
 async fn provision(url: &str) -> bool {
     let client = client(url).await;
-    client.batch_execute("CREATE EXTENSION IF NOT EXISTS pg_tviews;").await.unwrap();
+    client
+        .batch_execute("CREATE EXTENSION IF NOT EXISTS pg_tviews CASCADE;")
+        .await
+        .unwrap();
     let has_references: bool = client
         .query_one(
             "SELECT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = \
