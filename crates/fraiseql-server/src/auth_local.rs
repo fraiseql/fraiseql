@@ -29,7 +29,13 @@ type Result<T> = std::result::Result<T, ServerError>;
 #[cfg(feature = "inbound-email")]
 const RESET_TOKEN_PLACEHOLDER: &str = "{token}";
 
-/// Placeholder the magic-link template substitutes the OTP code for.
+/// Placeholder the magic-link template substitutes the link token for: the token alone signs
+/// in, from any device.
+#[cfg(feature = "inbound-email")]
+const MAGIC_TOKEN_PLACEHOLDER: &str = "{token}";
+
+/// Placeholder the magic-link template substitutes the OTP code for. A link carrying only the
+/// code needs the address too, so it signs in only where the address is known.
 #[cfg(feature = "inbound-email")]
 const MAGIC_CODE_PLACEHOLDER: &str = "{code}";
 
@@ -155,7 +161,12 @@ impl fraiseql_auth::VerificationEmailSender for MailboxEmailSender {
 #[cfg(feature = "inbound-email")]
 #[async_trait::async_trait]
 impl fraiseql_auth::EmailDelivery for MailboxEmailSender {
-    async fn send_otp(&self, email: &str, code: &str) -> fraiseql_auth::Result<String> {
+    async fn send_otp(
+        &self,
+        email: &str,
+        issue: &fraiseql_auth::OtpIssue,
+    ) -> fraiseql_auth::Result<String> {
+        let code = &issue.code;
         let body = self.magic_link_template.as_ref().map_or_else(
             || {
                 format!(
@@ -164,7 +175,9 @@ impl fraiseql_auth::EmailDelivery for MailboxEmailSender {
                 )
             },
             |template| {
-                let link = template.replace(MAGIC_CODE_PLACEHOLDER, &urlencoding::encode(code));
+                let link = template
+                    .replace(MAGIC_TOKEN_PLACEHOLDER, &urlencoding::encode(&issue.link_token))
+                    .replace(MAGIC_CODE_PLACEHOLDER, &urlencoding::encode(code));
                 format!(
                     "Use the link below to sign in. It expires in 10 minutes and can only be \
                      used once.\n\n{link}\n\nOr enter this code: {code}"

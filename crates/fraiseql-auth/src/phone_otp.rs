@@ -242,7 +242,7 @@ pub async fn send_sms_otp(
     let key = phone_otp_key(&e164);
 
     let code = match state.otp_store.create_otp(&key).await {
-        Ok(c) => c,
+        Ok(issue) => issue.code,
         Err(crate::error::AuthError::RateLimited { .. }) => {
             // Anti-enumeration: always return success even when rate-limited.
             return Json(SmsOtpResponse {

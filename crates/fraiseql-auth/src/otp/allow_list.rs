@@ -11,7 +11,7 @@ use async_trait::async_trait;
 use sqlx::PgPool;
 use tokio::sync::mpsc;
 
-use super::EmailDelivery;
+use super::{EmailDelivery, OtpIssue};
 use crate::error::{AuthError, Result};
 
 /// Mails waiting to leave. Sends are limited per client and per address before they reach this
@@ -77,10 +77,10 @@ impl OtpAllowList for PgOtpAllowList {
     }
 }
 
-/// One mail waiting to leave. No `Debug`: it holds a live code.
+/// One mail waiting to leave. No `Debug`: it holds a live code and link token.
 struct QueuedOtp {
     email: String,
-    code:  String,
+    issue: OtpIssue,
 }
 
 /// An [`OtpAllowList`] and the bounded queue its admitted mail leaves through.
@@ -101,8 +101,8 @@ impl OtpAllowGate {
     ) -> Self {
         let (queue, mut queued) = mpsc::channel::<QueuedOtp>(capacity);
         tokio::spawn(async move {
-            while let Some(QueuedOtp { email, code }) = queued.recv().await {
-                if let Err(e) = delivery.send_otp(&email, &code).await {
+            while let Some(QueuedOtp { email, issue }) = queued.recv().await {
+                if let Err(e) = delivery.send_otp(&email, &issue).await {
                     let detail = without_address(&e.to_string(), &email);
                     tracing::error!(error = %detail, "OTP mail delivery failed");
                 }
@@ -120,15 +120,15 @@ impl OtpAllowGate {
         })
     }
 
-    /// Queue `code` for `email` if the list admits it. Never waits on the relay: with the queue
+    /// Queue `issue` for `email` if the list admits it. Never waits on the relay: with the queue
     /// full the mail is dropped and logged, because waiting would answer who is approved.
-    pub(super) async fn deliver_if_admitted(&self, email: &str, code: String) {
+    pub(super) async fn deliver_if_admitted(&self, email: &str, issue: OtpIssue) {
         if !self.admits(email).await {
             return;
         }
         let queued = QueuedOtp {
             email: email.to_string(),
-            code,
+            issue,
         };
         if self.queue.try_send(queued).is_err() {
             tracing::error!("OTP mail dropped: the delivery queue is full or stopped");

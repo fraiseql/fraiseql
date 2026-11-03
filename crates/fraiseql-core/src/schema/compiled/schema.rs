@@ -580,7 +580,8 @@ pub struct LocalAuthConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reset_url_template: Option<String>,
 
-    /// Template for the `OTP` magic link, with `{code}` substituted. Optional:
+    /// Template for the `OTP` magic link, with `{token}` substituted for a link
+    /// token that signs in alone, and `{code}` for the six-digit code. Optional:
     /// when absent the email carries the bare six-digit code.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub magic_link_template: Option<String>,

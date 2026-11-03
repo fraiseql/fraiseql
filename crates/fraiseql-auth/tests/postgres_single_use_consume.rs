@@ -123,7 +123,7 @@ fn totp_now(secret_base32: &str) -> String {
 async fn otp_verify_fails_closed_when_the_single_use_delete_fails() {
     let (otp, _mfa, db) = skip_if_no_db!();
     let email = "consume-otp@example.com";
-    let code = otp.create_otp(email).await.unwrap();
+    let code = otp.create_otp(email).await.unwrap().code;
 
     poison_deletes(&db, "core.tb_otp_code").await;
     let result = otp.verify_otp(email, &code).await;
@@ -145,7 +145,7 @@ async fn otp_verify_fails_closed_when_the_single_use_delete_fails() {
 async fn otp_verify_consumes_the_code_when_the_delete_succeeds() {
     let (otp, _mfa, db) = skip_if_no_db!();
     let email = "happy-otp@example.com";
-    let code = otp.create_otp(email).await.unwrap();
+    let code = otp.create_otp(email).await.unwrap().code;
 
     otp.verify_otp(email, &code).await.unwrap();
     assert_eq!(row_count(&db, "core.tb_otp_code").await, 0, "the code is consumed");

@@ -440,9 +440,23 @@ impl OidcClientConfig {
                     );
                 }
             }
+            if let Some(t) = &local.magic_link_template {
+                if !t.contains("{token}") && !t.contains("{code}") {
+                    anyhow::bail!(
+                        "[auth.local] magic_link_template must contain the {{token}} \
+                         placeholder, or every link it builds is the same dead link: {t}"
+                    );
+                }
+                if !t.contains("{token}") {
+                    tracing::warn!(
+                        "[auth.local] magic_link_template carries only {{code}}: the link \
+                         signs in only where the address is known. Use {{token}}, which \
+                         signs in alone from any device"
+                    );
+                }
+            }
             for (field, template, placeholder) in [
                 ("reset_url_template", local.reset_url_template.as_ref(), "{token}"),
-                ("magic_link_template", local.magic_link_template.as_ref(), "{code}"),
                 ("verification_url_template", local.verification_url_template.as_ref(), "{token}"),
             ] {
                 if let Some(t) = template {

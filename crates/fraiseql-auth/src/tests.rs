@@ -2244,7 +2244,7 @@ mod otp_tests {
     #[tokio::test]
     async fn test_otp_store_create_and_verify_correct_code() {
         let store = InMemoryOtpStore::new();
-        let code = store.create_otp("alice@example.com").await.unwrap();
+        let code = store.create_otp("alice@example.com").await.unwrap().code;
 
         assert_eq!(code.len(), 6);
         assert!(code.chars().all(|c| c.is_ascii_digit()));
@@ -2255,7 +2255,7 @@ mod otp_tests {
     #[tokio::test]
     async fn test_otp_store_verify_wrong_code() {
         let store = InMemoryOtpStore::new();
-        let _code = store.create_otp("alice@example.com").await.unwrap();
+        let _code = store.create_otp("alice@example.com").await.unwrap().code;
 
         let result = store.verify_otp("alice@example.com", "000000").await;
         assert!(result.is_err(), "wrong code should fail");
@@ -2264,7 +2264,7 @@ mod otp_tests {
     #[tokio::test]
     async fn test_otp_store_single_use() {
         let store = InMemoryOtpStore::new();
-        let code = store.create_otp("alice@example.com").await.unwrap();
+        let code = store.create_otp("alice@example.com").await.unwrap().code;
 
         store.verify_otp("alice@example.com", &code).await.unwrap();
         let result = store.verify_otp("alice@example.com", &code).await;
@@ -2274,7 +2274,7 @@ mod otp_tests {
     #[tokio::test]
     async fn test_otp_store_max_attempts_lockout() {
         let store = InMemoryOtpStore::new();
-        let _code = store.create_otp("alice@example.com").await.unwrap();
+        let _code = store.create_otp("alice@example.com").await.unwrap().code;
 
         // Exhaust attempts with wrong codes (max is 3)
         for _ in 0..3 {

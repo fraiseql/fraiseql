@@ -103,6 +103,13 @@ disagreed, and the promise was the part that was wrong.
   `/auth/v1/session/refresh` and `/auth/v1/session/logout` (#1853).** They named
   `/auth/refresh` and `/auth/logout`, which no route served.
 
+- **The `OTP` traits and `VerifyRequest` carry the magic-link token (#1855).**
+  - `OtpStore::create_otp` returns an `OtpIssue` (the code and its link token) instead of the
+    code, and implementors add `redeem_link`.
+  - `EmailDelivery::send_otp` takes `&OtpIssue` instead of the code.
+  - `VerifyRequest`'s `email` and `code` are `Option<String>`, and it gains `token`. It no
+    longer implements `Debug`, because it carries a live credential.
+
 ### Added
 
 - **`[auth.local] otp_allowed_query` restricts `OTP` sign-in to approved addresses (#1852).**
@@ -142,6 +149,18 @@ disagreed, and the promise was the part that was wrong.
     refused, by the compiler and at boot. Anonymous sessions keep their fixed seven days.
   - `_system.sessions` gains `family_id`, `rotated_at` and `access_jti`, added at boot.
     See `docs/auth/sessions.md`.
+
+- **A magic link signs in on its own, from any device (#1855).** `magic_link_template` takes
+  `{token}`, a 256-bit link token that `POST /auth/v1/verify` redeems as `{"token": ...}`
+  without the address. Before, the template could carry only `{code}`, which needs the
+  address too, so a link opened on another device could not sign in.
+  - The token and the code in a mail are one credential: redeeming either spends both, and a
+    resend replaces both. A bad token gets the answer a wrong code gets. A redeemed link is
+    checked against `otp_allowed_query` and asks an `MFA` account for its second factor.
+  - Only a `POST` redeems, so a mail scanner's `GET` spends nothing. `core.tb_otp_code` gains
+    a `link_token_hash` column and a unique index at boot; only the hash is stored.
+  - `fraiseql compile` warns about a template with `{code}` and no `{token}`, and still
+    refuses one with neither. See `docs/auth/magic-links.md`.
 
 ### Changed
 

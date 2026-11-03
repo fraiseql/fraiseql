@@ -75,7 +75,7 @@ async fn test_otp_verify_valid_code_returns_session_token() {
     });
 
     // Directly create an OTP so we know the code.
-    let code = otp_store.create_otp("alice@example.com").await.unwrap();
+    let code = otp_store.create_otp("alice@example.com").await.unwrap().code;
 
     let app = build_app(state);
     let response = app
@@ -159,7 +159,7 @@ async fn test_otp_verify_no_pending_otp_returns_422() {
 async fn test_otp_is_single_use() {
     // After a successful verify the code must be invalidated.
     let otp_store = Arc::new(InMemoryOtpStore::new());
-    let code = otp_store.create_otp("alice@example.com").await.unwrap();
+    let code = otp_store.create_otp("alice@example.com").await.unwrap().code;
 
     // First verify succeeds.
     otp_store.verify_otp("alice@example.com", &code).await.unwrap();
@@ -210,7 +210,7 @@ async fn test_otp_blank_email_returns_422() {
 async fn test_otp_codes_are_six_digits() {
     let store = InMemoryOtpStore::new();
     for _ in 0..3 {
-        let code = store.create_otp("alice@example.com").await.unwrap();
+        let code = store.create_otp("alice@example.com").await.unwrap().code;
         assert_eq!(code.len(), 6, "OTP must be exactly 6 characters, got: {code}");
         assert!(code.chars().all(|c| c.is_ascii_digit()), "OTP must be decimal digits");
         // Reset for next iteration by using a different email
@@ -220,14 +220,14 @@ async fn test_otp_codes_are_six_digits() {
 #[tokio::test]
 async fn test_otp_store_as_trait_object() {
     let store: Arc<dyn OtpStore> = Arc::new(InMemoryOtpStore::new());
-    let code = store.create_otp("alice@example.com").await.unwrap();
+    let code = store.create_otp("alice@example.com").await.unwrap().code;
     store.verify_otp("alice@example.com", &code).await.unwrap();
 }
 
 #[tokio::test]
 async fn test_noop_email_delivery_returns_message_id() {
     let delivery = NoopEmailDelivery;
-    let id = delivery.send_otp("alice@example.com", "123456").await.unwrap();
+    let id = delivery.send_otp("alice@example.com", &OtpIssue::generate()).await.unwrap();
     assert!(!id.is_empty(), "message_id should not be empty");
 }
 
@@ -258,7 +258,79 @@ async fn a_resend_does_not_buy_more_guesses_inside_the_window() {
         assert!(matches!(wrong, AuthError::InvalidToken { .. }), "got {wrong:?}");
     }
 
-    let code = store.create_otp(email).await.unwrap();
+    let code = store.create_otp(email).await.unwrap().code;
     let fourth = store.verify_otp(email, &code).await.unwrap_err();
     assert!(matches!(fourth, AuthError::RateLimited { .. }), "got {fourth:?}");
+}
+
+// ── link tokens ─────────────────────────────────────────────────
+
+#[test]
+fn a_link_token_is_256_bits_of_base64url_and_debug_prints_neither_half() {
+    let issue = OtpIssue::generate();
+    assert_eq!(issue.link_token.len(), 43, "32 bytes, unpadded base64url");
+    assert!(
+        issue
+            .link_token
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_'),
+        "base64url alphabet"
+    );
+    assert_ne!(issue.link_token, OtpIssue::generate().link_token);
+    let shown = format!("{issue:?}");
+    assert!(!shown.contains(&issue.link_token) && !shown.contains(&issue.code), "{shown}");
+}
+
+#[tokio::test]
+async fn a_link_token_redeems_once_and_names_its_address() {
+    let store = InMemoryOtpStore::new();
+    let issue = store.create_otp("alice@example.com").await.unwrap();
+    assert_eq!(store.redeem_link(&issue.link_token).await.unwrap(), "alice@example.com");
+    assert!(store.redeem_link(&issue.link_token).await.is_err(), "a link is single-use");
+}
+
+#[tokio::test]
+async fn a_redeemed_link_spends_its_code_and_a_redeemed_code_spends_its_link() {
+    let store = InMemoryOtpStore::new();
+    let issue = store.create_otp("alice@example.com").await.unwrap();
+    store.redeem_link(&issue.link_token).await.unwrap();
+    assert!(store.verify_otp("alice@example.com", &issue.code).await.is_err());
+
+    let issue = store.create_otp("bob@example.com").await.unwrap();
+    store.verify_otp("bob@example.com", &issue.code).await.unwrap();
+    assert!(store.redeem_link(&issue.link_token).await.is_err());
+}
+
+#[tokio::test]
+async fn a_resend_replaces_the_link() {
+    let store = InMemoryOtpStore::new();
+    let first = store.create_otp("alice@example.com").await.unwrap();
+    let second = store.create_otp("alice@example.com").await.unwrap();
+    assert!(store.redeem_link(&first.link_token).await.is_err(), "replaced link refused");
+    assert_eq!(store.redeem_link(&second.link_token).await.unwrap(), "alice@example.com");
+}
+
+#[tokio::test]
+async fn an_expired_link_is_refused_and_spent() {
+    let store = InMemoryOtpStore::new();
+    let issue = store.create_otp("alice@example.com").await.unwrap();
+    store.codes.get_mut("alice@example.com").unwrap().expires = 0;
+    assert!(store.redeem_link(&issue.link_token).await.is_err(), "expired link refused");
+    assert!(store.codes.is_empty(), "the expired row is removed with the attempt");
+}
+
+/// Each token names its own address, whatever order the store keeps addresses in.
+#[tokio::test]
+async fn a_link_token_of_another_address_never_matches() {
+    let store = InMemoryOtpStore::new();
+    let mut issued = Vec::new();
+    for n in 0..16 {
+        let email = format!("member{n}@example.com");
+        let issue = store.create_otp(&email).await.unwrap();
+        issued.push((email, issue));
+    }
+    assert!(store.redeem_link("not-a-link-token").await.is_err(), "unknown token refused");
+    for (email, issue) in &issued {
+        assert_eq!(&store.redeem_link(&issue.link_token).await.unwrap(), email);
+    }
 }

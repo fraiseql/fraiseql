@@ -19,6 +19,10 @@
 //!   signing in by `OTP` for up to 15 minutes. The send cap always allowed that; the per-IP rules
 //!   on `/auth/v1/otp` and `/auth/v1/verify` bound how many addresses one client can do it to.
 //! - Codes are compared with constant-time equality to prevent timing attacks.
+//! - Each code is mailed with a **link token**: 256 random bits that redeem the same sign-in
+//!   without the address, so a magic link works on any device. The token and the code are one
+//!   credential: redeeming either spends both, and a resend replaces both. Only `POST
+//!   /auth/v1/verify` redeems it; a `GET` is refused, so a link scanner spends nothing.
 
 use std::sync::Arc;
 
@@ -70,11 +74,50 @@ pub use allow_list::{OTP_DELIVERY_QUEUE_CAPACITY, OtpAllowGate, OtpAllowList, Pg
 #[derive(Debug, Clone)]
 struct OtpRecord {
     /// The 6-digit code.
-    code:     String,
+    code:      String,
+    /// SHA-256 of the link token mailed with the code.
+    link_hash: Vec<u8>,
     /// Unix timestamp when this code expires.
-    expires:  u64,
+    expires:   u64,
     /// How many verification attempts have been made against this code.
-    attempts: u32,
+    attempts:  u32,
+}
+
+/// A code and the link token mailed with it: one credential, redeemed once by either.
+///
+/// Its `Debug` prints neither half: both are live credentials.
+pub struct OtpIssue {
+    /// The 6-digit code, typed by hand.
+    pub code:       String,
+    /// The link token: 256 random bits, base64url. It redeems the sign-in without the address.
+    pub link_token: String,
+}
+
+impl std::fmt::Debug for OtpIssue {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("OtpIssue").finish_non_exhaustive()
+    }
+}
+
+impl OtpIssue {
+    /// A fresh code and link token.
+    #[must_use]
+    pub fn generate() -> Self {
+        use base64::Engine as _;
+        // SECURITY: rand::rng() uses OS-level entropy; random_range is unbiased.
+        let code = format!("{:06}", rand::rng().random_range(0u32..1_000_000));
+        let bytes: [u8; 32] = rand::rng().random();
+        Self {
+            code,
+            link_token: base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(bytes),
+        }
+    }
+}
+
+/// SHA-256 of a link token: what the stores keep, so a read of them cannot replay a link.
+pub(crate) fn link_token_hash(token: &str) -> Vec<u8> {
+    use sha2::Digest as _;
+    sha2::Sha256::digest(token.as_bytes()).to_vec()
 }
 
 impl OtpRecord {
@@ -120,17 +163,18 @@ pub trait OtpStore: Send + Sync {
     /// Returns [`AuthError::DatabaseError`] if the store fails.
     async fn sweep_expired(&self) -> Result<u64>;
 
-    /// Generate and store a new `OTP` for the given email.
+    /// Generate and store a new code and link token for the given email, replacing any it
+    /// held.
     ///
     /// # Returns
     ///
-    /// The generated 6-digit code (to be delivered to the user).
+    /// The code and link token, to be delivered to the user.
     ///
     /// # Errors
     ///
     /// Returns [`AuthError::RateLimited`] if the per-email send rate is exceeded.
     /// Returns [`AuthError::DatabaseError`] if the backing store fails.
-    async fn create_otp(&self, email: &str) -> Result<String>;
+    async fn create_otp(&self, email: &str) -> Result<OtpIssue>;
 
     /// Verify a code for the given email and consume it on success.
     ///
@@ -143,6 +187,18 @@ pub trait OtpStore: Send + Sync {
     /// Returns [`AuthError::InvalidToken`] if the code is wrong or expired.
     /// Returns [`AuthError::RateLimited`] if the attempt count is exceeded.
     async fn verify_otp(&self, email: &str, code: &str) -> Result<()>;
+
+    /// Redeem a link token, consuming it and the code mailed with it.
+    ///
+    /// # Returns
+    ///
+    /// The address the token was issued to.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`AuthError::InvalidToken`] if the token is unknown, spent, replaced or expired.
+    /// Returns [`AuthError::DatabaseError`] if the backing store fails.
+    async fn redeem_link(&self, link_token: &str) -> Result<String>;
 }
 
 // ─── In-memory OTP store ──────────────────────────────────────────────────────
@@ -213,7 +269,7 @@ impl OtpStore for InMemoryOtpStore {
         Ok((before - (self.codes.len() + self.rate_limits.len())) as u64)
     }
 
-    async fn create_otp(&self, email: &str) -> Result<String> {
+    async fn create_otp(&self, email: &str) -> Result<OtpIssue> {
         let now = unix_now()?;
 
         // Per-email rate limiting: max OTP_RATE_MAX sends per OTP_RATE_WINDOW_SECS.
@@ -238,21 +294,18 @@ impl OtpStore for InMemoryOtpStore {
             entry.count += 1;
         }
 
-        // Generate a 6-digit code using OS-level entropy.
-        // SECURITY: rand::rng() uses OS-level entropy; gen_range is unbiased.
-        let code = format!("{:06}", rand::rng().random_range(0u32..1_000_000));
-        let expires = now + OTP_TTL_SECS;
-
+        let issue = OtpIssue::generate();
         self.codes.insert(
             email.to_string(),
             OtpRecord {
-                code: code.clone(),
-                expires,
-                attempts: 0,
+                code:      issue.code.clone(),
+                link_hash: link_token_hash(&issue.link_token),
+                expires:   now + OTP_TTL_SECS,
+                attempts:  0,
             },
         );
 
-        Ok(code)
+        Ok(issue)
     }
 
     async fn verify_otp(&self, email: &str, code: &str) -> Result<()> {
@@ -293,6 +346,29 @@ impl OtpStore for InMemoryOtpStore {
         self.codes.remove(email);
         Ok(())
     }
+
+    async fn redeem_link(&self, link_token: &str) -> Result<String> {
+        let presented = link_token_hash(link_token);
+        let holder = self
+            .codes
+            .iter()
+            .find(|entry| entry.value().link_hash == presented)
+            .map(|entry| entry.key().clone());
+        // Removed only if it still holds this token: a concurrent resend replaced it.
+        let (email, record) = holder
+            .and_then(|email| {
+                self.codes.remove_if(&email, |_, record| record.link_hash == presented)
+            })
+            .ok_or_else(|| AuthError::InvalidToken {
+                reason: "no pending link for token".into(),
+            })?;
+        if record.is_expired() {
+            return Err(AuthError::InvalidToken {
+                reason: "link has expired".into(),
+            });
+        }
+        Ok(email)
+    }
 }
 
 // ─── Email delivery ───────────────────────────────────────────────────────────
@@ -302,7 +378,8 @@ impl OtpStore for InMemoryOtpStore {
 // dyn-compatibility async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
 #[async_trait]
 pub trait EmailDelivery: Send + Sync {
-    /// Send an `OTP` code to the given email address.
+    /// Send an `OTP` code, and the link token that redeems it without the address, to the
+    /// given email address. A sender with a magic-link template puts the token in the link.
     ///
     /// Returns a message identifier that can be returned to the caller for
     /// tracking / idempotency (may be empty for noop implementations).
@@ -310,7 +387,7 @@ pub trait EmailDelivery: Send + Sync {
     /// # Errors
     ///
     /// Returns [`AuthError::Internal`] if delivery fails.
-    async fn send_otp(&self, email: &str, code: &str) -> Result<String>;
+    async fn send_otp(&self, email: &str, issue: &OtpIssue) -> Result<String>;
 }
 
 /// No-op email delivery — logs the `OTP` via `tracing` instead of sending real email.
@@ -321,7 +398,9 @@ pub struct NoopEmailDelivery;
 // Reason: async_trait required for dyn-compatibility; remove when RTN + Send is stable
 #[async_trait]
 impl EmailDelivery for NoopEmailDelivery {
-    async fn send_otp(&self, email: &str, code: &str) -> Result<String> {
+    async fn send_otp(&self, email: &str, issue: &OtpIssue) -> Result<String> {
+        let code = &issue.code;
+        // The link token is not logged: unlike the code it redeems without the address.
         tracing::info!(email, code, "NoopEmailDelivery: OTP code (NOT sent via real email)");
         // Return a deterministic fake message_id for test assertions.
         Ok(format!("noop-{email}-{code}"))
@@ -368,13 +447,20 @@ pub struct OtpResponse {
     pub message_id: String,
 }
 
-/// Request body for `POST /auth/v1/verify`.
-#[derive(Debug, Deserialize)]
+/// Request body for `POST /auth/v1/verify`: a link token, or an address and its code.
+///
+/// No `Debug`: it carries a live credential.
+#[derive(Deserialize)]
 pub struct VerifyRequest {
-    /// Email address the `OTP` was sent to.
-    pub email: String,
-    /// The 6-digit code.
-    pub code:  String,
+    /// Email address the `OTP` was sent to, with `code`.
+    #[serde(default)]
+    pub email: Option<String>,
+    /// The 6-digit code, with `email`.
+    #[serde(default)]
+    pub code:  Option<String>,
+    /// The link token from a magic link, alone.
+    #[serde(default)]
+    pub token: Option<String>,
 }
 
 // ─── Handlers ─────────────────────────────────────────────────────────────────
@@ -411,8 +497,8 @@ pub async fn otp_send(
             .into_response();
     }
 
-    let code = match state.otp_store.create_otp(&email).await {
-        Ok(c) => c,
+    let issue = match state.otp_store.create_otp(&email).await {
+        Ok(issue) => issue,
         Err(AuthError::RateLimited { retry_after_secs }) => {
             return (
                 StatusCode::TOO_MANY_REQUESTS,
@@ -430,10 +516,10 @@ pub async fn otp_send(
     };
 
     let message_id = if let Some(gate) = &state.allow_gate {
-        gate.deliver_if_admitted(&email, code).await;
+        gate.deliver_if_admitted(&email, issue).await;
         String::new()
     } else {
-        match state.email_delivery.send_otp(&email, &code).await {
+        match state.email_delivery.send_otp(&email, &issue).await {
             Ok(id) => id,
             Err(e) => {
                 tracing::error!(error = %e, "Email delivery failed");
@@ -465,26 +551,44 @@ fn invalid_otp() -> Response {
         .into_response()
 }
 
+/// The answer to a request that is neither a link token nor an address and its code.
+fn invalid_request() -> Response {
+    (
+        StatusCode::UNPROCESSABLE_ENTITY,
+        Json(serde_json::json!({
+            "error":   "invalid_request",
+            "message": "send either `token`, or `email` and `code`"
+        })),
+    )
+        .into_response()
+}
+
 /// `POST /auth/v1/verify`
 ///
-/// Validates a 6-digit `OTP` and issues a session token on success.
-///
-/// Returns 422 if the code is wrong or expired.
-/// Returns 429 if the attempt limit is exceeded.
+/// Redeems a magic link's `token`, or an `email` and its 6-digit `code`, and issues a session
+/// token on success. Only a `POST` redeems: a link scanner's `GET` is refused by the router.
 ///
 /// # Errors
 ///
-/// Returns 422 Unprocessable Entity if the code is invalid or expired.
+/// Returns 422 Unprocessable Entity if the token or code is invalid, spent or expired (one
+/// answer for all of them), or if the request is neither shape.
 /// Returns 429 Too Many Requests if the attempt rate limit is exceeded.
 pub async fn otp_verify(
     State(state): State<Arc<OtpRouteState>>,
     Json(req): Json<VerifyRequest>,
 ) -> Response {
-    let email = req.email.trim().to_lowercase();
     let logger = get_audit_logger();
 
-    match state.otp_store.verify_otp(&email, &req.code).await {
-        Ok(()) => {},
+    let redeemed = match (req.token, req.email, req.code) {
+        (Some(token), None, None) => state.otp_store.redeem_link(&token).await,
+        (None, Some(email), Some(code)) => {
+            let email = email.trim().to_lowercase();
+            state.otp_store.verify_otp(&email, &code).await.map(|()| email)
+        },
+        _ => return invalid_request(),
+    };
+    let email = match redeemed {
+        Ok(email) => email,
         Err(AuthError::RateLimited { retry_after_secs }) => {
             return (
                 StatusCode::TOO_MANY_REQUESTS,
@@ -505,7 +609,7 @@ pub async fn otp_verify(
             );
             return invalid_otp();
         },
-    }
+    };
 
     // Checked again here, not only at send: removing an address invalidates a code it already
     // holds, and a code the list refused at send was never mailed. Same answer as a wrong code.

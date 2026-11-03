@@ -7,15 +7,19 @@
 //! six-digit code becomes brute-forceable. This store makes the budgets shared,
 //! which is what lets `[auth.local] otp = true` be served by a real deployment.
 //!
-//! At rest the code is stored as its SHA-256 hash — a database read cannot
-//! replay a live magic link. The comparison stays constant-time on the hash.
+//! At rest the code and its link token are stored as SHA-256 hashes — a database
+//! read cannot replay a live magic link. The code comparison stays constant-time on
+//! the hash; a token is found by its hash through a unique index.
 
 use async_trait::async_trait;
 use sha2::{Digest, Sha256};
 use sqlx::{PgPool, Row};
 use subtle::ConstantTimeEq as _;
 
-use super::{MAX_VERIFY_ATTEMPTS, OTP_RATE_MAX, OTP_RATE_WINDOW_SECS, OTP_TTL_SECS, OtpStore};
+use super::{
+    MAX_VERIFY_ATTEMPTS, OTP_RATE_MAX, OTP_RATE_WINDOW_SECS, OTP_TTL_SECS, OtpIssue, OtpStore,
+    link_token_hash,
+};
 use crate::{
     error::{AuthError, Result},
     session::unix_now,
@@ -36,6 +40,9 @@ CREATE TABLE IF NOT EXISTS core.tb_otp_send_budget (
     window_start BIGINT NOT NULL
 );
 ALTER TABLE core.tb_otp_send_budget ADD COLUMN IF NOT EXISTS guesses INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE core.tb_otp_code ADD COLUMN IF NOT EXISTS link_token_hash BYTEA;
+CREATE UNIQUE INDEX IF NOT EXISTS uq_otp_code_link_token_hash
+    ON core.tb_otp_code (link_token_hash) WHERE link_token_hash IS NOT NULL;
 REVOKE ALL ON core.tb_otp_code FROM PUBLIC;
 REVOKE ALL ON core.tb_otp_send_budget FROM PUBLIC;
 ";
@@ -105,7 +112,7 @@ impl OtpStore for PgOtpStore {
     }
 
     #[allow(clippy::cast_possible_wrap, clippy::cast_sign_loss)] // Reason: unix seconds and small counters fit i64/i32
-    async fn create_otp(&self, email: &str) -> Result<String> {
+    async fn create_otp(&self, email: &str) -> Result<OtpIssue> {
         let now = unix_now()?;
 
         // Reserve one send atomically: the window reset and the increment happen
@@ -142,25 +149,26 @@ impl OtpStore for PgOtpStore {
             });
         }
 
-        // SECURITY: rand::rng() uses OS-level entropy; random_range is unbiased.
-        let code = format!("{:06}", rand::Rng::random_range(&mut rand::rng(), 0u32..1_000_000));
-
+        // One row holds the code and its link token, so a resend replaces both.
+        let issue = OtpIssue::generate();
         sqlx::query(
-            "INSERT INTO core.tb_otp_code (email, code_hash, expires_at, attempts)
-             VALUES ($1, $2, $3, 0)
+            "INSERT INTO core.tb_otp_code (email, code_hash, link_token_hash, expires_at, attempts)
+             VALUES ($1, $2, $3, $4, 0)
              ON CONFLICT (email) DO UPDATE SET
                  code_hash = EXCLUDED.code_hash,
+                 link_token_hash = EXCLUDED.link_token_hash,
                  expires_at = EXCLUDED.expires_at,
                  attempts = 0",
         )
         .bind(email)
-        .bind(code_hash(&code))
+        .bind(code_hash(&issue.code))
+        .bind(link_token_hash(&issue.link_token))
         .bind((now + OTP_TTL_SECS) as i64)
         .execute(&self.db)
         .await
         .map_err(db_err)?;
 
-        Ok(code)
+        Ok(issue)
     }
 
     #[allow(clippy::cast_sign_loss, clippy::cast_possible_wrap)] // Reason: expiry/counters are written from unix_now() and small constants
@@ -251,5 +259,30 @@ impl OtpStore for PgOtpStore {
         // Correct — consume it (single-use).
         consume().await?;
         Ok(())
+    }
+
+    #[allow(clippy::cast_sign_loss)] // Reason: expiry is only ever written from unix_now()
+    async fn redeem_link(&self, link_token: &str) -> Result<String> {
+        let now = unix_now()?;
+        // The DELETE is the redemption: of two concurrent requests only one gets the row,
+        // and the code mailed with the token goes with it.
+        let row = sqlx::query(
+            "DELETE FROM core.tb_otp_code WHERE link_token_hash = $1
+             RETURNING email, expires_at",
+        )
+        .bind(link_token_hash(link_token))
+        .fetch_optional(&self.db)
+        .await
+        .map_err(db_err)?
+        .ok_or_else(|| AuthError::InvalidToken {
+            reason: "no pending link for token".into(),
+        })?;
+        let expires_at: i64 = row.get("expires_at");
+        if now >= expires_at as u64 {
+            return Err(AuthError::InvalidToken {
+                reason: "link has expired".into(),
+            });
+        }
+        Ok(row.get("email"))
     }
 }

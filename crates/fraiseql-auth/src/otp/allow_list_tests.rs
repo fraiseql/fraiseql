@@ -21,7 +21,7 @@ struct StalledRelay {
 
 #[async_trait]
 impl EmailDelivery for StalledRelay {
-    async fn send_otp(&self, _email: &str, _code: &str) -> Result<String> {
+    async fn send_otp(&self, _email: &str, _issue: &OtpIssue) -> Result<String> {
         self.permits.acquire().await.expect("semaphore open").forget();
         self.delivered.fetch_add(1, Ordering::SeqCst);
         Ok(String::new())
@@ -45,7 +45,7 @@ async fn a_full_queue_drops_the_mail_and_never_blocks_the_request() {
     // of them waiting on the stalled relay would hang here and trip the timeout.
     tokio::time::timeout(std::time::Duration::from_secs(5), async {
         for n in 0..10 {
-            gate.deliver_if_admitted(&format!("{n}@example.com"), "000000".to_string())
+            gate.deliver_if_admitted(&format!("{n}@example.com"), OtpIssue::generate())
                 .await;
             tokio::task::yield_now().await;
         }

@@ -60,7 +60,7 @@ async fn a_resend_does_not_buy_more_guesses_inside_the_window() {
     spend_every_guess(&otp, email).await;
 
     // The right code, freshly sent: refused, because the guesses are the address's.
-    let code = otp.create_otp(email).await.unwrap();
+    let code = otp.create_otp(email).await.unwrap().code;
     let fourth = otp.verify_otp(email, &code).await.unwrap_err();
     assert!(matches!(fourth, AuthError::RateLimited { .. }), "got {fourth:?}");
 }
@@ -82,7 +82,7 @@ async fn the_guess_budget_returns_with_the_next_window() {
     .await
     .unwrap();
 
-    let code = otp.create_otp(email).await.unwrap();
+    let code = otp.create_otp(email).await.unwrap().code;
     otp.verify_otp(email, &code).await.unwrap();
 }
 
@@ -93,7 +93,7 @@ async fn one_address_spending_its_guesses_leaves_another_untouched() {
     otp.create_otp("spent@example.com").await.unwrap();
     spend_every_guess(&otp, "spent@example.com").await;
 
-    let code = otp.create_otp("other@example.com").await.unwrap();
+    let code = otp.create_otp("other@example.com").await.unwrap().code;
     otp.verify_otp("other@example.com", &code).await.unwrap();
 }
 
@@ -109,7 +109,7 @@ async fn init_adds_the_guess_counter_to_an_existing_budget_table() {
 
     otp.init().await.unwrap();
 
-    let code = otp.create_otp("upgraded@example.com").await.unwrap();
+    let code = otp.create_otp("upgraded@example.com").await.unwrap().code;
     otp.verify_otp("upgraded@example.com", &code).await.unwrap();
 }
 
@@ -123,7 +123,7 @@ async fn a_code_verified_after_its_window_closed_starts_the_next_one() {
 
     otp.create_otp(email).await.unwrap();
     spend_every_guess(&otp, email).await;
-    let code = otp.create_otp(email).await.unwrap();
+    let code = otp.create_otp(email).await.unwrap().code;
 
     sqlx::query(
         "UPDATE core.tb_otp_send_budget SET window_start = window_start - 900 WHERE email = $1",

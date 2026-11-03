@@ -104,8 +104,8 @@ pub use oidc_provider::OidcProvider;
 pub use oidc_server_client::{OidcServerClient, OidcTokenResponse};
 pub use otp::{
     EmailDelivery, InMemoryOtpStore, NoopEmailDelivery, OTP_DELIVERY_QUEUE_CAPACITY, OtpAllowGate,
-    OtpAllowList, OtpRequest, OtpResponse, OtpRouteState, OtpStore, PgOtpAllowList, VerifyRequest,
-    otp_send, otp_verify,
+    OtpAllowList, OtpIssue, OtpRequest, OtpResponse, OtpRouteState, OtpStore, PgOtpAllowList,
+    VerifyRequest, otp_send, otp_verify,
     postgres::{PG_OTP_SCHEMA_SQL, PgOtpStore},
 };
 pub use phone_otp::{
