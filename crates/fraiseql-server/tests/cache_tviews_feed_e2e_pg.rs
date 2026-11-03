@@ -27,7 +27,9 @@
 use std::{sync::Arc, time::Duration};
 
 use fraiseql_cli::commands::compile::{CompileOptions, compile_to_schema};
-use fraiseql_core::{db::postgres::PostgresAdapter, schema::CompiledSchema};
+use fraiseql_core::{
+    cache::tviews_feed::CHANNEL, db::postgres::PostgresAdapter, schema::CompiledSchema,
+};
 use fraiseql_server::{Server, server_config::ServerConfig};
 use fraiseql_test_support::wire::CountingProxy;
 use serde_json::Value;
@@ -406,6 +408,33 @@ impl Running {
     }
 }
 
+/// The feed session a test isolated its own write from (#1919).
+struct IsolatedFeed {
+    connections: u64,
+}
+
+/// Swallow `pg_tviews`' messages on [`CHANNEL`] through `proxy`, so that what a test sees is
+/// its own write's eviction (#1603), not the feed's. The server's probe on its own channel
+/// still arrives, so the session holds however long the test takes.
+fn isolate_own_writes(proxy: &CountingProxy) -> IsolatedFeed {
+    let connections = proxy.connections();
+    proxy.drop_notifications_on(CHANNEL);
+    IsolatedFeed { connections }
+}
+
+impl IsolatedFeed {
+    /// The server kept the feed session it had: a lost one clears the whole cache, which
+    /// would pass an "every read was evicted" assertion with no eviction by the write (#1919).
+    fn assert_kept(&self, proxy: &CountingProxy) {
+        assert_eq!(
+            proxy.connections(),
+            self.connections,
+            "the server reconnected through the proxy while its write was isolated: its feed \
+             session was lost, and the cache cleared with it"
+        );
+    }
+}
+
 /// #1603: a comment this server writes on post A evicts the composed reads listing A's
 /// comments, by the collections `pg_tviews`' report names, and not post B's. Before, an own
 /// write evicted every composed read of comments. The feed's messages are dropped first: A's
@@ -422,11 +451,12 @@ async fn a_comment_this_server_writes_evicts_the_composed_reads_of_its_post_only
         return;
     };
     server.cache_both_composed_reads().await;
-    proxy.drop_notifications(true);
+    let feed = isolate_own_writes(&proxy);
 
     server.add_comments(POST_A, "own", 1, true).await;
     let post_a = server.get(&with_comments(POST_A)).await;
     let post_b = server.get(&with_comments(POST_B)).await;
+    feed.assert_kept(&proxy);
     assert!(shows(&post_a, "own"), "post A's composed read was not evicted: {post_a}");
     assert!(
         shows(&post_b, "B"),
@@ -449,11 +479,12 @@ async fn a_write_that_captured_no_collections_evicts_every_composed_read_of_its_
         return;
     };
     server.cache_both_composed_reads().await;
-    proxy.drop_notifications(true);
+    let feed = isolate_own_writes(&proxy);
 
     server.add_comments(POST_A, "unpublished", 1, false).await;
     let post_a = server.get(&with_comments(POST_A)).await;
     let post_b = server.get(&with_comments(POST_B)).await;
+    feed.assert_kept(&proxy);
     assert!(
         shows(&post_a, "unpublished"),
         "post A's composed read was not evicted: {post_a}"
@@ -476,11 +507,12 @@ async fn a_report_that_cannot_list_a_types_rows_evicts_every_collection_of_it() 
         return;
     };
     server.cache_both_composed_reads().await;
-    proxy.drop_notifications(true);
+    let feed = isolate_own_writes(&proxy);
 
     server.add_comments(POST_A, "many", 501, true).await;
     let post_a = server.get(&with_comments(POST_A)).await;
     let post_b = server.get(&with_comments(POST_B)).await;
+    feed.assert_kept(&proxy);
     assert!(shows(&post_a, "many"), "post A's composed read was not evicted: {post_a}");
     assert!(shows(&post_b, "behind"), "post B's composed read was not evicted: {post_b}");
 }

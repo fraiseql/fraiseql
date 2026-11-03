@@ -16,6 +16,10 @@
 //! closes every connection and refuses new ones until [`restore`](CountingProxy::restore), and
 //! [`drop_notifications`](CountingProxy::drop_notifications) swallows every
 //! `NotificationResponse`, as a `LISTEN` behind `PgBouncer` in transaction mode receives nothing.
+//! [`drop_notifications_on`](CountingProxy::drop_notifications_on) swallows one channel's
+//! only, so a client's notifications to itself (a liveness probe) still arrive (#1919), and
+//! [`connections`](CountingProxy::connections) counts the connections forwarded, so a client
+//! that reconnected shows.
 
 use std::{
     io::{Read as _, Write as _},
@@ -63,15 +67,44 @@ impl Wire {
     }
 }
 
+/// The `NotificationResponse`s the proxy swallows.
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+enum Withheld {
+    /// None: every notification is forwarded.
+    #[default]
+    Nothing,
+    /// Every notification.
+    Every,
+    /// The notifications on this channel (its name's bytes), and no other.
+    Channel(Vec<u8>),
+}
+
+impl Withheld {
+    /// Whether `message`, a complete `NotificationResponse` (type byte, length, sender's
+    /// process id, channel, payload), is swallowed.
+    fn withholds(&self, message: &[u8]) -> bool {
+        match self {
+            Self::Nothing => false,
+            Self::Every => true,
+            Self::Channel(channel) => {
+                let names = message.get(9..).unwrap_or_default();
+                names.split(|&b| b == 0).next() == Some(channel.as_slice())
+            },
+        }
+    }
+}
+
 /// How the proxy fails, as its owner asks.
 #[derive(Debug, Default)]
 struct Faults {
     /// Refuse every new connection.
-    refusing:           AtomicBool,
-    /// Swallow every `NotificationResponse` the server sends.
-    drop_notifications: AtomicBool,
+    refusing:    AtomicBool,
+    /// The notifications the server sends that are swallowed.
+    withheld:    Mutex<Withheld>,
+    /// Connections forwarded so far.
+    connections: AtomicU64,
     /// Both ends of every connection forwarded so far, to close them on `sever`.
-    live:               Mutex<Vec<TcpStream>>,
+    live:        Mutex<Vec<TcpStream>>,
 }
 
 /// A running proxy. It lives until the process ends.
@@ -120,6 +153,7 @@ impl CountingProxy {
                 let Ok(server) = TcpStream::connect(&upstream) else {
                     continue;
                 };
+                faulting.connections.fetch_add(1, Ordering::SeqCst);
                 forward(client, server, &counted, &faulting);
             }
         });
@@ -154,8 +188,33 @@ impl CountingProxy {
     }
 
     /// Swallow (`true`) or forward (`false`, the default) every `NotificationResponse`.
+    ///
+    /// # Panics
+    ///
+    /// If a thread panicked holding the setting.
     pub fn drop_notifications(&self, drop: bool) {
-        self.faults.drop_notifications.store(drop, Ordering::SeqCst);
+        *self.faults.withheld.lock().expect("the withheld notifications") = if drop {
+            Withheld::Every
+        } else {
+            Withheld::Nothing
+        };
+    }
+
+    /// Swallow the `NotificationResponse`s on `channel` only, and forward every other, until
+    /// [`drop_notifications`](Self::drop_notifications) changes it.
+    ///
+    /// # Panics
+    ///
+    /// If a thread panicked holding the setting.
+    pub fn drop_notifications_on(&self, channel: &str) {
+        *self.faults.withheld.lock().expect("the withheld notifications") =
+            Withheld::Channel(channel.as_bytes().to_vec());
+    }
+
+    /// The connections forwarded since the proxy started.
+    #[must_use]
+    pub fn connections(&self) -> u64 {
+        self.faults.connections.load(Ordering::SeqCst)
     }
 
     /// The URL to connect through the proxy.
@@ -202,8 +261,8 @@ fn forward(client: TcpStream, server: TcpStream, wire: &Arc<Wire>, faults: &Arc<
         while let Ok(n @ 1..) = server_rx.read(&mut buffer) {
             // Before forwarding: the client cannot answer bytes it has not received.
             down.server_spoke.store(true, Ordering::SeqCst);
-            let drop = faults.drop_notifications.load(Ordering::SeqCst);
-            let out = framer.forwardable(&buffer[..n], drop);
+            let withheld = faults.withheld.lock().expect("the withheld notifications").clone();
+            let out = framer.forwardable(&buffer[..n], &withheld);
             if !out.is_empty() && client_tx.write_all(&out).is_err() {
                 break;
             }
@@ -235,8 +294,8 @@ impl BackendFramer {
     const NOTIFICATION: u8 = b'A';
 
     /// The bytes of `bytes` (with what earlier calls held back) to forward now: every
-    /// complete message, less notifications when `drop_notifications`.
-    fn forwardable(&mut self, mut bytes: &[u8], drop_notifications: bool) -> Vec<u8> {
+    /// complete message, less the notifications `withheld` swallows.
+    fn forwardable(&mut self, mut bytes: &[u8], withheld: &Withheld) -> Vec<u8> {
         let mut out = Vec::with_capacity(bytes.len());
         if self.state == BackendState::Start {
             match bytes.first() {
@@ -268,7 +327,7 @@ impl BackendFramer {
                 break;
             }
             let message: Vec<u8> = self.pending.drain(..length).collect();
-            if !(drop_notifications && message[0] == Self::NOTIFICATION) {
+            if !(message[0] == Self::NOTIFICATION && withheld.withholds(&message)) {
                 out.extend_from_slice(&message);
             }
         }

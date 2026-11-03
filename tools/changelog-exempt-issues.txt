@@ -61,3 +61,4 @@
 #1831  test isolation only: inbound tests on per-test schemas, integration leg runs them in parallel; no shipped behaviour changes
 #1885  CI: the server integration leg builds fraiseql-server under one feature set instead of sixteen, and the integration timeouts are set against measured runtimes; CI only, no shipped artifact changes
 #1890  CI: the integration timeouts are re-set from cold runs on the slower runner, the federation leg compiles one dependency graph instead of two, and Release Smoke waits 115 min for the -full asset; CI only, no shipped artifact changes
+#1919  test rig: the proxy can withhold one notification channel, and the three #1603 feed-isolation tests keep their feed session and say so; test-only, no shipped artifact changes

@@ -42,27 +42,78 @@ fn the_url_points_at_the_proxy_in_plaintext() {
     assert!(url.ends_with("/test?sslmode=disable"), "{url}");
 }
 
+fn notification(channel: &str) -> Vec<u8> {
+    message(b'A', &[b"\0\0\0\x07", channel.as_bytes(), b"\0hello\0"].concat())
+}
+
 #[test]
 fn notifications_are_withheld_only_when_asked_however_the_bytes_are_split() {
     let mut stream = message(b'R', b"\0\0\0\0");
-    stream.extend(message(b'A', b"\0\0\0\x07chan\0hello\0"));
+    stream.extend(notification("chan"));
     stream.extend(message(b'Z', b"I"));
     let withheld = [message(b'R', b"\0\0\0\0"), message(b'Z', b"I")].concat();
     for chunk in [1, 3, 7, stream.len()] {
-        for (drop, expected) in [(false, &stream), (true, &withheld)] {
+        for (withhold, expected) in [(Withheld::Nothing, &stream), (Withheld::Every, &withheld)] {
             let mut framer = BackendFramer::default();
-            let out: Vec<u8> =
-                stream.chunks(chunk).flat_map(|piece| framer.forwardable(piece, drop)).collect();
-            assert_eq!(&out, expected, "split every {chunk} bytes, drop = {drop}");
+            let out: Vec<u8> = stream
+                .chunks(chunk)
+                .flat_map(|piece| framer.forwardable(piece, &withhold))
+                .collect();
+            assert_eq!(&out, expected, "split every {chunk} bytes, {withhold:?}");
         }
+    }
+}
+
+#[test]
+fn only_the_named_channels_notifications_are_withheld_however_the_bytes_are_split() {
+    let stream = [
+        notification("probe"),
+        notification("feed"),
+        notification("feed_other"),
+        message(b'Z', b"I"),
+    ]
+    .concat();
+    let expected = [
+        notification("probe"),
+        notification("feed_other"),
+        message(b'Z', b"I"),
+    ]
+    .concat();
+    for chunk in [1, 3, 7, stream.len()] {
+        let mut framer = BackendFramer::default();
+        let withhold = Withheld::Channel(b"feed".to_vec());
+        let out: Vec<u8> = stream
+            .chunks(chunk)
+            .flat_map(|piece| framer.forwardable(piece, &withhold))
+            .collect();
+        assert_eq!(out, expected, "split every {chunk} bytes");
     }
 }
 
 #[test]
 fn an_answer_to_an_ssl_request_is_forwarded() {
     let mut declined = vec![b'N'];
-    declined.extend(message(b'A', b"\0\0\0\x07chan\0hi\0"));
-    assert_eq!(BackendFramer::default().forwardable(&declined, true), vec![b'N']);
+    declined.extend(notification("chan"));
+    assert_eq!(BackendFramer::default().forwardable(&declined, &Withheld::Every), vec![b'N']);
     let tls = [b'S', 0x16, 0x03, 0x01];
-    assert_eq!(BackendFramer::default().forwardable(&tls, true), tls.to_vec());
+    assert_eq!(BackendFramer::default().forwardable(&tls, &Withheld::Every), tls.to_vec());
+}
+
+#[test]
+fn every_connection_forwarded_is_counted() {
+    let upstream = TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = upstream.local_addr().unwrap().port();
+    thread::spawn(move || {
+        let held: Vec<TcpStream> = upstream.incoming().flatten().collect();
+        drop(held);
+    });
+    let proxy = CountingProxy::start(&format!("postgresql://u:p@127.0.0.1:{port}/test"));
+    let at = proxy.url().split_once('@').unwrap().1.split_once('/').unwrap().0.to_string();
+    let _clients: Vec<TcpStream> = (0..2).map(|_| TcpStream::connect(&at).unwrap()).collect();
+    let start = std::time::Instant::now();
+    while proxy.connections() < 2 {
+        assert!(start.elapsed() < std::time::Duration::from_secs(5), "{}", proxy.connections());
+        thread::sleep(std::time::Duration::from_millis(10));
+    }
+    assert_eq!(proxy.connections(), 2);
 }
