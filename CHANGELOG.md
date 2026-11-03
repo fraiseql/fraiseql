@@ -102,6 +102,14 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **The mixed types-and-queries schema roundtrip property no longer generates the duplicate
+  names the load path refuses (#1917).** `prop_schema_mixed_types_and_queries_roundtrip`
+  drew its type and query names with `prop::collection::vec`, so two draws could be equal,
+  and `from_json` then failed the property with "schema declares a name twice". It failed
+  at random in `integration (postgres)`, and a run at 200 000 cases failed within 1.4 s. Its
+  names now come from `hash_set`, as the two count properties' names have since #1367. A
+  sweep of every property test found no other copy.
+
 - **The `-full` release binary ships `fraiseql federation sdl` (#1892).** The `fraiseql`
   crate's `federation` feature enabled the core and server halves of federation but not
   the CLI's, so the `release-full` binary answered `federation sdl` with `unrecognized

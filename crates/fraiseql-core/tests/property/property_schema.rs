@@ -291,10 +291,13 @@ proptest! {
     #![proptest_config(ProptestConfig::with_cases(150))]
 
     /// Property: Schema with both types and queries roundtrips with both intact.
+    ///
+    /// Names come from sets, as in the count properties above: the load path refuses a
+    /// schema that declares a name twice.
     #[test]
     fn prop_schema_mixed_types_and_queries_roundtrip(
-        type_names in prop::collection::vec(arb_type_name(), 1..5),
-        query_names in prop::collection::vec(arb_query_name(), 1..5),
+        type_names in prop::collection::hash_set(arb_type_name(), 1..5),
+        query_names in prop::collection::hash_set(arb_query_name(), 1..5),
         sources in prop::collection::vec(arb_sql_source(), 1..5),
     ) {
         let mut schema = CompiledSchema::new();
