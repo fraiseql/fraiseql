@@ -359,15 +359,26 @@ is the only supported backend (see [database-compatibility.md](../database-compa
 Developers can declare fact tables explicitly instead of relying on auto-detection:
 
 ```python
-@fraiseql.fact_table(
-    name="tf_sales",
-    measures=["revenue", "quantity", "cost"],
-    dimensions=["category", "region", "channel"],
-    primary_key="id",
+fraiseql.fact_table(
+    "tf_sales",
+    measures=[
+        {"name": "revenue", "sql_type": "numeric", "nullable": False},
+        {"name": "quantity", "sql_type": "int", "nullable": False},
+        {"name": "cost", "sql_type": "numeric", "nullable": False},
+    ],
+    dimensions={
+        "name": "data",
+        "paths": [
+            {"name": "category", "json_path": "data->>'category'", "data_type": "text"},
+            {"name": "region", "json_path": "data->>'region'", "data_type": "text"},
+            {"name": "channel", "json_path": "data->>'channel'", "data_type": "text"},
+        ],
+    },
 )
-class Sales:
-    ...
 ```
+
+`fraiseql.fact_table()` is a plain function, not a decorator. The `sales_aggregate` and
+`sales_window` roots follow from the `tf_sales` name; nothing is declared per query.
 
 Explicit declarations override introspected metadata and are preferred in production
 deployments where sample-based discovery may be unreliable.

@@ -310,48 +310,70 @@ def users() -> list[User]:
 
 ## Fact Table Issues
 
-### Error: `ValueError: Fact table name must start with 'tf_'`
+### Fact table name does not start with `tf_`
 
 **Problem**: Fact table name doesn't follow naming convention.
 
-**Solution**: Fact table names must start with `tf_`:
+**Solution**: Name the relation `tf_<name>`; its GraphQL roots are `<name>_aggregate` and
+`<name>_window`:
 
 ```python
 # ❌ WRONG
-@fraiseql.fact_table(table_name="sales")
+fraiseql.fact_table("sales", measures=[...])
 
 # ✅ CORRECT
-@fraiseql.fact_table(table_name="tf_sales")
+fraiseql.fact_table("tf_sales", measures=[...])
 ```
 
-### Error: Invalid measure column
+### Error: `fact table 'tf_sales' is read as type 'Sale', which has no field for ...`
 
-**Problem**: Measure doesn't exist as a field.
+**Problem**: The fact table is linked to a type (`type_name`) that lacks one of its
+measures, denormalized filters or dimension paths.
 
-**Solution**: Measure names must match class fields:
+**Solution**: Every name the fact table declares must be a field of the linked type.
+Declare the field on the type, drop it from the fact table, or omit `type_name`:
 
 ```python
 # ❌ WRONG
-@fraiseql.fact_table(
-    table_name="tf_sales",
-    measures=["revenue", "nonexistent_column"]
-)
 @fraiseql.type
 class Sale:
-    id: int
     revenue: float
-    # missing nonexistent_column
+    # missing margin
+
+fraiseql.fact_table(
+    "tf_sales",
+    type_name="Sale",
+    measures=[
+        {"name": "revenue", "sql_type": "numeric", "nullable": False},
+        {"name": "margin", "sql_type": "numeric", "nullable": True},
+    ],
+)
 
 # ✅ CORRECT
-@fraiseql.fact_table(
-    table_name="tf_sales",
-    measures=["revenue"]  # Matches field
-)
 @fraiseql.type
 class Sale:
-    id: int
     revenue: float
+    margin: float | None
+
+fraiseql.fact_table(
+    "tf_sales",
+    type_name="Sale",
+    measures=[
+        {"name": "revenue", "sql_type": "numeric", "nullable": False},
+        {"name": "margin", "sql_type": "numeric", "nullable": True},
+    ],
+)
 ```
+
+### Error: `TypeError: fact_table() got an unexpected keyword argument ...`
+
+**Problem**: The fact table is declared with the shape of an older decorator API: applied
+to a class, `measures` as a list of names, or dimension paths passed as their own keyword.
+
+**Solution**: `fraiseql.fact_table()` is a plain function: the table name is positional,
+each measure is a dict, and dimension paths go under `dimensions={"name": ..., "paths": [...]}`.
+The `<name>_aggregate` and `<name>_window` roots are derived; there is no aggregate query to
+declare. See [Decorators Reference](decorators-reference.md#fact_table).
 
 ---
 

@@ -7,9 +7,8 @@ Complete API reference for FraiseQL decorators.
 1. [@type](#type) - Define GraphQL types
 2. [@query](#query) - Define read queries
 3. [@mutation](#mutation) - Define write operations
-4. [@fact_table](#fact_table) - Define analytics tables
-5. [@aggregate_query](#aggregate_query) - Define OLAP queries
-6. [config()](#config) - Configuration helper
+4. [fact_table()](#fact_table) - Declare analytics fact tables
+5. [config()](#config) - Configuration helper
 
 ---
 
@@ -255,80 +254,125 @@ def bulk_update_users(ids: list[int], status: str) -> list[User]:
 
 ---
 
-## @fact_table
+## fact_table()
 
-Define an analytics fact table for OLAP queries.
+Declare an analytics fact table. `fact_table()` is a plain function, not a decorator: call
+it at module level, next to your types.
+
+A fact table `tf_<name>` gets two GraphQL roots, `<name>_aggregate` and `<name>_window`,
+derived when the schema compiles. There is no aggregate query to declare.
 
 ### Signature
 
 ```python
-@fraiseql.fact_table(
-    table_name="tf_sales",
-    measures=["revenue", "quantity"],
-    dimension_paths=[
-        {
-            "name": "category",
-            "json_path": "data->>'category'",
-            "data_type": "text"
-        }
-    ]
+fraiseql.fact_table(
+    "tf_sales",
+    measures=[{"name": "revenue", "sql_type": "numeric", "nullable": False}],
+    dimensions={
+        "name": "data",
+        "paths": [
+            {"name": "category", "json_path": "data->>'category'", "data_type": "text"}
+        ],
+    },
+    denormalized_filters=[{"name": "occurred_at", "sql_type": "date", "indexed": True}],
+    type_name="Sale",
 )
-@fraiseql.type
-class Sale:
-    id: int
-    revenue: float
-    quantity: int
 ```
 
 ### Parameters
 
-- `table_name` (required): SQL table name (must start with `tf_`)
-- `measures` (required): List of measure column names (numeric)
-- `dimension_column` (optional): JSONB column name (default: "data")
-- `dimension_paths` (optional): List of dimension path definitions
+- `table_name` (required, positional): SQL relation name, `tf_<name>`
+- `measures` (required): List of measure columns, each `{"name", "sql_type", "nullable"}`,
+  with an optional `"additivity"`
+- `dimensions` (optional): The JSONB dimensions column, `{"name", "paths": [...]}`
+  (default: `{"name": "data", "paths": []}`)
+- `denormalized_filters` (optional): Flat columns to filter and bucket by, each
+  `{"name", "sql_type", "indexed"}`, with an optional `"hierarchy"` naming the hierarchy an
+  `ltree` path column belongs to
+- `type_name` (optional): The type the fact table is read as. Every measure, denormalized
+  filter and dimension path must be a field of it, and its read gates apply
+- `row_scope` (optional): `"relation"` when the relation filters its own rows by tenant on a
+  value the server sets per request; the server then adds no tenant predicate
+- `native_measures` (optional): Measure paths stored as flat columns, `{path: column}`
+- `native_dimension_mapping` (optional): Dimension paths stored as flat columns,
+  `{path: column}`; each column must be a denormalized filter
+
+Raises `ValueError` on a duplicate `table_name`, a `row_scope` other than `"relation"`, or an
+unknown additivity kind.
 
 ### Dimension Path Structure
 
 ```python
 {
-    "name": "category",              # Path name (used in GROUP BY)
-    "json_path": "data->>'category'",  # PostgreSQL JSON path
-    "data_type": "text"              # SQL type hint
+    "name": "category",                # Path name (used in groupBy and where)
+    "json_path": "data->>'category'",  # PostgreSQL JSON path into the dimensions column
+    "data_type": "text"                # SQL type hint
 }
+```
+
+### Measure Additivity
+
+A measure that must not be summed over time declares its additivity. Kinds: `additive`
+(the default), `semi_additive`, `delta`, `non_additive`.
+
+```python
+fraiseql.fact_table(
+    "tf_account_day",
+    measures=[
+        {
+            "name": "balance",
+            "sql_type": "numeric",
+            "nullable": False,
+            "additivity": {
+                "kind": "semi_additive",
+                "over": "day",
+                "using": "last",
+                "entity": ["account_id"],
+            },
+        }
+    ],
+    denormalized_filters=[
+        {"name": "account_id", "sql_type": "bigint", "indexed": True},
+        {"name": "day", "sql_type": "date", "indexed": True},
+    ],
+)
 ```
 
 ### Examples
 
 ```python
-@fraiseql.fact_table(
-    table_name="tf_sales",
-    measures=["revenue", "quantity", "cost"],
-    dimension_paths=[
-        {
-            "name": "category",
-            "json_path": "data->>'category'",
-            "data_type": "text"
-        },
-        {
-            "name": "region",
-            "json_path": "data->>'region'",
-            "data_type": "text"
-        },
-        {
-            "name": "product",
-            "json_path": "data->>'product'",
-            "data_type": "text"
-        }
-    ]
-)
 @fraiseql.type
 class Sale:
-    id: int
-    revenue: float        # Measure
-    quantity: int        # Measure
+    revenue: float      # Measure
+    quantity: int       # Measure
     cost: float         # Measure
+    category: str       # Dimension path
+    region: str         # Dimension path
+    product: str        # Dimension path
     customer_id: str    # Denormalized filter
     occurred_at: str    # Denormalized filter
+
+fraiseql.fact_table(
+    "tf_sales",
+    type_name="Sale",
+    measures=[
+        {"name": "revenue", "sql_type": "numeric", "nullable": False},
+        {"name": "quantity", "sql_type": "int", "nullable": False},
+        {"name": "cost", "sql_type": "numeric", "nullable": False},
+    ],
+    dimensions={
+        "name": "data",
+        "paths": [
+            {"name": "category", "json_path": "data->>'category'", "data_type": "text"},
+            {"name": "region", "json_path": "data->>'region'", "data_type": "text"},
+            {"name": "product", "json_path": "data->>'product'", "data_type": "text"},
+        ],
+    },
+    denormalized_filters=[
+        {"name": "customer_id", "sql_type": "uuid", "indexed": True},
+        {"name": "occurred_at", "sql_type": "timestamptz", "indexed": True},
+    ],
+)
 ```
 
 ### SQL Table Pattern
@@ -350,102 +394,24 @@ CREATE INDEX ON tf_sales(customer_id);
 CREATE INDEX ON tf_sales(occurred_at);
 ```
 
----
+### Derived GraphQL Roots
 
-## @aggregate_query
-
-Define an OLAP query on a fact table.
-
-### Signature
-
-```python
-@fraiseql.aggregate_query(
-    fact_table="tf_sales",
-    auto_group_by=True,
-    auto_aggregates=True
-)
-@fraiseql.query
-def sales_aggregate() -> list[dict]:
-    """Flexible sales aggregation."""
-    pass
-```
-
-### Parameters
-
-- `fact_table` (required): Fact table name (from `@fraiseql.fact_table`)
-- `auto_group_by` (optional): Auto-generate GROUP BY fields (default: True)
-- `auto_aggregates` (optional): Auto-generate aggregate fields (default: True)
-
-### Features
-
-- **Auto GROUP BY**: Generates groupBy fields for each dimension
-- **Auto Aggregates**: Generates aggregate functions (sum, avg, count, etc.)
-- **Temporal Buckets**: Date/time dimensions get day/month/year buckets
-- **Filtering**: Pre-aggregation (WHERE) and post-aggregation (HAVING)
-- **Flexible**: Supports ad-hoc grouping and aggregation
-
-### Examples
-
-```python
-# Simple aggregate query
-@fraiseql.aggregate_query(
-    fact_table="tf_sales",
-    auto_group_by=True,
-    auto_aggregates=True
-)
-@fraiseql.query
-def sales_aggregate() -> list[dict]:
-    """Sales by category and month."""
-    pass
-
-# Query without auto-generation
-@fraiseql.aggregate_query(
-    fact_table="tf_sales",
-    auto_group_by=False,
-    auto_aggregates=False
-)
-@fraiseql.query
-def custom_sales() -> list[dict]:
-    """Custom sales aggregation."""
-    pass
-```
-
-### Generated GraphQL
-
-Automatically generates:
+`tf_sales` is queried through `sales_aggregate` (grouping and aggregation) and
+`sales_window` (window functions):
 
 ```graphql
-type SalesAggregate {
-  # Dimensions
-  category: String
-  region: String
-  product: String
-  occurred_at_day: Date
-  occurred_at_month: Date
-  occurred_at_year: Date
-
-  # Aggregates
-  revenue_sum: Float
-  revenue_avg: Float
-  revenue_min: Float
-  revenue_max: Float
-  quantity_sum: Int
-  cost_sum: Float
-  count: Int
-}
-
-type Query {
-  salesAggregate(
-    groupBy: [String!]
-    aggregates: [String!]
-    where: {customer_id: String, occurred_at_range: DateRange}
-    having: {revenue_sum_gt: Float}
-    orderBy: [String!]
-    limit: Int
-    offset: Int
-  ): [SalesAggregate!]!
+{
+  sales_aggregate(
+    table: "tf_sales"
+    groupBy: { category: true, occurred_at: "month" }
+    aggregates: [{ revenue_sum: {} }, { count: {} }]
+  )
 }
 ```
+
+A time bucket is spelled either `groupBy: { occurred_at: "month" }` or
+`groupBy: { occurred_at_month: true }`. Aggregates are named `<measure>_<function>`
+(`revenue_sum`, `revenue_avg`, `revenue_min`, `revenue_max`, ...) plus `count`.
 
 ---
 
@@ -493,33 +459,23 @@ def update_user(id: int, name: str | None = None) -> User:
     """Update a user."""
     pass
 
-# Step 4: Define fact table
-@fraiseql.fact_table(
-    table_name="tf_sales",
-    measures=["amount"],
-    dimension_paths=[
-        {"name": "product", "json_path": "data->>'product'", "data_type": "text"}
-    ]
+# Step 4: Declare the fact table (roots sales_aggregate and sales_window)
+fraiseql.fact_table(
+    "tf_sales",
+    measures=[{"name": "amount", "sql_type": "numeric", "nullable": False}],
+    dimensions={
+        "name": "data",
+        "paths": [
+            {"name": "product", "json_path": "data->>'product'", "data_type": "text"}
+        ],
+    },
+    denormalized_filters=[
+        {"name": "user_id", "sql_type": "bigint", "indexed": True},
+        {"name": "created_at", "sql_type": "timestamptz", "indexed": True},
+    ],
 )
-@fraiseql.type
-class SaleFact:
-    id: int
-    amount: float
-    user_id: int
-    created_at: str
 
-# Step 5: Define aggregate query
-@fraiseql.aggregate_query(
-    fact_table="tf_sales",
-    auto_group_by=True,
-    auto_aggregates=True
-)
-@fraiseql.query
-def sales_by_product() -> list[dict]:
-    """Sales aggregated by product."""
-    pass
-
-# Step 6: Export
+# Step 5: Export
 if __name__ == "__main__":
     fraiseql.export_schema("schema.json")
 ```

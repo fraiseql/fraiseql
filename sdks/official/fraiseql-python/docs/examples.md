@@ -212,26 +212,28 @@ class User:
     role: str  # admin, member, viewer
     created_at: str
 
-# Fact table for events
-@fraiseql.fact_table(
-    table_name="tf_events",
-    measures=["value", "duration_ms"],
-    dimension_paths=[
-        {"name": "event_type", "json_path": "data->>'event_type'", "data_type": "text"},
-        {"name": "page", "json_path": "data->>'page'", "data_type": "text"},
-        {"name": "browser", "json_path": "data->>'browser'", "data_type": "text"},
-        {"name": "country", "json_path": "data->>'country'", "data_type": "text"}
-    ]
+# Fact table for events: roots events_aggregate and events_window
+fraiseql.fact_table(
+    "tf_events",
+    measures=[
+        {"name": "value", "sql_type": "numeric", "nullable": False},
+        {"name": "duration_ms", "sql_type": "int", "nullable": False},
+    ],
+    dimensions={
+        "name": "data",
+        "paths": [
+            {"name": "event_type", "json_path": "data->>'event_type'", "data_type": "text"},
+            {"name": "page", "json_path": "data->>'page'", "data_type": "text"},
+            {"name": "browser", "json_path": "data->>'browser'", "data_type": "text"},
+            {"name": "country", "json_path": "data->>'country'", "data_type": "text"},
+        ],
+    },
+    denormalized_filters=[
+        {"name": "org_id", "sql_type": "uuid", "indexed": True},
+        {"name": "user_id", "sql_type": "uuid", "indexed": True},
+        {"name": "occurred_at", "sql_type": "timestamptz", "indexed": True},
+    ],
 )
-@fraiseql.type
-class Event:
-    """Analytics event fact table."""
-    id: str
-    org_id: str
-    user_id: str
-    value: float
-    duration_ms: int
-    occurred_at: str
 
 # Queries
 @fraiseql.query(sql_source="v_organization")
@@ -244,29 +246,16 @@ def org_users(org_id: str) -> list[User]:
     """Get all users in an organization."""
     pass
 
-# Aggregate queries for analytics
-@fraiseql.aggregate_query(
-    fact_table="tf_events",
-    auto_group_by=True,
-    auto_aggregates=True
-)
-@fraiseql.query
-def event_analytics() -> list[dict]:
-    """Flexible event analytics by type, page, browser, country."""
-    pass
-
-@fraiseql.aggregate_query(
-    fact_table="tf_events",
-    auto_group_by=True,
-    auto_aggregates=True
-)
-@fraiseql.query
-def event_trends() -> list[dict]:
-    """Event trends over time."""
-    pass
-
 if __name__ == "__main__":
     fraiseql.export_schema("saas_schema.json")
+```
+
+Event analytics by type, page, browser and country, and trends over time, are requests to the
+derived `events_aggregate` root; there is no aggregate query to declare:
+
+```graphql
+{ events_aggregate(table: "tf_events", groupBy: { event_type: true, country: true }, aggregates: [{ duration_ms_avg: {} }, { count: {} }]) }
+{ events_aggregate(table: "tf_events", groupBy: { occurred_at: "day" }, aggregates: [{ value_sum: {} }, { count: {} }]) }
 ```
 
 ## 4. Inventory Management System
@@ -494,6 +483,6 @@ Adapt these examples for your needs:
 - **Add queries**: Create new `@fraiseql.query` functions
 - **Add mutations**: Create new `@fraiseql.mutation` functions
 - **Add types**: Define new `@fraiseql.type` classes
-- **Add fact tables**: For analytics, use `@fraiseql.fact_table`
+- **Add fact tables**: For analytics, call `fraiseql.fact_table()`
 
 See [Decorators Reference](decorators-reference.md) for complete API documentation.

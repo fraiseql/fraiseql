@@ -74,36 +74,42 @@ FraiseQL supports high-performance analytics via fact tables:
 ```python
 import fraiseql
 
-# Define a fact table
-@fraiseql.fact_table(
-    table_name="tf_sales",
-    measures=["revenue", "quantity", "cost"],
-    dimension_paths=[
-        {"name": "category", "json_path": "data->>'category'", "data_type": "text"},
-        {"name": "region", "json_path": "data->>'region'", "data_type": "text"}
-    ]
+# Declare a fact table: a plain function call, not a decorator
+fraiseql.fact_table(
+    "tf_sales",
+    measures=[
+        {"name": "revenue", "sql_type": "numeric", "nullable": False},
+        {"name": "quantity", "sql_type": "int", "nullable": False},
+        {"name": "cost", "sql_type": "numeric", "nullable": False},
+    ],
+    dimensions={
+        "name": "data",
+        "paths": [
+            {"name": "category", "json_path": "data->>'category'", "data_type": "text"},
+            {"name": "region", "json_path": "data->>'region'", "data_type": "text"},
+        ],
+    },
+    denormalized_filters=[
+        {"name": "customer_id", "sql_type": "uuid", "indexed": True},
+        {"name": "occurred_at", "sql_type": "timestamptz", "indexed": True},
+    ],
 )
-@fraiseql.type
-class Sale:
-    id: int
-    revenue: float  # Measure (aggregatable)
-    quantity: int   # Measure
-    cost: float     # Measure
-    customer_id: str  # Denormalized filter (indexed)
-    occurred_at: str  # Denormalized filter (indexed)
-
-# Define an aggregate query
-@fraiseql.aggregate_query(
-    fact_table="tf_sales",
-    auto_group_by=True,
-    auto_aggregates=True
-)
-@fraiseql.query
-def sales_aggregate() -> list[dict]:
-    """Aggregate sales with flexible grouping and filtering."""
 ```
 
-This generates a GraphQL query that supports:
+There is no aggregate query to declare: `tf_sales` gets the GraphQL roots
+`sales_aggregate` and `sales_window` when the schema compiles.
+
+```graphql
+{
+  sales_aggregate(
+    table: "tf_sales"
+    groupBy: { category: true, occurred_at: "month" }
+    aggregates: [{ revenue_sum: {} }, { count: {} }]
+  )
+}
+```
+
+The `sales_aggregate` root supports:
 
 - **GROUP BY**: Dimensions (`category`, `region`) and temporal buckets (`occurred_at_day`, `occurred_at_month`)
 - **Aggregates**: `count`, `revenue_sum`, `revenue_avg`, `quantity_sum`, etc.

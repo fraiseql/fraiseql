@@ -76,17 +76,17 @@ This document certifies the feature parity status of FraiseQL Python with TypeSc
 
 | Feature | Python | TypeScript | Java | Status |
 |---------|--------|-----------|------|--------|
-| Fact Tables | ✅ @fact_table | ✅ registerFactTable() | ✅ @GraphQLFactTable | Complete ✅ |
+| Fact Tables | ✅ fraiseql.fact_table() | ✅ registerFactTable() | ❌ `@GraphQLFactTable` emits no fact table | Partial |
 | Measures | ✅ measures: [...] | ✅ measures: [...] | ✅ @Measure | Complete ✅ |
 | Dimensions | ✅ dimensions: [...] | ✅ paths: [...] | ✅ @Dimension | Complete ✅ |
 | Denormalized Filters | ✅ json_path support | ✅ denormalizedFilters | ✅ jsonPath support | Complete ✅ |
-| Aggregate Queries | ✅ @aggregate_query | ✅ registerAggregateQuery() | ✅ QueryBuilder | Complete ✅ |
+| Aggregate / window roots | derived: `<name>_aggregate`, `<name>_window` | derived | — | No declaration (the compiler refuses `aggregate_queries`) |
 
 ### Implementation Status
 
 **Implemented:**
 
-- Fact table definitions with @fact_table decorator
+- Fact table definitions with `fraiseql.fact_table()`
 - Measure fields with aggregation functions (SUM, AVG, COUNT, MIN, MAX, STDDEV, VARIANCE)
 - Dimension fields with hierarchy support and cardinality hints
 - Denormalized dimension support via json_path parameter
@@ -278,8 +278,7 @@ The test suites validate that:
 
 **Analytics:**
 
-- `@fact_table` - Fact table types
-- `@aggregate_query` - Aggregate queries
+- `fact_table()` - Fact tables (their `<name>_aggregate` / `<name>_window` roots are derived)
 - Measures and dimensions support
 
 **Observers:**

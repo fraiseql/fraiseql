@@ -170,7 +170,7 @@ FraiseQL provides a layered architecture where features are opt-in via Cargo fea
 - Automatic cardinality hints for query planner optimization
 
 **Enabled**: `features = ["arrow"]` in Cargo.toml
-**SDK Support**: Python, TypeScript provide @fact_table and @aggregate_query decorators
+**SDK Support**: Fact tables are authored with `fraiseql.fact_table(...)` (Python), `SchemaRegistry.registerFactTable(...)` (TypeScript) and `fraiseql.NewFactTable(...)` (Go); their `<name>_aggregate` and `<name>_window` roots are derived, not declared
 
 ---
 

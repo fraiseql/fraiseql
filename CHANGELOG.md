@@ -104,6 +104,15 @@ disagreed, and the promise was the part that was wrong.
   - The key governs `OTP` only. Password signup and social sign-in still create accounts for
     any address, and the compiler warns when either is enabled beside it.
 
+- **The Python SDK declares fact tables: `fraiseql.fact_table(...)` (#1797).** It emits the
+  `fact_tables` entry the Go (`NewFactTable`) and TypeScript (`registerFactTable`) SDKs emit:
+  measures with their additivity, the dimensions column and its paths, denormalized filters
+  with their hierarchy, the type the table is read as (`type_name`) and `row_scope`. Optional
+  keys are omitted when unset. A duplicate table, a `row_scope` other than `"relation"` and an
+  unknown additivity kind are refused when the schema is authored. A Python-authored schema
+  can now expose `<name>_aggregate` and `<name>_window` roots; the SDK conformance suite
+  checks the three SDKs emit the same fact tables. Declaring a hierarchy itself is #1909.
+
 ### Changed
 
 - **The reference dead-letter-queue DDL names `core` too (#1893).**
@@ -145,6 +154,12 @@ disagreed, and the promise was the part that was wrong.
   early, and month and year buckets showed the previous month or year. Sums were unaffected.
   The bucket is now truncated as a `timestamp` and returned as a date, in the grouping and in
   the series a semi-additive measure carries forward. The bucketed column is also quoted.
+
+- **The Python SDK docs no longer document `@fraiseql.fact_table` and
+  `@fraiseql.aggregate_query` decorators, which never existed (#1797).** The README, the
+  analytics guide, the decorators reference, the examples and the troubleshooting page use
+  `fraiseql.fact_table(...)`, and query the derived `<name>_aggregate` root instead of
+  declaring aggregate queries, which the compiler refuses.
 
 - **The `-full` release binary ships `fraiseql federation sdl` (#1892).** The `fraiseql`
   crate's `federation` feature enabled the core and server halves of federation but not
