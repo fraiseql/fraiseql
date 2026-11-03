@@ -15,7 +15,10 @@ pub struct SessionData {
     pub user_id:            String,
     /// Session issued timestamp (Unix seconds)
     pub issued_at:          u64,
-    /// Session expiration timestamp (Unix seconds)
+    /// When this refresh token stops working (Unix seconds). For a refreshable session
+    /// (`[auth.session] absolute_ttl_secs`) that is the session's absolute limit, which
+    /// outlives every access token it issues; otherwise it is the access token's expiry.
+    /// It is never a statement about an access token already issued.
     pub expires_at:         u64,
     /// Hash of the refresh token (stored securely)
     pub refresh_token_hash: String,

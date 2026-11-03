@@ -728,6 +728,18 @@ impl Server {
         // The compiled `[auth.social]` block declares the providers; every
         // configured-but-unusable shape (missing [auth_hs256], unset secret
         // env, no pool, unreachable Google discovery) refuses to boot.
+        // `[auth.session]` (#1853): how long every minted session lasts, and whether it can
+        // be refreshed. The compiler runs the same check; this one covers a hand-written
+        // schema.
+        #[cfg(feature = "auth")]
+        let session_config = executor.schema().auth.as_ref().and_then(|a| a.session.as_ref());
+        #[cfg(feature = "auth")]
+        if let Some(session) = session_config {
+            session.check().map_err(ServerError::ConfigError)?;
+        }
+        #[cfg(feature = "auth")]
+        let session_lifetime = crate::auth_local::session_lifetime(session_config);
+
         #[cfg(feature = "auth")]
         let social_login = match executor.schema().auth.as_ref().and_then(|a| a.social.as_ref()) {
             Some(social_cfg) => {
@@ -738,6 +750,7 @@ impl Server {
                         &config,
                         db_pool.clone(),
                         executor.schema().tenant_claim(),
+                        session_lifetime,
                     ))
                     .await?,
                 )
@@ -759,6 +772,7 @@ impl Server {
                     &config,
                     db_pool.clone(),
                     executor.schema().tenant_claim(),
+                    session_lifetime,
                 ))
                 .await?
             },
@@ -790,6 +804,46 @@ impl Server {
             }
         }
 
+        // `POST /auth/v1/session/{refresh,logout}` (#1853): only when `[auth.session]`
+        // opts in to refresh. Anonymous sign-up mints sessions that never refresh, so it
+        // alone does not count.
+        #[cfg(feature = "auth")]
+        let session_routes_store = {
+            #[cfg(feature = "auth-saml")]
+            let saml_mints = config.saml.is_some();
+            #[cfg(not(feature = "auth-saml"))]
+            let saml_mints = false;
+            crate::auth_local::session_routes_store(
+                &config,
+                db_pool.as_ref(),
+                executor.schema().tenant_claim(),
+                session_lifetime,
+                local_auth.password.is_some()
+                    || local_auth.otp.is_some()
+                    || social_login.is_some()
+                    || saml_mints,
+            )?
+        };
+
+        // Every session-minting server sweeps `_system.sessions` (#1853): a row past its
+        // `expires_at` can no longer be used, refreshable or not.
+        #[cfg(feature = "auth")]
+        let session_sweep = {
+            #[cfg(feature = "auth-saml")]
+            let saml_mints = config.saml.is_some();
+            #[cfg(not(feature = "auth-saml"))]
+            let saml_mints = false;
+            let mints_sessions = local_auth.password.is_some()
+                || local_auth.otp.is_some()
+                || local_auth.anon.is_some()
+                || social_login.is_some()
+                || saml_mints;
+            db_pool
+                .as_ref()
+                .filter(|_| mints_sessions)
+                .map(|pool| Arc::new(fraiseql_auth::PostgresSessionStore::new(pool.clone())))
+        };
+
         // SAML SP state (#381): built here, where the pool is in scope. The
         // `[saml]` section is validated by ServerConfig::validate (shape +
         // [auth_hs256] requirement); this adds the runtime requirements — a
@@ -820,6 +874,7 @@ impl Server {
                     hs,
                     secret.into_bytes(),
                     executor.schema().tenant_claim(),
+                    session_lifetime,
                 ));
                 let account_store =
                     Arc::new(fraiseql_auth::PostgresAccountStore::new(pool.clone()));
@@ -970,6 +1025,8 @@ impl Server {
         // for every address that has ever asked for a code.
         #[cfg(feature = "auth")]
         Self::spawn_local_auth_sweeps(&local_auth, &mut tasks);
+        #[cfg(feature = "auth")]
+        Self::spawn_session_sweep(session_sweep, &mut tasks);
 
         // Spawn the session-state eviction sweep (#389) at the configured cadence.
         #[cfg(feature = "auth")]
@@ -1060,6 +1117,8 @@ impl Server {
             email_verification_state: local_auth.email_verification,
             #[cfg(feature = "auth")]
             session_state,
+            #[cfg(feature = "auth")]
+            session_routes_store,
             async_operations,
             #[cfg(feature = "cdc-outbound")]
             cdc_drains,
@@ -1227,6 +1286,36 @@ impl Server {
                 }
             });
         }
+    }
+
+    /// Spawn the `_system.sessions` expiry sweep (#1853) on the same cadence and terms as
+    /// the `MFA`/`OTP` sweeps: a failed pass is logged and the ticker continues.
+    #[cfg(feature = "auth")]
+    fn spawn_session_sweep(
+        store: Option<Arc<fraiseql_auth::PostgresSessionStore>>,
+        tasks: &mut tokio::task::JoinSet<()>,
+    ) {
+        use std::time::Duration;
+
+        use tokio::time::MissedTickBehavior;
+
+        const SWEEP_INTERVAL: Duration = Duration::from_mins(5);
+
+        let Some(store) = store else {
+            return;
+        };
+        tasks.spawn(async move {
+            let mut ticker = tokio::time::interval(SWEEP_INTERVAL);
+            ticker.set_missed_tick_behavior(MissedTickBehavior::Skip);
+            loop {
+                ticker.tick().await;
+                match store.sweep_expired().await {
+                    Ok(0) => {},
+                    Ok(n) => tracing::debug!(removed = n, "swept expired sessions"),
+                    Err(e) => tracing::warn!(error = %e, "session expiry sweep failed"),
+                }
+            }
+        });
     }
 
     /// The resolved rate limiter, if one is configured.
@@ -1515,6 +1604,7 @@ impl Server {
         config: &ServerConfig,
         db_pool: Option<sqlx::PgPool>,
         tenant_claim: &str,
+        lifetime: fraiseql_auth::SessionLifetime,
     ) -> Result<Arc<fraiseql_auth::MultiProviderAuthState>> {
         use fraiseql_auth::provider::OAuthProvider;
 
@@ -1681,6 +1771,7 @@ impl Server {
             hs,
             secret.into_bytes(),
             tenant_claim,
+            lifetime,
         ));
         let account_store = Arc::new(fraiseql_auth::PostgresAccountStore::new(pool));
         let state_store = Arc::new(fraiseql_auth::InMemoryStateStore::new());

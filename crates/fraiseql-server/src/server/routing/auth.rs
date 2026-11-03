@@ -120,6 +120,33 @@ impl Server {
             );
         }
 
+        // Session refresh and logout (#1853) — mounted only when `[auth.session]
+        // absolute_ttl_secs` opts in. Logout denies the session's access tokens only when
+        // `[security.token_revocation]` is configured; otherwise they live out ttl_secs.
+        if let Some(ref sessions) = self.session_routes_store {
+            let denial = self.revocation_manager.as_ref().map(|manager| {
+                Arc::new(RevokeAccessTokens {
+                    manager:  Arc::clone(manager),
+                    ttl_secs: sessions
+                        .refreshable_access_ttl_secs()
+                        .unwrap_or(fraiseql_core::schema::SessionConfig::DEFAULT_TTL_SECS)
+                        + HS256_LEEWAY_SECS,
+                }) as Arc<dyn fraiseql_auth::DenyAccessTokens>
+            });
+            if denial.is_none() {
+                tracing::warn!(
+                    "POST /auth/v1/session/logout ends refresh tokens only: without \
+                     [security.token_revocation], an access token issued before logout stays \
+                     valid until it expires"
+                );
+            }
+            app = app.merge(fraiseql_auth::session_routes(fraiseql_auth::SessionRouteState {
+                sessions: Arc::clone(sessions),
+                denial,
+            }));
+            info!("Session routes mounted: POST /auth/v1/session/{{refresh,logout}}");
+        }
+
         // Anonymous session signup — mounted when anon_signup_state is configured.
         if let Some(ref anon) = self.anon_signup_state {
             let anon_router = Router::new()
@@ -262,6 +289,28 @@ impl Server {
         }
 
         app
+    }
+}
+
+/// The HS256 validator accepts a token this long past its `exp`, so a denial must outlive
+/// the token by as much.
+const HS256_LEEWAY_SECS: u64 = 60;
+
+/// Logout's access-token denial, through the configured token revocation (#1853).
+struct RevokeAccessTokens {
+    manager:  Arc<crate::token_revocation::TokenRevocationManager>,
+    /// Longest an access token this server minted can still be accepted.
+    ttl_secs: u64,
+}
+
+// Reason: `DenyAccessTokens` is dyn-dispatched; see its definition
+#[async_trait::async_trait]
+impl fraiseql_auth::DenyAccessTokens for RevokeAccessTokens {
+    async fn deny(&self, jtis: &[String]) -> Result<(), String> {
+        for jti in jtis {
+            self.manager.revoke(jti, self.ttl_secs).await.map_err(|e| e.to_string())?;
+        }
+        Ok(())
     }
 }
 

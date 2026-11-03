@@ -89,6 +89,18 @@ disagreed, and the promise was the part that was wrong.
   answered a UTC timestamp such as `"2026-06-30T15:00:00+00:00"`. A client parsing the key
   as a timestamp reads a date instead. `timestamp` and `timestamptz` columns bucket as before.
 
+- **`AuthClientConfig` has a `session` field (#1853).** A struct literal naming every field
+  needs `session: None`, which keeps today's behaviour.
+
+- **`fraiseql_auth` no longer has `auth_refresh`, `auth_logout`, `AuthRefreshRequest`,
+  `AuthRefreshResponse` or `AuthLogoutRequest` (#1853).** No server mounted them, and
+  `auth_refresh` never issued a token: every path returned an error. Refresh and logout are
+  `fraiseql_auth::session_routes`, mounted by the server under `[auth.session]`.
+
+- **The `auth_refresh_*` and `auth_logout_*` rate limits govern
+  `/auth/v1/session/refresh` and `/auth/v1/session/logout` (#1853).** They named
+  `/auth/refresh` and `/auth/logout`, which no route served.
+
 ### Added
 
 - **`[auth.local] otp_allowed_query` restricts `OTP` sign-in to approved addresses (#1852).**
@@ -112,6 +124,23 @@ disagreed, and the promise was the part that was wrong.
   unknown additivity kind are refused when the schema is authored. A Python-authored schema
   can now expose `<name>_aggregate` and `<name>_window` roots; the SDK conformance suite
   checks the three SDKs emit the same fact tables. Declaring a hierarchy itself is #1909.
+
+- **`[auth.session]` sets session lifetime, and opts in to refresh and logout (#1853).**
+  `ttl_secs` sets the access-token lifetime of every sign-in path (password, OTP, MFA,
+  social, SAML). `absolute_ttl_secs` mounts `POST /auth/v1/session/refresh` and
+  `POST /auth/v1/session/logout`, and bounds how long a session can be refreshed, counted
+  from sign-in. Without the section nothing changes.
+  - A refresh rotates the refresh token. Reusing a rotated token within 10 seconds answers
+    409 and ends nothing; after that it ends the whole session. A refresh re-reads the
+    account: a deactivated account is refused, and the token carries its current tenant.
+  - Logout ends the session's refresh tokens. It ends access tokens already issued only
+    when `[security.token_revocation]` is configured; otherwise they stay valid until they
+    expire, up to `ttl_secs` + 60 s.
+  - The token validator accepts a token 60 s past its expiry, so `ttl_secs` below 60 is
+    refused, by the compiler and at boot. Anonymous sessions keep their fixed seven days.
+  - `_system.sessions` gains `family_id`, `rotated_at` and `access_jti`, added at boot.
+    Every server that mints sessions now deletes rows past their `expires_at` every five
+    minutes. See `docs/auth/sessions.md`.
 
 ### Changed
 

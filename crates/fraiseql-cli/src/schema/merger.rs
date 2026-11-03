@@ -804,6 +804,12 @@ impl SchemaMerger {
                     serde_json::to_value(local).context("Failed to serialize [auth.local]")?,
                 );
             }
+            if let Some(session) = &auth.session {
+                auth_obj.insert(
+                    "session".to_string(),
+                    serde_json::to_value(session).context("Failed to serialize [auth.session]")?,
+                );
+            }
             if !auth_obj.is_empty() {
                 merged["auth"] = serde_json::Value::Object(auth_obj);
             }

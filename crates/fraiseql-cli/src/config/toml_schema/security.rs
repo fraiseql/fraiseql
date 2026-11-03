@@ -211,6 +211,11 @@ pub struct OidcClientConfig {
     /// authored and compiled shapes cannot drift.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub local: Option<fraiseql_core::schema::LocalAuthConfig>,
+
+    /// How long the sessions the server mints last, and whether they can be refreshed
+    /// (`[auth.session]`, #1853). Deserializes directly into the compiled type.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub session: Option<fraiseql_core::schema::SessionConfig>,
 }
 
 impl OidcClientConfig {
@@ -359,6 +364,10 @@ impl OidcClientConfig {
                     }
                 }
             }
+        }
+
+        if let Some(session) = &self.session {
+            session.check().map_err(|message| anyhow::anyhow!(message))?;
         }
 
         // #367: [auth.local] must enable at least one method, and every method

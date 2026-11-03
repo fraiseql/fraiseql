@@ -29,7 +29,7 @@
 // substitutes — not a Rust format argument.
 #![allow(clippy::literal_string_with_formatting_args)]
 
-use std::sync::Arc;
+use std::{fmt::Write as _, sync::Arc};
 
 use fraiseql_core::{
     db::postgres::PostgresAdapter,
@@ -347,20 +347,34 @@ fn assert_no_tokens(what: &str, body: &Value) {
 /// The stored hash of a refresh token, as the session store keys it.
 fn token_hash(token: &str) -> String {
     use sha2::Digest as _;
-    sha2::Sha256::digest(token.as_bytes())
-        .iter()
-        .map(|b| format!("{b:02x}"))
-        .collect()
+    sha2::Sha256::digest(token.as_bytes()).iter().fold(String::new(), |mut hex, b| {
+        let _ = write!(hex, "{b:02x}");
+        hex
+    })
 }
 
 /// Move the server-side moment `token` was rotated to `secs_ago` seconds before now.
+///
+/// The server reads whole seconds from the clock this process shares, so the moment is
+/// stamped from that clock, not Postgres's (whose `::bigint` rounds), and just after a
+/// second begins: the request that follows lands in the same second, and the 10-second
+/// boundary cannot tick over between the stamp and the server's reading.
 async fn rotated_secs_ago(pool: &PgPool, token: &str, secs_ago: i64) {
+    let since_epoch = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("clock");
+    let into_second = std::time::Duration::from_nanos(u64::from(since_epoch.subsec_nanos()));
+    tokio::time::sleep(std::time::Duration::from_secs(1).saturating_sub(into_second)).await;
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("clock")
+        .as_secs();
     let moved = sqlx::query(
-        "UPDATE _system.sessions SET rotated_at = EXTRACT(EPOCH FROM now())::bigint - $2 \
+        "UPDATE _system.sessions SET rotated_at = $2 \
          WHERE refresh_token_hash = $1 AND rotated_at IS NOT NULL",
     )
     .bind(token_hash(token))
-    .bind(secs_ago)
+    .bind(i64::try_from(now).expect("epoch fits") - secs_ago)
     .execute(pool)
     .await
     .expect("move rotated_at")
@@ -582,7 +596,7 @@ async fn refresh_stops_at_the_absolute_limit() {
     );
 
     sqlx::query(
-        "UPDATE _system.sessions SET expires_at = EXTRACT(EPOCH FROM now())::bigint - 1 \
+        "UPDATE _system.sessions SET expires_at = floor(EXTRACT(EPOCH FROM now()))::bigint - 1 \
          WHERE refresh_token_hash = $1",
     )
     .bind(token_hash(&second.refresh))
@@ -649,9 +663,10 @@ async fn a_refresh_carries_the_accounts_current_tenant() {
         .expect("re-home the account");
     let (status, body) = refresh(base, &session.refresh).await;
     let refreshed = session_of("refresh", status, &body);
+    // The store mints a tenant as 32 hex digits, as every sign-in path always has.
     assert_eq!(
         claims(&refreshed.access)["tenant_id"].as_str(),
-        Some(tenant.to_string().as_str()),
+        Some(tenant.as_simple().to_string().as_str()),
         "the refreshed token must carry the account's tenant now"
     );
 
@@ -826,7 +841,7 @@ async fn the_sweep_keeps_a_rotated_row_until_the_limit() {
 
     let first = signup(base, "sweep@example.com").await;
     let (status, body) = refresh(base, &first.refresh).await;
-    session_of("refresh", status, &body);
+    let current = session_of("refresh", status, &body);
     rotated_secs_ago(&pool, &first.refresh, 3_600).await;
 
     let rows = |token: &str| {
@@ -842,8 +857,15 @@ async fn the_sweep_keeps_a_rotated_row_until_the_limit() {
     sessions.sweep_expired().await.expect("sweep");
     assert_eq!(rows(&first.refresh).await.unwrap(), 1, "a rotated row inside the limit stays");
 
+    // A store built without `[auth.session]` refreshes nothing, not even a live session's
+    // current token: it has no access-token lifetime to mint with.
+    assert!(
+        matches!(sessions.refresh(&current.refresh).await, Ok(fraiseql_auth::Refresh::Refused)),
+        "a store without a refreshable lifetime must refuse"
+    );
+
     sqlx::query(
-        "UPDATE _system.sessions SET expires_at = EXTRACT(EPOCH FROM now())::bigint - 1 \
+        "UPDATE _system.sessions SET expires_at = floor(EXTRACT(EPOCH FROM now()))::bigint - 1 \
          WHERE refresh_token_hash = $1",
     )
     .bind(token_hash(&first.refresh))
@@ -911,6 +933,97 @@ async fn sleeps_two_minutes_access_ends_at_ttl_plus_the_leeway_and_refresh_conti
 }
 
 // ── Helpers shared with the local-auth suite ─────────────────────────────────
+
+/// With only `absolute_ttl_secs`, every access token lives an hour, refreshed ones included.
+#[tokio::test]
+async fn without_ttl_secs_a_refreshable_session_mints_hour_long_tokens() {
+    let db = "fraiseql_session_default_ttl";
+    let schema = schema_with(Some(SessionConfig {
+        ttl_secs:          None,
+        absolute_ttl_secs: Some(ABSOLUTE),
+    }));
+    let Some((url, _pool, server)) = start("without_ttl_secs", db, schema, None).await else {
+        return;
+    };
+    let base = &server.base;
+
+    let session = signup(base, "hourly@example.com").await;
+    assert_lifetime("password signup", &session.access, 3_600);
+    let (status, body) = refresh(base, &session.refresh).await;
+    let refreshed = session_of("refresh", status, &body);
+    assert_lifetime("refresh", &refreshed.access, 3_600);
+
+    finish(&url, db, server).await;
+}
+
+/// `[auth.session]` does not reach anonymous sign-up: its sessions keep their fixed seven
+/// days and are never refreshable.
+#[tokio::test]
+async fn an_anonymous_session_keeps_seven_days_and_never_refreshes() {
+    let db = "fraiseql_session_anonymous";
+    let mut schema = refreshable();
+    if let Some(local) = schema.auth.as_mut().and_then(|a| a.local.as_mut()) {
+        local.anonymous = true;
+    }
+    let Some((url, _pool, server)) =
+        start("an_anonymous_session_keeps_seven_days", db, schema, None).await
+    else {
+        return;
+    };
+    let base = &server.base;
+
+    let (status, body) = post_json(base, "/auth/v1/signup", json!({})).await;
+    let anonymous = session_of("anonymous signup", status, &body);
+    assert_lifetime("anonymous signup", &anonymous.access, 7 * 24 * 3600);
+    let (status, body) = refresh(base, &anonymous.refresh).await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED, "an anonymous session never refreshes: {body}");
+    assert_no_tokens("an anonymous refresh", &body);
+
+    finish(&url, db, server).await;
+}
+
+/// What the compiler refuses, the server refuses at boot, for a schema written by hand;
+/// and refresh with no sign-in that mints a refreshable session refuses to boot.
+#[tokio::test]
+async fn a_session_section_that_could_not_work_does_not_boot() {
+    let Some(url) = database_url_or_skip("a_session_section_that_could_not_work") else {
+        return;
+    };
+    set_test_env();
+    let db = "fraiseql_session_refusals";
+    let pool = scratch_pool(&url, db).await;
+    let scratch_url = with_database(&url, db);
+
+    let short = schema_with(Some(SessionConfig {
+        ttl_secs:          Some(59),
+        absolute_ttl_secs: None,
+    }));
+    let mut anonymous_only = schema_with(Some(SessionConfig {
+        ttl_secs:          None,
+        absolute_ttl_secs: Some(ABSOLUTE),
+    }));
+    anonymous_only.auth.as_mut().expect("auth").local = Some(LocalAuthConfig {
+        anonymous: true,
+        ..LocalAuthConfig::default()
+    });
+    for (what, schema, names) in [
+        ("a ttl_secs under a minute", short, "ttl_secs = 59"),
+        ("refresh with only anonymous sign-up", anonymous_only, "absolute_ttl_secs"),
+    ] {
+        let adapter =
+            Arc::new(PostgresAdapter::new(&scratch_url).await.expect("PostgresAdapter::new"));
+        let refused =
+            Box::pin(Server::new(server_config(&scratch_url), schema, adapter, Some(pool.clone())))
+                .await;
+        let Err(error) = refused else {
+            panic!("{what} must refuse to boot");
+        };
+        assert!(error.to_string().contains(names), "{what}: the refusal names it: {error}");
+    }
+
+    pool.close().await;
+    drop_scratch(&url, db).await;
+}
 
 fn totp_code(secret: &str) -> String {
     totp_rs::TOTP::new(

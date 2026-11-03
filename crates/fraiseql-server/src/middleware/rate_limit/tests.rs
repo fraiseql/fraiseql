@@ -265,8 +265,8 @@ mod key_tests {
         assert_eq!(burst_of("/auth/v1/authorize"), Some(10), "{rules:?}");
         assert_eq!(burst_of("/auth/v1/callback"), Some(20), "{rules:?}");
         // Groups explicitly set to zero build no rule.
-        assert_eq!(burst_of("/auth/refresh"), None);
-        assert_eq!(burst_of("/auth/logout"), None);
+        assert_eq!(burst_of("/auth/v1/session/refresh"), None);
+        assert_eq!(burst_of("/auth/v1/session/logout"), None);
     }
 
     /// The unified `Default` (#977) is the producer's: every auth group carries
@@ -280,8 +280,8 @@ mod key_tests {
         for prefix in [
             "/auth/start",
             "/auth/callback",
-            "/auth/refresh",
-            "/auth/logout",
+            "/auth/v1/session/refresh",
+            "/auth/v1/session/logout",
         ] {
             assert!(
                 rules.iter().any(|r| r.path_prefix == prefix),

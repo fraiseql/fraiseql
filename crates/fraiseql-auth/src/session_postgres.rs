@@ -7,6 +7,41 @@ use crate::{
     session::{SessionData, SessionStore, TokenPair, generate_refresh_token, hash_token, unix_now},
 };
 
+/// How long after a refresh token is rotated a second use of it is still taken for the
+/// client's own race (two tabs refreshing at once) rather than for a second holder (#1853).
+///
+/// Measured against the server-side `rotated_at`, never a client clock. A reuse at most this
+/// many seconds after the rotation answers [`Refresh::AlreadyRotated`] and ends nothing; a
+/// later one ends the whole session.
+pub const ROTATION_GRACE_SECS: i64 = 10;
+
+/// Lifetime of an access token minted by a refresh when `[auth.session] ttl_secs` is
+/// unset: the hour local sign-in has always minted.
+pub const DEFAULT_ACCESS_TTL_SECS: u64 = 3_600;
+
+/// How long the sessions a [`PostgresSessionStore`] mints last (`[auth.session]`, #1853).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct SessionLifetime {
+    /// Lifetime of an access token. `None` keeps the expiry each sign-in path asks for.
+    pub access_ttl_secs:   Option<u64>,
+    /// How long a session can be refreshed, counted from sign-in. `None` mints sessions
+    /// that end with their access token, as before #1853.
+    pub absolute_ttl_secs: Option<u64>,
+}
+
+/// The outcome of [`PostgresSessionStore::refresh`].
+#[derive(Debug)]
+pub enum Refresh {
+    /// The token was current: here is the session's next pair.
+    Rotated(TokenPair),
+    /// The token was rotated at most [`ROTATION_GRACE_SECS`] ago. Nothing is minted and
+    /// nothing is ended: the client already holds the pair that rotation produced.
+    AlreadyRotated,
+    /// Refused: unknown, ended, past the session's limit, reused after the grace window
+    /// (which ends the session), or the account is deactivated (which ends it too).
+    Refused,
+}
+
 /// Default `iss` claim for minted access tokens (see [`PostgresSessionStore::with_token_claims`]).
 pub const DEFAULT_TOKEN_ISSUER: &str = "fraiseql";
 /// Default `aud` claim for minted access tokens (see [`PostgresSessionStore::with_token_claims`]).
@@ -31,6 +66,8 @@ pub struct PostgresSessionStore {
     token_audience: String,
     /// The claim the account's tenant is minted under — see [`Self::with_tenant_claim`].
     tenant_claim:   String,
+    /// `[auth.session]` — see [`Self::with_lifetime`].
+    lifetime:       SessionLifetime,
 }
 
 /// Idempotent DDL for `_system.sessions`.
@@ -41,6 +78,13 @@ pub struct PostgresSessionStore {
 pub const SESSIONS_SCHEMA_SQL: &str = r"
 CREATE SCHEMA IF NOT EXISTS _system;
 
+-- One row per refresh token. `expires_at` is when that refresh token stops working, and
+-- what the sweep deletes by. It means one of two things:
+--   * a session that cannot be refreshed (no `[auth.session] absolute_ttl_secs`): the
+--     access token's expiry, as it always has;
+--   * a refreshable session (#1853): the session's absolute limit, counted from sign-in
+--     and copied unchanged to every row its refreshes create. The access token's own
+--     expiry is in the token, not here.
 CREATE TABLE IF NOT EXISTS _system.sessions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id TEXT NOT NULL,
@@ -54,6 +98,17 @@ CREATE TABLE IF NOT EXISTS _system.sessions (
 -- The account's tenant when the session was minted (#1450), for revocation and
 -- audit. NULL for a platform account or a principal with no account row.
 ALTER TABLE _system.sessions ADD COLUMN IF NOT EXISTS tenant_id UUID;
+
+-- A refreshable session (#1853): every row a sign-in and its refreshes create shares a
+-- family. NULL for a session that cannot be refreshed.
+ALTER TABLE _system.sessions ADD COLUMN IF NOT EXISTS family_id UUID;
+-- When this row's refresh token was exchanged for the next one, in Unix seconds on the
+-- server's clock. A rotated token used again is answered by how long ago this was.
+ALTER TABLE _system.sessions ADD COLUMN IF NOT EXISTS rotated_at BIGINT;
+-- The `jti` of the access token minted with this row, so logout can deny it where
+-- `[security.token_revocation]` is configured.
+ALTER TABLE _system.sessions ADD COLUMN IF NOT EXISTS access_jti TEXT;
+CREATE INDEX IF NOT EXISTS idx_sessions_family_id ON _system.sessions(family_id);
 
 CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON _system.sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON _system.sessions(expires_at);
@@ -76,6 +131,7 @@ impl PostgresSessionStore {
             token_issuer: DEFAULT_TOKEN_ISSUER.to_string(),
             token_audience: DEFAULT_TOKEN_AUDIENCE.to_string(),
             tenant_claim: DEFAULT_TENANT_CLAIM.to_string(),
+            lifetime: SessionLifetime::default(),
         }
     }
 
@@ -102,6 +158,18 @@ impl PostgresSessionStore {
     #[must_use]
     pub fn with_tenant_claim(mut self, claim: impl Into<String>) -> Self {
         self.tenant_claim = claim.into();
+        self
+    }
+
+    /// Mint sessions with `lifetime` (`[auth.session]`, #1853).
+    ///
+    /// Its `access_ttl_secs` replaces the expiry a sign-in path passes to
+    /// [`SessionStore::create_session`]. Its `absolute_ttl_secs` makes the sessions
+    /// refreshable through [`Self::refresh`]. A store minting anonymous guest sessions is
+    /// built without it, so they keep their own lifetime.
+    #[must_use]
+    pub const fn with_lifetime(mut self, lifetime: SessionLifetime) -> Self {
+        self.lifetime = lifetime;
         self
     }
 
@@ -148,12 +216,13 @@ impl PostgresSessionStore {
     /// Returns [`AuthError::ConfigError`] when no signing key is configured. Minting
     /// a token nobody can verify is worse than failing: it produces a login that
     /// "succeeds" and then 401s on every subsequent request.
+    /// Returns the token and its `jti`.
     fn generate_access_token(
         &self,
         user_id: &str,
         tenant: Option<uuid::Uuid>,
         expires_in: u64,
-    ) -> Result<String> {
+    ) -> Result<(String, String)> {
         // SECURITY: Propagate clock errors; unwrap_or_default would produce iat=0.
         let now = unix_now()?;
 
@@ -170,9 +239,8 @@ impl PostgresSessionStore {
         };
 
         // Add JTI (JWT ID) for uniqueness
-        claims
-            .extra
-            .insert("jti".to_string(), serde_json::json!(uuid::Uuid::new_v4().to_string()));
+        let jti = uuid::Uuid::new_v4().to_string();
+        claims.extra.insert("jti".to_string(), serde_json::json!(jti));
 
         // The account's tenant, under the schema's tenant claim (#1450). The simple form
         // (32 hex digits) is the one rendering that is both a valid tenant key (registry,
@@ -185,7 +253,7 @@ impl PostgresSessionStore {
         }
 
         match &self.hs256_secret {
-            Some(secret) => crate::jwt::generate_hs256_token(&claims, secret),
+            Some(secret) => Ok((crate::jwt::generate_hs256_token(&claims, secret)?, jti)),
             None => Err(AuthError::ConfigError {
                 message: "JWT signing is not configured for this PostgresSessionStore — \
                           construct it with with_hs256_secret. Refusing to issue an access \
@@ -245,13 +313,189 @@ async fn account_for_session(db: &PgPool, user_id: &str) -> Result<Option<uuid::
 }
 
 impl PostgresSessionStore {
-    /// Remove the session rows past their limit.
+    /// Remove the session rows past their `expires_at`.
+    ///
+    /// A rotated row of a refreshable session carries the session's limit, so it stays
+    /// until the session itself ends: reuse detection needs it that long.
     ///
     /// # Errors
     ///
     /// Returns [`AuthError::DatabaseError`] if the delete fails.
     pub async fn sweep_expired(&self) -> Result<u64> {
-        Ok(0)
+        let now = unix_now()?;
+        let swept = sqlx::query("DELETE FROM _system.sessions WHERE expires_at < $1")
+            .bind(now.cast_signed())
+            .execute(&self.db)
+            .await
+            .map_err(|e| AuthError::DatabaseError {
+                message: format!("Failed to sweep sessions: {e}"),
+            })?
+            .rows_affected();
+        Ok(swept)
+    }
+
+    /// Exchange `refresh_token` for the session's next pair (#1853).
+    ///
+    /// One transaction, holding the token's row: concurrent uses of one token cannot both
+    /// rotate it. The account is read again, so a deactivated account is refused and the
+    /// session ended, and the new access token carries the account's tenant as it is now
+    /// (#1450). The second factor is not asked again: the session passed it at sign-in.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`AuthError::DatabaseError`] when the database fails, and the signing error
+    /// when no key is configured.
+    pub async fn refresh(&self, refresh_token: &str) -> Result<Refresh> {
+        if self.lifetime.absolute_ttl_secs.is_none() {
+            return Ok(Refresh::Refused);
+        }
+        let now = unix_now()?;
+        let mut tx = self.db.begin().await.map_err(|e| db_error("begin a refresh", &e))?;
+        let Some(row) = sqlx::query(
+            r"
+            SELECT id, user_id, family_id, expires_at, rotated_at, revoked_at IS NOT NULL AS revoked
+            FROM _system.sessions
+            WHERE refresh_token_hash = $1
+            FOR UPDATE
+            ",
+        )
+        .bind(hash_token(refresh_token))
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(|e| db_error("read a session", &e))?
+        else {
+            return Ok(Refresh::Refused);
+        };
+        let id: uuid::Uuid = row.get("id");
+        let user_id: String = row.get("user_id");
+        let family: Option<uuid::Uuid> = row.get("family_id");
+        let limit: i64 = row.get("expires_at");
+        let rotated_at: Option<i64> = row.get("rotated_at");
+        let revoked: bool = row.get("revoked");
+
+        let Some(family) = family else {
+            // Minted when the session could not be refreshed.
+            return Ok(Refresh::Refused);
+        };
+        if revoked {
+            return Ok(Refresh::Refused);
+        }
+        if let Some(rotated_at) = rotated_at {
+            if now.cast_signed() - rotated_at <= ROTATION_GRACE_SECS {
+                return Ok(Refresh::AlreadyRotated);
+            }
+            end_family(&mut tx, family).await?;
+            tx.commit().await.map_err(|e| db_error("end a session", &e))?;
+            tracing::warn!(
+                user_id = %user_id,
+                "a rotated refresh token was used again after the grace window; \
+                 the session is ended"
+            );
+            return Ok(Refresh::Refused);
+        }
+        if now.cast_signed() >= limit {
+            return Ok(Refresh::Refused);
+        }
+        let tenant = match account_for_session(&self.db, &user_id).await {
+            Ok(tenant) => tenant,
+            Err(AuthError::AccountDeactivated) => {
+                end_family(&mut tx, family).await?;
+                tx.commit().await.map_err(|e| db_error("end a session", &e))?;
+                return Ok(Refresh::Refused);
+            },
+            Err(e) => return Err(e),
+        };
+
+        sqlx::query("UPDATE _system.sessions SET rotated_at = $2 WHERE id = $1")
+            .bind(id)
+            .bind(now.cast_signed())
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| db_error("rotate a session", &e))?;
+        let pair = self
+            .insert_session(
+                &mut tx,
+                &user_id,
+                tenant,
+                now,
+                self.access_expiry(now, now),
+                Some((family, limit.cast_unsigned())),
+            )
+            .await?;
+        tx.commit().await.map_err(|e| db_error("commit a refresh", &e))?;
+        Ok(Refresh::Rotated(pair))
+    }
+
+    /// End the session `refresh_token` belongs to: every row of its family (#1853).
+    ///
+    /// Returns the `jti` of every access token the session minted, for a caller that can
+    /// deny them. Ending the rows alone does not end an access token already issued: the
+    /// validator never reads this table. An unknown token ends nothing and returns none.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`AuthError::DatabaseError`] when the database fails.
+    pub async fn end_session(&self, refresh_token: &str) -> Result<Vec<String>> {
+        let mut tx = self.db.begin().await.map_err(|e| db_error("begin a logout", &e))?;
+        let Some(row) =
+            sqlx::query("SELECT id, family_id FROM _system.sessions WHERE refresh_token_hash = $1")
+                .bind(hash_token(refresh_token))
+                .fetch_optional(&mut *tx)
+                .await
+                .map_err(|e| db_error("read a session", &e))?
+        else {
+            return Ok(Vec::new());
+        };
+        let id: uuid::Uuid = row.get("id");
+        let family: Option<uuid::Uuid> = row.get("family_id");
+        let jtis: Vec<Option<String>> = sqlx::query_scalar(
+            r"
+            UPDATE _system.sessions
+            SET revoked_at = COALESCE(revoked_at, NOW())
+            WHERE id = $1 OR family_id = $2
+            RETURNING access_jti
+            ",
+        )
+        .bind(id)
+        .bind(family)
+        .fetch_all(&mut *tx)
+        .await
+        .map_err(|e| db_error("end a session", &e))?;
+        tx.commit().await.map_err(|e| db_error("commit a logout", &e))?;
+        Ok(jtis.into_iter().flatten().collect())
+    }
+
+    /// How long an access token minted by a refreshable store lives: `ttl_secs`, else
+    /// one hour. `None` when this store does not mint refreshable sessions.
+    #[must_use]
+    pub const fn refreshable_access_ttl_secs(&self) -> Option<u64> {
+        match self.lifetime {
+            SessionLifetime {
+                absolute_ttl_secs: None,
+                ..
+            } => None,
+            SessionLifetime {
+                access_ttl_secs: Some(ttl),
+                ..
+            } => Some(ttl),
+            SessionLifetime { .. } => Some(DEFAULT_ACCESS_TTL_SECS),
+        }
+    }
+
+    /// The access token's expiry: the configured lifetime; an hour for a refreshable
+    /// session that configures none; otherwise the expiry the sign-in path asked for.
+    const fn access_expiry(&self, now: u64, requested: u64) -> u64 {
+        match self.lifetime {
+            SessionLifetime {
+                access_ttl_secs: Some(ttl),
+                ..
+            } => now + ttl,
+            SessionLifetime {
+                absolute_ttl_secs: Some(_),
+                ..
+            } => now + DEFAULT_ACCESS_TTL_SECS,
+            SessionLifetime { .. } => requested,
+        }
     }
 
     /// Mint the session: sign the access token, then record the refresh token's hash.
@@ -262,31 +506,56 @@ impl PostgresSessionStore {
         tenant: Option<uuid::Uuid>,
         expires_at: u64,
     ) -> Result<TokenPair> {
-        let refresh_token = generate_refresh_token();
-        let refresh_token_hash = hash_token(&refresh_token);
-
         // SECURITY: Propagate clock errors; unwrap_or_default would produce issued_at=0.
         let now = unix_now()?;
-        let expires_in = expires_at.saturating_sub(now);
+        let access_expires_at = self.access_expiry(now, expires_at);
+        let family = self
+            .lifetime
+            .absolute_ttl_secs
+            .map(|absolute| (uuid::Uuid::new_v4(), now + absolute));
+        let mut conn = self.db.acquire().await.map_err(|e| db_error("acquire a connection", &e))?;
+        self.insert_session(&mut conn, user_id, tenant, now, access_expires_at, family)
+            .await
+    }
+
+    /// Sign an access token expiring at `access_expires_at` and record its session row.
+    ///
+    /// `family` is the session's family and limit when it can be refreshed; the row then
+    /// expires at the limit. Without it the row expires with the access token.
+    async fn insert_session(
+        &self,
+        conn: &mut sqlx::PgConnection,
+        user_id: &str,
+        tenant: Option<uuid::Uuid>,
+        now: u64,
+        access_expires_at: u64,
+        family: Option<(uuid::Uuid, u64)>,
+    ) -> Result<TokenPair> {
+        let refresh_token = generate_refresh_token();
+        let refresh_token_hash = hash_token(&refresh_token);
+        let expires_in = access_expires_at.saturating_sub(now);
 
         // Mint the access token before writing the session row: if signing is not
         // configured this fails, and doing it first keeps an orphan row out of
         // _system.sessions for a session that was never handed to anyone.
-        let access_token = self.generate_access_token(user_id, tenant, expires_in)?;
+        let (access_token, jti) = self.generate_access_token(user_id, tenant, expires_in)?;
+        let row_expires_at = family.map_or(access_expires_at, |(_, limit)| limit);
 
         sqlx::query(
             r"
             INSERT INTO _system.sessions
-            (user_id, refresh_token_hash, issued_at, expires_at, tenant_id)
-            VALUES ($1, $2, $3, $4, $5)
+            (user_id, refresh_token_hash, issued_at, expires_at, tenant_id, family_id, access_jti)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
             ",
         )
         .bind(user_id)
         .bind(&refresh_token_hash)
         .bind(now.cast_signed())
-        .bind(expires_at.cast_signed())
+        .bind(row_expires_at.cast_signed())
         .bind(tenant)
-        .execute(&self.db)
+        .bind(family.map(|(family, _)| family))
+        .bind(&jti)
+        .execute(&mut *conn)
         .await
         .map_err(|e| {
             if e.to_string().contains("duplicate key") {
@@ -305,6 +574,24 @@ impl PostgresSessionStore {
             refresh_token,
             expires_in,
         })
+    }
+}
+
+/// End every row of a session family.
+async fn end_family(conn: &mut sqlx::PgConnection, family: uuid::Uuid) -> Result<()> {
+    sqlx::query(
+        "UPDATE _system.sessions SET revoked_at = NOW() WHERE family_id = $1 AND revoked_at IS NULL",
+    )
+    .bind(family)
+    .execute(&mut *conn)
+    .await
+    .map_err(|e| db_error("end a session", &e))?;
+    Ok(())
+}
+
+fn db_error(doing: &str, e: &sqlx::Error) -> AuthError {
+    AuthError::DatabaseError {
+        message: format!("Failed to {doing}: {e}"),
     }
 }
 

@@ -1,11 +1,10 @@
 //! HTTP handlers for the built-in authentication endpoints (`/auth/start`,
-//! `/auth/callback`, `/auth/refresh`, `/auth/logout`).
+//! `/auth/callback`).
 use std::{fmt, net::SocketAddr, sync::Arc};
 
 use axum::{
     Json,
     extract::{ConnectInfo, Query, State},
-    http::StatusCode,
     response::IntoResponse,
 };
 use serde::{Deserialize, Serialize};
@@ -115,48 +114,6 @@ impl AuthCallbackResponse {
             expires_in,
         }
     }
-}
-
-/// Request body for auth/refresh endpoint
-#[derive(Debug, Deserialize)]
-pub struct AuthRefreshRequest {
-    /// Refresh token to exchange for new access token
-    pub refresh_token: String,
-}
-
-/// Response body for the `POST /auth/refresh` endpoint.
-///
-/// # Debug redaction
-///
-/// `Debug` is implemented manually so the `access_token` field is never
-/// written to logs. Calling `{:?}` yields `"<redacted>"` for the token value.
-#[derive(Serialize)]
-pub struct AuthRefreshResponse {
-    /// New access token
-    pub access_token: String,
-    /// Token type
-    pub token_type:   String,
-    /// Time in seconds until token expires
-    pub expires_in:   u64,
-}
-
-impl fmt::Debug for AuthRefreshResponse {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // SECURITY: never write the raw access_token to Debug output. See
-        // docs/history/IMPROVEMENTS.md F045.
-        f.debug_struct("AuthRefreshResponse")
-            .field("access_token", &"<redacted>")
-            .field("token_type", &self.token_type)
-            .field("expires_in", &self.expires_in)
-            .finish()
-    }
-}
-
-/// Request body for auth/logout endpoint
-#[derive(Debug, Deserialize)]
-pub struct AuthLogoutRequest {
-    /// Refresh token to revoke
-    pub refresh_token: Option<String>,
 }
 
 /// POST /auth/start - Initiate OAuth flow
@@ -342,138 +299,6 @@ pub async fn auth_callback(
     Ok(Json(response))
 }
 
-/// POST /auth/refresh - Refresh access token
-///
-/// Uses refresh token to obtain a new access token.
-///
-/// # Rate Limiting
-///
-/// This endpoint is rate-limited per user ID to prevent token refresh attacks.
-/// The limit comes from the [`RateLimiters`] the embedding application
-/// constructs (defaults via [`RateLimiters::new`], custom values via
-/// [`RateLimiters::with_configs`]); there is no environment-variable override.
-///
-/// # Errors
-///
-/// Returns `AuthError::TokenExpired` if the session has expired.
-/// Returns `AuthError::RateLimited` if the per-user rate limit is exceeded.
-/// Returns `AuthError::Internal` if JWT signing is not yet configured.
-pub async fn auth_refresh(
-    State(state): State<AuthState>,
-    Json(req): Json<AuthRefreshRequest>,
-) -> Result<Json<AuthRefreshResponse>> {
-    use crate::session::hash_token;
-
-    // SECURITY: Reject oversized refresh tokens before hitting the session store.
-    validate_auth_input_len(&req.refresh_token, MAX_REFRESH_TOKEN_BYTES, "refresh_token")?;
-
-    // Validate refresh token exists in session store
-    let token_hash = hash_token(&req.refresh_token);
-    let session = state.session_store.get_session(&token_hash).await?;
-
-    // SECURITY: Reject expired sessions before any further processing.
-    // Without this check, a stolen refresh token from an expired session
-    // could be used indefinitely to mint new access tokens.
-    if session.is_expired() {
-        let audit_logger = get_audit_logger();
-        audit_logger.log_failure(
-            AuditEventType::JwtRefresh,
-            SecretType::RefreshToken,
-            Some(session.user_id),
-            "refresh",
-            "Session expired",
-        );
-        return Err(AuthError::TokenExpired);
-    }
-
-    // SECURITY: Check rate limiting for auth/refresh endpoint (per user)
-    if state.rate_limiters.auth_refresh.check(&session.user_id).is_err() {
-        return Err(AuthError::RateLimited {
-            retry_after_secs: state.rate_limiters.auth_refresh.clone_config().window_secs,
-        });
-    }
-
-    // Token issuance (signing a new access-token JWT) requires an RSA/EC private key,
-    // which is not yet wired into the auth state. The refresh therefore cannot
-    // complete — audit-log it as a FAILURE (not a success) and return an explicit
-    // error rather than a fake token (L-auth-refresh-500: never record success for an
-    // operation that always fails).
-    let audit_logger = get_audit_logger();
-    audit_logger.log_failure(
-        AuditEventType::JwtRefresh,
-        SecretType::RefreshToken,
-        Some(session.user_id),
-        "refresh",
-        "token issuance not implemented (JWT signing not configured)",
-    );
-
-    // When refresh mints a new access token, it must re-read the account's tenant from
-    // `core.tb_user` (as `PostgresSessionStore::create_session` does), not copy it from the
-    // session row: a re-homed account must not keep its old tenant (#1450).
-    Err(AuthError::Internal {
-        message: "JWT signing not yet implemented — configure an OIDC provider for token issuance"
-            .to_string(),
-    })
-}
-
-/// POST /auth/logout - Logout and revoke session
-///
-/// Revokes the refresh token, effectively logging out the user.
-///
-/// # Rate Limiting
-///
-/// This endpoint is rate-limited per user ID to prevent logout token exhaustion attacks.
-/// The limit comes from the [`RateLimiters`] the embedding application
-/// constructs (defaults via [`RateLimiters::new`], custom values via
-/// [`RateLimiters::with_configs`]); there is no environment-variable override.
-///
-/// # Errors
-///
-/// Returns `AuthError::RateLimited` if the per-user rate limit is exceeded.
-/// Returns `AuthError` if the session lookup or deletion fails.
-pub async fn auth_logout(
-    State(state): State<AuthState>,
-    ConnectInfo(addr): ConnectInfo<SocketAddr>,
-    Json(req): Json<AuthLogoutRequest>,
-) -> Result<StatusCode> {
-    let client_ip = addr.ip().to_string();
-
-    if let Some(refresh_token) = req.refresh_token {
-        use crate::session::hash_token;
-        let token_hash = hash_token(&refresh_token);
-
-        // Get session to extract user ID for per-user rate limiting
-        let session = state.session_store.get_session(&token_hash).await?;
-
-        // SECURITY: Check rate limiting for auth/logout endpoint (per user)
-        if state.rate_limiters.auth_logout.check(&session.user_id).is_err() {
-            return Err(AuthError::RateLimited {
-                retry_after_secs: state.rate_limiters.auth_logout.clone_config().window_secs,
-            });
-        }
-
-        state.session_store.revoke_session(&token_hash).await?;
-
-        // Audit log: Session revoked
-        let audit_logger = get_audit_logger();
-        audit_logger.log_success(
-            AuditEventType::SessionTokenRevoked,
-            SecretType::RefreshToken,
-            Some(session.user_id),
-            "revoke",
-        );
-    } else {
-        // No refresh token - use IP-based rate limiting as fallback
-        if state.rate_limiters.auth_logout.check(&client_ip).is_err() {
-            return Err(AuthError::RateLimited {
-                retry_after_secs: state.rate_limiters.auth_logout.clone_config().window_secs,
-            });
-        }
-    }
-
-    Ok(StatusCode::NO_CONTENT)
-}
-
 /// Generate a cryptographically random state for CSRF protection.
 ///
 /// Uses `rand::rng()` (a reseeding thread-local CSPRNG, ChaCha-based) — a
@@ -509,7 +334,7 @@ pub const MAX_AUTH_CODE_BYTES: usize = 512;
 /// bounding memory allocation from an attacker-supplied value.
 pub const MAX_STATE_BYTES: usize = 2_048;
 
-/// Maximum byte length for a refresh token submitted to `/auth/refresh`.
+/// Maximum byte length for a refresh token submitted to `/auth/v1/session/{refresh,logout}`.
 ///
 /// Session tokens are usually ≤ 2 KiB; 4 KiB covers all real-world formats
 /// while bounding memory allocation for an attacker-supplied value.
@@ -588,24 +413,5 @@ mod debug_redaction_tests {
             debug_output.contains("None"),
             "expected None to appear when refresh_token absent, got: {debug_output}",
         );
-    }
-
-    #[test]
-    fn auth_refresh_response_debug_redacts_access_token() {
-        let resp = AuthRefreshResponse {
-            access_token: SECRET_ACCESS.to_string(),
-            token_type:   "Bearer".to_string(),
-            expires_in:   1800,
-        };
-
-        let debug_output = format!("{resp:?}");
-
-        assert!(
-            !debug_output.contains(SECRET_ACCESS),
-            "access_token leaked in Debug output: {debug_output}",
-        );
-        assert!(debug_output.contains("redacted"), "redaction marker missing: {debug_output}");
-        assert!(debug_output.contains("Bearer"));
-        assert!(debug_output.contains("1800"));
     }
 }

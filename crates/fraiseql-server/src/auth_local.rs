@@ -251,11 +251,15 @@ fn missing_email_feature(method: &str) -> ServerError {
 /// token's tenant reaches `SecurityContext::tenant_id` exactly as an external identity provider's
 /// does. One constructor for local, social and SAML sign-in: a new path cannot mint tokens the
 /// validator rejects, or drop the tenant.
+///
+/// `lifetime` is the `[auth.session]` lifetime ([`session_lifetime`]); anonymous sign-up
+/// passes the default, and keeps its fixed seven days.
 pub fn minting_session_store(
     pool: sqlx::PgPool,
     hs: &crate::server_config::Hs256Config,
     secret: Vec<u8>,
     tenant_claim: &str,
+    lifetime: fraiseql_auth::SessionLifetime,
 ) -> fraiseql_auth::PostgresSessionStore {
     fraiseql_auth::PostgresSessionStore::with_hs256_secret(pool, secret)
         .with_token_claims(
@@ -267,6 +271,73 @@ pub fn minting_session_store(
             }),
         )
         .with_tenant_claim(tenant_claim)
+        .with_lifetime(lifetime)
+}
+
+/// The lifetime `[auth.session]` asks of every session a sign-in mints (#1853). Unset, each
+/// sign-in path keeps its own expiry and no session is refreshable.
+#[must_use]
+pub fn session_lifetime(
+    session: Option<&fraiseql_core::schema::SessionConfig>,
+) -> fraiseql_auth::SessionLifetime {
+    session.map_or_else(fraiseql_auth::SessionLifetime::default, |s| {
+        fraiseql_auth::SessionLifetime {
+            access_ttl_secs:   s.ttl_secs,
+            absolute_ttl_secs: s.absolute_ttl_secs,
+        }
+    })
+}
+
+/// The store behind `POST /auth/v1/session/{refresh,logout}`: `None` unless
+/// `[auth.session] absolute_ttl_secs` opts in to refresh (#1853).
+///
+/// It signs with the same secret, claims and lifetime as the stores that minted the
+/// sessions, so a refreshed pair is indistinguishable from a sign-in's.
+///
+/// # Errors
+///
+/// [`ServerError::ConfigError`] when refresh is asked for without `[auth_hs256]` or a
+/// database pool, or with no sign-in method that mints a refreshable session.
+pub fn session_routes_store(
+    config: &ServerConfig,
+    db_pool: Option<&sqlx::PgPool>,
+    tenant_claim: &str,
+    lifetime: fraiseql_auth::SessionLifetime,
+    mints_refreshable_sessions: bool,
+) -> Result<Option<Arc<fraiseql_auth::PostgresSessionStore>>> {
+    let Some(absolute) = lifetime.absolute_ttl_secs else {
+        return Ok(None);
+    };
+    if !mints_refreshable_sessions {
+        return Err(ServerError::ConfigError(format!(
+            "[auth.session] absolute_ttl_secs = {absolute} asks for refreshable sessions, but \
+             no sign-in method that mints one is enabled: enable password, otp, \
+             [auth.social] or [saml], or remove absolute_ttl_secs. Anonymous sessions are \
+             never refreshable."
+        )));
+    }
+    let hs = config.auth_hs256.as_ref().ok_or_else(|| {
+        ServerError::ConfigError(
+            "[auth.session] absolute_ttl_secs requires [auth_hs256]: a refresh mints a new \
+             access token this server validates."
+                .to_string(),
+        )
+    })?;
+    let pool = db_pool.ok_or_else(|| {
+        ServerError::ConfigError(
+            "[auth.session] absolute_ttl_secs requires a database pool: refresh tokens are \
+             rows in _system.sessions."
+                .to_string(),
+        )
+    })?;
+    let secret = hs.load_secret().map_err(ServerError::ConfigError)?;
+    Ok(Some(Arc::new(minting_session_store(
+        pool.clone(),
+        hs,
+        secret.into_bytes(),
+        tenant_claim,
+        lifetime,
+    ))))
 }
 
 /// Refuse to boot with `MFA` off while an account has a confirmed enrollment.
@@ -322,6 +393,7 @@ pub async fn build_local_auth_states(
     config: &ServerConfig,
     db_pool: Option<sqlx::PgPool>,
     tenant_claim: &str,
+    lifetime: fraiseql_auth::SessionLifetime,
 ) -> Result<LocalAuthStates> {
     // Every enabled method persists something (credentials, enrollments, OTP
     // budgets, sessions), so all of them need the signing config and the pool.
@@ -367,8 +439,24 @@ pub async fn build_local_auth_states(
     // caller's own account validate against that same `[auth_hs256]`, so what this
     // server signs is exactly what it accepts back (#945).
     let secret_bytes = secret.into_bytes();
-    let session_store: Arc<dyn fraiseql_auth::SessionStore> =
-        Arc::new(minting_session_store(pool.clone(), hs, secret_bytes, tenant_claim));
+    let session_store: Arc<dyn fraiseql_auth::SessionStore> = Arc::new(minting_session_store(
+        pool.clone(),
+        hs,
+        secret_bytes.clone(),
+        tenant_claim,
+        lifetime,
+    ));
+    // Anonymous sign-up mints through its own store, without `[auth.session]`: an
+    // anonymous session keeps its fixed seven days and is never refreshable (#1853).
+    let anon_session_store = local.anonymous.then(|| {
+        Arc::new(minting_session_store(
+            pool.clone(),
+            hs,
+            secret_bytes,
+            tenant_claim,
+            fraiseql_auth::SessionLifetime::default(),
+        ))
+    });
     let account_store = Arc::new(fraiseql_auth::PostgresAccountStore::new(pool.clone()));
 
     // The mail sender is built once and shared by OTP, password reset and email
@@ -529,9 +617,11 @@ pub async fn build_local_auth_states(
         );
         // The server's configured per-client rule limits /auth/v1/signup, keyed on the
         // trusted-proxy client address; the state keeps no counters of its own.
-        Some(Arc::new(fraiseql_auth::AnonSignupState::new_without_limiter(Arc::clone(
-            &session_store,
-        ))))
+        anon_session_store.map(|store| {
+            Arc::new(fraiseql_auth::AnonSignupState::new_without_limiter(
+                store as Arc<dyn fraiseql_auth::SessionStore>,
+            ))
+        })
     } else {
         None
     };

@@ -187,6 +187,10 @@ pub struct Server {
     /// session-continuity binding is its per-request consumer.
     #[cfg(feature = "auth")]
     pub(super) session_state: Option<Arc<fraiseql_auth::session_state::SessionState>>,
+    /// The store behind `POST /auth/v1/session/{refresh,logout}` (#1853): present only when
+    /// `[auth.session] absolute_ttl_secs` opts in to refresh.
+    #[cfg(feature = "auth")]
+    pub(super) session_routes_store: Option<Arc<fraiseql_auth::PostgresSessionStore>>,
     /// Async-operations subsystem (#391) — present when `[async_operations]`
     /// is configured. `mount_extensions` mounts the HTTP surface and the
     /// lifecycle spawns the worker pool.

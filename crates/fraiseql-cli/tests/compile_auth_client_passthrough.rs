@@ -677,8 +677,7 @@ fn merge_session(session: &str) -> anyhow::Result<fraiseql_cli::schema::Intermed
 fn session_refusal(session: &str) -> String {
     merge_session(session)
         .err()
-        .map(|e| format!("{e:#}"))
-        .unwrap_or_else(|| panic!("[auth.session] {session:?} must be refused"))
+        .map_or_else(|| panic!("[auth.session] {session:?} must be refused"), |e| format!("{e:#}"))
 }
 
 /// A refusal of a value, made by the section's own check rather than by the section

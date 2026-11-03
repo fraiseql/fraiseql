@@ -31,6 +31,7 @@ pub mod saml;
 pub mod scim;
 pub mod session;
 pub mod session_postgres;
+pub mod session_routes;
 pub mod session_state;
 pub mod session_subject;
 pub mod state_encryption;
@@ -78,10 +79,7 @@ pub use axum;
 pub use chrono;
 pub use constant_time::ConstantTimeOps;
 pub use error::{AuthError, Result};
-pub use handlers::{
-    AuthCallbackQuery, AuthLogoutRequest, AuthRefreshRequest, AuthStartRequest, AuthState,
-    auth_callback, auth_logout, auth_refresh, auth_start,
-};
+pub use handlers::{AuthCallbackQuery, AuthStartRequest, AuthState, auth_callback, auth_start};
 /// The `jsonwebtoken` this crate's public API is built against (#1198).
 pub use jsonwebtoken;
 /// `jsonwebtoken::Algorithm`, which `JwtValidator::new` takes — the crate's own
@@ -135,7 +133,8 @@ pub use saml::{
 /// The `serde_json` this crate's public API is built against (#1198).
 pub use serde_json;
 pub use session::{SessionData, SessionStore, TokenPair, unix_now};
-pub use session_postgres::PostgresSessionStore;
+pub use session_postgres::{PostgresSessionStore, Refresh, SessionLifetime};
+pub use session_routes::{DenyAccessTokens, SessionRouteState, session_routes};
 pub use session_subject::SessionSubject;
 /// The `sqlx` this crate's public API is built against (#1198).
 pub use sqlx;

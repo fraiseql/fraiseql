@@ -472,6 +472,46 @@ pub struct SessionConfig {
     pub absolute_ttl_secs: Option<u64>,
 }
 
+impl SessionConfig {
+    /// The access-token lifetime when `ttl_secs` is unset.
+    pub const DEFAULT_TTL_SECS: u64 = 3_600;
+    /// The shortest `ttl_secs` accepted: below a minute the validator's 60-second
+    /// leeway is longer than the lifetime itself.
+    pub const MIN_TTL_SECS: u64 = 60;
+
+    /// Refuse values that could not work: a lifetime under a minute, and a refresh
+    /// limit that is not longer than the access token it would refresh.
+    ///
+    /// The compiler and the server's boot check both run this, so a schema the
+    /// compiler accepts is one the server accepts.
+    ///
+    /// # Errors
+    ///
+    /// Returns a message naming the key and the value it refuses.
+    pub fn check(&self) -> Result<(), String> {
+        if let Some(ttl) = self.ttl_secs {
+            if ttl < Self::MIN_TTL_SECS {
+                return Err(format!(
+                    "[auth.session] ttl_secs = {ttl} is under {} seconds: the token \
+                     validator accepts a token for 60 seconds past its expiry, so a shorter \
+                     lifetime does not mean what it says",
+                    Self::MIN_TTL_SECS
+                ));
+            }
+        }
+        if let Some(absolute) = self.absolute_ttl_secs {
+            let ttl = self.ttl_secs.unwrap_or(Self::DEFAULT_TTL_SECS);
+            if absolute <= ttl {
+                return Err(format!(
+                    "[auth.session] absolute_ttl_secs = {absolute} is not longer than the \
+                     access token's lifetime ({ttl} s): a session could never be refreshed"
+                ));
+            }
+        }
+        Ok(())
+    }
+}
+
 /// `[auth.local]` — the auth methods `FraiseQL` operates itself, rather than
 /// delegating to an `IdP` (#367).
 ///

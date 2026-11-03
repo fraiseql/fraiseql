@@ -521,6 +521,12 @@ fn jwt_sub(token: &str) -> String {
     claims["sub"].as_str().expect("sub claim").to_string()
 }
 
+/// `exp − iat` of a minted access token.
+fn lifetime_of(token: &str) -> u64 {
+    let claims = jwt_claims(token);
+    claims["exp"].as_u64().expect("exp") - claims["iat"].as_u64().expect("iat")
+}
+
 /// Drive `provider` through authorize → callback; returns the token-response JSON.
 async fn login(base: &str, provider: &str) -> serde_json::Value {
     let (status, body) = sign_in(base, provider).await;
@@ -648,6 +654,12 @@ async fn google_and_github_full_loops_link_verified_emails() {
     let google_tokens = login(&base, "google").await;
     assert_eq!(google_tokens["provider"], "google");
     let google_user = jwt_sub(google_tokens["access_token"].as_str().expect("access_token"));
+    // Without [auth.session], a social sign-in keeps its seven days (#1853).
+    assert_eq!(
+        lifetime_of(google_tokens["access_token"].as_str().expect("access_token")),
+        7 * 24 * 3600,
+        "an unset [auth.session] keeps the social sign-in's seven days"
+    );
 
     // …and the identity landed in the account store keyed by the verified
     // email: linking the same email from the same provider again is not new.
@@ -683,6 +695,38 @@ async fn google_and_github_full_loops_link_verified_emails() {
         0,
         "a GitHub login reads no team membership: no role or organisation is derived from it"
     );
+
+    let _ = tx.send(());
+    let _ = handle.await;
+    drop_scratch(&url, db).await;
+}
+
+/// `[auth.session] ttl_secs` sets the lifetime of a social sign-in's access token, as it does
+/// every other path's (#1853).
+#[tokio::test]
+async fn ttl_secs_sets_the_lifetime_of_a_social_sign_in() {
+    let Some(url) = database_url_or_skip("ttl_secs_sets_the_lifetime_of_a_social_sign_in") else {
+        return;
+    };
+    set_test_env();
+
+    let db = "fraiseql_p26_social_ttl";
+    let pool = scratch_pool(&url, db).await;
+    let scratch_url = with_database(&url, db);
+    let stub = stub_idp().await;
+    let mut schema = social_schema(&stub);
+    schema.auth.as_mut().expect("auth").session = Some(fraiseql_core::schema::SessionConfig {
+        ttl_secs:          Some(900),
+        absolute_ttl_secs: None,
+    });
+
+    let (base, tx, handle) =
+        boot_server(social_config(&scratch_url), schema, pool.clone(), &scratch_url).await;
+
+    let tokens = login(&base, "google").await;
+    let access = tokens["access_token"].as_str().expect("access_token");
+    jwt_sub(access);
+    assert_eq!(lifetime_of(access), 900, "ttl_secs sets the social access token's lifetime");
 
     let _ = tx.send(());
     let _ = handle.await;
