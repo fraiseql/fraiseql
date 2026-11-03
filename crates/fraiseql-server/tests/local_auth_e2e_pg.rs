@@ -2454,3 +2454,336 @@ async fn a_list_the_compiler_would_refuse_refuses_to_boot() {
     pool.close().await;
     drop_scratch(&url, db).await;
 }
+
+// ── Magic links (#1855) ──────────────────────────────────────────────────────
+
+/// Where the operator's front end receives a magic link.
+#[cfg(feature = "inbound-email")]
+const MAGIC_PREFIX: &str = "https://app.example.com/magic?token=";
+
+/// `OTP` sign-in whose mail carries a magic link with `{token}`.
+#[cfg(feature = "inbound-email")]
+fn magic_links() -> LocalAuthConfig {
+    LocalAuthConfig {
+        otp: true,
+        mfa: true,
+        email_from: Some("support".to_string()),
+        magic_link_template: Some(format!("{MAGIC_PREFIX}{{token}}")),
+        ..LocalAuthConfig::default()
+    }
+}
+
+/// The `n`th message the sink has received (from 0), waiting for it to arrive.
+#[cfg(feature = "inbound-email")]
+async fn nth_message(sink: &CapturingSmtp, n: usize) -> String {
+    for _ in 0..200 {
+        let delivered = sink.captured.lock().unwrap().get(n).cloned();
+        if let Some(message) = delivered {
+            return message;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(25)).await;
+    }
+    panic!("message {n} was not delivered to the SMTP sink within 5s");
+}
+
+/// Ask for a link for `email` and return the token of the `n`th mail it produced.
+#[cfg(feature = "inbound-email")]
+async fn magic_link_for(base: &str, sink: &CapturingSmtp, email: &str, n: usize) -> String {
+    let (status, body) =
+        post_json(base, "/auth/v1/otp", serde_json::json!({ "email": email })).await;
+    assert_eq!(status, reqwest::StatusCode::OK, "send for {email}: {body}");
+    token_from_message(&nth_message(sink, n).await, MAGIC_PREFIX)
+}
+
+#[cfg(feature = "inbound-email")]
+async fn redeem(base: &str, token: &str) -> (reqwest::StatusCode, serde_json::Value) {
+    post_json(base, "/auth/v1/verify", serde_json::json!({ "token": token })).await
+}
+
+#[cfg(feature = "inbound-email")]
+fn assert_refused_like_a_wrong_code(
+    what: &str,
+    status: reqwest::StatusCode,
+    body: &serde_json::Value,
+) {
+    assert_eq!(status, reqwest::StatusCode::UNPROCESSABLE_ENTITY, "{what}: {body}");
+    assert_eq!(body["error"], "invalid_otp", "{what}: the answer a wrong code gets: {body}");
+    assert!(body.get("access_token").is_none(), "{what}: no session: {body}");
+}
+
+/// The issue's acceptance: one client asks for the link, another completes sign-in with
+/// nothing but the link the mail carried. The link names no address.
+#[cfg(feature = "inbound-email")]
+#[tokio::test]
+async fn a_magic_link_alone_signs_in_from_another_client() {
+    let Some(url) = database_url_or_skip("a_magic_link_alone_signs_in") else {
+        return;
+    };
+    set_test_env();
+    let db = "fraiseql_p26_local_magic_link";
+    let pool = scratch_pool(&url, db).await;
+    let sink = CapturingSmtp::start().await;
+    let server =
+        boot_with_smtp(magic_links(), pool.clone(), &with_database(&url, db), sink.port).await;
+    let base = &server.base;
+    let email = "laptop-then-phone@example.com";
+
+    let token = magic_link_for(base, &sink, email, 0).await;
+    assert!(token.len() >= 22, "at least 128 bits, base64url: {token}");
+    assert!(!token.contains('@') && !token.contains("example.com"), "no address: {token}");
+    assert!(!token.chars().all(|c| c.is_ascii_digit()), "not the 6-digit code: {token}");
+
+    let (status, body) = redeem(base, &token).await;
+    assert_eq!(status, reqwest::StatusCode::OK, "the link alone signs in: {body}");
+    jwt_sub(body["access_token"].as_str().expect("access_token"));
+    assert_eq!(accounts_for(&pool, email).await, 1, "the account of the mailed address");
+
+    server.stop().await;
+    sink.stop();
+    pool.close().await;
+    drop_scratch(&url, db).await;
+}
+
+/// A link scanner fetches the URL; only a POST spends the credential.
+#[cfg(feature = "inbound-email")]
+#[tokio::test]
+async fn a_get_never_spends_a_magic_link() {
+    let Some(url) = database_url_or_skip("a_get_never_spends_a_magic_link") else {
+        return;
+    };
+    set_test_env();
+    let db = "fraiseql_p26_local_magic_get";
+    let pool = scratch_pool(&url, db).await;
+    let sink = CapturingSmtp::start().await;
+    let server =
+        boot_with_smtp(magic_links(), pool.clone(), &with_database(&url, db), sink.port).await;
+    let base = &server.base;
+
+    let token = magic_link_for(base, &sink, "scanned@example.com", 0).await;
+    let fetched = reqwest::Client::new()
+        .get(format!("{base}/auth/v1/verify"))
+        .query(&[("token", token.as_str())])
+        .send()
+        .await
+        .expect("GET");
+    assert_eq!(fetched.status(), reqwest::StatusCode::METHOD_NOT_ALLOWED);
+    let (status, body) = redeem(base, &token).await;
+    assert_eq!(status, reqwest::StatusCode::OK, "the GET spent nothing: {body}");
+
+    server.stop().await;
+    sink.stop();
+    pool.close().await;
+    drop_scratch(&url, db).await;
+}
+
+/// The link and the code it was mailed with are one credential: either one spends both, a
+/// second redeem is refused, and a resend replaces both.
+#[cfg(feature = "inbound-email")]
+#[tokio::test]
+async fn a_link_and_its_code_are_one_credential() {
+    let Some(url) = database_url_or_skip("a_link_and_its_code_are_one_credential") else {
+        return;
+    };
+    set_test_env();
+    let db = "fraiseql_p26_local_magic_once";
+    let pool = scratch_pool(&url, db).await;
+    let sink = CapturingSmtp::start().await;
+    let server =
+        boot_with_smtp(magic_links(), pool.clone(), &with_database(&url, db), sink.port).await;
+    let base = &server.base;
+    let email = "once@example.com";
+
+    // The link spends the code, and itself.
+    let token = magic_link_for(base, &sink, email, 0).await;
+    let code = stored_otp_code(&pool, email).await;
+    let (status, body) = redeem(base, &token).await;
+    assert_eq!(status, reqwest::StatusCode::OK, "{body}");
+    let (status, body) =
+        post_json(base, "/auth/v1/verify", serde_json::json!({ "email": email, "code": code }))
+            .await;
+    assert_refused_like_a_wrong_code("the code of a redeemed link", status, &body);
+    let (status, body) = redeem(base, &token).await;
+    assert_refused_like_a_wrong_code("a link redeemed twice", status, &body);
+
+    // The code spends the link.
+    let token = magic_link_for(base, &sink, email, 1).await;
+    let code = stored_otp_code(&pool, email).await;
+    let (status, body) =
+        post_json(base, "/auth/v1/verify", serde_json::json!({ "email": email, "code": code }))
+            .await;
+    assert_eq!(status, reqwest::StatusCode::OK, "{body}");
+    let (status, body) = redeem(base, &token).await;
+    assert_refused_like_a_wrong_code("the link of a redeemed code", status, &body);
+
+    // A resend replaces the link. Another address: three sends a window is each one's budget.
+    let resent = "resent@example.com";
+    let replaced = magic_link_for(base, &sink, resent, 2).await;
+    let current = magic_link_for(base, &sink, resent, 3).await;
+    let (status, body) = redeem(base, &replaced).await;
+    assert_refused_like_a_wrong_code("a link a resend replaced", status, &body);
+    let (status, body) = redeem(base, &current).await;
+    assert_eq!(status, reqwest::StatusCode::OK, "the newest link: {body}");
+
+    server.stop().await;
+    sink.stop();
+    pool.close().await;
+    drop_scratch(&url, db).await;
+}
+
+/// The database keeps the token's hash, never the token, and a link past its expiry is refused
+/// like a wrong code and spent.
+#[cfg(feature = "inbound-email")]
+#[tokio::test]
+async fn a_magic_link_is_stored_as_its_hash_and_expires() {
+    let Some(url) = database_url_or_skip("a_magic_link_is_stored_as_its_hash_and_expires") else {
+        return;
+    };
+    set_test_env();
+    let db = "fraiseql_p26_local_magic_expiry";
+    let pool = scratch_pool(&url, db).await;
+    let sink = CapturingSmtp::start().await;
+    let server =
+        boot_with_smtp(magic_links(), pool.clone(), &with_database(&url, db), sink.port).await;
+    let email = "late@example.com";
+
+    let token = magic_link_for(&server.base, &sink, email, 0).await;
+    let (stored,): (Vec<u8>,) =
+        sqlx::query_as("SELECT link_token_hash FROM core.tb_otp_code WHERE email = $1")
+            .bind(email)
+            .fetch_one(&pool)
+            .await
+            .expect("the send must have persisted the link");
+    let hashed = <sha2::Sha256 as sha2::Digest>::digest(token.as_bytes()).to_vec();
+    assert_eq!(stored, hashed, "only the hash is kept");
+
+    sqlx::query("UPDATE core.tb_otp_code SET expires_at = expires_at - 601 WHERE email = $1")
+        .bind(email)
+        .execute(&pool)
+        .await
+        .unwrap();
+    let (status, body) = redeem(&server.base, &token).await;
+    assert_refused_like_a_wrong_code("an expired link", status, &body);
+    let (left,): (i64,) = sqlx::query_as("SELECT count(*) FROM core.tb_otp_code WHERE email = $1")
+        .bind(email)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(left, 0, "the expired link is spent with the attempt");
+
+    server.stop().await;
+    sink.stop();
+    pool.close().await;
+    drop_scratch(&url, db).await;
+}
+
+/// `/auth/v1/verify` takes a link token, or an address and its code: not both, not neither.
+/// An unknown token gets the answer a wrong code gets.
+#[cfg(feature = "inbound-email")]
+#[tokio::test]
+async fn verify_takes_a_link_token_or_an_address_and_code() {
+    let Some(url) = database_url_or_skip("verify_takes_a_link_token_or_an_address") else {
+        return;
+    };
+    set_test_env();
+    let db = "fraiseql_p26_local_magic_shape";
+    let pool = scratch_pool(&url, db).await;
+    let sink = CapturingSmtp::start().await;
+    let server =
+        boot_with_smtp(magic_links(), pool.clone(), &with_database(&url, db), sink.port).await;
+    let base = &server.base;
+
+    for (what, request) in [
+        (
+            "a token with an address and code",
+            serde_json::json!({ "token": "x", "email": "a@example.com", "code": "123456" }),
+        ),
+        (
+            "a token with an address",
+            serde_json::json!({ "token": "x", "email": "a@example.com" }),
+        ),
+        ("a token with a code", serde_json::json!({ "token": "x", "code": "123456" })),
+        ("an address without a code", serde_json::json!({ "email": "a@example.com" })),
+        ("nothing", serde_json::json!({})),
+    ] {
+        let (status, body) = post_json(base, "/auth/v1/verify", request).await;
+        assert_eq!(status, reqwest::StatusCode::UNPROCESSABLE_ENTITY, "{what}: {body}");
+        assert_eq!(body["error"], "invalid_request", "{what}: {body}");
+    }
+    let (status, body) = redeem(base, "never-issued-never-issued-never").await;
+    assert_refused_like_a_wrong_code("an unknown token", status, &body);
+
+    server.stop().await;
+    sink.stop();
+    pool.close().await;
+    drop_scratch(&url, db).await;
+}
+
+/// Removing an address from the list invalidates the link it already holds, as it does the
+/// code.
+#[cfg(feature = "inbound-email")]
+#[tokio::test]
+async fn an_address_removed_from_the_list_cannot_use_its_link() {
+    let Some(url) = database_url_or_skip("an_address_removed_cannot_use_its_link") else {
+        return;
+    };
+    set_test_env();
+    let db = "fraiseql_p26_local_magic_removed";
+    let pool = members_pool(&url, db).await;
+    let sink = CapturingSmtp::start().await;
+    let local = LocalAuthConfig {
+        magic_link_template: Some(format!("{MAGIC_PREFIX}{{token}}")),
+        ..allow_listed(MEMBERS_QUERY)
+    };
+    let server = boot_with_smtp(local, pool.clone(), &with_database(&url, db), sink.port).await;
+    let base = &server.base;
+
+    let token = magic_link_for(base, &sink, APPROVED, 0).await;
+    sqlx::query("DELETE FROM app_member WHERE email = $1")
+        .bind(APPROVED)
+        .execute(&pool)
+        .await
+        .expect("remove the member");
+    let (status, body) = redeem(base, &token).await;
+    assert_refused_like_a_wrong_code("a removed address's link", status, &body);
+    assert_eq!(accounts_for(&pool, APPROVED).await, 0, "no account");
+
+    server.stop().await;
+    sink.stop();
+    pool.close().await;
+    drop_scratch(&url, db).await;
+}
+
+/// A link signs in the way a code does: an account enrolled in `MFA` still owes its second
+/// factor.
+#[cfg(feature = "inbound-email")]
+#[tokio::test]
+async fn a_magic_link_of_an_mfa_user_yields_a_challenge() {
+    let Some(url) = database_url_or_skip("a_magic_link_of_an_mfa_user") else {
+        return;
+    };
+    set_test_env();
+    let db = "fraiseql_p26_local_magic_mfa";
+    let pool = scratch_pool(&url, db).await;
+    let sink = CapturingSmtp::start().await;
+    let server =
+        boot_with_smtp(magic_links(), pool.clone(), &with_database(&url, db), sink.port).await;
+    let base = &server.base;
+    let email = "enrolled@example.com";
+
+    let _ = post_json(base, "/auth/v1/otp", serde_json::json!({ "email": email })).await;
+    let code = stored_otp_code(&pool, email).await;
+    let (status, body) =
+        post_json(base, "/auth/v1/verify", serde_json::json!({ "email": email, "code": code }))
+            .await;
+    assert_eq!(status, reqwest::StatusCode::OK, "the first sign-in creates the account: {body}");
+    seed_confirmed_mfa(&pool, &jwt_sub(body["access_token"].as_str().expect("access_token"))).await;
+
+    let token = magic_link_for(base, &sink, email, 1).await;
+    let (status, body) = redeem(base, &token).await;
+    expect_second_factor("/auth/v1/verify", status, &body);
+
+    server.stop().await;
+    sink.stop();
+    pool.close().await;
+    drop_scratch(&url, db).await;
+}

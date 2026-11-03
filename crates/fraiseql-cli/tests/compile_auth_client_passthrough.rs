@@ -584,6 +584,17 @@ fn otp_allowed_query_that_could_not_work_is_refused() {
 
 /// What compiling `[auth.local]` with `extra` logs at `WARN` or above.
 fn warnings_merging_otp_with(extra: &str, section: &str) -> String {
+    warnings_compiling(&format!(
+        r#"otp = true
+        otp_allowed_query = "SELECT 1 FROM tb_member WHERE email = $email"
+        {extra}
+
+        {section}"#
+    ))
+}
+
+/// What compiling `[auth.local]` with `toml` after `email_from` logs at `WARN` or above.
+fn warnings_compiling(toml: &str) -> String {
     #[derive(Clone, Default)]
     struct Captured(std::sync::Arc<std::sync::Mutex<Vec<u8>>>);
     impl Write for Captured {
@@ -603,15 +614,8 @@ fn warnings_merging_otp_with(extra: &str, section: &str) -> String {
         .with_max_level(tracing::Level::WARN)
         .with_writer(move || writer.clone())
         .finish();
-    let toml = format!(
-        r#"otp = true
-        otp_allowed_query = "SELECT 1 FROM tb_member WHERE email = $email"
-        {extra}
-
-        {section}"#
-    );
     fraiseql_test_support::tracing_capture::with_default(subscriber, || {
-        merge_otp_with(&toml).expect("a valid [auth.local] block");
+        merge_otp_with(toml).expect("a valid [auth.local] block");
     });
     let logged = captured.0.lock().unwrap().clone();
     String::from_utf8(logged).unwrap()
@@ -645,6 +649,43 @@ fn otp_allowed_query_warns_when_social_sign_in_stays_open() {
 fn otp_allowed_query_alone_does_not_warn() {
     let logged = warnings_merging_otp_with("", "");
     assert!(!logged.contains("otp_allowed_query"), "logged: {logged}");
+}
+
+/// A magic link carrying `{token}` signs in on its own, from any device.
+#[test]
+fn a_magic_link_template_with_token_compiles_without_a_warning() {
+    let logged = warnings_compiling(
+        r#"otp = true
+        magic_link_template = "https://app.example.com/magic?token={token}""#,
+    );
+    assert!(!logged.contains("magic_link_template"), "logged: {logged}");
+}
+
+/// `{code}` alone still compiles, for a link opened on the device that asked for it, but the
+/// operator hears that it cannot sign in anywhere else.
+#[test]
+fn a_magic_link_template_with_only_code_warns() {
+    let logged = warnings_compiling(
+        r#"otp = true
+        magic_link_template = "https://app.example.com/magic?code={code}""#,
+    );
+    assert!(
+        logged.contains("magic_link_template") && logged.contains("{token}"),
+        "the warning names the template and the placeholder: {logged}"
+    );
+}
+
+/// A template with neither placeholder mails the same dead link to everyone.
+#[test]
+fn a_magic_link_template_with_neither_placeholder_is_refused() {
+    let err = merge_otp_with(
+        r#"otp = true
+        magic_link_template = "https://app.example.com/magic""#,
+    )
+    .err()
+    .map(|e| format!("{e:#}"))
+    .expect("a template with no placeholder must be refused");
+    assert!(err.contains("{token}"), "the refusal names the placeholder: {err}");
 }
 
 // ── #1853: [auth.session] ────────────────────────────────────────────────────
