@@ -1910,6 +1910,7 @@ fn the_derived_filter_types_are_acceptable_variable_types() {
 
     validate_variable_types(
         &schema,
+        &schema,
         Some("Q"),
         &var_defs("query Q($w: OrderWhereInput) { orders(where: $w) { reference } }"),
         true,
@@ -1917,6 +1918,7 @@ fn the_derived_filter_types_are_acceptable_variable_types() {
     .expect("the schema publishes `OrderWhereInput`, so a client may write it");
 
     validate_variable_types(
+        &schema,
         &schema,
         Some("Q"),
         &var_defs("query Q($o: [OrderOrderByInput!]) { orders(orderBy: $o) { reference } }"),
@@ -1926,6 +1928,7 @@ fn the_derived_filter_types_are_acceptable_variable_types() {
 
     validate_variable_types(
         &schema,
+        &schema,
         Some("Q"),
         &var_defs("query Q($d: SortDirection) { orders(orderBy: [{field: \"x\", direction: $d}]) { reference } }"),
         true,
@@ -1933,6 +1936,7 @@ fn the_derived_filter_types_are_acceptable_variable_types() {
     .expect("and the direction enum");
 
     let err = validate_variable_types(
+        &schema,
         &schema,
         Some("Q"),
         &var_defs("query Q($w: OrdrWhereInput) { orders(where: $w) { reference } }"),

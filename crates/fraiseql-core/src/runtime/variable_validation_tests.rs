@@ -265,6 +265,7 @@ fn var_defs(source: &str) -> Vec<crate::graphql::types::VariableDefinition> {
 fn a_variable_typed_with_an_unpublished_name_is_a_validation_error() {
     let err = validate_variable_types(
         &schema_with_input_types(),
+        &schema_with_input_types(),
         Some("Q"),
         &var_defs("query Q($w: NoSuchTypeAtAll) { orders(where: $w) { id } }"),
         true,
@@ -283,6 +284,7 @@ fn a_variable_typed_with_an_unpublished_name_is_a_validation_error() {
 fn json_is_accepted_with_the_spelling_introspection_publishes() {
     validate_variable_types(
         &schema_with_input_types(),
+        &schema_with_input_types(),
         Some("Q"),
         &var_defs("query Q($w: JSON) { orders(where: $w) { id } }"),
         true,
@@ -297,7 +299,7 @@ fn every_published_scalar_is_accepted_as_a_variable_type() {
     let schema = schema_with_input_types();
     for name in crate::schema::published_scalar_names() {
         let source = format!("query Q($v: {name}) {{ orders(where: $v) {{ id }} }}");
-        let result = validate_variable_types(&schema, Some("Q"), &var_defs(&source), true);
+        let result = validate_variable_types(&schema, &schema, Some("Q"), &var_defs(&source), true);
         assert!(result.is_ok(), "published scalar '{name}' must be accepted: {result:?}");
     }
 }
@@ -310,7 +312,7 @@ fn list_and_non_null_wrappers_are_structural_and_unwrapped() {
         "query Q($ids: [ID]) { orders(where: $ids) { id } }",
         "query Q($id: ID!) { orders(where: $id) { id } }",
     ] {
-        let result = validate_variable_types(&schema, Some("Q"), &var_defs(source), true);
+        let result = validate_variable_types(&schema, &schema, Some("Q"), &var_defs(source), true);
         assert!(result.is_ok(), "wrappers are structural, not names: {source}: {result:?}");
     }
 }
@@ -320,12 +322,14 @@ fn a_declared_enum_and_input_object_are_accepted() {
     let schema = schema_with_input_types();
     validate_variable_types(
         &schema,
+        &schema,
         Some("Q"),
         &var_defs("query Q($s: OrderStatus) { orders(where: $s) { id } }"),
         true,
     )
     .expect("a declared enum is an input type");
     validate_variable_types(
+        &schema,
         &schema,
         Some("Q"),
         &var_defs("query Q($f: OrderFilter) { orders(where: $f) { id } }"),
@@ -360,7 +364,7 @@ fn a_vector_type_the_schema_declares_is_an_acceptable_variable_type() {
         schema.types.push(doc);
 
         let source = format!("query Q($v: {name}) {{ orders(where: $v) {{ id }} }}");
-        let result = validate_variable_types(&schema, Some("Q"), &var_defs(&source), true);
+        let result = validate_variable_types(&schema, &schema, Some("Q"), &var_defs(&source), true);
         assert!(
             result.is_ok(),
             "'{name}' is declared by this schema, so refusing it would break a working \
@@ -380,7 +384,7 @@ fn authoring_only_scalars_are_not_acceptable_variable_types() {
     let schema = schema_with_input_types();
     for name in ["Vector", "BitVector", "HalfVector", "SparseVector"] {
         let source = format!("query Q($v: {name}) {{ orders(where: $v) {{ id }} }}");
-        let result = validate_variable_types(&schema, Some("Q"), &var_defs(&source), true);
+        let result = validate_variable_types(&schema, &schema, Some("Q"), &var_defs(&source), true);
         assert!(
             result.is_err(),
             "'{name}' is in the authoring table but is not published as a scalar, so it is \
@@ -395,6 +399,7 @@ fn authoring_only_scalars_are_not_acceptable_variable_types() {
 #[test]
 fn a_schema_that_cannot_adjudicate_accepts_any_type_name() {
     validate_variable_types(
+        &crate::schema::CompiledSchema::default(),
         &crate::schema::CompiledSchema::default(),
         Some("Q"),
         &var_defs("query Q($w: NoSuchTypeAtAll) { orders(where: $w) { id } }"),
@@ -464,6 +469,7 @@ fn a_federated_schema_accepts_the_router_s_representations_variable() {
 
     validate_variable_types(
         &schema,
+        &schema,
         None,
         &var_defs(
             "query($representations: [_Any!]!) { \
@@ -481,6 +487,7 @@ fn a_federated_schema_accepts_the_router_s_representations_variable() {
 fn a_non_federated_schema_still_refuses_the_federation_builtins() {
     let schema = schema_with_input_types();
     validate_variable_types(
+        &schema,
         &schema,
         Some("Q"),
         &var_defs("query Q($r: [_Any!]!) { orders(where: $r) { id } }"),

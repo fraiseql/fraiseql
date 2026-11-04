@@ -452,11 +452,16 @@ async fn ws_refusal(query: &str, suggestions: bool) -> String {
         fraiseql_core::schema::EnumDefinition::new("OrderStatus")
             .with_value(fraiseql_core::schema::EnumValueDefinition::new("OPEN")),
     );
-    let schema = Arc::new(schema);
-    let manager = Arc::new(SubscriptionManager::new(schema.clone()).with_suggestions(suggestions));
-    // The schema the server serves: what `/ws` checks a variable's declared type against.
-    let live: fraiseql_server::routes::subscriptions::LiveSchema = Arc::new(move || schema.clone());
-    let url = spawn_ws_server(SubscriptionState::new(manager).with_live_schema(Some(live))).await;
+    // The executor serving: what `/ws` checks a variable's declared type against.
+    let serving = Arc::new(fraiseql_core::runtime::Executor::new(
+        schema.clone(),
+        Arc::new(fraiseql_test_utils::failing_adapter::FailingAdapter::new()),
+    ));
+    let manager =
+        Arc::new(SubscriptionManager::new(Arc::new(schema)).with_suggestions(suggestions));
+    let live: fraiseql_server::routes::subscriptions::LiveExecutor =
+        Arc::new(move || Arc::clone(&serving));
+    let url = spawn_ws_server(SubscriptionState::new(manager).with_live_executor(Some(live))).await;
     let (mut sink, mut stream) = connect_ws(&url).await;
     send_json(&mut sink, json!({"type": "connection_init"})).await;
     let ack = recv_json(&mut stream).await;

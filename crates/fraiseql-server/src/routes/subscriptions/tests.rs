@@ -486,19 +486,31 @@ mod document_validation {
         schema
     }
 
+    /// The executor serving [`schema`], which § 5.8.2 resolves against.
+    fn serving() -> fraiseql_core::runtime::Executor {
+        fraiseql_core::runtime::Executor::new(
+            schema(),
+            std::sync::Arc::new(fraiseql_test_utils::failing_adapter::FailingAdapter::new()),
+        )
+    }
+
     /// Refuse a document and return `(code, message)`.
     fn refuse(query: &str) -> (&'static str, String) {
-        let schema = schema();
+        let serving = serving();
         let err = extract_subscription_root(query)
-            .and_then(|(_, parsed)| validate_subscription_variables(&parsed, Some(&schema), true))
+            .and_then(|(_, parsed)| {
+                validate_subscription_variables(&parsed, Some(&serving), None, None, true)
+            })
             .expect_err("this document must be refused");
         (err.code(), err.message().to_string())
     }
 
     fn accept(query: &str) {
-        let schema = schema();
+        let serving = serving();
         extract_subscription_root(query)
-            .and_then(|(_, parsed)| validate_subscription_variables(&parsed, Some(&schema), true))
+            .and_then(|(_, parsed)| {
+                validate_subscription_variables(&parsed, Some(&serving), None, None, true)
+            })
             .unwrap_or_else(|e| panic!("this document must be accepted: {}", e.message()));
     }
 
@@ -560,17 +572,31 @@ mod document_validation {
             "query Q { orders { id } }",
             "subscription S { orderUpdated { id }",
         ] {
-            let schema = schema();
+            let serving = serving();
             let err = extract_subscription_root(query)
                 .and_then(|(_, parsed)| {
-                    validate_subscription_variables(&parsed, Some(&schema), true)
+                    validate_subscription_variables(&parsed, Some(&serving), None, None, true)
                 })
                 .expect_err("must be refused");
             assert_eq!(err.code(), "PARSE_ERROR", "for: {query}");
         }
     }
 
-    /// Fail-open where the schema is absent: the two schema-free rules still
+    /// A host that installs a schema but no executor resolves § 5.8.2 against every type
+    /// the schema declares, as before the executor answered it per subscriber.
+    #[test]
+    fn without_an_executor_a_schema_still_refuses_an_unknown_type() {
+        let schema = schema();
+        let (_, parsed) = extract_subscription_root(
+            "subscription S($w: NoSuchTypeAtAll) { orderUpdated(where: $w) { id } }",
+        )
+        .expect("parses");
+        let refused = validate_subscription_variables(&parsed, None, None, Some(&schema), true)
+            .expect_err("§ 5.8.2 resolves against the schema");
+        assert!(refused.message().contains("NoSuchTypeAtAll"), "{}", refused.message());
+    }
+
+    /// Fail-open where neither is mounted: the two schema-free rules still
     /// run, and § 5.8.2 — which needs a published surface to contradict — does
     /// not guess.
     #[test]
@@ -579,7 +605,7 @@ mod document_validation {
             "subscription S($w: NoSuchTypeAtAll) { orderUpdated(where: $w) { id } }",
         )
         .expect("parses");
-        validate_subscription_variables(&parsed, None, true)
+        validate_subscription_variables(&parsed, None, None, None, true)
             .expect("§ 5.8.2 cannot be adjudicated without a schema");
 
         let (_, parsed) =
@@ -587,7 +613,7 @@ mod document_validation {
                 .expect("parses");
         assert!(
             matches!(
-                validate_subscription_variables(&parsed, None, true),
+                validate_subscription_variables(&parsed, None, None, None, true),
                 Err(SubscriptionDocumentError::Validation(_))
             ),
             "§ 5.8.3 needs no schema, so it must still run"
@@ -623,7 +649,13 @@ mod document_validation {
             let referenced = collect_variable_references(&parsed).expect("walk succeeds");
             let http = validate_variable_uses(operation_name, &defined, &referenced, true)
                 .and_then(|()| {
-                    validate_variable_types(&schema, operation_name, &parsed.variables, true)
+                    validate_variable_types(
+                        &schema,
+                        &schema,
+                        operation_name,
+                        &parsed.variables,
+                        true,
+                    )
                 })
                 .and_then(|()| validate_variables_used(operation_name, &defined, &referenced))
                 .expect_err("the /graphql surface refuses this document");

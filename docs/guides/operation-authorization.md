@@ -14,7 +14,9 @@ that only such operations reach is left out with them, so `__type` answers `null
 A type declaring `requires_role` is listed only to a caller holding that role, and is
 left out of the possible types of its interfaces and unions for everyone else.
 A misspelt operation name is answered with *"Did you mean"* only the operations the caller
-may run. `suggestions_enabled` (env `FRAISEQL_SUGGESTIONS_ENABLED`) withholds every such hint,
+may run. A variable's declared type resolves the same way: a type the caller's introspection
+leaves out is refused as an unknown type, with the same message, and its hint names only the
+types the caller is shown, on `/graphql` and `/ws` alike. `suggestions_enabled` (env `FRAISEQL_SUGGESTIONS_ENABLED`) withholds every such hint,
 on operations, arguments, variables, variable types, sort keys and filter fields alike,
 over `/graphql`, `explain` and `/ws`: the refusal stands, without naming what is near it.
 Unset, the deployment decides: off in production, on in development. A production

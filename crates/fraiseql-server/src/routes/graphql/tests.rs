@@ -713,6 +713,68 @@ mod app_state_tests {
         );
     }
 
+    /// A schema whose `sales(filter: SaleFilter)` is gated by `sales_role` (`None`: open),
+    /// next to an `audit` query gated by `admin`, so a caller holding neither role is
+    /// shown the same subset of the gating roles before and after a reload.
+    fn sales_schema(sales_role: Option<&str>) -> CompiledSchema {
+        let doc = serde_json::json!({
+            "fraiseql_version": fraiseql_core::schema::CURRENT_FRAISEQL_VERSION,
+            "types": [
+                {"name": "Sale", "sql_source": "v_sale",
+                 "fields": [{"name": "id", "field_type": "ID", "nullable": false}]},
+                {"name": "Entry", "sql_source": "v_entry",
+                 "fields": [{"name": "id", "field_type": "ID", "nullable": false}]}
+            ],
+            "queries": [
+                {"name": "sales", "return_type": "Sale", "returns_list": true,
+                 "nullable": false, "sql_source": "v_sale", "requires_role": sales_role,
+                 "arguments": [{"name": "filter", "arg_type": {"Input": "SaleFilter"},
+                                "nullable": true}]},
+                {"name": "audit", "return_type": "Entry", "returns_list": true,
+                 "nullable": false, "sql_source": "v_entry", "requires_role": "admin",
+                 "arguments": []}
+            ],
+            "input_types": [
+                {"name": "SaleFilter",
+                 "fields": [{"name": "id", "field_type": "ID", "nullable": true}]}
+            ]
+        });
+        CompiledSchema::from_json(&doc.to_string(), false).unwrap()
+    }
+
+    /// The schema a caller may see is built once per view and kept, and a reload
+    /// starts over: a type the reload shows the caller resolves for it at once.
+    #[tokio::test]
+    async fn a_reload_that_shows_a_caller_a_type_lets_it_declare_the_type() {
+        let adapter = Arc::new(StubAdapter);
+        let executor = Arc::new(Executor::read_only(sales_schema(Some("manager")), adapter));
+        let dir = tempfile::tempdir().unwrap();
+        let schema_path = dir.path().join("schema.json");
+        let state = AppState::new(executor).with_reload_config(schema_path.clone());
+        let viewer = fraiseql_core::security::SecurityContext::service_account(
+            "viewer",
+            "req-1",
+            vec!["viewer".to_string()],
+            vec![],
+            None,
+        );
+        let document = "query Q($f: SaleFilter) { sales(filter: $f) { id } }";
+
+        let before = state.executor.load().execute_with_security(document, None, &viewer).await;
+        let refused = before.expect_err("the viewer is not shown SaleFilter");
+        assert!(refused.to_string().contains("declares unknown type 'SaleFilter'"), "{refused}");
+
+        std::fs::write(&schema_path, serde_json::to_string(&sales_schema(None)).unwrap()).unwrap();
+        state.reload_schema(&schema_path).await.unwrap();
+
+        state
+            .executor
+            .load()
+            .execute_with_security(document, None, &viewer)
+            .await
+            .unwrap_or_else(|e| panic!("the reload shows the viewer SaleFilter: {e}"));
+    }
+
     #[tokio::test]
     async fn test_reload_same_hash_skips_on_schema_reload() {
         let adapter = Arc::new(TrackingAdapter::new());

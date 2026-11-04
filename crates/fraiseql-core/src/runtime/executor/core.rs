@@ -473,6 +473,39 @@ impl Executor {
         self.ctx.introspection.visible_schema(&self.ctx.schema, caller)
     }
 
+    /// Check that every variable of `definitions` declares a type `caller` may see (GraphQL
+    /// § 5.8.2): [`validate_variable_types`](crate::runtime::validate_variable_types)
+    /// against [`schema_for`](Self::schema_for), built once per view and shared.
+    ///
+    /// A document that declares only GraphQL's built-in scalars resolves alike for every
+    /// caller, so it is checked without looking a view up.
+    ///
+    /// # Errors
+    ///
+    /// As [`validate_variable_types`](crate::runtime::validate_variable_types).
+    pub fn validate_variable_types_for(
+        &self,
+        caller: Option<&SecurityContext>,
+        operation_name: Option<&str>,
+        definitions: &[crate::graphql::types::VariableDefinition],
+        suggestions: bool,
+    ) -> Result<()> {
+        let full = &self.ctx.schema;
+        let view =
+            if crate::runtime::variable_validation::declares_only_builtin_scalars(definitions) {
+                None
+            } else {
+                self.ctx.introspection.caller_schema(full, caller)
+            };
+        crate::runtime::validate_variable_types(
+            full,
+            view.as_deref().unwrap_or(full),
+            operation_name,
+            definitions,
+            suggestions,
+        )
+    }
+
     /// Whether `caller` may select `field` without the read being refused for it
     /// ([`may_select_field`](crate::runtime::may_select_field)), under this executor's schema
     /// and field authorizer.

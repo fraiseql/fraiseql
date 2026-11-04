@@ -184,6 +184,11 @@ disagreed, and the promise was the part that was wrong.
   design audit. `REST` and WebSocket clients, and the observer admin endpoints, require
   `Authorization: Bearer`. Both auth layers now accept the cookie on the same routes.
 
+- **`fraiseql_core::runtime::validate_variable_types` takes the caller's view of the schema
+  (#1930).** Its arguments are `(full, view, operation_name, definitions, suggestions)`: the
+  compiled schema, then the schema the caller may see. Pass the same schema twice for a caller
+  who sees all of it, or call `Executor::validate_variable_types_for`, which picks the view.
+
 ### Added
 
 - **A mutation's transaction can run again when PostgreSQL aborts it with `40P01` (deadlock)
@@ -301,6 +306,14 @@ disagreed, and the promise was the part that was wrong.
   Tooling that parsed `defaultValue` as JSON must parse it as a GraphQL value.
 
 ### Fixed
+
+- **A query's variable types are checked against the schema the caller may see (#1930).** A
+  variable declared with a type the caller is not shown, such as an input type taken only by
+  an operation its roles do not reach, is refused as an unknown type is, with the same message,
+  and the "Did you mean" hint names only types it is shown. This holds on `/graphql`, every
+  transport that runs a document through the executor, and `/ws`. The check runs per request,
+  after the document's cached classification, so a document one caller may run is checked
+  again for the next; a document whose variables are all built-in scalars skips the lookup.
 
 - **The mixed types-and-queries schema roundtrip property no longer generates the duplicate
   names the load path refuses (#1917).** `prop_schema_mixed_types_and_queries_roundtrip`

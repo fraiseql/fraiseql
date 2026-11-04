@@ -131,16 +131,21 @@ const PING_INTERVAL: Duration = Duration::from_secs(30);
 pub type LiveSubscriptionPolicies =
     Arc<dyn Fn() -> Arc<HashMap<String, SubscriptionPolicy>> + Send + Sync>;
 
-/// Reads the **current** compiled schema, so document validation on `/ws`
-/// follows a hot-reload the way the query plane does.
+/// Reads the **current** compiled schema, so the type a subscription delivers is
+/// read from the schema that is serving when the authorizer is asked about it.
 ///
 /// Installed at mount from the reload-aware executor `ArcSwap`, mirroring
-/// [`LiveSubscriptionPolicies`]. `None` in harnesses that mount no schema: the
-/// two schema-free variable rules still run, and § 5.8.2 is skipped rather than
-/// guessed.
+/// [`LiveSubscriptionPolicies`]. § 5.8.2 reads it only where no [`LiveExecutor`] is
+/// installed, and then resolves a declared type against every type it declares;
+/// with one, a type resolves against the schema the subscriber may see.
 pub type LiveSchema = Arc<dyn Fn() -> Arc<CompiledSchema> + Send + Sync>;
 
-/// Reads the executor currently serving, which plans each subscription (ruling AA 4).
+/// Reads the executor currently serving.
+///
+/// It plans each subscription (ruling AA 4) and resolves its variables' declared types
+/// against the schema the subscriber may see (§ 5.8.2). `None` in harnesses that mount no
+/// executor: § 5.8.2 then reads [`LiveSchema`], or, without one either, is skipped rather
+/// than guessed, and the two schema-free variable rules still run.
 pub type LiveExecutor = Arc<dyn Fn() -> Arc<fraiseql_core::runtime::Executor> + Send + Sync>;
 
 /// State for subscription `WebSocket` handler.
@@ -184,11 +189,14 @@ pub struct SubscriptionState {
     /// not wire a live source keep. Already-connected subscriptions are handled by
     /// [`policy_reload`](Self::policy_reload) (layer-2).
     pub live_subscription_policies: Option<LiveSubscriptionPolicies>,
-    /// Reads the current compiled schema for § 5.8.2 on the `/ws` surface.
+    /// Reads the current compiled schema, for the type the authorizer is asked about, and
+    /// for § 5.8.2 where no `live_executor` is installed.
     pub live_schema: Option<LiveSchema>,
     /// The executor serving now: it plans each local subscription from the client's
-    /// selection and the connection's principal (ruling AA 4). `None` in a harness that
-    /// mounts no executor: subscriptions are then registered unplanned.
+    /// selection and the connection's principal (ruling AA 4), and resolves § 5.8.2
+    /// against the schema that principal may see. `None` in a harness that mounts no
+    /// executor: subscriptions are then registered unplanned, and § 5.8.2 reads
+    /// `live_schema`.
     pub live_executor: Option<LiveExecutor>,
     /// What the connection's `SecurityContext` resolves against at subscribe time (only
     /// for policy-declaring subscriptions): the enriched-identity resolver (#539), so the
@@ -323,8 +331,9 @@ impl SubscriptionState {
         self
     }
 
-    /// Install the live compiled-schema source, so § 5.8.2 on `/ws` resolves a
-    /// variable's declared type against the schema that is actually serving.
+    /// Install the live compiled-schema source, so the authorizer is asked about the
+    /// type the schema actually serving delivers, and § 5.8.2 resolves against it where
+    /// no executor is installed.
     #[must_use]
     pub fn with_live_schema(mut self, live: Option<LiveSchema>) -> Self {
         self.live_schema = live;
@@ -1249,9 +1258,16 @@ async fn handle_client_message(
             // this is the only place the rules the `/graphql` surface enforces
             // can be applied to a subscription.
             let document = extract_subscription_root(&payload.query).and_then(|(root, parsed)| {
-                let schema = state.live_schema.as_ref().map(|f| f());
+                let serving = state.live_executor.as_ref().map(|f| f());
+                // Read only when no executor is installed: it clones the whole schema.
+                let schema = match serving {
+                    Some(_) => None,
+                    None => state.live_schema.as_ref().map(|f| f()),
+                };
                 validate_subscription_variables(
                     &parsed,
+                    serving.as_deref(),
+                    principal,
                     schema.as_deref(),
                     state.manager.suggestions(),
                 )?;
@@ -1841,16 +1857,21 @@ impl SubscriptionDocumentError {
 /// which this path never reaches — whether subscription *filters* need the same
 /// treatment is a separate audit, filed rather than folded in.
 ///
-/// `schema` is `None` for a caller that mounts no compiled schema; § 5.8.2 —
-/// the only rule of the three that needs one — is then skipped, and the other
-/// two still run. `suggestions` is the manager's switch: off, a refusal carries no
-/// "Did you mean" hint.
+/// § 5.8.2 resolves each declared type against the schema `principal` may see on
+/// `serving`, the executor serving now, as `/graphql` does: a type the
+/// subscriber is not shown is unknown to it. A host that installs no executor
+/// passes `None`, and the types resolve against every type `schema` declares. With
+/// neither, § 5.8.2 — the only rule of the three that needs a schema — is skipped,
+/// and the other two still run. `suggestions` is the manager's
+/// switch: off, a refusal carries no "Did you mean" hint.
 ///
 /// # Errors
 ///
 /// [`SubscriptionDocumentError::Validation`] naming the offending variable.
 pub(crate) fn validate_subscription_variables(
     parsed: &ParsedQuery,
+    serving: Option<&fraiseql_core::runtime::Executor>,
+    principal: Option<&SecurityContext>,
     schema: Option<&CompiledSchema>,
     suggestions: bool,
 ) -> Result<(), SubscriptionDocumentError> {
@@ -1868,9 +1889,15 @@ pub(crate) fn validate_subscription_variables(
     let referenced = collect_variable_references(parsed).map_err(fail)?;
 
     validate_variable_uses(operation_name, &defined, &referenced, suggestions).map_err(fail)?;
-    if let Some(schema) = schema {
-        validate_variable_types(schema, operation_name, &parsed.variables, suggestions)
-            .map_err(fail)?;
+    match (serving, schema) {
+        (Some(serving), _) => serving
+            .validate_variable_types_for(principal, operation_name, &parsed.variables, suggestions)
+            .map_err(fail)?,
+        (None, Some(schema)) => {
+            validate_variable_types(schema, schema, operation_name, &parsed.variables, suggestions)
+                .map_err(fail)?;
+        },
+        (None, None) => {},
     }
     validate_variables_used(operation_name, &defined, &referenced).map_err(fail)?;
 

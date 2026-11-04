@@ -190,27 +190,37 @@ const FEDERATION_INPUT_BUILTINS: &[&str] = &["_Any", "_FieldSet"];
 /// are also accepted: introspection does not publish them as `SCALAR` types, but
 /// the schema does not positively say they are absent either.
 ///
+/// Names resolve against `view`, the schema the caller may see
+/// ([`Executor::schema_for`](crate::runtime::Executor::schema_for)),
+/// and so do the suggestions: a type the caller is not shown is unknown to it here
+/// too, down to the message. `full` is the schema `view` was derived from;
+/// pass the same schema twice for a caller who sees all of it.
+///
 /// # What this does not reject
 ///
 /// **A schema carrying no enums *and* no input objects is not adjudicated.**
 /// That shape means the compiler emitted no input-type information, not that the
 /// schema genuinely has none, and a rejection cannot be justified from an absence
 /// of evidence — the #939 principle in
-/// [`crate::graphql::validate_selection_set`].
+/// [`crate::graphql::validate_selection_set`]. It is read from `full`: what the
+/// compiler emitted, not what this caller is shown, so a caller whose view holds
+/// none of the schema's input types is still refused a name that is not there.
 ///
 /// # Errors
 ///
 /// Returns [`FraiseQLError::Validation`] naming the first unknown type name.
 pub fn validate_variable_types(
-    schema: &crate::schema::CompiledSchema,
+    full: &crate::schema::CompiledSchema,
+    view: &crate::schema::CompiledSchema,
     operation_name: Option<&str>,
     definitions: &[crate::graphql::types::VariableDefinition],
     suggestions: bool,
 ) -> Result<()> {
     // Cannot adjudicate: no input-type information was emitted at all.
-    if schema.enums.is_empty() && schema.input_types.is_empty() {
+    if full.enums.is_empty() && full.input_types.is_empty() {
         return Ok(());
     }
+    let schema = view;
 
     let scalars = crate::schema::published_scalar_names();
     let federated = schema.federation.as_ref().is_some_and(|f| f.enabled);
@@ -258,6 +268,19 @@ pub fn validate_variable_types(
     }
 
     Ok(())
+}
+
+/// Whether every variable of `definitions` is declared with one of GraphQL's built-in
+/// scalars, whose names resolve alike against any schema and any caller's view of it.
+pub fn declares_only_builtin_scalars(
+    definitions: &[crate::graphql::types::VariableDefinition],
+) -> bool {
+    definitions.iter().all(|def| {
+        matches!(
+            innermost_type_name(&def.var_type.name),
+            "Int" | "Float" | "String" | "Boolean" | "ID"
+        )
+    })
 }
 
 /// Strip the list wrappers a parsed variable type carries in its *name*.

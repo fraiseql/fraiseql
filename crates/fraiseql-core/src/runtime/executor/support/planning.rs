@@ -22,7 +22,8 @@ impl Executor {
     ) -> Result<ExplainPlan> {
         // Planning is a single-document explain surface with no request context,
         // so the document must be unambiguous (GraphQL § 6.1).
-        let query_type = self.classify_query(query, None)?;
+        let (query_type, .., document_variables) = self.classify_query_with_parse(query, None)?;
+        self.check_variables_against_the_whole_schema(&document_variables)?;
 
         match query_type {
             QueryType::Regular => {

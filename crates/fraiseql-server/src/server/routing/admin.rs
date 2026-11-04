@@ -252,11 +252,11 @@ impl Server {
             .with_subscription_policies(subscription_policies)
             // #611: read live policies per new subscription so a hot-reload applies promptly.
             .with_live_subscription_policies(Some(live_subscription_policies))
-            // #1154: validate a subscription document's variable definitions against
-            // the schema that is actually serving, so § 5.8.2 on /ws follows a
-            // hot-reload exactly as the policies above do.
+            // The authorizer is asked about the type the serving schema delivers.
             .with_live_schema(Some(live_schema))
-            // Ruling AA 4: every local subscription is planned as a read of its type.
+            // Ruling AA 4: every local subscription is planned as a read of its type, and
+            // its variables' types resolve against the schema the subscriber may see,
+            // following a hot-reload as the policies above do (#1154).
             .with_live_executor(Some(live_executor))
             // #611 (layer 2): notify already-connected subscriptions on hot-reload so
             // they re-derive against the new policies or are terminated fail-closed.

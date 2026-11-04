@@ -40,6 +40,8 @@ pub struct CallerIntrospection {
     build:          fn(&CompiledSchema) -> IntrospectionResponses,
     /// Views built so far, by [`view_key`].
     views:          RwLock<HashMap<String, Arc<IntrospectionResponses>>>,
+    /// Visible schemas built so far, by [`view_key`].
+    schemas:        RwLock<HashMap<String, Arc<CompiledSchema>>>,
 }
 
 impl CallerIntrospection {
@@ -63,6 +65,7 @@ impl CallerIntrospection {
             full_reachable,
             build,
             views: RwLock::new(HashMap::new()),
+            schemas: RwLock::new(HashMap::new()),
         }
     }
 
@@ -75,16 +78,9 @@ impl CallerIntrospection {
         schema: &CompiledSchema,
         caller: Option<&SecurityContext>,
     ) -> (String, Arc<IntrospectionResponses>) {
-        let held: Vec<&str> = self
-            .gating_roles
-            .iter()
-            .map(String::as_str)
-            .filter(|role| caller_holds(Some(role), caller))
-            .collect();
-        if held.len() == self.gating_roles.len() {
+        let Some(key) = self.key_of(caller) else {
             return (String::new(), Arc::clone(&self.full));
-        }
-        let key = view_key(&held);
+        };
         if let Some(view) = self.views.read().get(&key) {
             return (key, Arc::clone(view));
         }
@@ -121,6 +117,40 @@ impl CallerIntrospection {
         visible.interfaces.retain(|t| kept(t.name.as_str()));
         visible.unions.retain(|t| kept(t.name.as_str()));
         visible
+    }
+
+    /// [`visible_schema`](Self::visible_schema), built once per view and shared; `None` when
+    /// `caller` sees all of `schema`.
+    ///
+    /// Keyed as [`for_caller`](Self::for_caller) keys its views, by the subset of the
+    /// schema's gating roles the caller holds: a role no gate names never reaches the key,
+    /// so the map holds at most one entry per subset of a set the schema fixes. It lives
+    /// with this value, which an executor owns, so a reload starts it empty.
+    ///
+    /// `schema` must be the schema this was built from.
+    pub fn caller_schema(
+        &self,
+        schema: &CompiledSchema,
+        caller: Option<&SecurityContext>,
+    ) -> Option<Arc<CompiledSchema>> {
+        let key = self.key_of(caller)?;
+        if let Some(visible) = self.schemas.read().get(&key) {
+            return Some(Arc::clone(visible));
+        }
+        let visible = Arc::new(self.visible_schema(schema, caller));
+        Some(Arc::clone(self.schemas.write().entry(key).or_insert(visible)))
+    }
+
+    /// The key of the view `caller` sees, or `None` when it holds every gating role and so
+    /// sees the full one.
+    fn key_of(&self, caller: Option<&SecurityContext>) -> Option<String> {
+        let held: Vec<&str> = self
+            .gating_roles
+            .iter()
+            .map(String::as_str)
+            .filter(|role| caller_holds(Some(role), caller))
+            .collect();
+        (held.len() < self.gating_roles.len()).then(|| view_key(&held))
     }
 
     /// The responses of the schema `caller` may see, without the types only what it may not

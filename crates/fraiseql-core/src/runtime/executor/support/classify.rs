@@ -4,21 +4,36 @@ use super::super::{Executor, MutationRoot, QueryType};
 use crate::{
     error::{FraiseQLError, Result},
     graphql::{operation_selection_error, parse_query_with_operation_name, value_json},
-    runtime::{
-        collect_variable_references, validate_variable_types, validate_variable_uses,
-        validate_variables_used,
-    },
+    runtime::{collect_variable_references, validate_variable_uses, validate_variables_used},
     schema::is_fact_table_root,
+    security::SecurityContext,
 };
 
-/// A classified document: its type, its AST where the dispatch needs it, and its
-/// variables' declared defaults.
+/// A classified document: its type, its AST where the dispatch needs it, its
+/// variables' declared defaults, and its variables as the per-request rules read them.
 pub(in crate::runtime::executor) type Classification = (
     QueryType,
     Option<std::sync::Arc<crate::graphql::ParsedQuery>>,
     Vec<(String, serde_json::Value)>,
     Option<std::sync::Arc<CompletionTarget>>,
+    DocumentVariables,
 );
+
+/// The executed operation's variable definitions and the variables it references: what
+/// GraphQL § 5.8.2 and § 5.8.4 are checked from on every request.
+///
+/// § 5.8.2 resolves a declared type against the schema the *caller* may see, and
+/// a classification is shared by every caller of the document, so the rule cannot be part
+/// of it. § 5.8.4 runs after it, here too, so a document with both problems is answered as
+/// it was when all three rules ran together: an undefined reference, then an unknown
+/// type, then an unused variable.
+#[derive(Debug, Default)]
+pub(in crate::runtime::executor) struct DocumentVariables {
+    operation_name: Option<String>,
+    definitions:    Vec<crate::graphql::types::VariableDefinition>,
+    defined:        Vec<String>,
+    referenced:     Vec<String>,
+}
 
 /// A [`Classification`] as the parse cache holds it: with the document and the
 /// operation name it was computed from.
@@ -73,6 +88,50 @@ pub(in crate::runtime::executor) struct CompletionTarget {
 }
 
 impl Executor {
+    /// Check `variables` for this request: every declared type is one `caller` may see
+    /// (GraphQL § 5.8.2), then every defined variable is used (§ 5.8.4).
+    ///
+    /// # Errors
+    ///
+    /// [`FraiseQLError::Validation`](crate::error::FraiseQLError::Validation) naming the
+    /// first variable that breaks either rule.
+    pub(in crate::runtime::executor) fn check_variables(
+        &self,
+        variables: &DocumentVariables,
+        caller: Option<&SecurityContext>,
+    ) -> Result<()> {
+        let operation_name = variables.operation_name.as_deref();
+        self.validate_variable_types_for(
+            caller,
+            operation_name,
+            &variables.definitions,
+            self.ctx.config.suggestions,
+        )?;
+        validate_variables_used(operation_name, &variables.defined, &variables.referenced)
+    }
+
+    /// [`check_variables`](Self::check_variables) for a surface that runs as no caller and
+    /// so resolves § 5.8.2 against the whole schema: `plan_query`, which the server mounts
+    /// only behind the admin token.
+    ///
+    /// # Errors
+    ///
+    /// As [`check_variables`](Self::check_variables).
+    pub(in crate::runtime::executor) fn check_variables_against_the_whole_schema(
+        &self,
+        variables: &DocumentVariables,
+    ) -> Result<()> {
+        let operation_name = variables.operation_name.as_deref();
+        crate::runtime::validate_variable_types(
+            &self.ctx.schema,
+            &self.ctx.schema,
+            operation_name,
+            &variables.definitions,
+            self.ctx.config.suggestions,
+        )?;
+        validate_variables_used(operation_name, &variables.defined, &variables.referenced)
+    }
+
     /// Classify a GraphQL query into its operation type for routing.
     ///
     /// This is the first phase of query execution. It determines which handler
@@ -154,8 +213,39 @@ impl Executor {
                 selections: crate::graphql::selection_set::CollectedFields::new(selections),
             })
         });
+        let variables = Self::document_variables(&parsed, self.ctx.config.suggestions)?;
         let (query_type, parsed) = self.classify_parsed(parsed)?;
-        Ok((query_type, parsed.map(std::sync::Arc::new), defaults, completion))
+        Ok((query_type, parsed.map(std::sync::Arc::new), defaults, completion, variables))
+    }
+
+    /// The executed operation's [`DocumentVariables`], refusing a reference to a variable it
+    /// does not define (GraphQL § 5.8.3).
+    ///
+    /// Run immediately after the parse and *before* the routing branches, because this is
+    /// the only point every operation type shares while the AST still exists:
+    /// `classify_query_with_parse` returns the parsed query only for `Regular`, so a check in
+    /// `execute_dispatch` would have nothing to read for a mutation, aggregate, window, node
+    /// or federation document. What it reads is kept for the two rules that run per request
+    /// ([`check_variables`](Self::check_variables)).
+    ///
+    /// Not in `QueryMatcher::match_query`: `field_selection_to_query` re-serialises each
+    /// root of a multi-root query into a synthetic single-root string that carries no
+    /// variable *definitions* while faithfully re-emitting `$name` references, so a check
+    /// there would reject every multi-root query that uses a variable.
+    fn document_variables(
+        parsed: &crate::graphql::ParsedQuery,
+        suggestions: bool,
+    ) -> Result<DocumentVariables> {
+        let operation_name = parsed.operation_name.as_deref();
+        let defined: Vec<String> = parsed.variables.iter().map(|v| v.name.clone()).collect();
+        let referenced = collect_variable_references(parsed)?;
+        validate_variable_uses(operation_name, &defined, &referenced, suggestions)?;
+        Ok(DocumentVariables {
+            operation_name: parsed.operation_name.clone(),
+            definitions: parsed.variables.clone(),
+            defined,
+            referenced,
+        })
     }
 
     /// The routing half of [`classify_query_with_parse`](Self::classify_query_with_parse).
@@ -163,32 +253,6 @@ impl Executor {
         &self,
         parsed: crate::graphql::ParsedQuery,
     ) -> Result<(QueryType, Option<crate::graphql::ParsedQuery>)> {
-        // GraphQL § 5.8.3 / § 5.8.2 / § 5.8.4 — variable definitions.
-        //
-        // Placed here, immediately after the parse and *before* the routing
-        // branches, because this is the only point every operation type shares
-        // while the AST still exists: `classify_query_with_parse` returns the
-        // parsed query only for `Regular`, so a check in `execute_dispatch`
-        // would have nothing to validate for a mutation, aggregate, window,
-        // node or federation document.
-        //
-        // Not in `QueryMatcher::match_query`: `field_selection_to_query`
-        // re-serialises each root of a multi-root query into a synthetic
-        // single-root string that carries no variable *definitions* while
-        // faithfully re-emitting `$name` references, so a check there would
-        // reject every multi-root query that uses a variable.
-        let operation_name = parsed.operation_name.as_deref();
-        let defined: Vec<String> = parsed.variables.iter().map(|v| v.name.clone()).collect();
-        let referenced = collect_variable_references(&parsed)?;
-
-        // Ordered most-useful-first: when a document has more than one of these
-        // problems, an undefined *reference* is the one that changed the answer,
-        // so it is the one worth reporting.
-        let suggestions = self.ctx.config.suggestions;
-        validate_variable_uses(operation_name, &defined, &referenced, suggestions)?;
-        validate_variable_types(&self.ctx.schema, operation_name, &parsed.variables, suggestions)?;
-        validate_variables_used(operation_name, &defined, &referenced)?;
-
         let root_field = &parsed.root_field;
 
         // A fact-table root is executed alone: its runner answers the document's first

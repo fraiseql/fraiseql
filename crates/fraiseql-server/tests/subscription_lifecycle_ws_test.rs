@@ -1010,3 +1010,121 @@ mod tenant_admission {
         }
     }
 }
+
+/// § 5.8.2 on `/ws` resolves a variable's declared type against the schema the subscriber
+/// may see, as `/graphql` does.
+mod variable_type_visibility {
+    use fraiseql_core::runtime::Executor;
+    use fraiseql_server::routes::subscriptions::{LiveExecutor, LiveSchema};
+    use fraiseql_test_utils::failing_adapter::FailingAdapter;
+
+    use super::*;
+
+    /// `orders(filter: OrderFilter)` is open; `sales(filter: SaleFilter)` needs `manager`,
+    /// and is the only declaration that reaches `SaleFilter`.
+    fn schema() -> CompiledSchema {
+        let filter = |name: &str| json!({"name": name, "fields": [{"name": "id", "field_type": "ID", "nullable": true}]});
+        let doc = json!({
+            "types": [
+                {"name": "Order", "sql_source": "v_order",
+                 "fields": [{"name": "id", "field_type": "ID", "nullable": false}]},
+                {"name": "Sale", "sql_source": "v_sale",
+                 "fields": [{"name": "id", "field_type": "ID", "nullable": false}]}
+            ],
+            "queries": [
+                {"name": "orders", "return_type": "Order", "returns_list": true,
+                 "nullable": false, "sql_source": "v_order",
+                 "arguments": [{"name": "filter", "arg_type": {"Input": "OrderFilter"},
+                                "nullable": true}]},
+                {"name": "sales", "return_type": "Sale", "returns_list": true,
+                 "nullable": false, "sql_source": "v_sale", "requires_role": "manager",
+                 "arguments": [{"name": "filter", "arg_type": {"Input": "SaleFilter"},
+                                "nullable": true}]}
+            ],
+            "input_types": [filter("OrderFilter"), filter("SaleFilter")]
+        });
+        let mut schema =
+            CompiledSchema::from_json(&doc.to_string(), false).expect("fixture schema loads");
+        schema.subscriptions.push(SubscriptionDefinition::new("orderChanged", "Order"));
+        schema
+    }
+
+    /// `/ws` wired as the server wires it: § 5.8.2 reads the schema that is serving.
+    async fn serve_as(roles: &[&str]) -> (String, Arc<SubscriptionManager>) {
+        let executor = Arc::new(Executor::new(schema(), Arc::new(FailingAdapter::new())));
+        let manager = Arc::new(SubscriptionManager::new(Arc::new(schema())));
+        let serving = Arc::clone(&executor);
+        let live_schema: LiveSchema = Arc::new(move || Arc::new(serving.schema().clone()));
+        let live_executor: LiveExecutor = Arc::new(move || Arc::clone(&executor));
+        let state = SubscriptionState::new(Arc::clone(&manager))
+            .with_live_schema(Some(live_schema))
+            .with_live_executor(Some(live_executor));
+        let mut user = user_expiring_in(chrono::Duration::hours(1));
+        user.extra_claims.insert("roles".to_string(), json!(roles));
+        (spawn_ws_server_with_principal(state, user).await, manager)
+    }
+
+    /// The error a subscribe declaring `$f: <type_name>` is refused with.
+    async fn refusal(roles: &[&str], type_name: &str) -> String {
+        let (url, manager) = serve_as(roles).await;
+        let (mut sink, mut stream) = connect_ws(&url).await;
+        send_json(&mut sink, json!({"type": "connection_init"})).await;
+        let ack = recv_json_or_close(&mut stream).await.expect("expected connection_ack");
+        assert_eq!(ack["type"], "connection_ack", "{ack}");
+        let query = format!("subscription Q($f: {type_name}) {{ orderChanged {{ id }} }}");
+        send_json(
+            &mut sink,
+            json!({"type": "subscribe", "id": "op_1", "payload": {"query": query}}),
+        )
+        .await;
+        let frame = recv_json_or_close(&mut stream).await.expect("expected an error frame");
+        assert_eq!(frame["type"], "error", "the subscribe was not refused: {frame}");
+        assert_eq!(manager.subscription_count(), 0, "a refused subscribe was registered");
+        frame["payload"].to_string()
+    }
+
+    #[tokio::test]
+    async fn a_type_the_subscriber_is_not_shown_is_refused_as_an_unknown_type_is() {
+        let hidden = refusal(&["viewer"], "SaleFilter").await;
+        let unknown = refusal(&["viewer"], "NoSuchFilter").await;
+
+        assert!(unknown.contains("declares unknown type"), "not the § 5.8.2 refusal: {unknown}");
+        assert_eq!(hidden.replace("SaleFilter", "<T>"), unknown.replace("NoSuchFilter", "<T>"));
+    }
+
+    /// A host that installs the live schema and no executor still has its subscribers'
+    /// variable types checked, against every type the schema declares.
+    #[tokio::test]
+    async fn without_an_executor_the_live_schema_refuses_an_unknown_type() {
+        let manager = Arc::new(SubscriptionManager::new(Arc::new(schema())));
+        let live_schema: LiveSchema = Arc::new(|| Arc::new(schema()));
+        let state =
+            SubscriptionState::new(Arc::clone(&manager)).with_live_schema(Some(live_schema));
+        let url = spawn_ws_server(state).await;
+        let (mut sink, mut stream) = connect_ws(&url).await;
+        send_json(&mut sink, json!({"type": "connection_init"})).await;
+        let ack = recv_json_or_close(&mut stream).await.expect("expected connection_ack");
+        assert_eq!(ack["type"], "connection_ack", "{ack}");
+        send_json(
+            &mut sink,
+            json!({"type": "subscribe", "id": "op_1", "payload": {"query":
+                "subscription Q($f: NoSuchFilter) { orderChanged { id } }"}}),
+        )
+        .await;
+
+        let frame = recv_json_or_close(&mut stream).await.expect("expected an error frame");
+        assert!(
+            frame["payload"].to_string().contains("declares unknown type 'NoSuchFilter'"),
+            "{frame}"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_subscriber_shown_the_type_may_declare_it() {
+        // Refused only because `$f` is unused: the type itself resolved.
+        let shown = refusal(&["manager"], "SaleFilter").await;
+
+        assert!(!shown.contains("unknown type"), "{shown}");
+        assert!(shown.contains("never used"), "{shown}");
+    }
+}

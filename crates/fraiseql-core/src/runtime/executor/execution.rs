@@ -460,7 +460,7 @@ impl Executor {
         security_context: Option<&SecurityContext>,
     ) -> Result<serde_json::Value> {
         let entry = self.classify_cached(query, None)?;
-        let (query_type, parsed, _, _) = &entry.classification;
+        let (query_type, parsed, ..) = &entry.classification;
         if matches!(query_type, QueryType::Mutation { .. }) {
             return Err(FraiseQLError::Authorization {
                 message:  "the before:mutation read bridge is read-only: this document is a \
@@ -569,7 +569,12 @@ impl Executor {
         // `parse_graphql_document` again for `max_operation_cost`), so the
         // parser sees nothing it was not already going to see.
         let entry = self.classify_cached(query, operation_name)?;
-        let (query_type, maybe_parsed, variable_defaults, completion) = &entry.classification;
+        let (query_type, maybe_parsed, variable_defaults, completion, document_variables) =
+            &entry.classification;
+
+        // GraphQL § 5.8.2 and § 5.8.4, per request: a declared type resolves against the
+        // schema this caller may see, which the shared classification cannot know.
+        self.check_variables(document_variables, security_context)?;
 
         // GraphQL § 6.4.1 (#1504): a variable the request omits takes its declared
         // default, before anything reads the variables — GATE-1, the authorizer and
