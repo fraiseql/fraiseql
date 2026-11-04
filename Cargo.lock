@@ -4202,6 +4202,7 @@ dependencies = [
  "proptest",
  "prost",
  "prost-reflect",
+ "quote",
  "rand 0.9.4",
  "redis",
  "reqwest 0.12.28",

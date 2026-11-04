@@ -188,8 +188,9 @@ impl Executor {
     ///
     /// `Validation` for a document that selects no subscription or more than one, an unknown
     /// subscription, a field the type does not declare or the subscription does not deliver;
-    /// `Authorization` for the type's role, a filter on a field the subscriber may not read,
-    /// and whatever the read plan refuses.
+    /// `Authorization` for an unresolved subscriber when the schema consumes the enriched
+    /// identity, the type's role, a filter on a field the subscriber may not read, and
+    /// whatever the read plan refuses.
     pub fn plan_subscription(
         &self,
         document: &ParsedQuery,
@@ -198,6 +199,11 @@ impl Executor {
     ) -> Result<SubscriptionPlan> {
         let ctx = &self.ctx;
         let schema = &ctx.schema;
+        // A subscriber is admitted as a request is: when the schema consumes the enriched
+        // identity, one no transport resolved is refused here too.
+        crate::runtime::executor::support::security::enforce_enrichment_resolved(
+            schema, principal,
+        )?;
         // § 6.4.1 (#1504): an omitted variable takes its declared default, so a
         // defaulted argument binds its filter as a supplied one does.
         let defaults = crate::graphql::value_json::variable_defaults(&document.variables)?;

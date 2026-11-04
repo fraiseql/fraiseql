@@ -201,6 +201,8 @@ zeroize = "1.8"
 syn = { version = "2", features = ["full", "visit"] }
 # Test-only: line numbers for the boot-DDL gate's positional report.
 proc-macro2 = { version = "1", features = ["span-locations"] }
+# Test-only: the mount scan reads a layer's argument as tokens. Already in the tree through syn.
+quote = "1"
 # The #382 outbound-CDC mount e2e reads back from a real NATS JetStream.
 async-nats = "0.47"
 # The #1102 subscription-mirror e2e reads back from a real Kafka. Through the egress

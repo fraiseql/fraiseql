@@ -201,6 +201,49 @@ impl FlightService for FraiseQLFlightService {
     }
 }
 
+/// Refuse a token the revocation store no longer admits.
+///
+/// The one place Flight consults the store: the handshake asks about the bearer token it
+/// is about to open a session for, and [`admit_session`] asks about the token each
+/// session was opened with. `None` store, nothing to consult, as on HTTP.
+///
+/// # Errors
+///
+/// `Unauthenticated`, worded as the HTTP transports word the store's refusal.
+pub(super) async fn revocation_refusal(
+    svc: &FraiseQLFlightService,
+    source: &super::SessionSource,
+    sub: &str,
+) -> Result<(), Status> {
+    let Some(check) = svc.revocation_check.as_ref() else {
+        return Ok(());
+    };
+    check
+        .check(source.jti.as_deref(), sub, source.iat)
+        .await
+        .map_err(Status::unauthenticated)
+}
+
+/// The principal of a session token, admitted: a valid session whose source token the
+/// revocation store still admits.
+///
+/// Every session-authenticated call goes through this, so revoking the token a session
+/// was opened with ends the session at its next call.
+///
+/// # Errors
+///
+/// `Unauthenticated` for an invalid or expired session, one that does not carry its
+/// source, or one whose source token is revoked.
+pub(super) async fn admit_session(
+    svc: &FraiseQLFlightService,
+    token: &str,
+    secret: &str,
+) -> Result<fraiseql_core::security::AuthenticatedUser, Status> {
+    let (user, source) = super::validate_session(token, secret)?;
+    revocation_refusal(svc, &source, &user.user_id.0).await?;
+    Ok(user)
+}
+
 /// The principal a validated session token names, built as every transport builds one
 /// from a token: its claims become attributes and roles, and its tenant comes from the
 /// schema's tenant claim.

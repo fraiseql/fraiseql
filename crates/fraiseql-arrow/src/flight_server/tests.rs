@@ -283,6 +283,7 @@ async fn test_do_action_health_check() {
             scopes:       vec!["user".to_string()],
             session_type: "flight".to_string(),
             claims:       std::collections::HashMap::new(),
+            source:       super::SessionSource::default(),
         };
 
         let key = EncodingKey::from_secret(TEST_FLIGHT_SECRET.as_bytes());
@@ -335,6 +336,7 @@ async fn test_do_action_unknown_action() {
             scopes:       vec!["user".to_string()],
             session_type: "flight".to_string(),
             claims:       std::collections::HashMap::new(),
+            source:       super::SessionSource::default(),
         };
 
         let key = EncodingKey::from_secret(TEST_FLIGHT_SECRET.as_bytes());
@@ -764,9 +766,10 @@ mod principal_parity {
     /// another key or not re-signed at all, is refused rather than restored.
     #[test]
     fn a_session_token_with_tampered_claims_is_refused() {
-        use super::super::auth::validate_session_token;
+        use super::super::auth::validate_session;
 
-        let session = create_session_token(&user(), SECRET).unwrap();
+        let session =
+            create_session_token(&user(), super::super::SessionSource::default(), SECRET).unwrap();
         let mut claims = jsonwebtoken::dangerous::insecure_decode::<serde_json::Value>(&session)
             .unwrap()
             .claims;
@@ -778,25 +781,26 @@ mod principal_parity {
             &jsonwebtoken::EncodingKey::from_secret(b"another-key-another-key-another-k"),
         )
         .unwrap();
-        assert!(validate_session_token(&resigned, SECRET).is_err(), "signed with another key");
+        assert!(validate_session(&resigned, SECRET).is_err(), "signed with another key");
 
         // The altered claims under the server's own signature over the original claims.
         let (altered, _) = resigned.rsplit_once('.').unwrap();
         let (_, signature) = session.rsplit_once('.').unwrap();
         let grafted = format!("{altered}.{signature}");
-        assert!(validate_session_token(&grafted, SECRET).is_err(), "the original signature");
+        assert!(validate_session(&grafted, SECRET).is_err(), "the original signature");
     }
 
     /// A session expires with the token it was opened with, when that comes first.
     #[test]
     fn a_session_does_not_outlive_its_token() {
-        use super::super::auth::validate_session_token;
+        use super::super::auth::validate_session;
 
         let mut short = user();
         short.expires_at = fraiseql_core::fraiseql_time::Timestamp::now()
             + fraiseql_core::fraiseql_time::jiff::SignedDuration::from_secs(60);
-        let session = create_session_token(&short, SECRET).unwrap();
-        let restored = validate_session_token(&session, SECRET).unwrap();
+        let session =
+            create_session_token(&short, super::super::SessionSource::default(), SECRET).unwrap();
+        let (restored, _) = validate_session(&session, SECRET).unwrap();
         assert!(
             restored.expires_at <= short.expires_at,
             "{} > {}",
@@ -812,7 +816,8 @@ mod principal_parity {
         svc.set_tenant_claim("tenant_id");
         svc.set_executor(Arc::clone(&executor) as Arc<dyn QueryExecutor>);
 
-        let session = create_session_token(&user(), SECRET).unwrap();
+        let session =
+            create_session_token(&user(), super::super::SessionSource::default(), SECRET).unwrap();
         let ticket = FlightTicket::GraphQLQuery {
             query:     "{ orders { id } }".to_string(),
             variables: None,

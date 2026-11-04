@@ -33,6 +33,7 @@ fn authorized<T>(message: T) -> tonic::Request<T> {
             "iat": now,
             "scopes": ["user"],
             "session_type": "flight",
+            "source": { "jti": null, "iat": null },
         }),
         &EncodingKey::from_secret(TEST_FLIGHT_SECRET.as_bytes()),
     )
@@ -199,6 +200,7 @@ async fn test_do_get_returns_empty_stream() {
             iat:          i64,
             scopes:       Vec<String>,
             session_type: String,
+            source: serde_json::Value,
         }
 
         let now = Timestamp::now();
@@ -210,6 +212,7 @@ async fn test_do_get_returns_empty_stream() {
             iat:          now.as_second(),
             scopes:       vec!["user".to_string()],
             session_type: "flight".to_string(),
+            source: serde_json::json!({"jti": null, "iat": null}),
         };
 
         let key = EncodingKey::from_secret(TEST_FLIGHT_SECRET.as_bytes());
@@ -277,6 +280,7 @@ async fn test_invalid_ticket_returns_error() {
             iat:          i64,
             scopes:       Vec<String>,
             session_type: String,
+            source:       serde_json::Value,
         }
 
         let now = Timestamp::now();
@@ -288,6 +292,7 @@ async fn test_invalid_ticket_returns_error() {
             iat:          now.as_second(),
             scopes:       vec!["user".to_string()],
             session_type: "flight".to_string(),
+            source:       serde_json::json!({"jti": null, "iat": null}),
         };
 
         let key = EncodingKey::from_secret(TEST_FLIGHT_SECRET.as_bytes());

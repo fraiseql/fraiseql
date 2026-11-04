@@ -1215,3 +1215,38 @@ fn a_named_spread_on_one_member_answers_nothing_on_another_in_an_event() {
         assert_eq!(party(document), json!({"name": "o"}), "{document}");
     }
 }
+
+/// [`schema`], declaring an enriched-identity consumer: a query injecting an enriched field.
+fn schema_with_enrichment_consumer() -> CompiledSchema {
+    let mut schema = schema();
+    let mut orders = crate::schema::QueryDefinition::new("orders", "Order");
+    orders.inject_params.insert(
+        "tenant_id".to_string(),
+        crate::schema::InjectedParamSource::Enrichment("org_id".to_string()),
+    );
+    schema.queries.push(orders);
+    schema.build_indexes();
+    schema
+}
+
+/// A subscriber planned with an identity no transport resolved is refused, as every other
+/// executor entry point refuses one, when the schema consumes the enriched identity.
+#[test]
+fn an_unresolved_subscriber_is_refused_when_the_schema_consumes_enrichment() {
+    let exec = executor(schema_with_enrichment_consumer(), RuntimeConfig::default());
+    let err =
+        plan(&exec, "subscription { orderCreated { id } }", &json!({}), Some(&principal(&[])))
+            .unwrap_err();
+    assert!(matches!(err, FraiseQLError::Authorization { .. }), "{err:?}");
+    assert!(err.to_string().contains("Identity was not resolved"), "{err}");
+}
+
+/// The positive twin: a resolved subscriber plans under the same schema.
+#[test]
+fn a_resolved_subscriber_plans_when_the_schema_consumes_enrichment() {
+    let exec = executor(schema_with_enrichment_consumer(), RuntimeConfig::default());
+    let mut subscriber = principal(&[]);
+    subscriber.mark_enrichment(crate::security::EnrichmentMark::Resolved);
+    plan(&exec, "subscription { orderCreated { id } }", &json!({}), Some(&subscriber))
+        .expect("a resolved subscriber plans");
+}

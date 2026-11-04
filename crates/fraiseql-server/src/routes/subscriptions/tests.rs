@@ -317,11 +317,12 @@ mod row_visibility_596 {
         let alice = principal("alice", &[], &[]);
 
         let dispatcher = state_granting(serde_json::json!("dispatcher"));
-        let lifted = resolve_subscription_rls(&dispatcher, "orderUpdated", Some(&alice)).await;
+        let lifted =
+            resolve_subscription_rls(&dispatcher, None, "orderUpdated", Some(&alice)).await;
         assert_eq!(lifted.expect("bypass → ok"), Vec::new(), "the table's role bypasses");
 
         let viewer = state_granting(serde_json::json!("viewer"));
-        let scoped = resolve_subscription_rls(&viewer, "orderUpdated", Some(&alice)).await;
+        let scoped = resolve_subscription_rls(&viewer, None, "orderUpdated", Some(&alice)).await;
         assert_eq!(
             scoped.expect("a resolvable identity → ok"),
             vec![("owner_id".to_string(), serde_json::json!("a-1"))],
@@ -346,7 +347,7 @@ mod row_visibility_596 {
         let state = SubscriptionState::new(manager).with_live_subscription_policies(Some(live));
 
         // Before the reload: no policy → unscoped (deliver-all), even for an anonymous sub.
-        let before = resolve_subscription_rls(&state, "orderUpdated", None).await;
+        let before = resolve_subscription_rls(&state, None, "orderUpdated", None).await;
         assert_eq!(before.expect("no policy → ok"), Vec::new());
 
         // Reload adds a policy for orderUpdated.
@@ -356,7 +357,7 @@ mod row_visibility_596 {
 
         // A NEW anonymous subscription now sees the added policy → refused (fail-closed),
         // NOT deliver-all. This is the layer-1 guarantee that closes the fail-open window.
-        let after = resolve_subscription_rls(&state, "orderUpdated", None).await;
+        let after = resolve_subscription_rls(&state, None, "orderUpdated", None).await;
         assert!(
             after.is_err(),
             "a hot-reloaded policy must apply to new subscriptions (fail-closed): {after:?}"
@@ -379,7 +380,7 @@ mod row_visibility_596 {
             .with_live_subscription_policies(Some(live_empty));
 
         // The live (empty) source wins over the snapshot → unscoped, not the snapshot's refuse.
-        let r = resolve_subscription_rls(&state, "orderUpdated", None).await;
+        let r = resolve_subscription_rls(&state, None, "orderUpdated", None).await;
         assert_eq!(
             r.expect("live source removed the policy → unscoped"),
             Vec::new(),
@@ -396,7 +397,7 @@ mod row_visibility_596 {
         let manager = Arc::new(SubscriptionManager::new(Arc::new(CompiledSchema::default())));
         let state = SubscriptionState::new(manager).with_subscription_policies(Arc::new(snapshot));
 
-        let r = resolve_subscription_rls(&state, "orderUpdated", None).await;
+        let r = resolve_subscription_rls(&state, None, "orderUpdated", None).await;
         assert!(r.is_err(), "snapshot policy still fails closed for an anonymous sub: {r:?}");
     }
 }

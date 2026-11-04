@@ -9,7 +9,7 @@
 //! - `handshake()` validates JWT tokens and returns 5-minute HMAC-SHA256 session tokens
 //! - `do_get()`, `do_action()`, `do_put()`, `do_exchange()` require valid session tokens via
 //!   "Authorization: Bearer" header
-//! - Session tokens are validated using `validate_session_token()` helper
+//! - Session tokens are validated using the `validate_session()` helper
 //! - Extracted tokens come from `extract_session_token()` helper
 //! - `SecurityContext` created for each request to enable Row-Level Security (RLS)
 //! - Admin operations (cache invalidation, schema refresh) require "admin" scope
@@ -51,8 +51,7 @@ use tonic::{Code, Status};
 
 // Re-export auth helpers for use across submodules
 pub(crate) use self::auth::{
-    create_session_token, extract_session_token, map_security_error_to_status,
-    validate_session_token,
+    create_session_token, extract_session_token, map_security_error_to_status, validate_session,
 };
 // Public under `testing` so the executed-SQL integration suite (#715,
 // tests/insert_sql_pg.rs) can run the generated INSERT against real Postgres.
@@ -218,6 +217,10 @@ pub struct FraiseQLFlightService {
     /// dispatched it unresolved, so an enrichment-declaring deployment had its requests
     /// refused by the engine's fail-closed backstop (#1336).
     pub(crate) identity_enricher: Option<Arc<dyn fraiseql_core::security::IdentityEnricher>>,
+    /// The token revocation check, installed at serve time when the server has a
+    /// revocation store: the handshake and every session-authenticated call consult it,
+    /// as `/graphql` does. `None`: no store, nothing to consult.
+    pub(crate) revocation_check: Option<Arc<dyn fraiseql_core::security::TokenRevocationCheck>>,
     /// The claim a session token names its tenant by: the compiled schema's tenant claim,
     /// installed at serve time. `None` gives a principal no tenant.
     pub(crate) tenant_claim: Option<String>,
@@ -299,4 +302,36 @@ pub(crate) struct SessionTokenClaims {
     /// roles and attributes the token gives every other transport.
     #[serde(default)]
     pub(crate) claims:       std::collections::HashMap<String, serde_json::Value>,
+    /// The token the session was opened with, as the revocation store knows it. Required:
+    /// a session that does not carry it cannot be checked against the store, so it does
+    /// not decode, and its holder performs the handshake again.
+    pub(crate) source:       SessionSource,
+}
+
+/// The revocation identity of the token a session was opened with: its own `jti` and
+/// `iat`, each `None` when the token has none, exactly as the HTTP transports read them.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub(crate) struct SessionSource {
+    /// The token's `jti` claim.
+    pub(crate) jti: Option<String>,
+    /// The token's `iat` claim.
+    pub(crate) iat: Option<i64>,
+}
+
+impl SessionSource {
+    /// The `jti` and `iat` of `token`, read without verifying it: the caller has.
+    pub(crate) fn of(token: &str) -> Self {
+        #[derive(Deserialize)]
+        struct Claims {
+            jti: Option<String>,
+            iat: Option<i64>,
+        }
+        jsonwebtoken::dangerous::insecure_decode::<Claims>(token).map_or_else(
+            |_| Self::default(),
+            |d| Self {
+                jti: d.claims.jti,
+                iat: d.claims.iat,
+            },
+        )
+    }
 }

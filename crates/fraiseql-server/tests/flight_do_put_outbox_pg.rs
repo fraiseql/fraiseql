@@ -171,7 +171,7 @@ async fn flight_adapter() -> Arc<dyn ArrowDatabaseAdapter> {
     ))
 }
 
-/// A session token of exactly the shape `validate_session_token` accepts.
+/// A session token of exactly the shape `validate_session` accepts.
 fn session_token() -> String {
     use jsonwebtoken::{Algorithm, EncodingKey, Header, encode};
     use serde::{Deserialize, Serialize};
@@ -183,6 +183,7 @@ fn session_token() -> String {
         iat:          i64,
         scopes:       Vec<String>,
         session_type: String,
+        source:       serde_json::Value,
     }
 
     let now = fraiseql_time::Timestamp::now();
@@ -192,6 +193,7 @@ fn session_token() -> String {
         iat:          now.as_second(),
         scopes:       vec!["user".to_string()],
         session_type: "flight".to_string(),
+        source:       serde_json::json!({"jti": null, "iat": null}),
     };
 
     encode(

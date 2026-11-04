@@ -99,6 +99,14 @@ impl AdmissionPolicy {
         stamp_trace: false,
         enrich:      true,
     };
+    /// A `/ws` upgrade, and each periodic re-check of the connection it opens. The auth
+    /// layer in front of `/ws` authenticates the connection (a bearer token or a service
+    /// account), so no API key is read here.
+    pub const SUBSCRIPTION: Self = Self {
+        api_key:     false,
+        stamp_trace: false,
+        enrich:      true,
+    };
 }
 
 /// Why admission refused a request. A transport maps it to its own wire; the refusal

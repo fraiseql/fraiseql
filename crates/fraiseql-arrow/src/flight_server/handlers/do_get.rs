@@ -7,9 +7,7 @@ use arrow_flight::Ticket;
 use tonic::{Request, Response, Status};
 use tracing::info;
 
-use super::super::{
-    FlightDataStream, FraiseQLFlightService, extract_session_token, validate_session_token,
-};
+use super::super::{FlightDataStream, FraiseQLFlightService, extract_session_token};
 use crate::ticket::FlightTicket;
 
 /// `do_get` handler: fetch a data stream identified by the supplied ticket.
@@ -30,7 +28,7 @@ pub(super) async fn handle(
         .session_secret
         .as_deref()
         .ok_or_else(|| Status::internal("FLIGHT_SESSION_SECRET not configured"))?;
-    let authenticated_user = validate_session_token(&session_token, secret)?;
+    let authenticated_user = super::admit_session(svc, &session_token, secret).await?;
 
     info!(
         user_id = %authenticated_user.user_id,

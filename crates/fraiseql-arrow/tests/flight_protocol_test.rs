@@ -72,7 +72,7 @@ where
 
 const TEST_SECRET: &str = "flight-protocol-test-secret-32-x";
 
-/// JWT claims matching the shape expected by `validate_session_token`.
+/// JWT claims matching the shape expected by `validate_session`.
 #[derive(Serialize)]
 struct TestClaims {
     sub:          String,
@@ -80,6 +80,7 @@ struct TestClaims {
     iat:          i64,
     scopes:       Vec<String>,
     session_type: String,
+    source:       serde_json::Value,
 }
 
 /// Create a valid HS256 session token signed with the test secret.
@@ -92,6 +93,7 @@ fn make_session_token() -> String {
         iat:          now.as_second(),
         scopes:       vec!["user".to_string()],
         session_type: "flight".to_string(),
+        source:       serde_json::json!({"jti": null, "iat": null}),
     };
     encode(
         &Header::new(Algorithm::HS256),
