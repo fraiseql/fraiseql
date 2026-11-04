@@ -299,6 +299,7 @@ fn aggregate_sum_produces_correct_sql() {
         table_name:               "tf_sales".to_string(),
         type_name:                None,
         row_scope:                FactRowScope::Server,
+        inject_params:            indexmap::IndexMap::default(),
         measures:                 vec![MeasureColumn {
             name:       "amount".to_string(),
             sql_type:   SqlType::Decimal,
@@ -368,6 +369,7 @@ fn aggregate_group_by_produces_correct_sql() {
         table_name:               "tf_sales".to_string(),
         type_name:                None,
         row_scope:                fraiseql_core::compiler::fact_table::FactRowScope::Server,
+        inject_params:            indexmap::IndexMap::default(),
         measures:                 vec![MeasureColumn {
             name:       "amount".to_string(),
             sql_type:   SqlType::Decimal,

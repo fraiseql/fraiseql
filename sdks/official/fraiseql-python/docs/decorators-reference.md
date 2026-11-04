@@ -293,12 +293,18 @@ fraiseql.fact_table(
   filter and dimension path must be a field of it, and its read gates apply
 - `row_scope` (optional): `"relation"` when the relation filters its own rows by tenant on a
   value the server sets per request; the server then adds no tenant predicate
+- `inject` (optional): Filters the server composes into every aggregate and window over the
+  table, `{column: "jwt:<claim>"}`: each column a denormalized filter, equal to the caller's
+  claim. A caller without the claim, or without a token, is refused. Absent, the table
+  inherits its linked type's `inject_params` when the type declares any; a declaration
+  naming another source for the same column fails to compile. Not with `row_scope`
 - `native_measures` (optional): Measure paths stored as flat columns, `{path: column}`
 - `native_dimension_mapping` (optional): Dimension paths stored as flat columns,
   `{path: column}`; each column must be a denormalized filter
 
-Raises `ValueError` on a duplicate `table_name`, a `row_scope` other than `"relation"`, or an
-unknown additivity kind.
+Raises `ValueError` on a duplicate `table_name`, a `row_scope` other than `"relation"`, an
+unknown additivity kind, or an `inject` entry that is not `"jwt:<claim>"` on a denormalized
+filter, or that sits beside `row_scope`.
 
 ### Dimension Path Structure
 

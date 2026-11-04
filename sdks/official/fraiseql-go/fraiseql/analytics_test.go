@@ -2,6 +2,7 @@ package fraiseql
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 )
 
@@ -76,6 +77,56 @@ func TestFactTableRowScopeIsEmitted(t *testing.T) {
 	}
 	if got, present := onlyFactTable(t)["row_scope"]; present {
 		t.Errorf("row_scope: want the key absent, got %v", got)
+	}
+}
+
+// #1800: a fact table's own inject params reach the schema in their structured form.
+func TestFactTableInjectParamsAreEmitted(t *testing.T) {
+	Reset()
+	err := NewFactTable("data").
+		TableName("tf_sales").
+		DenormalizedFilter("tenant_id", "text", true).
+		InjectParams(map[string]string{"tenant_id": "jwt:tid"}).
+		Measure("revenue", "Float", false).
+		Register()
+	if err != nil {
+		t.Fatalf("Register failed: %v", err)
+	}
+	got, _ := json.Marshal(onlyFactTable(t)["inject_params"])
+	if want := `{"tenant_id":{"claim":"tid","source":"jwt"}}`; string(got) != want {
+		t.Errorf("inject_params: want %s, got %s", want, got)
+	}
+}
+
+// #1800: inject params the server cannot honour as a filter on the table's rows are
+// refused at Register, and nothing is registered.
+func TestFactTableInjectParamsTheServerCannotHonourAreRefused(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		inject   map[string]string
+		rowScope string
+		want     string
+	}{
+		{"optional claim", map[string]string{"tenant_id": "jwt_optional:tid"}, "", `"jwt:<claim>"`},
+		{"not a filter column", map[string]string{"owner_id": "jwt:sub"}, "", "not one of its denormalized filters"},
+		{"beside row scope", map[string]string{"tenant_id": "jwt:tid"}, RowScopeRelation, "declare one"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			Reset()
+			err := NewFactTable("data").
+				TableName("tf_sales").
+				DenormalizedFilter("tenant_id", "text", true).
+				RowScope(tc.rowScope).
+				InjectParams(tc.inject).
+				Measure("revenue", "Float", false).
+				Register()
+			if err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("want an error containing %q, got %v", tc.want, err)
+			}
+			if _, present := schemaMap(t)["fact_tables"]; present {
+				t.Errorf("a refused fact table must not be registered")
+			}
+		})
 	}
 }
 

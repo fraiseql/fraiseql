@@ -228,6 +228,42 @@ describe("SchemaRegistry", () => {
       expect(SchemaRegistry.getSchema().fact_tables![0].row_scope).toBe("relation");
     });
 
+    it("emits its own inject params, structured (#1800)", () => {
+      SchemaRegistry.registerFactTable(
+        "tf_sales",
+        [{ name: "revenue", sql_type: "Float", nullable: false }],
+        { name: "data", paths: [] },
+        [{ name: "tenant_id", sql_type: "text", indexed: true }],
+        { inject: { tenant_id: "jwt:tid" } }
+      );
+
+      expect(SchemaRegistry.getSchema().fact_tables![0].inject_params).toEqual({
+        tenant_id: { source: "jwt", claim: "tid" },
+      });
+    });
+
+    it.each([
+      ["an optional claim", { tenant_id: "jwt_optional:tid" }, undefined, "only 'jwt:<claim>'"],
+      ["a column that is not a filter", { owner_id: "jwt:sub" }, undefined, "owner_id"],
+      [
+        "a declaration beside rowScope",
+        { tenant_id: "jwt:tid" },
+        "relation" as const,
+        "declare one",
+      ],
+    ])("refuses %s in inject, registering nothing (#1800)", (_label, inject, rowScope, message) => {
+      expect(() =>
+        SchemaRegistry.registerFactTable(
+          "tf_sales",
+          [{ name: "revenue", sql_type: "Float", nullable: false }],
+          { name: "data", paths: [] },
+          [{ name: "tenant_id", sql_type: "text", indexed: true }],
+          { inject, rowScope }
+        )
+      ).toThrow(message);
+      expect(SchemaRegistry.getSchema().fact_tables ?? []).toHaveLength(0);
+    });
+
     it("omits row_scope when none is declared", () => {
       SchemaRegistry.registerFactTable(
         "tf_sales",

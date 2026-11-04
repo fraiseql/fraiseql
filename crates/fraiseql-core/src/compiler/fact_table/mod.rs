@@ -68,6 +68,14 @@ pub struct FactTableMetadata {
     /// Who keeps one tenant's aggregate and window from reading another's rows (#1799).
     #[serde(default, skip_serializing_if = "FactRowScope::is_server")]
     pub row_scope:                FactRowScope,
+    /// The row filters the server applies to the table's aggregate and window roots (#1800),
+    /// as a query's `inject_params` filter its rows: each key is one of the
+    /// `denormalized_filters`, compared with the value its source resolves for the caller.
+    ///
+    /// Empty: the roots inherit the linked type's own `inject_params`, if it declares any
+    /// ([`CompiledSchema::fact_table_inject_scope`](crate::schema::CompiledSchema::fact_table_inject_scope)).
+    #[serde(default, skip_serializing_if = "indexmap::IndexMap::is_empty")]
+    pub inject_params:            indexmap::IndexMap<String, crate::schema::InjectedParamSource>,
     /// Measures (aggregatable numeric columns)
     pub measures:                 Vec<MeasureColumn>,
     /// Dimension column (JSONB)

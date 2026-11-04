@@ -56,6 +56,7 @@ fn sales_metadata() -> FactTableMetadata {
         table_name:               FACT_TABLE.to_string(),
         type_name:                None,
         row_scope:                FactRowScope::Server,
+        inject_params:            fraiseql_core::indexmap::IndexMap::default(),
         measures:                 vec![MeasureColumn {
             name:       "revenue".to_string(),
             sql_type:   SqlType::Decimal,

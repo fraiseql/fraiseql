@@ -9,9 +9,10 @@
 //!
 //! A fact table is scoped in such a schema when its linked type is read through injected
 //! queries, or when one of its denormalized filter columns is a column the schema
-//! injects. Until the server can apply that scope to an analytics root, it refuses the
-//! root rather than read across tenants. A fact table whose relation filters its own rows
-//! declares `row_scope = "relation"`.
+//! injects. Nothing scoping it, the server refuses the root rather than read across
+//! tenants. Three declarations scope it: the fact table's own `inject_params` (#1800), its
+//! linked type's, which it inherits, and `row_scope = "relation"` for a relation that
+//! filters its own rows.
 //!
 //! Drives the real `Server::serve_on_listener` mount over a real socket, with HS256
 //! tokens, against real PostgreSQL.
@@ -123,6 +124,7 @@ fn fact_table(table_name: &str, row_scope: FactRowScope) -> FactTableMetadata {
         table_name: table_name.to_string(),
         type_name: None,
         row_scope,
+        inject_params: fraiseql_core::indexmap::IndexMap::default(),
         measures: vec![MeasureColumn {
             name:       "amount".to_string(),
             sql_type:   SqlType::Decimal,
@@ -191,6 +193,38 @@ fn build_relation_scoped_schema() -> CompiledSchema {
     schema
 }
 
+/// [`build_schema`] with the fact table scoped by its own `inject_params` (#1800): its
+/// `tenant_id` column from the claim the list root injects it from.
+fn build_inject_scoped_schema() -> CompiledSchema {
+    let mut schema = build_schema();
+    let mut table = fact_table(FACT_TABLE, FactRowScope::Server);
+    table
+        .inject_params
+        .insert("tenant_id".to_string(), InjectedParamSource::Jwt(CLAIM.to_string()));
+    schema.add_fact_table(FACT_TABLE.to_string(), table);
+    schema.build_indexes();
+    schema
+}
+
+/// [`build_schema`] with the fact table read as type `Probe`, which injects `tenant_id`:
+/// the fact table inherits the type's `inject_params` (#1800).
+fn build_inheriting_schema() -> CompiledSchema {
+    let mut schema = build_schema();
+    let mut probe = TestTypeBuilder::new("Probe", FACT_TABLE)
+        .with_field(TestFieldBuilder::new("amount", FieldType::Float).build())
+        .with_field(TestFieldBuilder::new("tenant_id", FieldType::String).build())
+        .build();
+    probe
+        .inject_params
+        .insert("tenant_id".to_string(), InjectedParamSource::Jwt(CLAIM.to_string()));
+    schema.types.push(probe);
+    let mut table = fact_table(FACT_TABLE, FactRowScope::Server);
+    table.type_name = Some("Probe".to_string());
+    schema.add_fact_table(FACT_TABLE.to_string(), table);
+    schema.build_indexes();
+    schema
+}
+
 /// Server config with HS256 auth wired the way an operator would wire it.
 fn auth_config() -> ServerConfig {
     ServerConfig {
@@ -207,20 +241,27 @@ fn auth_config() -> ServerConfig {
 
 /// Mint an HS256 token carrying the tenant claim.
 fn token_for(tenant: &str) -> String {
+    token_with(Some(tenant))
+}
+
+/// Mint an HS256 token, carrying the tenant claim when `tenant` is `Some`.
+fn token_with(tenant: Option<&str>) -> String {
     use jsonwebtoken::{Algorithm, EncodingKey, Header, encode};
 
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .expect("system time before epoch")
         .as_secs();
-    let claims = json!({
-        "sub": format!("user-of-{tenant}"),
+    let mut claims = json!({
+        "sub": format!("user-of-{}", tenant.unwrap_or("nobody")),
         "iss": ISSUER,
         "aud": AUDIENCE,
-        CLAIM: tenant,
         "iat": now,
         "exp": now + 3600,
     });
+    if let Some(tenant) = tenant {
+        claims[CLAIM] = json!(tenant);
+    }
     encode(
         &Header::new(Algorithm::HS256),
         &claims,
@@ -454,6 +495,121 @@ async fn an_anonymous_relation_scoped_aggregate_reads_no_rows() {
         let body = aggregate_body_over("tenant_probe_scoped");
         let response = post_graphql(&server.url, None, &body).await;
         assert_eq!(response["data"]["tenant_probe_scoped_aggregate"], json!([]), "{response}");
+    }))
+    .await;
+}
+
+// ---------------------------------------------------------------------------
+// Scoped by `inject_params` (#1800)
+// ---------------------------------------------------------------------------
+
+/// Each tenant's aggregate over a fact table its own `inject_params` scope counts exactly
+/// its own rows, while the other tenant's are in the table.
+#[tokio::test]
+async fn an_inject_scoped_aggregate_reads_exactly_the_callers_tenant() {
+    Box::pin(temp_env::async_with_vars([(SECRET_ENV, Some(SECRET))], async {
+        let Some(server) = start(true, build_inject_scoped_schema()).await else {
+            eprintln!("skipping: DATABASE_URL not set");
+            return;
+        };
+        assert_eq!(rows_in_the_table(TENANT_A).await, 2, "tenant A's rows must be present");
+        assert_eq!(rows_in_the_table(TENANT_B).await, 3, "tenant B's rows must be present");
+        for (tenant, count) in [(TENANT_A, 2), (TENANT_B, 3)] {
+            let response =
+                post_graphql(&server.url, Some(&token_for(tenant)), &aggregate_body()).await;
+            assert_eq!(
+                response["data"]["tenant_probe_aggregate"],
+                json!([{"tenant_id": tenant, "count": count}]),
+                "{tenant}: {response}"
+            );
+        }
+    }))
+    .await;
+}
+
+/// As [`an_inject_scoped_aggregate_reads_exactly_the_callers_tenant`], for the window root.
+#[tokio::test]
+async fn an_inject_scoped_window_reads_exactly_the_callers_tenant() {
+    Box::pin(temp_env::async_with_vars([(SECRET_ENV, Some(SECRET))], async {
+        let Some(server) = start(true, build_inject_scoped_schema()).await else {
+            eprintln!("skipping: DATABASE_URL not set");
+            return;
+        };
+        for (tenant, count) in [(TENANT_A, 2), (TENANT_B, 3)] {
+            let response =
+                post_graphql(&server.url, Some(&token_for(tenant)), &window_body()).await;
+            let rows =
+                response["data"]["tenant_probe_window"].as_array().cloned().unwrap_or_default();
+            assert_eq!(rows.len(), count, "{tenant} owns {count} rows: {response}");
+            assert!(rows.iter().all(|r| r["tenant_id"] == tenant), "{tenant}: {response}");
+        }
+    }))
+    .await;
+}
+
+/// A fact table read as a type that injects `tenant_id` inherits the filter: the read #1799
+/// refused is served, scoped.
+#[tokio::test]
+async fn an_inherited_scope_reads_exactly_the_callers_tenant() {
+    Box::pin(temp_env::async_with_vars([(SECRET_ENV, Some(SECRET))], async {
+        let Some(server) = start(true, build_inheriting_schema()).await else {
+            eprintln!("skipping: DATABASE_URL not set");
+            return;
+        };
+        let response =
+            post_graphql(&server.url, Some(&token_for(TENANT_B)), &aggregate_body()).await;
+        assert_eq!(
+            response["data"]["tenant_probe_aggregate"],
+            json!([{"tenant_id": TENANT_B, "count": 3}]),
+            "{response}"
+        );
+        let response = post_graphql(&server.url, Some(&token_for(TENANT_B)), &window_body()).await;
+        let rows = response["data"]["tenant_probe_window"].as_array().cloned().unwrap_or_default();
+        assert_eq!(rows.len(), 3, "tenant B owns 3 rows: {response}");
+        assert!(rows.iter().all(|r| r["tenant_id"] == TENANT_B), "{response}");
+    }))
+    .await;
+}
+
+/// The filters cannot be resolved without a principal, or without the claim: refused, and
+/// no tenant's rows are read.
+#[tokio::test]
+async fn an_inject_scoped_read_without_the_claim_reads_no_tenants_rows() {
+    Box::pin(temp_env::async_with_vars([(SECRET_ENV, Some(SECRET))], async {
+        let Some(server) = start(true, build_inject_scoped_schema()).await else {
+            eprintln!("skipping: DATABASE_URL not set");
+            return;
+        };
+        let token = token_with(None);
+        for (label, body) in [("aggregate", aggregate_body()), ("window", window_body())] {
+            let response = post_graphql(&server.url, Some(&token), &body).await;
+            let data = response.get("data").map(ToString::to_string).unwrap_or_default();
+            assert!(!data.contains(TENANT_A) && !data.contains(TENANT_B), "{label}: {response}");
+            let errors = response.get("errors").map(ToString::to_string).unwrap_or_default();
+            assert!(
+                errors.contains(&format!("JWT claim '{CLAIM}' not present")),
+                "{label}: {response}"
+            );
+        }
+    }))
+    .await;
+}
+
+/// With no auth configured, an anonymous request reaches the executor, which refuses it.
+#[tokio::test]
+async fn an_anonymous_inject_scoped_read_reads_no_tenants_rows() {
+    Box::pin(temp_env::async_with_vars([(SECRET_ENV, Some(SECRET))], async {
+        let Some(server) = start(false, build_inject_scoped_schema()).await else {
+            eprintln!("skipping: DATABASE_URL not set");
+            return;
+        };
+        for (label, body) in [("aggregate", aggregate_body()), ("window", window_body())] {
+            let response = post_graphql(&server.url, None, &body).await;
+            let data = response.get("data").map(ToString::to_string).unwrap_or_default();
+            assert!(!data.contains(TENANT_A) && !data.contains(TENANT_B), "{label}: {response}");
+            let errors = response.get("errors").map(ToString::to_string).unwrap_or_default();
+            assert!(errors.contains("without a security context"), "{label}: {response}");
+        }
     }))
     .await;
 }

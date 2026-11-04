@@ -71,6 +71,7 @@ fn fact_table(table: &str) -> FactTableMetadata {
         table_name:               table.to_string(),
         type_name:                None,
         row_scope:                FactRowScope::Server,
+        inject_params:            indexmap::IndexMap::default(),
         measures:                 vec![
             measure("closing_balance", semi(SemiAdditiveReduction::Last)),
             measure("bal_first", semi(SemiAdditiveReduction::First)),

@@ -8,6 +8,7 @@ use crate::{
     error::{FraiseQLError, Result},
     graphql::FieldSelection,
     runtime::suggestions_for,
+    schema::FactInjectOrigin,
     security::{RlsWhereClause, SecurityContext, rls_policy::RlsTarget},
 };
 
@@ -246,6 +247,99 @@ impl AggregateRunner {
             }),
             None => Ok(()),
         }
+    }
+
+    /// The filters a fact table's `inject_params` put on its roots for `principal` (#1800), as
+    /// a list root's query puts its own: one `<column> = <value>` per param, the value resolved
+    /// from the caller.
+    ///
+    /// Read off the schema's registration of the table, which metadata handed in cannot
+    /// remove. An inherited scope stands in for #1799's refusal only: under a row policy the
+    /// policy scopes the roots, as before. A caller the filters cannot be resolved for is
+    /// refused: one with no security context, and one whose token lacks a claim. In the two
+    /// executors, so the GraphQL dispatch and the embedder entries, which pass no principal,
+    /// both meet it.
+    fn inject_conditions(
+        &self,
+        query_name: &str,
+        metadata: &crate::compiler::fact_table::FactTableMetadata,
+        security_context: Option<&SecurityContext>,
+    ) -> Result<Vec<WhereClause>> {
+        let schema = &self.ctx.schema;
+        let table = schema.get_fact_table(&metadata.table_name).unwrap_or(metadata);
+        let Some(scope) = schema.fact_table_inject_scope(table) else {
+            return Ok(Vec::new());
+        };
+        if matches!(scope.origin, FactInjectOrigin::Inherited(_))
+            && self.ctx.config.rls_policy.is_some()
+        {
+            return Ok(Vec::new());
+        }
+        let Some(principal) = security_context else {
+            return Err(FraiseQLError::Validation {
+                message: format!(
+                    "Query '{query_name}' reads fact table '{}', which is scoped by {}, which a \
+                     request without a security context cannot resolve",
+                    table.table_name, scope.origin
+                ),
+                path:    None,
+            });
+        };
+        let native_columns = crate::runtime::native_columns::filter_columns_to_native_map(
+            &table.denormalized_filters,
+        );
+        scope
+            .params
+            .iter()
+            .map(|(column, source)| {
+                let value = super::super::resolve_inject_value(
+                    column,
+                    source,
+                    principal,
+                    schema.tenant_claim(),
+                )?;
+                // Each column is one of the table's denormalized filters
+                // (`fact_table_inject_scope`), compared as the parser compares a
+                // caller's filter on it.
+                Ok(WhereClause::NativeField {
+                    column: column.clone(),
+                    pg_cast: native_columns.get(column).cloned().unwrap_or_default(),
+                    operator: crate::backend::where_clause::WhereOperator::Eq,
+                    value,
+                })
+            })
+            .collect()
+    }
+
+    /// The `WHERE` an aggregate or a window over `metadata` runs under: the row policy's
+    /// predicate for the principal, then the fact table's `inject_params` filters, then the
+    /// caller's own filter, AND-ed in that order so the caller's can only narrow them.
+    ///
+    /// SECURITY (#795): the policy is looked up by the fact table the root field resolved,
+    /// never the client's `table` key. This runs *before* the planner's reconciliation check,
+    /// so it must be correct on its own: an unpolicied name returns `None`, which composed no
+    /// WHERE clause at all and silently dropped the tenant filter.
+    fn scoped_where(
+        &self,
+        query_name: &str,
+        metadata: &crate::compiler::fact_table::FactTableMetadata,
+        security_context: Option<&SecurityContext>,
+        inject: Vec<WhereClause>,
+        user: Option<WhereClause>,
+    ) -> Result<Option<WhereClause>> {
+        let policy = match (security_context, self.ctx.config.rls_policy.as_ref()) {
+            (Some(ctx), Some(policy)) => policy
+                .evaluate(ctx, &RlsTarget::fact_table(query_name, &metadata.table_name))?
+                .map(RlsWhereClause::into_where_clause),
+            _ => None,
+        };
+        let mut conditions: Vec<WhereClause> =
+            policy.into_iter().chain(inject).chain(user).collect();
+        Ok(match conditions.len() {
+            0 => None,
+            1 => conditions.pop(),
+            _ => Some(WhereClause::And(conditions)),
+        })
     }
 
     /// Execute an aggregate query dispatch.
@@ -560,6 +654,7 @@ impl AggregateRunner {
     ) -> Result<serde_json::Value> {
         self.refuse_anonymous_under_a_row_policy(query_name, security_context)?;
         self.refuse_an_unscoped_tenant_read(query_name, metadata)?;
+        let inject = self.inject_conditions(query_name, metadata, security_context)?;
 
         // 1. Parse JSON query into AggregationRequest. Build native_columns from
         //    denormalized_filters so the parser can emit direct column references instead of JSONB
@@ -619,30 +714,11 @@ impl AggregateRunner {
             )?);
         }
 
-        // 1b. Evaluate RLS policy and compose with user-supplied WHERE.
-        //     RLS WHERE is always AND-composed first so it cannot be bypassed.
-        if let Some(ctx) = security_context {
-            let rls_where: Option<RlsWhereClause> = if let Some(ref policy) =
-                self.ctx.config.rls_policy
-            {
-                // SECURITY (#795): look the policy up by the fact table the root field
-                // resolved, never the client's `table` key. This runs *before* the
-                // planner's reconciliation check, so it must be correct on its own:
-                // an unpolicied name returns `None`, which composed no WHERE clause at
-                // all and silently dropped the tenant filter.
-                policy.evaluate(ctx, &RlsTarget::fact_table(query_name, &metadata.table_name))?
-            } else {
-                None
-            };
-            request.where_clause = match (
-                rls_where.map(RlsWhereClause::into_where_clause),
-                request.where_clause.take(),
-            ) {
-                (Some(rls), Some(user)) => Some(WhereClause::And(vec![rls, user])),
-                (Some(rls), None) => Some(rls),
-                (None, user) => user,
-            };
-        }
+        // 1b. Compose the row policy and the fact table's inject filters before the caller's own
+        //     filter, so it cannot bypass them.
+        let user = request.where_clause.take();
+        request.where_clause =
+            self.scoped_where(query_name, metadata, security_context, inject, user)?;
 
         // 2. Generate the execution plan
         let mut plan =
@@ -781,6 +857,7 @@ impl AggregateRunner {
     ) -> Result<serde_json::Value> {
         self.refuse_anonymous_under_a_row_policy(query_name, security_context)?;
         self.refuse_an_unscoped_tenant_read(query_name, metadata)?;
+        let inject = self.inject_conditions(query_name, metadata, security_context)?;
 
         // 1. Parse JSON query into WindowRequest
         let mut request = crate::runtime::WindowQueryParser::parse(query_json, metadata)?;
@@ -820,30 +897,11 @@ impl AggregateRunner {
             }
         }
 
-        // 1b. Evaluate RLS policy and compose with user-supplied WHERE.
-        //     RLS WHERE is always AND-composed first so it cannot be bypassed.
-        if let Some(ctx) = security_context {
-            let rls_where: Option<RlsWhereClause> = if let Some(ref policy) =
-                self.ctx.config.rls_policy
-            {
-                // SECURITY (#795): look the policy up by the fact table the root field
-                // resolved, never the client's `table` key. This runs *before* the
-                // planner's reconciliation check, so it must be correct on its own:
-                // an unpolicied name returns `None`, which composed no WHERE clause at
-                // all and silently dropped the tenant filter.
-                policy.evaluate(ctx, &RlsTarget::fact_table(query_name, &metadata.table_name))?
-            } else {
-                None
-            };
-            request.where_clause = match (
-                rls_where.map(RlsWhereClause::into_where_clause),
-                request.where_clause.take(),
-            ) {
-                (Some(rls), Some(user)) => Some(WhereClause::And(vec![rls, user])),
-                (Some(rls), None) => Some(rls),
-                (None, user) => user,
-            };
-        }
+        // 1b. Compose the row policy and the fact table's inject filters before the caller's own
+        //     filter, so it cannot bypass them.
+        let user = request.where_clause.take();
+        request.where_clause =
+            self.scoped_where(query_name, metadata, security_context, inject, user)?;
 
         // 2. Generate execution plan (validates semantic names against metadata) Text keys sort
         //    under the request locale's collation (#1512).
@@ -897,3 +955,7 @@ impl AggregateRunner {
 #[cfg(test)]
 #[path = "aggregate_tests.rs"]
 mod aggregate_rls_tests;
+
+#[cfg(test)]
+#[path = "aggregate_inject_tests.rs"]
+mod aggregate_inject_tests;

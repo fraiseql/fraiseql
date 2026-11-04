@@ -638,6 +638,12 @@
     },
     {
       "table_name": "tf_account_day",
+      "inject_params": {
+        "account_id": {
+          "source": "jwt",
+          "claim": "account_id"
+        }
+      },
       "measures": [
         {
           "name": "closing_balance",

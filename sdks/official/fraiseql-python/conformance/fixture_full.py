@@ -356,9 +356,11 @@ fraiseql.fact_table(
 )
 
 # #1459: an unlinked fact table of balances. A balance is reduced per account and per
-# bucket (its last known value) before it is summed across accounts.
+# bucket (its last known value) before it is summed across accounts. #1800: a caller reads
+# only the balances of the account its token names, a filter the server composes in.
 fraiseql.fact_table(
     "tf_account_day",
+    inject={"account_id": "jwt:account_id"},
     measures=[
         {
             "name": "closing_balance",

@@ -5,8 +5,8 @@
 //! An aggregate or a window root has no `inject_params`, and the server installs no row
 //! policy, so in a schema whose reads inject the caller's tenant those roots would read
 //! every tenant's rows. The server refuses them; the compiler refuses the schema first,
-//! naming the fact table, why it is scoped, and the declaration a relation that filters
-//! its own rows makes.
+//! naming the fact table, why it is scoped, and the declarations that scope it: the fact
+//! table's own `inject_params` (#1800), or a relation that filters its own rows.
 //!
 //! **Execution engine:** in-memory (no database required)
 //! **Infrastructure:** none
@@ -14,7 +14,10 @@
 //! working directory, so cases in separate `#[tokio::test]`s would race on `chdir`.
 
 use fraiseql_cli::commands::compile::{CompileOptions, compile_to_schema};
-use fraiseql_core::{compiler::fact_table::FactRowScope, schema::CompiledSchema};
+use fraiseql_core::{
+    compiler::fact_table::FactRowScope,
+    schema::{CompiledSchema, InjectedParamSource},
+};
 use serde_json::{Value, json};
 use tempfile::TempDir;
 
@@ -77,6 +80,7 @@ async fn compile_refuses_a_tenant_scoped_fact_table_nothing_scopes() {
         "names the fact table and the matched inject key: {msg}"
     );
     assert!(msg.contains("row_scope = \"relation\""), "names the way out: {msg}");
+    assert!(msg.contains("inject_params"), "names the other way out (#1800): {msg}");
 
     // A relation that filters its own rows says so, and the declaration reaches the artifact.
     let compiled = compile(&schema(true, &json!({"row_scope": "relation"})))
@@ -88,6 +92,41 @@ async fn compile_refuses_a_tenant_scoped_fact_table_nothing_scopes() {
     for extra in [json!({}), json!({"row_scope": "relation"})] {
         let result = compile(&schema(false, &extra)).await;
         assert!(result.is_ok(), "{extra}: an unscoped schema compiles: {:?}", result.err());
+    }
+
+    // #1800: a fact table declaring its own `inject_params` is scoped by them, in either
+    // accepted shape, and the declaration reaches the artifact.
+    for inject in [
+        json!({"tenant_id": {"source": "jwt", "claim": "tid"}}),
+        json!({"tenant_id": "jwt:tid"}),
+    ] {
+        let compiled = compile(&schema(true, &json!({"inject_params": inject})))
+            .await
+            .map_err(|e| format!("{inject}: a fact table its inject params scope compiles: {e:#}"))
+            .unwrap();
+        assert_eq!(
+            compiled.get_fact_table("tf_sales").unwrap().inject_params.get("tenant_id"),
+            Some(&InjectedParamSource::Jwt("tid".to_string())),
+            "{inject}"
+        );
+    }
+
+    // An absent claim cannot filter rows, refused as the converter refuses it on a query;
+    // and a filter needs a column of the table.
+    for (inject, expected) in [
+        (
+            json!({"tenant_id": "jwt_optional:tid"}),
+            "'jwt_optional' is for mutation arguments",
+        ),
+        (
+            json!({"owner_id": "jwt:tid"}),
+            "'owner_id' is not one of its denormalized filter columns",
+        ),
+    ] {
+        let err = compile(&schema(true, &json!({"inject_params": inject})))
+            .await
+            .expect_err("an inject param the runtime cannot honour must not compile");
+        assert!(format!("{err:#}").contains(expected), "{inject}: {err:#}");
     }
 
     // Only the one mode is accepted.

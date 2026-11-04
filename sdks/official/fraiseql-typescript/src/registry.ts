@@ -318,6 +318,8 @@ export interface FactTableDefinition {
   type_name?: string;
   /** Who scopes its rows per tenant (see `registerFactTable`). */
   row_scope?: "relation";
+  /** Filters the server composes into its aggregates and windows (see `registerFactTable`). */
+  inject_params?: Record<string, { source: "jwt"; claim: string }>;
   measures: Measure[];
   dimensions: Dimension;
   denormalized_filters: DenormalizedFilter[];
@@ -1287,15 +1289,29 @@ export class SchemaRegistry {
    *   value the server sets per request (a `current_setting(...)` fed by a JWT-sourced session
    *   variable, never client input), and the server adds no tenant predicate to its aggregate
    *   and window roots (#1799). In a schema that scopes its reads by inject params, a fact
-   *   table read as such a type, or with a column they inject, is refused at compile without it.
+   *   table read as such a type, or with a column they inject, is refused at compile without
+   *   it, unless `options.inject` scopes it.
+   * @param options.inject - Filters the server composes into every aggregate and window over
+   *   the table (#1800): `{ column: "jwt:<claim>" }`, each column one of `denormalizedFilters`,
+   *   equal to the caller's claim. A caller without the claim, or without a token, is refused.
+   *   Absent, the table inherits its linked type's `inject_params` when the type declares any.
+   *   Not with `rowScope`.
+   * @throws Error on an `inject` entry that is not `"jwt:<claim>"` on a denormalized filter, or
+   *   that sits beside `rowScope`.
    */
   static registerFactTable(
     tableName: string,
     measures: Measure[],
     dimensions: Dimension,
     denormalizedFilters: DenormalizedFilter[],
-    options?: { typeName?: string; rowScope?: "relation" }
+    options?: { typeName?: string; rowScope?: "relation"; inject?: Record<string, string> }
   ): void {
+    const injectParams = factTableInjectParams(
+      tableName,
+      options?.inject,
+      denormalizedFilters,
+      options?.rowScope
+    );
     const factTable: FactTableDefinition = {
       table_name: tableName,
       measures,
@@ -1304,6 +1320,7 @@ export class SchemaRegistry {
     };
     if (options?.typeName) factTable.type_name = options.typeName;
     if (options?.rowScope) factTable.row_scope = options.rowScope;
+    if (injectParams) factTable.inject_params = injectParams;
     this.factTables.set(tableName, factTable);
   }
 
@@ -1599,4 +1616,45 @@ export class SchemaRegistry {
     this.functions.clear();
     this.customScalars.clear();
   }
+}
+
+/**
+ * Validate `registerFactTable`'s `inject` option and return it in its structured wire form
+ * (#1800), or `undefined` when none is declared.
+ *
+ * @throws Error on an entry the server cannot honour as a filter on the table's rows.
+ */
+function factTableInjectParams(
+  tableName: string,
+  inject: Record<string, string> | undefined,
+  denormalizedFilters: DenormalizedFilter[],
+  rowScope: "relation" | undefined
+): Record<string, { source: "jwt"; claim: string }> | undefined {
+  if (!inject || Object.keys(inject).length === 0) return undefined;
+  const owner = `fact table '${tableName}'`;
+  if (rowScope) {
+    throw new Error(
+      `${owner}: rowScope '${rowScope}' (the relation filters its own rows) and inject (the ` +
+        "server filters them): declare one."
+    );
+  }
+  const filters = denormalizedFilters.map((f) => f.name).sort();
+  const injectParams: Record<string, { source: "jwt"; claim: string }> = {};
+  for (const [column, spec] of Object.entries(inject)) {
+    const claim = typeof spec === "string" && spec.startsWith("jwt:") ? spec.slice(4) : "";
+    if (!claim) {
+      throw new Error(
+        `${owner}: inject source '${String(spec)}' for column '${column}' filters rows, and ` +
+          "only 'jwt:<claim>' can."
+      );
+    }
+    if (!filters.includes(column)) {
+      throw new Error(
+        `${owner}: inject column '${column}' is not one of its denormalized filters ` +
+          `(${filters.map((f) => `'${f}'`).join(", ") || "it has none"}).`
+      );
+    }
+    injectParams[column] = { source: "jwt", claim };
+  }
+  return injectParams;
 }

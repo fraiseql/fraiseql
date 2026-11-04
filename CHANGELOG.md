@@ -37,6 +37,20 @@ disagreed, and the promise was the part that was wrong.
     with `registerFactTable(..., { rowScope: "relation" })`.
   - `FactTableMetadata` (`fraiseql-core`) and `IntermediateFactTable` (`fraiseql-cli`) gain
     `row_scope: FactRowScope`; a struct literal of either must set it.
+  - A fact table its own or its type's `inject_params` scope is no longer refused (#1800, see
+    Added).
+
+- **A fact table's `inject_params` the server cannot honour refuse the schema (#1800).**
+  `fraiseql compile` and the server's schema load refuse, naming the fact table:
+  - an injected column that is not one of its `denormalized_filters`;
+  - a `jwt_optional` source: an absent claim cannot filter rows (use `jwt`);
+  - `inject_params` beside `row_scope = "relation"`: declare one;
+  - a source for a column that contradicts the one its linked type declares for it.
+
+  A schema that declares no fact-table `inject_params` loads and answers as before. A type
+  whose `inject_params` its fact table cannot take is not refused: the table stays unscoped,
+  and its roots are refused as above, with the reason. `FactTableMetadata` and
+  `IntermediateFactTable` gain `inject_params`; a struct literal of either must set it.
 
 - **`OtpRouteState` has an `allow_gate` field (#1852).** A struct literal naming every field
   needs `allow_gate: None`, which keeps today's behaviour.
@@ -236,6 +250,21 @@ disagreed, and the promise was the part that was wrong.
   Rename it and recompile.
 
 ### Added
+
+- **A fact table's aggregate and window roots are scoped by `inject_params` (#1800).** The
+  server composes each injected column equal to its value from the caller's token into every
+  `_aggregate` and `_window` over the table, after a row policy's predicate and before the
+  caller's own `where`, which can only narrow it. A request without a token, or without the
+  claim, is refused.
+  - A fact table declares its own `inject_params` on its denormalized filter columns, or,
+    declaring none, inherits its linked type's. Errors name which: `its own inject params` or
+    `the inject params inherited from type 'T'`. Under a row policy, an inherited
+    declaration adds nothing; a fact table's own composes with the policy.
+  - The public `Executor::execute_aggregate_query` and `execute_window_query` entries take no
+    principal, so they refuse a fact table its `inject_params` scope.
+  - The Python SDK declares it with `fraiseql.fact_table(inject={...})`, the Go SDK with
+    `.InjectParams(...)`, the TypeScript SDK with `registerFactTable(..., { inject })`.
+    Each refuses what the server would. See `docs/modules/fact-table.md`.
 
 - **A mutation's transaction can run again when PostgreSQL aborts it with `40P01` (deadlock)
   or `40001` (serialization failure) (#1879).** Off by default: a retried function runs its

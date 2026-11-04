@@ -90,6 +90,52 @@ def test_a_row_scope_other_than_relation_is_refused():
         fraiseql.fact_table("tf_sales", measures=[REVENUE], row_scope="server")
 
 
+TENANT = {"name": "tenant_id", "sql_type": "text", "indexed": True}
+
+
+def test_inject_reaches_the_schema_as_structured_inject_params():
+    fraiseql.fact_table(
+        "tf_sales",
+        measures=[REVENUE],
+        denormalized_filters=[TENANT],
+        inject={"tenant_id": "jwt:tid"},
+    )
+
+    table = SchemaRegistry.get_schema()["fact_tables"][0]
+    assert table["inject_params"] == {"tenant_id": {"source": "jwt", "claim": "tid"}}
+
+
+def test_an_optional_claim_cannot_filter_a_fact_table():
+    with pytest.raises(ValueError, match="jwt:tid"):
+        fraiseql.fact_table(
+            "tf_sales",
+            measures=[REVENUE],
+            denormalized_filters=[TENANT],
+            inject={"tenant_id": "jwt_optional:tid"},
+        )
+
+
+def test_an_inject_column_must_be_a_denormalized_filter():
+    with pytest.raises(ValueError, match="owner_id"):
+        fraiseql.fact_table(
+            "tf_sales",
+            measures=[REVENUE],
+            denormalized_filters=[TENANT],
+            inject={"owner_id": "jwt:sub"},
+        )
+
+
+def test_inject_beside_row_scope_is_refused():
+    with pytest.raises(ValueError, match="declare one"):
+        fraiseql.fact_table(
+            "tf_sales",
+            measures=[REVENUE],
+            denormalized_filters=[TENANT],
+            row_scope="relation",
+            inject={"tenant_id": "jwt:tid"},
+        )
+
+
 def test_an_unknown_additivity_kind_is_refused():
     measure = {**REVENUE, "additivity": {"kind": "sometimes"}}
     with pytest.raises(ValueError, match="additivity"):

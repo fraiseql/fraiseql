@@ -837,6 +837,7 @@ fn fact_table_add_and_get() {
         table_name:               "tf_sales".to_string(),
         type_name:                None,
         row_scope:                FactRowScope::Server,
+        inject_params:            indexmap::IndexMap::default(),
         measures:                 vec![],
         dimensions:               DimensionColumn {
             name:  "data".to_string(),
@@ -862,6 +863,7 @@ fn list_fact_tables_returns_all_names() {
         table_name:               name.to_string(),
         type_name:                None,
         row_scope:                crate::compiler::fact_table::FactRowScope::Server,
+        inject_params:            indexmap::IndexMap::default(),
         measures:                 vec![],
         dimensions:               DimensionColumn {
             name:  "data".to_string(),
@@ -2597,6 +2599,7 @@ mod fact_table_hierarchy {
                 table_name:               "tf_org".to_string(),
                 type_name:                None,
                 row_scope:                crate::compiler::fact_table::FactRowScope::Server,
+                inject_params:            indexmap::IndexMap::default(),
                 measures:                 vec![],
                 dimensions:               DimensionColumn {
                     name:  "data".to_string(),

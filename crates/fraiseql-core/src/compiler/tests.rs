@@ -20,6 +20,7 @@ mod compiler_tests {
             table_name:               "tf_sales".to_string(),
             type_name:                None,
             row_scope:                FactRowScope::Server,
+            inject_params:            indexmap::IndexMap::default(),
             measures:                 vec![],
             dimensions:               DimensionColumn {
                 name:  "data".to_string(),
@@ -82,6 +83,7 @@ mod window_allowlist_tests {
             table_name:               "tf_sales".to_string(),
             type_name:                None,
             row_scope:                crate::compiler::fact_table::FactRowScope::Server,
+            inject_params:            indexmap::IndexMap::default(),
             measures:                 vec![
                 MeasureColumn {
                     name:       "revenue".to_string(),
@@ -214,6 +216,7 @@ mod aggregation_tests {
             table_name:               "tf_sales".to_string(),
             type_name:                None,
             row_scope:                crate::compiler::fact_table::FactRowScope::Server,
+            inject_params:            indexmap::IndexMap::default(),
             measures:                 vec![
                 MeasureColumn {
                     name:       "revenue".to_string(),
@@ -622,6 +625,7 @@ mod window_order_by_allowlist_tests {
             table_name:               "tf_sales".to_string(),
             type_name:                None,
             row_scope:                crate::compiler::fact_table::FactRowScope::Server,
+            inject_params:            indexmap::IndexMap::default(),
             measures:                 vec![MeasureColumn {
                 name:       "revenue".to_string(),
                 sql_type:   SqlType::Decimal,
@@ -775,6 +779,7 @@ mod window_order_by_allowlist_tests {
             table_name:               "tf_sales".to_string(),
             type_name:                None,
             row_scope:                crate::compiler::fact_table::FactRowScope::Server,
+            inject_params:            indexmap::IndexMap::default(),
             measures:                 vec![],
             dimensions:               DimensionColumn {
                 name:  "dimensions".to_string(),

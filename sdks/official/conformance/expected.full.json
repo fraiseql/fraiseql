@@ -68,6 +68,12 @@
         "name": "data",
         "paths": []
       },
+      "inject_params": {
+        "account_id": {
+          "claim": "account_id",
+          "source": "jwt"
+        }
+      },
       "measures": [
         {
           "additivity": {
@@ -104,6 +110,7 @@
           }
         ]
       },
+      "inject_params": null,
       "measures": [
         {
           "additivity": null,

@@ -198,6 +198,7 @@ impl FactTableDetector {
             table_name: table_name.to_string(),
             type_name: None,
             row_scope: super::FactRowScope::Server,
+            inject_params: indexmap::IndexMap::default(),
             measures,
             dimensions: dimension_column.unwrap_or(DimensionColumn {
                 name:  "dimensions".to_string(),
@@ -678,6 +679,7 @@ impl FactTableDetector {
             table_name,
             type_name: None,
             row_scope: super::FactRowScope::Server,
+            inject_params: indexmap::IndexMap::default(),
             measures,
             dimensions,
             denormalized_filters: filters,

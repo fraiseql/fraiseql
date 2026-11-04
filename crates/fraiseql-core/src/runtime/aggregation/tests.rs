@@ -15,6 +15,7 @@ fn create_aggregation_test_metadata() -> crate::compiler::fact_table::FactTableM
         table_name:               "tf_sales".to_string(),
         type_name:                None,
         row_scope:                FactRowScope::Server,
+        inject_params:            indexmap::IndexMap::default(),
         measures:                 vec![MeasureColumn {
             name:       "revenue".to_string(),
             sql_type:   SqlType::Decimal,
@@ -42,6 +43,7 @@ fn create_test_plan() -> AggregationPlan {
         table_name:               "tf_sales".to_string(),
         type_name:                None,
         row_scope:                FactRowScope::Server,
+        inject_params:            indexmap::IndexMap::default(),
         measures:                 vec![MeasureColumn {
             name:       "revenue".to_string(),
             sql_type:   SqlType::Decimal,
@@ -665,6 +667,7 @@ fn make_string_where_plan(_db: DatabaseType) -> AggregationPlan {
         table_name:               "tf_sales".to_string(),
         type_name:                None,
         row_scope:                FactRowScope::Server,
+        inject_params:            indexmap::IndexMap::default(),
         measures:                 vec![],
         dimensions:               DimensionColumn {
             name:  "data".to_string(),
@@ -731,6 +734,7 @@ fn test_parameterized_postgres_placeholder_numbering() {
         table_name:               "tf_sales".to_string(),
         type_name:                None,
         row_scope:                FactRowScope::Server,
+        inject_params:            indexmap::IndexMap::default(),
         measures:                 vec![MeasureColumn {
             name:       "revenue".to_string(),
             sql_type:   SqlType::Decimal,
@@ -814,6 +818,7 @@ fn test_parameterized_in_array_expands_to_multiple_placeholders() {
         table_name:               "tf_sales".to_string(),
         type_name:                None,
         row_scope:                FactRowScope::Server,
+        inject_params:            indexmap::IndexMap::default(),
         measures:                 vec![],
         dimensions:               DimensionColumn {
             name:  "data".to_string(),
@@ -870,6 +875,7 @@ fn test_aggregation_plan_uses_native_measure() {
         table_name:               "mv_daily_sales".to_string(),
         type_name:                None,
         row_scope:                FactRowScope::Server,
+        inject_params:            indexmap::IndexMap::default(),
         measures:                 vec![MeasureColumn {
             name:       "volume".to_string(),
             sql_type:   SqlType::BigInt,
@@ -922,6 +928,7 @@ fn test_native_measure_sql_uses_quoted_identifier() {
         table_name:               "mv_daily_sales".to_string(),
         type_name:                None,
         row_scope:                FactRowScope::Server,
+        inject_params:            indexmap::IndexMap::default(),
         measures:                 vec![],
         dimensions:               DimensionColumn {
             name:  "data".to_string(),
@@ -976,6 +983,7 @@ fn test_non_native_measure_unchanged() {
         table_name:               "tf_sales".to_string(),
         type_name:                None,
         row_scope:                FactRowScope::Server,
+        inject_params:            indexmap::IndexMap::default(),
         measures:                 vec![MeasureColumn {
             name:       "revenue".to_string(),
             sql_type:   SqlType::Decimal,
@@ -1033,6 +1041,7 @@ fn test_native_dimension_mapping_sql_output() {
         table_name:               "mv_daily_sales".to_string(),
         type_name:                None,
         row_scope:                FactRowScope::Server,
+        inject_params:            indexmap::IndexMap::default(),
         measures:                 vec![],
         dimensions:               DimensionColumn {
             name:  "data".to_string(),

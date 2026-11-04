@@ -300,7 +300,8 @@ Methods:
 - `NewFactTable(dimensionsColumn string)` - Start a fact table whose dimensions live in that JSONB column
 - `TableName(string)` - Underlying database table name
 - `TypeName(string)` - The type the fact table is read as
-- `RowScope(fraiseql.RowScopeRelation)` - The relation filters its own rows by tenant, on a value the server sets per request; the server adds no tenant predicate. Required on a fact table read per tenant that no row policy scopes
+- `RowScope(fraiseql.RowScopeRelation)` - The relation filters its own rows by tenant, on a value the server sets per request; the server adds no tenant predicate. Required on a fact table read per tenant that no row policy scopes, unless `InjectParams` scopes it
+- `InjectParams(map[string]string{"tenant_id": "jwt:tid"})` - Filters the server composes into every aggregate and window over the table: each key a denormalized filter column, equal to the caller's claim. A caller without the claim, or without a token, is refused. Without it, the table inherits its linked type's inject params when the type declares any. `Register` refuses an optional claim, a column that is not a denormalized filter, and a declaration beside `RowScope`
 - `Measure(name, sqlType string, nullable bool)` - Add a measure column
 - `Dimension(name, jsonPath, dataType string)` - Add a dimension path reading the dimensions column
 - `DenormalizedFilter(name, sqlType string, indexed bool)` - Add a filter column

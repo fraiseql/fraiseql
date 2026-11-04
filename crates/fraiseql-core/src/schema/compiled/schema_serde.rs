@@ -702,6 +702,18 @@ impl CompiledSchema {
                 path:    Some("fact_tables.type_name".to_string()),
             });
         }
+        // #1800: a fact table's own `inject_params` filter its roots' rows; a declaration the
+        // runtime cannot honour as written never loads.
+        let violations = self.fact_table_inject_violations();
+        if !violations.is_empty() {
+            return Err(FraiseQLError::Validation {
+                message: format!(
+                    "fact table inject params cannot be enforced as declared:\n  - {}",
+                    violations.join("\n  - ")
+                ),
+                path:    Some("fact_tables.inject_params".to_string()),
+            });
+        }
         let violations = self.fact_table_mapping_violations();
         if !violations.is_empty() {
             return Err(FraiseQLError::Validation {

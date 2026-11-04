@@ -38,6 +38,7 @@ fn fact_table(table: &str) -> FactTableMetadata {
         table_name:               table.to_string(),
         type_name:                None,
         row_scope:                FactRowScope::Server,
+        inject_params:            indexmap::IndexMap::default(),
         measures:                 vec![
             measure("amount", SqlType::Decimal),
             measure("qty", SqlType::BigInt),

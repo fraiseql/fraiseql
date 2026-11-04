@@ -295,9 +295,11 @@ func authorFull() error {
 	}
 
 	// #1459: an unlinked fact table of balances. A balance is reduced per account and per
-	// bucket (its last known value) before it is summed across accounts.
+	// bucket (its last known value) before it is summed across accounts. #1800: a caller
+	// reads only the balances of the account its token names, a filter the server composes in.
 	if err := fraiseql.NewFactTable("data").
 		TableName("tf_account_day").
+		InjectParams(map[string]string{"account_id": "jwt:account_id"}).
 		SemiAdditiveMeasure("closing_balance", "numeric", false, "day", fraiseql.ReduceLast, "account_id").
 		DenormalizedFilter("account_id", "bigint", true).
 		DenormalizedFilter("day", "date", true).

@@ -911,6 +911,7 @@ fn create_native_metadata() -> fraiseql_core::compiler::fact_table::FactTableMet
         table_name:               "tf_metrics".to_string(),
         type_name:                None,
         row_scope:                fraiseql_core::compiler::fact_table::FactRowScope::Server,
+        inject_params:            indexmap::IndexMap::default(),
         measures:                 vec![MeasureColumn {
             name:       "raw_value".to_string(),
             sql_type:   SqlType::Decimal,

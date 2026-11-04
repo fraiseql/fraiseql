@@ -51,6 +51,7 @@ fn fact_table() -> FactTableMetadata {
         table_name:               TABLE.to_string(),
         type_name:                None,
         row_scope:                FactRowScope::Server,
+        inject_params:            indexmap::IndexMap::default(),
         measures:                 vec![
             MeasureColumn {
                 name:       "amount".to_string(),

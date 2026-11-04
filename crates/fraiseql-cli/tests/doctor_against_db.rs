@@ -574,6 +574,7 @@ async fn doctor_names_a_carried_forward_measure_no_index_serves() {
             table_name:               TABLE.to_string(),
             type_name:                None,
             row_scope:                FactRowScope::Server,
+            inject_params:            indexmap::IndexMap::default(),
             measures:                 vec![
                 measure("closing_balance", semi(SemiAdditiveReduction::Last)),
                 measure("average_balance", semi(SemiAdditiveReduction::Avg)),

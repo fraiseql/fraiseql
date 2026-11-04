@@ -499,11 +499,12 @@ evaluated without one.
 
 ## Tenant scoping of aggregate and window roots
 
-An `<name>_aggregate` or `<name>_window` root has no `inject_params` of its own. The server
-applies **no tenant predicate** to it: the only clause it can compose there is a row policy's
+An `<name>_aggregate` or `<name>_window` root has no query, so no query `inject_params` of its
+own. The server scopes it by what the **fact table** declares: its own `inject_params`, those
+it inherits from the type it is read as, or a relation that filters its own rows. A row policy
 (`RuntimeConfig::with_rls_policy`, which an embedder installs; `fraiseql-server` installs
-none). So in a schema that scopes its reads by tenant, these roots would read every tenant's
-rows, and they are refused instead.
+none) applies as well. A fact table that a schema scoping its reads by tenant leaves unscoped
+would read every tenant's rows, and its roots are refused instead.
 
 A fact table is **tenant-scoped** when either:
 
@@ -515,16 +516,62 @@ A fact table is **tenant-scoped** when either:
 `[fraiseql.tenancy] mode = "row"` counts: `@tenant_id` is lowered onto the queries'
 `inject_params` before this is decided.
 
-For a tenant-scoped fact table:
+For a tenant-scoped fact table that none of the three declarations below scopes:
 
 - `fraiseql compile` refuses the schema, naming the fact table and the injected column or
-  type that scopes it.
+  type that scopes it, and the declarations that would scope it.
 - With no row policy installed, the server refuses its aggregate and window roots, for every
   caller, anonymous included: `Query '<root>' reads fact table '<table>', which this schema
   scopes by tenant (…), but no row policy scopes its aggregate and window roots: refused
   rather than read across tenants`. The public `Executor::execute_aggregate_query` and
   `execute_window_query` entries refuse the same way. Metadata passed to them can make a
   table tenant-scoped, never the reverse: the schema's registration of the table decides.
+
+### The fact table's own filters: `inject_params`
+
+A fact table declares the filters the server composes into every aggregate and window over
+it, as a query declares its own:
+
+```json
+"fact_tables": [{
+  "table_name": "tf_sales",
+  "inject_params": {"tenant_id": {"source": "jwt", "claim": "tenant_id"}},
+  "measures": [ … ],
+  "dimensions": { … },
+  "denormalized_filters": [{"name": "tenant_id", "sql_type": "text", "indexed": true}]
+}]
+```
+
+The intermediate schema also accepts the flat form `{"tenant_id": "jwt:tenant_id"}`. The
+Python (`fraiseql.fact_table(inject=…)`), TypeScript (`registerFactTable(…, { inject })`) and
+Go (`NewFactTable(…).InjectParams(…)`) SDKs author it.
+
+Each request's `WHERE` is the row policy's predicate, if any, AND each injected column equal
+to its value from the caller's token, AND the caller's own `where`, so the caller's filter can
+only narrow the scope. A request without a token is refused, as is a token without the claim:
+the filter cannot be resolved, and the root is never read without it.
+
+A declaration the server cannot honour does not load, naming the fact table:
+
+- a column that is not one of its `denormalized_filters`;
+- a `jwt_optional` source (an absent claim cannot filter rows: use `jwt`);
+- `inject_params` beside `row_scope = "relation"` (declare one);
+- a source for a column that contradicts the one its linked type declares for it.
+
+### Inherited from the type it is read as
+
+A fact table that declares no `inject_params` inherits its linked type's (`type_name`), when
+the type declares any and each names one of the fact table's `denormalized_filters` with a
+`jwt` source. Errors say which applied: `its own inject params`, or `the inject params
+inherited from type 'Sale'`.
+
+Inheritance is read off the type's own declaration only, never off a query that happens to
+inject a column of the same name. A type whose `inject_params` the fact table cannot take
+leaves it unscoped, refused as before, and the refusal says why.
+
+Under a row policy, an inherited declaration adds nothing: the policy already scopes the
+roots, as it did before inheritance existed. A fact table's own declaration composes with the
+policy.
 
 ### A relation that filters its own rows: `row_scope = "relation"`
 
@@ -561,7 +608,8 @@ WHERE tenant_id = NULLIF(current_setting('app.tenant_id', true), '');
 A request with no token sets no value, so the view returns no rows. A `header` session
 variable is client-controlled and must never feed such a filter.
 
-`row_scope = "relation"` on a fact table that is not tenant-scoped changes nothing.
+`row_scope = "relation"` on a fact table that is not tenant-scoped changes nothing. A
+relation-scoped fact table inherits no `inject_params` from its type.
 
 ---
 

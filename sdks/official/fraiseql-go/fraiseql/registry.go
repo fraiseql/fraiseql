@@ -214,12 +214,13 @@ type FilterDefinition struct {
 // `name` the compiler does not read and `dimension_paths` where the compiler reads a
 // `dimensions` object, on top of the `measures` mismatch above.
 type FactTableDefinition struct {
-	TableName           string               `json:"table_name"`
-	TypeName            string               `json:"type_name,omitempty"`
-	RowScope            string               `json:"row_scope,omitempty"`
-	Measures            []MeasureDefinition  `json:"measures"`
-	Dimensions          DimensionsDefinition `json:"dimensions"`
-	DenormalizedFilters []FilterDefinition   `json:"denormalized_filters"`
+	TableName           string                 `json:"table_name"`
+	TypeName            string                 `json:"type_name,omitempty"`
+	RowScope            string                 `json:"row_scope,omitempty"`
+	InjectParams        map[string]interface{} `json:"inject_params,omitempty"`
+	Measures            []MeasureDefinition    `json:"measures"`
+	Dimensions          DimensionsDefinition   `json:"dimensions"`
+	DenormalizedFilters []FilterDefinition     `json:"denormalized_filters"`
 }
 
 // SubscriptionFilterCondition maps one subscription argument onto a JSON path in the

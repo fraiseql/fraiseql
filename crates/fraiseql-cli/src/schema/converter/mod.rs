@@ -473,12 +473,8 @@ impl SchemaConverter {
             .fact_tables
             .unwrap_or_default()
             .into_iter()
-            .map(|ft| {
-                let name = ft.table_name.clone();
-                let metadata = Self::convert_fact_table(ft);
-                (name, metadata)
-            })
-            .collect();
+            .map(|ft| Ok((ft.table_name.clone(), Self::convert_fact_table(ft)?)))
+            .collect::<Result<_>>()?;
 
         let mut compiled = CompiledSchema {
             types,
@@ -936,12 +932,29 @@ impl SchemaConverter {
     }
 
     /// Convert `IntermediateFactTable` to `FactTableMetadata`.
-    pub(crate) fn convert_fact_table(ft: IntermediateFactTable) -> FactTableMetadata {
-        FactTableMetadata {
-            table_name:               ft.table_name,
-            type_name:                ft.type_name,
-            row_scope:                ft.row_scope,
-            measures:                 ft
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for an inject source that is not `jwt:<claim>` (#1800): the table's
+    /// `inject_params` filter rows, which an absent claim cannot.
+    pub(crate) fn convert_fact_table(ft: IntermediateFactTable) -> Result<FactTableMetadata> {
+        let owner = format!("Fact table '{}'", ft.table_name);
+        let inject_params = ft
+            .inject_params
+            .into_iter()
+            .map(|(column, source)| {
+                let parsed = Self::parse_inject_source(&source)
+                    .with_context(|| format!("{owner}: inject param '{column}'"))?;
+                Self::refuse_optional_row_filter(&owner, &column, &parsed)?;
+                Ok((column, parsed))
+            })
+            .collect::<Result<indexmap::IndexMap<_, _>>>()?;
+        Ok(FactTableMetadata {
+            table_name: ft.table_name,
+            type_name: ft.type_name,
+            row_scope: ft.row_scope,
+            inject_params,
+            measures: ft
                 .measures
                 .into_iter()
                 .map(|m| MeasureColumn {
@@ -951,7 +964,7 @@ impl SchemaConverter {
                     additivity: m.additivity,
                 })
                 .collect(),
-            dimensions:               DimensionColumn {
+            dimensions: DimensionColumn {
                 name:  ft.dimensions.name,
                 paths: ft
                     .dimensions
@@ -964,7 +977,7 @@ impl SchemaConverter {
                     })
                     .collect(),
             },
-            denormalized_filters:     ft
+            denormalized_filters: ft
                 .denormalized_filters
                 .into_iter()
                 .map(|f| FilterColumn {
@@ -974,10 +987,10 @@ impl SchemaConverter {
                     hierarchy: f.hierarchy,
                 })
                 .collect(),
-            calendar_dimensions:      vec![],
-            native_measures:          ft.native_measures,
+            calendar_dimensions: vec![],
+            native_measures: ft.native_measures,
             native_dimension_mapping: ft.native_dimension_mapping,
-        }
+        })
     }
 
     /// Parse a SQL type string into a `SqlType` enum variant.

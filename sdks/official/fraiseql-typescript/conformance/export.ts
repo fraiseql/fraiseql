@@ -343,7 +343,8 @@ function authorFull(): void {
   );
 
   // #1459: an unlinked fact table of balances. A balance is reduced per account and per
-  // bucket (its last known value) before it is summed across accounts.
+  // bucket (its last known value) before it is summed across accounts. #1800: a caller reads
+  // only the balances of the account its token names, a filter the server composes in.
   SchemaRegistry.registerFactTable(
     "tf_account_day",
     [
@@ -358,7 +359,8 @@ function authorFull(): void {
     [
       { name: "account_id", sql_type: "bigint", indexed: true },
       { name: "day", sql_type: "date", indexed: true },
-    ]
+    ],
+    { inject: { account_id: "jwt:account_id" } }
   );
 
   // #1325: the function authoring path, through the decorator — the documented

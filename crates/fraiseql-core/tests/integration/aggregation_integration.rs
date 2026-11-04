@@ -40,6 +40,7 @@ fn create_test_metadata() -> FactTableMetadata {
         table_name:               "tf_sales".to_string(),
         type_name:                None,
         row_scope:                FactRowScope::Server,
+        inject_params:            indexmap::IndexMap::default(),
         measures:                 vec![
             MeasureColumn {
                 name:       "revenue".to_string(),

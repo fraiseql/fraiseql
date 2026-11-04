@@ -24,6 +24,16 @@ pub struct IntermediateFactTable {
     /// sets per request (#1799). Absent: the server scopes them, or refuses the read.
     #[serde(default, skip_serializing_if = "FactRowScope::is_server")]
     pub row_scope:                FactRowScope,
+    /// The row filters the server applies to the table's aggregate and window roots (#1800),
+    /// one per denormalized filter column: `{"tenant_id": "jwt:org_id"}` or the nested form
+    /// every SDK emits. Absent: the linked type's own `inject_params` scope them, when it
+    /// declares any.
+    #[serde(
+        default,
+        with = "super::operations::inject_params_serde",
+        skip_serializing_if = "indexmap::IndexMap::is_empty"
+    )]
+    pub inject_params:            indexmap::IndexMap<String, String>,
     /// Measure columns (numeric aggregates)
     pub measures:                 Vec<IntermediateMeasure>,
     /// Dimension metadata

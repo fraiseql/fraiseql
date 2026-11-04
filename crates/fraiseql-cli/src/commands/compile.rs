@@ -726,11 +726,12 @@ fn refuse_what_a_server_would_not_load(schema: &CompiledSchema) -> Result<()> {
 
 /// Refuse a tenant-scoped fact table whose aggregate and window roots nothing scopes (#1799).
 ///
-/// An aggregate or a window root has no `inject_params`; the server scopes it only through
-/// a row policy, which it does not install, and refuses it otherwise. A schema that scopes
-/// a fact table's rows by tenant ([`CompiledSchema::unenforced_tenant_scope`]) would serve
-/// those roots as refusals only, so it is refused here, naming the way out: a relation that
-/// filters its own rows declares `row_scope = "relation"`.
+/// The server scopes those roots by the fact table's `inject_params`, declared or inherited
+/// from its linked type (#1800), or by a row policy, which it does not install, and refuses
+/// them otherwise. A schema that scopes a fact table's rows by tenant with none of these
+/// ([`CompiledSchema::unenforced_tenant_scope`]) would serve those roots as refusals only, so
+/// it is refused here, naming the ways out: `inject_params` on the fact table, or
+/// `row_scope = "relation"` for a relation that filters its own rows.
 ///
 /// Not at load: an embedder that installs a row policy scopes the roots, and a load-time
 /// check cannot see one.
@@ -746,11 +747,12 @@ fn refuse_unscoped_fact_tables(schema: &CompiledSchema) -> Result<()> {
     anyhow::bail!(
         "tenant-scoped fact table(s) whose _aggregate and _window roots nothing scopes:\n  - \
          {}\n\n\
-         The server applies no tenant predicate to an aggregate or a window root, so it refuses \
-         them rather than read across tenants. If the relation filters its own rows by tenant \
-         (on a current_setting(...) the server sets from [session_variables], never on client \
-         input), declare `row_scope = \"relation\"` on the fact table; otherwise give it such \
-         a filter first.",
+         Nothing filters these roots' rows by tenant, so the server refuses them rather than \
+         read across tenants. Declare `inject_params` on the fact table, one per denormalized \
+         column the scoped reads filter on (`{{\"tenant_id\": \"jwt:<claim>\"}}`), as a query \
+         declares them. If the relation filters its own rows by tenant (on a \
+         current_setting(...) the server sets from [session_variables], never on client \
+         input), declare `row_scope = \"relation\"` instead.",
         violations.join("\n  - ")
     )
 }

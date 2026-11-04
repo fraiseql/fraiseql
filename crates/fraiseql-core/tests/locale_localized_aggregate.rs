@@ -33,6 +33,7 @@ fn fact_table() -> FactTableMetadata {
         table_name:               TABLE.to_string(),
         type_name:                Some("Sale".to_string()),
         row_scope:                FactRowScope::Server,
+        inject_params:            indexmap::IndexMap::default(),
         measures:                 vec![MeasureColumn {
             name:       "qty".to_string(),
             sql_type:   SqlType::BigInt,

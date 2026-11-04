@@ -14,7 +14,7 @@ use crate::{
     security::{DefaultRLSPolicy, SecurityContext},
 };
 
-fn tenant_security_context(tenant_id: &str) -> SecurityContext {
+pub(super) fn tenant_security_context(tenant_id: &str) -> SecurityContext {
     SecurityContext {
         user_id:          "user-42".into(),
         roles:            vec!["viewer".to_string()],
@@ -55,7 +55,7 @@ fn admin_security_context() -> SecurityContext {
 
 /// Build a schema with a `tf_sales` fact table that includes `tenant_id` as a
 /// denormalized filter column, so RLS can produce direct-column WHERE clauses.
-fn schema_with_fact_table() -> crate::schema::CompiledSchema {
+pub(super) fn schema_with_fact_table() -> crate::schema::CompiledSchema {
     let mut schema = crate::schema::CompiledSchema::new();
     schema.add_fact_table(
         "tf_sales".to_string(),
@@ -63,6 +63,7 @@ fn schema_with_fact_table() -> crate::schema::CompiledSchema {
             table_name:               "tf_sales".to_string(),
             type_name:                None,
             row_scope:                FactRowScope::Server,
+            inject_params:            indexmap::IndexMap::default(),
             measures:                 vec![MeasureColumn {
                 name:       "revenue".to_string(),
                 sql_type:   SqlType::Decimal,

@@ -90,7 +90,7 @@ impl CompiledSchema {
 /// this one — so a variant added later breaks this match at compile time here, which is
 /// what we want: a new source must be given wording rather than silently rendering as
 /// nothing.
-fn describe_source(source: &InjectedParamSource) -> String {
+pub(super) fn describe_source(source: &InjectedParamSource) -> String {
     match source {
         InjectedParamSource::Jwt(claim) => format!("jwt claim '{claim}'"),
         InjectedParamSource::JwtOptional(claim) => format!("optional jwt claim '{claim}'"),

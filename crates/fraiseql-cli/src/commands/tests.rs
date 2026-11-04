@@ -2249,6 +2249,7 @@ mod introspect_facts_tests {
             table_name:               "tf_sales".to_string(),
             type_name:                None,
             row_scope:                FactRowScope::Server,
+            inject_params:            indexmap::IndexMap::default(),
             measures:                 vec![
                 MeasureColumn {
                     name:       "revenue".to_string(),
@@ -4043,6 +4044,7 @@ mod validate_facts_tests {
             table_name: "tf_sales".to_string(),
             type_name: None,
             row_scope: fraiseql_core::compiler::fact_table::FactRowScope::Server,
+            inject_params: indexmap::IndexMap::default(),
             measures,
             dimensions: DimensionColumn {
                 name:  dim_name.to_string(),

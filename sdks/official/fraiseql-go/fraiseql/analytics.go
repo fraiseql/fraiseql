@@ -1,11 +1,18 @@
 package fraiseql
 
+import (
+	"fmt"
+	"sort"
+	"strings"
+)
+
 // FactTableBuilder provides a fluent interface for building fact table definitions.
 type FactTableBuilder struct {
 	name        string
 	tableName   string
 	typeName    string
 	rowScope    string
+	inject      map[string]string
 	measures    []MeasureDefinition
 	dimensions  []DimensionPathDefinition
 	filters     []FilterDefinition
@@ -41,9 +48,21 @@ func (b *FactTableBuilder) TypeName(name string) *FactTableBuilder {
 // RowScope declares who keeps one tenant's aggregate or window from reading another's rows
 // (#1799). The only mode is RowScopeRelation ("relation"): the relation filters its own
 // rows. In a schema that scopes its reads by inject params, a fact table read as such a
-// type, or with a column they inject, is refused at compile without it.
+// type, or with a column they inject, is refused at compile without it, unless
+// InjectParams scopes it.
 func (b *FactTableBuilder) RowScope(scope string) *FactTableBuilder {
 	b.rowScope = scope
+	return b
+}
+
+// InjectParams declares filters the server composes into every aggregate and window over
+// the table (#1800): each entry maps one of its denormalized filter columns to "jwt:<claim>",
+// the value the column must equal. A caller without the claim, or without a token, is
+// refused. Without it, the table inherits its linked type's inject params when the type
+// declares any. Register refuses an optional claim, a column that is not a denormalized
+// filter, and a declaration beside RowScope.
+func (b *FactTableBuilder) InjectParams(params map[string]string) *FactTableBuilder {
+	b.inject = params
 	return b
 }
 
@@ -117,17 +136,58 @@ func (b *FactTableBuilder) Description(desc string) *FactTableBuilder {
 }
 
 // Register registers the fact table with the global schema registry.
-// Returns an error if a fact table with the same name is already registered.
+// Returns an error if a fact table with the same name is already registered, or if its
+// inject params cannot filter its rows.
 func (b *FactTableBuilder) Register() error {
+	if err := b.checkInjectParams(); err != nil {
+		return err
+	}
+	var injectParams map[string]interface{}
+	if len(b.inject) > 0 {
+		injectParams = parseInjectParams(b.inject)
+	}
 	return RegisterFactTable(FactTableDefinition{
-		TableName: b.tableName,
-		TypeName:  b.typeName,
-		RowScope:  b.rowScope,
-		Measures:  b.measures,
+		TableName:    b.tableName,
+		TypeName:     b.typeName,
+		RowScope:     b.rowScope,
+		InjectParams: injectParams,
+		Measures:     b.measures,
 		Dimensions: DimensionsDefinition{
 			Name:  b.name,
 			Paths: b.dimensions,
 		},
 		DenormalizedFilters: b.filters,
 	})
+}
+
+// checkInjectParams refuses inject params the server cannot honour as filters on the
+// table's rows (#1800).
+func (b *FactTableBuilder) checkInjectParams() error {
+	if len(b.inject) == 0 {
+		return nil
+	}
+	owner := fmt.Sprintf("fact table %q", b.tableName)
+	if b.rowScope != "" {
+		return fmt.Errorf("%s: RowScope(%q) (the relation filters its own rows) and InjectParams (the server filters them): declare one", owner, b.rowScope)
+	}
+	filters := make([]string, 0, len(b.filters))
+	for _, f := range b.filters {
+		filters = append(filters, f.Name)
+	}
+	sort.Strings(filters)
+	columns := make([]string, 0, len(b.inject))
+	for column := range b.inject {
+		columns = append(columns, column)
+	}
+	sort.Strings(columns)
+	for _, column := range columns {
+		claim, ok := strings.CutPrefix(b.inject[column], "jwt:")
+		if !ok || claim == "" {
+			return fmt.Errorf("%s: inject param %q is %q; it filters rows, and only \"jwt:<claim>\" can", owner, column, b.inject[column])
+		}
+		if i := sort.SearchStrings(filters, column); i == len(filters) || filters[i] != column {
+			return fmt.Errorf("%s: inject param %q is not one of its denormalized filters %v", owner, column, filters)
+		}
+	}
+	return nil
 }

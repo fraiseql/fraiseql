@@ -309,12 +309,12 @@ pub(crate) fn declared_fact_tables(
 ) -> Result<std::collections::HashMap<String, FactTableMetadata>> {
     let authoring_err = match serde_json::from_str::<IntermediateSchema>(schema_json) {
         Ok(authoring) => {
-            return Ok(authoring
+            return authoring
                 .fact_tables
                 .unwrap_or_default()
                 .into_iter()
-                .map(|ft| (ft.table_name.clone(), SchemaConverter::convert_fact_table(ft)))
-                .collect());
+                .map(|ft| Ok((ft.table_name.clone(), SchemaConverter::convert_fact_table(ft)?)))
+                .collect();
         },
         Err(e) => e,
     };

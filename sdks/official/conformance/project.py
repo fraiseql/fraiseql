@@ -753,6 +753,9 @@ def project(compiled: dict[str, Any]) -> dict[str, Any]:
             # #1799: `row_scope` is asserted by value. An SDK that drops it emits a fact
             # table the compiler refuses when its type is read per tenant.
             "row_scope": table.get("row_scope"),
+            # #1800: `inject_params` is asserted by value. An SDK that drops it emits a fact
+            # table whose aggregates read every caller's rows.
+            "inject_params": table.get("inject_params"),
             # #1459: a measure's `additivity` is asserted by value. An SDK that drops it emits
             # a schema that compiles and sums a balance across days under a `200`.
             "measures": [

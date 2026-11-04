@@ -27,6 +27,8 @@ pub mod validation;
 #[cfg(test)]
 mod default_literal_tests;
 #[cfg(test)]
+mod fact_table_inject_tests;
+#[cfg(test)]
 mod federation_keys_tests;
 #[cfg(test)]
 mod tests;
@@ -39,6 +41,7 @@ pub use auth_email::{
 pub use directive::{DirectiveDefinition, DirectiveLocationKind};
 pub use fact_table_links::fact_field;
 pub use fact_table_roots::is_fact_table_root;
+pub use fact_table_scope::{FactInjectOrigin, FactInjectScope};
 pub use federation_keys::FederationKeyProblem;
 pub use localized_indexes::LocalizedIndexAdvice;
 pub use mutation::{CascadeSource, InputStyle, MutationDefinition, MutationOperation};

@@ -1827,6 +1827,53 @@ def source(  # noqa: PLR0913 — public API; all parameters are meaningful
 _ADDITIVITY_KINDS = frozenset({"additive", "semi_additive", "delta", "non_additive"})
 
 
+def _fact_table_inject(
+    table_name: str,
+    inject: dict[str, str] | None,
+    denormalized_filters: list[dict[str, Any]] | None,
+    row_scope: str | None,
+) -> dict[str, dict[str, str]]:
+    """Validate ``fact_table(inject=)`` and return it in its structured wire form (#1800).
+
+    Raises:
+        TypeError: If ``inject=`` is not a dict.
+        ValueError: An entry the server cannot honour: not ``jwt:<claim>``, a column that
+            is not a denormalized filter, or a declaration beside ``row_scope``.
+    """
+    if not inject:
+        return {}
+    context = f"fraiseql.fact_table({table_name!r})"
+    if not isinstance(inject, dict):
+        msg = f"{context}: inject= must be a dict (got {inject.__class__.__name__!r})."
+        raise TypeError(msg)
+    if row_scope is not None:
+        msg = (
+            f"{context}: row_scope={row_scope!r} (the relation filters its own rows) and "
+            "inject= (the server filters them): declare one."
+        )
+        raise ValueError(msg)
+    _validate_inject(inject, set(), context)
+    filters = sorted(f["name"] for f in denormalized_filters or [])
+    for column, source in inject.items():
+        if source.startswith("jwt_optional:"):
+            msg = (
+                f"{context}: inject source {source!r} for column {column!r} is optional, "
+                "but it filters rows and an absent claim cannot; use "
+                f"'jwt:{source.split(':', 1)[1]}'."
+            )
+            raise ValueError(msg)
+        if column not in filters:
+            msg = (
+                f"{context}: inject column {column!r} is not one of its "
+                f"denormalized_filters {filters!r}."
+            )
+            raise ValueError(msg)
+    return {
+        column: {"source": "jwt", "claim": source.split(":", 1)[1]}
+        for column, source in inject.items()
+    }
+
+
 def fact_table(  # noqa: PLR0913 — public API; all parameters are meaningful
     table_name: str,
     *,
@@ -1835,6 +1882,7 @@ def fact_table(  # noqa: PLR0913 — public API; all parameters are meaningful
     denormalized_filters: list[dict[str, Any]] | None = None,
     type_name: str | None = None,
     row_scope: str | None = None,
+    inject: dict[str, str] | None = None,
     native_measures: dict[str, str] | None = None,
     native_dimension_mapping: dict[str, str] | None = None,
 ) -> None:
@@ -1861,14 +1909,20 @@ def fact_table(  # noqa: PLR0913 — public API; all parameters are meaningful
             value the server sets per request (a ``current_setting(...)`` fed by a
             JWT-sourced session variable, never client input); the server then adds no
             tenant predicate. Required on a fact table read per tenant that no row policy
-            scopes.
+            scopes, unless ``inject`` scopes it.
+        inject: Filters the server composes into every aggregate and window over the
+            table (#1800): ``{column: "jwt:<claim>"}``, each column one of
+            ``denormalized_filters``, equal to the caller's claim. Absent, the table inherits
+            its linked type's ``inject_params``, when the type declares any. Not with
+            ``row_scope``.
         native_measures: Measure paths stored as flat columns: ``{path: column}``.
         native_dimension_mapping: Dimension paths stored as flat columns: ``{path: column}``.
             Each column must be a denormalized filter.
 
     Raises:
         ValueError: A duplicate ``table_name``, a ``row_scope`` other than ``"relation"``,
-            or a measure whose additivity kind is unknown.
+            a measure whose additivity kind is unknown, or an ``inject`` entry that is not
+            ``"jwt:<claim>"`` on one of ``denormalized_filters``, or beside ``row_scope``.
 
     Examples:
         >>> fraiseql.fact_table(
@@ -1883,6 +1937,7 @@ def fact_table(  # noqa: PLR0913 — public API; all parameters are meaningful
             f"fraiseql.fact_table({table_name!r}): row_scope={row_scope!r} is not a mode; "
             "the only one is 'relation' (omit it to let the server scope the rows)"
         )
+    inject_params = _fact_table_inject(table_name, inject, denormalized_filters, row_scope)
     for measure in measures:
         additivity = measure.get("additivity")
         if additivity is not None and additivity.get("kind") not in _ADDITIVITY_KINDS:
@@ -1896,6 +1951,8 @@ def fact_table(  # noqa: PLR0913 — public API; all parameters are meaningful
         definition["type_name"] = type_name
     if row_scope is not None:
         definition["row_scope"] = row_scope
+    if inject_params:
+        definition["inject_params"] = inject_params
     definition["measures"] = measures
     definition["dimensions"] = (
         dimensions if dimensions is not None else {"name": "data", "paths": []}

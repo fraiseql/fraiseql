@@ -26,6 +26,7 @@ mod aggregate_parser_tests {
             table_name:               "tf_sales".to_string(),
             type_name:                None,
             row_scope:                FactRowScope::Server,
+            inject_params:            indexmap::IndexMap::default(),
             measures:                 vec![
                 MeasureColumn {
                     name:       "revenue".to_string(),
@@ -386,6 +387,7 @@ mod aggregate_parser_tests {
             table_name:               "mv_daily_sales".to_string(),
             type_name:                None,
             row_scope:                FactRowScope::Server,
+            inject_params:            indexmap::IndexMap::default(),
             measures:                 vec![],
             dimensions:               DimensionColumn {
                 name:  "data".to_string(),
@@ -432,6 +434,7 @@ mod aggregate_parser_tests {
             table_name:               "mv_daily_sales".to_string(),
             type_name:                None,
             row_scope:                FactRowScope::Server,
+            inject_params:            indexmap::IndexMap::default(),
             measures:                 vec![],
             dimensions:               DimensionColumn {
                 name:  "data".to_string(),
@@ -470,6 +473,7 @@ mod aggregate_parser_tests {
             table_name:               "mv_daily_sales".to_string(),
             type_name:                None,
             row_scope:                FactRowScope::Server,
+            inject_params:            indexmap::IndexMap::default(),
             measures:                 vec![MeasureColumn {
                 name:       "volume".to_string(),
                 sql_type:   SqlType::BigInt,
@@ -530,6 +534,7 @@ mod aggregate_projector_tests {
             table_name:               "tf_sales".to_string(),
             type_name:                None,
             row_scope:                crate::compiler::fact_table::FactRowScope::Server,
+            inject_params:            indexmap::IndexMap::default(),
             measures:                 vec![MeasureColumn {
                 name:       "revenue".to_string(),
                 sql_type:   SqlType::Decimal,
@@ -4871,6 +4876,7 @@ mod window_parser_tests {
             table_name:               "tf_sales".to_string(),
             type_name:                None,
             row_scope:                crate::compiler::fact_table::FactRowScope::Server,
+            inject_params:            indexmap::IndexMap::default(),
             measures:                 vec![
                 MeasureColumn {
                     name:       "revenue".to_string(),
@@ -5555,6 +5561,7 @@ mod aggregate_argument_forms {
             table_name:               "tf_sales".to_string(),
             type_name:                None,
             row_scope:                FactRowScope::Server,
+            inject_params:            indexmap::IndexMap::default(),
             measures:                 vec![MeasureColumn {
                 name:       "revenue".to_string(),
                 sql_type:   SqlType::Decimal,
@@ -5715,6 +5722,7 @@ mod window_argument_forms {
             table_name:               "tf_sales".to_string(),
             type_name:                None,
             row_scope:                FactRowScope::Server,
+            inject_params:            indexmap::IndexMap::default(),
             measures:                 vec![],
             dimensions:               DimensionColumn {
                 name:  "data".to_string(),
