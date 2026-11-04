@@ -31,8 +31,9 @@ use fraiseql_core::{
     schema::{
         CompiledSchema, FieldDefinition, FieldDenyPolicy, FieldType, InterfaceDefinition,
         RoleDefinition, SecurityConfig, SessionVariableMapping, SessionVariableSource, SourceKind,
+        UnionDefinition,
     },
-    security::SecurityContext,
+    security::{FieldAuthorizer, FieldAuthzDecision, FieldAuthzRequest, SecurityContext},
 };
 use fraiseql_test_utils::schema_builder::{TestQueryBuilder, TestSchemaBuilder, TestTypeBuilder};
 use serde_json::{Value, json};
@@ -119,6 +120,28 @@ const LEDGER_VIEW: &str = "v_selection_conformance_ledger";
 /// A set-returning function over [`LEDGER_VIEW`]'s rows.
 const LEDGER_FUNCTION: &str = "fn_selection_conformance_ledger";
 
+/// Values of the union `Party` (`Org | Person`), alone and in a list: one of each member, one
+/// whose stored `__typename` names an object type that is not a member, one that names no
+/// type, and `null`. Each member holds a `Decimal`, and an `Org` a key no type declares.
+const HOLDING_VIEW: &str = "v_selection_conformance_holding";
+/// A set-returning function over [`HOLDING_VIEW`]'s rows.
+const HOLDING_FUNCTION: &str = "fn_selection_conformance_holding";
+const HOLDING_FIXTURE: &str = r#"
+DROP TABLE IF EXISTS v_selection_conformance_holding CASCADE;
+CREATE TABLE v_selection_conformance_holding (pk_holding bigint, data jsonb);
+INSERT INTO v_selection_conformance_holding (pk_holding, data) VALUES
+  (1, '{"pk_holding":1,"label":"L","party":{"__typename":"Org","credit":12345678901234567.80,"name":"o",
+       "note":"ORG-NOTE"},
+     "parties":[{"__typename":"Org","credit":1.10,"name":"o1","note":"ORG-NOTE"},
+       {"__typename":"Person","limit":0.10,"credit":2.50,"name":"p1"},null]}'::jsonb),
+  (2, '{"pk_holding":2,"label":"L","party":{"__typename":"Person","limit":0.10,"credit":5.50,"name":"p"},
+     "parties":[]}'::jsonb),
+  (3, '{"pk_holding":3,"label":"L","party":{"__typename":"Ledger","credit":9.90,"name":"x"}}'::jsonb),
+  (4, '{"pk_holding":4,"label":"L","party":{"credit":7.70,"name":"n"}}'::jsonb),
+  (5, '{"pk_holding":5,"label":"L","party":null}'::jsonb);
+CREATE OR REPLACE FUNCTION fn_selection_conformance_holding() RETURNS SETOF v_selection_conformance_holding LANGUAGE sql STABLE AS 'SELECT * FROM v_selection_conformance_holding ORDER BY pk_holding';
+"#;
+
 /// A document of 120 keys, past the 50 pairs one `jsonb_build_object` call could carry (#1544).
 const WIDE_VIEW: &str = "v_selection_conformance_wide";
 const WIDE_FIELDS: usize = 120;
@@ -194,6 +217,42 @@ fn schema() -> CompiledSchema {
                 nullable_items: true,
             },
         )
+        .build();
+    // `Holding.party` is of the union `Party`: an `Org` or a `Person`, each holding a
+    // `Decimal`, and each a `credit` (a `Person`'s is another field of the same name).
+    let holding_type = TestTypeBuilder::new("Holding", HOLDING_VIEW)
+        .with_nullable_field("label", FieldType::String)
+        .with_nullable_field("party", FieldType::Union("Party".to_string()))
+        .with_nullable_field(
+            "parties",
+            FieldType::List {
+                item:           Box::new(FieldType::Union("Party".to_string())),
+                nullable_items: true,
+            },
+        )
+        .build();
+    let org_type = TestTypeBuilder::new("Org", "v_selection_conformance_org")
+        .with_simple_field("credit", FieldType::Decimal)
+        .with_simple_field("name", FieldType::String)
+        .build();
+    let person_type = TestTypeBuilder::new("Person", "v_selection_conformance_person")
+        .with_simple_field("limit", FieldType::Decimal)
+        .with_simple_field("credit", FieldType::Decimal)
+        .with_simple_field("name", FieldType::String)
+        .build();
+    let holdings_query = TestQueryBuilder::new("holdings", "Holding")
+        .returns_list(true)
+        .with_sql_source(HOLDING_VIEW)
+        .build();
+    let mut holding_rows_query = TestQueryBuilder::new("holdingRows", "Holding")
+        .returns_list(true)
+        .with_sql_source(HOLDING_FUNCTION)
+        .build();
+    holding_rows_query.sql_source_kind = SourceKind::Function;
+    let holdings_connection_query = TestQueryBuilder::new("holdingsConnection", "Holding")
+        .returns_list(true)
+        .with_sql_source(HOLDING_VIEW)
+        .relay_cursor_column("pk_holding")
         .build();
     let region_type = TestTypeBuilder::new("ParityRegion", "v_selection_conformance_region")
         .with_simple_field("regionName", FieldType::String)
@@ -331,6 +390,12 @@ fn schema() -> CompiledSchema {
         .with_type(ledger_type)
         .with_query(ledgers_query)
         .with_query(ledger_rows_query)
+        .with_type(holding_type)
+        .with_type(org_type)
+        .with_type(person_type)
+        .with_query(holdings_query)
+        .with_query(holding_rows_query)
+        .with_query(holdings_connection_query)
         .with_type(entry_estimate_type)
         .with_type(region_type)
         .with_type(parity_address_type)
@@ -353,6 +418,9 @@ fn schema() -> CompiledSchema {
     schema.interfaces.push(
         InterfaceDefinition::new("Node").with_field(FieldDefinition::new("id", FieldType::Id)),
     );
+    let mut party = UnionDefinition::new("Party");
+    party.member_types = vec!["Org".to_string(), "Person".to_string()];
+    schema.unions.push(party);
     schema
 }
 
@@ -369,6 +437,7 @@ async fn executor_for(schema: CompiledSchema) -> Option<Executor> {
         .chain(MEASURE_FIXTURE.split(";\n"))
         .chain(PARITY_FIXTURE.split(";\n"))
         .chain(ROSTER_FIXTURE.split(";\n"))
+        .chain(HOLDING_FIXTURE.split(";\n"))
     {
         if stmt.trim().is_empty() {
             continue;
@@ -1366,6 +1435,291 @@ async fn stored_digits(view: &str, expr: &str) -> Vec<Value> {
         .into_iter()
         .map(|mut row| row.remove("v").unwrap())
         .collect()
+}
+
+/// The values of `field` in each edge's node of a connection at `root`.
+fn node_column(response: &Value, root: &str, field: &str) -> Vec<Value> {
+    response["data"][root]["edges"]
+        .as_array()
+        .unwrap_or_else(|| panic!("expected edges at data.{root}: {response}"))
+        .iter()
+        .map(|edge| edge["node"][field].clone())
+        .collect()
+}
+
+/// A union field read through inline fragments answers each value's member, named by its
+/// stored `__typename`, with exactly the fields that member's fragment selects, a `Decimal`
+/// with its digits. A value of a member no fragment names, of a type
+/// that is not a member, or that names no type answers `{}` (#1825).
+#[tokio::test]
+async fn a_union_field_answers_the_fields_its_members_fragments_select() {
+    let Some(exec) = executor().await else {
+        eprintln!("SKIP: no PostgreSQL (set DATABASE_URL)");
+        return;
+    };
+    let org = json!({"credit": "12345678901234567.80", "name": "o"});
+    let cases = [
+        (
+            "{ holdings { party { ... on Org { credit name } } } }",
+            vec![org.clone(), json!({}), json!({}), json!({}), Value::Null],
+        ),
+        (
+            "{ holdingRows { party { ... on Org { credit name } } } }",
+            vec![org, json!({}), json!({}), json!({}), Value::Null],
+        ),
+        (
+            "{ holdings { party { ... on Org { credit } ... on Person { limit name } } } }",
+            vec![
+                json!({"credit": "12345678901234567.80"}),
+                json!({"limit": "0.10", "name": "p"}),
+                json!({}),
+                json!({}),
+                Value::Null,
+            ],
+        ),
+        // The same field name on two members: each value answers its own member's.
+        (
+            "{ holdings { party { ... on Org { credit } ... on Person { credit } } } }",
+            vec![
+                json!({"credit": "12345678901234567.80"}),
+                json!({"credit": "5.50"}),
+                json!({}),
+                json!({}),
+                Value::Null,
+            ],
+        ),
+    ];
+    let mut failures = Vec::new();
+    for (query, expected) in cases {
+        let response = exec.execute(query, None).await.unwrap_or_else(|e| panic!("{query}: {e}"));
+        let root = if query.contains("holdingRows") {
+            "holdingRows"
+        } else {
+            "holdings"
+        };
+        let got = column(&response, root, "party");
+        if got != expected || response.to_string().contains("ORG-NOTE") {
+            failures.push(format!("{query}\n    got      {got:?}\n    expected {expected:?}"));
+        }
+    }
+    assert!(
+        failures.is_empty(),
+        "{} read(s) failed:\n  {}",
+        failures.len(),
+        failures.join("\n  ")
+    );
+}
+
+/// `__typename` selected below a union answers each value's member, under its alias, and a
+/// member's fragment keeps its aliases (#1825).
+#[tokio::test]
+async fn typename_below_a_union_is_the_member_its_value_names() {
+    let Some(exec) = executor().await else {
+        eprintln!("SKIP: no PostgreSQL (set DATABASE_URL)");
+        return;
+    };
+    let query = "{ holdings { party { kind: __typename ... on Org { c: credit } } } }";
+    let response = exec.execute(query, None).await.unwrap();
+    let parties = column(&response, "holdings", "party");
+    assert_eq!(
+        parties[..2],
+        [
+            json!({"kind": "Org", "c": "12345678901234567.80"}),
+            json!({"kind": "Person"})
+        ],
+        "{response}"
+    );
+    // A value that names no member is no `Org`: its fragment selects nothing of it, and it
+    // is not answered as the non-member type it names.
+    for party in &parties[2..4] {
+        assert!(party.get("c").is_none(), "{response}");
+        assert_ne!(party["kind"], "Ledger", "{response}");
+    }
+}
+
+/// A list of union values answers each element as the member it names, a `null` element
+/// kept, an empty list `[]` and a missing one `null` (#1825).
+#[tokio::test]
+async fn a_list_of_union_values_answers_each_element_as_its_member() {
+    let Some(exec) = executor().await else {
+        eprintln!("SKIP: no PostgreSQL (set DATABASE_URL)");
+        return;
+    };
+    let query = "{ holdings { parties { ... on Org { credit } ... on Person { limit } } } }";
+    let response = exec.execute(query, None).await.unwrap();
+    assert_eq!(
+        column(&response, "holdings", "parties"),
+        vec![
+            json!([{"credit": "1.10"}, {"limit": "0.10"}, null]),
+            json!([]),
+            Value::Null,
+            Value::Null,
+            Value::Null,
+        ],
+        "{response}"
+    );
+    assert!(!response.to_string().contains("ORG-NOTE"), "{response}");
+}
+
+/// A union field read through a Relay connection answers each node's member (#1825).
+#[tokio::test]
+async fn a_union_field_read_through_a_connection_answers_its_members_fields() {
+    let Some(exec) = executor().await else {
+        eprintln!("SKIP: no PostgreSQL (set DATABASE_URL)");
+        return;
+    };
+    let query = "{ holdingsConnection(first: 2) { edges { node { party { \
+                 ... on Org { credit } ... on Person { limit } } } } } }";
+    let response = exec.execute(query, None).await.unwrap();
+    assert_eq!(
+        node_column(&response, "holdingsConnection", "party"),
+        vec![
+            json!({"credit": "12345678901234567.80"}),
+            json!({"limit": "0.10"})
+        ],
+        "{response}"
+    );
+}
+
+/// [`schema`] with `Org.credit` needing `read:credit`, which the `auditor` role grants,
+/// denied by `on_deny`; `Person.credit` needs nothing. With `policy`, `Holding.label` is
+/// also policy-gated: its read takes the stored documents and projects them in Rust.
+fn gated_party_schema(on_deny: FieldDenyPolicy, policy: bool) -> CompiledSchema {
+    let mut schema = schema();
+    for t in &mut schema.types {
+        for f in &mut t.fields {
+            match (t.name.as_str(), f.name.as_str()) {
+                ("Org", "credit") => {
+                    f.requires_scope = Some("read:credit".to_string());
+                    f.on_deny = on_deny;
+                },
+                ("Holding", "label") => f.authorize = policy,
+                _ => {},
+            }
+        }
+    }
+    let mut security = SecurityConfig::new();
+    security.add_role(RoleDefinition::new("auditor", vec!["read:credit".to_string()]));
+    schema.security = Some(security);
+    schema
+}
+
+/// Allows a policy-gated field to an `auditor`, and masks it for anyone else.
+struct AuditorsOnly;
+
+impl FieldAuthorizer for AuditorsOnly {
+    fn authorize_field(
+        &self,
+        req: &FieldAuthzRequest<'_>,
+    ) -> fraiseql_core::error::Result<FieldAuthzDecision> {
+        Ok(if req.principal.roles.iter().any(|r| r == "auditor") {
+            FieldAuthzDecision::Allow
+        } else {
+            FieldAuthzDecision::Deny {
+                code:    "not_auditor".to_string(),
+                on_deny: FieldDenyPolicy::Mask,
+            }
+        })
+    }
+}
+
+/// A member's gated field stays out of reach of a caller its gate denies, though the union's
+/// value is read whole: masked or refused by its scope, on the SQL-projected path and on the
+/// stored documents a policy-gated root field makes the read take. Each read answers the
+/// `Value` path's bytes (#1825).
+///
+/// Where the SQL projection is shaped, a value is masked as the member it names, so another
+/// member's field of the same name is not masked by it. The stored documents are masked
+/// after their projection, which holds no `__typename` the query did not select: a value
+/// there is masked as every member it could be, and `Person.credit` is masked with
+/// `Org.credit`.
+#[tokio::test]
+async fn a_gated_field_of_a_member_stays_gated_when_the_union_is_read_whole() {
+    let masked = principal();
+    let allowed = SecurityContext {
+        roles: vec!["auditor".to_string()],
+        ..principal()
+    };
+    let query =
+        "{ holdings { label party { ... on Org { credit name } ... on Person { credit } } } }";
+    let org_allowed = json!({"credit": "12345678901234567.80", "name": "o"});
+    let org_masked = json!({"credit": null, "name": "o"});
+    let person = json!({"credit": "5.50"});
+    let person_masked = json!({"credit": null});
+
+    let scope_mask = gated_party_schema(FieldDenyPolicy::Mask, false);
+    let scope_reject = gated_party_schema(FieldDenyPolicy::Reject, false);
+    let stored = gated_party_schema(FieldDenyPolicy::Mask, true);
+    // (case, schema, caller, `label` and the first two parties, or `None` for a refusal)
+    let cases: [(&str, &CompiledSchema, &SecurityContext, Option<(Value, [&Value; 2])>); 6] = [
+        (
+            "mask, allowed",
+            &scope_mask,
+            &allowed,
+            Some((json!("L"), [&org_allowed, &person])),
+        ),
+        ("mask, masked", &scope_mask, &masked, Some((json!("L"), [&org_masked, &person]))),
+        (
+            "reject, allowed",
+            &scope_reject,
+            &allowed,
+            Some((json!("L"), [&org_allowed, &person])),
+        ),
+        ("reject, refused", &scope_reject, &masked, None),
+        (
+            "stored, allowed",
+            &stored,
+            &allowed,
+            Some((json!("L"), [&org_allowed, &person])),
+        ),
+        (
+            "stored, masked",
+            &stored,
+            &masked,
+            Some((Value::Null, [&org_masked, &person_masked])),
+        ),
+    ];
+    let mut failures = Vec::new();
+    for (name, schema, caller, expected) in cases {
+        let Some(exec) = Box::pin(executor_with_authorizer(schema.clone())).await else {
+            eprintln!("SKIP: no PostgreSQL (set DATABASE_URL)");
+            return;
+        };
+        let value = exec.execute_operation_with_security(query, None, caller, None).await;
+        match (value, expected) {
+            (Ok(response), Some((label, parties))) => {
+                let got = column(&response, "holdings", "party");
+                if column(&response, "holdings", "label")[0] != label
+                    || got[..2] != [parties[0].clone(), parties[1].clone()]
+                    || got[2..4].iter().any(|p| p != &json!({}))
+                    || response.to_string().contains("ORG-NOTE")
+                {
+                    failures.push(format!("{name}: {response}"));
+                }
+            },
+            (Err(fraiseql_core::error::FraiseQLError::Authorization { .. }), None) => {},
+            (got, _) => failures.push(format!("{name}: {got:?}")),
+        }
+        if let Err(differs) = as_the_value_path(&exec, query, caller).await {
+            failures.push(format!("{name}: {differs}"));
+        }
+    }
+    assert!(
+        failures.is_empty(),
+        "{} read(s) failed:\n  {}",
+        failures.len(),
+        failures.join("\n  ")
+    );
+}
+
+/// [`executor_for`] `schema`, with [`AuditorsOnly`] deciding its policy-gated fields.
+async fn executor_with_authorizer(schema: CompiledSchema) -> Option<Executor> {
+    let pg = fraiseql_test_support::postgres().await?;
+    executor_for(schema.clone()).await?;
+    let adapter = PostgresAdapter::new(pg.url()).await.expect("connect to the bound PostgreSQL");
+    let config = fraiseql_core::runtime::RuntimeConfig::default()
+        .with_field_authorizer(Arc::new(AuditorsOnly));
+    Some(Executor::with_config_and_relay(schema, Arc::new(adapter), config))
 }
 
 /// A field of every row of a response's root list.

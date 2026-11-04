@@ -3681,6 +3681,157 @@ mod projection_tests {
         );
     }
 
+    /// `Holding.party`, of the union `Party` of `Org` and `Person`, alone and in a list.
+    /// `Other` is an object type that is not a member; `Org` and `Person` each have a
+    /// `credit`.
+    fn parties() -> crate::schema::CompiledSchema {
+        serde_json::from_value(json!({
+            "types": [
+                { "name": "Holding", "sql_source": "v_holding", "fields": [
+                    { "name": "party", "field_type": { "Union": "Party" } },
+                    { "name": "parties", "field_type": { "List": {"item": { "Union": "Party" }} } }
+                ] },
+                { "name": "Org", "sql_source": "v_org", "fields": [
+                    { "name": "credit", "field_type": "String" },
+                    { "name": "name", "field_type": "String" }
+                ] },
+                { "name": "Person", "sql_source": "v_person", "fields": [
+                    { "name": "credit", "field_type": "String" },
+                    { "name": "limit", "field_type": "String" }
+                ] },
+                { "name": "Other", "sql_source": "v_other", "fields": [
+                    { "name": "credit", "field_type": "String" }
+                ] }
+            ],
+            "unions": [{ "name": "Party", "member_types": ["Org", "Person"] }]
+        }))
+        .unwrap()
+    }
+
+    /// `{ party { kind: __typename ... on Org { credit name } ... on Person { limit } } }`,
+    /// and the same of `parties`.
+    fn party_selection() -> Vec<FieldSelection> {
+        let members = || {
+            vec![
+                aliased("kind", "__typename", vec![]),
+                field("...on Org", vec![field("credit", vec![]), field("name", vec![])]),
+                field("...on Person", vec![field("limit", vec![])]),
+            ]
+        };
+        vec![field("party", members()), field("parties", members())]
+    }
+
+    /// A stored union value, as each shaping path meets it: a level the projection built
+    /// (`built`), a stored document, and the document the field authorizer's path projects.
+    fn each_shaping(
+        value: &serde_json::Value,
+        masked: Option<&std::collections::HashSet<(String, String)>>,
+    ) -> [serde_json::Value; 3] {
+        let schema = parties();
+        let selection = party_selection();
+        let shape = |built| {
+            let mut shaped = value.clone();
+            crate::runtime::shape_unprojected_root(
+                &mut shaped,
+                "Holding",
+                &selection,
+                &schema,
+                masked,
+                built,
+            );
+            shaped
+        };
+        let documents = if masked.is_some() {
+            shape(false)
+        } else {
+            crate::runtime::project_entity(value, "Holding", &selection, &schema)
+        };
+        [shape(true), shape(false), documents]
+    }
+
+    /// A union value is shaped as the member its stored `__typename` names, alone and as a
+    /// list element: its `__typename` is that member, and only that member's fragment
+    /// selects from it (#1825).
+    #[test]
+    fn a_union_value_is_shaped_as_the_member_it_names() {
+        let value = json!({
+            "party": { "__typename": "Org", "credit": "1", "name": "o", "limit": "L", "note": "N" },
+            "parties": [
+                { "__typename": "Person", "credit": "2", "limit": "0.10", "name": "p" },
+                null,
+            ],
+        });
+        for shaped in each_shaping(&value, None) {
+            assert_eq!(
+                shaped,
+                json!({
+                    "party": { "kind": "Org", "credit": "1", "name": "o" },
+                    "parties": [{ "kind": "Person", "limit": "0.10" }, null],
+                })
+            );
+        }
+    }
+
+    /// A union value that names no type, or a type that is not a member, is shaped as no
+    /// member: no member's fragment selects from it, though one of them declares the fields
+    /// it holds (#1825).
+    #[test]
+    fn a_union_value_naming_no_member_is_shaped_as_no_member() {
+        for party in [
+            json!({ "credit": "1", "name": "o" }),
+            json!({ "__typename": "Other", "credit": "1", "name": "o" }),
+            json!({ "__typename": "Holding", "credit": "1", "name": "o" }),
+        ] {
+            let value = json!({ "party": party, "parties": [party] });
+            for shaped in each_shaping(&value, None) {
+                for level in [&shaped["party"], &shaped["parties"][0]] {
+                    let keys: Vec<&String> = level.as_object().unwrap().keys().collect();
+                    assert_eq!(keys, ["kind"], "{party}: {shaped}");
+                    // Not shaped as the type it names, which a `Party` cannot be.
+                    assert_ne!(level["kind"], party["__typename"], "{party}: {shaped}");
+                }
+            }
+        }
+    }
+
+    /// A member's masked field is `null` in a value of that member, and another member's
+    /// field of the same name is not masked by it (#1825).
+    #[test]
+    fn a_union_value_is_masked_as_the_member_it_names() {
+        let masked = std::iter::once(("Org".to_string(), "credit".to_string())).collect();
+        let selection_of = |member: &str| {
+            json!({
+                "party": { "__typename": member, "credit": "C", "name": "n", "limit": "L" },
+                "parties": [],
+            })
+        };
+        let [built, stored, _] = each_shaping(&selection_of("Org"), Some(&masked));
+        for shaped in [built, stored] {
+            assert_eq!(shaped["party"], json!({ "kind": "Org", "credit": null, "name": "n" }));
+        }
+        // `Person.credit` is not selected here; read it through its own fragment.
+        let schema = parties();
+        let selection = vec![field(
+            "party",
+            vec![
+                field("...on Org", vec![field("credit", vec![])]),
+                field("...on Person", vec![field("credit", vec![])]),
+            ],
+        )];
+        for built in [true, false] {
+            let mut value = selection_of("Person");
+            crate::runtime::shape_unprojected_root(
+                &mut value,
+                "Holding",
+                &selection,
+                &schema,
+                Some(&masked),
+                built,
+            );
+            assert_eq!(value["party"], json!({ "credit": "C" }), "built: {built}");
+        }
+    }
+
     /// Over a root the projector built, a selected `__typename` is answered where it was
     /// selected and under its alias, as below the root.
     #[test]
