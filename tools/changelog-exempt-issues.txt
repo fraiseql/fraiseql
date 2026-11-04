@@ -63,3 +63,4 @@
 #1890  CI: the integration timeouts are re-set from cold runs on the slower runner, the federation leg compiles one dependency graph instead of two, and Release Smoke waits 115 min for the -full asset; CI only, no shipped artifact changes
 #1919  test rig: the proxy can withhold one notification channel, and the three #1603 feed-isolation tests keep their feed session and say so; test-only, no shipped artifact changes
 #1913  test-only: a server-level SAML ACS e2e with a SHA-256 signing fixture; no shipped behaviour changes
+#1914  CI: Rust legs start the sccache server before cargo does and compile uncached, with a warning, when none answers; CI only, no shipped artifact changes

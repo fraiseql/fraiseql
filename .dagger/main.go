@@ -258,6 +258,7 @@ func (m *FraiseqlCi) Preflight(
 		run  func(context.Context, *dagger.Directory) (string, error)
 	}{
 		{"shell-gates", m.ShellGates},
+		{"sccache-bootstrap", m.SccacheBootstrap},
 		{"fmt", m.Fmt},
 		{"rustdoc", m.Rustdoc},
 		{"rustdoc-default", m.RustdocDefault},
@@ -278,6 +279,23 @@ func (m *FraiseqlCi) Preflight(
 	}
 	report.WriteString("\npreflight OK: all fast gates passed\n")
 	return report.String(), nil
+}
+
+// SccacheBootstrap: tools/ci-stamp-sources.sh starts sccache's server before cargo does,
+// compiles uncached and says so when none answers, and prints the server's error log when
+// an exec fails (#1914). It runs in rustBase because that is where the legs' sccache is: the
+// self-test fails, rather than skips, without it.
+func (m *FraiseqlCi) SccacheBootstrap(
+	ctx context.Context,
+	// +ignore=["target", "**/target", ".git"]
+	source *dagger.Directory,
+) (string, error) {
+	return m.rustBase().
+		WithMountedDirectory("/src", source).
+		WithWorkdir("/src").
+		WithEnvVariable("FRAISEQL_LEG_NONCE", strconv.FormatInt(time.Now().UnixNano(), 10)).
+		WithExec([]string{"bash", "tools/tests/sccache_bootstrap_test.sh"}).
+		Stdout(ctx)
 }
 
 // Fmt: `cargo +<fmtNightly> fmt --all -- --check`. rustfmt's
@@ -970,6 +988,9 @@ func (m *FraiseqlCi) rustBase() *dagger.Container {
 		WithEnvVariable("RUSTFLAGS", "-C linker=clang -C link-arg=-fuse-ld=mold").
 		WithEnvVariable("RUSTC_WRAPPER", "sccache").
 		WithEnvVariable("SCCACHE_DIR", "/sccache").
+		// Where the sccache server writes its errors; tools/ci-stamp-sources.sh prints it when
+		// an exec fails (#1914). /tmp is per container, so concurrent legs never share it.
+		WithEnvVariable("SCCACHE_ERROR_LOG", "/tmp/sccache-error.log").
 		WithMountedCache("/sccache", dag.CacheVolume("fraiseql-sccache")).
 		WithMountedCache(cargoHome+"/registry", dag.CacheVolume("fraiseql-cargo-registry")).
 		WithMountedCache(cargoHome+"/git", dag.CacheVolume("fraiseql-cargo-git"))
