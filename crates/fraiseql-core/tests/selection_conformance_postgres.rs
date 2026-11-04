@@ -135,15 +135,22 @@ const HOLDING_FIXTURE: &str = r#"
 DROP TABLE IF EXISTS v_selection_conformance_holding CASCADE;
 CREATE TABLE v_selection_conformance_holding (pk_holding bigint, data jsonb);
 INSERT INTO v_selection_conformance_holding (pk_holding, data) VALUES
-  (1, '{"pk_holding":1,"label":"L","party":{"__typename":"Org","credit":12345678901234567.80,"name":"o",
+  (1, '{"pk_holding":1,"label":"L",
+     "holder":{"__typename":"Bank","balance":98765432109876543.210,"note":"H-NOTE",
+       "branch":{"name":"b","code":"BC-1","note":"BR-NOTE"}},"party":{"__typename":"Org","credit":12345678901234567.80,"name":"o",
        "note":"ORG-NOTE"},
      "parties":[{"__typename":"Org","credit":1.10,"name":"o1","note":"ORG-NOTE"},
        {"__typename":"Person","limit":0.10,"credit":2.50,"name":"p1"},null]}'::jsonb),
-  (2, '{"pk_holding":2,"label":"L","party":{"__typename":"Person","limit":0.10,"credit":5.50,"name":"p"},
+  (2, '{"pk_holding":2,"label":"L",
+     "holder":{"__typename":"Fund","balance":1.50,"manager":"m",
+       "branch":{"name":"f","code":"FC-2","note":"BR-NOTE"}},"party":{"__typename":"Person","limit":0.10,"credit":5.50,"name":"p"},
      "parties":[]}'::jsonb),
-  (3, '{"pk_holding":3,"label":"L","party":{"__typename":"Ledger","credit":9.90,"name":"x"}}'::jsonb),
-  (4, '{"pk_holding":4,"label":"L","party":{"credit":7.70,"name":"n"}}'::jsonb),
-  (5, '{"pk_holding":5,"label":"L","party":null}'::jsonb);
+  (3, '{"pk_holding":3,"label":"L",
+     "holder":{"__typename":"Ledger","balance":9.90,"note":"H-NOTE",
+       "branch":{"name":"x","code":"XC-3","note":"BR-NOTE"}},"party":{"__typename":"Ledger","credit":9.90,"name":"x"}}'::jsonb),
+  (4, '{"pk_holding":4,"label":"L","holder":{"balance":7.70,"note":"H-NOTE",
+       "branch":{"name":"n","code":"NC-4","note":"BR-NOTE"}},"party":{"credit":7.70,"name":"n"}}'::jsonb),
+  (5, '{"pk_holding":5,"label":"L","holder":null,"party":null}'::jsonb);
 CREATE OR REPLACE FUNCTION fn_selection_conformance_holding() RETURNS SETOF v_selection_conformance_holding LANGUAGE sql STABLE AS 'SELECT * FROM v_selection_conformance_holding ORDER BY pk_holding';
 "#;
 
@@ -472,6 +479,7 @@ fn schema() -> CompiledSchema {
     let holding_type = TestTypeBuilder::new("Holding", HOLDING_VIEW)
         .with_nullable_field("label", FieldType::String)
         .with_nullable_field("party", FieldType::Union("Party".to_string()))
+        .with_nullable_field("holder", FieldType::Interface("Holder".to_string()))
         .with_nullable_field(
             "parties",
             FieldType::List {
@@ -489,6 +497,16 @@ fn schema() -> CompiledSchema {
         .with_simple_field("credit", FieldType::Decimal)
         .with_simple_field("name", FieldType::String)
         .build();
+    let fund_type = TestTypeBuilder::new("Fund", "v_selection_conformance_fund")
+        .with_implements(&["Holder"])
+        .with_simple_field("balance", FieldType::Decimal)
+        .with_nullable_field("branch", FieldType::Object("Branch".to_string()))
+        .with_simple_field("manager", FieldType::String)
+        .build();
+    let branch_type = TestTypeBuilder::new("Branch", "v_selection_conformance_branch")
+        .with_simple_field("name", FieldType::String)
+        .with_nullable_field("code", FieldType::String)
+        .build();
     let holdings_query = TestQueryBuilder::new("holdings", "Holding")
         .returns_list(true)
         .with_sql_source(HOLDING_VIEW)
@@ -503,7 +521,7 @@ fn schema() -> CompiledSchema {
         .with_sql_source(HOLDING_VIEW)
         .relay_cursor_column("pk_holding")
         .build();
-    // `Account.holder` is of the interface `Holder`, which `Bank` implements.
+    // `Account.holder` is of the interface `Holder`, which `Bank` and `Fund` implement.
     let account_type = TestTypeBuilder::new("Account", ACCOUNT_VIEW)
         .with_nullable_field("holder", FieldType::Interface("Holder".to_string()))
         .with_nullable_field(
@@ -520,6 +538,7 @@ fn schema() -> CompiledSchema {
         .with_simple_field("ref", FieldType::Uuid)
         .with_simple_field("since", FieldType::LocalDateTime)
         .with_simple_field("name", FieldType::String)
+        .with_nullable_field("branch", FieldType::Object("Branch".to_string()))
         .build();
     bank_type.implements.push("Holder".to_string());
     let accounts_query = TestQueryBuilder::new("accounts", "Account")
@@ -701,11 +720,13 @@ fn schema() -> CompiledSchema {
         .with_type(holding_type)
         .with_type(org_type)
         .with_type(person_type)
+        .with_type(bank_type)
+        .with_type(fund_type)
+        .with_type(branch_type)
         .with_query(holdings_query)
         .with_query(holding_rows_query)
         .with_query(holdings_connection_query)
         .with_type(account_type)
-        .with_type(bank_type)
         .with_query(accounts_query)
         .with_query(account_rows_query)
         .with_type(entry_estimate_type)
@@ -752,7 +773,11 @@ fn schema() -> CompiledSchema {
             .with_field(FieldDefinition::new("units", FieldType::BigInt))
             .with_field(FieldDefinition::new("ref", FieldType::Uuid))
             .with_field(FieldDefinition::new("since", FieldType::LocalDateTime))
-            .with_field(FieldDefinition::new("name", FieldType::String)),
+            .with_field(FieldDefinition::new("name", FieldType::String))
+            .with_field(FieldDefinition::nullable(
+                "branch",
+                FieldType::Object("Branch".to_string()),
+            )),
     );
     let mut party = UnionDefinition::new("Party");
     party.member_types = vec!["Org".to_string(), "Person".to_string()];
@@ -3116,6 +3141,201 @@ async fn a_gated_field_inside_an_inline_fragment_is_gated_as_written_directly() 
     assert!(
         failures.is_empty(),
         "{} pair(s) differ:\n  {}",
+        failures.len(),
+        failures.join("\n  ")
+    );
+}
+
+/// Keys a holder value carries that no selection below it asks for.
+const HOLDER_NOTES: [&str; 2] = ["H-NOTE", "BR-NOTE"];
+
+/// `holder { branch { name } }` of the first four holdings: a `Bank`, a `Fund`, a value of a
+/// type that is not a member and one of no type.
+fn branch_names() -> [Value; 4] {
+    ["b", "f", "x", "n"].map(|name| json!({"branch": {"name": name}}))
+}
+
+/// An object read through a field of an interface answers the keys its selection asks for
+/// and no other, from the view, the function and a Relay connection: below a value of a
+/// member, of a type that is not one, and of no type alike.
+#[tokio::test]
+async fn an_object_below_an_interface_answers_only_its_selected_fields() {
+    let Some(exec) = executor().await else {
+        eprintln!("SKIP: no PostgreSQL (set DATABASE_URL)");
+        return;
+    };
+    let mut failures = Vec::new();
+    for (query, root) in [
+        ("{ holdings { holder { branch { name } } } }", "holdings"),
+        ("{ holdingRows { holder { branch { name } } } }", "holdingRows"),
+    ] {
+        let response = exec.execute(query, None).await.unwrap();
+        let got = column(&response, root, "holder");
+        if got[..4] != branch_names()
+            || got[4] != Value::Null
+            || HOLDER_NOTES.iter().any(|n| response.to_string().contains(n))
+        {
+            failures.push(format!("{query}\n    got {got:?}"));
+        }
+        if let Err(differs) = as_the_value_path(&exec, query, &principal()).await {
+            failures.push(differs);
+        }
+    }
+    let query = "{ holdingsConnection { edges { node { holder { branch { name } } } } } }";
+    let response = exec.execute(query, None).await.unwrap();
+    let got = node_column(&response, "holdingsConnection", "holder");
+    if got[..4] != branch_names() || HOLDER_NOTES.iter().any(|n| response.to_string().contains(n)) {
+        failures.push(format!("{query}\n    got {got:?}"));
+    }
+    assert!(
+        failures.is_empty(),
+        "{} read(s) failed:\n  {}",
+        failures.len(),
+        failures.join("\n  ")
+    );
+}
+
+/// An interface value read through inline fragments answers the fields its member's
+/// fragment selects; a value of a type that is not a member, or of no type, answers `{}`.
+#[tokio::test]
+async fn an_interface_field_answers_the_fields_its_members_fragments_select() {
+    let Some(exec) = executor().await else {
+        eprintln!("SKIP: no PostgreSQL (set DATABASE_URL)");
+        return;
+    };
+    let query = "{ holdings { holder { ... on Bank { balance } ... on Fund { manager } } } }";
+    let response = exec.execute(query, None).await.unwrap();
+    assert_eq!(
+        column(&response, "holdings", "holder"),
+        vec![
+            json!({"balance": "98765432109876543.210"}),
+            json!({"manager": "m"}),
+            json!({}),
+            json!({}),
+            Value::Null,
+        ],
+        "{response}"
+    );
+    as_the_value_path(&exec, query, &principal()).await.unwrap();
+}
+
+/// `__typename` at an interface answers the member its stored value names. A value that
+/// names no member is answered as the interface, as a union's is, and never as a type that
+/// is not a member.
+#[tokio::test]
+async fn typename_at_an_interface_is_the_member_its_value_names() {
+    let Some(exec) = executor().await else {
+        eprintln!("SKIP: no PostgreSQL (set DATABASE_URL)");
+        return;
+    };
+    let query = "{ holdings { holder { kind: __typename } } }";
+    let response = exec.execute(query, None).await.unwrap();
+    let kinds: Vec<Value> = column(&response, "holdings", "holder")
+        .iter()
+        .map(|h| h["kind"].clone())
+        .collect();
+    assert_eq!(kinds[..2], [json!("Bank"), json!("Fund")], "{response}");
+    assert_eq!(kinds[2..4], [json!("Holder"), json!("Holder")], "{response}");
+    as_the_value_path(&exec, query, &principal()).await.unwrap();
+}
+
+/// A `Decimal` field of an interface keeps the digits it was stored with.
+#[tokio::test]
+async fn a_decimal_field_of_an_interface_keeps_its_digits() {
+    let Some(exec) = executor().await else {
+        eprintln!("SKIP: no PostgreSQL (set DATABASE_URL)");
+        return;
+    };
+    let query = "{ holdings { holder { balance } } }";
+    let response = exec.execute(query, None).await.unwrap();
+    let got = column(&response, "holdings", "holder");
+    assert_eq!(
+        got[..2],
+        [
+            json!({"balance": "98765432109876543.210"}),
+            json!({"balance": "1.50"})
+        ],
+        "{response}"
+    );
+    as_the_value_path(&exec, query, &principal()).await.unwrap();
+}
+
+/// [`schema`] with `Branch.code` needing `read:code`, which the `auditor` role grants,
+/// denied by `on_deny`. With `policy`, `Holding.label` is policy-gated: the read takes the
+/// stored documents.
+fn gated_holder_schema(on_deny: FieldDenyPolicy, policy: bool) -> CompiledSchema {
+    let mut schema = schema();
+    for t in &mut schema.types {
+        for f in &mut t.fields {
+            match (t.name.as_str(), f.name.as_str()) {
+                ("Branch", "code") => {
+                    f.requires_scope = Some("read:code".to_string());
+                    f.on_deny = on_deny;
+                },
+                ("Holding", "label") => f.authorize = policy,
+                _ => {},
+            }
+        }
+    }
+    let mut security = SecurityConfig::new();
+    security.add_role(RoleDefinition::new("auditor", vec!["read:code".to_string()]));
+    schema.security = Some(security);
+    schema
+}
+
+/// A gated field of an object read through a field of an interface stays out of reach of a
+/// caller its gate denies: masked or refused by its scope, on the SQL-projected path and on
+/// the stored documents a policy-gated root field makes the read take, below a value of a
+/// member, of a type that is not one, and of no type alike.
+#[tokio::test]
+async fn a_gated_field_below_an_interface_stays_gated() {
+    let masked = principal();
+    let allowed = SecurityContext {
+        roles: vec!["auditor".to_string()],
+        ..principal()
+    };
+    let query = "{ holdings { label holder { branch { name code } } } }";
+    let named = [("b", "BC-1"), ("f", "FC-2"), ("x", "XC-3"), ("n", "NC-4")];
+    let open = named.map(|(name, code)| json!({"branch": {"name": name, "code": code}}));
+    let shut = named.map(|(name, _)| json!({"branch": {"name": name, "code": null}}));
+    let scope_mask = gated_holder_schema(FieldDenyPolicy::Mask, false);
+    let scope_reject = gated_holder_schema(FieldDenyPolicy::Reject, false);
+    let stored = gated_holder_schema(FieldDenyPolicy::Mask, true);
+    // (case, schema, caller, the first four holders, or `None` for a refusal)
+    let cases: [(&str, &CompiledSchema, &SecurityContext, Option<&[Value; 4]>); 6] = [
+        ("mask, allowed", &scope_mask, &allowed, Some(&open)),
+        ("mask, masked", &scope_mask, &masked, Some(&shut)),
+        ("reject, allowed", &scope_reject, &allowed, Some(&open)),
+        ("reject, refused", &scope_reject, &masked, None),
+        ("stored, allowed", &stored, &allowed, Some(&open)),
+        ("stored, masked", &stored, &masked, Some(&shut)),
+    ];
+    let mut failures = Vec::new();
+    for (name, schema, caller, expected) in cases {
+        let Some(exec) = Box::pin(executor_with_authorizer(schema.clone())).await else {
+            eprintln!("SKIP: no PostgreSQL (set DATABASE_URL)");
+            return;
+        };
+        let value = exec.execute_operation_with_security(query, None, caller, None).await;
+        match (value, expected) {
+            (Ok(response), Some(holders)) => {
+                let got = column(&response, "holdings", "holder");
+                if got[..4] != holders[..]
+                    || HOLDER_NOTES.iter().any(|n| response.to_string().contains(n))
+                {
+                    failures.push(format!("{name}: {response}"));
+                }
+            },
+            (Err(fraiseql_core::error::FraiseQLError::Authorization { .. }), None) => {},
+            (got, _) => failures.push(format!("{name}: {got:?}")),
+        }
+        if let Err(differs) = as_the_value_path(&exec, query, caller).await {
+            failures.push(format!("{name}: {differs}"));
+        }
+    }
+    assert!(
+        failures.is_empty(),
+        "{} read(s) failed:\n  {}",
         failures.len(),
         failures.join("\n  ")
     );

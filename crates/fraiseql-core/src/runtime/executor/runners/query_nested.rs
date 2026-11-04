@@ -411,10 +411,7 @@ fn null_masked_at(
     if let (serde_json::Value::Object(object), Some(members)) =
         (&*value, abstract_members(schema, type_name))
     {
-        let named = object
-            .get("__typename")
-            .and_then(serde_json::Value::as_str)
-            .and_then(|named| members.iter().copied().find(|m| *m == named));
+        let named = crate::runtime::projection::named_member(object, type_name, schema);
         let types = named.map_or(members, |member| vec![member]);
         for member in types {
             null_masked_at(value, member, selections, masked, schema);

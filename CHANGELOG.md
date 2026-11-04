@@ -18,6 +18,13 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **A value at an interface position is answered as the member its stored `__typename`
+  names.** Inline fragments on the members select their fields, where they answered
+  `{}`; `__typename` is the member, not the interface; an object below one of its
+  fields answers only its selected fields and is masked as its declared type. A value
+  naming no member, or a type that is not one, is answered through the interface's own
+  fields, and its `__typename` stays the interface.
+
 - **A type scoped by its own `inject_params` is scoped wherever it is read.** Before, only
   `_entities` read the type's own declaration: a nested read, a write's returned
   document, a relation filter, a REST selection or stream, a subscription and an

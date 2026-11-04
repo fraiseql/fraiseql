@@ -868,17 +868,37 @@ pub fn masked_value(type_def: Option<&crate::schema::TypeDefinition>, field: &st
     }
 }
 
-/// The member of the union `type_name` that `object` is: the member its stored `__typename`
-/// names. `None` at any other type, and for an object that names no member, which no
-/// member's fragment then selects from.
+/// The member of the union or interface `type_name` that `object` is: the object type its
+/// stored `__typename` names, when that is one of the types `type_name` can be. `None` at an
+/// object type, and for an object that names no such type, which no member's fragment then
+/// selects from.
 pub fn named_member<'s>(
     object: &Map<String, JsonValue>,
     type_name: &str,
     schema: &'s CompiledSchema,
 ) -> Option<&'s str> {
-    let members = &schema.find_union(type_name)?.member_types;
+    let members = schema.possible_types(type_name)?;
     let named = object.get("__typename")?.as_str()?;
-    members.iter().map(String::as_str).find(|member| *member == named)
+    members.into_iter().find(|member| *member == named)
+}
+
+/// The definition of the field `name` at a level of `type_name`: its object type's, or, at an
+/// interface no member of which the value names, the interface's own. An object below it is
+/// then shaped and masked through its declared type, whichever member holds it.
+fn level_field<'s>(
+    schema: &'s CompiledSchema,
+    type_def: Option<&'s crate::schema::TypeDefinition>,
+    type_name: &str,
+    name: &str,
+) -> Option<&'s FieldDefinition> {
+    match type_def {
+        Some(td) => td.fields.iter().find(|f| f.name.as_str() == name),
+        None => schema
+            .find_interface(type_name)?
+            .fields
+            .iter()
+            .find(|f| f.name.as_str() == name),
+    }
 }
 
 fn project_entity_at(
@@ -892,7 +912,7 @@ fn project_entity_at(
         // Not an object (e.g. null) — nothing to project.
         return entity.clone();
     };
-    // A union value is projected as the member it names.
+    // A union or an interface value is projected as the member it names.
     let type_name = named_member(obj, type_name, schema).unwrap_or(type_name);
     let type_def = schema.find_type(type_name);
     let mut out = Map::new();
@@ -919,8 +939,7 @@ fn project_entity_at(
             out.insert(sel.response_key().to_string(), listed);
             continue;
         }
-        let field_def =
-            type_def.and_then(|td| td.fields.iter().find(|f| f.name.as_str() == sel.name));
+        let field_def = level_field(schema, type_def, type_name, &sel.name);
         let Some(value) = lookup_source(obj, &sel.name) else {
             // A selected field the document has no value for completes to `null`, in its
             // place (GraphQL § 6.3; #1618), as a SQL-projected read answers the same key.
@@ -1130,7 +1149,7 @@ fn shape_level(
     masked: Masked<'_>,
     built: bool,
 ) -> Map<String, JsonValue> {
-    // A union value is shaped as the member it names.
+    // A union or an interface value is shaped as the member it names.
     let type_name = named_member(&object, type_name, schema).unwrap_or(type_name);
     let type_def = schema.find_type(type_name);
     let level = effective_selections(selections, type_name, schema);
@@ -1161,7 +1180,7 @@ fn shape_level(
             out.insert(key, masked_value(type_def, &sel.name));
             continue;
         }
-        let field_def = type_def.and_then(|td| td.fields.iter().find(|f| f.name == sel.name));
+        let field_def = level_field(schema, type_def, type_name, &sel.name);
         let value = match field_def {
             Some(fd) if !fd.field_type.is_scalar() => {
                 shape_field(value, fd, sel, schema, masked, built)
