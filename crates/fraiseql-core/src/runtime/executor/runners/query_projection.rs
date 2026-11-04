@@ -105,14 +105,15 @@ pub fn build_typed_projection_fields(
 
             // Recurse into a single object or a list's — an enum is composite too, and is
             // its stored value. Any other list falls back to its stored array, which
-            // `shape_projected` re-projects element by element.
+            // `shape_projected` re-projects element by element. So does a union: its
+            // selection is inline fragments, which only the stored `__typename` resolves, and
+            // projected below a type with no fields it read keys named `...on T`.
             let sub_fields = field_def
                 .filter(|fd| {
                     matches!(
                         fd.field_type,
                         crate::schema::FieldType::Object(_)
                             | crate::schema::FieldType::Interface(_)
-                            | crate::schema::FieldType::Union(_)
                     )
                 })
                 .and_then(|fd| fd.field_type.type_name())

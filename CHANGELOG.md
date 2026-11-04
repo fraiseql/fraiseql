@@ -369,6 +369,17 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **A union field read through inline fragments answers its member's fields (#1825).**
+  `{ ledgers { party { ... on Org { credit } } } }` answered `{}` for every row: the value
+  was shaped as the union, which no fragment names, so every member's fields were dropped,
+  and the SQL projection read keys named `...on Org`. A union value is now read whole and
+  shaped as the member its stored `__typename` names, alone or in a list, on a read from a
+  view, a function or a Relay connection, and on the stored documents a policy-gated field
+  makes a read take. `__typename` below a union answers that member. A value that names no
+  member, or a type that is not one, answers `{}`, as before. A member's masked or refused
+  field stays masked or refused; where the SQL projection is shaped, another member's field
+  of the same name is not masked with it. A `Decimal` below a union keeps its digits.
+
 - **A query's variable types are checked against the schema the caller may see (#1930).** A
   variable declared with a type the caller is not shown, such as an input type taken only by
   an operation its roles do not reach, is refused as an unknown type is, with the same message,

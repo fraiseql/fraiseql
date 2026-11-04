@@ -865,6 +865,19 @@ pub fn masked_value(type_def: Option<&crate::schema::TypeDefinition>, field: &st
     }
 }
 
+/// The member of the union `type_name` that `object` is: the member its stored `__typename`
+/// names. `None` at any other type, and for an object that names no member, which no
+/// member's fragment then selects from.
+pub fn named_member<'s>(
+    object: &Map<String, JsonValue>,
+    type_name: &str,
+    schema: &'s CompiledSchema,
+) -> Option<&'s str> {
+    let members = &schema.find_union(type_name)?.member_types;
+    let named = object.get("__typename")?.as_str()?;
+    members.iter().map(String::as_str).find(|member| *member == named)
+}
+
 fn project_entity_at(
     entity: &JsonValue,
     type_name: &str,
@@ -876,6 +889,8 @@ fn project_entity_at(
         // Not an object (e.g. null) — nothing to project.
         return entity.clone();
     };
+    // A union value is projected as the member it names.
+    let type_name = named_member(obj, type_name, schema).unwrap_or(type_name);
     let type_def = schema.find_type(type_name);
     let mut out = Map::new();
 
@@ -1112,6 +1127,8 @@ fn shape_level(
     masked: Masked<'_>,
     built: bool,
 ) -> Map<String, JsonValue> {
+    // A union value is shaped as the member it names.
+    let type_name = named_member(&object, type_name, schema).unwrap_or(type_name);
     let type_def = schema.find_type(type_name);
     let level = effective_selections(selections, type_name, schema);
     let mut out = Map::with_capacity(level.len());
