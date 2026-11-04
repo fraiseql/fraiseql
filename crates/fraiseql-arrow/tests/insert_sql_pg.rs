@@ -259,6 +259,7 @@ async fn batched_queries_with_heterogeneous_schemas_error_loudly() {
             iat:          i64,
             scopes:       Vec<String>,
             session_type: String,
+            source:       serde_json::Value,
         }
         let now = Timestamp::now();
         let claims = Claims {
@@ -267,6 +268,7 @@ async fn batched_queries_with_heterogeneous_schemas_error_loudly() {
             iat:          now.as_second(),
             scopes:       vec!["read".to_string()],
             session_type: "flight".to_string(),
+            source:       serde_json::json!({"jti": null, "iat": null}),
         };
         encode(
             &Header::new(Algorithm::HS256),

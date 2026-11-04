@@ -88,6 +88,7 @@ pub use rls_policy::{
 pub use scope::scope_grants;
 pub use security_context::{
     BoxFuture, EnrichmentMark, EnrichmentOutcome, IdentityEnricher, SecurityContext,
+    TokenRevocationCheck,
 };
 
 pub use crate::graphql::complexity::QueryMetrics;

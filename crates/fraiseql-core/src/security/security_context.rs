@@ -115,6 +115,27 @@ pub trait IdentityEnricher: Send + Sync {
     fn enrich<'a>(&'a self, ctx: &'a mut SecurityContext) -> BoxFuture<'a, EnrichmentOutcome>;
 }
 
+/// Whether a token the caller has already validated is still admissible: the revocation
+/// store's verdict on its `jti`, and on its subject's revoke-all epoch.
+///
+/// The implementation lives in `fraiseql-server`, beside the store; this is the seam a
+/// crate that cannot depend on the server calls, as [`IdentityEnricher`] is. A transport
+/// that admits a token through it answers a revoked one exactly as `/graphql` does.
+pub trait TokenRevocationCheck: Send + Sync {
+    /// `Ok` when the token may proceed; otherwise the reason it is refused, worded as the
+    /// HTTP transports word it.
+    ///
+    /// `jti` and `iat` are the token's own claims, `None` when it has none: a missing
+    /// `jti` is refused when the store requires one, and otherwise only the subject's
+    /// revoke-all epoch applies.
+    fn check<'a>(
+        &'a self,
+        jti: Option<&'a str>,
+        sub: &'a str,
+        iat: Option<i64>,
+    ) -> BoxFuture<'a, Result<(), &'static str>>;
+}
+
 /// How a principal satisfied the enrichment requirement (#1336).
 ///
 /// The contract `[identity.enrichment]` documents is "every authenticated

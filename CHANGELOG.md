@@ -1729,6 +1729,13 @@ disagreed, and the promise was the part that was wrong.
   the compile or the boot naming its key. Move `session_transport` from `[auth.local]` to
   `[auth.session]` as `transport`: the compiler refuses the old spelling, naming the new one.
 
+- **Flight sessions minted before upgrading must handshake again.** A Flight session token
+  now names the token it was opened with, and one that does not is refused with
+  `UNAUTHENTICATED`.
+
+- **`StreamAuthGuard::check` returns `Result<(), StreamRefusal>`.** It returned
+  `Result<(), &'static str>`. The variant says whether the token, the subject or the
+  identity resolver refused; `StreamRefusal::reason()` is the text it returned before.
 ### Added
 
 - **`[security.rate_limiting]` sizes the two budgets that were fixed in code (#1777).**
@@ -2161,6 +2168,10 @@ disagreed, and the promise was the part that was wrong.
   as a sixth; triggers created before keep storing the row until they are regenerated. See
   `docs/architecture/external-write-capture.md`.
 
+- **`/ws` closes a subject the identity resolver denies with `4403` (`CloseCode::Forbidden`).**
+  The upgrade refuses that subject with `/graphql`'s `403`; a connection whose subject the
+  resolver denies at a later re-check is closed with `4403`. Expiry and revocation still close
+  with `4401`, and a resolver that cannot answer with `1011`.
 - **`after:mutation` and `after:capture` dispatch is at-least-once: the function dispatch
   ledger (#1628).** A durable dispatch is recorded in the write's own transaction
   (`_fraiseql_function_dispatch`, created at boot and in each tenant's schema), and the
@@ -3516,6 +3527,22 @@ disagreed, and the promise was the part that was wrong.
 
 - **Build and test against pg_tviews v0.1.0-beta.40, which carries upstream fixes listed in
   #2025.**
+
+- **Every long-lived transport admits a caller as `/graphql` does.**
+  - Arrow Flight consults the token revocation store at the handshake and on every call
+    that takes a session, data and metadata alike. A session ends at its next call once
+    the token it was opened with is revoked, alone or with every token of its subject. A
+    token without `jti` is treated as the HTTP transports treat it, including under
+    `require_jti`.
+  - `/ws` resolves the subscriber through `[identity.enrichment]` at the upgrade and refuses
+    a subject the resolver denies. When the schema consumes the enriched identity, a
+    subscriber no transport resolved is refused when its subscription is planned.
+  - A tenant's subscription is validated, authorized, planned and row-scoped against the
+    tenant's own schema, when it is opened and again on a reload.
+  - A `/ws` connection resolves its subject again at every periodic auth re-check, and an
+    `@stream` response before every batch. A subject the resolver no longer admits stops
+    being served within `cache_ttl_secs` plus one re-check (see
+    `docs/architecture/enriched-identity-rls.md`).
 
 ## [2.19.1] - 2026-11-14
 

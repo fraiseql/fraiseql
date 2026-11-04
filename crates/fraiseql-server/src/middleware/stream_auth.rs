@@ -9,13 +9,53 @@
 //! serving the revoked principal until the connection happens to end.
 //!
 //! [`StreamAuthGuard`] is the one implementation of that re-check, shared by every
-//! long-lived transport, so the two cannot answer the question differently.
+//! long-lived transport, so the two cannot answer the question differently. Beyond the
+//! token, it re-identifies the subject: a subject `[identity.enrichment]` no longer
+//! resolves stops being served, as a new request from it would be refused.
 
 use std::sync::Arc;
 
+use axum::http::HeaderMap;
 use fraiseql_core::security::SecurityContext;
 
-use crate::{middleware::oidc_auth::SessionTokenClaims, token_revocation::TokenRevocationManager};
+use crate::{
+    admission::AdmissionPolicy, middleware::oidc_auth::SessionTokenClaims,
+    routes::graphql::AppState, token_revocation::TokenRevocationManager,
+};
+
+/// Why a long-lived response stops being served. Each transport words it on its own wire.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StreamRefusal {
+    /// The token no longer authenticates: expired, revoked, missing a required `jti`, or
+    /// uncheckable under a fail-closed revocation posture.
+    Unauthenticated(&'static str),
+    /// The subject is no longer admitted: the identity resolver denies it.
+    Forbidden(&'static str),
+    /// The identity resolver could not answer, so the subject cannot be admitted.
+    Unavailable(&'static str),
+}
+
+impl StreamRefusal {
+    /// The reason the client is told.
+    #[must_use]
+    pub const fn reason(self) -> &'static str {
+        match self {
+            Self::Unauthenticated(reason) | Self::Forbidden(reason) | Self::Unavailable(reason) => {
+                reason
+            },
+        }
+    }
+}
+
+/// What re-identifies a subject: the principal as the auth layer produced it, before
+/// any enrichment, and the request it was admitted with.
+#[derive(Clone)]
+struct IdentityRecheck {
+    app:           AppState,
+    headers:       HeaderMap,
+    authenticated: SecurityContext,
+    policy:        AdmissionPolicy,
+}
 
 /// The per-delivery authorization guard for a long-lived response (#771, #958).
 ///
@@ -41,6 +81,9 @@ pub struct StreamAuthGuard {
     claims:     Option<SessionTokenClaims>,
     /// The revocation store to consult, when configured.
     revocation: Option<Arc<TokenRevocationManager>>,
+    /// The subject's identity, re-resolved on every full re-check. `None` for an
+    /// anonymous connection, or a transport mounted without application state.
+    identity:   Option<IdentityRecheck>,
 }
 
 impl StreamAuthGuard {
@@ -59,7 +102,30 @@ impl StreamAuthGuard {
             // no jti/iat to check (anonymous or service-account connection).
             revocation: if claims.is_some() { revocation } else { None },
             claims,
+            identity: None,
         }
+    }
+
+    /// Re-identify the subject on every full re-check, as `policy` admitted it.
+    ///
+    /// `authenticated` is the principal the auth layer produced, **before** enrichment:
+    /// an enriched principal already carries what a resolve would merge, and resolving it
+    /// again would only confirm the answer it was admitted with.
+    #[must_use]
+    pub fn with_identity(
+        mut self,
+        app: Option<&AppState>,
+        headers: &HeaderMap,
+        authenticated: Option<SecurityContext>,
+        policy: AdmissionPolicy,
+    ) -> Self {
+        self.identity = app.zip(authenticated).map(|(app, authenticated)| IdentityRecheck {
+            app: app.clone(),
+            headers: headers.clone(),
+            authenticated,
+            policy,
+        });
+        self
     }
 
     /// Whether any mid-delivery re-check applies to this principal.
@@ -74,30 +140,46 @@ impl StreamAuthGuard {
         self.expires_at.is_some_and(|exp| exp <= fraiseql_time::Timestamp::now())
     }
 
-    /// The full re-check: expiry plus revocation.
+    /// The full re-check: expiry, revocation, and the subject's identity.
     ///
     /// # Errors
     ///
-    /// Returns the termination reason — the string the transport reports to the client
-    /// — when the principal has expired, has been revoked, lacks a required `jti`, or
-    /// could not be checked under a fail-closed revocation posture.
-    pub async fn check(&self) -> Result<(), &'static str> {
+    /// [`StreamRefusal::Unauthenticated`] when the principal has expired, has been
+    /// revoked, lacks a required `jti`, or could not be checked under a fail-closed
+    /// revocation posture; [`StreamRefusal::Forbidden`] when the identity resolver now
+    /// denies the subject; [`StreamRefusal::Unavailable`] when it cannot answer.
+    pub async fn check(&self) -> Result<(), StreamRefusal> {
         if self.expired() {
-            return Err(crate::admission::TOKEN_EXPIRED);
+            return Err(StreamRefusal::Unauthenticated(crate::admission::TOKEN_EXPIRED));
         }
         if let (Some(revocation), Some(sub), Some(claims)) =
             (self.revocation.as_ref(), self.sub.as_deref(), self.claims.as_ref())
         {
-            use crate::token_revocation::TokenRejection;
-            match revocation.check_token(claims.jti.as_deref(), sub, claims.iat).await {
-                Ok(()) => {},
-                Err(TokenRejection::Revoked) => return Err(crate::admission::TOKEN_REVOKED),
-                Err(TokenRejection::MissingJti) => return Err("Token lacks required jti claim"),
-                // The manager already applied its fail-open posture internally; an
-                // error here means fail-closed is configured — terminate.
-                Err(TokenRejection::StoreUnavailable) => {
-                    return Err("Revocation store unavailable");
+            // The manager already applied its fail-open posture internally; an error here
+            // (a revoked token, a missing required jti, or a store outage under
+            // fail-closed) terminates.
+            revocation
+                .check_token(claims.jti.as_deref(), sub, claims.iat)
+                .await
+                .map_err(|rejection| StreamRefusal::Unauthenticated(rejection.reason()))?;
+        }
+        if let Some(identity) = self.identity.as_ref() {
+            use fraiseql_core::security::EnrichmentOutcome;
+
+            use crate::admission::Refusal;
+            match crate::admission::identify(
+                &identity.app,
+                &identity.headers,
+                Some(identity.authenticated.clone()),
+                &identity.policy,
+            )
+            .await
+            {
+                Ok(_) => {},
+                Err(Refusal::IdentityUnavailable) => {
+                    return Err(StreamRefusal::Unavailable(EnrichmentOutcome::UNAVAILABLE_MESSAGE));
                 },
+                Err(_) => return Err(StreamRefusal::Forbidden(EnrichmentOutcome::DENIED_MESSAGE)),
             }
         }
         Ok(())

@@ -67,6 +67,17 @@ impl TestIdp {
         self.mint(&self.claims(sub).set("jti", jti))
     }
 
+    /// A token for `sub` issued at `iat`, carrying `jti` when it is `Some` and no `jti`
+    /// claim at all when it is `None`, signed with this issuer's key.
+    #[must_use]
+    pub fn token_with(&self, sub: &str, jti: Option<&str>, iat: i64) -> String {
+        let claims = self.claims(sub).set("iat", iat);
+        self.mint(&match jti {
+            Some(jti) => claims.set("jti", jti),
+            None => claims.without("jti"),
+        })
+    }
+
     /// A token for `sub` carrying `jti`, naming this issuer's `kid` but signed by a
     /// key it does not publish.
     #[must_use]

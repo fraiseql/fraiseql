@@ -61,10 +61,11 @@ use tracing::{debug, error, info, warn};
 // A subscription's principal is validated once at the upgrade and then held for an
 // unbounded duration; `StreamAuthGuard` is what keeps that trust honest. It is
 // re-checked periodically (every `SubscriptionState::auth_recheck_interval`) and —
-// for expiry — on every event delivery; any failure closes the socket with 4401.
+// for expiry — on every event delivery. An expired or revoked token closes the socket
+// with 4401, a subject the identity resolver denies with 4403, an outage with 1011.
 // The guard is shared with the `@stream` delivery loop (#958), so the two long-lived
 // transports cannot answer "is this principal still allowed?" differently.
-use crate::middleware::stream_auth::StreamAuthGuard;
+use crate::middleware::stream_auth::{StreamAuthGuard, StreamRefusal};
 use crate::{
     admission::{Refusal, Tenant},
     extractors::OptionalSecurityContext,
@@ -477,6 +478,7 @@ pub fn build_subscription_policies(schema: &CompiledSchema) -> HashMap<String, S
 ///   the subscription (fail-closed, never deliver-all).
 async fn resolve_subscription_rls(
     state: &SubscriptionState,
+    tenant_executor: Option<&fraiseql_core::runtime::Executor>,
     subscription_name: &str,
     principal: Option<&SecurityContext>,
 ) -> Result<Vec<(String, serde_json::Value)>, String> {
@@ -484,10 +486,14 @@ async fn resolve_subscription_rls(
     // so a hot-reloaded policy applies to this new subscription; otherwise the mount-time
     // snapshot. Fail-closed is preserved downstream: a policy that applies but whose owner
     // identity is unresolvable refuses the subscription (never deliver-all).
-    let policies = state
-        .live_subscription_policies
-        .as_ref()
-        .map_or_else(|| Arc::clone(&state.subscription_policies), |live| live());
+    // A tenant's subscriber is scoped by the tenant's own policies.
+    let policies = match tenant_executor {
+        Some(executor) => Arc::new(build_subscription_policies(executor.schema())),
+        None => state
+            .live_subscription_policies
+            .as_ref()
+            .map_or_else(|| Arc::clone(&state.subscription_policies), |live| live()),
+    };
     let Some(policy) = policies.get(subscription_name) else {
         return Ok(Vec::new());
     };
@@ -593,6 +599,33 @@ pub async fn subscription_handler(
         return axum::http::StatusCode::UNAUTHORIZED.into_response();
     }
 
+    // The connection's principal is identified as a `/graphql` request's is: resolved
+    // through `[identity.enrichment]` and refused when the resolver denies it. Everything
+    // the connection does after this (planning, authorization, row policies) runs as it.
+    // The principal as authenticated is kept too: the periodic re-check identifies it
+    // again, so a subject the resolver no longer admits stops being served.
+    let authenticated = security_context.clone();
+    let security_context = match state.app.as_ref() {
+        Some(app) => match crate::admission::identify(
+            app,
+            &headers,
+            security_context,
+            &crate::admission::AdmissionPolicy::SUBSCRIPTION,
+        )
+        .await
+        {
+            Ok(identified) => identified.into_security_context(),
+            Err(refusal) => {
+                warn!(?refusal, "Subscription upgrade refused by admission");
+                return crate::error::ErrorResponse::from_error(
+                    crate::routes::graphql::admission_error(&refusal),
+                )
+                .into_response();
+            },
+        },
+        None => security_context,
+    };
+
     let tenant = match admit_upgrade(&state, security_context.as_ref(), &headers) {
         Ok(tenant) => tenant,
         Err(refusal) => {
@@ -625,6 +658,23 @@ pub async fn subscription_handler(
         },
     };
 
+    // #771 (was A44): authorization for the life of the stream. The principal was
+    // validated once at the upgrade; this guard re-checks token expiry, revocation when a
+    // store is configured, and the subject's identity periodically, and expiry again on
+    // every event delivery. The identity re-check starts from the principal as
+    // authenticated, before enrichment.
+    let auth_guard = StreamAuthGuard::new(
+        security_context.as_ref(),
+        token_claims.map(|axum::Extension(claims)| claims),
+        state.revocation_manager.clone(),
+    )
+    .with_identity(
+        state.app.as_ref(),
+        &headers,
+        authenticated,
+        crate::admission::AdmissionPolicy::SUBSCRIPTION,
+    );
+
     ws.protocols([protocol.as_str()])
         .on_upgrade(move |socket| async move {
             let _slot = slot;
@@ -634,7 +684,7 @@ pub async fn subscription_handler(
                 protocol,
                 tenant,
                 security_context,
-                token_claims.map(|axum::Extension(claims)| claims),
+                auth_guard,
                 headers,
             )
             .await;
@@ -700,6 +750,27 @@ fn admit_upgrade(
     Ok(Some(tenant))
 }
 
+/// The executor of the tenant a connection runs as, when it runs as one: its subscriptions
+/// are validated, planned and scoped against the tenant's own compiled schema, as the
+/// tenant's `/graphql` requests are. `None` for a connection on the default executor,
+/// which keeps reading the live default (`live_executor`, `live_schema`, the live
+/// policies).
+///
+/// # Errors
+///
+/// [`Refusal::Dispatch`] for a tenant unregistered or suspended since the upgrade.
+fn tenant_executor(
+    state: &SubscriptionState,
+    tenant: Option<&Tenant>,
+) -> Result<Option<Arc<fraiseql_core::runtime::Executor>>, Refusal> {
+    match (state.app.as_ref(), tenant) {
+        (Some(app), Some(tenant)) if tenant.key().is_some() => {
+            tenant.executor(app).map(|executor| Some(Arc::clone(&executor)))
+        },
+        _ => Ok(None),
+    }
+}
+
 /// Charge a subscription to its tenant, as `/graphql` charges an operation: the tenant
 /// must still be registered and active, and the document's estimated cost must fit the
 /// tenant's budget.
@@ -760,7 +831,7 @@ async fn handle_subscription_connection(
     protocol: WsProtocol,
     tenant: Option<Tenant>,
     principal: Option<SecurityContext>,
-    token_claims: Option<crate::middleware::oidc_auth::SessionTokenClaims>,
+    auth_guard: StreamAuthGuard,
     // The upgrade request's headers, for the request locale (#1512): a subscription is
     // planned, and its events served, long after the upgrade returned.
     headers: HeaderMap,
@@ -887,12 +958,6 @@ async fn handle_subscription_connection(
     let mut ping_interval = tokio::time::interval(PING_INTERVAL);
     ping_interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
 
-    // #771 (was A44): authorization for the life of the stream. The principal was
-    // validated once at the upgrade; this guard re-checks token expiry (and, when a
-    // revocation store is configured, revocation) periodically, and expiry again on
-    // every event delivery. A failed check closes the socket with 4401.
-    let auth_guard =
-        StreamAuthGuard::new(principal.as_ref(), token_claims, state.revocation_manager.clone());
     let auth_recheck_enabled = auth_guard.applies() && !state.auth_recheck_interval.is_zero();
     let mut auth_recheck =
         tokio::time::interval(state.auth_recheck_interval.max(Duration::from_millis(1)));
@@ -999,6 +1064,7 @@ async fn handle_subscription_connection(
                         &mut sender,
                         &mut active_operations,
                         &connection_id,
+                        tenant.as_ref(),
                         principal.as_ref(),
                     ).await;
                 } else {
@@ -1010,16 +1076,24 @@ async fn handle_subscription_connection(
             _ = auth_recheck.tick(), if auth_recheck_enabled => {
                 // #771: periodic mid-stream authorization re-check. Bounds how long
                 // an idle expired stream, or a revoked-but-unexpired one, stays open.
-                if let Err(reason) = auth_guard.check().await {
+                if let Err(refusal) = auth_guard.check().await {
                     warn!(
                         connection_id = %connection_id,
-                        reason,
+                        ?refusal,
                         "Mid-stream authorization re-check failed; closing WebSocket"
                     );
+                    // The close code of the refusal the upgrade would now get: 4401 for a
+                    // token that no longer authenticates, 4403 for a subject no longer
+                    // admitted, 1011 when the identity resolver cannot answer.
+                    let code = match refusal {
+                        StreamRefusal::Unauthenticated(_) => CloseCode::Unauthorized,
+                        StreamRefusal::Forbidden(_) => CloseCode::Forbidden,
+                        StreamRefusal::Unavailable(_) => CloseCode::InternalError,
+                    };
                     // Best-effort: the connection is being terminated either way.
                     let _ = sender.send(Message::Close(Some(axum::extract::ws::CloseFrame {
-                        code: CloseCode::Unauthorized.code(),
-                        reason: reason.into(),
+                        code: code.code(),
+                        reason: refusal.reason().into(),
                     }))).await;
                     break;
                 }
@@ -1184,8 +1258,12 @@ async fn rederive_operations_after_policy_reload(
     sender: &mut futures::stream::SplitSink<WebSocket, Message>,
     active_operations: &mut HashMap<String, ActiveOperation>,
     connection_id: &str,
+    tenant: Option<&Tenant>,
     principal: Option<&SecurityContext>,
 ) {
+    // A tenant's operations are planned again against the tenant's executor serving now;
+    // a tenant suspended or removed since ends them, as a refused plan does.
+    let tenant_executor = tenant_executor(state, tenant);
     let ops: Vec<(String, SubscriptionId, String, Option<(ParsedQuery, serde_json::Value)>)> =
         active_operations
             .iter()
@@ -1203,21 +1281,28 @@ async fn rederive_operations_after_policy_reload(
         // Ruling AC 7: a planned operation is planned again against the executor serving
         // now, with the same document, variables and principal. A plan the reload refuses
         // ends the operation exactly as a refused row-visibility derivation does.
-        let replanned = match (planned_from, state.live_executor.as_ref()) {
-            (Some((document, variables)), Some(live)) => {
-                match live().plan_subscription(&document, Some(&variables), principal) {
+        let planner = match &tenant_executor {
+            Ok(Some(executor)) => Ok(Some(Arc::clone(executor))),
+            Ok(None) => Ok(state.live_executor.as_ref().map(|live| live())),
+            Err(refusal) => Err(refusal_error(refusal).message),
+        };
+        let replanned = match (planned_from, planner) {
+            (_, Err(reason)) => Some(Err(reason)),
+            (Some((document, variables)), Ok(Some(executor))) => {
+                match executor.plan_subscription(&document, Some(&variables), principal) {
                     Ok(plan) => Some(Ok(Arc::new(plan))),
                     Err(refusal) => Some(Err(refusal.to_string())),
                 }
             },
             _ => None,
         };
+        let scoped_by = tenant_executor.as_ref().ok().and_then(Option::as_deref);
         let derived = match replanned {
             Some(Err(reason)) => Err(reason),
-            Some(Ok(plan)) => resolve_subscription_rls(state, &name, principal)
+            Some(Ok(plan)) => resolve_subscription_rls(state, scoped_by, &name, principal)
                 .await
                 .map(|conditions| (conditions, Some(plan))),
-            None => resolve_subscription_rls(state, &name, principal)
+            None => resolve_subscription_rls(state, scoped_by, &name, principal)
                 .await
                 .map(|conditions| (conditions, None)),
         };
@@ -1340,6 +1425,21 @@ async fn handle_client_message(
                 }
             }
 
+            // The tenant's own executor, when the connection runs as a tenant: its schema
+            // validates, authorizes, plans and scopes this subscription.
+            let tenant_executor = match tenant_executor(state, tenant) {
+                Ok(executor) => executor,
+                Err(refusal) => {
+                    WS_SUBSCRIPTIONS_REJECTED.fetch_add(1, Ordering::Relaxed);
+                    warn!(connection_id = %connection_id, ?refusal, "Admission refused the subscription");
+                    let error = ServerMessage::error(&op_id, vec![refusal_error(&refusal)]);
+                    if let Err(e) = send_server_message(codec, sender, error).await {
+                        debug!(connection_id = %connection_id, error = %e, "Could not send admission refusal to client");
+                    }
+                    return Ok(());
+                },
+            };
+
             // Extract the root field from the query: the name to resolve, and the
             // key the client asked its data under (#906).
             // Parse and select the subscription operation, then validate its
@@ -1348,7 +1448,10 @@ async fn handle_client_message(
             // this is the only place the rules the `/graphql` surface enforces
             // can be applied to a subscription.
             let document = extract_subscription_root(&payload.query).and_then(|(root, parsed)| {
-                let serving = state.live_executor.as_ref().map(|f| f());
+                // The tenant's executor when the connection runs as a tenant, else the
+                // live default.
+                let serving =
+                    tenant_executor.clone().or_else(|| state.live_executor.as_ref().map(|f| f()));
                 // Read only when no executor is installed: it clones the whole schema.
                 let schema = match serving {
                     Some(_) => None,
@@ -1438,7 +1541,10 @@ async fn handle_client_message(
             if let Some(authorizer) = state.authorizer.as_ref() {
                 // The type it delivers, from the schema serving now; `None` in a harness
                 // that mounts no schema.
-                let live = state.live_schema.as_ref().map(|f| f());
+                let live = match tenant_executor.as_ref() {
+                    Some(executor) => Some(Arc::new(executor.schema().clone())),
+                    None => state.live_schema.as_ref().map(|f| f()),
+                };
                 let target = live
                     .as_deref()
                     .and_then(|schema| schema.find_subscription(&subscription_name))
@@ -1497,11 +1603,13 @@ async fn handle_client_message(
             // side effect — and every event is served through the plan. A refusal is the
             // subscription's error frame, as for a query. Every subscribe is this server's
             // own (ruling AE 1: nothing is forwarded to another subgraph).
-            let plan = match state.live_executor.as_ref() {
-                Some(live) => {
+            let planner = tenant_executor
+                .clone()
+                .or_else(|| state.live_executor.as_ref().map(|live| live()));
+            let plan = match planner {
+                Some(executor) => {
                     // #1513: planned in the subscriber's locale, which the plan keeps for
                     // every event it serves.
-                    let executor = live();
                     let request_locale = crate::request_scope::resolve(
                         executor.schema(),
                         Some(locale.headers),
@@ -1588,6 +1696,7 @@ async fn handle_client_message(
             // subscription rather than falling back to delivering every row.
             let rls_conditions = match resolve_subscription_rls(
                 state,
+                tenant_executor.as_deref(),
                 &subscription_name,
                 principal,
             )

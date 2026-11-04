@@ -177,6 +177,7 @@ fn session_token() -> String {
         iat:          i64,
         scopes:       Vec<String>,
         session_type: String,
+        source:       serde_json::Value,
     }
 
     let now = Timestamp::now();
@@ -188,6 +189,7 @@ fn session_token() -> String {
             iat:          now.as_second(),
             scopes:       vec!["user".to_string()],
             session_type: "flight".to_string(),
+            source:       serde_json::json!({"jti": null, "iat": null}),
         },
         &EncodingKey::from_secret(TEST_FLIGHT_SECRET.as_bytes()),
     )

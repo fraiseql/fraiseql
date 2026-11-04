@@ -8,7 +8,7 @@ use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header, Validation, deco
 use tonic::{Request, Status};
 use tracing::warn;
 
-use super::SessionTokenClaims;
+use super::{SessionSource, SessionTokenClaims};
 
 /// Map security error to gRPC status.
 pub fn map_security_error_to_status(error: fraiseql_core::security::SecurityError) -> Status {
@@ -38,18 +38,20 @@ pub fn map_security_error_to_status(error: fraiseql_core::security::SecurityErro
 #[allow(clippy::result_large_err)] // Reason: tonic::Status is inherently large; boxing would add indirection in hot path
 pub fn create_session_token(
     user: &fraiseql_core::security::auth_middleware::AuthenticatedUser,
+    source: SessionSource,
     secret: &str,
 ) -> std::result::Result<String, Status> {
     let now = Timestamp::now();
     let exp = (now + SignedDuration::from_mins(5)).min(user.expires_at);
 
     let claims = SessionTokenClaims {
-        sub:          user.user_id.0.clone(),
-        exp:          exp.as_second(),
-        iat:          now.as_second(),
-        scopes:       user.scopes.clone(),
+        sub: user.user_id.0.clone(),
+        exp: exp.as_second(),
+        iat: now.as_second(),
+        scopes: user.scopes.clone(),
         session_type: "flight".to_string(),
-        claims:       user.extra_claims.clone(),
+        claims: user.extra_claims.clone(),
+        source,
     };
 
     let key = EncodingKey::from_secret(secret.as_bytes());
@@ -71,13 +73,17 @@ pub fn create_session_token(
 /// * `secret` - HMAC-SHA256 key, cached at service startup in `FraiseQLFlightService`
 ///
 /// # Returns
-/// * `Ok(AuthenticatedUser)` - Valid token with user identity
+/// * `Ok((AuthenticatedUser, SessionSource))` - Valid token with user identity, and the token the
+///   session was opened with
 /// * `Err(Status)` - Invalid token, expired, or malformed
 #[allow(clippy::result_large_err)] // Reason: tonic::Status is inherently large; boxing would add indirection in hot path
-pub fn validate_session_token(
+pub fn validate_session(
     token: &str,
     secret: &str,
-) -> std::result::Result<fraiseql_core::security::auth_middleware::AuthenticatedUser, Status> {
+) -> std::result::Result<
+    (fraiseql_core::security::auth_middleware::AuthenticatedUser, SessionSource),
+    Status,
+> {
     let key = DecodingKey::from_secret(secret.as_bytes());
     let mut validation = Validation::new(Algorithm::HS256);
     validation.validate_exp = true; // Check expiration
@@ -110,16 +116,19 @@ pub fn validate_session_token(
     let expires_at = instant_from_claim(claims.exp)
         .ok_or_else(|| map_security_error_to_status(SecurityError::InvalidToken))?;
 
-    Ok(fraiseql_core::security::auth_middleware::AuthenticatedUser {
-        user_id: fraiseql_core::types::UserId::new(claims.sub),
-        scopes: claims.scopes,
-        expires_at,
-        email: None,
-        display_name: None,
-        extra_claims: claims.claims,
-        // A session the Flight handshake minted.
-        provenance: fraiseql_core::security::Provenance::FlightSession,
-    })
+    Ok((
+        fraiseql_core::security::auth_middleware::AuthenticatedUser {
+            user_id: fraiseql_core::types::UserId::new(claims.sub),
+            scopes: claims.scopes,
+            expires_at,
+            email: None,
+            display_name: None,
+            extra_claims: claims.claims,
+            // A session the Flight handshake minted.
+            provenance: fraiseql_core::security::Provenance::FlightSession,
+        },
+        claims.source,
+    ))
 }
 
 /// Extract session token from gRPC request metadata.

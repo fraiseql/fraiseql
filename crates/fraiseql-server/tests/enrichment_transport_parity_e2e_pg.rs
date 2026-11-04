@@ -63,6 +63,8 @@ const ORDER_TABLE: &str = "tf_p36_order";
 const ORDER_VIEW: &str = "v_p36_order";
 /// The view the *unenriched* query reads — same rows, no enriched predicate.
 const AUDIT_VIEW: &str = "v_p36_audit";
+/// [`AUDIT_VIEW`], 400 ms per row.
+const SLOW_AUDIT_VIEW: &str = "v_p36_slow_audit";
 
 /// The subject the actor table knows, and the org the *database* says it belongs to.
 const KNOWN_SUB: &str = "p36-known-subject";
@@ -84,6 +86,7 @@ async fn seed(adapter: &PostgresAdapter) {
     let mut stmts = vec![
         format!("DROP VIEW IF EXISTS {ORDER_VIEW}"),
         format!("DROP VIEW IF EXISTS {AUDIT_VIEW}"),
+        format!("DROP VIEW IF EXISTS {SLOW_AUDIT_VIEW}"),
         format!("DROP TABLE IF EXISTS {ORDER_TABLE}"),
         format!("DROP TABLE IF EXISTS {ACTOR_TABLE}"),
         format!("CREATE TABLE {ACTOR_TABLE} (sub text PRIMARY KEY, org_id text NOT NULL)"),
@@ -101,6 +104,12 @@ async fn seed(adapter: &PostgresAdapter) {
     }
     stmts.push(format!("CREATE VIEW {ORDER_VIEW} AS SELECT id, data FROM {ORDER_TABLE}"));
     stmts.push(format!("CREATE VIEW {AUDIT_VIEW} AS SELECT id, data FROM {ORDER_TABLE}"));
+    // Every row's projection sleeps, so a one-row-per-batch delivery lasts ~2 s and a
+    // change made mid-delivery lands between two batches.
+    stmts.push(format!(
+        "CREATE VIEW {SLOW_AUDIT_VIEW} AS SELECT id, data || jsonb_build_object('nap', \
+         (pg_sleep(0.4))::text) AS data FROM {ORDER_TABLE}"
+    ));
 
     for stmt in stmts {
         let _: Vec<std::collections::HashMap<String, Value>> =
@@ -155,6 +164,21 @@ fn build_schema() -> CompiledSchema {
     });
     schema.build_indexes();
     schema
+}
+
+/// Shorten [`server_config`]'s positive identity cache to one second: a removed subject
+/// stops resolving at most a second after its removal, as a new `/graphql` request would
+/// see it.
+fn short_identity_cache(config: &mut ServerConfig) {
+    config.identity = serde_json::from_value(json!({
+        "enrichment": {
+            "enabled": true,
+            "query": format!("SELECT org_id FROM {ACTOR_TABLE} WHERE sub = $sub"),
+            "map": {"org_id": "org_id"},
+            "cache_ttl_secs": 1,
+        }
+    }))
+    .expect("[identity.enrichment] config");
 }
 
 /// `[auth]` trusting `issuer`, plus `[identity.enrichment]`, wired the way an operator
@@ -921,4 +945,221 @@ async fn the_tenant_key_is_actually_honoured_by_these_cases() {
          not reaching dispatch and the tenant cases prove nothing. Content: {:?}",
         result.content
     );
+}
+
+// ── /ws: a subscription is admitted through the same identity step ──────────────
+
+/// [`build_schema`] plus `auditAdded`, a subscription with no row policy: what a
+/// subscriber is admitted to rests on the identity step alone.
+fn build_schema_with_subscription() -> CompiledSchema {
+    let mut schema = build_schema();
+    schema
+        .subscriptions
+        .push(fraiseql_core::schema::SubscriptionDefinition::new("auditAdded", "P36Audit"));
+    schema.build_indexes();
+    schema
+}
+
+/// Open `/ws` as the subject `token` names. `Err` carries the HTTP status of a refused
+/// upgrade.
+async fn ws_connect(
+    base: &str,
+    token: &str,
+) -> Result<
+    tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>,
+    u16,
+> {
+    use tokio_tungstenite::tungstenite::{self, client::IntoClientRequest};
+
+    let url = format!("{}/ws", base.replacen("http", "ws", 1));
+    let mut request = url.into_client_request().unwrap();
+    let headers = request.headers_mut();
+    headers.insert(
+        "Sec-WebSocket-Protocol",
+        tungstenite::http::HeaderValue::from_static("graphql-transport-ws"),
+    );
+    headers.insert(
+        "Authorization",
+        tungstenite::http::HeaderValue::from_str(&format!("Bearer {token}")).unwrap(),
+    );
+    match tokio_tungstenite::connect_async(request).await {
+        Ok((ws, _)) => Ok(ws),
+        Err(tungstenite::Error::Http(response)) => Err(response.status().as_u16()),
+        Err(e) => panic!("/ws connect failed for a reason other than a refusal: {e}"),
+    }
+}
+
+/// Send `value` as a text frame and read text frames until one arrives.
+async fn ws_exchange(
+    ws: &mut tokio_tungstenite::WebSocketStream<
+        tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
+    >,
+    value: Value,
+) -> Value {
+    use futures::{SinkExt as _, StreamExt as _};
+    use tokio_tungstenite::tungstenite::Message;
+
+    ws.send(Message::Text(value.to_string().into())).await.unwrap();
+    loop {
+        let frame = tokio::time::timeout(std::time::Duration::from_secs(5), ws.next())
+            .await
+            .expect("an answer within 5s")
+            .expect("the socket is open")
+            .unwrap();
+        if let Message::Text(text) = frame {
+            return serde_json::from_str(&text).unwrap();
+        }
+    }
+}
+
+/// The control: a subject the actor table knows is admitted to `/ws` and its subscription
+/// runs. If this ever reddens, the fixture is wrong and the refusal below means nothing.
+#[tokio::test]
+async fn ws_admits_a_subject_the_actor_table_knows() {
+    let Some((base, _stop, issuer)) = start_with(build_schema_with_subscription()).await else {
+        eprintln!("skipping: DATABASE_URL not set");
+        return;
+    };
+    let mut ws = ws_connect(&base, &token_for(&issuer, KNOWN_SUB)).await.expect("admitted");
+    let ack = ws_exchange(&mut ws, json!({ "type": "connection_init" })).await;
+    assert_eq!(ack["type"], "connection_ack", "{ack}");
+    ws_exchange_subscribe_then_ping(&mut ws).await;
+}
+
+/// Subscribe to `auditAdded`, then ping: a refused subscription answers `error` (or
+/// `complete`) before the `pong`.
+async fn ws_exchange_subscribe_then_ping(
+    ws: &mut tokio_tungstenite::WebSocketStream<
+        tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
+    >,
+) {
+    use futures::SinkExt as _;
+    use tokio_tungstenite::tungstenite::Message;
+
+    let subscribe = json!({
+        "type": "subscribe",
+        "id": "op-1",
+        "payload": { "query": "subscription { auditAdded { id } }" }
+    });
+    ws.send(Message::Text(subscribe.to_string().into())).await.unwrap();
+    let mut answer = ws_exchange(ws, json!({ "type": "ping" })).await;
+    // The server's own keep-alive pings are not the answer to ours.
+    while answer["type"] == "ping" {
+        answer = ws_exchange(ws, json!({ "type": "pong" })).await;
+    }
+    assert_eq!(answer["type"], "pong", "the subscription must run, not be refused: {answer}");
+}
+
+/// The refusal: a subject the actor table does not know is refused at the upgrade, as
+/// `/graphql` refuses it, even for a subscription that declares no row policy.
+#[tokio::test]
+async fn ws_refuses_a_subject_the_actor_table_does_not_know() {
+    let Some((base, _stop, issuer)) = start_with(build_schema_with_subscription()).await else {
+        eprintln!("skipping: DATABASE_URL not set");
+        return;
+    };
+    match ws_connect(&base, &token_for(&issuer, UNKNOWN_SUB)).await {
+        Err(status) => assert_eq!(status, 403, "refused as /graphql refuses it"),
+        Ok(mut ws) => {
+            let ack = ws_exchange(&mut ws, json!({ "type": "connection_init" })).await;
+            panic!("an unknown subject was admitted to /ws and answered {ack}");
+        },
+    }
+}
+
+/// A live subscription is admitted only while its subject is: once the actor table no
+/// longer knows the subject, the next periodic re-check closes the connection with 4403,
+/// the close code of the refusal its upgrade would now get.
+#[tokio::test]
+async fn ws_closes_a_subject_removed_from_the_actor_table_at_the_next_recheck() {
+    use futures::StreamExt as _;
+    use tokio_tungstenite::tungstenite::{Message, protocol::frame::coding::CloseCode};
+
+    let Some((base, _stop, issuer)) =
+        Box::pin(start_over(build_schema_with_subscription(), |config| {
+            short_identity_cache(config);
+            config.subscription_auth_recheck_secs = 1;
+        }))
+        .await
+    else {
+        eprintln!("skipping: DATABASE_URL not set");
+        return;
+    };
+    let mut ws = ws_connect(&base, &token_for(&issuer, KNOWN_SUB)).await.expect("admitted");
+    let ack = ws_exchange(&mut ws, json!({ "type": "connection_init" })).await;
+    assert_eq!(ack["type"], "connection_ack", "{ack}");
+    ws_exchange_subscribe_then_ping(&mut ws).await;
+
+    let url = try_database_url().unwrap();
+    let adapter = PostgresAdapter::new(&url).await.unwrap();
+    let _: Vec<std::collections::HashMap<String, Value>> = adapter
+        .execute_raw_query(&format!("DELETE FROM {ACTOR_TABLE} WHERE sub = '{KNOWN_SUB}'"))
+        .await
+        .unwrap();
+
+    let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(5);
+    loop {
+        let frame = tokio::time::timeout_at(deadline, ws.next())
+            .await
+            .expect("the connection outlived its subject's removal by more than 5 re-checks");
+        match frame {
+            Some(Ok(Message::Close(Some(close)))) => {
+                assert_eq!(close.code, CloseCode::from(4403), "{close:?}");
+                break;
+            },
+            Some(Ok(Message::Close(None))) | None => panic!("closed without a 4403 close frame"),
+            Some(Ok(_)) => {},
+            Some(Err(e)) => panic!("the socket failed instead of closing with 4403: {e}"),
+        }
+    }
+}
+
+/// A long `@stream` delivery is served only while its subject is admitted: once the actor
+/// table no longer knows the subject, the next batch's re-check ends the delivery with a
+/// `FORBIDDEN` error, the refusal `/graphql` would now give it.
+#[tokio::test]
+async fn graphql_stream_ends_when_its_subject_leaves_the_actor_table() {
+    let mut schema = build_schema_without_consumer();
+    schema.queries.push(
+        TestQueryBuilder::new("slowAudits", "P36Audit")
+            .returns_list(true)
+            .with_sql_source(SLOW_AUDIT_VIEW)
+            .build(),
+    );
+    schema.build_indexes();
+    let Some((base, shutdown, issuer)) = Box::pin(start_over(schema, |config| {
+        short_identity_cache(config);
+        config.graphql_incremental_batch_size = Some(1);
+    }))
+    .await
+    else {
+        eprintln!("skipping: DATABASE_URL not set");
+        return;
+    };
+
+    // Remove the subject ~600 ms into a ~2 s delivery (5 rows, one per batch).
+    tokio::spawn(async move {
+        tokio::time::sleep(std::time::Duration::from_millis(600)).await;
+        let adapter = PostgresAdapter::new(&try_database_url().unwrap()).await.unwrap();
+        let _: Vec<std::collections::HashMap<String, Value>> = adapter
+            .execute_raw_query(&format!("DELETE FROM {ACTOR_TABLE} WHERE sub = '{KNOWN_SUB}'"))
+            .await
+            .unwrap();
+    });
+
+    let (status, body) = graphql_stream(
+        &base,
+        "{ slowAudits @stream(initialCount: 1) { id } }",
+        &token_for(&issuer, KNOWN_SUB),
+    )
+    .await;
+    assert_eq!(status, 200, "the delivery starts while the subject is known. Body: {body}");
+    assert!(
+        body.contains("FORBIDDEN"),
+        "the delivery must end with the refusal /graphql now gives the subject. Body: {body}"
+    );
+    let delivered = body.matches("\"id\":").count();
+    assert!(delivered < ROWS_A + ROWS_B, "it ends before every row. Body: {body}");
+
+    let _ = shutdown.send(());
 }

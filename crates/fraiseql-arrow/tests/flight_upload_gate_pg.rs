@@ -132,7 +132,7 @@ async fn flight_adapter() -> Arc<dyn ArrowDatabaseAdapter> {
     Arc::new(PgFlightAdapter { inner })
 }
 
-/// A session token of exactly the shape `validate_session_token` accepts —
+/// A session token of exactly the shape `validate_session` accepts —
 /// this is the "valid Flight session token" the finding turns on.
 fn session_token() -> String {
     use jsonwebtoken::{Algorithm, EncodingKey, Header, encode};
@@ -145,6 +145,7 @@ fn session_token() -> String {
         iat:          i64,
         scopes:       Vec<String>,
         session_type: String,
+        source:       serde_json::Value,
     }
 
     let now = Timestamp::now();
@@ -155,6 +156,7 @@ fn session_token() -> String {
         iat:          now.as_second(),
         scopes:       vec!["user".to_string()],
         session_type: "flight".to_string(),
+        source:       serde_json::json!({"jti": null, "iat": null}),
     };
 
     encode(

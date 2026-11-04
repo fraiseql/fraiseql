@@ -279,6 +279,8 @@ pub enum CloseCode {
     SubscriberAlreadyExists = 4409,
     /// Unauthorized.
     Unauthorized         = 4401,
+    /// Forbidden: the subscriber is authenticated but no longer admitted.
+    Forbidden            = 4403,
     /// Subscription not found (invalid ID on complete).
     SubscriptionNotFound = 4404,
 }
@@ -303,6 +305,7 @@ impl CloseCode {
             Self::TooManyInitRequests => "Too many initialization requests",
             Self::SubscriberAlreadyExists => "Subscriber already exists",
             Self::Unauthorized => "Unauthorized",
+            Self::Forbidden => "Forbidden",
             Self::SubscriptionNotFound => "Subscription not found",
         }
     }

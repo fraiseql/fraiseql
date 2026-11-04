@@ -938,12 +938,21 @@ mod tenant_admission {
         stream: &mut WsStream,
         manager: &SubscriptionManager,
     ) -> Option<String> {
-        send_json(
-            sink,
-            json!({"type": "subscribe", "id": "op_1",
-                   "payload": {"query": "subscription { orderChanged { id } }"}}),
-        )
-        .await;
+        subscribe_error(sink, stream, manager, "subscription { orderChanged { id } }")
+            .await
+            .map(|error| error["extensions"]["code"].as_str().unwrap().to_owned())
+    }
+
+    /// Subscribe with `query` and return the error frame's first error, or `None` when it
+    /// was registered.
+    async fn subscribe_error(
+        sink: &mut WsSink,
+        stream: &mut WsStream,
+        manager: &SubscriptionManager,
+        query: &str,
+    ) -> Option<serde_json::Value> {
+        send_json(sink, json!({"type": "subscribe", "id": "op_1", "payload": {"query": query}}))
+            .await;
         let deadline = tokio::time::Instant::now() + std::time::Duration::from_millis(500);
         while tokio::time::Instant::now() < deadline {
             if manager.subscription_count() == 1 {
@@ -954,11 +963,303 @@ mod tenant_admission {
             {
                 let frame: serde_json::Value = serde_json::from_str(&text).unwrap();
                 if frame["type"] == "error" {
-                    return frame["payload"][0]["extensions"]["code"].as_str().map(str::to_owned);
+                    return Some(frame["payload"][0].clone());
                 }
             }
         }
         panic!("the subscribe was neither registered nor refused");
+    }
+
+    /// `orderChanged: Order { id, secret }`, `secret` open, or gated by a scope no
+    /// anonymous subscriber holds (refused, not masked).
+    fn order_schema(secret_gated: bool) -> CompiledSchema {
+        use fraiseql_core::schema::{FieldDefinition, FieldDenyPolicy, FieldType, TypeDefinition};
+        let secret = FieldDefinition::nullable("secret", FieldType::String);
+        let secret = if secret_gated {
+            secret.with_requires_scope("read:secret").with_on_deny(FieldDenyPolicy::Reject)
+        } else {
+            secret
+        };
+        let mut schema = schema_with_subscription("orderChanged", "Order");
+        schema.types.push(TypeDefinition {
+            fields: vec![FieldDefinition::new("id", FieldType::Id), secret],
+            ..TypeDefinition::new("Order", "v_order")
+        });
+        schema.build_indexes();
+        schema
+    }
+
+    /// `/ws` serving the default schema, where `secret` is open, wired as the server wires
+    /// it (the default executor plans and validates), and tenant `acme`, whose own schema
+    /// gates `secret`.
+    async fn serve_tenant_schema() -> (String, Arc<SubscriptionManager>) {
+        serve_tenant(order_schema(false), order_schema(true), None).await
+    }
+
+    /// `/ws` serving `default` as the server wires it (its executor plans, validates and
+    /// names the authorizer's target, its policies scope rows), behind `authorizer`, and
+    /// tenant `acme` serving `acme`.
+    async fn serve_tenant(
+        default: CompiledSchema,
+        acme: CompiledSchema,
+        authorizer: Option<Arc<dyn fraiseql_core::security::Authorizer>>,
+    ) -> (String, Arc<SubscriptionManager>) {
+        let policies =
+            fraiseql_server::routes::subscriptions::build_subscription_policies(&default);
+        let manager = Arc::new(SubscriptionManager::new(Arc::new(default.clone())));
+        let default = Arc::new(Executor::new(default, Arc::new(FailingAdapter::new())));
+        let app = AppState::new(Arc::clone(&default));
+        let registry = Arc::new(TenantExecutorRegistry::new(Arc::clone(&app.executor)));
+        registry.upsert_with_quota(
+            "acme",
+            Arc::new(Executor::new(acme, Arc::new(FailingAdapter::new()))),
+            TenantQuota::default(),
+        );
+        let planner = Arc::clone(&default);
+        let validator = Arc::clone(&default);
+        let state = SubscriptionState::new(Arc::clone(&manager))
+            .with_subscription_policies(Arc::new(policies))
+            .with_live_executor(Some(Arc::new(move || Arc::clone(&planner))))
+            .with_live_schema(Some(Arc::new(move || Arc::new(validator.schema().clone()))))
+            .with_authorizer(authorizer)
+            .with_app(app.with_tenant_registry(registry));
+        (spawn_ws_server(state).await, manager)
+    }
+
+    /// `orderChanged(status: <enum_name>): Order`, with `enum_name` declared.
+    fn order_schema_filtered_by(enum_name: &str) -> CompiledSchema {
+        use fraiseql_core::schema::{ArgumentDefinition, EnumDefinition, FieldType};
+        let mut schema = order_schema(false);
+        schema.subscriptions[0]
+            .arguments
+            .push(ArgumentDefinition::optional("status", FieldType::Enum(enum_name.to_owned())));
+        schema.enums.push(EnumDefinition {
+            name:        enum_name.to_owned(),
+            values:      Vec::new(),
+            description: None,
+        });
+        schema.build_indexes();
+        schema
+    }
+
+    /// A tenant's subscription document is validated against the tenant's schema: a
+    /// variable typed with an enum only the default schema declares is unknown to `acme`.
+    #[tokio::test]
+    async fn a_tenants_subscription_document_is_validated_against_the_tenants_schema() {
+        let (url, manager) = serve_tenant(
+            order_schema_filtered_by("OrderStatus"),
+            order_schema_filtered_by("Priority"),
+            None,
+        )
+        .await;
+        let (mut sink, mut stream) = connect_as_acme(&url).await;
+        let error = subscribe_error(
+            &mut sink,
+            &mut stream,
+            &manager,
+            "subscription($s: OrderStatus) { orderChanged(status: $s) { id } }",
+        )
+        .await
+        .expect("a type acme does not declare was admitted under the default schema");
+        assert_eq!(error["extensions"]["code"], "VALIDATION_ERROR", "{error}");
+        assert!(
+            error["message"]
+                .as_str()
+                .unwrap()
+                .contains("declares unknown type 'OrderStatus'"),
+            "{error}"
+        );
+    }
+
+    /// `order_schema(false)` with `Order` scoped to its owner.
+    fn owner_scoped_order_schema() -> CompiledSchema {
+        let mut schema = order_schema(false);
+        let order = schema.types.iter_mut().find(|t| t.name.as_str() == "Order").unwrap();
+        order.subscription_policy = Some(fraiseql_core::schema::SubscriptionPolicy {
+            owner_path:     "$.owner_id".to_owned(),
+            identity_field: "user_id".to_owned(),
+            bypass_roles:   Vec::new(),
+        });
+        schema.build_indexes();
+        schema
+    }
+
+    /// A reload re-scopes a tenant's live subscription by the tenant's row policies serving
+    /// after it: `acme` now scopes `Order` to its owner, so its anonymous subscriber's
+    /// operation ends, although the default schema still declares no policy.
+    #[tokio::test]
+    async fn a_reload_rescopes_a_tenants_subscription_by_the_tenants_row_policy() {
+        let default = Arc::new(Executor::new(order_schema(false), Arc::new(FailingAdapter::new())));
+        let app = AppState::new(Arc::clone(&default));
+        let registry = Arc::new(TenantExecutorRegistry::new(Arc::clone(&app.executor)));
+        let acme = |schema| Arc::new(Executor::new(schema, Arc::new(FailingAdapter::new())));
+        registry.upsert_with_quota("acme", acme(order_schema(false)), TenantQuota::default());
+        let manager = Arc::new(SubscriptionManager::new(Arc::new(order_schema(false))));
+        let (reload_tx, reload_rx) = tokio::sync::watch::channel(0_u64);
+        let planner = Arc::clone(&default);
+        let state = SubscriptionState::new(Arc::clone(&manager))
+            .with_live_executor(Some(Arc::new(move || Arc::clone(&planner))))
+            .with_policy_reload(Some(reload_rx))
+            .with_app(app.with_tenant_registry(Arc::clone(&registry)));
+        let url = spawn_ws_server(state).await;
+        let (mut sink, mut stream) = connect_as_acme(&url).await;
+        assert_eq!(subscribe_code(&mut sink, &mut stream, &manager).await, None);
+
+        registry.upsert_with_quota(
+            "acme",
+            acme(owner_scoped_order_schema()),
+            TenantQuota::default(),
+        );
+        reload_tx.send(1).unwrap();
+
+        let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(2);
+        while manager.subscription_count() != 0 {
+            assert!(
+                tokio::time::Instant::now() < deadline,
+                "acme's subscription outlived a reload that scoped acme's Order to its owner"
+            );
+            tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+        }
+    }
+
+    /// A tenant's subscriber is scoped by the tenant's own row policies: `acme` scopes
+    /// `Order` to its owner, so an anonymous `acme` subscriber, who has no owner identity,
+    /// is refused, although the default schema declares no policy.
+    #[tokio::test]
+    async fn a_tenants_subscriber_is_scoped_by_the_tenants_row_policy() {
+        let (url, manager) =
+            serve_tenant(order_schema(false), owner_scoped_order_schema(), None).await;
+        let (mut sink, mut stream) = connect_as_acme(&url).await;
+        assert_eq!(
+            subscribe_code(&mut sink, &mut stream, &manager).await.as_deref(),
+            Some("SUBSCRIPTION_REFUSED"),
+            "an unscoped subscriber was served a type acme scopes to its owner"
+        );
+    }
+
+    /// The authorizer is told the type a tenant's subscription delivers under the tenant's
+    /// schema: `acme`'s `orderChanged` delivers `Invoice`, which the authorizer refuses,
+    /// although the default schema's delivers `Order`.
+    #[tokio::test]
+    async fn a_tenants_subscription_is_authorized_as_the_type_the_tenant_delivers() {
+        use fraiseql_core::{
+            error::Result as FqlResult,
+            schema::{FieldDefinition, FieldType, TypeDefinition},
+            security::{Authorizer, AuthzDecision, AuthzRequest},
+        };
+        struct DenyInvoices;
+        impl Authorizer for DenyInvoices {
+            fn authorize(&self, req: &AuthzRequest<'_>) -> FqlResult<AuthzDecision> {
+                Ok(if req.target_type == Some("Invoice") {
+                    AuthzDecision::Deny {
+                        reason: "no invoices".into(),
+                    }
+                } else {
+                    AuthzDecision::Allow
+                })
+            }
+        }
+        let mut acme = order_schema(false);
+        acme.subscriptions[0].return_type = "Invoice".to_owned();
+        acme.types.push(TypeDefinition {
+            fields: vec![FieldDefinition::new("id", FieldType::Id)],
+            ..TypeDefinition::new("Invoice", "v_invoice")
+        });
+        acme.build_indexes();
+        let (url, manager) =
+            serve_tenant(order_schema(false), acme, Some(Arc::new(DenyInvoices))).await;
+        let (mut sink, mut stream) = connect_as_acme(&url).await;
+        assert_eq!(
+            subscribe_code(&mut sink, &mut stream, &manager).await.as_deref(),
+            Some("FORBIDDEN"),
+            "the authorizer was told the type the default schema delivers"
+        );
+    }
+
+    /// A tenant's subscriber is held to the tenant's own schema: a field `acme` gates is
+    /// refused to an anonymous `acme` subscriber, as `/graphql` refuses it, although the
+    /// default schema leaves it open.
+    #[tokio::test]
+    async fn a_tenants_subscription_is_planned_against_the_tenants_schema() {
+        let (url, manager) = serve_tenant_schema().await;
+        let (mut sink, mut stream) = connect_as_acme(&url).await;
+        send_json(
+            &mut sink,
+            json!({"type": "subscribe", "id": "op_1",
+                   "payload": {"query": "subscription { orderChanged { id secret } }"}}),
+        )
+        .await;
+        let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(2);
+        loop {
+            assert!(
+                manager.subscription_count() == 0,
+                "a field acme's schema gates was served under the default schema"
+            );
+            assert!(tokio::time::Instant::now() < deadline, "neither refused nor registered");
+            if let Ok(Some(Ok(tungstenite::Message::Text(text)))) =
+                tokio::time::timeout(std::time::Duration::from_millis(50), stream.next()).await
+            {
+                let frame: serde_json::Value = serde_json::from_str(&text).unwrap();
+                if frame["type"] == "error" {
+                    assert_eq!(frame["payload"][0]["extensions"]["code"], "FORBIDDEN", "{frame}");
+                    break;
+                }
+            }
+        }
+    }
+
+    /// A reload re-plans a tenant's live subscription against the tenant's executor serving
+    /// after it: `acme` now gates `secret`, so its subscriber's operation ends, although the
+    /// default schema still leaves `secret` open.
+    #[tokio::test]
+    async fn a_reload_replans_a_tenants_subscription_against_the_tenants_schema() {
+        let default = Arc::new(Executor::new(order_schema(false), Arc::new(FailingAdapter::new())));
+        let app = AppState::new(Arc::clone(&default));
+        let registry = Arc::new(TenantExecutorRegistry::new(Arc::clone(&app.executor)));
+        let acme =
+            |gated| Arc::new(Executor::new(order_schema(gated), Arc::new(FailingAdapter::new())));
+        registry.upsert_with_quota("acme", acme(false), TenantQuota::default());
+        let manager = Arc::new(SubscriptionManager::new(Arc::new(order_schema(false))));
+        let (reload_tx, reload_rx) = tokio::sync::watch::channel(0_u64);
+        let planner = Arc::clone(&default);
+        let state = SubscriptionState::new(Arc::clone(&manager))
+            .with_live_executor(Some(Arc::new(move || Arc::clone(&planner))))
+            .with_policy_reload(Some(reload_rx))
+            .with_app(app.with_tenant_registry(Arc::clone(&registry)));
+        let url = spawn_ws_server(state).await;
+        let (mut sink, _stream) = connect_as_acme(&url).await;
+        send_json(
+            &mut sink,
+            json!({"type": "subscribe", "id": "op_1",
+                   "payload": {"query": "subscription { orderChanged { id secret } }"}}),
+        )
+        .await;
+        let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(2);
+        while manager.subscription_count() != 1 {
+            assert!(tokio::time::Instant::now() < deadline, "registered while acme leaves it open");
+            tokio::task::yield_now().await;
+        }
+
+        registry.upsert_with_quota("acme", acme(true), TenantQuota::default());
+        reload_tx.send(1).unwrap();
+
+        let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(2);
+        while manager.subscription_count() != 0 {
+            assert!(
+                tokio::time::Instant::now() < deadline,
+                "acme's subscription outlived a reload that made acme's schema gate its field"
+            );
+            tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+        }
+    }
+
+    /// The control: the same anonymous `acme` subscriber is served a field the tenant's
+    /// schema leaves open.
+    #[tokio::test]
+    async fn a_tenants_subscription_to_an_open_field_is_admitted() {
+        let (url, manager) = serve_tenant_schema().await;
+        let (mut sink, mut stream) = connect_as_acme(&url).await;
+        assert_eq!(subscribe_code(&mut sink, &mut stream, &manager).await, None);
     }
 
     #[tokio::test]

@@ -14,6 +14,8 @@ mod admin;
 mod admin_failure_budget_tests;
 #[cfg(test)]
 mod admin_gate_pin_tests;
+#[cfg(test)]
+mod admission_matrix_tests;
 #[cfg(feature = "auth")]
 mod auth;
 #[cfg(test)]
@@ -33,6 +35,8 @@ mod middleware;
 mod mount_authz_tests;
 #[cfg(test)]
 mod mount_gate_tests;
+#[cfg(test)]
+mod mount_scan;
 #[cfg(feature = "observers")]
 pub(in crate::server) mod observers;
 #[cfg(all(test, feature = "auth", feature = "rest"))]
