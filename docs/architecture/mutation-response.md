@@ -500,7 +500,13 @@ dropped and recreated. Move any writer of yours that runs at `REPEATABLE READ` o
 `postgresql.conf` and `ALTER … SET` (setting one now fails). Install both libraries, restart
 PostgreSQL, then in each database that has the extension run `CREATE EXTENSION IF NOT EXISTS
 jsonb_delta;` and `ALTER EXTENSION pg_tviews UPDATE;` (the update refuses to run without
-jsonb_delta). Upgrade FraiseQL in the same step: beta.35 renamed the change-feed gap count
+jsonb_delta). The update swaps the triggers beta.34 created for each TVIEW for one set per
+base table, `trg_tview_<role>_on_<schema>_<table>`. If an old per-TVIEW trigger comes back,
+say from a dump taken before the update, every write to its table fails, FraiseQL's mutations
+included, until `SELECT * FROM tviews.pg_tviews_reregister_all();`. Disabling one of the new
+triggers with `ALTER TABLE … DISABLE TRIGGER` pauses every TVIEW that reads the table; to pause
+refresh for a bulk load, call `tviews.pg_tviews_suspend_triggers()` in that session instead.
+Upgrade FraiseQL in the same step: beta.35 renamed the change-feed gap count
 FraiseQL reads (#1896), so a FraiseQL and a pg_tviews from either side of the rename cannot
 count gaps; the server logs that once and falls back on reconnects and the cache TTL
 ([cache](../modules/cache.md)). pg_tviews' own upgrade notes list the rest.

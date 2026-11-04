@@ -166,9 +166,11 @@ services:
     # docker/pg-tviews/Dockerfile (neither ships binaries). Only the pg_tviews suites
     # (#1391, #1392) use it, through TVIEWS_DATABASE_URL; every other suite keeps
     # postgres-test. The image's command preloads pg_tviews and pg_stat_statements.
+    # The tag names the pinned commit as well as the version, so a re-pin renames the image
+    # and `docker compose up` builds it rather than reusing one built at the old pin.
     build:
       context: ./pg-tviews
-    image: fraiseql/pg-tviews-test:pg18-v0.1.0-beta.35
+    image: fraiseql/pg-tviews-test:pg18-v0.1.0-beta.35-84157ed
     environment:
       POSTGRES_DB: test_fraiseql
       POSTGRES_USER: fraiseql_test

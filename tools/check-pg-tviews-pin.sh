@@ -5,7 +5,9 @@
 # The pin lives in one place, `docker/pg-tviews/Dockerfile` (`ARG PG_TVIEWS_TAG=`). The
 # compose image tag, the docs and the suites name it too; a bump that moved the Dockerfile
 # and not the docs would publish a version nothing tests (#1391). A line that mentions
-# pg_tviews and a version must name the pinned one.
+# pg_tviews and a version must name the pinned one. The compose image tag must also name the
+# pinned commit (`pg18-<tag>-<7 hex>`): a re-pin that kept the tag would let `docker compose
+# up` reuse an image built at the old commit (#1920).
 #
 # Pure bash, no toolchain, no git history → Dagger ShellGates.
 #
@@ -44,7 +46,20 @@ done < <(grep -rnE --include='*.md' --include='*.yml' --include='*.yaml' --inclu
            --include='Makefile' --include='Dockerfile' -i 'pg[_-]tviews.*v?0\.[0-9]+\.[0-9]+' \
            docs docker crates Makefile 2>/dev/null)
 
+commit="$(sed -nE 's/^ARG PG_TVIEWS_COMMIT=([0-9a-f]{40})$/\1/p' "$dockerfile")"
+if [ -z "$commit" ]; then
+  echo "check-pg-tviews-pin: no ARG PG_TVIEWS_COMMIT=<40 hex> in $dockerfile" >&2
+  exit 2
+fi
+compose=docker/docker-compose.test.yml
+want="fraiseql/pg-tviews-test:pg18-${pin}-${commit:0:7}"
+image="$(sed -nE 's#^[[:space:]]+image:[[:space:]]+(fraiseql/pg-tviews-test:[^[:space:]]*)$#\1#p' "$compose" 2>/dev/null)"
+if [ "$image" != "$want" ]; then
+  echo "check-pg-tviews-pin: $compose tags the image '${image}', not $want" >&2
+  status=1
+fi
+
 if [ "$status" -eq 0 ]; then
-  echo "check-pg-tviews-pin: OK ($checked line(s) name pg_tviews $pin)"
+  echo "check-pg-tviews-pin: OK ($checked line(s) name pg_tviews $pin; compose tags $want)"
 fi
 exit "$status"

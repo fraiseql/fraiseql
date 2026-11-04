@@ -122,8 +122,11 @@ disagreed, and the promise was the part that was wrong.
   `tviews.pg_tviews_count_feed_gaps()` (it was `pg_tviews_feed_gaps()`). Against beta.34 the
   server cannot count gaps; it logs that once and falls back on reconnects and the cache TTL.
   beta.35 requires the jsonb_delta extension (`CREATE EXTENSION pg_tviews CASCADE` installs
-  it), still needs the preload, and must be installed by a superuser. Upgrade both in one
-  step: see "Upgrading pg_tviews to beta.35" in `docs/architecture/mutation-response.md`.
+  it), still needs the preload, and must be installed by a superuser. Its update replaces the
+  triggers kept per TVIEW with one set per base table; a per-TVIEW trigger restored later from
+  an older dump fails every write to its table, mutations included, until
+  `tviews.pg_tviews_reregister_all()` runs (#1920). Upgrade both in one step: see "Upgrading
+  pg_tviews to beta.35" in `docs/architecture/mutation-response.md`.
 
 - **`WebhookIsolation` offers only `ReadCommitted` (#1894).** `RepeatableRead` and
   `Serializable` are removed. pg_tviews beta.35 refuses a write to a table a TVIEW reads, and

@@ -11,24 +11,21 @@ ARG PG_IMAGE=pgvector/pgvector:pg18
 
 FROM ${PG_IMAGE} AS build
 ARG PG_TVIEWS_TAG=v0.1.0-beta.35
-# Interim (#1896): v0.1.0-beta.35 is not tagged yet, so the commit below is one on its release
-# branch, fetched by hash. When the tag lands, set `PG_TVIEWS_COMMIT` to the commit the tag
-# resolves to, fetch the tag and check its peeled commit against it (as jsonb_delta's is
-# below), and remove this note.
-ARG PG_TVIEWS_COMMIT=0d4c08a523981fdc74ecc72195f16fbf0c9a9291
+ARG PG_TVIEWS_COMMIT=84157ed337b5b94baa60f3734c04f26a17a132b6
 ARG PGRX_VERSION=0.17.0
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
        build-essential pkg-config git ca-certificates curl libclang-dev clang \
        "postgresql-server-dev-${PG_MAJOR}" \
     && rm -rf /var/lib/apt/lists/*
-# The exact commit is fetched and checked, so the checkout cannot be anything else: a new
-# pg_tviews commit arrives only as a deliberate change of the pin.
+# The tag is fetched and its peeled commit checked, so the checkout cannot be anything else:
+# a moved tag fails the build, and a new pg_tviews commit arrives only as a deliberate change
+# of the pin.
 RUN git init -q /src \
     && git -C /src remote add origin https://github.com/fraiseql/pg_tviews.git \
-    && git -C /src fetch -q --depth 1 origin "${PG_TVIEWS_COMMIT}" \
-    && git -C /src checkout -q --detach FETCH_HEAD \
-    && test "$(git -C /src rev-parse HEAD)" = "${PG_TVIEWS_COMMIT}"
+    && git -C /src fetch -q --depth 1 origin "refs/tags/${PG_TVIEWS_TAG}" \
+    && test "$(git -C /src rev-parse 'FETCH_HEAD^{commit}')" = "${PG_TVIEWS_COMMIT}" \
+    && git -C /src checkout -q --detach FETCH_HEAD
 # The toolchain pg_tviews pins (rust-toolchain.toml), installed by rustup on first use.
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
     | sh -s -- -y --profile minimal --default-toolchain none
