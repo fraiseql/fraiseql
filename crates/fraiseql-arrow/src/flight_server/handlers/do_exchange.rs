@@ -17,7 +17,7 @@ use super::{
     super::{
         FlightDataStream, FraiseQLFlightService, QueryExecutor, build_insert_query,
         decode_upload_batch, encode_json_to_arrow_batch, extract_session_token,
-        record_batch_to_flight_data, validate_session_token,
+        record_batch_to_flight_data,
     },
     upload_guard::authorize_upload,
 };
@@ -280,7 +280,7 @@ pub(super) async fn handle(
         .session_secret
         .as_deref()
         .ok_or_else(|| Status::internal("FLIGHT_SESSION_SECRET not configured"))?;
-    let authenticated_user = validate_session_token(&session_token, secret)?;
+    let authenticated_user = super::admit_session(svc, &session_token, secret).await?;
 
     info!(user_id = %authenticated_user.user_id, "Authenticated do_exchange request");
 

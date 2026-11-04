@@ -14,8 +14,8 @@ use tracing::{error, info, warn};
 
 use super::{
     super::{
-        FlightInfoStream, FraiseQLFlightService, HandshakeStream, create_session_token,
-        map_security_error_to_status,
+        FlightInfoStream, FraiseQLFlightService, HandshakeStream, SessionSource,
+        create_session_token, map_security_error_to_status,
     },
     metadata_session::require_session,
 };
@@ -135,6 +135,11 @@ pub(super) async fn handshake(
         },
     };
 
+    // The token must still be admitted by the revocation store before a session is
+    // opened with it: a session outlives no check its source token would fail.
+    let source = SessionSource::of(&token);
+    super::revocation_refusal(svc, &source, &authenticated_user.user_id.0).await?;
+
     // Create session token using the secret cached at service startup
     let secret = svc.session_secret.as_deref().ok_or_else(|| {
         Status::internal(
@@ -142,7 +147,7 @@ pub(super) async fn handshake(
              or call FraiseQLFlightService::with_session_secret() before use",
         )
     })?;
-    let session_token = create_session_token(&authenticated_user, secret)?;
+    let session_token = create_session_token(&authenticated_user, source, secret)?;
     info!(user_id = %authenticated_user.user_id, "Handshake complete");
 
     // Create response with session token
@@ -161,7 +166,7 @@ pub(super) async fn list_flights(
     request: Request<Criteria>,
 ) -> std::result::Result<Response<FlightInfoStream>, Status> {
     info!("ListFlights called");
-    require_session(svc, &request)?;
+    require_session(svc, &request).await?;
 
     let mut flight_infos = Vec::new();
 
@@ -211,7 +216,7 @@ pub(super) async fn get_schema(
     svc: &FraiseQLFlightService,
     request: Request<FlightDescriptor>,
 ) -> std::result::Result<Response<SchemaResult>, Status> {
-    require_session(svc, &request)?;
+    require_session(svc, &request).await?;
     let descriptor = request.into_inner();
     info!("GetSchema called: {:?}", descriptor);
 
@@ -234,7 +239,7 @@ pub(super) async fn get_flight_info(
     svc: &FraiseQLFlightService,
     request: Request<FlightDescriptor>,
 ) -> std::result::Result<Response<FlightInfo>, Status> {
-    require_session(svc, &request)?;
+    require_session(svc, &request).await?;
     let descriptor = request.into_inner();
     info!("GetFlightInfo called: {:?}", descriptor);
 

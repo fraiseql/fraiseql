@@ -69,8 +69,8 @@ impl Capability for ArrowFlight {
 }
 
 /// Attach what the server enforces to a Flight service, at serve time: the identity
-/// enricher, the tenant claim its principals are built with, and the policy seam its
-/// GraphQL tickets execute through.
+/// enricher, the token revocation check, the tenant claim its principals are built with,
+/// and the policy seam its GraphQL tickets execute through.
 #[cfg(feature = "arrow")]
 fn wire_policy(
     flight_service: &mut fraiseql_arrow::FraiseQLFlightService,
@@ -93,6 +93,14 @@ fn wire_policy(
     if !app_state.identity.is_empty() {
         flight_service.set_identity_enricher(std::sync::Arc::new(app_state.identity.clone()));
         info!("Arrow Flight resolves identity before dispatch (#1349)");
+    }
+
+    // The handshake and every session-authenticated call consult the revocation store, as
+    // `/graphql` does: a revoked token opens no session, and a session ends at its next
+    // call once the token it was opened with is revoked.
+    if let Some(manager) = app_state.revocation_manager.clone() {
+        flight_service.set_revocation_check(manager);
+        info!("Arrow Flight consults the token revocation store");
     }
 
     // A session token's principal carries the tenant claim and attributes a token gives

@@ -2299,6 +2299,11 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		// half and require_jti, through the real mount.
 		"echo '### cargo test -p fraiseql-server --test bearer_revocation_e2e_pg (#1112)'",
 		"cargo test -p fraiseql-server " + serverLegFeatures + " --test bearer_revocation_e2e_pg -- --test-threads=1",
+		// Arrow Flight asks the same revocation store, through the binary's entry: at the
+		// handshake and on every call over a session, fail-closed when the store cannot
+		// answer, with require_jti, and the accepting half.
+		"echo '### cargo test -p fraiseql-server --test flight_bearer_revocation_e2e_pg'",
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test flight_bearer_revocation_e2e_pg -- --test-threads=1",
 		// #368 P26 — social login through the shipped mount, against a stub IdP:
 		// Google OIDC full loop, the GitHub /user/emails second hop (email-keyed
 		// linking), the auth_start path bucket on /auth/v1/authorize (#788), and

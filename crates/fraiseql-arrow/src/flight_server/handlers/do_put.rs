@@ -27,7 +27,7 @@ use tracing::{info, warn};
 use super::{
     super::{
         FraiseQLFlightService, PutResultStream, build_insert_query, decode_flight_data_to_batch,
-        extract_session_token, validate_session_token,
+        extract_session_token,
     },
     send_helpers::{send_err, send_ok},
     upload_guard::authorize_upload,
@@ -44,7 +44,7 @@ pub(super) async fn handle(
         .session_secret
         .as_deref()
         .ok_or_else(|| Status::internal("FLIGHT_SESSION_SECRET not configured"))?;
-    let authenticated_user = validate_session_token(&session_token, secret)?;
+    let authenticated_user = super::admit_session(svc, &session_token, secret).await?;
 
     info!(
         user_id = %authenticated_user.user_id,

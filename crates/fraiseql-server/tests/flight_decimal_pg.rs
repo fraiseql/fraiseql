@@ -72,7 +72,7 @@ fn session_token() -> String {
             "exp": now + 300,
             "iat": now,
             "scopes": ["user"],
-            "session_type": "flight",
+            "session_type": "flight", "source": {"jti": null, "iat": null},
         }),
         &EncodingKey::from_secret(SECRET.as_bytes()),
     )

@@ -155,6 +155,7 @@ impl FraiseQLFlightService {
             executor: None,
             cache: None,
             identity_enricher: None,
+            revocation_check: None,
             tenant_claim: None,
             security_context: None,
             oidc_validator: None,
@@ -207,6 +208,7 @@ impl FraiseQLFlightService {
             executor: None,
             cache: None,
             identity_enricher: None,
+            revocation_check: None,
             tenant_claim: None,
             security_context: None,
             oidc_validator: None,
@@ -257,6 +259,7 @@ impl FraiseQLFlightService {
             executor: None,
             cache: Some(Arc::new(QueryCache::new(cache_ttl_secs))),
             identity_enricher: None,
+            revocation_check: None,
             tenant_claim: None,
             security_context: None,
             oidc_validator: None,
@@ -343,6 +346,7 @@ impl FraiseQLFlightService {
             executor: None,
             cache,
             identity_enricher: None,
+            revocation_check: None,
             tenant_claim: None,
             security_context: None,
             oidc_validator: Some(oidc_validator),
@@ -556,6 +560,16 @@ impl FraiseQLFlightService {
         enricher: Arc<dyn fraiseql_core::security::IdentityEnricher>,
     ) {
         self.identity_enricher = Some(enricher);
+    }
+
+    /// Install the token revocation check, for the same reason and at the same point as
+    /// [`set_identity_enricher`](Self::set_identity_enricher): the server's store exists
+    /// only at serve time.
+    pub fn set_revocation_check(
+        &mut self,
+        check: Arc<dyn fraiseql_core::security::TokenRevocationCheck>,
+    ) {
+        self.revocation_check = Some(check);
     }
 
     /// Get a reference to the query executor, if set.

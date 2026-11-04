@@ -57,6 +57,7 @@ struct TestClaims {
     iat:          i64,
     scopes:       Vec<String>,
     session_type: String,
+    source:       serde_json::Value,
 }
 
 fn session_token_for(user: &str) -> String {
@@ -67,6 +68,7 @@ fn session_token_for(user: &str) -> String {
         iat:          now.as_second(),
         scopes:       vec!["user".to_string()],
         session_type: "flight".to_string(),
+        source:       serde_json::json!({"jti": null, "iat": null}),
     };
     encode(
         &Header::new(Algorithm::HS256),

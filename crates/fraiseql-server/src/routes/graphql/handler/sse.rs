@@ -51,7 +51,7 @@ use super::{
 use crate::{
     admission,
     error::{ErrorResponse, GraphQLError},
-    middleware::stream_auth::StreamAuthGuard,
+    middleware::stream_auth::{StreamAuthGuard, StreamRefusal},
 };
 
 /// A validated plan for one `@stream` delivery.
@@ -82,6 +82,9 @@ pub(in super::super) async fn handle_sse(
     // Who is asking and what they are asking, through the buffered pipeline's own
     // admission (APQ / trusted-document resolution must happen before the document can
     // be inspected for @stream).
+    // The principal as authenticated, before admission enriches it: what every
+    // continuation batch identifies again.
+    let authenticated = security_context.clone();
     let admitted =
         Box::pin(stages::admit(&state, &headers, security_context, &mut request, method)).await?;
 
@@ -254,6 +257,12 @@ pub(in super::super) async fn handle_sse(
         security_context.as_ref(),
         token_claims,
         state.revocation_manager.clone(),
+    )
+    .with_identity(
+        Some(&state),
+        &headers,
+        authenticated,
+        crate::admission::AdmissionPolicy::GRAPHQL,
     );
 
     let batch_size = u64::from(state.graphql_incremental_batch_size.max(1));
@@ -531,13 +540,19 @@ async fn batch_step(mut st: BatchState) -> Option<(Chunk, BatchState)> {
             // P18 + #958: a long-lived response re-checks its principal before every
             // continuation batch — expiry *and* revocation, via the same guard the
             // subscription transport uses. Either terminates the delivery.
-            if let Err(reason) = st.auth_guard.check().await {
-                warn!(reason, "@stream delivery terminated: principal no longer valid");
+            if let Err(refusal) = st.auth_guard.check().await {
+                warn!(?refusal, "@stream delivery terminated: principal no longer valid");
                 st.phase = Phase::Complete;
+                // The code `/graphql` answers the same refusal with.
+                let code = match refusal {
+                    StreamRefusal::Unauthenticated(_) => "UNAUTHENTICATED",
+                    StreamRefusal::Forbidden(_) => "FORBIDDEN",
+                    StreamRefusal::Unavailable(_) => "SERVICE_UNAVAILABLE",
+                };
                 let payload = json!({
                     "errors": [{
-                        "message": format!("{reason} during streaming delivery"),
-                        "extensions": {"code": "UNAUTHENTICATED"}
+                        "message": format!("{} during streaming delivery", refusal.reason()),
+                        "extensions": {"code": code}
                     }],
                     "hasNext": false,
                 });

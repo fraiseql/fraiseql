@@ -9,7 +9,6 @@ use tracing::info;
 
 use super::super::{
     ActionResultStream, ActionTypeStream, FraiseQLFlightService, extract_session_token,
-    validate_session_token,
 };
 
 /// `do_action` handler: executes a named admin operation on behalf of an authenticated client.
@@ -23,7 +22,7 @@ pub(super) async fn do_action(
         .session_secret
         .as_deref()
         .ok_or_else(|| Status::internal("FLIGHT_SESSION_SECRET not configured"))?;
-    let authenticated_user = validate_session_token(&session_token, secret)?;
+    let authenticated_user = super::admit_session(svc, &session_token, secret).await?;
 
     let action = request.into_inner();
     info!(

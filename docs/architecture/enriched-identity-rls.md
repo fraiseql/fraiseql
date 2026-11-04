@@ -214,6 +214,14 @@ an existence oracle over the actor table.
 - **Invariant:** *a revocation or role change propagates within `cache_ttl_secs`,
   or immediately via `flush(sub)`.* Raising `cache_ttl_secs` widens that window —
   do it with open eyes.
+- **A long-lived response notices a removal within the same window.** A `/ws`
+  connection resolves its subject again at every periodic auth re-check
+  (`subscription_auth_recheck_secs`), and an `@stream` response before every
+  continuation batch, both through the cache. A subject removed from the actor table is
+  refused at the first re-check after its cached entry expires: within `cache_ttl_secs`
+  plus one re-check, or one re-check after `flush(sub)`. A denied subject is closed with
+  `4403` on `/ws` and its `@stream` ends with `FORBIDDEN`; when the resolver cannot
+  answer, `1011` or `SERVICE_UNAVAILABLE`.
 - **Manual flush** is exposed on the admin API, behind the admin bearer token,
   when enrichment is enabled: `POST /api/identity/flush` with `{"sub": "..."}`
   evicts one subject; `POST /api/identity/flush-all` clears the cache.
@@ -375,7 +383,7 @@ not inherit (#1333) — so a tenant-keyed request resolves like any other.
 | MCP | yes | `mcp/handler.rs::authenticate` |
 | gRPC (unary + server-streaming, reads and writes) | yes | `routes/grpc/mod.rs::principal_from_user` |
 | Async operations (`/operations/v1`) | yes, at submission — the snapshot the background worker runs with carries the resolved identity | `routes/async_operations.rs::submit` |
-| `/ws` subscriptions | resolves; a failed resolve leaves the enriched field absent, so a policy-declaring subscription refuses at derivation | `routes/subscriptions.rs::enrich_principal` |
+| `/ws` subscriptions | yes, at the upgrade: a denied subject is refused with `/graphql`'s status; the periodic re-check resolves it again | `routes/subscriptions.rs::subscription_handler`, through `admission::identify` |
 | Arrow Flight (`DoGet`, `DoExchange`) | yes, since #1349 | `flight_server/handlers.rs::resolve_identity`, through the object-safe `IdentityEnricher` seam |
 
 **There are no exemptions.** There was one — Flight, whose handlers live in

@@ -593,6 +593,31 @@ pub enum TokenRejection {
     StoreUnavailable,
 }
 
+impl TokenRejection {
+    /// What a refused caller is told, worded the same on every transport.
+    #[must_use]
+    pub const fn reason(&self) -> &'static str {
+        match self {
+            Self::Revoked => crate::admission::TOKEN_REVOKED,
+            Self::MissingJti => "Token lacks required jti claim",
+            Self::StoreUnavailable => "Revocation store unavailable",
+        }
+    }
+}
+
+/// The revocation check of a transport outside this crate (Arrow Flight): the store's
+/// verdict, worded as the HTTP transports word it.
+impl fraiseql_core::security::TokenRevocationCheck for TokenRevocationManager {
+    fn check<'a>(
+        &'a self,
+        jti: Option<&'a str>,
+        sub: &'a str,
+        iat: Option<i64>,
+    ) -> fraiseql_core::security::BoxFuture<'a, Result<(), &'static str>> {
+        Box::pin(async move { self.check_token(jti, sub, iat).await.map_err(|r| r.reason()) })
+    }
+}
+
 // ───────────────────────────────────────────────────────────────
 // Builder from compiled schema
 // ───────────────────────────────────────────────────────────────
