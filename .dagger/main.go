@@ -1867,6 +1867,10 @@ func (m *FraiseqlCi) integrationSaml(ctx context.Context, source *dagger.Directo
 		"echo '### cargo test -p fraiseql-server --test saml_mount_e2e_pg (#381 server mount)'",
 		"cargo test -p fraiseql-server --features auth-saml,auth --lib api::saml_idp_management -- --test-threads=1",
 		"cargo test -p fraiseql-server --features auth-saml,auth --test saml_mount_e2e_pg -- --test-threads=1",
+		// #1913: a sign-in through the ACS, signed as a production IdP signs (SHA-256), and
+		// the session it mints: lifetime, issuer, audience, tenant, and the refusals.
+		"echo '### cargo test -p fraiseql-server --test saml_acs_e2e_pg (#1913 ACS sign-in)'",
+		"cargo test -p fraiseql-server --features auth-saml,auth --test saml_acs_e2e_pg -- --test-threads=1",
 		// #946 SCIM provisioning. The store suite carries the property the feature exists
 		// for — `active = false` blocks a local-password login, a credential SCIM never
 		// touches — and the e2e drives the mounted surface over HTTP.
