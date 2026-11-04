@@ -191,6 +191,11 @@ pub struct Server {
     /// `[auth.session] absolute_ttl_secs` opts in to refresh.
     #[cfg(feature = "auth")]
     pub(super) session_routes_store: Option<Arc<fraiseql_auth::PostgresSessionStore>>,
+    /// Cookie transport (`[auth.local] session_transport = "cookie"`, #1856): the session
+    /// routes read and set the cookies, and the HS256 layer reads the access cookie on the
+    /// mounts that refuse a non-`JSON` body. `None` in the default `json` transport.
+    #[cfg(feature = "auth")]
+    pub(super) session_cookies: Option<fraiseql_auth::SessionCookies>,
     /// Async-operations subsystem (#391) — present when `[async_operations]`
     /// is configured. `mount_extensions` mounts the HTTP surface and the
     /// lifecycle spawns the worker pool.

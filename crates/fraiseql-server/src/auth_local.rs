@@ -438,6 +438,42 @@ pub async fn refuse_stranded_mfa_enrollments(pool: &sqlx::PgPool) -> Result<()> 
     }
 }
 
+/// Cookie transport's settings (`[auth.local] session_transport = "cookie"`, #1856), or
+/// `None` in the default `json` transport.
+///
+/// # Errors
+///
+/// Refuses cookie transport that could not be made safe: without `[auth.session]
+/// absolute_ttl_secs` nothing mounts the logout route that clears the cookies, and with
+/// `require_json_content_type = false` `/graphql` would run a form another site posts,
+/// carrying the cookie.
+pub fn session_cookies(
+    auth: Option<&fraiseql_core::schema::AuthClientConfig>,
+    config: &ServerConfig,
+) -> Result<Option<fraiseql_auth::SessionCookies>> {
+    let Some(local) = auth.and_then(|a| a.local.as_ref()) else {
+        return Ok(None);
+    };
+    let session = auth.and_then(|a| a.session.as_ref());
+    local.check_session_transport(session).map_err(ServerError::ConfigError)?;
+    if local.session_transport.is_json() {
+        return Ok(None);
+    }
+    if !config.require_json_content_type {
+        return Err(ServerError::ConfigError(
+            "[auth.local] session_transport = \"cookie\" requires require_json_content_type = \
+             true: the session cookie is a credential on /graphql, and that check is what \
+             refuses a form another site posts there"
+                .to_string(),
+        ));
+    }
+    Ok(session.and_then(|s| s.absolute_ttl_secs).map(|refresh_max_age_secs| {
+        fraiseql_auth::SessionCookies {
+            refresh_max_age_secs,
+        }
+    }))
+}
+
 /// Build every state `[auth.local]` enables.
 ///
 /// # Errors
@@ -451,6 +487,7 @@ pub async fn build_local_auth_states(
     db_pool: Option<sqlx::PgPool>,
     tenant_claim: &str,
     lifetime: fraiseql_auth::SessionLifetime,
+    session_cookies: Option<fraiseql_auth::SessionCookies>,
 ) -> Result<LocalAuthStates> {
     // Every enabled method persists something (credentials, enrollments, OTP
     // budgets, sessions), so all of them need the signing config and the pool.
@@ -569,6 +606,7 @@ pub async fn build_local_auth_states(
             // account instead of a parallel `otp:<email>` pseudo-identity.
             account_store: Some(Arc::clone(&account_store) as Arc<dyn fraiseql_auth::AccountStore>),
             allow_gate,
+            session_cookies,
         }))
     } else {
         None
@@ -579,15 +617,13 @@ pub async fn build_local_auth_states(
     let mfa = if local.mfa {
         info!("TOTP MFA enabled (POST /auth/v1/mfa/{{enroll,confirm,verify,unenroll}})");
         Some(Arc::new(fraiseql_auth::MfaRouteState {
-            mfa_store:      Arc::new(fraiseql_auth::PgMfaStore::new(pool.clone())),
-            session_store:  Arc::clone(&session_store),
-            issuer:         local
-                .mfa_issuer
-                .clone()
-                .unwrap_or_else(|| DEFAULT_MFA_ISSUER.to_string()),
+            mfa_store: Arc::new(fraiseql_auth::PgMfaStore::new(pool.clone())),
+            session_store: Arc::clone(&session_store),
+            issuer: local.mfa_issuer.clone().unwrap_or_else(|| DEFAULT_MFA_ISSUER.to_string()),
             verify_limiter: Arc::new(fraiseql_auth::KeyedRateLimiter::new(
                 fraiseql_auth::AuthRateLimitConfig::per_ip_strict(),
             )),
+            session_cookies,
         }))
     } else {
         None
@@ -629,6 +665,7 @@ pub async fn build_local_auth_states(
             session_store: Arc::clone(&session_store),
             // The server's configured per-route rules limit these.
             rate_limiters: None,
+            session_cookies,
         })
     });
 
@@ -676,9 +713,12 @@ pub async fn build_local_auth_states(
         // The server's configured per-client rule limits /auth/v1/signup, keyed on the
         // trusted-proxy client address; the state keeps no counters of its own.
         anon_session_store.map(|store| {
-            Arc::new(fraiseql_auth::AnonSignupState::new_without_limiter(
-                store as Arc<dyn fraiseql_auth::SessionStore>,
-            ))
+            Arc::new(
+                fraiseql_auth::AnonSignupState::new_without_limiter(
+                    store as Arc<dyn fraiseql_auth::SessionStore>,
+                )
+                .with_session_cookies(session_cookies),
+            )
         })
     } else {
         None

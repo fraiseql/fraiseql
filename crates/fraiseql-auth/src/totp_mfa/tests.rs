@@ -36,10 +36,11 @@ async fn setup_enrolled_user() -> (Arc<InMemoryMfaStore>, String, Vec<String>) {
 fn build_app(session_store: Arc<InMemorySessionStore>) -> Router {
     let mfa_store = Arc::new(InMemoryMfaStore::new());
     let state = Arc::new(MfaRouteState {
-        mfa_store:      mfa_store as Arc<dyn MfaStore>,
-        session_store:  session_store as Arc<dyn SessionStore>,
-        issuer:         "FraiseQL".to_string(),
-        verify_limiter: Arc::new(KeyedRateLimiter::new(AuthRateLimitConfig::per_ip_strict())),
+        mfa_store:       mfa_store as Arc<dyn MfaStore>,
+        session_store:   session_store as Arc<dyn SessionStore>,
+        issuer:          "FraiseQL".to_string(),
+        verify_limiter:  Arc::new(KeyedRateLimiter::new(AuthRateLimitConfig::per_ip_strict())),
+        session_cookies: None,
     });
     Router::new()
         .route("/auth/v1/mfa/enroll", post(mfa_enroll))
@@ -326,10 +327,11 @@ fn session_request(uri: &str, subject: Option<&str>, body: serde_json::Value) ->
 /// The routes over `store`.
 fn app_over(store: Arc<InMemoryMfaStore>) -> Router {
     let state = Arc::new(MfaRouteState {
-        mfa_store:      store as Arc<dyn MfaStore>,
-        session_store:  Arc::new(InMemorySessionStore::new()) as Arc<dyn SessionStore>,
-        issuer:         "FraiseQL".to_string(),
-        verify_limiter: Arc::new(KeyedRateLimiter::new(AuthRateLimitConfig::per_ip_strict())),
+        mfa_store:       store as Arc<dyn MfaStore>,
+        session_store:   Arc::new(InMemorySessionStore::new()) as Arc<dyn SessionStore>,
+        issuer:          "FraiseQL".to_string(),
+        verify_limiter:  Arc::new(KeyedRateLimiter::new(AuthRateLimitConfig::per_ip_strict())),
+        session_cookies: None,
     });
     Router::new()
         .route("/auth/v1/mfa/enroll", post(mfa_enroll))
@@ -458,14 +460,15 @@ async fn replacing_a_confirmed_enrollment_needs_a_current_code() {
 /// `/verify` over `store`, with a per-client budget of `per_client` requests.
 fn verify_app(store: Arc<InMemoryMfaStore>, per_client: u32) -> Router {
     let state = Arc::new(MfaRouteState {
-        mfa_store:      store as Arc<dyn MfaStore>,
-        session_store:  Arc::new(InMemorySessionStore::new()) as Arc<dyn SessionStore>,
-        issuer:         "FraiseQL".to_string(),
-        verify_limiter: Arc::new(KeyedRateLimiter::new(AuthRateLimitConfig {
+        mfa_store:       store as Arc<dyn MfaStore>,
+        session_store:   Arc::new(InMemorySessionStore::new()) as Arc<dyn SessionStore>,
+        issuer:          "FraiseQL".to_string(),
+        verify_limiter:  Arc::new(KeyedRateLimiter::new(AuthRateLimitConfig {
             enabled:      true,
             max_requests: per_client,
             window_secs:  60,
         })),
+        session_cookies: None,
     });
     Router::new().route("/auth/v1/mfa/verify", post(mfa_verify)).with_state(state)
 }

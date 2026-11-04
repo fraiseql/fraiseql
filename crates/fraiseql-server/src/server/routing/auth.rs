@@ -10,8 +10,12 @@ use axum::{
 };
 use tracing::info;
 
-use super::super::{
-    AuthMeState, AuthPkceState, Server, auth_callback, auth_me, auth_start, oidc_auth_middleware,
+use super::{
+    super::{
+        AuthMeState, AuthPkceState, Server, auth_callback, auth_me, auth_start,
+        oidc_auth_middleware,
+    },
+    AccessCookie,
 };
 use crate::{
     auth::{anon_signup, mfa_confirm, mfa_enroll, mfa_unenroll, mfa_verify},
@@ -64,9 +68,14 @@ impl Server {
     /// such state by hand.
     ///
     /// [`SessionSubject`]: fraiseql_auth::SessionSubject
-    fn behind_session(&self, router: Router) -> Option<Router> {
+    ///
+    /// `cookie` says whether the access cookie is a credential on these routes: only where
+    /// every route refuses a body that is not `JSON`, which a form another site posts is.
+    fn behind_session(&self, router: Router, cookie: AccessCookie) -> Option<Router> {
         let validator = self.hs256_auth.as_ref()?;
-        let session = self.hs256_auth_state(Arc::clone(validator), self.hs256_realm());
+        let session = self
+            .hs256_auth_state(Arc::clone(validator), self.hs256_realm())
+            .with_access_cookie(self.reads_access_cookie(cookie));
         Some(
             router
                 .route_layer(middleware::from_fn(session_subject))
@@ -143,6 +152,7 @@ impl Server {
             app = app.merge(fraiseql_auth::session_routes(fraiseql_auth::SessionRouteState {
                 sessions: Arc::clone(sessions),
                 denial,
+                cookies: self.session_cookies,
             }));
             info!("Session routes mounted: POST /auth/v1/session/{{refresh,logout}}");
         }
@@ -179,7 +189,11 @@ impl Server {
         // Both routes act only on the caller's own account, so they sit behind the session.
         if let Some(ref verify) = self.email_verification_state {
             if let Some(routes) =
-                self.behind_session(fraiseql_auth::email_verification_routes(Arc::clone(verify)))
+                // `start` takes no body, so nothing refuses a form posted to it.
+                self.behind_session(
+                    fraiseql_auth::email_verification_routes(Arc::clone(verify)),
+                    AccessCookie::Refused,
+                )
             {
                 app = app.merge(routes);
                 info!(
@@ -207,6 +221,8 @@ impl Server {
                     .route("/auth/v1/mfa/confirm", post(mfa_confirm))
                     .route("/auth/v1/mfa/unenroll", post(mfa_unenroll))
                     .with_state(Arc::clone(mfa)),
+                // Each takes a `JSON` body, and refuses any other.
+                AccessCookie::Accepted,
             );
             if let Some(routes) = management {
                 app = app.merge(routes);
@@ -247,7 +263,8 @@ impl Server {
             let me_state = Arc::new(AuthMeState {
                 expose_claims: me_cfg.expose_claims.clone(),
             });
-            let auth_state = self.oidc_auth_state(Arc::clone(validator));
+            // A read.
+            let auth_state = self.oidc_auth_state(Arc::clone(validator)).with_access_cookie(true);
             let me_router = Router::new()
                 .route("/auth/me", get(auth_me))
                 .route_layer(middleware::from_fn_with_state(auth_state, oidc_auth_middleware))
@@ -269,7 +286,9 @@ impl Server {
                 let rev_state = Arc::new(crate::routes::RevocationRouteState {
                     revocation_manager: Arc::clone(rev_mgr),
                 });
-                let auth_state = self.oidc_auth_state(Arc::clone(validator));
+                // Both handlers read a `JSON` body, so a form is refused with 415.
+                let auth_state =
+                    self.oidc_auth_state(Arc::clone(validator)).with_access_cookie(true);
                 let rev_router = Router::new()
                     .route("/auth/revoke", post(crate::routes::revoke_token))
                     .route("/auth/revoke-all", post(crate::routes::revoke_all_tokens))
@@ -394,11 +413,12 @@ mod router_construction {
             .route("/auth/v1/otp", post(crate::auth::otp_send))
             .route("/auth/v1/verify", post(crate::auth::otp_verify))
             .with_state(Arc::new(fraiseql_auth::OtpRouteState {
-                otp_store:      Arc::new(fraiseql_auth::InMemoryOtpStore::new()),
-                email_delivery: Arc::new(fraiseql_auth::NoopEmailDelivery),
-                session_store:  Arc::new(NoopSessionStore),
-                account_store:  None,
-                allow_gate:     None,
+                otp_store:       Arc::new(fraiseql_auth::InMemoryOtpStore::new()),
+                email_delivery:  Arc::new(fraiseql_auth::NoopEmailDelivery),
+                session_store:   Arc::new(NoopSessionStore),
+                account_store:   None,
+                allow_gate:      None,
+                session_cookies: None,
             }));
     }
 
@@ -411,12 +431,13 @@ mod router_construction {
             .route("/auth/v1/mfa/verify", post(mfa_verify))
             .route("/auth/v1/mfa/unenroll", post(mfa_unenroll))
             .with_state(Arc::new(fraiseql_auth::MfaRouteState {
-                mfa_store:      Arc::new(fraiseql_auth::InMemoryMfaStore::new()),
-                session_store:  Arc::new(NoopSessionStore),
-                issuer:         "FraiseQL".to_string(),
-                verify_limiter: Arc::new(fraiseql_auth::KeyedRateLimiter::new(
+                mfa_store:       Arc::new(fraiseql_auth::InMemoryMfaStore::new()),
+                session_store:   Arc::new(NoopSessionStore),
+                issuer:          "FraiseQL".to_string(),
+                verify_limiter:  Arc::new(fraiseql_auth::KeyedRateLimiter::new(
                     fraiseql_auth::AuthRateLimitConfig::per_ip_strict(),
                 )),
+                session_cookies: None,
             }));
     }
 }

@@ -612,6 +612,58 @@ pub struct LocalAuthConfig {
     /// points at the operator's front end, which `FraiseQL` cannot guess.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub verification_url_template: Option<String>,
+
+    /// How these methods hand a session to the client. [`SessionTransport::Json`], the
+    /// default, puts the tokens in the response body;
+    /// [`SessionTransport::Cookie`] puts them in `HttpOnly` cookies instead.
+    #[serde(default, skip_serializing_if = "SessionTransport::is_json")]
+    pub session_transport: SessionTransport,
+}
+
+/// `[auth.local] session_transport`: how a session reaches the client.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum SessionTransport {
+    /// The access and refresh tokens are in the `JSON` response body, for the client to
+    /// keep and send as a bearer token.
+    #[default]
+    Json,
+    /// The access token is in the `__Host-access_token` cookie and the refresh token in
+    /// `__Secure-refresh_token`, scoped to `/auth/v1/session`; both are `HttpOnly`,
+    /// `Secure` and `SameSite=Strict`, and no response body carries either token.
+    ///
+    /// Requires `[auth.session] absolute_ttl_secs`: without it no logout route is
+    /// mounted, and nothing could clear the cookies.
+    Cookie,
+}
+
+impl SessionTransport {
+    /// Whether this is the default, [`SessionTransport::Json`].
+    #[must_use]
+    pub const fn is_json(&self) -> bool {
+        matches!(self, Self::Json)
+    }
+}
+
+impl LocalAuthConfig {
+    /// Refuse cookie transport without `[auth.session] absolute_ttl_secs`: that is what
+    /// mounts the logout route, and without it nothing could clear an `HttpOnly` cookie.
+    ///
+    /// The compiler and the server's boot check both run this.
+    ///
+    /// # Errors
+    ///
+    /// Returns a message naming both keys.
+    pub fn check_session_transport(&self, session: Option<&SessionConfig>) -> Result<(), String> {
+        let refreshable = session.and_then(|s| s.absolute_ttl_secs).is_some();
+        if self.session_transport == SessionTransport::Cookie && !refreshable {
+            return Err("[auth.local] session_transport = \"cookie\" requires [auth.session] \
+                        absolute_ttl_secs: it mounts the logout route, and without that \
+                        nothing could clear the HttpOnly session cookies"
+                .to_string());
+        }
+        Ok(())
+    }
 }
 
 /// PKCE OAuth-client configuration compiled from the `[auth]` PKCE group (#621).

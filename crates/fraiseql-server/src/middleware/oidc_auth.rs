@@ -63,6 +63,12 @@ pub struct OidcAuthState {
     pub revocation:       Option<Arc<TokenRevocationManager>>,
     /// Service-account authenticator, when `[security.service_accounts]` declares any.
     pub service_accounts: Option<Arc<crate::service_account::ServiceAccountAuthenticator>>,
+    /// Whether a request with no `Authorization` header is authenticated by the
+    /// `__Host-access_token` cookie the sign-in callback sets. Off unless the mount turns it
+    /// on with [`with_access_cookie`](Self::with_access_cookie): a browser attaches the
+    /// cookie to a form another site posts, so only mounts whose routes refuse such a
+    /// request accept it.
+    pub access_cookie:    bool,
 }
 
 impl OidcAuthState {
@@ -78,7 +84,16 @@ impl OidcAuthState {
             tenant_claim,
             revocation: None,
             service_accounts: None,
+            access_cookie: false,
         }
+    }
+
+    /// Accept the `__Host-access_token` cookie as the bearer token when the request has
+    /// no `Authorization` header. See [`access_cookie`](Self::access_cookie).
+    #[must_use]
+    pub const fn with_access_cookie(mut self, accept: bool) -> Self {
+        self.access_cookie = accept;
+        self
     }
 
     /// Attach the service-account authenticator, so a service account presenting its
@@ -225,8 +240,8 @@ pub(crate) async fn check_revocation(
 /// string and returns the token value, stripping RFC 6265 double-quotes if
 /// present.  Returns `None` if the cookie is absent.
 ///
-/// This is used as a fallback by [`oidc_auth_middleware`] when no
-/// `Authorization: Bearer` header is present, to support browser flows where
+/// [`oidc_auth_middleware`] reads it when no `Authorization` header is present and the
+/// mount accepts the cookie ([`OidcAuthState::access_cookie`]), for browser flows where
 /// the JWT is stored in an `HttpOnly` cookie inaccessible to client-side script.
 pub(crate) fn extract_access_token_cookie(headers: &axum::http::HeaderMap) -> Option<String> {
     headers.get(header::COOKIE).and_then(|v| v.to_str().ok()).and_then(|cookies| {
@@ -241,8 +256,9 @@ pub(crate) fn extract_access_token_cookie(headers: &axum::http::HeaderMap) -> Op
 /// OIDC authentication middleware.
 ///
 /// Validates JWT tokens from the `Authorization: Bearer` header using
-/// OIDC/JWKS.  When no `Authorization` header is present, falls back to the
-/// `__Host-access_token` `HttpOnly` cookie set by the PKCE callback.
+/// OIDC/JWKS.  When no `Authorization` header is present and the mount accepts it
+/// ([`OidcAuthState::access_cookie`]), reads the `__Host-access_token` `HttpOnly` cookie
+/// set by the PKCE callback instead.
 ///
 /// # Behavior
 ///
@@ -268,7 +284,8 @@ pub async fn oidc_auth_middleware(
     mut request: Request<Body>,
     next: Next,
 ) -> Response {
-    // Prefer Authorization: Bearer header; fall back to __Host-access_token cookie.
+    // Prefer Authorization: Bearer header; fall back to __Host-access_token cookie where
+    // the mount accepts it.
     // The token is extracted as an owned String to avoid borrow conflicts with
     // request.extensions_mut() later in this function.
     let token_string: Option<String> = {
@@ -293,7 +310,8 @@ pub async fn oidc_auth_middleware(
                 };
                 Some(token.to_owned())
             },
-            None => extract_access_token_cookie(request.headers()),
+            None if auth_state.access_cookie => extract_access_token_cookie(request.headers()),
+            None => None,
         }
     };
 
@@ -385,28 +403,32 @@ enum TokenExtraction {
 }
 
 /// Extract the bearer token from the `Authorization` header, falling back to the
-/// `__Host-access_token` cookie. Distinguishes a malformed header from an absent
-/// token so callers can return the right 401 body.
-fn extract_bearer_or_cookie(headers: &axum::http::HeaderMap) -> TokenExtraction {
+/// `__Host-access_token` cookie when `access_cookie`. Distinguishes a malformed header
+/// from an absent token so callers can return the right 401 body.
+fn extract_bearer_or_cookie(
+    headers: &axum::http::HeaderMap,
+    access_cookie: bool,
+) -> TokenExtraction {
     let auth_header = headers.get(header::AUTHORIZATION).and_then(|value| value.to_str().ok());
     match auth_header {
         Some(value) => match fraiseql_core::security::bearer_credential(value) {
             Some(token) => TokenExtraction::Found(token.to_owned()),
             None => TokenExtraction::Malformed,
         },
-        None => match extract_access_token_cookie(headers) {
+        None if access_cookie => match extract_access_token_cookie(headers) {
             Some(token) => TokenExtraction::Found(token),
             None => TokenExtraction::Absent,
         },
+        None => TokenExtraction::Absent,
     }
 }
 
 /// Mandatory authentication shared by [`admin_auth_middleware`] and
 /// [`required_auth_middleware`].
 ///
-/// Extracts a bearer token (header or cookie) and rejects with 401 when it is absent,
-/// malformed, or invalid; on success it inserts `AuthUser` / `SessionJti` into the
-/// request extensions and returns the validated user.
+/// Extracts a bearer token (header, or cookie where the mount accepts it) and rejects
+/// with 401 when it is absent, malformed, or invalid; on success it inserts `AuthUser` /
+/// `SessionJti` into the request extensions and returns the validated user.
 ///
 /// Unlike [`oidc_auth_middleware`], the token is **always** required regardless of the
 /// validator's global `is_required()` flag. That flag governs only the anonymous data
@@ -421,7 +443,7 @@ async fn authenticate_required(
     auth_state: &OidcAuthState,
     request: &mut Request<Body>,
 ) -> Result<AuthenticatedUser, Response> {
-    let token = match extract_bearer_or_cookie(request.headers()) {
+    let token = match extract_bearer_or_cookie(request.headers(), auth_state.access_cookie) {
         TokenExtraction::Found(token) => token,
         TokenExtraction::Malformed => {
             tracing::debug!("Admin/required auth: malformed Authorization header");

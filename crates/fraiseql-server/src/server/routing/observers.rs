@@ -73,6 +73,8 @@ impl Server {
 
         let changelog_state = ChangelogState { pool: db_pool };
 
+        // No access cookie: several routes act on a bodyless `POST` (enable, disable,
+        // reload, retry), which a form can send.
         let auth_layer = || {
             let auth_state = self.oidc_auth_state(Arc::clone(validator));
             middleware::from_fn_with_state(auth_state, admin_auth_middleware)

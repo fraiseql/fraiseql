@@ -2183,6 +2183,7 @@ mod otp_tests {
             session_store,
             account_store: None,
             allow_gate: None,
+            session_cookies: None,
         });
 
         (state, otp_store)
@@ -2551,6 +2552,7 @@ mod totp_mfa_tests {
             verify_limiter: Arc::new(crate::rate_limiting::KeyedRateLimiter::new(
                 crate::rate_limiting::AuthRateLimitConfig::per_ip_strict(),
             )),
+            session_cookies: None,
         });
 
         (state, mfa_store)

@@ -3,8 +3,12 @@
 //! Mounted only when `[auth.session] absolute_ttl_secs` is set: a deployment that does not
 //! opt in keeps sessions that end with their access token, and gains no route.
 //!
-//! Both routes sit under `/auth/v1/session/`, so a refresh token carried in a cookie can be
-//! scoped to that path and sent nowhere else.
+//! Both routes sit under `/auth/v1/session/`, so the refresh token's cookie in cookie
+//! transport is scoped to that path and sent nowhere else. In cookie transport a request
+//! may present its refresh token in that cookie instead of the body, and is answered the
+//! way it presented it: a token from the cookie gets its next pair in cookies, and one from
+//! the body gets it as `JSON`. Both routes still require a `JSON` body (`{}` when the token
+//! is in the cookie), so a form another site submits is refused before it is read.
 //!
 //! # What logout ends
 //!
@@ -19,7 +23,7 @@ use async_trait::async_trait;
 use axum::{
     Json, Router,
     extract::State,
-    http::StatusCode,
+    http::{HeaderMap, StatusCode, header},
     response::{IntoResponse, Response},
     routing::post,
 };
@@ -27,6 +31,7 @@ use serde::Deserialize;
 
 use crate::{
     handlers::{MAX_REFRESH_TOKEN_BYTES, validate_auth_input_len},
+    session_cookies::{SessionCookies, refresh_token_cookie, with_cookies},
     session_postgres::{PostgresSessionStore, Refresh},
 };
 
@@ -53,13 +58,32 @@ pub struct SessionRouteState {
     /// Ends the access tokens of a session that logs out. `None`: they live out their
     /// lifetime.
     pub denial:   Option<Arc<dyn DenyAccessTokens>>,
+    /// Cookie transport: a refresh token may come in its cookie, and logout clears both
+    /// cookies. `None`: the token comes in the body only, and no cookie is read or set.
+    pub cookies:  Option<SessionCookies>,
 }
 
 /// The body of both routes.
 #[derive(Deserialize)]
 pub struct SessionTokenRequest {
-    /// The session's current refresh token.
-    pub refresh_token: String,
+    /// The session's current refresh token. In cookie transport it may be left out, and
+    /// is then read from its cookie.
+    #[serde(default)]
+    pub refresh_token: Option<String>,
+}
+
+/// The refresh token a request presents, and whether it came in the cookie. The body wins
+/// over the cookie; the cookie is read only in cookie transport.
+fn presented(
+    state: &SessionRouteState,
+    headers: &HeaderMap,
+    req: SessionTokenRequest,
+) -> Option<(String, Option<SessionCookies>)> {
+    match (req.refresh_token, state.cookies) {
+        (Some(token), _) => Some((token, None)),
+        (None, Some(cookies)) => refresh_token_cookie(headers).map(|token| (token, Some(cookies))),
+        (None, None) => None,
+    }
 }
 
 /// The session routes.
@@ -90,15 +114,23 @@ fn refused() -> Response {
 ///   session is ended.
 pub async fn session_refresh(
     State(state): State<SessionRouteState>,
+    headers: HeaderMap,
     Json(req): Json<SessionTokenRequest>,
 ) -> Response {
-    if validate_auth_input_len(&req.refresh_token, MAX_REFRESH_TOKEN_BYTES, "refresh_token")
-        .is_err()
-    {
+    let Some((token, from_cookie)) = presented(&state, &headers, req) else {
+        return refused();
+    };
+    if validate_auth_input_len(&token, MAX_REFRESH_TOKEN_BYTES, "refresh_token").is_err() {
         return refused();
     }
-    match state.sessions.refresh(&req.refresh_token).await {
-        Ok(Refresh::Rotated(pair)) => (StatusCode::OK, Json(pair)).into_response(),
+    match state.sessions.refresh(&token).await {
+        Ok(Refresh::Rotated(pair)) => match from_cookie {
+            Some(cookies) => {
+                let expires_in = pair.expires_in;
+                with_cookies(&cookies, &pair, serde_json::json!({ "expires_in": expires_in }))
+            },
+            None => (StatusCode::OK, Json(pair)).into_response(),
+        },
         Ok(Refresh::AlreadyRotated) => (
             StatusCode::CONFLICT,
             Json(serde_json::json!({
@@ -120,26 +152,38 @@ pub async fn session_refresh(
 /// 204 whether the token was known or not, so the route says nothing about which tokens
 /// exist. 500 only when the session, or a configured denial, could not be carried out: a
 /// caller told it was logged out must have been. The access tokens the session issued are
-/// denied only when [`SessionRouteState::denial`] is configured.
+/// denied only when [`SessionRouteState::denial`] is configured. In cookie transport a 204
+/// also clears both cookies.
 pub async fn session_logout(
     State(state): State<SessionRouteState>,
+    headers: HeaderMap,
     Json(req): Json<SessionTokenRequest>,
 ) -> Response {
-    if validate_auth_input_len(&req.refresh_token, MAX_REFRESH_TOKEN_BYTES, "refresh_token")
-        .is_err()
-    {
-        return StatusCode::NO_CONTENT.into_response();
+    let logged_out = || {
+        let mut response = StatusCode::NO_CONTENT.into_response();
+        if state.cookies.is_some() {
+            for cookie in SessionCookies::clear() {
+                response.headers_mut().append(header::SET_COOKIE, cookie);
+            }
+        }
+        response
+    };
+    let Some((token, _)) = presented(&state, &headers, req) else {
+        return logged_out();
+    };
+    if validate_auth_input_len(&token, MAX_REFRESH_TOKEN_BYTES, "refresh_token").is_err() {
+        return logged_out();
     }
-    match state.sessions.end_session(&req.refresh_token).await {
+    match state.sessions.end_session(&token).await {
         Ok(jtis) => match &state.denial {
             Some(denial) => match denial.deny(&jtis).await {
-                Ok(()) => StatusCode::NO_CONTENT.into_response(),
+                Ok(()) => logged_out(),
                 Err(e) => {
                     tracing::error!(error = %e, "session logout could not deny its access tokens");
                     (StatusCode::INTERNAL_SERVER_ERROR, "session logout failed").into_response()
                 },
             },
-            None => StatusCode::NO_CONTENT.into_response(),
+            None => logged_out(),
         },
         Err(e) => {
             tracing::error!(error = %e, "session logout failed");

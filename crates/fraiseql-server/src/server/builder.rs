@@ -739,6 +739,9 @@ impl Server {
         }
         #[cfg(feature = "auth")]
         let session_lifetime = crate::auth_local::session_lifetime(session_config);
+        #[cfg(feature = "auth")]
+        let session_cookies =
+            crate::auth_local::session_cookies(executor.schema().auth.as_ref(), &config)?;
 
         #[cfg(feature = "auth")]
         let social_login = match executor.schema().auth.as_ref().and_then(|a| a.social.as_ref()) {
@@ -773,6 +776,7 @@ impl Server {
                     db_pool.clone(),
                     executor.schema().tenant_claim(),
                     session_lifetime,
+                    session_cookies,
                 ))
                 .await?
             },
@@ -1119,6 +1123,8 @@ impl Server {
             session_state,
             #[cfg(feature = "auth")]
             session_routes_store,
+            #[cfg(feature = "auth")]
+            session_cookies,
             async_operations,
             #[cfg(feature = "cdc-outbound")]
             cdc_drains,

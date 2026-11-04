@@ -376,6 +376,9 @@ impl OidcClientConfig {
         // Refusing at compile time keeps the operator's feedback loop at the
         // file they are editing rather than at server boot.
         if let Some(local) = &self.local {
+            local
+                .check_session_transport(self.session.as_ref())
+                .map_err(|message| anyhow::anyhow!(message))?;
             if !local.password && !local.otp && !local.mfa && !local.anonymous {
                 anyhow::bail!(
                     "[auth.local] is configured but enables no method. Set at least one of \

@@ -15,6 +15,8 @@ mod admin_failure_budget_tests;
 #[cfg(feature = "auth")]
 mod auth;
 #[cfg(test)]
+mod cors_credentials_tests;
+#[cfg(test)]
 mod cors_wildcard_tests;
 mod extensions;
 mod graphql;
@@ -25,6 +27,8 @@ mod middleware;
 mod mount_authz_tests;
 #[cfg(feature = "observers")]
 pub(in crate::server) mod observers;
+#[cfg(all(test, feature = "auth", feature = "rest"))]
+mod oidc_access_cookie_tests;
 #[cfg(test)]
 mod persisted_only_transport_tests;
 #[cfg(test)]
@@ -63,7 +67,35 @@ pub(super) enum AuthPosture {
     Authenticated,
 }
 
+/// Whether the `__Host-access_token` cookie is a credential on a mount (#1856).
+///
+/// Both auth layers read the same cookie: the OIDC layer the one the sign-in callback
+/// sets, the HS256 layer the one `[auth.local]` sets in cookie transport.
+///
+/// A browser attaches a cookie to a request another site makes it send. A form posted
+/// from another site is the one such request that needs no preflight, and it can carry no
+/// `JSON` content type, so the cookie is accepted only on mounts where every route refuses
+/// a body that is not `JSON`, or only reads.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum AccessCookie {
+    /// Every route refuses a non-`JSON` body or only reads.
+    Accepted,
+    /// Some route acts on a request a form could send, or the transport is a socket.
+    Refused,
+}
+
 impl Server {
+    /// Whether the HS256 layer on a mount declaring `cookie` reads the access cookie:
+    /// only in cookie transport.
+    #[cfg_attr(not(feature = "auth"), allow(clippy::unused_self))] // Reason: reads auth state
+    pub(super) const fn reads_access_cookie(&self, cookie: AccessCookie) -> bool {
+        #[cfg(feature = "auth")]
+        let cookie_transport = self.session_cookies.is_some();
+        #[cfg(not(feature = "auth"))]
+        let cookie_transport = false;
+        cookie_transport && matches!(cookie, AccessCookie::Accepted)
+    }
+
     /// Attach the deployment's configured authentication layer to `router`.
     ///
     /// This is the single place any data-serving transport acquires authentication.
@@ -73,11 +105,15 @@ impl Server {
     /// axum's `route_layer` applies only to routes already registered on the *same*
     /// `Router` — `Router::merge` does **not** propagate it — so this must be called on
     /// the transport's own router before it is merged into the application.
+    ///
+    /// `cookie` says whether the auth layer accepts the access cookie on this mount; see
+    /// [`AccessCookie`]. The HS256 layer accepts it only in cookie transport.
     pub(super) fn attach_auth<S>(
         &self,
         router: Router<S>,
         posture: AuthPosture,
         transport: &str,
+        cookie: AccessCookie,
     ) -> Router<S>
     where
         S: Clone + Send + Sync + 'static,
@@ -88,7 +124,8 @@ impl Server {
             info!(transport, "transport protected by OIDC authentication");
             let auth_state = self
                 .oidc_auth_state(Arc::clone(validator))
-                .with_service_accounts(self.service_account_authenticator.clone());
+                .with_service_accounts(self.service_account_authenticator.clone())
+                .with_access_cookie(matches!(cookie, AccessCookie::Accepted));
             return router.route_layer(from_fn_with_state(auth_state, oidc_auth_middleware));
         }
 
@@ -96,7 +133,8 @@ impl Server {
             info!(transport, "transport protected by HS256 authentication");
             let auth_state = self
                 .hs256_auth_state(Arc::clone(validator), self.hs256_realm())
-                .with_service_accounts(self.service_account_authenticator.clone());
+                .with_service_accounts(self.service_account_authenticator.clone())
+                .with_access_cookie(self.reads_access_cookie(cookie));
             return router.route_layer(from_fn_with_state(auth_state, hs256_auth_middleware));
         }
 

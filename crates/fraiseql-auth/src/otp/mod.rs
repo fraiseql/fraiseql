@@ -413,11 +413,11 @@ impl EmailDelivery for NoopEmailDelivery {
 #[derive(Clone)]
 pub struct OtpRouteState {
     /// `OTP` code store.
-    pub otp_store:      Arc<dyn OtpStore>,
+    pub otp_store:       Arc<dyn OtpStore>,
     /// Email delivery backend.
-    pub email_delivery: Arc<dyn EmailDelivery>,
+    pub email_delivery:  Arc<dyn EmailDelivery>,
     /// Session store (to create sessions after successful verify).
-    pub session_store:  Arc<dyn SessionStore>,
+    pub session_store:   Arc<dyn SessionStore>,
     /// Account store resolving the verified email to a stable local user (#367).
     ///
     /// `None` mints the legacy `otp:<email>` pseudo-identity, which is **not a
@@ -425,10 +425,14 @@ pub struct OtpRouteState {
     /// local-password sign-in, so the same human ends up with as many
     /// identities as sign-in methods. The server always supplies one; the
     /// option exists for library callers with their own identity model.
-    pub account_store:  Option<Arc<dyn crate::account_linking::AccountStore>>,
+    pub account_store:   Option<Arc<dyn crate::account_linking::AccountStore>>,
     /// Who may sign in (`[auth.local] otp_allowed_query`, #1852). `None` admits every address
     /// and delivers on the request.
-    pub allow_gate:     Option<OtpAllowGate>,
+    pub allow_gate:      Option<OtpAllowGate>,
+    /// Cookie transport (`[auth.local] session_transport = "cookie"`): the session goes in
+    /// `HttpOnly` cookies and no body carries a token. `None` answers with the tokens as
+    /// `JSON`.
+    pub session_cookies: Option<crate::SessionCookies>,
 }
 
 // ─── Request / Response types ─────────────────────────────────────────────────
@@ -672,7 +676,7 @@ pub async fn otp_verify(
         "otp_verify",
     );
 
-    (StatusCode::OK, Json(tokens)).into_response()
+    crate::session_cookies::session_response(state.session_cookies.as_ref(), tokens)
 }
 
 #[cfg(test)]

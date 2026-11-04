@@ -977,3 +977,79 @@ fn a_body_written_inline_is_refused() {
     );
     assert!(err.contains("text_template"), "{err}");
 }
+
+// ── [auth.local] session_transport (#1856) ─────────────────────────────────────────────
+
+/// Compile an `OTP` `[auth.local]` block with `transport` appended, and `session` as the
+/// whole `[auth.session]` section (empty: none).
+fn merge_transport(
+    transport: &str,
+    session: &str,
+) -> anyhow::Result<fraiseql_cli::schema::IntermediateSchema> {
+    let mut f = NamedTempFile::new().unwrap();
+    write!(
+        f,
+        r#"
+        [schema]
+        name = "app"
+
+        [types.User]
+        sql_source = "v_user"
+
+        [auth.local]
+        otp = true
+        email_from = "support"
+        {transport}
+
+        {session}
+    "#
+    )
+    .unwrap();
+    f.flush().unwrap();
+    SchemaMerger::merge_toml_only(f.path().to_str().unwrap())
+}
+
+const REFRESHABLE: &str = "[auth.session]\nttl_secs = 900\nabsolute_ttl_secs = 86400";
+
+fn transport_of(transport: &str, session: &str) -> fraiseql_core::schema::SessionTransport {
+    let intermediate = merge_transport(transport, session).unwrap();
+    let compiled = SchemaConverter::convert(intermediate).expect("convert to compiled schema");
+    compiled.auth.and_then(|a| a.local).expect("auth.local").session_transport
+}
+
+#[test]
+fn session_transport_reaches_the_compiled_schema() {
+    use fraiseql_core::schema::SessionTransport;
+
+    assert_eq!(transport_of("", ""), SessionTransport::Json, "the default");
+    assert_eq!(transport_of(r#"session_transport = "json""#, ""), SessionTransport::Json);
+    assert_eq!(
+        transport_of(r#"session_transport = "cookie""#, REFRESHABLE),
+        SessionTransport::Cookie
+    );
+}
+
+#[test]
+fn session_transport_refuses_an_unknown_value() {
+    let err = merge_transport(r#"session_transport = "header""#, REFRESHABLE)
+        .err()
+        .map(|e| format!("{e:#}"))
+        .expect("an unknown transport must be refused");
+    assert!(err.contains("header") || err.contains("session_transport"), "{err}");
+}
+
+/// Without `absolute_ttl_secs` no logout route is mounted, and nothing could ever clear
+/// an `HttpOnly` cookie.
+#[test]
+fn cookie_transport_without_a_refresh_limit_is_refused() {
+    for session in ["", "[auth.session]\nttl_secs = 900"] {
+        let err = merge_transport(r#"session_transport = "cookie""#, session).err().map_or_else(
+            || panic!("cookie transport under {session:?} must be refused"),
+            |e| format!("{e:#}"),
+        );
+        assert!(
+            err.contains("session_transport") && err.contains("absolute_ttl_secs"),
+            "{session:?}: the refusal names both keys: {err}"
+        );
+    }
+}

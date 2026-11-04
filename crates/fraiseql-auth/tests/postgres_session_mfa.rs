@@ -206,12 +206,13 @@ async fn a_redeemed_challenge_mints_the_session() {
         other => panic!("{other:?}"),
     };
     let state = std::sync::Arc::new(fraiseql_auth::MfaRouteState {
-        mfa_store:      std::sync::Arc::new(PgMfaStore::new(pool.clone())),
-        session_store:  sessions,
-        issuer:         "FraiseQL".to_string(),
-        verify_limiter: std::sync::Arc::new(fraiseql_auth::KeyedRateLimiter::new(
+        mfa_store:       std::sync::Arc::new(PgMfaStore::new(pool.clone())),
+        session_store:   sessions,
+        issuer:          "FraiseQL".to_string(),
+        verify_limiter:  std::sync::Arc::new(fraiseql_auth::KeyedRateLimiter::new(
             fraiseql_auth::AuthRateLimitConfig::per_ip_strict(),
         )),
+        session_cookies: None,
     });
     let response = fraiseql_auth::mfa_verify(
         axum::extract::State(state),

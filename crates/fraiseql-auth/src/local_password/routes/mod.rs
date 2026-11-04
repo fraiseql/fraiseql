@@ -59,14 +59,18 @@ const SESSION_TTL_SECS: u64 = 3_600;
 #[derive(Clone)]
 pub struct LocalPasswordRouteState {
     /// The authenticator (owns the credential store and the reset flow).
-    pub authenticator: Arc<LocalPasswordAuthenticator>,
+    pub authenticator:   Arc<LocalPasswordAuthenticator>,
     /// Session store issuing tokens after a successful signup/login.
-    pub session_store: Arc<dyn SessionStore>,
+    pub session_store:   Arc<dyn SessionStore>,
     /// In-handler per-IP limiter (the `auth_start` bucket, shared by every route), or
     /// `None` when something in front of the routes limits each one — the server's
     /// configured rules do. Two limiters on one route meant the stricter, fixed
     /// one silently overrode the operator's setting.
-    pub rate_limiters: Option<Arc<RateLimiters>>,
+    pub rate_limiters:   Option<Arc<RateLimiters>>,
+    /// Cookie transport (`[auth.local] session_transport = "cookie"`): the session goes in
+    /// `HttpOnly` cookies and no body carries a token. `None` answers with the tokens as
+    /// `JSON`.
+    pub session_cookies: Option<crate::SessionCookies>,
 }
 
 /// Body of `POST /auth/v1/password/signup` and `/login`.
@@ -151,7 +155,7 @@ async fn issue_session(state: &LocalPasswordRouteState, user_id: &str) -> Respon
                 Some(user_id.to_string()),
                 "local_password",
             );
-            (StatusCode::OK, Json(tokens)).into_response()
+            crate::session_cookies::session_response(state.session_cookies.as_ref(), tokens)
         },
         Err(e) => {
             if let Some(resp) = crate::totp_mfa::second_factor_response(&e) {

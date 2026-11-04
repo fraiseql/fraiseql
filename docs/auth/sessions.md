@@ -87,9 +87,85 @@ every access token the session issued, and a failure to do so answers `500` rath
 
 ## Why the routes live under `/auth/v1/session/`
 
-A browser client can keep the refresh token in an `HttpOnly` cookie scoped with
+In [cookie transport](#cookie-transport) the refresh token is in an `HttpOnly` cookie scoped with
 `Path=/auth/v1/session`. Both routes that consume it are under that path, so the browser sends
 the cookie to them and to nothing else: not to `/graphql`, and not to the sign-in routes.
+
+## Cookie transport
+
+By default every route above, and every sign-in, hands the tokens to the client in the `JSON`
+body, and the client sends the access token as a bearer token. A browser application then keeps
+both tokens where its own scripts can read them. `[auth.local] session_transport = "cookie"`
+keeps them in `HttpOnly` cookies instead:
+
+```toml
+# fraiseql.toml
+[auth.local]
+password          = true
+session_transport = "cookie"   # default: "json"
+
+[auth.session]
+ttl_secs          = 900
+absolute_ttl_secs = 2592000    # required by cookie transport
+```
+
+| Cookie | Holds | Attributes |
+|--------|-------|------------|
+| `__Host-access_token` | the access token | `Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=` the token's lifetime |
+| `__Secure-refresh_token` | the refresh token | `Path=/auth/v1/session; HttpOnly; Secure; SameSite=Strict; Max-Age=absolute_ttl_secs` |
+
+In cookie transport:
+
+- **Sign-in** (password signup and login, email `OTP` and magic link, `MFA` verify, anonymous
+  sign-up) sets both cookies. The body is `{"expires_in": …}`, plus `user_id` for anonymous
+  sign-up, and carries no token. An `MFA` challenge is not a session, and sets no cookie.
+- **Refresh** takes `{}` as its body, reads the refresh token from its cookie, and answers `200`
+  with the next pair in the cookies and `{"expires_in": …}` as the body. The `409` and `401`
+  answers set no cookie. A refresh token sent in the body is still accepted, and answered in
+  the body.
+- **Logout** takes `{}`, ends the session the refresh cookie names, and clears both cookies.
+- **The access cookie is a credential** on `/graphql` (`POST`, `GET` and `QUERY`),
+  `/operations/v1/…`, and `/auth/v1/mfa/{enroll,confirm,unenroll}`. A bearer token in the
+  `Authorization` header still wins over the cookie. The subscription socket (`/ws` by default), the `REST`
+  transport and `/auth/v1/email/verify/{start,confirm}` do not accept the cookie: send them a
+  bearer token.
+
+The compiler and the server's boot refuse cookie transport without `[auth.session]
+absolute_ttl_secs`, because that is what mounts the logout route, and nothing else can clear an
+`HttpOnly` cookie. The boot also refuses it with `require_json_content_type = false`.
+
+The `Secure` attribute means a browser stores the cookies only over `HTTPS`, or from
+`http://localhost`.
+
+### What stops another site using the cookies
+
+A browser attaches cookies to requests that other pages make it send. Cookie transport relies on
+three things to keep those requests from acting with the session:
+
+- **`SameSite=Strict`.** A request that another site starts carries neither cookie. A
+  page on another host on the same site (the same registrable domain) is exempt, though, and its
+  requests do carry them.
+- **Only `JSON` bodies.** A form, the one cross-origin request that a page can send without
+  the browser asking the server first, cannot send `Content-Type: application/json`. `/graphql`
+  refuses a `POST` that is not `JSON` (`415`), and so do refresh, logout, async-operation
+  submission and the `MFA` routes. The other routes that accept the access cookie only read
+  (`GET` and `QUERY` on `/graphql` never run a mutation), or use a method a form cannot send.
+- **No credentialed cross-origin requests.** A `JSON` request from another origin is preceded by
+  a preflight, and the server never answers it with `Access-Control-Allow-Credentials`, so the
+  browser does not send the request with the cookies.
+
+The routes that do not accept the access cookie are the ones where one of these does not hold:
+a socket handshake has no body to check, a `REST` write reads its body whatever its content
+type, and `email/verify/start` has no body at all (`email/verify/confirm` shares its mount).
+
+### The same cookie under OIDC
+
+With `[auth]` (OIDC), the sign-in callback sets the same `__Host-access_token` cookie, and the
+same rule decides where it is a credential. The OIDC layer accepts it on `/graphql`,
+`/operations/v1/…`, the playground, `GET /auth/me`, introspection, schema export and metadata,
+and on `POST /auth/revoke`, `/auth/revoke-all` and the design audit, whose bodies are `JSON`. The
+subscription socket, the `REST` transport and the observer admin endpoints (`/api/observers/…`)
+do not accept it. Send them `Authorization: Bearer`.
 
 ## Rate limits
 

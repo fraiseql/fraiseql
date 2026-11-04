@@ -42,6 +42,8 @@ impl Capability for Rest {
             rest_app,
             crate::server::routing::AuthPosture::Authenticated,
             "rest",
+            // A write reads its body as `JSON` whatever its content type says.
+            crate::server::routing::AccessCookie::Refused,
         ))
     }
 }

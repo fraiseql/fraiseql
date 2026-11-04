@@ -622,17 +622,21 @@ impl MfaStore for InMemoryMfaStore {
 #[derive(Clone)]
 pub struct MfaRouteState {
     /// `MFA` storage backend.
-    pub mfa_store:      Arc<dyn MfaStore>,
+    pub mfa_store:       Arc<dyn MfaStore>,
     /// Session store (to issue full sessions after `MFA` verification).
-    pub session_store:  Arc<dyn SessionStore>,
+    pub session_store:   Arc<dyn SessionStore>,
     /// Service / issuer name shown in authenticator apps.
-    pub issuer:         String,
+    pub issuer:          String,
     /// Per-client budget for `/verify`, keyed on the [`ClientAddress`] the server resolved,
     /// else the transport peer. The per-user failure budget stops one account's code being
     /// guessed; this stops one client guessing across many.
     ///
     /// [`ClientAddress`]: crate::rate_limiting::ClientAddress
-    pub verify_limiter: Arc<crate::rate_limiting::KeyedRateLimiter>,
+    pub verify_limiter:  Arc<crate::rate_limiting::KeyedRateLimiter>,
+    /// Cookie transport (`[auth.local] session_transport = "cookie"`): the session goes in
+    /// `HttpOnly` cookies and no body carries a token. `None` answers with the tokens as
+    /// `JSON`.
+    pub session_cookies: Option<crate::SessionCookies>,
 }
 
 // ─── Request / Response types ─────────────────────────────────────────────────
@@ -882,7 +886,7 @@ pub async fn mfa_verify(
         "mfa_verify",
     );
 
-    (StatusCode::OK, Json(tokens)).into_response()
+    crate::session_cookies::session_response(state.session_cookies.as_ref(), tokens)
 }
 
 /// `POST /auth/v1/mfa/confirm`

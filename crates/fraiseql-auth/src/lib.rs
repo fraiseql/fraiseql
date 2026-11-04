@@ -30,6 +30,7 @@ pub mod saml;
 /// SCIM 2.0 provisioning storage and credentials (#946).
 pub mod scim;
 pub mod session;
+pub mod session_cookies;
 pub mod session_postgres;
 pub mod session_routes;
 pub mod session_state;
@@ -133,6 +134,7 @@ pub use saml::{
 /// The `serde_json` this crate's public API is built against (#1198).
 pub use serde_json;
 pub use session::{SessionData, SessionStore, TokenPair, unix_now};
+pub use session_cookies::SessionCookies;
 pub use session_postgres::{PostgresSessionStore, Refresh, SessionLifetime};
 pub use session_routes::{DenyAccessTokens, SessionRouteState, session_routes};
 pub use session_subject::SessionSubject;

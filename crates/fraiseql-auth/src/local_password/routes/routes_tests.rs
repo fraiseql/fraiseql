@@ -12,9 +12,10 @@ async fn local_password_router_constructs() {
         sqlx::PgPool::connect_lazy("postgres://unused/unused").expect("lazy pool needs no server");
     let accounts = Arc::new(crate::InMemoryAccountStore::new());
     let state = LocalPasswordRouteState {
-        authenticator: Arc::new(LocalPasswordAuthenticator::new(pool.clone(), accounts)),
-        session_store: Arc::new(crate::PostgresSessionStore::new(pool)),
-        rate_limiters: Some(Arc::new(crate::RateLimiters::default())),
+        authenticator:   Arc::new(LocalPasswordAuthenticator::new(pool.clone(), accounts)),
+        session_store:   Arc::new(crate::PostgresSessionStore::new(pool)),
+        rate_limiters:   Some(Arc::new(crate::RateLimiters::default())),
+        session_cookies: None,
     };
     let _router = local_password_routes(Arc::new(state));
 }

@@ -166,6 +166,24 @@ disagreed, and the promise was the part that was wrong.
 
   Rename it and recompile.
 
+- **Session delivery gains cookie transport (#1856).**
+  - `LocalAuthConfig` (`fraiseql-core`) has a `session_transport: SessionTransport` field. A
+    struct literal naming every field needs `session_transport: SessionTransport::Json`, or
+    `..LocalAuthConfig::default()`.
+  - `OtpRouteState`, `MfaRouteState` and `LocalPasswordRouteState` (`fraiseql-auth`) have a
+    `session_cookies: Option<SessionCookies>` field, and `SessionRouteState` has
+    `cookies: Option<SessionCookies>`. `None` keeps the `JSON` answers.
+  - `SessionTokenRequest::refresh_token` is `Option<String>`: in cookie transport the token may
+    come in its cookie.
+  - `Hs256AuthState` and `OidcAuthState` (`fraiseql-server`) have an `access_cookie: bool`
+    field, which their `new` sets to `false`.
+
+- **Under OIDC, the `__Host-access_token` cookie is accepted only on routes that refuse a
+  cross-site form post (#1856)**: `/graphql`, `/operations/v1/…`, the playground, `/auth/me`,
+  `/auth/revoke`, `/auth/revoke-all`, introspection, schema export and metadata, and the
+  design audit. `REST` and WebSocket clients, and the observer admin endpoints, require
+  `Authorization: Bearer`. Both auth layers now accept the cookie on the same routes.
+
 ### Added
 
 - **A mutation's transaction can run again when PostgreSQL aborts it with `40P01` (deadlock)
@@ -248,6 +266,19 @@ disagreed, and the promise was the part that was wrong.
   - `fraiseql_auth::OTP_TTL_SECS` is public, for a caller that states how long a code lasts.
   - `fraiseql_core::schema::render_link_template` builds every link these mails carry: one
     pass, values percent-encoded.
+
+- **`[auth.local] session_transport = "cookie"` keeps session tokens out of page scripts' reach
+  (#1856).** Password signup and login, email `OTP` and magic-link verify, `MFA` verify and
+  anonymous sign-up set the access token in the `__Host-access_token` cookie and the refresh
+  token in `__Secure-refresh_token`, scoped to `/auth/v1/session`. Both are
+  `HttpOnly; Secure; SameSite=Strict`, and no response body carries a token. Refresh and logout
+  read the refresh cookie: refresh answers with the next pair in cookies, and logout clears
+  both. The access cookie is a credential only where no form another site posts can act:
+  `/graphql`, `/operations/v1` and the `MFA` enroll, confirm and unenroll routes. The
+  subscription socket, `REST` and email verification do not accept it. Cookie transport
+  requires `[auth.session] absolute_ttl_secs`, which mounts logout, and
+  `require_json_content_type = true`: the compiler and the boot refuse it otherwise. The
+  default, `json`, is unchanged. See `docs/auth/sessions.md`.
 
 ### Changed
 

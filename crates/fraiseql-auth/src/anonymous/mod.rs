@@ -77,6 +77,9 @@ pub struct AnonSignupState {
     rate_counters:     Option<Arc<DashMap<String, RateRecord>>>,
     /// Most counters held at once.
     max_tracked:       usize,
+    /// Cookie transport: the session goes in `HttpOnly` cookies, and the body names the
+    /// user and the lifetime alone. `None` answers with the tokens as `JSON`.
+    session_cookies:   Option<crate::SessionCookies>,
 }
 
 impl AnonSignupState {
@@ -88,6 +91,7 @@ impl AnonSignupState {
             session_store,
             rate_counters: Some(Arc::new(DashMap::new())),
             max_tracked: ANON_MAX_TRACKED,
+            session_cookies: None,
         }
     }
 
@@ -100,7 +104,15 @@ impl AnonSignupState {
             session_store,
             rate_counters: None,
             max_tracked: ANON_MAX_TRACKED,
+            session_cookies: None,
         }
+    }
+
+    /// Deliver the session in cookies (`[auth.local] session_transport = "cookie"`).
+    #[must_use]
+    pub const fn with_session_cookies(mut self, cookies: Option<crate::SessionCookies>) -> Self {
+        self.session_cookies = cookies;
+        self
     }
 
     /// Cap the number of counters held at once.
@@ -255,6 +267,13 @@ pub async fn anon_signup(
                 Some(user_id.clone()),
                 "anon_signup",
             );
+            if let Some(cookies) = &state.session_cookies {
+                let body = serde_json::json!({
+                    "user_id":    user_id,
+                    "expires_in": tokens.expires_in,
+                });
+                return crate::session_cookies::with_cookies(cookies, &tokens, body);
+            }
             (
                 StatusCode::OK,
                 Json(AnonSignupResponse {

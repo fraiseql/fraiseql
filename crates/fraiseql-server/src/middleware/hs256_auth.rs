@@ -39,6 +39,11 @@ pub struct Hs256AuthState {
     pub revocation:       Option<Arc<crate::token_revocation::TokenRevocationManager>>,
     /// The claim that names the caller's tenant, inserted as a [`TenantClaim`] extension.
     pub tenant_claim:     TenantClaim,
+    /// Whether a request with no `Authorization` header may present its token in the
+    /// `__Host-access_token` cookie instead (`[auth.local] session_transport = "cookie"`,
+    /// #1856). Off by default: a browser attaches a cookie to requests another site makes
+    /// it send, so a mount turns this on only where every route refuses those.
+    pub access_cookie:    bool,
 }
 
 impl Hs256AuthState {
@@ -55,7 +60,16 @@ impl Hs256AuthState {
             service_accounts: None,
             revocation: None,
             tenant_claim,
+            access_cookie: false,
         }
+    }
+
+    /// Accept the access token from the `__Host-access_token` cookie when the request
+    /// carries no `Authorization` header.
+    #[must_use]
+    pub const fn with_access_cookie(mut self, accept: bool) -> Self {
+        self.access_cookie = accept;
+        self
     }
 
     /// Attach the service-account authenticator, so a service account presenting its
@@ -87,7 +101,9 @@ impl Hs256AuthState {
 /// HS256 authentication middleware.
 ///
 /// Validates JWT tokens from the `Authorization: Bearer` header using a
-/// shared-secret HS256 key. All validation is local — no network calls.
+/// shared-secret HS256 key. All validation is local — no network calls. When
+/// [`Hs256AuthState::access_cookie`] is set, a request with no `Authorization` header
+/// may present the token in the `__Host-access_token` cookie instead.
 ///
 /// On success, enforces token revocation through the same seam the OIDC layer uses
 /// and inserts [`AuthUser`], [`SessionJti`] and `SessionTokenClaims` so downstream
@@ -100,11 +116,14 @@ pub async fn hs256_auth_middleware(
     mut request: Request<Body>,
     next: Next,
 ) -> Response {
-    let auth_header = request
-        .headers()
-        .get(header::AUTHORIZATION)
-        .and_then(|value| value.to_str().ok())
-        .map(ToOwned::to_owned);
+    let auth_header = match request.headers().get(header::AUTHORIZATION) {
+        Some(value) => value.to_str().ok().map(ToOwned::to_owned),
+        None if auth_state.access_cookie => {
+            super::oidc_auth::extract_access_token_cookie(request.headers())
+                .map(|token| format!("Bearer {token}"))
+        },
+        None => None,
+    };
 
     // #934, #1650: a service account presents its secret on `x-api-key` and no bearer,
     // and is admitted here as itself. A secret that matches no account, a bearer that

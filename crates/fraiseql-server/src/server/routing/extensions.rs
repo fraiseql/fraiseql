@@ -32,6 +32,8 @@ impl Server {
                 ops_router,
                 super::AuthPosture::Authenticated,
                 "async-operations",
+                // Submit takes a `JSON` body, status only reads, and cancel is a DELETE.
+                super::AccessCookie::Accepted,
             ));
             info!("Async-operations endpoints mounted (/operations/v1)");
         }

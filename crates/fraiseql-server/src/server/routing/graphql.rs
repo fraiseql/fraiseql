@@ -8,7 +8,7 @@ use tower_http::compression::{
 
 use super::{
     super::{Server, graphql_get_handler, graphql_handler, require_json_content_type},
-    AuthPosture,
+    AccessCookie, AuthPosture,
 };
 use crate::routes::graphql::{AppState, handler::graphql_query_method_handler};
 
@@ -38,6 +38,9 @@ impl Server {
             Router::new().route(&self.config.graphql_path, methods),
             AuthPosture::Authenticated,
             "graphql",
+            // A POST must be `JSON` (cookie transport refuses to boot without that check),
+            // GET runs no mutation, and QUERY runs queries only.
+            AccessCookie::Accepted,
         );
 
         let graphql_router = if self.config.require_json_content_type {

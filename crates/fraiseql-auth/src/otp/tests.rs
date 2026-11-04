@@ -15,11 +15,12 @@ use crate::session::InMemorySessionStore;
 
 fn build_route_state() -> Arc<OtpRouteState> {
     Arc::new(OtpRouteState {
-        otp_store:      Arc::new(InMemoryOtpStore::new()),
-        email_delivery: Arc::new(NoopEmailDelivery),
-        session_store:  Arc::new(InMemorySessionStore::new()),
-        account_store:  None,
-        allow_gate:     None,
+        otp_store:       Arc::new(InMemoryOtpStore::new()),
+        email_delivery:  Arc::new(NoopEmailDelivery),
+        session_store:   Arc::new(InMemorySessionStore::new()),
+        account_store:   None,
+        allow_gate:      None,
+        session_cookies: None,
     })
 }
 
@@ -67,11 +68,12 @@ async fn test_otp_send_returns_200_with_message_id() {
 async fn test_otp_verify_valid_code_returns_session_token() {
     let otp_store = Arc::new(InMemoryOtpStore::new());
     let state = Arc::new(OtpRouteState {
-        otp_store:      Arc::clone(&otp_store) as Arc<dyn OtpStore>,
-        email_delivery: Arc::new(NoopEmailDelivery),
-        session_store:  Arc::new(InMemorySessionStore::new()),
-        account_store:  None,
-        allow_gate:     None,
+        otp_store:       Arc::clone(&otp_store) as Arc<dyn OtpStore>,
+        email_delivery:  Arc::new(NoopEmailDelivery),
+        session_store:   Arc::new(InMemorySessionStore::new()),
+        account_store:   None,
+        allow_gate:      None,
+        session_cookies: None,
     });
 
     // Directly create an OTP so we know the code.
@@ -107,11 +109,12 @@ async fn test_otp_verify_valid_code_returns_session_token() {
 async fn test_otp_verify_wrong_code_returns_422() {
     let otp_store = Arc::new(InMemoryOtpStore::new());
     let state = Arc::new(OtpRouteState {
-        otp_store:      Arc::clone(&otp_store) as Arc<dyn OtpStore>,
-        email_delivery: Arc::new(NoopEmailDelivery),
-        session_store:  Arc::new(InMemorySessionStore::new()),
-        account_store:  None,
-        allow_gate:     None,
+        otp_store:       Arc::clone(&otp_store) as Arc<dyn OtpStore>,
+        email_delivery:  Arc::new(NoopEmailDelivery),
+        session_store:   Arc::new(InMemorySessionStore::new()),
+        account_store:   None,
+        allow_gate:      None,
+        session_cookies: None,
     });
     otp_store.create_otp("alice@example.com").await.unwrap();
 

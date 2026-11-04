@@ -12,6 +12,9 @@
 //!   session already passed
 //! - logout ends the session; the access token it already issued lives on unless
 //!   `[security.token_revocation]` is configured
+//! - with `[auth.local] session_transport = "cookie"` (#1856), every local sign-in, refresh and
+//!   logout carries the session in `HttpOnly` cookies and no body carries a token; the access
+//!   cookie is a credential only on routes that refuse a non-`JSON` body
 //!
 //! Time is never faked. The 10-second boundary is pinned by moving a row's server-side
 //! `rotated_at` back, and the absolute limit by moving its `expires_at`. One test sleeps
@@ -33,11 +36,11 @@ use std::{fmt::Write as _, sync::Arc};
 
 use fraiseql_core::{
     db::postgres::PostgresAdapter,
-    schema::{AuthClientConfig, CompiledSchema, LocalAuthConfig, SessionConfig},
+    schema::{AuthClientConfig, CompiledSchema, LocalAuthConfig, SessionConfig, SessionTransport},
 };
 use fraiseql_server::{
     Server,
-    server_config::{ServerConfig, hs256::Hs256Config},
+    server_config::{AsyncOperationsConfig, ServerConfig, hs256::Hs256Config},
     token_revocation::{
         InMemoryRevocationStore, RevocationError, RevocationStore, TokenRevocationManager,
     },
@@ -210,10 +213,22 @@ async fn boot(
     scratch_url: &str,
     revocation: Option<Arc<TokenRevocationManager>>,
 ) -> RunningServer {
+    // Boxed: `boot_with`'s future is large enough to trip `clippy::large_futures` at every
+    // caller.
+    Box::pin(boot_with(server_config(scratch_url), schema, pool, scratch_url, revocation)).await
+}
+
+async fn boot_with(
+    config: ServerConfig,
+    schema: CompiledSchema,
+    pool: PgPool,
+    scratch_url: &str,
+    revocation: Option<Arc<TokenRevocationManager>>,
+) -> RunningServer {
     let adapter = Arc::new(PostgresAdapter::new(scratch_url).await.expect("PostgresAdapter::new"));
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.expect("bind ephemeral port");
     let port = listener.local_addr().expect("local addr").port();
-    let mut server = Box::pin(Server::new(server_config(scratch_url), schema, adapter, Some(pool)))
+    let mut server = Box::pin(Server::new(config, schema, adapter, Some(pool)))
         .await
         .expect("Server::new with [auth.local] + [auth.session] must succeed");
     if let Some(revocation) = revocation {
@@ -1071,6 +1086,503 @@ async fn a_session_section_that_could_not_work_does_not_boot() {
             panic!("{what} must refuse to boot");
         };
         assert!(error.to_string().contains(names), "{what}: the refusal names it: {error}");
+    }
+
+    pool.close().await;
+    drop_scratch(&url, db).await;
+}
+
+// ── Cookie transport (#1856) ─────────────────────────────────────────────────
+
+const ACCESS_COOKIE: &str = "__Host-access_token";
+const REFRESH_COOKIE: &str = "__Secure-refresh_token";
+
+/// Every local sign-in method, refreshable, with `session_transport = "cookie"`.
+fn cookie_mode() -> CompiledSchema {
+    let mut schema = refreshable();
+    let local = schema.auth.as_mut().and_then(|a| a.local.as_mut()).expect("[auth.local]");
+    local.session_transport = SessionTransport::Cookie;
+    local.anonymous = true;
+    local.email_verification = true;
+    local.verification_url_template =
+        Some("https://app.example.com/verify-email?token={token}".to_string());
+    schema
+}
+
+/// The server config, plus `[async_operations]` and a REST surface's prerequisites, so
+/// every transport behind the session layer is mounted.
+fn cookie_server_config(scratch_url: &str) -> ServerConfig {
+    ServerConfig {
+        async_operations: Some(AsyncOperationsConfig {
+            operations: vec!["noSuchOperation".to_string()],
+            ..AsyncOperationsConfig::default()
+        }),
+        ..server_config(scratch_url)
+    }
+}
+
+/// `cookie_mode()` with a REST surface, so its routes are mounted too.
+fn cookie_mode_with_rest() -> CompiledSchema {
+    let mut schema = cookie_mode();
+    schema.rest_config = Some(fraiseql_core::schema::RestConfig {
+        enabled: true,
+        require_auth: true,
+        ..fraiseql_core::schema::RestConfig::default()
+    });
+    schema
+}
+
+/// A response as a browser sees it: status, every `Set-Cookie`, and the raw body.
+struct Answer {
+    status:      StatusCode,
+    set_cookies: Vec<String>,
+    body:        String,
+}
+
+impl Answer {
+    async fn of(request: reqwest::RequestBuilder) -> Self {
+        let resp = request.send().await.expect("request");
+        let status = resp.status();
+        let set_cookies = resp
+            .headers()
+            .get_all(reqwest::header::SET_COOKIE)
+            .iter()
+            .map(|v| v.to_str().expect("Set-Cookie is ASCII").to_string())
+            .collect();
+        let body = resp.text().await.unwrap_or_default();
+        Self {
+            status,
+            set_cookies,
+            body,
+        }
+    }
+
+    fn json(&self) -> Value {
+        serde_json::from_str(&self.body).unwrap_or(Value::Null)
+    }
+
+    /// The `Set-Cookie` for `name`; panics when there is none or more than one.
+    fn set_cookie(&self, what: &str, name: &str) -> &str {
+        let prefix = format!("{name}=");
+        let found: Vec<&String> =
+            self.set_cookies.iter().filter(|c| c.starts_with(&prefix)).collect();
+        assert_eq!(found.len(), 1, "{what}: exactly one {name} cookie: {:?}", self.set_cookies);
+        found[0]
+    }
+
+    /// No body carries a token: neither a token field nor any of `tokens` verbatim.
+    fn assert_carries_no_token(&self, what: &str, tokens: &[&str]) {
+        assert_no_tokens(what, &self.json());
+        for token in tokens {
+            assert!(!self.body.contains(token), "{what}: the body carries a token: {}", self.body);
+        }
+    }
+}
+
+/// The value of a `Set-Cookie` line, and its attributes, lowercased and sorted.
+fn cookie_parts(line: &str) -> (String, Vec<String>) {
+    let mut parts = line.split(';').map(str::trim);
+    let pair = parts.next().expect("a name=value pair");
+    let (_, value) = pair.split_once('=').expect("name=value");
+    let mut attributes: Vec<String> = parts.map(str::to_ascii_lowercase).collect();
+    attributes.sort();
+    (value.trim_matches('"').to_string(), attributes)
+}
+
+fn expected_attributes(path: &str, max_age: u64) -> Vec<String> {
+    let mut attributes = vec![
+        "httponly".to_string(),
+        format!("max-age={max_age}"),
+        format!("path={path}"),
+        "samesite=strict".to_string(),
+        "secure".to_string(),
+    ];
+    attributes.sort();
+    attributes
+}
+
+/// The session a cookie-mode answer set, after checking both cookies' attributes and
+/// that the body carries neither token.
+fn cookie_session(what: &str, answer: &Answer, access_max_age: u64) -> Session {
+    assert_eq!(answer.status, StatusCode::OK, "{what}: {}", answer.body);
+    let (access, attributes) = cookie_parts(answer.set_cookie(what, ACCESS_COOKIE));
+    assert_eq!(attributes, expected_attributes("/", access_max_age), "{what}: {ACCESS_COOKIE}");
+    let (refresh, attributes) = cookie_parts(answer.set_cookie(what, REFRESH_COOKIE));
+    assert_eq!(
+        attributes,
+        expected_attributes("/auth/v1/session", ABSOLUTE),
+        "{what}: {REFRESH_COOKIE}"
+    );
+    assert!(!access.is_empty() && !refresh.is_empty(), "{what}: {:?}", answer.set_cookies);
+    answer.assert_carries_no_token(what, &[&access, &refresh]);
+    Session { access, refresh }
+}
+
+/// Logout's `Set-Cookie`s empty both cookies, at the paths they were set on.
+fn assert_cookies_cleared(what: &str, answer: &Answer) {
+    for (name, path) in [(ACCESS_COOKIE, "/"), (REFRESH_COOKIE, "/auth/v1/session")] {
+        let (value, attributes) = cookie_parts(answer.set_cookie(what, name));
+        assert_eq!(value, "", "{what}: {name} must be emptied");
+        assert_eq!(attributes, expected_attributes(path, 0), "{what}: {name}");
+    }
+}
+
+fn with_cookie(
+    request: reqwest::RequestBuilder,
+    name: &str,
+    value: &str,
+) -> reqwest::RequestBuilder {
+    request.header(reqwest::header::COOKIE, format!("{name}={value}"))
+}
+
+/// A `JSON` `POST` carrying no credential but `cookie`.
+async fn post_with_cookie(base: &str, path: &str, cookie: (&str, &str), body: Value) -> Answer {
+    let request = reqwest::Client::new().post(format!("{base}{path}")).json(&body);
+    Answer::of(with_cookie(request, cookie.0, cookie.1)).await
+}
+
+async fn graphql_with_cookie(base: &str, access: &str) -> StatusCode {
+    post_with_cookie(
+        base,
+        "/graphql",
+        (ACCESS_COOKIE, access),
+        json!({ "query": "{ __typename }" }),
+    )
+    .await
+    .status
+}
+
+async fn cookie_signup(base: &str, email: &str) -> Session {
+    let answer = Answer::of(
+        reqwest::Client::new()
+            .post(format!("{base}/auth/v1/password/signup"))
+            .json(&json!({ "email": email, "password": PASSWORD })),
+    )
+    .await;
+    cookie_session("cookie signup", &answer, TTL)
+}
+
+/// The acceptance path: sign in, call `GraphQL`, refresh, and log out with nothing but
+/// the cookies the server set, and no response body ever carrying a token.
+#[tokio::test]
+async fn a_cookie_session_signs_in_queries_refreshes_and_logs_out() {
+    let db = "fraiseql_session_cookie";
+    let revocation = Arc::new(TokenRevocationManager::new(
+        Arc::new(InMemoryRevocationStore::new()),
+        false,
+        false,
+        3600,
+    ));
+    let Some((url, _pool, server)) =
+        start("a_cookie_session_signs_in", db, cookie_mode(), Some(revocation)).await
+    else {
+        return;
+    };
+    let base = &server.base;
+
+    let first = cookie_signup(base, "cookie@example.com").await;
+    assert_eq!(graphql_with_cookie(base, &first.access).await, StatusCode::OK, "after sign-in");
+
+    let answer = post_with_cookie(base, REFRESH, (REFRESH_COOKIE, &first.refresh), json!({})).await;
+    let second = cookie_session("cookie refresh", &answer, TTL);
+    answer.assert_carries_no_token("cookie refresh", &[&first.access, &first.refresh]);
+    assert_ne!(second.refresh, first.refresh, "a refresh rotates the refresh token");
+    assert_eq!(graphql_with_cookie(base, &second.access).await, StatusCode::OK, "after refresh");
+
+    let answer = post_with_cookie(base, LOGOUT, (REFRESH_COOKIE, &second.refresh), json!({})).await;
+    assert_eq!(answer.status, StatusCode::NO_CONTENT, "cookie logout: {}", answer.body);
+    assert_cookies_cleared("cookie logout", &answer);
+
+    let answer =
+        post_with_cookie(base, REFRESH, (REFRESH_COOKIE, &second.refresh), json!({})).await;
+    assert_eq!(answer.status, StatusCode::UNAUTHORIZED, "the session is over: {}", answer.body);
+    assert!(
+        answer.set_cookies.is_empty(),
+        "a refused refresh sets nothing: {:?}",
+        answer.set_cookies
+    );
+    assert_eq!(
+        graphql_with_cookie(base, &second.access).await,
+        StatusCode::UNAUTHORIZED,
+        "with token revocation, logout ends the access cookie"
+    );
+
+    finish(&url, db, server).await;
+}
+
+/// Every `[auth.local]` method that mints a session sets the cookies and keeps the
+/// tokens out of the body: password login, `OTP`, `MFA` verify and anonymous sign-up.
+/// The `MFA` challenge carries no session, so it sets no cookie.
+#[tokio::test]
+async fn every_local_sign_in_sets_the_session_cookies() {
+    let db = "fraiseql_session_cookie_sign_ins";
+    let Some((url, pool, server)) =
+        start("every_local_sign_in_sets_the_cookies", db, cookie_mode(), None).await
+    else {
+        return;
+    };
+    let base = &server.base;
+    let client = reqwest::Client::new();
+
+    cookie_signup(base, "login@example.com").await;
+    let answer = Answer::of(
+        client
+            .post(format!("{base}/auth/v1/password/login"))
+            .json(&json!({ "email": "login@example.com", "password": PASSWORD })),
+    )
+    .await;
+    cookie_session("password login", &answer, TTL);
+
+    let _ = post_json(base, "/auth/v1/otp", json!({ "email": "otp@example.com" })).await;
+    let code = stored_otp_code(&pool, "otp@example.com").await;
+    let answer = Answer::of(
+        client
+            .post(format!("{base}/auth/v1/verify"))
+            .json(&json!({ "email": "otp@example.com", "code": code })),
+    )
+    .await;
+    cookie_session("OTP verify", &answer, TTL);
+
+    let mfa = cookie_signup(base, "mfa-cookie@example.com").await;
+    let secret = seed_confirmed_mfa(&pool, &user_of(&mfa.access)).await;
+    let answer = Answer::of(
+        client
+            .post(format!("{base}/auth/v1/password/login"))
+            .json(&json!({ "email": "mfa-cookie@example.com", "password": PASSWORD })),
+    )
+    .await;
+    assert!(
+        answer.set_cookies.is_empty(),
+        "a challenge is no session: {:?}",
+        answer.set_cookies
+    );
+    let challenge = answer.json()["challenge_token"].as_str().expect("challenge_token").to_string();
+    let answer = Answer::of(
+        client
+            .post(format!("{base}/auth/v1/mfa/verify"))
+            .json(&json!({ "challenge_token": challenge, "code": totp_code(&secret) })),
+    )
+    .await;
+    cookie_session("MFA verify", &answer, TTL);
+
+    let answer = Answer::of(client.post(format!("{base}/auth/v1/signup")).json(&json!({}))).await;
+    cookie_session("anonymous signup", &answer, 7 * 24 * 3600);
+    assert!(
+        answer.json()["user_id"].is_string(),
+        "anonymous signup names its user: {}",
+        answer.body
+    );
+
+    finish(&url, db, server).await;
+}
+
+/// The access cookie is a credential only where a request a browser sends cross-site on
+/// its own cannot reach: `GraphQL`, async operations and `MFA` management, which all
+/// refuse anything but a `JSON` body. The subscription socket, `REST` and the bodiless
+/// `email/verify/start` stand behind no such guard, and refuse the cookie. Each refusal is
+/// paired with the same request carrying a bearer token, which the route accepts.
+#[tokio::test]
+async fn the_access_cookie_is_accepted_only_behind_a_json_guard() {
+    let Some(url) = database_url_or_skip("the_access_cookie_is_accepted_only") else {
+        return;
+    };
+    set_test_env();
+    let db = "fraiseql_session_cookie_routes";
+    let pool = scratch_pool(&url, db).await;
+    let scratch_url = with_database(&url, db);
+    let server = Box::pin(boot_with(
+        cookie_server_config(&scratch_url),
+        cookie_mode_with_rest(),
+        pool.clone(),
+        &scratch_url,
+        None,
+    ))
+    .await;
+    let base = &server.base;
+    let client = reqwest::Client::new();
+    let session = cookie_signup(base, "routes@example.com").await;
+    let cookie =
+        |request: reqwest::RequestBuilder| with_cookie(request, ACCESS_COOKIE, &session.access);
+    let bearer = |request: reqwest::RequestBuilder| request.bearer_auth(&session.access);
+
+    // Accepted.
+    assert_eq!(graphql_with_cookie(base, &session.access).await, StatusCode::OK, "GraphQL POST");
+    let get = || client.get(format!("{base}/graphql?query=%7B__typename%7D"));
+    assert_eq!(Answer::of(cookie(get())).await.status, StatusCode::OK, "GraphQL GET");
+    let operation =
+        || client.get(format!("{base}/operations/v1/00000000-0000-0000-0000-000000000000"));
+    let answer = Answer::of(cookie(operation())).await;
+    assert_eq!(answer.status, StatusCode::NOT_FOUND, "async operations: {}", answer.body);
+    let enroll = || {
+        client
+            .post(format!("{base}/auth/v1/mfa/enroll"))
+            .json(&json!({ "account_name": "routes@example.com" }))
+    };
+    let answer = Answer::of(cookie(enroll())).await;
+    assert_eq!(answer.status, StatusCode::OK, "MFA enroll: {}", answer.body);
+
+    // Refused, where the same request with a bearer token is not.
+    let ws = || {
+        client
+            .get(format!("{base}/ws"))
+            .header("connection", "Upgrade")
+            .header("upgrade", "websocket")
+            .header("sec-websocket-version", "13")
+            .header("sec-websocket-key", "dGhlIHNhbXBsZSBub25jZQ==")
+            .header("sec-websocket-protocol", "graphql-transport-ws")
+    };
+    let rest = || client.get(format!("{base}/rest/v1/openapi.json"));
+    let verify = || client.post(format!("{base}/auth/v1/email/verify/start"));
+    for (what, request) in [
+        ("the subscription socket", &ws as &dyn Fn() -> reqwest::RequestBuilder),
+        ("REST", &rest),
+        ("email/verify/start", &verify),
+    ] {
+        let answer = Answer::of(cookie(request())).await;
+        assert_eq!(
+            answer.status,
+            StatusCode::UNAUTHORIZED,
+            "{what} with the cookie: {}",
+            answer.body
+        );
+        let answer = Answer::of(bearer(request())).await;
+        assert_ne!(
+            answer.status,
+            StatusCode::UNAUTHORIZED,
+            "{what} with a bearer: {}",
+            answer.body
+        );
+        assert_ne!(answer.status, StatusCode::NOT_FOUND, "{what} must be mounted: {}", answer.body);
+    }
+
+    server.stop().await;
+    pool.close().await;
+    drop_scratch(&url, db).await;
+}
+
+/// A form a page on another site submits is a `POST` with a `text/plain` body, and the
+/// browser attaches no other header. With the cookie, `GraphQL` and the refresh route
+/// both refuse it, and the refresh token it carried is still good.
+#[tokio::test]
+async fn a_form_shaped_post_carrying_the_cookie_is_refused() {
+    let db = "fraiseql_session_cookie_form";
+    let Some((url, _pool, server)) =
+        start("a_form_shaped_post_is_refused", db, cookie_mode(), None).await
+    else {
+        return;
+    };
+    let base = &server.base;
+    let session = cookie_signup(base, "form@example.com").await;
+    let form = |path: &str, cookie: (&str, &str), body: &str| {
+        with_cookie(
+            reqwest::Client::new()
+                .post(format!("{base}{path}"))
+                .header(reqwest::header::CONTENT_TYPE, "text/plain")
+                .body(body.to_string()),
+            cookie.0,
+            cookie.1,
+        )
+    };
+
+    let answer = Answer::of(form(
+        "/graphql",
+        (ACCESS_COOKIE, &session.access),
+        r#"{"query":"mutation { __typename }"}"#,
+    ))
+    .await;
+    assert_eq!(answer.status, StatusCode::UNSUPPORTED_MEDIA_TYPE, "GraphQL: {}", answer.body);
+    let answer = Answer::of(form(REFRESH, (REFRESH_COOKIE, &session.refresh), "{}")).await;
+    assert_eq!(answer.status, StatusCode::UNSUPPORTED_MEDIA_TYPE, "refresh: {}", answer.body);
+    assert!(
+        answer.set_cookies.is_empty(),
+        "a refused refresh sets nothing: {:?}",
+        answer.set_cookies
+    );
+
+    let answer =
+        post_with_cookie(base, REFRESH, (REFRESH_COOKIE, &session.refresh), json!({})).await;
+    cookie_session("the refresh token the form carried", &answer, TTL);
+
+    finish(&url, db, server).await;
+}
+
+/// In the default `json` transport nothing changes: sign-in sets no cookie, and a cookie
+/// is no credential.
+#[tokio::test]
+async fn in_json_transport_no_cookie_is_set_or_accepted() {
+    let db = "fraiseql_session_json_transport";
+    let Some((url, _pool, server)) =
+        start("in_json_transport_no_cookie", db, refreshable(), None).await
+    else {
+        return;
+    };
+    let base = &server.base;
+
+    let answer = Answer::of(
+        reqwest::Client::new()
+            .post(format!("{base}/auth/v1/password/signup"))
+            .json(&json!({ "email": "json@example.com", "password": PASSWORD })),
+    )
+    .await;
+    assert!(
+        answer.set_cookies.is_empty(),
+        "json transport sets no cookie: {:?}",
+        answer.set_cookies
+    );
+    let session = session_of("json signup", answer.status, &answer.json());
+    assert_eq!(
+        graphql_with_cookie(base, &session.access).await,
+        StatusCode::UNAUTHORIZED,
+        "a cookie is no credential in json transport"
+    );
+    assert_eq!(probe(base, &session.access).await, StatusCode::OK, "the bearer still is");
+
+    finish(&url, db, server).await;
+}
+
+/// Cookie transport with no route to clear the cookies, or with `GraphQL`'s `JSON` guard
+/// switched off, does not boot.
+#[tokio::test]
+async fn cookie_transport_that_could_not_be_safe_does_not_boot() {
+    let Some(url) = database_url_or_skip("cookie_transport_that_could_not_be_safe") else {
+        return;
+    };
+    set_test_env();
+    let db = "fraiseql_session_cookie_refusals";
+    let pool = scratch_pool(&url, db).await;
+    let scratch_url = with_database(&url, db);
+
+    let mut no_logout = cookie_mode();
+    no_logout.auth.as_mut().expect("auth").session = None;
+    let unguarded = ServerConfig {
+        require_json_content_type: false,
+        ..server_config(&scratch_url)
+    };
+    for (what, schema, config, names) in [
+        (
+            "no [auth.session] absolute_ttl_secs",
+            no_logout,
+            server_config(&scratch_url),
+            "absolute_ttl_secs",
+        ),
+        (
+            "require_json_content_type = false",
+            cookie_mode(),
+            unguarded,
+            "require_json_content_type",
+        ),
+    ] {
+        let adapter =
+            Arc::new(PostgresAdapter::new(&scratch_url).await.expect("PostgresAdapter::new"));
+        let refused = Box::pin(Server::new(config, schema, adapter, Some(pool.clone()))).await;
+        let Err(error) = refused else {
+            panic!("cookie transport with {what} must refuse to boot");
+        };
+        let error = error.to_string();
+        assert!(
+            error.contains(names) && error.contains("session_transport"),
+            "{what}: the refusal names both keys: {error}"
+        );
     }
 
     pool.close().await;
