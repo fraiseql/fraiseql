@@ -410,16 +410,11 @@ async fn no_metadata_keeps_the_status_and_says_nothing_more() {
     assert!(result["errors"].is_null(), "no entry: {result}");
 }
 
-/// The common path: `auto_error_union` synthesizes `MutationError` and wraps an
-/// object-returning mutation in `<Mutation>Result`. The synthesized member serves the entry
-/// (it had no field to: a function's own `errors[]` was invisible there too).
-#[tokio::test]
-async fn the_synthesized_error_member_serves_the_entry() {
+/// The schema an SDK authors with `auto_error_union`, compiled: `createUser` returns
+/// `CreateUserResult`, a union of `User` and the synthesized `MutationError`.
+fn auto_error_union_schema() -> CompiledSchema {
     use fraiseql_cli::schema::{ConvertOptions, SchemaConverter, intermediate::IntermediateSchema};
 
-    let Some(url) = try_database_url() else {
-        return;
-    };
     let intermediate: IntermediateSchema = serde_json::from_value(json!({
         "types": [{
             "name": "User", "sql_source": format!("{SCHEMA}.v_user"), "is_input": false,
@@ -451,6 +446,27 @@ async fn the_synthesized_error_member_serves_the_entry() {
     .unwrap()
     .schema;
     schema.build_indexes();
+    schema
+}
+
+/// The document this suite serves loads, checked with no database.
+///
+/// Every other test here needs a database before it builds the document, so without this
+/// one a refusal of it would show only in a run that has one.
+#[test]
+fn the_document_loads_without_a_database() {
+    auto_error_union_schema();
+}
+
+/// The common path: `auto_error_union` synthesizes `MutationError` and wraps an
+/// object-returning mutation in `<Mutation>Result`. The synthesized member serves the entry
+/// (it had no field to: a function's own `errors[]` was invisible there too).
+#[tokio::test]
+async fn the_synthesized_error_member_serves_the_entry() {
+    let Some(url) = try_database_url() else {
+        return;
+    };
+    let schema = auto_error_union_schema();
 
     let adapter = Arc::new(PostgresAdapter::new(&url).await.unwrap());
     provision(&adapter).await;

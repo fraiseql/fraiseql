@@ -98,6 +98,16 @@ fn schema(relations: &[&str]) -> CompiledSchema {
     schema
 }
 
+/// The document this suite serves loads, checked with no database.
+///
+/// Every other test here needs a database before it builds the document, so without this
+/// one a refusal of it would show only in a run that has one.
+#[test]
+fn the_document_loads_without_a_database() {
+    schema(&["v_post", "v_post_dated", "tv_post"]);
+    schema(&["tv_dated_post", "tv_plain", "v_post"]);
+}
+
 /// Each `(query, field)` `compile --database` advises on, with its remedy, and the messages.
 async fn advice(
     url: &str,

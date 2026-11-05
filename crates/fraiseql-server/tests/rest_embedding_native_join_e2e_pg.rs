@@ -136,14 +136,14 @@ sql_source = "{SCHEMA}.tv_c1587"
     )
 }
 
-/// The document above, compiled against the database.
-async fn compile(url: &str) -> (CompiledSchema, TempDir) {
+/// The document above, compiled against the database at `url`.
+async fn compile(url: Option<&str>) -> (CompiledSchema, TempDir) {
     let temp_dir = TempDir::new().unwrap();
     let toml_path = temp_dir.path().join("fraiseql.toml");
     std::fs::write(&toml_path, fraiseql_toml()).unwrap();
     let (compiled, _) = compile_to_schema(CompileOptions {
         skip_hash: true,
-        database: Some(url),
+        database: url,
         ..CompileOptions::new(toml_path.to_str().unwrap())
     })
     .await
@@ -153,6 +153,16 @@ async fn compile(url: &str) -> (CompiledSchema, TempDir) {
     (schema, temp_dir)
 }
 
+/// The document this suite serves loads, checked with no database.
+///
+/// Every other test here needs a database before it builds the document, so without this
+/// one a refusal of it would show only in a run that has one. Compiled without one, it
+/// loads everything but what `compile --database` reads from the database.
+#[tokio::test]
+async fn the_document_loads_without_a_database() {
+    compile(None).await;
+}
+
 #[tokio::test]
 async fn a_composed_read_correlates_on_the_columns_pg_tviews_proves() {
     let Some(url) = tviews_database_url() else {
@@ -160,7 +170,7 @@ async fn a_composed_read_correlates_on_the_columns_pg_tviews_proves() {
         return;
     };
     assert!(provision(&url).await, "{NO_REFERENCES}");
-    let (schema, _dir) = compile(&url).await;
+    let (schema, _dir) = compile(Some(&url)).await;
 
     let comments = schema
         .find_type("Post")
@@ -224,7 +234,7 @@ async fn a_server_refuses_a_proof_its_database_does_not_hold() {
         return;
     };
     assert!(provision(&url).await, "{NO_REFERENCES}");
-    let (mut schema, _dir) = compile(&url).await;
+    let (mut schema, _dir) = compile(Some(&url)).await;
     let adapter = PostgresAdapter::new(&url).await.unwrap();
     fraiseql_core::schema::refuse_unproven_native_joins(&adapter, &schema)
         .await

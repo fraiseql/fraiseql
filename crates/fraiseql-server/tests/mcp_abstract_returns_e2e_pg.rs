@@ -225,6 +225,15 @@ fn auto_error_union_schema() -> CompiledSchema {
     schema
 }
 
+/// The document this suite serves loads, checked with no database.
+///
+/// Every other test here needs a database before it builds the document, so without this
+/// one a refusal of it would show only in a run that has one.
+#[test]
+fn the_document_loads_without_a_database() {
+    auto_error_union_schema();
+}
+
 /// Call `tool` through MCP: whether it failed, and the GraphQL response it carries.
 async fn call(schema: CompiledSchema, url: &str, tool: &str, arguments: &Value) -> (bool, Value) {
     let adapter = Arc::new(PostgresAdapter::new(url).await.unwrap());

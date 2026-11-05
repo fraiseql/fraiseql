@@ -290,6 +290,36 @@ fn schema(shape: Shape) -> CompiledSchema {
     schema
 }
 
+/// The document this suite serves loads, checked with no database.
+///
+/// Every other test here needs a database before it builds the document, so without this
+/// one a refusal of it would show only in a run that has one.
+#[test]
+fn the_document_loads_without_a_database() {
+    for shape in [
+        Shape::default(),
+        Shape {
+            filtered: true,
+            ..Shape::default()
+        },
+        Shape {
+            no_tags_query: true,
+            ..Shape::default()
+        },
+        Shape {
+            no_tags_query: true,
+            hidden_tags: true,
+            ..Shape::default()
+        },
+        Shape {
+            bare_users: true,
+            ..Shape::default()
+        },
+    ] {
+        schema(shape);
+    }
+}
+
 struct Running {
     base:      String,
     url:       String,

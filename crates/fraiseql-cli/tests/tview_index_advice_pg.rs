@@ -99,6 +99,15 @@ fn schema() -> CompiledSchema {
     schema
 }
 
+/// The document this suite serves loads, checked with no database.
+///
+/// Every other test here needs a database before it builds the document, so without this
+/// one a refusal of it would show only in a run that has one.
+#[test]
+fn the_document_loads_without_a_database() {
+    schema();
+}
+
 /// What `compile --database` advises: each query's index warning, by query.
 async fn advice(url: &str, schema: &CompiledSchema) -> HashMap<String, DatabaseWarning> {
     let pool = fraiseql_cli::connection::postgres_pool(url, "test", &PostgresTlsConfig::default())

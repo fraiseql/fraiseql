@@ -236,6 +236,15 @@ fn schema() -> CompiledSchema {
     schema
 }
 
+/// The document this suite serves loads, checked with no database.
+///
+/// Every other test here needs a database before it builds the document, so without this
+/// one a refusal of it would show only in a run that has one.
+#[test]
+fn the_document_loads_without_a_database() {
+    schema();
+}
+
 struct Running {
     base:      String,
     url:       String,

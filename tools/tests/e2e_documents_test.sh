@@ -135,8 +135,70 @@ fn the_document_loads_without_a_database() { schema(); }'
 run_gate "$root"
 expect 0 "all 1 database-gated" "a binary defining the guard is in scope without a loader token"
 
+# ── 10. A document an SDK authors and the converter compiles counts as loading one ───
+# Eight suites built theirs as an `IntermediateSchema` passed to
+# `SchemaConverter::convert_artifact`, which the scan did not name: none carried a guard,
+# and five that did left the scan's scope when their guard was removed (#1945).
+root="${tmp}/converter"
+mk "${root}/crates/fraiseql-server/tests/cache_e2e_pg.rs" '
+fn schema() -> CompiledSchema {
+    let intermediate: IntermediateSchema = serde_json::from_value(json!({ "types": [] })).unwrap();
+    SchemaConverter::convert_artifact(intermediate, &ConvertOptions::default()).unwrap().schema
+}
+async fn t() { let Some(url) = try_database_url() else { return }; serve(schema(), url); }'
+run_gate "$root"
+expect 1 "cache_e2e_pg.rs: loads a document but defines no" "a converter-compiled document needs a guard"
+
+# ── 11. A database found through another variable is still a database ──────────────
+# The pg_tviews suites read TVIEWS_DATABASE_URL, which `\bDATABASE_URL\b` does not match:
+# three of them left the scan's scope when their guard was removed (#1945).
+root="${tmp}/tviews"
+mk "${root}/crates/fraiseql-server/tests/tviews_e2e_pg.rs" '
+fn tviews_database_url() -> Option<String> { std::env::var("TVIEWS_DATABASE_URL").ok() }
+async fn t() { let Some(url) = tviews_database_url() else { return }; serve(compile_to_schema(opts), url); }'
+run_gate "$root"
+expect 1 "tviews_e2e_pg.rs: loads a document but defines no" "a suite gated on TVIEWS_DATABASE_URL needs a guard"
+
+# ── 12. A guard that consults another database variable can skip too ────────────────
+root="${tmp}/tviews-skip"
+mk "${root}/crates/fraiseql-server/tests/tviews_e2e_pg.rs" '
+#[test]
+fn the_document_loads_without_a_database() {
+    if std::env::var("TVIEWS_DATABASE_URL").is_err() { return; }
+    compile_to_schema(opts);
+}'
+run_gate "$root"
+expect 1 "consults DATABASE_URL, so it can skip" "a guard that consults TVIEWS_DATABASE_URL fails"
+
+# ── 13-14. Each other loader the scan names is one ──────────────────────────────────
+# Found by mutation (#1945): no case named these two, so dropping either passed.
+root="${tmp}/merge"
+mk "${root}/crates/fraiseql-server/tests/example_e2e_pg.rs" '
+async fn t() { let Some(url) = try_database_url() else { return }; serve(merge_from_domains(dir), url); }'
+run_gate "$root"
+expect 1 "example_e2e_pg.rs: loads a document" "a merged example needs a guard"
+
+root="${tmp}/fromjson"
+mk "${root}/crates/fraiseql-server/tests/parsed_e2e_pg.rs" '
+async fn t() {
+    let Some(url) = try_database_url() else { return };
+    serve(CompiledSchema::from_json(DOC, false).unwrap(), url);
+}'
+run_gate "$root"
+expect 1 "parsed_e2e_pg.rs: loads a document" "parsed compiled JSON needs a guard"
+
+# ── 15. A loader named only in a comment of a database-gated suite does not count ───
+# Case 6's suite finds no database, so it passed with comments left in (#1945 mutation).
+root="${tmp}/dbcomment"
+mk "${root}/crates/fraiseql-server/tests/literal_e2e_pg.rs" '
+// Unlike its neighbours, this suite never calls compile_to_schema.
+/* nor CompiledSchema::from_json */
+async fn t() { let Some(url) = try_database_url() else { return }; serve(CompiledSchema::default(), url); }'
+run_gate "$root"
+expect 0 "all 0 database-gated" "a database-gated suite naming a loader only in comments passes"
+
 if [ "$failures" -ne 0 ]; then
   echo "e2e_documents_test: ${failures} case(s) FAILED"
   exit 1
 fi
-echo "e2e_documents_test: all 9 cases passed"
+echo "e2e_documents_test: all 15 cases passed"

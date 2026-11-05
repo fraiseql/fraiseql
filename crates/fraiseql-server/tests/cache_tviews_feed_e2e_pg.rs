@@ -230,13 +230,13 @@ args = [
 
 /// The document above, compiled against the database at `url` (which proves `Post.comments`
 /// joins on `fk_p1589 = pk_p1589`, #1587), every query cached for 300 s.
-async fn schema(url: &str) -> (CompiledSchema, TempDir) {
+async fn schema(url: Option<&str>) -> (CompiledSchema, TempDir) {
     let temp_dir = TempDir::new().unwrap();
     let toml_path = temp_dir.path().join("fraiseql.toml");
     std::fs::write(&toml_path, fraiseql_toml()).unwrap();
     let (compiled, _) = compile_to_schema(CompileOptions {
         skip_hash: true,
-        database: Some(url),
+        database: url,
         ..CompileOptions::new(toml_path.to_str().unwrap())
     })
     .await
@@ -247,6 +247,16 @@ async fn schema(url: &str) -> (CompiledSchema, TempDir) {
     }
     schema.build_indexes();
     (schema, temp_dir)
+}
+
+/// The document this suite serves loads, checked with no database.
+///
+/// Every other test here needs a database before it builds the document, so without this
+/// one a refusal of it would show only in a run that has one. Compiled without one, it
+/// loads everything but what `compile --database` reads from the database.
+#[tokio::test]
+async fn the_document_loads_without_a_database() {
+    schema(None).await;
 }
 
 struct Running {
@@ -274,7 +284,7 @@ async fn serve_as(proxy: Option<&CountingProxy>, role: Option<&str>) -> Option<R
     require_typename(&shared).await;
     let url = own_database(&shared).await;
     provision(&url).await;
-    let (schema, schema_dir) = schema(&url).await;
+    let (schema, schema_dir) = schema(Some(&url)).await;
     let server_url = match role {
         None => url.clone(),
         Some(role) => {
@@ -596,7 +606,7 @@ async fn a_role_that_does_not_publish_keeps_the_feed_off() {
     require_typename(&shared).await;
     let url = own_database(&shared).await;
     provision(&url).await;
-    let (schema, _dir) = schema(&url).await;
+    let (schema, _dir) = schema(Some(&url)).await;
     let adapter = PostgresAdapter::new(&url).await.unwrap();
     let catalog = || fraiseql_core::cache::tviews_feed::read_feed_catalog(&adapter, &schema);
     assert!(catalog().await.unwrap().is_some(), "the database publishes rows");
