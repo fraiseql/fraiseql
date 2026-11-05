@@ -41,17 +41,20 @@ from pathlib import Path
 GUARD = "the_document_loads_without_a_database"
 
 # What it looks like to load a document in these suites: compile one through the CLI,
-# merge a shipped example, parse compiled JSON, or author compiled JSON by hand (every
-# hand-written one carries the producer version stamp the loader requires).
+# merge a shipped example, convert an authored `IntermediateSchema`, parse compiled JSON,
+# or author compiled JSON by hand (every hand-written one carries the producer version
+# stamp the loader requires).
 LOADERS = re.compile(
-    r"\b(compile_to_schema|merge_from_domains|CompiledSchema::from_json|CURRENT_FRAISEQL_VERSION)\b"
+    r"\b(compile_to_schema|merge_from_domains|SchemaConverter::convert(?:_artifact)?"
+    r"|CompiledSchema::from_json|CURRENT_FRAISEQL_VERSION)\b"
 )
 
 # What it looks like to find a database: the name is not the criterion — `pipeline_e2e_test`
-# skips on its own env var before it compiles, and is exposed the same way.
-DB_GATED = re.compile(r"\b(try_database_url|DATABASE_URL|fraiseql_test_support::postgres)\b")
+# skips on its own env var before it compiles, and is exposed the same way. Any variable
+# ending in DATABASE_URL counts: the pg_tviews suites find theirs in TVIEWS_DATABASE_URL.
+DB_GATED = re.compile(r"\b(try_database_url|\w*DATABASE_URL|fraiseql_test_support::postgres)\b")
 
-SELF_SKIP = re.compile(r"\b(try_database_url|DATABASE_URL)\b")
+SELF_SKIP = re.compile(r"\b(try_database_url|\w*DATABASE_URL)\b")
 
 
 def repo_root() -> Path:

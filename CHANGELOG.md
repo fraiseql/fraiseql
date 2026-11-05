@@ -398,6 +398,16 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **The e2e document guards are checked in the required `preflight` context (#1945).**
+  A database-gated test binary that loads a compiled document must carry
+  `the_document_loads_without_a_database`, which loads it with no database. Only the local
+  `make preflight` checked that; no CI context did, so a suite without the guard passed
+  every required context. The Dagger ShellGates leg now runs the scan
+  (`make lint-e2e-documents`) and its self-test. The scan also counts two cases it missed:
+  a document compiled with `SchemaConverter::convert_artifact`, and a database found
+  through `TVIEWS_DATABASE_URL`. Ten suites carried no guard because of them and now do.
+  Nine guard comments claimed an unknown key could refuse their document; `from_value`
+  ignores an unknown top-level key, and the comments now say so.
 - **A union field read through inline fragments answers its member's fields (#1825).**
   `{ ledgers { party { ... on Org { credit } } } }` answered `{}` for every row: the value
   was shaped as the union, which no fragment names, so every member's fields were dropped,

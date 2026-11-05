@@ -838,6 +838,14 @@ func (m *FraiseqlCi) ShellGates(
 		// The bare-DATABASE_URL gate above ran here for its whole life without ever
 		// being able to reject anything (#1075). Its red capability is now pinned.
 		"make test-imports-gate",
+		// A database-gated test binary that loads a compiled document carries
+		// `the_document_loads_without_a_database`, a test that cannot skip, so a
+		// load-time refusal of the document fails whichever leg runs the binary
+		// (2b843cd27). The scan and its self-test need no toolchain. Until #1945 they ran
+		// only in `make preflight`: a chain carrying `saml_acs_e2e_pg.rs` without its
+		// guard passed every required context, and only the local preflight refused it.
+		"make lint-e2e-documents",
+		"make test-e2e-documents-gate",
 	}, "\n")
 
 	return m.shellBase().
@@ -2245,7 +2253,8 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		// #1815/#1818: compile --database advises a document date on every relation by what it
 		// is, recognising a TVIEW from pg_tviews' catalog. Its cases are #[ignore]d so the DB-less
 		// test leg cannot pass them; here both databases are bound and a missing one fails.
-		"cargo test -p fraiseql-cli --features test-postgres --test temporal_key_advice_pg -- --ignored --test-threads=1",
+		// --include-ignored, not --ignored: its document guard is not ignored (#1945).
+		"cargo test -p fraiseql-cli --features test-postgres --test temporal_key_advice_pg -- --include-ignored --test-threads=1",
 		// #1894: a webhook handler that writes a table a TVIEW reads commits at every isolation
 		// level the pipeline offers (pg_tviews refuses such a write above READ COMMITTED). Needs
 		// pgTviewsService, so it runs here rather than beside inbound_pipeline_pg.

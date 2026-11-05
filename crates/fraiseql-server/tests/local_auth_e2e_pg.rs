@@ -1457,8 +1457,9 @@ async fn email_verification_without_a_link_template_refuses_to_boot() {
 /// as a pass (`2b843cd27`: 12 tests red for a session under a green preflight).
 /// This one needs nothing but the loader, so that refusal cannot hide.
 ///
-/// This document is deserialised with `from_value` and never meets `finish_load`, so
-/// what can refuse it is deserialisation: an unknown key, a missing field, a type.
+/// This document is deserialised with `from_value` and never meets `finish_load`.
+/// `from_value` ignores a top-level key it does not know, so what can refuse it is a
+/// field it does not send becoming required, or a field changing type.
 #[test]
 fn the_document_loads_without_a_database() {
     empty_schema();
