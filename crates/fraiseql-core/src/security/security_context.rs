@@ -772,8 +772,13 @@ impl SecurityContext {
     /// `org_id` with [`Self::tenant_id`] whatever the schema's tenant claim was, so a
     /// token carrying both scoped a query by the wrong one.
     ///
+    /// A claim whose value is JSON `null` has no value, and is treated as absent: it is
+    /// never a value, so every reader refuses it, or leaves it unset, as it does a claim
+    /// the token omits.
+    ///
     /// Resolution, first match wins:
-    /// 1. the raw claim, from [`Self::attributes`] (every non-reserved claim lands there);
+    /// 1. the raw claim, from [`Self::attributes`] (every non-reserved claim lands there), unless
+    ///    it has no value;
     /// 2. a **registered** claim the validator lifts out of the claim map into its own field, so it
     ///    never reaches `attributes`: `sub` (also spelled `user_id`) → [`Self::user_id`], `email` →
     ///    [`Self::email`], `name` (also `display_name`) → [`Self::display_name`], `iss` →
@@ -790,7 +795,7 @@ impl SecurityContext {
     /// the tenant.
     #[must_use]
     pub fn jwt_claim(&self, claim: &str, tenant_claim: &str) -> Option<serde_json::Value> {
-        if let Some(value) = self.attributes.get(claim) {
+        if let Some(value) = self.attributes.get(claim).filter(|value| !value.is_null()) {
             return Some(value.clone());
         }
         let field = match claim {

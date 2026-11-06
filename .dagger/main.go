@@ -2051,6 +2051,10 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		// claim of the same name, on every transport the suite drives; an anonymous request
 		// gets its header and literal variables.
 		"cargo test -p fraiseql-server " + serverLegFeatures + " --test session_variable_header_source_e2e_pg -- --test-threads=1",
+		// A token claim with no value is treated as absent: by an injected function-root
+		// argument, a list root's row filter, a mutation argument, a session variable and an
+		// identity-enrichment binding.
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test claim_presence_e2e_pg -- --test-threads=1",
 		// #1528 — a mutation value of the wrong type (top-level, nested in a list of inputs,
 		// an undeclared input key) is refused before the function runs, on GraphQL, REST and
 		// MCP; the function's own call log proves it never ran.

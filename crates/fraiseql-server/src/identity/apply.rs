@@ -235,11 +235,15 @@ pub async fn resolve_request_identity(
 /// Only the schema's tenant claim can bind an assigned tenant, exactly as
 /// [`SecurityContext::jwt_claim`] resolves it (#1388); any other name, `$org_id` and
 /// `$tenant_id` included, is the principal's own claim or a missing bind.
+///
+/// A claim with no value (JSON `null`) is treated as absent, as `jwt_claim` treats it: a
+/// `$param` naming it is a missing bind, never a bound `NULL`.
 fn claims_for_binding(
     ctx: &SecurityContext,
     tenant_claim: &str,
 ) -> HashMap<String, serde_json::Value> {
     let mut claims = ctx.attributes.clone();
+    claims.retain(|_, value| !value.is_null());
     for name in ["sub", "email", "name", "display_name", "iss", tenant_claim] {
         if let Some(value) = ctx.jwt_claim(name, tenant_claim) {
             claims.entry(name.to_owned()).or_insert(value);

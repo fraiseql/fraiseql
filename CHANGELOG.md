@@ -18,6 +18,15 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **A token claim whose value is JSON `null` is treated as absent.** An injected
+  function-root argument, a list root's row filter, a mutation argument and a `jwt`
+  session variable refuse it, or leave it unset, as they do a claim the token omits; a
+  tenant claim with no value falls through to the assigned tenant. Identity enrichment
+  no longer binds a `$param` from it. Before, the function or write ran with SQL `NULL`,
+  a list read answered `[]`, and the session variable held the text `null`. A
+  deployment whose issuer sends `null` for a claim the schema reads sends a value or
+  omits the claim.
+
 - **A row level security policy that reads a session variable taken from a request header
   refuses boot.** A `source = "header"` session variable carries whatever the client sends,
   so a policy reading it (`current_setting('app.region', true)` for a header-sourced
