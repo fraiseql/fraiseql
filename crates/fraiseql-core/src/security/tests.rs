@@ -2435,6 +2435,65 @@ mod security_context_tests {
         assert!(context.has_scope("read:user"));
         assert_eq!(context.tenant_id, Some(TenantId::new("tenant-1")));
     }
+
+    /// A principal whose `attributes` hold `attributes`, assigned `tenant`.
+    fn principal(
+        attributes: &[(&str, serde_json::Value)],
+        tenant: Option<&str>,
+    ) -> SecurityContext {
+        SecurityContext {
+            user_id:          "user123".into(),
+            roles:            vec![],
+            tenant_id:        tenant.map(crate::types::TenantId::new),
+            scopes:           vec![],
+            attributes:       attributes
+                .iter()
+                .map(|(k, v)| ((*k).to_string(), v.clone()))
+                .collect(),
+            request_id:       "req-claims".to_string(),
+            ip_address:       None,
+            authenticated_at: fraiseql_time::Timestamp::now(),
+            expires_at:       fraiseql_time::Timestamp::now()
+                + fraiseql_time::jiff::SignedDuration::from_hours(1),
+            issuer:           None,
+            audience:         None,
+            email:            None,
+            display_name:     None,
+        }
+    }
+
+    #[test]
+    fn a_claim_with_no_value_reads_as_absent() {
+        let no_value = principal(&[("region", serde_json::Value::Null)], None);
+        let absent = principal(&[], None);
+        assert_eq!(no_value.jwt_claim("region", "tenant_id"), None);
+        assert_eq!(absent.jwt_claim("region", "tenant_id"), None);
+    }
+
+    /// A tenant claim with no value falls through to the assigned tenant, exactly as an
+    /// absent one does.
+    #[test]
+    fn a_tenant_claim_with_no_value_reads_the_assigned_tenant_as_an_absent_one_does() {
+        let no_value = principal(&[("tenant_id", serde_json::Value::Null)], Some("t1"));
+        let absent = principal(&[], Some("t1"));
+        assert_eq!(absent.jwt_claim("tenant_id", "tenant_id"), Some(serde_json::json!("t1")));
+        assert_eq!(no_value.jwt_claim("tenant_id", "tenant_id"), Some(serde_json::json!("t1")));
+    }
+
+    /// Every other value is the claim's value, whatever its JSON type.
+    #[test]
+    fn a_claim_of_any_other_type_is_its_value() {
+        for value in [
+            serde_json::json!(42),
+            serde_json::json!(false),
+            serde_json::json!(""),
+            serde_json::json!(["a"]),
+            serde_json::json!({ "k": "v" }),
+        ] {
+            let context = principal(&[("level", value.clone())], None);
+            assert_eq!(context.jwt_claim("level", "tenant_id"), Some(value));
+        }
+    }
 }
 
 mod actor_context_tests {
