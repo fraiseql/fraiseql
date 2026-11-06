@@ -8,6 +8,9 @@
 //! deletion, a write giving a row to an id whose miss was cached. Lists keep the sweep, and so does
 //! a TVIEW with row security, whose read may depend on more than its row.
 //!
+//! A TVIEW in a schema the server's role cannot use (`p1576_hidden`) changes none of this
+//! (#1952): the server still reads its sources from the catalog, by id and by embedding.
+//!
 //! Every test first proves its read is served from the cache: it changes the row behind the
 //! server's back and reads the old value again.
 //!
@@ -29,6 +32,10 @@ use fraiseql_server::{Server, server_config::ServerConfig};
 use serde_json::{Value, json};
 
 const SCHEMA: &str = "p1576";
+/// A schema holding a TVIEW, on which [`APP_ROLE`] has no `USAGE`.
+const HIDDEN: &str = "p1576_hidden";
+/// A role that may use [`SCHEMA`] but not [`HIDDEN`].
+const APP_ROLE: &str = "p1576_app";
 const USER_A: &str = "00000000-0000-0000-0000-00000000157a";
 const USER_B: &str = "00000000-0000-0000-0000-00000000157b";
 /// The user whose posts fill a report before any tag (`labelTagsLate`).
@@ -71,12 +78,14 @@ async fn provision(url: &str, rls: bool) {
     }
     client
         .batch_execute(&format!(
-            "DO $$ DECLARE t text; BEGIN
+            "DROP VIEW IF EXISTS {SCHEMA}.v_post_bio;
+             DO $$ DECLARE t text; BEGIN
                FOR t IN SELECT schema || '.' || name FROM tviews.registry
-                        WHERE schema = '{SCHEMA}' LOOP
+                        WHERE schema IN ('{SCHEMA}', '{HIDDEN}') LOOP
                  PERFORM tviews.pg_tviews_drop(t);
                END LOOP; END $$;
-             DROP SCHEMA IF EXISTS {SCHEMA} CASCADE;"
+             DROP SCHEMA IF EXISTS {SCHEMA} CASCADE;
+             DROP SCHEMA IF EXISTS {HIDDEN} CASCADE;"
         ))
         .await
         .unwrap();
@@ -123,6 +132,9 @@ async fn provision(url: &str, rls: bool) {
                SELECT t.pk_t1576, t.id, jsonb_build_object('id', t.id, 'label', t.label) AS data
                FROM {SCHEMA}.tb_t1576 t $T$, '{{\"typename\": \"Tag1576\"}}');
              {row_security}
+             -- Reads the posts' authors through `tv_p1576`, which only pg_depend tells.
+             CREATE VIEW v_post_bio AS SELECT p.id, jsonb_build_object('id', p.id,
+               'bio', p.data #>> '{{author,bio}}') AS data FROM tv_p1576 p;
              CREATE FUNCTION fn_update_user(p_id uuid, p_bio text)
                RETURNS SETOF mutation_response LANGUAGE plpgsql AS $$
              BEGIN
@@ -161,7 +173,19 @@ async fn provision(url: &str, rls: bool) {
                RETURN QUERY SELECT * FROM fraiseql.mutation_ok(
                  (SELECT data FROM {SCHEMA}.tv_u1576 WHERE id = p_id), p_id, 'User1576');
              END $$;
-             RESET search_path;"
+             RESET search_path;
+             CREATE SCHEMA {HIDDEN};
+             CREATE TABLE {HIDDEN}.tb_h1576 (pk_h1576 bigint PRIMARY KEY, id uuid NOT NULL UNIQUE);
+             SELECT tviews.pg_tviews_create('{HIDDEN}.tv_h1576', $T$
+               SELECT h.pk_h1576, h.id, jsonb_build_object('id', h.id) AS data
+               FROM {HIDDEN}.tb_h1576 h $T$);
+             DO $$ BEGIN CREATE ROLE {APP_ROLE} LOGIN PASSWORD '{APP_ROLE}';
+               EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+             GRANT USAGE ON SCHEMA {SCHEMA}, fraiseql, core, tviews TO {APP_ROLE};
+             GRANT SELECT ON ALL TABLES IN SCHEMA {SCHEMA} TO {APP_ROLE};
+             GRANT UPDATE ON {SCHEMA}.tb_u1576, {SCHEMA}.tb_t1576 TO {APP_ROLE};
+             GRANT INSERT ON core.tb_entity_change_log TO {APP_ROLE};
+             GRANT USAGE ON ALL SEQUENCES IN SCHEMA core TO {APP_ROLE};"
         ))
         .await
         .unwrap();
@@ -202,6 +226,7 @@ fn schema() -> CompiledSchema {
                                        json!({ "name": "author", "type": "User1576",
                                                "nullable": false })]),
             ty("Tag1576", "tv_t1576", vec![id(), field("label", "String")]),
+            ty("PostBio", "v_post_bio", vec![id(), field("bio", "String")]),
         ],
         "queries": [
             one("user", "User1576", "tv_u1576"),
@@ -209,6 +234,7 @@ fn schema() -> CompiledSchema {
             one("tag", "Tag1576", "tv_t1576"),
             list("users", "User1576", "tv_u1576"),
             list("tags", "Tag1576", "tv_t1576"),
+            list("postBios", "PostBio", "v_post_bio"),
         ],
         "mutations": [
             mutation("updateUser", "fn_update_user", &[("bio", "String")]),
@@ -253,8 +279,14 @@ struct Running {
 
 /// A server over a freshly provisioned schema, booted through the production constructor.
 async fn serve(rls: bool) -> Option<Running> {
+    serve_with(rls, false).await
+}
+
+/// [`serve`], connected as [`APP_ROLE`] when `app_role`.
+async fn serve_with(rls: bool, app_role: bool) -> Option<Running> {
     let url = tviews_database_url()?;
     provision(&url, rls).await;
+    let url = if app_role { as_app_role(&url) } else { url };
     let adapter = Arc::new(PostgresAdapter::new(&url).await.unwrap());
     let config = ServerConfig {
         database_url: url.clone(),
@@ -279,6 +311,13 @@ async fn serve(rls: bool) -> Option<Running> {
         url,
         _shutdown: tx,
     })
+}
+
+/// `url` with its credentials replaced by [`APP_ROLE`]'s.
+fn as_app_role(url: &str) -> String {
+    let (scheme, rest) = url.split_once("://").unwrap();
+    let host = rest.split_once('@').map_or(rest, |(_, host)| host);
+    format!("{scheme}://{APP_ROLE}:{APP_ROLE}@{host}")
 }
 
 async fn graphql(server: &Running, query: &str) -> Value {
@@ -580,4 +619,76 @@ async fn a_write_sweeps_the_lists_of_a_type_it_changed_but_does_not_name() {
     )
     .await;
     assert_eq!(tag_labels(&server).await, ["t0", "t1"]);
+}
+
+// ---------------------------------------------------------------------------------------
+// #1952: a TVIEW in a schema the server's role cannot use.
+// ---------------------------------------------------------------------------------------
+
+/// The server's role cannot use `p1576_hidden`, which holds a TVIEW. Its by-id sources still
+/// install: a write to user B leaves the cached read of user A alone.
+#[tokio::test]
+async fn a_by_id_read_survives_a_write_to_another_row_beside_an_unusable_schema() {
+    let Some(server) = serve_with(false, true).await else {
+        return;
+    };
+    let (query, pointer) = user_bio(USER_A);
+    let after = after_mutation(
+        &server,
+        (&query, pointer),
+        &format!("UPDATE tb_u1576 SET bio = 'behind' WHERE id = '{USER_A}'"),
+        &json!("a0"),
+        &update_user(USER_B, "b1"),
+    )
+    .await;
+    assert_eq!(after, json!("a0"), "user A's read is still served from the cache");
+}
+
+/// The same role: a write still asks which rows it changed, so the lists of a type it changed
+/// without naming it are swept.
+#[tokio::test]
+async fn a_write_sweeps_a_type_it_changed_beside_an_unusable_schema() {
+    let Some(server) = serve_with(false, true).await else {
+        return;
+    };
+    assert_eq!(tag_labels(&server).await, ["t0"]);
+    behind_the_back(&server, &format!("UPDATE tb_t1576 SET label = 'behind' WHERE id = '{TAG}'"))
+        .await;
+    assert_eq!(tag_labels(&server).await, ["t0"], "the read is served from the cache");
+    graphql(
+        &server,
+        &format!(
+            "mutation {{ labelTag(id: \"{USER_A}\", tag: \"{TAG}\", label: \"t1\") {{ id }} }}"
+        ),
+    )
+    .await;
+    assert_eq!(tag_labels(&server).await, ["t0", "t1"]);
+}
+
+/// The same role: the embedding graph still installs. `v_post_bio` reads `tv_p1576`, which
+/// embeds its author, and only `pg_depend` says so: the author's write must evict it.
+#[tokio::test]
+async fn a_write_evicts_a_view_over_a_tview_embedding_its_row_beside_an_unusable_schema() {
+    let Some(server) = serve_with(false, true).await else {
+        return;
+    };
+    let query = "{ postBios { id bio } }";
+    let bio_of_post_a = |body: &Value| {
+        body["data"]["postBios"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|p| p["id"] == json!(POST_A))
+            .map_or(Value::Null, |p| p["bio"].clone())
+    };
+    assert_eq!(bio_of_post_a(&graphql(&server, query).await), json!("a0"));
+    behind_the_back(&server, &format!("UPDATE tb_u1576 SET bio = 'behind' WHERE id = '{USER_A}'"))
+        .await;
+    assert_eq!(
+        bio_of_post_a(&graphql(&server, query).await),
+        json!("a0"),
+        "the read is served from the cache"
+    );
+    graphql(&server, &update_user(USER_A, "a1")).await;
+    assert_eq!(bio_of_post_a(&graphql(&server, query).await), json!("a1"));
 }

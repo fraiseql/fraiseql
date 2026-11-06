@@ -224,3 +224,47 @@ async fn the_indexes_advice_declares_an_index_fraiseql_reads_are_served_by() {
         );
     }
 }
+
+/// A role that cannot use another schema holding a TVIEW is advised the same (#1952): that
+/// TVIEW is no candidate for the lookup, not a reason for it to fail.
+#[tokio::test]
+async fn the_advice_holds_beside_a_tview_schema_the_role_cannot_use() {
+    let Some(url) = tviews_database_url() else {
+        eprintln!("skipping #1952: TVIEWS_DATABASE_URL not set");
+        return;
+    };
+    let admin = client(&url).await;
+    provision(&admin).await;
+    let role = "p1571x_reader";
+    admin
+        .batch_execute(&format!(
+            "DO $$ DECLARE t text; BEGIN
+               FOR t IN SELECT schema || '.' || name FROM tviews.registry
+                        WHERE schema = 'p1571x_hidden' LOOP
+                 PERFORM tviews.pg_tviews_drop(t);
+               END LOOP; END $$;
+             DROP SCHEMA IF EXISTS p1571x_hidden CASCADE;
+             CREATE SCHEMA p1571x_hidden;
+             CREATE TABLE p1571x_hidden.tb_h1571 (pk_h1571 int PRIMARY KEY, id uuid NOT NULL);
+             SELECT tviews.pg_tviews_create('p1571x_hidden.tv_h1571', $T$
+               SELECT h.pk_h1571, h.id, jsonb_build_object('id', h.id) AS data
+               FROM p1571x_hidden.tb_h1571 h $T$);
+             DO $$ BEGIN CREATE ROLE {role} LOGIN PASSWORD '{role}';
+               EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+             GRANT USAGE ON SCHEMA {SCHEMA}, tviews TO {role};
+             GRANT SELECT ON ALL TABLES IN SCHEMA {SCHEMA}, tviews TO {role};"
+        ))
+        .await
+        .unwrap();
+    let (scheme, rest) = url.split_once("://").unwrap();
+    let host = rest.split_once('@').map_or(rest, |(_, host)| host);
+
+    let advised = advice(&format!("{scheme}://{role}:{role}@{host}"), &schema()).await;
+    let keys = |query: &str| match advised.get(query) {
+        Some(DatabaseWarning::TviewIndexMissing { keys, .. }) => keys.clone(),
+        other => panic!("{query}: {other:?}"),
+    };
+    assert_eq!(keys("memberByEmail"), ["email"]);
+    assert_eq!(keys("membersAged"), ["age"]);
+    assert_eq!(keys("activeMembers"), ["active"]);
+}

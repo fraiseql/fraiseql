@@ -227,6 +227,55 @@ async fn a_composed_read_correlates_on_the_columns_pg_tviews_proves() {
     );
 }
 
+/// `compile --database` as a role that cannot use another schema holding a TVIEW still
+/// proves the join (#1952): that TVIEW is no candidate, not a reason to read none.
+#[tokio::test]
+async fn a_join_is_proven_beside_a_tview_schema_the_role_cannot_use() {
+    let Some(url) = tviews_database_url() else {
+        eprintln!("skipping: TVIEWS_DATABASE_URL not set");
+        return;
+    };
+    assert!(provision(&url).await, "{NO_REFERENCES}");
+    let role = "p1587_reader";
+    client(&url)
+        .await
+        .batch_execute(&format!(
+            "DO $$ DECLARE t text; BEGIN
+               FOR t IN SELECT schema || '.' || name FROM tviews.registry
+                        WHERE schema = 'p1587_hidden' LOOP
+                 PERFORM tviews.pg_tviews_drop(t);
+               END LOOP; END $$;
+             DROP SCHEMA IF EXISTS p1587_hidden CASCADE;
+             CREATE SCHEMA p1587_hidden;
+             CREATE TABLE p1587_hidden.tb_h1587 (pk_h1587 int PRIMARY KEY, id uuid NOT NULL);
+             SELECT tviews.pg_tviews_create('p1587_hidden.tv_h1587', $q$
+               SELECT h.pk_h1587, h.id, jsonb_build_object('id', h.id) AS data
+               FROM p1587_hidden.tb_h1587 h $q$);
+             DO $$ BEGIN CREATE ROLE {role} LOGIN PASSWORD '{role}';
+               EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+             GRANT USAGE ON SCHEMA {SCHEMA}, tviews TO {role};
+             GRANT SELECT ON ALL TABLES IN SCHEMA {SCHEMA}, tviews TO {role};"
+        ))
+        .await
+        .unwrap();
+    let (scheme, rest) = url.split_once("://").unwrap();
+    let host = rest.split_once('@').map_or(rest, |(_, host)| host);
+    let (schema, _dir) = compile(Some(&format!("{scheme}://{role}:{role}@{host}"))).await;
+
+    let comments = schema
+        .find_type("Post")
+        .unwrap()
+        .relationships
+        .iter()
+        .find(|r| r.name == "comments")
+        .unwrap();
+    let join = comments.native_join.as_ref().expect("compile --database proves the join");
+    assert_eq!(
+        (join.foreign_key.as_str(), join.referenced_key.as_str()),
+        ("fk_p1587", "pk_p1587")
+    );
+}
+
 #[tokio::test]
 async fn a_server_refuses_a_proof_its_database_does_not_hold() {
     let Some(url) = tviews_database_url() else {

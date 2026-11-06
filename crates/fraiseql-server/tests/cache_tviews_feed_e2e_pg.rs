@@ -631,6 +631,56 @@ async fn a_role_that_does_not_publish_keeps_the_feed_off() {
     assert!(refused.is_none(), "a role that does not publish must keep the feed off");
 }
 
+/// A TVIEW in a schema the server's role cannot use leaves the feed's catalog as it is
+/// (#1952): the role reads the views of each type that the owner reads, rather than failing.
+#[tokio::test]
+async fn a_tview_in_a_schema_the_role_cannot_use_leaves_the_feed_catalog() {
+    let Some(shared) = tviews_database_url() else {
+        eprintln!("skipping: TVIEWS_DATABASE_URL not set");
+        return;
+    };
+    require_typename(&shared).await;
+    let url = own_database(&shared).await;
+    provision(&url).await;
+    let (schema, _dir) = schema(Some(&url)).await;
+    let role = "p1589_reader";
+    client(&url)
+        .await
+        .batch_execute(&format!(
+            "DO $$ DECLARE t text; BEGIN
+               FOR t IN SELECT schema || '.' || name FROM tviews.registry
+                        WHERE schema = 'p1589_hidden' LOOP
+                 PERFORM tviews.pg_tviews_drop(t);
+               END LOOP; END $$;
+             DROP SCHEMA IF EXISTS p1589_hidden CASCADE;
+             CREATE SCHEMA p1589_hidden;
+             CREATE TABLE p1589_hidden.tb_h1589 (pk_h1589 int PRIMARY KEY, id uuid NOT NULL);
+             SELECT tviews.pg_tviews_create('p1589_hidden.tv_h1589', $q$
+               SELECT h.pk_h1589, h.id, jsonb_build_object('id', h.id) AS data
+               FROM p1589_hidden.tb_h1589 h $q$);
+             DO $$ BEGIN CREATE ROLE {role} LOGIN PASSWORD '{role}';
+               EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+             GRANT USAGE ON SCHEMA {SCHEMA}, tviews TO {role};
+             GRANT SELECT ON ALL TABLES IN SCHEMA {SCHEMA}, tviews TO {role};"
+        ))
+        .await
+        .unwrap();
+    let mut as_role = url::Url::parse(&url).unwrap();
+    as_role.set_username(role).unwrap();
+    as_role.set_password(Some(role)).unwrap();
+
+    let owner = PostgresAdapter::new(&url).await.unwrap();
+    let reader = PostgresAdapter::new(as_role.as_str()).await.unwrap();
+    let read = |adapter| fraiseql_core::cache::tviews_feed::read_feed_catalog(adapter, &schema);
+    let owners = read(&owner).await.unwrap().expect("the database publishes rows");
+    let readers = read(&reader)
+        .await
+        .unwrap_or_else(|e| panic!("the role's read of the catalog: {e}"))
+        .expect("the database publishes rows");
+    assert!(!owners.type_views.is_empty(), "the suite's types are read: {owners:?}");
+    assert_eq!(readers.type_views, owners.type_views);
+}
+
 /// A feed whose connection stops delivering (a half-open TCP connection, a stalled listener)
 /// would pass for a live one: writes made behind the server's back stay cached. The
 /// listener's heartbeat notices its probe is not heard back, and clears the cache.

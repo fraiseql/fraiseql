@@ -264,3 +264,52 @@ async fn the_replica_refusal_prints_the_statements_that_lift_it() {
         .get(0);
     assert_eq!(logged, Some(true), "pg_tviews records the TVIEW as LOGGED");
 }
+
+/// A role that cannot use another schema holding a TVIEW gets the same report (#1952): the
+/// profile read no longer fails when one schema is unusable.
+#[tokio::test]
+async fn the_report_holds_beside_a_tview_schema_the_role_cannot_use() {
+    let Some(url) = tviews_database_url() else {
+        return;
+    };
+    provision(&url).await;
+    let (client, connection) = tokio_postgres::connect(&url, tokio_postgres::NoTls).await.unwrap();
+    tokio::spawn(connection);
+    let role = "p1392_reader";
+    client
+        .batch_execute(&format!(
+            "DO $$ DECLARE t text; BEGIN
+               FOR t IN SELECT schema || '.' || name FROM tviews.registry
+                        WHERE schema = 'p1392_hidden' LOOP
+                 PERFORM tviews.pg_tviews_drop(t);
+               END LOOP; END $$;
+             DROP SCHEMA IF EXISTS p1392_hidden CASCADE;
+             CREATE SCHEMA p1392_hidden;
+             CREATE TABLE p1392_hidden.tb_h1392 (pk_h1392 int PRIMARY KEY, id uuid NOT NULL);
+             SELECT tviews.pg_tviews_create('p1392_hidden.tv_h1392', $T$
+               SELECT h.pk_h1392, h.id, jsonb_build_object('id', h.id) AS data
+               FROM p1392_hidden.tb_h1392 h $T$);
+             DO $$ BEGIN CREATE ROLE {role} LOGIN PASSWORD '{role}';
+               EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+             GRANT USAGE ON SCHEMA {SCHEMA}, tviews TO {role};
+             GRANT SELECT ON ALL TABLES IN SCHEMA {SCHEMA}, tviews TO {role};"
+        ))
+        .await
+        .unwrap();
+    let (scheme, rest) = url.split_once("://").unwrap();
+    let host = rest.split_once('@').map_or(rest, |(_, host)| host);
+    let tls = fraiseql_db::postgres::PostgresTlsConfig::default();
+    let report = |checks: Vec<fraiseql_cli::commands::doctor::DoctorCheck>| {
+        let mut lines: Vec<String> =
+            checks.into_iter().map(|c| format!("{:?} {}", c.status, c.detail)).collect();
+        lines.sort();
+        lines
+    };
+
+    let owners = report(pg_tviews_health_checks(&url, &tls, &schema()).await);
+    let readers = report(
+        pg_tviews_health_checks(&format!("{scheme}://{role}:{role}@{host}"), &tls, &schema()).await,
+    );
+    assert!(owners.iter().any(|l| l.contains("tv_book")), "the owner's report: {owners:?}");
+    assert_eq!(readers, owners);
+}
