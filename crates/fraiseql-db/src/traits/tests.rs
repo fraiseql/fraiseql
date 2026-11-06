@@ -330,6 +330,22 @@ fn a_report_reads_as_the_rows_it_names_and_the_types_it_truncated() {
     );
 }
 
+/// A type `pg_tviews` leaves out of the report, its rows unlisted because the caller cannot
+/// read its TVIEW, changed all the same: it reads as wholly changed, never as unchanged.
+#[test]
+fn a_type_the_report_omits_reads_as_wholly_changed() {
+    let report = serde_json::json!({
+        "updated": [{"__typename": "User", "id": "a"}],
+        "deleted": [],
+        "truncated": false,
+        "invalidated_types": [],
+        "omitted_types": ["Post"],
+    });
+    let changed = super::ChangedRows::from_report(&report).unwrap();
+    assert_eq!(changed.rows.get("Post"), None);
+    assert_eq!(changed.types.iter().cloned().collect::<Vec<_>>(), ["Post".to_string()]);
+}
+
 /// What cannot be read as a report says nothing about what changed: `None`, so the caller
 /// keeps the sweep.
 #[test]
@@ -340,6 +356,7 @@ fn what_is_not_a_report_reads_as_unknown() {
         serde_json::json!({"updated": "User"}),
         serde_json::json!({"updated": [{"id": "a"}]}),
         serde_json::json!({"invalidated_types": [1]}),
+        serde_json::json!({"omitted_types": [1]}),
     ] {
         assert_eq!(super::ChangedRows::from_report(&report), None, "{report}");
     }

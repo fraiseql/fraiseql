@@ -8063,3 +8063,47 @@ fn every_type_a_derived_report_names_is_reported() {
     assert_eq!(types, ["Comment", "Post", "Tag"]);
     assert!(super::derived_cascade::reported_types(&std::collections::HashMap::new()).is_empty());
 }
+
+/// A type `pg_tviews` omits from a derived report (the caller cannot read its TVIEW) is
+/// reported: its rows changed, so its cached reads are stale.
+#[test]
+fn a_type_a_derived_report_omits_is_reported() {
+    let row: std::collections::HashMap<String, serde_json::Value> = [(
+        crate::backend::DERIVED_CASCADE_KEY.to_string(),
+        serde_json::json!({
+            "updated": [{ "__typename": "Post", "id": "p1" }],
+            "invalidated_types": [],
+            "omitted_types": ["Comment"],
+        }),
+    )]
+    .into();
+    let types: Vec<String> = super::derived_cascade::reported_types(&row).into_iter().collect();
+    assert_eq!(types, ["Comment", "Post"]);
+}
+
+/// The merged cascade invalidates every query returning a type the derived report omits, as
+/// it does a type the report truncated: listing none of its rows must not read as "nothing
+/// changed".
+#[test]
+fn a_type_a_derived_report_omits_is_invalidated_in_the_cascade() {
+    use crate::schema::{CompiledSchema, QueryDefinition};
+
+    let mut schema = CompiledSchema::new();
+    schema.queries.push(QueryDefinition::new("comments", "Comment"));
+    schema.queries.push(QueryDefinition::new("posts", "Post"));
+    let row: std::collections::HashMap<String, serde_json::Value> = [(
+        crate::backend::DERIVED_CASCADE_KEY.to_string(),
+        serde_json::json!({
+            "updated": [],
+            "deleted": [],
+            "invalidated_types": [],
+            "omitted_types": ["Comment"],
+        }),
+    )]
+    .into();
+    let merged = super::derived_cascade::merge(&schema, &row, |_| false);
+    assert_eq!(
+        merged["cascade"]["invalidations"],
+        serde_json::json!([{ "queryName": "comments", "strategy": "INVALIDATE", "scope": "PREFIX" }])
+    );
+}

@@ -5,7 +5,8 @@
 //! `v_item_direct` reads `tb_owner` directly. Writing the user, or the owner, must evict the
 //! cached reads of the views that embed them, although the mutation names only the user's
 //! (owner's) own view. And a cascade derived from `pg_tviews` must evict every type it reports
-//! the transaction changed, including the types it truncated or did not list.
+//! the transaction changed, including the types it truncated or did not list, and the types
+//! it omitted because the server's role may not read their TVIEW.
 //!
 //! Every test first proves its read is served from the cache: it changes the row behind the
 //! server's back and reads the old value again. Only then does it run the mutation and expect
@@ -30,6 +31,9 @@ const USER: &str = "00000000-0000-0000-0000-000000001575";
 const OWNER: &str = "00000000-0000-0000-0000-0000000015a1";
 /// The tag `deleteTag` deletes.
 const TAG: &str = "00000000-0000-0000-0000-0000000015b1";
+/// A role that reads the tags only through `v_tag_public`, a view its owner runs: it has no
+/// `SELECT` on `tv_t1575`, so `pg_tviews` leaves the tags out of its report.
+const APP_ROLE: &str = "p1575_app";
 /// One more than the derived cascade's default `max_updated_entities` (500): a write of
 /// this many tags makes `pg_tviews` truncate `Tag1575` out of its report.
 const TAGS: usize = 501;
@@ -65,7 +69,8 @@ async fn provision(url: &str) {
     // registration goes with it.
     client
         .batch_execute(&format!(
-            "DROP VIEW IF EXISTS {SCHEMA}.v_tag_summary, {SCHEMA}.v_tag_hidden;
+            "DROP VIEW IF EXISTS {SCHEMA}.v_tag_summary, {SCHEMA}.v_tag_hidden,
+               {SCHEMA}.v_tag_public;
              DO $$ DECLARE t text; BEGIN
                FOR t IN SELECT schema || '.' || name FROM tviews.registry
                         WHERE schema = '{SCHEMA}' LOOP
@@ -126,6 +131,8 @@ async fn provision(url: &str) {
                FROM tv_t1575 t GROUP BY t.data->>'label';
              -- A view of the tags that returns none: a derived re-read finds no row.
              CREATE VIEW v_tag_hidden AS SELECT t.id, t.data FROM tv_t1575 t WHERE false;
+             -- The tags as `{APP_ROLE}` reads them: through this view, run as its owner.
+             CREATE VIEW v_tag_public AS SELECT t.id, t.data FROM tv_t1575 t;
              CREATE VIEW v_owner AS SELECT o.id, jsonb_build_object('id', o.id,
                'name', o.name) AS data FROM tb_owner o;
              -- Reads the owner through its view.
@@ -186,7 +193,15 @@ async fn provision(url: &str) {
                    jsonb_build_object('queryName', 'tags', 'strategy', 'INVALIDATE',
                                       'scope', 'PREFIX'))));
              END $$;
-             RESET search_path;"
+             RESET search_path;
+             DO $$ BEGIN CREATE ROLE {APP_ROLE} LOGIN PASSWORD '{APP_ROLE}';
+               EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+             GRANT USAGE ON SCHEMA {SCHEMA}, fraiseql, core, tviews TO {APP_ROLE};
+             GRANT SELECT ON ALL TABLES IN SCHEMA {SCHEMA} TO {APP_ROLE};
+             REVOKE SELECT ON {SCHEMA}.tv_t1575 FROM {APP_ROLE};
+             GRANT UPDATE ON {SCHEMA}.tb_u1575, {SCHEMA}.tb_t1575 TO {APP_ROLE};
+             GRANT INSERT ON core.tb_entity_change_log TO {APP_ROLE};
+             GRANT USAGE ON ALL SEQUENCES IN SCHEMA core TO {APP_ROLE};"
         ))
         .await
         .unwrap();
@@ -206,6 +221,8 @@ struct Shape {
     /// `usersBare` reads `tv_u1575` unqualified, through the connection's `search_path`,
     /// while `User1575` names it `p1575.tv_u1575`: two names for one relation.
     bare_users:    bool,
+    /// The server connects as [`APP_ROLE`], and `Tag1575` reads from `v_tag_public`.
+    app_role:      bool,
 }
 
 /// The schema an SDK authors, compiled. Every query is cached for 300 s.
@@ -233,8 +250,15 @@ fn schema(shape: Shape) -> CompiledSchema {
         bare["sql_source"] = json!("tv_u1575");
         queries.push(bare);
     }
+    let tag_view = if shape.hidden_tags {
+        "v_tag_hidden"
+    } else if shape.app_role {
+        "v_tag_public"
+    } else {
+        "tv_t1575"
+    };
     if !shape.no_tags_query {
-        queries.push(list("tags", "Tag1575", "tv_t1575"));
+        queries.push(list("tags", "Tag1575", tag_view));
     }
     if shape.filtered {
         let mut mine = list("tagsMine", "Tag1575", "tv_t1575");
@@ -260,8 +284,7 @@ fn schema(shape: Shape) -> CompiledSchema {
             ty("Post1575", "tv_p1575", vec![id(), field("title", "String"),
                                        json!({ "name": "author", "type": "User1575",
                                                "nullable": false })]),
-            ty("Tag1575", if shape.hidden_tags { "v_tag_hidden" } else { "tv_t1575" },
-               vec![id(), field("label", "String")]),
+            ty("Tag1575", tag_view, vec![id(), field("label", "String")]),
             ty("TagSummary", "v_tag_summary", vec![id(), field("label", "String"),
                                                    field("n", "Int")]),
             ty("Owner", "v_owner", vec![id(), field("name", "String")]),
@@ -275,6 +298,8 @@ fn schema(shape: Shape) -> CompiledSchema {
             mutation("renameOwner", "Owner", "fn_rename_owner", &[("name", "String")], ""),
             mutation("labelTags", "User1575", "fn_label_tags",
                      &[("label", "String"), ("n", "Int")], "pg_tviews"),
+            mutation("labelTagsPlain", "User1575", "fn_label_tags",
+                     &[("label", "String"), ("n", "Int")], ""),
             mutation("labelTagsLate", "User1575", "fn_label_tags_late",
                      &[("label", "String"), ("n", "Int")], "pg_tviews"),
             mutation("deleteTag", "User1575", "fn_delete_tag", &[("tag", "ID")], "pg_tviews"),
@@ -315,6 +340,10 @@ fn the_document_loads_without_a_database() {
             bare_users: true,
             ..Shape::default()
         },
+        Shape {
+            app_role: true,
+            ..Shape::default()
+        },
     ] {
         schema(shape);
     }
@@ -332,6 +361,11 @@ async fn serve(shape: Shape) -> Option<Running> {
     let url = tviews_database_url()?;
     provision(&url).await;
     // The server resolves unqualified names in this suite's schema first.
+    let url = if shape.app_role {
+        as_app_role(&url)
+    } else {
+        url
+    };
     let url = format!(
         "{url}{}options=-csearch_path%3D{SCHEMA}%2Cpublic",
         if url.contains('?') { "&" } else { "?" }
@@ -360,6 +394,13 @@ async fn serve(shape: Shape) -> Option<Running> {
         url,
         _shutdown: tx,
     })
+}
+
+/// `url` with its credentials replaced by [`APP_ROLE`]'s.
+fn as_app_role(url: &str) -> String {
+    let (scheme, rest) = url.split_once("://").unwrap();
+    let host = rest.split_once('@').map_or(rest, |(_, host)| host);
+    format!("{scheme}://{APP_ROLE}:{APP_ROLE}@{host}")
 }
 
 async fn graphql(server: &Running, query: &str) -> Value {
@@ -690,4 +731,63 @@ async fn a_write_evicts_a_read_of_the_same_relation_under_another_name() {
     )
     .await;
     assert_eq!(bios, ["v1"]);
+}
+
+/// `pg_tviews` leaves `Tag1575` out of its report, since the server's role may not read
+/// `tv_t1575`, and names it only in `omitted_types`. The tags it changed still changed: the
+/// read through `v_tag_public` must go, and the cascade must say `Tag1575` changed.
+#[tokio::test]
+async fn a_type_the_report_omits_is_evicted() {
+    let Some(server) = serve(Shape {
+        app_role: true,
+        ..Shape::default()
+    })
+    .await
+    else {
+        return;
+    };
+    let (labels, response) = after_mutation(
+        &server,
+        TAG_LABELS,
+        "UPDATE tb_t1575 SET label = 'behind'",
+        &["v0"],
+        &format!(
+            "mutation {{ labelTags(id: \"{USER}\", label: \"v1\", n: 1) {{ \
+             ... on LabelTagsPayload {{ cascade {{ invalidations {{ queryName }} \
+             updated {{ entity {{ __typename }} }} }} }} }} }}"
+        ),
+    )
+    .await;
+    assert_eq!(labels, ["behind", "v1"], "{response}");
+    let (_, payload) = response["data"].as_object().unwrap().iter().next().unwrap();
+    let listed = payload["cascade"]["updated"]
+        .as_array()
+        .is_some_and(|rows| rows.iter().any(|r| r["entity"]["__typename"] == "Tag1575"));
+    assert!(
+        listed || hinted(&response).contains(&"tags".to_string()),
+        "the cascade lists or hints the tags: {response}"
+    );
+}
+
+/// The same through the report of the rows a plain write changed (#1576): `labelTagsPlain`
+/// declares no cascade, and only that report names the tags.
+#[tokio::test]
+async fn a_type_the_report_omits_is_evicted_after_a_plain_write() {
+    let Some(server) = serve(Shape {
+        app_role: true,
+        ..Shape::default()
+    })
+    .await
+    else {
+        return;
+    };
+    let (labels, response) = after_mutation(
+        &server,
+        TAG_LABELS,
+        "UPDATE tb_t1575 SET label = 'behind'",
+        &["v0"],
+        &format!("mutation {{ labelTagsPlain(id: \"{USER}\", label: \"v1\", n: 1) {{ id }} }}"),
+    )
+    .await;
+    assert_eq!(labels, ["behind", "v1"], "{response}");
 }
