@@ -65,12 +65,11 @@ pub(super) fn synthesize_mutation_error_unions(schema: &mut CompiledSchema) {
     if !existing_type_names.contains(ERROR_TYPE) {
         schema.types.push(mutation_error_type());
 
-        // Federation (#1944): the synthesized type is structurally identical in every
-        // subgraph that synthesizes it and has no identity of its own, so a supergraph
-        // composing two such subgraphs rejects it with `INVALID_FIELD_SHARING` unless it is
-        // `@shareable` in each, as the cascade envelopes are (#698). No-op without a
-        // federation block; the `<Mutation>Result` unions are uniquely named and never
-        // collide.
+        // Federation: the synthesized type is structurally identical in every subgraph
+        // that synthesizes it and has no identity of its own, so a supergraph composing two
+        // such subgraphs rejects it with `INVALID_FIELD_SHARING` unless it is `@shareable`
+        // in each, as the synthesized cascade envelopes are. No-op without a federation
+        // block; the `<Mutation>Result` unions are uniquely named and never collide.
         if let Some(fed) = schema.federation.as_mut() {
             if !fed.shareable_types.iter().any(|t| t == ERROR_TYPE) {
                 fed.shareable_types.push(ERROR_TYPE.to_string());
