@@ -61,11 +61,11 @@ pub async fn read_by_id_sources<A: DatabaseAdapter + ?Sized>(
     let rows = adapter
         .execute_raw_query(&format!(
             "{reads}, \
-             tv AS (SELECT to_regclass(quote_ident(g.schema) || '.' || quote_ident(g.name))::oid \
-                    AS rel, g.typename FROM tviews.registry g) \
+             tv AS (SELECT {tview}::oid AS rel, g.typename FROM tviews.registry g) \
              SELECT r.name, tv.typename FROM roots r JOIN tv ON tv.rel = r.rel \
              JOIN pg_class c ON c.oid = r.rel WHERE NOT c.relrowsecurity",
             reads = reads_cte(&names),
+            tview = fraiseql_db::usable_relation("g.schema", "g.name"),
         ))
         .await?;
     Ok(rows

@@ -420,12 +420,12 @@ impl PgCatalog {
         }
         let rows = client
             .query(
-                "WITH s AS (SELECT name, to_regclass(name)::oid AS rel \
-                            FROM unnest($1::text[]) AS name), \
-                      tv AS (SELECT to_regclass(quote_ident(g.schema) || '.' || \
-                                    quote_ident(g.name))::oid AS rel, \
-                                    g.entity, g.\"references\" AS refs \
-                             FROM tviews.registry g) \
+                &format!(
+                    "WITH s AS (SELECT name, to_regclass(name)::oid AS rel \
+                                FROM unnest($1::text[]) AS name), \
+                          tv AS (SELECT {tview}::oid AS rel, \
+                                        g.entity, g.\"references\" AS refs \
+                                 FROM tviews.registry g) \
                  SELECT c.name AS child, p.name AS parent, ref.key AS foreign_key, \
                         ref.value ->> 'column' AS referenced_key \
                  FROM s c JOIN tv ct ON ct.rel = c.rel \
@@ -433,6 +433,8 @@ impl PgCatalog {
                  JOIN tv pt ON pt.entity = ref.value ->> 'entity' \
                  JOIN s p ON p.rel = pt.rel \
                  WHERE ref.value ->> 'index' IS NOT NULL",
+                    tview = fraiseql_db::usable_relation("g.schema", "g.name"),
+                ),
                 &[&sql_sources],
             )
             .await

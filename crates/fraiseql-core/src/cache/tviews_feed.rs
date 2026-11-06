@@ -206,10 +206,15 @@ const PUBLISHING_PROBE: &str = "SELECT EXISTS (SELECT 1 FROM pg_catalog.pg_setti
      WHERE attrelid = to_regclass('tviews.registry') AND attname = 'typename' \
      AND NOT attisdropped) AS publishing";
 
-/// The registry's TVIEWs, as a CTE following [`reads_cte`](super::embedding_graph).
-const REGISTRY: &str = "tv AS (SELECT to_regclass(quote_ident(g.schema) || '.' || \
-     quote_ident(g.name))::oid AS rel, g.entity, g.typename, g.\"references\" AS refs \
-     FROM tviews.registry g)";
+/// The registry's TVIEWs, as a CTE following [`reads_cte`](super::embedding_graph); a TVIEW
+/// in a schema this role cannot use has no `rel`.
+fn registry() -> String {
+    format!(
+        "tv AS (SELECT {}::oid AS rel, g.entity, g.typename, g.\"references\" AS refs \
+         FROM tviews.registry g)",
+        fraiseql_db::usable_relation("g.schema", "g.name")
+    )
+}
 
 /// Read the [`FeedCatalog`] of `schema`'s views from the database `adapter` serves, or
 /// `None` when it does not publish rows on [`CHANNEL`].
@@ -236,9 +241,10 @@ pub async fn read_feed_catalog<A: DatabaseAdapter + ?Sized>(
         return Ok(Some(FeedCatalog::default()));
     }
     let reads = super::embedding_graph::reads_cte(&names);
+    let registry = registry();
     let types = adapter
         .execute_raw_query(&format!(
-            "{reads}, {REGISTRY} \
+            "{reads}, {registry} \
              SELECT DISTINCT tv.typename AS type_name, s.name AS view \
              FROM reads x JOIN roots s ON s.rel = x.root JOIN tv ON tv.rel = x.rel \
              ORDER BY 1, 2"
@@ -246,7 +252,7 @@ pub async fn read_feed_catalog<A: DatabaseAdapter + ?Sized>(
         .await?;
     let collections = adapter
         .execute_raw_query(&format!(
-            "{reads}, {REGISTRY} \
+            "{reads}, {registry} \
              SELECT c.name AS child, p.name AS parent, ct.typename AS child_type, \
                     ref.key AS column_name, ref.value ->> 'column' AS key_name \
              FROM roots c JOIN tv ct ON ct.rel = c.rel \

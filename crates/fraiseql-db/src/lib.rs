@@ -73,7 +73,7 @@ pub use changelog::{
 pub use dialect::{PostgresDialect, SqlDialect, UnsupportedOperator};
 #[cfg(feature = "wire-backend")]
 pub use fraiseql_wire_adapter::FraiseWireAdapter;
-pub use identifier::quote_postgres_identifier;
+pub use identifier::{quote_postgres_identifier, usable_relation};
 pub use introspector::{DatabaseIntrospector, RelationInfo, RelationKind, TviewDeclaration};
 #[cfg(feature = "postgres")]
 pub use postgres::{

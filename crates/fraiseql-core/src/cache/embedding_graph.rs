@@ -60,11 +60,15 @@ const REGISTRY_PROBE: &str = "SELECT EXISTS (SELECT 1 FROM pg_attribute \
 
 /// The registry's TVIEWs, each with every base table it reads and the kind of each. A
 /// table whose kind cannot be read counts as the TVIEW's own (`local`): that sweeps more,
-/// never less.
-const REGISTRY_TVIEWS: &str = "SELECT to_regclass(quote_ident(g.schema) || '.' || \
-     quote_ident(g.name))::oid AS tview, b::oid AS base, \
-     coalesce(g.cascade_kinds ->> b::text, 'local') AS kind \
-     FROM tviews.registry g CROSS JOIN LATERAL unnest(g.base_tables) b";
+/// never less. A TVIEW in a schema this role cannot use has no `tview`.
+fn registry_tviews() -> String {
+    format!(
+        "SELECT {}::oid AS tview, b::oid AS base, \
+         coalesce(g.cascade_kinds ->> b::text, 'local') AS kind \
+         FROM tviews.registry g CROSS JOIN LATERAL unnest(g.base_tables) b",
+        fraiseql_db::usable_relation("g.schema", "g.name")
+    )
+}
 
 /// The same columns, empty: no TVIEWs.
 const NO_TVIEWS: &str = "SELECT NULL::oid AS tview, NULL::oid AS base, NULL::text AS kind \
@@ -100,7 +104,7 @@ pub(super) fn reads_cte(names: &BTreeSet<String>) -> String {
 }
 
 /// `(dependency, dependent)` name pairs over `names`: a sweep of `dependency` must also
-/// sweep `dependent`. `tviews` is [`REGISTRY_TVIEWS`] or [`NO_TVIEWS`].
+/// sweep `dependent`. `tviews` is [`registry_tviews`] or [`NO_TVIEWS`].
 fn edges_sql(names: &BTreeSet<String>, tviews: &str) -> String {
     format!(
         "{reads}, \
@@ -150,11 +154,11 @@ pub async fn read_embedding_graph<A: DatabaseAdapter + ?Sized>(
         .and_then(serde_json::Value::as_bool)
         .unwrap_or(false);
     let tviews = if has_registry {
-        REGISTRY_TVIEWS
+        registry_tviews()
     } else {
-        NO_TVIEWS
+        NO_TVIEWS.to_string()
     };
-    for row in adapter.execute_raw_query(&edges_sql(&names, tviews)).await? {
+    for row in adapter.execute_raw_query(&edges_sql(&names, &tviews)).await? {
         let name = |key: &str| row.get(key).and_then(serde_json::Value::as_str);
         if let (Some(dependency), Some(dependent)) = (name("dependency"), name("dependent")) {
             graph.add_dependency(dependent, dependency)?;

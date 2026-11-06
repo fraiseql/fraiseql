@@ -469,11 +469,14 @@ impl DatabaseIntrospector for PostgresIntrospector {
         // `to_regclass` on both sides: the schema may name the TVIEW bare or qualified, and
         // the registry names it by schema and table. No registry, or one without
         // `options` (a pg_tviews older than its read contract 2), declares nothing.
+        // A TVIEW in a schema this role cannot use is no candidate.
         let row = client
             .query_opt(
-                "SELECT format('%I.%I', g.schema, g.name) AS tview, g.options \
-                 FROM tviews.registry g \
-                 WHERE to_regclass(format('%I.%I', g.schema, g.name)) = to_regclass($1)",
+                &format!(
+                    "SELECT format('%I.%I', g.schema, g.name) AS tview, g.options \
+                     FROM tviews.registry g WHERE {} = to_regclass($1)",
+                    crate::usable_relation("g.schema", "g.name")
+                ),
                 &[&relation],
             )
             .await;
@@ -714,7 +717,9 @@ pub async fn query_tview_profiles(
     if !installed || sources.is_empty() {
         return Ok(Vec::new());
     }
-    let query = r"
+    // A TVIEW in a schema this role cannot use matches no source.
+    let query = format!(
+        r"
         WITH src AS (
             SELECT to_regclass(s) AS oid FROM unnest($1::text[]) AS s
         ), rel AS (
@@ -727,12 +732,14 @@ pub async fn query_tview_profiles(
         )
         SELECT p.entity, format('%I.%I', p.schema, p.name) AS tview, p.hot_ratio,
                p.n_dead_tup, p.n_tup_upd, p.n_tup_hot_upd,
-               coalesce(p.warnings, '{}') AS warnings
+               coalesce(p.warnings, '{{}}') AS warnings
         FROM tviews.pg_tviews_profile() AS p
-        WHERE to_regclass(format('%I.%I', p.schema, p.name)) IN (SELECT oid FROM rel)
+        WHERE {} IN (SELECT oid FROM rel)
         ORDER BY p.entity
-    ";
-    let rows = client.query(query, &[&sources]).await.map_err(|e| {
+    ",
+        crate::usable_relation("p.schema", "p.name")
+    );
+    let rows = client.query(&query, &[&sources]).await.map_err(|e| {
         crate::postgres::database_error(format!("pg_tviews_profile() failed: {e}"), &e)
     })?;
     Ok(rows

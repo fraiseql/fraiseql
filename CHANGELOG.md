@@ -398,6 +398,17 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **One TVIEW schema the role cannot use no longer breaks the reads of `tviews.registry`
+  (#1952).** Each read resolved every registry row with `to_regclass`, which raises
+  `permission denied for schema` for a schema the role has no `USAGE` on. One such TVIEW,
+  even one the schema never reads, failed the whole read. At boot, the server logged
+  warnings and ran with by-id eviction, the embedding graph and the change feed's catalog
+  off, so a write evicted only the views it named or returned. `fraiseql compile --database`
+  failed on a query filtering on a key with no column, and otherwise correlated composed
+  reads on document keys instead of native columns. `doctor` could not read the TVIEW
+  profiles. A registry row is now resolved only when the role can use its schema, and
+  skipped otherwise.
+
 - **The e2e document guards are checked in the required `preflight` context (#1945).**
   A database-gated test binary that loads a compiled document must carry
   `the_document_loads_without_a_database`, which loads it with no database. Only the local

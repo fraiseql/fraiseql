@@ -32,5 +32,31 @@ pub fn quote_postgres_identifier(identifier: &str) -> String {
         .join(".")
 }
 
+/// The SQL expression for the relation `schema` and `name` name, as a `regclass`, or `NULL`
+/// when the current role cannot use `schema`.
+///
+/// `schema` and `name` are SQL expressions, such as the columns of a catalog row
+/// (`g.schema`, `g.name`). `to_regclass` raises `permission denied for schema` for a schema
+/// without `USAGE`, rather than returning `NULL`. A query resolving every row of a catalog
+/// such as `tviews.registry` would then fail as a whole because of one relation the role
+/// cannot read anyway. `CASE` decides first, so `to_regclass` never sees such a schema.
+///
+/// # Examples
+///
+/// ```rust
+/// use fraiseql_db::usable_relation;
+/// let sql = usable_relation("g.schema", "g.name");
+/// assert!(sql.starts_with("CASE WHEN EXISTS"));
+/// assert!(sql.ends_with("pg_catalog.format('%I.%I', g.schema, g.name)) END"));
+/// ```
+#[must_use]
+pub fn usable_relation(schema: &str, name: &str) -> String {
+    format!(
+        "CASE WHEN EXISTS (SELECT 1 FROM pg_catalog.pg_namespace un \
+         WHERE un.nspname = {schema} AND pg_catalog.has_schema_privilege(un.oid, 'USAGE')) \
+         THEN pg_catalog.to_regclass(pg_catalog.format('%I.%I', {schema}, {name})) END"
+    )
+}
+
 #[cfg(test)]
 mod tests;
