@@ -31,11 +31,11 @@ const OWNER: &str = "00000000-0000-0000-0000-0000000015a1";
 /// The tag `deleteTag` deletes.
 const TAG: &str = "00000000-0000-0000-0000-0000000015b1";
 /// One more than the derived cascade's default `max_updated_entities` (500): a write of
-/// this many tags makes `pg_tviews` truncate `Tag` out of its report.
+/// this many tags makes `pg_tviews` truncate `Tag1575` out of its report.
 const TAGS: usize = 501;
 /// The user's posts: exactly `max_updated_entities`. `pg_tviews` reports in entity order and
 /// `p1575` sorts before `t1575`, so a write of every post fills the report and leaves out
-/// every tag: `Tag` is then named only as truncated, with none of its rows listed.
+/// every tag: `Tag1575` is then named only as truncated, with none of its rows listed.
 const POST_COUNT: usize = 500;
 
 fn tviews_database_url() -> Option<String> {
@@ -109,17 +109,17 @@ async fn provision(url: &str) {
              -- the GraphQL type it reports (the `typename` option).
              SELECT tviews.pg_tviews_create('{SCHEMA}.tv_u1575', $T$
                SELECT u.pk_u1575, u.id, jsonb_build_object('id', u.id, 'name', u.name,
-                 'bio', u.bio) AS data FROM {SCHEMA}.tb_u1575 u $T$, '{{\"typename\": \"User\"}}');
+                 'bio', u.bio) AS data FROM {SCHEMA}.tb_u1575 u $T$, '{{\"typename\": \"User1575\"}}');
              SELECT tviews.pg_tviews_create('{SCHEMA}.tv_p1575', $T$
                SELECT p.pk_p1575, p.id, p.fk_user, jsonb_build_object('id', p.id,
                  'title', p.title, 'author', jsonb_build_object('id', u.id, 'name', u.name,
                  'bio', u.bio)) AS data
                FROM {SCHEMA}.tb_p1575 p JOIN {SCHEMA}.tb_u1575 u ON u.pk_u1575 = p.fk_user $T$,
-               '{{\"typename\": \"Post\"}}');
+               '{{\"typename\": \"Post1575\"}}');
              SELECT tviews.pg_tviews_create('{SCHEMA}.tv_t1575', $T$
                SELECT t.pk_t1575, t.id, jsonb_build_object('id', t.id, 'label', t.label) AS data
-               FROM {SCHEMA}.tb_t1575 t $T$, '{{\"typename\": \"Tag\"}}');
-             -- Reads the tags only through their TVIEW, grouped: not a `Tag` read.
+               FROM {SCHEMA}.tb_t1575 t $T$, '{{\"typename\": \"Tag1575\"}}');
+             -- Reads the tags only through their TVIEW, grouped: not a `Tag1575` read.
              CREATE VIEW v_tag_summary AS SELECT md5(t.data->>'label')::uuid AS id,
                jsonb_build_object('id', md5(t.data->>'label')::uuid, 'label', t.data->>'label',
                  'n', count(*)) AS data
@@ -142,7 +142,7 @@ async fn provision(url: &str) {
              BEGIN
                UPDATE {SCHEMA}.tb_u1575 SET bio = p_bio WHERE id = p_id;
                RETURN QUERY SELECT * FROM fraiseql.mutation_ok(
-                 (SELECT data FROM {SCHEMA}.tv_u1575 WHERE id = p_id), p_id, 'User');
+                 (SELECT data FROM {SCHEMA}.tv_u1575 WHERE id = p_id), p_id, 'User1575');
              END $$;
              CREATE FUNCTION fn_rename_owner(p_id uuid, p_name text)
                RETURNS SETOF mutation_response LANGUAGE plpgsql AS $$
@@ -159,9 +159,9 @@ async fn provision(url: &str) {
                UPDATE {SCHEMA}.tb_t1575 SET label = p_label
                  WHERE pk_t1575 IN (SELECT pk_t1575 FROM {SCHEMA}.tb_t1575 ORDER BY pk_t1575 LIMIT p_n);
                RETURN QUERY SELECT * FROM fraiseql.mutation_ok(
-                 (SELECT data FROM {SCHEMA}.tv_u1575 WHERE id = p_id), p_id, 'User');
+                 (SELECT data FROM {SCHEMA}.tv_u1575 WHERE id = p_id), p_id, 'User1575');
              END $$;
-             -- `fn_label_tags`, after rewriting every post: the report is full before `Tag`.
+             -- `fn_label_tags`, after rewriting every post: the report is full before `Tag1575`.
              CREATE FUNCTION fn_label_tags_late(p_id uuid, p_label text, p_n int)
                RETURNS SETOF mutation_response LANGUAGE plpgsql AS $$
              BEGIN
@@ -173,7 +173,7 @@ async fn provision(url: &str) {
              BEGIN
                DELETE FROM {SCHEMA}.tb_t1575 WHERE id = p_tag;
                RETURN QUERY SELECT * FROM fraiseql.mutation_ok(
-                 (SELECT data FROM {SCHEMA}.tv_u1575 WHERE id = p_id), p_id, 'User');
+                 (SELECT data FROM {SCHEMA}.tv_u1575 WHERE id = p_id), p_id, 'User1575');
              END $$;
              -- Writes every tag and says so only through its own cascade's invalidation hint.
              CREATE FUNCTION fn_label_tags_hinted(p_id uuid, p_label text, p_n int)
@@ -181,7 +181,7 @@ async fn provision(url: &str) {
              BEGIN
                UPDATE {SCHEMA}.tb_t1575 SET label = p_label;
                RETURN QUERY SELECT * FROM fraiseql.mutation_ok(
-                 (SELECT data FROM {SCHEMA}.tv_u1575 WHERE id = p_id), p_id, 'User',
+                 (SELECT data FROM {SCHEMA}.tv_u1575 WHERE id = p_id), p_id, 'User1575',
                  p_cascade => jsonb_build_object('invalidations', jsonb_build_array(
                    jsonb_build_object('queryName', 'tags', 'strategy', 'INVALIDATE',
                                       'scope', 'PREFIX'))));
@@ -195,16 +195,16 @@ async fn provision(url: &str) {
 /// How [`schema`] varies between tests.
 #[derive(Clone, Copy, Default)]
 struct Shape {
-    /// `tagsMine` returns tags through an inject parameter, which makes `Tag` a type whose
+    /// `tagsMine` returns tags through an inject parameter, which makes `Tag1575` a type whose
     /// reads the engine filters: a derived cascade then lists none of its rows.
     filtered:      bool,
-    /// No root query returns `Tag`, so a derived cascade cannot hint one for it.
+    /// No root query returns `Tag1575`, so a derived cascade cannot hint one for it.
     no_tags_query: bool,
-    /// `Tag` reads from a view that returns no rows: a derived cascade cannot read the
+    /// `Tag1575` reads from a view that returns no rows: a derived cascade cannot read the
     /// tags it reports, so it lists none of them.
     hidden_tags:   bool,
     /// `usersBare` reads `tv_u1575` unqualified, through the connection's `search_path`,
-    /// while `User` names it `p1575.tv_u1575`: two names for one relation.
+    /// while `User1575` names it `p1575.tv_u1575`: two names for one relation.
     bare_users:    bool,
 }
 
@@ -222,22 +222,22 @@ fn schema(shape: Shape) -> CompiledSchema {
                 "cache_ttl_seconds": 300 })
     };
     let mut queries = vec![
-        list("users", "User", "tv_u1575"),
-        list("posts", "Post", "tv_p1575"),
+        list("users", "User1575", "tv_u1575"),
+        list("posts", "Post1575", "tv_p1575"),
         list("items", "Item", "v_item"),
         list("itemsDirect", "Item", "v_item_direct"),
         list("tagSummary", "TagSummary", "v_tag_summary"),
     ];
     if shape.bare_users {
-        let mut bare = list("usersBare", "User", "tv_u1575");
+        let mut bare = list("usersBare", "User1575", "tv_u1575");
         bare["sql_source"] = json!("tv_u1575");
         queries.push(bare);
     }
     if !shape.no_tags_query {
-        queries.push(list("tags", "Tag", "tv_t1575"));
+        queries.push(list("tags", "Tag1575", "tv_t1575"));
     }
     if shape.filtered {
-        let mut mine = list("tagsMine", "Tag", "tv_t1575");
+        let mut mine = list("tagsMine", "Tag1575", "tv_t1575");
         mine["inject_params"] = json!({ "owner": "jwt:sub" });
         queries.push(mine);
     }
@@ -256,11 +256,11 @@ fn schema(shape: Shape) -> CompiledSchema {
         };
     let intermediate: IntermediateSchema = serde_json::from_value(json!({
         "types": [
-            ty("User", "tv_u1575", vec![id(), field("name", "String"), field("bio", "String")]),
-            ty("Post", "tv_p1575", vec![id(), field("title", "String"),
-                                       json!({ "name": "author", "type": "User",
+            ty("User1575", "tv_u1575", vec![id(), field("name", "String"), field("bio", "String")]),
+            ty("Post1575", "tv_p1575", vec![id(), field("title", "String"),
+                                       json!({ "name": "author", "type": "User1575",
                                                "nullable": false })]),
-            ty("Tag", if shape.hidden_tags { "v_tag_hidden" } else { "tv_t1575" },
+            ty("Tag1575", if shape.hidden_tags { "v_tag_hidden" } else { "tv_t1575" },
                vec![id(), field("label", "String")]),
             ty("TagSummary", "v_tag_summary", vec![id(), field("label", "String"),
                                                    field("n", "Int")]),
@@ -271,14 +271,14 @@ fn schema(shape: Shape) -> CompiledSchema {
         ],
         "queries": queries,
         "mutations": [
-            mutation("updateUser", "User", "fn_update_user", &[("bio", "String")], ""),
+            mutation("updateUser", "User1575", "fn_update_user", &[("bio", "String")], ""),
             mutation("renameOwner", "Owner", "fn_rename_owner", &[("name", "String")], ""),
-            mutation("labelTags", "User", "fn_label_tags",
+            mutation("labelTags", "User1575", "fn_label_tags",
                      &[("label", "String"), ("n", "Int")], "pg_tviews"),
-            mutation("labelTagsLate", "User", "fn_label_tags_late",
+            mutation("labelTagsLate", "User1575", "fn_label_tags_late",
                      &[("label", "String"), ("n", "Int")], "pg_tviews"),
-            mutation("deleteTag", "User", "fn_delete_tag", &[("tag", "ID")], "pg_tviews"),
-            mutation("labelTagsHinted", "User", "fn_label_tags_hinted",
+            mutation("deleteTag", "User1575", "fn_delete_tag", &[("tag", "ID")], "pg_tviews"),
+            mutation("labelTagsHinted", "User1575", "fn_label_tags_hinted",
                      &[("label", "String"), ("n", "Int")], "function"),
         ]
     }))
@@ -439,7 +439,7 @@ const TAG_LABELS: (&str, &str, &str) = ("{ tags { label } }", "tags", "/label");
 // The embedding graph: a write reaches the views that embed what it wrote.
 // ---------------------------------------------------------------------------------------
 
-/// The issue as filed: `updateUser` returns `User`, so it sweeps `tv_u1575`; `tv_p1575` embeds
+/// The issue as filed: `updateUser` returns `User1575`, so it sweeps `tv_u1575`; `tv_p1575` embeds
 /// the author's bio, and `pg_tviews` refreshed it, but its cached read survived.
 #[tokio::test]
 async fn a_plain_write_evicts_the_tviews_that_embed_its_row() {
@@ -496,7 +496,7 @@ async fn a_plain_write_evicts_a_view_reading_its_table() {
 // The derived cascade: every type pg_tviews reports is swept, listed or not.
 // ---------------------------------------------------------------------------------------
 
-/// `pg_tviews` truncated `Tag` out of its report (501 rows > 500): the cascade lists none of
+/// `pg_tviews` truncated `Tag1575` out of its report (501 rows > 500): the cascade lists none of
 /// its rows and hints its queries instead. The tags' cached read must go.
 #[tokio::test]
 async fn a_type_the_report_truncated_is_evicted() {
@@ -521,7 +521,7 @@ async fn a_type_the_report_truncated_is_evicted() {
     assert_eq!(labels, ["v1"]);
 }
 
-/// `Tag` is engine-filtered (`tagsMine` injects a parameter), so a derived cascade lists
+/// `Tag1575` is engine-filtered (`tagsMine` injects a parameter), so a derived cascade lists
 /// none of its updated rows: the tags' cached read must go anyway.
 #[tokio::test]
 async fn an_engine_filtered_updated_type_is_evicted() {
@@ -612,7 +612,7 @@ async fn a_functions_own_invalidation_hint_is_evicted() {
     assert_eq!(labels, ["v1"]);
 }
 
-/// `pg_tviews` filled its report with posts and left every tag out: `Tag` is named only as
+/// `pg_tviews` filled its report with posts and left every tag out: `Tag1575` is named only as
 /// truncated, no root query returns it, so the cascade does not even hint it; `tagSummary`
 /// reads its TVIEW through a plain view. Its cached read must go.
 #[tokio::test]
@@ -640,8 +640,8 @@ async fn a_truncated_type_no_query_returns_is_evicted_through_its_readers() {
     assert_eq!(labels, ["behind", "v1"]);
 }
 
-/// `pg_tviews` reports the tag it updated, but `Tag`'s view returns no row for it, so the
-/// cascade lists none, and no root query returns `Tag` to hint. `tagSummary` reads the
+/// `pg_tviews` reports the tag it updated, but `Tag1575`'s view returns no row for it, so the
+/// cascade lists none, and no root query returns `Tag1575` to hint. `tagSummary` reads the
 /// TVIEW behind that view: its cached read must go.
 #[tokio::test]
 async fn an_unreadable_type_no_query_returns_is_evicted_through_its_readers() {
@@ -670,7 +670,7 @@ async fn an_unreadable_type_no_query_returns_is_evicted_through_its_readers() {
 }
 
 /// Two names for one relation: `usersBare` is cached under `tv_u1575`, and `updateUser`
-/// sweeps `User`'s `p1575.tv_u1575`. The cached read must go.
+/// sweeps `User1575`'s `p1575.tv_u1575`. The cached read must go.
 #[tokio::test]
 async fn a_write_evicts_a_read_of_the_same_relation_under_another_name() {
     let Some(server) = serve(Shape {

@@ -34,7 +34,7 @@ const USER_B: &str = "00000000-0000-0000-0000-00000000157b";
 /// The user whose posts fill a report before any tag (`labelTagsLate`).
 const USER_C: &str = "00000000-0000-0000-0000-00000000157e";
 /// The default `max_updated_entities`: a write of this many posts, then of tags, fills the
-/// report before `Tag`, which `pg_tviews` then names only as truncated, with none of its rows
+/// report before `Tag1576`, which `pg_tviews` then names only as truncated, with none of its rows
 /// listed (it reports in entity order, and `p1576` sorts before `t1576`).
 const POSTS_OF_C: usize = 500;
 /// A user with no row until a test writes one.
@@ -42,7 +42,7 @@ const USER_NEW: &str = "00000000-0000-0000-0000-00000000157c";
 const POST_A: &str = "00000000-0000-0000-0000-0000000015a0";
 const TAG: &str = "00000000-0000-0000-0000-0000000015d0";
 /// One more than the default `max_updated_entities` (500): a write of every tag makes
-/// `pg_tviews` truncate `Tag` out of its report.
+/// `pg_tviews` truncate `Tag1576` out of its report.
 const TAGS: usize = 501;
 
 fn tviews_database_url() -> Option<String> {
@@ -113,22 +113,22 @@ async fn provision(url: &str, rls: bool) {
                SELECT gen_random_uuid(), 't0' FROM generate_series(2, {TAGS});
              SELECT tviews.pg_tviews_create('{SCHEMA}.tv_u1576', $T$
                SELECT u.pk_u1576, u.id, jsonb_build_object('id', u.id, 'bio', u.bio) AS data
-               FROM {SCHEMA}.tb_u1576 u $T$, '{{\"typename\": \"User\"}}');
+               FROM {SCHEMA}.tb_u1576 u $T$, '{{\"typename\": \"User1576\"}}');
              SELECT tviews.pg_tviews_create('{SCHEMA}.tv_p1576', $T$
                SELECT p.pk_p1576, p.id, p.fk_user, jsonb_build_object('id', p.id,
                  'title', p.title, 'author', jsonb_build_object('id', u.id, 'bio', u.bio)) AS data
                FROM {SCHEMA}.tb_p1576 p JOIN {SCHEMA}.tb_u1576 u ON u.pk_u1576 = p.fk_user $T$,
-               '{{\"typename\": \"Post\"}}');
+               '{{\"typename\": \"Post1576\"}}');
              SELECT tviews.pg_tviews_create('{SCHEMA}.tv_t1576', $T$
                SELECT t.pk_t1576, t.id, jsonb_build_object('id', t.id, 'label', t.label) AS data
-               FROM {SCHEMA}.tb_t1576 t $T$, '{{\"typename\": \"Tag\"}}');
+               FROM {SCHEMA}.tb_t1576 t $T$, '{{\"typename\": \"Tag1576\"}}');
              {row_security}
              CREATE FUNCTION fn_update_user(p_id uuid, p_bio text)
                RETURNS SETOF mutation_response LANGUAGE plpgsql AS $$
              BEGIN
                UPDATE {SCHEMA}.tb_u1576 SET bio = p_bio WHERE id = p_id;
                RETURN QUERY SELECT * FROM fraiseql.mutation_ok(
-                 (SELECT data FROM {SCHEMA}.tv_u1576 WHERE id = p_id), p_id, 'User');
+                 (SELECT data FROM {SCHEMA}.tv_u1576 WHERE id = p_id), p_id, 'User1576');
              END $$;
              -- Writes every tag: more rows than the report holds.
              CREATE FUNCTION fn_label_tags(p_id uuid, p_label text)
@@ -136,9 +136,9 @@ async fn provision(url: &str, rls: bool) {
              BEGIN
                UPDATE {SCHEMA}.tb_t1576 SET label = p_label;
                RETURN QUERY SELECT * FROM fraiseql.mutation_ok(
-                 (SELECT data FROM {SCHEMA}.tv_u1576 WHERE id = p_id), p_id, 'User');
+                 (SELECT data FROM {SCHEMA}.tv_u1576 WHERE id = p_id), p_id, 'User1576');
              END $$;
-             -- Rewrites C's posts, then every tag: the report is full before `Tag`.
+             -- Rewrites C's posts, then every tag: the report is full before `Tag1576`.
              CREATE FUNCTION fn_label_tags_late(p_id uuid, p_label text)
                RETURNS SETOF mutation_response LANGUAGE plpgsql AS $$
              BEGIN
@@ -152,14 +152,14 @@ async fn provision(url: &str, rls: bool) {
              BEGIN
                UPDATE {SCHEMA}.tb_t1576 SET label = p_label WHERE id = p_tag;
                RETURN QUERY SELECT * FROM fraiseql.mutation_ok(
-                 (SELECT data FROM {SCHEMA}.tv_u1576 WHERE id = p_id), p_id, 'User');
+                 (SELECT data FROM {SCHEMA}.tv_u1576 WHERE id = p_id), p_id, 'User1576');
              END $$;
              CREATE FUNCTION fn_delete_tag(p_id uuid, p_tag uuid)
                RETURNS SETOF mutation_response LANGUAGE plpgsql AS $$
              BEGIN
                DELETE FROM {SCHEMA}.tb_t1576 WHERE id = p_tag;
                RETURN QUERY SELECT * FROM fraiseql.mutation_ok(
-                 (SELECT data FROM {SCHEMA}.tv_u1576 WHERE id = p_id), p_id, 'User');
+                 (SELECT data FROM {SCHEMA}.tv_u1576 WHERE id = p_id), p_id, 'User1576');
              END $$;
              RESET search_path;"
         ))
@@ -189,7 +189,7 @@ fn schema() -> CompiledSchema {
     let mutation = |name: &str, function: &str, extra: &[(&str, &str)]| {
         let mut arguments = vec![id()];
         arguments.extend(extra.iter().map(|(n, t)| field(n, t)));
-        json!({ "name": name, "return_type": "User", "operation": "update",
+        json!({ "name": name, "return_type": "User1576", "operation": "update",
                 "sql_source": format!("{SCHEMA}.{function}"), "arguments": arguments })
     };
     let mut derived = mutation("updateUserC", "fn_update_user", &[("bio", "String")]);
@@ -197,18 +197,18 @@ fn schema() -> CompiledSchema {
     derived["cascade_source"] = json!("pg_tviews");
     let intermediate: IntermediateSchema = serde_json::from_value(json!({
         "types": [
-            ty("User", "tv_u1576", vec![id(), field("bio", "String")]),
-            ty("Post", "tv_p1576", vec![id(), field("title", "String"),
-                                       json!({ "name": "author", "type": "User",
+            ty("User1576", "tv_u1576", vec![id(), field("bio", "String")]),
+            ty("Post1576", "tv_p1576", vec![id(), field("title", "String"),
+                                       json!({ "name": "author", "type": "User1576",
                                                "nullable": false })]),
-            ty("Tag", "tv_t1576", vec![id(), field("label", "String")]),
+            ty("Tag1576", "tv_t1576", vec![id(), field("label", "String")]),
         ],
         "queries": [
-            one("user", "User", "tv_u1576"),
-            one("post", "Post", "tv_p1576"),
-            one("tag", "Tag", "tv_t1576"),
-            list("users", "User", "tv_u1576"),
-            list("tags", "Tag", "tv_t1576"),
+            one("user", "User1576", "tv_u1576"),
+            one("post", "Post1576", "tv_p1576"),
+            one("tag", "Tag1576", "tv_t1576"),
+            list("users", "User1576", "tv_u1576"),
+            list("tags", "Tag1576", "tv_t1576"),
         ],
         "mutations": [
             mutation("updateUser", "fn_update_user", &[("bio", "String")]),
@@ -417,7 +417,7 @@ async fn a_by_id_read_is_evicted_when_a_cascade_rewrites_its_row() {
     assert_eq!(after, json!("a1"));
 }
 
-/// The report is full of posts before any tag: `Tag` is named truncated, none of its rows is
+/// The report is full of posts before any tag: `Tag1576` is named truncated, none of its rows is
 /// listed, and every by-id read of a tag goes.
 #[tokio::test]
 async fn a_by_id_read_of_a_type_the_report_truncated_is_evicted() {
@@ -561,7 +561,7 @@ async fn tag_labels(server: &Running) -> Vec<String> {
     labels
 }
 
-/// `labelTag` names only `User`, but the report says it changed a tag: every view of `Tag`
+/// `labelTag` names only `User1576`, but the report says it changed a tag: every view of `Tag1576`
 /// is swept, its lists included.
 #[tokio::test]
 async fn a_write_sweeps_the_lists_of_a_type_it_changed_but_does_not_name() {
