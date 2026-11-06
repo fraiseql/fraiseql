@@ -10,8 +10,9 @@
 //!
 //! - The function's entry for a row wins over the report's.
 //! - A reported row the caller's view did not return, a type no view serves, and a type `pg_tviews`
-//!   truncated are not listed: the type is invalidated instead, one hint per root query returning
-//!   it. A truncated type lists none of its rows, never a partial set.
+//!   truncated, or omitted because this role may not read its TVIEW (`omitted_types`), are not
+//!   listed: the type is invalidated instead, one hint per root query returning it. A truncated
+//!   type lists none of its rows, never a partial set.
 //! - A type whose reads the engine filters (an RLS policy, or a query returning it that injects
 //!   parameters) lists none of its rows either, updated or deleted: the re-read applies only the
 //!   database's visibility, so it cannot answer whether this caller may read the row. The type is
@@ -51,8 +52,9 @@ pub(super) fn engine_filtered(schema: &CompiledSchema, rls_policy: bool, type_na
 }
 
 /// Every type `pg_tviews` reports the transaction changed, whether or not the merged cascade
-/// lists it: updated, deleted, or truncated out of the report. Each type's cached reads are
-/// stale (#1575), including the types the cascade only hints and those no root query returns.
+/// lists it: updated, deleted, or left out of the report (truncated, or omitted because this
+/// role may not read its TVIEW). Each type's cached reads are stale (#1575), including the
+/// types the cascade only hints and those no root query returns.
 pub(super) fn reported_types(row: &HashMap<String, Value>) -> BTreeSet<String> {
     let Some(report) = row.get(crate::backend::DERIVED_CASCADE_KEY) else {
         return BTreeSet::new();
@@ -64,8 +66,10 @@ pub(super) fn reported_types(row: &HashMap<String, Value>) -> BTreeSet<String> {
             .iter()
             .map(|e| &e["__typename"])
     });
-    let truncated = report["invalidated_types"].as_array().map_or(&[][..], Vec::as_slice).iter();
-    listed.chain(truncated).filter_map(Value::as_str).map(str::to_string).collect()
+    let unlisted = ["invalidated_types", "omitted_types"]
+        .into_iter()
+        .flat_map(|arm| report[arm].as_array().map_or(&[][..], Vec::as_slice).iter());
+    listed.chain(unlisted).filter_map(Value::as_str).map(str::to_string).collect()
 }
 
 /// The rows `pg_tviews` reports the call changed (#1576), from the report of the rows it
@@ -111,10 +115,13 @@ pub(super) fn merge<'r>(
         .chain(entries(&cascade, "deleted"))
         .map(key)
         .collect();
-    let truncated: BTreeSet<String> = report["invalidated_types"]
-        .as_array()
-        .map(|types| types.iter().filter_map(|t| t.as_str().map(str::to_string)).collect())
-        .unwrap_or_default();
+    // Truncated out of the report, or left out of it because this role may not read the
+    // type's TVIEW: either way none of its rows is listed.
+    let truncated: BTreeSet<String> = ["invalidated_types", "omitted_types"]
+        .into_iter()
+        .flat_map(|arm| report[arm].as_array().map_or(&[][..], Vec::as_slice))
+        .filter_map(|t| t.as_str().map(str::to_string))
+        .collect();
     let mut invalidated = truncated.clone();
 
     let mut derived_updated = Vec::new();

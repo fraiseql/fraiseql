@@ -173,7 +173,9 @@ A successful mutation evicts every cached entry of every view it reaches. It rea
 2. Its cascade: the view of every type in `updated` and `deleted`, and the views of every
    query an `invalidations` hint names (the query's `sql_source` and `additional_views`). A
    cascade derived from `pg_tviews` (`cascade_source = "pg_tviews"`) also reaches the view of
-   every type the report says changed, including the types it truncated or could not list.
+   every type the report says changed, including the types it truncated or could not list,
+   and those it left out because the server's role may not read their TVIEW
+   (`omitted_types`).
 3. **The views that embed those** (#1575), read from the database at boot:
 
 ```text
@@ -217,7 +219,8 @@ changed that row:
   (`pg_tviews_flush_and_report(…, false, true)`, which reads no TVIEW);
 - after the commit, the sweep above evicts every other read, and the reads by id are evicted
   by the rows the report lists, updated, inserted or deleted, and wholly for each type the
-  report truncated (more than `max_updated_entities` rows);
+  report truncated (more than `max_updated_entities` rows) or omitted (a TVIEW the server's
+  role may not read, `omitted_types`);
 - a write to user B therefore leaves the cached `user(id: A)` in place, and a write to user A
   evicts the cached `post(id:)` of each of A's posts, whose rows embed A and which pg_tviews
   rewrote;
@@ -391,8 +394,8 @@ A write FraiseQL runs evicts at once, after its commit: a client reading after i
 never waits for the feed. It evicts by collection too: pg_tviews' report of the write
 (`tviews.pg_tviews_flush_and_report()`) names the collections the write changed, as the feed
 does, so a comment written on post A leaves the composed reads of post B's comments cached
-(#1603). A type the report cannot list in full (more rows than `max_updated_entities`) evicts
-every composed list of it. A transaction that does not publish rows (`pg_tviews.publish_changes`
+(#1603). A type the report cannot list in full (more rows than `max_updated_entities`, or a
+TVIEW the server's role may not read) evicts every composed list of it. A transaction that does not publish rows (`pg_tviews.publish_changes`
 set otherwise for it) captures no collections, and its write sweeps the collection-tagged levels
 with the views it reaches, as any write did before. One limit remains: the cache's insert fence
 refuses a composed fill that read rows of a type some write stamped while it ran, so under

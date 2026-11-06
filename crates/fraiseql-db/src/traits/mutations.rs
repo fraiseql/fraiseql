@@ -28,7 +28,8 @@ pub enum WriteMode {
 /// [`DERIVED_CASCADE_KEY`]:
 ///
 /// `{"updated": [{"__typename", "id", "operation", "entity"}], "deleted": [{"__typename",
-/// "id", "deletedAt"}], "truncated": bool, "invalidated_types": [...]}`
+/// "id", "deletedAt"}], "truncated": bool, "invalidated_types": [...], "omitted_types":
+/// [...]}`
 ///
 /// `entity` is `null` for a row the view did not return (not visible to this caller) or a
 /// type `views` does not name. Only on a row that succeeded.
@@ -62,9 +63,10 @@ pub const DERIVED_CASCADE_KEY: &str = "__fraiseql_derived_cascade";
 ///
 /// `pg_tviews`' report, as `tviews.pg_tviews_flush_and_report(max_entities, false, true)`
 /// returns it after the function: `{"updated": [{"__typename", "id"}], "deleted": [...],
-/// "invalidated_types": [...], "collections": {"Comment.fk_post": [...]}}` (`collections`
-/// only for rows written with `pg_tviews.publish_changes = 'rows'`). No row is read. Read it
-/// with [`ChangedRows::from_report`].
+/// "invalidated_types": [...], "omitted_types": [...], "collections": {"Comment.fk_post":
+/// [...]}}` (`omitted_types` only when it left out a TVIEW this role may not read,
+/// `collections` only for rows written with `pg_tviews.publish_changes = 'rows'`). No row is
+/// read. Read it with [`ChangedRows::from_report`].
 pub const CHANGED_ROWS_KEY: &str = "__fraiseql_changed_rows";
 
 /// Parent ids, as text, by collection: `<child type>.<reference column>`, as `pg_tviews`
@@ -82,8 +84,9 @@ pub type ChangedCollections =
 pub struct ChangedRows {
     /// Rows inserted, updated or deleted: public ids, as text, by type.
     pub rows:        std::collections::BTreeMap<String, std::collections::BTreeSet<String>>,
-    /// Types whose rows are not all listed (the report was truncated): every row of each may
-    /// have changed, and every collection of each (#1603).
+    /// Types whose rows are not all listed (the report was truncated, or left them out because
+    /// this role may not read their TVIEW): every row of each may have changed, and every
+    /// collection of each (#1603).
     pub types:       std::collections::BTreeSet<String>,
     /// The collections whose members changed: the parents whose child lists the rows left,
     /// joined or changed in (#1603). `None` when the report captured none (the rows were
@@ -138,9 +141,13 @@ impl ChangedRows {
                 }
             }
         }
-        if let Some(types) = report.get("invalidated_types") {
-            for typename in types.as_array()? {
-                changed.types.insert(typename.as_str()?.to_string());
+        // A type left out of the report (its TVIEW unreadable to this role) changed as
+        // wholly as one truncated out of it.
+        for arm in ["invalidated_types", "omitted_types"] {
+            if let Some(types) = report.get(arm) {
+                for typename in types.as_array()? {
+                    changed.types.insert(typename.as_str()?.to_string());
+                }
             }
         }
         if let Some(collections) = report.get("collections") {

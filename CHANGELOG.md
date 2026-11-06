@@ -405,6 +405,16 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **A type pg_tviews leaves out of its change report counts as changed (#1951).** From
+  0.1.0-beta.36, `pg_tviews_flush_and_report()` leaves out the rows of a TVIEW the server's
+  role may not `SELECT` and names its type only in a new `omitted_types` field. FraiseQL read
+  `updated`, `deleted` and `invalidated_types`, so a write that changed such a TVIEW
+  through a cascade evicted nothing of it. Reads of that type through a view over the TVIEW
+  stayed cached until their TTL, and a derived cascade (`cascade_source = "pg_tviews"`)
+  neither listed nor hinted it. An omitted type now counts like a truncated one: every read
+  of its view is swept, its reads by id and composed lists are evicted, and the derived
+  cascade hints each query returning it.
+
 - **One TVIEW schema the role cannot use no longer breaks the reads of `tviews.registry`
   (#1952).** Each read resolved every registry row with `to_regclass`, which raises
   `permission denied for schema` for a schema the role has no `USAGE` on. One such TVIEW,

@@ -7,7 +7,7 @@
 //! cascaded ones included, and reports them by GraphQL type and public id
 //! (`tviews.pg_tviews_flush_and_report()`). So such a read is indexed under its row, a write
 //! asks for that report, and evicts these reads by the rows it lists, every read of a type it
-//! truncated, and nothing else of them.
+//! truncated or omitted (a TVIEW the server's role may not read), and nothing else of them.
 //!
 //! A read qualifies only when its view **is** a TVIEW's table (not a view over one, which may
 //! filter or join), the table has no row security (a policy may read other tables), its only
