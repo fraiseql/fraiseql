@@ -170,7 +170,7 @@ services:
     # and `docker compose up` builds it rather than reusing one built at the old pin.
     build:
       context: ./pg-tviews
-    image: fraiseql/pg-tviews-test:pg18-v0.1.0-beta.35-84157ed
+    image: fraiseql/pg-tviews-test:pg18-v0.1.0-beta.36-d8d797d
     environment:
       POSTGRES_DB: test_fraiseql
       POSTGRES_USER: fraiseql_test

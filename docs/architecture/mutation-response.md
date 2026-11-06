@@ -483,7 +483,7 @@ connection and merges the report into the function's `cascade`:
   fails naming pg_tviews, and commits nothing.
 * **Observed** as the histogram `fraiseql_cascade_derived_entries` on `/metrics`.
 
-The tests run against `docker/pg-tviews` (PostgreSQL 18 with pg_tviews v0.1.0-beta.35 and the
+The tests run against `docker/pg-tviews` (PostgreSQL 18 with pg_tviews v0.1.0-beta.36 and the
 jsonb_delta it requires, built from source, preloaded): `make test-pg-tviews`.
 
 **What pg_tviews needs.** pg_tviews must be in `shared_preload_libraries` and installed by a
@@ -493,6 +493,16 @@ table a TVIEW reads, or flushes, must run at `READ COMMITTED`: at `REPEATABLE RE
 `SERIALIZABLE` pg_tviews refuses it with `0A000`. FraiseQL opens its write transactions at
 the database's default level, `READ COMMITTED` unless `default_transaction_isolation` is set
 otherwise, and the webhook pipeline offers no other level (#1894).
+
+**Upgrading pg_tviews to beta.36.** Only beta.35 updates to beta.36: install the new library,
+restart PostgreSQL, then run `ALTER EXTENSION pg_tviews UPDATE;` in each database that has
+the extension. The update re-derives every TVIEW as its owner. It refuses, leaving the
+extension at beta.35, when an owner can no longer read what its TVIEW reads, or when two TVIEWs
+share a GraphQL type name: a type name now belongs to one TVIEW (`42710`). A function a TVIEW
+calls with a `search_path` setting that does not end in `pg_temp` draws a WARNING; declare it
+`SET search_path = <schema>, pg_temp`. Creating or replacing a TVIEW now needs `READ
+COMMITTED`, like writing to its tables. A definition reading another role's TVIEW needs
+`TRIGGER` on that TVIEW's table. pg_tviews' own upgrade notes list the rest.
 
 **Upgrading pg_tviews to beta.35.** Only beta.34 updates to beta.35; an older install is
 dropped and recreated. Move any writer of yours that runs at `REPEATABLE READ` or

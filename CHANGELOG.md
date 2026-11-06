@@ -372,6 +372,13 @@ disagreed, and the promise was the part that was wrong.
 
 ### Changed
 
+- **pg_tviews 0.1.0-beta.36 is the supported release (#1951).** The test image builds it at
+  the tag's commit, d8d797d1; jsonb_delta stays at v0.3.0. Only beta.35 updates to beta.36.
+  The update re-derives every TVIEW as its owner and refuses when an owner can no longer
+  read what its TVIEW reads, or when two TVIEWs share a GraphQL type name. Creating or
+  replacing a TVIEW now needs `READ COMMITTED`. See "Upgrading pg_tviews to beta.36" in
+  `docs/architecture/mutation-response.md`.
+
 - **Every server that mints sessions deletes expired `_system.sessions` rows (#1853).**
   Every five minutes, a server with password, OTP, anonymous, social or SAML sign-in and a
   database deletes the rows past their `expires_at`. Those refresh tokens could no longer
