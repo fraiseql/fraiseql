@@ -17,12 +17,16 @@
 #     subgraphs synthesize the identical envelope value types, which compose only
 #     because the cli marks them @shareable. Without the fix this fails with 21
 #     INVALID_FIELD_SHARING errors (one per envelope field).
+#   - error_union_orders + error_union_users → composes cleanly (#1944): two subgraphs
+#     with auto_error_union synthesize the identical MutationError, which composes only
+#     because the cli marks it @shareable (5 INVALID_FIELD_SHARING errors without the fix).
 #
 # The catalog/reviews fixtures are kept in lock-step with live FraiseQL output by the
 # Rust test `committed_sdl_fixtures_are_current` (fraiseql-core); the cascade_* fixtures
-# by `committed_cascade_sdl_fixtures_are_current` (fraiseql-cli — they must be rendered
+# by `committed_cascade_sdl_fixtures_are_current` and the error_union_* fixtures by
+# `committed_error_union_sdl_fixtures_are_current` (fraiseql-cli — they must be rendered
 # from the cli converter, where cascade synthesis and the #698 fix live). Run those (or
-# `make federation-compose-check`, which runs all three) after any change to federation
+# `make federation-compose-check`, which runs all four) after any change to federation
 # SDL rendering.
 set -euo pipefail
 
@@ -55,6 +59,11 @@ echo "→ positive: cascade_orders + cascade_users must compose (#698)"
 node compose-check.mjs \
   "cascade_orders=$fixtures/cascade_orders.graphql" \
   "cascade_users=$fixtures/cascade_users.graphql"
+
+echo "→ positive: error_union_orders + error_union_users must compose (#1944)"
+node compose-check.mjs \
+  "error_union_orders=$fixtures/error_union_orders.graphql" \
+  "error_union_users=$fixtures/error_union_users.graphql"
 
 echo "→ default literals: graphql-js keeps every published default (#1888)"
 node default-literals-check.mjs \

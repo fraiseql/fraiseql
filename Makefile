@@ -2024,6 +2024,7 @@ federation-compose-check:
 	@echo "=== Federation golden compose (SDL invariants + real composition) ==="
 	@cargo test -p fraiseql-core --test federation_compose --features federation
 	@cargo test -p fraiseql-cli --test cascade_federation_shareable_e2e --features federation
+	@cargo test -p fraiseql-cli --test error_union_federation_shareable_e2e --features federation
 	@bash tools/federation/run-compose-check.sh
 
 # ============================================================================

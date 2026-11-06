@@ -426,6 +426,15 @@ disagreed, and the promise was the part that was wrong.
   profiles. A registry row is now resolved only when the role can use its schema, and
   skipped otherwise.
 
+- **Two federated subgraphs that use `auto_error_union` now compose (#1944).** The
+  `MutationError` type the pass synthesizes is structurally identical in every subgraph and
+  has no identity of its own, but it was emitted without `@shareable`, so composing two such
+  subgraphs failed with one `INVALID_FIELD_SHARING` per field (`status`, `message`,
+  `httpStatus`, `errorClass`, `errors`). When a federation block is present, the pass now adds
+  the type it synthesizes to `federation.shareable_types`, as #698 does for the cascade
+  envelopes. An authored `MutationError` is left as declared, and the per-mutation
+  `<Mutation>Result` unions, uniquely named, stay unmarked. The federation-compose leg composes
+  two such subgraphs (`error_union_orders` + `error_union_users`).
 - **The e2e document guards are checked in the required `preflight` context (#1945).**
   A database-gated test binary that loads a compiled document must carry
   `the_document_loads_without_a_database`, which loads it with no database. Only the local

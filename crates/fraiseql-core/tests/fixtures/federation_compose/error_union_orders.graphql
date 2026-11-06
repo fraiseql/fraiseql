@@ -1,0 +1,58 @@
+extend schema @link(url: "https://specs.apollo.dev/federation/v2.0", import: ["@key", "@external", "@requires", "@provides", "@shareable", "@inaccessible", "@override", "@extends", "@tag"])
+scalar JSON
+
+union CreateOrderResult = Order | MutationError
+
+type Order @key(fields: "id") {
+  id: ID!
+  total: Float!
+}
+
+type MutationError @shareable {
+  status: String!
+  message: String
+  httpStatus: Int
+  errorClass: String
+  errors: JSON
+}
+
+type Query {
+  orders(where: JSON, orderBy: JSON, limit: Int, offset: Int): [Order!]!
+}
+
+type Mutation {
+  createOrder: CreateOrderResult
+}
+
+
+
+directive @key(fields: String!, resolvable: Boolean = true) repeatable on OBJECT
+directive @extends on OBJECT
+directive @external on FIELD_DEFINITION
+directive @requires(fields: String!) on FIELD_DEFINITION
+directive @provides(fields: String!) on FIELD_DEFINITION
+directive @shareable on FIELD_DEFINITION | OBJECT
+directive @inaccessible on FIELD_DEFINITION | OBJECT | INTERFACE | UNION | ARGUMENT_DEFINITION | SCALAR | ENUM | ENUM_VALUE | INPUT_OBJECT | INPUT_FIELD_DEFINITION
+directive @override(from: String!) on FIELD_DEFINITION
+directive @tag(name: String!) repeatable on FIELD_DEFINITION | OBJECT | INTERFACE | UNION | ARGUMENT_DEFINITION | SCALAR | ENUM | ENUM_VALUE | INPUT_OBJECT | INPUT_FIELD_DEFINITION
+directive @link(url: String, as: String, for: link__Purpose, import: [link__Import]) repeatable on SCHEMA
+
+enum link__Purpose {
+  SECURITY
+  EXECUTION
+}
+
+scalar link__Import
+
+type _Service {
+  sdl: String!
+}
+
+scalar _Any
+
+union _Entity = Order
+
+extend type Query {
+  _service: _Service!
+  _entities(representations: [_Any!]!): [_Entity]!
+}

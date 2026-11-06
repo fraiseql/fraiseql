@@ -122,6 +122,10 @@ required-features = ["functions-invoke"]
 name = "cascade_federation_shareable_e2e"
 required-features = ["federation"]
 
+[[test]]
+name = "error_union_federation_shareable_e2e"
+required-features = ["federation"]
+
 
 [[test]]
 name = "compile_federation_passthrough"
