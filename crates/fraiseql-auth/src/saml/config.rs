@@ -478,8 +478,9 @@ impl SamlIdpConfigBuilder {
     ///
     /// # Errors
     ///
-    /// [`SamlError::Config`] if no IdP metadata was supplied or the service provider could
-    /// not be constructed.
+    /// [`SamlError::Config`] if no IdP metadata was supplied, the metadata declares no
+    /// HTTP-Redirect SSO binding, it declares no signing certificate (or one that does not
+    /// parse), or the service provider could not be constructed.
     pub fn build(self) -> Result<SamlIdpConfig, SamlError> {
         let idp_metadata = self
             .idp_metadata
@@ -530,6 +531,38 @@ impl SamlIdpConfigBuilder {
                  SP-initiated login would be impossible. Check the metadata XML."
                     .to_string(),
             ));
+        }
+        // Refuse metadata that names no signing certificate. samael verifies a response's
+        // signature only against the IdP's signing certificates, and with none it skips
+        // verification altogether, so such an IdP would accept a response nobody signed.
+        // The certificates are read through samael's own lookup, so this check and the
+        // verifier cannot disagree on what counts as one (an encryption-only key does not).
+        match config.sp.idp_signing_certs() {
+            // samael only base64-decodes a certificate; one that is not X.509 would fail
+            // every signature check, so it is refused here, loudly, like a missing one.
+            Ok(Some(certs)) if !certs.is_empty() => {
+                if let Some(e) = certs
+                    .iter()
+                    .find_map(|cert| openssl::x509::X509::from_der(cert.der_data()).err())
+                {
+                    return Err(SamlError::Config(format!(
+                        "IdP metadata signing certificate does not parse: {e}"
+                    )));
+                }
+            },
+            Ok(_) => {
+                return Err(SamlError::Config(
+                    "IdP metadata declares no signing certificate (a KeyDescriptor with \
+                     use=\"signing\" or no use) — responses could not be verified. Check the \
+                     metadata XML."
+                        .to_string(),
+                ));
+            },
+            Err(e) => {
+                return Err(SamlError::Config(format!(
+                    "IdP metadata signing certificate does not parse: {e}"
+                )));
+            },
         }
         Ok(config)
     }

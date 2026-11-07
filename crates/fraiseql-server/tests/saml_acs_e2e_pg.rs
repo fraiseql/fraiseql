@@ -190,6 +190,74 @@ impl SigningIdp {
     }
 }
 
+/// A base64 `SAMLResponse` answering `request_id` for `name_id` that carries no signature
+/// at all: what anyone can send, holding no key.
+fn unsigned_response(request_id: &str, name_id: &str) -> String {
+    let anyone = SigningIdp::new();
+    let mut response = build_response_template(
+        &anyone.cert,
+        name_id,
+        SP_ENTITY,
+        IDP_ENTITY,
+        SP_ACS,
+        request_id,
+        &[],
+    );
+    response.signature = None;
+    if let Some(data) = response
+        .assertion
+        .as_mut()
+        .and_then(|a| a.subject.as_mut())
+        .and_then(|s| s.subject_confirmations.as_mut())
+        .and_then(|c| c.first_mut())
+        .and_then(|c| c.subject_confirmation_data.as_mut())
+    {
+        data.not_on_or_after =
+            Some((std::time::SystemTime::now() + std::time::Duration::from_mins(5)).into());
+    }
+    base64::engine::general_purpose::STANDARD.encode(response.to_string().unwrap())
+}
+
+/// `IdP` metadata naming no signing certificate: an SSO endpoint and nothing to verify a
+/// response against.
+fn metadata_without_a_signing_certificate() -> String {
+    format!(
+        r#"<EntityDescriptor xmlns="urn:oasis:names:tc:SAML:2.0:metadata" entityID="{IDP_ENTITY}">
+  <IDPSSODescriptor protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+    <SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="https://idp.example.com/sso"/>
+  </IDPSSODescriptor>
+</EntityDescriptor>"#
+    )
+}
+
+/// The name of the stored `IdP` [`stored_idp_without_a_signing_certificate`] seeds.
+const STORED_IDP: &str = "stored-idp";
+
+/// The statements that create the `IdP` store and put a row in it, written straight to the
+/// table as an operator or an older release could have, whose metadata names no signing
+/// certificate.
+fn stored_idp_without_a_signing_certificate() -> [String; 2] {
+    let metadata = metadata_without_a_signing_certificate().replace('\'', "''");
+    [
+        fraiseql_auth::saml::PG_SAML_IDP_SCHEMA_SQL.to_string(),
+        format!(
+            "INSERT INTO auth.tb_saml_idp \
+             (idp_name, tenant_id, sp_entity_id, acs_url, metadata_xml, idp_entity_id) \
+             VALUES ('{STORED_IDP}', '{TENANT}', '{SP_ENTITY}', '{SP_ACS}', '{metadata}', \
+             '{IDP_ENTITY}')"
+        ),
+    ]
+}
+
+/// [`saml_config`] with the durable `IdP` store switched on.
+fn saml_config_with_store(idp: &SigningIdp, database_url: &str) -> ServerConfig {
+    let mut config = saml_config(idp, database_url);
+    if let Some(saml) = config.saml.as_mut() {
+        saml.store_enabled = true;
+    }
+    config
+}
+
 /// `[saml]` with one `IdP`, `test-idp`, bound to [`TENANT`] and trusting `idp`, and the
 /// `[auth_issuer]` the sessions are signed with.
 fn saml_config(idp: &SigningIdp, database_url: &str) -> ServerConfig {
@@ -269,28 +337,40 @@ struct Booted {
 }
 
 async fn boot(url: &str, db: &str, idp: &SigningIdp, schema: CompiledSchema) -> Booted {
-    boot_with(url, db, schema, |scratch_url| saml_config(idp, scratch_url)).await
+    boot_with(url, db, schema, &[], |scratch_url| saml_config(idp, scratch_url))
+        .await
+        .expect("[saml] + [auth_issuer] + a pool must boot")
 }
 
-/// [`boot`] with the server configuration `config` builds for the scratch database URL.
+/// Boot on a scratch database named `db` with the config `config` builds from the scratch
+/// URL, after running each `seed` statement on that database. The boot error, if any, is
+/// returned as text.
 async fn boot_with(
     url: &str,
     db: &str,
     schema: CompiledSchema,
+    seed: &[&str],
     config: impl FnOnce(&str) -> ServerConfig,
-) -> Booted {
+) -> Result<Booted, String> {
     // Env var must exist before construction loads the secret. A fixed valid
     // value, set unconditionally: safe under the parallel runner because every
     // reader wants exactly this value.
     FIRST_PARTY.set_env();
     let pool = scratch_pool(url, db).await;
+    for statement in seed {
+        // Reason: test SQL: statements this test defines.
+        sqlx::raw_sql(sqlx::AssertSqlSafe(*statement))
+            .execute(&pool)
+            .await
+            .expect("seed the scratch database");
+    }
     let scratch_url = with_database(url, db);
     let adapter = Arc::new(PostgresAdapter::new(&scratch_url).await.expect("PostgresAdapter::new"));
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.expect("bind ephemeral port");
     let port = listener.local_addr().expect("local addr").port();
     let server = Box::pin(Server::new(config(&scratch_url), schema, adapter, Some(pool)))
         .await
-        .expect("[saml] + [auth_issuer] + a pool must boot");
+        .map_err(|e| e.to_string())?;
     let (shutdown, rx) = tokio::sync::oneshot::channel::<()>();
     let handle = tokio::spawn(async move {
         server
@@ -305,26 +385,36 @@ async fn boot_with(
         .redirect(reqwest::redirect::Policy::none())
         .build()
         .expect("client");
-    Booted {
+    Ok(Booted {
         base: format!("http://127.0.0.1:{port}"),
         client,
         shutdown,
         handle,
         started: std::sync::Mutex::default(),
-    }
+    })
 }
 
 impl Booted {
     /// Start a sign-in: the `RelayState` the server issued, and the `ID` of the
     /// `AuthnRequest` it sent the `IdP`, which a response must answer.
     async fn login(&self) -> (String, String) {
+        self.try_login("test-idp")
+            .await
+            .unwrap_or_else(|status| panic!("login must redirect: {status}"))
+    }
+
+    /// [`login`](Self::login) for the `IdP` named `idp`, or the status the server answered
+    /// instead of a redirect.
+    async fn try_login(&self, idp: &str) -> Result<(String, String), reqwest::StatusCode> {
         let resp = self
             .client
-            .get(format!("{}/auth/saml/login?idp=test-idp&tenant={TENANT}", self.base))
+            .get(format!("{}/auth/saml/login?idp={idp}&tenant={TENANT}", self.base))
             .send()
             .await
             .expect("login request");
-        assert!(resp.status().is_redirection(), "login must redirect: {}", resp.status());
+        if !resp.status().is_redirection() {
+            return Err(resp.status());
+        }
         let cookie = login_cookie(&resp);
         let redirect = resp.headers()["location"].to_str().unwrap().to_string();
         let redirect = reqwest::Url::parse(&redirect).expect("the redirect is a URL");
@@ -336,7 +426,7 @@ impl Booted {
         };
         let relay_state = param("RelayState");
         self.started.lock().unwrap().insert(relay_state.clone(), cookie);
-        (relay_state, request_id(&param("SAMLRequest")))
+        Ok((relay_state, request_id(&param("SAMLRequest"))))
     }
 
     /// The login cookie `relay_state` was started with.
@@ -656,10 +746,12 @@ async fn in_cookie_transport_the_acs_sets_the_session_cookies_on_its_redirect() 
     };
     let db = "fraiseql_saml_acs_cookie";
     let idp = SigningIdp::new();
-    let server = boot_with(&url, db, schema(session_as(SessionTransport::Cookie)), |scratch| {
-        saml_config_redirecting(&idp, scratch, Some(POST_LOGIN))
-    })
-    .await;
+    let server =
+        boot_with(&url, db, schema(session_as(SessionTransport::Cookie)), &[], |scratch| {
+            saml_config_redirecting(&idp, scratch, Some(POST_LOGIN))
+        })
+        .await
+        .expect("[saml] + [auth_issuer] + a pool must boot");
 
     let (relay_state, request_id) = server.login().await;
     let login = server.cookie_of(&relay_state);
@@ -971,4 +1063,93 @@ async fn a_saml_sign_in_runs_on_the_auth_role() {
     assert!(replay, "the replay cache's table is provisioned in auth");
     pool.close().await;
     drop_scratch(&url, db).await;
+}
+
+#[tokio::test]
+async fn an_unsigned_response_for_a_stored_idp_without_a_signing_certificate_signs_no_one_in() {
+    let test =
+        "an_unsigned_response_for_a_stored_idp_without_a_signing_certificate_signs_no_one_in";
+    let Some(url) = database_url_or_skip(test) else {
+        return;
+    };
+    let db = "fraiseql_saml_acs_stored_no_cert";
+    let idp = SigningIdp::new();
+    let seed = stored_idp_without_a_signing_certificate();
+    let seed: Vec<&str> = seed.iter().map(String::as_str).collect();
+    let server = boot_with(&url, db, schema(FIRST_PARTY.session()), &seed, |scratch_url| {
+        saml_config_with_store(&idp, scratch_url)
+    })
+    .await
+    .expect("boot");
+
+    // Whatever refuses it, a login against this IdP must end without a session.
+    let body = match server.try_login(STORED_IDP).await {
+        Ok((relay_state, request_id)) => {
+            server.acs(&relay_state, &unsigned_response(&request_id, "someone")).await.1
+        },
+        Err(_) => serde_json::Value::Null,
+    };
+
+    assert!(
+        body.get("access_token").is_none(),
+        "an unsigned response signed someone in: {body}"
+    );
+    server.stop().await;
+    drop_scratch(&url, db).await;
+}
+
+#[tokio::test]
+async fn a_stored_idp_without_a_signing_certificate_is_not_served() {
+    let Some(url) =
+        database_url_or_skip("a_stored_idp_without_a_signing_certificate_is_not_served")
+    else {
+        return;
+    };
+    let db = "fraiseql_saml_acs_stored_no_cert_served";
+    let idp = SigningIdp::new();
+    let seed = stored_idp_without_a_signing_certificate();
+    let seed: Vec<&str> = seed.iter().map(String::as_str).collect();
+    let server = boot_with(&url, db, schema(FIRST_PARTY.session()), &seed, |scratch_url| {
+        saml_config_with_store(&idp, scratch_url)
+    })
+    .await
+    .expect("boot");
+
+    let login = server.try_login(STORED_IDP).await;
+
+    assert_eq!(login.map(|_| ()), Err(reqwest::StatusCode::NOT_FOUND));
+    server.stop().await;
+    drop_scratch(&url, db).await;
+}
+
+#[tokio::test]
+async fn a_configured_idp_without_a_signing_certificate_refuses_to_boot() {
+    let Some(url) =
+        database_url_or_skip("a_configured_idp_without_a_signing_certificate_refuses_to_boot")
+    else {
+        return;
+    };
+    let db = "fraiseql_saml_acs_configured_no_cert";
+    let idp = SigningIdp::new();
+    let booted = boot_with(&url, db, schema(FIRST_PARTY.session()), &[], |scratch_url| {
+        let mut config = saml_config(&idp, scratch_url);
+        if let Some(entry) = config.saml.as_mut().and_then(|saml| saml.idps.get_mut("test-idp")) {
+            entry.metadata_xml = Some(metadata_without_a_signing_certificate());
+        }
+        config
+    })
+    .await;
+
+    let refused = match booted {
+        Ok(server) => {
+            server.stop().await;
+            None
+        },
+        Err(error) => Some(error),
+    };
+    drop_scratch(&url, db).await;
+    assert!(
+        refused.as_deref().is_some_and(|e| e.contains("signing certificate")),
+        "the server booted, or refused for another reason: {refused:?}"
+    );
 }

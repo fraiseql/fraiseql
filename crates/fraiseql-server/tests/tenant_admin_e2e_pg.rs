@@ -94,6 +94,12 @@ fn empty_schema() -> CompiledSchema {
 }
 
 fn idp_metadata_xml() -> String {
+    idp_metadata_xml_with_key(Some("signing"))
+}
+
+/// IdP metadata whose one certificate is published for `key_use`, or that publishes no
+/// certificate when `key_use` is `None`.
+fn idp_metadata_xml_with_key(key_use: Option<&str>) -> String {
     let idp = IdentityProvider::generate_new(KeyType::Rsa(Rsa::Rsa2048)).unwrap();
     let cert = idp
         .create_certificate(&CertificateParams {
@@ -106,15 +112,20 @@ fn idp_metadata_xml() -> String {
         use base64::Engine as _;
         base64::engine::general_purpose::STANDARD.encode(cert.der_data())
     };
-    format!(
-        r#"<EntityDescriptor xmlns="urn:oasis:names:tc:SAML:2.0:metadata" entityID="{IDP_ENTITY}">
-  <IDPSSODescriptor protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
-    <KeyDescriptor use="signing">
+    let key_descriptor = key_use.map_or_else(String::new, |key_use| {
+        format!(
+            r#"    <KeyDescriptor use="{key_use}">
       <KeyInfo xmlns="http://www.w3.org/2000/09/xmldsig#">
         <X509Data><X509Certificate>{cert_b64}</X509Certificate></X509Data>
       </KeyInfo>
     </KeyDescriptor>
-    <SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="https://idp.example.com/sso"/>
+"#
+        )
+    });
+    format!(
+        r#"<EntityDescriptor xmlns="urn:oasis:names:tc:SAML:2.0:metadata" entityID="{IDP_ENTITY}">
+  <IDPSSODescriptor protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+{key_descriptor}    <SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="https://idp.example.com/sso"/>
   </IDPSSODescriptor>
 </EntityDescriptor>"#
     )
@@ -592,6 +603,82 @@ async fn a_tenant_administrator_manages_only_its_own_saml_idps() {
     let (_, all) = rig.call(ADMIN_TOKEN, Method::GET, "/api/saml/idps", None).await;
     assert_eq!(all["total"], 3, "the platform still sees every IdP: {all}");
 
+    rig.shutdown().await;
+}
+
+/// A tenant administrator's create of metadata publishing its certificate for `key_use`
+/// (or none) must be refused, and for the missing signing certificate.
+async fn assert_create_refused_without_a_signing_certificate(
+    test: &str,
+    db: &str,
+    key_use: Option<&str>,
+) {
+    let Some(rig) = Rig::boot(test, db).await else {
+        return;
+    };
+    let body = json!({
+        "idp_name":     "a-no-cert",
+        "sp_entity_id": "https://sp.example.com/metadata",
+        "acs_url":      "https://sp.example.com/auth/saml/acs",
+        "metadata_xml": idp_metadata_xml_with_key(key_use),
+    });
+    let (status, refused) = rig.call(&rig.a, Method::POST, "/api/saml/idps", Some(body)).await;
+    assert!(
+        status == StatusCode::BAD_REQUEST && refused.to_string().contains("signing certificate"),
+        "metadata with key use {key_use:?} was not refused for its missing signing \
+         certificate: {status} {refused}"
+    );
+    rig.shutdown().await;
+}
+
+#[tokio::test]
+async fn a_tenant_administrator_cannot_create_an_idp_without_any_certificate() {
+    assert_create_refused_without_a_signing_certificate(
+        "saml_no_cert_create",
+        "fraiseql_tenant_admin_saml_no_cert",
+        None,
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn a_tenant_administrator_cannot_create_an_idp_with_only_an_encryption_certificate() {
+    assert_create_refused_without_a_signing_certificate(
+        "saml_enc_cert_create",
+        "fraiseql_tenant_admin_saml_enc_cert",
+        Some("encryption"),
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn a_tenant_administrator_cannot_update_an_idp_to_drop_its_signing_certificate() {
+    let Some(rig) =
+        Rig::boot("saml_no_cert_update", "fraiseql_tenant_admin_saml_no_cert_upd").await
+    else {
+        return;
+    };
+    let body = json!({
+        "idp_name":     "a-okta",
+        "sp_entity_id": "https://sp.example.com/metadata",
+        "acs_url":      "https://sp.example.com/auth/saml/acs",
+        "metadata_xml": idp_metadata_xml(),
+    });
+    let (status, created) = rig.call(&rig.a, Method::POST, "/api/saml/idps", Some(body)).await;
+    assert_eq!(status, StatusCode::CREATED, "{created}");
+
+    let update = json!({
+        "sp_entity_id": "https://sp.example.com/metadata",
+        "acs_url":      "https://sp.example.com/auth/saml/acs",
+        "metadata_xml": idp_metadata_xml_with_key(Some("encryption")),
+    });
+    let (status, refused) =
+        rig.call(&rig.a, Method::PUT, "/api/saml/idps/a-okta", Some(update)).await;
+
+    assert!(
+        status == StatusCode::BAD_REQUEST && refused.to_string().contains("signing certificate"),
+        "an update dropping the signing certificate was not refused for it: {status} {refused}"
+    );
     rig.shutdown().await;
 }
 

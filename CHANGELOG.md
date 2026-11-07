@@ -18,6 +18,14 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **A SAML identity provider must name a signing certificate.** IdP metadata with no
+  signing certificate (no `KeyDescriptor`, or only one with `use="encryption"`), or with
+  a signing certificate that is not X.509, is refused wherever it is read: a configured
+  `[saml]` IdP refuses boot, a tenant administrator's create or update is answered 400,
+  and a stored row is not served. The response verifier refuses such an IdP on its own
+  before parsing a response. A deployment whose IdP metadata carries no signing key adds
+  the IdP's signing certificate to it.
+
 - **`FRAISEQL_CHANGELOG_ENABLED` and `FRAISEQL_SOURCES_ENABLED` are booleans in the
   grammar the server's flags use (#1777).** Each turned its switch on for any value but
   `false`, `0`, `no` or `off`, so `f`, `n` and typos left the change-log outbox or the

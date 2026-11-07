@@ -182,9 +182,10 @@ pub trait SamlIdpStore: Send + Sync {
     ///
     /// # Errors
     ///
-    /// [`SamlError::Config`] if the metadata does not parse or declares no HTTP-Redirect
-    /// SSO binding; [`SamlError::NameTaken`] if the name is already in use — including by a
-    /// deleted IdP, whose namespace must never be reissued; [`SamlError::Store`] otherwise.
+    /// [`SamlError::Config`] if the metadata does not parse, declares no HTTP-Redirect
+    /// SSO binding, or declares no signing certificate; [`SamlError::NameTaken`] if the name is
+    /// already in use — including by a deleted IdP, whose namespace must never be reissued;
+    /// [`SamlError::Store`] otherwise.
     async fn create(&self, spec: &SamlIdpSpec) -> Result<SamlIdpRecord, SamlError>;
 
     /// Replace a live IdP's metadata and policy. The name and tenant are immutable: both
@@ -258,9 +259,9 @@ impl PgSamlIdpStore {
 
 /// Validate a spec through the production builder and return what parsing revealed.
 ///
-/// This is the fail-loud gate: metadata that boot would refuse (unparseable, or with no
-/// HTTP-Redirect SSO binding) is refused here too, so no write can land a row whose only
-/// possible behaviour is a 500 at login.
+/// This is the fail-loud gate: metadata that boot would refuse (unparseable, with no
+/// HTTP-Redirect SSO binding, or with no signing certificate) is refused here too, so no write can
+/// land a row whose only possible behaviour is a 500 at login.
 fn derive(spec: &SamlIdpSpec) -> Result<(String, Option<Timestamp>), SamlError> {
     let config = super::SamlIdpConfig::builder(
         spec.idp_name.clone(),

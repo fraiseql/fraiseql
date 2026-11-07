@@ -1482,3 +1482,124 @@ async fn acs_for_an_mfa_user(
     .into_response();
     Some(resp)
 }
+
+// ─── IdP signing certificate ─────────────────────────────────────────────────
+
+/// IdP metadata with the given `KeyDescriptor` block(s) and a valid redirect SSO binding, so
+/// the signing certificate is the only thing a test varies.
+fn idp_metadata_with_keys(key_descriptors: &str) -> String {
+    format!(
+        r#"<EntityDescriptor xmlns="urn:oasis:names:tc:SAML:2.0:metadata" entityID="{IDP_ENTITY}">
+  <IDPSSODescriptor protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+{key_descriptors}    <SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="{IDP_SSO}"/>
+  </IDPSSODescriptor>
+</EntityDescriptor>"#
+    )
+}
+
+fn key_descriptor_xml(key_use: &str, cert_b64: &str) -> String {
+    format!(
+        "    <KeyDescriptor use=\"{key_use}\">\n      \
+         <KeyInfo xmlns=\"http://www.w3.org/2000/09/xmldsig#\">\n        \
+         <X509Data><X509Certificate>{cert_b64}</X509Certificate></X509Data>\n      \
+         </KeyInfo>\n    </KeyDescriptor>\n"
+    )
+}
+
+fn build_from_metadata(xml: &str) -> Result<SamlIdpConfig, SamlError> {
+    SamlIdpConfig::builder("test-idp", SP_ENTITY, SP_ACS)
+        .idp_metadata_xml(xml)?
+        .build()
+}
+
+fn refused_for_missing_signing_certificate(result: &Result<SamlIdpConfig, SamlError>) -> bool {
+    matches!(result, Err(SamlError::Config(m)) if m.contains("signing certificate"))
+}
+
+#[test]
+fn metadata_without_any_key_descriptor_is_refused_at_build() {
+    let result = build_from_metadata(&idp_metadata_with_keys(""));
+    assert!(refused_for_missing_signing_certificate(&result), "got {result:?}");
+}
+
+#[test]
+fn metadata_with_only_an_encryption_key_is_refused_at_build() {
+    let test_idp = new_idp();
+    let cert_b64 = base64::engine::general_purpose::STANDARD.encode(test_idp.cert.der_data());
+    let result =
+        build_from_metadata(&idp_metadata_with_keys(&key_descriptor_xml("encryption", &cert_b64)));
+    assert!(refused_for_missing_signing_certificate(&result), "got {result:?}");
+}
+
+#[test]
+fn metadata_whose_signing_certificate_is_not_x509_is_refused_at_build() {
+    // Valid base64 ("not a cert"), so samael's own lookup accepts it as a certificate.
+    let result = build_from_metadata(&idp_metadata_with_keys(&key_descriptor_xml(
+        "signing",
+        "bm90IGEgY2VydA==",
+    )));
+    assert!(refused_as_unparseable(&result), "got {result:?}");
+}
+
+#[test]
+fn metadata_whose_signing_certificate_is_not_base64_is_refused_at_build() {
+    // samael's own lookup fails on this one.
+    let result = build_from_metadata(&idp_metadata_with_keys(&key_descriptor_xml(
+        "signing",
+        "!!! not base64 !!!",
+    )));
+    assert!(refused_as_unparseable(&result), "got {result:?}");
+}
+
+fn refused_as_unparseable(result: &Result<SamlIdpConfig, SamlError>) -> bool {
+    matches!(result, Err(SamlError::Config(m)) if m.contains("signing certificate does not parse"))
+}
+
+/// A well-formed but unsigned `SAMLResponse`: the template with a valid confirmation window,
+/// so the signature is the only thing missing.
+fn unsigned_response(test_idp: &TestIdp, name_id: &str) -> String {
+    let mut response = build_response_template(
+        &test_idp.cert,
+        name_id,
+        SP_ENTITY,
+        IDP_ENTITY,
+        SP_ACS,
+        REQ_ID,
+        &[],
+    );
+    if let Some(data) = response
+        .assertion
+        .as_mut()
+        .and_then(|a| a.subject.as_mut())
+        .and_then(|s| s.subject_confirmations.as_mut())
+        .and_then(|c| c.first_mut())
+        .and_then(|c| c.subject_confirmation_data.as_mut())
+    {
+        data.not_on_or_after =
+            Some((std::time::SystemTime::now() + std::time::Duration::from_mins(5)).into());
+    }
+    encode(&response.to_string().unwrap())
+}
+
+#[tokio::test]
+async fn verification_refuses_an_idp_config_without_a_signing_certificate() {
+    let test_idp = new_idp();
+    // `build()` refuses this shape; the verifier must refuse it on its own too, so the
+    // config is stripped of its certificate after building.
+    let mut config = config_with_cert(&test_idp.cert);
+    config.sp.idp_metadata = idp_metadata_with_keys("").parse().unwrap();
+    let replay = SamlReplayCache::new();
+
+    let result = verify_saml_response(
+        &config,
+        &unsigned_response(&test_idp, "someone-nameid"),
+        &[REQ_ID],
+        &replay,
+        Timestamp::now(),
+    )
+    .await;
+    assert!(
+        matches!(&result, Err(SamlError::Verification(m)) if m.contains("signing certificate")),
+        "got {result:?}"
+    );
+}

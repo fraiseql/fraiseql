@@ -49,7 +49,10 @@ columns in sync if either changes.
 Every assertion is verified fail-closed before a session is issued:
 
 - **Signature** — verified against the configured IdP certificate, restricted to a
-  SHA-256+ signature/digest **algorithm allow-list** (SHA-1 is rejected).
+  SHA-256+ signature/digest **algorithm allow-list** (SHA-1 is rejected). IdP metadata
+  that names no signing certificate (a `KeyDescriptor` with `use="signing"` or no `use`)
+  is refused when the IdP is configured, created or updated: an encryption-only key does
+  not count.
 - **XML Signature Wrapping** — the document is *reduced to the bytes covered by the
   verified signature* and only that is parsed; forged/duplicate/nested assertions are
   rejected.

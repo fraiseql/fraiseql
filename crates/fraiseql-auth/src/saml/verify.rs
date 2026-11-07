@@ -58,7 +58,8 @@ pub fn reject_doctype(xml: &str) -> Result<(), SamlError> {
 /// Verify a base64-encoded `SAMLResponse` and extract its verified assertion.
 ///
 /// Steps, all fail-closed:
-/// 1. base64-decode and reject any `DOCTYPE`/entity declaration (XXE defense);
+/// 1. base64-decode and reject any `DOCTYPE`/entity declaration (XXE defense), and refuse an IdP
+///    with no signing certificate;
 /// 2. delegate to `samael`, which verifies the XML signature against the IdP cert using the
 ///    configured algorithm allow-list, *reduces* the document to the signed bytes (XML Signature
 ///    Wrapping defense), and validates audience, `Recipient`/`Destination`,
@@ -94,6 +95,15 @@ pub async fn verify_saml_response(
 
     // XXE / entity-expansion defense — before the XML ever reaches a parser.
     reject_doctype(xml)?;
+
+    // With no IdP signing certificate samael skips signature verification and validates
+    // the unsigned document. `build()` refuses such a config; this refuses it again here, so
+    // no way of obtaining a config can reach samael without a certificate to verify against.
+    if !matches!(idp.service_provider().idp_signing_certs(), Ok(Some(certs)) if !certs.is_empty()) {
+        return Err(SamlError::Verification(
+            "IdP has no signing certificate to verify the response against".to_string(),
+        ));
+    }
 
     // An EncryptedAssertion is only ever as trustworthy as the signature over its
     // ciphertext — see `check_encryption_algorithms`. Run the algorithm gate first, on
