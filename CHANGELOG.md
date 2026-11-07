@@ -372,6 +372,14 @@ disagreed, and the promise was the part that was wrong.
 
 ### Changed
 
+- **pg_tviews 0.1.0-beta.37 is the supported release (#1958).** The test image builds it at
+  the tag's commit, aaba9ff4; jsonb_delta stays at v0.3.0. Only beta.36 updates to beta.37.
+  The update re-derives every TVIEW and refuses (`42501`) one whose owner can no longer read
+  its sources. A write to a table a TVIEW reads fails the same way. The change report names
+  the type of a changed row it leaves out in `invalidated_types`, which FraiseQL already
+  treats as wholly changed. See "Upgrading pg_tviews to beta.37" in
+  `docs/architecture/mutation-response.md`.
+
 - **pg_tviews 0.1.0-beta.36 is the supported release (#1951).** The test image builds it at
   the tag's commit, d8d797d1; jsonb_delta stays at v0.3.0. Only beta.35 updates to beta.36.
   The update re-derives every TVIEW as its owner and refuses when an owner can no longer
