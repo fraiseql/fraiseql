@@ -23,6 +23,17 @@ testcontainers = { version = "0.27", features = ["watchdog"], optional = true }
 testcontainers-modules = { version = "0.15", features = [
   "postgres",
 ], optional = true }
+# The `test-issuer` fixture: an ES256 OIDC issuer served on loopback.
+base64 = { workspace = true, optional = true }
+jsonwebtoken = { workspace = true, optional = true }
+p256 = { version = "0.13", features = [
+  "arithmetic",
+  "pkcs8",
+  "pem",
+], optional = true }
+rand = { workspace = true, optional = true }
+serde_json = { workspace = true, optional = true }
+wiremock = { version = "0.6", optional = true }
 
 [features]
 default = []
@@ -31,10 +42,27 @@ default = []
 # CI binaries must not even compile testcontainers — that makes the container-leak
 # class impossible in the CI artifact by construction. See docs/contributing/dagger-parity-notes.md.
 local-testcontainers = ["dep:testcontainers", "dep:testcontainers-modules"]
+# An in-process ES256 OIDC issuer: key pairs generated at runtime, a JWKS and a
+# discovery document served on loopback, and tokens minted with chosen claims.
+test-issuer = [
+  "dep:base64",
+  "dep:jsonwebtoken",
+  "dep:p256",
+  "dep:rand",
+  "dep:serde_json",
+  "dep:wiremock",
+]
 
 # tokio is dev-only (doctest/example runtime). The library itself stays runtime-agnostic.
 [dev-dependencies]
 tokio = { workspace = true }
+# The fixture's self-test reads the served key set through the client every
+# validator uses. A dev-dependency only: the library still pulls no workspace crate.
+fraiseql-jwks = { workspace = true }
+
+[[test]]
+name = "test_issuer_test"
+required-features = ["test-issuer"]
 
 [lints]
 workspace = true

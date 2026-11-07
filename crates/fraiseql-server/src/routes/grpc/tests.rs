@@ -918,7 +918,7 @@ mod revocation {
 
     use crate::{
         routes::grpc::DynamicGrpcService,
-        testing::idp::{TestIdp, token},
+        testing::idp::TestIdp,
         token_revocation::{InMemoryRevocationStore, RevocationStore, TokenRevocationManager},
     };
 
@@ -931,7 +931,7 @@ mod revocation {
         DynamicGrpcService::validate_bearer(
             &idp.validator(true),
             Some(&manager),
-            &token("alice", jti),
+            &idp.token("alice", jti),
         )
         .await
         .is_ok()

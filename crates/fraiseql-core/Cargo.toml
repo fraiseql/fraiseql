@@ -107,7 +107,9 @@ criterion = { version = "0.5", features = ["async_tokio"] }
 iai-callgrind = "=0.16.1"
 moka = { workspace = true }
 fraiseql-test-utils = { path = "../fraiseql-test-utils" }
-fraiseql-test-support = { path = "../fraiseql-test-support" }
+fraiseql-test-support = { path = "../fraiseql-test-support", features = [
+  "test-issuer",
+] }
 fraiseql-wire = { workspace = true }
 insta = { workspace = true }
 tracing-subscriber = { workspace = true }

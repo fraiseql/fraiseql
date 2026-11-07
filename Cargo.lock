@@ -4280,10 +4280,17 @@ dependencies = [
 name = "fraiseql-test-support"
 version = "2.19.0"
 dependencies = [
+ "base64 0.22.1",
+ "fraiseql-jwks",
+ "jsonwebtoken",
+ "p256",
+ "rand 0.9.4",
+ "serde_json",
  "testcontainers",
  "testcontainers-modules",
  "tokio",
  "tracing",
+ "wiremock",
 ]
 
 [[package]]

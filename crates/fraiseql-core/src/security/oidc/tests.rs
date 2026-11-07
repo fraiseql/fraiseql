@@ -1430,3 +1430,55 @@ mod additional_issuers {
         assert!(err.to_string().contains("plain.example.com"), "{err}");
     }
 }
+
+// ============================================================================
+// The shared ES256 test issuer, located by discovery
+// ============================================================================
+
+mod test_issuer {
+    use fraiseql_test_support::issuer::TestIssuer;
+
+    use crate::security::{
+        errors::SecurityError,
+        oidc::{providers::OidcConfig, token::OidcValidator},
+    };
+
+    /// A validator for `issuer`, built the way a deployment builds one: from the
+    /// issuer alone, with its JWKS located by discovery.
+    async fn discovered(issuer: &TestIssuer) -> OidcValidator {
+        OidcValidator::new(OidcConfig {
+            issuer: Some(issuer.issuer().to_string()),
+            audience: Some(issuer.audience().to_string()),
+            allowed_algorithms: vec!["ES256".to_string()],
+            ..OidcConfig::default()
+        })
+        .await
+        .expect("the test issuer's discovery document is accepted")
+    }
+
+    #[tokio::test]
+    async fn a_token_from_a_discovered_es256_issuer_is_validated() {
+        let issuer = TestIssuer::start().await;
+        let validator = discovered(&issuer).await;
+
+        let user = validator
+            .validate_token(&issuer.mint(&issuer.claims().set("sub", "user-42")))
+            .await
+            .unwrap();
+
+        assert_eq!(user.user_id.as_str(), "user-42");
+    }
+
+    #[tokio::test]
+    async fn a_token_naming_the_issuers_kid_but_signed_by_another_key_is_refused() {
+        let issuer = TestIssuer::start().await;
+        let validator = discovered(&issuer).await;
+
+        let result = validator.validate_token(&issuer.foreign_token(&issuer.claims())).await;
+
+        assert!(
+            matches!(result, Err(SecurityError::InvalidToken)),
+            "a token the issuer did not sign was not refused as invalid: {result:?}"
+        );
+    }
+}

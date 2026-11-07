@@ -292,7 +292,7 @@ mod api_v1_intelligence_routes {
 mod storage_revocation {
     use super::*;
     use crate::{
-        testing::idp::{TestIdp, token},
+        testing::idp::TestIdp,
         token_revocation::{InMemoryRevocationStore, RevocationStore, TokenRevocationManager},
     };
 
@@ -314,7 +314,7 @@ mod storage_revocation {
         let request = Request::builder()
             .method("GET")
             .uri("/storage/v1/object/docs/report.txt")
-            .header("authorization", format!("Bearer {}", token("alice", jti)))
+            .header("authorization", format!("Bearer {}", idp.token("alice", jti)))
             .body(Body::empty())
             .unwrap();
         app.oneshot(request).await.unwrap().status()

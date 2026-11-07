@@ -149,7 +149,7 @@ mod storage_admission {
     #[tokio::test]
     async fn a_bearer_token_is_validated_and_checked_for_revocation() {
         use crate::{
-            testing::idp::{TestIdp, token},
+            testing::idp::TestIdp,
             token_revocation::{InMemoryRevocationStore, RevocationStore, TokenRevocationManager},
         };
 
@@ -167,7 +167,7 @@ mod storage_admission {
                 Err((StatusCode::UNAUTHORIZED, crate::admission::TOKEN_REVOKED.to_string())),
             ),
         ] {
-            let bearer = format!("Bearer {}", token("alice", jti));
+            let bearer = format!("Bearer {}", idp.token("alice", jti));
             let headers = headers(&[("authorization", bearer.as_str())]);
             let answer = match identify_storage_caller(
                 &state,

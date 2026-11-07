@@ -18,7 +18,7 @@ use tower::ServiceExt;
 use crate::{
     server::Server,
     server_config::{AsyncOperationsConfig, ServerConfig},
-    testing::idp::{TestIdp, token},
+    testing::idp::TestIdp,
     token_revocation::{InMemoryRevocationStore, TokenRevocationManager},
 };
 
@@ -130,7 +130,7 @@ impl Call {
     }
 
     /// `app`'s answer to this request carrying `credential`.
-    async fn status(self, app: &Router, credential: Credential) -> StatusCode {
+    async fn status(self, app: &Router, idp: &TestIdp, credential: Credential) -> StatusCode {
         let mut request = Request::builder().method(self.method).uri(self.uri);
         if let Some(content_type) = self.content_type {
             request = request.header(header::CONTENT_TYPE, content_type);
@@ -143,7 +143,7 @@ impl Call {
                 .header(header::SEC_WEBSOCKET_KEY, "dGhlIHNhbXBsZSBub25jZQ==")
                 .header(header::SEC_WEBSOCKET_PROTOCOL, "graphql-transport-ws");
         }
-        let token = token("alice", &format!("jti-{}", uuid::Uuid::new_v4()));
+        let token = idp.token("alice", &format!("jti-{}", uuid::Uuid::new_v4()));
         request = match credential {
             Credential::Cookie => {
                 request.header(header::COOKIE, format!("__Host-access_token={token}"))
@@ -181,12 +181,12 @@ async fn the_cookie_is_a_credential_where_every_route_refuses_a_form_or_only_rea
     let app = app(&idp).await;
     for call in ACCEPTED {
         assert_eq!(
-            call.status(&app, Credential::Nothing).await,
+            call.status(&app, &idp, Credential::Nothing).await,
             StatusCode::UNAUTHORIZED,
             "{} must require a credential",
             call.what
         );
-        let status = call.status(&app, Credential::Cookie).await;
+        let status = call.status(&app, &idp, Credential::Cookie).await;
         assert_ne!(status, StatusCode::UNAUTHORIZED, "{} with the cookie", call.what);
         assert_ne!(status, StatusCode::NOT_FOUND, "{} must be mounted", call.what);
     }
@@ -213,12 +213,12 @@ async fn rest_the_socket_and_observer_admin_take_a_bearer_token_not_the_cookie()
     ];
     for call in refused {
         assert_eq!(
-            call.status(&app, Credential::Cookie).await,
+            call.status(&app, &idp, Credential::Cookie).await,
             StatusCode::UNAUTHORIZED,
             "{} with the cookie",
             call.what
         );
-        let status = call.status(&app, Credential::Bearer).await;
+        let status = call.status(&app, &idp, Credential::Bearer).await;
         assert_ne!(status, StatusCode::UNAUTHORIZED, "{} with a bearer token", call.what);
         assert_ne!(status, StatusCode::NOT_FOUND, "{} must be mounted", call.what);
     }
@@ -237,7 +237,7 @@ async fn a_form_shaped_post_carrying_the_cookie_is_refused() {
     ] {
         let call = Call::post(what, uri, "text/plain", r#"{"sub":"alice"}"#);
         assert_eq!(
-            call.status(&app, Credential::Cookie).await,
+            call.status(&app, &idp, Credential::Cookie).await,
             StatusCode::UNSUPPORTED_MEDIA_TYPE,
             "{what}"
         );

@@ -257,6 +257,14 @@ disagreed, and the promise was the part that was wrong.
 
 ### Added
 
+- **`fraiseql-test-support` gains an in-process ES256 OIDC issuer for tests (#1964).** The
+  `test-issuer` feature adds `issuer::TestIssuer`. It generates P-256 keys at runtime, so no
+  private key is committed, and serves a JWKS and a discovery document on loopback. A test
+  points the real `OidcValidator` at it. Default tokens carry `iss`, `aud`, `sub`, `iat`,
+  `nbf`, `exp` and a unique `jti`. `rotate`, `retire` and `foreign_token` cover key rotation
+  and a token signed by a key the issuer does not publish. The server's unit-test identity
+  provider now uses it, with ES256.
+
 - **A fact table's aggregate and window roots are scoped by `inject_params` (#1800).** The
   server composes each injected column equal to its value from the caller's token into every
   `_aggregate` and `_window` over the table, after a row policy's predicate and before the

@@ -28,3 +28,21 @@ async fn needs_postgres() {
 
 This crate is intentionally dependency-light (no workspace crates) so every crate can
 dev-depend on it without a cycle.
+
+## Test issuer (`test-issuer` feature)
+
+`issuer::TestIssuer` is an in-process ES256 OIDC issuer. It generates its P-256
+keys at runtime, serves a JWKS and a discovery document on a loopback port, and
+mints tokens with chosen claims. Point the real validator at `jwks_uri()`, or at
+`issuer()` for discovery, so the production path runs.
+
+The defaults are strict. Every token carries `iss`, `aud`, `sub`, `iat`, `nbf`,
+`exp` and a unique `jti`, and an `at+jwt` header naming its `kid`. A test that
+needs a claim missing or changed calls `Claims::without` or `Claims::set`.
+
+The issuer also provides:
+
+- `rotate()`, which adds a key and makes it the signing key;
+- `retire(kid)`, which stops publishing a key;
+- `foreign_token(claims)`, which names the active `kid` but is signed by a key
+  the issuer never publishes.
