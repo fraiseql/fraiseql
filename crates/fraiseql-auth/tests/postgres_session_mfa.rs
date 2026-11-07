@@ -25,9 +25,9 @@ async fn fresh() -> Option<PgPool> {
     PostgresSessionStore::new(pool.clone()).init().await.unwrap();
     PgMfaStore::new(pool.clone()).init().await.unwrap();
     for table in [
-        "core.tb_mfa_challenge",
-        "core.tb_mfa_enrollment",
-        "_system.sessions",
+        "auth.tb_mfa_challenge",
+        "auth.tb_mfa_enrollment",
+        "auth.sessions",
     ] {
         sqlx::query(&format!("DELETE FROM {table} WHERE user_id LIKE 'mfa-gate-%'"))
             .execute(&pool)
@@ -96,7 +96,7 @@ async fn redeem(pool: &PgPool, refused: Result<TokenPair, AuthError>, user_id: &
 }
 
 async fn sessions_of(pool: &PgPool, user_id: &str) -> i64 {
-    sqlx::query_scalar("SELECT count(*) FROM _system.sessions WHERE user_id = $1")
+    sqlx::query_scalar("SELECT count(*) FROM auth.sessions WHERE user_id = $1")
         .bind(user_id)
         .fetch_one(pool)
         .await
@@ -157,12 +157,12 @@ async fn a_store_that_cannot_read_enrollments_refuses_the_session() {
                  CREATE ROLE mfa_gate_noread NOLOGIN;
              END IF;
          END $$;
-         GRANT USAGE ON SCHEMA core, _system TO mfa_gate_noread;
-         GRANT SELECT, INSERT ON _system.sessions TO mfa_gate_noread;
-         REVOKE ALL ON core.tb_mfa_enrollment FROM mfa_gate_noread;
+         GRANT USAGE ON SCHEMA auth TO mfa_gate_noread;
+         GRANT SELECT, INSERT ON auth.sessions TO mfa_gate_noread;
+         REVOKE ALL ON auth.tb_mfa_enrollment FROM mfa_gate_noread;
          DO $$ BEGIN
-             IF to_regclass('core.tb_user') IS NOT NULL THEN
-                 GRANT SELECT ON core.tb_user TO mfa_gate_noread;
+             IF to_regclass('auth.tb_user') IS NOT NULL THEN
+                 GRANT SELECT ON auth.tb_user TO mfa_gate_noread;
              END IF;
          END $$;",
     )

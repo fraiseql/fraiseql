@@ -3,7 +3,7 @@
 //! Extends [`LocalPasswordAuthenticator`](super::LocalPasswordAuthenticator) with a
 //! single-use, TTL-bounded, non-enumerable password reset on top of #412's Argon2
 //! credentials and #411's identity store. Reset tokens live in a new
-//! `core.tb_password_reset_token` table mirroring the #411/#412 RLS posture.
+//! `auth.tb_password_reset_token` table mirroring the #411/#412 RLS posture.
 //!
 //! This ships the reset **primitive** as a library service — no HTTP routes and no
 //! concrete SMTP sender — matching #412's service-only precedent. Email delivery is
@@ -68,17 +68,17 @@ const TOKEN_KIND: &str = "reset";
 ///
 /// Exposed so a migration runner can apply it explicitly;
 /// [`LocalPasswordAuthenticator::init`](super::LocalPasswordAuthenticator::init) runs it
-/// after the #411 identity DDL (the table FK-references `core.tb_user`). Mirrors the
+/// after the #411 identity DDL (the table FK-references `auth.tb_user`). Mirrors the
 /// #411/#412 tables: Trinity `pk_`/`id` columns, deny-by-default RLS (`ENABLE`, not
 /// `FORCE`, so the owning store bypasses while any other role reads zero rows without the
 /// `fraiseql.tenant_id` GUC), and `REVOKE ALL … FROM PUBLIC`.
 pub const PASSWORD_RESET_SCHEMA_SQL: &str = r"
-CREATE SCHEMA IF NOT EXISTS core;
+CREATE SCHEMA IF NOT EXISTS auth;
 
-CREATE TABLE IF NOT EXISTS core.tb_password_reset_token (
+CREATE TABLE IF NOT EXISTS auth.tb_password_reset_token (
     pk_password_reset_token BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     id            UUID NOT NULL DEFAULT gen_random_uuid(),
-    fk_user       BIGINT NOT NULL REFERENCES core.tb_user (pk_user) ON DELETE CASCADE,
+    fk_user       BIGINT NOT NULL REFERENCES auth.tb_user (pk_user) ON DELETE CASCADE,
     user_id       TEXT NOT NULL,
     selector      TEXT NOT NULL,
     verifier_hash BYTEA NOT NULL,
@@ -89,20 +89,20 @@ CREATE TABLE IF NOT EXISTS core.tb_password_reset_token (
     UNIQUE (selector)
 );
 CREATE INDEX IF NOT EXISTS idx_password_reset_token_fk_user
-    ON core.tb_password_reset_token (fk_user);
+    ON auth.tb_password_reset_token (fk_user);
 
--- RLS deny-by-default (mirrors core.tb_user / core.tb_auth_identity / tb_password_credential).
-ALTER TABLE core.tb_password_reset_token ENABLE ROW LEVEL SECURITY;
+-- RLS deny-by-default (mirrors auth.tb_user / auth.tb_auth_identity / tb_password_credential).
+ALTER TABLE auth.tb_password_reset_token ENABLE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS p_password_reset_token_tenant_read ON core.tb_password_reset_token;
-CREATE POLICY p_password_reset_token_tenant_read ON core.tb_password_reset_token
+DROP POLICY IF EXISTS p_password_reset_token_tenant_read ON auth.tb_password_reset_token;
+CREATE POLICY p_password_reset_token_tenant_read ON auth.tb_password_reset_token
     FOR SELECT USING (tenant_id = NULLIF(current_setting('fraiseql.tenant_id', true), '')::uuid);
-DROP POLICY IF EXISTS p_password_reset_token_insert ON core.tb_password_reset_token;
-CREATE POLICY p_password_reset_token_insert ON core.tb_password_reset_token
+DROP POLICY IF EXISTS p_password_reset_token_insert ON auth.tb_password_reset_token;
+CREATE POLICY p_password_reset_token_insert ON auth.tb_password_reset_token
     FOR INSERT WITH CHECK (true);
 
 -- Least-privilege baseline: never world-readable. RLS is defence-in-depth on top.
-REVOKE ALL ON core.tb_password_reset_token FROM PUBLIC;
+REVOKE ALL ON auth.tb_password_reset_token FROM PUBLIC;
 ";
 
 /// Delivers a password-reset link to a user's email address.
@@ -174,8 +174,8 @@ impl LocalPasswordAuthenticator {
         // a platform path, like the sign-in it restores (#1088).
         let row = sqlx::query(
             "SELECT c.fk_user, c.user_id \
-             FROM core.tb_password_credential c \
-             JOIN core.tb_auth_identity i ON i.fk_user = c.fk_user \
+             FROM auth.tb_password_credential c \
+             JOIN auth.tb_auth_identity i ON i.fk_user = c.fk_user \
              WHERE i.provider = $1 AND i.provider_id = $2 AND i.tenant_id IS NULL",
         )
         .bind(LOCAL_PROVIDER)
@@ -203,7 +203,7 @@ impl LocalPasswordAuthenticator {
         let expires_at = Utc::now() + Duration::seconds(RESET_TOKEN_TTL_SECS);
 
         sqlx::query(
-            "INSERT INTO core.tb_password_reset_token \
+            "INSERT INTO auth.tb_password_reset_token \
              (fk_user, user_id, selector, verifier_hash, expires_at) \
              VALUES ($1, $2, $3, $4, $5)",
         )
@@ -274,7 +274,7 @@ impl LocalPasswordAuthenticator {
         let row = sqlx::query(
             "SELECT pk_password_reset_token AS pk, fk_user, user_id, verifier_hash, \
                     expires_at, used_at \
-             FROM core.tb_password_reset_token WHERE selector = $1",
+             FROM auth.tb_password_reset_token WHERE selector = $1",
         )
         .bind(&parsed.selector)
         .fetch_optional(&self.db)
@@ -341,7 +341,7 @@ impl LocalPasswordAuthenticator {
         // Atomic single-use guard: mark THIS token used only if still unused and unexpired.
         // A concurrent redemption that already consumed it affects zero rows -> abort.
         let consumed = sqlx::query(
-            "UPDATE core.tb_password_reset_token SET used_at = now() \
+            "UPDATE auth.tb_password_reset_token SET used_at = now() \
              WHERE pk_password_reset_token = $1 AND used_at IS NULL AND expires_at > now()",
         )
         .bind(pk)
@@ -362,7 +362,7 @@ impl LocalPasswordAuthenticator {
         }
 
         let updated = sqlx::query(
-            "UPDATE core.tb_password_credential SET password_hash = $1, updated_at = now() \
+            "UPDATE auth.tb_password_credential SET password_hash = $1, updated_at = now() \
              WHERE fk_user = $2",
         )
         .bind(&new_hash)
@@ -381,7 +381,7 @@ impl LocalPasswordAuthenticator {
         // Invalidate the user's other outstanding tokens (the consumed one is already
         // used_at IS NOT NULL, so this excludes it).
         sqlx::query(
-            "UPDATE core.tb_password_reset_token SET used_at = now() \
+            "UPDATE auth.tb_password_reset_token SET used_at = now() \
              WHERE fk_user = $1 AND used_at IS NULL",
         )
         .bind(fk_user)

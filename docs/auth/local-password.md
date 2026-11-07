@@ -2,7 +2,7 @@
 
 `LocalPasswordAuthenticator` adds email + password sign-in on top of the
 [persistent identity store](identity-store.md). Passwords are hashed with **Argon2id**
-and stored in `core.tb_password_credential` — never adjacent to plaintext, never in the
+and stored in `auth.tb_password_credential` — never adjacent to plaintext, never in the
 user row. It is always compiled in; you opt in by constructing it and wiring routes.
 
 ## Why
@@ -33,7 +33,7 @@ let user_id = auth.login("alice@example.com", "correct horse battery staple").aw
 # }
 ```
 
-The connecting `PgPool` role must **own** (or carry `BYPASSRLS` for) the `core` tables —
+The connecting `PgPool` role must **own** (or carry `BYPASSRLS` for) the `auth` tables —
 calling `init()` creates them, so the connecting role owns them by construction.
 
 Use `LocalPasswordAuthenticator::with_params(pool, accounts, m_cost, t_cost, p_cost)` to
@@ -42,12 +42,12 @@ parameters upgrade automatically on the next successful login (see *Rehash* belo
 
 ## Schema
 
-One table in the `core` schema, created idempotently by `init()` (which also ensures
+One table in the `auth` schema, created idempotently by `init()` (which also ensures
 the #411 identity tables it FK-references):
 
 | Table | Purpose |
 | --- | --- |
-| `core.tb_password_credential` | One row per local credential: `fk_user`/`user_id`, the Argon2id `password_hash`, `disabled_at`, `tenant_id`. `UNIQUE (fk_user)` → at most one local password per account. |
+| `auth.tb_password_credential` | One row per local credential: `fk_user`/`user_id`, the Argon2id `password_hash`, `disabled_at`, `tenant_id`. `UNIQUE (fk_user)` → at most one local password per account. |
 
 It mirrors the #411 tables exactly: Trinity `pk_`/`fk_`/`id` columns and deny-by-default
 RLS (`ENABLE`, not `FORCE`; the owning store bypasses, any other non-`BYPASSRLS` role
@@ -64,7 +64,7 @@ These are deliberate decisions, not defaults — they shape the API behaviour.
 
 Signup resolves or creates the user through the `AccountStore` with provider `"local"`
 and `provider_id = normalize_email(email)`. Login reuses the
-`UNIQUE (provider, provider_id)` index on `core.tb_auth_identity` as the email → `user_id`
+`UNIQUE (provider, provider_id)` index on `auth.tb_auth_identity` as the email → `user_id`
 lookup key — a single source of truth, no extra column.
 
 ### Signup is fail-closed
@@ -73,7 +73,7 @@ Signup links with `email_verified = false`. A local signup therefore keys its **
 `(local, email)` account and can never auto-merge into an existing verified-email account
 (e.g. a prior Google sign-in for the same address). This is the H26 protection: an
 attacker cannot sign up locally with a victim's email and reach the victim's account.
-`core.tb_user.email` stays `NULL` for a local account until [email
+`auth.tb_user.email` stays `NULL` for a local account until [email
 verification](#email-verification-945) promotes it on a proved mailbox — the one path that
 writes it, and one that refuses to move any row between accounts.
 
@@ -131,7 +131,7 @@ use fraiseql_auth::{ResetEmailSender, SessionStore};
 let auth = LocalPasswordAuthenticator::new(pool, accounts)
     .with_email_sender(email_sender)    // Arc<dyn ResetEmailSender>: delivers the link
     .with_session_store(session_store); // Arc<dyn SessionStore>: revoked on a reset
-auth.init().await?; // also creates core.tb_password_reset_token
+auth.init().await?; // also creates auth.tb_password_reset_token
 
 // Non-enumerable: always Ok(()), whether or not the email has a local account.
 auth.start_password_reset("alice@example.com").await?;
@@ -144,7 +144,7 @@ auth.confirm_password_reset(&token, "a brand new passphrase!").await?;
 ### Token design: selector + verifier
 
 The opaque token handed to the user is `selector.verifier` (base64url). The store
-(`core.tb_password_reset_token`, FK-linked to `core.tb_user`, same deny-by-default RLS as
+(`auth.tb_password_reset_token`, FK-linked to `auth.tb_user`, same deny-by-default RLS as
 above) keeps only the **selector** (indexed, non-secret) and **`sha256(verifier)`** — never
 the raw token. Redemption looks the row up by selector (no secret in the `WHERE`, so the
 lookup is not an existence oracle), then compares the SHA-256 of the presented verifier
@@ -209,7 +209,7 @@ Two routes mount, and both require an authenticated caller:
 
 The token uses the same selector + verifier discipline as password reset — single-use,
 one-hour TTL, constant-time verifier comparison, `sha256(verifier)` the only persisted
-form — in `core.tb_email_verification_token`, which additionally stores the address the
+form — in `auth.tb_email_verification_token`, which additionally stores the address the
 link was mailed to, so confirmation promotes exactly the mailbox that was proved.
 
 ### Both halves are required
@@ -228,7 +228,7 @@ closed, and a token presented by any other account is rejected exactly like a fo
 
 ### Promotion, not merging
 
-On success the proved address is written to the caller's own `core.tb_user.email`. That is
+On success the proved address is written to the caller's own `auth.tb_user.email`. That is
 what puts the account in the cross-provider `email:<normalized>` key space, so a later
 trusted social sign-in for the same address links into it through the ordinary
 `AccountStore::link_or_create_user` path — one account, no merge machinery.

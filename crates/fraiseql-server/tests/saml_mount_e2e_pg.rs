@@ -719,7 +719,7 @@ async fn an_unreadable_idp_store_refuses_to_serve() {
     let (_, stop, serving) = serve_saml(config.clone(), &scratch_url, &pool).await;
     let _ = stop.send(());
     serving.await.expect("first server");
-    sqlx::query("ALTER TABLE core.tb_saml_idp RENAME COLUMN metadata_xml TO metadata_xml_moved")
+    sqlx::query("ALTER TABLE auth.tb_saml_idp RENAME COLUMN metadata_xml TO metadata_xml_moved")
         .execute(&pool)
         .await
         .expect("rename");

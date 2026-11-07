@@ -829,7 +829,7 @@ impl Server {
             )?
         };
 
-        // Every session-minting server sweeps `_system.sessions`: a row past its
+        // Every session-minting server sweeps `auth.sessions`: a row past its
         // `expires_at` can no longer be used, refreshable or not.
         #[cfg(feature = "auth")]
         let session_sweep = {
@@ -1294,7 +1294,7 @@ impl Server {
         }
     }
 
-    /// Spawn the `_system.sessions` expiry sweep (#1853) on the same cadence and terms as
+    /// Spawn the `auth.sessions` expiry sweep (#1853) on the same cadence and terms as
     /// the `MFA`/`OTP` sweeps: a failed pass is logged and the ticker continues.
     #[cfg(feature = "auth")]
     fn spawn_session_sweep(

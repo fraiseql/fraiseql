@@ -75,7 +75,7 @@ impl Capability for Saml {
         info!(
             stored_idps = registry.idp_names().len() - config.idps.len(),
             refresh_interval_secs = config.refresh_interval_secs,
-            "SAML per-tenant IdP store enabled (core.tb_saml_idp, admin CRUD at /api/saml/idps)"
+            "SAML per-tenant IdP store enabled (auth.tb_saml_idp, admin CRUD at /api/saml/idps)"
         );
         let interval = std::time::Duration::from_secs(config.refresh_interval_secs);
         let warning_days = config.certificate_expiry_warning_days;

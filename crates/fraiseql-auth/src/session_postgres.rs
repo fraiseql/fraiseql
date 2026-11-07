@@ -70,13 +70,13 @@ pub struct PostgresSessionStore {
     lifetime:       SessionLifetime,
 }
 
-/// Idempotent DDL for `_system.sessions`.
+/// Idempotent DDL for `auth.sessions`.
 ///
 /// [`PostgresSessionStore::init`] applies it on its own connection, which is not safe
 /// against a concurrent boot; `fraiseql-server` applies this text under its migration
 /// lock instead.
 pub const SESSIONS_SCHEMA_SQL: &str = r"
-CREATE SCHEMA IF NOT EXISTS _system;
+CREATE SCHEMA IF NOT EXISTS auth;
 
 -- One row per refresh token. `expires_at` is when that refresh token stops working, and
 -- what the sweep deletes by. It means one of two things:
@@ -85,7 +85,7 @@ CREATE SCHEMA IF NOT EXISTS _system;
 --   * a refreshable session (#1853): the session's absolute limit, counted from sign-in
 --     and copied unchanged to every row its refreshes create. The access token's own
 --     expiry is in the token, not here.
-CREATE TABLE IF NOT EXISTS _system.sessions (
+CREATE TABLE IF NOT EXISTS auth.sessions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id TEXT NOT NULL,
     refresh_token_hash TEXT NOT NULL UNIQUE,
@@ -97,22 +97,22 @@ CREATE TABLE IF NOT EXISTS _system.sessions (
 
 -- The account's tenant when the session was minted (#1450), for revocation and
 -- audit. NULL for a platform account or a principal with no account row.
-ALTER TABLE _system.sessions ADD COLUMN IF NOT EXISTS tenant_id UUID;
+ALTER TABLE auth.sessions ADD COLUMN IF NOT EXISTS tenant_id UUID;
 
 -- A refreshable session (#1853): every row a sign-in and its refreshes create shares a
 -- family. NULL for a session that cannot be refreshed.
-ALTER TABLE _system.sessions ADD COLUMN IF NOT EXISTS family_id UUID;
+ALTER TABLE auth.sessions ADD COLUMN IF NOT EXISTS family_id UUID;
 -- When this row's refresh token was exchanged for the next one, in Unix seconds on the
 -- server's clock. A rotated token used again is answered by how long ago this was.
-ALTER TABLE _system.sessions ADD COLUMN IF NOT EXISTS rotated_at BIGINT;
+ALTER TABLE auth.sessions ADD COLUMN IF NOT EXISTS rotated_at BIGINT;
 -- The `jti` of the access token minted with this row, so logout can deny it where
 -- `[security.token_revocation]` is configured.
-ALTER TABLE _system.sessions ADD COLUMN IF NOT EXISTS access_jti TEXT;
-CREATE INDEX IF NOT EXISTS idx_sessions_family_id ON _system.sessions(family_id);
+ALTER TABLE auth.sessions ADD COLUMN IF NOT EXISTS access_jti TEXT;
+CREATE INDEX IF NOT EXISTS idx_sessions_family_id ON auth.sessions(family_id);
 
-CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON _system.sessions(user_id);
-CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON _system.sessions(expires_at);
-CREATE INDEX IF NOT EXISTS idx_sessions_revoked_at ON _system.sessions(revoked_at);
+CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON auth.sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON auth.sessions(expires_at);
+CREATE INDEX IF NOT EXISTS idx_sessions_revoked_at ON auth.sessions(revoked_at);
 ";
 
 impl PostgresSessionStore {
@@ -273,7 +273,7 @@ impl PostgresSessionStore {
 ///
 /// # Why a missing table is allowed through
 ///
-/// `core.tb_user` belongs to the account store, which a session-only embedder need not
+/// `auth.tb_user` belongs to the account store, which a session-only embedder need not
 /// have. Treating its absence as a refusal would break those deployments closed for a
 /// reason unrelated to offboarding. So the *specific* Postgres `undefined_table` code is
 /// the one condition that passes; every other error — including a readable row that says
@@ -283,7 +283,7 @@ impl PostgresSessionStore {
 /// A user with no row is allowed, in no tenant: anonymous sessions and JWT-only
 /// principals live in a different identity space and were never provisioned.
 async fn account_for_session(db: &PgPool, user_id: &str) -> Result<Option<uuid::Uuid>> {
-    let row = sqlx::query("SELECT active, tenant_id FROM core.tb_user WHERE user_id = $1")
+    let row = sqlx::query("SELECT active, tenant_id FROM auth.tb_user WHERE user_id = $1")
         .bind(user_id)
         .fetch_optional(db)
         .await;
@@ -323,7 +323,7 @@ impl PostgresSessionStore {
     /// Returns [`AuthError::DatabaseError`] if the delete fails.
     pub async fn sweep_expired(&self) -> Result<u64> {
         let now = unix_now()?;
-        let swept = sqlx::query("DELETE FROM _system.sessions WHERE expires_at < $1")
+        let swept = sqlx::query("DELETE FROM auth.sessions WHERE expires_at < $1")
             .bind(now.cast_signed())
             .execute(&self.db)
             .await
@@ -354,7 +354,7 @@ impl PostgresSessionStore {
         let Some(row) = sqlx::query(
             r"
             SELECT id, user_id, family_id, expires_at, rotated_at, revoked_at IS NOT NULL AS revoked
-            FROM _system.sessions
+            FROM auth.sessions
             WHERE refresh_token_hash = $1
             FOR UPDATE
             ",
@@ -406,7 +406,7 @@ impl PostgresSessionStore {
             Err(e) => return Err(e),
         };
 
-        sqlx::query("UPDATE _system.sessions SET rotated_at = $2 WHERE id = $1")
+        sqlx::query("UPDATE auth.sessions SET rotated_at = $2 WHERE id = $1")
             .bind(id)
             .bind(now.cast_signed())
             .execute(&mut *tx)
@@ -438,7 +438,7 @@ impl PostgresSessionStore {
     pub async fn end_session(&self, refresh_token: &str) -> Result<Vec<String>> {
         let mut tx = self.db.begin().await.map_err(|e| db_error("begin a logout", &e))?;
         let Some(row) =
-            sqlx::query("SELECT id, family_id FROM _system.sessions WHERE refresh_token_hash = $1")
+            sqlx::query("SELECT id, family_id FROM auth.sessions WHERE refresh_token_hash = $1")
                 .bind(hash_token(refresh_token))
                 .fetch_optional(&mut *tx)
                 .await
@@ -450,7 +450,7 @@ impl PostgresSessionStore {
         let family: Option<uuid::Uuid> = row.get("family_id");
         let jtis: Vec<Option<String>> = sqlx::query_scalar(
             r"
-            UPDATE _system.sessions
+            UPDATE auth.sessions
             SET revoked_at = COALESCE(revoked_at, NOW())
             WHERE id = $1 OR family_id = $2
             RETURNING access_jti
@@ -537,13 +537,13 @@ impl PostgresSessionStore {
 
         // Mint the access token before writing the session row: if signing is not
         // configured this fails, and doing it first keeps an orphan row out of
-        // _system.sessions for a session that was never handed to anyone.
+        // auth.sessions for a session that was never handed to anyone.
         let (access_token, jti) = self.generate_access_token(user_id, tenant, expires_in)?;
         let row_expires_at = family.map_or(access_expires_at, |(_, limit)| limit);
 
         sqlx::query(
             r"
-            INSERT INTO _system.sessions
+            INSERT INTO auth.sessions
             (user_id, refresh_token_hash, issued_at, expires_at, tenant_id, family_id, access_jti)
             VALUES ($1, $2, $3, $4, $5, $6, $7)
             ",
@@ -580,7 +580,7 @@ impl PostgresSessionStore {
 /// End every row of a session family.
 async fn end_family(conn: &mut sqlx::PgConnection, family: uuid::Uuid) -> Result<()> {
     sqlx::query(
-        "UPDATE _system.sessions SET revoked_at = NOW() WHERE family_id = $1 AND revoked_at IS NULL",
+        "UPDATE auth.sessions SET revoked_at = NOW() WHERE family_id = $1 AND revoked_at IS NULL",
     )
     .bind(family)
     .execute(&mut *conn)
@@ -630,7 +630,7 @@ impl SessionStore for PostgresSessionStore {
         let row = sqlx::query(
             r"
             SELECT user_id, issued_at, expires_at, refresh_token_hash
-            FROM _system.sessions
+            FROM auth.sessions
             WHERE refresh_token_hash = $1 AND revoked_at IS NULL
             ",
         )
@@ -658,7 +658,7 @@ impl SessionStore for PostgresSessionStore {
     async fn revoke_session(&self, refresh_token_hash: &str) -> Result<()> {
         let result = sqlx::query(
             r"
-            UPDATE _system.sessions
+            UPDATE auth.sessions
             SET revoked_at = NOW()
             WHERE refresh_token_hash = $1 AND revoked_at IS NULL
             ",
@@ -682,7 +682,7 @@ impl SessionStore for PostgresSessionStore {
     async fn revoke_all_sessions(&self, user_id: &str) -> Result<()> {
         sqlx::query(
             r"
-            UPDATE _system.sessions
+            UPDATE auth.sessions
             SET revoked_at = NOW()
             WHERE user_id = $1 AND revoked_at IS NULL
             ",

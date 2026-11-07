@@ -49,7 +49,7 @@ pub const DEFAULT_EXPIRY_WARNING_DAYS: i64 = 30;
 pub enum IdpSource {
     /// Declared in `[saml.idps.<name>]`; changes need a restart.
     ConfigFile,
-    /// Stored in `core.tb_saml_idp`; hot-reloadable.
+    /// Stored in `auth.tb_saml_idp`; hot-reloadable.
     Store,
 }
 

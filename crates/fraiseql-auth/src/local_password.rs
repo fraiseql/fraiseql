@@ -4,7 +4,7 @@
 //! #411 durable identity store. It is the durable counterpart to the OAuth/OIDC flows:
 //! signup resolves or creates a user through the existing [`AccountStore`]
 //! (provider `"local"`), and the password hash is stored separately in
-//! `core.tb_password_credential` — never adjacent to plaintext, never in the user row.
+//! `auth.tb_password_credential` — never adjacent to plaintext, never in the user row.
 //!
 //! # Security design
 //!
@@ -12,10 +12,10 @@
 //!   (the `password-hash` crate compares via `subtle`).
 //! - **provider_id is the normalized email.** The local identity keys on `(provider = "local",
 //!   provider_id = normalize_email(email))`, reusing the `UNIQUE (provider, provider_id)` index on
-//!   `core.tb_auth_identity` as the login lookup key — one source of truth, no extra column.
+//!   `auth.tb_auth_identity` as the login lookup key — one source of truth, no extra column.
 //! - **Signup is fail-closed.** It links with `email_verified = false`, so a local signup keys its
 //!   own `(local, email)` account and can never auto-merge into an existing verified-email account
-//!   (the H26 protection against takeover via an unverified signup). `core.tb_user.email` therefore
+//!   (the H26 protection against takeover via an unverified signup). `auth.tb_user.email` therefore
 //!   stays `NULL` until [`verification`] promotes it on a proved mailbox (#945) — the one path that
 //!   writes it, and one that never moves a row between accounts.
 //! - **Login is non-enumerable.** An unknown user and a wrong password are indistinguishable: both
@@ -73,7 +73,7 @@ pub use verification::{
     PromotionDecision, VerificationEmailSender, decide_promotion,
 };
 
-/// Provider name recorded for local-password identities in `core.tb_auth_identity`.
+/// Provider name recorded for local-password identities in `auth.tb_auth_identity`.
 const LOCAL_PROVIDER: &str = "local";
 
 /// Minimum password length in bytes. A floor, not a policy engine — see the module docs
@@ -98,12 +98,12 @@ const DUMMY_PASSWORD: &[u8] = b"fraiseql-local-password-timing-equalization-dumm
 /// any other role reads zero rows without the `fraiseql.tenant_id` GUC), and
 /// `REVOKE ALL … FROM PUBLIC`.
 pub const PASSWORD_SCHEMA_SQL: &str = r"
-CREATE SCHEMA IF NOT EXISTS core;
+CREATE SCHEMA IF NOT EXISTS auth;
 
-CREATE TABLE IF NOT EXISTS core.tb_password_credential (
+CREATE TABLE IF NOT EXISTS auth.tb_password_credential (
     pk_password_credential BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     id            UUID NOT NULL DEFAULT gen_random_uuid(),
-    fk_user       BIGINT NOT NULL REFERENCES core.tb_user (pk_user) ON DELETE CASCADE,
+    fk_user       BIGINT NOT NULL REFERENCES auth.tb_user (pk_user) ON DELETE CASCADE,
     user_id       TEXT NOT NULL,
     password_hash TEXT NOT NULL,
     disabled_at   TIMESTAMPTZ,
@@ -113,20 +113,20 @@ CREATE TABLE IF NOT EXISTS core.tb_password_credential (
     UNIQUE (fk_user)
 );
 CREATE INDEX IF NOT EXISTS idx_password_credential_user_id
-    ON core.tb_password_credential (user_id);
+    ON auth.tb_password_credential (user_id);
 
--- RLS deny-by-default (mirrors core.tb_user / core.tb_auth_identity from #411).
-ALTER TABLE core.tb_password_credential ENABLE ROW LEVEL SECURITY;
+-- RLS deny-by-default (mirrors auth.tb_user / auth.tb_auth_identity from #411).
+ALTER TABLE auth.tb_password_credential ENABLE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS p_password_credential_tenant_read ON core.tb_password_credential;
-CREATE POLICY p_password_credential_tenant_read ON core.tb_password_credential
+DROP POLICY IF EXISTS p_password_credential_tenant_read ON auth.tb_password_credential;
+CREATE POLICY p_password_credential_tenant_read ON auth.tb_password_credential
     FOR SELECT USING (tenant_id = NULLIF(current_setting('fraiseql.tenant_id', true), '')::uuid);
-DROP POLICY IF EXISTS p_password_credential_insert ON core.tb_password_credential;
-CREATE POLICY p_password_credential_insert ON core.tb_password_credential
+DROP POLICY IF EXISTS p_password_credential_insert ON auth.tb_password_credential;
+CREATE POLICY p_password_credential_insert ON auth.tb_password_credential
     FOR INSERT WITH CHECK (true);
 
 -- Least-privilege baseline: never world-readable. RLS is defence-in-depth on top.
-REVOKE ALL ON core.tb_password_credential FROM PUBLIC;
+REVOKE ALL ON auth.tb_password_credential FROM PUBLIC;
 ";
 
 /// Email + password authenticator backed by Argon2id and the #411 identity store.
@@ -134,12 +134,12 @@ REVOKE ALL ON core.tb_password_credential FROM PUBLIC;
 /// Construct with [`new`](Self::new) (OWASP-default parameters) or
 /// [`with_params`](Self::with_params) (to tune cost), call [`init`](Self::init) once on
 /// startup, then [`signup`](Self::signup) / [`login`](Self::login). The connecting
-/// `PgPool` role must own (or `BYPASSRLS`) the `core` tables — calling `init` creates
+/// `PgPool` role must own (or `BYPASSRLS`) the `auth` tables — calling `init` creates
 /// them, so the connecting role owns them by construction.
 pub struct LocalPasswordAuthenticator {
     db:                  PgPool,
     /// Resolves/creates users at signup (provider `"local"`). Any [`AccountStore`] that
-    /// persists into `core.tb_auth_identity` works; in practice this is
+    /// persists into `auth.tb_auth_identity` works; in practice this is
     /// [`PostgresAccountStore`](crate::PostgresAccountStore), since login resolves
     /// email → `user_id` through that table.
     accounts:            Arc<dyn AccountStore>,
@@ -213,7 +213,7 @@ impl LocalPasswordAuthenticator {
     /// Ensure the identity + credential schema exists (idempotent).
     ///
     /// Runs the #411 identity DDL first (the credential table FK-references
-    /// `core.tb_user`) and then the credential DDL, so it is self-sufficient whether or
+    /// `auth.tb_user`) and then the credential DDL, so it is self-sufficient whether or
     /// not [`PostgresAccountStore::init`](crate::PostgresAccountStore::init) has already
     /// run. Call once on startup.
     ///
@@ -265,7 +265,7 @@ impl LocalPasswordAuthenticator {
             .await?;
         let user_id = link.user_id;
 
-        let pk_user: i64 = sqlx::query("SELECT pk_user FROM core.tb_user WHERE user_id = $1")
+        let pk_user: i64 = sqlx::query("SELECT pk_user FROM auth.tb_user WHERE user_id = $1")
             .bind(&user_id)
             .fetch_optional(&self.db)
             .await
@@ -279,7 +279,7 @@ impl LocalPasswordAuthenticator {
 
         // UNIQUE (fk_user): a second local signup for the same account inserts no row.
         let result = sqlx::query(
-            "INSERT INTO core.tb_password_credential (fk_user, user_id, password_hash) \
+            "INSERT INTO auth.tb_password_credential (fk_user, user_id, password_hash) \
              VALUES ($1, $2, $3) ON CONFLICT (fk_user) DO NOTHING",
         )
         .bind(pk_user)
@@ -325,8 +325,8 @@ impl LocalPasswordAuthenticator {
         // platform path, so only a platform identity answers it (#1088).
         let row = sqlx::query(
             "SELECT c.user_id, c.password_hash, (c.disabled_at IS NOT NULL) AS disabled \
-             FROM core.tb_password_credential c \
-             JOIN core.tb_auth_identity i ON i.user_id = c.user_id \
+             FROM auth.tb_password_credential c \
+             JOIN auth.tb_auth_identity i ON i.user_id = c.user_id \
              WHERE i.provider = $1 AND i.provider_id = $2 AND i.tenant_id IS NULL",
         )
         .bind(LOCAL_PROVIDER)
@@ -416,7 +416,7 @@ impl LocalPasswordAuthenticator {
     /// - [`AuthError::DatabaseError`] on a storage failure.
     pub async fn set_password_disabled(&self, user_id: &str, disabled: bool) -> Result<()> {
         let result = sqlx::query(
-            "UPDATE core.tb_password_credential \
+            "UPDATE auth.tb_password_credential \
              SET disabled_at = CASE WHEN $1 THEN now() ELSE NULL END, updated_at = now() \
              WHERE user_id = $2",
         )
@@ -446,7 +446,7 @@ impl LocalPasswordAuthenticator {
     /// Persist a re-hashed credential for an existing user.
     async fn update_hash(&self, user_id: &str, new_hash: &str) -> Result<()> {
         sqlx::query(
-            "UPDATE core.tb_password_credential \
+            "UPDATE auth.tb_password_credential \
              SET password_hash = $1, updated_at = now() WHERE user_id = $2",
         )
         .bind(new_hash)

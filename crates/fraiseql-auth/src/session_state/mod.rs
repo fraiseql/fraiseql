@@ -10,10 +10,10 @@
 //!   per-thread threshold.
 //! - [`SessionStateBackend`] — `memory` (tests / local dev, volatile) or `postgres`
 //!   (`_system.session_state`, created by [`PostgresSessionStateStore::init`] at startup like
-//!   `_system.sessions`). A configured `postgres` backend that is unreachable at boot must refuse
-//!   to boot — never downgrade to in-memory (the P21 backend rule).
+//!   `auth.sessions`). A configured `postgres` backend that is unreachable at boot must refuse to
+//!   boot — never downgrade to in-memory (the P21 backend rule).
 //!
-//! Isolation is application-layer, exactly like `_system.sessions`: the
+//! Isolation is application-layer, exactly like `auth.sessions`: the
 //! `session_id` comes from the authenticated context (an MCP session, a user
 //! session), never from a client-named field.
 

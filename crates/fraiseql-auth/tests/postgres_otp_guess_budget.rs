@@ -10,7 +10,7 @@
 //! suite, which binds Postgres and injects `DATABASE_URL`.
 //!
 //! **Execution engine:** PostgreSQL · **Infrastructure:** `DATABASE_URL` ·
-//! **Parallelism:** truncates the shared `core` `OTP` tables on setup → run
+//! **Parallelism:** truncates the shared `auth` `OTP` tables on setup → run
 //! `--test-threads=1`.
 #![allow(clippy::unwrap_used, clippy::print_stderr)] // Reason: test code — panics and skip diagnostics are acceptable
 
@@ -24,7 +24,7 @@ async fn fresh() -> Option<(PgOtpStore, PgPool)> {
     let db = PgPoolOptions::new().max_connections(4).connect(&url).await.unwrap();
     let otp = PgOtpStore::new(db.clone());
     otp.init().await.unwrap();
-    sqlx::query("TRUNCATE core.tb_otp_code, core.tb_otp_send_budget")
+    sqlx::query("TRUNCATE auth.tb_otp_code, auth.tb_otp_send_budget")
         .execute(&db)
         .await
         .unwrap();
@@ -75,7 +75,7 @@ async fn the_guess_budget_returns_with_the_next_window() {
 
     // Close the window as time would: move its start back past the 15-minute width.
     sqlx::query(
-        "UPDATE core.tb_otp_send_budget SET window_start = window_start - 900 WHERE email = $1",
+        "UPDATE auth.tb_otp_send_budget SET window_start = window_start - 900 WHERE email = $1",
     )
     .bind(email)
     .execute(&db)
@@ -102,7 +102,7 @@ async fn one_address_spending_its_guesses_leaves_another_untouched() {
 #[tokio::test]
 async fn init_adds_the_guess_counter_to_an_existing_budget_table() {
     let (otp, db) = skip_if_no_db!();
-    sqlx::query("ALTER TABLE core.tb_otp_send_budget DROP COLUMN IF EXISTS guesses")
+    sqlx::query("ALTER TABLE auth.tb_otp_send_budget DROP COLUMN IF EXISTS guesses")
         .execute(&db)
         .await
         .unwrap();
@@ -126,7 +126,7 @@ async fn a_code_verified_after_its_window_closed_starts_the_next_one() {
     let code = otp.create_otp(email).await.unwrap().code;
 
     sqlx::query(
-        "UPDATE core.tb_otp_send_budget SET window_start = window_start - 900 WHERE email = $1",
+        "UPDATE auth.tb_otp_send_budget SET window_start = window_start - 900 WHERE email = $1",
     )
     .bind(email)
     .execute(&db)

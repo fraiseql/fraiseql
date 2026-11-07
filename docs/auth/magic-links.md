@@ -53,7 +53,7 @@ code is, so removing an address invalidates a link it already holds (see
 [otp-allow-list.md](otp-allow-list.md)).
 
 The database keeps only the SHA-256 of the code and of the token, so a read of
-`core.tb_otp_code` cannot replay a link.
+`auth.tb_otp_code` cannot replay a link.
 
 ## Writing the landing page
 

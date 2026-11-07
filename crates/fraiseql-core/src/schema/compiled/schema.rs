@@ -565,7 +565,7 @@ pub struct LocalAuthConfig {
     /// — plus [`email_from`](Self::email_from) and
     /// [`verification_url_template`](Self::verification_url_template).
     ///
-    /// Confirming promotes the account's own `core.tb_user.email`, which is what
+    /// Confirming promotes the account's own `auth.tb_user.email`, which is what
     /// lets a later trusted social sign-in for the same address link into it. It
     /// never merges two accounts: an address already verified elsewhere is
     /// refused.

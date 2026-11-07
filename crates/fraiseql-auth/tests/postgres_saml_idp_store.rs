@@ -10,7 +10,7 @@
 //! libxml2/xmlsec1 C stack).
 //!
 //! **Execution engine:** `PostgreSQL` · **Infrastructure:** `DATABASE_URL` + xmlsec1 ·
-//! **Parallelism:** truncates the shared `core.tb_saml_idp` on setup → run
+//! **Parallelism:** truncates the shared `auth.tb_saml_idp` on setup → run
 //! `--test-threads=1`.
 #![allow(clippy::unwrap_used, clippy::print_stderr)] // Reason: test code — panics/skips are fine
 #![allow(clippy::doc_markdown)] // Reason: technical terms (IdP, NameID, SSO) throughout
@@ -86,7 +86,7 @@ async fn fresh() -> Option<PgSamlIdpStore> {
     let pool = PgPoolOptions::new().max_connections(4).connect(&url).await.unwrap();
     let store = PgSamlIdpStore::new(pool.clone());
     store.init().await.unwrap();
-    sqlx::query("TRUNCATE core.tb_saml_idp RESTART IDENTITY")
+    sqlx::query("TRUNCATE auth.tb_saml_idp RESTART IDENTITY")
         .execute(&pool)
         .await
         .unwrap();

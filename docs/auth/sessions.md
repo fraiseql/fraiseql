@@ -173,7 +173,7 @@ The routes spend the existing per-client budgets in `[security.rate_limiting]`:
 `auth_refresh_max_requests` / `auth_refresh_window_secs` for refresh, and
 `auth_logout_max_requests` / `auth_logout_window_secs` for logout.
 
-## The `_system.sessions` table
+## The `auth.sessions` table
 
 One row per refresh token. Its `expires_at` is when that refresh token stops working, and means
 one of two things:

@@ -21,14 +21,14 @@ section is strict: an unrecognised key is a boot error.
 
 **The backend never downgrades silently.** `backend = "postgres"` requires a
 database pool and initialises `_system.session_state` at boot (idempotently,
-like `_system.sessions`); if the pool is missing or the table cannot be
+like `auth.sessions`); if the pool is missing or the table cannot be
 created, the server refuses to boot. `backend = "memory"` is volatile — every
 thread is lost on restart — and logs a warning at boot; use it for local
 development only.
 
 ## Semantics
 
-- **Isolation** is application-layer, exactly like `_system.sessions`: the
+- **Isolation** is application-layer, exactly like `auth.sessions`: the
   `session_id` comes from the authenticated context (an MCP session, a user
   session), never from a client-named field. One session cannot read another's
   threads.

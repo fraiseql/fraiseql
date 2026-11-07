@@ -17,7 +17,7 @@
 //!    credential path converges on. Password login, the MFA second factor, a social callback, email
 //!    or phone OTP, and the SAML ACS all end there, so none of them can quietly stay open.
 //!
-//! That is why SCIM users are `core.tb_user` rows rather than a parallel directory: the
+//! That is why SCIM users are `auth.tb_user` rows rather than a parallel directory: the
 //! account an IdP deactivates has to be the account a password would authenticate.
 //!
 //! The HTTP surface (`/scim/v2/...`, its schemas, filtering, pagination and `ETag`

@@ -4,14 +4,14 @@
 //! The trust gate lives at the social callback layer ([`fraiseql_auth::MultiProviderAuthState`])
 //! and the storage layer is unchanged, so these tests exercise the security-critical
 //! composition — *trusted vs untrusted provider* → *merge vs distinct identity* — against the
-//! real `core.tb_user` / `core.tb_auth_identity` schema, mirroring the gate's own
+//! real `auth.tb_user` / `auth.tb_auth_identity` schema, mirroring the gate's own
 //! `effective_email_verified` (`claimed && trusted.is_trusted(provider)`).
 //!
 //! Self-skips when no `DATABASE_URL` is set (no `#[ignore]`), so it is inert in the
 //! database-free `test` leg and runs in the Dagger `integration: postgres` suite.
 //!
 //! **Execution engine:** PostgreSQL · **Infrastructure:** `DATABASE_URL` ·
-//! **Parallelism:** truncates the shared `core` tables on setup → run `--test-threads=1`.
+//! **Parallelism:** truncates the shared `auth` tables on setup → run `--test-threads=1`.
 #![allow(clippy::unwrap_used, clippy::print_stderr)] // Reason: test code — panics and skip diagnostics are acceptable
 
 use fraiseql_auth::{AccountStore, PostgresAccountStore, TrustedEmailProviders};
@@ -31,7 +31,7 @@ async fn fresh() -> Option<(PostgresAccountStore, PgPool)> {
     let admin = PgPoolOptions::new().max_connections(4).connect(&url).await.unwrap();
     let store = PostgresAccountStore::new(admin.clone());
     store.init().await.unwrap();
-    sqlx::query("TRUNCATE core.tb_auth_identity, core.tb_user RESTART IDENTITY CASCADE")
+    sqlx::query("TRUNCATE auth.tb_auth_identity, auth.tb_user RESTART IDENTITY CASCADE")
         .execute(&admin)
         .await
         .unwrap();

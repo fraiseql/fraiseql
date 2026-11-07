@@ -68,6 +68,12 @@ required-features = ["auth-saml"]
 name = "postgres_saml_idp_store"
 required-features = ["auth-saml"]
 
+# The inventory applies every auth script, the SAML ones included, so it needs the feature
+# that compiles them; without it cargo refuses the target by name instead of passing it.
+[[test]]
+name = "auth_schema_inventory_pg"
+required-features = ["auth-saml"]
+
 [dev-dependencies]
 criterion = { version = "0.5", features = ["html_reports"] }
 fraiseql-test-support = { path = "../fraiseql-test-support" }

@@ -1,7 +1,7 @@
 //! Live-PostgreSQL integration tests for [`PostgresAccountStore`] (#411).
 //!
 //! Mirrors the in-memory `account_linking` semantics against the durable
-//! `core.tb_user` / `core.tb_auth_identity` schema, and asserts the deny-by-default
+//! `auth.tb_user` / `auth.tb_auth_identity` schema, and asserts the deny-by-default
 //! RLS posture under a `NOBYPASSRLS` role.
 //!
 //! Self-skips when no `DATABASE_URL` is set (no `#[ignore]`), so it is inert in the
@@ -9,7 +9,7 @@
 //! which binds Postgres and injects `DATABASE_URL`.
 //!
 //! **Execution engine:** PostgreSQL · **Infrastructure:** `DATABASE_URL` ·
-//! **Parallelism:** truncates the shared `core` tables on setup → run `--test-threads=1`.
+//! **Parallelism:** truncates the shared `auth` tables on setup → run `--test-threads=1`.
 #![allow(clippy::unwrap_used, clippy::print_stderr)] // Reason: test code — panics and skip diagnostics are acceptable
 
 use std::str::FromStr;
@@ -31,7 +31,7 @@ async fn fresh() -> Option<(PostgresAccountStore, PgPool)> {
     let admin = PgPoolOptions::new().max_connections(4).connect(&url).await.unwrap();
     let store = PostgresAccountStore::new(admin.clone());
     store.init().await.unwrap();
-    sqlx::query("TRUNCATE core.tb_auth_identity, core.tb_user RESTART IDENTITY CASCADE")
+    sqlx::query("TRUNCATE auth.tb_auth_identity, auth.tb_user RESTART IDENTITY CASCADE")
         .execute(&admin)
         .await
         .unwrap();
@@ -218,7 +218,7 @@ async fn count(pool: &PgPool, guc: Option<&str>) -> i64 {
             .await
             .unwrap();
     }
-    let n: i64 = sqlx::query("SELECT count(*) FROM core.tb_user")
+    let n: i64 = sqlx::query("SELECT count(*) FROM auth.tb_user")
         .fetch_one(&mut *tx)
         .await
         .unwrap()
@@ -252,11 +252,11 @@ async fn rls_denies_by_default_and_scopes_per_tenant() {
     .execute(&admin)
     .await
     .unwrap();
-    sqlx::query(&format!("GRANT USAGE ON SCHEMA core TO {READER_ROLE}"))
+    sqlx::query(&format!("GRANT USAGE ON SCHEMA auth TO {READER_ROLE}"))
         .execute(&admin)
         .await
         .unwrap();
-    sqlx::query(&format!("GRANT SELECT ON core.tb_user, core.tb_auth_identity TO {READER_ROLE}"))
+    sqlx::query(&format!("GRANT SELECT ON auth.tb_user, auth.tb_auth_identity TO {READER_ROLE}"))
         .execute(&admin)
         .await
         .unwrap();
@@ -268,7 +268,7 @@ async fn rls_denies_by_default_and_scopes_per_tenant() {
         .unwrap();
     // …and a tenant-stamped row goes in directly.
     let tenant = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
-    sqlx::query("INSERT INTO core.tb_user (user_id, email, tenant_id) VALUES ($1, $2, $3::uuid)")
+    sqlx::query("INSERT INTO auth.tb_user (user_id, email, tenant_id) VALUES ($1, $2, $3::uuid)")
         .bind("user_tenant_a")
         .bind("a@tenant.example")
         .bind(tenant)
@@ -359,13 +359,13 @@ async fn the_tenant_is_stored_on_the_account_and_the_identity() {
         .await
         .unwrap();
     let user_tenant: Option<uuid::Uuid> =
-        sqlx::query_scalar("SELECT tenant_id FROM core.tb_user WHERE user_id = $1")
+        sqlx::query_scalar("SELECT tenant_id FROM auth.tb_user WHERE user_id = $1")
             .bind(&r.user_id)
             .fetch_one(&admin)
             .await
             .unwrap();
     let identity_tenant: Option<uuid::Uuid> =
-        sqlx::query_scalar("SELECT tenant_id FROM core.tb_auth_identity WHERE user_id = $1")
+        sqlx::query_scalar("SELECT tenant_id FROM auth.tb_auth_identity WHERE user_id = $1")
             .bind(&r.user_id)
             .fetch_one(&admin)
             .await
@@ -381,23 +381,23 @@ async fn the_tenant_is_stored_on_the_account_and_the_identity() {
 async fn init_replaces_the_global_keys_of_an_existing_database() {
     let (store, admin) = skip_if_no_db!();
     sqlx::raw_sql(
-        "DROP INDEX IF EXISTS core.uq_user_email; \
-         DROP INDEX IF EXISTS core.uq_user_email_platform; \
-         DROP INDEX IF EXISTS core.uq_user_email_tenant; \
-         DROP INDEX IF EXISTS core.uq_user_user_name; \
-         DROP INDEX IF EXISTS core.uq_user_user_name_platform; \
-         DROP INDEX IF EXISTS core.uq_user_user_name_tenant; \
-         DROP INDEX IF EXISTS core.uq_auth_identity_platform; \
-         DROP INDEX IF EXISTS core.uq_auth_identity_tenant; \
-         DROP INDEX IF EXISTS core.uq_user_email_per_space; \
-         DROP INDEX IF EXISTS core.uq_user_user_name_per_space; \
-         DROP INDEX IF EXISTS core.uq_auth_identity_per_space; \
-         ALTER TABLE core.tb_auth_identity \
+        "DROP INDEX IF EXISTS auth.uq_user_email; \
+         DROP INDEX IF EXISTS auth.uq_user_email_platform; \
+         DROP INDEX IF EXISTS auth.uq_user_email_tenant; \
+         DROP INDEX IF EXISTS auth.uq_user_user_name; \
+         DROP INDEX IF EXISTS auth.uq_user_user_name_platform; \
+         DROP INDEX IF EXISTS auth.uq_user_user_name_tenant; \
+         DROP INDEX IF EXISTS auth.uq_auth_identity_platform; \
+         DROP INDEX IF EXISTS auth.uq_auth_identity_tenant; \
+         DROP INDEX IF EXISTS auth.uq_user_email_per_space; \
+         DROP INDEX IF EXISTS auth.uq_user_user_name_per_space; \
+         DROP INDEX IF EXISTS auth.uq_auth_identity_per_space; \
+         ALTER TABLE auth.tb_auth_identity \
              DROP CONSTRAINT IF EXISTS tb_auth_identity_provider_provider_id_key; \
-         CREATE UNIQUE INDEX uq_user_email ON core.tb_user (email) WHERE email IS NOT NULL; \
-         CREATE UNIQUE INDEX uq_user_user_name ON core.tb_user (user_name) \
+         CREATE UNIQUE INDEX uq_user_email ON auth.tb_user (email) WHERE email IS NOT NULL; \
+         CREATE UNIQUE INDEX uq_user_user_name ON auth.tb_user (user_name) \
              WHERE user_name IS NOT NULL; \
-         ALTER TABLE core.tb_auth_identity \
+         ALTER TABLE auth.tb_auth_identity \
              ADD CONSTRAINT tb_auth_identity_provider_provider_id_key \
              UNIQUE (provider, provider_id);",
     )
@@ -417,7 +417,7 @@ async fn init_replaces_the_global_keys_of_an_existing_database() {
         .await
         .expect("after init, a shared email and identity in a second tenant must not collide");
     for (user_name, tenant) in [("carol", TENANT_T), ("carol", TENANT_U)] {
-        sqlx::query("INSERT INTO core.tb_user (user_id, user_name, tenant_id) VALUES ($1, $2, $3)")
+        sqlx::query("INSERT INTO auth.tb_user (user_id, user_name, tenant_id) VALUES ($1, $2, $3)")
             .bind(format!("user_{}", uuid::Uuid::new_v4().as_simple()))
             .bind(user_name)
             .bind(tenant)
@@ -428,18 +428,18 @@ async fn init_replaces_the_global_keys_of_an_existing_database() {
 
     // The platform keeps today's rule: one account per email and per identity.
     store.link_or_create_user(None, email, true, "saml:x", "n-1").await.unwrap();
-    let dup = sqlx::query("INSERT INTO core.tb_user (user_id, email) VALUES ('user_dup', $1)")
+    let dup = sqlx::query("INSERT INTO auth.tb_user (user_id, email) VALUES ('user_dup', $1)")
         .bind("carol@example.com")
         .execute(&admin)
         .await;
     assert!(dup.is_err(), "the platform email key must stay unique");
 }
 
-/// The unique definitions of `core.tb_user` / `core.tb_auth_identity`, keyed by name.
+/// The unique definitions of `auth.tb_user` / `auth.tb_auth_identity`, keyed by name.
 async fn unique_indexes(admin: &PgPool) -> Vec<(String, String)> {
     sqlx::query(
         "SELECT indexname::text, indexdef FROM pg_indexes \
-         WHERE schemaname = 'core' AND tablename IN ('tb_user', 'tb_auth_identity') \
+         WHERE schemaname = 'auth' AND tablename IN ('tb_user', 'tb_auth_identity') \
            AND indexdef LIKE 'CREATE UNIQUE INDEX%' AND indexname NOT LIKE '%_pkey' \
            AND indexname NOT LIKE '%user_id_key' \
          ORDER BY indexname",
@@ -481,7 +481,7 @@ async fn every_key_is_unique_within_its_space_and_only_there() {
     let (_store, admin) = skip_if_no_db!();
     let user = |user_id: &str, email: &str, user_name: &str, tenant: Option<uuid::Uuid>| {
         sqlx::query(
-            "INSERT INTO core.tb_user (user_id, email, user_name, tenant_id) \
+            "INSERT INTO auth.tb_user (user_id, email, user_name, tenant_id) \
              VALUES ($1, $2, $3, $4) RETURNING pk_user",
         )
         .bind(user_id.to_string())
@@ -506,7 +506,7 @@ async fn every_key_is_unique_within_its_space_and_only_there() {
 
         let identity = |n: &str| {
             sqlx::query(
-                "INSERT INTO core.tb_auth_identity (fk_user, user_id, provider, provider_id, \
+                "INSERT INTO auth.tb_auth_identity (fk_user, user_id, provider, provider_id, \
                  tenant_id) VALUES ($1, $2, 'saml:x', 'n-1', $3)",
             )
             .bind(pk)
@@ -526,7 +526,7 @@ async fn every_key_is_unique_within_its_space_and_only_there() {
         .expect("keys are unique per space, not globally")
         .get(0);
     sqlx::query(
-        "INSERT INTO core.tb_auth_identity (fk_user, user_id, provider, provider_id, tenant_id) \
+        "INSERT INTO auth.tb_auth_identity (fk_user, user_id, provider, provider_id, tenant_id) \
          VALUES ($1, 'u1-u', 'saml:x', 'n-1', $2)",
     )
     .bind(pk)
@@ -542,21 +542,21 @@ async fn every_key_is_unique_within_its_space_and_only_there() {
 async fn init_replaces_the_partial_pairs_of_an_earlier_build() {
     let (store, admin) = skip_if_no_db!();
     sqlx::raw_sql(
-        "DROP INDEX IF EXISTS core.uq_user_email_per_space; \
-         DROP INDEX IF EXISTS core.uq_user_user_name_per_space; \
-         DROP INDEX IF EXISTS core.uq_auth_identity_per_space; \
-         CREATE UNIQUE INDEX uq_user_email_platform ON core.tb_user (email) \
+        "DROP INDEX IF EXISTS auth.uq_user_email_per_space; \
+         DROP INDEX IF EXISTS auth.uq_user_user_name_per_space; \
+         DROP INDEX IF EXISTS auth.uq_auth_identity_per_space; \
+         CREATE UNIQUE INDEX uq_user_email_platform ON auth.tb_user (email) \
              WHERE tenant_id IS NULL AND email IS NOT NULL; \
-         CREATE UNIQUE INDEX uq_user_email_tenant ON core.tb_user (tenant_id, email) \
+         CREATE UNIQUE INDEX uq_user_email_tenant ON auth.tb_user (tenant_id, email) \
              WHERE tenant_id IS NOT NULL AND email IS NOT NULL; \
-         CREATE UNIQUE INDEX uq_user_user_name_platform ON core.tb_user (user_name) \
+         CREATE UNIQUE INDEX uq_user_user_name_platform ON auth.tb_user (user_name) \
              WHERE tenant_id IS NULL AND user_name IS NOT NULL; \
-         CREATE UNIQUE INDEX uq_user_user_name_tenant ON core.tb_user (tenant_id, user_name) \
+         CREATE UNIQUE INDEX uq_user_user_name_tenant ON auth.tb_user (tenant_id, user_name) \
              WHERE tenant_id IS NOT NULL AND user_name IS NOT NULL; \
          CREATE UNIQUE INDEX uq_auth_identity_platform \
-             ON core.tb_auth_identity (provider, provider_id) WHERE tenant_id IS NULL; \
+             ON auth.tb_auth_identity (provider, provider_id) WHERE tenant_id IS NULL; \
          CREATE UNIQUE INDEX uq_auth_identity_tenant \
-             ON core.tb_auth_identity (tenant_id, provider, provider_id) \
+             ON auth.tb_auth_identity (tenant_id, provider, provider_id) \
              WHERE tenant_id IS NOT NULL;",
     )
     .execute(&admin)

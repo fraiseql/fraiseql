@@ -14,12 +14,12 @@ provisioning).
 
 ## Schema
 
-Two tables in the `core` schema, created idempotently by `PostgresAccountStore::init()`:
+Two tables in the `auth` schema, created idempotently by `PostgresAccountStore::init()`:
 
 | Table | Purpose |
 | --- | --- |
-| `core.tb_user` | One row per stable account: `user_id` (the `"user_<uuid>"` identifier shared with `_system.sessions.user_id`), optional verified `email`, `tenant_id`. |
-| `core.tb_auth_identity` | One row per linked `(provider, provider_id)`, FK to `tb_user`. `(provider, provider_id)` is unique per account space, so a provider login resolves to exactly one account in it. |
+| `auth.tb_user` | One row per stable account: `user_id` (the `"user_<uuid>"` identifier shared with `auth.sessions.user_id`), optional verified `email`, `tenant_id`. |
+| `auth.tb_auth_identity` | One row per linked `(provider, provider_id)`, FK to `tb_user`. `(provider, provider_id)` is unique per account space, so a provider login resolves to exactly one account in it. |
 
 Account linking is identical to the in-memory semantics: a **verified, non-empty**
 email links across providers; an absent/unverified email keys the identity on
@@ -63,7 +63,7 @@ indexes. No row moves, and existing accounts stay platform accounts.
 ## Sessions carry the account's tenant (#1450)
 
 A session minted by FraiseQL's own sign-in (SAML, password, OTP, social, MFA) carries the
-tenant of the account it signs into. The session store reads it from `core.tb_user`, never
+tenant of the account it signs into. The session store reads it from `auth.tb_user`, never
 from the request, and mints it under the schema's `[fraiseql.tenancy] tenant_claim`
 (default `tenant_id`), so the token's tenant reaches `SecurityContext::tenant_id` exactly as
 an external identity provider's does. A platform account's session carries no tenant claim.
@@ -74,7 +74,7 @@ tenant key and a valid `::uuid` cast in the auth tables' row-level policies. A d
 running per-tenant dispatch (`[tenancy.runtime]`) must therefore register each tenant whose
 accounts sign in through FraiseQL under that simple-form UUID
 (`PUT /api/v1/admin/tenants/<simple-form-uuid>`); a request whose tenant is not registered
-is refused. `_system.sessions.tenant_id` records the tenant for revocation and audit.
+is refused. `auth.sessions.tenant_id` records the tenant for revocation and audit.
 
 ## Usage
 
@@ -87,7 +87,7 @@ use sqlx::postgres::PgPoolOptions;
 # async fn example(database_url: String) -> Result<(), Box<dyn std::error::Error>> {
 let pool = PgPoolOptions::new().connect(&database_url).await?;
 let store = PostgresAccountStore::new(pool);
-store.init().await?; // idempotent; creates core.tb_user / core.tb_auth_identity
+store.init().await?; // idempotent; creates auth.tb_user / auth.tb_auth_identity
 
 // Hand it to the auth flows in place of InMemoryAccountStore:
 let store: Arc<dyn AccountStore> = Arc::new(store);

@@ -27,24 +27,24 @@ use crate::{
 
 /// DDL for the `OTP` tables. Executed at boot and by the live-PG suite.
 pub const PG_OTP_SCHEMA_SQL: &str = r"
-CREATE SCHEMA IF NOT EXISTS core;
-CREATE TABLE IF NOT EXISTS core.tb_otp_code (
+CREATE SCHEMA IF NOT EXISTS auth;
+CREATE TABLE IF NOT EXISTS auth.tb_otp_code (
     email      TEXT PRIMARY KEY,
     code_hash  BYTEA NOT NULL,
     expires_at BIGINT NOT NULL,
     attempts   INTEGER NOT NULL DEFAULT 0
 );
-CREATE TABLE IF NOT EXISTS core.tb_otp_send_budget (
+CREATE TABLE IF NOT EXISTS auth.tb_otp_send_budget (
     email        TEXT PRIMARY KEY,
     count        INTEGER NOT NULL DEFAULT 0,
     window_start BIGINT NOT NULL
 );
-ALTER TABLE core.tb_otp_send_budget ADD COLUMN IF NOT EXISTS guesses INTEGER NOT NULL DEFAULT 0;
-ALTER TABLE core.tb_otp_code ADD COLUMN IF NOT EXISTS link_token_hash BYTEA;
+ALTER TABLE auth.tb_otp_send_budget ADD COLUMN IF NOT EXISTS guesses INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE auth.tb_otp_code ADD COLUMN IF NOT EXISTS link_token_hash BYTEA;
 CREATE UNIQUE INDEX IF NOT EXISTS uq_otp_code_link_token_hash
-    ON core.tb_otp_code (link_token_hash) WHERE link_token_hash IS NOT NULL;
-REVOKE ALL ON core.tb_otp_code FROM PUBLIC;
-REVOKE ALL ON core.tb_otp_send_budget FROM PUBLIC;
+    ON auth.tb_otp_code (link_token_hash) WHERE link_token_hash IS NOT NULL;
+REVOKE ALL ON auth.tb_otp_code FROM PUBLIC;
+REVOKE ALL ON auth.tb_otp_send_budget FROM PUBLIC;
 ";
 
 fn code_hash(code: &str) -> Vec<u8> {
@@ -89,7 +89,7 @@ impl OtpStore for PgOtpStore {
     #[allow(clippy::cast_possible_wrap)] // Reason: expiry is only ever written from unix_now()
     async fn sweep_expired(&self) -> Result<u64> {
         let now = unix_now()? as i64;
-        let codes = sqlx::query("DELETE FROM core.tb_otp_code WHERE expires_at <= $1")
+        let codes = sqlx::query("DELETE FROM auth.tb_otp_code WHERE expires_at <= $1")
             .bind(now)
             .execute(&self.db)
             .await
@@ -100,7 +100,7 @@ impl OtpStore for PgOtpStore {
         // one that otherwise keeps a row for every address that ever asked for a code.
         let window = i64::try_from(crate::otp::OTP_RATE_WINDOW_SECS).unwrap_or(i64::MAX);
         let budgets =
-            sqlx::query("DELETE FROM core.tb_otp_send_budget WHERE window_start + $1 <= $2")
+            sqlx::query("DELETE FROM auth.tb_otp_send_budget WHERE window_start + $1 <= $2")
                 .bind(window)
                 .bind(now)
                 .execute(&self.db)
@@ -120,18 +120,18 @@ impl OtpStore for PgOtpStore {
         // stale count and each grant themselves a send. A new window also returns
         // the address's guesses; a send inside one does not.
         let reserved = sqlx::query(
-            "INSERT INTO core.tb_otp_send_budget (email, count, window_start)
+            "INSERT INTO auth.tb_otp_send_budget (email, count, window_start)
              VALUES ($1, 1, $2)
              ON CONFLICT (email) DO UPDATE SET
                  count = CASE
-                     WHEN $2 - core.tb_otp_send_budget.window_start >= $3 THEN 1
-                     ELSE core.tb_otp_send_budget.count + 1 END,
+                     WHEN $2 - auth.tb_otp_send_budget.window_start >= $3 THEN 1
+                     ELSE auth.tb_otp_send_budget.count + 1 END,
                  guesses = CASE
-                     WHEN $2 - core.tb_otp_send_budget.window_start >= $3 THEN 0
-                     ELSE core.tb_otp_send_budget.guesses END,
+                     WHEN $2 - auth.tb_otp_send_budget.window_start >= $3 THEN 0
+                     ELSE auth.tb_otp_send_budget.guesses END,
                  window_start = CASE
-                     WHEN $2 - core.tb_otp_send_budget.window_start >= $3 THEN $2
-                     ELSE core.tb_otp_send_budget.window_start END
+                     WHEN $2 - auth.tb_otp_send_budget.window_start >= $3 THEN $2
+                     ELSE auth.tb_otp_send_budget.window_start END
              RETURNING count, window_start",
         )
         .bind(email)
@@ -152,7 +152,7 @@ impl OtpStore for PgOtpStore {
         // One row holds the code and its link token, so a resend replaces both.
         let issue = OtpIssue::generate();
         sqlx::query(
-            "INSERT INTO core.tb_otp_code (email, code_hash, link_token_hash, expires_at, attempts)
+            "INSERT INTO auth.tb_otp_code (email, code_hash, link_token_hash, expires_at, attempts)
              VALUES ($1, $2, $3, $4, 0)
              ON CONFLICT (email) DO UPDATE SET
                  code_hash = EXCLUDED.code_hash,
@@ -178,7 +178,7 @@ impl OtpStore for PgOtpStore {
         // Charge the attempt first and read the post-increment count, so a
         // concurrent flood cannot each read `attempts = 0` and get a free guess.
         let row = sqlx::query(
-            "UPDATE core.tb_otp_code SET attempts = attempts + 1 WHERE email = $1
+            "UPDATE auth.tb_otp_code SET attempts = attempts + 1 WHERE email = $1
              RETURNING code_hash, expires_at, attempts",
         )
         .bind(email)
@@ -194,18 +194,18 @@ impl OtpStore for PgOtpStore {
         // code without issuing new guesses. Charged after the code lookup, so probing
         // an address with no pending code leaves no row behind.
         let guesses: i32 = sqlx::query(
-            "INSERT INTO core.tb_otp_send_budget (email, count, window_start, guesses)
+            "INSERT INTO auth.tb_otp_send_budget (email, count, window_start, guesses)
              VALUES ($1, 0, $2, 1)
              ON CONFLICT (email) DO UPDATE SET
                  count = CASE
-                     WHEN $2 - core.tb_otp_send_budget.window_start >= $3 THEN 0
-                     ELSE core.tb_otp_send_budget.count END,
+                     WHEN $2 - auth.tb_otp_send_budget.window_start >= $3 THEN 0
+                     ELSE auth.tb_otp_send_budget.count END,
                  guesses = CASE
-                     WHEN $2 - core.tb_otp_send_budget.window_start >= $3 THEN 1
-                     ELSE core.tb_otp_send_budget.guesses + 1 END,
+                     WHEN $2 - auth.tb_otp_send_budget.window_start >= $3 THEN 1
+                     ELSE auth.tb_otp_send_budget.guesses + 1 END,
                  window_start = CASE
-                     WHEN $2 - core.tb_otp_send_budget.window_start >= $3 THEN $2
-                     ELSE core.tb_otp_send_budget.window_start END
+                     WHEN $2 - auth.tb_otp_send_budget.window_start >= $3 THEN $2
+                     ELSE auth.tb_otp_send_budget.window_start END
              RETURNING guesses",
         )
         .bind(email)
@@ -226,7 +226,7 @@ impl OtpStore for PgOtpStore {
         // expires. Propagated on every path — a consume that silently does
         // nothing is the same defect wherever it sits.
         let consume = || async {
-            sqlx::query("DELETE FROM core.tb_otp_code WHERE email = $1")
+            sqlx::query("DELETE FROM auth.tb_otp_code WHERE email = $1")
                 .bind(email)
                 .execute(&self.db)
                 .await
@@ -267,7 +267,7 @@ impl OtpStore for PgOtpStore {
         // The DELETE is the redemption: of two concurrent requests only one gets the row,
         // and the code mailed with the token goes with it.
         let row = sqlx::query(
-            "DELETE FROM core.tb_otp_code WHERE link_token_hash = $1
+            "DELETE FROM auth.tb_otp_code WHERE link_token_hash = $1
              RETURNING email, expires_at",
         )
         .bind(link_token_hash(link_token))

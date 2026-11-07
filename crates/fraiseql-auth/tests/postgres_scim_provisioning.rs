@@ -10,7 +10,7 @@
 //! `test` leg and live in the Dagger `integration: saml` suite.
 //!
 //! **Execution engine:** `PostgreSQL` · **Infrastructure:** `DATABASE_URL` ·
-//! **Parallelism:** truncates the shared `core` tables on setup → run `--test-threads=1`.
+//! **Parallelism:** truncates the shared `auth` tables on setup → run `--test-threads=1`.
 #![allow(clippy::unwrap_used, clippy::print_stderr)] // Reason: test code — panics/skips are fine
 #![allow(clippy::doc_markdown)] // Reason: technical terms (IdP, SCIM, NameID) throughout
 
@@ -55,14 +55,14 @@ async fn fresh() -> Option<Rig> {
     passwords.init().await.unwrap();
 
     sqlx::query(
-        "TRUNCATE core.tb_scim_group_member, core.tb_scim_group, core.tb_scim_token, \
-         core.tb_password_credential, core.tb_auth_identity, core.tb_user \
+        "TRUNCATE auth.tb_scim_group_member, auth.tb_scim_group, auth.tb_scim_token, \
+         auth.tb_password_credential, auth.tb_auth_identity, auth.tb_user \
          RESTART IDENTITY CASCADE",
     )
     .execute(&pool)
     .await
     .unwrap();
-    sqlx::query("DELETE FROM _system.sessions").execute(&pool).await.ok();
+    sqlx::query("DELETE FROM auth.sessions").execute(&pool).await.ok();
 
     Some(Rig {
         scim,
@@ -155,7 +155,7 @@ async fn revoking_sessions_ends_access_already_granted() {
     );
 }
 
-/// A user with no `core.tb_user` row — an anonymous or JWT-only principal — is a different
+/// A user with no `auth.tb_user` row — an anonymous or JWT-only principal — is a different
 /// identity space and must not be caught by the provisioning check.
 #[tokio::test]
 async fn an_unprovisioned_principal_is_unaffected() {
@@ -439,7 +439,7 @@ async fn the_token_is_never_stored_in_a_replayable_form() {
     let rig = skip_if_no_db!();
     let minted = rig.tokens.mint("acme-okta", None, None).await.unwrap();
 
-    let stored: Vec<String> = sqlx::query_scalar("SELECT token_hash FROM core.tb_scim_token")
+    let stored: Vec<String> = sqlx::query_scalar("SELECT token_hash FROM auth.tb_scim_token")
         .fetch_all(rig.scim.pool())
         .await
         .unwrap();

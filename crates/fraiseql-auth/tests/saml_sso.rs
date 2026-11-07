@@ -15,7 +15,7 @@
 //! libxml2/xmlsec1 C stack, injects `DATABASE_URL`).
 //!
 //! **Execution engine:** PostgreSQL · **Infrastructure:** `DATABASE_URL` + xmlsec1 ·
-//! **Parallelism:** truncates the shared `core` tables on setup → run `--test-threads=1`.
+//! **Parallelism:** truncates the shared `auth` tables on setup → run `--test-threads=1`.
 #![cfg(feature = "auth-saml")]
 #![allow(clippy::unwrap_used, clippy::print_stderr)] // Reason: test code — panics/skips are fine
 #![allow(clippy::doc_markdown)] // Reason: technical terms (IdP, NameID, RLS) throughout the docs
@@ -66,7 +66,7 @@ async fn fresh() -> Option<PostgresAccountStore> {
     let admin = PgPoolOptions::new().max_connections(4).connect(&url).await.unwrap();
     let store = PostgresAccountStore::new(admin.clone());
     store.init().await.unwrap();
-    sqlx::query("TRUNCATE core.tb_auth_identity, core.tb_user RESTART IDENTITY CASCADE")
+    sqlx::query("TRUNCATE auth.tb_auth_identity, auth.tb_user RESTART IDENTITY CASCADE")
         .execute(&admin)
         .await
         .unwrap();

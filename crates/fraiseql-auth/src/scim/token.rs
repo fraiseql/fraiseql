@@ -102,7 +102,7 @@ impl PgScimTokenStore {
         let token = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(bytes);
 
         let row = sqlx::query(
-            "INSERT INTO core.tb_scim_token (token_hash, idp_name, tenant_id, description) \
+            "INSERT INTO auth.tb_scim_token (token_hash, idp_name, tenant_id, description) \
              VALUES ($1, $2, $3, $4) \
              RETURNING id, idp_name, tenant_id, description, created_at, last_used_at",
         )
@@ -135,7 +135,7 @@ impl PgScimTokenStore {
         let presented = hash_token(token);
         let row = sqlx::query(
             "SELECT id, token_hash, idp_name, tenant_id, description, created_at, last_used_at \
-             FROM core.tb_scim_token WHERE token_hash = $1 AND revoked_at IS NULL",
+             FROM auth.tb_scim_token WHERE token_hash = $1 AND revoked_at IS NULL",
         )
         .bind(&presented)
         .fetch_optional(&self.db)
@@ -154,7 +154,7 @@ impl PgScimTokenStore {
 
         let id: Uuid = row.get("id");
         // Best-effort: a failed touch must not fail an otherwise-valid authentication.
-        let _ = sqlx::query("UPDATE core.tb_scim_token SET last_used_at = now() WHERE id = $1")
+        let _ = sqlx::query("UPDATE auth.tb_scim_token SET last_used_at = now() WHERE id = $1")
             .bind(id)
             .execute(&self.db)
             .await;
@@ -173,7 +173,7 @@ impl PgScimTokenStore {
     pub async fn list(&self) -> Result<Vec<ScimTokenRecord>> {
         let rows = sqlx::query(
             "SELECT id, idp_name, tenant_id, description, created_at, last_used_at \
-             FROM core.tb_scim_token WHERE revoked_at IS NULL ORDER BY created_at",
+             FROM auth.tb_scim_token WHERE revoked_at IS NULL ORDER BY created_at",
         )
         .fetch_all(&self.db)
         .await
@@ -189,7 +189,7 @@ impl PgScimTokenStore {
     /// [`AuthError::TokenNotFound`] if no live credential has that id.
     pub async fn revoke(&self, id: Uuid) -> Result<()> {
         let affected = sqlx::query(
-            "UPDATE core.tb_scim_token SET revoked_at = now() \
+            "UPDATE auth.tb_scim_token SET revoked_at = now() \
              WHERE id = $1 AND revoked_at IS NULL",
         )
         .bind(id)

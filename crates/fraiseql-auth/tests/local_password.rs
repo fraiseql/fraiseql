@@ -1,8 +1,8 @@
 //! Live-PostgreSQL integration tests for [`LocalPasswordAuthenticator`] (#412).
 //!
 //! Exercises signup / login / rehash / disabled / non-enumeration against the durable
-//! `core.tb_password_credential` schema (FK-linked to #411's `core.tb_user` /
-//! `core.tb_auth_identity`), and asserts the deny-by-default RLS posture under a
+//! `auth.tb_password_credential` schema (FK-linked to #411's `auth.tb_user` /
+//! `auth.tb_auth_identity`), and asserts the deny-by-default RLS posture under a
 //! `NOBYPASSRLS` role.
 //!
 //! Self-skips when no `DATABASE_URL` is set (no `#[ignore]`), so it is inert in the
@@ -10,7 +10,7 @@
 //! binds Postgres and injects `DATABASE_URL`.
 //!
 //! **Execution engine:** PostgreSQL · **Infrastructure:** `DATABASE_URL` ·
-//! **Parallelism:** truncates the shared `core` tables on setup → run `--test-threads=1`.
+//! **Parallelism:** truncates the shared `auth` tables on setup → run `--test-threads=1`.
 #![allow(clippy::unwrap_used, clippy::print_stderr)] // Reason: test code — panics and skip diagnostics are acceptable
 #![allow(clippy::doc_markdown)] // Reason: technical terms (Argon2id, PostgreSQL, KiB) throughout the docs
 
@@ -33,7 +33,7 @@ const PASSWORD: &str = "correct horse battery staple";
 const FAST_M_COST: u32 = 8;
 
 /// Connect as the superuser `DATABASE_URL`, ensure the schema exists, and truncate the
-/// three `core` tables so each test starts clean. Returns `None` (skip) when unconfigured.
+/// three `auth` tables so each test starts clean. Returns `None` (skip) when unconfigured.
 async fn fresh() -> Option<(LocalPasswordAuthenticator, Arc<dyn AccountStore>, PgPool)> {
     let url = try_database_url()?;
     let admin = PgPoolOptions::new().max_connections(4).connect(&url).await.unwrap();
@@ -43,7 +43,7 @@ async fn fresh() -> Option<(LocalPasswordAuthenticator, Arc<dyn AccountStore>, P
             .unwrap();
     auth.init().await.unwrap();
     sqlx::query(
-        "TRUNCATE core.tb_password_credential, core.tb_auth_identity, core.tb_user \
+        "TRUNCATE auth.tb_password_credential, auth.tb_auth_identity, auth.tb_user \
          RESTART IDENTITY CASCADE",
     )
     .execute(&admin)
@@ -65,7 +65,7 @@ macro_rules! skip_if_no_db {
 }
 
 async fn credential_count(pool: &PgPool) -> i64 {
-    sqlx::query("SELECT count(*) FROM core.tb_password_credential")
+    sqlx::query("SELECT count(*) FROM auth.tb_password_credential")
         .fetch_one(pool)
         .await
         .unwrap()
@@ -73,7 +73,7 @@ async fn credential_count(pool: &PgPool) -> i64 {
 }
 
 async fn stored_hash(pool: &PgPool, user_id: &str) -> String {
-    sqlx::query("SELECT password_hash FROM core.tb_password_credential WHERE user_id = $1")
+    sqlx::query("SELECT password_hash FROM auth.tb_password_credential WHERE user_id = $1")
         .bind(user_id)
         .fetch_one(pool)
         .await
@@ -106,7 +106,7 @@ async fn signup_normalizes_the_email() {
     let user_id = auth.signup("  Alice@Example.COM ", PASSWORD).await.unwrap();
     // The login lookup keys on the normalized provider_id.
     let id: String = sqlx::query(
-        "SELECT provider_id FROM core.tb_auth_identity WHERE user_id = $1 AND provider = 'local'",
+        "SELECT provider_id FROM auth.tb_auth_identity WHERE user_id = $1 AND provider = 'local'",
     )
     .bind(&user_id)
     .fetch_one(&admin)
@@ -134,7 +134,7 @@ async fn short_password_is_rejected_before_any_write() {
     let err = auth.signup("alice@example.com", "short").await.unwrap_err();
     assert!(matches!(err, AuthError::InvalidRegistration { .. }), "got {err:?}");
     // Validation runs before link_or_create_user, so nothing was persisted.
-    let users: i64 = sqlx::query("SELECT count(*) FROM core.tb_user")
+    let users: i64 = sqlx::query("SELECT count(*) FROM auth.tb_user")
         .fetch_one(&admin)
         .await
         .unwrap()
@@ -260,7 +260,7 @@ async fn reader_credential_count(pool: &PgPool, guc: Option<&str>) -> i64 {
             .await
             .unwrap();
     }
-    let n: i64 = sqlx::query("SELECT count(*) FROM core.tb_password_credential")
+    let n: i64 = sqlx::query("SELECT count(*) FROM auth.tb_password_credential")
         .fetch_one(&mut *tx)
         .await
         .unwrap()
@@ -294,11 +294,11 @@ async fn rls_denies_credentials_by_default_and_scopes_per_tenant() {
     .execute(&admin)
     .await
     .unwrap();
-    sqlx::query(&format!("GRANT USAGE ON SCHEMA core TO {READER_ROLE}"))
+    sqlx::query(&format!("GRANT USAGE ON SCHEMA auth TO {READER_ROLE}"))
         .execute(&admin)
         .await
         .unwrap();
-    sqlx::query(&format!("GRANT SELECT ON core.tb_password_credential TO {READER_ROLE}"))
+    sqlx::query(&format!("GRANT SELECT ON auth.tb_password_credential TO {READER_ROLE}"))
         .execute(&admin)
         .await
         .unwrap();
@@ -308,15 +308,15 @@ async fn rls_denies_credentials_by_default_and_scopes_per_tenant() {
     // …and a tenant-stamped credential goes in directly (forward-compat path).
     let tenant = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
     sqlx::query(
-        "INSERT INTO core.tb_user (user_id, email, tenant_id) VALUES ('user_t', 't@x.example', $1::uuid)",
+        "INSERT INTO auth.tb_user (user_id, email, tenant_id) VALUES ('user_t', 't@x.example', $1::uuid)",
     )
     .bind(tenant)
     .execute(&admin)
     .await
     .unwrap();
     sqlx::query(
-        "INSERT INTO core.tb_password_credential (fk_user, user_id, password_hash, tenant_id) \
-         SELECT pk_user, 'user_t', 'x', $1::uuid FROM core.tb_user WHERE user_id = 'user_t'",
+        "INSERT INTO auth.tb_password_credential (fk_user, user_id, password_hash, tenant_id) \
+         SELECT pk_user, 'user_t', 'x', $1::uuid FROM auth.tb_user WHERE user_id = 'user_t'",
     )
     .bind(tenant)
     .execute(&admin)
@@ -340,7 +340,7 @@ async fn rls_denies_credentials_by_default_and_scopes_per_tenant() {
 
 /// Re-home an account into a tenant, as if a tenant authority had created it (#1088).
 async fn move_to_tenant(pool: &PgPool, user_id: &str) {
-    for table in ["core.tb_user", "core.tb_auth_identity"] {
+    for table in ["auth.tb_user", "auth.tb_auth_identity"] {
         sqlx::query(&format!(
             "UPDATE {table} SET tenant_id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' WHERE user_id = $1"
         ))

@@ -2,7 +2,7 @@
 //!
 //! Exercises `start_email_verification` / `confirm_email_verification` on
 //! [`LocalPasswordAuthenticator`] against the durable
-//! `core.tb_email_verification_token` schema (FK-linked to #411's `core.tb_user`):
+//! `auth.tb_email_verification_token` schema (FK-linked to #411's `auth.tb_user`):
 //! address-from-identity issuance, the token discipline shared with password reset
 //! (single-use, expiry, bad verifier), the **session binding** that makes a token alone
 //! insufficient, the promotion that puts a local account into the cross-provider linking
@@ -25,7 +25,7 @@
 //! binds Postgres and injects `DATABASE_URL`.
 //!
 //! **Execution engine:** PostgreSQL · **Infrastructure:** `DATABASE_URL` ·
-//! **Parallelism:** truncates the shared `core` tables on setup → run `--test-threads=1`.
+//! **Parallelism:** truncates the shared `auth` tables on setup → run `--test-threads=1`.
 #![allow(clippy::unwrap_used, clippy::print_stderr, clippy::panic)] // Reason: test code — panics and skip diagnostics are acceptable
 #![allow(clippy::doc_markdown)] // Reason: technical terms (PostgreSQL, RLS) throughout the docs
 
@@ -101,9 +101,9 @@ impl Harness {
             .user_id
     }
 
-    /// The verified address on an account's `core.tb_user` row, if any.
+    /// The verified address on an account's `auth.tb_user` row, if any.
     async fn account_email(&self, user_id: &str) -> Option<String> {
-        sqlx::query("SELECT email FROM core.tb_user WHERE user_id = $1")
+        sqlx::query("SELECT email FROM auth.tb_user WHERE user_id = $1")
             .bind(user_id)
             .fetch_one(&self.admin)
             .await
@@ -113,7 +113,7 @@ impl Harness {
 
     /// How many accounts exist. The invariant tests care that a refusal leaves *two*.
     async fn account_count(&self) -> i64 {
-        sqlx::query("SELECT count(*) FROM core.tb_user")
+        sqlx::query("SELECT count(*) FROM auth.tb_user")
             .fetch_one(&self.admin)
             .await
             .unwrap()
@@ -123,7 +123,7 @@ impl Harness {
     /// The providers linked to an account, in link order.
     async fn linked_providers(&self, user_id: &str) -> Vec<String> {
         sqlx::query(
-            "SELECT provider FROM core.tb_auth_identity WHERE user_id = $1 \
+            "SELECT provider FROM auth.tb_auth_identity WHERE user_id = $1 \
              ORDER BY pk_auth_identity",
         )
         .bind(user_id)
@@ -137,7 +137,7 @@ impl Harness {
 }
 
 /// Connect as the superuser `DATABASE_URL`, ensure the schema exists, and truncate the
-/// `core` tables so each test starts clean. Returns `None` (skip) when unconfigured.
+/// `auth` tables so each test starts clean. Returns `None` (skip) when unconfigured.
 async fn fresh() -> Option<Harness> {
     let url = try_database_url()?;
     let admin = PgPoolOptions::new().max_connections(4).connect(&url).await.unwrap();
@@ -154,8 +154,8 @@ async fn fresh() -> Option<Harness> {
     .with_verification_email_sender(sender.clone());
     auth.init().await.unwrap();
     sqlx::query(
-        "TRUNCATE core.tb_email_verification_token, core.tb_password_reset_token, \
-         core.tb_password_credential, core.tb_auth_identity, core.tb_user \
+        "TRUNCATE auth.tb_email_verification_token, auth.tb_password_reset_token, \
+         auth.tb_password_credential, auth.tb_auth_identity, auth.tb_user \
          RESTART IDENTITY CASCADE",
     )
     .execute(&admin)
@@ -182,7 +182,7 @@ macro_rules! skip_if_no_db {
 }
 
 async fn token_count(pool: &PgPool) -> i64 {
-    sqlx::query("SELECT count(*) FROM core.tb_email_verification_token")
+    sqlx::query("SELECT count(*) FROM auth.tb_email_verification_token")
         .fetch_one(pool)
         .await
         .unwrap()
@@ -216,7 +216,7 @@ async fn the_token_table_is_revoked_from_public_and_has_rls_enabled() {
     let row = sqlx::query(
         "SELECT relrowsecurity, has_table_privilege('public', c.oid, 'SELECT') AS public_select \
          FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace \
-         WHERE n.nspname = 'core' AND c.relname = 'tb_email_verification_token'",
+         WHERE n.nspname = 'auth' AND c.relname = 'tb_email_verification_token'",
     )
     .fetch_one(&h.admin)
     .await
@@ -242,7 +242,7 @@ async fn start_mails_the_address_the_account_itself_claims() {
     // Persisted as selector + verifier hash bound to the address, never the raw token.
     let row = sqlx::query(
         "SELECT email, selector, verifier_hash, used_at, expires_at > now() AS live \
-         FROM core.tb_email_verification_token",
+         FROM auth.tb_email_verification_token",
     )
     .fetch_one(&h.admin)
     .await
@@ -348,7 +348,7 @@ async fn an_expired_token_is_refused() {
     let h = skip_if_no_db!();
     let user_id = h.signup(VICTIM_EMAIL).await;
     let token = h.issue_token(&user_id).await;
-    sqlx::query("UPDATE core.tb_email_verification_token SET expires_at = now() - interval '1s'")
+    sqlx::query("UPDATE auth.tb_email_verification_token SET expires_at = now() - interval '1s'")
         .execute(&h.admin)
         .await
         .unwrap();
@@ -405,7 +405,7 @@ async fn a_successful_confirm_invalidates_the_accounts_other_outstanding_tokens(
     h.auth.confirm_email_verification(&user_id, &second).await.unwrap();
 
     let live: i64 =
-        sqlx::query("SELECT count(*) FROM core.tb_email_verification_token WHERE used_at IS NULL")
+        sqlx::query("SELECT count(*) FROM auth.tb_email_verification_token WHERE used_at IS NULL")
             .fetch_one(&h.admin)
             .await
             .unwrap()
@@ -510,7 +510,7 @@ async fn direction_b_verifying_does_not_absorb_a_trusted_account_that_already_ho
     );
     // And nothing moved: the victim's account still has no password credential.
     let creds: i64 =
-        sqlx::query("SELECT count(*) FROM core.tb_password_credential WHERE user_id = $1")
+        sqlx::query("SELECT count(*) FROM auth.tb_password_credential WHERE user_id = $1")
             .bind(&victim)
             .fetch_one(&h.admin)
             .await
@@ -531,7 +531,7 @@ async fn a_refused_confirmation_still_spends_the_token() {
     assert!(h.auth.confirm_email_verification(&attacker, &token).await.is_err());
 
     let spent: bool =
-        sqlx::query("SELECT used_at IS NOT NULL AS spent FROM core.tb_email_verification_token")
+        sqlx::query("SELECT used_at IS NOT NULL AS spent FROM auth.tb_email_verification_token")
             .fetch_one(&h.admin)
             .await
             .unwrap()
@@ -547,7 +547,7 @@ async fn an_account_with_a_different_verified_address_is_not_rekeyed() {
     // The account acquires a *different* verified address in the meantime (a trusted
     // sign-in linking onto it would do this in production; setting it directly is the
     // same end state and keeps the test about the gate).
-    sqlx::query("UPDATE core.tb_user SET email = $1 WHERE user_id = $2")
+    sqlx::query("UPDATE auth.tb_user SET email = $1 WHERE user_id = $2")
         .bind("other@example.com")
         .bind(&user_id)
         .execute(&h.admin)
@@ -629,7 +629,7 @@ async fn confirming_the_same_address_twice_is_idempotent() {
     let h2 = skip_if_no_db!();
     let user_id = h2.signup(VICTIM_EMAIL).await;
     let token = h2.issue_token(&user_id).await;
-    sqlx::query("UPDATE core.tb_user SET email = $1 WHERE user_id = $2")
+    sqlx::query("UPDATE auth.tb_user SET email = $1 WHERE user_id = $2")
         .bind(VICTIM_EMAIL)
         .bind(&user_id)
         .execute(&h2.admin)

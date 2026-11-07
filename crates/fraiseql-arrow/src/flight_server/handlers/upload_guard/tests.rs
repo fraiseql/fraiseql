@@ -40,7 +40,7 @@ fn matching_is_exact_not_prefix_or_suffix() {
         "tb_user_secret",
         "tb_users",
         "TB_USER",
-        "core.tb_user",
+        "auth.tb_user",
         " tb_user",
     ] {
         authorize_upload(Some(&allowed), "u1", probe)

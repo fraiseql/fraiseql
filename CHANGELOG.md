@@ -18,6 +18,15 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **First-party auth's tables live in schema `auth` (#1965).** Users, identities, password
+  credentials and their reset and verification tokens, OTP, MFA, SAML, SCIM and sessions
+  move from `core` and `_system` to `auth`, with the same table names: `core.tb_user` is now
+  `auth.tb_user`, `_system.sessions` is now `auth.sessions`. Nothing is migrated: a database
+  provisioned by an earlier release keeps its old tables, and the server creates new, empty
+  ones in `auth`. SQL, grants or views written against the old names must follow.
+  `_system.session_state`, `core.tb_api_key` and `core.tb_admin_token` stay where they are.
+  `fraiseql_auth::auth_schema` lists every auth DDL script in dependency order.
+
 - **A tenant-scoped fact table's `_aggregate` and `_window` roots are refused unless something
   scopes them (#1799).** A fact table is tenant-scoped when the type it is read as
   (`type_name`) declares `inject_params` or is returned by a query that does, or when one of

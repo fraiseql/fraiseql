@@ -35,9 +35,9 @@ use super::SamlError;
 /// The unique index deliberately carries **no** `WHERE deleted_at IS NULL` predicate — see
 /// the module docs for why a deleted name must never be reissued.
 pub const PG_SAML_IDP_SCHEMA_SQL: &str = r"
-CREATE SCHEMA IF NOT EXISTS core;
+CREATE SCHEMA IF NOT EXISTS auth;
 
-CREATE TABLE IF NOT EXISTS core.tb_saml_idp (
+CREATE TABLE IF NOT EXISTS auth.tb_saml_idp (
     pk_saml_idp            BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     id                     UUID NOT NULL DEFAULT gen_random_uuid(),
     idp_name               TEXT NOT NULL,
@@ -55,22 +55,22 @@ CREATE TABLE IF NOT EXISTS core.tb_saml_idp (
 
 -- Spans deleted rows on purpose: a retired name must never be reissued to another
 -- tenant, or the new IdP inherits the old one's `saml:<name>` identity rows.
-CREATE UNIQUE INDEX IF NOT EXISTS uq_saml_idp_name ON core.tb_saml_idp (idp_name);
-CREATE INDEX IF NOT EXISTS idx_saml_idp_tenant ON core.tb_saml_idp (tenant_id)
+CREATE UNIQUE INDEX IF NOT EXISTS uq_saml_idp_name ON auth.tb_saml_idp (idp_name);
+CREATE INDEX IF NOT EXISTS idx_saml_idp_tenant ON auth.tb_saml_idp (tenant_id)
     WHERE deleted_at IS NULL;
 
--- RLS deny-by-default, mirroring core.tb_user / core.tb_auth_identity. ENABLE not FORCE:
+-- RLS deny-by-default, mirroring auth.tb_user / auth.tb_auth_identity. ENABLE not FORCE:
 -- the owner (this store, running the trusted admin path) operates freely, while any other
 -- role reads a row only once it has set fraiseql.tenant_id to that row's tenant.
-ALTER TABLE core.tb_saml_idp ENABLE ROW LEVEL SECURITY;
+ALTER TABLE auth.tb_saml_idp ENABLE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS p_saml_idp_tenant_read ON core.tb_saml_idp;
-CREATE POLICY p_saml_idp_tenant_read ON core.tb_saml_idp
+DROP POLICY IF EXISTS p_saml_idp_tenant_read ON auth.tb_saml_idp;
+CREATE POLICY p_saml_idp_tenant_read ON auth.tb_saml_idp
     FOR SELECT USING (tenant_id = NULLIF(current_setting('fraiseql.tenant_id', true), '')::uuid);
-DROP POLICY IF EXISTS p_saml_idp_insert ON core.tb_saml_idp;
-CREATE POLICY p_saml_idp_insert ON core.tb_saml_idp FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS p_saml_idp_insert ON auth.tb_saml_idp;
+CREATE POLICY p_saml_idp_insert ON auth.tb_saml_idp FOR INSERT WITH CHECK (true);
 
-REVOKE ALL ON core.tb_saml_idp FROM PUBLIC;
+REVOKE ALL ON auth.tb_saml_idp FROM PUBLIC;
 ";
 
 /// A stored IdP as the operator declared it, plus what parsing its metadata revealed.
@@ -189,7 +189,7 @@ impl PgSamlIdpStore {
         Self { db }
     }
 
-    /// Create `core.tb_saml_idp` (idempotent). Call once on startup.
+    /// Create `auth.tb_saml_idp` (idempotent). Call once on startup.
     ///
     /// # Errors
     ///
@@ -244,7 +244,7 @@ fn derive(spec: &SamlIdpSpec) -> Result<(String, Option<DateTime<Utc>>), SamlErr
 impl SamlIdpStore for PgSamlIdpStore {
     async fn list(&self) -> Result<Vec<SamlIdpRecord>, SamlError> {
         let rows = sqlx::query(&format!(
-            "SELECT {COLUMNS} FROM core.tb_saml_idp WHERE deleted_at IS NULL ORDER BY idp_name"
+            "SELECT {COLUMNS} FROM auth.tb_saml_idp WHERE deleted_at IS NULL ORDER BY idp_name"
         ))
         .fetch_all(&self.db)
         .await
@@ -254,7 +254,7 @@ impl SamlIdpStore for PgSamlIdpStore {
 
     async fn get(&self, idp_name: &str) -> Result<Option<SamlIdpRecord>, SamlError> {
         let row = sqlx::query(&format!(
-            "SELECT {COLUMNS} FROM core.tb_saml_idp WHERE idp_name = $1 AND deleted_at IS NULL"
+            "SELECT {COLUMNS} FROM auth.tb_saml_idp WHERE idp_name = $1 AND deleted_at IS NULL"
         ))
         .bind(idp_name)
         .fetch_optional(&self.db)
@@ -267,7 +267,7 @@ impl SamlIdpStore for PgSamlIdpStore {
         let (idp_entity_id, expires_at) = derive(spec)?;
 
         let row = sqlx::query(&format!(
-            "INSERT INTO core.tb_saml_idp \
+            "INSERT INTO auth.tb_saml_idp \
              (idp_name, tenant_id, sp_entity_id, acs_url, metadata_xml, idp_entity_id, \
               trust_asserted_email, certificate_expires_at) \
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING {COLUMNS}"
@@ -297,7 +297,7 @@ impl SamlIdpStore for PgSamlIdpStore {
         let (idp_entity_id, expires_at) = derive(spec)?;
 
         let row = sqlx::query(&format!(
-            "UPDATE core.tb_saml_idp SET sp_entity_id = $2, acs_url = $3, metadata_xml = $4, \
+            "UPDATE auth.tb_saml_idp SET sp_entity_id = $2, acs_url = $3, metadata_xml = $4, \
              idp_entity_id = $5, trust_asserted_email = $6, certificate_expires_at = $7, \
              updated_at = now() \
              WHERE idp_name = $1 AND deleted_at IS NULL RETURNING {COLUMNS}"
@@ -318,7 +318,7 @@ impl SamlIdpStore for PgSamlIdpStore {
 
     async fn delete(&self, idp_name: &str) -> Result<(), SamlError> {
         let affected = sqlx::query(
-            "UPDATE core.tb_saml_idp SET deleted_at = now(), updated_at = now() \
+            "UPDATE auth.tb_saml_idp SET deleted_at = now(), updated_at = now() \
                          WHERE idp_name = $1 AND deleted_at IS NULL",
         )
         .bind(idp_name)

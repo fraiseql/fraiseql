@@ -108,7 +108,7 @@ per-tenant path alongside it — the config-file entries keep working unchanged.
 ```toml
 # server.toml
 [saml]
-store_enabled = true                     # mounts core.tb_saml_idp + /api/saml/idps
+store_enabled = true                     # mounts auth.tb_saml_idp + /api/saml/idps
 refresh_interval_secs = 30               # how fast ANOTHER replica's change propagates
 certificate_expiry_warning_days = 30     # start warning this far before the cliff
 ```

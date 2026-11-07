@@ -20,7 +20,7 @@
 //! leg enables it.
 //!
 //! **Execution engine:** PostgreSQL · **Infrastructure:** `DATABASE_URL` + `auth-saml` ·
-//! **Parallelism:** truncates `core.tb_saml_replay` on setup → run `--test-threads=1`.
+//! **Parallelism:** truncates `auth.tb_saml_replay` on setup → run `--test-threads=1`.
 #![allow(clippy::unwrap_used, clippy::print_stderr)] // Reason: test code — panics and skip diagnostics are acceptable
 
 use chrono::{Duration, Utc};
@@ -38,7 +38,7 @@ async fn replicas(n: usize) -> Option<Vec<PgSamlReplayStore>> {
         store.init().await.unwrap();
         stores.push(store);
     }
-    sqlx::query("TRUNCATE core.tb_saml_replay")
+    sqlx::query("TRUNCATE auth.tb_saml_replay")
         .execute(&PgPoolOptions::new().max_connections(1).connect(&url).await.unwrap())
         .await
         .unwrap();

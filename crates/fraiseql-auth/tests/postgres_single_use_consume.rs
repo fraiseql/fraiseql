@@ -18,7 +18,7 @@
 //!
 //! **Execution engine:** PostgreSQL · **Infrastructure:** `DATABASE_URL` ·
 //! **Parallelism:** installs table-scoped triggers and truncates the shared
-//! `core` tables on setup → run `--test-threads=1`.
+//! `auth` tables on setup → run `--test-threads=1`.
 #![allow(clippy::unwrap_used, clippy::print_stderr)] // Reason: test code — panics and skip diagnostics are acceptable
 
 use fraiseql_auth::{MfaStore, OtpStore, PgMfaStore, PgOtpStore};
@@ -42,15 +42,15 @@ async fn fresh() -> Option<(PgOtpStore, PgMfaStore, PgPool)> {
     mfa.init().await.unwrap();
 
     for table in [
-        "core.tb_otp_code",
-        "core.tb_mfa_challenge",
-        "core.tb_mfa_enrollment",
+        "auth.tb_otp_code",
+        "auth.tb_mfa_challenge",
+        "auth.tb_mfa_enrollment",
     ] {
         unpoison_deletes(&db, table).await;
     }
     sqlx::query(
-        "TRUNCATE core.tb_otp_code, core.tb_otp_send_budget,
-                  core.tb_mfa_challenge, core.tb_mfa_enrollment",
+        "TRUNCATE auth.tb_otp_code, auth.tb_otp_send_budget,
+                  auth.tb_mfa_challenge, auth.tb_mfa_enrollment",
     )
     .execute(&db)
     .await
@@ -76,7 +76,7 @@ macro_rules! skip_if_no_db {
 /// connection drop) narrowed to the one statement under test.
 async fn poison_deletes(db: &PgPool, table: &str) {
     sqlx::query(
-        "CREATE OR REPLACE FUNCTION core.fn_fraiseql_test_poison_delete() RETURNS trigger
+        "CREATE OR REPLACE FUNCTION auth.fn_fraiseql_test_poison_delete() RETURNS trigger
          LANGUAGE plpgsql AS $$
          BEGIN RAISE EXCEPTION 'poisoned DELETE (test injection)'; END $$",
     )
@@ -85,7 +85,7 @@ async fn poison_deletes(db: &PgPool, table: &str) {
     .unwrap();
     sqlx::query(&format!(
         "CREATE TRIGGER {POISON_TRIGGER} BEFORE DELETE ON {table}
-         FOR EACH ROW EXECUTE FUNCTION core.fn_fraiseql_test_poison_delete()"
+         FOR EACH ROW EXECUTE FUNCTION auth.fn_fraiseql_test_poison_delete()"
     ))
     .execute(db)
     .await
@@ -125,9 +125,9 @@ async fn otp_verify_fails_closed_when_the_single_use_delete_fails() {
     let email = "consume-otp@example.com";
     let code = otp.create_otp(email).await.unwrap().code;
 
-    poison_deletes(&db, "core.tb_otp_code").await;
+    poison_deletes(&db, "auth.tb_otp_code").await;
     let result = otp.verify_otp(email, &code).await;
-    unpoison_deletes(&db, "core.tb_otp_code").await;
+    unpoison_deletes(&db, "auth.tb_otp_code").await;
 
     assert!(
         result.is_err(),
@@ -135,7 +135,7 @@ async fn otp_verify_fails_closed_when_the_single_use_delete_fails() {
          replayable — verify_otp must fail closed, not report a successful verification"
     );
     assert_eq!(
-        row_count(&db, "core.tb_otp_code").await,
+        row_count(&db, "auth.tb_otp_code").await,
         1,
         "precondition: the poisoned DELETE really did leave the row behind"
     );
@@ -148,7 +148,7 @@ async fn otp_verify_consumes_the_code_when_the_delete_succeeds() {
     let code = otp.create_otp(email).await.unwrap().code;
 
     otp.verify_otp(email, &code).await.unwrap();
-    assert_eq!(row_count(&db, "core.tb_otp_code").await, 0, "the code is consumed");
+    assert_eq!(row_count(&db, "auth.tb_otp_code").await, 0, "the code is consumed");
     assert!(
         otp.verify_otp(email, &code).await.is_err(),
         "single-use: the same code must not verify twice"
@@ -172,9 +172,9 @@ async fn mfa_verify_fails_closed_when_the_challenge_delete_fails() {
     let secret = enrolled(&mfa, user_id).await;
     let challenge = mfa.create_challenge(user_id).await.unwrap();
 
-    poison_deletes(&db, "core.tb_mfa_challenge").await;
+    poison_deletes(&db, "auth.tb_mfa_challenge").await;
     let result = mfa.verify_challenge(&challenge, &totp_now(&secret)).await;
-    unpoison_deletes(&db, "core.tb_mfa_challenge").await;
+    unpoison_deletes(&db, "auth.tb_mfa_challenge").await;
 
     assert!(
         result.is_err(),
@@ -182,7 +182,7 @@ async fn mfa_verify_fails_closed_when_the_challenge_delete_fails() {
          valid for the rest of its TTL — verify_challenge must fail closed"
     );
     assert_eq!(
-        row_count(&db, "core.tb_mfa_challenge").await,
+        row_count(&db, "auth.tb_mfa_challenge").await,
         1,
         "precondition: the poisoned DELETE really did leave the challenge behind"
     );
@@ -197,7 +197,7 @@ async fn mfa_verify_consumes_the_challenge_when_the_delete_succeeds() {
 
     let verified = mfa.verify_challenge(&challenge, &totp_now(&secret)).await.unwrap();
     assert_eq!(verified, user_id);
-    assert_eq!(row_count(&db, "core.tb_mfa_challenge").await, 0, "the challenge is consumed");
+    assert_eq!(row_count(&db, "auth.tb_mfa_challenge").await, 0, "the challenge is consumed");
     assert!(
         mfa.verify_challenge(&challenge, &totp_now(&secret)).await.is_err(),
         "single-use: the same challenge token must not verify twice"

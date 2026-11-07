@@ -1,4 +1,4 @@
-//! SAML `IdP` management API (#947) — CRUD over `core.tb_saml_idp`.
+//! SAML `IdP` management API (#947) — CRUD over `auth.tb_saml_idp`.
 //!
 //! Mounted when `[saml] store_enabled = true` and an `admin_token` is set, behind the same
 //! admin bearer gate as the RBAC and API-key management routers. Every write goes through

@@ -3,14 +3,14 @@
 //! This is the production backend for [`AccountStore`](super::AccountStore); the
 //! [`InMemoryAccountStore`](super::InMemoryAccountStore) loses all linkage on
 //! restart. It is a drop-in replacement (same trait, same `"user_<uuid>"`
-//! identifier format, so it joins the existing `_system.sessions.user_id`), so
+//! identifier format, so it joins the existing `auth.sessions.user_id`), so
 //! `multi_provider` / `phone_otp` need no change beyond which `Arc<dyn AccountStore>`
 //! they are handed.
 //!
 //! # Schema
 //!
-//! - `core.tb_user` — one row per stable account (`user_id`, optional verified email).
-//! - `core.tb_auth_identity` — one row per linked `(provider, provider_id)`, FK to a user.
+//! - `auth.tb_user` — one row per stable account (`user_id`, optional verified email).
+//! - `auth.tb_auth_identity` — one row per linked `(provider, provider_id)`, FK to a user.
 //!
 //! Both carry a `tenant_id` and RLS deny-by-default (mirroring the change-log RLS in
 //! observers migration `12`). RLS is `ENABLE`, not `FORCE`: this store runs as the
@@ -44,9 +44,9 @@ use crate::{
 /// Idempotent DDL for the user / identity store. Exposed so a migration runner can
 /// apply it explicitly; [`PostgresAccountStore::init`] runs the same statements.
 pub const SCHEMA_SQL: &str = r"
-CREATE SCHEMA IF NOT EXISTS core;
+CREATE SCHEMA IF NOT EXISTS auth;
 
-CREATE TABLE IF NOT EXISTS core.tb_user (
+CREATE TABLE IF NOT EXISTS auth.tb_user (
     pk_user    BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     id         UUID NOT NULL DEFAULT gen_random_uuid(),
     user_id    TEXT NOT NULL UNIQUE,
@@ -57,11 +57,11 @@ CREATE TABLE IF NOT EXISTS core.tb_user (
 );
 -- Keys are unique per account space (#1088): see the module docs. The global index an
 -- earlier release created is replaced in place.
-DROP INDEX IF EXISTS core.uq_user_email;
-DROP INDEX IF EXISTS core.uq_user_email_platform;
-DROP INDEX IF EXISTS core.uq_user_email_tenant;
+DROP INDEX IF EXISTS auth.uq_user_email;
+DROP INDEX IF EXISTS auth.uq_user_email_platform;
+DROP INDEX IF EXISTS auth.uq_user_email_tenant;
 CREATE UNIQUE INDEX IF NOT EXISTS uq_user_email_per_space
-    ON core.tb_user (email, tenant_id) NULLS NOT DISTINCT WHERE email IS NOT NULL;
+    ON auth.tb_user (email, tenant_id) NULLS NOT DISTINCT WHERE email IS NOT NULL;
 
 -- SCIM 2.0 provisioning (#946). ADD COLUMN IF NOT EXISTS so a database that predates
 -- provisioning upgrades in place.
@@ -69,65 +69,65 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_user_email_per_space
 -- `active` is the load-bearing one: it is what an IdP flips when it offboards someone, and
 -- it must block *every* credential on the account, not merely SAML. It defaults TRUE so
 -- every pre-existing row stays exactly as active as it was.
-ALTER TABLE core.tb_user ADD COLUMN IF NOT EXISTS active      BOOLEAN NOT NULL DEFAULT TRUE;
-ALTER TABLE core.tb_user ADD COLUMN IF NOT EXISTS user_name   TEXT;
-ALTER TABLE core.tb_user ADD COLUMN IF NOT EXISTS external_id TEXT;
-ALTER TABLE core.tb_user ADD COLUMN IF NOT EXISTS given_name  TEXT;
-ALTER TABLE core.tb_user ADD COLUMN IF NOT EXISTS family_name TEXT;
-ALTER TABLE core.tb_user ADD COLUMN IF NOT EXISTS display_name TEXT;
+ALTER TABLE auth.tb_user ADD COLUMN IF NOT EXISTS active      BOOLEAN NOT NULL DEFAULT TRUE;
+ALTER TABLE auth.tb_user ADD COLUMN IF NOT EXISTS user_name   TEXT;
+ALTER TABLE auth.tb_user ADD COLUMN IF NOT EXISTS external_id TEXT;
+ALTER TABLE auth.tb_user ADD COLUMN IF NOT EXISTS given_name  TEXT;
+ALTER TABLE auth.tb_user ADD COLUMN IF NOT EXISTS family_name TEXT;
+ALTER TABLE auth.tb_user ADD COLUMN IF NOT EXISTS display_name TEXT;
 -- Monotonic per-row counter behind the SCIM `meta.version` / `ETag`, so a provisioning
 -- client's If-Match can detect a lost update. A timestamp would not: two writes inside one
 -- clock tick would share a version.
-ALTER TABLE core.tb_user ADD COLUMN IF NOT EXISTS version     BIGINT NOT NULL DEFAULT 1;
+ALTER TABLE auth.tb_user ADD COLUMN IF NOT EXISTS version     BIGINT NOT NULL DEFAULT 1;
 
-DROP INDEX IF EXISTS core.uq_user_user_name;
-DROP INDEX IF EXISTS core.uq_user_user_name_platform;
-DROP INDEX IF EXISTS core.uq_user_user_name_tenant;
+DROP INDEX IF EXISTS auth.uq_user_user_name;
+DROP INDEX IF EXISTS auth.uq_user_user_name_platform;
+DROP INDEX IF EXISTS auth.uq_user_user_name_tenant;
 CREATE UNIQUE INDEX IF NOT EXISTS uq_user_user_name_per_space
-    ON core.tb_user (user_name, tenant_id) NULLS NOT DISTINCT WHERE user_name IS NOT NULL;
+    ON auth.tb_user (user_name, tenant_id) NULLS NOT DISTINCT WHERE user_name IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_user_external_id
-    ON core.tb_user (external_id) WHERE external_id IS NOT NULL;
+    ON auth.tb_user (external_id) WHERE external_id IS NOT NULL;
 
-CREATE TABLE IF NOT EXISTS core.tb_auth_identity (
+CREATE TABLE IF NOT EXISTS auth.tb_auth_identity (
     pk_auth_identity BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     id          UUID NOT NULL DEFAULT gen_random_uuid(),
-    fk_user     BIGINT NOT NULL REFERENCES core.tb_user (pk_user) ON DELETE CASCADE,
+    fk_user     BIGINT NOT NULL REFERENCES auth.tb_user (pk_user) ON DELETE CASCADE,
     user_id     TEXT NOT NULL,
     provider    TEXT NOT NULL,
     provider_id TEXT NOT NULL,
     tenant_id   UUID,
     created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-ALTER TABLE core.tb_auth_identity
+ALTER TABLE auth.tb_auth_identity
     DROP CONSTRAINT IF EXISTS tb_auth_identity_provider_provider_id_key;
-DROP INDEX IF EXISTS core.uq_auth_identity_platform;
-DROP INDEX IF EXISTS core.uq_auth_identity_tenant;
+DROP INDEX IF EXISTS auth.uq_auth_identity_platform;
+DROP INDEX IF EXISTS auth.uq_auth_identity_tenant;
 CREATE UNIQUE INDEX IF NOT EXISTS uq_auth_identity_per_space
-    ON core.tb_auth_identity (provider, provider_id, tenant_id) NULLS NOT DISTINCT;
-CREATE INDEX IF NOT EXISTS idx_auth_identity_user    ON core.tb_auth_identity (fk_user);
-CREATE INDEX IF NOT EXISTS idx_auth_identity_user_id ON core.tb_auth_identity (user_id);
+    ON auth.tb_auth_identity (provider, provider_id, tenant_id) NULLS NOT DISTINCT;
+CREATE INDEX IF NOT EXISTS idx_auth_identity_user    ON auth.tb_auth_identity (fk_user);
+CREATE INDEX IF NOT EXISTS idx_auth_identity_user_id ON auth.tb_auth_identity (user_id);
 
 -- RLS deny-by-default (mirrors observers migration 12). ENABLE not FORCE so the
 -- owner (this store) and BYPASSRLS roles operate freely; a non-owner role reads a
 -- row only once it has set fraiseql.tenant_id to that row's tenant (fail-closed).
-ALTER TABLE core.tb_user          ENABLE ROW LEVEL SECURITY;
-ALTER TABLE core.tb_auth_identity ENABLE ROW LEVEL SECURITY;
+ALTER TABLE auth.tb_user          ENABLE ROW LEVEL SECURITY;
+ALTER TABLE auth.tb_auth_identity ENABLE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS p_user_tenant_read ON core.tb_user;
-CREATE POLICY p_user_tenant_read ON core.tb_user
+DROP POLICY IF EXISTS p_user_tenant_read ON auth.tb_user;
+CREATE POLICY p_user_tenant_read ON auth.tb_user
     FOR SELECT USING (tenant_id = NULLIF(current_setting('fraiseql.tenant_id', true), '')::uuid);
-DROP POLICY IF EXISTS p_user_insert ON core.tb_user;
-CREATE POLICY p_user_insert ON core.tb_user FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS p_user_insert ON auth.tb_user;
+CREATE POLICY p_user_insert ON auth.tb_user FOR INSERT WITH CHECK (true);
 
-DROP POLICY IF EXISTS p_auth_identity_tenant_read ON core.tb_auth_identity;
-CREATE POLICY p_auth_identity_tenant_read ON core.tb_auth_identity
+DROP POLICY IF EXISTS p_auth_identity_tenant_read ON auth.tb_auth_identity;
+CREATE POLICY p_auth_identity_tenant_read ON auth.tb_auth_identity
     FOR SELECT USING (tenant_id = NULLIF(current_setting('fraiseql.tenant_id', true), '')::uuid);
-DROP POLICY IF EXISTS p_auth_identity_insert ON core.tb_auth_identity;
-CREATE POLICY p_auth_identity_insert ON core.tb_auth_identity FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS p_auth_identity_insert ON auth.tb_auth_identity;
+CREATE POLICY p_auth_identity_insert ON auth.tb_auth_identity FOR INSERT WITH CHECK (true);
 
 -- Least-privilege baseline: never world-readable. RLS is defence-in-depth on top.
-REVOKE ALL ON core.tb_user          FROM PUBLIC;
-REVOKE ALL ON core.tb_auth_identity FROM PUBLIC;
+REVOKE ALL ON auth.tb_user          FROM PUBLIC;
+REVOKE ALL ON auth.tb_auth_identity FROM PUBLIC;
 ";
 
 /// PostgreSQL-backed account store.
@@ -142,8 +142,8 @@ pub struct PostgresAccountStore {
 impl PostgresAccountStore {
     /// Create a new store over an existing pool.
     ///
-    /// The pool's role must own (or `BYPASSRLS`) the `core.tb_user` /
-    /// `core.tb_auth_identity` tables — it runs the trusted login path and must not be
+    /// The pool's role must own (or `BYPASSRLS`) the `auth.tb_user` /
+    /// `auth.tb_auth_identity` tables — it runs the trusted login path and must not be
     /// constrained by the deny-by-default RLS. Calling [`init`](Self::init) once on
     /// startup creates the tables (so the connecting role owns them by construction).
     #[must_use]
@@ -151,7 +151,7 @@ impl PostgresAccountStore {
         Self { db }
     }
 
-    /// Create the `core.tb_user` / `core.tb_auth_identity` schema (idempotent).
+    /// Create the `auth.tb_user` / `auth.tb_auth_identity` schema (idempotent).
     ///
     /// Call once on startup. Safe to re-run and safe on a database that predates this
     /// store (the `CREATE … IF NOT EXISTS` form is the back-compat path for existing
@@ -171,7 +171,7 @@ impl PostgresAccountStore {
 }
 
 /// Generate a fresh stable user identifier, matching the in-memory store's format so
-/// the two backends are interchangeable and the value joins `_system.sessions.user_id`.
+/// the two backends are interchangeable and the value joins `auth.sessions.user_id`.
 fn new_user_id() -> String {
     format!("user_{}", Uuid::new_v4().as_simple())
 }
@@ -200,7 +200,7 @@ impl AccountStore for PostgresAccountStore {
         // 1. A known (provider, provider_id) in this account space is an idempotent re-login: same
         //    user, no new link. The per-space unique index makes this the authoritative lookup.
         if let Some(row) = sqlx::query(
-            "SELECT user_id FROM core.tb_auth_identity \
+            "SELECT user_id FROM auth.tb_auth_identity \
              WHERE provider = $1 AND provider_id = $2 AND tenant_id IS NOT DISTINCT FROM $3",
         )
         .bind(provider)
@@ -227,7 +227,7 @@ impl AccountStore for PostgresAccountStore {
         // 3. Find the email-keyed user in this account space, or create a fresh account.
         let (user_id, pk_user, is_new, linked) = if let Some(em) = verified_email.as_deref() {
             if let Some(row) = sqlx::query(
-                "SELECT pk_user, user_id FROM core.tb_user \
+                "SELECT pk_user, user_id FROM auth.tb_user \
                  WHERE email = $1 AND tenant_id IS NOT DISTINCT FROM $2",
             )
             .bind(em)
@@ -253,7 +253,7 @@ impl AccountStore for PostgresAccountStore {
         // 4. Link the provider identity (new for this account by construction — step 1 ruled out an
         //    existing one).
         sqlx::query(
-            "INSERT INTO core.tb_auth_identity (fk_user, user_id, provider, provider_id, tenant_id) \
+            "INSERT INTO auth.tb_auth_identity (fk_user, user_id, provider, provider_id, tenant_id) \
              VALUES ($1, $2, $3, $4, $5)",
         )
         .bind(pk_user)
@@ -293,7 +293,7 @@ impl AccountStore for PostgresAccountStore {
 
     async fn get_account(&self, user_id: &str) -> Result<AccountRecord> {
         let email: Option<String> =
-            sqlx::query("SELECT email FROM core.tb_user WHERE user_id = $1")
+            sqlx::query("SELECT email FROM auth.tb_user WHERE user_id = $1")
                 .bind(user_id)
                 .fetch_optional(&self.db)
                 .await
@@ -302,7 +302,7 @@ impl AccountStore for PostgresAccountStore {
                 .get("email");
 
         let providers = sqlx::query(
-            "SELECT provider, provider_id FROM core.tb_auth_identity \
+            "SELECT provider, provider_id FROM auth.tb_auth_identity \
              WHERE user_id = $1 ORDER BY pk_auth_identity",
         )
         .bind(user_id)
@@ -332,7 +332,7 @@ async fn insert_user(
     tenant: Option<Uuid>,
 ) -> Result<i64> {
     let row = sqlx::query(
-        "INSERT INTO core.tb_user (user_id, email, tenant_id) VALUES ($1, $2, $3) RETURNING pk_user",
+        "INSERT INTO auth.tb_user (user_id, email, tenant_id) VALUES ($1, $2, $3) RETURNING pk_user",
     )
     .bind(user_id)
     .bind(email)

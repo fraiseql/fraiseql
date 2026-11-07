@@ -30,7 +30,7 @@ import sys
 # anything not listed here is a hard failure.
 ACCEPTED_DEVIATIONS: dict[str, str] = {
     "unexpected value for 'emails'": (
-        "One primary email per account, because `core.tb_user.email` is the cross-provider "
+        "One primary email per account, because `auth.tb_user.email` is the cross-provider "
         "account-linking key (#411). A second address would either be invisible to linking "
         "or silently widen it, so multi-valued emails are stored as the primary only."
     ),

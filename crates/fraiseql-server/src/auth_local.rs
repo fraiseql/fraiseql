@@ -383,7 +383,7 @@ pub fn session_routes_store(
     let pool = db_pool.ok_or_else(|| {
         ServerError::ConfigError(
             "[auth.session] absolute_ttl_secs requires a database pool: refresh tokens are \
-             rows in _system.sessions."
+             rows in auth.sessions."
                 .to_string(),
         )
     })?;
@@ -413,7 +413,7 @@ pub fn session_routes_store(
 /// [`ServerError::ConfigError`] when confirmed enrollments exist.
 pub async fn refuse_stranded_mfa_enrollments(pool: &sqlx::PgPool) -> Result<()> {
     let confirmed =
-        sqlx::query_scalar::<_, i64>("SELECT count(*) FROM core.tb_mfa_enrollment WHERE confirmed")
+        sqlx::query_scalar::<_, i64>("SELECT count(*) FROM auth.tb_mfa_enrollment WHERE confirmed")
             .fetch_one(pool)
             .await;
     match confirmed {
@@ -423,8 +423,8 @@ pub async fn refuse_stranded_mfa_enrollments(pool: &sqlx::PgPool) -> Result<()> 
              is not enabled. Their sign-ins owe a second factor that only \
              POST /auth/v1/mfa/verify takes, and it is mounted only with mfa = true, so they \
              could not sign in at all. Either set [auth.local] mfa = true, or remove the \
-             enrollments deliberately: DELETE FROM core.tb_mfa_challenge; \
-             DELETE FROM core.tb_mfa_enrollment;"
+             enrollments deliberately: DELETE FROM auth.tb_mfa_challenge; \
+             DELETE FROM auth.tb_mfa_enrollment;"
         ))),
         Err(sqlx::Error::Database(e)) if e.code().as_deref() == Some("42P01") => Ok(()),
         Err(e) => {

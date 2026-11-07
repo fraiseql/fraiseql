@@ -12,7 +12,7 @@ use crate::{
 /// PostgreSQL-backed [`SessionStateEntry`] store.
 ///
 /// Owns `_system.session_state`, created by [`init`](Self::init) at server
-/// startup exactly like `_system.sessions` (auth-owned tables live in this
+/// startup exactly like `auth.sessions` (auth-owned tables live in this
 /// crate, not in server migrations). TTL is enforced on every read
 /// (`expires_at > now()`) and by the periodic
 /// [`evict_expired`](Self::evict_expired) sweep.

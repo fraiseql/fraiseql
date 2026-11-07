@@ -59,8 +59,8 @@ ones created by sign-in through the tenant's own SAML IdP, which lands in that t
 ([account spaces](identity-store.md#account-spaces-1088)). Platform accounts (password, OTP,
 social sign-in) are out of its reach. An account created before tenant-bound sign-in existed
 is a platform account. To hand one to a tenant, assign it:
-`UPDATE core.tb_user SET tenant_id = '<tenant uuid>' WHERE user_id = '…'`, and set the same
-`tenant_id` on its `core.tb_auth_identity` rows.
+`UPDATE auth.tb_user SET tenant_id = '<tenant uuid>' WHERE user_id = '…'`, and set the same
+`tenant_id` on its `auth.tb_auth_identity` rows.
 
 ## Endpoints
 
@@ -125,7 +125,7 @@ tracked defect ([#1090]):
 - **`active` cannot be removed, only set.** It is the offboarding switch and is `NOT NULL`
   by design; a nullable deactivation flag would mean deciding whether `NULL` is active — a
   fail-open hazard on the one attribute this feature exists to enforce.
-- **One primary email per account.** `core.tb_user.email` is the cross-provider
+- **One primary email per account.** `auth.tb_user.email` is the cross-provider
   account-linking key, so a second address would either be invisible to linking or silently
   widen it.
 

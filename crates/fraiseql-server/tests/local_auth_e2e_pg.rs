@@ -481,7 +481,7 @@ async fn otp_identity_resolves_through_the_account_store() {
     );
 
     let stored: Option<(Vec<u8>,)> =
-        sqlx::query_as("SELECT code_hash FROM core.tb_otp_code WHERE email = $1")
+        sqlx::query_as("SELECT code_hash FROM auth.tb_otp_code WHERE email = $1")
             .bind("dave@example.com")
             .fetch_optional(&pool)
             .await
@@ -584,7 +584,7 @@ async fn mfa_enrollment_survives_a_restart() {
 
     // The enrollment row exists and is NOT yet confirmed.
     let confirmed: (bool,) =
-        sqlx::query_as("SELECT confirmed FROM core.tb_mfa_enrollment WHERE user_id = $1")
+        sqlx::query_as("SELECT confirmed FROM auth.tb_mfa_enrollment WHERE user_id = $1")
             .bind("user-1")
             .fetch_one(&pool)
             .await
@@ -623,7 +623,7 @@ async fn mfa_enrollment_survives_a_restart() {
     assert_eq!(status, 200, "confirm through the route: {body}");
 
     let confirmed: (bool,) =
-        sqlx::query_as("SELECT confirmed FROM core.tb_mfa_enrollment WHERE user_id = $1")
+        sqlx::query_as("SELECT confirmed FROM auth.tb_mfa_enrollment WHERE user_id = $1")
             .bind("user-1")
             .fetch_one(&pool)
             .await
@@ -670,7 +670,7 @@ async fn mfa_enrollment_survives_a_restart() {
 
     // The used recovery code is consumed, not replayable.
     let remaining: (Vec<String>,) = sqlx::query_as(
-        "SELECT recovery_code_hashes FROM core.tb_mfa_enrollment WHERE user_id = $1",
+        "SELECT recovery_code_hashes FROM auth.tb_mfa_enrollment WHERE user_id = $1",
     )
     .bind("user-1")
     .fetch_one(&pool)
@@ -1280,7 +1280,7 @@ async fn email_verification_start_confirm_promotes_the_account() {
     let access = body["access_token"].as_str().expect("access_token").to_string();
     let user_id = jwt_sub(&access);
     let verified_email = |pool: PgPool, user_id: String| async move {
-        sqlx::query_scalar::<_, Option<String>>("SELECT email FROM core.tb_user WHERE user_id = $1")
+        sqlx::query_scalar::<_, Option<String>>("SELECT email FROM auth.tb_user WHERE user_id = $1")
             .bind(user_id)
             .fetch_one(&pool)
             .await
@@ -1532,7 +1532,7 @@ async fn an_anonymous_caller_cannot_take_over_an_account_through_mfa() {
         .unwrap();
     let stored_secret = || async {
         sqlx::query_as::<_, (String, bool)>(
-            "SELECT secret_base32, confirmed FROM core.tb_mfa_enrollment WHERE user_id = $1",
+            "SELECT secret_base32, confirmed FROM auth.tb_mfa_enrollment WHERE user_id = $1",
         )
         .bind(victim)
         .fetch_one(&pool)
@@ -1624,7 +1624,7 @@ fn expect_second_factor(
 #[cfg(feature = "inbound-email")]
 async fn stored_otp_code(pool: &PgPool, email: &str) -> String {
     let (code_hash,): (Vec<u8>,) =
-        sqlx::query_as("SELECT code_hash FROM core.tb_otp_code WHERE email = $1")
+        sqlx::query_as("SELECT code_hash FROM auth.tb_otp_code WHERE email = $1")
             .bind(email)
             .fetch_one(pool)
             .await
@@ -1766,7 +1766,7 @@ async fn a_session_replaces_a_confirmed_enrollment_only_with_a_current_code() {
         assert_eq!(status, reqwest::StatusCode::UNPROCESSABLE_ENTITY, "code {code:?}: {body}");
     }
     let stored: (String, bool) = sqlx::query_as(
-        "SELECT secret_base32, confirmed FROM core.tb_mfa_enrollment WHERE user_id = $1",
+        "SELECT secret_base32, confirmed FROM auth.tb_mfa_enrollment WHERE user_id = $1",
     )
     .bind(user)
     .fetch_one(&pool)
@@ -2053,7 +2053,7 @@ async fn members_pool(url: &str, db: &str) -> PgPool {
 
 #[cfg(feature = "inbound-email")]
 async fn accounts_for(pool: &PgPool, email: &str) -> i64 {
-    sqlx::query_scalar("SELECT count(*) FROM core.tb_user WHERE email = $1")
+    sqlx::query_scalar("SELECT count(*) FROM auth.tb_user WHERE email = $1")
         .bind(email)
         .fetch_one(pool)
         .await
@@ -2070,7 +2070,7 @@ async fn messages_after_the_approved_one(sink: &CapturingSmtp) -> Vec<String> {
     sink.captured.lock().unwrap().clone()
 }
 
-/// The issue's acceptance: no mail, no `core.tb_user` row and no session for an address the
+/// The issue's acceptance: no mail, no `auth.tb_user` row and no session for an address the
 /// query refuses, even presenting the code the store holds for it; the approved address
 /// completes the same flow on the same server.
 #[cfg(feature = "inbound-email")]
@@ -2649,7 +2649,7 @@ async fn a_magic_link_is_stored_as_its_hash_and_expires() {
 
     let token = magic_link_for(&server.base, &sink, email, 0).await;
     let (stored,): (Vec<u8>,) =
-        sqlx::query_as("SELECT link_token_hash FROM core.tb_otp_code WHERE email = $1")
+        sqlx::query_as("SELECT link_token_hash FROM auth.tb_otp_code WHERE email = $1")
             .bind(email)
             .fetch_one(&pool)
             .await
@@ -2657,14 +2657,14 @@ async fn a_magic_link_is_stored_as_its_hash_and_expires() {
     let hashed = <sha2::Sha256 as sha2::Digest>::digest(token.as_bytes()).to_vec();
     assert_eq!(stored, hashed, "only the hash is kept");
 
-    sqlx::query("UPDATE core.tb_otp_code SET expires_at = expires_at - 601 WHERE email = $1")
+    sqlx::query("UPDATE auth.tb_otp_code SET expires_at = expires_at - 601 WHERE email = $1")
         .bind(email)
         .execute(&pool)
         .await
         .unwrap();
     let (status, body) = redeem(&server.base, &token).await;
     assert_refused_like_a_wrong_code("an expired link", status, &body);
-    let (left,): (i64,) = sqlx::query_as("SELECT count(*) FROM core.tb_otp_code WHERE email = $1")
+    let (left,): (i64,) = sqlx::query_as("SELECT count(*) FROM auth.tb_otp_code WHERE email = $1")
         .bind(email)
         .fetch_one(&pool)
         .await

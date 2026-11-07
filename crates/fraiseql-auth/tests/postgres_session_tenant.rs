@@ -8,7 +8,7 @@
 //! tenant claim, in the form a tenant key and the `::uuid` RLS casts both accept.
 //!
 //! **Execution engine:** `PostgreSQL` · **Infrastructure:** `DATABASE_URL` ·
-//! **Parallelism:** truncates the shared `core` tables on setup → run `--test-threads=1`.
+//! **Parallelism:** truncates the shared `auth` tables on setup → run `--test-threads=1`.
 
 #![allow(clippy::unwrap_used, clippy::print_stderr)] // Reason: test code — panics and skip diagnostics are acceptable
 
@@ -29,7 +29,7 @@ async fn fresh() -> Option<(PgPool, PostgresAccountStore)> {
     let accounts = PostgresAccountStore::new(pool.clone());
     accounts.init().await.unwrap();
     PostgresSessionStore::new(pool.clone()).init().await.unwrap();
-    sqlx::query("TRUNCATE core.tb_auth_identity, core.tb_user RESTART IDENTITY CASCADE")
+    sqlx::query("TRUNCATE auth.tb_auth_identity, auth.tb_user RESTART IDENTITY CASCADE")
         .execute(&pool)
         .await
         .unwrap();
@@ -83,7 +83,7 @@ async fn a_tenant_accounts_session_carries_its_tenant() {
     );
 
     let recorded: Option<Uuid> = sqlx::query(
-        "SELECT tenant_id FROM _system.sessions WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1",
+        "SELECT tenant_id FROM auth.sessions WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1",
     )
     .bind(&account.user_id)
     .fetch_one(&pool)

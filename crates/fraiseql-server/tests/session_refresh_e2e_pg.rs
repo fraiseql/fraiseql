@@ -387,7 +387,7 @@ async fn rotated_secs_ago(pool: &PgPool, token: &str, secs_ago: i64) {
         .expect("clock")
         .as_secs();
     let moved = sqlx::query(
-        "UPDATE _system.sessions SET rotated_at = $2 \
+        "UPDATE auth.sessions SET rotated_at = $2 \
          WHERE refresh_token_hash = $1 AND rotated_at IS NOT NULL",
     )
     .bind(token_hash(token))
@@ -600,7 +600,7 @@ async fn refresh_stops_at_the_absolute_limit() {
     let (status, body) = refresh(base, &first.refresh).await;
     let second = session_of("refresh", status, &body);
     let expires_at: i64 =
-        sqlx::query_scalar("SELECT expires_at FROM _system.sessions WHERE refresh_token_hash = $1")
+        sqlx::query_scalar("SELECT expires_at FROM auth.sessions WHERE refresh_token_hash = $1")
             .bind(token_hash(&second.refresh))
             .fetch_one(&pool)
             .await
@@ -613,7 +613,7 @@ async fn refresh_stops_at_the_absolute_limit() {
     );
 
     sqlx::query(
-        "UPDATE _system.sessions SET expires_at = floor(EXTRACT(EPOCH FROM now()))::bigint - 1 \
+        "UPDATE auth.sessions SET expires_at = floor(EXTRACT(EPOCH FROM now()))::bigint - 1 \
          WHERE refresh_token_hash = $1",
     )
     .bind(token_hash(&second.refresh))
@@ -642,7 +642,7 @@ async fn a_deactivated_account_cannot_refresh() {
     let session = signup(base, "deactivated@example.com").await;
     let user = user_of(&session.access);
     let set_active = |active: bool| {
-        sqlx::query("UPDATE core.tb_user SET active = $2 WHERE user_id = $1")
+        sqlx::query("UPDATE auth.tb_user SET active = $2 WHERE user_id = $1")
             .bind(user.clone())
             .bind(active)
             .execute(&pool)
@@ -672,7 +672,7 @@ async fn a_refresh_carries_the_accounts_current_tenant() {
 
     let session = signup(base, "rehomed@example.com").await;
     let tenant = uuid::Uuid::new_v4();
-    sqlx::query("UPDATE core.tb_user SET tenant_id = $2 WHERE user_id = $1")
+    sqlx::query("UPDATE auth.tb_user SET tenant_id = $2 WHERE user_id = $1")
         .bind(user_of(&session.access))
         .bind(tenant)
         .execute(&pool)
@@ -913,7 +913,7 @@ async fn the_sweep_keeps_a_rotated_row_until_the_limit() {
 
     let rows = |token: &str| {
         sqlx::query_scalar::<_, i64>(
-            "SELECT count(*) FROM _system.sessions WHERE refresh_token_hash = $1",
+            "SELECT count(*) FROM auth.sessions WHERE refresh_token_hash = $1",
         )
         .bind(token_hash(token))
         .fetch_one(&pool)
@@ -932,7 +932,7 @@ async fn the_sweep_keeps_a_rotated_row_until_the_limit() {
     );
 
     sqlx::query(
-        "UPDATE _system.sessions SET expires_at = floor(EXTRACT(EPOCH FROM now()))::bigint - 1 \
+        "UPDATE auth.sessions SET expires_at = floor(EXTRACT(EPOCH FROM now()))::bigint - 1 \
          WHERE refresh_token_hash = $1",
     )
     .bind(token_hash(&first.refresh))
@@ -1622,7 +1622,7 @@ async fn seed_confirmed_mfa(pool: &PgPool, user_id: &str) -> String {
 /// The code `/auth/v1/otp` last stored for `email`, recovered from its hash.
 async fn stored_otp_code(pool: &PgPool, email: &str) -> String {
     let (code_hash,): (Vec<u8>,) =
-        sqlx::query_as("SELECT code_hash FROM core.tb_otp_code WHERE email = $1")
+        sqlx::query_as("SELECT code_hash FROM auth.tb_otp_code WHERE email = $1")
             .bind(email)
             .fetch_one(pool)
             .await

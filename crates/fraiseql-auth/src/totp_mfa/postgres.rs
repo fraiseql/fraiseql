@@ -32,8 +32,8 @@ use crate::{
 /// DDL for the `MFA` tables. Executed at boot and by the live-PG suite — which
 /// is what keeps it valid PostgreSQL (the `#748` precedent).
 pub const PG_MFA_SCHEMA_SQL: &str = r"
-CREATE SCHEMA IF NOT EXISTS core;
-CREATE TABLE IF NOT EXISTS core.tb_mfa_enrollment (
+CREATE SCHEMA IF NOT EXISTS auth;
+CREATE TABLE IF NOT EXISTS auth.tb_mfa_enrollment (
     user_id              TEXT PRIMARY KEY,
     secret_base32        TEXT NOT NULL,
     recovery_code_hashes TEXT[] NOT NULL DEFAULT '{}',
@@ -42,15 +42,15 @@ CREATE TABLE IF NOT EXISTS core.tb_mfa_enrollment (
     failure_window_start BIGINT NOT NULL DEFAULT 0,
     created_at           TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-CREATE TABLE IF NOT EXISTS core.tb_mfa_challenge (
+CREATE TABLE IF NOT EXISTS auth.tb_mfa_challenge (
     token_hash BYTEA PRIMARY KEY,
     user_id    TEXT NOT NULL,
     expires_at BIGINT NOT NULL,
     attempts   INTEGER NOT NULL DEFAULT 0
 );
-CREATE INDEX IF NOT EXISTS idx_mfa_challenge_expires ON core.tb_mfa_challenge(expires_at);
-REVOKE ALL ON core.tb_mfa_enrollment FROM PUBLIC;
-REVOKE ALL ON core.tb_mfa_challenge FROM PUBLIC;
+CREATE INDEX IF NOT EXISTS idx_mfa_challenge_expires ON auth.tb_mfa_challenge(expires_at);
+REVOKE ALL ON auth.tb_mfa_enrollment FROM PUBLIC;
+REVOKE ALL ON auth.tb_mfa_challenge FROM PUBLIC;
 ";
 
 /// Hash a challenge token for storage/lookup. Storing the token verbatim would
@@ -113,7 +113,7 @@ impl PgMfaStore {
     /// [`AuthError::DatabaseError`] if the store fails.
     pub async fn challenge_if_enrolled(&self, user_id: &str) -> Result<Option<ChallengeToken>> {
         let confirmed = sqlx::query_scalar::<_, bool>(
-            "SELECT confirmed FROM core.tb_mfa_enrollment WHERE user_id = $1",
+            "SELECT confirmed FROM auth.tb_mfa_enrollment WHERE user_id = $1",
         )
         .bind(user_id)
         .fetch_optional(&self.db)
@@ -129,7 +129,7 @@ impl PgMfaStore {
     async fn load(&self, user_id: &str) -> Result<Option<EnrollmentRow>> {
         let row = sqlx::query(
             "SELECT secret_base32, recovery_code_hashes, confirmed, failure_count, \
-             failure_window_start FROM core.tb_mfa_enrollment WHERE user_id = $1",
+             failure_window_start FROM auth.tb_mfa_enrollment WHERE user_id = $1",
         )
         .bind(user_id)
         .fetch_optional(&self.db)
@@ -158,7 +158,7 @@ impl PgMfaStore {
     #[allow(clippy::cast_possible_wrap)] // Reason: unix seconds and small counters fit i64/i32
     async fn record_failure(&self, user_id: &str, now: u64) -> Result<()> {
         sqlx::query(
-            "UPDATE core.tb_mfa_enrollment
+            "UPDATE auth.tb_mfa_enrollment
              SET failure_count = CASE
                      WHEN $2 - failure_window_start >= $3 THEN 1
                      ELSE failure_count + 1 END,
@@ -178,7 +178,7 @@ impl PgMfaStore {
 
     async fn clear_failures(&self, user_id: &str) -> Result<()> {
         sqlx::query(
-            "UPDATE core.tb_mfa_enrollment SET failure_count = 0, failure_window_start = 0 \
+            "UPDATE auth.tb_mfa_enrollment SET failure_count = 0, failure_window_start = 0 \
              WHERE user_id = $1",
         )
         .bind(user_id)
@@ -195,7 +195,7 @@ impl MfaStore for PgMfaStore {
     #[allow(clippy::cast_possible_wrap)] // Reason: expiry is only ever written from unix_now()
     async fn sweep_expired(&self) -> Result<u64> {
         let now = unix_now()? as i64;
-        let removed = sqlx::query("DELETE FROM core.tb_mfa_challenge WHERE expires_at <= $1")
+        let removed = sqlx::query("DELETE FROM auth.tb_mfa_challenge WHERE expires_at <= $1")
             .bind(now)
             .execute(&self.db)
             .await
@@ -252,7 +252,7 @@ impl MfaStore for PgMfaStore {
         // Re-enrolling replaces the previous enrollment and resets the failure budget: a
         // confirmed one only after a current code of it was proven above.
         sqlx::query(
-            "INSERT INTO core.tb_mfa_enrollment
+            "INSERT INTO auth.tb_mfa_enrollment
                  (user_id, secret_base32, recovery_code_hashes, confirmed,
                   failure_count, failure_window_start)
              VALUES ($1, $2, $3, false, 0, 0)
@@ -286,7 +286,7 @@ impl MfaStore for PgMfaStore {
                 reason: "invalid TOTP code".into(),
             });
         }
-        sqlx::query("UPDATE core.tb_mfa_enrollment SET confirmed = true WHERE user_id = $1")
+        sqlx::query("UPDATE auth.tb_mfa_enrollment SET confirmed = true WHERE user_id = $1")
             .bind(user_id)
             .execute(&self.db)
             .await
@@ -305,7 +305,7 @@ impl MfaStore for PgMfaStore {
         }
         let token = generate_challenge_token();
         sqlx::query(
-            "INSERT INTO core.tb_mfa_challenge (token_hash, user_id, expires_at, attempts)
+            "INSERT INTO auth.tb_mfa_challenge (token_hash, user_id, expires_at, attempts)
              VALUES ($1, $2, $3, 0)",
         )
         .bind(challenge_hash(&token))
@@ -323,7 +323,7 @@ impl MfaStore for PgMfaStore {
         let hash = challenge_hash(challenge_token);
 
         let challenge = sqlx::query(
-            "SELECT user_id, expires_at, attempts FROM core.tb_mfa_challenge WHERE token_hash = $1",
+            "SELECT user_id, expires_at, attempts FROM auth.tb_mfa_challenge WHERE token_hash = $1",
         )
         .bind(&hash)
         .fetch_optional(&self.db)
@@ -340,7 +340,7 @@ impl MfaStore for PgMfaStore {
         // swallowed error leaves the token replayable with any current-window code
         // for the rest of CHALLENGE_TTL_SECS. Propagated on every path.
         let consume = |hash: Vec<u8>| async move {
-            sqlx::query("DELETE FROM core.tb_mfa_challenge WHERE token_hash = $1")
+            sqlx::query("DELETE FROM auth.tb_mfa_challenge WHERE token_hash = $1")
                 .bind(hash)
                 .execute(&self.db)
                 .await
@@ -380,7 +380,7 @@ impl MfaStore for PgMfaStore {
             let mut remaining = row.recovery_code_hashes;
             remaining.remove(i);
             sqlx::query(
-                "UPDATE core.tb_mfa_enrollment SET recovery_code_hashes = $2 WHERE user_id = $1",
+                "UPDATE auth.tb_mfa_enrollment SET recovery_code_hashes = $2 WHERE user_id = $1",
             )
             .bind(&user_id)
             .bind(&remaining)
@@ -396,7 +396,7 @@ impl MfaStore for PgMfaStore {
         // consuming the challenge once they are exhausted.
         self.record_failure(&user_id, now).await?;
         let attempts = sqlx::query(
-            "UPDATE core.tb_mfa_challenge SET attempts = attempts + 1 WHERE token_hash = $1
+            "UPDATE auth.tb_mfa_challenge SET attempts = attempts + 1 WHERE token_hash = $1
              RETURNING attempts",
         )
         .bind(&hash)
@@ -440,12 +440,12 @@ impl MfaStore for PgMfaStore {
             });
         }
 
-        sqlx::query("DELETE FROM core.tb_mfa_enrollment WHERE user_id = $1")
+        sqlx::query("DELETE FROM auth.tb_mfa_enrollment WHERE user_id = $1")
             .bind(user_id)
             .execute(&self.db)
             .await
             .map_err(db_err)?;
-        sqlx::query("DELETE FROM core.tb_mfa_challenge WHERE user_id = $1")
+        sqlx::query("DELETE FROM auth.tb_mfa_challenge WHERE user_id = $1")
             .bind(user_id)
             .execute(&self.db)
             .await

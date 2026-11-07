@@ -4,7 +4,7 @@
 //! asserted — a social provider's `email_verified`, gated by
 //! [`TrustedEmailProviders`](crate::TrustedEmailProviders), or a completed email `OTP`.
 //! A local-password signup passes `email_verified = false` (deliberately fail-closed),
-//! which keys the identity on `(local, <email>)` and leaves `core.tb_user.email` `NULL`
+//! which keys the identity on `(local, <email>)` and leaves `auth.tb_user.email` `NULL`
 //! forever: the account could never *become* verified, so the same person's password and
 //! Google sign-ins stayed two accounts with no way to join them.
 //!
@@ -78,8 +78,8 @@ const TOKEN_KIND: &str = "email verification";
 ///
 /// Exposed so a migration runner can apply it explicitly;
 /// [`LocalPasswordAuthenticator::init`](super::LocalPasswordAuthenticator::init) runs it
-/// after the #411 identity DDL (the table FK-references `core.tb_user`). Mirrors
-/// `core.tb_password_reset_token`: Trinity `pk_`/`id` columns, deny-by-default RLS
+/// after the #411 identity DDL (the table FK-references `auth.tb_user`). Mirrors
+/// `auth.tb_password_reset_token`: Trinity `pk_`/`id` columns, deny-by-default RLS
 /// (`ENABLE`, not `FORCE`, so the owning store bypasses while any other role reads zero
 /// rows without the `fraiseql.tenant_id` GUC), and `REVOKE ALL … FROM PUBLIC`.
 ///
@@ -87,12 +87,12 @@ const TOKEN_KIND: &str = "email verification";
 /// mailed to. Storing it binds the proof to a specific mailbox rather than to whatever
 /// the identity happens to say at redemption time.
 pub const EMAIL_VERIFICATION_SCHEMA_SQL: &str = r"
-CREATE SCHEMA IF NOT EXISTS core;
+CREATE SCHEMA IF NOT EXISTS auth;
 
-CREATE TABLE IF NOT EXISTS core.tb_email_verification_token (
+CREATE TABLE IF NOT EXISTS auth.tb_email_verification_token (
     pk_email_verification_token BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     id            UUID NOT NULL DEFAULT gen_random_uuid(),
-    fk_user       BIGINT NOT NULL REFERENCES core.tb_user (pk_user) ON DELETE CASCADE,
+    fk_user       BIGINT NOT NULL REFERENCES auth.tb_user (pk_user) ON DELETE CASCADE,
     user_id       TEXT NOT NULL,
     email         TEXT NOT NULL,
     selector      TEXT NOT NULL,
@@ -104,20 +104,20 @@ CREATE TABLE IF NOT EXISTS core.tb_email_verification_token (
     UNIQUE (selector)
 );
 CREATE INDEX IF NOT EXISTS idx_email_verification_token_fk_user
-    ON core.tb_email_verification_token (fk_user);
+    ON auth.tb_email_verification_token (fk_user);
 
--- RLS deny-by-default (mirrors core.tb_user / core.tb_auth_identity / tb_password_reset_token).
-ALTER TABLE core.tb_email_verification_token ENABLE ROW LEVEL SECURITY;
+-- RLS deny-by-default (mirrors auth.tb_user / auth.tb_auth_identity / tb_password_reset_token).
+ALTER TABLE auth.tb_email_verification_token ENABLE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS p_email_verification_token_tenant_read ON core.tb_email_verification_token;
-CREATE POLICY p_email_verification_token_tenant_read ON core.tb_email_verification_token
+DROP POLICY IF EXISTS p_email_verification_token_tenant_read ON auth.tb_email_verification_token;
+CREATE POLICY p_email_verification_token_tenant_read ON auth.tb_email_verification_token
     FOR SELECT USING (tenant_id = NULLIF(current_setting('fraiseql.tenant_id', true), '')::uuid);
-DROP POLICY IF EXISTS p_email_verification_token_insert ON core.tb_email_verification_token;
-CREATE POLICY p_email_verification_token_insert ON core.tb_email_verification_token
+DROP POLICY IF EXISTS p_email_verification_token_insert ON auth.tb_email_verification_token;
+CREATE POLICY p_email_verification_token_insert ON auth.tb_email_verification_token
     FOR INSERT WITH CHECK (true);
 
 -- Least-privilege baseline: never world-readable. RLS is defence-in-depth on top.
-REVOKE ALL ON core.tb_email_verification_token FROM PUBLIC;
+REVOKE ALL ON auth.tb_email_verification_token FROM PUBLIC;
 ";
 
 /// Delivers an email-verification link to the address being verified.
@@ -151,7 +151,7 @@ pub struct EmailVerified {
 }
 
 /// The outcome of the promotion gate — what confirming a proved mailbox may do to the
-/// account's `core.tb_user.email`.
+/// account's `auth.tb_user.email`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PromotionDecision {
     /// The address is unclaimed and the account has no verified address yet: write it.
@@ -239,8 +239,8 @@ impl LocalPasswordAuthenticator {
 
         let row = sqlx::query(
             "SELECT u.pk_user, u.email AS verified_email, i.provider_id AS claimed_email \
-             FROM core.tb_user u \
-             JOIN core.tb_auth_identity i ON i.fk_user = u.pk_user \
+             FROM auth.tb_user u \
+             JOIN auth.tb_auth_identity i ON i.fk_user = u.pk_user \
              WHERE u.user_id = $1 AND i.provider = $2",
         )
         .bind(user_id)
@@ -278,7 +278,7 @@ impl LocalPasswordAuthenticator {
         let expires_at = Utc::now() + Duration::seconds(EMAIL_VERIFICATION_TOKEN_TTL_SECS);
 
         sqlx::query(
-            "INSERT INTO core.tb_email_verification_token \
+            "INSERT INTO auth.tb_email_verification_token \
              (fk_user, user_id, email, selector, verifier_hash, expires_at) \
              VALUES ($1, $2, $3, $4, $5, $6)",
         )
@@ -326,7 +326,7 @@ impl LocalPasswordAuthenticator {
     /// `user_id` proves the caller owns the account the token was issued for. A token
     /// presented by anyone else is rejected exactly like a forged one.
     ///
-    /// On success the proved address is written to the account's `core.tb_user.email`,
+    /// On success the proved address is written to the account's `auth.tb_user.email`,
     /// which is what places it in the cross-provider linking key space. No rows move
     /// between accounts — see [`decide_promotion`] and the module docs.
     ///
@@ -362,7 +362,7 @@ impl LocalPasswordAuthenticator {
         let row = sqlx::query(
             "SELECT pk_email_verification_token AS pk, fk_user, user_id, email, verifier_hash, \
                     expires_at, used_at \
-             FROM core.tb_email_verification_token WHERE selector = $1",
+             FROM auth.tb_email_verification_token WHERE selector = $1",
         )
         .bind(&parsed.selector)
         .fetch_optional(&self.db)
@@ -447,7 +447,7 @@ impl LocalPasswordAuthenticator {
         // Atomic single-use guard: mark THIS token used only if still unused and
         // unexpired. A concurrent redemption that already consumed it affects zero rows.
         let consumed = sqlx::query(
-            "UPDATE core.tb_email_verification_token SET used_at = now() \
+            "UPDATE auth.tb_email_verification_token SET used_at = now() \
              WHERE pk_email_verification_token = $1 AND used_at IS NULL AND expires_at > now()",
         )
         .bind(pk)
@@ -470,7 +470,7 @@ impl LocalPasswordAuthenticator {
         // Lock the account row so the gate below decides against state that cannot move
         // out from under it, then ask whether any *other* account holds the address.
         let account_email: Option<String> =
-            sqlx::query("SELECT email FROM core.tb_user WHERE pk_user = $1 FOR UPDATE")
+            sqlx::query("SELECT email FROM auth.tb_user WHERE pk_user = $1 FOR UPDATE")
                 .bind(fk_user)
                 .fetch_optional(&mut *tx)
                 .await
@@ -483,10 +483,10 @@ impl LocalPasswordAuthenticator {
         // An address is unique per account space (#1088), so only an account in this one's
         // space can hold a claim on it.
         let claimed_by_other = sqlx::query(
-            "SELECT 1 AS claimed FROM core.tb_user o \
+            "SELECT 1 AS claimed FROM auth.tb_user o \
              WHERE o.email = $1 AND o.pk_user <> $2 \
                AND o.tenant_id IS NOT DISTINCT FROM \
-                   (SELECT u.tenant_id FROM core.tb_user u WHERE u.pk_user = $2)",
+                   (SELECT u.tenant_id FROM auth.tb_user u WHERE u.pk_user = $2)",
         )
         .bind(&email)
         .bind(fk_user)
@@ -500,7 +500,7 @@ impl LocalPasswordAuthenticator {
         match decision {
             PromotionDecision::Promote => {
                 sqlx::query(
-                    "UPDATE core.tb_user SET email = $1, updated_at = now() WHERE pk_user = $2",
+                    "UPDATE auth.tb_user SET email = $1, updated_at = now() WHERE pk_user = $2",
                 )
                 .bind(&email)
                 .bind(fk_user)
@@ -533,7 +533,7 @@ impl LocalPasswordAuthenticator {
         // Invalidate the account's other outstanding verification tokens (the consumed
         // one already has used_at set, so this excludes it).
         sqlx::query(
-            "UPDATE core.tb_email_verification_token SET used_at = now() \
+            "UPDATE auth.tb_email_verification_token SET used_at = now() \
              WHERE fk_user = $1 AND used_at IS NULL",
         )
         .bind(fk_user)

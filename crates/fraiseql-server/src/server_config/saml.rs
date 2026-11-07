@@ -23,7 +23,7 @@ pub struct SamlServerConfig {
     #[serde(default)]
     pub idps: HashMap<String, SamlIdpEntry>,
 
-    /// Enable the durable per-tenant `IdP` store (`core.tb_saml_idp`) and the
+    /// Enable the durable per-tenant `IdP` store (`auth.tb_saml_idp`) and the
     /// admin CRUD API that manages it (#947).
     ///
     /// Off by default: a single-tenant deployment needs only `[saml.idps.*]`,

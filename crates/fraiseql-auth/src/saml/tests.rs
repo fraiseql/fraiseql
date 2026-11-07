@@ -1270,7 +1270,7 @@ async fn acs_for_an_mfa_user_yields_a_challenge() {
         .await
         .unwrap()
         .user_id;
-    sqlx::query("DELETE FROM core.tb_mfa_enrollment WHERE user_id = $1")
+    sqlx::query("DELETE FROM auth.tb_mfa_enrollment WHERE user_id = $1")
         .bind(&user)
         .execute(&pool)
         .await

@@ -1,6 +1,6 @@
 //! Postgres storage for SCIM 2.0 provisioning (#946).
 //!
-//! SCIM users are `core.tb_user` rows — the *same* rows every credential path resolves to,
+//! SCIM users are `auth.tb_user` rows — the *same* rows every credential path resolves to,
 //! not a parallel directory. That is the whole point: an IdP deactivating a user has to
 //! reach the account a local password or a social link would authenticate, or offboarding
 //! is cosmetic.
@@ -18,13 +18,13 @@ use crate::error::{AuthError, Result};
 
 /// Idempotent DDL for SCIM groups, membership and provisioning tokens (#946).
 ///
-/// The user side needs no table of its own: SCIM users are `core.tb_user` rows, whose SCIM
+/// The user side needs no table of its own: SCIM users are `auth.tb_user` rows, whose SCIM
 /// columns are created by
 /// [`PostgresAccountStore::init`](crate::PostgresAccountStore::init).
 pub const PG_SCIM_SCHEMA_SQL: &str = r"
-CREATE SCHEMA IF NOT EXISTS core;
+CREATE SCHEMA IF NOT EXISTS auth;
 
-CREATE TABLE IF NOT EXISTS core.tb_scim_group (
+CREATE TABLE IF NOT EXISTS auth.tb_scim_group (
     pk_scim_group BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     id            UUID NOT NULL DEFAULT gen_random_uuid(),
     display_name  TEXT NOT NULL,
@@ -34,24 +34,24 @@ CREATE TABLE IF NOT EXISTS core.tb_scim_group (
     created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-CREATE UNIQUE INDEX IF NOT EXISTS uq_scim_group_id ON core.tb_scim_group (id);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_scim_group_id ON auth.tb_scim_group (id);
 CREATE UNIQUE INDEX IF NOT EXISTS uq_scim_group_name
-    ON core.tb_scim_group (tenant_id, display_name) NULLS NOT DISTINCT;
+    ON auth.tb_scim_group (tenant_id, display_name) NULLS NOT DISTINCT;
 
-CREATE TABLE IF NOT EXISTS core.tb_scim_group_member (
+CREATE TABLE IF NOT EXISTS auth.tb_scim_group_member (
     pk_scim_group_member BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    fk_scim_group BIGINT NOT NULL REFERENCES core.tb_scim_group (pk_scim_group)
+    fk_scim_group BIGINT NOT NULL REFERENCES auth.tb_scim_group (pk_scim_group)
         ON DELETE CASCADE,
     user_id       TEXT NOT NULL,
     created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
     UNIQUE (fk_scim_group, user_id)
 );
 CREATE INDEX IF NOT EXISTS idx_scim_group_member_user
-    ON core.tb_scim_group_member (user_id);
+    ON auth.tb_scim_group_member (user_id);
 
 -- Provisioning credentials. Distinct from the admin token by construction: nothing reads
 -- this table except the SCIM router, so holding one grants provisioning and nothing else.
-CREATE TABLE IF NOT EXISTS core.tb_scim_token (
+CREATE TABLE IF NOT EXISTS auth.tb_scim_token (
     pk_scim_token BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     id            UUID NOT NULL DEFAULT gen_random_uuid(),
     token_hash    TEXT NOT NULL UNIQUE,
@@ -63,24 +63,24 @@ CREATE TABLE IF NOT EXISTS core.tb_scim_token (
     revoked_at    TIMESTAMPTZ
 );
 CREATE INDEX IF NOT EXISTS idx_scim_token_live
-    ON core.tb_scim_token (token_hash) WHERE revoked_at IS NULL;
+    ON auth.tb_scim_token (token_hash) WHERE revoked_at IS NULL;
 
-ALTER TABLE core.tb_scim_group        ENABLE ROW LEVEL SECURITY;
-ALTER TABLE core.tb_scim_group_member ENABLE ROW LEVEL SECURITY;
-ALTER TABLE core.tb_scim_token        ENABLE ROW LEVEL SECURITY;
+ALTER TABLE auth.tb_scim_group        ENABLE ROW LEVEL SECURITY;
+ALTER TABLE auth.tb_scim_group_member ENABLE ROW LEVEL SECURITY;
+ALTER TABLE auth.tb_scim_token        ENABLE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS p_scim_group_tenant_read ON core.tb_scim_group;
-CREATE POLICY p_scim_group_tenant_read ON core.tb_scim_group
+DROP POLICY IF EXISTS p_scim_group_tenant_read ON auth.tb_scim_group;
+CREATE POLICY p_scim_group_tenant_read ON auth.tb_scim_group
     FOR SELECT USING (tenant_id = NULLIF(current_setting('fraiseql.tenant_id', true), '')::uuid);
-DROP POLICY IF EXISTS p_scim_group_insert ON core.tb_scim_group;
-CREATE POLICY p_scim_group_insert ON core.tb_scim_group FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS p_scim_group_insert ON auth.tb_scim_group;
+CREATE POLICY p_scim_group_insert ON auth.tb_scim_group FOR INSERT WITH CHECK (true);
 
-REVOKE ALL ON core.tb_scim_group        FROM PUBLIC;
-REVOKE ALL ON core.tb_scim_group_member FROM PUBLIC;
-REVOKE ALL ON core.tb_scim_token        FROM PUBLIC;
+REVOKE ALL ON auth.tb_scim_group        FROM PUBLIC;
+REVOKE ALL ON auth.tb_scim_group_member FROM PUBLIC;
+REVOKE ALL ON auth.tb_scim_token        FROM PUBLIC;
 ";
 
-/// A provisioned user, as SCIM sees it. Backed by one `core.tb_user` row.
+/// A provisioned user, as SCIM sees it. Backed by one `auth.tb_user` row.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ScimUser {
     /// Stable identifier — the account-store `user_id`, so a SCIM `id` and the `sub` of
@@ -108,7 +108,7 @@ pub struct ScimUser {
     pub updated_at:   DateTime<Utc>,
 }
 
-/// A provisioned group. Backed by `core.tb_scim_group` and mirrored into an RBAC role.
+/// A provisioned group. Backed by `auth.tb_scim_group` and mirrored into an RBAC role.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ScimGroup {
     /// Stable identifier.
@@ -372,7 +372,7 @@ impl ScimStore for PgScimStore {
         // `start_index` is 1-based in SCIM; the offset is one less.
         let offset = (start_index - 1).max(0);
         let total: i64 = sqlx::query_scalar(
-            "SELECT count(*) FROM core.tb_user WHERE ($1::text IS NULL OR user_name = $1) \
+            "SELECT count(*) FROM auth.tb_user WHERE ($1::text IS NULL OR user_name = $1) \
              AND tenant_id IS NOT DISTINCT FROM $2",
         )
         .bind(user_name)
@@ -382,7 +382,7 @@ impl ScimStore for PgScimStore {
         .map_err(|e| db_error("count SCIM users", &e))?;
 
         let rows = sqlx::query(&format!(
-            "SELECT {} FROM core.tb_user WHERE ($1::text IS NULL OR user_name = $1) \
+            "SELECT {} FROM auth.tb_user WHERE ($1::text IS NULL OR user_name = $1) \
              AND tenant_id IS NOT DISTINCT FROM $4 \
              ORDER BY pk_user LIMIT $2 OFFSET $3",
             user_columns()
@@ -403,7 +403,7 @@ impl ScimStore for PgScimStore {
 
     async fn get_user(&self, id: &str) -> Result<Option<ScimUser>> {
         let row = sqlx::query(&format!(
-            "SELECT {} FROM core.tb_user WHERE user_id = $1 AND tenant_id IS NOT DISTINCT FROM $2",
+            "SELECT {} FROM auth.tb_user WHERE user_id = $1 AND tenant_id IS NOT DISTINCT FROM $2",
             user_columns()
         ))
         .bind(id)
@@ -417,7 +417,7 @@ impl ScimStore for PgScimStore {
     async fn create_user(&self, write: &ScimUserWrite) -> Result<ScimUser> {
         let user_id = new_user_id();
         let row = sqlx::query(&format!(
-            "INSERT INTO core.tb_user \
+            "INSERT INTO auth.tb_user \
              (user_id, user_name, external_id, email, given_name, family_name, display_name, \
               active, tenant_id) \
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING {}",
@@ -446,7 +446,7 @@ impl ScimStore for PgScimStore {
 
     async fn replace_user(&self, id: &str, write: &ScimUserWrite) -> Result<ScimUser> {
         let row = sqlx::query(&format!(
-            "UPDATE core.tb_user SET user_name = $2, external_id = $3, email = $4, \
+            "UPDATE auth.tb_user SET user_name = $2, external_id = $3, email = $4, \
              given_name = $5, family_name = $6, display_name = $7, active = $8, \
              version = version + 1, updated_at = now() \
              WHERE user_id = $1 AND tenant_id IS NOT DISTINCT FROM $9 RETURNING {}",
@@ -476,7 +476,7 @@ impl ScimStore for PgScimStore {
 
     async fn set_user_active(&self, id: &str, active: bool) -> Result<ScimUser> {
         let row = sqlx::query(&format!(
-            "UPDATE core.tb_user SET active = $2, version = version + 1, updated_at = now() \
+            "UPDATE auth.tb_user SET active = $2, version = version + 1, updated_at = now() \
              WHERE user_id = $1 AND tenant_id IS NOT DISTINCT FROM $3 RETURNING {}",
             user_columns()
         ))
@@ -492,7 +492,7 @@ impl ScimStore for PgScimStore {
 
     async fn delete_user(&self, id: &str) -> Result<()> {
         let affected = sqlx::query(
-            "DELETE FROM core.tb_user WHERE user_id = $1 AND tenant_id IS NOT DISTINCT FROM $2",
+            "DELETE FROM auth.tb_user WHERE user_id = $1 AND tenant_id IS NOT DISTINCT FROM $2",
         )
         .bind(id)
         .bind(self.tenant_id)
@@ -514,7 +514,7 @@ impl ScimStore for PgScimStore {
     ) -> Result<ScimPage<ScimGroup>> {
         let offset = (start_index - 1).max(0);
         let total: i64 = sqlx::query_scalar(
-            "SELECT count(*) FROM core.tb_scim_group \
+            "SELECT count(*) FROM auth.tb_scim_group \
              WHERE tenant_id IS NOT DISTINCT FROM $1 \
                AND ($2::text IS NULL OR display_name = $2)",
         )
@@ -526,7 +526,7 @@ impl ScimStore for PgScimStore {
 
         let rows = sqlx::query(
             "SELECT pk_scim_group, id, display_name, external_id, version, created_at, \
-             updated_at FROM core.tb_scim_group \
+             updated_at FROM auth.tb_scim_group \
              WHERE tenant_id IS NOT DISTINCT FROM $1 \
                AND ($2::text IS NULL OR display_name = $2) \
              ORDER BY pk_scim_group LIMIT $3 OFFSET $4",
@@ -552,7 +552,7 @@ impl ScimStore for PgScimStore {
     async fn get_group(&self, id: Uuid) -> Result<Option<ScimGroup>> {
         let row = sqlx::query(
             "SELECT pk_scim_group, id, display_name, external_id, version, created_at, \
-             updated_at FROM core.tb_scim_group \
+             updated_at FROM auth.tb_scim_group \
              WHERE id = $1 AND tenant_id IS NOT DISTINCT FROM $2",
         )
         .bind(id)
@@ -574,7 +574,7 @@ impl ScimStore for PgScimStore {
     ) -> Result<ScimGroup> {
         self.ensure_members_in_tenant(members).await?;
         let row = sqlx::query(
-            "INSERT INTO core.tb_scim_group (display_name, external_id, tenant_id) \
+            "INSERT INTO auth.tb_scim_group (display_name, external_id, tenant_id) \
              VALUES ($1, $2, $3) \
              RETURNING pk_scim_group, id, display_name, external_id, version, created_at, \
              updated_at",
@@ -605,7 +605,7 @@ impl ScimStore for PgScimStore {
     ) -> Result<ScimGroup> {
         self.ensure_members_in_tenant(members).await?;
         let row = sqlx::query(
-            "UPDATE core.tb_scim_group SET display_name = $3, external_id = $4, \
+            "UPDATE auth.tb_scim_group SET display_name = $3, external_id = $4, \
              version = version + 1, updated_at = now() \
              WHERE id = $1 AND tenant_id IS NOT DISTINCT FROM $2 \
              RETURNING pk_scim_group, id, display_name, external_id, version, created_at, \
@@ -626,7 +626,7 @@ impl ScimStore for PgScimStore {
         })?
         .ok_or(AuthError::TokenNotFound)?;
         let pk: i64 = row.get("pk_scim_group");
-        sqlx::query("DELETE FROM core.tb_scim_group_member WHERE fk_scim_group = $1")
+        sqlx::query("DELETE FROM auth.tb_scim_group_member WHERE fk_scim_group = $1")
             .bind(pk)
             .execute(&self.db)
             .await
@@ -643,7 +643,7 @@ impl ScimStore for PgScimStore {
     ) -> Result<ScimGroup> {
         self.ensure_members_in_tenant(add).await?;
         let row = sqlx::query(
-            "UPDATE core.tb_scim_group SET version = version + 1, updated_at = now() \
+            "UPDATE auth.tb_scim_group SET version = version + 1, updated_at = now() \
              WHERE id = $1 AND tenant_id IS NOT DISTINCT FROM $2 \
              RETURNING pk_scim_group, id, display_name, external_id, version, created_at, \
              updated_at",
@@ -658,7 +658,7 @@ impl ScimStore for PgScimStore {
 
         if !remove.is_empty() {
             sqlx::query(
-                "DELETE FROM core.tb_scim_group_member \
+                "DELETE FROM auth.tb_scim_group_member \
                  WHERE fk_scim_group = $1 AND user_id = ANY($2)",
             )
             .bind(pk)
@@ -673,7 +673,7 @@ impl ScimStore for PgScimStore {
 
     async fn delete_group(&self, id: Uuid) -> Result<()> {
         let affected = sqlx::query(
-            "DELETE FROM core.tb_scim_group WHERE id = $1 AND tenant_id IS NOT DISTINCT FROM $2",
+            "DELETE FROM auth.tb_scim_group WHERE id = $1 AND tenant_id IS NOT DISTINCT FROM $2",
         )
         .bind(id)
         .bind(self.tenant_id)
@@ -689,8 +689,8 @@ impl ScimStore for PgScimStore {
 
     async fn groups_of_user(&self, user_id: &str) -> Result<Vec<String>> {
         let rows = sqlx::query(
-            "SELECT g.display_name FROM core.tb_scim_group_member m \
-             JOIN core.tb_scim_group g ON g.pk_scim_group = m.fk_scim_group \
+            "SELECT g.display_name FROM auth.tb_scim_group_member m \
+             JOIN auth.tb_scim_group g ON g.pk_scim_group = m.fk_scim_group \
              WHERE m.user_id = $1 AND g.tenant_id IS NOT DISTINCT FROM $2 \
              ORDER BY g.display_name",
         )
@@ -714,7 +714,7 @@ impl PgScimStore {
             return Ok(());
         }
         let found: i64 = sqlx::query_scalar(
-            "SELECT count(DISTINCT user_id) FROM core.tb_user \
+            "SELECT count(DISTINCT user_id) FROM auth.tb_user \
              WHERE user_id = ANY($1) AND tenant_id IS NOT DISTINCT FROM $2",
         )
         .bind(members)
@@ -735,7 +735,7 @@ impl PgScimStore {
     async fn set_members(&self, pk_group: i64, members: &[String]) -> Result<()> {
         for user_id in members {
             sqlx::query(
-                "INSERT INTO core.tb_scim_group_member (fk_scim_group, user_id) \
+                "INSERT INTO auth.tb_scim_group_member (fk_scim_group, user_id) \
                  VALUES ($1, $2) ON CONFLICT DO NOTHING",
             )
             .bind(pk_group)
@@ -751,7 +751,7 @@ impl PgScimStore {
     async fn hydrate_group(&self, row: &sqlx::postgres::PgRow) -> Result<ScimGroup> {
         let pk: i64 = row.get("pk_scim_group");
         let members = sqlx::query(
-            "SELECT user_id FROM core.tb_scim_group_member \
+            "SELECT user_id FROM auth.tb_scim_group_member \
              WHERE fk_scim_group = $1 ORDER BY pk_scim_group_member",
         )
         .bind(pk)

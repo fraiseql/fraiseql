@@ -17,6 +17,7 @@ fraiseql_server::testing test-support server doubles, compiled only with the `te
 fraiseql_webhooks::testing test-support webhook signing fixtures for provider tests
 fraiseql_guard::net::vectors test-support the outbound-address corpus every SSRF guard is tested against
 fraiseql_db::postgres::adapter::test_hooks test-support white-box probes the PostgreSQL suite drives, compiled only with `test-postgres`
+fraiseql_auth::auth_schema test-support every auth DDL script in dependency order, which the auth schema inventory suite applies to a fresh database
 
 # ── Embedder entry points ────────────────────────────────────────────────────────────
 fraiseql::prelude api the facade's glob import for embedders

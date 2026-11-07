@@ -12,7 +12,7 @@ otp_allowed_query = "SELECT 1 FROM tb_member WHERE email = $email AND active"
 ```
 
 A row admits the address. No row, or a query that fails, refuses it. A refused address gets no
-mail, no row in `core.tb_user` and no session. Leaving the key unset admits every address.
+mail, no row in `auth.tb_user` and no session. Leaving the key unset admits every address.
 
 ## Writing the query
 

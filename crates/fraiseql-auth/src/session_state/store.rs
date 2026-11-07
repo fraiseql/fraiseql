@@ -25,7 +25,7 @@ pub const SUMMARY_KEY: &str = "_summary";
 /// The isolation boundary is the *caller-supplied* `session_id`: the server
 /// derives it from the authenticated context (an MCP session, a user session),
 /// never from a client-named field — the same application-layer keying
-/// `_system.sessions` uses.
+/// `auth.sessions` uses.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SessionStateEntry {
     /// The owning session (from the authenticated context).

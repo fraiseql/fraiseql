@@ -1,8 +1,8 @@
 //! Live-PostgreSQL integration tests for the #367 password-reset flow.
 //!
 //! Exercises `start_password_reset` / `confirm_password_reset` on
-//! [`LocalPasswordAuthenticator`] against the durable `core.tb_password_reset_token`
-//! schema (FK-linked to #411's `core.tb_user`): non-enumerable start, end-to-end reset +
+//! [`LocalPasswordAuthenticator`] against the durable `auth.tb_password_reset_token`
+//! schema (FK-linked to #411's `auth.tb_user`): non-enumerable start, end-to-end reset +
 //! session revocation, single-use, expiry, bad-verifier rejection, sibling-token
 //! invalidation, and the deny-by-default RLS posture under a `NOBYPASSRLS` role.
 //!
@@ -11,7 +11,7 @@
 //! binds Postgres and injects `DATABASE_URL`.
 //!
 //! **Execution engine:** PostgreSQL · **Infrastructure:** `DATABASE_URL` ·
-//! **Parallelism:** truncates the shared `core` tables on setup → run `--test-threads=1`.
+//! **Parallelism:** truncates the shared `auth` tables on setup → run `--test-threads=1`.
 #![allow(
     clippy::unwrap_used,
     clippy::print_stderr,
@@ -100,7 +100,7 @@ struct Harness {
 }
 
 /// Connect as the superuser `DATABASE_URL`, ensure the schema exists, and truncate the
-/// `core` tables so each test starts clean. Returns `None` (skip) when unconfigured.
+/// `auth` tables so each test starts clean. Returns `None` (skip) when unconfigured.
 async fn fresh() -> Option<Harness> {
     let url = try_database_url()?;
     let admin = PgPoolOptions::new().max_connections(4).connect(&url).await.unwrap();
@@ -113,8 +113,8 @@ async fn fresh() -> Option<Harness> {
         .with_session_store(sessions.clone());
     auth.init().await.unwrap();
     sqlx::query(
-        "TRUNCATE core.tb_password_reset_token, core.tb_password_credential, \
-         core.tb_auth_identity, core.tb_user RESTART IDENTITY CASCADE",
+        "TRUNCATE auth.tb_password_reset_token, auth.tb_password_credential, \
+         auth.tb_auth_identity, auth.tb_user RESTART IDENTITY CASCADE",
     )
     .execute(&admin)
     .await
@@ -140,7 +140,7 @@ macro_rules! skip_if_no_db {
 }
 
 async fn token_count(pool: &PgPool) -> i64 {
-    sqlx::query("SELECT count(*) FROM core.tb_password_reset_token")
+    sqlx::query("SELECT count(*) FROM auth.tb_password_reset_token")
         .fetch_one(pool)
         .await
         .unwrap()
@@ -193,7 +193,7 @@ async fn start_issues_and_delivers_a_token_for_a_known_local_account() {
     // Persisted as selector + verifier hash, never the raw token.
     let row = sqlx::query(
         "SELECT selector, verifier_hash, used_at, expires_at > now() AS live \
-         FROM core.tb_password_reset_token",
+         FROM auth.tb_password_reset_token",
     )
     .fetch_one(&h.admin)
     .await
@@ -260,7 +260,7 @@ async fn reset_changes_the_password_and_revokes_sessions() {
 
     // The token is now spent.
     let used: Option<chrono::DateTime<chrono::Utc>> =
-        sqlx::query("SELECT used_at FROM core.tb_password_reset_token")
+        sqlx::query("SELECT used_at FROM auth.tb_password_reset_token")
             .fetch_one(&h.admin)
             .await
             .unwrap()
@@ -297,7 +297,7 @@ async fn confirm_rejects_an_expired_token() {
     let (_, token) = captured_email(&h.sender).await;
 
     // Age the token past its TTL.
-    sqlx::query("UPDATE core.tb_password_reset_token SET expires_at = now() - interval '1 hour'")
+    sqlx::query("UPDATE auth.tb_password_reset_token SET expires_at = now() - interval '1 hour'")
         .execute(&h.admin)
         .await
         .unwrap();
@@ -317,7 +317,7 @@ async fn confirm_rejects_an_unknown_selector() {
     let (_, token) = captured_email(&h.sender).await;
 
     // Delete the row so the (well-formed) token's selector resolves to nothing.
-    sqlx::query("DELETE FROM core.tb_password_reset_token")
+    sqlx::query("DELETE FROM auth.tb_password_reset_token")
         .execute(&h.admin)
         .await
         .unwrap();
@@ -411,7 +411,7 @@ async fn reader_token_count(pool: &PgPool, guc: Option<&str>) -> i64 {
             .await
             .unwrap();
     }
-    let n: i64 = sqlx::query("SELECT count(*) FROM core.tb_password_reset_token")
+    let n: i64 = sqlx::query("SELECT count(*) FROM auth.tb_password_reset_token")
         .fetch_one(&mut *tx)
         .await
         .unwrap()
@@ -444,11 +444,11 @@ async fn rls_denies_reset_tokens_by_default_and_scopes_per_tenant() {
     .execute(&h.admin)
     .await
     .unwrap();
-    sqlx::query(&format!("GRANT USAGE ON SCHEMA core TO {READER_ROLE}"))
+    sqlx::query(&format!("GRANT USAGE ON SCHEMA auth TO {READER_ROLE}"))
         .execute(&h.admin)
         .await
         .unwrap();
-    sqlx::query(&format!("GRANT SELECT ON core.tb_password_reset_token TO {READER_ROLE}"))
+    sqlx::query(&format!("GRANT SELECT ON auth.tb_password_reset_token TO {READER_ROLE}"))
         .execute(&h.admin)
         .await
         .unwrap();
@@ -460,17 +460,17 @@ async fn rls_denies_reset_tokens_by_default_and_scopes_per_tenant() {
     // …and a tenant-stamped token inserted directly (forward-compat path).
     let tenant = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
     sqlx::query(
-        "INSERT INTO core.tb_user (user_id, email, tenant_id) VALUES ('user_t', 't@x.example', $1::uuid)",
+        "INSERT INTO auth.tb_user (user_id, email, tenant_id) VALUES ('user_t', 't@x.example', $1::uuid)",
     )
     .bind(tenant)
     .execute(&h.admin)
     .await
     .unwrap();
     sqlx::query(
-        "INSERT INTO core.tb_password_reset_token \
+        "INSERT INTO auth.tb_password_reset_token \
          (fk_user, user_id, selector, verifier_hash, expires_at, tenant_id) \
          SELECT pk_user, 'user_t', 'sel_t', '\\x00'::bytea, now() + interval '1 hour', $1::uuid \
-         FROM core.tb_user WHERE user_id = 'user_t'",
+         FROM auth.tb_user WHERE user_id = 'user_t'",
     )
     .bind(tenant)
     .execute(&h.admin)
@@ -497,7 +497,7 @@ async fn rls_denies_reset_tokens_by_default_and_scopes_per_tenant() {
 async fn start_is_a_silent_noop_for_a_tenant_accounts_local_credential() {
     let h = skip_if_no_db!();
     let user_id = h.auth.signup(EMAIL, "correct horse battery staple").await.unwrap();
-    for table in ["core.tb_user", "core.tb_auth_identity"] {
+    for table in ["auth.tb_user", "auth.tb_auth_identity"] {
         sqlx::query(&format!(
             "UPDATE {table} SET tenant_id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' WHERE user_id = $1"
         ))

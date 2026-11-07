@@ -9,6 +9,7 @@
 pub mod account_linking;
 pub mod anonymous;
 pub mod audit;
+pub mod auth_schema;
 pub mod constant_time;
 pub mod error;
 pub mod handlers;

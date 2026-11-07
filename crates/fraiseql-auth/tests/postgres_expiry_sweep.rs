@@ -3,8 +3,8 @@
 //! Every read of these tables checks expiry, so correctness never depended on a sweep —
 //! which is exactly why none existed. What did depend on it is table size: a challenge
 //! that is minted and simply abandoned is never consumed, never observed expired, and
-//! never deleted, so `core.tb_mfa_challenge` and `core.tb_otp_code` grow for the life of
-//! the deployment. `core.tb_otp_send_budget` is worse: one row per address that has ever
+//! never deleted, so `auth.tb_mfa_challenge` and `auth.tb_otp_code` grow for the life of
+//! the deployment. `auth.tb_otp_send_budget` is worse: one row per address that has ever
 //! requested a code, removed by nothing at all.
 //!
 //! The assertions below are deliberately two-sided. A sweep that deletes everything would
@@ -15,7 +15,7 @@
 //! database-free `test` leg and runs in the Dagger `integration: postgres` suite.
 //!
 //! **Execution engine:** PostgreSQL · **Infrastructure:** `DATABASE_URL` ·
-//! **Parallelism:** truncates the shared `core` tables on setup → run `--test-threads=1`.
+//! **Parallelism:** truncates the shared `auth` tables on setup → run `--test-threads=1`.
 #![allow(clippy::unwrap_used, clippy::print_stderr)] // Reason: test code — panics and skip diagnostics are acceptable
 
 use fraiseql_auth::{MfaStore, OtpStore, PgMfaStore, PgOtpStore};
@@ -33,8 +33,8 @@ async fn fresh() -> Option<(PgOtpStore, PgMfaStore, PgPool)> {
     mfa.init().await.unwrap();
 
     sqlx::query(
-        "TRUNCATE core.tb_otp_code, core.tb_otp_send_budget,
-                  core.tb_mfa_challenge, core.tb_mfa_enrollment",
+        "TRUNCATE auth.tb_otp_code, auth.tb_otp_send_budget,
+                  auth.tb_mfa_challenge, auth.tb_mfa_enrollment",
     )
     .execute(&db)
     .await
@@ -69,7 +69,7 @@ async fn mfa_sweep_removes_abandoned_challenges_and_keeps_live_ones() {
     };
 
     sqlx::query(
-        "INSERT INTO core.tb_mfa_challenge (token_hash, user_id, expires_at)
+        "INSERT INTO auth.tb_mfa_challenge (token_hash, user_id, expires_at)
          VALUES ($1, 'abandoned', $2), ($3, 'live', $4)",
     )
     .bind(vec![1_u8; 32])
@@ -84,7 +84,7 @@ async fn mfa_sweep_removes_abandoned_challenges_and_keeps_live_ones() {
 
     assert_eq!(removed, 1, "exactly the expired challenge is swept");
     let survivors: Vec<String> =
-        sqlx::query("SELECT user_id FROM core.tb_mfa_challenge ORDER BY user_id")
+        sqlx::query("SELECT user_id FROM auth.tb_mfa_challenge ORDER BY user_id")
             .fetch_all(&db)
             .await
             .unwrap()
@@ -102,7 +102,7 @@ async fn otp_sweep_removes_expired_codes_and_stale_budgets() {
     };
 
     sqlx::query(
-        "INSERT INTO core.tb_otp_code (email, code_hash, expires_at)
+        "INSERT INTO auth.tb_otp_code (email, code_hash, expires_at)
          VALUES ('stale@example.com', $1, $2), ('live@example.com', $3, $4)",
     )
     .bind(vec![1_u8; 32])
@@ -116,7 +116,7 @@ async fn otp_sweep_removes_expired_codes_and_stale_budgets() {
     // The budget window is 15 minutes (`OTP_RATE_WINDOW_SECS`); a row whose window closed
     // long ago is dead weight — the next request for that address opens a fresh window.
     sqlx::query(
-        "INSERT INTO core.tb_otp_send_budget (email, count, window_start)
+        "INSERT INTO auth.tb_otp_send_budget (email, count, window_start)
          VALUES ('ancient@example.com', 3, $1), ('current@example.com', 1, $2)",
     )
     .bind(now() - 86_400)
@@ -128,10 +128,10 @@ async fn otp_sweep_removes_expired_codes_and_stale_budgets() {
     let removed = otp.sweep_expired().await.unwrap();
 
     assert_eq!(removed, 2, "one expired code and one ancient budget row");
-    assert_eq!(count(&db, "core.tb_otp_code").await, 1, "the live code survives");
-    assert_eq!(count(&db, "core.tb_otp_send_budget").await, 1, "the current budget survives");
+    assert_eq!(count(&db, "auth.tb_otp_code").await, 1, "the live code survives");
+    assert_eq!(count(&db, "auth.tb_otp_send_budget").await, 1, "the current budget survives");
 
-    let live: String = sqlx::query("SELECT email FROM core.tb_otp_code")
+    let live: String = sqlx::query("SELECT email FROM auth.tb_otp_code")
         .fetch_one(&db)
         .await
         .unwrap()

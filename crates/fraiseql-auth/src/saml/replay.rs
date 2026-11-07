@@ -128,13 +128,13 @@ impl SamlReplayStore for SamlReplayCache {
 /// DDL for the shared replay table. Executed at boot, which is what keeps it valid
 /// PostgreSQL (the `#748` precedent).
 pub const PG_SAML_REPLAY_SCHEMA_SQL: &str = r"
-CREATE SCHEMA IF NOT EXISTS core;
-CREATE TABLE IF NOT EXISTS core.tb_saml_replay (
+CREATE SCHEMA IF NOT EXISTS auth;
+CREATE TABLE IF NOT EXISTS auth.tb_saml_replay (
     assertion_id TEXT PRIMARY KEY,
     expires_at   TIMESTAMPTZ NOT NULL
 );
-CREATE INDEX IF NOT EXISTS idx_saml_replay_expires ON core.tb_saml_replay(expires_at);
-REVOKE ALL ON core.tb_saml_replay FROM PUBLIC;
+CREATE INDEX IF NOT EXISTS idx_saml_replay_expires ON auth.tb_saml_replay(expires_at);
+REVOKE ALL ON auth.tb_saml_replay FROM PUBLIC;
 ";
 
 /// Postgres-backed replay store, shared by every replica over one database.
@@ -174,7 +174,7 @@ impl PgSamlReplayStore {
     ///
     /// Returns [`SamlError::Verification`] if the delete fails.
     pub async fn sweep_expired(&self, now: DateTime<Utc>) -> Result<u64, SamlError> {
-        sqlx::query("DELETE FROM core.tb_saml_replay WHERE expires_at <= $1")
+        sqlx::query("DELETE FROM auth.tb_saml_replay WHERE expires_at <= $1")
             .bind(now)
             .execute(&self.db)
             .await
@@ -201,11 +201,11 @@ impl SamlReplayStore for PgSamlReplayStore {
         // anyway, so treating the ID as fresh again is safe and keeps the table from
         // rejecting a legitimately new assertion that reuses an old ID.
         let inserted = sqlx::query(
-            "INSERT INTO core.tb_saml_replay (assertion_id, expires_at)
+            "INSERT INTO auth.tb_saml_replay (assertion_id, expires_at)
              VALUES ($1, $2)
              ON CONFLICT (assertion_id) DO UPDATE
                 SET expires_at = EXCLUDED.expires_at
-              WHERE core.tb_saml_replay.expires_at <= $3",
+              WHERE auth.tb_saml_replay.expires_at <= $3",
         )
         .bind(assertion_id)
         .bind(expires_at)

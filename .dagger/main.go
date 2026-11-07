@@ -653,6 +653,11 @@ func (m *FraiseqlCi) ShellGates(
 		// which quotes object keys as JSON and so refused every nested REST body.
 		"python3 tools/check-write-selection-sources.py",
 		"make test-write-selections-gate",
+		// First-party auth's tables live in schema `auth`, owned by its own role. The
+		// inventory test proves where the DDL puts them; this catches a query left on
+		// the old location, which fails only at runtime on the path that runs it.
+		"python3 tools/check-auth-schema-qualification.py",
+		"make test-auth-schema-gate",
 		// The same shape one layer up (#1336): a transport that turns a credential into a
 		// principal and dispatches it unresolved. REST, MCP and gRPC each did for three
 		// releases, and no test could see it — a transport that skips the resolve answers
@@ -1610,7 +1615,7 @@ func (m *FraiseqlCi) integrationPostgres(ctx context.Context, source *dagger.Dir
 		// runs them, and `--lib` can never reach one, whatever features it enables.
 		// Tier-C migrated: fraiseql-functions cron-state migration (lib tests; harness postgres()).
 		"cargo test -p fraiseql-functions --lib migrations::tests -- --test-threads=1",
-		// #411 durable identity store (PostgresAccountStore: core.tb_user / tb_auth_identity + RLS).
+		// #411 durable identity store (PostgresAccountStore: auth.tb_user / tb_auth_identity + RLS).
 		"cargo test -p fraiseql-auth --test postgres_account_store -- --test-threads=1",
 		// #1450: a minted session carries the account's tenant under the tenant claim.
 		"cargo test -p fraiseql-auth --test postgres_session_tenant -- --test-threads=1",
@@ -1885,6 +1890,11 @@ func (m *FraiseqlCi) integrationSaml(ctx context.Context, source *dagger.Directo
 		// becoming a takeover primitive (a name is never reissued; a stored tenant-bound
 		// IdP still cannot email-merge). Same leg for the same reason as the replay store.
 		"cargo test -p fraiseql-auth --features auth-saml --test postgres_saml_idp_store -- --test-threads=1",
+		// First-party auth's tables live in schema `auth`: every auth script, applied twice
+		// to an empty database, creates exactly the expected tables there and nothing
+		// outside it. Here and not in the `postgres` leg: it applies the SAML scripts too,
+		// which need `auth-saml`, and the `postgres` leg builds fraiseql-auth without it.
+		"cargo test -p fraiseql-auth --features auth-saml --test auth_schema_inventory_pg -- --test-threads=1",
 		// #381 P26: the SERVER mount — [saml] config → boot provisioning →
 		// /auth/saml/login redirect with SAMLRequest; configured-but-broken
 		// shapes (no pool, dud metadata) refuse to boot.
