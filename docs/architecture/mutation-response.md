@@ -483,7 +483,7 @@ connection and merges the report into the function's `cascade`:
   fails naming pg_tviews, and commits nothing.
 * **Observed** as the histogram `fraiseql_cascade_derived_entries` on `/metrics`.
 
-The tests run against `docker/pg-tviews` (PostgreSQL 18 with pg_tviews v0.1.0-beta.36 and the
+The tests run against `docker/pg-tviews` (PostgreSQL 18 with pg_tviews v0.1.0-beta.37 and the
 jsonb_delta it requires, built from source, preloaded): `make test-pg-tviews`.
 
 **What pg_tviews needs.** pg_tviews must be in `shared_preload_libraries` and installed by a
@@ -493,6 +493,16 @@ table a TVIEW reads, or flushes, must run at `READ COMMITTED`: at `REPEATABLE RE
 `SERIALIZABLE` pg_tviews refuses it with `0A000`. FraiseQL opens its write transactions at
 the database's default level, `READ COMMITTED` unless `default_transaction_isolation` is set
 otherwise, and the webhook pipeline offers no other level (#1894).
+
+**Upgrading pg_tviews to beta.37.** Only beta.36 updates to beta.37: install the new library,
+restart PostgreSQL, then run `ALTER EXTENSION pg_tviews UPDATE;` in each database that has
+the extension. The update re-derives every TVIEW, as `tviews.pg_tviews_reregister_all()`
+does, and refuses (`42501`, naming the TVIEW and the role) one whose owner, or the owner of a
+view it reads through, can no longer read its sources; the extension then stays at beta.36.
+A write to a table a TVIEW reads, a FraiseQL mutation included, fails with `42501` when the
+TVIEW's owner can no longer read its sources. The change report now names, in
+`invalidated_types`, the type of a changed row it leaves out; FraiseQL already evicts and
+invalidates such a type whole. pg_tviews' own upgrade notes list the rest.
 
 **Upgrading pg_tviews to beta.36.** Only beta.35 updates to beta.36: install the new library,
 restart PostgreSQL, then run `ALTER EXTENSION pg_tviews UPDATE;` in each database that has
