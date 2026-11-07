@@ -180,6 +180,11 @@ const MANIFEST: &[(&str, &str)] = &[
          row mode (#892/#757)",
     ),
     (
+        "tenancy.shared_types",
+        "commands::compile → converter::tenancy::validate_tenant_annotations: in row mode, \
+         the types a root may return without a @tenant_id field",
+    ),
+    (
         "session_variables.variables",
         "runtime resolve_session_variables → set_config before every query/mutation \
          (the mechanism RLS policies read, #628)",

@@ -36,10 +36,16 @@ fn schema(edit: impl FnOnce(&mut Value, &mut Value)) -> String {
     json!({"types": [], "queries": [], "fact_tables": [month, day]}).to_string()
 }
 
-/// Compile `schema_json` from a fresh temp dir, restoring the working directory.
+/// The project config beside the schema: a session variable sourced from the token, which
+/// a `row_scope = "relation"` table needs before its link is compared at all.
+const PROJECT_TOML: &str = "[[session_variables.variables]]\nname = \"app.tenant_id\"\nsource = \"jwt\"\nclaim = \"tenant_id\"\n";
+
+/// Compile `schema_json`, beside [`PROJECT_TOML`], from a fresh temp dir, restoring the
+/// working directory.
 async fn compile(schema_json: &str) -> anyhow::Result<CompiledSchema> {
     let dir = TempDir::new().expect("temp dir");
     std::fs::write(dir.path().join("schema.json"), schema_json).expect("write schema.json");
+    std::fs::write(dir.path().join("fraiseql.toml"), PROJECT_TOML).expect("write fraiseql.toml");
     let original = std::env::current_dir().expect("cwd");
     std::env::set_current_dir(dir.path()).expect("chdir into temp dir");
     let result = compile_to_schema(CompileOptions::new("schema.json")).await;

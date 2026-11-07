@@ -660,6 +660,7 @@ mod security_tests {
         let config = TenancyTomlConfig {
             mode:         TenancyModeConfig::Row,
             tenant_claim: "tenant_id".to_string(),
+            shared_types: Vec::new(),
         };
         let json = serde_json::to_value(config.to_runtime()).unwrap();
         assert_eq!(json["mode"], "row");
@@ -672,6 +673,7 @@ mod security_tests {
         let config = TenancyTomlConfig {
             mode:         TenancyModeConfig::Schema,
             tenant_claim: "org_id".to_string(),
+            shared_types: Vec::new(),
         };
         let json = serde_json::to_value(config.to_runtime()).unwrap();
         assert_eq!(json["mode"], "schema");
@@ -683,6 +685,7 @@ mod security_tests {
         let config = TenancyTomlConfig {
             mode:         TenancyModeConfig::Row,
             tenant_claim: String::new(),
+            shared_types: Vec::new(),
         };
         assert!(config.validate().is_err());
     }
@@ -693,6 +696,7 @@ mod security_tests {
         let config = TenancyTomlConfig {
             mode:         TenancyModeConfig::None,
             tenant_claim: String::new(),
+            shared_types: Vec::new(),
         };
         assert!(config.validate().is_err());
     }

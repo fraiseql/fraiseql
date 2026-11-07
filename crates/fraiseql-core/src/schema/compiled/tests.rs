@@ -987,6 +987,7 @@ fn tenancy_mode_row_when_configured() {
     sec.tenancy = TenancyConfig {
         mode:         TenancyMode::Row,
         tenant_claim: "tenant_id".to_string(),
+        shared_types: Vec::new(),
     };
     schema.security = Some(sec);
     assert_eq!(schema.tenancy_mode(), TenancyMode::Row);
@@ -1000,6 +1001,7 @@ fn tenancy_mode_schema_when_configured() {
     sec.tenancy = TenancyConfig {
         mode:         TenancyMode::Schema,
         tenant_claim: "org_id".to_string(),
+        shared_types: Vec::new(),
     };
     schema.security = Some(sec);
     assert_eq!(schema.tenancy_mode(), TenancyMode::Schema);
@@ -1028,6 +1030,7 @@ fn tenancy_round_trip_through_json() {
     sec.tenancy = TenancyConfig {
         mode:         TenancyMode::Row,
         tenant_claim: "org_id".to_string(),
+        shared_types: Vec::new(),
     };
     schema.security = Some(sec);
 

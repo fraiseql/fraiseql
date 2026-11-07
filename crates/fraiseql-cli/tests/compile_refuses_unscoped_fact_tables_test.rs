@@ -21,8 +21,9 @@ use fraiseql_core::{
 use serde_json::{Value, json};
 use tempfile::TempDir;
 
-/// A list root injecting `tenant_id` from the token, and `tf_sales` with `fact_table_extra`
-/// merged in.
+/// A list root injecting `tenant_id` from the token, a session variable the server sets from
+/// the same claim (what a relation-scoped fact table filters on), and `tf_sales` with
+/// `fact_table_extra` merged in.
 fn schema(inject: bool, fact_table_extra: &Value) -> String {
     let mut query = json!({
         "name": "rows",
@@ -52,7 +53,10 @@ fn schema(inject: bool, fact_table_extra: &Value) -> String {
             ]
         }],
         "queries": [query],
-        "fact_tables": [fact_table]
+        "fact_tables": [fact_table],
+        "session_variables": {"variables": [
+            {"name": "app.tenant_id", "source": "jwt", "claim": "tid"}
+        ]}
     })
     .to_string()
 }

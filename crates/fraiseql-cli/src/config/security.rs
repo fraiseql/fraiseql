@@ -70,6 +70,9 @@ pub struct TenancyTomlConfig {
     pub mode:         TenancyModeConfig,
     /// JWT claim name that carries the tenant identifier.
     pub tenant_claim: String,
+    /// Types every tenant reads the same, under `mode = "row"`: every type a root returns
+    /// carries a `@tenant_id` field or is listed here.
+    pub shared_types: Vec<String>,
 }
 
 impl Default for TenancyTomlConfig {
@@ -77,6 +80,7 @@ impl Default for TenancyTomlConfig {
         Self {
             mode:         TenancyModeConfig::None,
             tenant_claim: "tenant_id".to_string(),
+            shared_types: Vec::new(),
         }
     }
 }
@@ -120,6 +124,7 @@ impl TenancyTomlConfig {
                 TenancyModeConfig::Schema => fraiseql_core::schema::TenancyMode::Schema,
             },
             tenant_claim: self.tenant_claim.clone(),
+            shared_types: self.shared_types.clone(),
         }
     }
 }

@@ -8,13 +8,16 @@
 //!
 //! A fact table is tenant-scoped when the schema says its rows belong to a tenant:
 //!
+//! * the schema is multi-tenant — every fact table in it is, until it declares otherwise;
 //! * its linked type (`type_name`) declares `inject_params`, or is returned by a query that does —
 //!   it is read as that type, and that type is read per tenant;
 //! * one of its denormalized filter columns is a column some query or type injects — the column the
 //!   scoped reads filter on is in the fact table too.
 //!
 //! Such a fact table is refused by the compiler, and its roots by the runtime when no row
-//! policy is installed, unless something scopes them:
+//! policy is installed, unless something scopes them, or it declares
+//! [`FactRowScope::Shared`](crate::compiler::fact_table::FactRowScope::Shared): every tenant reads
+//! the same rows. What scopes them:
 //!
 //! * its own `inject_params` (#1800), filters on its denormalized columns that the runtime composes
 //!   into every aggregate and window over it, as a list root composes its query's;
@@ -22,7 +25,9 @@
 //!   denormalized columns. They never come from a query that happens to inject a column of the same
 //!   name: scoping is read off a declaration, never off a coincidence;
 //! * [`FactRowScope::Relation`](crate::compiler::fact_table::FactRowScope::Relation): its relation
-//!   filters its own rows.
+//!   filters its own rows, on a session variable the server sets from the caller's token or
+//!   enriched identity. Without one, there is no per-request value to filter on, and the
+//!   declaration is refused.
 
 use std::fmt;
 
@@ -31,7 +36,7 @@ use indexmap::IndexMap;
 use super::{CompiledSchema, type_inject::describe_source};
 use crate::{
     compiler::fact_table::{FactRowScope, FactTableMetadata},
-    schema::{InjectedParamSource, TypeDefinition},
+    schema::{InjectedParamSource, SessionVariableSource, TypeDefinition},
 };
 
 /// Where the `inject_params` scoping a fact table's roots come from.
@@ -80,14 +85,21 @@ impl CompiledSchema {
     pub fn unenforced_tenant_scope(&self, metadata: &FactTableMetadata) -> Option<String> {
         let registered = self.get_fact_table(&metadata.table_name);
         let deciding = registered.unwrap_or(metadata);
-        if deciding.row_scope == FactRowScope::Relation
-            || self.fact_table_inject_scope(deciding).is_some()
-        {
+        match deciding.row_scope {
+            FactRowScope::Relation => return self.relation_scope_fault(),
+            FactRowScope::Shared => return None,
+            FactRowScope::Server => {},
+        }
+        if self.fact_table_inject_scope(deciding).is_some() {
             return None;
         }
         let reason = registered
             .and_then(|table| self.tenant_scope_reason(table))
-            .or_else(|| self.tenant_scope_reason(metadata))?;
+            .or_else(|| self.tenant_scope_reason(metadata))
+            .or_else(|| {
+                self.is_multi_tenant()
+                    .then(|| "the schema is multi-tenant, and it declares no scope".to_string())
+            })?;
         let fault = self.fact_table_type(deciding).and_then(|type_def| {
             self.inheritance_fault(deciding, type_def).map(|fault| {
                 format!(
@@ -101,13 +113,13 @@ impl CompiledSchema {
 
     /// The `inject_params` scoping `table`'s aggregate and window roots (#1800): its own, or,
     /// when it declares none, its linked type's, if the table can take each of them. `None` for
-    /// a relation-scoped table, which the server does not filter.
+    /// a relation-scoped or shared table, which the server does not filter.
     #[must_use]
     pub fn fact_table_inject_scope<'a>(
         &'a self,
         table: &'a FactTableMetadata,
     ) -> Option<FactInjectScope<'a>> {
-        if table.row_scope == FactRowScope::Relation {
+        if !table.row_scope.is_server() {
             return None;
         }
         if !table.inject_params.is_empty() {
@@ -141,11 +153,16 @@ impl CompiledSchema {
             if table.inject_params.is_empty() {
                 continue;
             }
-            if table.row_scope == FactRowScope::Relation {
-                violations.push(format!(
+            match table.row_scope {
+                FactRowScope::Relation => violations.push(format!(
                     "fact table '{name}' declares row_scope = \"relation\" (its relation filters \
                      its own rows) and inject_params (the server filters them): declare one"
-                ));
+                )),
+                FactRowScope::Shared => violations.push(format!(
+                    "fact table '{name}' declares row_scope = \"shared\" (every tenant reads \
+                     its rows) and inject_params (the server filters them): declare one"
+                )),
+                FactRowScope::Server => {},
             }
             let linked = self.fact_table_type(table);
             for (column, source) in &table.inject_params {
@@ -195,6 +212,25 @@ impl CompiledSchema {
                     .map(|reason| format!("fact table '{}' ({reason})", table.table_name))
             })
             .collect()
+    }
+
+    /// Why a relation-scoped fact table's relation has nothing to filter on, or `None` when a
+    /// session variable carries a per-request value the server sets: from the caller's token,
+    /// or from its enriched identity. A header is the client's, and a literal is the same for
+    /// every request.
+    fn relation_scope_fault(&self) -> Option<String> {
+        let server_set = self.session_variables.variables.iter().any(|variable| {
+            matches!(
+                variable.source,
+                SessionVariableSource::Jwt { .. } | SessionVariableSource::Enrichment { .. }
+            )
+        });
+        (!server_set).then(|| {
+            "it declares row_scope = \"relation\", but no session_variables entry is sourced \
+             from the token (`jwt`) or an enriched field (`enrichment`), so its relation has no \
+             per-request value to filter on"
+                .to_string()
+        })
     }
 
     /// Why `table` is tenant-scoped in this schema, whatever its declared row scope.

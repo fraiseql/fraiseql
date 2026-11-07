@@ -223,6 +223,14 @@ impl ExecutorContext {
         crate::schema::refuse_unbound_rls_sources(&*self.adapter, schema).await
     }
 
+    /// See [`Executor::refuse_unfiltered_relation_scopes`](super::Executor).
+    pub(super) async fn refuse_unfiltered_relation_scopes(
+        &self,
+        schema: &CompiledSchema,
+    ) -> Result<()> {
+        crate::schema::refuse_unfiltered_relation_scopes(&*self.adapter, schema).await
+    }
+
     /// Execute one server-composed DDL statement.
     ///
     /// Private to this module: the only public door onto it is

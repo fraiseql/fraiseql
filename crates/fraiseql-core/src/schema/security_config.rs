@@ -166,6 +166,13 @@ pub struct TenancyConfig {
     /// (#1388). Read once at boot: `security` is boot-frozen.
     #[serde(default = "default_tenant_claim")]
     pub tenant_claim: String,
+
+    /// Types every tenant reads the same, under row isolation.
+    ///
+    /// Row isolation scopes a root by the `@tenant_id` field of the type it returns, so the
+    /// compiler requires every type a root returns to carry one or to be listed here.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub shared_types: Vec<String>,
 }
 
 /// The JWT claim that names a request's tenant when `[tenancy]` does not
@@ -181,6 +188,7 @@ impl Default for TenancyConfig {
         Self {
             mode:         TenancyMode::None,
             tenant_claim: default_tenant_claim(),
+            shared_types: Vec::new(),
         }
     }
 }

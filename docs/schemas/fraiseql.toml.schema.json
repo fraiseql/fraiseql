@@ -112,7 +112,8 @@
       "$ref": "#/$defs/TenancyTomlConfig",
       "default": {
         "mode": "none",
-        "tenant_claim": "tenant_id"
+        "tenant_claim": "tenant_id",
+        "shared_types": []
       }
     },
     "inject_defaults": {
@@ -2279,6 +2280,14 @@
           "description": "JWT claim name that carries the tenant identifier.",
           "type": "string",
           "default": "tenant_id"
+        },
+        "shared_types": {
+          "description": "Types every tenant reads the same, under `mode = \"row\"`: every type a root returns\ncarries a `@tenant_id` field or is listed here.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
         },
         "runtime": {
           "not": {},

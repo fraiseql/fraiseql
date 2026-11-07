@@ -386,9 +386,18 @@ pub async fn compile_to_schema(
     });
     if let Some(tenant_claim) = &tenancy_row_claim {
         info!("Validating @tenant_id annotations for row-isolation tenancy...");
+        let shared_types: Vec<String> = intermediate
+            .security
+            .as_ref()
+            .and_then(|sec| sec.get("tenancy")?.get("shared_types")?.as_array().cloned())
+            .unwrap_or_default()
+            .iter()
+            .filter_map(|name| name.as_str().map(str::to_string))
+            .collect();
         crate::schema::converter::tenancy::validate_tenant_annotations(
             &mut intermediate,
             tenant_claim,
+            &shared_types,
         )
         .context("@tenant_id validation failed")?;
     }
@@ -766,8 +775,10 @@ fn refuse_what_a_server_would_not_load(schema: &CompiledSchema) -> Result<()> {
 /// from its linked type (#1800), or by a row policy, which it does not install, and refuses
 /// them otherwise. A schema that scopes a fact table's rows by tenant with none of these
 /// ([`CompiledSchema::unenforced_tenant_scope`]) would serve those roots as refusals only, so
-/// it is refused here, naming the ways out: `inject_params` on the fact table, or
-/// `row_scope = "relation"` for a relation that filters its own rows.
+/// it is refused here, naming the ways out: `inject_params` on the fact table,
+/// `row_scope = "relation"` for a relation that filters its own rows on a session variable the
+/// server sets, or `row_scope = "shared"` for a fact table every tenant reads the same. In a
+/// multi-tenant schema every fact table declares one of them.
 ///
 /// Not at load: an embedder that installs a row policy scopes the roots, and a load-time
 /// check cannot see one.
@@ -784,11 +795,14 @@ fn refuse_unscoped_fact_tables(schema: &CompiledSchema) -> Result<()> {
         "tenant-scoped fact table(s) whose _aggregate and _window roots nothing scopes:\n  - \
          {}\n\n\
          Nothing filters these roots' rows by tenant, so the server refuses them rather than \
-         read across tenants. Declare `inject_params` on the fact table, one per denormalized \
-         column the scoped reads filter on (`{{\"tenant_id\": \"jwt:<claim>\"}}`), as a query \
-         declares them. If the relation filters its own rows by tenant (on a \
-         current_setting(...) the server sets from [session_variables], never on client \
-         input), declare `row_scope = \"relation\"` instead.",
+         read across tenants. Declare one of, on the fact table (`\"key\": value` in \
+         schema.json, `key = value` in TOML):\n\
+         \x20 - `inject_params`, one per denormalized column the scoped reads filter on \
+         (`{{\"tenant_id\": \"jwt:<claim>\"}}`), as a query declares them;\n\
+         \x20 - `row_scope = \"relation\"` if the relation filters its own rows by tenant, on a \
+         current_setting(...) the server sets from a [session_variables] entry sourced from \
+         the token (`jwt`) or an enriched field (`enrichment`), never on client input;\n\
+         \x20 - `row_scope = \"shared\"` if every tenant reads the same rows.",
         violations.join("\n  - ")
     )
 }

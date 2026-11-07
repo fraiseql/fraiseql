@@ -1174,6 +1174,7 @@ fn tenancy_config_serde_round_trip() {
     let config = TenancyConfig {
         mode:         TenancyMode::Row,
         tenant_claim: "org_id".to_string(),
+        shared_types: Vec::new(),
     };
     let json = serde_json::to_string(&config).unwrap();
     let back: TenancyConfig = serde_json::from_str(&json).unwrap();
@@ -1217,6 +1218,7 @@ fn security_config_tenancy_present_when_non_default() {
         tenancy: TenancyConfig {
             mode:         TenancyMode::Row,
             tenant_claim: "tenant_id".to_string(),
+            shared_types: Vec::new(),
         },
         ..SecurityConfig::default()
     };
@@ -1231,6 +1233,7 @@ fn security_config_with_tenancy_round_trip() {
         tenancy: TenancyConfig {
             mode:         TenancyMode::Schema,
             tenant_claim: "org_id".to_string(),
+            shared_types: Vec::new(),
         },
         ..SecurityConfig::default()
     };

@@ -2320,8 +2320,9 @@ mod tenancy_tests {
             vec![make_query("getUser", "User")],
             vec![],
         );
-        let message =
-            validate_tenant_annotations(&mut schema, "tenant_id").unwrap_err().to_string();
+        let message = validate_tenant_annotations(&mut schema, "tenant_id", &[])
+            .unwrap_err()
+            .to_string();
         assert!(message.contains("matched 0 of 1 types"), "{message}");
         assert!(message.contains("multi_tenant = true"), "{message}");
         assert!(schema.queries[0].inject.is_empty(), "nothing may be injected on refusal");
@@ -2337,7 +2338,7 @@ mod tenancy_tests {
             vec![make_query("getUser", "User")],
             vec![],
         );
-        validate_tenant_annotations(&mut schema, "tenant_id").unwrap();
+        validate_tenant_annotations(&mut schema, "tenant_id", &[]).unwrap();
         assert_eq!(schema.queries[0].inject.get("tenant_id"), Some(&"jwt:tenant_id".to_string()));
     }
 
@@ -2351,7 +2352,7 @@ mod tenancy_tests {
             vec![],
             vec![make_mutation("createUser", "User")],
         );
-        validate_tenant_annotations(&mut schema, "tenant_id").unwrap();
+        validate_tenant_annotations(&mut schema, "tenant_id", &[]).unwrap();
         assert_eq!(schema.mutations[0].inject.get("tenant_id"), Some(&"jwt:tenant_id".to_string()));
     }
 
@@ -2949,7 +2950,7 @@ mod tenancy_tests {
             vec![make_query("getUser", "User")],
             vec![],
         );
-        validate_tenant_annotations(&mut schema, "org_id").unwrap();
+        validate_tenant_annotations(&mut schema, "org_id", &[]).unwrap();
         assert_eq!(schema.queries[0].inject.get("tenant_id"), Some(&"jwt:org_id".to_string()));
     }
 
@@ -2969,7 +2970,7 @@ mod tenancy_tests {
             }],
             vec![],
         );
-        validate_tenant_annotations(&mut schema, "tenant_id").unwrap();
+        validate_tenant_annotations(&mut schema, "tenant_id", &[]).unwrap();
     }
 
     // ── Error: explicit inject missing tenant ───────────────────────────
@@ -2988,7 +2989,7 @@ mod tenancy_tests {
             }],
             vec![],
         );
-        let err = validate_tenant_annotations(&mut schema, "tenant_id").unwrap_err();
+        let err = validate_tenant_annotations(&mut schema, "tenant_id", &[]).unwrap_err();
         let msg = err.to_string();
         assert!(msg.contains("getUser"), "error should mention query name: {msg}");
         assert!(msg.contains("@tenant_id"), "error should mention directive: {msg}");
@@ -3009,24 +3010,41 @@ mod tenancy_tests {
                 ..Default::default()
             }],
         );
-        let err = validate_tenant_annotations(&mut schema, "tenant_id").unwrap_err();
+        let err = validate_tenant_annotations(&mut schema, "tenant_id", &[]).unwrap_err();
         assert!(err.to_string().contains("createUser"));
     }
 
-    // ── No-op for non-annotated types ───────────────────────────────────
+    // ── A type without @tenant_id is shared, or refused ─────────────────
 
-    #[test]
-    fn query_on_non_annotated_type_unchanged() {
-        let mut schema = make_schema(
+    fn schema_querying_an_unannotated_type() -> IntermediateSchema {
+        make_schema(
             vec![
                 make_type("Post", vec![make_field("id", "Int")]),
                 make_type("User", vec![make_tenant_id_field("tenant_id")]),
             ],
             vec![make_query("getPosts", "Post")],
             vec![],
-        );
-        validate_tenant_annotations(&mut schema, "tenant_id").unwrap();
+        )
+    }
+
+    #[test]
+    fn query_on_a_shared_type_is_left_unscoped() {
+        let mut schema = schema_querying_an_unannotated_type();
+        validate_tenant_annotations(&mut schema, "tenant_id", &["Post".to_string()]).unwrap();
         assert!(schema.queries[0].inject.is_empty());
+    }
+
+    #[test]
+    fn query_on_an_undeclared_unannotated_type_is_refused() {
+        let mut schema = schema_querying_an_unannotated_type();
+        let message = validate_tenant_annotations(&mut schema, "tenant_id", &[])
+            .unwrap_err()
+            .to_string();
+        assert!(
+            message.contains("'Post' (returned by query 'getPosts')")
+                && message.contains("shared_types"),
+            "{message}"
+        );
     }
 
     // ── A mutation passes the tenant as a function parameter (#1386) ────
@@ -3048,7 +3066,7 @@ mod tenancy_tests {
                 ..Default::default()
             }],
         );
-        validate_tenant_annotations(&mut schema, "tenant_id").unwrap();
+        validate_tenant_annotations(&mut schema, "tenant_id", &[]).unwrap();
         assert_eq!(schema.mutations[0].inject, inject, "the function's arity is untouched");
     }
 
@@ -3067,7 +3085,8 @@ mod tenancy_tests {
                 ..Default::default()
             }],
         );
-        let message = validate_tenant_annotations(&mut schema, "org_id").unwrap_err().to_string();
+        let message =
+            validate_tenant_annotations(&mut schema, "org_id", &[]).unwrap_err().to_string();
         assert!(message.contains("createUser") && message.contains("jwt:org_id"), "{message}");
     }
 
@@ -3088,7 +3107,7 @@ mod tenancy_tests {
             vec![],
             vec![],
         );
-        validate_tenant_annotations(&mut schema, "org_id").unwrap();
+        validate_tenant_annotations(&mut schema, "org_id", &[]).unwrap();
         assert_eq!(
             schema.types[0].inject_params.get("tenant_id").map(String::as_str),
             Some("jwt:org_id"),
@@ -3106,7 +3125,7 @@ mod tenancy_tests {
             vec![make_query("getUser", "User")],
             vec![],
         );
-        validate_tenant_annotations(&mut schema, "org_id").unwrap();
+        validate_tenant_annotations(&mut schema, "org_id", &[]).unwrap();
         assert_eq!(
             schema.queries[0].inject.get("tenant_id").map(String::as_str),
             Some("jwt:org_id"),
@@ -3132,7 +3151,7 @@ mod tenancy_tests {
             vec![],
             vec![],
         );
-        let err = validate_tenant_annotations(&mut schema, "org_id").unwrap_err();
+        let err = validate_tenant_annotations(&mut schema, "org_id", &[]).unwrap_err();
         let msg = format!("{err:#}");
         assert!(
             msg.contains("Organization") && msg.contains("tenant_id"),
@@ -4715,7 +4734,7 @@ mod optional_claim {
                 "return_type": "Invoice", "sql_source": "app.create_invoice",
                 "inject_params": {{"p_tenant": "jwt_optional:org_id"}}}}]}}"#
         ));
-        let err = validate_tenant_annotations(&mut intermediate, "org_id")
+        let err = validate_tenant_annotations(&mut intermediate, "org_id", &[])
             .unwrap_err()
             .to_string();
         assert!(err.contains("createInvoice") && err.contains("org_id"), "{err}");

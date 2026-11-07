@@ -911,10 +911,38 @@ mod tenant_scoped_fact_tables {
         schema
     }
 
-    fn with_row_scope(mut schema: CompiledSchema, row_scope: FactRowScope) -> CompiledSchema {
+    /// `schema` with `tf_sales` declaring `row_scope`. A relation-scoped table filters on a
+    /// session variable the server sets from the token's tenant claim, so one is declared.
+    fn with_row_scope(schema: CompiledSchema, row_scope: FactRowScope) -> CompiledSchema {
+        let mut schema = with_declared_row_scope(schema, row_scope);
+        if row_scope == FactRowScope::Relation {
+            schema.session_variables.variables.push(crate::schema::SessionVariableMapping {
+                name:   "app.tenant_id".to_string(),
+                source: crate::schema::SessionVariableSource::Jwt {
+                    claim: "tid".to_string(),
+                },
+            });
+        }
+        schema
+    }
+
+    /// `schema` with `tf_sales` declaring `row_scope`, and nothing else.
+    fn with_declared_row_scope(
+        mut schema: CompiledSchema,
+        row_scope: FactRowScope,
+    ) -> CompiledSchema {
         let mut table = schema.get_fact_table("tf_sales").unwrap().clone();
         table.row_scope = row_scope;
         schema.add_fact_table("tf_sales".to_string(), table);
+        schema
+    }
+
+    /// `schema` declared multi-tenant.
+    fn multi_tenant(mut schema: CompiledSchema) -> CompiledSchema {
+        schema.security = Some(crate::schema::SecurityConfig {
+            multi_tenant: true,
+            ..crate::schema::SecurityConfig::default()
+        });
         schema
     }
 
@@ -1123,6 +1151,58 @@ mod tenant_scoped_fact_tables {
             .execute_aggregate_query(&aggregate_vars(), "sales_aggregate", &metadata)
             .await;
         assert_refused(&res, adapter.captured_aggregate_sql().as_ref(), "embedder opt-out");
+    }
+
+    /// A relation-scoped fact table filters on a value the server sets per request. With no
+    /// session variable from the token or an enriched field, nothing scopes it: refused.
+    #[tokio::test]
+    async fn a_relation_scoped_fact_table_with_nothing_to_filter_on_is_refused() {
+        let schema = with_declared_row_scope(injected_column_schema(), FactRowScope::Relation);
+        let (res, sql) = graphql(
+            schema,
+            RuntimeConfig::default(),
+            "{ sales_aggregate { count } }",
+            &aggregate_vars(),
+        )
+        .await;
+        assert_refused(&res, sql.as_ref(), "relation without a session variable");
+        assert!(refusal(&res).contains("session_variables"), "{res:?}");
+    }
+
+    /// In a multi-tenant schema a fact table nothing infers scoped still declares its scope:
+    /// undeclared, it is refused.
+    #[tokio::test]
+    async fn an_undeclared_fact_table_in_a_multi_tenant_schema_is_refused() {
+        let (res, sql) = graphql(
+            multi_tenant(schema_with_fact_table()),
+            RuntimeConfig::default(),
+            "{ sales_aggregate { count } }",
+            &aggregate_vars(),
+        )
+        .await;
+        assert_refused(&res, sql.as_ref(), "multi-tenant, undeclared");
+        assert!(refusal(&res).contains("multi-tenant"), "{res:?}");
+    }
+
+    /// A fact table every tenant reads the same is served, unfiltered, in a multi-tenant
+    /// schema and beside an injected read alike.
+    #[tokio::test]
+    async fn a_shared_fact_table_is_served_unfiltered() {
+        for schema in [
+            multi_tenant(schema_with_fact_table()),
+            injected_column_schema(),
+        ] {
+            let schema = with_row_scope(schema, FactRowScope::Shared);
+            let (res, sql) = graphql(
+                schema,
+                RuntimeConfig::default(),
+                "{ sales_aggregate { count } }",
+                &aggregate_vars(),
+            )
+            .await;
+            assert!(res.is_ok(), "{res:?}");
+            assert!(!sql.unwrap().contains("tenant_id"), "a shared table is not filtered");
+        }
     }
 
     /// `row_scope = "relation"` on a fact table no injected read concerns changes nothing.

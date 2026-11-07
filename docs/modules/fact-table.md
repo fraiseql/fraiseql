@@ -690,13 +690,17 @@ evaluated without one.
 
 An `<name>_aggregate` or `<name>_window` root has no query, so no query `inject_params` of its
 own. The server scopes it by what the **fact table** declares: its own `inject_params`, those
-it inherits from the type it is read as, or a relation that filters its own rows. A row policy
+it inherits from the type it is read as, a relation that filters its own rows, or a
+declaration that every tenant reads the same rows. A row policy
 (`RuntimeConfig::with_rls_policy`, which an embedder installs; `fraiseql-server` installs
 none) applies as well. A fact table that a schema scoping its reads by tenant leaves unscoped
 would read every tenant's rows, and its roots are refused instead.
 
-A fact table is **tenant-scoped** when either:
+A fact table is **tenant-scoped** when any of:
 
+- the schema is multi-tenant (`[security] multi_tenant = true`, or
+  `[tenancy] mode = "row"` or `"schema"`): every fact table then declares its scope,
+  whatever its columns;
 - the type it is read as (`type_name`) declares `inject_params`, or is returned by a query
   that does; or
 - one of its `denormalized_filters` is a column some query or type injects (a `tenant_id`
@@ -705,7 +709,7 @@ A fact table is **tenant-scoped** when either:
 `[tenancy] mode = "row"` counts: `@tenant_id` is lowered onto the queries'
 `inject_params` before this is decided.
 
-For a tenant-scoped fact table that none of the three declarations below scopes:
+For a tenant-scoped fact table that none of the declarations below scopes:
 
 - `fraiseql compile` refuses the schema, naming the fact table and the injected column or
   type that scopes it, and the declarations that would scope it.
@@ -781,7 +785,7 @@ tenant's rows from another's. It must filter on a value the **server** sets per 
 on anything the client sends:
 
 ```toml
-# fraiseql.toml
+# fraiseql.toml beside a schema.json
 [[session_variables.variables]]
 name = "app.tenant_id"
 source = "jwt"
@@ -797,8 +801,53 @@ WHERE tenant_id = NULLIF(current_setting('app.tenant_id', true), '');
 A request with no token sets no value, so the view returns no rows. A `header` session
 variable is client-controlled and must never feed such a filter.
 
+`fraiseql compile` requires a schema declaring `row_scope = "relation"` to declare at least
+one session variable sourced from the token (`jwt`) or an enriched field (`enrichment`), in
+every schema, and refuses it otherwise: a `header` or `literal` variable gives the relation
+nothing per-request to filter on.
+
+The server then checks the relation itself, against the live catalog and as the role of
+every pool it reads from: at startup, on a schema reload, and when a tenant is registered. It
+refuses to serve the fact table unless the relation reads one of those settings with
+`current_setting('<name>'…)` in one of these places:
+
+- **the view's own `WHERE` clause**, as above. The clause applies to every reader, whatever
+  role it connects as;
+- **a row level security policy on the table**. Row level security must be enabled, and the
+  reading role must be neither a superuser nor `BYPASSRLS`. A table that role owns, directly
+  or through a role it inherits, must be `FORCE ROW LEVEL SECURITY`. Among the policies that
+  apply to the role's reads (`FOR SELECT` or `FOR ALL`, to `PUBLIC` or a role it is a member
+  of), a restrictive one must read the setting, or there must be at least one permissive one
+  and every permissive one must read it: PostgreSQL combines permissive policies with `OR`;
+- **a `security_invoker` view** whose every relation passes one of these rules.
+
+A view that is not `security_invoker` reads its relations with its owner's privileges, so
+their policies do not apply to it: it must filter in its own definition.
+
+The check confirms that the relation's filter reads the setting, not that the filter is
+correct: what the expression does with the value is the author's to get right. The setting
+must appear in the policy or view definition itself; a function that reads it on the
+relation's behalf is not seen.
+
 `row_scope = "relation"` on a fact table that is not tenant-scoped changes nothing. A
 relation-scoped fact table inherits no `inject_params` from its type.
+
+### Rows every tenant reads: `row_scope = "shared"`
+
+When the fact table holds rows that are the same for every tenant (reference prices, public
+statistics), declare it:
+
+```json
+"fact_tables": [{
+  "table_name": "tf_market_prices",
+  "row_scope": "shared",
+  "measures": [ … ],
+  "dimensions": { … }
+}]
+```
+
+The server adds no predicate, and every caller reads every row. Declare it only on a relation
+holding no tenant's own data. `shared` beside `inject_params` is refused, as `relation` is.
 
 ---
 

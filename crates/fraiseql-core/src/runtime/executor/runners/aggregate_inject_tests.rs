@@ -332,8 +332,15 @@ async fn an_inherited_scope_on_a_column_the_table_lacks_is_refused() {
 /// its type injects, as before.
 #[tokio::test]
 async fn a_relation_scoped_table_inherits_nothing() {
-    let schema = with_table(inheriting("author_id", "sub"), |table| {
+    let mut schema = with_table(inheriting("author_id", "sub"), |table| {
         table.row_scope = FactRowScope::Relation;
+    });
+    // What the relation filters on: a value the server sets from the token.
+    schema.session_variables.variables.push(crate::schema::SessionVariableMapping {
+        name:   "app.author_id".to_string(),
+        source: crate::schema::SessionVariableSource::Jwt {
+            claim: "sub".to_string(),
+        },
     });
     let principal = tenant_security_context("tenant-abc");
     for (what, served) in both_roots(&schema, &RuntimeConfig::default(), Some(&principal)).await {

@@ -59,6 +59,8 @@ mod decimal_shape;
 mod embed_selection;
 mod enum_coercion;
 mod executor;
+#[cfg(test)]
+pub(crate) use executor::test_support;
 mod explain;
 pub mod field_filter;
 mod input_defaults;

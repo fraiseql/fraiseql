@@ -18,6 +18,22 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **Every root a multi-tenant schema serves declares how it is scoped.**
+  - Under `[tenancy] mode = "row"`, every object type a query, subscription, federated
+    entity or tenant-agnostic mutation returns carries a `@tenant_id` field or is listed
+    in the new `[tenancy] shared_types` (every tenant reads the same rows). A union counts
+    by its members and an interface by its implementors; a type both annotated and listed
+    is refused. A type that is neither no longer compiles into a root every tenant reads
+    in full.
+  - Every fact table of a multi-tenant schema declares its scope: `inject_params`,
+    `row_scope = "relation"`, or the new `row_scope = "shared"`.
+  - A `row_scope = "relation"` fact table needs a session variable sourced from the token
+    (`jwt`) or an enriched field (`enrichment`), and its relation is checked against the
+    live catalog at startup, on a schema reload and on a tenant registration, as the role
+    of every read pool: the relation must read that setting in its own view definition,
+    or in row level security policies that bind the reading role through
+    `security_invoker` views. A relation that does not filter on it refuses boot.
+
 - **The boot check for declared row level security runs as the role that reads.** With
   `[security.rls]` declared, the server asks every read pool, the primary and each read
   replica, whether the policies bind its role. It refuses to start for a superuser or

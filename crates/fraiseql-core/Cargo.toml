@@ -419,6 +419,10 @@ name = "query_null_nested_object"
 required-features = ["postgres"]
 
 [[test]]
+name = "relation_scope_gate_pg"
+required-features = ["postgres"]
+
+[[test]]
 name = "relay_keyset_seek"
 required-features = ["postgres"]
 

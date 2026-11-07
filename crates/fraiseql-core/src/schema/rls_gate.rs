@@ -24,10 +24,10 @@ use crate::{
 };
 
 /// One catalog row, as an adapter returns it.
-type Row = HashMap<String, Value>;
+pub(super) type Row = HashMap<String, Value>;
 
 /// The reading role and whether row level security can bind it.
-const ROLE_SQL: &str = "SELECT current_user::text AS role_name, r.rolsuper AS superuser, \
+pub(super) const ROLE_SQL: &str = "SELECT current_user::text AS role_name, r.rolsuper AS superuser, \
                         r.rolbypassrls AS bypassrls \
                         FROM pg_roles r WHERE r.rolname = current_user";
 
@@ -172,7 +172,7 @@ pub async fn refuse_unbound_rls_sources<A: DatabaseAdapter + ?Sized>(
 }
 
 /// Why `pool`'s role is not bound by row level security, if it is not.
-fn role_failure(pool: &str, row: Option<&Row>) -> Option<String> {
+pub(super) fn role_failure(pool: &str, row: Option<&Row>) -> Option<String> {
     let Some(row) = row else {
         return Some(format!(
             "{pool} — could not read the role it connects as, so whether row level security \
@@ -295,17 +295,17 @@ fn is_view(row: &Row) -> bool {
     text(row, "kind") == Some("v")
 }
 
-fn text<'a>(row: &'a Row, key: &str) -> Option<&'a str> {
+pub(super) fn text<'a>(row: &'a Row, key: &str) -> Option<&'a str> {
     row.get(key).and_then(Value::as_str)
 }
 
-fn flag(row: &Row, key: &str) -> bool {
+pub(super) fn flag(row: &Row, key: &str) -> bool {
     row.get(key).and_then(Value::as_bool).unwrap_or(false)
 }
 
 /// Push `failure` unless an identical one is already listed: every pool answers the
 /// pool-independent questions too.
-fn push_once(failures: &mut Vec<String>, failure: String) {
+pub(super) fn push_once(failures: &mut Vec<String>, failure: String) {
     if !failures.contains(&failure) {
         failures.push(failure);
     }

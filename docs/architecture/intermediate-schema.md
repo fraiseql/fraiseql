@@ -205,6 +205,13 @@ Two rules follow from the merge:
   annotation names a column of the returned rows, not a parameter of the writer. Only a
   mutation with no `inject_params` at all gets one added (named after the annotated field);
   one with `inject_params` that pass the tenant nowhere is refused.
+- With `mode = "row"`, every object type a root can return declares its scope: it carries a
+  `@tenant_id` field, or it is listed in `[tenancy] shared_types` (every tenant
+  reads the same rows). The roots are the queries; the subscriptions; the mutations, except
+  one whose `inject_params` read `jwt:<tenant_claim>`; and, with federation enabled, the
+  entity types no query returns. A union counts by its members and an interface by its
+  implementors. A type declaring neither is refused at compile, naming it and the roots that
+  return it; a type declaring both is refused as a contradiction.
 
 ### `IntermediateField`
 
@@ -507,7 +514,7 @@ OLAP-style fact table for aggregate queries.
 |-------|------|-------------|
 | `table_name` | `string` | Fact table name (`tf_*`) |
 | `type_name` | `string?` | The type the table is read as (alias `type`) |
-| `row_scope` | `"relation"?` | The relation filters its own rows by tenant, on values the server sets per request; the server adds no tenant predicate. Required on a tenant-scoped fact table that no row policy or `inject_params` scopes ([fact tables](../modules/fact-table.md#tenant-scoping-of-aggregate-and-window-roots)) |
+| `row_scope` | `"relation"?` \| `"shared"?` | `"relation"`: the relation filters its own rows by tenant, on a session variable the server sets per request from the token (`jwt`) or an enriched field (`enrichment`), which the schema must declare; the server adds no tenant predicate. `"shared"`: every tenant reads the same rows; the server adds no tenant predicate. One of them is required on a tenant-scoped fact table that no row policy or `inject_params` scopes, and on every fact table of a multi-tenant schema that `inject_params` does not scope ([fact tables](../modules/fact-table.md#tenant-scoping-of-aggregate-and-window-roots)) |
 | `inject_params` | `object?` | Filters the server composes into every aggregate and window over the table: `{column: {"source": "jwt", "claim": …}}` or `{column: "jwt:<claim>"}`, each column a denormalized filter. Absent, inherited from the linked type's `inject_params`. Not with `row_scope` ([fact tables](../modules/fact-table.md#the-fact-tables-own-filters-inject_params)) |
 | `measures` | `{name, sql_type, nullable, additivity?, column?}[]` | Numeric measures. `column` is the SQL column a measure is stored in when it is not `name`: one identifier. The measure is published as `name` and typed by `sql_type` either way |
 | `dimensions` | `{name, paths: {name, json_path, data_type}[]}` | The JSONB dimensions column |

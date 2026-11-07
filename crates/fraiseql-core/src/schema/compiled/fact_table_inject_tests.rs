@@ -118,6 +118,21 @@ fn a_declaration_on_a_relation_scoped_table_is_refused() {
 }
 
 #[test]
+fn a_declaration_on_a_shared_table_is_refused() {
+    let message = refusal(|d| {
+        declare(d, "tenant_id", jwt("org"));
+        d["fact_tables"]["tf_sales"]["row_scope"] = "shared".into();
+    });
+    for part in [
+        "fact table 'tf_sales'",
+        "row_scope = \"shared\"",
+        "inject_params",
+    ] {
+        assert!(message.contains(part), "{part:?}: {message}");
+    }
+}
+
+#[test]
 fn a_declaration_contradicting_the_linked_type_is_refused() {
     let message = refusal(|d| {
         declare(d, "tenant_id", jwt("org"));

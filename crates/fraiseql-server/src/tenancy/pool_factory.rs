@@ -315,6 +315,8 @@ pub async fn create_tenant_executor_with_adapter<A: FromPoolConfig + Writer>(
     if crate::server::initialization::declares_rls_isolation(&schema) {
         fraiseql_core::schema::refuse_unbound_rls_sources(&adapter, &schema).await?;
     }
+    // 5c. A relation-scoped fact table's relation must filter, as these pools' roles see it.
+    fraiseql_core::schema::refuse_unfiltered_relation_scopes(&adapter, &schema).await?;
 
     // 6. Assemble the executor through the same composition every other constructor uses (#1333).
     //    `Executor::new` is `with_config(..., RuntimeConfig::default())`, so this path used to run

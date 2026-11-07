@@ -695,6 +695,19 @@ impl Executor {
         self.ctx.refuse_unbound_rls_sources(schema).await
     }
 
+    /// Refuse `schema` when a fact table it declares `row_scope = "relation"` is not
+    /// filtered by its relation, as the roles this executor reads as see it.
+    ///
+    /// The boot-time check, re-run by a hot reload before it swaps: a reload can change
+    /// where the session variable a relation filters on comes from.
+    ///
+    /// # Errors
+    ///
+    /// See [`crate::schema::refuse_unfiltered_relation_scopes`].
+    pub async fn refuse_unfiltered_relation_scopes(&self, schema: &CompiledSchema) -> Result<()> {
+        self.ctx.refuse_unfiltered_relation_scopes(schema).await
+    }
+
     /// Drop a tenant's PostgreSQL schema and everything in it.
     ///
     /// Takes the schema *name*, not a statement: the engine composes the DDL, so no

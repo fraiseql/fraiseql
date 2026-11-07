@@ -75,17 +75,40 @@ def declares_observers(exported: object) -> bool:
     return isinstance(exported, dict) and bool(exported.get("observers"))
 
 
+def declares_relation_scope(node: object) -> bool:
+    """Whether an exported schema declares a fact table with `row_scope = "relation"`."""
+    tables = node.get("fact_tables", []) if isinstance(node, dict) else []
+    if isinstance(tables, dict):
+        tables = list(tables.values())
+    return any(
+        isinstance(table, dict) and table.get("row_scope") == "relation"
+        for table in tables
+    )
+
+
 LOCALE_SECTION = '[locale]\ndefault = "en-US"\nallowed = ["en-US", "fr-FR"]\n'
 # Declared observers are stored under the project's name, so the compiler refuses a
 # schema that declares one where the project writes none.
 OBSERVERS_SECTION = '[project]\nname = "conformance"\n\n[observers]\nenabled = true\n'
 
+# A relation-scoped fact table filters its own rows on a session variable the server sets
+# for each request from the token, so a project declaring one declares such a variable. The
+# variable's name and its `sub` claim are this fixture's choice, not a recommendation: a
+# project sources the variable from whichever claim its relation filters on.
+SESSION_VARIABLE_SECTION = (
+    "[[session_variables.variables]]\n"
+    'name = "app.conformance_sale_scope"\n'
+    'source = "jwt"\n'
+    'claim = "sub"\n'
+)
+
 
 def project_toml(schema: Path) -> str:
     """The `fraiseql.toml` a project compiling `schema` carries: a role granting each scope
-    the schema declares, a `[locale]` when it declares a localized field, and a
-    `[project] name` with an enabled `[observers]` when it declares observers, and a
-    `[hierarchies.<name>]` for each hierarchy it links.
+    the schema declares, a `[locale]` when it declares a localized field, a `[project] name`
+    with an enabled `[observers]` when it declares observers, a `[hierarchies.<name>]` for
+    each hierarchy it links, and a session variable sourced from the token when it declares
+    a relation-scoped fact table.
 
     A scope is granted only by a role the project's security section defines, and a schema
     declaring `requires_scope` with no such section is one no server can load — so the
@@ -99,6 +122,9 @@ def project_toml(schema: Path) -> str:
     # A localized field needs a `[locale]` to resolve through, or the compiler refuses it;
     # derived from the export for the same reason as the roles below.
     locale = LOCALE_SECTION if declares_localized(exported) else ""
+    # A relation-scoped fact table needs a session variable sourced from the token, or the
+    # compiler refuses it; derived from the export for the same reason.
+    session = SESSION_VARIABLE_SECTION if declares_relation_scope(exported) else ""
     # Declared observers fire only where the observer runtime is enabled, under a project
     # name, and the compiler refuses them otherwise. Top-level tables go before the role array so neither is read
     # as a key of it.
@@ -107,9 +133,9 @@ def project_toml(schema: Path) -> str:
     # the export for the reason the roles are, so a misspelled name reaches the diff.
     hierarchies = hierarchies_section(linked_hierarchies(exported))
     if not scopes:
-        return locale + observers + hierarchies
+        return locale + session + observers + hierarchies
     listed = ", ".join(json.dumps(s) for s in scopes)
-    return locale + observers + hierarchies + (
+    return locale + session + observers + hierarchies + (
         "[[security.role_definitions]]\n"
         'name = "conformance"\n'
         'description = "Grants every scope the exported schema declares"\n'

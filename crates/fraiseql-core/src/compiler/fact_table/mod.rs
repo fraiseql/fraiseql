@@ -546,7 +546,9 @@ pub struct FilterColumn {
 ///
 /// In a schema that scopes its reads by `inject_params`, an aggregate or a window root has
 /// no `inject_params` of its own: the server can scope it only through a row policy, and
-/// refuses it otherwise. A relation that filters its own rows says so here.
+/// refuses it otherwise. A relation that filters its own rows says so here, and so does a
+/// fact table every tenant reads the same. In a multi-tenant schema every fact table
+/// declares one of these, or `inject_params`.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
@@ -558,6 +560,9 @@ pub enum FactRowScope {
     /// `current_setting(...)` fed by `[session_variables]`), never on client input. The
     /// server adds no tenant predicate.
     Relation,
+    /// Every tenant reads the same rows: the fact table holds no tenant's data. The server
+    /// adds no tenant predicate.
+    Shared,
 }
 
 impl FactRowScope {

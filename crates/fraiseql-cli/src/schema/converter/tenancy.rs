@@ -10,6 +10,12 @@
 //!    applied to the type's own `inject_params`.
 //! 4. When no type has a `@tenant_id` annotation → compile error (#1386): row isolation configured
 //!    to scope nothing is a misconfiguration, not a note.
+//! 5. Every type a root returns — a query, mutation or subscription return type, through union
+//!    members and interface implementors, and every federation entity no query returns — carries a
+//!    `@tenant_id` field or is listed in `[tenancy] shared_types`. A mutation that passes the
+//!    tenant claim to its function is scoped by it. Anything else is a compile error: an
+//!    unannotated type is either shared or a per-tenant type its author forgot to annotate, and
+//!    only the author can say which.
 
 use std::collections::{HashMap, HashSet};
 
@@ -70,11 +76,13 @@ impl AnnotatedTypeIndex {
 ///
 /// # Errors
 ///
-/// Returns an error if no type carries a `@tenant_id` annotation, or if a query or
-/// mutation explicitly overrides `inject` without including the annotated field.
+/// Returns an error if no type carries a `@tenant_id` annotation, if a query or mutation
+/// explicitly sets `inject` without including the annotated field, or if a type a root
+/// returns is neither annotated nor listed in `shared_types` (or is both).
 pub fn validate_tenant_annotations(
     schema: &mut IntermediateSchema,
     tenant_claim: &str,
+    shared_types: &[String],
 ) -> Result<()> {
     // #1418: an optional claim passes NULL when the token lacks it, and a function must
     // never receive a NULL tenant. Checked on every operation, annotated or not.
@@ -212,5 +220,114 @@ pub fn validate_tenant_annotations(
         }
     }
 
-    Ok(())
+    refuse_undeclared_root_types(schema, &index, tenant_claim, shared_types)
+}
+
+/// Refuse a type a root returns that carries no `@tenant_id` and is not declared shared, and a
+/// type declared shared that carries one.
+fn refuse_undeclared_root_types(
+    schema: &IntermediateSchema,
+    index: &AnnotatedTypeIndex,
+    tenant_claim: &str,
+    shared_types: &[String],
+) -> Result<()> {
+    let is_shared = |name: &str| shared_types.iter().any(|shared| shared == name);
+    let mut contradictions: Vec<String> = schema
+        .types
+        .iter()
+        .filter(|typ| is_shared(&typ.name) && index.fields_for_type(&typ.name).is_some())
+        .map(|typ| format!("'{}'", typ.name))
+        .collect();
+    if !contradictions.is_empty() {
+        contradictions.sort();
+        bail!(
+            "type(s) {} are listed in [tenancy] shared_types and carry a @tenant_id \
+             field: a type cannot be both per-tenant and shared. Remove the type from \
+             shared_types, or the @tenant_id directive from its field.",
+            contradictions.join(", ")
+        );
+    }
+
+    let tenant_source = format!("jwt:{tenant_claim}");
+    let mut roots: Vec<(String, &str)> = Vec::new();
+    for query in &schema.queries {
+        roots.push((format!("query '{}'", query.name), &query.return_type));
+    }
+    for mutation in &schema.mutations {
+        if !mutation.inject.values().any(|source| *source == tenant_source) {
+            roots.push((format!("mutation '{}'", mutation.name), &mutation.return_type));
+        }
+    }
+    for subscription in &schema.subscriptions {
+        roots.push((format!("subscription '{}'", subscription.name), &subscription.return_type));
+    }
+    let queried: HashSet<&str> = schema.queries.iter().map(|q| q.return_type.as_str()).collect();
+    for entity in federation_entities(schema) {
+        if !queried.contains(entity) {
+            roots.push(("federation `_entities`".to_string(), entity));
+        }
+    }
+
+    let mut undeclared: Vec<String> = Vec::new();
+    for (root, return_type) in roots {
+        for type_name in object_types_returned(schema, return_type) {
+            if index.fields_for_type(type_name).is_none() && !is_shared(type_name) {
+                let entry = format!("'{type_name}' (returned by {root})");
+                if !undeclared.contains(&entry) {
+                    undeclared.push(entry);
+                }
+            }
+        }
+    }
+    if undeclared.is_empty() {
+        return Ok(());
+    }
+    bail!(
+        "[tenancy] mode = \"row\" scopes a root by the @tenant_id field of the type it \
+         returns, and these types have none and are not declared shared:\n  - {}\n\
+         Mark the field that holds the tenant on each per-tenant type with @tenant_id. If every \
+         tenant reads the same rows of a type, list it in [tenancy] shared_types.",
+        undeclared.join("\n  - ")
+    )
+}
+
+/// The object types a root returning `return_type` serves: the type itself, a union's
+/// members, or an interface's implementors. Scalars and enums carry no rows to scope.
+fn object_types_returned<'a>(schema: &'a IntermediateSchema, return_type: &'a str) -> Vec<&'a str> {
+    if let Some(union) = schema.unions.iter().find(|u| u.name == return_type) {
+        return union.member_types.iter().map(String::as_str).collect();
+    }
+    if schema.interfaces.iter().any(|i| i.name == return_type) {
+        return schema
+            .types
+            .iter()
+            .filter(|typ| typ.implements.iter().any(|i| i == return_type))
+            .map(|typ| typ.name.as_str())
+            .collect();
+    }
+    schema
+        .types
+        .iter()
+        .filter(|typ| typ.name == return_type)
+        .map(|typ| typ.name.as_str())
+        .collect()
+}
+
+/// The federation entities `_entities` resolves: none unless federation is enabled.
+fn federation_entities(schema: &IntermediateSchema) -> Vec<&str> {
+    let Some(federation) = schema.federation_config.as_ref() else {
+        return Vec::new();
+    };
+    if federation.get("enabled").and_then(serde_json::Value::as_bool) != Some(true) {
+        return Vec::new();
+    }
+    federation.get("entities").and_then(serde_json::Value::as_array).map_or_else(
+        Vec::new,
+        |entities| {
+            entities
+                .iter()
+                .filter_map(|entity| entity.get("name").and_then(serde_json::Value::as_str))
+                .collect()
+        },
+    )
 }
