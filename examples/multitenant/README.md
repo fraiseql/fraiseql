@@ -80,9 +80,11 @@ start rather than risk serving one tenant a response computed for another.
 
 `[security.rls] enabled = true` is a claim, so the server checks it at boot against
 the live catalog: every relation a query reads must be an RLS-protected table or a
-`security_invoker` view. A missing policy, a view that forgot `security_invoker`, or
-a relation that does not exist is a startup failure naming the relation — not a leak
-discovered in production.
+`security_invoker` view, down to the tables the view reads, and the connecting role
+must be one the policies apply to. A missing policy, a view that forgot
+`security_invoker`, a relation that does not exist, a superuser or `BYPASSRLS`
+role, or a role that owns a table without `FORCE ROW LEVEL SECURITY` is a startup
+failure naming the cause, not a cross-tenant read found in production.
 
 ## Running it
 

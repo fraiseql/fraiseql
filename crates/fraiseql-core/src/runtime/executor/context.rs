@@ -218,6 +218,11 @@ impl ExecutorContext {
         crate::schema::refuse_standby_unreadable_sources(&*self.adapter, schema).await
     }
 
+    /// See [`Executor::refuse_unbound_rls_sources`](super::Executor).
+    pub(super) async fn refuse_unbound_rls_sources(&self, schema: &CompiledSchema) -> Result<()> {
+        crate::schema::refuse_unbound_rls_sources(&*self.adapter, schema).await
+    }
+
     /// Execute one server-composed DDL statement.
     ///
     /// Private to this module: the only public door onto it is

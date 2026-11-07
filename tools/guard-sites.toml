@@ -4297,8 +4297,8 @@ shard = "server-it-constructor-drift"
 id = "boot.declared-rls-present"
 file = "crates/fraiseql-server/src/server/initialization.rs"
 function = "verify_declared_rls"
-anchor = "if !schema.is_multi_tenant() || !schema.has_rls_configured() {"
-mutant = "if true || !schema.is_multi_tenant() || !schema.has_rls_configured() {"
+anchor = "if !declares_rls_isolation(schema) {"
+mutant = "if true || !declares_rls_isolation(schema) {"
 killers = ["declared_rls_is_checked_against_each_source_the_schema_reads"]
 shard = "server-it-constructor-drift"
 

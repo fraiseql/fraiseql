@@ -309,6 +309,13 @@ pub async fn create_tenant_executor_with_adapter<A: FromPoolConfig + Writer>(
     //    failed on.
     fraiseql_core::schema::refuse_standby_unreadable_sources(&adapter, &schema).await?;
 
+    // 5b. Declared RLS must bind the roles this tenant's pools read as, exactly as boot
+    //     checks the server's own: the connection string is the registration's, so is its
+    //     role.
+    if crate::server::initialization::declares_rls_isolation(&schema) {
+        fraiseql_core::schema::refuse_unbound_rls_sources(&adapter, &schema).await?;
+    }
+
     // 6. Assemble the executor through the same composition every other constructor uses (#1333).
     //    `Executor::new` is `with_config(..., RuntimeConfig::default())`, so this path used to run
     //    with the `Authorizer`, the `before:mutation` gate, the RLS policy, field filters, the

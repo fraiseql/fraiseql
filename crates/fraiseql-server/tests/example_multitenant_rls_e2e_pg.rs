@@ -45,7 +45,8 @@
 use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
 use fraiseql_core::{
-    db::postgres::PostgresAdapter,
+    cache::{CacheConfig, CachedDatabaseAdapter, QueryResultCache},
+    db::postgres::{PostgresAdapter, PostgresTlsConfig, ReadReplicaPolicy},
     prelude::{TenantId, UserId},
     runtime::Executor,
     schema::CompiledSchema,
@@ -225,6 +226,20 @@ async fn rows_for(
         .unwrap_or_else(|| panic!("no `data.{field}` in {response}"))
 }
 
+/// The RLS boot gate, run as `adapter`'s role over `schema`, must pass: the shipped
+/// examples are the role setup the documentation tells operators to copy.
+async fn passes_the_rls_gate(schema: &CompiledSchema, adapter: &PostgresAdapter) {
+    let cached = CachedDatabaseAdapter::new(
+        adapter.clone(),
+        QueryResultCache::new(CacheConfig::enabled()),
+        "test".to_string(),
+    );
+    cached
+        .validate_rls_active(schema)
+        .await
+        .expect("the example's role setup must pass the RLS boot gate");
+}
+
 const ORG_A: &str = "aaaaaaaa-0000-0000-0000-000000000001";
 const ORG_B: &str = "bbbbbbbb-0000-0000-0000-000000000001";
 const TENANT_A: &str = "aaaaaaaa-0000-0000-0000-000000000002";
@@ -278,6 +293,7 @@ async fn multitenant_example_isolates_two_tenants() {
         PostgresAdapter::new(&as_role(&url, DB_MULTITENANT, "multitenant_app", "multitenant_app"))
             .await
             .expect("connect as the example's application role");
+    passes_the_rls_gate(&schema, &adapter).await;
     let executor = Executor::new(schema, Arc::new(adapter));
 
     // Deliberately asymmetric counts (2 vs 1): "saw everyone" and "saw the wrong
@@ -374,6 +390,7 @@ async fn saas_example_isolates_two_accounts() {
     let adapter = PostgresAdapter::new(&as_role(&url, DB_SAAS, "saas_app", "saas_app"))
         .await
         .expect("connect as the example's application role");
+    passes_the_rls_gate(&schema, &adapter).await;
     let executor = Executor::new(schema, Arc::new(adapter));
 
     let a = rows_for(
@@ -594,4 +611,206 @@ fn the_document_loads_without_a_database() {
         CompiledSchema::from_json(&json, false)
             .unwrap_or_else(|e| panic!("the compiled {name} example must load: {e}"));
     }
+}
+
+// ── The role that reads ──────────────────────────────────────────────────────
+
+/// The multitenant example, seeded with two tenants' resources (2 for A, 1 for B).
+async fn seeded_multitenant(url: &str, db: &str) -> tokio_postgres::Client {
+    let admin = provision_example_database(url, "multitenant", db).await;
+    admin
+        .batch_execute(&format!(
+            "INSERT INTO tb_organization (id, data) VALUES
+               ('{ORG_A}', '{{\"name\":\"Org A\"}}'), ('{ORG_B}', '{{\"name\":\"Org B\"}}');
+             INSERT INTO tb_tenant (id, organization_id, data) VALUES
+               ('{TENANT_A}', '{ORG_A}', '{{\"name\":\"Tenant A\"}}'),
+               ('{TENANT_B}', '{ORG_B}', '{{\"name\":\"Tenant B\"}}');
+             INSERT INTO tb_resource (id, tenant_id, data) VALUES
+               ('aaaaaaaa-0000-0000-0000-000000000003', '{TENANT_A}', '{{\"name\":\"A-1\"}}'),
+               ('aaaaaaaa-0000-0000-0000-000000000004', '{TENANT_A}', '{{\"name\":\"A-2\"}}'),
+               ('bbbbbbbb-0000-0000-0000-000000000003', '{TENANT_B}', '{{\"name\":\"B-1\"}}');"
+        ))
+        .await
+        .expect("seed");
+    admin
+}
+
+/// How many of tenant B's resources tenant A reads through `executor`.
+async fn b_rows_seen_by_a(executor: &Executor) -> usize {
+    rows_for(
+        executor,
+        "{ listResources { id tenantId } }",
+        "listResources",
+        &principal(&[("organization_id", ORG_A), ("tenant_id", TENANT_A)]),
+    )
+    .await
+    .iter()
+    .filter(|r| r["tenantId"] == json!(TENANT_B))
+    .count()
+}
+
+const DB_OWNER_UNFORCED: &str = "p04_example_owner_unforced";
+
+/// The deployment most often run: the application role owns the tables it migrated, with
+/// RLS enabled but not `FORCE`d. Its policies then do not apply to it, so the server must
+/// refuse to boot rather than serve every tenant every tenant's rows.
+#[tokio::test]
+async fn a_server_whose_role_owns_its_tables_without_force_refuses_to_boot() {
+    let Some(url) = try_database_url() else {
+        eprintln!("SKIP: DATABASE_URL not set");
+        return;
+    };
+    let admin = seeded_multitenant(&url, DB_OWNER_UNFORCED).await;
+    admin
+        .batch_execute(
+            "ALTER TABLE tb_organization OWNER TO multitenant_app;
+             ALTER TABLE tb_tenant OWNER TO multitenant_app;
+             ALTER TABLE tb_resource OWNER TO multitenant_app;
+             ALTER TABLE tb_organization NO FORCE ROW LEVEL SECURITY;
+             ALTER TABLE tb_tenant NO FORCE ROW LEVEL SECURITY;
+             ALTER TABLE tb_resource NO FORCE ROW LEVEL SECURITY;",
+        )
+        .await
+        .expect("make the application role the unforced owner");
+    let schema = compile_example("multitenant");
+    let app_url = as_role(&url, DB_OWNER_UNFORCED, "multitenant_app", "multitenant_app");
+    let adapter = PostgresAdapter::new(&app_url).await.expect("connect as the application role");
+    let config = fraiseql_server::server_config::ServerConfig {
+        cors_enabled: false,
+        database_url: app_url.clone(),
+        ..fraiseql_server::server_config::ServerConfig::default()
+    };
+
+    let booted = Box::pin(fraiseql_server::Server::new(
+        config,
+        schema.clone(),
+        Arc::new(adapter.clone()),
+        None,
+    ))
+    .await;
+    let crossed = if booted.is_ok() {
+        b_rows_seen_by_a(&Executor::new(schema, Arc::new(adapter))).await
+    } else {
+        0
+    };
+    drop(admin);
+    drop_example_database(&url, DB_OWNER_UNFORCED).await;
+
+    let refusal = booted.err().map_or_else(String::new, |e| e.to_string());
+    assert!(
+        refusal.contains("tb_resource") && refusal.contains("without FORCE ROW LEVEL SECURITY"),
+        "the server did not refuse for the unforced owner (booted: {}); tenant A read {crossed} \
+         of tenant B's rows. Refusal: {refusal:?}",
+        refusal.is_empty()
+    );
+}
+
+const DB_RELOAD: &str = "p04_example_reload";
+
+/// A hot reload is a way into the running server: one that adds a source the boot gate
+/// would refuse must be refused too.
+///
+/// The reload gate already refuses any change to the set of relations queries read (their
+/// cache TTLs are boot-frozen), so the source a reload can add is a mutation's function.
+/// This one is `SECURITY DEFINER` and owned by a superuser: it runs as a role that row
+/// level security does not bind.
+#[tokio::test]
+async fn a_reload_that_adds_a_definer_function_owned_by_a_superuser_is_refused() {
+    let Some(url) = try_database_url() else {
+        eprintln!("SKIP: DATABASE_URL not set");
+        return;
+    };
+    let admin = seeded_multitenant(&url, DB_RELOAD).await;
+    admin
+        .batch_execute(
+            "CREATE FUNCTION fn_touch_resource_as_owner() RETURNS SETOF jsonb
+             LANGUAGE sql SECURITY DEFINER AS $$ SELECT data FROM tb_resource $$;
+             GRANT EXECUTE ON FUNCTION fn_touch_resource_as_owner() TO multitenant_app;",
+        )
+        .await
+        .expect("a definer function owned by the superuser");
+    let schema = compile_example("multitenant");
+    let adapter =
+        PostgresAdapter::new(&as_role(&url, DB_RELOAD, "multitenant_app", "multitenant_app"))
+            .await
+            .expect("connect as the application role");
+    let state = fraiseql_server::routes::graphql::AppState::new(Arc::new(Executor::new(
+        schema.clone(),
+        Arc::new(adapter),
+    )));
+    let mut reloaded = schema;
+    let mut touch = fraiseql_core::schema::MutationDefinition::new("touchResource", "Resource");
+    touch.sql_source = Some("fn_touch_resource_as_owner".to_string());
+    reloaded.mutations.push(touch);
+
+    let result = state
+        .reload_schema_from_json(&serde_json::to_string(&reloaded).expect("serialize"))
+        .await;
+    drop(admin);
+    drop_example_database(&url, DB_RELOAD).await;
+
+    let refusal = result.err().unwrap_or_default();
+    assert!(
+        refusal.contains("fn_touch_resource_as_owner")
+            && refusal.contains("SECURITY DEFINER")
+            && refusal.contains("superuser"),
+        "the reload was not refused for the definer function: {refusal:?}"
+    );
+}
+
+const DB_REGISTRATION: &str = "p04_example_registration";
+
+/// A tenant registration builds a pool from the connection string it is given; a role
+/// that row level security does not bind must be refused there as at boot.
+#[tokio::test]
+async fn a_tenant_registered_with_a_bypassrls_role_is_refused() {
+    let Some(url) = try_database_url() else {
+        eprintln!("SKIP: DATABASE_URL not set");
+        return;
+    };
+    let admin = seeded_multitenant(&url, DB_REGISTRATION).await;
+    admin
+        .batch_execute(
+            "DO $$ BEGIN CREATE ROLE p04_example_unbound LOGIN PASSWORD 'p04_example_unbound';
+             EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+             ALTER ROLE p04_example_unbound LOGIN BYPASSRLS PASSWORD 'p04_example_unbound';
+             GRANT USAGE ON SCHEMA public TO p04_example_unbound;
+             GRANT SELECT ON ALL TABLES IN SCHEMA public TO p04_example_unbound;",
+        )
+        .await
+        .expect("a BYPASSRLS role");
+    let schema_json = serde_json::to_string(&compile_example("multitenant")).expect("serialize");
+    let pool = fraiseql_server::tenancy::TenantPoolConfig {
+        connection_string:    as_role(
+            &url,
+            DB_REGISTRATION,
+            "p04_example_unbound",
+            "p04_example_unbound",
+        ),
+        max_connections:      2,
+        connect_timeout_secs: 10,
+        idle_timeout_secs:    300,
+        search_path:          None,
+        tls:                  PostgresTlsConfig::default(),
+        read_replica_urls:    Vec::new(),
+        read_replica_policy:  ReadReplicaPolicy::default(),
+        vector_scan:          fraiseql_core::db::postgres::VectorScanConfig::default(),
+        transaction_retry:    fraiseql_core::db::postgres::TransactionRetry::off(),
+    };
+
+    let registered = fraiseql_server::tenancy::create_tenant_executor::<PostgresAdapter>(
+        "acme",
+        &schema_json,
+        &pool,
+        &fraiseql_core::runtime::RuntimeConfig::default(),
+    )
+    .await;
+    drop(admin);
+    drop_example_database(&url, DB_REGISTRATION).await;
+
+    let refusal = registered.err().map_or_else(String::new, |e| e.to_string());
+    assert!(
+        refusal.contains("p04_example_unbound") && refusal.contains("BYPASSRLS"),
+        "the registration was not refused for its BYPASSRLS role: {refusal:?}"
+    );
 }

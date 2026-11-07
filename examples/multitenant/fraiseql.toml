@@ -10,7 +10,10 @@
 
 [database]
 pool_max = 10
-url = "postgresql://localhost/multitenant"
+# Connect as the example's application role (see README.md): a superuser, a
+# BYPASSRLS role, or the owner of tables that are not FORCE ROW LEVEL SECURITY
+# is refused at boot, because row level security would not apply to it.
+url = "postgresql://multitenant_app:multitenant_app@localhost/multitenant"
 
 [domain_discovery]
 enabled = true
@@ -31,8 +34,9 @@ multi_tenant = true
 # Declares that isolation is enforced by database Row-Level Security. FraiseQL
 # does not author the policies (they live in sql/01_schema.sql), so at boot the
 # server verifies the declaration against the live catalog: every relation a
-# query reads must be an RLS-protected table or a `security_invoker` view, or
-# the server refuses to start.
+# query reads must be an RLS-protected table or a `security_invoker` view (down
+# to the tables it reads), the connecting role must be one the policies apply
+# to, or the server refuses to start.
 [security.rls]
 enabled = true
 

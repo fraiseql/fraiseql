@@ -34,7 +34,9 @@ let user_id = auth.login("alice@example.com", "correct horse battery staple").aw
 ```
 
 The connecting `PgPool` role must **own** (or carry `BYPASSRLS` for) the `auth` tables —
-calling `init()` creates them, so the connecting role owns them by construction.
+calling `init()` creates them, so the connecting role owns them by construction. When the
+schema declares `[security.rls]`, the server refuses to start with a read pool on a
+`BYPASSRLS` role or a superuser, so on a pool auth shares with reads, ownership is the path.
 
 Use `LocalPasswordAuthenticator::with_params(pool, accounts, m_cost, t_cost, p_cost)` to
 raise the Argon2id cost above the OWASP default (`new`); credentials hashed with weaker

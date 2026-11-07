@@ -619,6 +619,10 @@ impl AppState {
             .refuse_standby_unreadable_sources(&schema)
             .await
             .map_err(|e| e.to_string())?;
+        // Declared RLS must bind the roles a reloaded source is read as.
+        crate::server::initialization::refuse_unbound_declared_rls(&schema, &current)
+            .await
+            .map_err(|e| e.to_string())?;
 
         // #611: new subscriptions pick up policy changes immediately (layer-1); warn loudly
         // so operators know already-connected streams must reconnect to apply the change.

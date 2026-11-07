@@ -49,9 +49,15 @@
 #![allow(clippy::panic, clippy::unwrap_used)] // Reason: test code, panics acceptable
 use fraiseql_core::{
     cache::{CacheConfig, CachedDatabaseAdapter, QueryResultCache, RlsEnforcement},
-    db::{DatabaseAdapter, postgres::PostgresAdapter},
+    db::{
+        DatabaseAdapter,
+        postgres::{
+            PoolPrewarmConfig, PostgresAdapter, PostgresTlsConfig, ReadReplicaPolicy,
+            VectorScanConfig,
+        },
+    },
     error::FraiseQLError,
-    schema::{CompiledSchema, QueryDefinition},
+    schema::{CompiledSchema, QueryDefinition, SourceKind},
 };
 use fraiseql_test_support::try_database_url;
 
@@ -84,7 +90,12 @@ fn schema_reading(source: &str) -> CompiledSchema {
 /// view runs with its owner's privileges and would return every tenant's rows —
 /// which is what this fixture used to do, in the file whose subject is tenant
 /// isolation.
+///
+/// It runs under the suite's role-setup lock (see [`login_role`]): its schema `GRANT`
+/// writes the same catalog row as every other test's.
 const SETUP_SQL: &str = "
+    BEGIN;
+    SELECT pg_advisory_xact_lock(762004);
     DROP VIEW IF EXISTS v_tenant_item CASCADE;
     DROP TABLE IF EXISTS tenant_items CASCADE;
 
@@ -129,6 +140,7 @@ const SETUP_SQL: &str = "
     GRANT USAGE ON SCHEMA public TO p04_rls_app;
     GRANT SELECT ON tenant_items TO p04_rls_app;
     GRANT SELECT ON v_tenant_item TO p04_rls_app;
+    COMMIT;
 ";
 
 /// The unprivileged role the isolation assertions connect as.
@@ -172,6 +184,59 @@ async fn setup_raw_connection(db_url: &str) -> tokio_postgres::Client {
         }
     });
     client
+}
+
+/// (Re)create the `LOGIN` role `name`, whose password is its name, with exactly the
+/// attributes `attributes` (e.g. `"NOBYPASSRLS"`, `"BYPASSRLS"`) and never superuser.
+///
+/// Roles are cluster-wide and tests run in parallel. Two concurrent `ALTER ROLE` or
+/// `GRANT` statements on one catalog row fail with "tuple concurrently updated", so
+/// role setup is serialised under one transaction-scoped lock for the whole suite.
+async fn login_role(setup: &tokio_postgres::Client, name: &str, attributes: &str) {
+    setup
+        .batch_execute(&format!(
+            "BEGIN;
+             SELECT pg_advisory_xact_lock(762004);
+             DO $$ BEGIN
+                 CREATE ROLE {name} LOGIN PASSWORD '{name}';
+             EXCEPTION WHEN duplicate_object THEN NULL;
+             END $$;
+             ALTER ROLE {name} LOGIN PASSWORD '{name}' NOSUPERUSER {attributes};
+             GRANT USAGE ON SCHEMA public TO {name};
+             COMMIT;"
+        ))
+        .await
+        .expect("login role");
+}
+
+/// `db_url` with `role`'s credentials (its password is its name).
+fn url_as(db_url: &str, role: &str) -> String {
+    let cfg: tokio_postgres::Config = db_url.parse().expect("parse DATABASE_URL");
+    let host = match cfg.get_hosts().first().expect("a host") {
+        tokio_postgres::config::Host::Tcp(h) => h.clone(),
+        #[cfg(unix)]
+        tokio_postgres::config::Host::Unix(p) => p.display().to_string(),
+    };
+    let port = cfg.get_ports().first().copied().unwrap_or(5432);
+    let dbname = cfg.get_dbname().expect("a database name");
+    format!("postgres://{role}:{role}@{host}:{port}/{dbname}")
+}
+
+/// The unprivileged role the negative gate tests connect as: not a superuser, no
+/// `BYPASSRLS`, owner of nothing — so each of those tests is refused for exactly the
+/// one reason it is about, and not also for the role it happens to run as.
+const GATE_ROLE: &str = "p04_rls_gate";
+
+/// A cached adapter connected as [`GATE_ROLE`].
+async fn gate_adapter(db_url: &str) -> CachedDatabaseAdapter<PostgresAdapter> {
+    let setup = setup_raw_connection(db_url).await;
+    login_role(&setup, GATE_ROLE, "NOBYPASSRLS").await;
+    let adapter = PostgresAdapter::new(&url_as(db_url, GATE_ROLE)).await.expect("PostgresAdapter");
+    CachedDatabaseAdapter::new(
+        adapter,
+        QueryResultCache::new(CacheConfig::enabled()),
+        "test".to_string(),
+    )
 }
 
 /// Two tenants issuing the *same* query with only their session variable differing
@@ -284,9 +349,7 @@ async fn validate_rls_active_fails_on_a_table_with_no_policies() {
         .await
         .expect("fixture");
 
-    let adapter = PostgresAdapter::new(&db_url).await.expect("PostgresAdapter");
-    let cache = QueryResultCache::new(CacheConfig::enabled());
-    let cached = CachedDatabaseAdapter::new(adapter, cache, "test".to_string());
+    let cached = gate_adapter(&db_url).await;
 
     let result = cached.validate_rls_active(&schema_reading("tb_rls_probe_no_policies")).await;
     setup
@@ -331,9 +394,7 @@ async fn validate_rls_active_fails_when_rls_is_on_but_no_policy_exists() {
         .await
         .expect("fixture");
 
-    let adapter = PostgresAdapter::new(&db_url).await.expect("PostgresAdapter");
-    let cache = QueryResultCache::new(CacheConfig::enabled());
-    let cached = CachedDatabaseAdapter::new(adapter, cache, "test".to_string());
+    let cached = gate_adapter(&db_url).await;
 
     let result = cached.validate_rls_active(&schema_reading("tb_rls_probe_rls_no_policy")).await;
     setup
@@ -369,9 +430,7 @@ async fn validate_rls_active_fails_for_a_view_that_is_not_security_invoker() {
         .await
         .expect("fixture");
 
-    let adapter = PostgresAdapter::new(&db_url).await.expect("PostgresAdapter");
-    let cache = QueryResultCache::new(CacheConfig::enabled());
-    let cached = CachedDatabaseAdapter::new(adapter, cache, "test".to_string());
+    let cached = gate_adapter(&db_url).await;
 
     let plain = cached.validate_rls_active(&schema_reading("v_rls_probe_view")).await;
 
@@ -408,9 +467,7 @@ async fn validate_rls_active_fails_for_a_missing_relation() {
         eprintln!("Skipping: DATABASE_URL not set");
         return;
     };
-    let adapter = PostgresAdapter::new(&db_url).await.expect("PostgresAdapter");
-    let cache = QueryResultCache::new(CacheConfig::enabled());
-    let cached = CachedDatabaseAdapter::new(adapter, cache, "test".to_string());
+    let cached = gate_adapter(&db_url).await;
 
     let Err(FraiseQLError::Configuration { message }) =
         cached.validate_rls_active(&schema_reading("v_does_not_exist_p04")).await
@@ -448,9 +505,7 @@ async fn enforce_rls_warn_tolerates_what_error_refuses() {
         eprintln!("Skipping: DATABASE_URL not set");
         return;
     };
-    let adapter = PostgresAdapter::new(&db_url).await.expect("PostgresAdapter");
-    let cache = QueryResultCache::new(CacheConfig::enabled());
-    let cached = CachedDatabaseAdapter::new(adapter, cache, "test".to_string());
+    let cached = gate_adapter(&db_url).await;
     let schema = schema_reading("v_does_not_exist_p04");
 
     cached
@@ -461,4 +516,388 @@ async fn enforce_rls_warn_tolerates_what_error_refuses() {
         cached.enforce_rls(&schema, RlsEnforcement::Error).await.is_err(),
         "error enforcement must propagate"
     );
+}
+
+// ── The role that reads ──────────────────────────────────────────────────────
+//
+// Policies bind a role only if PostgreSQL applies them to it. A superuser and a
+// `BYPASSRLS` role skip every policy; a table's owner skips its policies unless the
+// table is `FORCE ROW LEVEL SECURITY`; a view runs as its owner unless it is
+// `security_invoker`, at every level of a view chain; a `SECURITY DEFINER` function
+// runs as its owner. Each test below sets up one of those and asserts the gate names it.
+
+/// The gate's verdict on `schema` for a cached adapter connected as `role`.
+async fn gate_as(db_url: &str, role: &str, schema: &CompiledSchema) -> fraiseql_core::Result<()> {
+    let adapter = PostgresAdapter::new(&url_as(db_url, role)).await.expect("PostgresAdapter");
+    CachedDatabaseAdapter::new(
+        adapter,
+        QueryResultCache::new(CacheConfig::enabled()),
+        "test".to_string(),
+    )
+    .validate_rls_active(schema)
+    .await
+}
+
+/// The configuration message of a refusal, or a panic naming what came back instead.
+fn refusal(result: fraiseql_core::Result<()>) -> String {
+    match result {
+        Err(FraiseQLError::Configuration { message }) => message,
+        other => panic!("the gate must refuse this shape: {other:?}"),
+    }
+}
+
+/// A protected table `table`: RLS enabled, one tenant policy, owned by `owner`, and
+/// `FORCE`d when `forced`.
+fn protected_table(table: &str, owner: &str, forced: bool) -> String {
+    let force = if forced {
+        format!("ALTER TABLE {table} FORCE ROW LEVEL SECURITY;")
+    } else {
+        String::new()
+    };
+    format!(
+        "DROP TABLE IF EXISTS {table} CASCADE;
+         CREATE TABLE {table} (id int, tenant_id uuid, data jsonb);
+         ALTER TABLE {table} ENABLE ROW LEVEL SECURITY;
+         {force}
+         CREATE POLICY p_tenant ON {table}
+             USING (tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid);
+         ALTER TABLE {table} OWNER TO {owner};"
+    )
+}
+
+#[tokio::test]
+async fn the_gate_refuses_a_table_its_reader_owns_without_force() {
+    let Some(db_url) = test_db_url() else {
+        eprintln!("Skipping: DATABASE_URL not set");
+        return;
+    };
+    let setup = setup_raw_connection(&db_url).await;
+    login_role(&setup, "p04_rls_owner", "NOBYPASSRLS").await;
+    setup
+        .batch_execute(&protected_table("tb_rls_owned_unforced", "p04_rls_owner", false))
+        .await
+        .expect("fixture");
+
+    let message =
+        refusal(gate_as(&db_url, "p04_rls_owner", &schema_reading("tb_rls_owned_unforced")).await);
+
+    assert!(
+        message.contains("tb_rls_owned_unforced")
+            && message.contains("without FORCE ROW LEVEL SECURITY"),
+        "{message}"
+    );
+}
+
+#[tokio::test]
+async fn the_gate_passes_a_table_its_reader_owns_when_forced() {
+    let Some(db_url) = test_db_url() else {
+        eprintln!("Skipping: DATABASE_URL not set");
+        return;
+    };
+    let setup = setup_raw_connection(&db_url).await;
+    login_role(&setup, "p04_rls_owner_forced", "NOBYPASSRLS").await;
+    setup
+        .batch_execute(&protected_table("tb_rls_owned_forced", "p04_rls_owner_forced", true))
+        .await
+        .expect("fixture");
+
+    gate_as(&db_url, "p04_rls_owner_forced", &schema_reading("tb_rls_owned_forced"))
+        .await
+        .expect("a FORCEd table binds its owner, so the gate must pass it");
+}
+
+#[tokio::test]
+async fn the_gate_refuses_a_table_owned_by_a_group_its_reader_inherits_without_force() {
+    let Some(db_url) = test_db_url() else {
+        eprintln!("Skipping: DATABASE_URL not set");
+        return;
+    };
+    let setup = setup_raw_connection(&db_url).await;
+    login_role(&setup, "p04_rls_member", "NOBYPASSRLS").await;
+    setup
+        .batch_execute(
+            "BEGIN;
+             SELECT pg_advisory_xact_lock(762004);
+             DO $$ BEGIN CREATE ROLE p04_rls_owner_group NOLOGIN;
+             EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+             GRANT p04_rls_owner_group TO p04_rls_member;
+             COMMIT;",
+        )
+        .await
+        .expect("group role");
+    setup
+        .batch_execute(&protected_table("tb_rls_group_owned", "p04_rls_owner_group", false))
+        .await
+        .expect("fixture");
+
+    let message =
+        refusal(gate_as(&db_url, "p04_rls_member", &schema_reading("tb_rls_group_owned")).await);
+
+    assert!(
+        message.contains("tb_rls_group_owned")
+            && message.contains("without FORCE ROW LEVEL SECURITY"),
+        "{message}"
+    );
+}
+
+#[tokio::test]
+async fn the_gate_refuses_a_bypassrls_reader() {
+    let Some(db_url) = test_db_url() else {
+        eprintln!("Skipping: DATABASE_URL not set");
+        return;
+    };
+    let setup = setup_raw_connection(&db_url).await;
+    login_role(&setup, "p04_rls_unbound", "BYPASSRLS").await;
+    let owner = setup_role_name(&setup).await;
+    setup
+        .batch_execute(&protected_table("tb_rls_for_unbound", &owner, true))
+        .await
+        .expect("fixture");
+
+    let message =
+        refusal(gate_as(&db_url, "p04_rls_unbound", &schema_reading("tb_rls_for_unbound")).await);
+
+    assert!(
+        message.contains("p04_rls_unbound") && message.contains("BYPASSRLS"),
+        "{message}"
+    );
+}
+
+/// The harness role is a superuser: the one test that connects as it on purpose.
+#[tokio::test]
+async fn the_gate_refuses_a_superuser_reader() {
+    let Some(db_url) = test_db_url() else {
+        eprintln!("Skipping: DATABASE_URL not set");
+        return;
+    };
+    let setup = setup_raw_connection(&db_url).await;
+    let owner = setup_role_name(&setup).await;
+    setup
+        .batch_execute(&protected_table("tb_rls_for_superuser", &owner, true))
+        .await
+        .expect("fixture");
+    let adapter = PostgresAdapter::new(&db_url).await.expect("PostgresAdapter");
+    let cached = CachedDatabaseAdapter::new(
+        adapter,
+        QueryResultCache::new(CacheConfig::enabled()),
+        "test".to_string(),
+    );
+
+    let message =
+        refusal(cached.validate_rls_active(&schema_reading("tb_rls_for_superuser")).await);
+
+    assert!(message.contains("superuser"), "{message}");
+}
+
+#[tokio::test]
+async fn the_gate_refuses_an_invoker_view_over_a_table_without_rls() {
+    let Some(db_url) = test_db_url() else {
+        eprintln!("Skipping: DATABASE_URL not set");
+        return;
+    };
+    let setup = setup_raw_connection(&db_url).await;
+    setup
+        .batch_execute(
+            "DROP TABLE IF EXISTS tb_rls_under_invoker CASCADE;
+             CREATE TABLE tb_rls_under_invoker (id int, data jsonb);
+             CREATE VIEW v_rls_invoker_over_plain WITH (security_invoker = true) AS
+                 SELECT data FROM tb_rls_under_invoker;",
+        )
+        .await
+        .expect("fixture");
+    let cached = gate_adapter(&db_url).await;
+
+    let message =
+        refusal(cached.validate_rls_active(&schema_reading("v_rls_invoker_over_plain")).await);
+
+    assert!(
+        message.contains("tb_rls_under_invoker")
+            && message.contains("row level security is not enabled"),
+        "{message}"
+    );
+}
+
+#[tokio::test]
+async fn the_gate_refuses_an_invoker_view_over_a_view_that_is_not() {
+    let Some(db_url) = test_db_url() else {
+        eprintln!("Skipping: DATABASE_URL not set");
+        return;
+    };
+    let setup = setup_raw_connection(&db_url).await;
+    let owner = setup_role_name(&setup).await;
+    setup
+        .batch_execute(&format!(
+            "{}
+             CREATE VIEW v_rls_inner_owner_run AS SELECT data FROM tb_rls_under_chain;
+             CREATE VIEW v_rls_outer_invoker WITH (security_invoker = true) AS
+                 SELECT data FROM v_rls_inner_owner_run;",
+            protected_table("tb_rls_under_chain", &owner, true)
+        ))
+        .await
+        .expect("fixture");
+    let cached = gate_adapter(&db_url).await;
+
+    let message = refusal(cached.validate_rls_active(&schema_reading("v_rls_outer_invoker")).await);
+
+    assert!(
+        message.contains("v_rls_inner_owner_run") && message.contains("security_invoker"),
+        "{message}"
+    );
+}
+
+/// A compiled schema whose only query is function-backed: `function`.
+fn schema_calling(function: &str) -> CompiledSchema {
+    let mut schema = schema_reading(function);
+    schema.queries[0].sql_source_kind = SourceKind::Function;
+    schema
+}
+
+#[tokio::test]
+async fn the_gate_refuses_a_security_definer_function_owned_by_a_superuser() {
+    let Some(db_url) = test_db_url() else {
+        eprintln!("Skipping: DATABASE_URL not set");
+        return;
+    };
+    let setup = setup_raw_connection(&db_url).await;
+    setup
+        .batch_execute(
+            "CREATE OR REPLACE FUNCTION fn_rls_definer_superuser() RETURNS SETOF jsonb
+             LANGUAGE sql SECURITY DEFINER AS $$ SELECT '{}'::jsonb $$;",
+        )
+        .await
+        .expect("fixture");
+    let cached = gate_adapter(&db_url).await;
+
+    let message =
+        refusal(cached.validate_rls_active(&schema_calling("fn_rls_definer_superuser")).await);
+
+    assert!(
+        message.contains("fn_rls_definer_superuser")
+            && message.contains("SECURITY DEFINER")
+            && message.contains("superuser"),
+        "{message}"
+    );
+}
+
+#[tokio::test]
+async fn the_gate_refuses_a_security_definer_function_owned_by_an_unforced_table_owner() {
+    let Some(db_url) = test_db_url() else {
+        eprintln!("Skipping: DATABASE_URL not set");
+        return;
+    };
+    let setup = setup_raw_connection(&db_url).await;
+    login_role(&setup, "p04_rls_fn_owner", "NOBYPASSRLS").await;
+    setup
+        .batch_execute(&format!(
+            "{}
+             CREATE OR REPLACE FUNCTION fn_rls_definer_table_owner() RETURNS SETOF jsonb
+             LANGUAGE sql SECURITY DEFINER AS $$ SELECT data FROM tb_rls_fn_owned $$;
+             ALTER FUNCTION fn_rls_definer_table_owner() OWNER TO p04_rls_fn_owner;",
+            protected_table("tb_rls_fn_owned", "p04_rls_fn_owner", false)
+        ))
+        .await
+        .expect("fixture");
+    let cached = gate_adapter(&db_url).await;
+    let mut schema = schema_calling("fn_rls_definer_table_owner");
+    schema.queries.push(QueryDefinition {
+        name: "owned".to_string(),
+        return_type: "Item".to_string(),
+        sql_source: Some("tb_rls_fn_owned".to_string()),
+        ..QueryDefinition::default()
+    });
+
+    let message = refusal(cached.validate_rls_active(&schema).await);
+
+    assert!(
+        message.contains("fn_rls_definer_table_owner")
+            && message.contains("SECURITY DEFINER")
+            && message.contains("tb_rls_fn_owned"),
+        "{message}"
+    );
+}
+
+#[tokio::test]
+async fn the_gate_passes_a_security_invoker_function() {
+    let Some(db_url) = test_db_url() else {
+        eprintln!("Skipping: DATABASE_URL not set");
+        return;
+    };
+    let setup = setup_raw_connection(&db_url).await;
+    setup
+        .batch_execute(
+            "CREATE OR REPLACE FUNCTION fn_rls_invoker() RETURNS SETOF jsonb
+             LANGUAGE sql SECURITY INVOKER AS $$ SELECT '{}'::jsonb $$;",
+        )
+        .await
+        .expect("fixture");
+    let cached = gate_adapter(&db_url).await;
+
+    cached
+        .validate_rls_active(&schema_calling("fn_rls_invoker"))
+        .await
+        .expect("an invoker function runs as the reader: warned about, not refused");
+}
+
+#[tokio::test]
+async fn the_gate_refuses_a_bypassrls_read_replica() {
+    let Some(db_url) = test_db_url() else {
+        eprintln!("Skipping: DATABASE_URL not set");
+        return;
+    };
+    let setup = setup_raw_connection(&db_url).await;
+    login_role(&setup, "p04_rls_replica_unbound", "BYPASSRLS").await;
+    let owner = setup_role_name(&setup).await;
+    setup
+        .batch_execute(&protected_table("tb_rls_for_replica", &owner, true))
+        .await
+        .expect("fixture");
+    login_role(&setup, GATE_ROLE, "NOBYPASSRLS").await;
+    // The replica is this same database reached as another role: a test cannot run a
+    // standby, and what the gate must notice is the role, not the recovery state.
+    let adapter = PostgresAdapter::with_pool_config(
+        &url_as(&db_url, GATE_ROLE),
+        PoolPrewarmConfig {
+            min_size:            0,
+            max_size:            2,
+            timeout_secs:        None,
+            search_path:         None,
+            max_streaming_reads: None,
+            vector_scan:         VectorScanConfig::default(),
+            tls:                 PostgresTlsConfig::default(),
+            read_replicas:       ReadReplicaPolicy::default()
+                .with_urls(vec![url_as(&db_url, "p04_rls_replica_unbound")]),
+        },
+    )
+    .await
+    .expect("PostgresAdapter with a replica");
+    let cached = CachedDatabaseAdapter::new(
+        adapter,
+        QueryResultCache::new(CacheConfig::enabled()),
+        "test".to_string(),
+    );
+
+    let schema = schema_reading("tb_rls_for_replica");
+
+    let message = refusal(cached.validate_rls_active(&schema).await);
+    // A reload and a tenant registration read through the cache wrapper itself.
+    let through_wrapper =
+        refusal(fraiseql_core::schema::refuse_unbound_rls_sources(&cached, &schema).await);
+
+    for message in [message, through_wrapper] {
+        assert!(
+            message.contains("replica")
+                && message.contains("p04_rls_replica_unbound")
+                && message.contains("BYPASSRLS"),
+            "{message}"
+        );
+    }
+}
+
+/// The harness role's name, to own fixtures nobody under test owns.
+async fn setup_role_name(setup: &tokio_postgres::Client) -> String {
+    setup
+        .query_one("SELECT current_user::text", &[])
+        .await
+        .expect("current_user")
+        .get(0)
 }

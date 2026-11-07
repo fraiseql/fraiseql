@@ -99,4 +99,6 @@ let store: Arc<dyn AccountStore> = Arc::new(store);
 ```
 
 The connecting role must **own** (or carry `BYPASSRLS` for) the two tables — calling
-`init()` on startup creates them, so the connecting role owns them by construction.
+`init()` on startup creates them, so the connecting role owns them by construction. When the
+schema declares `[security.rls]`, the server refuses to start as a `BYPASSRLS` role or a
+superuser, so ownership is the path.

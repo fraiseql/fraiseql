@@ -709,6 +709,26 @@ pub trait DatabaseAdapter: Send + Sync + 'static {
         false
     }
 
+    /// Run one catalog query on every pool a read can be served from: the primary,
+    /// labelled `"primary"`, then each read replica, labelled `"read replica N"`.
+    ///
+    /// A replica can be reached as a different role than the primary, and which role a
+    /// read runs as decides whether row level security applies to it, so a check of the
+    /// reading role must ask every pool. The default answers for the primary alone,
+    /// which is right for an adapter with no replicas. An adapter with replicas must
+    /// implement it, and a wrapper adapter must forward it: inheriting the default would
+    /// leave every replica unchecked.
+    ///
+    /// # Errors
+    ///
+    /// Returns the first pool's connection or query failure.
+    async fn execute_raw_query_on_read_pools(
+        &self,
+        sql: &str,
+    ) -> Result<Vec<(String, Vec<std::collections::HashMap<String, serde_json::Value>>)>> {
+        Ok(vec![("primary".to_string(), self.execute_raw_query(sql).await?)])
+    }
+
     /// Health check - verify database connectivity.
     ///
     /// Executes a simple query (e.g., `SELECT 1`) to verify the database is reachable.

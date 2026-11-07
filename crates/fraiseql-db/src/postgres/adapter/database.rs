@@ -2225,6 +2225,30 @@ impl DatabaseAdapter for PostgresAdapter {
         self.read_replicas.is_some()
     }
 
+    async fn execute_raw_query_on_read_pools(
+        &self,
+        sql: &str,
+    ) -> Result<Vec<(String, Vec<std::collections::HashMap<String, serde_json::Value>>)>> {
+        let mut answers = vec![("primary".to_string(), self.execute_raw_query(sql).await?)];
+        let Some(replicas) = &self.read_replicas else {
+            return Ok(answers);
+        };
+        for (index, pool) in replicas.pools.iter().enumerate() {
+            let label = format!("read replica {index}");
+            let client = pool.get().await.map_err(|e| FraiseQLError::ConnectionPool {
+                message: format!("{label} is unreachable: {e}"),
+            })?;
+            let rows: Vec<Row> = client.query(sql, &[]).await.map_err(|e| {
+                crate::postgres::database_error(
+                    format!("{label}: query execution failed: {}", pg_detail(&e)),
+                    &e,
+                )
+            })?;
+            answers.push((label, rows.iter().map(row_to_map).collect::<Result<_>>()?));
+        }
+        Ok(answers)
+    }
+
     async fn execute_with_projection(
         &self,
         view: &str,

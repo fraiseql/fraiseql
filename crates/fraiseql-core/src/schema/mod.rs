@@ -62,6 +62,7 @@ pub mod locale;
 pub mod nats_url;
 mod observer_types;
 pub mod redis_url;
+mod rls_gate;
 mod scalar_types;
 pub mod security_config;
 mod source_probe;
@@ -120,6 +121,7 @@ pub use locale::{
     LocaleConfig, LocaleInputs, LocaleSource, TRANSLATIONS_SUFFIX,
 };
 pub use observer_types::{ObserverDefinition, RetryConfig};
+pub use rls_gate::refuse_unbound_rls_sources;
 pub use scalar_types::{RICH_SCALARS, is_known_scalar};
 pub use security_config::{
     ApiKeySecurityConfig, CodeChallengeMethod, CostBudgetConfig, DEFAULT_RATE_LIMIT_MAX_BUCKETS,

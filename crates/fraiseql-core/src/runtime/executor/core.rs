@@ -681,6 +681,20 @@ impl Executor {
         self.ctx.refuse_standby_unreadable_sources(schema).await
     }
 
+    /// Refuse `schema` when its declared Row-Level Security would not bind the roles this
+    /// executor reads as.
+    ///
+    /// The boot-time check, re-run by a hot reload before it swaps: a source added by a
+    /// reload is read through the same pools, as the same roles, as the server was started
+    /// with.
+    ///
+    /// # Errors
+    ///
+    /// See [`crate::schema::refuse_unbound_rls_sources`].
+    pub async fn refuse_unbound_rls_sources(&self, schema: &CompiledSchema) -> Result<()> {
+        self.ctx.refuse_unbound_rls_sources(schema).await
+    }
+
     /// Drop a tenant's PostgreSQL schema and everything in it.
     ///
     /// Takes the schema *name*, not a statement: the engine composes the DDL, so no

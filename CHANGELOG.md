@@ -18,6 +18,17 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **The boot check for declared row level security runs as the role that reads.** With
+  `[security.rls]` declared, the server asks every read pool, the primary and each read
+  replica, whether the policies bind its role. It refuses to start for a superuser or
+  `BYPASSRLS` role, for a table the role owns (directly or through a group it inherits)
+  without `FORCE ROW LEVEL SECURITY`, for a view anywhere in a source's view chain that is
+  not `security_invoker`, and for a `SECURITY DEFINER` function whose owner the policies do
+  not bind. A schema reload and a tenant registration run the same check and are refused
+  for the same causes. A deployment that read as its tables' owner adds
+  `ALTER TABLE … FORCE ROW LEVEL SECURITY`, or reads as a role that does not own them; the
+  multitenant and saas examples show the setup.
+
 - **A SAML identity provider must name a signing certificate.** IdP metadata with no
   signing certificate (no `KeyDescriptor`, or only one with `use="encryption"`), or with
   a signing certificate that is not X.509, is refused wherever it is read: a configured

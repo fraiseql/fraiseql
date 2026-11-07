@@ -1998,3 +1998,125 @@ async fn a_read_the_cache_would_not_touch_is_forwarded_as_text() {
         "a read that refused staleness bypasses the cache"
     );
 }
+
+// ── RLS gate: a reading role that cannot be read ─────────────────────────────
+
+/// Answers the RLS gate's catalog reads: every relation is a protected, `FORCE`d table
+/// the reader does not own, and the question about the reading role itself returns no
+/// row — the shape an adapter that cannot see `pg_roles` produces.
+struct NoRoleRowAdapter;
+
+// Reason: DatabaseAdapter is defined with #[async_trait]; all implementations must match
+// its transformed method signatures to satisfy the trait contract
+// async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
+#[async_trait]
+impl DatabaseAdapter for NoRoleRowAdapter {
+    async fn execute_where_query(
+        &self,
+        _view: &str,
+        _where_clause: Option<&WhereClause>,
+        _limit: Option<u32>,
+        _offset: Option<u32>,
+        _order_by: Option<&[OrderByClause]>,
+    ) -> Result<Vec<JsonbValue>> {
+        Ok(vec![])
+    }
+
+    async fn execute_with_projection(
+        &self,
+        _view: &str,
+        _projection: Option<&crate::schema::SqlProjectionHint>,
+        _where_clause: Option<&WhereClause>,
+        _limit: Option<u32>,
+        _offset: Option<u32>,
+        _order_by: Option<&[OrderByClause]>,
+    ) -> Result<Vec<JsonbValue>> {
+        Ok(vec![])
+    }
+
+    fn database_type(&self) -> DatabaseType {
+        DatabaseType::PostgreSQL
+    }
+
+    async fn health_check(&self) -> Result<()> {
+        Ok(())
+    }
+
+    fn pool_metrics(&self) -> PoolMetrics {
+        PoolMetrics {
+            total_connections:  1,
+            idle_connections:   1,
+            active_connections: 0,
+            waiting_requests:   0,
+        }
+    }
+
+    async fn execute_raw_query(
+        &self,
+        sql: &str,
+    ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+        if sql.contains("rolsuper") {
+            return Ok(vec![]);
+        }
+        Ok(vec![
+            [
+                ("kind", json!("r")),
+                ("rls_enabled", json!(true)),
+                ("policy_count", json!("1")),
+                ("security_invoker", json!(false)),
+                ("forced", json!(true)),
+                ("reader_owns", json!(false)),
+            ]
+            .into_iter()
+            .map(|(k, v)| (k.to_string(), v))
+            .collect(),
+        ])
+    }
+
+    async fn execute_parameterized_aggregate(
+        &self,
+        _sql: &str,
+        _params: &[serde_json::Value],
+    ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+        Ok(vec![])
+    }
+}
+
+// async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
+#[async_trait::async_trait]
+impl crate::backend::traits::Writer for NoRoleRowAdapter {
+    async fn execute_write(
+        &self,
+        _request: &crate::backend::traits::WriteRequest<'_>,
+        _gate: crate::backend::traits::MutationRowGate<'_>,
+    ) -> std::result::Result<
+        Vec<std::collections::HashMap<String, serde_json::Value>>,
+        crate::error::FraiseQLError,
+    > {
+        Ok(vec![])
+    }
+}
+
+#[tokio::test]
+async fn the_rls_gate_refuses_when_the_reading_role_cannot_be_read() {
+    let mut schema = CompiledSchema::new();
+    schema.queries.push(crate::schema::QueryDefinition {
+        name: "items".to_string(),
+        return_type: "Item".to_string(),
+        sql_source: Some("tb_item".to_string()),
+        ..crate::schema::QueryDefinition::default()
+    });
+    let adapter = CachedDatabaseAdapter::new(
+        NoRoleRowAdapter,
+        QueryResultCache::new(CacheConfig::enabled()),
+        "test".to_string(),
+    );
+
+    let result = adapter.validate_rls_active(&schema).await;
+
+    assert!(
+        matches!(&result, Err(crate::error::FraiseQLError::Configuration { message })
+            if message.contains("could not read the role")),
+        "got {result:?}"
+    );
+}

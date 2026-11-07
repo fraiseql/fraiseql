@@ -132,8 +132,10 @@ enabled = true
 `multi_tenant = true` activates the subscription tenant fail-closed gate and the
 cache+RLS boot gate. `[security.rls] enabled = true` is a claim, so the server
 verifies it at boot against the live catalog: every relation a query reads must be
-an RLS-protected table or a `security_invoker` view, or startup fails naming the
-relation.
+an RLS-protected table or a `security_invoker` view, down to the tables the view
+reads, and the connecting role must be one the policies apply to (not a superuser,
+not `BYPASSRLS`, not the owner of a table without `FORCE ROW LEVEL SECURITY`), or
+startup fails naming the cause.
 
 ## Mutations
 

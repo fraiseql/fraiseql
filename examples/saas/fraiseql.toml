@@ -5,7 +5,10 @@
 connect_timeout_ms = 30000
 pool_max = 10
 ssl_mode = "prefer"
-url = "postgresql://localhost/saas"
+# Connect as the example's application role (see README.md): a superuser, a
+# BYPASSRLS role, or the owner of tables that are not FORCE ROW LEVEL SECURITY
+# is refused at boot, because row level security would not apply to it.
+url = "postgresql://saas_app:saas_app@localhost/saas"
 
 # Auto-discover domains
 [domain_discovery]
@@ -28,7 +31,8 @@ multi_tenant = true
 
 # The isolation is RLS. The server verifies this declaration against the live
 # catalog at boot: each relation a query reads must be an RLS-protected table or a
-# `security_invoker` view, or it refuses to start.
+# `security_invoker` view (down to the tables it reads), and the connecting role
+# must be one the policies apply to, or it refuses to start.
 [security.rls]
 enabled = true
 

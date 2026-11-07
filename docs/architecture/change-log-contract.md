@@ -314,7 +314,10 @@ The trusted cross-tenant consumers — the change-log poller, the three NATS bri
 the server changelog HTTP handlers, and the mutation executor's outbox INSERT — run
 on the server's database role. That role **must** be the table owner or carry
 `BYPASSRLS`, otherwise the CDC pipeline and the admin change-log query silently
-return an empty result. The `fraiseql perf` CLI reader connects with the operator's
+return an empty result. When the schema declares `[security.rls]`, the server
+refuses to start as a superuser or `BYPASSRLS` role, so the role must be the
+change-log's owner; the tables the schema reads that it also owns must then be
+`FORCE ROW LEVEL SECURITY`. The `fraiseql perf` CLI reader connects with the operator's
 own role; grant it `BYPASSRLS` or run it as a tenant with `fraiseql.tenant_id` set.
 
 > CI's `fraiseql_test` superuser bypasses RLS automatically, which is why the

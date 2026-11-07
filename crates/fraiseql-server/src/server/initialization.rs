@@ -1784,11 +1784,39 @@ pub(super) async fn verify_declared_rls<A: DatabaseAdapter>(
     cached: &fraiseql_core::cache::CachedDatabaseAdapter<A>,
     enforcement: fraiseql_core::cache::RlsEnforcement,
 ) -> crate::Result<()> {
-    if !schema.is_multi_tenant() || !schema.has_rls_configured() {
+    if !declares_rls_isolation(schema) {
         return Ok(());
     }
     cached
         .enforce_rls(schema, enforcement)
+        .await
+        .map_err(|e| crate::ServerError::ConfigError(e.to_string()))
+}
+
+/// Whether `schema` rests its tenant isolation on database Row-Level Security: it is
+/// multi-tenant and declares `[security.rls]`.
+pub fn declares_rls_isolation(schema: &CompiledSchema) -> bool {
+    schema.is_multi_tenant() && schema.has_rls_configured()
+}
+
+/// [`verify_declared_rls`] for a schema reached after boot — a hot reload, or a tenant
+/// registration — through an executor that reads as the roles of its pools.
+///
+/// Boot always enforces with [`RlsEnforcement::Error`](fraiseql_core::cache::RlsEnforcement),
+/// so this refuses as boot would.
+///
+/// # Errors
+///
+/// `ServerError::ConfigError` naming every source the declared RLS does not bind.
+pub async fn refuse_unbound_declared_rls(
+    schema: &CompiledSchema,
+    executor: &fraiseql_core::runtime::Executor,
+) -> crate::Result<()> {
+    if !declares_rls_isolation(schema) {
+        return Ok(());
+    }
+    executor
+        .refuse_unbound_rls_sources(schema)
         .await
         .map_err(|e| crate::ServerError::ConfigError(e.to_string()))
 }
