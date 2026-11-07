@@ -249,6 +249,12 @@ disagreed, and the promise was the part that was wrong.
 
   Rename it and recompile.
 
+- **fraiseql-client's `candle` feature requires candle-core 0.11, and the crate requires Rust
+  1.95.0 (#1956).** `Tensor` is in the public API (`store_embedding` takes one,
+  `fetch_embeddings` returns one), so a caller passing a candle-core 0.8 tensor no longer
+  compiles until it moves to 0.11. The declared rust-version was 1.80, which the locked
+  dependencies had already outgrown; it is now 1.95.0 and a CI job builds at it.
+
 ### Added
 
 - **A fact table's aggregate and window roots are scoped by `inject_params` (#1800).** The
