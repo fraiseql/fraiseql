@@ -1,26 +1,78 @@
 name: Rust SDK Client
 on:
   push:
-    paths: ['sdks/official/fraiseql-rust/fraiseql-client/**']
+    paths:
+      - 'sdks/official/fraiseql-rust/fraiseql-client/**'
+      - '.github/workflows/rust-sdk-client.yml'
   pull_request:
-    paths: ['sdks/official/fraiseql-rust/fraiseql-client/**']
+    paths:
+      - 'sdks/official/fraiseql-rust/fraiseql-client/**'
+      - '.github/workflows/rust-sdk-client.yml'
+
+defaults:
+  run:
+    working-directory: sdks/official/fraiseql-rust/fraiseql-client
 
 jobs:
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      # The repository's rust-toolchain.toml pins the workspace toolchain and would
+      # otherwise override the stable toolchain installed below (#1957).
+      RUSTUP_TOOLCHAIN: stable
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
-      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8  # stable
+      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8  # pinned; toolchain comes from the input below
+        with:
+          toolchain: stable
+          components: clippy, rustfmt
       - uses: Swatinem/rust-cache@42dc69e1aa15d09112580998cf2ef0119e2e91ae  # v2
         with:
           workspaces: sdks/official/fraiseql-rust/fraiseql-client
-      - name: Clippy
-        run: cargo clippy --all-targets --all-features -- -D warnings
-        working-directory: sdks/official/fraiseql-rust/fraiseql-client
-      - name: Test
-        run: cargo test --all-features
-        working-directory: sdks/official/fraiseql-rust/fraiseql-client
+      - name: Toolchain
+        run: rustc --version
+      - name: Format
+        run: cargo fmt --check
+      # --locked on every command: a bare build would quietly rewrite a stale Cargo.lock.
+      - name: Clippy (all features)
+        run: cargo clippy --locked --all-targets --all-features -- -D warnings
+      - name: Clippy (no default features)
+        run: cargo clippy --locked --all-targets --no-default-features -- -D warnings
+      - name: Test (all features)
+        run: cargo test --locked --all-features
+      - name: Test (no default features)
+        run: cargo test --locked --no-default-features
       - name: Doc
-        run: cargo doc --no-deps 2>&1 | grep -c "^warning" | xargs -I{} test {} -eq 0 || true
-        working-directory: sdks/official/fraiseql-rust/fraiseql-client
+        run: cargo doc --locked --no-deps --all-features
+        env:
+          RUSTDOCFLAGS: -D warnings
+
+  # The crate's declared rust-version, read from Cargo.toml so the job follows it.
+  msrv:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+      - name: Read rust-version
+        id: msrv
+        run: |
+          version="$(sed -nE 's/^rust-version = "([^"]+)"$/\1/p' Cargo.toml)"
+          test -n "$version" || { echo "no rust-version in Cargo.toml" >&2; exit 1; }
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "RUSTUP_TOOLCHAIN=$version" >> "$GITHUB_ENV"
+      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8  # pinned; toolchain comes from the input below
+        with:
+          toolchain: ${{ steps.msrv.outputs.version }}
+      - uses: Swatinem/rust-cache@42dc69e1aa15d09112580998cf2ef0119e2e91ae  # v2
+        with:
+          workspaces: sdks/official/fraiseql-rust/fraiseql-client
+          key: msrv
+      - name: Toolchain
+        run: rustc --version
+      - name: Build (all features)
+        run: cargo build --locked --all-features
+      - name: Build (no default features)
+        run: cargo build --locked --no-default-features
+      - name: Test (all features)
+        run: cargo test --locked --all-features
