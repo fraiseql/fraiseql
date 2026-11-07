@@ -279,6 +279,7 @@ Total time: ~20-35 minutes (with parallelization)
 **Platforms:**
 
 - Linux x86_64 (AMD64)
+- Linux x86_64, fully static (musl): lean archive only, V8 does not link against musl
 - Linux ARM64 (aarch64)
 - macOS x86_64 (Intel)
 - macOS ARM64 (Apple Silicon)
@@ -287,16 +288,24 @@ Total time: ~20-35 minutes (with parallelization)
 **Actions:**
 
 - Cross-compile using Rust targets
+- Package a lean archive (`fraiseql-<target>`) per platform, and a `fraiseql-full-<target>`
+  archive (the `release-full` feature set, which includes the V8 functions runtime) for
+  every platform except musl
 - Strip symbols (Unix)
 - Upload to GitHub release using `softprops/action-gh-release`
 
 **Phase 2 Enhancement:**
 
 - Replaced manual `gh release upload` with `softprops/action-gh-release@v2`
-- Automatic checksums for all binaries
 - Better error handling and retry logic
 - Idempotent uploads (can safely retry)
 - Cleaner, more maintainable YAML
+
+**Checksums:** the workflow publishes no checksum file for the binary archives. GitHub
+records a SHA-256 digest for every release asset, shown on the release page and returned as
+`digest` by `gh release view <tag> --json assets`; compare a download with `sha256sum`. The
+SBOM (`fraiseql-<version>-sbom.json`, attached by `sbom-generation.yml`) is the one asset
+that ships with a `.sha256` file and a cosign `.bundle`.
 
 #### 6. verify-release
 
