@@ -152,7 +152,9 @@ impl FraiseQLClient {
             }
         }
 
-        Err(last_err.unwrap_or_else(|| FraiseQLError::Timeout { timeout_ms: self.timeout_ms }))
+        Err(last_err.unwrap_or_else(|| FraiseQLError::Timeout {
+            timeout_ms: self.timeout_ms,
+        }))
     }
 
     async fn do_request<T: DeserializeOwned>(
@@ -172,7 +174,9 @@ impl FraiseQLClient {
 
         let response = req.send().await.map_err(|e| {
             if e.is_timeout() {
-                FraiseQLError::Timeout { timeout_ms: self.timeout_ms }
+                FraiseQLError::Timeout {
+                    timeout_ms: self.timeout_ms,
+                }
             } else {
                 FraiseQLError::Network(e)
             }
@@ -180,7 +184,11 @@ impl FraiseQLClient {
 
         let status = response.status().as_u16();
         match status {
-            401 | 403 => return Err(FraiseQLError::Authentication { status_code: status }),
+            401 | 403 => {
+                return Err(FraiseQLError::Authentication {
+                    status_code: status,
+                })
+            },
             429 => {
                 let retry_after = response
                     .headers()
@@ -189,8 +197,8 @@ impl FraiseQLClient {
                     .and_then(|s| s.parse::<u64>().ok())
                     .map(Duration::from_secs);
                 return Err(FraiseQLError::RateLimit { retry_after });
-            }
-            _ => {}
+            },
+            _ => {},
         }
 
         let gql_resp: GraphQLResponse<T> = response.json().await.map_err(FraiseQLError::Network)?;

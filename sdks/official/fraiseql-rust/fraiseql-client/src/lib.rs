@@ -45,18 +45,14 @@ mod tests {
         let server = MockServer::start().await;
         Mock::given(method("POST"))
             .and(path("/graphql"))
-            .respond_with(
-                ResponseTemplate::new(200).set_body_json(serde_json::json!({
-                    "data": {"user": {"id": 1, "name": "Alice"}}
-                })),
-            )
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "data": {"user": {"id": 1, "name": "Alice"}}
+            })))
             .mount(&server)
             .await;
 
-        let client =
-            FraiseQLClientBuilder::new(format!("{}/graphql", server.uri())).build();
-        let result: serde_json::Value =
-            client.query("{ user { id name } }", None).await.unwrap();
+        let client = FraiseQLClientBuilder::new(format!("{}/graphql", server.uri())).build();
+        let result: serde_json::Value = client.query("{ user { id name } }", None).await.unwrap();
         assert_eq!(result["user"]["name"], "Alice");
     }
 
@@ -65,21 +61,15 @@ mod tests {
         let server = MockServer::start().await;
         Mock::given(method("POST"))
             .and(path("/graphql"))
-            .respond_with(
-                ResponseTemplate::new(200).set_body_json(serde_json::json!({
-                    "data": null,
-                    "errors": [{"message": "Not found"}]
-                })),
-            )
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "data": null,
+                "errors": [{"message": "Not found"}]
+            })))
             .mount(&server)
             .await;
 
-        let client =
-            FraiseQLClientBuilder::new(format!("{}/graphql", server.uri())).build();
-        let err = client
-            .query::<serde_json::Value>("{ user { id } }", None)
-            .await
-            .unwrap_err();
+        let client = FraiseQLClientBuilder::new(format!("{}/graphql", server.uri())).build();
+        let err = client.query::<serde_json::Value>("{ user { id } }", None).await.unwrap_err();
         assert!(matches!(err, FraiseQLError::GraphQL { .. }));
     }
 
@@ -88,19 +78,15 @@ mod tests {
         let server = MockServer::start().await;
         Mock::given(method("POST"))
             .and(path("/graphql"))
-            .respond_with(
-                ResponseTemplate::new(200).set_body_json(serde_json::json!({
-                    "data": {"users": []},
-                    "errors": null
-                })),
-            )
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "data": {"users": []},
+                "errors": null
+            })))
             .mount(&server)
             .await;
 
-        let client =
-            FraiseQLClientBuilder::new(format!("{}/graphql", server.uri())).build();
-        let result: serde_json::Value =
-            client.query("{ users { id } }", None).await.unwrap();
+        let client = FraiseQLClientBuilder::new(format!("{}/graphql", server.uri())).build();
+        let result: serde_json::Value = client.query("{ users { id } }", None).await.unwrap();
         assert_eq!(result["users"], serde_json::json!([]));
     }
 }

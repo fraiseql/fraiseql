@@ -4,7 +4,7 @@
 
 use candle_core::Tensor;
 
-use crate::{FraiseQLClient, Result, error::FraiseQLError};
+use crate::{error::FraiseQLError, FraiseQLClient, Result};
 
 impl FraiseQLClient {
     /// Store a flat embedding tensor via a FraiseQL mutation.
@@ -42,8 +42,9 @@ impl FraiseQLClient {
         dims: &[usize],
     ) -> Result<Tensor> {
         let data: serde_json::Value = self.query(query, variables).await?;
-        let flat: Vec<f32> = serde_json::from_value(data)
-            .map_err(|e| FraiseQLError::Serialization(format!("failed to deserialize embeddings: {e}")))?;
+        let flat: Vec<f32> = serde_json::from_value(data).map_err(|e| {
+            FraiseQLError::Serialization(format!("failed to deserialize embeddings: {e}"))
+        })?;
         Tensor::from_vec(flat, dims, &candle_core::Device::Cpu)
             .map_err(|e| FraiseQLError::Other(format!("failed to create tensor: {e}")))
     }
