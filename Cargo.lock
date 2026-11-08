@@ -4124,6 +4124,7 @@ dependencies = [
  "dashmap",
  "fraiseql-core",
  "fraiseql-guard",
+ "fraiseql-test-support",
  "fraiseql-time",
  "mutants",
  "proptest",
@@ -4137,6 +4138,7 @@ dependencies = [
  "tokio",
  "tokio-test",
  "tracing",
+ "tracing-subscriber",
  "wiremock",
  "zeroize",
 ]

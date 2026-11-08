@@ -207,7 +207,7 @@ impl Default for EnterpriseSecurityConfig {
 /// rather than carried as decoration the runtime never reads.
 /// `deny_unknown_fields` makes a hand-edited compiled schema that smuggles a
 /// `handlers` array fail loudly at load instead of deserializing minus the key.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Clone, Default, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ObserversConfig {
     /// Enable observers system.
@@ -227,6 +227,17 @@ pub struct ObserversConfig {
     /// `FRAISEQL_NATS_URL`, when set, still takes precedence over the URL it names.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub nats_url_env: Option<String>,
+}
+
+impl std::fmt::Debug for ObserversConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ObserversConfig")
+            .field("enabled", &self.enabled)
+            .field("backend", &self.backend)
+            .field("nats_url", &self.nats_url.as_deref().map(fraiseql_guard::redact::Url))
+            .field("nats_url_env", &self.nats_url_env)
+            .finish()
+    }
 }
 
 /// The observer runtime's event transport: `"postgres"` (the default) or `"nats"`.

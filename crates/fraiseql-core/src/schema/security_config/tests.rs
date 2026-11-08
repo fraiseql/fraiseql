@@ -101,3 +101,68 @@ fn explicit_null_sections_mean_not_configured() {
     assert!(parsed.pkce.is_none());
     assert!(parsed.token_revocation.is_none());
 }
+
+// ── Config structs print their Redis/NATS URLs without credentials ────────────
+mod url_credentials {
+    use super::super::{
+        PkceSecurityConfig, RateLimitingSecurityConfig, TokenRevocationSecurityConfig,
+    };
+
+    const SECRET: &str = "pw-cfg-5d28";
+
+    fn redis_url() -> Option<String> {
+        Some(format!("redis://cache:{SECRET}@redis.example.com:6379"))
+    }
+
+    fn assert_hidden(name: &str, debug: &str) {
+        assert!(
+            debug.contains("redis.example.com"),
+            "{name}'s Debug output no longer names the host: {debug}"
+        );
+        assert!(!debug.contains(SECRET), "{name}'s Debug output carries the password: {debug}");
+    }
+
+    #[test]
+    fn the_rate_limiting_config_debug_hides_the_password() {
+        let config = RateLimitingSecurityConfig {
+            redis_url: redis_url(),
+            ..RateLimitingSecurityConfig::default()
+        };
+        assert_hidden("RateLimitingSecurityConfig", &format!("{config:?}"));
+    }
+
+    #[test]
+    fn the_pkce_config_debug_hides_the_password() {
+        let config = PkceSecurityConfig {
+            redis_url: redis_url(),
+            ..PkceSecurityConfig::default()
+        };
+        assert_hidden("PkceSecurityConfig", &format!("{config:?}"));
+    }
+
+    #[test]
+    fn the_token_revocation_config_debug_hides_the_password() {
+        let config = TokenRevocationSecurityConfig {
+            redis_url: redis_url(),
+            ..TokenRevocationSecurityConfig::default()
+        };
+        assert_hidden("TokenRevocationSecurityConfig", &format!("{config:?}"));
+    }
+
+    #[test]
+    fn the_observers_config_debug_hides_the_password() {
+        let config = crate::schema::ObserversConfig {
+            nats_url: Some(format!("tls://bus:{SECRET}@nats.example.com:4222")),
+            ..crate::schema::ObserversConfig::default()
+        };
+        let debug = format!("{config:?}");
+        assert!(
+            debug.contains("nats.example.com"),
+            "ObserversConfig's Debug output no longer names the host: {debug}"
+        );
+        assert!(
+            !debug.contains(SECRET),
+            "ObserversConfig's Debug output carries the password: {debug}"
+        );
+    }
+}

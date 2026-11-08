@@ -42,6 +42,9 @@ proptest = { workspace = true }
 temp-env = { workspace = true }
 tempfile = "3.13"
 tokio-test = "0.4"
+# Captures what backend setup logs, to check an address's credentials never reach the log.
+fraiseql-test-support = { path = "../fraiseql-test-support" }
+tracing-subscriber = { workspace = true }
 wiremock = "0.6"
 
 [lints]

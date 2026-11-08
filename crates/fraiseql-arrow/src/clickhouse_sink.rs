@@ -111,19 +111,26 @@ fn validate_clickhouse_url(url: &str) -> Result<()> {
     // Use reqwest::Url::parse() to safely extract the host — manual string splitting
     // is fragile in the presence of credentials (user:pass@host) and IPv6 literals.
     let parsed = reqwest::Url::parse(url).map_err(|e| {
-        ArrowFlightError::Configuration(format!("ClickHouse URL is not a valid URL ({url}): {e}"))
+        ArrowFlightError::Configuration(format!(
+            "ClickHouse URL is not a valid URL ({}): {e}",
+            fraiseql_guard::redact::Url(url)
+        ))
     })?;
 
     let scheme = parsed.scheme();
     if scheme != "http" && scheme != "https" {
         return Err(ArrowFlightError::Configuration(format!(
-            "ClickHouse URL must use http:// or https:// scheme: {url}"
+            "ClickHouse URL must use http:// or https:// scheme: {}",
+            fraiseql_guard::redact::Url(url)
         )));
     }
 
     let host_raw = parsed.host_str().unwrap_or("");
     if host_raw.is_empty() {
-        return Err(ArrowFlightError::Configuration(format!("ClickHouse URL has no host: {url}")));
+        return Err(ArrowFlightError::Configuration(format!(
+            "ClickHouse URL has no host: {}",
+            fraiseql_guard::redact::Url(url)
+        )));
     }
 
     // The `url` crate wraps IPv6 literals in brackets in `host_str()` (e.g. "[::1]").
@@ -136,7 +143,8 @@ fn validate_clickhouse_url(url: &str) -> Result<()> {
 
     if is_ssrf_blocked_host_ch(host) {
         return Err(ArrowFlightError::Configuration(format!(
-            "ClickHouse URL targets a private/loopback address (SSRF protection): {url}"
+            "ClickHouse URL targets a private/loopback address (SSRF protection): {}",
+            fraiseql_guard::redact::Url(url)
         )));
     }
 
@@ -279,7 +287,7 @@ impl ClickHouseSink {
                 .with_database(&config.database);
 
             info!(
-                url = %config.url,
+                url = %fraiseql_guard::redact::Url(&config.url),
                 database = %config.database,
                 table = %config.table,
                 batch_size = config.batch_size,

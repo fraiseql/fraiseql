@@ -201,3 +201,20 @@ fn subject_wildcard_covers_the_whole_template_space() {
     assert_eq!(subject_wildcard("{tenant_id}.events"), ">");
     assert_eq!(subject_wildcard("static.subject"), "static.subject.>");
 }
+
+/// A sink endpoint's credentials never reach the boot refusal.
+#[tokio::test]
+async fn the_sink_connect_refusal_hides_the_password() {
+    const SECRET: &str = "pw-cdc-5d25";
+    let section = CdcSinkSectionConfig {
+        endpoint: format!("tls://bus:{SECRET}@127.0.0.1:1"),
+        ..sink("primary", "nats-jetstream")
+    };
+    let pool = sqlx::PgPool::connect_lazy("postgres://u:u@127.0.0.1:1/db").unwrap();
+    let Err(text) = super::build_one(&section, &pool, std::time::Duration::from_secs(1), 10).await
+    else {
+        panic!("nothing listens on port 1");
+    };
+    assert!(text.contains("could not connect"), "another refusal fired: {text}");
+    assert!(!text.contains(SECRET), "the boot refusal wrote the sink password: {text}");
+}

@@ -146,22 +146,32 @@ impl SubscriptionLifecycle for WebhookLifecycle {
             Ok(resp) if resp.status().is_success() => Ok(()),
             Ok(resp) => {
                 let status = resp.status();
-                let raw = resp
-                    .bytes()
-                    .await
-                    .inspect_err(|e| warn!(url = %url, error = %e, "Failed to read on_connect webhook response body"))
-                    .unwrap_or_default();
+                let raw = resp.bytes().await.unwrap_or_else(|e| {
+                    warn!(
+                        url = %fraiseql_guard::redact::Url(url),
+                        error = %e.without_url(),
+                        "Failed to read on_connect webhook response body"
+                    );
+                    bytes::Bytes::new()
+                });
                 let capped = &raw[..raw.len().min(MAX_WEBHOOK_RESPONSE_BYTES)];
                 let text = String::from_utf8_lossy(capped).into_owned();
                 warn!(
-                    url = %url,
+                    url = %fraiseql_guard::redact::Url(url),
                     status = %status,
                     "on_connect webhook rejected connection"
                 );
                 Err(text)
             },
             Err(e) => {
-                error!(url = %url, error = %e, "on_connect webhook failed");
+                // reqwest renders the request URL into its error text; the URL is logged
+                // redacted beside it, and the text goes back to the client without it.
+                let e = e.without_url();
+                error!(
+                    url = %fraiseql_guard::redact::Url(url),
+                    error = %e,
+                    "on_connect webhook failed"
+                );
                 Err(format!("webhook timeout or error: {e}"))
             },
         }
@@ -182,7 +192,11 @@ impl SubscriptionLifecycle for WebhookLifecycle {
         let url = url.clone();
         tokio::spawn(async move {
             if let Err(e) = client.post(&url).json(&body).send().await {
-                warn!(url = %url, error = %e, "on_disconnect webhook failed");
+                warn!(
+                    url = %fraiseql_guard::redact::Url(&url),
+                    error = %e.without_url(),
+                    "on_disconnect webhook failed"
+                );
             }
         });
     }
@@ -212,22 +226,32 @@ impl SubscriptionLifecycle for WebhookLifecycle {
             Ok(resp) if resp.status().is_success() => Ok(()),
             Ok(resp) => {
                 let status = resp.status();
-                let raw = resp
-                    .bytes()
-                    .await
-                    .inspect_err(|e| warn!(url = %url, error = %e, "Failed to read on_subscribe webhook response body"))
-                    .unwrap_or_default();
+                let raw = resp.bytes().await.unwrap_or_else(|e| {
+                    warn!(
+                        url = %fraiseql_guard::redact::Url(url),
+                        error = %e.without_url(),
+                        "Failed to read on_subscribe webhook response body"
+                    );
+                    bytes::Bytes::new()
+                });
                 let capped = &raw[..raw.len().min(MAX_WEBHOOK_RESPONSE_BYTES)];
                 let text = String::from_utf8_lossy(capped).into_owned();
                 warn!(
-                    url = %url,
+                    url = %fraiseql_guard::redact::Url(url),
                     status = %status,
                     "on_subscribe webhook rejected subscription"
                 );
                 Err(text)
             },
             Err(e) => {
-                error!(url = %url, error = %e, "on_subscribe webhook failed");
+                // reqwest renders the request URL into its error text; the URL is logged
+                // redacted beside it, and the text goes back to the client without it.
+                let e = e.without_url();
+                error!(
+                    url = %fraiseql_guard::redact::Url(url),
+                    error = %e,
+                    "on_subscribe webhook failed"
+                );
                 Err(format!("webhook timeout or error: {e}"))
             },
         }
@@ -248,7 +272,11 @@ impl SubscriptionLifecycle for WebhookLifecycle {
         let url = url.clone();
         tokio::spawn(async move {
             if let Err(e) = client.post(&url).json(&body).send().await {
-                warn!(url = %url, error = %e, "on_unsubscribe webhook failed");
+                warn!(
+                    url = %fraiseql_guard::redact::Url(&url),
+                    error = %e.without_url(),
+                    "on_unsubscribe webhook failed"
+                );
             }
         });
     }

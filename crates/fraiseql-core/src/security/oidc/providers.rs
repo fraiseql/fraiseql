@@ -53,7 +53,7 @@ pub struct MeEndpointConfig {
 // constructs it programmatically — so refusing an unknown key here closes the TOML
 // surface without affecting anything else. `require_jti` is a security switch that
 // used to sit at its default when misspelled, silently.
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Clone, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct OidcConfig {
     /// Issuer URL (e.g., `https://your-tenant.auth0.com/`), optional.
@@ -182,11 +182,30 @@ pub struct OidcConfig {
     pub additional_issuers: Vec<TrustedIssuer>,
 }
 
+impl std::fmt::Debug for OidcConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = f.debug_struct("OidcConfig");
+        s.field("issuer", &self.issuer.as_deref().map(fraiseql_guard::redact::Url));
+        s.field("audience", &self.audience);
+        s.field("additional_audiences", &self.additional_audiences);
+        s.field("jwks_cache_ttl_secs", &self.jwks_cache_ttl_secs);
+        s.field("allowed_algorithms", &self.allowed_algorithms);
+        s.field("clock_skew_secs", &self.clock_skew_secs);
+        s.field("jwks_uri", &self.jwks_uri.as_deref().map(fraiseql_guard::redact::Url));
+        s.field("required", &self.required);
+        s.field("scope_claim", &self.scope_claim);
+        s.field("require_jti", &self.require_jti);
+        s.field("me", &self.me);
+        s.field("additional_issuers", &self.additional_issuers);
+        s.finish()
+    }
+}
+
 /// One additional trusted token issuer (`[[auth.additional_issuers]]`, #1400).
 ///
 /// The issuer-level settings of [`OidcConfig`], for a second (third, …) issuer. `issuer`
 /// is mandatory: it is what routes a token here.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct TrustedIssuer {
     /// The issuer URL, matched exactly against a token's `iss`.
@@ -212,6 +231,21 @@ pub struct TrustedIssuer {
     /// Require a `jti` claim; see [`OidcConfig::require_jti`].
     #[serde(default)]
     pub require_jti:          bool,
+}
+
+impl std::fmt::Debug for TrustedIssuer {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = f.debug_struct("TrustedIssuer");
+        s.field("issuer", &fraiseql_guard::redact::Url(&self.issuer));
+        s.field("audience", &self.audience);
+        s.field("additional_audiences", &self.additional_audiences);
+        s.field("allowed_algorithms", &self.allowed_algorithms);
+        s.field("clock_skew_secs", &self.clock_skew_secs);
+        s.field("jwks_uri", &self.jwks_uri.as_deref().map(fraiseql_guard::redact::Url));
+        s.field("scope_claim", &self.scope_claim);
+        s.field("require_jti", &self.require_jti);
+        s.finish()
+    }
 }
 
 impl TrustedIssuer {

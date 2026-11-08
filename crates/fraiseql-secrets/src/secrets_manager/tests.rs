@@ -244,3 +244,63 @@ fn vault_tls_verify_on_is_always_ok() {
     assert!(vault_tls_verify_check(true, Deployment::Production).is_ok());
     assert!(vault_tls_verify_check(true, Deployment::Development).is_ok());
 }
+
+// ── The Vault address is logged without its credentials ──────────────────────
+
+#[tokio::test]
+async fn the_vault_setup_log_hides_the_password() {
+    use std::sync::{Arc as StdArc, Mutex};
+
+    #[derive(Clone, Default)]
+    struct Captured(StdArc<Mutex<Vec<u8>>>);
+    impl std::io::Write for Captured {
+        fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+            self.0.lock().unwrap().extend_from_slice(buf);
+            Ok(buf.len())
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    const SECRET: &str = "pw-vault-5d21";
+    let captured = Captured::default();
+    let writer = captured.clone();
+    let subscriber = tracing_subscriber::fmt()
+        .with_ansi(false)
+        .with_writer(move || writer.clone())
+        .finish();
+    // The address guard runs before the setup line; hold the temp_env lock with the
+    // opt-in and posture markers cleared so a sibling cannot change what it reads.
+    temp_env::async_with_vars(
+        [
+            ("FRAISEQL_VAULT_ALLOW_INSECURE", None::<&str>),
+            ("FRAISEQL_ENV", None),
+            ("FRAISEQL_PROFILE", None),
+            ("KUBERNETES_SERVICE_HOST", None),
+        ],
+        async {
+            let guard = fraiseql_test_support::tracing_capture::set_default(subscriber);
+            let _ = create_secrets_manager(SecretsBackendConfig::Vault {
+                addr:       format!("https://ops:{SECRET}@vault.example.com:8200"),
+                auth:       VaultAuth::Token(zeroize::Zeroizing::new("token".to_string())),
+                namespace:  None,
+                tls_verify: true,
+            })
+            .await;
+            drop(guard);
+        },
+    )
+    .await;
+    let log = String::from_utf8(captured.0.lock().unwrap().clone()).unwrap();
+    assert!(
+        log.contains("Initializing Vault secrets backend"),
+        "the setup log was not reached:\n{log}"
+    );
+    assert!(
+        log.contains("vault.example.com"),
+        "the setup log no longer names the host:\n{log}"
+    );
+    assert!(!log.contains(SECRET), "the setup log wrote the password:\n{log}");
+}

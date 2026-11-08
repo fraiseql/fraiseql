@@ -112,7 +112,7 @@ pub struct Cli {
 /// Every flag has a corresponding environment variable (clap's `env`
 /// attribute).  The resolution order is: **CLI flag > env var > config
 /// file > built-in default**.
-#[derive(Args, Debug, Clone, Default)]
+#[derive(Args, Clone, Default)]
 pub struct ServerArgs {
     // ── Core ─────────────────────────────────────────────────────────────
     /// Path to TOML configuration file.
@@ -244,6 +244,41 @@ pub struct ServerArgs {
     /// before aborting them.
     #[arg(long, env = "FRAISEQL_SHUTDOWN_TIMEOUT_SECS")]
     pub shutdown_timeout_secs: Option<u64>,
+}
+
+impl std::fmt::Debug for ServerArgs {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = f.debug_struct("ServerArgs");
+        s.field("config", &self.config);
+        s.field("database_url", &self.database_url.as_deref().map(fraiseql_guard::redact::Url));
+        s.field("bind_addr", &self.bind_addr);
+        s.field("schema_path", &self.schema_path);
+        s.field("pool_max_size", &self.pool_max_size);
+        s.field("transaction_retry_max_attempts", &self.transaction_retry_max_attempts);
+        #[cfg(feature = "arrow")]
+        s.field("flight_bind_addr", &self.flight_bind_addr);
+        s.field("validate_sql_sources", &self.validate_sql_sources);
+        s.field("metrics_enabled", &self.metrics_enabled);
+        s.field("metrics_token", &self.metrics_token);
+        s.field("admin_api_enabled", &self.admin_api_enabled);
+        s.field("admin_token", &self.admin_token);
+        s.field("introspection_enabled", &self.introspection_enabled);
+        s.field("introspection_require_auth", &self.introspection_require_auth);
+        s.field("metadata_require_auth", &self.metadata_require_auth);
+        s.field("schema_export_require_auth", &self.schema_export_require_auth);
+        s.field("service_sdl_require_auth", &self.service_sdl_require_auth);
+        s.field("suggestions_enabled", &self.suggestions_enabled);
+        s.field("playground_require_auth", &self.playground_require_auth);
+        s.field("subscription_require_auth", &self.subscription_require_auth);
+        s.field("rate_limiting_enabled", &self.rate_limiting_enabled);
+        s.field("rate_limit_rps_per_ip", &self.rate_limit_rps_per_ip);
+        s.field("rate_limit_rps_per_user", &self.rate_limit_rps_per_user);
+        s.field("rate_limit_burst_size", &self.rate_limit_burst_size);
+        s.field("rate_limit_max_buckets", &self.rate_limit_max_buckets);
+        s.field("log_format", &self.log_format);
+        s.field("shutdown_timeout_secs", &self.shutdown_timeout_secs);
+        s.finish()
+    }
 }
 
 impl ServerArgs {

@@ -72,6 +72,8 @@ pub mod testing;
 mod ssrf_test_env;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod url_credentials_tests;
 
 // Re-export common types at crate level
 pub use actions::{

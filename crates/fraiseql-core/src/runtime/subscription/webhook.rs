@@ -188,7 +188,7 @@ impl TransportAdapter for WebhookAdapter {
             match result {
                 Ok(response) if response.status().is_success() => {
                     tracing::debug!(
-                        url = %self.config.url,
+                        url = %fraiseql_guard::redact::Url(&self.config.url),
                         event_id = %event.event_id,
                         attempt = attempt,
                         "Webhook delivered successfully"
@@ -198,7 +198,7 @@ impl TransportAdapter for WebhookAdapter {
                 Ok(response) => {
                     let status = response.status();
                     tracing::warn!(
-                        url = %self.config.url,
+                        url = %fraiseql_guard::redact::Url(&self.config.url),
                         event_id = %event.event_id,
                         status = %status,
                         attempt = attempt,
@@ -214,9 +214,11 @@ impl TransportAdapter for WebhookAdapter {
                 },
                 Err(e) => {
                     tracing::warn!(
-                        url = %self.config.url,
+                        url = %fraiseql_guard::redact::Url(&self.config.url),
                         event_id = %event.event_id,
-                        error = %e,
+                        // The request URL is already in the `url` field; reqwest's own
+                        // rendering of it would carry the query unredacted.
+                        error = %e.without_url(),
                         attempt = attempt,
                         "Webhook delivery error"
                     );
@@ -270,12 +272,19 @@ impl std::fmt::Debug for WebhookAdapter {
 /// Returns `SubscriptionError::Internal` if the URL is invalid or targets a
 /// forbidden host (private IP, loopback, link-local).
 pub fn validate_webhook_url(url: &str) -> Result<(), SubscriptionError> {
-    let parsed = reqwest::Url::parse(url)
-        .map_err(|e| SubscriptionError::Internal(format!("Invalid webhook URL '{url}': {e}")))?;
+    let parsed = reqwest::Url::parse(url).map_err(|e| {
+        SubscriptionError::Internal(format!(
+            "Invalid webhook URL '{}': {e}",
+            fraiseql_guard::redact::Url(url)
+        ))
+    })?;
 
-    let host = parsed
-        .host_str()
-        .ok_or_else(|| SubscriptionError::Internal(format!("Webhook URL has no host: {url}")))?;
+    let host = parsed.host_str().ok_or_else(|| {
+        SubscriptionError::Internal(format!(
+            "Webhook URL has no host: {}",
+            fraiseql_guard::redact::Url(url)
+        ))
+    })?;
 
     // Bracket stripping, loopback/metadata hostname aliases and the literal-IP
     // range check all live in the shared guard. The local checks this replaced
@@ -290,6 +299,9 @@ pub fn validate_webhook_url(url: &str) -> Result<(), SubscriptionError> {
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests;
 
 #[cfg(test)]
 mod corpus {

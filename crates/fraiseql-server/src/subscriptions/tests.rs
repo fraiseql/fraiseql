@@ -643,3 +643,134 @@ mod webhook_lifecycle_tests {
         assert_eq!(text.len(), MAX_WEBHOOK_RESPONSE_BYTES);
     }
 }
+
+// ── A lifecycle webhook URL's query token never reaches a log or a refusal ────
+mod url_credentials {
+    use wiremock::{Mock, MockServer, ResponseTemplate, matchers::method};
+
+    use super::super::{lifecycle::SubscriptionLifecycle, webhook_lifecycle::WebhookLifecycle};
+    use crate::log_capture::capture;
+
+    const SECRET: &str = "pw-hook-5d23";
+
+    fn every_hook(url: &str) -> WebhookLifecycle {
+        WebhookLifecycle::new(
+            Some(url.to_string()),
+            Some(url.to_string()),
+            Some(url.to_string()),
+            Some(url.to_string()),
+            2_000,
+        )
+    }
+
+    /// The capture's text once it contains `marker` (the hook logs from a spawned task on
+    /// this test's single thread), or whatever it holds after five seconds.
+    async fn logged(captured: &crate::log_capture::Captured, marker: &str) -> String {
+        for _ in 0..100 {
+            if captured.text().contains(marker) {
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        }
+        captured.text()
+    }
+
+    async fn rejecting_server() -> MockServer {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .respond_with(ResponseTemplate::new(403))
+            .mount(&server)
+            .await;
+        server
+    }
+
+    #[tokio::test]
+    async fn the_connect_rejection_log_hides_the_query_token() {
+        let server = rejecting_server().await;
+        let (captured, _guard) = capture();
+        let _ = every_hook(&format!("{}/c?token={SECRET}", server.uri()))
+            .on_connect(&serde_json::json!({}), "c1")
+            .await;
+        let log = captured.text();
+        assert!(
+            log.contains("on_connect webhook rejected connection"),
+            "the rejection log was not reached:\n{log}"
+        );
+        assert!(!log.contains(SECRET), "the rejection log wrote the query token:\n{log}");
+    }
+
+    #[tokio::test]
+    async fn the_connect_failure_hides_the_query_token() {
+        let (captured, _guard) = capture();
+        let err = every_hook(&format!("http://127.0.0.1:1/c?token={SECRET}"))
+            .on_connect(&serde_json::json!({}), "c1")
+            .await
+            .expect_err("nothing listens on port 1");
+        let log = captured.text();
+        assert!(
+            log.contains("on_connect webhook failed"),
+            "the failure log was not reached:\n{log}"
+        );
+        assert!(!log.contains(SECRET), "the failure log wrote the query token:\n{log}");
+        assert!(!err.contains(SECRET), "the returned refusal carries the query token: {err}");
+    }
+
+    #[tokio::test]
+    async fn the_disconnect_failure_log_hides_the_query_token() {
+        let (captured, _guard) = capture();
+        every_hook(&format!("http://127.0.0.1:1/d?token={SECRET}"))
+            .on_disconnect("c1")
+            .await;
+        let log = logged(&captured, "on_disconnect webhook failed").await;
+        assert!(
+            log.contains("on_disconnect webhook failed"),
+            "the failure log was not reached:\n{log}"
+        );
+        assert!(!log.contains(SECRET), "the failure log wrote the query token:\n{log}");
+    }
+
+    #[tokio::test]
+    async fn the_subscribe_rejection_log_hides_the_query_token() {
+        let server = rejecting_server().await;
+        let (captured, _guard) = capture();
+        let _ = every_hook(&format!("{}/s?token={SECRET}", server.uri()))
+            .on_subscribe("orders", &serde_json::json!({}), "c1")
+            .await;
+        let log = captured.text();
+        assert!(
+            log.contains("on_subscribe webhook rejected"),
+            "the rejection log was not reached:\n{log}"
+        );
+        assert!(!log.contains(SECRET), "the rejection log wrote the query token:\n{log}");
+    }
+
+    #[tokio::test]
+    async fn the_subscribe_failure_hides_the_query_token() {
+        let (captured, _guard) = capture();
+        let err = every_hook(&format!("http://127.0.0.1:1/s?token={SECRET}"))
+            .on_subscribe("orders", &serde_json::json!({}), "c1")
+            .await
+            .expect_err("nothing listens on port 1");
+        let log = captured.text();
+        assert!(
+            log.contains("on_subscribe webhook failed"),
+            "the failure log was not reached:\n{log}"
+        );
+        assert!(!log.contains(SECRET), "the failure log wrote the query token:\n{log}");
+        assert!(!err.contains(SECRET), "the returned refusal carries the query token: {err}");
+    }
+
+    #[tokio::test]
+    async fn the_unsubscribe_failure_log_hides_the_query_token() {
+        let (captured, _guard) = capture();
+        every_hook(&format!("http://127.0.0.1:1/u?token={SECRET}"))
+            .on_unsubscribe("s1", "c1")
+            .await;
+        let log = logged(&captured, "on_unsubscribe webhook failed").await;
+        assert!(
+            log.contains("on_unsubscribe webhook failed"),
+            "the failure log was not reached:\n{log}"
+        );
+        assert!(!log.contains(SECRET), "the failure log wrote the query token:\n{log}");
+    }
+}

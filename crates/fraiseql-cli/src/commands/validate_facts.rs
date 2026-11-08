@@ -100,7 +100,7 @@ pub async fn run(
 ) -> Result<()> {
     formatter.section("Validating fact tables");
     formatter.progress(&format!("   Schema: {}", schema_path.display()));
-    formatter.progress(&format!("   Database: {database_url}"));
+    formatter.progress(&format!("   Database: {}", fraiseql_guard::redact::Url(database_url)));
     formatter.progress("");
 
     // 1. Load and parse schema

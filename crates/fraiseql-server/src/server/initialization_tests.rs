@@ -930,3 +930,124 @@ fn a_redis_url_holding_a_password_reaches_redis_and_is_logged_by_host() {
         }
     }
 }
+
+// ── A boot-time URL's credentials never reach the boot log ───────────────────
+mod url_credentials {
+    use std::sync::Arc;
+
+    use crate::log_capture::capture;
+
+    const SECRET: &str = "pw-boot-5d26";
+
+    /// The Redis the redis leg binds, with `default:SECRET@` userinfo. A Redis whose
+    /// `default` user is `nopass` accepts any password, so the connection succeeds.
+    #[cfg(any(feature = "redis-pkce", feature = "redis-rate-limiting"))]
+    fn redis_with_password() -> String {
+        let url =
+            std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://localhost:6379".to_string());
+        crate::log_capture::with_userinfo(&url, "default", SECRET)
+    }
+
+    #[cfg(all(feature = "auth", feature = "redis-pkce"))]
+    #[tokio::test]
+    #[ignore = "requires Redis (REDIS_URL) — run with --ignored"]
+    async fn the_pkce_redis_log_hides_the_password() {
+        let pkce = serde_json::from_value(
+            serde_json::json!({ "enabled": true, "redis_url": redis_with_password() }),
+        )
+        .unwrap();
+        let schema = fraiseql_core::schema::CompiledSchema {
+            security: Some(fraiseql_core::schema::SecurityConfig {
+                pkce: Some(pkce),
+                ..fraiseql_core::schema::SecurityConfig::default()
+            }),
+            ..fraiseql_core::schema::CompiledSchema::default()
+        };
+        let enc = Arc::new(crate::auth::state_encryption::StateEncryptionService::from_raw_key(
+            &[7u8; 32],
+            crate::auth::state_encryption::EncryptionAlgorithm::Aes256Gcm,
+        ));
+        let (captured, _guard) = capture();
+        let store = super::super::pkce_store_from_schema_in(
+            &schema,
+            Some(&enc),
+            fraiseql_guard::deployment::Deployment::Development,
+        )
+        .await
+        .unwrap();
+        assert!(store.is_some_and(|s| !s.is_in_memory()), "the Redis backend was not used");
+        let log = captured.text();
+        assert!(
+            log.contains("PKCE state store: Redis backend"),
+            "the backend log was not reached:\n{log}"
+        );
+        assert!(!log.contains(SECRET), "the backend log wrote the Redis password:\n{log}");
+    }
+
+    #[cfg(feature = "redis-rate-limiting")]
+    #[tokio::test]
+    #[ignore = "requires Redis (REDIS_URL) — run with --ignored"]
+    async fn the_rate_limiter_redis_log_hides_the_password() {
+        let sec = crate::middleware::RateLimitingSecurityConfig {
+            redis_url: Some(redis_with_password()),
+            ..crate::middleware::RateLimitingSecurityConfig::default()
+        };
+        let (captured, _guard) = capture();
+        super::super::build_rate_limiter(
+            crate::middleware::RateLimitConfig::default(),
+            &sec,
+            Some(&sec),
+            fraiseql_guard::deployment::Deployment::Development,
+        )
+        .await
+        .unwrap();
+        let log = captured.text();
+        assert!(
+            log.contains("using Redis distributed backend"),
+            "the backend log was not reached:\n{log}"
+        );
+        assert!(!log.contains(SECRET), "the backend log wrote the Redis password:\n{log}");
+    }
+
+    #[tokio::test]
+    async fn the_manifest_address_refusal_log_hides_the_query_token() {
+        let mut tasks = tokio::task::JoinSet::new();
+        let (captured, _guard) = capture();
+        crate::server::Server::spawn_trusted_docs_reload(
+            Arc::new(crate::trusted_documents::TrustedDocumentStore::disabled()),
+            format!("http://127.0.0.1/manifest.json?token={SECRET}"),
+            60,
+            &mut tasks,
+        );
+        let log = captured.text();
+        assert!(log.contains("SSRF protection"), "the refusal log was not reached:\n{log}");
+        assert!(!log.contains(SECRET), "the refusal log wrote the query token:\n{log}");
+    }
+
+    #[tokio::test]
+    async fn the_manifest_fetch_failure_log_hides_the_query_token() {
+        let mut tasks = tokio::task::JoinSet::new();
+        let (captured, _guard) = capture();
+        // `.invalid` never resolves (RFC 2606), so the first fetch fails in reqwest, whose
+        // error text names the request URL.
+        crate::server::Server::spawn_trusted_docs_reload(
+            Arc::new(crate::trusted_documents::TrustedDocumentStore::disabled()),
+            format!("http://manifest.invalid/manifest.json?token={SECRET}"),
+            60,
+            &mut tasks,
+        );
+        let mut log = captured.text();
+        for _ in 0..200 {
+            if log.contains("Failed to fetch trusted documents manifest") {
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+            log = captured.text();
+        }
+        assert!(
+            log.contains("Failed to fetch trusted documents manifest"),
+            "the fetch-failure log was not reached:\n{log}"
+        );
+        assert!(!log.contains(SECRET), "the fetch-failure log wrote the query token:\n{log}");
+    }
+}

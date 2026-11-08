@@ -110,18 +110,24 @@ pub(crate) fn validate_outbound_url(url: &str) -> Result<()> {
     let lower = url.to_ascii_lowercase();
     if !lower.starts_with("http://") && !lower.starts_with("https://") {
         return Err(ObserverError::ActionPermanentlyFailed {
-            reason: format!("Outbound URL must use http:// or https:// scheme: {url}"),
+            reason: format!(
+                "Outbound URL must use http:// or https:// scheme: {}",
+                fraiseql_guard::redact::Url(url)
+            ),
         });
     }
 
-    // Extract the host portion (strip scheme, then take up to the first / : ? #).
-    // IPv6 literals use bracket notation [addr]:port — handle separately so we
-    // don't split on the `:` inside the brackets and miss the closing `]`.
+    // Extract the host portion: strip the scheme, take the authority (up to the first
+    // / ? #), and drop any `user:password@` userinfo, so the host after the last `@` is
+    // what is judged. IPv6 literals use bracket notation [addr]:port — handle separately
+    // so we don't split on the `:` inside the brackets and miss the closing `]`.
     let after_scheme = if lower.starts_with("https://") {
         &url[8..]
     } else {
         &url[7..]
     };
+    let authority = after_scheme.split(['/', '?', '#']).next().unwrap_or("");
+    let after_scheme = authority.rsplit_once('@').map_or(authority, |(_userinfo, host)| host);
     let host = if after_scheme.starts_with('[') {
         // IPv6 bracket notation: extract everything up to and including the `]`.
         after_scheme.find(']').map_or_else(
@@ -135,7 +141,8 @@ pub(crate) fn validate_outbound_url(url: &str) -> Result<()> {
     if is_ssrf_blocked_host_obs(host) {
         return Err(ObserverError::ActionPermanentlyFailed {
             reason: format!(
-                "Outbound URL targets a private/loopback address (SSRF protection): {url}"
+                "Outbound URL targets a private/loopback address (SSRF protection): {}",
+                fraiseql_guard::redact::Url(url)
             ),
         });
     }
@@ -401,7 +408,7 @@ impl WebhookAction {
             "WebhookAction.execute() called: host={host}, event_id={event_id}, body_template_present={}",
             body_template.is_some()
         );
-        debug!("  URL (full): {}", url);
+        debug!("  URL (full): {}", fraiseql_guard::redact::Url(url));
         debug!("  Headers (redacted): {:?}", redact_secret_headers(headers));
         debug!("  Body template: {:?}", body_template);
 

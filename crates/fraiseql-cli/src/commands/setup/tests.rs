@@ -2,21 +2,6 @@
 
 use super::*;
 
-#[test]
-fn mask_password_with_credentials() {
-    let url = "postgres://user:password@localhost:5432/db";
-    let masked = mask_password(url);
-    assert!(masked.contains("***"));
-    assert!(!masked.contains("password"));
-}
-
-#[test]
-fn mask_password_without_credentials() {
-    let url = "postgres://localhost:5432/db";
-    let masked = mask_password(url);
-    assert_eq!(masked, url);
-}
-
 /// `fraiseql setup` reports and verifies the version the SQL it installs returns.
 #[test]
 fn helpers_version_is_the_installed_librarys() {

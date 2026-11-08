@@ -310,7 +310,7 @@ impl ObserverTransportConfig {
 /// caching. The server runs neither, so this block refuses those keys rather
 /// than accepting values nothing reads (#1466).
 #[cfg(feature = "observers")]
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ObserverRedisConfig {
     /// Redis connection URL (`redis://…` or `rediss://…`). Required, here or
@@ -325,6 +325,17 @@ pub struct ObserverRedisConfig {
     /// Timeout for each command's response, in seconds (default: 2).
     #[serde(default = "default_redis_command_timeout_secs")]
     pub command_timeout_secs: u64,
+}
+
+#[cfg(feature = "observers")]
+impl std::fmt::Debug for ObserverRedisConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = f.debug_struct("ObserverRedisConfig");
+        s.field("url", &fraiseql_guard::redact::Url(&self.url));
+        s.field("connect_timeout_secs", &self.connect_timeout_secs);
+        s.field("command_timeout_secs", &self.command_timeout_secs);
+        s.finish()
+    }
 }
 
 #[cfg(feature = "observers")]

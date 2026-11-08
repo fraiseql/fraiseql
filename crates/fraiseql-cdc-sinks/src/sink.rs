@@ -324,25 +324,28 @@ pub struct KinesisEndpoint {
 pub fn guard_kinesis_endpoint(endpoint: &str) -> crate::error::Result<KinesisEndpoint> {
     let Some((scheme, rest)) = endpoint.split_once("://") else {
         return Err(CdcError::Config(format!(
-            "kinesis endpoint {endpoint:?} has no scheme: use kinesis://<region>, e.g. \
+            "kinesis endpoint {:?} has no scheme: use kinesis://<region>, e.g. \
              kinesis://us-east-1. The scheme is required rather than defaulted so the sink \
-             kind stays unambiguous."
+             kind stays unambiguous.",
+            fraiseql_guard::redact::Url(endpoint)
         )));
     };
 
     if !scheme.eq_ignore_ascii_case("kinesis") {
         return Err(CdcError::Config(format!(
-            "unsupported kinesis endpoint scheme {scheme:?} in {endpoint:?}: use \
+            "unsupported kinesis endpoint scheme {scheme:?} in {:?}: use \
              kinesis://<region>. The transport is chosen by the AWS SDK (HTTPS) or by \
-             {KINESIS_ENDPOINT_URL_ENV}, not by this scheme."
+             {KINESIS_ENDPOINT_URL_ENV}, not by this scheme.",
+            fraiseql_guard::redact::Url(endpoint)
         )));
     }
 
     if let Some(bad) = rest.chars().find(|c| matches!(c, '@' | '/' | '?' | '#')) {
         return Err(CdcError::Config(format!(
-            "kinesis endpoint {endpoint:?} contains {bad:?}. A kinesis:// endpoint carries \
+            "kinesis endpoint {:?} contains {bad:?}. A kinesis:// endpoint carries \
              an AWS region and nothing else — userinfo, path and query components are not \
-             valid there and can mask the region actually used."
+             valid there and can mask the region actually used.",
+            fraiseql_guard::redact::Url(endpoint)
         )));
     }
 
@@ -413,9 +416,10 @@ pub fn resolve_kinesis_endpoint_url() -> crate::error::Result<Option<String>> {
 
     let Some((scheme, rest)) = url.split_once("://") else {
         return Err(CdcError::Config(format!(
-            "{KINESIS_ENDPOINT_URL_ENV}={url:?} has no scheme: use https://host[:port], or \
+            "{KINESIS_ENDPOINT_URL_ENV}={:?} has no scheme: use https://host[:port], or \
              http://localhost:port for a dev endpoint under \
-             {KINESIS_ALLOW_PLAINTEXT_ENV}=true."
+             {KINESIS_ALLOW_PLAINTEXT_ENV}=true.",
+            fraiseql_guard::redact::Url(url)
         )));
     };
 
@@ -424,8 +428,9 @@ pub fn resolve_kinesis_endpoint_url() -> crate::error::Result<Option<String>> {
         "http" => true,
         other => {
             return Err(CdcError::Config(format!(
-                "unsupported scheme {other:?} in {KINESIS_ENDPOINT_URL_ENV}={url:?}: the \
-                 Kinesis API speaks HTTPS; use https://, or http:// for a dev endpoint."
+                "unsupported scheme {other:?} in {KINESIS_ENDPOINT_URL_ENV}={:?}: the \
+                 Kinesis API speaks HTTPS; use https://, or http:// for a dev endpoint.",
+                fraiseql_guard::redact::Url(url)
             )));
         },
     };
@@ -433,9 +438,10 @@ pub fn resolve_kinesis_endpoint_url() -> crate::error::Result<Option<String>> {
     let authority = rest.strip_suffix('/').unwrap_or(rest);
     if let Some(bad) = authority.chars().find(|c| matches!(c, '@' | '/' | '?' | '#')) {
         return Err(CdcError::Config(format!(
-            "{KINESIS_ENDPOINT_URL_ENV}={url:?} contains {bad:?}. An endpoint override is a \
+            "{KINESIS_ENDPOINT_URL_ENV}={:?} contains {bad:?}. An endpoint override is a \
              host and optional port — userinfo and path components are not valid there and \
-             can mask the real host."
+             can mask the real host.",
+            fraiseql_guard::redact::Url(url)
         )));
     }
     let host = fraiseql_guard::net::host_of_authority(authority);

@@ -106,7 +106,10 @@ pub async fn create_secrets_manager(
             // development downgrades to a loud warning.
             vault_tls_verify_check(tls_verify, Deployment::current())?;
 
-            info!(addr = %addr, "Initializing Vault secrets backend");
+            info!(
+                addr = %fraiseql_guard::redact::Url(&addr),
+                "Initializing Vault secrets backend"
+            );
             let is_approle = matches!(auth, VaultAuth::AppRole { .. });
             let mut vault = match auth {
                 VaultAuth::Token(token) => VaultBackend::new(addr.as_str(), token.as_str())?,

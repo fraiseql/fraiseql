@@ -15,6 +15,8 @@
 //! - [`kafka`] — endpoint parsing and the plaintext refusal for Kafka, shared by the CDC outbox
 //!   sink and the subscription transport (#1102). A transport whose own wire format cannot express
 //!   transport security needs one answer to "may this be plaintext?", not one per caller.
+//! - [`redact`] — the one rendering of a connection URL for logs, errors and `Debug` output: the
+//!   host stays readable, the password, query values and fragment do not.
 //!
 //! # Why one crate
 //!
@@ -39,3 +41,4 @@ pub mod ddl;
 pub mod deployment;
 pub mod kafka;
 pub mod net;
+pub mod redact;
