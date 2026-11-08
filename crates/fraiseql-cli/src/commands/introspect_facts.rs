@@ -75,7 +75,7 @@ pub async fn run(
     formatter: &OutputFormatter,
 ) -> Result<()> {
     formatter.progress("Introspecting database for fact tables...");
-    formatter.progress(&format!("   Database: {database_url}"));
+    formatter.progress(&format!("   Database: {}", fraiseql_guard::redact::Url(database_url)));
 
     // Create database introspector
     let introspector = create_introspector(database_url).await?;

@@ -319,6 +319,8 @@ pub(crate) mod time_text;
 pub mod testing;
 
 #[cfg(test)]
+pub(crate) mod log_capture;
+#[cfg(test)]
 mod tests;
 
 #[cfg(feature = "cli")]

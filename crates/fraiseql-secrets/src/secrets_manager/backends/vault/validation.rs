@@ -56,14 +56,18 @@ pub(super) fn validate_vault_addr(addr: &str) -> Result<(), SecretsError> {
     let lower = addr.to_ascii_lowercase();
     if !lower.starts_with("http://") && !lower.starts_with("https://") {
         return Err(SecretsError::ValidationError(format!(
-            "Vault address must use http:// or https:// scheme: {addr}"
+            "Vault address must use http:// or https:// scheme: {}",
+            fraiseql_guard::redact::Url(addr)
         )));
     }
 
     // Use a real URL parser to extract the host — manual `split('/')` / `split(':')`
     // is fragile for IPv6 literals like `[::1]` and produces an empty first segment.
     let parsed = reqwest::Url::parse(addr).map_err(|e| {
-        SecretsError::ValidationError(format!("Vault address is not a valid URL ({addr}): {e}"))
+        SecretsError::ValidationError(format!(
+            "Vault address is not a valid URL ({}): {e}",
+            fraiseql_guard::redact::Url(addr)
+        ))
     })?;
 
     let host_raw = parsed.host_str().unwrap_or("");
@@ -85,9 +89,10 @@ pub(super) fn validate_vault_addr(addr: &str) -> Result<(), SecretsError> {
 
     if is_ssrf_blocked_host_vault(host) {
         return Err(SecretsError::ValidationError(format!(
-            "Vault address targets a private/loopback address (SSRF protection): {addr}. \
+            "Vault address targets a private/loopback address (SSRF protection): {}. \
              If this is genuinely your Vault, allow this exact host with \
-             {VAULT_ALLOWED_HOSTS_ENV}={host}"
+             {VAULT_ALLOWED_HOSTS_ENV}={host}",
+            fraiseql_guard::redact::Url(addr)
         )));
     }
     Ok(())

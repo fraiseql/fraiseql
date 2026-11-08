@@ -190,7 +190,7 @@ use crate::middleware::{RateLimitOverrides, ServerRateLimitingConfig};
 /// top-level (no `[server]`/`[database]` grouping tables), and an unknown key
 /// refuses to parse rather than being silently discarded (#839: a config whose
 /// every key landed in an unknown table booted on defaults with zero warnings).
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Clone, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ServerConfig {
     /// Path to compiled schema JSON file.
@@ -1287,6 +1287,144 @@ pub struct ServerConfig {
     pub subscription_kafka: Option<SubscriptionKafkaConfig>,
 }
 
+impl std::fmt::Debug for ServerConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = f.debug_struct("ServerConfig");
+        s.field("schema_path", &self.schema_path);
+        s.field("validate_sql_sources", &self.validate_sql_sources);
+        s.field("mutation_error_shape_check", &self.mutation_error_shape_check);
+        s.field("mutation_constraint_metadata", &self.mutation_constraint_metadata);
+        s.field("database_url", &fraiseql_guard::redact::Url(&self.database_url));
+        s.field("bind_addr", &self.bind_addr);
+        #[cfg(feature = "arrow")]
+        s.field("flight_bind_addr", &self.flight_bind_addr);
+        #[cfg(feature = "arrow")]
+        s.field("flight_upload_tables", &self.flight_upload_tables);
+        #[cfg(feature = "arrow")]
+        s.field("flight_views", &self.flight_views);
+        s.field("cors_enabled", &self.cors_enabled);
+        s.field("cors_origins", &self.cors_origins);
+        s.field("compression_enabled", &self.compression_enabled);
+        s.field("enable_http_query", &self.enable_http_query);
+        s.field("tracing_enabled", &self.tracing_enabled);
+        s.field("otlp_endpoint", &self.otlp_endpoint.as_deref().map(fraiseql_guard::redact::Url));
+        s.field("otlp_export_timeout_secs", &self.otlp_export_timeout_secs);
+        s.field("tracing_service_name", &self.tracing_service_name);
+        s.field("apq_enabled", &self.apq_enabled);
+        s.field("cache_enabled", &self.cache_enabled);
+        s.field("cache_cross_instance", &self.cache_cross_instance);
+        s.field("graphql_path", &self.graphql_path);
+        s.field("health_path", &self.health_path);
+        s.field("liveness_path", &self.liveness_path);
+        s.field("readiness_path", &self.readiness_path);
+        s.field("introspection_path", &self.introspection_path);
+        s.field("metrics_path", &self.metrics_path);
+        s.field("metrics_json_path", &self.metrics_json_path);
+        s.field("playground_path", &self.playground_path);
+        s.field("playground_enabled", &self.playground_enabled);
+        s.field("playground_tool", &self.playground_tool);
+        s.field("subscription_path", &self.subscription_path);
+        s.field("subscriptions_enabled", &self.subscriptions_enabled);
+        s.field("metrics_enabled", &self.metrics_enabled);
+        s.field("metrics_token", &self.metrics_token);
+        s.field("admin_api_enabled", &self.admin_api_enabled);
+        s.field("admin_token", &self.admin_token);
+        s.field("admin_readonly_token", &self.admin_readonly_token);
+        s.field("introspection_enabled", &self.introspection_enabled);
+        s.field("introspection_require_auth", &self.introspection_require_auth);
+        s.field("metadata_require_auth", &self.metadata_require_auth);
+        s.field("schema_export_require_auth", &self.schema_export_require_auth);
+        s.field("service_sdl_require_auth", &self.service_sdl_require_auth);
+        s.field("suggestions_enabled", &self.suggestions_enabled);
+        s.field("playground_require_auth", &self.playground_require_auth);
+        s.field("subscription_require_auth", &self.subscription_require_auth);
+        s.field("subscription_auth_recheck_secs", &self.subscription_auth_recheck_secs);
+        s.field("design_api_require_auth", &self.design_api_require_auth);
+        s.field("pool_min_size", &self.pool_min_size);
+        s.field("pool_max_size", &self.pool_max_size);
+        s.field("pool_timeout_secs", &self.pool_timeout_secs);
+        s.field("application_pool", &self.application_pool);
+        s.field("pool_max_streaming_reads", &self.pool_max_streaming_reads);
+        s.field("vector_hnsw_iterative_scan", &self.vector_hnsw_iterative_scan);
+        s.field("vector_ivfflat_iterative_scan", &self.vector_ivfflat_iterative_scan);
+        s.field("vector_hnsw_ef_search", &self.vector_hnsw_ef_search);
+        s.field("vector_on_short_result", &self.vector_on_short_result);
+        s.field("enable_graphql_incremental", &self.enable_graphql_incremental);
+        s.field("graphql_incremental_batch_size", &self.graphql_incremental_batch_size);
+        s.field(
+            "read_replica_urls",
+            &self
+                .read_replica_urls
+                .iter()
+                .map(String::as_str)
+                .map(fraiseql_guard::redact::Url)
+                .collect::<Vec<_>>(),
+        );
+        s.field("read_replica_pin_after_write_ms", &self.read_replica_pin_after_write_ms);
+        s.field("read_replica_max_lag_ms", &self.read_replica_max_lag_ms);
+        s.field(
+            "read_replica_health_probe_interval_ms",
+            &self.read_replica_health_probe_interval_ms,
+        );
+        s.field("auth", &self.auth);
+        s.field("auth_issuer", &self.auth_issuer);
+        #[cfg(feature = "auth-saml")]
+        s.field("saml", &self.saml);
+        s.field("scim", &self.scim);
+        s.field("admin_sql", &self.admin_sql);
+        s.field("hmac_secret_env", &self.hmac_secret_env);
+        s.field("tls", &self.tls);
+        s.field("database_tls", &self.database_tls);
+        s.field("transaction_retry", &self.transaction_retry);
+        s.field("require_json_content_type", &self.require_json_content_type);
+        s.field("max_request_body_bytes", &self.max_request_body_bytes);
+        s.field("max_header_count", &self.max_header_count);
+        s.field("max_header_bytes", &self.max_header_bytes);
+        s.field("request_timeout_secs", &self.request_timeout_secs);
+        s.field("max_get_query_bytes", &self.max_get_query_bytes);
+        s.field("rate_limiting", &self.rate_limiting);
+        s.field("rate_limit_overrides", &self.rate_limit_overrides);
+        #[cfg(feature = "observers")]
+        s.field("observers", &self.observers);
+        #[cfg(feature = "sources")]
+        s.field("sources", &self.sources);
+        s.field("pool_tuning", &self.pool_tuning);
+        s.field("admission_control", &self.admission_control);
+        s.field("security_contact", &self.security_contact);
+        s.field("validation", &self.validation);
+        s.field("admin_auth_max_failures", &self.admin_auth_max_failures);
+        s.field("storage_token", &self.storage_token);
+        s.field("shutdown_timeout_secs", &self.shutdown_timeout_secs);
+        s.field("usage", &self.usage);
+        s.field("storage", &self.storage);
+        s.field("files", &self.files);
+        #[cfg(feature = "inbound")]
+        s.field("webhooks", &self.webhooks);
+        #[cfg(feature = "inbound")]
+        s.field("inbound_dispatch", &self.inbound_dispatch);
+        #[cfg(feature = "functions-runtime")]
+        s.field("function_dispatch", &self.function_dispatch);
+        #[cfg(feature = "inbound-email")]
+        s.field("mailbox", &self.mailbox);
+        #[cfg(feature = "inbound-email")]
+        s.field("send", &self.send);
+        s.field("tenancy", &self.tenancy);
+        #[cfg(feature = "rest")]
+        s.field("export", &self.export);
+        #[cfg(feature = "auth")]
+        s.field("identity", &self.identity);
+        #[cfg(feature = "auth")]
+        s.field("session_state", &self.session_state);
+        s.field("async_operations", &self.async_operations);
+        s.field("egress", &self.egress);
+        #[cfg(feature = "cdc-outbound")]
+        s.field("cdc_outbound", &self.cdc_outbound);
+        #[cfg(feature = "subscription-kafka")]
+        s.field("subscription_kafka", &self.subscription_kafka);
+        s.finish()
+    }
+}
+
 /// A single `[storage.<name>]` configuration section.
 ///
 /// Combines the storage *backend* connection settings (mapped to
@@ -1355,7 +1493,7 @@ impl Default for SourcesConfig {
 ///
 /// The policy fields (`access`, `max_object_bytes`, `allowed_mime_types`,
 /// `serve_inline`) are optional and default to a private, force-download bucket.
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Clone, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct StorageSectionConfig {
     /// Backend type: `"local"`, `"s3"` (and S3-compatible providers `"hetzner"`,
@@ -1451,6 +1589,29 @@ pub struct StorageSectionConfig {
     /// `?watermark_text=` by name.
     #[serde(default)]
     pub watermark_font: Option<String>,
+}
+
+impl std::fmt::Debug for StorageSectionConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = f.debug_struct("StorageSectionConfig");
+        s.field("backend", &self.backend);
+        s.field("path", &self.path);
+        s.field("bucket", &self.bucket);
+        s.field("region", &self.region);
+        s.field("endpoint", &self.endpoint.as_deref().map(fraiseql_guard::redact::Url));
+        s.field("project_id", &self.project_id);
+        s.field("account_name", &self.account_name);
+        s.field("access", &self.access);
+        s.field("max_object_bytes", &self.max_object_bytes);
+        s.field("allowed_mime_types", &self.allowed_mime_types);
+        s.field("serve_inline", &self.serve_inline);
+        s.field("upload_ttl_secs", &self.upload_ttl_secs);
+        s.field("policies", &self.policies);
+        s.field("transform_presets", &self.transform_presets);
+        s.field("default_resize_mode", &self.default_resize_mode);
+        s.field("watermark_font", &self.watermark_font);
+        s.finish()
+    }
 }
 
 /// One permit rule in a `[[storage.<name>.policies]]` list (#371).

@@ -31,7 +31,7 @@ use crate::{
 };
 
 /// Configuration for NATS `JetStream` transport.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct NatsConfig {
     /// NATS server URL (e.g., "<nats://localhost:4222>")
     pub url: String,
@@ -83,6 +83,26 @@ pub struct NatsConfig {
     ///
     /// Example: `"entity.change.dead-letter"`.
     pub dead_letter_subject: Option<String>,
+}
+
+impl std::fmt::Debug for NatsConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("NatsConfig")
+            .field("url", &fraiseql_guard::redact::Url(&self.url))
+            .field("stream_name", &self.stream_name)
+            .field("consumer_name", &self.consumer_name)
+            .field("subject_prefix", &self.subject_prefix)
+            .field("max_reconnect_attempts", &self.max_reconnect_attempts)
+            .field("reconnect_delay_ms", &self.reconnect_delay_ms)
+            .field("ack_wait_secs", &self.ack_wait_secs)
+            .field("retention_max_messages", &self.retention_max_messages)
+            .field("retention_max_bytes", &self.retention_max_bytes)
+            .field("duplicate_window", &self.duplicate_window)
+            .field("max_age", &self.max_age)
+            .field("max_deliver", &self.max_deliver)
+            .field("dead_letter_subject", &self.dead_letter_subject)
+            .finish()
+    }
 }
 
 impl Default for NatsConfig {

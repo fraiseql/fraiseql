@@ -216,7 +216,7 @@ const fn default_certificate_expiry_warning_days() -> i64 {
 }
 
 /// One `IdP` under `[saml.idps.<name>]`.
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Clone, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct SamlIdpEntry {
     /// `SP` entity ID (the audience the `IdP` asserts to).
@@ -246,6 +246,19 @@ pub struct SamlIdpEntry {
     /// account with the same email. Default `false` (fail-closed).
     #[serde(default)]
     pub trust_asserted_email: bool,
+}
+
+impl std::fmt::Debug for SamlIdpEntry {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = f.debug_struct("SamlIdpEntry");
+        s.field("sp_entity_id", &self.sp_entity_id);
+        s.field("acs_url", &fraiseql_guard::redact::Url(&self.acs_url));
+        s.field("metadata_xml_path", &self.metadata_xml_path);
+        s.field("metadata_xml", &self.metadata_xml);
+        s.field("tenant_id", &self.tenant_id);
+        s.field("trust_asserted_email", &self.trust_asserted_email);
+        s.finish()
+    }
 }
 
 impl SamlServerConfig {

@@ -2391,3 +2391,146 @@ mod refused_in_every_deployment {
         assert!(err.contains("cors_origins is empty in production mode"), "got: {err}");
     }
 }
+
+// ── Config structs print their connection URLs without credentials ────────────
+mod url_credentials {
+    const SECRET: &str = "pw-cfg-5d29";
+
+    fn assert_hidden(name: &str, debug: &str, host: &str) {
+        assert!(debug.contains(host), "{name}'s Debug output no longer names {host}: {debug}");
+        assert!(!debug.contains(SECRET), "{name}'s Debug output carries the password: {debug}");
+    }
+
+    #[test]
+    fn the_server_config_debug_hides_the_passwords() {
+        let config = crate::server_config::ServerConfig {
+            database_url: format!("postgres://app:{SECRET}@db.example.com:5432/app"),
+            read_replica_urls: vec![format!(
+                "postgres://app:{SECRET}@replica.example.com:5432/app"
+            )],
+            otlp_endpoint: Some(format!("https://otel:{SECRET}@otel.example.com:4318")),
+            ..crate::server_config::ServerConfig::default()
+        };
+        let debug = format!("{config:?}");
+        assert_hidden("ServerConfig", &debug, "db.example.com");
+        assert_hidden("ServerConfig", &debug, "replica.example.com");
+        assert_hidden("ServerConfig", &debug, "otel.example.com");
+    }
+
+    /// Every section `ServerConfig` nests that holds a URL prints it through the same
+    /// rendering: `ServerConfig`'s own `Debug` prints each section with the section's.
+    #[test]
+    #[allow(clippy::field_reassign_with_default)] // Reason: sections are added under their own #[cfg]
+    fn the_server_config_debug_hides_the_passwords_of_its_sections() {
+        fn from<T: serde::de::DeserializeOwned>(value: serde_json::Value) -> T {
+            serde_json::from_value(value).unwrap()
+        }
+        let mut config = crate::server_config::ServerConfig::default();
+        let mut hosts = vec![
+            "issuer.example.com",
+            "jwks.example.com",
+            "trusted.example.com",
+        ];
+        hosts.extend([
+            "trusted-jwks.example.com",
+            "scim.example.com",
+            "s3.example.com",
+        ]);
+        config.auth = Some(from(serde_json::json!({
+            "issuer": format!("https://idp:{SECRET}@issuer.example.com/"),
+            "jwks_uri": format!("https://jwks.example.com/keys?token={SECRET}"),
+            "additional_issuers": [{
+                "issuer": format!("https://idp:{SECRET}@trusted.example.com/"),
+                "jwks_uri": format!("https://trusted-jwks.example.com/keys?token={SECRET}"),
+            }],
+        })));
+        config.scim = Some(from(serde_json::json!({
+            "enabled": true,
+            "base_url": format!("https://scim:{SECRET}@scim.example.com/scim/v2"),
+        })));
+        config.storage.insert(
+            "media".to_string(),
+            from(serde_json::json!({
+                "backend": "s3",
+                "endpoint": format!("https://s3:{SECRET}@s3.example.com"),
+            })),
+        );
+        #[cfg(feature = "auth-saml")]
+        {
+            config.saml = Some(from(serde_json::json!({
+                "idps": {"corp": {
+                    "sp_entity_id": "https://sp.example.com/",
+                    "acs_url": format!("https://sp.example.com/acs?token={SECRET}"),
+                }},
+            })));
+            hosts.push("sp.example.com/acs");
+        }
+        #[cfg(feature = "inbound")]
+        {
+            config.webhooks.insert(
+                "stripe".to_string(),
+                from(serde_json::json!({
+                    "provider": "stripe",
+                    "public_url": format!("https://hooks.example.com/in?token={SECRET}"),
+                    "jwks_uri": format!("https://hook-jwks.example.com/keys?token={SECRET}"),
+                })),
+            );
+            hosts.extend(["hooks.example.com", "hook-jwks.example.com"]);
+        }
+        #[cfg(feature = "cdc-outbound")]
+        {
+            config.cdc_outbound = Some(from(serde_json::json!({
+                "sinks": [{
+                    "name": "bus",
+                    "kind": "nats-jetstream",
+                    "endpoint": format!("tls://bus:{SECRET}@nats.example.com:4222"),
+                    "subject_template": "cdc.{table}",
+                }],
+            })));
+            hosts.push("nats.example.com");
+        }
+        #[cfg(feature = "subscription-kafka")]
+        {
+            config.subscription_kafka = Some(from(serde_json::json!({
+                "endpoint": format!("kafka+sasl-ssl://bus:{SECRET}@kafka.example.com:9093"),
+            })));
+            hosts.push("kafka.example.com");
+        }
+        let debug = format!("{config:?}");
+        for host in hosts {
+            assert_hidden("ServerConfig (sections)", &debug, host);
+        }
+    }
+
+    #[test]
+    fn the_tenant_pool_config_debug_hides_the_passwords() {
+        let config: crate::tenancy::pool_factory::TenantPoolConfig = serde_json::from_value(serde_json::json!({
+            "connection_string": format!("postgres://t1:{SECRET}@tenant.example.com:5432/t1"),
+            "read_replica_urls": [format!("postgres://t1:{SECRET}@tenant-replica.example.com:5432/t1")],
+        }))
+        .unwrap();
+        let debug = format!("{config:?}");
+        assert_hidden("TenantPoolConfig", &debug, "tenant.example.com");
+        assert_hidden("TenantPoolConfig", &debug, "tenant-replica.example.com");
+    }
+
+    #[cfg(feature = "cli")]
+    #[test]
+    fn the_server_args_debug_hides_the_password() {
+        let args = crate::cli::ServerArgs {
+            database_url: Some(format!("postgres://app:{SECRET}@db.example.com:5432/app")),
+            ..crate::cli::ServerArgs::default()
+        };
+        assert_hidden("ServerArgs", &format!("{args:?}"), "db.example.com");
+    }
+
+    #[cfg(feature = "observers")]
+    #[test]
+    fn the_observer_redis_config_debug_hides_the_password() {
+        let config = crate::server_config::observers::ObserverRedisConfig {
+            url: format!("redis://cache:{SECRET}@redis.example.com:6379"),
+            ..crate::server_config::observers::ObserverRedisConfig::default()
+        };
+        assert_hidden("ObserverRedisConfig", &format!("{config:?}"), "redis.example.com");
+    }
+}

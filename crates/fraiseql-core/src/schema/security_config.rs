@@ -391,7 +391,7 @@ pub const DEFAULT_RATE_LIMIT_MAX_BUCKETS: usize = 100_000;
 /// The single shape for this section: the CLI authors it from TOML and the
 /// server consumes it from the compiled schema, so the two cannot drift (before
 /// #977 each side kept its own copy — with different defaults).
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(default, deny_unknown_fields)]
 pub struct RateLimitingSecurityConfig {
     /// Enable the global limit (default: true, when the table is written).
@@ -509,6 +509,51 @@ pub struct RateLimitingSecurityConfig {
     /// a client whose bucket was evicted starts again with a full one — and never
     /// availability. It is a knob to size to the host, not to tune for protection.
     pub max_buckets: usize,
+}
+
+impl std::fmt::Debug for RateLimitingSecurityConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("RateLimitingSecurityConfig")
+            .field("enabled", &self.enabled)
+            .field("requests_per_second", &self.requests_per_second)
+            .field("burst_size", &self.burst_size)
+            .field("auth_start_max_requests", &self.auth_start_max_requests)
+            .field("auth_start_window_secs", &self.auth_start_window_secs)
+            .field("auth_callback_max_requests", &self.auth_callback_max_requests)
+            .field("auth_callback_window_secs", &self.auth_callback_window_secs)
+            .field("auth_refresh_max_requests", &self.auth_refresh_max_requests)
+            .field("auth_refresh_window_secs", &self.auth_refresh_window_secs)
+            .field("auth_logout_max_requests", &self.auth_logout_max_requests)
+            .field("auth_logout_window_secs", &self.auth_logout_window_secs)
+            .field("auth_otp_send_max_requests", &self.auth_otp_send_max_requests)
+            .field("auth_otp_send_window_secs", &self.auth_otp_send_window_secs)
+            .field("auth_otp_verify_max_requests", &self.auth_otp_verify_max_requests)
+            .field("auth_otp_verify_window_secs", &self.auth_otp_verify_window_secs)
+            .field("auth_password_max_requests", &self.auth_password_max_requests)
+            .field("auth_password_window_secs", &self.auth_password_window_secs)
+            .field("auth_anonymous_signup_max_requests", &self.auth_anonymous_signup_max_requests)
+            .field("auth_anonymous_signup_window_secs", &self.auth_anonymous_signup_window_secs)
+            .field("auth_rules_enabled", &self.auth_rules_enabled)
+            .field("failed_login_max_attempts", &self.failed_login_max_attempts)
+            .field("failed_login_lockout_secs", &self.failed_login_lockout_secs)
+            .field("requests_per_second_per_user", &self.requests_per_second_per_user)
+            .field("redis_url", &self.redis_url.as_deref().map(fraiseql_guard::redact::Url))
+            .field("trust_proxy_headers", &self.trust_proxy_headers)
+            .field("trusted_proxy_cidrs", &self.trusted_proxy_cidrs)
+            .field("max_buckets", &self.max_buckets)
+            .field("auth_mfa_verify_max_requests", &self.auth_mfa_verify_max_requests)
+            .field("auth_mfa_verify_window_secs", &self.auth_mfa_verify_window_secs)
+            .field(
+                "graphql_validation_error_max_requests",
+                &self.graphql_validation_error_max_requests,
+            )
+            .field(
+                "graphql_validation_error_window_secs",
+                &self.graphql_validation_error_window_secs,
+            )
+            .field("redis_url_env", &self.redis_url_env)
+            .finish()
+    }
 }
 
 impl RateLimitingSecurityConfig {
@@ -651,7 +696,7 @@ impl CodeChallengeMethod {
 /// PKCE (Proof Key for Code Exchange) configuration for `[security.pkce]`.
 ///
 /// Requires `state_encryption` to be enabled for secure state storage.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(default, deny_unknown_fields)]
 pub struct PkceSecurityConfig {
     /// Enable PKCE for OAuth Authorization Code flows.
@@ -673,6 +718,18 @@ pub struct PkceSecurityConfig {
     /// credential belongs here rather than in `redis_url`. At most one of the two is set.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub redis_url_env:         Option<String>,
+}
+
+impl std::fmt::Debug for PkceSecurityConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PkceSecurityConfig")
+            .field("enabled", &self.enabled)
+            .field("code_challenge_method", &self.code_challenge_method)
+            .field("state_ttl_secs", &self.state_ttl_secs)
+            .field("redis_url", &self.redis_url.as_deref().map(fraiseql_guard::redact::Url))
+            .field("redis_url_env", &self.redis_url_env)
+            .finish()
+    }
 }
 
 impl Default for PkceSecurityConfig {
@@ -776,7 +833,7 @@ impl Default for TrustedDocumentsConfig {
 }
 
 /// Token revocation configuration for `[security.token_revocation]`.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(default, deny_unknown_fields)]
 pub struct TokenRevocationSecurityConfig {
     /// Enable token revocation.
@@ -811,6 +868,20 @@ pub struct TokenRevocationSecurityConfig {
     /// longest validity.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub revoke_all_ttl_secs: Option<u64>,
+}
+
+impl std::fmt::Debug for TokenRevocationSecurityConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("TokenRevocationSecurityConfig")
+            .field("enabled", &self.enabled)
+            .field("backend", &self.backend)
+            .field("require_jti", &self.require_jti)
+            .field("fail_open", &self.fail_open)
+            .field("redis_url", &self.redis_url.as_deref().map(fraiseql_guard::redact::Url))
+            .field("revoke_all_ttl_secs", &self.revoke_all_ttl_secs)
+            .field("redis_url_env", &self.redis_url_env)
+            .finish()
+    }
 }
 
 impl Default for TokenRevocationSecurityConfig {

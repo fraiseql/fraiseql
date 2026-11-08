@@ -68,7 +68,7 @@ const fn default_flush_interval_secs() -> u64 {
 /// Carrying one there is refused too, by `scheme::build_scheme` — see
 /// [`SchemeError::IrrelevantKey`](fraiseql_webhooks::SchemeError::IrrelevantKey).
 #[cfg(feature = "webhooks")]
-#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Clone, Default, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct WebhookRouteConfig {
     /// Name of the environment variable that holds the webhook signing secret.
@@ -177,6 +177,30 @@ pub struct WebhookRouteConfig {
     /// reused token would have every retry past a FraiseQL-chosen age refused.
     #[serde(default)]
     pub max_age_secs: Option<u64>,
+}
+
+#[cfg(feature = "webhooks")]
+impl std::fmt::Debug for WebhookRouteConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = f.debug_struct("WebhookRouteConfig");
+        s.field("secret_env", &self.secret_env);
+        s.field("provider", &self.provider);
+        s.field("path", &self.path);
+        s.field("public_url", &self.public_url.as_deref().map(fraiseql_guard::redact::Url));
+        s.field("credential", &self.credential);
+        s.field("encoding", &self.encoding);
+        s.field("prefix", &self.prefix);
+        s.field("header_prefix", &self.header_prefix);
+        s.field("jwks_uri", &self.jwks_uri.as_deref().map(fraiseql_guard::redact::Url));
+        s.field("algorithms", &self.algorithms);
+        s.field("audience", &self.audience);
+        s.field("event_type_claim", &self.event_type_claim);
+        s.field("payload_claim", &self.payload_claim);
+        s.field("id_claim", &self.id_claim);
+        s.field("body_hash_claim", &self.body_hash_claim);
+        s.field("max_age_secs", &self.max_age_secs);
+        s.finish()
+    }
 }
 
 #[cfg(feature = "webhooks")]

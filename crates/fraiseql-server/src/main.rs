@@ -107,27 +107,6 @@ fn init_tracing(config: &ServerConfig, is_json: bool, to_stderr: bool) {
     }
 }
 
-/// Redact credentials from an endpoint URL before logging.
-///
-/// If the URL contains userinfo (`user:pass@host`), the credentials are replaced
-/// with `[REDACTED]`.  Non-URL strings and parse failures are returned as-is with
-/// no credential risk (they don't contain structured userinfo).
-#[cfg(feature = "tracing-opentelemetry")]
-fn redact_endpoint_credentials(endpoint: &str) -> String {
-    match url::Url::parse(endpoint) {
-        Ok(mut parsed) => {
-            if !parsed.username().is_empty() || parsed.password().is_some() {
-                // Reason: infallible for valid URLs — set_username / set_password
-                // only fail on `cannot-be-a-base` URLs which have a scheme.
-                let _ = parsed.set_username("[REDACTED]");
-                let _ = parsed.set_password(None);
-            }
-            parsed.to_string()
-        },
-        Err(_) => endpoint.to_string(),
-    }
-}
-
 /// Resolve the OTLP endpoint from config or environment, returning `None` if
 /// neither is set (meaning OTLP export should be skipped entirely).
 #[cfg(feature = "tracing-opentelemetry")]
@@ -164,7 +143,7 @@ where
         .map_err(|e| {
             eprintln!(
                 "Failed to build OTLP exporter for {}: {e}",
-                redact_endpoint_credentials(&endpoint)
+                fraiseql_guard::redact::Url(&endpoint)
             );
         })
         .ok()?;
@@ -181,7 +160,7 @@ where
     let tracer = provider.tracer("fraiseql");
     eprintln!(
         "OTLP tracing export enabled: endpoint={}, service_name={}",
-        redact_endpoint_credentials(&endpoint),
+        fraiseql_guard::redact::Url(&endpoint),
         config.tracing_service_name
     );
 
@@ -388,7 +367,7 @@ async fn main() -> anyhow::Result<()> {
     tracing::info!("FraiseQL Server v{}", env!("CARGO_PKG_VERSION"));
     tracing::info!(
         bind_addr = %config.bind_addr,
-        database_url = %config.database_url,
+        database_url = %fraiseql_guard::redact::Url(&config.database_url),
         graphql_path = %config.graphql_path,
         health_path = %config.health_path,
         introspection_path = %config.introspection_path,

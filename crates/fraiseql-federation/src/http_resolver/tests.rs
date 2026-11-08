@@ -435,3 +435,41 @@ async fn the_dispatch_time_check_refuses_a_blocked_destination() {
         .await
         .expect("an allowed literal passes without a lookup");
 }
+
+// ── A credential in the subgraph URL never reaches a refusal ──────────────────
+
+const SECRET: &str = "pw-fed-5d22";
+
+fn hidden(site: &str, err: &fraiseql_error::FraiseQLError, expected: &str) {
+    let text = err.to_string();
+    assert!(text.contains(expected), "{site}: another refusal fired: {text}");
+    assert!(!text.contains(SECRET), "{site} wrote the URL's credentials: {text}");
+}
+
+#[test]
+fn the_subgraph_scheme_refusal_hides_the_password() {
+    let err = validate_subgraph_url(&format!("http://gw:{SECRET}@subgraph.example.com/graphql"))
+        .unwrap_err();
+    hidden("validate_subgraph_url (scheme)", &err, "must use https://");
+}
+
+#[test]
+fn the_subgraph_parse_refusal_hides_the_password() {
+    let err = validate_subgraph_url(&format!("https://gw:{SECRET}@sub graph.example.com/graphql"))
+        .unwrap_err();
+    hidden("validate_subgraph_url (parse)", &err, "not a valid URL");
+}
+
+#[tokio::test]
+async fn the_dns_check_parse_refusal_hides_the_password() {
+    let err = dns_resolve_and_check(&format!("https://gw:{SECRET}@sub graph.example.com/graphql"))
+        .await
+        .unwrap_err();
+    hidden("dns_resolve_and_check (parse)", &err, "Invalid URL");
+}
+
+#[tokio::test]
+async fn the_dns_check_no_host_refusal_hides_the_secret() {
+    let err = dns_resolve_and_check(&format!("data:text/plain,{SECRET}")).await.unwrap_err();
+    hidden("dns_resolve_and_check (no host)", &err, "no host");
+}

@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use crate::error::{ObserverError, Result};
 
 /// Redis configuration for the cache-invalidation action
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct RedisConfig {
     /// Redis connection URL (e.g., `redis://localhost:6379`)
@@ -29,6 +29,18 @@ pub struct RedisConfig {
     /// Cache TTL in seconds (default: 60)
     #[serde(default = "default_cache_ttl_secs")]
     pub cache_ttl_secs: u64,
+}
+
+impl std::fmt::Debug for RedisConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("RedisConfig")
+            .field("url", &fraiseql_guard::redact::Url(&self.url))
+            .field("pool_size", &self.pool_size)
+            .field("connect_timeout_secs", &self.connect_timeout_secs)
+            .field("command_timeout_secs", &self.command_timeout_secs)
+            .field("cache_ttl_secs", &self.cache_ttl_secs)
+            .finish()
+    }
 }
 
 fn default_redis_url() -> String {

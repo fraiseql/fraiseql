@@ -34,7 +34,7 @@ use serde::{Deserialize, Serialize};
 /// timeout_ms = 5000
 /// compression = "lz4"
 /// ```
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(default, deny_unknown_fields)]
 pub struct SubscriptionKafkaConfig {
     /// The broker endpoint, **scheme first**: `kafka+ssl://`, `kafka+sasl-ssl://`, or
@@ -61,6 +61,18 @@ pub struct SubscriptionKafkaConfig {
     /// `compression.type` (`"lz4"`, `"gzip"`, `"snappy"`, `"zstd"`), or unset.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub compression: Option<String>,
+}
+
+impl std::fmt::Debug for SubscriptionKafkaConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = f.debug_struct("SubscriptionKafkaConfig");
+        s.field("endpoint", &fraiseql_guard::redact::Url(&self.endpoint));
+        s.field("default_topic", &self.default_topic);
+        s.field("client_id", &self.client_id);
+        s.field("timeout_ms", &self.timeout_ms);
+        s.field("compression", &self.compression);
+        s.finish()
+    }
 }
 
 impl Default for SubscriptionKafkaConfig {

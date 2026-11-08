@@ -439,7 +439,7 @@ impl Server {
         // could point it at internal services; block that at spawn time.
         if is_manifest_url_ssrf_blocked(&url) {
             tracing::error!(
-                url = %url,
+                url = %fraiseql_guard::redact::Url(&url),
                 "Trusted documents manifest URL targets a private/loopback address \
                  (SSRF protection) — hot-reload disabled"
             );
@@ -492,13 +492,17 @@ impl Server {
                         } else {
                             warn!(
                                 %status,
-                                %url,
+                                url = %fraiseql_guard::redact::Url(&url),
                                 "Trusted documents manifest fetch returned non-success — skipping reload"
                             );
                         }
                     },
                     Err(e) => {
-                        warn!(error = %e, "Failed to fetch trusted documents manifest");
+                        warn!(
+                            error = %e.without_url(),
+                            url = %fraiseql_guard::redact::Url(&url),
+                            "Failed to fetch trusted documents manifest"
+                        );
                     },
                 }
             }
@@ -1420,7 +1424,7 @@ async fn read_capped_body(
     }
     let mut body = Vec::new();
     let mut response = response;
-    while let Some(chunk) = response.chunk().await.map_err(|e| e.to_string())? {
+    while let Some(chunk) = response.chunk().await.map_err(|e| e.without_url().to_string())? {
         if body.len() + chunk.len() > max_bytes {
             return Err(format!("response exceeds {max_bytes} bytes"));
         }
