@@ -29,18 +29,15 @@ use std::{path::PathBuf, sync::Arc};
 
 use fraiseql_cli::commands::compile::{CompileOptions, compile_to_schema};
 use fraiseql_core::{db::postgres::PostgresAdapter, schema::CompiledSchema};
-use fraiseql_server::{
-    Server,
-    server_config::{Hs256Config, ServerConfig},
-};
-use fraiseql_test_support::try_database_url;
+use fraiseql_server::{Server, server_config::ServerConfig};
+use fraiseql_test_support::{issuer::TestIssuer, try_database_url};
 use serde_json::{Value, json};
 
+mod common;
+
+use crate::common::test_issuer::oidc_config;
+
 const DATABASE: &str = "fraiseql_example_localized_catalog";
-const SECRET: &str = "fraiseql-catalog-secret-exactly-32";
-const SECRET_ENV: &str = "FRAISEQL_CATALOG_HS256_SECRET";
-const ISSUER: &str = "https://catalog.fraiseql.test";
-const AUDIENCE: &str = "fraiseql-catalog";
 const ALICE_TENANT: &str = "00000000-0000-0000-0000-0000000000a1";
 const APPLE: &str = "00000000-0000-0000-0000-000000000001";
 
@@ -103,20 +100,17 @@ async fn provision(url: &str) -> String {
 
 struct Running {
     base:      String,
+    issuer:    TestIssuer,
     _shutdown: tokio::sync::oneshot::Sender<()>,
 }
 
-/// The server, configured as the example's README shows: HS256 tokens, and
+/// The server, configured as the example's README shows: an OIDC issuer's tokens, and
 /// `[identity.enrichment]` reading the caller's tenant locale.
 async fn start(url: &str, schema: CompiledSchema) -> Running {
-    std::env::set_var(SECRET_ENV, SECRET);
+    let issuer = TestIssuer::start().await;
     let mut config = ServerConfig {
         database_url: url.to_string(),
-        auth_hs256: Some(Hs256Config {
-            secret_env: SECRET_ENV.to_string(),
-            issuer:     Some(ISSUER.to_string()),
-            audience:   Some(AUDIENCE.to_string()),
-        }),
+        auth: Some(oidc_config(&issuer, true)),
         cors_enabled: false,
         cache_enabled: true,
         ..ServerConfig::default()
@@ -146,24 +140,15 @@ async fn start(url: &str, schema: CompiledSchema) -> Running {
     });
     tokio::time::sleep(std::time::Duration::from_millis(300)).await;
     Running {
-        base:      format!("http://127.0.0.1:{port}"),
+        base: format!("http://127.0.0.1:{port}"),
+        issuer,
         _shutdown: tx,
     }
 }
 
-fn token(sub: &str, tenant_id: &str) -> String {
-    use jsonwebtoken::{Algorithm, EncodingKey, Header, encode};
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
-        .as_secs();
-    encode(
-        &Header::new(Algorithm::HS256),
-        &json!({ "sub": sub, "tenant_id": tenant_id, "iss": ISSUER, "aud": AUDIENCE,
-                 "iat": now, "exp": now + 3600 }),
-        &EncodingKey::from_secret(SECRET.as_bytes()),
-    )
-    .unwrap()
+fn token(server: &Running, sub: &str, tenant_id: &str) -> String {
+    let issuer = &server.issuer;
+    issuer.mint(&issuer.claims().set("sub", sub).set("tenant_id", tenant_id))
 }
 
 async fn graphql(server: &Running, query: &str, accept: Option<&str>, auth: Option<&str>) -> Value {
@@ -209,9 +194,9 @@ async fn the_localized_catalog_example_works_end_to_end() {
     };
     let scratch = provision(&url).await;
     let server = start(&scratch, compile_example().await).await;
-    let alice = token("alice", ALICE_TENANT);
+    let alice = token(&server, "alice", ALICE_TENANT);
     // A visitor, in the guest tenant (stored locale en-US).
-    let visitor = token("visitor", "00000000-0000-0000-0000-0000000000c3");
+    let visitor = token(&server, "visitor", "00000000-0000-0000-0000-0000000000c3");
     let sorted = "(orderBy: { name: ASC })";
 
     // The browser's locale wins over the stored one: fr-CA → fr-FR → fr → en-US.

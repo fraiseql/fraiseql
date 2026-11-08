@@ -992,14 +992,16 @@ mod credential_tests {
         mcp::handler::{FraiseQLMcpService, McpTokenValidator},
         routes::graphql::AppState,
         service_account::AMBIGUOUS_CREDENTIALS,
+        testing::idp::TestIdp,
     };
 
     const SECRET: &str = "fraiseql-mcp-credential-secret-32";
     const STATIC_KEY: &str = "mcp-static-key";
     const ACCOUNT_SECRET: &str = "mcp-account-secret";
 
-    /// An MCP service whose `users` tool requires an authenticated caller.
-    fn service() -> FraiseQLMcpService {
+    /// An MCP service whose `users` tool requires an authenticated caller, its bearer
+    /// tokens checked by `validator`.
+    fn service_with(validator: McpTokenValidator) -> FraiseQLMcpService {
         let schema = TestSchemaBuilder::new()
             .with_type(
                 TestTypeBuilder::new("User", "v_users")
@@ -1028,8 +1030,18 @@ mod credential_tests {
                 ..McpConfig::default()
             },
         )
-        .with_token_validator(Some(McpTokenValidator::Hs256(Arc::new(
-            AuthMiddleware::from_config(AuthConfig::with_hs256(SECRET)),
+        .with_token_validator(Some(validator))
+    }
+
+    /// The service with bearer tokens issued by `idp`.
+    fn service(idp: &TestIdp) -> FraiseQLMcpService {
+        service_with(McpTokenValidator::Oidc(idp.validator(true)))
+    }
+
+    /// The service with HS256 bearer tokens, for the expiry case alone.
+    fn hs256_service() -> FraiseQLMcpService {
+        service_with(McpTokenValidator::Hs256(Arc::new(AuthMiddleware::from_config(
+            AuthConfig::with_hs256(SECRET),
         ))))
     }
 
@@ -1044,14 +1056,33 @@ mod credential_tests {
         .unwrap()
     }
 
-    async fn call(token: Option<String>, api_key: Option<&str>) -> CallToolResult {
+    /// A `users` call to `service` with `token` as the bearer and `api_key` as `x-api-key`.
+    async fn call_on(
+        service: FraiseQLMcpService,
+        token: Option<String>,
+        api_key: Option<&str>,
+    ) -> CallToolResult {
         let mut headers = http::HeaderMap::new();
         if let Some(key) = api_key {
             headers.insert("x-api-key", key.parse().unwrap());
         }
-        service()
+        service
             .call_tool_authenticated("users", None, token, "req-1".to_string(), &headers)
             .await
+    }
+
+    /// A `users` call to the HS256 service.
+    async fn call(token: Option<String>, api_key: Option<&str>) -> CallToolResult {
+        call_on(hs256_service(), token, api_key).await
+    }
+
+    /// A `users` call to the service `idp` issues tokens for.
+    async fn call_as(
+        idp: &TestIdp,
+        token: Option<String>,
+        api_key: Option<&str>,
+    ) -> CallToolResult {
+        call_on(service(idp), token, api_key).await
     }
 
     fn text(result: &CallToolResult) -> String {
@@ -1064,25 +1095,30 @@ mod credential_tests {
 
     #[tokio::test]
     async fn a_service_account_secret_is_admitted_as_its_account() {
-        let result = call(None, Some(ACCOUNT_SECRET)).await;
+        let idp = TestIdp::start().await;
+        let result = call_as(&idp, None, Some(ACCOUNT_SECRET)).await;
         assert_ne!(result.is_error, Some(true), "{}", text(&result));
     }
 
     #[tokio::test]
     async fn a_static_api_key_is_admitted_as_its_principal() {
-        let result = call(None, Some(STATIC_KEY)).await;
+        let idp = TestIdp::start().await;
+        let result = call_as(&idp, None, Some(STATIC_KEY)).await;
         assert_ne!(result.is_error, Some(true), "{}", text(&result));
     }
 
     #[tokio::test]
     async fn an_api_key_that_matches_none_is_refused() {
-        assert_eq!(text(&call(None, Some("not-a-key")).await), INVALID_API_KEY);
+        let idp = TestIdp::start().await;
+        assert_eq!(text(&call_as(&idp, None, Some("not-a-key")).await), INVALID_API_KEY);
     }
 
     #[tokio::test]
     async fn a_bearer_beside_a_service_account_secret_is_refused_as_ambiguous() {
+        let idp = TestIdp::start().await;
+        let bearer = idp.token("alice", "jti-ambiguous");
         assert_eq!(
-            text(&call(Some(token(3600)), Some(ACCOUNT_SECRET)).await),
+            text(&call_as(&idp, Some(bearer), Some(ACCOUNT_SECRET)).await),
             AMBIGUOUS_CREDENTIALS
         );
     }
@@ -1097,10 +1133,12 @@ mod credential_tests {
     /// change log records (#376): one from a bearer token and one from a service account.
     #[tokio::test]
     async fn every_admitted_principal_records_the_mcp_transport() {
+        let idp = TestIdp::start().await;
         let mut secret = http::HeaderMap::new();
         secret.insert("x-api-key", ACCOUNT_SECRET.parse().unwrap());
-        for (token, headers) in [(Some(token(3600)), http::HeaderMap::new()), (None, secret)] {
-            let identified = service()
+        let bearer = idp.token("alice", "jti-transport");
+        for (token, headers) in [(Some(bearer), http::HeaderMap::new()), (None, secret)] {
+            let identified = service(&idp)
                 .authenticate(token, "req-1".to_string(), &headers)
                 .await
                 .map_err(|refused| text(&refused))
@@ -1114,7 +1152,8 @@ mod credential_tests {
     /// credentials', not the fixture's.
     #[tokio::test]
     async fn a_valid_bearer_token_is_admitted() {
-        let result = call(Some(token(3600)), None).await;
+        let idp = TestIdp::start().await;
+        let result = call_as(&idp, Some(idp.token("alice", "jti-valid")), None).await;
         assert_ne!(result.is_error, Some(true), "{}", text(&result));
     }
 }

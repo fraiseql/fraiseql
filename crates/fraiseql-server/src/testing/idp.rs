@@ -4,7 +4,7 @@
 use std::sync::Arc;
 
 use fraiseql_core::security::{OidcConfig, OidcValidator};
-use fraiseql_test_support::issuer::TestIssuer;
+use fraiseql_test_support::issuer::{Claims, TestIssuer};
 
 /// A running issuer. Dropping it stops the server.
 pub struct TestIdp {
@@ -48,10 +48,23 @@ impl TestIdp {
         )
     }
 
+    /// The default claims for `sub`, ready for a test to add the claims it needs before
+    /// [`mint`](Self::mint).
+    #[must_use]
+    pub fn claims(&self, sub: &str) -> Claims {
+        self.issuer.claims().set("sub", sub)
+    }
+
+    /// A token carrying exactly `claims`, signed with this issuer's key.
+    #[must_use]
+    pub fn mint(&self, claims: &Claims) -> String {
+        self.issuer.mint(claims)
+    }
+
     /// A token for `sub` carrying `jti`, signed with this issuer's key.
     #[must_use]
     pub fn token(&self, sub: &str, jti: &str) -> String {
-        self.issuer.mint(&self.issuer.claims().set("sub", sub).set("jti", jti))
+        self.mint(&self.claims(sub).set("jti", jti))
     }
 
     /// A token for `sub` carrying `jti`, naming this issuer's `kid` but signed by a

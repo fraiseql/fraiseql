@@ -1,8 +1,7 @@
 cors_enabled = false
 
-[auth_hs256]
-secret_env = "FRAISEQL_HS256_SECRET"
-issuer = "capability-fixtures"
+[auth]
+issuer = "$RECEIVER_URL"
 audience = "fraiseql"
 
 [identity.enrichment]

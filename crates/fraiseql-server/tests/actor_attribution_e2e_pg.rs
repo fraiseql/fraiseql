@@ -5,7 +5,7 @@
 //! The executor-level stamping is pinned in `fraiseql-core`
 //! (`changelog_outbox_e2e.rs`) with hand-built `SecurityContext`s, and the claim
 //! derivation in `security/actor_type/tests.rs`. What only this shape can observe
-//! is the full chain the binary actually runs: HS256 validation →
+//! is the full chain the binary actually runs: OIDC validation →
 //! `build_security_context` (the one builder every transport calls, #858) →
 //! `derive_actor` → mutation runner → in-transaction outbox stamp. It drives both
 //! mounted HTTP write transports — `POST /graphql` and the REST write surface —
@@ -26,7 +26,6 @@
 //! same process as another changelog-owning binary.
 #![cfg(feature = "rest")]
 #![allow(clippy::unwrap_used, clippy::panic, clippy::print_stderr)] // Reason: test code — panics and skip diagnostics are acceptable
-#![allow(clippy::future_not_send)] // Reason: temp_env's env-guard makes boot() non-Send; each test runs it on its own tokio runtime
 
 use std::sync::Arc;
 
@@ -38,19 +37,15 @@ use fraiseql_core::{
         MutationOperation, QueryDefinition, RestConfig, TypeDefinition,
     },
 };
-use fraiseql_server::server_config::{Hs256Config, ServerConfig};
-use fraiseql_test_support::try_database_url;
+use fraiseql_server::server_config::ServerConfig;
+use fraiseql_test_support::{issuer::TestIssuer, try_database_url};
 use serde_json::{Value, json};
 
 mod common;
 
-use crate::common::server_harness::TestServer;
+use crate::common::{server_harness::TestServer, test_issuer::oidc_config};
 
 const SCHEMA: &str = "p29_actor";
-const SECRET_ENV: &str = "FRAISEQL_TEST_P29_ACTOR_HS256_SECRET";
-const SECRET: &str = "p29-actor-secret-0123456789-0123456789";
-const ISSUER: &str = "https://actor.test.fraiseql";
-const AUDIENCE: &str = "actor-test";
 
 /// The human subject: UUID-shaped, so a delegated token's `acting_for` resolves.
 const HUMAN_SUB: &str = "5a1e0000-0000-4000-8000-000000000390";
@@ -145,53 +140,19 @@ fn schema() -> CompiledSchema {
     schema
 }
 
-fn config() -> ServerConfig {
+fn config(issuer: &TestIssuer) -> ServerConfig {
     ServerConfig {
-        auth_hs256: Some(Hs256Config {
-            secret_env: SECRET_ENV.to_string(),
-            issuer:     Some(ISSUER.to_string()),
-            audience:   Some(AUDIENCE.to_string()),
-        }),
+        auth: Some(oidc_config(issuer, true)),
         cors_enabled: false,
         ..ServerConfig::default()
     }
-}
-
-/// Mint an HS256 token whose base claims are valid and whose `extra` claims are
-/// merged in — the knob each test case turns.
-fn mint(sub: &str, extra: &Value) -> String {
-    use jsonwebtoken::{Algorithm, EncodingKey, Header, encode};
-    let now = i64::try_from(
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .expect("system time")
-            .as_secs(),
-    )
-    .expect("epoch seconds fit i64");
-    let mut claims = json!({
-        "sub": sub,
-        "iss": ISSUER,
-        "aud": AUDIENCE,
-        "iat": now,
-        "exp": now + 3600,
-    });
-    if let (Some(obj), Some(extra_obj)) = (claims.as_object_mut(), extra.as_object()) {
-        for (k, v) in extra_obj {
-            obj.insert(k.clone(), v.clone());
-        }
-    }
-    encode(
-        &Header::new(Algorithm::HS256),
-        &claims,
-        &EncodingKey::from_secret(SECRET.as_bytes()),
-    )
-    .expect("mint token")
 }
 
 struct Rig {
     server:  TestServer,
     adapter: Arc<PostgresAdapter>,
     client:  reqwest::Client,
+    issuer:  TestIssuer,
 }
 
 async fn boot() -> Option<Rig> {
@@ -200,25 +161,35 @@ async fn boot() -> Option<Rig> {
     provision(&adapter).await;
 
     // A second, server-owned adapter: `Server::new` requires exclusive Arc
-    // ownership for cache wrapping. The secret is scoped to construction so the
-    // process environment stays clean for the rest of the binary (#907).
-    let server = Box::pin(temp_env::async_with_vars(
-        [(SECRET_ENV, Some(SECRET))],
-        TestServer::start_with_rest_writes(
-            config(),
-            schema(),
-            Arc::new(PostgresAdapter::new(&url).await.expect("server adapter")),
-        ),
+    // ownership for cache wrapping.
+    let issuer = TestIssuer::start().await;
+    let server = Box::pin(TestServer::start_with_rest_writes(
+        config(&issuer),
+        schema(),
+        Arc::new(PostgresAdapter::new(&url).await.expect("server adapter")),
     ))
     .await;
     Some(Rig {
         server,
         adapter,
         client: reqwest::Client::new(),
+        issuer,
     })
 }
 
 impl Rig {
+    /// A token from the issuer whose default claims are valid and whose `extra` claims
+    /// are merged in — the knob each test case turns.
+    fn mint(&self, sub: &str, extra: &Value) -> String {
+        let mut claims = self.issuer.claims().set("sub", sub);
+        if let Some(extra) = extra.as_object() {
+            for (name, value) in extra {
+                claims = claims.set(name, value.clone());
+            }
+        }
+        self.issuer.mint(&claims)
+    }
+
     /// Run `createItem` over `POST /graphql` with the given Bearer token.
     async fn graphql_create(&self, label: &str, token: Option<&str>) -> (u16, String) {
         let body = json!({
@@ -318,7 +289,7 @@ async fn every_write_path_records_the_derived_actor() {
     let rig = Box::pin(boot()).await.unwrap();
 
     // 1. An ordinary human JWT → human_user, nobody acted-for.
-    let (s, b) = rig.graphql_create("gql-human", Some(&mint(HUMAN_SUB, &json!({})))).await;
+    let (s, b) = rig.graphql_create("gql-human", Some(&rig.mint(HUMAN_SUB, &json!({})))).await;
     assert_mutation_succeeded(s, &b);
     let (actor, acting_for) = rig.recorded_actor("gql-human").await.expect("row written");
     assert_eq!(actor.as_deref(), Some("human_user"));
@@ -326,7 +297,7 @@ async fn every_write_path_records_the_derived_actor() {
 
     // 2. RFC 8693 delegation: an agent acting for the human subject → ai_agent, acting_for = the
     //    token's sub (the human).
-    let agent = mint(HUMAN_SUB, &json!({ "act": { "sub": "agent-runner-1" } }));
+    let agent = rig.mint(HUMAN_SUB, &json!({ "act": { "sub": "agent-runner-1" } }));
     let (s, b) = rig.graphql_create("gql-agent", Some(&agent)).await;
     assert_mutation_succeeded(s, &b);
     let (actor, acting_for) = rig.recorded_actor("gql-agent").await.expect("row written");
@@ -335,7 +306,7 @@ async fn every_write_path_records_the_derived_actor() {
 
     // 2b. A delegation whose issuer marks the delegate human (#1401): a person acting for the
     //     subject is human_user, still recorded as acting for the token's sub.
-    let support = mint(
+    let support = rig.mint(
         HUMAN_SUB,
         &json!({ "act": { "sub": "support-ada", "actor_type": "human_user" } }),
     );
@@ -346,14 +317,14 @@ async fn every_write_path_records_the_derived_actor() {
     assert_eq!(acting_for.as_deref(), Some(HUMAN_SUB), "acting_for = the customer");
 
     // 3. A service-account token (OAuth2 `scope` claim) → service_account.
-    let svc = mint("svc-batch-1", &json!({ "scope": "service_account" }));
+    let svc = rig.mint("svc-batch-1", &json!({ "scope": "service_account" }));
     let (s, b) = rig.graphql_create("gql-svc", Some(&svc)).await;
     assert_mutation_succeeded(s, &b);
     let (actor, _) = rig.recorded_actor("gql-svc").await.expect("row written");
     assert_eq!(actor.as_deref(), Some("service_account"));
 
     // 4. The REST write surface — same extractor, same derivation, same stamp.
-    let (s, b) = rig.rest_create("rest-human", &mint(HUMAN_SUB, &json!({}))).await;
+    let (s, b) = rig.rest_create("rest-human", &rig.mint(HUMAN_SUB, &json!({}))).await;
     assert!(s == 200 || s == 201, "REST create must succeed (got {s}): {b}");
     let (actor, _) = rig.recorded_actor("rest-human").await.expect("row written");
     assert_eq!(actor.as_deref(), Some("human_user"), "REST write is attributed too");
@@ -382,7 +353,7 @@ async fn forged_actor_claims_are_ignored() {
     }
     let rig = Box::pin(boot()).await.unwrap();
 
-    let forged = mint(
+    let forged = rig.mint(
         HUMAN_SUB,
         &json!({
             "fraiseql.actor_type": "system_job",

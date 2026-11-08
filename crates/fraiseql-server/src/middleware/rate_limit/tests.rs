@@ -1398,7 +1398,7 @@ mod verified_per_user_tests {
 
     /// A budget of one request, so the second from the same bucket is refused. Anything
     /// larger cannot tell "two buckets" from "one generous bucket".
-    fn limiter() -> Arc<RateLimiter> {
+    pub(super) fn limiter() -> Arc<RateLimiter> {
         Arc::new(RateLimiter::new(RateLimitConfig {
             enabled: true,
             rps_per_ip: 1,
@@ -1434,7 +1434,7 @@ mod verified_per_user_tests {
         fraiseql_auth::generate_hs256_token(&claims, secret.as_bytes()).expect("token")
     }
 
-    fn app(limiter: Arc<RateLimiter>, subject: Option<Arc<VerifiedSubject>>) -> Router {
+    pub(super) fn app(limiter: Arc<RateLimiter>, subject: Option<Arc<VerifiedSubject>>) -> Router {
         let mut app = Router::new()
             .route("/graphql", get(|| async { "ok" }))
             .layer(axum::middleware::from_fn(rate_limit_middleware))
@@ -1445,7 +1445,7 @@ mod verified_per_user_tests {
         app
     }
 
-    async fn send(app: &Router, ip: [u8; 4], bearer: Option<&str>) -> StatusCode {
+    pub(super) async fn send(app: &Router, ip: [u8; 4], bearer: Option<&str>) -> StatusCode {
         let mut builder = Request::builder().uri("/graphql");
         if let Some(token) = bearer {
             builder = builder.header("authorization", format!("Bearer {token}"));
@@ -1529,6 +1529,70 @@ mod verified_per_user_tests {
             send(&app, [198, 51, 100, 9], Some(&bob)).await,
             StatusCode::TOO_MANY_REQUESTS,
             "no validator means no per-user bucket, for anyone"
+        );
+    }
+}
+
+/// The same properties with the subject verified by the OIDC validator, against tokens
+/// from the shared test issuer.
+mod verified_per_user_oidc_tests {
+    use std::sync::Arc;
+
+    use axum::http::StatusCode;
+
+    use super::{
+        super::identity::VerifiedSubject,
+        verified_per_user_tests::{app, limiter, send},
+    };
+    use crate::testing::idp::TestIdp;
+
+    fn oidc_subject(idp: &TestIdp) -> Arc<VerifiedSubject> {
+        Arc::new(VerifiedSubject::Oidc(idp.validator(true)))
+    }
+
+    #[tokio::test]
+    async fn two_verified_users_behind_one_ip_do_not_share_a_bucket() {
+        let idp = TestIdp::start().await;
+        let app = app(limiter(), Some(oidc_subject(&idp)));
+        let (alice, bob) = (idp.token("alice", "jti-alice"), idp.token("bob", "jti-bob"));
+
+        assert_eq!(send(&app, [203, 0, 113, 9], Some(&alice)).await, StatusCode::OK);
+        assert_eq!(
+            send(&app, [203, 0, 113, 9], Some(&bob)).await,
+            StatusCode::OK,
+            "bob's first request must not be refused by alice's spent budget — same IP, \
+             different verified subject"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_verified_user_is_still_limited() {
+        let idp = TestIdp::start().await;
+        let app = app(limiter(), Some(oidc_subject(&idp)));
+        let alice = idp.token("alice", "jti-alice");
+
+        assert_eq!(send(&app, [203, 0, 113, 9], Some(&alice)).await, StatusCode::OK);
+        assert_eq!(
+            send(&app, [203, 0, 113, 9], Some(&alice)).await,
+            StatusCode::TOO_MANY_REQUESTS,
+            "a verified subject gets its own bucket, not a bypass"
+        );
+    }
+
+    /// A token the issuer did not sign yields no subject, so varying `sub` on it mints
+    /// nothing: the second identity from the address hits the address bucket.
+    #[tokio::test]
+    async fn a_foreign_signed_token_cannot_mint_a_bucket() {
+        let idp = TestIdp::start().await;
+        let app = app(limiter(), Some(oidc_subject(&idp)));
+        let forged_one = idp.foreign_token("attacker-1", "jti-1");
+        let forged_two = idp.foreign_token("attacker-2", "jti-2");
+
+        assert_eq!(send(&app, [198, 51, 100, 7], Some(&forged_one)).await, StatusCode::OK);
+        assert_eq!(
+            send(&app, [198, 51, 100, 7], Some(&forged_two)).await,
+            StatusCode::TOO_MANY_REQUESTS,
+            "a second forged identity from the same address must hit the same IP bucket"
         );
     }
 }

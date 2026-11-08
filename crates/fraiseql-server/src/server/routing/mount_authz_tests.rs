@@ -16,7 +16,7 @@ use fraiseql_test_utils::failing_adapter::FailingAdapter;
 use http::{Request, StatusCode};
 use tower::ServiceExt;
 
-use crate::{server::Server, server_config::ServerConfig};
+use crate::{server::Server, server_config::ServerConfig, testing::idp::TestIdp};
 
 /// Build a `Server` from the given config with an empty schema and a healthy
 /// mock adapter (no OIDC validator unless the config requests one — which these
@@ -139,7 +139,7 @@ mod mcp_host_check {
 
     const INITIALIZE: &str = r#"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"t","version":"0"}}}"#;
 
-    async fn mounted_mcp(require_auth: bool) -> Router {
+    async fn mounted_mcp(idp: &TestIdp, require_auth: bool) -> Router {
         let mut schema = CompiledSchema::new();
         schema.mcp_config = Some(fraiseql_core::schema::McpConfig {
             enabled: true,
@@ -148,19 +148,14 @@ mod mcp_host_check {
             require_auth,
             ..fraiseql_core::schema::McpConfig::default()
         });
-        std::env::set_var("FRAISEQL_TEST_MCP_HOST_HS256", "mcp-host-check-hs256-secret-32by!");
         let config = ServerConfig {
             cors_enabled: false,
-            auth_hs256: Some(crate::server_config::hs256::Hs256Config {
-                secret_env: "FRAISEQL_TEST_MCP_HOST_HS256".to_string(),
-                issuer:     None,
-                audience:   Some("fraiseql".to_string()),
-            }),
+            auth: Some(idp.oidc_config(true)),
             ..ServerConfig::default()
         };
         let server = Box::pin(Server::new(config, schema, Arc::new(FailingAdapter::new()), None))
             .await
-            .expect("Server::new with [mcp] and [auth_hs256]");
+            .expect("Server::new with [mcp] and [auth]");
         let state = server.build_app_state();
         server.mount_extensions(Router::new(), &state)
     }
@@ -177,7 +172,8 @@ mod mcp_host_check {
 
     #[tokio::test]
     async fn with_require_auth_the_deployments_hostname_is_served() {
-        let app = mounted_mcp(true).await;
+        let idp = TestIdp::start().await;
+        let app = mounted_mcp(&idp, true).await;
         for host in ["api.example.com", "tenant-a.example.com:8443"] {
             assert_eq!(initialize_status(app.clone(), host).await, StatusCode::OK, "{host}");
         }
@@ -185,7 +181,8 @@ mod mcp_host_check {
 
     #[tokio::test]
     async fn without_require_auth_a_foreign_host_is_refused() {
-        let app = mounted_mcp(false).await;
+        let idp = TestIdp::start().await;
+        let app = mounted_mcp(&idp, false).await;
         assert_eq!(initialize_status(app.clone(), "localhost").await, StatusCode::OK);
         assert_eq!(initialize_status(app, "attacker.example").await, StatusCode::FORBIDDEN);
     }
@@ -345,29 +342,21 @@ mod ws_admission {
     use super::*;
     use crate::routes::graphql::TenantExecutorRegistry;
 
-    const SECRET_ENV: &str = "FRAISEQL_TEST_WS_HS256";
-    const SECRET: &str = "ws-admission-hs256-secret-32-by!";
-
-    /// The server's `/ws` under `[auth_hs256]`, with tenant `acme` registered (suspended
-    /// when `suspended`), served on an ephemeral port.
-    async fn mounted_ws(require_auth: bool, suspended: bool) -> String {
+    /// The server's `/ws` behind `idp`, with tenant `acme` registered (suspended when
+    /// `suspended`), served on an ephemeral port.
+    async fn mounted_ws(idp: &TestIdp, require_auth: bool, suspended: bool) -> String {
         let mut schema = CompiledSchema::new();
         schema.subscriptions.push(SubscriptionDefinition::new("orderChanged", "Order"));
-        std::env::set_var(SECRET_ENV, SECRET);
         let config = ServerConfig {
             cors_enabled: false,
             subscriptions_enabled: true,
             subscription_require_auth: Some(require_auth),
-            auth_hs256: Some(crate::server_config::hs256::Hs256Config {
-                secret_env: SECRET_ENV.to_string(),
-                issuer:     None,
-                audience:   Some("fraiseql".to_string()),
-            }),
+            auth: Some(idp.oidc_config(true)),
             ..ServerConfig::default()
         };
         let server = Box::pin(Server::new(config, schema, Arc::new(FailingAdapter::new()), None))
             .await
-            .expect("Server::new with subscriptions and [auth_hs256]");
+            .expect("Server::new with subscriptions and [auth]");
         let state = server.build_app_state();
         let registry = TenantExecutorRegistry::new(Arc::clone(&state.executor));
         registry.upsert("acme", state.executor.load_full());
@@ -383,17 +372,8 @@ mod ws_admission {
     }
 
     /// A bearer for `alice`, of tenant `acme`.
-    fn token() -> String {
-        let now = chrono::Utc::now().timestamp();
-        let claims = serde_json::json!({
-            "sub": "alice", "tenant_id": "acme", "aud": "fraiseql", "iat": now, "exp": now + 3600,
-        });
-        jsonwebtoken::encode(
-            &jsonwebtoken::Header::new(jsonwebtoken::Algorithm::HS256),
-            &claims,
-            &jsonwebtoken::EncodingKey::from_secret(SECRET.as_bytes()),
-        )
-        .unwrap()
+    fn token(idp: &TestIdp) -> String {
+        idp.mint(&idp.claims("alice").set("tenant_id", "acme"))
     }
 
     /// The upgrade's status: 101 when it became a socket.
@@ -411,19 +391,21 @@ mod ws_admission {
     }
 
     #[tokio::test]
-    async fn an_hs256_bearer_is_admitted_where_subscriptions_require_auth() {
-        let url = mounted_ws(true, false).await;
-        let bearer = format!("Bearer {}", token());
+    async fn a_bearer_is_admitted_where_subscriptions_require_auth() {
+        let idp = TestIdp::start().await;
+        let url = mounted_ws(&idp, true, false).await;
+        let bearer = format!("Bearer {}", token(&idp));
         assert_eq!(upgrade_status(&url, &[("authorization", bearer)]).await, 101);
         assert_eq!(upgrade_status(&url, &[]).await, 401, "and an anonymous upgrade is refused");
     }
 
     #[tokio::test]
     async fn a_suspended_tenants_upgrade_is_refused() {
-        let url = mounted_ws(false, true).await;
-        let tenant = [("authorization", format!("Bearer {}", token()))];
+        let idp = TestIdp::start().await;
+        let url = mounted_ws(&idp, false, true).await;
+        let tenant = [("authorization", format!("Bearer {}", token(&idp)))];
         assert_eq!(upgrade_status(&url, &tenant).await, 503);
-        let active = mounted_ws(false, false).await;
+        let active = mounted_ws(&idp, false, false).await;
         assert_eq!(upgrade_status(&active, &tenant).await, 101);
     }
 }

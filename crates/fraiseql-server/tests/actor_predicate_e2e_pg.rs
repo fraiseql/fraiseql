@@ -40,7 +40,6 @@
 //! **Parallelism:** recreates its own `p20_actor` schema → run
 //! `--test-threads=1`.
 #![allow(clippy::unwrap_used, clippy::panic, clippy::print_stderr)] // Reason: test code — panics and skip diagnostics are acceptable
-#![allow(clippy::future_not_send)] // Reason: temp_env's env-guard makes boot() non-Send; each test runs it on its own tokio runtime
 
 use std::sync::Arc;
 
@@ -54,19 +53,15 @@ use fraiseql_core::{
     },
     security::ActorType,
 };
-use fraiseql_server::server_config::{Hs256Config, ServerConfig};
-use fraiseql_test_support::try_database_url;
+use fraiseql_server::server_config::ServerConfig;
+use fraiseql_test_support::{issuer::TestIssuer, try_database_url};
 use serde_json::{Value, json};
 
 mod common;
 
-use crate::common::server_harness::TestServer;
+use crate::common::{server_harness::TestServer, test_issuer::oidc_config};
 
 const SCHEMA: &str = "p20_actor";
-const SECRET_ENV: &str = "FRAISEQL_TEST_P20_ACTOR_HS256_SECRET";
-const SECRET: &str = "p20-actor-secret-0123456789-0123456789";
-const ISSUER: &str = "https://actorpred.test.fraiseql";
-const AUDIENCE: &str = "actorpred-test";
 
 /// UUID-shaped so a delegated token's `acting_for` resolves.
 const HUMAN_SUB: &str = "5a1e0000-0000-4000-8000-000000000966";
@@ -207,42 +202,23 @@ fn schema() -> CompiledSchema {
     schema
 }
 
-fn config() -> ServerConfig {
+fn config(issuer: &TestIssuer) -> ServerConfig {
     ServerConfig {
-        auth_hs256: Some(Hs256Config {
-            secret_env: SECRET_ENV.to_string(),
-            issuer:     Some(ISSUER.to_string()),
-            audience:   Some(AUDIENCE.to_string()),
-        }),
+        auth: Some(oidc_config(issuer, true)),
         cors_enabled: false,
         ..ServerConfig::default()
     }
 }
 
-/// Mint an HS256 token, merging `extra` over the base claims.
-fn mint(sub: &str, extra: &Value) -> String {
-    use jsonwebtoken::{Algorithm, EncodingKey, Header, encode};
-    let now = i64::try_from(
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .expect("system time")
-            .as_secs(),
-    )
-    .expect("epoch seconds fit i64");
-    let mut claims = json!({
-        "sub": sub, "iss": ISSUER, "aud": AUDIENCE, "iat": now, "exp": now + 3600,
-    });
-    if let (Some(obj), Some(extra_obj)) = (claims.as_object_mut(), extra.as_object()) {
-        for (k, v) in extra_obj {
-            obj.insert(k.clone(), v.clone());
+/// A token from `issuer`, merging `extra` over the default claims.
+fn mint(issuer: &TestIssuer, sub: &str, extra: &Value) -> String {
+    let mut claims = issuer.claims().set("sub", sub);
+    if let Some(extra) = extra.as_object() {
+        for (name, value) in extra {
+            claims = claims.set(name, value.clone());
         }
     }
-    encode(
-        &Header::new(Algorithm::HS256),
-        &claims,
-        &EncodingKey::from_secret(SECRET.as_bytes()),
-    )
-    .expect("mint token")
+    issuer.mint(&claims)
 }
 
 /// An ordinary user token: no `act`, no `service_account` scope → `human_user`.
@@ -252,28 +228,34 @@ fn mint(sub: &str, extra: &Value) -> String {
 /// a token holding both satisfies the role gate on any reading of it, so the REST
 /// leg of *this* suite keeps testing `requires_actor` and nothing else. The two
 /// tests that pin #1122 mint one claim each, at the bottom of this file.
-fn human_token() -> String {
-    mint(HUMAN_SUB, &json!({ "roles": ["reader"], "scope": "reader" }))
+fn human_token(issuer: &TestIssuer) -> String {
+    mint(issuer, HUMAN_SUB, &json!({ "roles": ["reader"], "scope": "reader" }))
 }
 
 /// A delegated token: the RFC 8693 `act` claim makes this an `ai_agent`, and it
 /// carries the **human's** roles — which is exactly why `requires_role` cannot
 /// express what `requires_actor` does.
-fn agent_token() -> String {
+fn agent_token(issuer: &TestIssuer) -> String {
     mint(
+        issuer,
         HUMAN_SUB,
         &json!({ "roles": ["reader"], "scope": "reader", "act": { "sub": "agent-robot-7" } }),
     )
 }
 
 /// A service-account token: the `service_account` scope, and the same roles.
-fn service_account_token() -> String {
-    mint(HUMAN_SUB, &json!({ "roles": ["reader"], "scope": "service_account reader" }))
+fn service_account_token(issuer: &TestIssuer) -> String {
+    mint(
+        issuer,
+        HUMAN_SUB,
+        &json!({ "roles": ["reader"], "scope": "service_account reader" }),
+    )
 }
 
 struct Rig {
     server: TestServer,
     client: reqwest::Client,
+    issuer: TestIssuer,
 }
 
 impl Rig {
@@ -297,18 +279,17 @@ async fn boot() -> Option<Rig> {
     provision(&adapter).await;
     drop(adapter);
 
-    let server = Box::pin(temp_env::async_with_vars(
-        [(SECRET_ENV, Some(SECRET))],
-        TestServer::start_with_rest_writes(
-            config(),
-            schema(),
-            Arc::new(PostgresAdapter::new(&url).await.expect("server adapter")),
-        ),
+    let issuer = TestIssuer::start().await;
+    let server = Box::pin(TestServer::start_with_rest_writes(
+        config(&issuer),
+        schema(),
+        Arc::new(PostgresAdapter::new(&url).await.expect("server adapter")),
     ))
     .await;
     Some(Rig {
         server,
         client: reqwest::Client::new(),
+        issuer,
     })
 }
 
@@ -341,9 +322,9 @@ async fn an_unrestricted_operation_is_reachable_by_every_class() {
     }
     let rig = Box::pin(boot()).await.unwrap();
     for (name, token) in [
-        ("human", human_token()),
-        ("agent", agent_token()),
-        ("service_account", service_account_token()),
+        ("human", human_token(&rig.issuer)),
+        ("agent", agent_token(&rig.issuer)),
+        ("service_account", service_account_token(&rig.issuer)),
     ] {
         let body = rig.gql("{ openSecrets { id label } }", Some(&token)).await;
         assert!(
@@ -363,15 +344,15 @@ async fn graphql_refuses_a_restricted_query_to_an_agent() {
     }
     let rig = Box::pin(boot()).await.unwrap();
 
-    let allowed = rig.gql("{ humanSecrets { id label } }", Some(&human_token())).await;
+    let allowed = rig.gql("{ humanSecrets { id label } }", Some(&human_token(&rig.issuer))).await;
     assert!(
         allowed["data"]["humanSecrets"].as_array().is_some_and(|r| r.len() == 2),
         "a human user reaches it: {allowed}"
     );
 
     for (name, token) in [
-        ("agent", agent_token()),
-        ("service_account", service_account_token()),
+        ("agent", agent_token(&rig.issuer)),
+        ("service_account", service_account_token(&rig.issuer)),
     ] {
         let denied = rig.gql("{ humanSecrets { id label } }", Some(&token)).await;
         assert!(refused_for_actor(&denied), "{name} must be refused by class: {denied}");
@@ -397,7 +378,7 @@ async fn a_delegated_agent_holding_the_role_is_still_refused() {
 
     // Same query, same role, different class — and the *role* is what changes
     // nothing here.
-    let body = rig.gql("{ humanSecrets { id } }", Some(&agent_token())).await;
+    let body = rig.gql("{ humanSecrets { id } }", Some(&agent_token(&rig.issuer))).await;
     assert!(
         refused_for_actor(&body),
         "an agent acting for a role-holding human is still an agent: {body}"
@@ -412,7 +393,7 @@ async fn the_role_gate_still_runs_first() {
         return;
     }
     let rig = Box::pin(boot()).await.unwrap();
-    let roleless = mint(HUMAN_SUB, &json!({ "roles": [] }));
+    let roleless = mint(&rig.issuer, HUMAN_SUB, &json!({ "roles": [] }));
 
     let body = rig.gql("{ humanSecrets { id } }", Some(&roleless)).await;
     assert!(
@@ -436,11 +417,11 @@ async fn graphql_refuses_a_restricted_mutation_to_an_agent() {
     let rig = Box::pin(boot()).await.unwrap();
     let m = r#"mutation { createSecret(label: "by-agent") { id label } }"#;
 
-    let denied = rig.gql(m, Some(&agent_token())).await;
+    let denied = rig.gql(m, Some(&agent_token(&rig.issuer))).await;
     assert!(refused_for_actor(&denied), "{denied}");
 
     // The refusal is a refusal, not a slow success: nothing was written.
-    let rows = rig.gql("{ openSecrets { label } }", Some(&agent_token())).await;
+    let rows = rig.gql("{ openSecrets { label } }", Some(&agent_token(&rig.issuer))).await;
     let labels: Vec<&str> = rows["data"]["openSecrets"]
         .as_array()
         .unwrap()
@@ -457,7 +438,7 @@ async fn graphql_refuses_a_restricted_mutation_to_an_agent() {
     let allowed = rig
         .gql(
             r#"mutation { createSecret(label: "by-human") { id label } }"#,
-            Some(&human_token()),
+            Some(&human_token(&rig.issuer)),
         )
         .await;
     assert_eq!(allowed["data"]["createSecret"]["label"], json!("by-human"), "{allowed}");
@@ -478,7 +459,7 @@ async fn rest_refuses_the_same_restricted_query() {
     let allowed = rig
         .client
         .get(format!("{}/rest/v1/humanSecrets", rig.server.url))
-        .bearer_auth(human_token())
+        .bearer_auth(human_token(&rig.issuer))
         .send()
         .await
         .expect("request");
@@ -490,7 +471,7 @@ async fn rest_refuses_the_same_restricted_query() {
     let denied = rig
         .client
         .get(format!("{}/rest/v1/humanSecrets", rig.server.url))
-        .bearer_auth(agent_token())
+        .bearer_auth(agent_token(&rig.issuer))
         .send()
         .await
         .expect("request");
@@ -532,7 +513,13 @@ async fn rest_refuses_a_count_of_a_restricted_relation_to_an_agent() {
 
     // The human first: prove the count path works and returns a real number, or
     // the agent's refusal below is satisfied by any broken embed.
-    let allowed = rig.client.get(&url).bearer_auth(human_token()).send().await.expect("request");
+    let allowed = rig
+        .client
+        .get(&url)
+        .bearer_auth(human_token(&rig.issuer))
+        .send()
+        .await
+        .expect("request");
     let status = allowed.status();
     let body = allowed.text().await.expect("body");
     assert_eq!(status, 200, "the human must be served the count: {body}");
@@ -544,7 +531,13 @@ async fn rest_refuses_a_count_of_a_restricted_relation_to_an_agent() {
         "and the count must be the real cardinality, not a placeholder: {body}"
     );
 
-    let denied = rig.client.get(&url).bearer_auth(agent_token()).send().await.expect("request");
+    let denied = rig
+        .client
+        .get(&url)
+        .bearer_auth(agent_token(&rig.issuer))
+        .send()
+        .await
+        .expect("request");
     let status = denied.status();
     let body = denied.text().await.expect("body");
     assert_eq!(status, 403, "the agent must be refused at the count chokepoint too: {body}");
@@ -559,11 +552,7 @@ async fn rest_refuses_a_count_of_a_restricted_relation_to_an_agent() {
 #[cfg(feature = "mcp")]
 #[tokio::test]
 async fn mcp_refuses_the_same_restricted_query() {
-    use fraiseql_core::{
-        runtime::Executor,
-        schema::McpConfig,
-        security::{AuthConfig, AuthMiddleware},
-    };
+    use fraiseql_core::{runtime::Executor, schema::McpConfig, security::OidcValidator};
     use fraiseql_server::{
         mcp::handler::{FraiseQLMcpService, McpTokenValidator},
         routes::graphql::AppState,
@@ -580,11 +569,12 @@ async fn mcp_refuses_the_same_restricted_query() {
     // The same issuer/audience the HTTP mount validates: one token shape drives
     // every transport in this suite, so a validator that disagreed would prove
     // nothing about the gate.
-    let validator = McpTokenValidator::Hs256(Arc::new(AuthMiddleware::from_config(AuthConfig {
-        issuer: Some(ISSUER.to_string()),
-        audience: Some(AUDIENCE.to_string()),
-        ..AuthConfig::with_hs256(SECRET)
-    })));
+    let issuer = TestIssuer::start().await;
+    let validator = McpTokenValidator::Oidc(Arc::new(
+        OidcValidator::new(oidc_config(&issuer, true))
+            .await
+            .expect("the issuer's discovery document is accepted"),
+    ));
     let service = FraiseQLMcpService::new(
         state,
         McpConfig {
@@ -599,7 +589,7 @@ async fn mcp_refuses_the_same_restricted_query() {
         .call_tool_authenticated(
             "humanSecrets",
             None,
-            Some(agent_token()),
+            Some(agent_token(&issuer)),
             "mcp-p20-agent".to_string(),
             &axum::http::HeaderMap::new(),
         )
@@ -620,7 +610,7 @@ async fn mcp_refuses_the_same_restricted_query() {
         .call_tool_authenticated(
             "humanSecrets",
             None,
-            Some(human_token()),
+            Some(human_token(&issuer)),
             "mcp-p20-human".to_string(),
             &axum::http::HeaderMap::new(),
         )
@@ -635,7 +625,7 @@ async fn mcp_refuses_the_same_restricted_query() {
 
 /// An unauthenticated request never reaches a human-only operation.
 ///
-/// On this mount the `[auth_hs256]` layer refuses it before the executor, so
+/// On this mount the `[auth]` layer refuses it before the executor, so
 /// what this asserts is the *outcome* — no row — rather than which gate spoke.
 /// That the predicate itself also refuses an unclassified request, instead of
 /// falling back to `ActorType::default()` (which is `HumanUser`, and would admit
@@ -681,7 +671,7 @@ async fn rest_serves_a_role_gated_query_to_a_token_carrying_only_the_role() {
         return;
     }
     let rig = Box::pin(boot()).await.unwrap();
-    let roles_only = mint(HUMAN_SUB, &json!({ "roles": ["reader"] }));
+    let roles_only = mint(&rig.issuer, HUMAN_SUB, &json!({ "roles": ["reader"] }));
 
     // GraphQL first, so a failure here says "the fixture is wrong", not "REST is".
     let gql = rig.gql("{ humanSecrets { id label } }", Some(&roles_only)).await;
@@ -723,7 +713,7 @@ async fn rest_refuses_a_role_gated_query_to_a_token_carrying_only_the_scope() {
     let rig = Box::pin(boot()).await.unwrap();
     // A human (no `act`, no `service_account` scope), so the actor gate admits it
     // and the role gate is the only thing under test.
-    let scope_only = mint(HUMAN_SUB, &json!({ "scope": "reader" }));
+    let scope_only = mint(&rig.issuer, HUMAN_SUB, &json!({ "scope": "reader" }));
 
     // GraphQL refuses it, because the executor reads `roles`.
     let gql = rig.gql("{ humanSecrets { id } }", Some(&scope_only)).await;
