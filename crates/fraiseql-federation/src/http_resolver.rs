@@ -84,7 +84,10 @@ pub fn validate_subgraph_url(url: &str) -> fraiseql_error::Result<()> {
     // rejected — there is no bypass.
     if !url.starts_with("https://") {
         return Err(fraiseql_error::FraiseQLError::Internal {
-            message: format!("Subgraph URL must use https:// scheme (got: {url})"),
+            message: format!(
+                "Subgraph URL must use https:// scheme (got: {})",
+                fraiseql_guard::redact::Url(url)
+            ),
             source:  None,
         });
     }
@@ -92,7 +95,10 @@ pub fn validate_subgraph_url(url: &str) -> fraiseql_error::Result<()> {
     // Parse the full URL to extract the host safely — manual string splitting
     // is fragile in the presence of IPv6 literals and non-standard authority forms.
     let parsed = reqwest::Url::parse(url).map_err(|e| fraiseql_error::FraiseQLError::Internal {
-        message: format!("Subgraph URL is not a valid URL ({url}): {e}"),
+        message: format!(
+            "Subgraph URL is not a valid URL ({}): {e}",
+            fraiseql_guard::redact::Url(url)
+        ),
         source:  None,
     })?;
 
@@ -100,7 +106,7 @@ pub fn validate_subgraph_url(url: &str) -> fraiseql_error::Result<()> {
 
     if host_raw.is_empty() {
         return Err(fraiseql_error::FraiseQLError::Internal {
-            message: format!("Subgraph URL has no host: {url}"),
+            message: format!("Subgraph URL has no host: {}", fraiseql_guard::redact::Url(url)),
             source:  None,
         });
     }
@@ -159,11 +165,11 @@ pub use fraiseql_guard::net::is_blocked_ip as is_ssrf_blocked_ip;
 /// the lists already live — is tracked as #1360.
 pub async fn dns_resolve_and_check(url: &str) -> fraiseql_error::Result<()> {
     let parsed = reqwest::Url::parse(url).map_err(|e| fraiseql_error::FraiseQLError::Internal {
-        message: format!("Invalid URL '{url}': {e}"),
+        message: format!("Invalid URL '{}': {e}", fraiseql_guard::redact::Url(url)),
         source:  None,
     })?;
     let host = parsed.host_str().ok_or_else(|| fraiseql_error::FraiseQLError::Internal {
-        message: format!("URL has no host: {url}"),
+        message: format!("URL has no host: {}", fraiseql_guard::redact::Url(url)),
         source:  None,
     })?;
     let port = parsed.port_or_known_default().unwrap_or(443);

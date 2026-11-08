@@ -6,7 +6,7 @@
 use serde::{Deserialize, Serialize};
 
 /// The `[scim]` section.
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Clone, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ScimServerConfig {
     /// Mount the SCIM surface. Off by default: it is a privileged provisioning API, and a
@@ -28,6 +28,15 @@ pub struct ScimServerConfig {
     /// which is correct for a client talking to this host directly.
     #[serde(default = "default_base_url")]
     pub base_url: String,
+}
+
+impl std::fmt::Debug for ScimServerConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = f.debug_struct("ScimServerConfig");
+        s.field("enabled", &self.enabled);
+        s.field("base_url", &fraiseql_guard::redact::Url(&self.base_url));
+        s.finish()
+    }
 }
 
 fn default_base_url() -> String {

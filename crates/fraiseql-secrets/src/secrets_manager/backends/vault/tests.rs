@@ -843,3 +843,43 @@ fn vault_allow_insecure_is_still_honoured_in_a_declared_development_environment(
          above would pass with the hatch simply deleted"
     );
 }
+
+// ── A credential in the Vault address never reaches a refusal ─────────────────
+
+const SECRET: &str = "pw-vault-5d20";
+
+/// `f` with the insecure opt-in and the host allowlist both absent.
+fn guards_engaged<T>(f: impl FnOnce() -> T) -> T {
+    temp_env::with_vars(
+        [
+            ("FRAISEQL_VAULT_ALLOW_INSECURE", None::<&str>),
+            ("FRAISEQL_VAULT_ALLOWED_HOSTS", None),
+        ],
+        f,
+    )
+}
+
+fn refusal(addr: &str) -> String {
+    guards_engaged(|| validate_vault_addr(addr).expect_err("the address is refused").to_string())
+}
+
+#[test]
+fn the_vault_scheme_refusal_hides_the_password() {
+    let text = refusal(&format!("ftp://ops:{SECRET}@vault.example.com:8200"));
+    assert!(text.contains("must use http:// or https://"), "another refusal fired: {text}");
+    assert!(!text.contains(SECRET), "the scheme refusal wrote the password: {text}");
+}
+
+#[test]
+fn the_vault_parse_refusal_hides_the_password() {
+    let text = refusal(&format!("https://ops:{SECRET}@vau lt.example.com:8200"));
+    assert!(text.contains("not a valid URL"), "another refusal fired: {text}");
+    assert!(!text.contains(SECRET), "the parse refusal wrote the password: {text}");
+}
+
+#[test]
+fn the_vault_private_address_refusal_hides_the_password() {
+    let text = refusal(&format!("https://ops:{SECRET}@10.0.0.5:8200"));
+    assert!(text.contains("private/loopback"), "another refusal fired: {text}");
+    assert!(!text.contains(SECRET), "the address refusal wrote the password: {text}");
+}

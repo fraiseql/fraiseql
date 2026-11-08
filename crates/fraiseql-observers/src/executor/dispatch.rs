@@ -110,7 +110,10 @@ pub(super) fn resolve_url(
     // requirement is enforced here, at the webhook call site.
     if !url.starts_with("https://") && !url.starts_with("http://") {
         return Err(ObserverError::InvalidActionConfig {
-            reason: format!("{action_name} URL must use http:// or https:// scheme (got: {url})"),
+            reason: format!(
+                "{action_name} URL must use http:// or https:// scheme (got: {})",
+                fraiseql_guard::redact::Url(&url)
+            ),
         });
     }
 
@@ -226,7 +229,11 @@ impl ActionDispatcher for DefaultActionDispatcher {
                     signing_secret,
                     signing_secret_env,
                 } => {
-                    debug!("Webhook action: url={:?}, url_env={:?}", url, url_env);
+                    debug!(
+                        "Webhook action: url={:?}, url_env={:?}",
+                        fraiseql_guard::redact::url_opt(url.as_deref()),
+                        url_env
+                    );
                     let webhook_url = resolve_url(url.as_deref(), url_env.as_deref(), "Webhook")?;
                     // DNS-rebinding guard: re-resolve at dispatch time and reject
                     // any host whose addresses fall in a private/reserved range.

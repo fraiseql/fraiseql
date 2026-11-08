@@ -199,7 +199,8 @@ async fn build_one(
         format!(
             "[cdc_outbound] sink {:?} could not connect to {}: {e}. Refusing to boot \
              rather than starting a drain that publishes nowhere.",
-            section.name, section.endpoint
+            section.name,
+            fraiseql_guard::redact::Url(&section.endpoint)
         )
     };
 

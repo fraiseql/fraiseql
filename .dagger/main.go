@@ -925,6 +925,13 @@ func (m *FraiseqlCi) Test(
 		// #975's Kinesis sink mount: its own arm of ConfiguredSink/build_one, and
 		// the feature-ON half of validate_kind, compile only with this feature on.
 		"cargo test -p fraiseql-server --features cdc-kinesis --lib cdc_outbound::",
+		// A connection URL's credentials stay out of what the server logs and prints. The
+		// ServerArgs case compiles only with cli, which serverTestFeatures does not enable,
+		// and the config sections holding URLs only with the features that declare them;
+		// the boot binary is built only with cli, and prints its OTLP line only with
+		// tracing-opentelemetry.
+		"cargo test -p fraiseql-server --features cli,auth-saml,inbound,cdc-outbound,subscription-kafka --lib server_config::tests",
+		"cargo test -p fraiseql-server --features cli,tracing-opentelemetry --test boot_log_credentials",
 		// #975: the cdc-sinks crate's own rdkafka-bound unit tests. The
 		// always-compiled endpoint guard runs in the default leg above; this is the
 		// half that needs the feature.
@@ -2839,8 +2846,14 @@ func (m *FraiseqlCi) integrationRedis(ctx context.Context, source *dagger.Direct
 		"cargo test -p fraiseql-server --features redis-rate-limiting --lib middleware::rate_limit -- --ignored --test-threads=1",
 		// The Redis URL of PKCE, the rate limiter and token revocation: one holding a
 		// password reaches the bound Redis, as written and through redis_url_env, and the
-		// startup log names its host only.
-		"cargo test -p fraiseql-server --features 'redis-pkce,redis-rate-limiting' --lib server::initialization::tests -- --ignored --test-threads=1",
+		// startup log names its host only. `auth` compiles the PKCE store's case.
+		// --include-ignored: the module's Redis helper is gated with no #[ignore]d test
+		// of its own, so an --ignored run alone would leave its gate uncovered.
+		"cargo test -p fraiseql-server --features 'auth,redis-pkce,redis-rate-limiting' --lib server::initialization::tests -- --include-ignored --test-threads=1",
+		// The observer runtime's unit tests with the cache and NATS transports compiled in:
+		// their refusals and the cache mount's log line name the broker without its
+		// credentials, and the mount needs the bound Redis.
+		"cargo test -p fraiseql-server --features 'observers-cache,observers-nats' --lib observers::runtime::tests -- --include-ignored --test-threads=1",
 		// #992: Redis-needing binaries that ran in NO leg (each self-skips
 		// without REDIS_URL, and only service-less legs compiled them).
 		"echo '### redis-backed strays (#992)'",

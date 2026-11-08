@@ -173,3 +173,76 @@ fn refuses_every_blocked_corpus_entry_even_when_opted_in() {
         },
     );
 }
+
+// ── A credential in the endpoint never reaches the refusal text ───────────────
+mod url_credentials {
+    #![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code, panics acceptable
+
+    use super::{guard_nats_url, without_optin};
+
+    const SECRET: &str = "pw-cdc-5d1c";
+
+    fn assert_hidden(site: &str, err: &crate::error::CdcError) {
+        let text = err.to_string();
+        assert!(!text.contains(SECRET), "{site} wrote the endpoint's credentials: {text}");
+    }
+
+    #[test]
+    fn the_nats_scheme_refusal_hides_the_password() {
+        without_optin(|| {
+            let err =
+                guard_nats_url(&format!("http://bus:{SECRET}@nats.example.com:4222")).unwrap_err();
+            assert!(
+                err.to_string().contains("unsupported NATS scheme"),
+                "another refusal fired: {err}"
+            );
+            assert_hidden("guard_nats_url (scheme)", &err);
+        });
+    }
+
+    #[test]
+    fn the_nats_plaintext_refusal_hides_the_password() {
+        without_optin(|| {
+            let err =
+                guard_nats_url(&format!("nats://bus:{SECRET}@nats.example.com:4222")).unwrap_err();
+            assert!(err.to_string().contains("refusing plaintext"), "another refusal fired: {err}");
+            assert_hidden("guard_nats_url (plaintext)", &err);
+        });
+    }
+
+    #[test]
+    fn the_nats_blocked_host_refusal_hides_the_password() {
+        temp_env::with_vars(
+            [
+                ("FRAISEQL_NATS_ALLOW_PLAINTEXT", Some("true")),
+                ("FRAISEQL_ENV", Some("development")),
+                ("FRAISEQL_PROFILE", None),
+                ("KUBERNETES_SERVICE_HOST", None),
+            ],
+            || {
+                let err = guard_nats_url(&format!("nats://bus:{SECRET}@169.254.169.254:4222"))
+                    .unwrap_err();
+                assert!(
+                    err.to_string().contains("refusing NATS endpoint"),
+                    "another refusal fired: {err}"
+                );
+                assert_hidden("guard_nats_url (blocked host)", &err);
+            },
+        );
+    }
+
+    #[tokio::test]
+    async fn the_nats_connect_failure_hides_the_password() {
+        // tls:// passes the guard; nothing listens on port 1, so the connect itself fails.
+        let Err(err) = super::super::NatsJetStreamSink::connect(
+            &format!("tls://bus:{SECRET}@127.0.0.1:1"),
+            crate::sink::CdcSinkConfig::new("primary", "fraiseql.{table}"),
+        )
+        .await
+        else {
+            panic!("nothing listens on port 1");
+        };
+        assert!(err.to_string().contains("connect"), "another refusal fired: {err}");
+        assert_hidden("NatsSink::connect", &err);
+    }
+}

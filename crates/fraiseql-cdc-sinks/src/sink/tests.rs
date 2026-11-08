@@ -510,3 +510,66 @@ fn render_kinesis_stream_rejects_an_injected_separator_before_kinesis_sees_it() 
     let ok = ChangeEvent::new(1, "tb_post", ChangeOp::Insert);
     assert_eq!(render_kinesis_stream("fraiseql.{table}", &ok).unwrap(), "fraiseql.tb_post");
 }
+
+// ── A credential in the endpoint never reaches the refusal text ───────────────
+//
+// Only the refusals reached before the `@` check can see userinfo; every later one is
+// reached only by an endpoint the `@` check has already let through.
+
+const SECRET: &str = "pw-cdc-5d1b";
+
+fn assert_hidden(site: &str, err: &CdcError) {
+    let text = err.to_string();
+    assert!(!text.contains(SECRET), "{site} wrote the endpoint's credentials: {text}");
+}
+
+#[test]
+fn the_kinesis_endpoint_no_scheme_refusal_hides_the_password() {
+    let err = guard_kinesis_endpoint(&format!("user:{SECRET}@us-east-1")).unwrap_err();
+    assert!(err.to_string().contains("has no scheme"), "another refusal fired: {err}");
+    assert_hidden("guard_kinesis_endpoint (no scheme)", &err);
+}
+
+#[test]
+fn the_kinesis_endpoint_scheme_refusal_hides_the_password() {
+    let err = guard_kinesis_endpoint(&format!("https://user:{SECRET}@us-east-1")).unwrap_err();
+    assert!(
+        err.to_string().contains("unsupported kinesis endpoint scheme"),
+        "another refusal fired: {err}"
+    );
+    assert_hidden("guard_kinesis_endpoint (scheme)", &err);
+}
+
+#[test]
+fn the_kinesis_endpoint_userinfo_refusal_hides_the_password() {
+    let err = guard_kinesis_endpoint(&format!("kinesis://user:{SECRET}@us-east-1")).unwrap_err();
+    assert!(err.to_string().contains("contains '@'"), "another refusal fired: {err}");
+    assert_hidden("guard_kinesis_endpoint (userinfo)", &err);
+}
+
+#[test]
+fn the_kinesis_endpoint_url_no_scheme_refusal_hides_the_password() {
+    with_kinesis_url(&format!("user:{SECRET}@localhost:4566"), || {
+        let err = resolve_kinesis_endpoint_url().unwrap_err();
+        assert!(err.to_string().contains("has no scheme"), "another refusal fired: {err}");
+        assert_hidden("resolve_kinesis_endpoint_url (no scheme)", &err);
+    });
+}
+
+#[test]
+fn the_kinesis_endpoint_url_scheme_refusal_hides_the_password() {
+    with_kinesis_url(&format!("ftp://user:{SECRET}@localhost:4566"), || {
+        let err = resolve_kinesis_endpoint_url().unwrap_err();
+        assert!(err.to_string().contains("unsupported scheme"), "another refusal fired: {err}");
+        assert_hidden("resolve_kinesis_endpoint_url (scheme)", &err);
+    });
+}
+
+#[test]
+fn the_kinesis_endpoint_url_userinfo_refusal_hides_the_password() {
+    with_kinesis_url(&format!("https://user:{SECRET}@localhost:4566"), || {
+        let err = resolve_kinesis_endpoint_url().unwrap_err();
+        assert!(err.to_string().contains("contains '@'"), "another refusal fired: {err}");
+        assert_hidden("resolve_kinesis_endpoint_url (userinfo)", &err);
+    });
+}

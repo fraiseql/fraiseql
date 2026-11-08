@@ -52,7 +52,7 @@ impl Default for CdcOutboundConfig {
 }
 
 /// One `[[cdc_outbound.sinks]]` entry.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct CdcSinkSectionConfig {
     /// Stable sink name — the delivery-state partition key. Renaming a sink
@@ -89,6 +89,21 @@ pub struct CdcSinkSectionConfig {
     /// default — FraiseQL does not own the broker's topology).
     #[serde(default)]
     pub ensure_stream: Option<String>,
+}
+
+impl std::fmt::Debug for CdcSinkSectionConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = f.debug_struct("CdcSinkSectionConfig");
+        s.field("name", &self.name);
+        s.field("kind", &self.kind);
+        s.field("endpoint", &fraiseql_guard::redact::Url(&self.endpoint));
+        s.field("subject_template", &self.subject_template);
+        s.field("tables", &self.tables);
+        s.field("tenants", &self.tenants);
+        s.field("max_attempts", &self.max_attempts);
+        s.field("ensure_stream", &self.ensure_stream);
+        s.finish()
+    }
 }
 
 impl CdcOutboundConfig {

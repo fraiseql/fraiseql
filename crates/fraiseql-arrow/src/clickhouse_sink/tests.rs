@@ -285,3 +285,81 @@ async fn steady_stream_still_flushes_on_the_batch_timeout() {
          instead of firing on the timeout"
     );
 }
+
+// ── A credential in the URL never reaches a refusal or the log ────────────────
+
+const SECRET: &str = "pw-ch-5d1e";
+
+fn config_with(url: String) -> ClickHouseSinkConfig {
+    ClickHouseSinkConfig {
+        url,
+        ..ClickHouseSinkConfig::default()
+    }
+}
+
+fn refusal(url: String) -> String {
+    let Err(err) = ClickHouseSink::new(config_with(url)) else {
+        panic!("the URL is refused");
+    };
+    err.to_string()
+}
+
+#[test]
+fn the_parse_refusal_hides_the_password() {
+    let text = refusal(format!("http://ch:{SECRET}@exa mple.com:8123"));
+    assert!(text.contains("not a valid URL"), "another refusal fired: {text}");
+    assert!(!text.contains(SECRET), "the parse refusal wrote the password: {text}");
+}
+
+#[test]
+fn the_scheme_refusal_hides_the_password() {
+    let text = refusal(format!("ftp://ch:{SECRET}@clickhouse.example.com:8123"));
+    assert!(text.contains("must use http:// or https://"), "another refusal fired: {text}");
+    assert!(!text.contains(SECRET), "the scheme refusal wrote the password: {text}");
+}
+
+#[test]
+fn the_private_address_refusal_hides_the_password() {
+    let text = refusal(format!("http://ch:{SECRET}@127.0.0.1:8123"));
+    assert!(text.contains("private/loopback"), "another refusal fired: {text}");
+    assert!(!text.contains(SECRET), "the address refusal wrote the password: {text}");
+}
+
+#[test]
+fn the_sink_creation_log_hides_the_password() {
+    use std::sync::{Arc, Mutex};
+
+    #[derive(Clone, Default)]
+    struct Captured(Arc<Mutex<Vec<u8>>>);
+    impl std::io::Write for Captured {
+        fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+            self.0.lock().unwrap().extend_from_slice(buf);
+            Ok(buf.len())
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    let captured = Captured::default();
+    let writer = captured.clone();
+    let subscriber = tracing_subscriber::fmt()
+        .with_ansi(false)
+        .with_writer(move || writer.clone())
+        .finish();
+    fraiseql_test_support::tracing_capture::with_default(subscriber, || {
+        ClickHouseSink::new(config_with(format!("http://ch:{SECRET}@clickhouse.example.com:8123")))
+            .expect("a public http:// URL is accepted");
+    });
+    let log = String::from_utf8(captured.0.lock().unwrap().clone()).unwrap();
+    assert!(
+        log.contains("Creating ClickHouse sink"),
+        "the creation log was not reached:\n{log}"
+    );
+    assert!(
+        log.contains("clickhouse.example.com"),
+        "the log no longer names the host:\n{log}"
+    );
+    assert!(!log.contains(SECRET), "the creation log wrote the password:\n{log}");
+}

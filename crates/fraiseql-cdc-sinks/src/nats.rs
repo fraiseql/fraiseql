@@ -33,9 +33,9 @@ impl NatsJetStreamSink {
     /// [`CdcError::Connection`] if the NATS connection fails.
     pub async fn connect(url: &str, config: CdcSinkConfig) -> Result<Self> {
         guard_nats_url(url)?;
-        let client = async_nats::connect(url)
-            .await
-            .map_err(|e| CdcError::Connection(format!("connect {url}: {e}")))?;
+        let client = async_nats::connect(url).await.map_err(|e| {
+            CdcError::Connection(format!("connect {}: {e}", fraiseql_guard::redact::Url(url)))
+        })?;
         let jetstream = jetstream::new(client);
         Ok(Self { config, jetstream })
     }
@@ -129,9 +129,10 @@ fn guard_nats_url(url: &str) -> Result<()> {
 
     if !lower.starts_with("nats://") {
         return Err(CdcError::Config(format!(
-            "unsupported NATS scheme in {url:?}: use tls:// for an encrypted connection. \
+            "unsupported NATS scheme in {:?}: use tls:// for an encrypted connection. \
              A URL with no scheme is rewritten to plaintext nats:// by the client, so it \
-             is refused here rather than silently downgraded."
+             is refused here rather than silently downgraded.",
+            fraiseql_guard::redact::Url(url)
         )));
     }
 
@@ -139,9 +140,10 @@ fn guard_nats_url(url: &str) -> Result<()> {
         NATS_ALLOW_PLAINTEXT_ENV,
     )) {
         return Err(CdcError::Config(format!(
-            "refusing plaintext nats:// endpoint {url:?}: change events would cross the \
+            "refusing plaintext nats:// endpoint {:?}: change events would cross the \
              wire in the clear. Use tls://, or set {NATS_ALLOW_PLAINTEXT_ENV}=true with \
-             FRAISEQL_ENV=development for dev/CI."
+             FRAISEQL_ENV=development for dev/CI.",
+            fraiseql_guard::redact::Url(url)
         )));
     }
 
@@ -155,8 +157,9 @@ fn guard_nats_url(url: &str) -> Result<()> {
     }
     if let Some(reason) = fraiseql_guard::net::blocked_host_reason(host) {
         return Err(CdcError::Config(format!(
-            "refusing NATS endpoint {url:?}: {reason}. The plaintext opt-in reaches a broker \
-             on this machine: name it 127.0.0.1, [::1] or localhost."
+            "refusing NATS endpoint {:?}: {reason}. The plaintext opt-in reaches a broker \
+             on this machine: name it 127.0.0.1, [::1] or localhost.",
+            fraiseql_guard::redact::Url(url)
         )));
     }
 

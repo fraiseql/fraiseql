@@ -93,7 +93,7 @@ impl TransportConfig {
 // ============================================================================
 
 /// NATS `JetStream` transport configuration
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Clone, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct NatsTransportConfig {
     /// NATS server URL (e.g., `nats://localhost:4222`)
@@ -117,6 +117,18 @@ pub struct NatsTransportConfig {
     /// `JetStream` configuration
     #[serde(default)]
     pub jetstream: JetStreamConfig,
+}
+
+impl std::fmt::Debug for NatsTransportConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("NatsTransportConfig")
+            .field("url", &fraiseql_guard::redact::Url(&self.url))
+            .field("subject_prefix", &self.subject_prefix)
+            .field("consumer_name", &self.consumer_name)
+            .field("stream_name", &self.stream_name)
+            .field("jetstream", &self.jetstream)
+            .finish()
+    }
 }
 
 fn default_nats_url() -> String {

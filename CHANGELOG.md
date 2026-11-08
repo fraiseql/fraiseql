@@ -18,6 +18,15 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **A connection URL is written with its password masked.** Log lines, error messages,
+  the configuration's `Debug` output and the CLI's `introspect facts`, `validate facts`
+  and `setup --dry-run` output render a database, Redis, NATS, OTLP, Vault, ClickHouse,
+  CDC sink, federation or webhook URL with user, host, port and path kept and the
+  password, query values and fragment as `***`; text that is not a URL is masked whole.
+  A site that already names only the host, or no URL, keeps doing so. An HTTP client
+  error is written without its request URL where the URL is written beside it or the
+  text is returned to a client. Output matched on a URL's full text changes.
+
 - **C# and F# SDKs: a field's one-item `Scopes` list is exported as its required scope.**
   `[GraphQLField(Scopes = new[] { "s" })]` (F#: `Scopes = [| "s" |]`) on a type without
   CRUD generation was exported with no `requires_scope`; it is now exported as

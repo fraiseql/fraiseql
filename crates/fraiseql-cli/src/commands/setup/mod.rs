@@ -85,7 +85,7 @@ pub async fn run(
 fn print_dry_run(db_url: &str, formatter: &OutputFormatter) {
     formatter.progress("📋 DRY RUN MODE (no changes will be made)");
     formatter.progress("");
-    formatter.progress(&format!("Database URL: {}", mask_password(db_url)));
+    formatter.progress(&format!("Database URL: {}", fraiseql_guard::redact::Url(db_url)));
     formatter.progress("");
     formatter.progress("Would install:");
     formatter.progress("  - fraiseql.mutation_ok/err/library_version helpers");
@@ -97,22 +97,10 @@ fn print_dry_run(db_url: &str, formatter: &OutputFormatter) {
     formatter.progress(MUTATION_RESPONSE_SQL);
     formatter.progress("");
     formatter.progress("To apply these changes, run without --dry-run:");
-    formatter.progress(&format!("  fraiseql setup --database '{}'", mask_password(db_url)));
-}
-
-/// Mask sensitive parts of database URL for display
-fn mask_password(url: &str) -> String {
-    if let Some(at_pos) = url.rfind('@') {
-        if let Some(colon_pos) = url[..at_pos].rfind(':') {
-            let before = &url[..=colon_pos];
-            let after = &url[at_pos..];
-            format!("{}***{}", before, after)
-        } else {
-            url.to_string()
-        }
-    } else {
-        url.to_string()
-    }
+    formatter.progress(&format!(
+        "  fraiseql setup --database '{}'",
+        fraiseql_guard::redact::Url(db_url)
+    ));
 }
 
 /// Connect to the database using a deadpool connection pool

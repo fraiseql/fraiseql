@@ -622,3 +622,88 @@ mod batch_size_bound {
         }
     }
 }
+
+// ── A broker URL's credentials never reach a boot refusal or the boot log ─────
+mod url_credentials {
+    #![allow(clippy::panic)] // Reason: test code, panics are the failure mechanism
+    #[cfg(feature = "observers-cache")]
+    use std::collections::HashMap;
+
+    #[cfg(any(feature = "observers-cache", feature = "observers-nats"))]
+    const SECRET: &str = "pw-rt-5d24";
+
+    #[cfg(feature = "observers-cache")]
+    fn cache_observers() -> HashMap<String, fraiseql_observers::ObserverDefinition> {
+        let observer = serde_json::from_value(serde_json::json!({
+            "event_type": "INSERT",
+            "entity": "Product",
+            "actions": [{ "type": "cache", "key_pattern": "product:*", "action": "invalidate" }],
+        }))
+        .unwrap();
+        HashMap::from([("cache-obs".to_string(), observer)])
+    }
+
+    #[cfg(feature = "observers-cache")]
+    fn redis(url: String) -> fraiseql_observers::config::RedisConfig {
+        fraiseql_observers::config::RedisConfig {
+            url,
+            connect_timeout_secs: 1,
+            ..fraiseql_observers::config::RedisConfig::default()
+        }
+    }
+
+    #[cfg(feature = "observers-cache")]
+    #[tokio::test]
+    async fn the_cache_backend_refusal_hides_the_password() {
+        let Err(err) = super::super::connect_cache_invalidator(
+            &cache_observers(),
+            Some(&redis(format!("redis://default:{SECRET}@127.0.0.1:1"))),
+        )
+        .await
+        else {
+            panic!("nothing listens on port 1");
+        };
+        let text = err.to_string();
+        assert!(text.contains("could not be reached"), "another refusal fired: {text}");
+        assert!(!text.contains(SECRET), "the boot refusal wrote the Redis password: {text}");
+    }
+
+    #[cfg(feature = "observers-cache")]
+    #[tokio::test]
+    #[ignore = "requires Redis (REDIS_URL) — run with --ignored"]
+    async fn the_cache_backend_mount_log_hides_the_password() {
+        let url =
+            std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://localhost:6379".to_string());
+        let (captured, _guard) = crate::log_capture::capture();
+        super::super::connect_cache_invalidator(
+            &cache_observers(),
+            Some(&redis(crate::log_capture::with_userinfo(&url, "default", SECRET))),
+        )
+        .await
+        .expect("a nopass Redis accepts any password for `default`");
+        let log = captured.text();
+        assert!(
+            log.contains("Mounted the Redis cache-invalidation transport"),
+            "the mount log was not reached:\n{log}"
+        );
+        assert!(!log.contains(SECRET), "the mount log wrote the Redis password:\n{log}");
+    }
+
+    #[cfg(feature = "observers-nats")]
+    #[tokio::test]
+    async fn the_nats_transport_refusal_hides_the_password() {
+        use fraiseql_observers::config::TransportKind;
+
+        use super::super::{ObserverRuntime, ObserverRuntimeConfig};
+
+        let pool = sqlx::PgPool::connect_lazy("postgres://u:u@127.0.0.1:1/db").unwrap();
+        let mut config = ObserverRuntimeConfig::new(pool);
+        config.transport.transport = TransportKind::Nats;
+        config.transport.nats.url = format!("tls://bus:{SECRET}@127.0.0.1:4222");
+        // The transport is built before anything touches the database.
+        let err = ObserverRuntime::new(config).start_transport_stream().await.unwrap_err();
+        let text = err.to_string();
+        assert!(text.contains("observer NATS transport failed"), "another refusal fired: {text}");
+        assert!(!text.contains(SECRET), "the boot refusal wrote the NATS password: {text}");
+    }
+}

@@ -25,7 +25,7 @@ use tracing::info;
 use super::schema_isolation;
 
 /// Connection configuration for a tenant database pool.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Clone, Deserialize)]
 pub struct TenantPoolConfig {
     /// Database connection string (e.g. `postgres://user:pass@host:5432/db`).
     pub connection_string:    String,
@@ -112,6 +112,31 @@ pub struct TenantPoolConfig {
     /// own pool uses.
     #[serde(skip)]
     pub read_replica_policy: ReadReplicaPolicy,
+}
+
+impl std::fmt::Debug for TenantPoolConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = f.debug_struct("TenantPoolConfig");
+        s.field("connection_string", &fraiseql_guard::redact::Url(&self.connection_string));
+        s.field("max_connections", &self.max_connections);
+        s.field("connect_timeout_secs", &self.connect_timeout_secs);
+        s.field("idle_timeout_secs", &self.idle_timeout_secs);
+        s.field("search_path", &self.search_path);
+        s.field("tls", &self.tls);
+        s.field("vector_scan", &self.vector_scan);
+        s.field("transaction_retry", &self.transaction_retry);
+        s.field(
+            "read_replica_urls",
+            &self
+                .read_replica_urls
+                .iter()
+                .map(String::as_str)
+                .map(fraiseql_guard::redact::Url)
+                .collect::<Vec<_>>(),
+        );
+        s.field("read_replica_policy", &self.read_replica_policy);
+        s.finish()
+    }
 }
 
 const fn default_max_connections() -> u32 {
