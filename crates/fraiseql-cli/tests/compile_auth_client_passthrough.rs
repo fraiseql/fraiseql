@@ -1053,3 +1053,111 @@ fn cookie_transport_without_a_refresh_limit_is_refused() {
         );
     }
 }
+
+// ── #1965: [auth.database] ───────────────────────────────────────────────────
+
+/// Compile `extra` (an `[auth.local]` block or nothing) followed by `[auth.database]`
+/// holding `database`.
+fn merge_database(
+    extra: &str,
+    database: &str,
+) -> anyhow::Result<fraiseql_cli::schema::IntermediateSchema> {
+    let mut f = NamedTempFile::new().unwrap();
+    write!(
+        f,
+        r#"
+        [schema]
+        name = "app"
+
+        [types.User]
+        sql_source = "v_user"
+
+        {extra}
+
+        [auth.database]
+        {database}
+    "#
+    )
+    .unwrap();
+    f.flush().unwrap();
+    SchemaMerger::merge_toml_only(f.path().to_str().unwrap())
+}
+
+const OTP_LOCAL: &str = "[auth.local]\notp = true\nemail_from = \"support\"";
+
+/// A refusal of `[auth.database]` holding `database`, made by the section's own check
+/// rather than by the section being unknown.
+fn database_value_refusal(database: &str) -> String {
+    let err = merge_database(OTP_LOCAL, database).err().map_or_else(
+        || panic!("[auth.database] {database:?} must be refused"),
+        |e| format!("{e:#}"),
+    );
+    assert!(
+        !err.contains("unknown field `database`"),
+        "{database:?} must be refused for its value, not as an unknown section: {err}"
+    );
+    err
+}
+
+#[test]
+fn auth_database_reaches_the_compiled_schema_as_a_variable_name() {
+    let intermediate = merge_database(
+        OTP_LOCAL,
+        "url_env = \"AUTH_DB_URL\"\npool_min = 1\npool_max = 8\nacquire_timeout_secs = 5",
+    )
+    .unwrap();
+    let compiled = SchemaConverter::convert(intermediate).expect("convert to compiled schema");
+    let database = compiled.auth.as_ref().and_then(|a| a.database.as_ref()).expect("auth.database");
+    assert_eq!(database.url_env, "AUTH_DB_URL");
+    assert_eq!(database.pool_min, Some(1));
+    assert_eq!(database.pool_max, Some(8));
+    assert_eq!(database.acquire_timeout_secs, Some(5));
+}
+
+#[test]
+fn auth_database_alone_compiles_for_a_server_configured_auth_surface() {
+    // `[saml]` and `[scim]` are server settings; the project file then holds only the
+    // database the auth role connects to.
+    let intermediate = merge_database("", "url_env = \"AUTH_DB_URL\"").unwrap();
+    let compiled = SchemaConverter::convert(intermediate).expect("convert to compiled schema");
+    let auth = compiled.auth.as_ref().expect("compiled auth");
+    assert_eq!(auth.database.as_ref().map(|d| d.url_env.as_str()), Some("AUTH_DB_URL"));
+}
+
+#[test]
+fn auth_database_refuses_an_unknown_key() {
+    let err = merge_database(OTP_LOCAL, "url_env = \"AUTH_DB_URL\"\nurl = \"x\"")
+        .err()
+        .map(|e| format!("{e:#}"))
+        .expect("an unknown [auth.database] key must be refused");
+    assert!(err.contains("url"), "the refusal must name the key: {err}");
+}
+
+#[test]
+fn auth_database_refuses_a_missing_or_empty_variable_name() {
+    for database in ["pool_max = 4", "url_env = \"\"", "url_env = \"  \""] {
+        let err = merge_database(OTP_LOCAL, database).err().map(|e| format!("{e:#}"));
+        let err = err.unwrap_or_else(|| panic!("[auth.database] {database:?} must be refused"));
+        assert!(err.contains("url_env"), "{database:?}: {err}");
+    }
+}
+
+#[test]
+fn auth_database_refuses_a_url_where_the_variable_name_goes() {
+    // The compiled schema carries the variable's name; a URL here would put the
+    // credentials in the artifact.
+    let err = database_value_refusal("url_env = \"postgres://auth:secret@db/app\"");
+    assert!(err.contains("url_env"), "{err}");
+    assert!(!err.contains("secret"), "the refusal must not echo the value: {err}");
+}
+
+#[test]
+fn auth_database_refuses_an_unusable_pool_size() {
+    for database in [
+        "url_env = \"AUTH_DB_URL\"\npool_max = 0",
+        "url_env = \"AUTH_DB_URL\"\npool_min = 5\npool_max = 2",
+    ] {
+        let err = database_value_refusal(database);
+        assert!(err.contains("pool_"), "{database:?}: {err}");
+    }
+}

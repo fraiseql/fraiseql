@@ -127,15 +127,17 @@ impl SamlReplayStore for SamlReplayCache {
 
 /// DDL for the shared replay table. Executed at boot, which is what keeps it valid
 /// PostgreSQL (the `#748` precedent).
-pub const PG_SAML_REPLAY_SCHEMA_SQL: &str = r"
-CREATE SCHEMA IF NOT EXISTS auth;
+pub const PG_SAML_REPLAY_SCHEMA_SQL: &str = concat!(
+    claim_auth_schema!(),
+    r"
 CREATE TABLE IF NOT EXISTS auth.tb_saml_replay (
     assertion_id TEXT PRIMARY KEY,
     expires_at   TIMESTAMPTZ NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_saml_replay_expires ON auth.tb_saml_replay(expires_at);
 REVOKE ALL ON auth.tb_saml_replay FROM PUBLIC;
-";
+"
+);
 
 /// Postgres-backed replay store, shared by every replica over one database.
 #[derive(Debug, Clone)]
@@ -156,12 +158,12 @@ impl PgSamlReplayStore {
     ///
     /// Returns [`SamlError::Config`] if a statement fails.
     pub async fn init(&self) -> Result<(), SamlError> {
-        for stmt in PG_SAML_REPLAY_SCHEMA_SQL.split(';').map(str::trim).filter(|s| !s.is_empty()) {
-            sqlx::query(stmt)
-                .execute(&self.db)
-                .await
-                .map_err(|e| SamlError::Config(format!("saml replay table: {e}")))?;
-        }
+        // raw_sql: a multi-statement batch whose schema claim is a `DO` block, which a
+        // split on `;` would cut apart.
+        sqlx::raw_sql(PG_SAML_REPLAY_SCHEMA_SQL)
+            .execute(&self.db)
+            .await
+            .map_err(|e| SamlError::Config(format!("saml replay table: {e}")))?;
         Ok(())
     }
 

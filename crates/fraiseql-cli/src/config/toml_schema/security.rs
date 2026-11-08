@@ -217,6 +217,11 @@ pub struct OidcClientConfig {
     /// (`[auth.session]`, #1853). Deserializes directly into the compiled type.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session: Option<fraiseql_core::schema::SessionConfig>,
+
+    /// The database first-party auth connects to, as its own role (`[auth.database]`,
+    /// #1965). Deserializes directly into the compiled type.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub database: Option<fraiseql_core::schema::AuthDatabaseConfig>,
 }
 
 impl OidcClientConfig {
@@ -371,6 +376,10 @@ impl OidcClientConfig {
             session.check().map_err(|message| anyhow::anyhow!(message))?;
         }
 
+        if let Some(database) = &self.database {
+            database.check().map_err(|message| anyhow::anyhow!(message))?;
+        }
+
         // #367: [auth.local] must enable at least one method, and every method
         // that sends mail or issues links must have what it needs to do so.
         // Refusing at compile time keeps the operator's feedback loop at the
@@ -477,8 +486,15 @@ impl OidcClientConfig {
 
         // A PKCE client group alone (no JWT group) is a valid configuration:
         // server-side OAuth login without also validating bearer JWTs. Only an
-        // entirely empty block is refused.
-        if !has_jwt_group && !has_client_group && !has_social_group && !has_local_group {
+        // entirely empty block is refused. `[auth.database]` alone serves a `[saml]` or
+        // `[scim]` the server configuration enables.
+        let has_database = self.database.is_some();
+        if !has_jwt_group
+            && !has_client_group
+            && !has_social_group
+            && !has_local_group
+            && !has_database
+        {
             anyhow::bail!(
                 "[auth] is empty. Configure JWT validation with issuer (or jwks_uri for IdPs \
                  whose tokens omit `iss`, e.g. Hanko), a PKCE OAuth-client group \

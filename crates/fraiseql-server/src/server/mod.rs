@@ -284,6 +284,11 @@ pub struct Server {
     #[allow(dead_code)] // Reason: read by enrichment routing code (ported in sub-phase 4e)
     pub(super) enrichment_pool: Option<sqlx::PgPool>,
 
+    /// First-party auth's pool (`[auth.database]`): the one pool that reads and
+    /// writes schema `auth`. `None` when no auth surface is configured.
+    #[cfg(feature = "auth")]
+    pub(crate) auth_pool: Option<sqlx::PgPool>,
+
     #[cfg(feature = "arrow")]
     pub(super) flight_service: Option<FraiseQLFlightService>,
 

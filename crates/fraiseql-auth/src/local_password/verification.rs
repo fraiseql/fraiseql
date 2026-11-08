@@ -86,8 +86,9 @@ const TOKEN_KIND: &str = "email verification";
 /// The one column the reset table does not have is `email`: the address the token was
 /// mailed to. Storing it binds the proof to a specific mailbox rather than to whatever
 /// the identity happens to say at redemption time.
-pub const EMAIL_VERIFICATION_SCHEMA_SQL: &str = r"
-CREATE SCHEMA IF NOT EXISTS auth;
+pub const EMAIL_VERIFICATION_SCHEMA_SQL: &str = concat!(
+    claim_auth_schema!(),
+    r"
 
 CREATE TABLE IF NOT EXISTS auth.tb_email_verification_token (
     pk_email_verification_token BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -118,7 +119,8 @@ CREATE POLICY p_email_verification_token_insert ON auth.tb_email_verification_to
 
 -- Least-privilege baseline: never world-readable. RLS is defence-in-depth on top.
 REVOKE ALL ON auth.tb_email_verification_token FROM PUBLIC;
-";
+"
+);
 
 /// Delivers an email-verification link to the address being verified.
 ///

@@ -32,6 +32,10 @@ use fraiseql_test_support::try_database_url;
 use samael::idp::{CertificateParams, IdentityProvider, KeyType, Rsa};
 use sqlx::PgPool;
 
+/// The variable `[auth.database]` names in this suite (#1965). Auth runs on the scratch
+/// database's own URL here; `auth_database_e2e_pg` covers auth on a role of its own.
+const AUTH_URL_ENV: &str = "FRAISEQL_TEST_SAML_MOUNT_AUTH_URL";
+
 const IDP_ENTITY: &str = "https://idp.example.com";
 /// 32 bytes, base64-safe — the HS256 secret handed over via env.
 const HS256_SECRET: &str = "p26-saml-hs256-secret-32-bytes!!";
@@ -59,6 +63,7 @@ async fn scratch_pool(admin_url: &str, db: &str) -> PgPool {
         .await
         .expect("create scratch database");
     admin.close().await;
+    std::env::set_var(AUTH_URL_ENV, with_database(admin_url, db));
     PgPool::connect(&with_database(admin_url, db))
         .await
         .expect("connect to scratch database")
@@ -149,6 +154,7 @@ fn empty_schema() -> CompiledSchema {
         "types": [],
         "queries": [],
         "mutations": [],
+        "auth": { "database": { "url_env": AUTH_URL_ENV } },
     }))
     .expect("compiled schema")
 }
@@ -411,20 +417,23 @@ async fn configured_but_broken_shapes_refuse_to_boot() {
     let scratch_url = with_database(&url, db);
     let adapter = Arc::new(PostgresAdapter::new(&scratch_url).await.expect("PostgresAdapter::new"));
 
-    // [saml] without a database pool refuses.
+    // [saml] without [auth.database] refuses, though the engine's pool is there: SAML's
+    // stores live in schema `auth`, which only the auth pool reaches (#1965).
     let mut config = saml_config(idp_metadata_xml());
     config.database_url.clone_from(&scratch_url);
+    let mut without_auth_database = empty_schema();
+    without_auth_database.auth = None;
     let result = Box::pin(Server::new(
         config,
-        empty_schema(),
+        without_auth_database,
         Arc::new(PostgresAdapter::new(&scratch_url).await.expect("adapter")),
-        None,
+        Some(pool.clone()),
     ))
     .await;
     let msg = result.err().map(|e| e.to_string()).unwrap_or_default();
     assert!(
-        msg.contains("[saml]") && msg.contains("pool"),
-        "[saml] without a pool must refuse naming both, got: {msg}"
+        msg.contains("[saml]") && msg.contains("[auth.database]"),
+        "[saml] without [auth.database] must refuse naming both, got: {msg}"
     );
 
     // [saml] with unparseable metadata refuses, naming the IdP.

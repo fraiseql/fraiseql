@@ -31,7 +31,7 @@ impl Capability for Saml {
     #[cfg(feature = "auth-saml")]
     fn provision(&self, cx: &BootCx<'_>) -> Vec<ProvisionStep> {
         let server = cx.server;
-        let (Some(_), Some(pool)) = (server.saml_state.as_ref(), server.db_pool.as_ref()) else {
+        let (Some(_), Some(pool)) = (server.saml_state.as_ref(), server.auth_pool.as_ref()) else {
             return Vec::new();
         };
         let mut steps = vec![ProvisionStep::new(

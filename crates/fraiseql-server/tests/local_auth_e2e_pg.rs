@@ -48,6 +48,14 @@ use fraiseql_server::{
 use fraiseql_test_support::try_database_url;
 use sqlx::PgPool;
 
+/// The variable `[auth.database]` names in this suite (#1965). Auth runs on the scratch
+/// database's own URL here; `auth_database_e2e_pg` covers auth on a role of its own.
+const AUTH_URL_ENV: &str = "FRAISEQL_TEST_LOCAL_AUTH_AUTH_URL";
+
+fn auth_database() -> fraiseql_core::schema::AuthDatabaseConfig {
+    fraiseql_core::schema::AuthDatabaseConfig::new(AUTH_URL_ENV)
+}
+
 const HS256_SECRET: &str = "p26-local-hs256-secret-32-bytes!";
 const HS256_SECRET_ENV: &str = "FRAISEQL_TEST_P26_LOCAL_E2E_HS256";
 const HS256_ISSUER: &str = "https://sp.example.com";
@@ -74,6 +82,7 @@ async fn scratch_pool(admin_url: &str, db: &str) -> PgPool {
         .await
         .expect("create scratch database");
     admin.close().await;
+    std::env::set_var(AUTH_URL_ENV, with_database(admin_url, db));
     PgPool::connect(&with_database(admin_url, db))
         .await
         .expect("connect to scratch database")
@@ -110,10 +119,11 @@ fn empty_schema() -> CompiledSchema {
 fn local_schema(local: LocalAuthConfig) -> CompiledSchema {
     let mut schema = empty_schema();
     schema.auth = Some(AuthClientConfig {
-        pkce:    None,
-        social:  None,
-        local:   Some(local),
-        session: None,
+        pkce:     None,
+        social:   None,
+        local:    Some(local),
+        session:  None,
+        database: Some(auth_database()),
     });
     schema
 }

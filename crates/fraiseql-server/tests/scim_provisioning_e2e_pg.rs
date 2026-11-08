@@ -25,6 +25,10 @@ use fraiseql_test_support::try_database_url;
 use serde_json::{Value, json};
 use sqlx::PgPool;
 
+/// The variable `[auth.database]` names in this suite (#1965). Auth runs on the scratch
+/// database's own URL here; `auth_database_e2e_pg` covers auth on a role of its own.
+const AUTH_URL_ENV: &str = "FRAISEQL_TEST_SCIM_PROVISIONING_AUTH_URL";
+
 const HS256_SECRET: &str = "p16-scim-hs256-secret-32-bytes!!";
 const SECRET_ENV: &str = "FRAISEQL_TEST_P16_SCIM_HS256_SECRET";
 const ADMIN_TOKEN: &str = "p16-scim-admin-token-at-least-32-chars";
@@ -46,6 +50,7 @@ async fn scratch_pool(admin_url: &str, db: &str) -> PgPool {
         .await
         .expect("create scratch database");
     admin.close().await;
+    std::env::set_var(AUTH_URL_ENV, with_database(admin_url, db));
     PgPool::connect(&with_database(admin_url, db))
         .await
         .expect("connect to scratch database")
@@ -92,6 +97,7 @@ fn empty_schema() -> CompiledSchema {
         "types": [],
         "queries": [],
         "mutations": [],
+        "auth": { "database": { "url_env": AUTH_URL_ENV } },
     }))
     .expect("compiled schema")
 }

@@ -16,3 +16,9 @@ return_type = "Note"
 operation = "INSERT"
 sql_source = "app.fn_create_note"
 args = [{ name = "title", type = "String", required = true }]
+
+# SAML keeps its identity providers, accounts and sessions in schema `auth`, which first-party
+# auth reaches through a pool of its own. Here one role serves both pools: the fixture's
+# database URL.
+[auth.database]
+url_env = "DATABASE_URL"

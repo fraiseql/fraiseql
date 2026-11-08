@@ -6,6 +6,32 @@
 #![allow(clippy::needless_pass_by_value)] // Reason: axum extractors require owned types
 #![allow(clippy::doc_markdown)] // Reason: technical terms (OAuth2, PKCE, OIDC, HMAC) throughout docs
 
+/// The head of every auth DDL script: create schema `auth` and mark it as first-party
+/// auth's, or refuse a schema `auth` that something else created.
+///
+/// A macro so that each script's constant stays one string (`concat!`). Its text is
+/// [`auth_schema::CLAIM_SQL`].
+macro_rules! claim_auth_schema {
+    () => {
+        r#"
+DO $claim_auth$
+DECLARE
+    marker text;
+BEGIN
+    SELECT obj_description(n.oid, 'pg_namespace') INTO marker
+      FROM pg_catalog.pg_namespace n
+     WHERE n.nspname = 'auth';
+    IF FOUND AND marker IS DISTINCT FROM 'fraiseql: first-party auth' THEN
+        RAISE EXCEPTION 'schema "auth" exists and was not created by FraiseQL first-party auth: rename the application''s own schema "auth", or point [auth.database] at another database';
+    END IF;
+END
+$claim_auth$;
+CREATE SCHEMA IF NOT EXISTS auth;
+COMMENT ON SCHEMA auth IS 'fraiseql: first-party auth';
+"#
+    };
+}
+
 pub mod account_linking;
 pub mod anonymous;
 pub mod audit;

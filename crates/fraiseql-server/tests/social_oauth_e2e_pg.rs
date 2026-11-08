@@ -56,6 +56,14 @@ use fraiseql_server::{
 use fraiseql_test_support::try_database_url;
 use sqlx::PgPool;
 
+/// The variable `[auth.database]` names in this suite (#1965). Auth runs on the scratch
+/// database's own URL here; `auth_database_e2e_pg` covers auth on a role of its own.
+const AUTH_URL_ENV: &str = "FRAISEQL_TEST_SOCIAL_OAUTH_AUTH_URL";
+
+fn auth_database() -> fraiseql_core::schema::AuthDatabaseConfig {
+    fraiseql_core::schema::AuthDatabaseConfig::new(AUTH_URL_ENV)
+}
+
 const HS256_SECRET: &str = "p26-social-hs256-secret-32bytes!";
 const HS256_SECRET_ENV: &str = "FRAISEQL_TEST_P26_SOCIAL_E2E_HS256";
 const GOOGLE_SECRET_ENV: &str = "FRAISEQL_TEST_P26_SOCIAL_E2E_GOOGLE";
@@ -121,6 +129,7 @@ async fn scratch_pool(admin_url: &str, db: &str) -> PgPool {
         .await
         .expect("create scratch database");
     admin.close().await;
+    std::env::set_var(AUTH_URL_ENV, with_database(admin_url, db));
     PgPool::connect(&with_database(admin_url, db))
         .await
         .expect("connect to scratch database")
@@ -383,10 +392,11 @@ fn empty_schema() -> CompiledSchema {
 fn social_schema(stub_base: &str) -> CompiledSchema {
     let mut schema = empty_schema();
     schema.auth = Some(fraiseql_core::schema::AuthClientConfig {
-        pkce:    None,
-        local:   None,
-        session: None,
-        social:  Some(fraiseql_core::schema::SocialAuthConfig {
+        pkce:     None,
+        local:    None,
+        session:  None,
+        database: Some(auth_database()),
+        social:   Some(fraiseql_core::schema::SocialAuthConfig {
             redirect_uri_allowlist: Vec::new(),
             google:                 Some(fraiseql_core::schema::GoogleSocialConfig {
                 client_id:         "google-client".to_string(),
@@ -627,9 +637,13 @@ async fn google_and_github_full_loops_link_verified_emails() {
     let scratch_url = with_database(&url, db);
     let stub = stub_idp().await;
 
-    let (base, tx, handle) =
-        boot_server(social_config(&scratch_url), social_schema(&stub), pool.clone(), &scratch_url)
-            .await;
+    let (base, tx, handle) = Box::pin(boot_server(
+        social_config(&scratch_url),
+        social_schema(&stub),
+        pool.clone(),
+        &scratch_url,
+    ))
+    .await;
 
     // The provider listing is mounted and complete.
     let providers: serde_json::Value = reqwest::get(format!("{base}/auth/v1/providers"))
@@ -721,7 +735,8 @@ async fn ttl_secs_sets_the_lifetime_of_a_social_sign_in() {
     });
 
     let (base, tx, handle) =
-        boot_server(social_config(&scratch_url), schema, pool.clone(), &scratch_url).await;
+        Box::pin(boot_server(social_config(&scratch_url), schema, pool.clone(), &scratch_url))
+            .await;
 
     let tokens = login(&base, "google").await;
     let access = tokens["access_token"].as_str().expect("access_token");
@@ -745,8 +760,13 @@ async fn bogus_state_and_unknown_provider_are_refused() {
     let scratch_url = with_database(&url, db);
     let stub = stub_idp().await;
 
-    let (base, tx, handle) =
-        boot_server(social_config(&scratch_url), social_schema(&stub), pool, &scratch_url).await;
+    let (base, tx, handle) = Box::pin(boot_server(
+        social_config(&scratch_url),
+        social_schema(&stub),
+        pool,
+        &scratch_url,
+    ))
+    .await;
     let client = no_redirect_client();
 
     // An unregistered provider is refused, not silently defaulted.
@@ -802,7 +822,7 @@ async fn authorize_flood_faces_the_auth_start_bucket() {
     schema.security = Some(sec);
 
     let (base, tx, handle) =
-        boot_server(social_config(&scratch_url), schema, pool, &scratch_url).await;
+        Box::pin(boot_server(social_config(&scratch_url), schema, pool, &scratch_url)).await;
     let client = no_redirect_client();
 
     let authorize =
@@ -844,9 +864,13 @@ async fn apple_form_post_loop_links_only_the_id_tokens_email() {
     let scratch_url = with_database(&url, db);
     let stub = stub_idp().await;
 
-    let (base, tx, handle) =
-        boot_server(social_config(&scratch_url), social_schema(&stub), pool.clone(), &scratch_url)
-            .await;
+    let (base, tx, handle) = Box::pin(boot_server(
+        social_config(&scratch_url),
+        social_schema(&stub),
+        pool.clone(),
+        &scratch_url,
+    ))
+    .await;
 
     // First authorization: Apple's id_token asserts APPLE_EMAIL, while the
     // browser posts a `user` payload naming someone else entirely. A client can
@@ -916,8 +940,13 @@ async fn apple_form_post_callback_refuses_a_forged_state() {
     let scratch_url = with_database(&url, db);
     let stub = stub_idp().await;
 
-    let (base, tx, handle) =
-        boot_server(social_config(&scratch_url), social_schema(&stub), pool, &scratch_url).await;
+    let (base, tx, handle) = Box::pin(boot_server(
+        social_config(&scratch_url),
+        social_schema(&stub),
+        pool,
+        &scratch_url,
+    ))
+    .await;
 
     let resp = no_redirect_client()
         .post(format!("{base}/auth/v1/callback"))
@@ -957,9 +986,13 @@ async fn discord_and_facebook_keep_unverified_emails_out_of_the_linking_space() 
     let scratch_url = with_database(&url, db);
     let stub = stub_idp().await;
 
-    let (base, tx, handle) =
-        boot_server(social_config(&scratch_url), social_schema(&stub), pool.clone(), &scratch_url)
-            .await;
+    let (base, tx, handle) = Box::pin(boot_server(
+        social_config(&scratch_url),
+        social_schema(&stub),
+        pool.clone(),
+        &scratch_url,
+    ))
+    .await;
     let store = fraiseql_auth::PostgresAccountStore::new(pool.clone());
 
     // ── Discord: `verified: false` on the user object, honoured ──────────
@@ -1048,9 +1081,13 @@ async fn a_social_sign_in_of_an_mfa_user_yields_a_challenge() {
     let pool = scratch_pool(&url, db).await;
     let scratch_url = with_database(&url, db);
     let stub = stub_idp().await;
-    let (base, tx, handle) =
-        boot_server(social_config(&scratch_url), social_schema(&stub), pool.clone(), &scratch_url)
-            .await;
+    let (base, tx, handle) = Box::pin(boot_server(
+        social_config(&scratch_url),
+        social_schema(&stub),
+        pool.clone(),
+        &scratch_url,
+    ))
+    .await;
 
     let user =
         jwt_sub(login(&base, "google").await["access_token"].as_str().expect("access_token"));

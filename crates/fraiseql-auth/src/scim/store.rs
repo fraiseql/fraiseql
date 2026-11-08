@@ -21,8 +21,9 @@ use crate::error::{AuthError, Result};
 /// The user side needs no table of its own: SCIM users are `auth.tb_user` rows, whose SCIM
 /// columns are created by
 /// [`PostgresAccountStore::init`](crate::PostgresAccountStore::init).
-pub const PG_SCIM_SCHEMA_SQL: &str = r"
-CREATE SCHEMA IF NOT EXISTS auth;
+pub const PG_SCIM_SCHEMA_SQL: &str = concat!(
+    claim_auth_schema!(),
+    r"
 
 CREATE TABLE IF NOT EXISTS auth.tb_scim_group (
     pk_scim_group BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -78,7 +79,8 @@ CREATE POLICY p_scim_group_insert ON auth.tb_scim_group FOR INSERT WITH CHECK (t
 REVOKE ALL ON auth.tb_scim_group        FROM PUBLIC;
 REVOKE ALL ON auth.tb_scim_group_member FROM PUBLIC;
 REVOKE ALL ON auth.tb_scim_token        FROM PUBLIC;
-";
+"
+);
 
 /// A provisioned user, as SCIM sees it. Backed by one `auth.tb_user` row.
 #[derive(Debug, Clone, PartialEq, Eq)]

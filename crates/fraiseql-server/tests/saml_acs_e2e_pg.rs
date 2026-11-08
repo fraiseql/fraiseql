@@ -4,12 +4,14 @@
 //! The responses are signed the way a production `IdP` signs them: RSA-SHA256 over a
 //! SHA-256 digest. samael's own template asks for a SHA-1 digest, which the server's
 //! algorithm allow-list refuses, so the fixture sets the digest on that template before
-//! signing; nothing in the server is relaxed for the test.
+//! signing; nothing in the server is relaxed for the test. One sign-in runs with the
+//! engine on a role that cannot read schema `auth`, and auth on a role of its own.
 //!
 //! Self-skips when no `DATABASE_URL` is set. Runs in the Dagger `saml`
 //! integration suite (which has the libxml2/xmlsec1 stack and Postgres).
 //!
-//! **Execution engine:** `PostgreSQL` · **Infrastructure:** `DATABASE_URL` ·
+//! **Execution engine:** `PostgreSQL` · **Infrastructure:** `DATABASE_URL`, optionally
+//! `AUTH_DATABASE_URL` (the auth role's credentials) ·
 //! **Parallelism:** creates and drops its own `fraiseql_saml_acs_*` databases →
 //! run `--test-threads=1`.
 #![cfg(feature = "auth-saml")]
@@ -44,6 +46,14 @@ use samael::{
 };
 use sqlx::PgPool;
 
+/// The variable `[auth.database]` names in this suite (#1965). Auth runs on the scratch
+/// database's own URL here; `auth_database_e2e_pg` covers auth on a role of its own.
+const AUTH_URL_ENV: &str = "FRAISEQL_TEST_SAML_ACS_AUTH_URL";
+
+fn auth_database() -> fraiseql_core::schema::AuthDatabaseConfig {
+    fraiseql_core::schema::AuthDatabaseConfig::new(AUTH_URL_ENV)
+}
+
 const IDP_ENTITY: &str = "https://idp.example.com";
 const SP_ENTITY: &str = "https://sp.example.com/metadata";
 const SP_ACS: &str = "https://sp.example.com/auth/saml/acs";
@@ -70,6 +80,7 @@ async fn scratch_pool(admin_url: &str, db: &str) -> PgPool {
         .await
         .expect("create scratch database");
     admin.close().await;
+    std::env::set_var(AUTH_URL_ENV, with_database(admin_url, db));
     PgPool::connect(&with_database(admin_url, db))
         .await
         .expect("connect to scratch database")
@@ -216,11 +227,12 @@ fn schema(session: Option<SessionConfig>) -> CompiledSchema {
         "mutations": [],
     }))
     .expect("compiled schema");
-    schema.auth = session.map(|session| AuthClientConfig {
-        pkce:    None,
-        social:  None,
-        local:   None,
-        session: Some(session),
+    schema.auth = Some(AuthClientConfig {
+        pkce: None,
+        social: None,
+        local: None,
+        session,
+        database: Some(auth_database()),
     });
     schema
 }
@@ -467,5 +479,131 @@ async fn a_relay_state_signs_in_once() {
     assert_eq!(status, reqwest::StatusCode::BAD_REQUEST, "{body}");
     assert!(body.get("access_token").is_none(), "{body}");
     server.stop().await;
+    drop_scratch(&url, db).await;
+}
+
+// ── On two roles ────────────────────────────────────────────────────────────
+
+/// The engine role the two-role test boots the engine on: it can connect and create in
+/// its scratch database, and has no grant on schema `auth`.
+const ENGINE_ROLE: &str = "fraiseql_saml_engine";
+const ENGINE_PASSWORD: &str = "fraiseql_saml_engine_password";
+
+/// The auth role: `AUTH_DATABASE_URL`'s user and password when set, else the defaults the
+/// test database's init script creates.
+fn auth_credentials() -> (String, String) {
+    std::env::var("AUTH_DATABASE_URL").ok().filter(|v| !v.is_empty()).map_or_else(
+        || ("fraiseql_auth".to_string(), "fraiseql_auth_test_password".to_string()),
+        |v| {
+            let u = url::Url::parse(&v).expect("AUTH_DATABASE_URL parses");
+            (u.username().to_string(), u.password().unwrap_or_default().to_string())
+        },
+    )
+}
+
+fn with_user(url: &str, user: &str, password: &str) -> String {
+    let mut out = url::Url::parse(url).expect("database URL parses");
+    out.set_username(user).expect("set user");
+    out.set_password(Some(password)).expect("set password");
+    out.to_string()
+}
+
+/// SAML runs on auth's pool: with the engine on a role that cannot read schema `auth`, a
+/// sign-in through the ACS completes, and every auth table, the replay cache's included,
+/// belongs to the auth role.
+#[tokio::test]
+async fn a_saml_sign_in_runs_on_the_auth_role() {
+    let Some(url) = database_url_or_skip("a_saml_sign_in_runs_on_the_auth_role") else {
+        return;
+    };
+    std::env::set_var(SECRET_ENV, HS256_SECRET);
+    let db = "fraiseql_saml_acs_two_roles";
+    let pool = scratch_pool(&url, db).await;
+    let (auth_role, auth_password) = auth_credentials();
+    for (role, password) in [
+        (ENGINE_ROLE, ENGINE_PASSWORD),
+        (auth_role.as_str(), auth_password.as_str()),
+    ] {
+        let exists: bool =
+            sqlx::query_scalar("SELECT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = $1)")
+                .bind(role)
+                .fetch_one(&pool)
+                .await
+                .expect("read pg_roles");
+        if !exists {
+            sqlx::raw_sql(&format!(
+                "CREATE ROLE {role} LOGIN PASSWORD '{password}' NOSUPERUSER NOBYPASSRLS"
+            ))
+            .execute(&pool)
+            .await
+            .expect("create role");
+        }
+    }
+    sqlx::raw_sql(&format!(
+        "GRANT CONNECT, CREATE ON DATABASE {db} TO {ENGINE_ROLE}, {auth_role}; \
+         GRANT USAGE, CREATE ON SCHEMA public TO {ENGINE_ROLE};"
+    ))
+    .execute(&pool)
+    .await
+    .expect("grant on the scratch database");
+    let scratch_url = with_database(&url, db);
+    let engine_url = with_user(&scratch_url, ENGINE_ROLE, ENGINE_PASSWORD);
+    std::env::set_var(AUTH_URL_ENV, with_user(&scratch_url, &auth_role, &auth_password));
+
+    let idp = SigningIdp::new();
+    let adapter = Arc::new(PostgresAdapter::new(&engine_url).await.expect("PostgresAdapter::new"));
+    let engine_pool = PgPool::connect(&engine_url).await.expect("connect as the engine role");
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.expect("bind ephemeral port");
+    let port = listener.local_addr().expect("local addr").port();
+    let server = Box::pin(Server::new(
+        saml_config(&idp, &engine_url),
+        schema(None),
+        adapter,
+        Some(engine_pool),
+    ))
+    .await
+    .expect("[saml] with [auth.database] must construct on two roles");
+    let (shutdown, rx) = tokio::sync::oneshot::channel::<()>();
+    let handle = tokio::spawn(async move {
+        server
+            .serve_on_listener(listener, async {
+                let _ = rx.await;
+            })
+            .await
+            .expect("serve");
+    });
+    tokio::time::sleep(std::time::Duration::from_millis(150)).await;
+    let booted = Booted {
+        base: format!("http://127.0.0.1:{port}"),
+        client: reqwest::Client::builder()
+            .redirect(reqwest::redirect::Policy::none())
+            .build()
+            .expect("client"),
+        shutdown,
+        handle,
+    };
+
+    let claims = sign_in(&booted, &idp).await;
+    booted.stop().await;
+
+    assert!(claims["sub"].is_string(), "the sign-in mints a session: {claims}");
+    let foreign: Vec<(String, String)> = sqlx::query_as(
+        "SELECT tablename::text, tableowner::text FROM pg_tables \
+         WHERE schemaname = 'auth' AND tableowner <> $1 ORDER BY 1",
+    )
+    .bind(&auth_role)
+    .fetch_all(&pool)
+    .await
+    .expect("read pg_tables");
+    assert!(foreign.is_empty(), "every auth table must belong to {auth_role}: {foreign:?}");
+    let replay: bool = sqlx::query_scalar(
+        "SELECT EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'auth' \
+         AND tablename = 'tb_saml_replay')",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("read pg_tables");
+    assert!(replay, "the replay cache's table is provisioned in auth");
+    pool.close().await;
     drop_scratch(&url, db).await;
 }

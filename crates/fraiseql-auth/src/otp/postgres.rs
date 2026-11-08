@@ -26,8 +26,9 @@ use crate::{
 };
 
 /// DDL for the `OTP` tables. Executed at boot and by the live-PG suite.
-pub const PG_OTP_SCHEMA_SQL: &str = r"
-CREATE SCHEMA IF NOT EXISTS auth;
+pub const PG_OTP_SCHEMA_SQL: &str = concat!(
+    claim_auth_schema!(),
+    r"
 CREATE TABLE IF NOT EXISTS auth.tb_otp_code (
     email      TEXT PRIMARY KEY,
     code_hash  BYTEA NOT NULL,
@@ -45,7 +46,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_otp_code_link_token_hash
     ON auth.tb_otp_code (link_token_hash) WHERE link_token_hash IS NOT NULL;
 REVOKE ALL ON auth.tb_otp_code FROM PUBLIC;
 REVOKE ALL ON auth.tb_otp_send_budget FROM PUBLIC;
-";
+"
+);
 
 fn code_hash(code: &str) -> Vec<u8> {
     Sha256::digest(code.as_bytes()).to_vec()
@@ -76,9 +78,9 @@ impl PgOtpStore {
     ///
     /// Returns [`AuthError::DatabaseError`] if a statement fails.
     pub async fn init(&self) -> Result<()> {
-        for stmt in PG_OTP_SCHEMA_SQL.split(';').map(str::trim).filter(|s| !s.is_empty()) {
-            sqlx::query(stmt).execute(&self.db).await.map_err(db_err)?;
-        }
+        // raw_sql: a multi-statement batch whose schema claim is a `DO` block, which a
+        // split on `;` would cut apart.
+        sqlx::raw_sql(PG_OTP_SCHEMA_SQL).execute(&self.db).await.map_err(db_err)?;
         Ok(())
     }
 }

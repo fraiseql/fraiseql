@@ -48,10 +48,10 @@ pub use mutation::{CascadeSource, InputStyle, MutationDefinition, MutationOperat
 pub use otp_allowed_query::otp_allowed_statement;
 pub use query::{CursorType, NativeColumn, PaginationOrder, QueryDefinition};
 pub use schema::{
-    AppleSocialConfig, AuthClientConfig, CURRENT_FRAISEQL_VERSION, CompiledSchema, DerivedState,
-    DiscordSocialConfig, FacebookSocialConfig, GitHubSocialConfig, GoogleSocialConfig,
-    LocalAuthConfig, PkceClientConfig, ProducerVersion, SessionConfig, SessionTransport,
-    SocialAuthConfig, SubscribableEntity,
+    AppleSocialConfig, AuthClientConfig, AuthDatabaseConfig, CURRENT_FRAISEQL_VERSION,
+    CompiledSchema, DerivedState, DiscordSocialConfig, FacebookSocialConfig, GitHubSocialConfig,
+    GoogleSocialConfig, LocalAuthConfig, PkceClientConfig, ProducerVersion, SessionConfig,
+    SessionTransport, SocialAuthConfig, SubscribableEntity,
 };
 pub use schema_serde::{canonicalize_json, content_hash_of};
 pub use validation::is_safe_sql_identifier;

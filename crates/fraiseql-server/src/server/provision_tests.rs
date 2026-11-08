@@ -69,6 +69,32 @@ async fn a_script_two_steps_need_runs_once_under_the_first() {
     );
 }
 
+#[tokio::test]
+async fn a_script_two_roles_need_runs_once_per_role() {
+    use super::provision::{ProvisionStep, without_repeats};
+
+    // The same script run as the engine role and as the auth role creates objects with
+    // different owners; neither run stands in for the other.
+    let lazy = |user: &str| {
+        PgPoolOptions::new()
+            .connect_lazy(&format!("postgres://{user}:pw@127.0.0.1:1/fraiseql"))
+            .unwrap()
+    };
+    let (engine, auth) = (lazy("engine"), lazy("auth"));
+    let steps = without_repeats(vec![
+        ProvisionStep::new("engine", &engine, &["sessions"]),
+        ProvisionStep::new("auth", &auth, &["sessions"]),
+        ProvisionStep::new("auth again", &auth, &["sessions"]),
+    ]);
+
+    let planned: Vec<_> = steps.iter().map(|s| (s.name, s.scripts.clone())).collect();
+    assert_eq!(
+        planned,
+        vec![("engine", vec!["sessions"]), ("auth", vec!["sessions"])],
+        "a script runs once per pool's role and database, not once per boot"
+    );
+}
+
 /// A database of its own: the race needs the tables absent.
 const SCRATCH_DB: &str = "provision_steps_race";
 

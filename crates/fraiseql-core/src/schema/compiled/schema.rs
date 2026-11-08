@@ -445,22 +445,107 @@ impl CompiledSchema {
 /// social-login providers (#368, `[auth.social.*]`, lowered into
 /// [`social`](Self::social)). Client secrets are **never** carried here — each
 /// group names the environment variable the runtime reads its secret from.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct AuthClientConfig {
     /// PKCE OAuth client for server-side login (`/auth/start`, `/auth/callback`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub pkce:    Option<PkceClientConfig>,
+    pub pkce:     Option<PkceClientConfig>,
     /// Social-login provider registry (`/auth/v1/authorize`, `/auth/v1/callback`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub social:  Option<SocialAuthConfig>,
+    pub social:   Option<SocialAuthConfig>,
     /// First-party auth methods this server operates itself (`[auth.local]`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub local:   Option<LocalAuthConfig>,
+    pub local:    Option<LocalAuthConfig>,
     /// How long the sessions this server mints last, and whether they can be
     /// refreshed (`[auth.session]`, #1853).
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub session: Option<SessionConfig>,
+    pub session:  Option<SessionConfig>,
+    /// The database first-party auth connects to, as its own role
+    /// (`[auth.database]`, #1965).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub database: Option<AuthDatabaseConfig>,
+}
+
+/// `[auth.database]` — the database first-party auth connects to, as its own role
+/// (#1965).
+///
+/// Every auth table lives in schema `auth`, owned by the role this connection
+/// authenticates as; the engine's own role needs no grant on it. Only the name of the
+/// environment variable holding the URL is compiled: the URL carries credentials.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AuthDatabaseConfig {
+    /// The environment variable that holds the auth role's connection URL.
+    pub url_env: String,
+
+    /// Connections the pool keeps open. Unset: none until needed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pool_min: Option<u32>,
+
+    /// The most connections the pool opens. Unset: [`Self::DEFAULT_POOL_MAX`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pool_max: Option<u32>,
+
+    /// How long a request waits for a connection, in seconds. Unset:
+    /// [`Self::DEFAULT_ACQUIRE_TIMEOUT_SECS`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub acquire_timeout_secs: Option<u64>,
+}
+
+impl AuthDatabaseConfig {
+    /// How long a request waits for a connection when `acquire_timeout_secs` is unset.
+    pub const DEFAULT_ACQUIRE_TIMEOUT_SECS: u64 = 30;
+    /// The pool's size when `pool_max` is unset.
+    pub const DEFAULT_POOL_MAX: u32 = 5;
+
+    /// `[auth.database]` reading its URL from `url_env`, with the default pool.
+    #[must_use]
+    pub fn new(url_env: impl Into<String>) -> Self {
+        Self {
+            url_env:              url_env.into(),
+            pool_min:             None,
+            pool_max:             None,
+            acquire_timeout_secs: None,
+        }
+    }
+
+    /// Refuse values that could not work: a `url_env` that is not an environment
+    /// variable's name, a pool that can hold no connection, and a minimum above the
+    /// maximum.
+    ///
+    /// The compiler and the server's boot check both run this. A refusal never
+    /// repeats `url_env`'s value when it is not a name, since that value may be the URL.
+    ///
+    /// # Errors
+    ///
+    /// Returns a message naming the key it refuses.
+    pub fn check(&self) -> Result<(), String> {
+        let name = self.url_env.trim();
+        if name.is_empty() {
+            return Err("[auth.database] url_env is empty: name the environment variable \
+                        that holds the auth role's connection URL"
+                .to_string());
+        }
+        let is_name = name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+            && !name.starts_with(|c: char| c.is_ascii_digit());
+        if !is_name {
+            return Err("[auth.database] url_env is not an environment variable name: it \
+                        names the variable that holds the URL, and must not hold the URL \
+                        itself"
+                .to_string());
+        }
+        let max = self.pool_max.unwrap_or(Self::DEFAULT_POOL_MAX);
+        if max == 0 {
+            return Err("[auth.database] pool_max = 0 leaves the pool no connection".to_string());
+        }
+        if let Some(min) = self.pool_min {
+            if min > max {
+                return Err(format!("[auth.database] pool_min = {min} is above pool_max = {max}"));
+            }
+        }
+        Ok(())
+    }
 }
 
 /// `[auth.session]` — the lifetime of the sessions this server mints (#1853).

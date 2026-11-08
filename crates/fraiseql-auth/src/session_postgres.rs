@@ -75,8 +75,9 @@ pub struct PostgresSessionStore {
 /// [`PostgresSessionStore::init`] applies it on its own connection, which is not safe
 /// against a concurrent boot; `fraiseql-server` applies this text under its migration
 /// lock instead.
-pub const SESSIONS_SCHEMA_SQL: &str = r"
-CREATE SCHEMA IF NOT EXISTS auth;
+pub const SESSIONS_SCHEMA_SQL: &str = concat!(
+    claim_auth_schema!(),
+    r"
 
 -- One row per refresh token. `expires_at` is when that refresh token stops working, and
 -- what the sweep deletes by. It means one of two things:
@@ -113,7 +114,8 @@ CREATE INDEX IF NOT EXISTS idx_sessions_family_id ON auth.sessions(family_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON auth.sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON auth.sessions(expires_at);
 CREATE INDEX IF NOT EXISTS idx_sessions_revoked_at ON auth.sessions(revoked_at);
-";
+"
+);
 
 impl PostgresSessionStore {
     /// Create a new PostgreSQL session store **without** JWT signing configured.

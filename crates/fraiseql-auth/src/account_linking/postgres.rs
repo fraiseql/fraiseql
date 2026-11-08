@@ -43,8 +43,9 @@ use crate::{
 
 /// Idempotent DDL for the user / identity store. Exposed so a migration runner can
 /// apply it explicitly; [`PostgresAccountStore::init`] runs the same statements.
-pub const SCHEMA_SQL: &str = r"
-CREATE SCHEMA IF NOT EXISTS auth;
+pub const SCHEMA_SQL: &str = concat!(
+    claim_auth_schema!(),
+    r"
 
 CREATE TABLE IF NOT EXISTS auth.tb_user (
     pk_user    BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -128,7 +129,8 @@ CREATE POLICY p_auth_identity_insert ON auth.tb_auth_identity FOR INSERT WITH CH
 -- Least-privilege baseline: never world-readable. RLS is defence-in-depth on top.
 REVOKE ALL ON auth.tb_user          FROM PUBLIC;
 REVOKE ALL ON auth.tb_auth_identity FROM PUBLIC;
-";
+"
+);
 
 /// PostgreSQL-backed account store.
 ///

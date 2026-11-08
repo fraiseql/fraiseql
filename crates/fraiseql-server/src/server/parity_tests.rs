@@ -790,10 +790,11 @@ async fn library_construction_path_runs_config_validate() {
 fn schema_with_github_social(secret_env: &str) -> CompiledSchema {
     let mut schema = fully_configured_schema();
     schema.auth = Some(fraiseql_core::schema::AuthClientConfig {
-        pkce:    None,
-        local:   None,
-        session: None,
-        social:  Some(fraiseql_core::schema::SocialAuthConfig {
+        pkce:     None,
+        local:    None,
+        session:  None,
+        database: Some(unreachable_auth_database()),
+        social:   Some(fraiseql_core::schema::SocialAuthConfig {
             redirect_uri_allowlist: Vec::new(),
             google:                 None,
             github:                 Some(fraiseql_core::schema::GitHubSocialConfig {
@@ -857,13 +858,14 @@ async fn social_login_with_unset_secret_env_refuses_to_boot() {
     );
 }
 
-/// #368: `[auth.social]` on a server constructed without a database pool must
-/// refuse to boot — sessions and account linking are Postgres-backed.
+/// #368: `[auth.social]` without `[auth.database]` must refuse to boot —
+/// sessions and account linking live in schema `auth`, reached through auth's own pool.
 #[cfg(feature = "auth")]
 #[tokio::test]
-async fn social_login_without_a_pool_refuses_to_boot() {
+async fn social_login_without_auth_database_refuses_to_boot() {
     std::env::set_var("FRAISEQL_TEST_P26_SOCIAL_GH_SECRET", "gh-secret");
-    let schema = schema_with_github_social("FRAISEQL_TEST_P26_SOCIAL_GH_SECRET");
+    let schema =
+        without_auth_database(schema_with_github_social("FRAISEQL_TEST_P26_SOCIAL_GH_SECRET"));
     let mut config = fully_configured_server_config();
     std::env::set_var("FRAISEQL_TEST_P26_SOCIAL_HS256", "p26-social-hs256-secret-32-bytes!");
     config.auth_hs256 = Some(crate::server_config::hs256::Hs256Config {
@@ -874,8 +876,8 @@ async fn social_login_without_a_pool_refuses_to_boot() {
     let result = Server::new(config, schema, Arc::new(NoopRelayAdapter::default()), None).await;
     let msg = result.err().map(|e| e.to_string()).unwrap_or_default();
     assert!(
-        msg.contains("[auth.social]") && msg.contains("pool"),
-        "[auth.social] without a pool must refuse naming both, got: {msg}"
+        msg.contains("[auth.social]") && msg.contains("[auth.database]"),
+        "[auth.social] without [auth.database] must refuse naming both, got: {msg}"
     );
 }
 
@@ -884,11 +886,35 @@ async fn social_login_without_a_pool_refuses_to_boot() {
 fn schema_with_local_auth(local: fraiseql_core::schema::LocalAuthConfig) -> CompiledSchema {
     let mut schema = fully_configured_schema();
     schema.auth = Some(fraiseql_core::schema::AuthClientConfig {
-        pkce:    None,
-        social:  None,
-        local:   Some(local),
-        session: None,
+        pkce:     None,
+        social:   None,
+        local:    Some(local),
+        session:  None,
+        database: Some(unreachable_auth_database()),
     });
+    schema
+}
+
+/// `[auth.database]` naming a URL nothing listens on: the pool connects on first use,
+/// and these tests never reach one.
+#[cfg(feature = "auth")]
+fn unreachable_auth_database() -> fraiseql_core::schema::AuthDatabaseConfig {
+    // A fixed valid value, set unconditionally: every reader wants exactly this value.
+    std::env::set_var("FRAISEQL_TEST_PARITY_AUTH_URL", "postgres://fraiseql_auth@127.0.0.1:1/auth");
+    fraiseql_core::schema::AuthDatabaseConfig {
+        url_env:              "FRAISEQL_TEST_PARITY_AUTH_URL".to_string(),
+        pool_min:             None,
+        pool_max:             None,
+        acquire_timeout_secs: None,
+    }
+}
+
+/// `schema` with its `[auth.database]` removed.
+#[cfg(feature = "auth")]
+fn without_auth_database(mut schema: CompiledSchema) -> CompiledSchema {
+    if let Some(auth) = schema.auth.as_mut() {
+        auth.database = None;
+    }
     schema
 }
 
@@ -906,22 +932,23 @@ fn hs256_server_config() -> ServerConfig {
     }
 }
 
-/// #367: `[auth.local]` without a database pool must refuse to boot —
-/// credentials, `MFA` enrollments, `OTP` budgets and sessions are all durable.
+/// #367: `[auth.local]` without `[auth.database]` must refuse to boot —
+/// credentials, `MFA` enrollments, `OTP` budgets and sessions all live in schema `auth`.
 #[cfg(feature = "auth")]
 #[tokio::test]
-async fn local_auth_without_a_pool_refuses_to_boot() {
-    let schema = schema_with_local_auth(fraiseql_core::schema::LocalAuthConfig {
-        mfa: true,
-        ..fraiseql_core::schema::LocalAuthConfig::default()
-    });
+async fn local_auth_without_auth_database_refuses_to_boot() {
+    let schema =
+        without_auth_database(schema_with_local_auth(fraiseql_core::schema::LocalAuthConfig {
+            mfa: true,
+            ..fraiseql_core::schema::LocalAuthConfig::default()
+        }));
     let result =
         Server::new(hs256_server_config(), schema, Arc::new(NoopRelayAdapter::default()), None)
             .await;
     let msg = result.err().map(|e| e.to_string()).unwrap_or_default();
     assert!(
-        msg.contains("[auth.local]") && msg.contains("pool"),
-        "[auth.local] without a pool must refuse naming both, got: {msg}"
+        msg.contains("[auth.local]") && msg.contains("[auth.database]"),
+        "[auth.local] without [auth.database] must refuse naming both, got: {msg}"
     );
 }
 

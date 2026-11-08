@@ -1352,6 +1352,12 @@ const (
 	pgReplicationUser     = "fraiseql_repl"
 	pgReplicationPassword = "fraiseql_repl_password"
 
+	// pgAuthUser/pgAuthPassword — first-party auth's own role (#1965), which
+	// `postgres-auth-role-init.sh` creates on the primary: no superuser, no BYPASSRLS,
+	// allowed to create in the test database so the auth DDL can create schema `auth`.
+	pgAuthUser     = "fraiseql_auth"
+	pgAuthPassword = "fraiseql_auth_test_password"
+
 	// pgFailoverBindHost — a SECOND standby, which exists to be destroyed: the
 	// #957 failover test calls pg_promote() on it, and a promoted standby never
 	// goes back. Sharing the bounded-staleness standby would make those tests'
@@ -1869,6 +1875,7 @@ func (m *FraiseqlCi) integrationPostgres(ctx context.Context, source *dagger.Dir
 // and exercises the tenant-bounded trust policy against the durable account store.
 func (m *FraiseqlCi) integrationSaml(ctx context.Context, source *dagger.Directory) (string, error) {
 	dbURL := fmt.Sprintf("postgresql://%s:%s@%s:5432/%s", pgUser, pgPassword, pgBindHost, pgDatabase)
+	authURL := fmt.Sprintf("postgresql://%s:%s@%s:5432/%s", pgAuthUser, pgAuthPassword, pgBindHost, pgDatabase)
 
 	script := strings.Join([]string{
 		"set -e",
@@ -1941,6 +1948,8 @@ func (m *FraiseqlCi) integrationSaml(ctx context.Context, source *dagger.Directo
 	return m.integrationBase(source, rustMsrv).
 		WithServiceBinding(pgBindHost, m.pgService(source)).
 		WithEnvVariable("DATABASE_URL", dbURL).
+		// Auth's own role, which the ACS suite's two-role sign-in boots auth on.
+		WithEnvVariable("AUTH_DATABASE_URL", authURL).
 		WithExec([]string{"bash", "-c", script}).
 		Stdout(ctx)
 }
@@ -1983,6 +1992,7 @@ func (m *FraiseqlCi) integrationFederationCompose(ctx context.Context, source *d
 // (no #[ignore]), so they run plainly and execute once DATABASE_URL is injected.
 func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Directory) (string, error) {
 	dbURL := fmt.Sprintf("postgresql://%s:%s@%s:5432/%s", pgUser, pgPassword, pgBindHost, pgDatabase)
+	authURL := fmt.Sprintf("postgresql://%s:%s@%s:5432/%s", pgAuthUser, pgAuthPassword, pgBindHost, pgDatabase)
 	tviewsURL := fmt.Sprintf("postgresql://%s:%s@%s:5432/%s", pgUser, pgPassword, pgTviewsBindHost, pgDatabase)
 	standbyURL := fmt.Sprintf("postgresql://%s:%s@%s:5432/%s", pgUser, pgPassword, pgStandbyBindHost, pgDatabase)
 
@@ -2345,6 +2355,11 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		// real expiry to pin the HS256 validator's 60-second leeway.
 		"echo '### cargo test -p fraiseql-server --test session_refresh_e2e_pg (#1853 session lifetime)'",
 		"cargo test -p fraiseql-server " + serverLegFeatures + " --test session_refresh_e2e_pg -- --test-threads=1",
+		// #1965 — [auth.database]: auth on a role of its own (AUTH_DATABASE_URL), the engine
+		// on a role that cannot read schema `auth`, the boot refusals, the boot logs, and a
+		// schema `auth` FraiseQL did not create.
+		"echo '### cargo test -p fraiseql-server --test auth_database_e2e_pg (#1965 auth role and pool)'",
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test auth_database_e2e_pg -- --test-threads=1",
 		"cargo test -p fraiseql-server " + serverLegFeatures + " --test mcp_tenant_dispatch_e2e_pg -- --test-threads=1",
 		// A function a tenant's write triggers runs within that tenant. File-level
 		// `#![cfg(feature = "functions-runtime-deno")]`: without the feature the binary is
@@ -2392,6 +2407,8 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		WithServiceBinding(pgStandbyBindHost, m.pgStandbyService(source, primary, "fraiseql_standby")).
 		WithServiceBinding(pgTviewsBindHost, m.pgTviewsService(source)).
 		WithEnvVariable("DATABASE_URL", dbURL).
+		// Auth's own role, which the auth_database suite boots auth on.
+		WithEnvVariable("AUTH_DATABASE_URL", authURL).
 		WithEnvVariable("STANDBY_DATABASE_URL", standbyURL).
 		WithEnvVariable("TVIEWS_DATABASE_URL", tviewsURL).
 		WithEnvVariable("FRAISEQL_PIPELINE_E2E", "1").
@@ -3462,7 +3479,9 @@ func (m *FraiseqlCi) pgService(source *dagger.Directory) *dagger.Service {
 		// connections, so pgStandbyService can base-backup and then stream. The SAME
 		// file docker-compose.test.yml mounts — a replication setup that existed on
 		// only one rig would make the lag suite green on one and red on the other.
-		WithFile("02-replication.sh", source.File("docker/init/postgres-replication-init.sh"))
+		WithFile("02-replication.sh", source.File("docker/init/postgres-replication-init.sh")).
+		// #1965: first-party auth's own role. The same file docker-compose.test.yml mounts.
+		WithFile("03-auth-role.sh", source.File("docker/init/postgres-auth-role-init.sh"))
 
 	return dag.Container().
 		From(pgImage).

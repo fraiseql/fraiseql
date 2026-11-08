@@ -97,8 +97,9 @@ const DUMMY_PASSWORD: &[u8] = b"fraiseql-local-password-timing-equalization-dumm
 /// columns, deny-by-default RLS (`ENABLE`, not `FORCE`, so the owning store bypasses while
 /// any other role reads zero rows without the `fraiseql.tenant_id` GUC), and
 /// `REVOKE ALL … FROM PUBLIC`.
-pub const PASSWORD_SCHEMA_SQL: &str = r"
-CREATE SCHEMA IF NOT EXISTS auth;
+pub const PASSWORD_SCHEMA_SQL: &str = concat!(
+    claim_auth_schema!(),
+    r"
 
 CREATE TABLE IF NOT EXISTS auth.tb_password_credential (
     pk_password_credential BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -127,7 +128,8 @@ CREATE POLICY p_password_credential_insert ON auth.tb_password_credential
 
 -- Least-privilege baseline: never world-readable. RLS is defence-in-depth on top.
 REVOKE ALL ON auth.tb_password_credential FROM PUBLIC;
-";
+"
+);
 
 /// Email + password authenticator backed by Argon2id and the #411 identity store.
 ///

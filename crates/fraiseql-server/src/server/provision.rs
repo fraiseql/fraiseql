@@ -4,7 +4,7 @@
 //! Each subsystem used to provision itself with its own `run_migration` call and its own
 //! error mapping, so the session schema ran up to five times per boot and a database that
 //! refused the DDL read as a configuration mistake. The table names each step once, runs
-//! a script the first time a step needs it, and maps every failure to
+//! a script the first time a step on that role needs it, and maps every failure to
 //! [`ServerError::Database`].
 
 use std::collections::HashSet;
@@ -43,20 +43,35 @@ impl ProvisionStep {
     }
 }
 
-/// Drop the scripts an earlier step already runs, keeping each step's order.
+/// Drop the scripts an earlier step already runs on the same role and database, keeping
+/// each step's order.
 ///
-/// Every step's pool is a clone of the one pool the server was constructed with, so a
-/// script that ran once has run for every step that names it.
+/// Steps run on two pools: the engine's, and first-party auth's (`[auth.database]`),
+/// each on its own role. A script run as one role creates objects that role owns, so a
+/// run on the engine's pool does not stand in for a run on auth's.
 pub(super) fn without_repeats(steps: Vec<ProvisionStep>) -> Vec<ProvisionStep> {
     let mut seen = HashSet::new();
     steps
         .into_iter()
         .map(|mut step| {
-            step.scripts.retain(|script| seen.insert(*script));
+            let target = target(&step.pool);
+            step.scripts.retain(|script| seen.insert((target.clone(), *script)));
             step
         })
         .filter(|step| !step.scripts.is_empty())
         .collect()
+}
+
+/// Where a pool's scripts take effect: its role, server and database. The password is
+/// not part of it.
+fn target(pool: &sqlx::PgPool) -> (String, String, u16, Option<String>) {
+    let options = pool.connect_options();
+    (
+        options.get_username().to_string(),
+        options.get_host().to_string(),
+        options.get_port(),
+        options.get_database().map(str::to_string),
+    )
 }
 
 /// Run each step under the migration lock, in order.
@@ -137,7 +152,7 @@ impl Server {
     fn push_auth_steps(&self, steps: &mut Vec<ProvisionStep>) {
         use fraiseql_auth::{account_linking, session_postgres::SESSIONS_SCHEMA_SQL};
 
-        let Some(pool) = self.enrichment_pool.as_ref() else {
+        let Some(pool) = self.auth_pool.as_ref() else {
             return;
         };
 

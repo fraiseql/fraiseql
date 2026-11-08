@@ -50,6 +50,14 @@ use reqwest::StatusCode;
 use serde_json::{Value, json};
 use sqlx::PgPool;
 
+/// The variable `[auth.database]` names in this suite (#1965). Auth runs on the scratch
+/// database's own URL here; `auth_database_e2e_pg` covers auth on a role of its own.
+const AUTH_URL_ENV: &str = "FRAISEQL_TEST_SESSION_REFRESH_AUTH_URL";
+
+fn auth_database() -> fraiseql_core::schema::AuthDatabaseConfig {
+    fraiseql_core::schema::AuthDatabaseConfig::new(AUTH_URL_ENV)
+}
+
 const HS256_SECRET: &str = "session-refresh-hs256-secret-32b!";
 const HS256_SECRET_ENV: &str = "FRAISEQL_TEST_SESSION_REFRESH_HS256";
 const HS256_ISSUER: &str = "https://sp.example.com";
@@ -86,6 +94,7 @@ async fn scratch_pool(admin_url: &str, db: &str) -> PgPool {
         .await
         .expect("create scratch database");
     admin.close().await;
+    std::env::set_var(AUTH_URL_ENV, with_database(admin_url, db));
     PgPool::connect(&with_database(admin_url, db))
         .await
         .expect("connect to scratch database")
@@ -134,6 +143,7 @@ fn schema_with(session: Option<SessionConfig>) -> CompiledSchema {
             ..LocalAuthConfig::default()
         }),
         session,
+        database: Some(auth_database()),
     });
     schema
 }

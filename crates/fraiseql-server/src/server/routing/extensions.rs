@@ -88,19 +88,19 @@ impl Server {
         // nothing else, while `/api/scim/tokens` — which mints those credentials — sits
         // behind the admin bearer.
         #[cfg(feature = "auth")]
-        if let (Some(scim_cfg), Some(db_pool), Some(rbac)) =
-            (self.config.scim.as_ref(), self.enrichment_pool.as_ref(), self.rbac.as_ref())
+        if let (Some(scim_cfg), Some(auth_pool), Some(rbac)) =
+            (self.config.scim.as_ref(), self.auth_pool.as_ref(), self.rbac.as_ref())
         {
             if scim_cfg.enabled {
                 if let Some(ref token) = self.config.admin_token {
                     let tokens = std::sync::Arc::new(fraiseql_auth::scim::PgScimTokenStore::new(
-                        db_pool.clone(),
+                        auth_pool.clone(),
                     ));
                     let scim_state = crate::api::ScimState {
-                        pool:          db_pool.clone(),
+                        pool:          auth_pool.clone(),
                         tokens:        tokens.clone(),
                         session_store: std::sync::Arc::new(
-                            fraiseql_auth::PostgresSessionStore::new(db_pool.clone()),
+                            fraiseql_auth::PostgresSessionStore::new(auth_pool.clone()),
                         ),
                         rbac:          rbac.clone(),
                         base_url:      scim_cfg.base_url.clone(),

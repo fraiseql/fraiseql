@@ -12,6 +12,18 @@ use crate::{
     session_postgres::SESSIONS_SCHEMA_SQL,
 };
 
+/// What every auth script writes on schema `auth`, and the comment it refuses to find
+/// missing on a schema `auth` that already exists.
+pub const MARKER: &str = "fraiseql: first-party auth";
+
+/// The head every auth script starts with: refuse a schema `auth` that FraiseQL did not
+/// create, then create it if absent and mark it with [`MARKER`].
+///
+/// A database that has a schema `auth` of its own would otherwise receive auth's tables
+/// beside the application's, or keep an application table of the same name that auth's
+/// queries then read.
+pub const CLAIM_SQL: &str = claim_auth_schema!();
+
 /// The auth DDL that is always compiled in. The account store comes first: the
 /// credential, token and SCIM tables hold foreign keys into its user table.
 pub const SCRIPTS: &[&str] = &[
@@ -32,3 +44,7 @@ pub const SAML_SCRIPTS: &[&str] = &[
     crate::saml::PG_SAML_REPLAY_SCHEMA_SQL,
     crate::saml::PG_SAML_IDP_SCHEMA_SQL,
 ];
+
+#[cfg(test)]
+#[path = "auth_schema_tests.rs"]
+mod tests;

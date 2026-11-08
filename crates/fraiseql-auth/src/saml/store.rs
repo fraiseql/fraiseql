@@ -34,8 +34,9 @@ use super::SamlError;
 ///
 /// The unique index deliberately carries **no** `WHERE deleted_at IS NULL` predicate — see
 /// the module docs for why a deleted name must never be reissued.
-pub const PG_SAML_IDP_SCHEMA_SQL: &str = r"
-CREATE SCHEMA IF NOT EXISTS auth;
+pub const PG_SAML_IDP_SCHEMA_SQL: &str = concat!(
+    claim_auth_schema!(),
+    r"
 
 CREATE TABLE IF NOT EXISTS auth.tb_saml_idp (
     pk_saml_idp            BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -71,7 +72,8 @@ DROP POLICY IF EXISTS p_saml_idp_insert ON auth.tb_saml_idp;
 CREATE POLICY p_saml_idp_insert ON auth.tb_saml_idp FOR INSERT WITH CHECK (true);
 
 REVOKE ALL ON auth.tb_saml_idp FROM PUBLIC;
-";
+"
+);
 
 /// A stored IdP as the operator declared it, plus what parsing its metadata revealed.
 #[derive(Debug, Clone, PartialEq, Eq)]

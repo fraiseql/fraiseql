@@ -67,8 +67,8 @@ mod subscription_types;
 
 pub use changelog::inject_changelog;
 pub use compiled::{
-    AUTO_PARAM_NAMES, AppleSocialConfig, ArgumentDefinition, AuthClientConfig, AutoParams,
-    CURRENT_FRAISEQL_VERSION, CascadeSource, CompiledSchema, CursorType, DerivedState,
+    AUTO_PARAM_NAMES, AppleSocialConfig, ArgumentDefinition, AuthClientConfig, AuthDatabaseConfig,
+    AutoParams, CURRENT_FRAISEQL_VERSION, CascadeSource, CompiledSchema, CursorType, DerivedState,
     DirectiveDefinition, DirectiveLocationKind, DiscordSocialConfig, EmailKind, EmailTemplate,
     FacebookSocialConfig, FactInjectOrigin, FactInjectScope, FederationKeyProblem,
     GitHubSocialConfig, GoogleSocialConfig, InputStyle, LocalAuthConfig, LocalEmailConfig,

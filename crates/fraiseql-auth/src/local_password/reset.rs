@@ -72,8 +72,9 @@ const TOKEN_KIND: &str = "reset";
 /// #411/#412 tables: Trinity `pk_`/`id` columns, deny-by-default RLS (`ENABLE`, not
 /// `FORCE`, so the owning store bypasses while any other role reads zero rows without the
 /// `fraiseql.tenant_id` GUC), and `REVOKE ALL … FROM PUBLIC`.
-pub const PASSWORD_RESET_SCHEMA_SQL: &str = r"
-CREATE SCHEMA IF NOT EXISTS auth;
+pub const PASSWORD_RESET_SCHEMA_SQL: &str = concat!(
+    claim_auth_schema!(),
+    r"
 
 CREATE TABLE IF NOT EXISTS auth.tb_password_reset_token (
     pk_password_reset_token BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -103,7 +104,8 @@ CREATE POLICY p_password_reset_token_insert ON auth.tb_password_reset_token
 
 -- Least-privilege baseline: never world-readable. RLS is defence-in-depth on top.
 REVOKE ALL ON auth.tb_password_reset_token FROM PUBLIC;
-";
+"
+);
 
 /// Delivers a password-reset link to a user's email address.
 ///

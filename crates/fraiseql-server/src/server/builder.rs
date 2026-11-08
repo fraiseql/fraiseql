@@ -639,6 +639,31 @@ impl Server {
         #[cfg(feature = "auth")]
         let session_state = Self::build_session_state(&config, db_pool.as_ref())?;
 
+        // `[auth.database]`: first-party auth's own pool, on its own role. Every
+        // store below that reads or writes schema `auth` takes this pool, never `db_pool`.
+        #[cfg(feature = "auth")]
+        let auth_pool = {
+            let schema_auth = executor.schema().auth.as_ref();
+            let mut surfaces = Vec::new();
+            if schema_auth.is_some_and(|auth| auth.local.is_some()) {
+                surfaces.push("[auth.local]");
+            }
+            if schema_auth.is_some_and(|auth| auth.social.is_some()) {
+                surfaces.push("[auth.social]");
+            }
+            #[cfg(feature = "auth-saml")]
+            if config.saml.is_some() {
+                surfaces.push("[saml]");
+            }
+            if config.scim.as_ref().is_some_and(|scim| scim.enabled) {
+                surfaces.push("[scim]");
+            }
+            crate::auth_database::build_auth_pool(
+                schema_auth.and_then(|auth| auth.database.as_ref()),
+                &surfaces,
+            )?
+        };
+
         // Initialize OIDC validator if auth is configured.
         //
         // Deliberately *not* `#[cfg(feature = "auth")]`-gated: `OidcValidator`
@@ -751,7 +776,7 @@ impl Server {
                     Box::pin(Self::build_social_state(
                         social_cfg,
                         &config,
-                        db_pool.clone(),
+                        auth_pool.clone(),
                         executor.schema().tenant_claim(),
                         session_lifetime,
                     ))
@@ -773,7 +798,7 @@ impl Server {
                 Box::pin(crate::auth_local::build_local_auth_states(
                     local_cfg,
                     &config,
-                    db_pool.clone(),
+                    auth_pool.clone(),
                     executor.schema().tenant_claim(),
                     session_lifetime,
                     session_cookies,
@@ -803,7 +828,7 @@ impl Server {
                 || local_auth.anon.is_some()
                 || social_login.is_some()
                 || saml_mints;
-            if let (true, None, Some(pool)) = (mints_sessions, &local_auth.mfa, &db_pool) {
+            if let (true, None, Some(pool)) = (mints_sessions, &local_auth.mfa, &auth_pool) {
                 crate::auth_local::refuse_stranded_mfa_enrollments(pool).await?;
             }
         }
@@ -819,7 +844,7 @@ impl Server {
             let saml_mints = false;
             crate::auth_local::session_routes_store(
                 &config,
-                db_pool.as_ref(),
+                auth_pool.as_ref(),
                 executor.schema().tenant_claim(),
                 session_lifetime,
                 local_auth.password.is_some()
@@ -842,7 +867,7 @@ impl Server {
                 || local_auth.anon.is_some()
                 || social_login.is_some()
                 || saml_mints;
-            db_pool
+            auth_pool
                 .as_ref()
                 .filter(|_| mints_sessions)
                 .map(|pool| Arc::new(fraiseql_auth::PostgresSessionStore::new(pool.clone())))
@@ -850,18 +875,17 @@ impl Server {
 
         // SAML SP state (#381): built here, where the pool is in scope. The
         // `[saml]` section is validated by ServerConfig::validate (shape +
-        // [auth_hs256] requirement); this adds the runtime requirements — a
-        // database pool (sessions + account linking) and parseable IdP
+        // [auth_hs256] requirement); this adds the runtime requirements — auth's
+        // pool (sessions + account linking, in schema `auth`) and parseable IdP
         // metadata — failing loud on each.
         #[cfg(feature = "auth-saml")]
         let saml_state = match &config.saml {
             Some(saml_cfg) => {
-                let pool = db_pool.clone().ok_or_else(|| {
+                // Built above whenever `[saml]` is set, or the boot refused.
+                let pool = auth_pool.clone().ok_or_else(|| {
                     ServerError::ConfigError(
-                        "[saml] requires a database pool: verified assertions mint \
-                         Postgres-backed sessions and resolve accounts through the \
-                         account store. The binary provides one when database_url is \
-                         set; library embedders must pass a PgPool to Server::new."
+                        "[saml] requires [auth.database]: verified assertions mint \
+                         sessions and resolve accounts in schema `auth`"
                             .to_string(),
                     )
                 })?;
@@ -1148,6 +1172,8 @@ impl Server {
             rbac,
             #[cfg(feature = "auth")]
             enrichment_pool: db_pool.clone(),
+            #[cfg(feature = "auth")]
+            auth_pool,
             db_pool,
             storage_state: None,
             #[cfg(feature = "functions-runtime")]

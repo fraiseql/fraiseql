@@ -31,6 +31,9 @@ pub mod cli;
 // `[auth.local]` — first-party auth methods (password, OTP, MFA, anonymous) (#367)
 #[cfg(feature = "auth")]
 mod auth_local;
+// `[auth.database]` — first-party auth's own role and pool
+#[cfg(feature = "auth")]
+mod auth_database;
 // API key authentication
 pub mod api_key;
 pub mod service_account;

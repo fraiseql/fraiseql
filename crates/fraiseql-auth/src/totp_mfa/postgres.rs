@@ -31,8 +31,9 @@ use crate::{
 
 /// DDL for the `MFA` tables. Executed at boot and by the live-PG suite — which
 /// is what keeps it valid PostgreSQL (the `#748` precedent).
-pub const PG_MFA_SCHEMA_SQL: &str = r"
-CREATE SCHEMA IF NOT EXISTS auth;
+pub const PG_MFA_SCHEMA_SQL: &str = concat!(
+    claim_auth_schema!(),
+    r"
 CREATE TABLE IF NOT EXISTS auth.tb_mfa_enrollment (
     user_id              TEXT PRIMARY KEY,
     secret_base32        TEXT NOT NULL,
@@ -51,7 +52,8 @@ CREATE TABLE IF NOT EXISTS auth.tb_mfa_challenge (
 CREATE INDEX IF NOT EXISTS idx_mfa_challenge_expires ON auth.tb_mfa_challenge(expires_at);
 REVOKE ALL ON auth.tb_mfa_enrollment FROM PUBLIC;
 REVOKE ALL ON auth.tb_mfa_challenge FROM PUBLIC;
-";
+"
+);
 
 /// Hash a challenge token for storage/lookup. Storing the token verbatim would
 /// let a database read replay a live challenge.
@@ -93,9 +95,9 @@ impl PgMfaStore {
     ///
     /// Returns [`AuthError::DatabaseError`] if a statement fails.
     pub async fn init(&self) -> Result<()> {
-        for stmt in PG_MFA_SCHEMA_SQL.split(';').map(str::trim).filter(|s| !s.is_empty()) {
-            sqlx::query(stmt).execute(&self.db).await.map_err(db_err)?;
-        }
+        // raw_sql: a multi-statement batch whose schema claim is a `DO` block, which a
+        // split on `;` would cut apart.
+        sqlx::raw_sql(PG_MFA_SCHEMA_SQL).execute(&self.db).await.map_err(db_err)?;
         Ok(())
     }
 

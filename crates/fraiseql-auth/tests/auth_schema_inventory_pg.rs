@@ -155,3 +155,113 @@ SELECT 'function ' || n.nspname || '.' || p.proname
   FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace
  WHERE n.nspname NOT IN ('auth', 'pg_catalog', 'information_schema')
 ";
+
+/// What the auth scripts write on the schema they create, and look for on one they find.
+const MARKER: &str = "fraiseql: first-party auth";
+
+#[tokio::test]
+async fn the_auth_scripts_mark_the_schema_they_create() {
+    let Some(url) = try_database_url() else {
+        eprintln!("skipping: DATABASE_URL not set");
+        return;
+    };
+    let db = FreshDatabase::create(&url, "marker").await;
+    provision_twice(&db.pool).await;
+    let comment: Option<String> =
+        sqlx::query_scalar("SELECT obj_description('auth'::regnamespace, 'pg_namespace')")
+            .fetch_one(&db.pool)
+            .await
+            .unwrap();
+    db.drop().await;
+
+    assert_eq!(comment.as_deref(), Some(MARKER), "the auth scripts must mark schema `auth`");
+}
+
+#[tokio::test]
+async fn every_auth_script_refuses_a_schema_auth_it_did_not_create() {
+    let Some(url) = try_database_url() else {
+        eprintln!("skipping: DATABASE_URL not set");
+        return;
+    };
+    let db = FreshDatabase::create(&url, "collision").await;
+    // An application's own `auth` schema: no marker.
+    sqlx::raw_sql("CREATE SCHEMA auth").execute(&db.pool).await.unwrap();
+
+    let mut accepted = Vec::new();
+    let scripts = auth_schema::SCRIPTS.iter().chain(auth_schema::SAML_SCRIPTS);
+    for (index, script) in scripts.enumerate() {
+        match sqlx::raw_sql(script).execute(&db.pool).await {
+            Err(e) if e.to_string().contains("not created by FraiseQL") => {},
+            other => accepted.push(format!("auth script #{index}: {other:?}")),
+        }
+    }
+    db.drop().await;
+
+    assert!(
+        accepted.is_empty(),
+        "every auth script must refuse a schema `auth` FraiseQL did not create: {accepted:#?}"
+    );
+}
+
+/// Each store's own `init()` applies its script whole, twice over: a store that cut its
+/// script into statements would cut the schema claim's `DO` block apart.
+#[tokio::test]
+async fn every_auth_store_init_applies_its_script_whole() {
+    use std::sync::Arc;
+
+    use fraiseql_auth::{
+        LocalPasswordAuthenticator, PgMfaStore, PgOtpStore, PostgresAccountStore,
+        PostgresSessionStore,
+        saml::{PgSamlIdpStore, PgSamlReplayStore},
+        scim::{PgScimStore, ScimStore},
+    };
+
+    let Some(url) = try_database_url() else {
+        eprintln!("skipping: DATABASE_URL not set");
+        return;
+    };
+    let db = FreshDatabase::create(&url, "store_init").await;
+    let pool = db.pool.clone();
+    let accounts = Arc::new(PostgresAccountStore::new(pool.clone()));
+
+    let mut failed = Vec::new();
+    for pass in 1..=2 {
+        let results: [(&str, Result<(), String>); 8] = [
+            ("accounts", accounts.init().await.map_err(|e| e.to_string())),
+            (
+                "local password",
+                LocalPasswordAuthenticator::new(pool.clone(), accounts.clone())
+                    .init()
+                    .await
+                    .map_err(|e| e.to_string()),
+            ),
+            (
+                "sessions",
+                PostgresSessionStore::new(pool.clone()).init().await.map_err(|e| e.to_string()),
+            ),
+            ("otp", PgOtpStore::new(pool.clone()).init().await.map_err(|e| e.to_string())),
+            ("mfa", PgMfaStore::new(pool.clone()).init().await.map_err(|e| e.to_string())),
+            (
+                "saml idp",
+                PgSamlIdpStore::new(pool.clone()).init().await.map_err(|e| e.to_string()),
+            ),
+            (
+                "saml replay",
+                PgSamlReplayStore::new(pool.clone()).init().await.map_err(|e| e.to_string()),
+            ),
+            (
+                "scim",
+                PgScimStore::new(pool.clone(), None).init().await.map_err(|e| e.to_string()),
+            ),
+        ];
+        for (store, result) in results {
+            if let Err(e) = result {
+                failed.push(format!("pass {pass}, {store}: {e}"));
+            }
+        }
+    }
+    drop(pool);
+    db.drop().await;
+
+    assert!(failed.is_empty(), "every auth store's init must apply its script: {failed:#?}");
+}

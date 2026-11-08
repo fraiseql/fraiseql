@@ -27,6 +27,25 @@ disagreed, and the promise was the part that was wrong.
   `_system.session_state`, `core.tb_api_key` and `core.tb_admin_token` stay where they are.
   `fraiseql_auth::auth_schema` lists every auth DDL script in dependency order.
 
+- **First-party auth runs on a database role and pool of its own, `[auth.database]` (#1965).**
+  `[auth.local]`, `[auth.social]`, `[saml]` and an enabled `[scim]` each refuse to boot
+  without it, naming the surfaces. It names the environment variable that holds the auth
+  role's URL, never the URL itself; the compiled schema carries the name, and the boot logs
+  name the variable, not its value:
+
+  ```toml
+  [auth.database]
+  url_env = "AUTH_DATABASE_URL"
+  ```
+
+  The server creates schema `auth` as that role, so the role owns every auth table, and the
+  engine's role needs no grant on them. A project that configures only `[saml]` or `[scim]`
+  holds `[auth.database]` alone under `[auth]`. The boot also refuses `[auth.database]` with
+  no auth surface, an unset or empty variable, a value that is not a PostgreSQL URL, and a
+  schema `auth` that FraiseQL did not create: it marks the schema it creates with a comment.
+  Setting up the role: `docs/auth/database.md`. `AuthClientConfig` gains `database`; a
+  struct literal naming every field must set it, or use `..AuthClientConfig::default()`.
+
 - **A tenant-scoped fact table's `_aggregate` and `_window` roots are refused unless something
   scopes them (#1799).** A fact table is tenant-scoped when the type it is read as
   (`type_name`) declares `inject_params` or is returned by a query that does, or when one of
