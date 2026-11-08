@@ -19,6 +19,22 @@ impl TestIdp {
         }
     }
 
+    /// The `[auth]` section of a deployment that trusts this issuer, for its issuer
+    /// and audience.
+    ///
+    /// The JWKS URI is left unset, so a server built from it finds the key set the
+    /// way a deployment does: by discovery from the issuer.
+    #[must_use]
+    pub fn oidc_config(&self, required: bool) -> OidcConfig {
+        OidcConfig {
+            issuer: Some(self.issuer.issuer().to_string()),
+            audience: Some(self.issuer.audience().to_string()),
+            required,
+            allowed_algorithms: vec!["ES256".to_string()],
+            ..OidcConfig::default()
+        }
+    }
+
     /// A validator that trusts this issuer's keys, for its issuer and audience.
     ///
     /// # Panics
@@ -26,15 +42,8 @@ impl TestIdp {
     /// If the validator refuses the loopback `jwks_uri`.
     #[must_use]
     pub fn validator(&self, required: bool) -> Arc<OidcValidator> {
-        let config = OidcConfig {
-            issuer: Some(self.issuer.issuer().to_string()),
-            audience: Some(self.issuer.audience().to_string()),
-            required,
-            allowed_algorithms: vec!["ES256".to_string()],
-            ..OidcConfig::default()
-        };
         Arc::new(
-            OidcValidator::with_jwks_uri(config, &self.issuer.jwks_uri())
+            OidcValidator::with_jwks_uri(self.oidc_config(required), &self.issuer.jwks_uri())
                 .expect("a loopback jwks_uri"),
         )
     }
@@ -52,3 +61,7 @@ impl TestIdp {
         self.issuer.foreign_token(&self.issuer.claims().set("sub", sub).set("jti", jti))
     }
 }
+
+#[cfg(test)]
+#[path = "idp_tests.rs"]
+mod tests;

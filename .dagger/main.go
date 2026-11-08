@@ -1170,6 +1170,8 @@ func (m *FraiseqlCi) Test(
 		// tenant fail-closed gate on the live /ws path.
 		"echo '### cargo test -p fraiseql-server subscription test binaries (SYNC:SERVER_FEATURES; not covered by --lib) — P18 verification gate'",
 		"cargo test -p fraiseql-server --features '" + serverTestFeatures + "' --test subscription_ws_e2e_test --test subscription_protocol_test --test subscription_integration_test --test graphql_ws_row_visibility_pin_test --test subscription_lifecycle_ws_test",
+		"echo '### cargo test -p fraiseql-server test-issuer auth binary (SYNC:SERVER_FEATURES; not covered by --lib)'",
+		"cargo test -p fraiseql-server --features '" + serverTestFeatures + "' --test test_issuer_auth_test",
 		// P19 (#747): the GraphQL Idempotency-Key receiver contract — a saga
 		// peer's at-least-once retries deduplicate to one logical effect.
 		// Docker-free (mock adapter), but a tests/* binary no other invocation

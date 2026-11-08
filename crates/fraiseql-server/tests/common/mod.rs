@@ -8,6 +8,8 @@ pub mod server_harness;
 // only a subset of helpers, so unused-function warnings are expected.
 #[allow(dead_code)] // Reason: each integration test binary uses only a subset of helpers
 pub mod test_app;
+#[allow(dead_code)] // Reason: each integration test binary uses only a subset of helpers
+pub mod test_issuer;
 
 #[allow(unused_imports)]
 // Reason: re-exported for all integration test binaries; each uses a subset
