@@ -14,7 +14,8 @@
 //! Every public constructor also refuses what any boot gate refuses. One test per gate
 //! builds a tripping schema through all three: `enrichment_consumer_without_resolver_check`,
 //! `locale_enrichment_fields_check`, `static_enriched_fields_check`,
-//! `session_variables_supported_check` and `locale_collations_check`.
+//! `session_variables_supported_check`, `locale_collations_check` and
+//! `header_session_variables_in_rls_check`.
 //!
 //! **Execution engine:** in-memory (no database required)
 //! **Infrastructure:** none — the fail-closed webhook probe targets a closed local port
@@ -71,17 +72,21 @@ const FIXTURE_CONNECTION_CAPS: crate::subscriptions::ConnectionCaps =
         ),
     };
 
-/// Answers every read with no rows, so the catalog holds no ICU collation.
+/// Answers every read with no rows, so the catalog holds no ICU collation, except a read of
+/// `pg_policies`, which it answers with `policies`.
 #[derive(Debug, Clone)]
 struct NoopRelayAdapter {
     /// What `applies_session_variables` reports: the input of the session-variable gate.
     applies_session_variables: bool,
+    /// The rows a `pg_policies` read returns: the catalog's row-level security policies.
+    policies:                  Vec<HashMap<String, serde_json::Value>>,
 }
 
 impl Default for NoopRelayAdapter {
     fn default() -> Self {
         Self {
             applies_session_variables: true,
+            policies:                  Vec::new(),
         }
     }
 }
@@ -129,9 +134,13 @@ impl DatabaseAdapter for NoopRelayAdapter {
 
     async fn execute_raw_query(
         &self,
-        _sql: &str,
+        sql: &str,
     ) -> FraiseQLResult<Vec<HashMap<String, serde_json::Value>>> {
-        Ok(vec![])
+        Ok(if sql.contains("pg_policies") {
+            self.policies.clone()
+        } else {
+            vec![]
+        })
     }
 
     async fn execute_parameterized_aggregate(
@@ -566,9 +575,46 @@ async fn session_variables_supported_check_refuses_through_every_constructor() {
         &fully_configured_server_config(),
         &NoopRelayAdapter {
             applies_session_variables: false,
+            ..NoopRelayAdapter::default()
         },
         "session_variables_supported_check",
         "cannot apply session variables",
+    )
+    .await;
+}
+
+/// A row-level security policy that reads a session variable taken from a request header
+/// scopes rows by a value any client chooses: every constructor refuses to boot, and names
+/// the policy.
+#[tokio::test]
+async fn header_session_variables_in_rls_check_refuses_through_every_constructor() {
+    use fraiseql_core::schema::{SessionVariableMapping, SessionVariableSource};
+
+    let mut schema = fully_configured_schema();
+    schema.session_variables.variables.push(SessionVariableMapping {
+        name:   "app.region".to_string(),
+        source: SessionVariableSource::Header {
+            header: "x-region".to_string(),
+        },
+    });
+    let policy = [
+        ("schema_name", "public"),
+        ("table_name", "tb_order"),
+        ("policy_name", "by_region"),
+        ("setting", "app.region"),
+    ]
+    .into_iter()
+    .map(|(k, v)| (k.to_string(), serde_json::Value::from(v)))
+    .collect();
+    assert_every_constructor_refuses(
+        &schema,
+        &fully_configured_server_config(),
+        &NoopRelayAdapter {
+            policies: vec![policy],
+            ..NoopRelayAdapter::default()
+        },
+        "header_session_variables_in_rls_check",
+        "policy by_region on public.tb_order reads app.region",
     )
     .await;
 }

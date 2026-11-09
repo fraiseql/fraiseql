@@ -56,6 +56,7 @@ pub mod filter_path;
 mod graphql_name;
 mod graphql_type_defs;
 pub mod graphql_value;
+mod header_policy;
 mod hierarchy;
 mod introspection;
 pub mod locale;
@@ -109,6 +110,10 @@ pub use graphql_type_defs::{
     gated_field, translations_base,
 };
 pub use graphql_value::GraphQLValue;
+pub use header_policy::{
+    HEADER_VARIABLE_POLICY_REMEDY, PolicySettingRead, header_sourced_settings,
+    header_variables_read_by_policies, policies_reading_settings_sql, policy_setting_reads,
+};
 pub use hierarchy::{HierarchiesConfig, HierarchyDefinition};
 pub(crate) use introspection::{CallerIntrospection, arg_type_ref, input_field_type_ref};
 pub use introspection::{

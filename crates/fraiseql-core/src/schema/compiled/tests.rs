@@ -2788,6 +2788,36 @@ fn a_session_variable_in_the_servers_namespace_is_refused_at_load() {
     load("app.region").expect("another namespace loads");
 }
 
+/// The engine sets each session variable in declaration order, so a setting declared twice
+/// takes the value of the later mapping: a `header` mapping after a `jwt` one of the same
+/// setting would hand the client the value the token was meant to supply. Refused at load in
+/// any case spelling, since PostgreSQL resolves a setting name case-insensitively; two
+/// distinct settings load.
+#[test]
+fn a_session_variable_declared_twice_is_refused_at_load() {
+    let load = |first: &str, second: &str| {
+        CompiledSchema::from_json(
+            &format!(
+                r#"{{"types":[],"queries":[],"mutations":[],"subscriptions":[],
+                "session_variables":{{"variables":[
+                    {{"name":"{first}","source":"jwt","claim":"tenant_id"}},
+                    {{"name":"{second}","source":"header","header":"x-tenant"}}]}}}}"#
+            ),
+            false,
+        )
+    };
+    for (first, second) in [
+        ("app.tenant_id", "app.tenant_id"),
+        ("app.tenant_id", "APP.TENANT_ID"),
+        ("App.Tenant_Id", "app.tenant_id"),
+    ] {
+        let refusal = load(first, second).expect_err(second).to_string();
+        assert!(refusal.contains(second), "names the setting: {refusal}");
+        assert!(refusal.contains("session variable"), "names what is declared twice: {refusal}");
+    }
+    load("app.tenant_id", "app.region").expect("two distinct settings load");
+}
+
 /// #1530: a field that names no declared object, interface or union is refused at load, for a
 /// hand-written artifact too. The compiler refuses one, so this is the second line: an
 /// artifact that reached a server with one was answered with no value for that field.

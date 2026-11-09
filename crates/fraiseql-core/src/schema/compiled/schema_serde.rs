@@ -913,7 +913,8 @@ impl CompiledSchema {
             .collect()
     }
 
-    /// Types, queries or mutations declared under a name already taken (#1265).
+    /// Types, queries, mutations or session variables declared under a name already taken
+    /// (#1265).
     ///
     /// `build_indexes` keys each collection by name, so a duplicate does not conflict —
     /// it *shadows*, and the schema serves whichever definition indexed last while the
@@ -954,6 +955,20 @@ impl CompiledSchema {
                 stored.iter().map(String::as_str),
                 &mut violations,
             );
+        }
+        // Session variables are set in declaration order, so a setting declared twice takes
+        // the later mapping's value: a `header` mapping after a `jwt` one of the same setting
+        // would hand the client the value the token supplies. PostgreSQL resolves a setting
+        // name case-insensitively, so the comparison is too.
+        let mut settings: std::collections::HashSet<String> = std::collections::HashSet::new();
+        for mapping in &self.session_variables.variables {
+            if !settings.insert(mapping.name.to_ascii_lowercase()) {
+                violations.push(format!(
+                    "Duplicate session variable name: {} (setting names are case-insensitive, \
+                     and the later declaration would replace the earlier one)",
+                    mapping.name
+                ));
+            }
         }
         violations
     }

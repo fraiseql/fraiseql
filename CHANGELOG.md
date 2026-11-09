@@ -18,6 +18,15 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **A row level security policy that reads a session variable taken from a request header
+  refuses boot.** A `source = "header"` session variable carries whatever the client sends,
+  so a policy reading it (`current_setting('app.region', true)` for a header-sourced
+  `app.region`) does not isolate anything. Every server constructor refuses such a schema
+  and names each policy, table and setting; `fraiseql doctor --against-db` reports the
+  same match as a failure rather than a warning. A session variable declared twice, in
+  any case spelling, is refused at load. A deployment whose policies read a header-sourced
+  setting sources it from the token (`jwt`) or an enriched field instead.
+
 - **Every root a multi-tenant schema serves declares how it is scoped.**
   - Under `[tenancy] mode = "row"`, every object type a query, subscription, federated
     entity or tenant-agnostic mutation returns carries a `@tenant_id` field or is listed

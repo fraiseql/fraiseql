@@ -37,6 +37,7 @@ fn with_session_variable() -> fraiseql_core::schema::CompiledSchema {
 async fn a_reload_adding_session_variables_the_adapter_cannot_apply_is_refused() {
     let server = server_on(NoopRelayAdapter {
         applies_session_variables: false,
+        ..NoopRelayAdapter::default()
     })
     .await;
     let state = server.build_app_state();

@@ -461,10 +461,11 @@ fn the_document_loads_without_a_database() {
     assert_eq!(header_doctor_schema().session_variables.variables.len(), 2);
 }
 
-/// #1520: `doctor --against-db` warns for each RLS policy that reads a `source = "header"`
-/// session variable (a client-controlled value), and not for one that reads a `jwt` one.
+/// `doctor --against-db` fails for each RLS policy that reads a `source = "header"`
+/// session variable (a client-controlled value), and not for one that reads a `jwt` one. The
+/// server refuses to boot on the same policies, so doctor reports a failure, not a warning.
 #[tokio::test]
-async fn doctor_warns_when_a_policy_reads_a_header_variable() {
+async fn doctor_fails_when_a_policy_reads_a_header_variable() {
     const TABLE: &str = "tb_doctor_header_policy";
     let Some(url) = fraiseql_test_support::try_database_url() else {
         eprintln!("skipping #1520 doctor test: no DATABASE_URL");
@@ -497,17 +498,17 @@ async fn doctor_warns_when_a_policy_reads_a_header_variable() {
             .collect();
     client.batch_execute(&format!("DROP TABLE {TABLE}")).await.unwrap();
 
-    let warned: Vec<&String> =
-        checks.iter().filter(|(s, _)| *s == CheckStatus::Warn).map(|(_, d)| d).collect();
+    let failed: Vec<&String> =
+        checks.iter().filter(|(s, _)| *s == CheckStatus::Fail).map(|(_, d)| d).collect();
     assert!(
-        warned
+        failed
             .iter()
             .any(|d| d.contains(&format!("by_region on public.{TABLE} reads app.region"))),
-        "the policy reading the header variable is named: {checks:?}"
+        "the policy reading the header variable fails the check: {checks:?}"
     );
     assert!(
-        !warned.iter().any(|d| d.contains("by_tenant")),
-        "a policy reading a jwt variable is not: {checks:?}"
+        !checks.iter().any(|(_, d)| d.contains("by_tenant")),
+        "a policy reading a jwt variable is not named: {checks:?}"
     );
 }
 

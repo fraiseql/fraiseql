@@ -2108,6 +2108,46 @@ pub fn session_variables_applied_check(
     )))
 }
 
+/// Refuse to boot when a row-level security policy reads a session variable the schema takes
+/// from a request header.
+///
+/// A header is client-controlled: any caller sends any value, so such a policy scopes rows
+/// by what the client claims. Every policy in the database is checked, whatever the tenancy
+/// mode and whether or not RLS is declared, because the read is the defect.
+///
+/// Matches the policy's stored expression (see
+/// [`header_variables_read_by_policies`](fraiseql_core::schema::header_variables_read_by_policies)):
+/// a policy that reads the setting only through a function it calls, or that builds the
+/// setting's name from parts, is not seen. `doctor --against-db` runs the same check.
+///
+/// # Errors
+///
+/// `ServerError::ConfigError` naming each policy, its table and the setting it reads;
+/// `ServerError::Database` when the catalog cannot be read.
+pub async fn header_session_variables_in_rls_check<
+    A: fraiseql_core::db::DatabaseAdapter + ?Sized,
+>(
+    schema: &CompiledSchema,
+    adapter: &A,
+) -> crate::Result<()> {
+    let reads = fraiseql_core::schema::header_variables_read_by_policies(schema, adapter)
+        .await
+        .map_err(|e| crate::ServerError::Database(format!("reading pg_policies: {e}")))?;
+    if reads.is_empty() {
+        return Ok(());
+    }
+    Err(crate::ServerError::ConfigError(format!(
+        "A row-level security policy reads a session variable taken from a request header:\n  \
+         - {}\n{}",
+        reads
+            .iter()
+            .map(fraiseql_core::schema::PolicySettingRead::described)
+            .collect::<Vec<_>>()
+            .join("\n  - "),
+        fraiseql_core::schema::HEADER_VARIABLE_POLICY_REMEDY
+    )))
+}
+
 /// Refuse to boot when an allowed locale has no ICU collation in the database (#1512).
 ///
 /// A text sort in a locale runs `… COLLATE "<tag>-x-icu"`; PostgreSQL creates those

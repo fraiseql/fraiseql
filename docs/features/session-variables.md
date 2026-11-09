@@ -40,9 +40,13 @@ Any client can send any header with any value. **Never use a `header` variable f
 row-level security or tenant scoping.** Scope rows with a `jwt` or `enrichment` variable,
 whose value comes from a verified token or from your database.
 
-`fraiseql doctor --against-db` warns for each RLS policy whose `USING` or `WITH CHECK`
-expression calls `current_setting` on a header-sourced variable. It reads the policy text,
-so it does not see a policy that reads the variable through a function it calls.
+The server refuses to boot when an RLS policy's `USING` or `WITH CHECK` expression calls
+`current_setting` on a header-sourced variable, and names each such policy;
+`fraiseql doctor --against-db` reports the same policies as failures. Both read the
+expression PostgreSQL stores for the policy, in which the setting's name is matched
+case-insensitively and whitespace or the optional second argument make no difference. They
+do not see a policy that reads the variable only through a function it calls, or that
+builds the variable's name from parts.
 
 A header-sourced value is never read from a claim of the same name: the header and the
 token's claims are different inputs. A request is refused, with a validation error, when a
@@ -70,3 +74,6 @@ Reads and writes both carry the variables. A write also carries `fraiseql.starte
 declared in it (`fraiseql.locale`, `fraiseql.started_at`, or any other `fraiseql.` name, in
 any case, since PostgreSQL resolves setting names case-insensitively) would overwrite the
 server's own setting, so it is refused at compile and at load.
+
+Variables are set in declaration order, so a name declared twice would take the later
+declaration's value. A name declared twice, in any case spelling, is refused at load.

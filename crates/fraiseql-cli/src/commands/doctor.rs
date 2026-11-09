@@ -750,25 +750,24 @@ pub async fn against_db_checks(
 
 const HEADER_VARIABLE_POLICY_NAME: &str = "Header variable in RLS";
 
-/// Warn for each row-level security policy that reads a `source = "header"` session
+/// Fail for each row-level security policy that reads a `source = "header"` session
 /// variable.
 ///
 /// A header is client-controlled: any caller sends any value, so a policy keyed on one
-/// scopes rows by what the client claims. Warnings, not failures: a policy may use the value
-/// for something other than isolation, and only its author knows. No check when the schema
-/// declares no header source.
+/// scopes rows by what the client claims. The server refuses to boot on the same policies
+/// (`header_session_variables_in_rls_check`), with the same query and the same words. No
+/// check when the schema declares no header source.
+///
+/// Matches the policy's stored expression (see
+/// [`header_variables_read_by_policies`](fraiseql_core::schema::header_variables_read_by_policies)):
+/// a policy that reads the setting only through a function it calls, or that builds the
+/// setting's name from parts, is not seen.
 pub async fn header_variable_policy_checks(
     db_url: &str,
     tls: &PostgresTlsConfig,
     schema: &CompiledSchema,
 ) -> Vec<DoctorCheck> {
-    let settings: Vec<String> = schema
-        .session_variables
-        .variables
-        .iter()
-        .filter(|m| matches!(m.source, fraiseql_core::schema::SessionVariableSource::Header { .. }))
-        .map(|m| m.name.clone())
-        .collect();
+    let settings = fraiseql_core::schema::header_sourced_settings(schema);
     if settings.is_empty() {
         return Vec::new();
     }
@@ -787,15 +786,10 @@ pub async fn header_variable_policy_checks(
         Ok(reads) => reads
             .into_iter()
             .map(|read| {
-                DoctorCheck::warn(
+                DoctorCheck::fail(
                     HEADER_VARIABLE_POLICY_NAME,
-                    format!(
-                        "policy {} on {}.{} reads {}, which comes from a request header: any \
-                         client can send any value",
-                        read.policy, read.schema, read.table, read.setting
-                    ),
-                    "Scope rows with a `jwt` or `enrichment` session variable; a header must \
-                     never feed row-level security or tenant scoping.",
+                    read.described(),
+                    fraiseql_core::schema::HEADER_VARIABLE_POLICY_REMEDY,
                 )
             })
             .collect(),

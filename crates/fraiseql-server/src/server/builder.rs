@@ -291,6 +291,13 @@ impl Server {
         // that locale would fail at runtime.
         crate::server::initialization::locale_collations_check(&schema, adapter.as_ref()).await?;
 
+        // A row-level security policy must never read a session variable a client sets.
+        crate::server::initialization::header_session_variables_in_rls_check(
+            &schema,
+            adapter.as_ref(),
+        )
+        .await?;
+
         // Read every schema-derived subsystem through the one shared seam.
         let subsystems = Self::schema_subsystems(&schema, &config, deployment).await?;
 

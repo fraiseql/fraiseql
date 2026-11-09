@@ -641,6 +641,104 @@ async fn a_federation_entity_lookup_sees_the_header() {
     assert_eq!(result["data"]["_entities"][0]["region"], json!("eu"), "{result}");
 }
 
+/// The schema the boot-refusal cases create their policy table in.
+const POLICY_SCHEMA: &str = "header_var_policy";
+
+/// Try to boot a server for [`schema()`], its header variable named `setting`, over a
+/// database where `tb_region` carries the row-level security policy `by_region`, written
+/// `policy` (the clause after the table name). The policy schema is dropped again before this
+/// returns. `Err` is the refusal.
+async fn boot_with_policy(url: &str, setting: &str, policy: &str) -> Result<(), String> {
+    let adapter = Arc::new(PostgresAdapter::new(url).await.unwrap());
+    provision(&adapter).await;
+    for stmt in [
+        format!("DROP SCHEMA IF EXISTS {POLICY_SCHEMA} CASCADE"),
+        format!("CREATE SCHEMA {POLICY_SCHEMA}"),
+        format!("CREATE TABLE {POLICY_SCHEMA}.tb_region (region text)"),
+        format!(
+            "CREATE FUNCTION {POLICY_SCHEMA}.current_region() RETURNS text STABLE \
+             LANGUAGE sql AS $$ SELECT current_setting('app.region', true) $$"
+        ),
+        format!("ALTER TABLE {POLICY_SCHEMA}.tb_region ENABLE ROW LEVEL SECURITY"),
+        format!("CREATE POLICY by_region ON {POLICY_SCHEMA}.tb_region {policy}"),
+    ] {
+        adapter.execute_raw_query(&stmt).await.unwrap_or_else(|e| panic!("{stmt}: {e}"));
+    }
+    let config = ServerConfig {
+        database_url: url.to_string(),
+        cors_enabled: false,
+        ..ServerConfig::default()
+    };
+    let mut schema = schema();
+    let header = schema
+        .session_variables
+        .variables
+        .iter_mut()
+        .find(|m| matches!(m.source, SessionVariableSource::Header { .. }))
+        .expect("the suite's schema declares a header variable");
+    header.name = setting.to_string();
+    let booted = Box::pin(Server::with_relay_pagination(config, schema, adapter.clone(), None))
+        .await
+        .map(drop)
+        .map_err(|e| e.to_string());
+    adapter
+        .execute_raw_query(&format!("DROP SCHEMA {POLICY_SCHEMA} CASCADE"))
+        .await
+        .unwrap();
+    booted
+}
+
+/// A row-level security policy that reads `app.region`, which the schema takes from the
+/// `x-region` header, scopes rows by a value any client chooses: the server refuses to boot
+/// and names the policy. The policy is found in the expression PostgreSQL stores, so neither
+/// the spelling of the setting's name (in the policy or in the schema), the whitespace around
+/// it, the second argument, nor which clause reads it hides it.
+#[tokio::test]
+async fn a_policy_reading_a_header_variable_refuses_to_boot() {
+    let Some(url) = try_database_url() else {
+        eprintln!("skipping: no DATABASE_URL");
+        return;
+    };
+    for (setting, policy) in [
+        ("app.region", "USING (region = current_setting('app.region', true))"),
+        ("app.region", "USING (region = current_setting( 'App.Region' ,true))"),
+        ("app.region", "USING (region = current_setting('APP.REGION'))"),
+        ("APP.Region", "USING (region = current_setting('app.region', true))"),
+        (
+            "app.region",
+            "FOR INSERT WITH CHECK (region = current_setting('app.region', true))",
+        ),
+    ] {
+        let refusal = boot_with_policy(&url, setting, policy).await.expect_err(policy);
+        assert!(
+            refusal.contains(&format!(
+                "policy by_region on {POLICY_SCHEMA}.tb_region reads {setting}"
+            )),
+            "{setting}, {policy}: the refusal names the policy and the setting: {refusal}"
+        );
+    }
+}
+
+/// A policy that reads a `jwt` session variable, or a header one only through a function it
+/// calls, boots. The second is the check's documented limit: it reads the policy's own
+/// expression, not the bodies of the functions that expression calls. Pinned so that
+/// widening the check is a visible change.
+#[tokio::test]
+async fn a_policy_reading_a_jwt_variable_or_a_function_boots() {
+    let Some(url) = try_database_url() else {
+        eprintln!("skipping: no DATABASE_URL");
+        return;
+    };
+    for policy in [
+        "USING (region = current_setting('app.subject', true))",
+        "USING (region = header_var_policy.current_region())",
+    ] {
+        boot_with_policy(&url, "app.region", policy)
+            .await
+            .unwrap_or_else(|e| panic!("{policy}: {e}"));
+    }
+}
+
 /// The suite's schemas load with no database.
 #[test]
 fn the_document_loads_without_a_database() {

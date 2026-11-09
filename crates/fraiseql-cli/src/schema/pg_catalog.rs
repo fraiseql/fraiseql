@@ -187,18 +187,7 @@ pub struct SecurityInvokerAudit {
     pub views_without_invoker: Vec<String>,
 }
 
-/// A row-level security policy whose expression reads a session setting.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PolicySettingRead {
-    /// The policy's table schema.
-    pub schema:  String,
-    /// The policy's table.
-    pub table:   String,
-    /// The policy's name.
-    pub policy:  String,
-    /// The setting its `USING` or `WITH CHECK` expression reads.
-    pub setting: String,
-}
+pub use fraiseql_core::schema::PolicySettingRead;
 
 /// A live `PostgreSQL` connection pool for catalog introspection.
 pub struct PgCatalog {
@@ -653,9 +642,10 @@ impl PgCatalog {
     /// The row-level security policies whose `USING` or `WITH CHECK` expression calls
     /// `current_setting` on one of `settings`, one entry per (policy, setting).
     ///
-    /// Read from the expression text `pg_policies` deparses (`current_setting('app.x'::text,
-    /// true)`), case-insensitively. A policy that reads the setting through a function it
-    /// calls is not seen.
+    /// The query is the server's boot check's
+    /// ([`policies_reading_settings_sql`](fraiseql_core::schema::policies_reading_settings_sql)):
+    /// it matches the policy's stored expression, so a policy that reads the setting only
+    /// through a function it calls, or that builds the setting's name from parts, is not seen.
     ///
     /// # Errors
     ///
@@ -666,15 +656,7 @@ impl PgCatalog {
     ) -> Result<Vec<PolicySettingRead>> {
         let client = self.pool.get().await.context("failed to acquire DB connection")?;
         let rows = client
-            .query(
-                "SELECT p.schemaname::text AS schema_name, p.tablename::text AS table_name, \
-                        p.policyname::text AS policy_name, s.name AS setting \
-                 FROM pg_policies p CROSS JOIN unnest($1::text[]) AS s(name) \
-                 WHERE strpos(lower(coalesce(p.qual, '') || ' ' || coalesce(p.with_check, '')), \
-                              'current_setting(''' || lower(s.name) || '''') > 0 \
-                 ORDER BY 1, 2, 3, 4",
-                &[&settings],
-            )
+            .query(&fraiseql_core::schema::policies_reading_settings_sql(settings), &[])
             .await
             .context("failed to read policy expressions from pg_policies")?;
         Ok(rows
