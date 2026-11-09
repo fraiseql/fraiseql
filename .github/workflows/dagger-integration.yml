@@ -7,14 +7,18 @@ name: Dagger — integration
 # the self-hosted runner (fraiseql-8core) at ~$0/min, reusing the box's
 # cargo/target/sccache cache volumes (warm = fast). See docs/contributing/dagger-parity-notes.md Phase 04.
 #
-# max-parallel: 2 — one suite per runner box. Every suite builds into ONE target
-# cache volume (integrationBase), mounted PRIVATE, so two suites on the same
-# engine serialize on it. Each box runs its own engine with its own copy of the
-# volume, so with one runner per box (archbox, forge) two suites never share one.
-# Raising this past the number of boxes, or adding a second runner to a box,
-# buys queueing inside Dagger, not parallelism — that needs per-lane target
-# volumes first, as feature-combos.go does. RAM is not the limit: the 31 GiB
-# ceiling that set this to 1 is gone (archbox 94 GiB, forge 125 GiB).
+# max-parallel: 3 — one suite per lane. A suite builds into target cache volumes
+# mounted PRIVATE (integrationBase, plus the http-e2e and federation server builds),
+# so two suites on one engine queue on one volume. Each runner therefore has a
+# lane, FRAISEQL_CI_LANE in its environment, and each lane has volumes of its own
+# (`<volume>-lane-N`, as feature-combos.go names its lanes). Unset is lane 0: the
+# unsuffixed volumes every run used before lanes. Each box runs its own engine, so
+# lanes need only differ between runners on the same box: forge runs lanes 0 and
+# 1, archbox lane 0. A runner added to a box needs a lane no other runner on
+# that box has, and max-parallel follows the total; two runners on one lane queue.
+# RAM is not the limit (94 GiB on forge, 94 on archbox). Disk is: each lane adds its
+# own copy of the integ4 and fed target volumes, about as large as lane 0's, on its
+# box's engine; GC reclaims an idle lane's.
 #
 # Runs on a push to every in-repo branch, not only `dev` (#1289). It used to be
 # `branches: [dev]`, which is the same reasoning #1257 already had to undo for
@@ -111,7 +115,7 @@ jobs:
     timeout-minutes: ${{ fromJSON('{"examples":20,"federation":33,"federation-compose":20,"http-e2e":28,"nats":20,"observers":182,"postgres":100,"quickstart":21,"redis":62,"saml":30,"server":182,"server-storage":20,"storage":42,"tls":24,"vault":20,"wire":20}')[matrix.suite] || 60 }}
     strategy:
       fail-fast: false
-      max-parallel: 2
+      max-parallel: 3
       matrix:
         suite: [postgres, nats, observers, http-e2e, tls, server, redis, vault, wire, storage, server-storage, federation, federation-compose, saml, quickstart, examples]
     steps:
@@ -126,4 +130,4 @@ jobs:
         run: |
           export PATH="$HOME/.local/bin:$PATH"
           dagger version
-          dagger call test-integration --source=. --suite=${{ matrix.suite }}
+          dagger call test-integration --source=. --suite=${{ matrix.suite }} --lane="${FRAISEQL_CI_LANE:-0}"

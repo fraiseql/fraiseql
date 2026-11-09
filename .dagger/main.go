@@ -1455,7 +1455,29 @@ const (
 	// Dedicated target cache for the federation-feature build (the subgraph binary +
 	// the test compile both link `--features federation`, a distinct artifact set).
 	fedTargetVol = "fraiseql-rust-target-fed-1-92"
+	// The http-e2e suite's server binary builds on a volume apart from integrationBase's
+	// (`integ4-<toolchain>`, mounted by the same leg's test exec). Its name kept the
+	// toolchain of the `integ4-` bump (2026-07-27) when the MSRV moved on; lane 0 keeps
+	// that name, so the volume stays warm.
+	serverE2eTargetVol = "fraiseql-rust-target-integ4-1-92"
 )
+
+// integrationTargetVol names integrationBase's target volume for a toolchain and a lane.
+func integrationTargetVol(toolchain string, lane int) string {
+	return laneVolume("fraiseql-rust-target-integ4-"+strings.ReplaceAll(toolchain, ".", "-"), lane)
+}
+
+// laneVolume names a lane's copy of an integration target volume. The integration
+// volumes are mounted PRIVATE (rustSource), so two suites on one engine queue on one
+// volume; a lane of its own gives each concurrent suite its own. Lane 0 is the base
+// name unchanged, the volume every run used before lanes, so it stays warm; lane N
+// takes the `-lane-N` suffix feature-combos.go gives its lanes.
+func laneVolume(base string, lane int) string {
+	if lane == 0 {
+		return base
+	}
+	return fmt.Sprintf("%s-lane-%d", base, lane)
+}
 
 // TestIntegration runs one integration suite against Dagger-bound services. `suite`
 // selects which (default "postgres"). The suites come online incrementally as the
@@ -1467,40 +1489,49 @@ func (m *FraiseqlCi) TestIntegration(
 	// +optional
 	// +default="postgres"
 	suite string,
+	// The runner's lane: each lane builds into target volumes of its own, so suites on
+	// different lanes of one engine run side by side instead of queueing on one PRIVATE
+	// volume. Lane 0 is the unsuffixed volume every run used before lanes existed.
+	// +optional
+	// +default=0
+	lane int,
 ) (string, error) {
+	if lane < 0 {
+		return "", fmt.Errorf("lane must be 0 or more, got %d", lane)
+	}
 	switch suite {
 	case "", "postgres":
-		return m.integrationPostgres(ctx, source)
+		return m.integrationPostgres(ctx, source, lane)
 	case "nats":
-		return m.integrationNats(ctx, source)
+		return m.integrationNats(ctx, source, lane)
 	case "observers":
-		return m.integrationObservers(ctx, source)
+		return m.integrationObservers(ctx, source, lane)
 	case "http-e2e":
-		return m.integrationHTTPE2e(ctx, source)
+		return m.integrationHTTPE2e(ctx, source, lane)
 	case "tls":
-		return m.integrationTLS(ctx, source)
+		return m.integrationTLS(ctx, source, lane)
 	case "server":
-		return m.integrationServer(ctx, source)
+		return m.integrationServer(ctx, source, lane)
 	case "redis":
-		return m.integrationRedis(ctx, source)
+		return m.integrationRedis(ctx, source, lane)
 	case "vault":
-		return m.integrationVault(ctx, source)
+		return m.integrationVault(ctx, source, lane)
 	case "wire":
-		return m.integrationWire(ctx, source)
+		return m.integrationWire(ctx, source, lane)
 	case "storage":
-		return m.integrationStorage(ctx, source)
+		return m.integrationStorage(ctx, source, lane)
 	case "server-storage":
-		return m.integrationServerStorage(ctx, source)
+		return m.integrationServerStorage(ctx, source, lane)
 	case "federation":
-		return m.integrationFederation(ctx, source)
+		return m.integrationFederation(ctx, source, lane)
 	case "federation-compose":
 		return m.integrationFederationCompose(ctx, source)
 	case "saml":
-		return m.integrationSaml(ctx, source)
+		return m.integrationSaml(ctx, source, lane)
 	case "quickstart":
-		return m.integrationQuickstart(ctx, source)
+		return m.integrationQuickstart(ctx, source, lane)
 	case "examples":
-		return m.integrationExamples(ctx, source)
+		return m.integrationExamples(ctx, source, lane)
 	default:
 		return "", fmt.Errorf("unknown integration suite %q (known: postgres, nats, observers, http-e2e, tls, server, redis, vault, wire, storage, server-storage, federation, federation-compose, saml, quickstart, examples)", suite)
 	}
@@ -1515,7 +1546,7 @@ func (m *FraiseqlCi) TestIntegration(
 // ports — the #734 class) reddens this leg. Phase 2 of the script scaffolds a
 // project with `fraiseql init` and runs its Python authoring skeleton, the
 // regeneration path the cargo suites cannot cover (it needs Python).
-func (m *FraiseqlCi) integrationQuickstart(ctx context.Context, source *dagger.Directory) (string, error) {
+func (m *FraiseqlCi) integrationQuickstart(ctx context.Context, source *dagger.Directory, lane int) (string, error) {
 	dbURL := fmt.Sprintf("postgresql://%s:%s@%s:5432/%s", pgUser, pgPassword, pgBindHost, pgDatabase)
 
 	script := strings.Join([]string{
@@ -1529,7 +1560,7 @@ func (m *FraiseqlCi) integrationQuickstart(ctx context.Context, source *dagger.D
 		"echo 'test-integration OK: quickstart suite passed'",
 	}, "\n")
 
-	return m.integrationBase(source, rustMsrv).
+	return m.integrationBase(source, rustMsrv, lane).
 		// The smoke drives the documented user tooling, not the test harness:
 		// psql applies the doc's setup.sql, curl issues the doc's query.
 		// python3-httpx is the SDK's one third-party import (the doc's
@@ -1567,7 +1598,7 @@ func (m *FraiseqlCi) integrationQuickstart(ctx context.Context, source *dagger.D
 //
 // Neither script skips. A missing binary, a missing psql, an unset DATABASE_URL are
 // each a failure — a check that quietly does nothing reads as green.
-func (m *FraiseqlCi) integrationExamples(ctx context.Context, source *dagger.Directory) (string, error) {
+func (m *FraiseqlCi) integrationExamples(ctx context.Context, source *dagger.Directory, lane int) (string, error) {
 	dbURL := fmt.Sprintf("postgresql://%s:%s@%s:5432/%s", pgUser, pgPassword, pgBindHost, pgDatabase)
 
 	script := strings.Join([]string{
@@ -1583,7 +1614,7 @@ func (m *FraiseqlCi) integrationExamples(ctx context.Context, source *dagger.Dir
 		"echo 'test-integration OK: examples suite passed'",
 	}, "\n")
 
-	return m.integrationBase(source, rustMsrv).
+	return m.integrationBase(source, rustMsrv, lane).
 		// The smoke drives the tools a reader drives: psql applies each example's
 		// setup.sql, curl asks the booted server a question. python3-httpx is the
 		// authoring SDK's one third-party import, and every example authors through
@@ -1604,7 +1635,7 @@ func (m *FraiseqlCi) integrationExamples(ctx context.Context, source *dagger.Dir
 // route through the harness. The harness reads DATABASE_URL (injected below) and
 // connects to the bound service; the read-replica lag suite additionally reads
 // STANDBY_DATABASE_URL.
-func (m *FraiseqlCi) integrationPostgres(ctx context.Context, source *dagger.Directory) (string, error) {
+func (m *FraiseqlCi) integrationPostgres(ctx context.Context, source *dagger.Directory, lane int) (string, error) {
 	dbURL := fmt.Sprintf("postgresql://%s:%s@%s:5432/%s", pgUser, pgPassword, pgBindHost, pgDatabase)
 	standbyURL := fmt.Sprintf("postgresql://%s:%s@%s:5432/%s", pgUser, pgPassword, pgStandbyBindHost, pgDatabase)
 	failoverURL := fmt.Sprintf("postgresql://%s:%s@%s:5432/%s", pgUser, pgPassword, pgFailoverBindHost, pgDatabase)
@@ -1856,7 +1887,7 @@ func (m *FraiseqlCi) integrationPostgres(ctx context.Context, source *dagger.Dir
 	// nobody writes to and its measured lag permanently zero.
 	primary := m.pgService(source)
 
-	return m.integrationBase(source, rustMsrv).
+	return m.integrationBase(source, rustMsrv, lane).
 		WithServiceBinding(pgBindHost, primary).
 		WithServiceBinding(pgStandbyBindHost, m.pgStandbyService(source, primary, "fraiseql_standby")).
 		WithServiceBinding(pgFailoverBindHost, m.pgStandbyService(source, primary, pgFailoverSlot)).
@@ -1878,7 +1909,7 @@ func (m *FraiseqlCi) integrationPostgres(ctx context.Context, source *dagger.Dir
 // comment-truncation / replay / weak-digest) — no database, but it is what makes this leg
 // able to go red on a verification regression. The `--test saml_sso` line binds Postgres
 // and exercises the tenant-bounded trust policy against the durable account store.
-func (m *FraiseqlCi) integrationSaml(ctx context.Context, source *dagger.Directory) (string, error) {
+func (m *FraiseqlCi) integrationSaml(ctx context.Context, source *dagger.Directory, lane int) (string, error) {
 	dbURL := fmt.Sprintf("postgresql://%s:%s@%s:5432/%s", pgUser, pgPassword, pgBindHost, pgDatabase)
 	authURL := fmt.Sprintf("postgresql://%s:%s@%s:5432/%s", pgAuthUser, pgAuthPassword, pgBindHost, pgDatabase)
 
@@ -1950,7 +1981,7 @@ func (m *FraiseqlCi) integrationSaml(ctx context.Context, source *dagger.Directo
 		"echo 'test-integration OK: saml suite passed'",
 	}, "\n")
 
-	return m.integrationBase(source, rustMsrv).
+	return m.integrationBase(source, rustMsrv, lane).
 		WithServiceBinding(pgBindHost, m.pgService(source)).
 		WithEnvVariable("DATABASE_URL", dbURL).
 		// Auth's own role, which the ACS suite's two-role sign-in boots auth on.
@@ -1995,7 +2026,7 @@ func (m *FraiseqlCi) integrationFederationCompose(ctx context.Context, source *d
 // integrationServer binds a seeded Postgres and runs fraiseql-server's
 // database-query integration tests. They use try_database_url() + skip-on-None
 // (no #[ignore]), so they run plainly and execute once DATABASE_URL is injected.
-func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Directory) (string, error) {
+func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Directory, lane int) (string, error) {
 	dbURL := fmt.Sprintf("postgresql://%s:%s@%s:5432/%s", pgUser, pgPassword, pgBindHost, pgDatabase)
 	authURL := fmt.Sprintf("postgresql://%s:%s@%s:5432/%s", pgAuthUser, pgAuthPassword, pgBindHost, pgDatabase)
 	tviewsURL := fmt.Sprintf("postgresql://%s:%s@%s:5432/%s", pgUser, pgPassword, pgTviewsBindHost, pgDatabase)
@@ -2407,7 +2438,7 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 	// suite, which owns that test).
 	primary := m.pgService(source)
 
-	return m.integrationBase(source, rustMsrv).
+	return m.integrationBase(source, rustMsrv, lane).
 		WithServiceBinding(pgBindHost, primary).
 		WithServiceBinding(pgStandbyBindHost, m.pgStandbyService(source, primary, "fraiseql_standby")).
 		WithServiceBinding(pgTviewsBindHost, m.pgTviewsService(source)).
@@ -2430,7 +2461,7 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 // falls back from TLS_DATABASE_URL to DATABASE_URL, so it would try a TLS handshake
 // against this non-TLS service — it has its own `tls` suite. Each binary uses
 // --test-threads=1 (the bound database is shared across binaries).
-func (m *FraiseqlCi) integrationWire(ctx context.Context, source *dagger.Directory) (string, error) {
+func (m *FraiseqlCi) integrationWire(ctx context.Context, source *dagger.Directory, lane int) (string, error) {
 	dbURL := fmt.Sprintf("postgresql://%s:%s@%s:5432/%s", pgUser, pgPassword, wireBindHost, pgDatabase)
 
 	// Every tests/*.rs binary except tls_integration (own suite) and the common/
@@ -2461,7 +2492,7 @@ func (m *FraiseqlCi) integrationWire(ctx context.Context, source *dagger.Directo
 	lines = append(lines, "echo 'test-integration OK: wire suite passed'")
 	script := strings.Join(lines, "\n")
 
-	return m.integrationBase(source, rustMsrv).
+	return m.integrationBase(source, rustMsrv, lane).
 		WithServiceBinding(wireBindHost, m.wirePgService()).
 		WithEnvVariable("DATABASE_URL", dbURL).
 		WithExec([]string{"bash", "-c", script}).
@@ -2504,7 +2535,7 @@ func (m *FraiseqlCi) wirePgService() *dagger.Service {
 //   - the gcs_emulator round-trip (feature gcs; reads GCS_ENDPOINT).
 //
 // The routes tests use a local-filesystem backend (no S3/minio needed here).
-func (m *FraiseqlCi) integrationStorage(ctx context.Context, source *dagger.Directory) (string, error) {
+func (m *FraiseqlCi) integrationStorage(ctx context.Context, source *dagger.Directory, lane int) (string, error) {
 	dbURL := fmt.Sprintf("postgresql://%s:%s@%s:5432/%s", pgUser, pgPassword, pgBindHost, pgDatabase)
 	azureEndpoint := fmt.Sprintf("http://%s:10000/devstoreaccount1", azuriteBindHost)
 	gcsEndpoint := fmt.Sprintf("http://%s:4443", fakeGcsBindHost)
@@ -2563,7 +2594,7 @@ func (m *FraiseqlCi) integrationStorage(ctx context.Context, source *dagger.Dire
 		"echo 'test-integration OK: storage suite passed'",
 	}, "\n")
 
-	return m.integrationBase(source, rustMsrv).
+	return m.integrationBase(source, rustMsrv, lane).
 		// nodejs/npm for the tus-js-client interop suite, fonts-dejavu-core for
 		// #973's text watermark (whose typeface is the operator's and is
 		// therefore never vendored into the crate). Installed here rather than
@@ -2626,7 +2657,7 @@ func (m *FraiseqlCi) fakeGcsService() *dagger.Service {
 // gate would skip and report exactly like a pass. The fraiseql-storage run stays filtered
 // to backend::s3 so an --include-ignored sweep does not also pull in that crate's own
 // DB-backed metadata/migrations/routes tests, which the storage leg owns.
-func (m *FraiseqlCi) integrationServerStorage(ctx context.Context, source *dagger.Directory) (string, error) {
+func (m *FraiseqlCi) integrationServerStorage(ctx context.Context, source *dagger.Directory, lane int) (string, error) {
 	minioEndpoint := fmt.Sprintf("http://%s:9000", minioBindHost)
 	dbURL := fmt.Sprintf("postgresql://%s:%s@%s:5432/%s", pgUser, pgPassword, pgBindHost, pgDatabase)
 
@@ -2641,7 +2672,7 @@ func (m *FraiseqlCi) integrationServerStorage(ctx context.Context, source *dagge
 		"echo 'test-integration OK: server-storage suite passed'",
 	}, "\n")
 
-	return m.integrationBase(source, rustMsrv).
+	return m.integrationBase(source, rustMsrv, lane).
 		WithServiceBinding(minioBindHost, m.minioService()).
 		WithServiceBinding(pgBindHost, m.pgService(source)).
 		WithEnvVariable("MINIO_ENDPOINT", minioEndpoint).
@@ -2666,13 +2697,13 @@ func (m *FraiseqlCi) integrationServerStorage(ctx context.Context, source *dagge
 // Apollo Router routing to subgraph A — all built from the same federation-feature
 // binary and bound as Dagger services. A dedicated target cache volume keeps the
 // federation-feature artifacts apart from the default integration build.
-func (m *FraiseqlCi) integrationFederation(ctx context.Context, source *dagger.Directory) (string, error) {
+func (m *FraiseqlCi) integrationFederation(ctx context.Context, source *dagger.Directory, lane int) (string, error) {
 	usersURL := fmt.Sprintf("postgresql://%s:%s@%s:5432/%s", pgUser, pgPassword, fedUsersBindHost, pgDatabase)
 	routerURL := fmt.Sprintf("http://%s:4000", apolloRouterBindHost)
 	subgraphAURL := fmt.Sprintf("http://%s:8815", fedSubgraphABindHost)
 	subgraphBURL := fmt.Sprintf("http://%s:8816", fedSubgraphBBindHost)
 
-	binary := m.fedServerBinary(source)
+	binary := m.fedServerBinary(source, lane)
 	pgUsers := m.fedPgService(source, "init_users.sql")
 	pgReviews := m.fedPgService(source, "init_reviews.sql")
 	subgraphA := m.fedSubgraphService(source, binary, "schema_users.json", pgUsers, fedUsersBindHost, "0.0.0.0:8815", 8815)
@@ -2696,7 +2727,7 @@ func (m *FraiseqlCi) integrationFederation(ctx context.Context, source *dagger.D
 		"echo 'test-integration OK: federation suite passed'",
 	}, "\n")
 
-	return m.fedBase(source).
+	return m.fedBase(source, lane).
 		WithServiceBinding(fedUsersBindHost, pgUsers).
 		WithServiceBinding(fedSubgraphABindHost, subgraphA).
 		WithServiceBinding(fedSubgraphBBindHost, subgraphB).
@@ -2711,8 +2742,8 @@ func (m *FraiseqlCi) integrationFederation(ctx context.Context, source *dagger.D
 }
 
 // fedBase mounts the source on a dedicated federation-feature target cache volume.
-func (m *FraiseqlCi) fedBase(source *dagger.Directory) *dagger.Container {
-	return rustSource(m.rustBaseFor(rustMsrv), source, fedTargetVol).
+func (m *FraiseqlCi) fedBase(source *dagger.Directory, lane int) *dagger.Container {
+	return rustSource(m.rustBaseFor(rustMsrv), source, laneVolume(fedTargetVol, lane)).
 		WithEnvVariable("RUST_LOG", "debug")
 }
 
@@ -2723,8 +2754,8 @@ func (m *FraiseqlCi) fedBase(source *dagger.Directory) *dagger.Container {
 // too, so the binary and the test share one dependency graph. A `cargo build` of the
 // bin leaves the dev-dependencies' features out and resolves 377 of the test's 698
 // units differently; on a cold volume the leg compiled both graphs (#1890).
-func (m *FraiseqlCi) fedServerBinary(source *dagger.Directory) *dagger.File {
-	built := rustSource(m.rustBaseFor(rustMsrv), source, fedTargetVol).
+func (m *FraiseqlCi) fedServerBinary(source *dagger.Directory, lane int) *dagger.File {
+	built := rustSource(m.rustBaseFor(rustMsrv), source, laneVolume(fedTargetVol, lane)).
 		WithExec([]string{
 			"bash", "-c",
 			"bash tools/ci-target-canary.sh -- test -p fraiseql-server --features federation --test federation_integration_test && cp target/debug/fraiseql-server /usr/local/bin/fraiseql-server",
@@ -2804,7 +2835,7 @@ func (m *FraiseqlCi) minioService() *dagger.Service {
 // integrationRedis binds Redis + a seeded Postgres and runs the Redis-backed
 // suites: fraiseql-core APQ storage and fraiseql-observers cache/lease. Those lib
 // tests are #[ignore]d ("requires Redis running") and read REDIS_URL / DATABASE_URL.
-func (m *FraiseqlCi) integrationRedis(ctx context.Context, source *dagger.Directory) (string, error) {
+func (m *FraiseqlCi) integrationRedis(ctx context.Context, source *dagger.Directory, lane int) (string, error) {
 	dbURL := fmt.Sprintf("postgresql://%s:%s@%s:5432/%s", pgUser, pgPassword, pgBindHost, pgDatabase)
 	redisURL := fmt.Sprintf("redis://%s:6379", redisBindHost)
 
@@ -2875,7 +2906,7 @@ func (m *FraiseqlCi) integrationRedis(ctx context.Context, source *dagger.Direct
 		"echo 'test-integration OK: redis suite passed'",
 	}, "\n")
 
-	return m.integrationBase(source, rustMsrv).
+	return m.integrationBase(source, rustMsrv, lane).
 		WithServiceBinding(pgBindHost, m.pgService(source)).
 		WithServiceBinding(redisBindHost, m.redisService()).
 		WithEnvVariable("DATABASE_URL", dbURL).
@@ -2894,7 +2925,7 @@ func (m *FraiseqlCi) integrationRedis(ctx context.Context, source *dagger.Direct
 // integrationVault binds a Vault dev-mode service and runs fraiseql-server's
 // secrets-manager integration tests (#[ignore]d "requires vault"); they read
 // VAULT_ADDR / VAULT_TOKEN.
-func (m *FraiseqlCi) integrationVault(ctx context.Context, source *dagger.Directory) (string, error) {
+func (m *FraiseqlCi) integrationVault(ctx context.Context, source *dagger.Directory, lane int) (string, error) {
 	vaultAddr := fmt.Sprintf("http://%s:8200", vaultBindHost)
 
 	script := strings.Join([]string{
@@ -2906,7 +2937,7 @@ func (m *FraiseqlCi) integrationVault(ctx context.Context, source *dagger.Direct
 		"echo 'test-integration OK: vault suite passed'",
 	}, "\n")
 
-	return m.integrationBase(source, rustMsrv).
+	return m.integrationBase(source, rustMsrv, lane).
 		WithServiceBinding(vaultBindHost, m.vaultService()).
 		WithEnvVariable("VAULT_ADDR", vaultAddr).
 		WithEnvVariable("VAULT_TOKEN", vaultToken).
@@ -2928,7 +2959,7 @@ func (m *FraiseqlCi) integrationVault(ctx context.Context, source *dagger.Direct
 // container as a File (deterministic — Dagger cache volumes don't reliably share a
 // running service's writes with a client container). Tests are skip-on-None
 // (TLS_DATABASE_URL + TLS_TEST_CA_CERT), not #[ignore]d, so they run without --ignored.
-func (m *FraiseqlCi) integrationTLS(ctx context.Context, source *dagger.Directory) (string, error) {
+func (m *FraiseqlCi) integrationTLS(ctx context.Context, source *dagger.Directory, lane int) (string, error) {
 	tlsURL := fmt.Sprintf("postgresql://%s:%s@%s:5432/%s", pgUser, pgPassword, tlsBindHost, pgDatabase)
 	certs := m.tlsCerts()
 
@@ -2950,7 +2981,7 @@ func (m *FraiseqlCi) integrationTLS(ctx context.Context, source *dagger.Director
 		"echo 'test-integration OK: tls suite passed'",
 	}, "\n")
 
-	return m.integrationBase(source, rustMsrv).
+	return m.integrationBase(source, rustMsrv, lane).
 		WithServiceBinding(tlsBindHost, m.tlsPgService(certs)).
 		WithFile("/ca.crt", certs.File("ca.crt")).
 		WithEnvVariable("TLS_DATABASE_URL", tlsURL).
@@ -3066,8 +3097,8 @@ EOSQL
 // e2e-seeded Postgres), then drives it over HTTP from the test container. The e2e
 // tests are skip-on-None (FRAISEQL_TEST_URL); legacy's --ignored ran 0, so they run
 // without --ignored here.
-func (m *FraiseqlCi) integrationHTTPE2e(ctx context.Context, source *dagger.Directory) (string, error) {
-	server := m.serverE2eService(source)
+func (m *FraiseqlCi) integrationHTTPE2e(ctx context.Context, source *dagger.Directory, lane int) (string, error) {
+	server := m.serverE2eService(source, lane)
 	testURL := fmt.Sprintf("http://%s:8815", serverBindHost)
 
 	script := strings.Join([]string{
@@ -3080,7 +3111,7 @@ func (m *FraiseqlCi) integrationHTTPE2e(ctx context.Context, source *dagger.Dire
 		"echo 'test-integration OK: http-e2e suite passed'",
 	}, "\n")
 
-	return m.integrationBase(source, rustMsrv).
+	return m.integrationBase(source, rustMsrv, lane).
 		WithServiceBinding(serverBindHost, server).
 		WithEnvVariable("FRAISEQL_TEST_URL", testURL).
 		WithEnvVariable("FRAISEQL_METRICS_TOKEN", e2eMetricsToken).
@@ -3092,9 +3123,8 @@ func (m *FraiseqlCi) integrationHTTPE2e(ctx context.Context, source *dagger.Dire
 // bound to an e2e-seeded Postgres. It binds 0.0.0.0 (not 127.0.0.1) so the bound
 // test container can reach it. Dagger starts the Postgres dependency (and waits for
 // its port) before the server starts, and the caller waits for :8815 before testing.
-func (m *FraiseqlCi) serverE2eService(source *dagger.Directory) *dagger.Service {
-	// `integ4-` bump (2026-07-27): see the note on the sibling volume below.
-	const targetVol = "fraiseql-rust-target-integ4-1-92"
+func (m *FraiseqlCi) serverE2eService(source *dagger.Directory, lane int) *dagger.Service {
+	targetVol := laneVolume(serverE2eTargetVol, lane)
 	dbURL := fmt.Sprintf("postgresql://%s:%s@%s:5432/%s", pgUser, pgPassword, pgBindHost, pgDatabase)
 
 	// Build the binary and copy it out of the (cache-mounted) target dir to a plain
@@ -3146,7 +3176,7 @@ func (m *FraiseqlCi) pgE2eService(source *dagger.Directory) *dagger.Service {
 // transport, storage/lease (Redis), the PG+NATS bridge, and fraiseql-server's
 // observer runtime. All read their service URLs from env (DATABASE_URL / REDIS_URL /
 // NATS_URL); the bridge's NatsConfig url is overridden from NATS_URL.
-func (m *FraiseqlCi) integrationObservers(ctx context.Context, source *dagger.Directory) (string, error) {
+func (m *FraiseqlCi) integrationObservers(ctx context.Context, source *dagger.Directory, lane int) (string, error) {
 	dbURL := fmt.Sprintf("postgresql://%s:%s@%s:5432/%s", pgUser, pgPassword, pgBindHost, pgDatabase)
 	redisURL := fmt.Sprintf("redis://%s:6379", redisBindHost)
 	natsURL := fmt.Sprintf("nats://%s:4222", natsBindHost)
@@ -3303,7 +3333,7 @@ func (m *FraiseqlCi) integrationObservers(ctx context.Context, source *dagger.Di
 	// One PKI for the service and the client that trusts it.
 	greenmailCerts := m.greenmailCerts()
 
-	return m.integrationBase(source, rustMsrv).
+	return m.integrationBase(source, rustMsrv, lane).
 		WithServiceBinding(pgBindHost, m.pgService(source)).
 		WithServiceBinding(redisBindHost, m.redisService()).
 		WithServiceBinding(natsBindHost, m.natsService()).
@@ -3361,7 +3391,7 @@ func (m *FraiseqlCi) integrationObservers(ctx context.Context, source *dagger.Di
 // integrationNats binds a NATS JetStream service and runs the observers NATS
 // transport integration tests (#[ignore]d "requires NATS server"); they read
 // NATS_URL (the tests override NatsConfig.url with it).
-func (m *FraiseqlCi) integrationNats(ctx context.Context, source *dagger.Directory) (string, error) {
+func (m *FraiseqlCi) integrationNats(ctx context.Context, source *dagger.Directory, lane int) (string, error) {
 	natsURL := fmt.Sprintf("nats://%s:4222", natsBindHost)
 
 	script := strings.Join([]string{
@@ -3373,7 +3403,7 @@ func (m *FraiseqlCi) integrationNats(ctx context.Context, source *dagger.Directo
 		"echo 'test-integration OK: nats suite passed'",
 	}, "\n")
 
-	return m.integrationBase(source, rustMsrv).
+	return m.integrationBase(source, rustMsrv, lane).
 		WithServiceBinding(natsBindHost, m.natsService()).
 		WithEnvVariable("NATS_URL", natsURL).
 		// Every insecure-mode escape hatch below is honoured only outside a
@@ -3555,7 +3585,7 @@ func (m *FraiseqlCi) pgStandbyService(
 // services into. It uses a dedicated integration target-cache volume (kept apart
 // from the Phase-02 gate and Phase-03 unit-test caches, which hold different
 // feature/artifact sets) and sets RUST_LOG=debug like the legacy integration jobs.
-func (m *FraiseqlCi) integrationBase(source *dagger.Directory, rust string) *dagger.Container {
+func (m *FraiseqlCi) integrationBase(source *dagger.Directory, rust string, lane int) *dagger.Container {
 	toolchain := resolveToolchain(rust)
 	// `integ3-` bump (2026-06-30): bust the stale integ2 target cache that reused
 	// pre-#501 fraiseql-db artifacts, hiding `execute_function_call_dry_run` → false
@@ -3573,7 +3603,6 @@ func (m *FraiseqlCi) integrationBase(source *dagger.Directory, rust string) *dag
 	// A volume bump only clears the current drift. The durable fix is rustSource (#1421):
 	// sources stamped at leg start so no earlier run's artifact is judged fresh, and the
 	// volume mounted PRIVATE so no concurrent run shares it.
-	targetVol := "fraiseql-rust-target-integ4-" + strings.ReplaceAll(toolchain, ".", "-")
-	return rustSource(m.rustBaseFor(toolchain), source, targetVol).
+	return rustSource(m.rustBaseFor(toolchain), source, integrationTargetVol(toolchain, lane)).
 		WithEnvVariable("RUST_LOG", "debug")
 }

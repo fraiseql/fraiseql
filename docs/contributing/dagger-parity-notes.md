@@ -431,9 +431,16 @@ artifact. All 7 crates with a real dev-dep migrated: core, db, functions, wire, 
   ephemeral databases (explicitly out of scope). Each suite's pg/mysql service is fresh per `dagger
   call`, so cross-run state never accumulates.
 - **Federation uses a dedicated target cache volume** (`fraiseql-rust-target-fed-1-92`) for its
-  `--features federation` build; the rest share `fraiseql-rust-target-integ2-*` (bumped from
-  `-integration-*` to flush a stale federation-resolver artifact — Dagger normalizes source mtimes,
-  so a warm cache does not reliably recompile an edited dependency crate; documented in the memory).
+  `--features federation` build, and the http-e2e server binary builds on
+  `fraiseql-rust-target-integ4-1-92`; the rest share `fraiseql-rust-target-integ4-<toolchain>`
+  (bumped from `-integration-*`, then `integ2-` and `integ3-`, each time to flush stale artifacts —
+  Dagger normalizes source mtimes, so a warm cache does not reliably recompile an edited dependency
+  crate; `rustSource` now stamps sources at leg start instead).
+- **One set of those volumes per lane.** They are mounted PRIVATE, so two suites on one engine
+  queue on one volume. `dagger call test-integration --lane=N` builds into `<volume>-lane-N`
+  instead; CI passes the runner's lane, as the header of `dagger-integration.yml` describes.
+  Lane 0, the default, is the unsuffixed name, so a call without `--lane` uses the volumes it
+  always did.
 - **Cross-db parity is now enforcing** (FEDERATION_TESTS=1); the legacy job left that unset, so its
   parity assertions never executed.
 - **No strangler-fig** (Day-0 killed legacy ci.yml) — validated by per-suite local `dagger call`.

@@ -95,9 +95,9 @@ repeating it.
 carrying proofs nothing could act on: every `crates/*/tests/*_e2e_pg` suite runs there
 and only there — they self-skip without `DATABASE_URL`, so on the DB-less legs they
 read green while asserting nothing — and `dev` merged red on two of them and stayed
-red for two weeks with all four then-required checks green. Sixteen suites run
-serially on the one runner (`max-parallel: 1`, ~50 minutes warm); the fast-forward to
-`dev` replays them from Dagger's cache.
+red for two weeks with all four then-required checks green. Sixteen suites run, up to
+three at a time, one per runner lane (`max-parallel: 3`; the workflow's header says how
+lanes are assigned); the fast-forward to `dev` replays them from Dagger's cache.
 
 Two properties make that list a checked artifact rather than a convention.
 `tools/check-suite-coverage.py` fails when a test suite's only coverage is a leg no
