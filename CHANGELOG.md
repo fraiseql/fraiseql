@@ -563,6 +563,12 @@ disagreed, and the promise was the part that was wrong.
 
 ### Security
 
+- **rmcp raised to 3.9 (RUSTSEC-2026-0457, -0461, -0462).** The MCP library behind the
+  `mcp` feature moves from 3.5.0 to 3.9.0, the first release with all three fixes. FraiseQL
+  uses rmcp's server side, where -0461 applies: an unbounded tool-schema cache in the
+  Streamable HTTP server transport. -0457 and -0462 are in rmcp's client, which FraiseQL
+  does not enable. A build without `mcp` does not compile rmcp.
+
 - **One tenant's aggregate or window read every tenant's rows (#1799).** In a schema that
   scoped its list roots by `inject_params`, a fact table's `_aggregate` and `_window` roots
   carried no tenant predicate: their only tenant clause came from a row policy, which the
