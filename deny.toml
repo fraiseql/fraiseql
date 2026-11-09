@@ -64,6 +64,13 @@ ignore = [
   { id = "RUSTSEC-2026-0398", reason = "zstd-safe Seekable::decompress: compiled only with the `seekable` feature, which nothing enables (feature-off:seekable, check-advisory-paths.sh). Fix needs zstd 0.14, blocked by parquet 59 (#1747). Deadline 2027-01-31." },
   { id = "RUSTSEC-2026-0387", reason = "crypto-bigint 0.5 under elliptic-curve 0.13: ES256/384 and webhook verification are public-key; secret-key use is Apple's cached client_secret and S3 SigV4a (#1711). No 0.5-series fix. Deadline 2027-01-31." },
   { id = "RUSTSEC-2023-0071", reason = "rsa used for RS256 public-key verification (unaffected) and GCS service-account signing only; no caller-triggerable private-key operation (#1110, gated by check-crypto-providers.sh). Deadline 2027-01-31." },
+  # libsqlite3-sys 0.30.1: the bundled C SQLite carries CVE-2026-119375. It is in Cargo.lock
+  # only, through sqlx 0.8's SQLite driver (sqlx-sqlite 0.8.6), which no workspace crate
+  # enables: `cargo tree` finds no path even with every feature on (docs/dependency-risk-
+  # policy.md, exposure `not-compiled`, checked by tools/check-advisory-paths.sh). Fixed in
+  # 0.39, which only sqlx 0.9 accepts.
+  # deadline: 2027-02-09 — move to sqlx 0.9.
+  { id = "RUSTSEC-2026-0459", reason = "libsqlite3-sys under sqlx 0.8's SQLite driver: lock-only, no workspace crate enables sqlx/sqlite (not-compiled, check-advisory-paths.sh). Fix needs sqlx 0.9. Deadline 2027-02-09." },
 ]
 unmaintained = "workspace"
 
