@@ -409,3 +409,67 @@ mod ws_admission {
         assert_eq!(upgrade_status(&active, &tenant).await, 101);
     }
 }
+
+/// A built server hands its rate limiter the subject its own `[auth]` validator
+/// verifies, so two signed-in users behind one address get a bucket each.
+mod rate_limit_subject_wiring {
+    use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+
+    use axum::{extract::ConnectInfo, routing::get};
+
+    use super::*;
+    use crate::middleware::RateLimitConfig;
+
+    async fn limited_app(idp: &TestIdp) -> Router {
+        let config = ServerConfig {
+            cors_enabled: false,
+            auth: Some(idp.oidc_config(true)),
+            rate_limiting: Some(RateLimitConfig {
+                enabled: true,
+                rps_per_ip: 1,
+                rps_per_user: 1,
+                burst_size: 1,
+                ..RateLimitConfig::default()
+            }),
+            ..ServerConfig::default()
+        };
+        let server = Box::pin(Server::new(
+            config,
+            CompiledSchema::new(),
+            Arc::new(FailingAdapter::new()),
+            None,
+        ))
+        .await
+        .expect("Server::new with [auth] and [rate_limiting]");
+        let state = server.build_app_state();
+        server.apply_middleware(Router::new().route("/probe", get(|| async { "ok" })), &state)
+    }
+
+    async fn send(app: &Router, bearer: &str) -> StatusCode {
+        let mut request = Request::builder()
+            .uri("/probe")
+            .header(http::header::AUTHORIZATION, format!("Bearer {bearer}"))
+            .body(Body::empty())
+            .unwrap();
+        request.extensions_mut().insert(ConnectInfo(SocketAddr::new(
+            IpAddr::V4(Ipv4Addr::new(203, 0, 113, 9)),
+            40_000,
+        )));
+        app.clone().oneshot(request).await.unwrap().status()
+    }
+
+    #[tokio::test]
+    async fn two_signed_in_users_behind_one_address_get_a_bucket_each() {
+        let idp = TestIdp::start().await;
+        let app = limited_app(&idp).await;
+        let (alice, bob) = (idp.token("alice", "jti-alice"), idp.token("bob", "jti-bob"));
+
+        assert_eq!(send(&app, &alice).await, StatusCode::OK);
+        assert_eq!(send(&app, &bob).await, StatusCode::OK, "bob is not charged alice's request");
+        assert_eq!(
+            send(&app, &alice).await,
+            StatusCode::TOO_MANY_REQUESTS,
+            "and alice is still limited, so the limiter is on"
+        );
+    }
+}
