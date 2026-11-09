@@ -18,6 +18,8 @@ hmac = "0.13"
 http = "1"
 jsonwebtoken = { version = "10", features = ["rust_crypto"] }
 parking_lot = { workspace = true }
+# The first-party issuer's ES256 keys: generation, PKCS#8 and the published JWK.
+p256 = { version = "0.13", features = ["arithmetic", "pkcs8", "pem"] }
 rand = "0.9"
 # Redis for distributed rate limiting (optional)
 redis = { workspace = true, optional = true }

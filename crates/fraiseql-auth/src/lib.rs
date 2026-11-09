@@ -62,6 +62,8 @@ pub mod session_postgres;
 pub mod session_routes;
 pub mod session_state;
 pub mod session_subject;
+/// The first-party issuer's ES256 signing keys (`auth.signing_key`).
+pub mod signing_key;
 pub mod state_encryption;
 pub mod state_store;
 pub mod totp_mfa;
@@ -158,6 +160,8 @@ pub use saml::{
     effective_saml_email_verified, saml_acs, saml_login, saml_provider_key, saml_routes,
     verify_saml_response,
 };
+/// The `serde` this crate's public API is built against (#1198).
+pub use serde;
 /// The `serde_json` this crate's public API is built against (#1198).
 pub use serde_json;
 pub use session::{SessionData, SessionStore, TokenPair, unix_now};
@@ -165,6 +169,7 @@ pub use session_cookies::SessionCookies;
 pub use session_postgres::{PostgresSessionStore, Refresh, SessionLifetime};
 pub use session_routes::{DenyAccessTokens, SessionRouteState, session_routes};
 pub use session_subject::SessionSubject;
+pub use signing_key::{KeyRing, KeyWrap, PgSigningKeyStore, SigningKey};
 /// The `sqlx` this crate's public API is built against (#1198).
 pub use sqlx;
 pub use state_encryption::{

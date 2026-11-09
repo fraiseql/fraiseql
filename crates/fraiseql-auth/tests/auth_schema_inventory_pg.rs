@@ -36,6 +36,7 @@ use sqlx::{
 /// The tables first-party auth owns, all of them in `auth`.
 const AUTH_TABLES: &[&str] = &[
     "sessions",
+    "signing_key",
     "tb_auth_identity",
     "tb_email_verification_token",
     "tb_mfa_challenge",
@@ -210,11 +211,28 @@ async fn every_auth_store_init_applies_its_script_whole() {
     use std::sync::Arc;
 
     use fraiseql_auth::{
-        LocalPasswordAuthenticator, PgMfaStore, PgOtpStore, PostgresAccountStore,
-        PostgresSessionStore,
+        KeyWrap, LocalPasswordAuthenticator, PgMfaStore, PgOtpStore, PgSigningKeyStore,
+        PostgresAccountStore, PostgresSessionStore,
         saml::{PgSamlIdpStore, PgSamlReplayStore},
         scim::{PgScimStore, ScimStore},
     };
+
+    /// `init` seals nothing; the signing-key store only needs a wrap to be built.
+    #[derive(Debug)]
+    struct NoWrap;
+    impl KeyWrap for NoWrap {
+        fn seal(&self, _: &str, _: &str) -> fraiseql_auth::Result<Vec<u8>> {
+            Err(fraiseql_auth::AuthError::Internal {
+                message: "not sealing".into(),
+            })
+        }
+
+        fn open(&self, _: &[u8], _: &str) -> fraiseql_auth::Result<String> {
+            Err(fraiseql_auth::AuthError::Internal {
+                message: "not opening".into(),
+            })
+        }
+    }
 
     let Some(url) = try_database_url() else {
         eprintln!("skipping: DATABASE_URL not set");
@@ -226,7 +244,7 @@ async fn every_auth_store_init_applies_its_script_whole() {
 
     let mut failed = Vec::new();
     for pass in 1..=2 {
-        let results: [(&str, Result<(), String>); 8] = [
+        let results: [(&str, Result<(), String>); 9] = [
             ("accounts", accounts.init().await.map_err(|e| e.to_string())),
             (
                 "local password",
@@ -252,6 +270,13 @@ async fn every_auth_store_init_applies_its_script_whole() {
             (
                 "scim",
                 PgScimStore::new(pool.clone(), None).init().await.map_err(|e| e.to_string()),
+            ),
+            (
+                "signing keys",
+                PgSigningKeyStore::new(pool.clone(), Arc::new(NoWrap))
+                    .init()
+                    .await
+                    .map_err(|e| e.to_string()),
             ),
         ];
         for (store, result) in results {

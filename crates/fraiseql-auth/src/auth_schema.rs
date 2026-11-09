@@ -9,7 +9,7 @@
 use crate::{
     EMAIL_VERIFICATION_SCHEMA_SQL, PASSWORD_RESET_SCHEMA_SQL, PASSWORD_SCHEMA_SQL,
     PG_MFA_SCHEMA_SQL, PG_OTP_SCHEMA_SQL, account_linking, scim::PG_SCIM_SCHEMA_SQL,
-    session_postgres::SESSIONS_SCHEMA_SQL,
+    session_postgres::SESSIONS_SCHEMA_SQL, signing_key::SIGNING_KEY_SCHEMA_SQL,
 };
 
 /// What every auth script writes on schema `auth`, and the comment it refuses to find
@@ -35,6 +35,7 @@ pub const SCRIPTS: &[&str] = &[
     PG_OTP_SCHEMA_SQL,
     PG_MFA_SCHEMA_SQL,
     PG_SCIM_SCHEMA_SQL,
+    SIGNING_KEY_SCHEMA_SQL,
 ];
 
 /// The auth DDL behind the `auth-saml` feature: the assertion replay cache and the

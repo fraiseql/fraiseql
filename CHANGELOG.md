@@ -294,6 +294,15 @@ disagreed, and the promise was the part that was wrong.
   server gets `AUTH_DATABASE_URL`. The Helm chart takes `authDatabase.url` or
   `authDatabase.existingSecret`, mounted as `authDatabase.env`. See `docs/auth/database.md`.
 
+- **`fraiseql-auth` keeps an ES256 signing-key ring in `auth.signing_key` (#1964).** The
+  first step toward first-party auth signing its own tokens with an asymmetric key.
+  `PgSigningKeyStore` creates the first key, replaces the active key once it is 30 days
+  old, and keeps a retired key published until every token it signed has expired. The
+  caller passes that window when it reads or sweeps the ring, so a change to how long
+  sessions last also reaches keys already retired. A partial unique index keeps one active
+  key, and every change takes one advisory lock. The private half is stored sealed through a
+  `KeyWrap` the caller supplies, bound to its own `kid`. Nothing mounts the ring yet.
+
 - **`fraiseql-test-support` gains an in-process ES256 OIDC issuer for tests (#1964).** The
   `test-issuer` feature adds `issuer::TestIssuer`. It generates P-256 keys at runtime, so no
   private key is committed, and serves a JWKS and a discovery document on loopback. A test

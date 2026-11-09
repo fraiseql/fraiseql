@@ -770,6 +770,7 @@ dependencies = [
  "hmac 0.13.0",
  "http",
  "jsonwebtoken",
+ "p256",
  "parking_lot",
  "rand 0.9.4",
  "reqwest",

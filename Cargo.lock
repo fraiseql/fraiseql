@@ -3685,6 +3685,7 @@ dependencies = [
  "http 1.5.0",
  "jsonwebtoken",
  "openssl",
+ "p256",
  "parking_lot",
  "proptest",
  "rand 0.9.4",

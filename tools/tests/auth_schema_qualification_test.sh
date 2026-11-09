@@ -32,7 +32,7 @@ tables=(
   tb_user tb_auth_identity tb_password_credential tb_password_reset_token
   tb_email_verification_token tb_otp_code tb_otp_send_budget tb_mfa_enrollment
   tb_mfa_challenge tb_saml_replay tb_saml_idp tb_scim_group tb_scim_group_member
-  tb_scim_token sessions
+  tb_scim_token sessions signing_key
 )
 
 # A tree shaped like this repository's, correct as it stands: the auth DDL in `auth`, a

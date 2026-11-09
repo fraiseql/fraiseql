@@ -70,6 +70,7 @@ AUTH_TABLES = (
     "tb_scim_group_member",
     "tb_scim_token",
     "sessions",
+    "signing_key",
 )
 
 FORMER_SCHEMAS = ("core", "_system")
