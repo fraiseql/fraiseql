@@ -1734,6 +1734,11 @@ func (m *FraiseqlCi) integrationPostgres(ctx context.Context, source *dagger.Dir
 		// `fraiseql run` boots through the binary's assembly; the observer runtime is
 		// what proves it holds the pool, so the server's `observers` is switched on.
 		"cargo test -p fraiseql-cli --features run-server,fraiseql-server/observers --lib commands::run_serve_tests:: -- --test-threads=1",
+		// `fraiseql run --admin-database-url` creates and grants the engine's and auth's roles in
+		// development. The suite runs the binary, so it needs `run-server`; the features match
+		// the line above, which has built the server already.
+		"echo '### cargo test -p fraiseql-cli --test run_admin_provisioning_pg (development role provisioning)'",
+		"cargo test -p fraiseql-cli --features test-postgres,run-server,fraiseql-server/observers --test run_admin_provisioning_pg -- --test-threads=1",
 		// #1297: saga_store's Postgres orchestration proof, same shape — skip-clean
 		// on `try_database_url()`, compiled only by the DB-less `Test` leg.
 		"cargo test -p fraiseql-saga --lib saga_store::tests -- --test-threads=1",

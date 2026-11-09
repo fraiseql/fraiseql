@@ -258,7 +258,7 @@ echo "  k3s:     $K3S_IMAGE"
 # Phase A — offline. Cheap, and it fails before a cluster is ever started.
 # ─────────────────────────────────────────────────────────────────────────────
 
-step "A0/A3  build the client (helm ${HELM_VERSION}, curl, jq, psql)"
+step "A0/A4  build the client (helm ${HELM_VERSION}, curl, jq, psql)"
 docker build -q -t "$CLIENT_IMAGE" \
   --build-arg "PG_IMAGE=$PG_IMAGE" \
   --build-arg "HELM_VERSION=$HELM_VERSION" \
@@ -300,7 +300,7 @@ helm_render() {
     "${OPERATOR_VALUES[@]}" "$@"
 }
 
-step "A1/A3  every image the DEFAULT chart names is one this project publishes"
+step "A1/A4  every image the DEFAULT chart names is one this project publishes"
 # The default render, with only the two values the chart requires supplied — the
 # image reference is untouched, which is the point. This is #1129's exact class:
 # `repository: fraiseql` rendered `fraiseql:2.8.0`, resolved to
@@ -334,7 +334,7 @@ while IFS= read -r ref; do
 done <<< "$image_refs"
 [ "$failures" -eq 0 ] && echo "every rendered image names a published repository"
 
-step "A2/A3  every values toggle CHANGES the render"
+step "A2/A4  every values toggle CHANGES the render"
 # The generalisation of defect 4. A `<path>.enabled` key that no template reads
 # renders identically whichever way it is set, which is configuration an operator
 # believes they have set. This discovers the toggles from values.yaml rather than
@@ -404,7 +404,7 @@ done
 [ "$checked" -eq "$toggle_count" ] \
   || die "A2 discovered $toggle_count toggle(s) but only checked $checked — the loop lost input, and a check that skips its subjects reports success for them"
 
-step "A3/A3  the chart REFUSES to render an unstartable release"
+step "A3/A4  the chart REFUSES to render an unstartable release"
 # The two guards that turn a silent runtime failure into an install-time error.
 # Proving they fire is what makes them a gate rather than a comment.
 if helm_cli template "$RELEASE" "$CHART_DIR" \
@@ -452,6 +452,91 @@ if ! helm_cli template "$RELEASE" "$CHART_DIR" \
 else
   echo "  development  -> renders without a config, as the guard's message promises"
 fi
+
+step "A4/A4  authDatabase: the auth role's URL reaches the variable [auth.database] names"
+# Optional, so the default render must carry no trace of it; set, it is a Secret and a
+# secretKeyRef exactly like `database`. Render assertions only: the chart runs no
+# database, so it creates no role, and the auth role is the operator's to create.
+AUTH_URL_VALUE="postgresql://fraiseql_auth:chart-auth-pw@postgres:5432/db"
+# `<name> <key>` of the secretKeyRef the Deployment mounts as variable $2, or nothing.
+env_secret_ref() {   # env_secret_ref <render> <variable>
+  awk -v want="$2" '
+    $0 ~ "^[[:space:]]*- name: " want "$" { grab = 1; next }
+    grab && /^[[:space:]]*- name:/ { exit }
+    grab && /^[[:space:]]*name:/ { n = $2 }
+    grab && /^[[:space:]]*key:/ { print n, $2; exit }
+  ' "$1"
+}
+# The value of key $3 in the Secret named $2, or nothing.
+secret_value() {   # secret_value <render> <secret-name> <key>
+  awk -v want="$2" -v key="$3" '
+    /^---/ { secret = 0; named = 0 }
+    /^kind: Secret$/ { secret = 1 }
+    secret && $0 ~ "^  name: " want "$" { named = 1 }
+    secret && named && $0 ~ "^  " key ": " { sub("^  " key ": ", ""); print; exit }
+  ' "$1"
+}
+authdb_checked=0
+if grep -q 'AUTH_DATABASE_URL' "$default_render"; then
+  fail "the default render names AUTH_DATABASE_URL; an operator who sets no authDatabase must get exactly today's release"
+fi
+authdb_checked=$((authdb_checked + 1))
+
+render="$WORKDIR/authdb-url.yaml"
+if helm_render --set-string authDatabase.url="$AUTH_URL_VALUE" > "$render" 2>&1; then
+  ref="$(env_secret_ref "$render" AUTH_DATABASE_URL)"
+  value="$(secret_value "$render" "${ref%% *}" "${ref##* }")"
+  if [ -z "$ref" ]; then
+    fail "authDatabase.url is set and the Deployment mounts no AUTH_DATABASE_URL from a Secret"
+  elif [ "$value" != "\"$AUTH_URL_VALUE\"" ]; then
+    fail "AUTH_DATABASE_URL names Secret key '$ref', which does not hold authDatabase.url"
+  else
+    echo "  authDatabase.url            -> Secret ${ref%% *}, AUTH_DATABASE_URL from key ${ref##* }"
+  fi
+else
+  fail "the chart does not render with authDatabase.url set:"; sed 's/^/       /' "$render" >&2
+fi
+authdb_checked=$((authdb_checked + 1))
+
+render="$WORKDIR/authdb-existing.yaml"
+if helm_render --set authDatabase.existingSecret=operator-auth-db \
+     --set authDatabase.existingSecretKey=dsn > "$render" 2>&1; then
+  ref="$(env_secret_ref "$render" AUTH_DATABASE_URL)"
+  if [ "$ref" != "operator-auth-db dsn" ]; then
+    fail "authDatabase.existingSecret=operator-auth-db (key dsn) mounts '$ref', not that Secret's key"
+  elif [ "$(grep -c '^kind: Secret$' "$render")" != "$(grep -c '^kind: Secret$' "$default_render")" ]; then
+    fail "authDatabase.existingSecret is set and the chart still creates an auth Secret of its own"
+  else
+    echo "  authDatabase.existingSecret -> only the reference, key dsn"
+  fi
+else
+  fail "the chart does not render with authDatabase.existingSecret set:"; sed 's/^/       /' "$render" >&2
+fi
+authdb_checked=$((authdb_checked + 1))
+
+render="$WORKDIR/authdb-env.yaml"
+if helm_render --set-string authDatabase.url="$AUTH_URL_VALUE" \
+     --set authDatabase.env=MY_AUTH_URL > "$render" 2>&1; then
+  if [ -z "$(env_secret_ref "$render" MY_AUTH_URL)" ] || grep -q 'AUTH_DATABASE_URL' "$render"; then
+    fail "authDatabase.env=MY_AUTH_URL does not rename the variable the auth role's URL is mounted as"
+  else
+    echo "  authDatabase.env            -> mounted as MY_AUTH_URL"
+  fi
+else
+  fail "the chart does not render with authDatabase.env set:"; sed 's/^/       /' "$render" >&2
+fi
+authdb_checked=$((authdb_checked + 1))
+
+if helm_render --set-string authDatabase.url="$AUTH_URL_VALUE" \
+     --set authDatabase.existingSecret=operator-auth-db > "$WORKDIR/authdb-both.out" 2>&1; then
+  fail "the chart rendered with both authDatabase.url and authDatabase.existingSecret set; one of them would be silently ignored"
+elif grep -q "authDatabase.url and authDatabase.existingSecret are both set" "$WORKDIR/authdb-both.out"; then
+  echo "  both url and existingSecret -> refused, with an instruction"
+else
+  fail "the chart refused both authDatabase sources, but not with the expected message:"; sed 's/^/       /' "$WORKDIR/authdb-both.out" >&2
+fi
+authdb_checked=$((authdb_checked + 1))
+[ "$authdb_checked" -eq 5 ] || die "A4 declared 5 authDatabase cases but checked $authdb_checked"
 
 if [ "$failures" -ne 0 ]; then
   die "$failures offline check(s) failed; not starting a cluster."

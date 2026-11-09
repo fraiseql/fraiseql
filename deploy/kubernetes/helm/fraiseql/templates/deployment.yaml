@@ -70,6 +70,14 @@ spec:
             secretKeyRef:
               name: {{ include "fraiseql.databaseSecretName" . }}
               key: {{ include "fraiseql.databaseSecretKey" . }}
+        {{- with include "fraiseql.authDatabaseSecretName" . }}
+        {{/* First-party auth's role, under the name `[auth.database] url_env` gives. */}}
+        - name: {{ required "fraiseql: authDatabase.env must name the variable [auth.database] url_env names." $.Values.authDatabase.env }}
+          valueFrom:
+            secretKeyRef:
+              name: {{ . }}
+              key: {{ include "fraiseql.authDatabaseSecretKey" $ }}
+        {{- end }}
         {{/* The compiled schema the server validates before it serves. The image
         bakes none; without this the container exits at startup. */}}
         - name: FRAISEQL_SCHEMA_PATH

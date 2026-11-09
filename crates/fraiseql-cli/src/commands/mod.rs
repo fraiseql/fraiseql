@@ -25,6 +25,8 @@ pub mod perf;
 pub mod query;
 #[cfg(feature = "run-server")]
 pub mod run;
+#[cfg(feature = "run-server")]
+mod run_provision;
 #[cfg(all(test, feature = "run-server"))]
 mod run_serve_tests;
 pub mod sbom;

@@ -75,6 +75,11 @@ then lives in your values file and in Helm's release storage:
 Outside production, `--set env.FRAISEQL_ENV=development` removes the
 `config.content` requirement.
 
+First-party auth on a role of its own (`[auth.database]`) takes that role's URL
+the same way, from `authDatabase.existingSecret` or `authDatabase.url`, mounted
+as `authDatabase.env` (default `AUTH_DATABASE_URL`). The chart creates no role;
+[docs/auth/database.md](../../../../docs/auth/database.md) shows how.
+
 ## Configuration
 
 `values.yaml` documents every key, and every key is read by a template. Two of

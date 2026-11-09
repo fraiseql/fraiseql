@@ -172,6 +172,21 @@ database:
   existingSecret: ""
   existingSecretKey: url
 
+# First-party auth's own database role (`[auth.database]`, see docs/auth/database.md).
+# Optional: leave `url` and `existingSecret` empty and nothing here renders. Set AT MOST
+# ONE of them, with the same trade-off as `database`; setting both is refused.
+#
+#   env   the variable the server reads the auth role's URL from: the name
+#         `[auth.database] url_env` gives in your fraiseql.toml.
+#
+# The chart runs no database, so it creates no role. Create the auth role, and grant it
+# CONNECT and CREATE on the database, as docs/auth/database.md shows.
+authDatabase:
+  url: ""
+  existingSecret: ""
+  existingSecretKey: url
+  env: AUTH_DATABASE_URL
+
 # Compiled schema. Set EXACTLY ONE of `compiled` or `existingConfigMap`.
 #
 #   compiled           the compiled schema JSON itself. Supply it with

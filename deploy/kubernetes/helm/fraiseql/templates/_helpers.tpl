@@ -96,6 +96,34 @@ Key within the database Secret that holds the connection URL.
 {{- end -}}
 
 {{/*
+Name of the Secret holding first-party auth's database URL, or empty when no
+authDatabase is configured: unlike `database`, it is optional.
+
+Both sources set is refused rather than resolved: one of them would be silently
+ignored, and the operator could not tell which.
+*/}}
+{{- define "fraiseql.authDatabaseSecretName" -}}
+{{- if and .Values.authDatabase.url .Values.authDatabase.existingSecret -}}
+{{- fail "fraiseql: authDatabase.url and authDatabase.existingSecret are both set. Set one: authDatabase.url (the chart creates the Secret) OR authDatabase.existingSecret (you create it, with the key named by authDatabase.existingSecretKey)." -}}
+{{- else if .Values.authDatabase.existingSecret -}}
+{{- .Values.authDatabase.existingSecret -}}
+{{- else if .Values.authDatabase.url -}}
+{{- printf "%s-auth-db" (include "fraiseql.fullname" .) -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Key within the auth database Secret that holds the connection URL.
+*/}}
+{{- define "fraiseql.authDatabaseSecretKey" -}}
+{{- if .Values.authDatabase.existingSecret -}}
+{{- required "fraiseql: authDatabase.existingSecretKey must name the key inside authDatabase.existingSecret." .Values.authDatabase.existingSecretKey -}}
+{{- else -}}
+{{- "url" -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
 Name of the ConfigMap holding the compiled schema.
 
 Same two shapes as the database, and the same reason: fraiseql-server reads a

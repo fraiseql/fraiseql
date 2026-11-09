@@ -66,6 +66,77 @@ refuses to boot on a schema `auth` it did not create (below).
 `[auth.database]` may name a different database from the engine's: auth has no foreign key
 into the application's tables.
 
+## Development: `fraiseql run --admin-database-url`
+
+On a development database, `fraiseql run` can create both roles before it starts the server.
+Give it a URL that can create roles, on the same database the server connects to:
+
+```sh
+export FRAISEQL_ENV=development
+export DATABASE_URL="postgresql://app_engine:<password>@localhost:5432/app"
+export AUTH_DATABASE_URL="postgresql://fraiseql_auth:<password>@localhost:5432/app"
+fraiseql run --admin-database-url "postgresql://postgres:<password>@localhost:5432/app"
+```
+
+The flag also reads `FRAISEQL_ADMIN_DATABASE_URL`. Before serving, it:
+
+- creates the engine's role, the user of the database URL, and the auth role, the user of the
+  URL in the variable `[auth.database] url_env` names, each `LOGIN NOSUPERUSER` with its URL's
+  password, when it does not exist;
+- sets only the password of a role that exists, from its URL. A re-run never changes a role's
+  other attributes;
+- grants each role `CONNECT` and `CREATE` on the database, and the engine's role `CREATE` on
+  schema `public`;
+- leaves alone a URL whose user is the admin URL's user: the admin user is never changed, so a
+  setup that runs everything as one superuser keeps working.
+
+Without `[auth.database]`, only the engine's role is created. The flag is refused outside
+`FRAISEQL_ENV=development`, and refused when the admin URL names another host, port or
+database than the server's. Nothing it prints carries a URL or a password.
+
+## Docker Compose
+
+The canonical `docker-compose.yml` creates the auth role when `.env` sets `AUTH_DB_PASSWORD`:
+
+```sh
+# .env
+AUTH_DB_PASSWORD=<password>
+```
+
+On every `docker compose up`, the one-shot `auth-role` service creates `fraiseql_auth` if the
+database does not hold it yet, sets its password, and grants it `CONNECT` and `CREATE` on the
+database. The server then starts with `AUTH_DATABASE_URL` naming that role, so the
+`fraiseql.toml` the stack mounts says:
+
+```toml
+# fraiseql.toml
+[auth.database]
+url_env = "AUTH_DATABASE_URL"
+```
+
+Without `AUTH_DB_PASSWORD`, `AUTH_DATABASE_URL` is empty: a schema with no first-party auth
+surface runs as before, and one with `[auth.database]` refuses to boot, naming the variable.
+
+## Helm
+
+The chart passes the auth role's URL to the server, as it does the engine's:
+
+```sh
+helm install app deploy/kubernetes/helm/fraiseql \
+  --set database.existingSecret=app-db \
+  --set authDatabase.existingSecret=app-auth-db
+```
+
+- `authDatabase.existingSecret` names a Secret you create; `authDatabase.existingSecretKey`
+  (default `url`) names the key that holds the URL.
+- `authDatabase.url` makes the chart create that Secret from the value. Like `database.url`, the
+  value then lands in your values file and in Helm's release storage.
+- `authDatabase.env` (default `AUTH_DATABASE_URL`) is the variable the URL is mounted as: the
+  name `[auth.database] url_env` gives.
+
+Setting both `url` and `existingSecret` is refused. The chart runs no database, so it creates
+no role: create the auth role as [Setting up the role](#setting-up-the-role) shows.
+
 ## An application schema named `auth`
 
 If your database already has a schema named `auth` that FraiseQL did not create, the boot

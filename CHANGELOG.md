@@ -285,6 +285,15 @@ disagreed, and the promise was the part that was wrong.
 
 ### Added
 
+- **The auth role in development, Docker Compose and Helm (#1965).** `fraiseql run
+  --admin-database-url` (or `FRAISEQL_ADMIN_DATABASE_URL`) creates the engine's role and the
+  `[auth.database]` role before the server starts, and grants each `CONNECT` and `CREATE` on
+  the database. It runs only with `FRAISEQL_ENV=development`. A role that exists gets only its
+  password set, and the admin user is never changed. The canonical `docker-compose.yml` takes
+  an optional `AUTH_DB_PASSWORD`: its `auth-role` service creates `fraiseql_auth` and the
+  server gets `AUTH_DATABASE_URL`. The Helm chart takes `authDatabase.url` or
+  `authDatabase.existingSecret`, mounted as `authDatabase.env`. See `docs/auth/database.md`.
+
 - **`fraiseql-test-support` gains an in-process ES256 OIDC issuer for tests (#1964).** The
   `test-issuer` feature adds `issuer::TestIssuer`. It generates P-256 keys at runtime, so no
   private key is committed, and serves a JWKS and a discovery document on loopback. A test

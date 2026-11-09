@@ -92,6 +92,8 @@ PUBLISHED_IMAGES="ghcr.io/fraiseql/server fraiseql/server"
 # with a number rather than with the artifact, which is the #1216 shape one level up.
 APP_SERVICE="fraiseql"
 DB_SERVICE="postgres"
+# The one-shot service that creates first-party auth's role (Phase C).
+AUTH_ROLE_SERVICE="auth-role"
 
 # The host side of each published port is `${VAR:-default}` in the compose file, so a
 # collision on a shared host does not make the stack unstartable. These are the names
@@ -169,6 +171,12 @@ DB_PASSWORD="compose-stack-${SLUG}"
 # both, so they must exist before the first call under `set -u`.
 APP_HOST_PORT_OVERRIDE=""
 DB_HOST_PORT_OVERRIDE=""
+
+# Phase C's inputs: first-party auth on a role of its own. Empty outside Phase C, so
+# write_env writes exactly the three inputs above until then.
+AUTH_DB_PASSWORD_INPUT=""
+SCHEMA_INPUT="$PWD/$FIXTURE_SCHEMA"
+CONFIG_INPUT="$CONFIG_TOML"
 PREEXISTING_IMAGE_ID=""
 
 failures=0
@@ -179,7 +187,7 @@ die()  { echo "COMPOSE-STACK FAILED: $*" >&2; exit 1; }
 # Compose, always with the same project and env-file. `--env-file` rather than
 # the ambient `.env`: a developer's own `.env` in the repo root would otherwise
 # silently become part of what is under test.
-dc() { docker compose -p "$PROJECT" -f "$COMPOSE_FILE" --env-file "$ENV_FILE" "$@"; }
+dc() { env -u AUTH_DB_PASSWORD docker compose -p "$PROJECT" -f "$COMPOSE_FILE" --env-file "$ENV_FILE" "$@"; }
 
 cleanup() {
   local rc=$?
@@ -191,6 +199,8 @@ cleanup() {
     dc logs --no-color --tail=100 "$APP_SERVICE" 2>&1 || true
     echo "--- ${DB_SERVICE} logs (tail) ---"
     dc logs --no-color --tail=30 "$DB_SERVICE" 2>&1 || true
+    echo "--- ${AUTH_ROLE_SERVICE} logs (tail) ---"
+    dc logs --no-color --tail=30 "$AUTH_ROLE_SERVICE" 2>&1 || true
     if cid="$(dc ps -aq "$APP_SERVICE" 2>/dev/null)" && [ -n "$cid" ]; then
       echo "--- ${APP_SERVICE} state ---"
       docker inspect -f 'exit={{.State.ExitCode}} health={{if .State.Health}}{{.State.Health.Status}}{{else}}<none>{{end}}' "$cid" 2>&1 || true
@@ -235,8 +245,10 @@ echo "  project: $PROJECT"
 write_env() {
   : > "$ENV_FILE"
   [ "${1:-}" = "no-password" ] || echo "DB_PASSWORD=$DB_PASSWORD" >> "$ENV_FILE"
-  [ "${1:-}" = "no-schema" ]   || echo "FRAISEQL_SCHEMA_FILE=$PWD/$FIXTURE_SCHEMA" >> "$ENV_FILE"
-  [ "${1:-}" = "no-config" ]   || echo "FRAISEQL_CONFIG_FILE=$CONFIG_TOML" >> "$ENV_FILE"
+  [ "${1:-}" = "no-schema" ]   || echo "FRAISEQL_SCHEMA_FILE=$SCHEMA_INPUT" >> "$ENV_FILE"
+  [ "${1:-}" = "no-config" ]   || echo "FRAISEQL_CONFIG_FILE=$CONFIG_INPUT" >> "$ENV_FILE"
+  # Optional: the auth role's password (Phase C).
+  [ -z "$AUTH_DB_PASSWORD_INPUT" ] || echo "AUTH_DB_PASSWORD=$AUTH_DB_PASSWORD_INPUT" >> "$ENV_FILE"
   # Set only when B1 found the shipped default already taken on this host.
   [ -z "${APP_HOST_PORT_OVERRIDE:-}" ] || echo "${APP_HOST_PORT_VAR}=$APP_HOST_PORT_OVERRIDE" >> "$ENV_FILE"
   [ -z "${DB_HOST_PORT_OVERRIDE:-}" ]  || echo "${DB_HOST_PORT_VAR}=$DB_HOST_PORT_OVERRIDE" >> "$ENV_FILE"
@@ -246,7 +258,7 @@ write_env() {
 # is trying to leave unset. Compose reads the shell environment ahead of
 # --env-file, so without this the negative cases below could silently pass.
 compose_config() {
-  env -u DB_PASSWORD -u FRAISEQL_SCHEMA_FILE -u FRAISEQL_CONFIG_FILE \
+  env -u DB_PASSWORD -u FRAISEQL_SCHEMA_FILE -u FRAISEQL_CONFIG_FILE -u AUTH_DB_PASSWORD \
     docker compose -p "$PROJECT" -f "$COMPOSE_FILE" --env-file "$ENV_FILE" config "$@"
 }
 
@@ -500,6 +512,81 @@ for f in tools/compose-stack-test.sh Makefile .github/workflows/dagger-image.yml
 done
 [ "$swallow" -eq 0 ] && echo "  no '|| true' in the make target, the workflow step, or this script's compose calls"
 
+AUTH_ROLE="fraiseql_auth"
+AUTH_URL_VAR="AUTH_DATABASE_URL"
+# The server's refusal of an empty variable, not the variable's bare name: the boot
+# that SUCCEEDS logs the name too (`url_env="AUTH_DATABASE_URL"`), so keying on the
+# name read a healthy boot as a refusal.
+AUTH_URL_REFUSAL="[auth.database] url_env names \`${AUTH_URL_VAR}\`, which is empty"
+AUTH_PASSWORD_VALUE="compose-auth-${SLUG}"
+ADMIN_TOKEN="compose-stack-admin-token-${SLUG}-0123456789abcdef"
+AUTH_SCHEMA="$WORKDIR/schema.auth.compiled.json"
+AUTH_CONFIG="$WORKDIR/fraiseql.auth.toml"
+
+# The fixture schema with `[auth.database]` alone under `[auth]`, which is what
+# `fraiseql compile` emits for it: `{"auth": {"database": {"url_env": …}}}`.
+python3 - "$FIXTURE_SCHEMA" "$AUTH_SCHEMA" "$AUTH_URL_VAR" <<'PY'
+import json, sys
+schema = json.load(open(sys.argv[1]))
+if "auth" in schema:
+    print(f"FAIL: {sys.argv[1]} already carries an auth section; Phase C would not add one")
+    raise SystemExit(1)
+schema["auth"] = {"database": {"url_env": sys.argv[3]}}
+json.dump(schema, open(sys.argv[2], "w"))
+PY
+# An enabled `[scim]` is the auth surface: it needs only the admin token and `[scim]`,
+# both in the operator's own file, and makes the boot create auth's tables over auth's pool.
+cat > "$AUTH_CONFIG" <<TOML
+cors_origins = ["http://localhost"]
+admin_token = "${ADMIN_TOKEN}"
+
+[scim]
+enabled = true
+TOML
+
+step "C1/C3  AUTH_DB_PASSWORD adds the role service and the variable, and nothing else"
+SCHEMA_INPUT="$AUTH_SCHEMA"; CONFIG_INPUT="$AUTH_CONFIG"
+AUTH_DB_PASSWORD_INPUT="$AUTH_PASSWORD_VALUE"
+write_env
+compose_config --format json > "$WORKDIR/resolved.auth.json" \
+  || die "$COMPOSE_FILE does not resolve with AUTH_DB_PASSWORD supplied"
+AUTH_DB_PASSWORD_INPUT=""
+write_env
+compose_config --format json > "$WORKDIR/resolved.noauth.json" \
+  || die "$COMPOSE_FILE does not resolve without AUTH_DB_PASSWORD"
+python3 - "$WORKDIR/resolved.auth.json" "$WORKDIR/resolved.noauth.json" "$APP_SERVICE" \
+  "$AUTH_ROLE_SERVICE" "$AUTH_URL_VAR" "$AUTH_ROLE" "$AUTH_PASSWORD_VALUE" <<'PY' \
+  || fail "the auth role's wiring is not what an operator needs (see above)"
+import json, sys
+with_auth, without, app, svc, var, role, password = (
+    json.load(open(sys.argv[1])), json.load(open(sys.argv[2])), *sys.argv[3:])
+bad = 0
+def env(cfg, name):
+    e = cfg["services"][name].get("environment") or {}
+    return dict(x.split("=", 1) for x in e) if isinstance(e, list) else e
+expected = f"postgresql://{role}:{password}@postgres:5432/fraiseql"
+got = env(with_auth, app).get(var)
+if got != expected:
+    print(f"FAIL: with AUTH_DB_PASSWORD, {app}'s {var} is {got!r}, not the auth role's URL"); bad += 1
+got = env(without, app).get(var, "")
+if got:
+    print(f"FAIL: without AUTH_DB_PASSWORD, {app}'s {var} is set ({len(got)} characters)"); bad += 1
+if svc not in with_auth["services"]:
+    print(f"FAIL: no {svc} service creates the auth role"); bad += 1
+else:
+    if with_auth["services"][svc].get("ports"):
+        print(f"FAIL: {svc} publishes a port; a one-shot role service needs none"); bad += 1
+    cond = ((with_auth["services"][app].get("depends_on") or {}).get(svc) or {}).get("condition")
+    if cond != "service_completed_successfully":
+        print(f"FAIL: {app} does not wait for {svc} to complete (condition {cond!r})"); bad += 1
+if not bad:
+    print(f"  with AUTH_DB_PASSWORD: {svc} runs first, {app} gets {var}")
+    print(f"  without it: {var} is empty")
+raise SystemExit(1 if bad else 0)
+PY
+# Phase B serves the fixture without auth; Phase C switches back.
+SCHEMA_INPUT="$PWD/$FIXTURE_SCHEMA"; CONFIG_INPUT="$CONFIG_TOML"
+
 if [ "$failures" -ne 0 ]; then
   die "$failures offline check(s) failed; not starting a stack."
 fi
@@ -728,9 +815,78 @@ if [ "$failures" -ne 0 ]; then
   die "$failures check(s) failed."
 fi
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Phase C — first-party auth on a role of its own. `[auth.database]` names the
+# variable holding the auth role's URL; the stack creates that role and sets the
+# variable when, and only when, the operator supplies AUTH_DB_PASSWORD.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Wait for the app container to be healthy (0) or for its logs to carry `$1`, the
+# refusal's own text, while it is not (1). The app restarts on failure, so "exited" is not a final state here.
+app_health_or_log() {   # app_health_or_log <text the refusal names>
+  local cid st
+  for _ in $(seq 1 90); do
+    cid="$(dc ps -aq "$APP_SERVICE")"
+    st="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$cid" 2>/dev/null || echo gone)"
+    [ "$st" = "healthy" ] && return 0
+    # To a file, then grep: `grep -q` ends a pipe early, and under pipefail the writer's
+    # SIGPIPE would turn a match into a failed condition.
+    dc logs --no-color "$APP_SERVICE" > "$WORKDIR/app.log" 2>&1 || true
+    grep -qF "$1" "$WORKDIR/app.log" && return 1
+    sleep 2
+  done
+  die "the $APP_SERVICE container neither became healthy nor named $1 within 180s"
+}
+
+step "C2/C3  DISCRIMINATOR — [auth.database] without AUTH_DB_PASSWORD refuses to boot"
+SCHEMA_INPUT="$AUTH_SCHEMA"; CONFIG_INPUT="$AUTH_CONFIG"; AUTH_DB_PASSWORD_INPUT=""
+write_env
+dc up -d
+if app_health_or_log "$AUTH_URL_REFUSAL"; then
+  die "the stack became healthy with [auth.database] and no AUTH_DB_PASSWORD; it must refuse"
+fi
+echo "  refused, naming $AUTH_URL_VAR"
+auth_roles="$(psql_db -tAc "SELECT count(*) FROM pg_roles WHERE rolname = '$AUTH_ROLE'" | tr -d '[:space:]')"
+[ "$auth_roles" = 0 ] \
+  || die "$AUTH_ROLE exists although AUTH_DB_PASSWORD is unset: $AUTH_ROLE_SERVICE created a role nobody asked for"
+echo "  and $AUTH_ROLE_SERVICE created no role"
+grep -F "$AUTH_URL_REFUSAL" "$WORKDIR/app.log" | tail -1 | sed 's/^/    /'
+
+step "C3/C3  with AUTH_DB_PASSWORD the role is created, and auth runs on it"
+AUTH_DB_PASSWORD_INPUT="$AUTH_PASSWORD_VALUE"
+write_env
+dc up -d
+app_health_or_log "$AUTH_URL_REFUSAL" \
+  || die "the stack refused to boot with AUTH_DB_PASSWORD supplied"
+echo "  $APP_SERVICE healthy with [auth.database]"
+# Ownership is the proof that auth ran as its role: the boot creates schema `auth` and
+# every table in it over the auth pool, so with the engine's URL they would belong to
+# `fraiseql`. `[scim] enabled` is what makes this a first-party auth surface; the boot
+# creates its tables whether or not this build serves the SCIM routes.
+tables="$(psql_db -tAc "SELECT count(*) FROM pg_tables WHERE schemaname = 'auth'" | tr -d '[:space:]')"
+[ "${tables:-0}" -gt 0 ] || die "schema auth holds no table: the boot did not create auth's tables"
+owners="$(psql_db -tAc "SELECT string_agg(DISTINCT tableowner::text, ',') FROM pg_tables WHERE schemaname = 'auth'" | tr -d '[:space:]')"
+[ "$owners" = "$AUTH_ROLE" ] || die "the auth tables belong to '$owners', not $AUTH_ROLE"
+echo "  all $tables tables in schema auth belong to $AUTH_ROLE"
+# On a volume that already holds the role: the service runs on every `up`.
+dc run --rm --no-deps "$AUTH_ROLE_SERVICE" >"$WORKDIR/auth-role-rerun.out" 2>&1 \
+  || { sed 's/^/    /' "$WORKDIR/auth-role-rerun.out"; die "$AUTH_ROLE_SERVICE failed on a database that already holds $AUTH_ROLE"; }
+echo "  $AUTH_ROLE_SERVICE re-runs cleanly against the existing role"
+dc logs --no-color > "$WORKDIR/all.log" 2>&1 \
+  || die "could not read the stack's logs to check them for the password"
+if grep -qF "$AUTH_PASSWORD_VALUE" "$WORKDIR/all.log"; then
+  die "the stack's logs carry the auth role's password"
+fi
+echo "  no service logged the auth role's password"
+
+if [ "$failures" -ne 0 ]; then
+  die "$failures check(s) failed."
+fi
+
 echo
 echo "compose-stack OK (run ${RUN_ID}): the canonical stack refuses each missing input,"
 echo "names only pinned images this project publishes at the workspace version, restates"
 echo "nothing the image owns, came up on the image this branch builds, became healthy on"
 echo "the image's OWN healthcheck, answered through its published host port, and returned"
-echo "a row inserted after it was already serving."
+echo "a row inserted after it was already serving. With [auth.database] it refused to boot"
+echo "until AUTH_DB_PASSWORD was supplied, then created the auth role and ran auth on it."

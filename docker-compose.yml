@@ -39,6 +39,18 @@
 # FRAISEQL_DB_HOST_PORT (default 5432) move the HOST side of each published port when
 # something else on the host already holds it. The container sides are fixed.
 #
+# A third is optional: AUTH_DB_PASSWORD, for first-party auth on a role of its own.
+# With it, the one-shot `auth-role` service creates the role `fraiseql_auth` (or sets
+# its password, when the volume already holds it) before the server starts, and the
+# server gets AUTH_DATABASE_URL. Your fraiseql.toml then says:
+#
+#   [auth.database]
+#   url_env = "AUTH_DATABASE_URL"
+#
+# Without it, AUTH_DATABASE_URL is empty and the stack is exactly the one above; a
+# schema with `[auth.database]` refuses to boot, naming AUTH_DATABASE_URL. See
+# docs/auth/database.md.
+#
 # Each is `${VAR:?...}` below, so an unset one aborts `docker compose up` with an
 # instruction instead of starting a container that exits. There is no default for any of
 # them: a default password is a vulnerability, and a default schema is a server answering
@@ -95,11 +107,41 @@ services:
       - "${FRAISEQL_HOST_PORT:-8000}:8000"
     environment:
       DATABASE_URL: postgresql://fraiseql:${DB_PASSWORD:?DB_PASSWORD must be set — see .env.example}@postgres:5432/fraiseql
+      # Empty unless AUTH_DB_PASSWORD is set; `[auth.database] url_env` names it.
+      AUTH_DATABASE_URL: ${AUTH_DB_PASSWORD:+postgresql://fraiseql_auth:${AUTH_DB_PASSWORD}@postgres:5432/fraiseql}
       FRAISEQL_SCHEMA_PATH: /etc/fraiseql/schema.compiled.json
       FRAISEQL_CONFIG: /etc/fraiseql/fraiseql.toml
     volumes:
       - ${FRAISEQL_SCHEMA_FILE:?FRAISEQL_SCHEMA_FILE must name your compiled schema — run `fraiseql compile schema.json`, see .env.example}:/etc/fraiseql/schema.compiled.json:ro
       - ${FRAISEQL_CONFIG_FILE:?FRAISEQL_CONFIG_FILE must name your fraiseql.toml — production mode refuses to start without cors_origins, which has no environment variable, see .env.example}:/etc/fraiseql/fraiseql.toml:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      auth-role:
+        condition: service_completed_successfully
+    networks:
+      - fraiseql-net
+
+  # First-party auth's role, when AUTH_DB_PASSWORD is set: created if absent, its password
+  # set, CONNECT and CREATE on the database granted. It runs on every `up` and exits, so it
+  # also works on a volume an earlier `up` initialised. The same script creates the role on
+  # the test rigs. No port: it only reaches `postgres` over `fraiseql-net`.
+  auth-role:
+    image: postgres:18-alpine
+    restart: "no"
+    environment:
+      PGHOST: postgres
+      PGPASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set — see .env.example}
+      POSTGRES_USER: fraiseql
+      POSTGRES_DB: fraiseql
+      AUTH_ROLE: fraiseql_auth
+      AUTH_PASSWORD: ${AUTH_DB_PASSWORD:-}
+    volumes:
+      - ./docker/init/postgres-auth-role-init.sh:/usr/local/bin/fraiseql-auth-role-init.sh:ro
+    entrypoint:
+      - bash
+      - -c
+      - '[ -n "$$AUTH_PASSWORD" ] || { echo "AUTH_DB_PASSWORD is not set: no auth role"; exit 0; }; exec bash /usr/local/bin/fraiseql-auth-role-init.sh'
     depends_on:
       postgres:
         condition: service_healthy

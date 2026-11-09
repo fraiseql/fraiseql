@@ -583,6 +583,20 @@ TOML CONFIG:
         /// Enable the GraphQL introspection endpoint (no auth required)
         #[arg(long)]
         introspection: bool,
+
+        /// Development only (FRAISEQL_ENV=development): connect with this URL first and
+        /// create the server's roles. Also read from FRAISEQL_ADMIN_DATABASE_URL.
+        ///
+        /// The engine's role is the user of the database URL, and first-party auth's role the
+        /// user of the URL in the variable `[auth.database] url_env` names. A role that does
+        /// not exist is created LOGIN NOSUPERUSER with its URL's password. A role that exists
+        /// gets only its password set from its URL: a re-run never changes its other
+        /// attributes. Each role is granted CONNECT and CREATE on the database, and the
+        /// engine's role CREATE on schema public. A URL whose user is the admin user is left
+        /// alone: the admin user is never changed. The URL must name the same database as the
+        /// server's.
+        #[arg(long, value_name = "ADMIN_DATABASE_URL")]
+        admin_database_url: Option<String>,
     },
 
     /// Watch a schema source and recompile + live-reload a running server on change

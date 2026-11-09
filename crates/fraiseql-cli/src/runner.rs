@@ -454,6 +454,7 @@ pub async fn run() {
             bind,
             watch,
             introspection,
+            admin_database_url,
         } => {
             // Box::pin: `run` dispatches across up to 4 adapter init futures,
             // pushing the combined future past clippy's `large_futures` 16-KiB
@@ -465,6 +466,7 @@ pub async fn run() {
                 bind,
                 watch,
                 introspection,
+                admin_database_url,
             ))
             .await
         },

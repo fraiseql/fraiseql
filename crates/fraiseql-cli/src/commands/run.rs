@@ -39,7 +39,10 @@ use notify::{
 };
 use tracing::info;
 
-use super::compile::{CompileOptions, compile_to_schema};
+use super::{
+    compile::{CompileOptions, compile_to_schema},
+    run_provision,
+};
 use crate::config::{
     ConfigSource, DatabaseRuntimeConfig, ServerRuntimeConfig, TomlProjectConfig, TomlSchema,
     runtime::TlsRuntimeConfig,
@@ -56,11 +59,14 @@ use crate::config::{
 /// * `bind`          - Bind host override; `None` means fall back to TOML / default.
 /// * `watch`         - Watch input file for changes and hot-reload.
 /// * `introspection` - Enable the `/introspection` endpoint (no auth).
+/// * `admin_database_url` - In development, the URL to create the server's roles with before it
+///   starts; falls back to `FRAISEQL_ADMIN_DATABASE_URL`.
 ///
 /// # Errors
 ///
 /// Returns error if the input file cannot be found, the schema fails to compile,
-/// the database URL is missing from all sources, or the server cannot bind.
+/// the database URL is missing from all sources, an admin URL is given outside
+/// development or its roles cannot be provisioned, or the server cannot bind.
 pub async fn run(
     input: Option<&str>,
     database: Option<String>,
@@ -68,7 +74,12 @@ pub async fn run(
     bind: Option<String>,
     watch: bool,
     introspection: bool,
+    admin_database_url: Option<String>,
 ) -> Result<()> {
+    let admin_url = run_provision::admin_url(admin_database_url);
+    if admin_url.is_some() {
+        run_provision::refuse_outside_development()?;
+    }
     let input_path = resolve_input(input)?;
     let server_file = ServerFile::from_env()?;
 
@@ -83,45 +94,54 @@ pub async fn run(
     // Box::pin both branches: each holds the per-adapter init futures the
     // dispatch helper splits into. Heap-allocating once per `fraiseql run`
     // invocation keeps clippy's `large_futures` lint satisfied.
+    let serving = Serving {
+        input_path: &input_path,
+        db_url: &db_url,
+        bind_addr,
+        introspection,
+        server_cfg: &server_cfg,
+        db_cfg: &db_cfg,
+        server_file: server_file.as_ref(),
+        admin_url: admin_url.as_deref(),
+    };
     if watch {
-        Box::pin(run_watch_loop(
-            &input_path,
-            &db_url,
-            bind_addr,
-            introspection,
-            &server_cfg,
-            &db_cfg,
-            server_file.as_ref(),
-        ))
-        .await
+        Box::pin(run_watch_loop(&serving)).await
     } else {
-        Box::pin(run_once(
-            &input_path,
-            &db_url,
-            bind_addr,
-            introspection,
-            &server_cfg,
-            &db_cfg,
-            server_file.as_ref(),
-        ))
-        .await
+        Box::pin(run_once(&serving)).await
     }
 }
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
-/// Compile the schema and start the server once (no watch).
-async fn run_once(
-    input_path: &Path,
-    db_url: &str,
-    bind_addr: SocketAddr,
+/// What `fraiseql run` serves, resolved once from its flags, environment and files.
+#[derive(Clone, Copy)]
+struct Serving<'a> {
+    input_path:    &'a Path,
+    db_url:        &'a str,
+    bind_addr:     SocketAddr,
     introspection: bool,
-    server_cfg: &ServerRuntimeConfig,
-    db_cfg: &DatabaseRuntimeConfig,
-    server_file: Option<&ServerFile>,
-) -> Result<()> {
+    server_cfg:    &'a ServerRuntimeConfig,
+    db_cfg:        &'a DatabaseRuntimeConfig,
+    server_file:   Option<&'a ServerFile>,
+    /// `--admin-database-url`: create the server's roles before each serve.
+    admin_url:     Option<&'a str>,
+}
+
+/// Compile the schema and start the server once (no watch).
+async fn run_once(serving: &Serving<'_>) -> Result<()> {
+    let Serving {
+        input_path,
+        db_url,
+        bind_addr,
+        introspection,
+        server_cfg,
+        db_cfg,
+        server_file,
+        admin_url,
+    } = *serving;
     let scheme = parse_database_url(db_url)?;
     let compiled = compile_schema(input_path).await?;
+    provision_if_asked(admin_url, db_url, &compiled).await?;
     let config =
         build_config_from(db_url, bind_addr, server_cfg, db_cfg, introspection, server_file)?;
 
@@ -133,19 +153,23 @@ async fn run_once(
 }
 
 /// Watch-loop: compile -> serve -> detect file change -> restart.
-async fn run_watch_loop(
-    input_path: &Path,
-    db_url: &str,
-    bind_addr: SocketAddr,
-    introspection: bool,
-    server_cfg: &ServerRuntimeConfig,
-    db_cfg: &DatabaseRuntimeConfig,
-    server_file: Option<&ServerFile>,
-) -> Result<()> {
+async fn run_watch_loop(serving: &Serving<'_>) -> Result<()> {
+    let Serving {
+        input_path,
+        db_url,
+        bind_addr,
+        introspection,
+        server_cfg,
+        db_cfg,
+        server_file,
+        admin_url,
+    } = *serving;
     let scheme = parse_database_url(db_url)?;
 
     loop {
         let compiled = compile_schema(input_path).await?;
+        // Each time: a recompiled schema may have gained `[auth.database]`.
+        provision_if_asked(admin_url, db_url, &compiled).await?;
         let config =
             build_config_from(db_url, bind_addr, server_cfg, db_cfg, introspection, server_file)?;
 
@@ -195,6 +219,24 @@ async fn run_watch_loop(
     }
 
     Ok(())
+}
+
+/// Create and grant the server's roles when `--admin-database-url` asked for it.
+async fn provision_if_asked(
+    admin_url: Option<&str>,
+    db_url: &str,
+    compiled: &Compiled,
+) -> Result<()> {
+    let Some(admin_url) = admin_url else {
+        return Ok(());
+    };
+    run_provision::provision(
+        admin_url,
+        db_url,
+        "the database URL (--database, DATABASE_URL or [database].url)",
+        &compiled.schema,
+    )
+    .await
 }
 
 /// Wait for the OS-level shutdown signal (SIGINT / Ctrl-C), wrapped so that
