@@ -18,6 +18,12 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **`fraiseql_jwks::JwksKeys` has two more required methods, `invalidate` and `refresh`
+  (#1964).** They are what an operator's JWKS invalidate and refresh reach, so every key
+  source must say what they mean for it; neither has a default body, because a silent
+  no-op would answer "stop trusting these keys" by doing nothing. `JwksSource` implements
+  both as before. An implementation outside this workspace must add them.
+
 - **First-party auth's tables live in schema `auth` (#1965).** Users, identities, password
   credentials and their reset and verification tokens, OTP, MFA, SAML, SCIM and sessions
   move from `core` and `_system` to `auth`, with the same table names: `core.tb_user` is now
@@ -284,6 +290,15 @@ disagreed, and the promise was the part that was wrong.
   dependencies had already outgrown; it is now 1.95.0 and a CI job builds at it.
 
 ### Added
+
+- **An `OidcValidator` can trust an issuer whose keys this process holds (#1964).**
+  `OidcValidator::from_issuer_keys(config, keys)` builds a validator for one such issuer,
+  and `and_issuer_keys(config, keys)` adds one beside the issuers a validator found by
+  discovery; `keys` is any `fraiseql_jwks::JwksKeys`. Neither makes a request. A token is
+  routed by its `iss` as between any two trusted issuers. Both refuse an issuer with no
+  name, a `jwks_uri` or `additional_issuers` that would never be used, and a name the
+  validator already trusts; adding one to an issuer-less validator, or with its own `me`,
+  is refused too. Nothing builds one yet.
 
 - **The auth role in development, Docker Compose and Helm (#1965).** `fraiseql run
   --admin-database-url` (or `FRAISEQL_ADMIN_DATABASE_URL`) creates the engine's role and the

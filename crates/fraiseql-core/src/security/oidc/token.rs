@@ -12,7 +12,7 @@ pub(super) const MAX_DISCOVERY_RESPONSE_BYTES: usize = 64 * 1024; // 64 KiB
 use std::{sync::Arc, time::Duration};
 
 use chrono::{DateTime, Utc};
-use fraiseql_jwks::JwksSource;
+use fraiseql_jwks::{JwksKeys, JwksSource};
 use jsonwebtoken::{Algorithm, Validation, decode, decode_header};
 
 use crate::security::{
@@ -55,11 +55,13 @@ pub struct OidcValidator {
 pub(super) struct IssuerProfile {
     /// The issuer's settings, as a complete single-issuer configuration.
     pub(super) config: OidcConfig,
-    /// The one bounded JWKS client (#1335), for this issuer's keys only. Not a cache
-    /// this type owns: a near-copy of it lived here and another in `fraiseql_auth`,
-    /// and the two had drifted on key types and on DNS pinning while agreeing on the
-    /// one thing that mattered — neither bounded a refetch.
-    pub(super) jwks:   Arc<JwksSource>,
+    /// This issuer's keys, and only its keys: the one bounded JWKS client (#1335) for
+    /// an issuer that publishes them at a `jwks_uri`, or the keys this process holds
+    /// for an issuer it runs itself (#1964). Not a cache this type owns: a near-copy
+    /// of the client lived here and another in `fraiseql_auth`, and the two had
+    /// drifted on key types and on DNS pinning while agreeing on the one thing that
+    /// mattered — neither bounded a refetch.
+    pub(super) jwks:   Arc<dyn JwksKeys>,
 }
 
 /// The one claim read from a token before its signature is checked: which issuer's
@@ -244,6 +246,101 @@ impl OidcValidator {
             issuers,
             replay_cache: None,
         })
+    }
+
+    /// A validator for one issuer whose keys this process holds itself, rather than
+    /// fetches from a `jwks_uri` (#1964): a first-party issuer signing with a key ring
+    /// of its own.
+    ///
+    /// Makes no request, now or later: there is no URI to fetch and nothing to
+    /// discover, and every key lookup is answered by `keys`.
+    ///
+    /// # Errors
+    ///
+    /// `SecurityError::SecurityConfigError` when `config`
+    /// - names no `issuer`: tokens reach an issuer's keys by their `iss`;
+    /// - pins a `jwks_uri` or lists `additional_issuers`: neither would be used, so a configuration
+    ///   that says otherwise is refused rather than quietly ignored;
+    /// - fails [`OidcConfig::validate`].
+    pub fn from_issuer_keys(config: OidcConfig, keys: Arc<dyn JwksKeys>) -> Result<Self> {
+        Self::check_held_issuer(&config)?;
+        Ok(Self {
+            issuers: vec![IssuerProfile {
+                config: config.clone(),
+                jwks:   keys,
+            }],
+            config,
+            replay_cache: None,
+        })
+    }
+
+    /// This validator, also trusting an issuer whose keys this process holds (#1964).
+    ///
+    /// The way a first-party issuer sits beside an `IdP` this validator found by
+    /// discovery: a token is routed to one of them by its `iss`, as between any two
+    /// trusted issuers. The settings every issuer shares (`required`, `me`, the JWKS
+    /// cache TTL) stay this validator's own. Makes no request.
+    ///
+    /// # Errors
+    ///
+    /// `SecurityError::SecurityConfigError` for every reason
+    /// [`from_issuer_keys`](Self::from_issuer_keys) gives, and when
+    /// - this validator already trusts an issuer of that name, whether it was configured,
+    ///   discovered or added here: `iss` would not name one set of keys;
+    /// - this validator is issuer-less: its one profile takes every token whatever its `iss`, so it
+    ///   cannot share tokens out by that claim;
+    /// - `config` sets `me`: the endpoint is mounted from this validator's settings.
+    pub fn and_issuer_keys(mut self, config: OidcConfig, keys: Arc<dyn JwksKeys>) -> Result<Self> {
+        Self::check_held_issuer(&config)?;
+        if config.me.is_some() {
+            return Err(SecurityError::SecurityConfigError(
+                "an issuer added beside this validator's own cannot set `me`: the endpoint is \
+                 mounted from the validator's settings, not from an added issuer's"
+                    .to_string(),
+            ));
+        }
+        if self.config.issuer.is_none() {
+            return Err(SecurityError::SecurityConfigError(
+                "an issuer-less validator takes every token whatever its `iss`, so no other \
+                 issuer can be trusted beside it"
+                    .to_string(),
+            ));
+        }
+        if self.issuers.iter().any(|trusted| trusted.config.issuer == config.issuer) {
+            return Err(SecurityError::SecurityConfigError(format!(
+                "OIDC issuer {:?} is already trusted by this validator; each trusted issuer \
+                 appears once, or a token's `iss` would not name one set of keys",
+                config.issuer.as_deref().unwrap_or_default()
+            )));
+        }
+        self.issuers.push(IssuerProfile { config, jwks: keys });
+        Ok(self)
+    }
+
+    /// The rules for an issuer whose keys are held in process.
+    fn check_held_issuer(config: &OidcConfig) -> Result<()> {
+        if config.issuer.is_none() {
+            return Err(SecurityError::SecurityConfigError(
+                "an issuer whose keys are held in process names no issuer: tokens reach an \
+                 issuer's keys by their `iss`, so it must have one"
+                    .to_string(),
+            ));
+        }
+        if config.jwks_uri.is_some() {
+            return Err(SecurityError::SecurityConfigError(
+                "an issuer whose keys are held in process cannot pin a `jwks_uri`: its keys \
+                 are never fetched"
+                    .to_string(),
+            ));
+        }
+        if !config.additional_issuers.is_empty() {
+            return Err(SecurityError::SecurityConfigError(
+                "an issuer whose keys are held in process cannot list `additional_issuers`: \
+                 each issuer is added with its own keys"
+                    .to_string(),
+            ));
+        }
+        config.validate()
     }
 
     /// Attach a JWT replay cache to this validator.

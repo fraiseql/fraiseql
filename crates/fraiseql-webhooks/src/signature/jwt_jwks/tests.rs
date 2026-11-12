@@ -115,6 +115,12 @@ impl JwksKeys for LocalKeys {
         };
         Box::pin(std::future::ready(Ok(answer)))
     }
+
+    fn invalidate(&self) {}
+
+    fn refresh(&self) -> BoxFuture<'_, Result<usize, JwksError>> {
+        Box::pin(std::future::ready(Ok(0)))
+    }
 }
 
 /// Sign `claims` as the fixture publisher would, under `kid`.
@@ -773,6 +779,12 @@ async fn an_unreachable_key_set_is_the_operators_error_and_not_the_senders() {
                 reason: "connection refused".to_string(),
             })))
         }
+
+        fn invalidate(&self) {}
+
+        fn refresh(&self) -> BoxFuture<'_, Result<usize, JwksError>> {
+            Box::pin(std::future::ready(Ok(0)))
+        }
     }
     let config = SchemeConfig {
         jwks_uri: Some("https://idp.example.com/jwks".to_string()),
@@ -831,6 +843,14 @@ impl JwksKeys for CountingKeys {
     fn key<'a>(&'a self, kid: &'a str) -> BoxFuture<'a, Result<Option<Jwk>, JwksError>> {
         self.lookups.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         self.inner.key(kid)
+    }
+
+    fn invalidate(&self) {
+        self.inner.invalidate();
+    }
+
+    fn refresh(&self) -> BoxFuture<'_, Result<usize, JwksError>> {
+        self.inner.refresh()
     }
 }
 
@@ -1057,6 +1077,12 @@ impl JwksKeys for RsaAndEcKeys {
             _ => None,
         };
         Box::pin(std::future::ready(Ok(answer)))
+    }
+
+    fn invalidate(&self) {}
+
+    fn refresh(&self) -> BoxFuture<'_, Result<usize, JwksError>> {
+        Box::pin(std::future::ready(Ok(0)))
     }
 }
 

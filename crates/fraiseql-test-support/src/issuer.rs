@@ -209,6 +209,29 @@ impl TestIssuer {
         format!("{}{JWKS_PATH}", self.server.uri())
     }
 
+    /// The key set this issuer publishes, exactly as its JWKS endpoint would
+    /// serve it now: for a caller that holds the keys in process rather than
+    /// fetching them.
+    #[must_use]
+    pub fn published_jwks(&self) -> Value {
+        lock(&self.ring).jwks()
+    }
+
+    /// How many requests this issuer's endpoints have answered: the evidence that
+    /// a caller holding the keys in process never asked for them.
+    ///
+    /// # Panics
+    ///
+    /// If the server was started without request recording, which
+    /// [`start`](Self::start) never does.
+    pub async fn requests_served(&self) -> usize {
+        self.server
+            .received_requests()
+            .await
+            .expect("the issuer records the requests it answers")
+            .len()
+    }
+
     /// The `kid` of the key that signs new tokens.
     #[must_use]
     pub fn active_kid(&self) -> String {

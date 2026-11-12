@@ -31,6 +31,25 @@ pub trait JwksKeys: Send + Sync + std::fmt::Debug {
     /// [`JwksError`] when the key set cannot be fetched or is not a key set. A
     /// `kid` the publisher simply does not publish is `Ok(None)`.
     fn key<'a>(&'a self, kid: &'a str) -> BoxFuture<'a, Result<Option<Jwk>, JwksError>>;
+
+    /// Discard what is held, so the next [`key`](Self::key) lookup consults the
+    /// publisher afresh.
+    ///
+    /// The operator's response to a known key compromise. There is deliberately
+    /// no default body: a source that holds keys must say what discarding them
+    /// means for it, and a silent no-op inherited by accident would answer
+    /// "stop trusting these keys" by doing nothing.
+    fn invalidate(&self);
+
+    /// Re-read the key set now, ignoring any refetch bound, and report how many
+    /// keys are published.
+    ///
+    /// No default body, for the reason [`invalidate`](Self::invalidate) has none.
+    ///
+    /// # Errors
+    ///
+    /// [`JwksError`] when the key set cannot be read. What was held stays held.
+    fn refresh(&self) -> BoxFuture<'_, Result<usize, JwksError>>;
 }
 
 /// The key set held for one `jwks_uri`, and when it was fetched.
@@ -331,5 +350,13 @@ impl JwksSource {
 impl JwksKeys for JwksSource {
     fn key<'a>(&'a self, kid: &'a str) -> BoxFuture<'a, Result<Option<Jwk>, JwksError>> {
         Box::pin(Self::key(self, kid))
+    }
+
+    fn invalidate(&self) {
+        Self::invalidate(self);
+    }
+
+    fn refresh(&self) -> BoxFuture<'_, Result<usize, JwksError>> {
+        Box::pin(Self::refresh(self))
     }
 }
