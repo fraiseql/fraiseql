@@ -185,7 +185,7 @@ impl SigningIdp {
 }
 
 /// `[saml]` with one `IdP`, `test-idp`, bound to [`TENANT`] and trusting `idp`, and the
-/// `[auth_hs256]` the sessions are signed with.
+/// `[auth_issuer]` the sessions are signed with.
 fn saml_config(idp: &SigningIdp, database_url: &str) -> ServerConfig {
     let mut idps = std::collections::HashMap::new();
     idps.insert(
@@ -215,7 +215,7 @@ fn saml_config(idp: &SigningIdp, database_url: &str) -> ServerConfig {
 }
 
 /// A schema with no types, and `[auth.session]` as given.
-fn schema(session: Option<SessionConfig>) -> CompiledSchema {
+fn schema(session: SessionConfig) -> CompiledSchema {
     let mut schema: CompiledSchema = serde_json::from_value(serde_json::json!({
         "fraiseql_version": fraiseql_core::schema::CURRENT_FRAISEQL_VERSION,
         "types": [],
@@ -224,10 +224,10 @@ fn schema(session: Option<SessionConfig>) -> CompiledSchema {
     }))
     .expect("compiled schema");
     schema.auth = Some(AuthClientConfig {
-        pkce: None,
-        social: None,
-        local: None,
-        session,
+        pkce:     None,
+        social:   None,
+        local:    None,
+        session:  Some(session),
         database: Some(auth_database()),
     });
     schema
@@ -242,11 +242,11 @@ fn schema(session: Option<SessionConfig>) -> CompiledSchema {
 /// changing type.
 #[test]
 fn the_document_loads_without_a_database() {
-    schema(None);
-    schema(Some(SessionConfig {
+    schema(FIRST_PARTY.session());
+    schema(SessionConfig {
         ttl_secs:          Some(900),
         absolute_ttl_secs: None,
-    }));
+    });
 }
 
 /// The server, booted on a scratch database named `db`.
@@ -269,7 +269,7 @@ async fn boot(url: &str, db: &str, idp: &SigningIdp, schema: CompiledSchema) -> 
     let port = listener.local_addr().expect("local addr").port();
     let server = Box::pin(Server::new(saml_config(idp, &scratch_url), schema, adapter, Some(pool)))
         .await
-        .expect("[saml] + [auth_hs256] + a pool must boot");
+        .expect("[saml] + [auth_issuer] + a pool must boot");
     let (shutdown, rx) = tokio::sync::oneshot::channel::<()>();
     let handle = tokio::spawn(async move {
         server
@@ -383,7 +383,7 @@ async fn ttl_secs_sets_the_lifetime_of_a_saml_sign_in() {
         ttl_secs:          Some(900),
         absolute_ttl_secs: None,
     };
-    let server = boot(&url, db, &idp, schema(Some(session))).await;
+    let server = boot(&url, db, &idp, schema(session)).await;
 
     let claims = sign_in(&server, &idp).await;
 
@@ -400,30 +400,13 @@ async fn ttl_secs_sets_the_lifetime_of_a_saml_sign_in() {
 }
 
 #[tokio::test]
-async fn an_unset_session_signs_a_saml_user_in_for_seven_days() {
-    let Some(url) = database_url_or_skip("an_unset_session_signs_a_saml_user_in_for_seven_days")
-    else {
-        return;
-    };
-    let db = "fraiseql_saml_acs_default";
-    let idp = SigningIdp::new();
-    let server = boot(&url, db, &idp, schema(None)).await;
-
-    let claims = sign_in(&server, &idp).await;
-
-    assert_eq!(lifetime(&claims), 7 * 24 * 3600, "{claims}");
-    server.stop().await;
-    drop_scratch(&url, db).await;
-}
-
-#[tokio::test]
 async fn the_server_refuses_a_sha1_digest() {
     let Some(url) = database_url_or_skip("the_server_refuses_a_sha1_digest") else {
         return;
     };
     let db = "fraiseql_saml_acs_sha1";
     let idp = SigningIdp::new();
-    let server = boot(&url, db, &idp, schema(None)).await;
+    let server = boot(&url, db, &idp, schema(FIRST_PARTY.session())).await;
 
     let (relay_state, request_id) = server.login().await;
     let response = idp.response(&request_id, "ada", &DigestAlgorithm::Sha1);
@@ -442,7 +425,7 @@ async fn a_response_to_another_request_is_refused() {
     };
     let db = "fraiseql_saml_acs_other_request";
     let idp = SigningIdp::new();
-    let server = boot(&url, db, &idp, schema(None)).await;
+    let server = boot(&url, db, &idp, schema(FIRST_PARTY.session())).await;
 
     let (relay_state, _) = server.login().await;
     let response = idp.response("id-another-request", "ada", &DigestAlgorithm::Sha256);
@@ -461,7 +444,7 @@ async fn a_relay_state_signs_in_once() {
     };
     let db = "fraiseql_saml_acs_relay_once";
     let idp = SigningIdp::new();
-    let server = boot(&url, db, &idp, schema(None)).await;
+    let server = boot(&url, db, &idp, schema(FIRST_PARTY.session())).await;
 
     let (relay_state, request_id) = server.login().await;
     let first = idp.response(&request_id, "ada", &DigestAlgorithm::Sha256);
@@ -553,7 +536,7 @@ async fn a_saml_sign_in_runs_on_the_auth_role() {
     let port = listener.local_addr().expect("local addr").port();
     let server = Box::pin(Server::new(
         saml_config(&idp, &engine_url),
-        schema(None),
+        schema(FIRST_PARTY.session()),
         adapter,
         Some(engine_pool),
     ))

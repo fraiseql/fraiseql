@@ -298,3 +298,192 @@ async fn the_private_key_is_never_stored_in_the_clear() {
         .unwrap();
     assert!(jwk.get("d").is_none(), "the published column holds no private part");
 }
+
+mod live {
+    use std::time::Duration;
+
+    use fraiseql_auth::LiveKeyRing;
+    use serde_json::json;
+
+    use super::*;
+
+    const AN_HOUR: Duration = Duration::from_hours(1);
+
+    async fn live(pool: &PgPool, cooldown: Duration) -> LiveKeyRing {
+        LiveKeyRing::open(store(pool), T0, WINDOW, cooldown).await.unwrap()
+    }
+
+    fn active_kid(ring: &LiveKeyRing) -> String {
+        ring.current().unwrap().active().kid().to_string()
+    }
+
+    #[tokio::test]
+    async fn a_ring_not_read_yet_signs_nothing_and_reads_the_table_on_first_lookup() {
+        let pool = pool_or_skip!();
+        let kid = store(&pool).ensure_active(T0).await.unwrap().unwrap();
+        let ring = LiveKeyRing::new(store(&pool), WINDOW, AN_HOUR);
+
+        assert!(ring.current().is_err(), "nothing to sign with before the first read");
+        assert!(ring.published_key(&kid, T0).await.unwrap().is_some());
+        assert_eq!(active_kid(&ring), kid);
+    }
+
+    #[tokio::test]
+    async fn opening_an_empty_ring_creates_its_key_and_signs_with_it() {
+        let pool = pool_or_skip!();
+        let ring = live(&pool, AN_HOUR).await;
+
+        assert_eq!(active_count(&pool).await, 1);
+        let current = ring.current().unwrap();
+        let token = current.active().sign("at+jwt", &json!({ "sub": "u" })).unwrap();
+        assert!(verifies(&token, &current.jwks()), "the ring's own JWKS verifies its token");
+        assert_eq!(current.published_count(), 1);
+        assert_eq!(
+            ring.published_key(&active_kid(&ring), T0).await.unwrap(),
+            current.jwks()["keys"].get(0).cloned()
+        );
+    }
+
+    #[tokio::test]
+    async fn a_key_another_replica_rotated_in_is_found_on_first_sight() {
+        let pool = pool_or_skip!();
+        let ring = live(&pool, AN_HOUR).await;
+        let rotated = store(&pool).rotate(T0 + 1).await.unwrap();
+
+        let found = ring.published_key(&rotated, T0 + 1).await.unwrap();
+        assert_eq!(found.and_then(|jwk| jwk["kid"].as_str().map(str::to_owned)), Some(rotated));
+    }
+
+    #[tokio::test]
+    async fn unknown_kids_reread_the_table_at_most_once_per_cooldown() {
+        let pool = pool_or_skip!();
+        let ring = live(&pool, AN_HOUR).await;
+        let first = store(&pool).rotate(T0 + 1).await.unwrap();
+        assert!(
+            ring.published_key(&first, T0 + 1).await.unwrap().is_some(),
+            "first miss re-reads"
+        );
+
+        // A burst of kids nobody published, then a real one: none of them re-reads.
+        let second = store(&pool).rotate(T0 + 2).await.unwrap();
+        for random in ["kid-1", "kid-2", "kid-3"] {
+            assert!(ring.published_key(random, T0 + 2).await.unwrap().is_none());
+        }
+        assert!(
+            ring.published_key(&second, T0 + 2).await.unwrap().is_none(),
+            "inside the cooldown, a key rotated in since the last re-read is not looked up"
+        );
+    }
+
+    #[tokio::test]
+    async fn after_the_cooldown_an_unknown_kid_rereads_again() {
+        let pool = pool_or_skip!();
+        let ring = live(&pool, Duration::ZERO).await;
+        let first = store(&pool).rotate(T0 + 1).await.unwrap();
+        assert!(ring.published_key(&first, T0 + 1).await.unwrap().is_some());
+        let second = store(&pool).rotate(T0 + 2).await.unwrap();
+        assert!(ring.published_key(&second, T0 + 2).await.unwrap().is_some());
+    }
+
+    #[tokio::test]
+    async fn invalidating_rereads_on_the_next_lookup_whatever_the_cooldown() {
+        let pool = pool_or_skip!();
+        let ring = live(&pool, AN_HOUR).await;
+        let first = store(&pool).rotate(T0 + 1).await.unwrap();
+        assert!(ring.published_key(&first, T0 + 1).await.unwrap().is_some());
+        let second = store(&pool).rotate(T0 + 2).await.unwrap();
+
+        ring.invalidate();
+        assert!(ring.published_key(&second, T0 + 2).await.unwrap().is_some());
+    }
+
+    #[tokio::test]
+    async fn reloading_reports_how_many_keys_the_ring_publishes() {
+        let pool = pool_or_skip!();
+        let ring = live(&pool, AN_HOUR).await;
+        store(&pool).rotate(T0 + 1).await.unwrap();
+        assert_eq!(ring.reload(T0 + 1).await.unwrap(), 2, "the active key and the retired one");
+    }
+
+    #[tokio::test]
+    async fn a_tick_picks_up_another_replicas_rotation_and_signs_with_it() {
+        let pool = pool_or_skip!();
+        let ring = live(&pool, AN_HOUR).await;
+        let rotated = store(&pool).rotate(T0 + 1).await.unwrap();
+        assert_ne!(active_kid(&ring), rotated, "not seen before the tick");
+
+        ring.tick(T0 + 1).await.unwrap();
+        assert_eq!(active_kid(&ring), rotated);
+    }
+
+    #[tokio::test]
+    async fn a_tick_rotates_a_key_past_its_period_and_sweeps_keys_past_their_window() {
+        let pool = pool_or_skip!();
+        let ring = live(&pool, AN_HOUR).await;
+        let first = active_kid(&ring);
+
+        let later = T0 + ROTATION_PERIOD_SECS;
+        ring.tick(later).await.unwrap();
+        assert_ne!(active_kid(&ring), first, "rotated at its period");
+        assert!(
+            ring.current().unwrap().published_key(&first).is_some(),
+            "the old key is still published"
+        );
+
+        ring.tick(later + WINDOW).await.unwrap();
+        assert!(ring.current().unwrap().published_key(&first).is_none(), "past its window");
+        let rows: i64 = sqlx::query_scalar("SELECT count(*) FROM auth.signing_key")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert_eq!(rows, 1, "and swept from the table");
+    }
+
+    fn claims(lifetime: u64) -> fraiseql_auth::Claims {
+        fraiseql_auth::Claims {
+            sub:   "u".to_string(),
+            iat:   T0,
+            exp:   T0 + lifetime,
+            nbf:   Some(T0),
+            iss:   "https://api.example.com".to_string(),
+            aud:   vec!["my-api".to_string()],
+            extra: std::collections::HashMap::new(),
+        }
+    }
+
+    #[tokio::test]
+    async fn the_signer_signs_an_access_token_with_the_active_key() {
+        use fraiseql_auth::{AccessTokenSigner as _, RingSigner};
+
+        let pool = pool_or_skip!();
+        let ring = std::sync::Arc::new(live(&pool, AN_HOUR).await);
+        let token = RingSigner::new(std::sync::Arc::clone(&ring), 900)
+            .sign_access_token(&claims(900))
+            .unwrap();
+
+        let header = jsonwebtoken::decode_header(&token).unwrap();
+        assert_eq!(header.typ.as_deref(), Some("at+jwt"));
+        assert_eq!(header.kid.as_deref(), Some(active_kid(&ring).as_str()));
+        assert!(verifies(&token, &ring.current().unwrap().jwks()));
+    }
+
+    #[tokio::test]
+    async fn the_signer_refuses_a_token_meant_to_outlive_the_ring_window() {
+        use fraiseql_auth::{AccessTokenSigner as _, RingSigner};
+
+        let pool = pool_or_skip!();
+        let ring = std::sync::Arc::new(live(&pool, AN_HOUR).await);
+        let signer = RingSigner::new(ring, 900);
+        assert!(signer.sign_access_token(&claims(901)).is_err(), "one second too long");
+    }
+
+    #[tokio::test]
+    async fn the_signer_signs_nothing_before_the_ring_was_first_read() {
+        use fraiseql_auth::{AccessTokenSigner as _, RingSigner};
+
+        let pool = pool_or_skip!();
+        store(&pool).ensure_active(T0).await.unwrap();
+        let ring = std::sync::Arc::new(LiveKeyRing::new(store(&pool), WINDOW, AN_HOUR));
+        assert!(RingSigner::new(ring, 900).sign_access_token(&claims(900)).is_err());
+    }
+}

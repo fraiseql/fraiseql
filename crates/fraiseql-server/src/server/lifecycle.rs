@@ -72,6 +72,15 @@ impl Server {
         // subsystem, each under the migration lock.
         super::provision::run(self.provision_steps()).await?;
 
+        // [auth_issuer]: the ring's first read, now that its table exists. A ring
+        // that cannot be read refuses the boot: every sign-in would fail.
+        #[cfg(feature = "auth")]
+        if let Some(ref issuer) = self.first_party {
+            issuer.ring().tick(crate::first_party::unix_now()?).await.map_err(|e| {
+                ServerError::ConfigError(format!("[auth_issuer]: the signing keys: {e}"))
+            })?;
+        }
+
         // Initialize usage persistence backend if configured.
         // Must run before build_router() so the aggregator is populated before
         // serving requests, but after the DB pool is available (async context).

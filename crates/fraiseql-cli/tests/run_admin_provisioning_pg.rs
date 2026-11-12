@@ -35,7 +35,8 @@ use std::{
 use tempfile::TempDir;
 use tokio_postgres::NoTls;
 
-const HS256_SECRET: &str = "admin-provisioning-hs256-secret-32chars";
+/// The signing keys' key-encryption key: 32 bytes, as 64 hex digits.
+const SIGNING_KEK: &str = "0707070707070707070707070707070707070707070707070707070707070707";
 
 /// The two roles' passwords: distinctive, so a leak into the output is unambiguous, and each
 /// carrying a quote, which a statement that does not quote it cannot survive.
@@ -193,8 +194,9 @@ async fn verifier(admin_url: &str, rolname: &str) -> Option<String> {
         .get(0)
 }
 
-/// A project directory: `fraiseql.toml` (anonymous sign-up, and `[auth.database]` reading
-/// `AUTH_DATABASE_URL` when `auth_database`) and the server file `FRAISEQL_CONFIG` names.
+/// A project directory: `fraiseql.toml` (anonymous sign-up, `[auth.session]` and
+/// `[auth.database]` reading `auth_database` when given) and the server file
+/// `FRAISEQL_CONFIG` names (with `[auth_issuer]`, which signs the sessions, when given).
 fn project(auth_database: Option<&str>) -> TempDir {
     let dir = tempfile::tempdir().expect("tempdir");
     let mut toml = String::from(
@@ -215,22 +217,24 @@ sql_source = "app.v_note"
     if let Some(url_env) = auth_database {
         write!(
             toml,
-            "\n[auth.local]\nanonymous = true\n\n[auth.database]\nurl_env = \"{url_env}\"\n"
+            "\n[auth.local]\nanonymous = true\n\n[auth.session]\nttl_secs = 900\n\n\
+             [auth.database]\nurl_env = \"{url_env}\"\n"
         )
         .unwrap();
     }
     std::fs::write(dir.path().join("fraiseql.toml"), toml).unwrap();
-    std::fs::write(
-        dir.path().join("server.toml"),
-        r#"cors_enabled = false
-
-[auth_hs256]
-secret_env = "FRAISEQL_TEST_ADMIN_PROV_HS256"
-issuer = "https://sp.example.com"
+    let mut server = String::from("cors_enabled = false\n");
+    if auth_database.is_some() {
+        server.push_str(
+            r#"
+[auth_issuer]
+url = "https://sp.example.com"
 audience = "fraiseql"
+key_encryption_key_env = "FRAISEQL_TEST_ADMIN_PROV_SIGNING_KEK"
 "#,
-    )
-    .unwrap();
+        );
+    }
+    std::fs::write(dir.path().join("server.toml"), server).unwrap();
     dir
 }
 
@@ -315,7 +319,7 @@ fn run_with(dir: &Path, admin_url: Option<&str>, env: &[(&str, &str)], extra: &[
         .env_clear()
         .env("PATH", std::env::var("PATH").unwrap_or_default())
         .env("FRAISEQL_CONFIG", dir.join("server.toml"))
-        .env("FRAISEQL_TEST_ADMIN_PROV_HS256", HS256_SECRET)
+        .env("FRAISEQL_TEST_ADMIN_PROV_SIGNING_KEK", SIGNING_KEK)
         .stdin(Stdio::null())
         .stdout(std::fs::File::create(&out).unwrap())
         .stderr(std::fs::File::create(&err).unwrap());

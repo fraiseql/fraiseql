@@ -42,7 +42,7 @@ use crate::{
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 /// Anonymous session `TTL` (7 days).
-const ANON_SESSION_TTL_SECS: u64 = 7 * 24 * 3600;
+pub const ANON_SESSION_TTL_SECS: u64 = 7 * 24 * 3600;
 
 /// Rate-limit window for anonymous signups (1 hour).
 const ANON_RATE_WINDOW_SECS: u64 = 3_600;

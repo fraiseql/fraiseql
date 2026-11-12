@@ -41,6 +41,7 @@ dependencies = [
  "ctr",
  "ghash",
  "subtle",
+ "zeroize",
 ]
 
 [[package]]
@@ -1342,6 +1343,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "fraiseql-secrets"
+version = "2.19.0"
+dependencies = [
+ "aes-gcm",
+ "async-trait",
+ "base64",
+ "chrono",
+ "dashmap",
+ "fraiseql-core",
+ "fraiseql-guard",
+ "rand 0.9.4",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tokio",
+ "tracing",
+ "zeroize",
+]
+
+[[package]]
 name = "fraiseql-server"
 version = "2.19.0"
 dependencies = [
@@ -1361,6 +1383,7 @@ dependencies = [
  "fraiseql-functions",
  "fraiseql-guard",
  "fraiseql-jwks",
+ "fraiseql-secrets",
  "fraiseql-storage",
  "futures",
  "hex",

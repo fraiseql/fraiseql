@@ -2399,6 +2399,11 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		// schema `auth` FraiseQL did not create.
 		"echo '### cargo test -p fraiseql-server --test auth_database_e2e_pg (#1965 auth role and pool)'",
 		"cargo test -p fraiseql-server " + serverLegFeatures + " --test auth_database_e2e_pg -- --test-threads=1",
+		// #1964 — [auth_issuer]: the server signs its sessions with ES256 keys of its own,
+		// publishes them, rotates them, and admits an external provider's tokens on
+		// /graphql but not on the routes acting on the caller's own account.
+		"echo '### cargo test -p fraiseql-server --test first_party_issuer_e2e_pg (#1964 first-party issuer)'",
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test first_party_issuer_e2e_pg -- --test-threads=1",
 		"cargo test -p fraiseql-server " + serverLegFeatures + " --test mcp_tenant_dispatch_e2e_pg -- --test-threads=1",
 		// A function a tenant's write triggers runs within that tenant. File-level
 		// `#![cfg(feature = "functions-runtime-deno")]`: without the feature the binary is

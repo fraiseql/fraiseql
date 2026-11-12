@@ -412,6 +412,18 @@ impl ServerConfig {
                 .to_string());
         }
 
+        // The first-party issuer validates its own sessions through the OIDC layer, which
+        // every transport consults before HS256: beside [auth_hs256], each HS256 token
+        // would be refused rather than validated.
+        if let Some(ref issuer) = self.auth_issuer {
+            if self.auth_hs256.is_some() {
+                return Err("Both [auth_issuer] and [auth_hs256] are configured. Pick one: \
+                     [auth_issuer] signs and validates the sessions this server mints."
+                    .to_string());
+            }
+            issuer.validate()?;
+        }
+
         // Validate HS256 config if present: the secret env var must be set.
         if let Some(ref hs) = self.auth_hs256 {
             if hs.secret_env.trim().is_empty() {
@@ -503,12 +515,11 @@ impl ServerConfig {
         #[cfg(feature = "auth-saml")]
         if let Some(ref saml) = self.saml {
             saml.validate()?;
-            if self.auth_hs256.is_none() {
-                return Err("[saml] requires [auth_hs256]: a verified assertion mints a \
-                            session token that this server must itself be able to \
-                            validate, and HS256 is the self-contained signing path. \
-                            Configure [auth_hs256] (secret_env, issuer, audience) or \
-                            remove [saml]."
+            if self.auth_issuer.is_none() {
+                return Err("[saml] requires [auth_issuer]: a verified assertion mints a \
+                            session token that this server signs and must itself be able \
+                            to validate. Configure [auth_issuer] (url, audience) or remove \
+                            [saml]."
                     .to_string());
             }
         }

@@ -792,7 +792,7 @@ fn schema_with_github_social(secret_env: &str) -> CompiledSchema {
     schema.auth = Some(fraiseql_core::schema::AuthClientConfig {
         pkce:     None,
         local:    None,
-        session:  None,
+        session:  Some(session_lifetime()),
         database: Some(unreachable_auth_database()),
         social:   Some(fraiseql_core::schema::SocialAuthConfig {
             redirect_uri_allowlist: Vec::new(),
@@ -812,13 +812,13 @@ fn schema_with_github_social(secret_env: &str) -> CompiledSchema {
     schema
 }
 
-/// #368: a compiled `[auth.social]` block on a config without `[auth_hs256]`
-/// must refuse to boot: the callback mints HS256-signed sessions this server
-/// itself validates, so without the signing config every login would 500 (or
+/// #368: a compiled `[auth.social]` block on a config without `[auth_issuer]`
+/// must refuse to boot: the callback mints sessions this server itself signs and
+/// validates, so without the signing config every login would 500 (or
 /// worse, mint tokens nothing can validate).
 #[cfg(feature = "auth")]
 #[tokio::test]
-async fn social_login_without_hs256_refuses_to_boot() {
+async fn social_login_without_auth_issuer_refuses_to_boot() {
     // A fixed valid value, set unconditionally: safe under the parallel runner
     // because every reader wants exactly this value.
     std::env::set_var("FRAISEQL_TEST_P26_SOCIAL_GH_SECRET", "gh-secret");
@@ -832,8 +832,8 @@ async fn social_login_without_hs256_refuses_to_boot() {
     .await;
     let msg = result.err().map(|e| e.to_string()).unwrap_or_default();
     assert!(
-        msg.contains("auth_hs256"),
-        "[auth.social] without [auth_hs256] must refuse naming the missing section, got: {msg}"
+        msg.contains("[auth_issuer]"),
+        "[auth.social] without [auth_issuer] must refuse naming the missing section, got: {msg}"
     );
 }
 
@@ -843,14 +843,13 @@ async fn social_login_without_hs256_refuses_to_boot() {
 #[tokio::test]
 async fn social_login_with_unset_secret_env_refuses_to_boot() {
     let schema = schema_with_github_social("__FRAISEQL_TEST_P26_DEFINITELY_UNSET__");
-    let mut config = fully_configured_server_config();
-    std::env::set_var("FRAISEQL_TEST_P26_SOCIAL_HS256", "p26-social-hs256-secret-32-bytes!");
-    config.auth_hs256 = Some(crate::server_config::hs256::Hs256Config {
-        secret_env: "FRAISEQL_TEST_P26_SOCIAL_HS256".to_string(),
-        issuer:     Some("https://sp.example.com".to_string()),
-        audience:   Some("fraiseql".to_string()),
-    });
-    let result = Server::new(config, schema, Arc::new(NoopRelayAdapter::default()), None).await;
+    let result = Server::new(
+        first_party_server_config(),
+        schema,
+        Arc::new(NoopRelayAdapter::default()),
+        None,
+    )
+    .await;
     let msg = result.err().map(|e| e.to_string()).unwrap_or_default();
     assert!(
         msg.contains("__FRAISEQL_TEST_P26_DEFINITELY_UNSET__"),
@@ -866,14 +865,13 @@ async fn social_login_without_auth_database_refuses_to_boot() {
     std::env::set_var("FRAISEQL_TEST_P26_SOCIAL_GH_SECRET", "gh-secret");
     let schema =
         without_auth_database(schema_with_github_social("FRAISEQL_TEST_P26_SOCIAL_GH_SECRET"));
-    let mut config = fully_configured_server_config();
-    std::env::set_var("FRAISEQL_TEST_P26_SOCIAL_HS256", "p26-social-hs256-secret-32-bytes!");
-    config.auth_hs256 = Some(crate::server_config::hs256::Hs256Config {
-        secret_env: "FRAISEQL_TEST_P26_SOCIAL_HS256".to_string(),
-        issuer:     Some("https://sp.example.com".to_string()),
-        audience:   Some("fraiseql".to_string()),
-    });
-    let result = Server::new(config, schema, Arc::new(NoopRelayAdapter::default()), None).await;
+    let result = Server::new(
+        first_party_server_config(),
+        schema,
+        Arc::new(NoopRelayAdapter::default()),
+        None,
+    )
+    .await;
     let msg = result.err().map(|e| e.to_string()).unwrap_or_default();
     assert!(
         msg.contains("[auth.social]") && msg.contains("[auth.database]"),
@@ -889,7 +887,7 @@ fn schema_with_local_auth(local: fraiseql_core::schema::LocalAuthConfig) -> Comp
         pkce:     None,
         social:   None,
         local:    Some(local),
-        session:  None,
+        session:  Some(session_lifetime()),
         database: Some(unreachable_auth_database()),
     });
     schema
@@ -918,15 +916,26 @@ fn without_auth_database(mut schema: CompiledSchema) -> CompiledSchema {
     schema
 }
 
-/// A `ServerConfig` with `[auth_hs256]` set — the shape `[auth.local]` requires.
+/// The `[auth.session]` a server signing its sessions needs.
 #[cfg(feature = "auth")]
-fn hs256_server_config() -> ServerConfig {
-    std::env::set_var("FRAISEQL_TEST_P26_LOCAL_HS256", "p26-local-hs256-secret-32bytes!!");
+fn session_lifetime() -> fraiseql_core::schema::SessionConfig {
+    fraiseql_core::schema::SessionConfig {
+        ttl_secs: Some(900),
+        ..fraiseql_core::schema::SessionConfig::default()
+    }
+}
+
+/// A `ServerConfig` with `[auth_issuer]` set — the shape `[auth.local]` and
+/// `[auth.social]` require.
+#[cfg(feature = "auth")]
+fn first_party_server_config() -> ServerConfig {
+    // A fixed valid value, set unconditionally: every reader wants exactly this value.
+    std::env::set_var("FRAISEQL_TEST_P26_SIGNING_KEK", "07".repeat(32));
     ServerConfig {
-        auth_hs256: Some(crate::server_config::hs256::Hs256Config {
-            secret_env: "FRAISEQL_TEST_P26_LOCAL_HS256".to_string(),
-            issuer:     Some("https://sp.example.com".to_string()),
-            audience:   Some("fraiseql".to_string()),
+        auth_issuer: Some(crate::server_config::IssuerConfig {
+            url:                    "https://sp.example.com".to_string(),
+            audience:               "fraiseql".to_string(),
+            key_encryption_key_env: "FRAISEQL_TEST_P26_SIGNING_KEK".to_string(),
         }),
         ..fully_configured_server_config()
     }
@@ -942,27 +951,8 @@ async fn local_auth_without_auth_database_refuses_to_boot() {
             mfa: true,
             ..fraiseql_core::schema::LocalAuthConfig::default()
         }));
-    let result =
-        Server::new(hs256_server_config(), schema, Arc::new(NoopRelayAdapter::default()), None)
-            .await;
-    let msg = result.err().map(|e| e.to_string()).unwrap_or_default();
-    assert!(
-        msg.contains("[auth.local]") && msg.contains("[auth.database]"),
-        "[auth.local] without [auth.database] must refuse naming both, got: {msg}"
-    );
-}
-
-/// #367: `[auth.local]` without `[auth_hs256]` must refuse — every local
-/// sign-in mints HS256 sessions this server itself validates.
-#[cfg(feature = "auth")]
-#[tokio::test]
-async fn local_auth_without_hs256_refuses_to_boot() {
-    let schema = schema_with_local_auth(fraiseql_core::schema::LocalAuthConfig {
-        mfa: true,
-        ..fraiseql_core::schema::LocalAuthConfig::default()
-    });
     let result = Server::new(
-        fully_configured_server_config(), // no [auth_hs256]
+        first_party_server_config(),
         schema,
         Arc::new(NoopRelayAdapter::default()),
         None,
@@ -970,8 +960,31 @@ async fn local_auth_without_hs256_refuses_to_boot() {
     .await;
     let msg = result.err().map(|e| e.to_string()).unwrap_or_default();
     assert!(
-        msg.contains("auth_hs256"),
-        "[auth.local] without [auth_hs256] must refuse naming the missing section, got: {msg}"
+        msg.contains("[auth.local]") && msg.contains("[auth.database]"),
+        "[auth.local] without [auth.database] must refuse naming both, got: {msg}"
+    );
+}
+
+/// #367: `[auth.local]` without `[auth_issuer]` must refuse — every local
+/// sign-in mints sessions this server itself signs and validates.
+#[cfg(feature = "auth")]
+#[tokio::test]
+async fn local_auth_without_auth_issuer_refuses_to_boot() {
+    let schema = schema_with_local_auth(fraiseql_core::schema::LocalAuthConfig {
+        mfa: true,
+        ..fraiseql_core::schema::LocalAuthConfig::default()
+    });
+    let result = Server::new(
+        fully_configured_server_config(), // no [auth_issuer]
+        schema,
+        Arc::new(NoopRelayAdapter::default()),
+        None,
+    )
+    .await;
+    let msg = result.err().map(|e| e.to_string()).unwrap_or_default();
+    assert!(
+        msg.contains("[auth_issuer]"),
+        "[auth.local] without [auth_issuer] must refuse naming the missing section, got: {msg}"
     );
 }
 
@@ -985,9 +998,13 @@ async fn local_auth_otp_with_an_unknown_mailbox_refuses_to_boot() {
         email_from: Some("no-such-mailbox".to_string()),
         ..fraiseql_core::schema::LocalAuthConfig::default()
     });
-    let result =
-        Server::new(hs256_server_config(), schema, Arc::new(NoopRelayAdapter::default()), None)
-            .await;
+    let result = Server::new(
+        first_party_server_config(),
+        schema,
+        Arc::new(NoopRelayAdapter::default()),
+        None,
+    )
+    .await;
     let msg = result.err().map(|e| e.to_string()).unwrap_or_default();
     // The pool check fires first (it guards every method); with a pool present
     // the mailbox check is what the live-PG suite proves. Either refusal is a

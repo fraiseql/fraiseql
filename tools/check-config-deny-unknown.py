@@ -43,7 +43,7 @@ ROOT_STRUCT = "ServerConfig"
 
 # The discovered-struct count, asserted so the walk cannot quietly measure less.
 # Bump it deliberately, with the section that was added.
-EXPECTED_REACHABLE = 51  # +1: [transaction_retry], rerunning an aborted mutation transaction (#1879)
+EXPECTED_REACHABLE = 52  # +1: [auth_issuer], the keys the server signs its own sessions with (#1964)
 
 # Types that are not config structs of ours.
 LEAF_TYPES = {

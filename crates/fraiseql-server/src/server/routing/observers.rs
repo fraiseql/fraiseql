@@ -76,7 +76,8 @@ impl Server {
         // No access cookie: several routes act on a bodyless `POST` (enable, disable,
         // reload, retry), which a form can send.
         let auth_layer = || {
-            let auth_state = self.oidc_auth_state(Arc::clone(validator));
+            let auth_state =
+                self.oidc_session_state(Arc::clone(validator), super::AccessCookie::Refused);
             middleware::from_fn_with_state(auth_state, admin_auth_middleware)
         };
 

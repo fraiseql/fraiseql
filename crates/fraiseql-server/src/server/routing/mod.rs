@@ -69,8 +69,8 @@ pub(super) enum AuthPosture {
 
 /// Whether the `__Host-access_token` cookie is a credential on a mount (#1856).
 ///
-/// Both auth layers read the same cookie: the OIDC layer the one the sign-in callback
-/// sets, the HS256 layer the one `[auth.local]` sets in cookie transport.
+/// Both auth layers read the same cookie: the one an external provider's sign-in
+/// callback sets, and the one this server's own sign-in sets in cookie transport.
 ///
 /// A browser attaches a cookie to a request another site makes it send. A form posted
 /// from another site is the one such request that needs no preflight, and it can carry no
@@ -96,6 +96,37 @@ impl Server {
         cookie_transport && matches!(cookie, AccessCookie::Accepted)
     }
 
+    /// The OIDC layer for a mount declaring `cookie`: every OIDC mount takes it from here,
+    /// so where the access cookie is a credential is decided once.
+    ///
+    /// An external provider's sign-in (`[auth]`) sets the cookie, so with `[auth]` it is
+    /// read wherever the mount accepts it, as before the first-party issuer existed. This
+    /// server sets it with one of its own sessions only in cookie transport: without
+    /// `[auth]` the cookie is read only there, and with `[auth]` in `json` transport a
+    /// session of its own arriving in the cookie is refused.
+    pub(super) fn oidc_session_state(
+        &self,
+        validator: Arc<OidcValidator>,
+        cookie: AccessCookie,
+    ) -> OidcAuthState {
+        let reads = match cookie {
+            AccessCookie::Accepted => {
+                self.config.auth.is_some() || self.reads_access_cookie(cookie)
+            },
+            AccessCookie::Refused => false,
+        };
+        #[cfg(feature = "auth")]
+        let refused = match self.first_party {
+            Some(ref issuer) if !self.reads_access_cookie(cookie) => Some(issuer.own_tokens()),
+            _ => None,
+        };
+        #[cfg(not(feature = "auth"))]
+        let refused = None;
+        self.oidc_auth_state(validator)
+            .with_access_cookie(reads)
+            .with_cookie_refusing(refused)
+    }
+
     /// Attach the deployment's configured authentication layer to `router`.
     ///
     /// This is the single place any data-serving transport acquires authentication.
@@ -107,7 +138,8 @@ impl Server {
     /// the transport's own router before it is merged into the application.
     ///
     /// `cookie` says whether the auth layer accepts the access cookie on this mount; see
-    /// [`AccessCookie`]. The HS256 layer accepts it only in cookie transport.
+    /// [`AccessCookie`], [`Self::oidc_session_state`] and
+    /// [`Self::reads_access_cookie`].
     pub(super) fn attach_auth<S>(
         &self,
         router: Router<S>,
@@ -123,9 +155,8 @@ impl Server {
         if let Some(ref validator) = self.oidc_validator {
             info!(transport, "transport protected by OIDC authentication");
             let auth_state = self
-                .oidc_auth_state(Arc::clone(validator))
-                .with_service_accounts(self.service_account_authenticator.clone())
-                .with_access_cookie(matches!(cookie, AccessCookie::Accepted));
+                .oidc_session_state(Arc::clone(validator), cookie)
+                .with_service_accounts(self.service_account_authenticator.clone());
             return router.route_layer(from_fn_with_state(auth_state, oidc_auth_middleware));
         }
 
@@ -175,7 +206,7 @@ impl Server {
     /// mode, but only the OIDC layer consulted it, so under `[auth_hs256]` a configured
     /// store was inert: Studio's `POST /admin/v1/users/{id}/revoke` recorded the epoch,
     /// answered `"All sessions revoked"`, and every one of that user's tokens kept working
-    /// (#1112). `[auth.social]` and `[auth.local]` both require `[auth_hs256]`, so that was
+    /// (#1112). `[auth.social]` and `[auth.local]` then required `[auth_hs256]`, so that was
     /// the auth mode of every social-login and local-password deployment.
     ///
     /// This helper exists for the same reason its OIDC twin does: a bare

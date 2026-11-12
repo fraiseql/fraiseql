@@ -69,6 +69,10 @@ pub struct OidcAuthState {
     /// cookie to a form another site posts, so only mounts whose routes refuse such a
     /// request accept it.
     pub access_cookie:    bool,
+    /// Tokens this validator admits are refused when they arrive in the cookie: a mount
+    /// reads the cookie for an external provider's sign-in, and the issuer named here
+    /// never sets it. `None` refuses nothing.
+    pub cookie_refuses:   Option<Arc<OidcValidator>>,
 }
 
 impl OidcAuthState {
@@ -85,7 +89,16 @@ impl OidcAuthState {
             revocation: None,
             service_accounts: None,
             access_cookie: false,
+            cookie_refuses: None,
         }
+    }
+
+    /// Refuse, in the cookie, the tokens `validator` admits. See
+    /// [`cookie_refuses`](Self::cookie_refuses).
+    #[must_use]
+    pub fn with_cookie_refusing(mut self, validator: Option<Arc<OidcValidator>>) -> Self {
+        self.cookie_refuses = validator;
+        self
     }
 
     /// Accept the `__Host-access_token` cookie as the bearer token when the request has
@@ -342,6 +355,9 @@ pub async fn oidc_auth_middleware(
             next.run(request).await
         },
         Some(token) => {
+            if from_cookie(&request) && refused_in_cookie(&auth_state, &token).await {
+                return cookie_refusal(&auth_state);
+            }
             // Validate token
             match auth_state.validator.validate_token(&token).await {
                 Ok(user) => {
@@ -400,6 +416,31 @@ enum TokenExtraction {
     Malformed,
     /// No token in either the header or the `__Host-access_token` cookie.
     Absent,
+}
+
+/// Whether the token a request carries came from the cookie: one was found, and with no
+/// `Authorization` header the cookie is the only place it can have come from.
+fn from_cookie(request: &Request<Body>) -> bool {
+    !request.headers().contains_key(header::AUTHORIZATION)
+}
+
+/// Whether `token`, read from the cookie, is one this mount refuses there.
+async fn refused_in_cookie(auth_state: &OidcAuthState, token: &str) -> bool {
+    match auth_state.cookie_refuses {
+        Some(ref refused) => refused.validate_token(token).await.is_ok(),
+        None => false,
+    }
+}
+
+/// The 401 for a token the cookie may not carry on this mount.
+fn cookie_refusal(auth_state: &OidcAuthState) -> Response {
+    tracing::debug!("A token this mount refuses in the access cookie arrived there");
+    (
+        StatusCode::UNAUTHORIZED,
+        [(header::WWW_AUTHENTICATE, bearer_challenge(auth_state.validator.issuer()))],
+        "Authentication required",
+    )
+        .into_response()
 }
 
 /// Extract the bearer token from the `Authorization` header, falling back to the
@@ -465,6 +506,9 @@ async fn authenticate_required(
         },
     };
 
+    if from_cookie(request) && refused_in_cookie(auth_state, &token).await {
+        return Err(cookie_refusal(auth_state));
+    }
     match auth_state.validator.validate_token(&token).await {
         Ok(user) => {
             // Enforce token revocation on the admin/required planes too — a revoked token

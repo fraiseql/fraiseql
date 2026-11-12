@@ -155,6 +155,14 @@ impl Server {
         let Some(pool) = self.auth_pool.as_ref() else {
             return;
         };
+        // [auth_issuer]: the ring its first read, right after provisioning, reads.
+        if self.first_party.is_some() {
+            steps.push(ProvisionStep::new(
+                "[auth_issuer] signing keys",
+                pool,
+                &[fraiseql_auth::signing_key::SIGNING_KEY_SCHEMA_SQL],
+            ));
+        }
 
         // /auth/saml/acs (#381).
         #[cfg(feature = "auth-saml")]

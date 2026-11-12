@@ -9,6 +9,7 @@
 
 pub mod admin_sql;
 pub mod async_operations;
+pub mod auth_issuer;
 mod cache;
 #[cfg(feature = "cdc-outbound")]
 pub mod cdc_outbound;
@@ -83,6 +84,7 @@ use std::{collections::HashMap, net::SocketAddr, path::PathBuf};
 
 pub use admin_sql::AdminSqlConfig;
 pub use async_operations::AsyncOperationsConfig;
+pub use auth_issuer::IssuerConfig;
 pub use cache::CacheCrossInstance;
 #[cfg(feature = "cdc-outbound")]
 pub use cdc_outbound::{CdcOutboundConfig, CdcSinkSectionConfig};
@@ -703,6 +705,23 @@ pub struct ServerConfig {
     /// ```
     #[serde(default)]
     pub auth_hs256: Option<Hs256Config>,
+
+    /// This server as an OIDC issuer for the sessions it mints (#1964).
+    ///
+    /// Required by every surface that signs a session in: `[auth.local]`,
+    /// `[auth.social]`, `[saml]` and a refreshable `[auth.session]`. Refused alongside
+    /// `[auth_hs256]`. Its signing keys live in `auth.signing_key`, so it needs
+    /// `[auth.database]` too.
+    ///
+    /// # Example (TOML)
+    ///
+    /// ```toml
+    /// [auth_issuer]
+    /// url = "https://api.example.com"
+    /// audience = "my-api"
+    /// ```
+    #[serde(default)]
+    pub auth_issuer: Option<IssuerConfig>,
 
     /// SAML 2.0 SP-initiated SSO (#381, requires the `auth-saml` feature).
     ///
@@ -1543,6 +1562,7 @@ impl Default for ServerConfig {
 
             auth: None, // No auth by default
             auth_hs256: None,
+            auth_issuer: None,
             #[cfg(feature = "auth-saml")]
             saml: None, // No HS256 auth by default
             scim: None,            // Provisioning is opt-in

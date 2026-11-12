@@ -221,7 +221,7 @@ async fn sse_post(server: &TestServer, body: &Value, bearer: Option<&str>) -> re
 }
 
 async fn boot(config: ServerConfig) -> Option<TestServer> {
-    boot_schema(config, schema()).await
+    Box::pin(boot_schema(config, schema())).await
 }
 
 async fn boot_schema(config: ServerConfig, schema: CompiledSchema) -> Option<TestServer> {

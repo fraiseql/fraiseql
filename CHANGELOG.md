@@ -18,6 +18,28 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **The server signs the sessions it mints with ES256 keys of its own, `[auth_issuer]`
+  (#1964).** `[auth.local]`, `[auth.social]` and `[saml]` refuse to boot without it;
+  `[auth_hs256]` no longer mints sessions, and the two cannot be configured together:
+
+  ```toml
+  [auth_issuer]
+  url      = "https://api.example.com"
+  audience = "my-api"
+  ```
+
+  It requires `[auth.session] ttl_secs`, `[auth.database]` and a key-encryption key of 64 hex
+  digits in `FRAISEQL_AUTH_SIGNING_KEK` (or the variable `key_encryption_key_env` names), and
+  refuses to boot without each. A deployment with no `[auth.session]`, or with
+  `absolute_ttl_secs` alone, must now set `ttl_secs`: the one-hour and seven-day defaults
+  are gone. Sessions are `at+jwt` tokens naming the signing key's `kid`, carrying `nbf`, and
+  the first-party issuer's leeway is fixed. Sessions signed before the upgrade are refused:
+  every user signs in again. See `docs/auth/first-party-issuer.md`.
+
+- **`POST /auth/revoke-all` also ends the sessions this server minted for the user (#1964).**
+  Their refresh tokens stop refreshing before the access tokens are refused; a failure to
+  end them answers `500`.
+
 - **`fraiseql_jwks::JwksKeys` has two more required methods, `invalidate` and `refresh`
   (#1964).** They are what an operator's JWKS invalidate and refresh reach, so every key
   source must say what they mean for it; neither has a default body, because a silent
@@ -290,6 +312,17 @@ disagreed, and the promise was the part that was wrong.
   dependencies had already outgrown; it is now 1.95.0 and a CI job builds at it.
 
 ### Added
+
+- **The first-party issuer publishes its keys (#1964).** `GET
+  /.well-known/openid-configuration` and `GET /.well-known/jwks.json` serve its discovery
+  document and the public halves of its active and still-valid retired keys, so a service
+  beside the server verifies its sessions as any OIDC provider's. The keys live sealed in
+  `auth.signing_key`; the server creates the first at boot, rotates it every 30 days and
+  re-reads the table hourly and on an unknown `kid`. `POST /admin/v1/auth/refresh-jwks`
+  re-reads them at once. Beside an external `[auth]` provider, the routes acting on the
+  caller's own account accept only the server's own sessions. `fraiseql_auth` exports
+  `LiveKeyRing`, `RingSigner` and `AccessTokenSigner`, and
+  `PostgresSessionStore::with_signer`.
 
 - **An `OidcValidator` can trust an issuer whose keys this process holds (#1964).**
   `OidcValidator::from_issuer_keys(config, keys)` builds a validator for one such issuer,

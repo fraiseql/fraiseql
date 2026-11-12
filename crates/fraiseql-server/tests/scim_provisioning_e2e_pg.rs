@@ -95,7 +95,10 @@ fn empty_schema() -> CompiledSchema {
         "types": [],
         "queries": [],
         "mutations": [],
-        "auth": { "database": { "url_env": AUTH_URL_ENV } },
+        "auth": {
+            "database": { "url_env": AUTH_URL_ENV },
+            "session": FIRST_PARTY.session_json(),
+        },
     }))
     .expect("compiled schema")
 }
@@ -325,7 +328,7 @@ async fn provisioning_lifecycle_and_deactivation_over_http() {
     assert_eq!(resp.status(), 200);
 
     // A session exists, as it would after any login.
-    let sessions = FIRST_PARTY.session_store(rig.pool.clone());
+    let sessions = FIRST_PARTY.session_store(&rig.pool).await;
     let tokens = {
         use fraiseql_auth::SessionStore as _;
         sessions

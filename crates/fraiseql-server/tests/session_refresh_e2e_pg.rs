@@ -4,7 +4,7 @@
 //! the refresh token expired with the access token, and nothing served a refresh or a
 //! logout. These tests boot the real server and drive the session lifetime end to end:
 //!
-//! - with no `[auth.session]`, nothing changes: no new route, one-hour tokens
+//! - a server signing its sessions needs `ttl_secs`: without it, it does not boot
 //! - `ttl_secs` sets the access-token lifetime of password, `OTP` and `MFA` sign-in
 //! - refresh rotates the pair; a rotated token reused within 10 s answers 409 and ends nothing, and
 //!   reused later ends the whole session
@@ -316,7 +316,7 @@ async fn probe(base: &str, access: &str) -> StatusCode {
         .status()
 }
 
-/// The claims of a token this server minted, checked against `[auth_hs256]`.
+/// The claims of a token this server minted, checked against `[auth_issuer]`.
 fn claims(token: &str) -> Value {
     use base64::Engine as _;
     let payload = token.split('.').nth(1).expect("JWT has a payload");
@@ -415,31 +415,6 @@ fn user_of(access: &str) -> String {
 fn the_document_loads_without_a_database() {
     let _ = refreshable();
     let _ = schema_with(None);
-}
-
-// ── Opt-in ───────────────────────────────────────────────────────────────────
-
-/// With no `[auth.session]`, the session routes are absent and sign-in still mints an
-/// hour, as before #1853.
-#[tokio::test]
-async fn without_a_session_section_nothing_changes() {
-    let db = "fraiseql_session_unset";
-    let Some((url, _pool, server)) =
-        start("without_a_session_section", db, schema_with(None), None).await
-    else {
-        return;
-    };
-    let base = &server.base;
-
-    let session = signup(base, "unset@example.com").await;
-    assert_lifetime("password signup", &session.access, 3_600);
-    for path in [REFRESH, LOGOUT] {
-        let (status, body) =
-            post_json(base, path, json!({ "refresh_token": session.refresh })).await;
-        assert_eq!(status, StatusCode::NOT_FOUND, "{path} must not be mounted: {body}");
-    }
-
-    finish(&url, db, server).await;
 }
 
 // ── Lifetimes ────────────────────────────────────────────────────────────────
@@ -926,7 +901,7 @@ async fn the_sweep_keeps_a_rotated_row_until_the_limit() {
         .bind(token_hash(token))
         .fetch_one(&pool)
     };
-    let sessions = FIRST_PARTY.session_store(pool.clone());
+    let sessions = FIRST_PARTY.session_store(&pool).await;
 
     sessions.sweep_expired().await.expect("sweep");
     assert_eq!(rows(&first.refresh).await.unwrap(), 1, "a rotated row inside the limit stays");
@@ -954,8 +929,8 @@ async fn the_sweep_keeps_a_rotated_row_until_the_limit() {
 
 // ── Expiry and the validator's leeway ────────────────────────────────────────
 
-/// Real time, no rewrite: an access token is accepted until `exp` + 60 s (the `HS256`
-/// validator's leeway), refused after it, and a refresh then continues the session.
+/// Real time, no rewrite: an access token is accepted until `exp` + 60 s (the first-party
+/// issuer's fixed leeway), refused after it, and a refresh then continues the session.
 /// Sleeps about two minutes.
 #[tokio::test]
 async fn sleeps_two_minutes_access_ends_at_ttl_plus_the_leeway_and_refresh_continues() {
@@ -1008,28 +983,6 @@ async fn sleeps_two_minutes_access_ends_at_ttl_plus_the_leeway_and_refresh_conti
 
 // ── Helpers shared with the local-auth suite ─────────────────────────────────
 
-/// With only `absolute_ttl_secs`, every access token lives an hour, refreshed ones included.
-#[tokio::test]
-async fn without_ttl_secs_a_refreshable_session_mints_hour_long_tokens() {
-    let db = "fraiseql_session_default_ttl";
-    let schema = schema_with(Some(SessionConfig {
-        ttl_secs:          None,
-        absolute_ttl_secs: Some(ABSOLUTE),
-    }));
-    let Some((url, _pool, server)) = start("without_ttl_secs", db, schema, None).await else {
-        return;
-    };
-    let base = &server.base;
-
-    let session = signup(base, "hourly@example.com").await;
-    assert_lifetime("password signup", &session.access, 3_600);
-    let (status, body) = refresh(base, &session.refresh).await;
-    let refreshed = session_of("refresh", status, &body);
-    assert_lifetime("refresh", &refreshed.access, 3_600);
-
-    finish(&url, db, server).await;
-}
-
 /// `[auth.session]` does not reach anonymous sign-up: its sessions keep their fixed seven
 /// days and are never refreshable.
 #[tokio::test]
@@ -1057,7 +1010,8 @@ async fn an_anonymous_session_keeps_seven_days_and_never_refreshes() {
 }
 
 /// What the compiler refuses, the server refuses at boot, for a schema written by hand;
-/// and refresh with no sign-in that mints a refreshable session refuses to boot.
+/// refresh with no sign-in that mints a refreshable session refuses to boot; and so does a
+/// server signing its sessions with no `ttl_secs` to bound them.
 #[tokio::test]
 async fn a_session_section_that_could_not_work_does_not_boot() {
     let Some(url) = database_url_or_skip("a_session_section_that_could_not_work") else {
@@ -1072,17 +1026,20 @@ async fn a_session_section_that_could_not_work_does_not_boot() {
         ttl_secs:          Some(59),
         absolute_ttl_secs: None,
     }));
-    let mut anonymous_only = schema_with(Some(SessionConfig {
-        ttl_secs:          None,
-        absolute_ttl_secs: Some(ABSOLUTE),
-    }));
+    let mut anonymous_only = refreshable();
     anonymous_only.auth.as_mut().expect("auth").local = Some(LocalAuthConfig {
         anonymous: true,
         ..LocalAuthConfig::default()
     });
+    let unbounded = schema_with(Some(SessionConfig {
+        ttl_secs:          None,
+        absolute_ttl_secs: Some(ABSOLUTE),
+    }));
     for (what, schema, names) in [
         ("a ttl_secs under a minute", short, "ttl_secs = 59"),
         ("refresh with only anonymous sign-up", anonymous_only, "absolute_ttl_secs"),
+        ("no [auth.session]", schema_with(None), "[auth.session] ttl_secs"),
+        ("absolute_ttl_secs alone", unbounded, "[auth.session] ttl_secs"),
     ] {
         let adapter =
             Arc::new(PostgresAdapter::new(&scratch_url).await.expect("PostgresAdapter::new"));
@@ -1560,7 +1517,12 @@ async fn cookie_transport_that_could_not_be_safe_does_not_boot() {
     let scratch_url = with_database(&url, db);
 
     let mut no_logout = cookie_mode();
-    no_logout.auth.as_mut().expect("auth").session = None;
+    no_logout
+        .auth
+        .as_mut()
+        .and_then(|a| a.session.as_mut())
+        .expect("[auth.session]")
+        .absolute_ttl_secs = None;
     let unguarded = ServerConfig {
         require_json_content_type: false,
         ..server_config(&scratch_url)

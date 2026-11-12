@@ -7,7 +7,7 @@
 //! local stub `IdP`:
 //!
 //! - `Google` (`OIDC`): authorize redirect → callback → token exchange → userinfo → verified-email
-//!   account linking → HS256 session tokens.
+//!   account linking → session tokens signed with the server's own ES256 keys.
 //! - `GitHub` (plain `OAuth2`): the token endpoint answers JSON only when `Accept:
 //!   application/json` is sent, carries **no** `expires_in`, and `/user` hides the email — the
 //!   `/user/emails` second hop resolves the primary verified address and links by email (#368's
@@ -49,7 +49,7 @@ use axum::{
     response::IntoResponse,
     routing::{get, post},
 };
-use common::first_party::FirstPartyAuth;
+use common::first_party::{FirstPartyAuth, SESSION_TTL_SECS};
 use fraiseql_auth::AccountStore as _;
 use fraiseql_core::{db::postgres::PostgresAdapter, schema::CompiledSchema};
 use fraiseql_server::{Server, server_config::ServerConfig};
@@ -394,7 +394,7 @@ fn social_schema(stub_base: &str) -> CompiledSchema {
     schema.auth = Some(fraiseql_core::schema::AuthClientConfig {
         pkce:     None,
         local:    None,
-        session:  None,
+        session:  Some(FIRST_PARTY.session()),
         database: Some(auth_database()),
         social:   Some(fraiseql_core::schema::SocialAuthConfig {
             redirect_uri_allowlist: Vec::new(),
@@ -439,7 +439,7 @@ fn social_schema(stub_base: &str) -> CompiledSchema {
     schema
 }
 
-/// The operator-chosen HS256 issuer/audience — deliberately NOT the session
+/// The operator-chosen `[auth_issuer]` issuer/audience — deliberately NOT the session
 /// store's historical hard-coded defaults (`fraiseql` / `fraiseql-api`), so the
 /// claims assertion below catches a mint/validate mismatch: a session minted
 /// with claims the configured validator rejects is a login that "succeeds" and
@@ -467,7 +467,7 @@ async fn boot_server(
     let port = listener.local_addr().expect("local addr").port();
     let server = Box::pin(Server::new(config, schema, adapter, Some(pool)))
         .await
-        .expect("Server::new with [auth.social] + [auth_hs256] + pool must succeed");
+        .expect("Server::new with [auth.social] + [auth_issuer] + pool must succeed");
     let (tx, rx) = tokio::sync::oneshot::channel::<()>();
     let handle = tokio::spawn(async move {
         let _ = server
@@ -507,7 +507,7 @@ fn jwt_claims(token: &str) -> serde_json::Value {
 }
 
 /// Decode the `sub` claim from a JWT, asserting the minted issuer/audience
-/// match the configured `[auth_hs256]` — the claims this server's own
+/// match the configured `[auth_issuer]` — the claims this server's own
 /// validator demands. A mismatch is the "login succeeds, then every request
 /// 401s" defect.
 fn jwt_sub(token: &str) -> String {
@@ -659,15 +659,15 @@ async fn google_and_github_full_loops_link_verified_emails() {
         "every configured provider is registered"
     );
 
-    // Google (OIDC): full loop mints HS256 session tokens…
+    // Google (OIDC): full loop mints the server's own session tokens…
     let google_tokens = login(&base, "google").await;
     assert_eq!(google_tokens["provider"], "google");
     let google_user = jwt_sub(google_tokens["access_token"].as_str().expect("access_token"));
-    // Without [auth.session], a social sign-in keeps its seven days (#1853).
+    // `[auth.session] ttl_secs` bounds a social sign-in as every other (#1853).
     assert_eq!(
         lifetime_of(google_tokens["access_token"].as_str().expect("access_token")),
-        7 * 24 * 3600,
-        "an unset [auth.session] keeps the social sign-in's seven days"
+        SESSION_TTL_SECS,
+        "a social sign-in lives the session lifetime"
     );
 
     // …and the identity landed in the account store keyed by the verified

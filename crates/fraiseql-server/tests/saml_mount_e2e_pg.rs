@@ -5,7 +5,7 @@
 //! and nothing mounted `saml_routes`. These tests boot the real server from a
 //! `[saml]` config and prove the mount: a login redirect carries a
 //! `SAMLRequest` to the configured `IdP`, an unknown `IdP` is refused, and the
-//! configured-but-broken shapes refuse to boot (missing `[auth_hs256]`,
+//! configured-but-broken shapes refuse to boot (missing `[auth_issuer]`,
 //! missing pool, unreadable metadata).
 //!
 //! Self-skips when no `DATABASE_URL` is set. Runs in the Dagger `saml`
@@ -150,7 +150,10 @@ fn empty_schema() -> CompiledSchema {
         "types": [],
         "queries": [],
         "mutations": [],
-        "auth": { "database": { "url_env": AUTH_URL_ENV } },
+        "auth": {
+            "database": { "url_env": AUTH_URL_ENV },
+            "session": FIRST_PARTY.session_json(),
+        },
     }))
     .expect("compiled schema")
 }
@@ -178,7 +181,7 @@ async fn login_redirects_to_the_idp_and_unknown_idp_is_refused() {
 
     let server = Box::pin(Server::new(config, empty_schema(), adapter, Some(pool.clone())))
         .await
-        .expect("Server::new with [saml] + [auth_hs256] + pool must succeed");
+        .expect("Server::new with [saml] + [auth_issuer] + pool must succeed");
     let (tx, rx) = tokio::sync::oneshot::channel::<()>();
     let handle = tokio::spawn(async move {
         server

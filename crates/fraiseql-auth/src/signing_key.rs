@@ -31,6 +31,12 @@ use zeroize::Zeroizing;
 
 use crate::error::{AuthError, Result};
 
+mod live;
+mod signer;
+
+pub use live::LiveKeyRing;
+pub use signer::{AccessTokenSigner, RingSigner};
+
 /// Idempotent DDL for `auth.signing_key`.
 pub const SIGNING_KEY_SCHEMA_SQL: &str = concat!(
     claim_auth_schema!(),
@@ -234,6 +240,20 @@ impl KeyRing {
     #[must_use]
     pub fn jwks(&self) -> Value {
         json!({ "keys": self.published })
+    }
+
+    /// The published JWK for `kid`, if this ring publishes it.
+    #[must_use]
+    pub fn published_key(&self, kid: &str) -> Option<&Value> {
+        self.published
+            .iter()
+            .find(|jwk| jwk.get("kid").and_then(Value::as_str) == Some(kid))
+    }
+
+    /// How many keys this ring publishes.
+    #[must_use]
+    pub const fn published_count(&self) -> usize {
+        self.published.len()
     }
 
     /// The `kid`s of every published key, active first.

@@ -34,6 +34,9 @@ mod auth_local;
 // `[auth.database]` — first-party auth's own role and pool
 #[cfg(feature = "auth")]
 mod auth_database;
+// `[auth_issuer]` — the keys this server signs its own sessions with
+#[cfg(feature = "auth")]
+pub mod first_party;
 // API key authentication
 pub mod api_key;
 pub mod service_account;

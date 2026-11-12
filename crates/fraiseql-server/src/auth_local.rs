@@ -303,8 +303,8 @@ fn missing_email_feature(method: &str) -> ServerError {
 
 /// The Postgres session store every FraiseQL sign-in mints through (#1450).
 ///
-/// Signed with the `[auth_hs256]` secret, minting the issuer and audience that validator
-/// demands, and the account's tenant under the schema's `tenant_claim`, so a minted
+/// Signed with the first-party issuer's active key (`[auth_issuer]`), naming its issuer and
+/// audience, and the account's tenant under the schema's `tenant_claim`, so a minted
 /// token's tenant reaches `SecurityContext::tenant_id` exactly as an external identity provider's
 /// does. One constructor for local, social and SAML sign-in: a new path cannot mint tokens the
 /// validator rejects, or drop the tenant.
@@ -313,20 +313,12 @@ fn missing_email_feature(method: &str) -> ServerError {
 /// passes the default, and keeps its fixed seven days.
 pub fn minting_session_store(
     pool: sqlx::PgPool,
-    hs: &crate::server_config::Hs256Config,
-    secret: Vec<u8>,
+    issuer: &crate::first_party::FirstPartyIssuer,
     tenant_claim: &str,
     lifetime: fraiseql_auth::SessionLifetime,
 ) -> fraiseql_auth::PostgresSessionStore {
-    fraiseql_auth::PostgresSessionStore::with_hs256_secret(pool, secret)
-        .with_token_claims(
-            hs.issuer.clone().unwrap_or_else(|| {
-                fraiseql_auth::session_postgres::DEFAULT_TOKEN_ISSUER.to_string()
-            }),
-            hs.audience.clone().unwrap_or_else(|| {
-                fraiseql_auth::session_postgres::DEFAULT_TOKEN_AUDIENCE.to_string()
-            }),
-        )
+    fraiseql_auth::PostgresSessionStore::with_signer(pool, issuer.signer())
+        .with_token_claims(issuer.config().url.clone(), issuer.config().audience.clone())
         .with_tenant_claim(tenant_claim)
         .with_lifetime(lifetime)
 }
@@ -353,10 +345,10 @@ pub fn session_lifetime(
 ///
 /// # Errors
 ///
-/// [`ServerError::ConfigError`] when refresh is asked for without `[auth_hs256]` or a
+/// [`ServerError::ConfigError`] when refresh is asked for without `[auth_issuer]` or a
 /// database pool, or with no sign-in method that mints a refreshable session.
 pub fn session_routes_store(
-    config: &ServerConfig,
+    issuer: Option<&crate::first_party::FirstPartyIssuer>,
     db_pool: Option<&sqlx::PgPool>,
     tenant_claim: &str,
     lifetime: fraiseql_auth::SessionLifetime,
@@ -373,10 +365,10 @@ pub fn session_routes_store(
              never refreshable."
         )));
     }
-    let hs = config.auth_hs256.as_ref().ok_or_else(|| {
+    let issuer = issuer.ok_or_else(|| {
         ServerError::ConfigError(
-            "[auth.session] absolute_ttl_secs requires [auth_hs256]: a refresh mints a new \
-             access token this server validates."
+            "[auth.session] absolute_ttl_secs requires [auth_issuer]: a refresh mints a new \
+             access token this server signs and validates."
                 .to_string(),
         )
     })?;
@@ -387,11 +379,9 @@ pub fn session_routes_store(
                 .to_string(),
         )
     })?;
-    let secret = hs.load_secret().map_err(ServerError::ConfigError)?;
     Ok(Some(Arc::new(minting_session_store(
         pool.clone(),
-        hs,
-        secret.into_bytes(),
+        issuer,
         tenant_claim,
         lifetime,
     ))))
@@ -479,11 +469,13 @@ pub fn session_cookies(
 /// # Errors
 ///
 /// Returns [`ServerError::ConfigError`] when a method is enabled without what it
-/// needs: no database pool, no `[auth_hs256]`, a missing or send-less mailbox, or
+/// needs: no database pool, no `[auth_issuer]`, a missing or send-less mailbox, or
 /// a build lacking `inbound-email`.
 pub async fn build_local_auth_states(
     local: &LocalAuthConfig,
-    config: &ServerConfig,
+    // Reason: only the inbound-email-gated mail sender reads the server config.
+    #[cfg_attr(not(feature = "inbound-email"), allow(unused_variables))] config: &ServerConfig,
+    issuer: Option<&crate::first_party::FirstPartyIssuer>,
     db_pool: Option<sqlx::PgPool>,
     tenant_claim: &str,
     lifetime: fraiseql_auth::SessionLifetime,
@@ -493,10 +485,10 @@ pub async fn build_local_auth_states(
     // budgets, sessions), so all of them need the signing config and the pool.
     // Config first, infrastructure second: a typo in the config file should
     // surface before "your database is missing".
-    let hs = config.auth_hs256.as_ref().ok_or_else(|| {
+    let issuer = issuer.ok_or_else(|| {
         ServerError::ConfigError(
-            "[auth.local] requires [auth_hs256]: every local sign-in mints HS256 sessions this \
-             server itself validates. Add [auth_hs256] to the server config."
+            "[auth.local] requires [auth_issuer]: every local sign-in mints sessions this \
+             server itself signs and validates. Add [auth_issuer] to the server config."
                 .to_string(),
         )
     })?;
@@ -528,26 +520,18 @@ pub async fn build_local_auth_states(
         })
         .transpose()?;
     local.check_email().map_err(ServerError::ConfigError)?;
-    let secret = hs.load_secret().map_err(ServerError::ConfigError)?;
-    // Mint the claims the configured validator demands, or every login would
-    // "succeed" and then 401 on the first validated request. The routes that act on the
-    // caller's own account validate against that same `[auth_hs256]`, so what this
-    // server signs is exactly what it accepts back (#945).
-    let secret_bytes = secret.into_bytes();
-    let session_store: Arc<dyn fraiseql_auth::SessionStore> = Arc::new(minting_session_store(
-        pool.clone(),
-        hs,
-        secret_bytes.clone(),
-        tenant_claim,
-        lifetime,
-    ));
+    // Mint the claims the validator demands, or every login would "succeed" and then 401
+    // on the first validated request. The routes that act on the caller's own account
+    // validate against that same issuer, so what this server signs is exactly what it
+    // accepts back (#945).
+    let session_store: Arc<dyn fraiseql_auth::SessionStore> =
+        Arc::new(minting_session_store(pool.clone(), issuer, tenant_claim, lifetime));
     // Anonymous sign-up mints through its own store, without `[auth.session]`: an
     // anonymous session keeps its fixed seven days and is never refreshable.
     let anon_session_store = local.anonymous.then(|| {
         Arc::new(minting_session_store(
             pool.clone(),
-            hs,
-            secret_bytes,
+            issuer,
             tenant_claim,
             fraiseql_auth::SessionLifetime::default(),
         ))

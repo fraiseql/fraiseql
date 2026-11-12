@@ -263,7 +263,7 @@ wiremock = "0.6"
 [features]
 # Arrow Flight server for high-performance data delivery
 arrow = ["dep:fraiseql-arrow", "dep:tonic"]
-auth = ["dep:fraiseql-auth"]
+auth = ["dep:fraiseql-auth", "secrets"]
 # The operator SQL console (#962): POST /api/v1/admin/sql, which runs statements
 # the operator typed. Not a default feature and never will be — it is the most
 # powerful endpoint the server can expose, so a deployment that does not want one

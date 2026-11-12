@@ -34,7 +34,6 @@ fraiseql_db::fraiseql_wire_adapter pending removed with fraiseql-wire by #1642
 fraiseql_db::wire_pool pending removed with fraiseql-wire by #1642
 fraiseql_saga pending rebuilt as workflows on the durable-work kernel by #1645
 fraiseql_observers::resilience pending replaced by the breaker in fraiseql-guard by #1645
-fraiseql_auth::signing_key pending mounted by the server's first-party issuer wiring in #1964
 fraiseql_core::validation::checksum pending a leaf check, enforced through the input walker by #1635
 fraiseql_core::validation::compile_time pending compile-time rule checks, wired into the compiler by #1635
 fraiseql_core::validation::composite pending composite rules, enforced through the input walker by #1635

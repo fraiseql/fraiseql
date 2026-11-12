@@ -150,7 +150,7 @@ async fn drop_scratch(admin_url: &str, db: &str) {
 
 /// A compiled schema with anonymous sign-up on and, when given, `[auth.database]`.
 fn schema(database: Option<serde_json::Value>) -> CompiledSchema {
-    let mut auth = serde_json::json!({ "local": { "anonymous": true } });
+    let mut auth = serde_json::json!({ "local": { "anonymous": true }, "session": FIRST_PARTY.session_json() });
     if let Some(database) = database {
         auth["database"] = database;
     }
@@ -171,7 +171,7 @@ fn schema_without_surface(database: &serde_json::Value) -> CompiledSchema {
         "types": [],
         "queries": [],
         "mutations": [],
-        "auth": { "database": database },
+        "auth": { "database": database, "session": FIRST_PARTY.session_json() },
     }))
     .expect("compiled schema")
 }
@@ -185,16 +185,21 @@ fn config(engine_url: &str) -> ServerConfig {
 }
 
 /// Construct the server on the engine role. The error, if construction refuses.
-async fn construct(
+///
+/// Boxed: the future holds a whole `Server`, past `clippy::large_futures` at every caller.
+fn construct(
     config: ServerConfig,
     schema: CompiledSchema,
     engine_url: &str,
-) -> Result<Server, String> {
-    let adapter = Arc::new(PostgresAdapter::new(engine_url).await.expect("PostgresAdapter::new"));
-    let engine_pool = PgPool::connect(engine_url).await.expect("connect as the engine role");
-    Box::pin(Server::new(config, schema, adapter, Some(engine_pool)))
-        .await
-        .map_err(|e| e.to_string())
+) -> std::pin::Pin<Box<impl std::future::Future<Output = Result<Server, String>> + '_>> {
+    Box::pin(async move {
+        let adapter =
+            Arc::new(PostgresAdapter::new(engine_url).await.expect("PostgresAdapter::new"));
+        let engine_pool = PgPool::connect(engine_url).await.expect("connect as the engine role");
+        Box::pin(Server::new(config, schema, adapter, Some(engine_pool)))
+            .await
+            .map_err(|e| e.to_string())
+    })
 }
 
 struct RunningServer {
@@ -282,8 +287,14 @@ async fn auth_database_without_an_auth_surface_refuses_to_boot() {
     let (_pool, engine_url, auth_url) = scratch(&url, db).await;
     std::env::set_var("FRAISEQL_TEST_U10_NO_SURFACE_URL", &auth_url);
 
+    // Not `config`: `[auth_issuer]` is itself a surface `[auth.database]` serves.
+    let unsigned = ServerConfig {
+        cors_enabled: false,
+        database_url: engine_url.clone(),
+        ..ServerConfig::default()
+    };
     let refused = construct(
-        config(&engine_url),
+        unsigned,
         schema_without_surface(
             &serde_json::json!({ "url_env": "FRAISEQL_TEST_U10_NO_SURFACE_URL" }),
         ),

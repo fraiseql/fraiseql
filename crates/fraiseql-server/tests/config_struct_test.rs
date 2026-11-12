@@ -221,6 +221,13 @@ fn section_cases() -> Vec<(&'static str, &'static str, &'static str)> {
             "[auth_hs256]\nsecret_env = \"S\"\nissuer = \"i\"\n",
             "[auth_hs256]\nsecret_env = \"S\"\nisseur = \"i\"\n",
         ),
+        // `key_encryption_key_env` has a default, so only `deny_unknown_fields` refuses
+        // its misspelling (`url` and `audience` are required: see the note above).
+        (
+            "auth_issuer",
+            "[auth_issuer]\nurl = \"u\"\naudience = \"a\"\nkey_encryption_key_env = \"K\"\n",
+            "[auth_issuer]\nurl = \"u\"\naudience = \"a\"\nkey_encryption_key_envv = \"K\"\n",
+        ),
         // `cert_path`/`key_path` are required (no `serde(default)`), so a bare
         // `enabled` would fail as a *missing* field and tell us nothing about unknown
         // ones. The twin has to actually parse.

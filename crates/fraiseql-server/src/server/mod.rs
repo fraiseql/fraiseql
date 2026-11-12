@@ -133,6 +133,12 @@ pub struct Server {
     /// validation instead of OIDC. Intended for integration testing and
     /// internal service-to-service auth.
     pub(super) hs256_auth: Option<Arc<AuthMiddleware>>,
+    /// The first-party issuer (`[auth_issuer]`, #1964): the ring every minted session
+    /// is signed with. Its first read runs once the tables are provisioned, and it
+    /// rotates, sweeps and re-reads on
+    /// [`first_party::TICK_INTERVAL`](crate::first_party::TICK_INTERVAL).
+    #[cfg(feature = "auth")]
+    pub(super) first_party: Option<Arc<crate::first_party::FirstPartyIssuer>>,
     pub(super) rate_limiter: Option<Arc<RateLimiter>>,
     #[cfg(feature = "secrets")]
     pub(super) secrets_manager: Option<Arc<crate::secrets_manager::SecretsManager>>,
@@ -192,7 +198,7 @@ pub struct Server {
     #[cfg(feature = "auth")]
     pub(super) session_routes_store: Option<Arc<fraiseql_auth::PostgresSessionStore>>,
     /// Cookie transport (`[auth.local] session_transport = "cookie"`, #1856): the session
-    /// routes read and set the cookies, and the HS256 layer reads the access cookie on the
+    /// routes read and set the cookies, and the session layer reads the access cookie on the
     /// mounts that refuse a non-`JSON` body. `None` in the default `json` transport.
     #[cfg(feature = "auth")]
     pub(super) session_cookies: Option<fraiseql_auth::SessionCookies>,

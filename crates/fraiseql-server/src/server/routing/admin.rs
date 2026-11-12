@@ -185,7 +185,8 @@ impl Server {
                     "GraphQL playground enabled (OIDC auth required)"
                 );
                 // A read.
-                let auth_state = self.oidc_auth_state(validator.clone()).with_access_cookie(true);
+                let auth_state =
+                    self.oidc_session_state(validator.clone(), super::AccessCookie::Accepted);
                 let playground_router = Router::new()
                     .route(&self.config.playground_path, get(playground_handler))
                     .route_layer(middleware::from_fn_with_state(auth_state, oidc_auth_middleware))
@@ -336,7 +337,8 @@ impl Server {
                     "Introspection endpoint enabled (OIDC auth required)"
                 );
                 // Reads.
-                let auth_state = self.oidc_auth_state(validator.clone()).with_access_cookie(true);
+                let auth_state =
+                    self.oidc_session_state(validator.clone(), super::AccessCookie::Accepted);
                 let introspection_router = Router::new()
                     .route(&self.config.introspection_path, get(introspection_handler))
                     .route_layer(middleware::from_fn_with_state(
@@ -366,7 +368,8 @@ impl Server {
             if let Some(ref validator) = self.oidc_validator {
                 info!("Schema export endpoints enabled (OIDC auth required)");
                 // Reads.
-                let auth_state = self.oidc_auth_state(validator.clone()).with_access_cookie(true);
+                let auth_state =
+                    self.oidc_session_state(validator.clone(), super::AccessCookie::Accepted);
                 let schema_router = Router::new()
                     .route("/api/v1/schema.graphql", get(api::schema::export_sdl_handler))
                     .route("/api/v1/schema.json", get(api::schema::export_json_handler))
@@ -395,7 +398,8 @@ impl Server {
             if let Some(ref validator) = self.oidc_validator {
                 info!("Schema metadata endpoint enabled (OIDC auth required)");
                 // A read.
-                let auth_state = self.oidc_auth_state(validator.clone()).with_access_cookie(true);
+                let auth_state =
+                    self.oidc_session_state(validator.clone(), super::AccessCookie::Accepted);
                 let metadata_router = Router::new()
                     .route("/api/v1/schema/metadata", get(api::metadata::metadata_handler))
                     .route_layer(middleware::from_fn_with_state(
@@ -696,7 +700,8 @@ impl Server {
             if let Some(ref validator) = self.oidc_validator {
                 info!("Design audit API endpoints enabled (admin scope 'fraiseql:admin' required)");
                 // Every audit reads a `JSON` body, so a form is refused with 415.
-                let auth_state = self.oidc_auth_state(validator.clone()).with_access_cookie(true);
+                let auth_state =
+                    self.oidc_session_state(validator.clone(), super::AccessCookie::Accepted);
                 let design_router = Router::new()
                     .route("/design/federation-audit", post(api::design::federation_audit_handler))
                     .route("/design/cost-audit", post(api::design::cost_audit_handler))

@@ -22,3 +22,7 @@ args = [{ name = "title", type = "String", required = true }]
 # database URL.
 [auth.database]
 url_env = "DATABASE_URL"
+
+# A session SAML mints lives this long; the first-party issuer requires it.
+[auth.session]
+ttl_secs = 900

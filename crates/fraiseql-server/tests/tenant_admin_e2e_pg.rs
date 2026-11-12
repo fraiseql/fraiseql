@@ -81,7 +81,10 @@ fn empty_schema() -> CompiledSchema {
         "types": [],
         "queries": [],
         "mutations": [],
-        "auth": { "database": { "url_env": AUTH_URL_ENV } },
+        "auth": {
+            "database": { "url_env": AUTH_URL_ENV },
+            "session": FIRST_PARTY.session_json(),
+        },
     }))
     .expect("compiled schema")
 }

@@ -465,6 +465,7 @@ mod revoke_tests {
     fn revoke_app(manager: Arc<TokenRevocationManager>) -> Router {
         let state = Arc::new(RevocationRouteState {
             revocation_manager: manager,
+            sessions:           None,
         });
         Router::new()
             .route("/auth/revoke", post(revoke_token))
@@ -599,6 +600,134 @@ mod revoke_tests {
             .unwrap();
 
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+    }
+
+    /// One log both fakes append to, so the order of the calls is visible.
+    type Log = Arc<std::sync::Mutex<Vec<String>>>;
+
+    #[derive(Debug)]
+    struct RecordingRevocations(Log);
+
+    #[async_trait::async_trait]
+    impl crate::token_revocation::RevocationStore for RecordingRevocations {
+        async fn is_revoked(
+            &self,
+            _jti: &str,
+        ) -> Result<bool, crate::token_revocation::RevocationError> {
+            Ok(false)
+        }
+
+        async fn revoke(
+            &self,
+            _jti: &str,
+            _ttl_secs: u64,
+        ) -> Result<(), crate::token_revocation::RevocationError> {
+            Ok(())
+        }
+
+        async fn revoke_all_for_user(
+            &self,
+            sub: &str,
+            _ttl_secs: u64,
+        ) -> Result<(), crate::token_revocation::RevocationError> {
+            self.0.lock().unwrap().push(format!("epoch:{sub}"));
+            Ok(())
+        }
+
+        async fn user_revoked_after(
+            &self,
+            _sub: &str,
+        ) -> Result<Option<i64>, crate::token_revocation::RevocationError> {
+            Ok(None)
+        }
+    }
+
+    /// Appends to the log, or fails every call when `fails`.
+    struct RecordingSessions {
+        log:   Log,
+        fails: bool,
+    }
+
+    #[async_trait::async_trait]
+    impl fraiseql_auth::SessionStore for RecordingSessions {
+        async fn create_session(
+            &self,
+            _user_id: &str,
+            _expires_at: u64,
+        ) -> fraiseql_auth::Result<fraiseql_auth::TokenPair> {
+            Err(fraiseql_auth::AuthError::DatabaseError {
+                message: "revoke-all mints nothing".to_string(),
+            })
+        }
+
+        async fn get_session(
+            &self,
+            _refresh_token_hash: &str,
+        ) -> fraiseql_auth::Result<fraiseql_auth::SessionData> {
+            Err(fraiseql_auth::AuthError::DatabaseError {
+                message: "revoke-all reads no session".to_string(),
+            })
+        }
+
+        async fn revoke_session(&self, _refresh_token_hash: &str) -> fraiseql_auth::Result<()> {
+            Err(fraiseql_auth::AuthError::DatabaseError {
+                message: "revoke-all ends every session, not one".to_string(),
+            })
+        }
+
+        async fn revoke_all_sessions(&self, user_id: &str) -> fraiseql_auth::Result<()> {
+            if self.fails {
+                return Err(fraiseql_auth::AuthError::DatabaseError {
+                    message: "sessions unavailable".to_string(),
+                });
+            }
+            self.log.lock().unwrap().push(format!("sessions:{user_id}"));
+            Ok(())
+        }
+    }
+
+    /// `/auth/revoke-all` over the recording fakes, both appending to `log`.
+    fn recording_revoke_all_app(log: &Log, sessions_fail: bool) -> Router {
+        let manager = Arc::new(TokenRevocationManager::new(
+            Arc::new(RecordingRevocations(Arc::clone(log))),
+            true,
+            false,
+            3600,
+        ));
+        let state = Arc::new(RevocationRouteState {
+            revocation_manager: manager,
+            sessions:           Some(Arc::new(RecordingSessions {
+                log:   Arc::clone(log),
+                fails: sessions_fail,
+            })),
+        });
+        Router::new()
+            .route("/auth/revoke-all", post(revoke_all_tokens))
+            .with_state(state)
+            .layer(Extension(make_auth_user("alice", vec![])))
+    }
+
+    #[tokio::test]
+    async fn revoke_all_ends_the_users_sessions_before_it_records_the_epoch() {
+        let log = Log::default();
+        let resp = recording_revoke_all_app(&log, false)
+            .oneshot(post_json("/auth/revoke-all", r#"{"sub":"alice"}"#))
+            .await
+            .unwrap();
+
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(*log.lock().unwrap(), vec!["sessions:alice", "epoch:alice"]);
+    }
+
+    #[tokio::test]
+    async fn revoke_all_reports_failure_when_the_sessions_cannot_be_ended() {
+        let log = Log::default();
+        let resp = recording_revoke_all_app(&log, true)
+            .oneshot(post_json("/auth/revoke-all", r#"{"sub":"alice"}"#))
+            .await
+            .unwrap();
+
+        assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
     }
 }
 

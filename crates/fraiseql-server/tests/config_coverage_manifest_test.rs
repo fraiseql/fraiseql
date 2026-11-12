@@ -87,6 +87,11 @@ const MANIFEST: &[(&str, &str)] = &[
     ("auth", "OIDC auth config (fraiseql-core OidcConfig, Option)"),
     ("auth_hs256", "HS256 JWT auth config (Option)"),
     (
+        "auth_issuer",
+        "first-party issuer (#1964): the builder seals its key ring under the key-encryption \
+         key, joins it to the OIDC validator and signs every minted session with it",
+    ),
+    (
         "saml",
         "SAML 2.0 SP config (#381) — Server::from_executor builds SamlAuthState and \
          mount_auth_routes mounts /auth/saml/login + /auth/saml/acs",

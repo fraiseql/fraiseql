@@ -107,6 +107,26 @@ impl SigningKey {
     }
 }
 
+/// A token carrying `claims` and naming `kid`, signed by a P-256 key made for this call
+/// and published nowhere: the negative control for an issuer this module does not run,
+/// such as a server's own.
+///
+/// # Panics
+///
+/// When `claims` does not serialize, which a JSON value always does.
+#[must_use]
+pub fn sign_with_unpublished_key(kid: &str, claims: &Value) -> String {
+    let mut header = Header::new(Algorithm::ES256);
+    header.typ = Some("at+jwt".to_string());
+    header.kid = Some(kid.to_string());
+    jsonwebtoken::encode(
+        &header,
+        claims,
+        &SigningKey::generate(format!("{kid}-unpublished")).encoding,
+    )
+    .expect("ES256 signing")
+}
+
 /// The issuer's keys: every key it has made, and which one signs.
 struct KeyRing {
     keys:   Vec<SigningKey>,

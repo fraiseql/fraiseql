@@ -122,7 +122,7 @@ fn local_schema(local: LocalAuthConfig) -> CompiledSchema {
         pkce:     None,
         social:   None,
         local:    Some(local),
-        session:  None,
+        session:  Some(FIRST_PARTY.session()),
         database: Some(auth_database()),
     });
     schema
@@ -226,7 +226,7 @@ async fn boot_config_schema(
     let port = listener.local_addr().expect("local addr").port();
     let server = Box::pin(Server::new(config, schema, adapter, Some(pool)))
         .await
-        .expect("Server::new with [auth.local] + [auth_hs256] + pool must succeed");
+        .expect("Server::new with [auth.local] + [auth_issuer] + pool must succeed");
     let (tx, rx) = tokio::sync::oneshot::channel::<()>();
     let handle = tokio::spawn(async move {
         let _ = server
@@ -245,7 +245,7 @@ async fn boot_config_schema(
 }
 
 /// Decode a JWT's claims without validating it, asserting the minted
-/// issuer/audience match the configured `[auth_hs256]` — a mismatch is the
+/// issuer/audience match the configured `[auth_issuer]` — a mismatch is the
 /// "login succeeds, then every request 401s" defect.
 fn jwt_sub(token: &str) -> String {
     use base64::Engine as _;
@@ -281,12 +281,17 @@ async fn post_json(
 }
 
 /// A session access token for `user_id`, signed as this server signs its own.
-fn session_for(user_id: &str) -> String {
+async fn session_for(pool: &PgPool, user_id: &str) -> String {
     let now = chrono::Utc::now().timestamp();
-    FIRST_PARTY.sign(&serde_json::json!({
-        "sub": user_id, "iss": ISSUER, "aud": [AUDIENCE],
-        "iat": now, "exp": now + 3600, "jti": format!("test-{user_id}-{now}"),
-    }))
+    FIRST_PARTY
+        .sign(
+            pool,
+            &serde_json::json!({
+                "sub": user_id, "iss": ISSUER, "aud": [AUDIENCE],
+                "iat": now, "nbf": now, "exp": now + 3600, "jti": format!("test-{user_id}-{now}"),
+            }),
+        )
+        .await
 }
 
 /// The challenge a sign-in of `user_id` earns, from where every sign-in path mints its
@@ -294,7 +299,7 @@ fn session_for(user_id: &str) -> String {
 async fn challenge_for(pool: &PgPool, user_id: &str) -> String {
     use fraiseql_auth::SessionStore as _;
 
-    let sessions = FIRST_PARTY.session_store(pool.clone());
+    let sessions = FIRST_PARTY.session_store(pool).await;
     match sessions.create_session(user_id, u64::MAX / 2).await {
         Err(fraiseql_auth::AuthError::SecondFactorRequired { challenge }) => {
             challenge.expose().to_string()
@@ -562,7 +567,7 @@ async fn mfa_enrollment_survives_a_restart() {
 
     // Enroll, then confirm with a live TOTP code derived from the returned URI, both as
     // the account's own session.
-    let session = session_for("user-1");
+    let session = session_for(&pool, "user-1").await;
     let (status, body) = post_json_as(
         &server.base,
         "/auth/v1/mfa/enroll",
@@ -1751,7 +1756,7 @@ async fn a_session_replaces_a_confirmed_enrollment_only_with_a_current_code() {
     .await;
     let user = "owner-1";
     let secret = seed_confirmed_mfa(&pool, user).await;
-    let session = session_for(user);
+    let session = session_for(&pool, user).await;
     let enroll = |code: Option<String>| {
         let mut body = serde_json::json!({ "account_name": "owner@example.com" });
         if let Some(code) = code {
@@ -1777,10 +1782,15 @@ async fn a_session_replaces_a_confirmed_enrollment_only_with_a_current_code() {
     assert_eq!(status, reqwest::StatusCode::OK, "a current code replaces it: {body}");
 
     // A token this server did not sign is no session.
-    let forged = FIRST_PARTY.sign_foreign(&serde_json::json!({
-        "sub": user, "iss": ISSUER, "aud": [AUDIENCE],
-        "exp": chrono::Utc::now().timestamp() + 3600,
-    }));
+    let forged = FIRST_PARTY
+        .sign_foreign(
+            &pool,
+            &serde_json::json!({
+                "sub": user, "iss": ISSUER, "aud": [AUDIENCE],
+                "exp": chrono::Utc::now().timestamp() + 3600,
+            }),
+        )
+        .await;
     let (status, _) = post_json_as(
         &server.base,
         "/auth/v1/mfa/unenroll",

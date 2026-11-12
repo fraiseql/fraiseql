@@ -62,3 +62,42 @@ async fn hs256_tokens_are_stable_across_calls_not_per_token_random() {
             .expect("every token from one store must verify under that store's secret");
     }
 }
+
+/// A signer that records the claims it was asked to sign.
+#[derive(Debug, Default)]
+struct RecordingSigner(std::sync::Mutex<Vec<Claims>>);
+
+impl crate::AccessTokenSigner for RecordingSigner {
+    fn sign_access_token(&self, claims: &Claims) -> Result<String> {
+        self.0.lock().unwrap().push(claims.clone());
+        Ok(format!("signed-for-{}", claims.sub))
+    }
+}
+
+#[tokio::test]
+async fn a_store_with_a_signer_mints_through_it() {
+    let signer = std::sync::Arc::new(RecordingSigner::default());
+    let store = PostgresSessionStore::with_signer(lazy_pool(), signer.clone())
+        .with_token_claims("https://api.example.com".to_string(), "my-api".to_string());
+
+    let (token, jti) = store.generate_access_token("u1", None, 900).unwrap();
+
+    assert_eq!(token, "signed-for-u1");
+    let signed = signer.0.lock().unwrap();
+    let claims = signed.first().expect("the signer was asked");
+    assert_eq!(claims.iss, "https://api.example.com");
+    assert_eq!(claims.aud, vec!["my-api".to_string()]);
+    assert_eq!(claims.exp - claims.iat, 900);
+    assert_eq!(claims.get_custom("jti").and_then(|v| v.as_str()), Some(jti.as_str()));
+}
+
+#[tokio::test]
+async fn a_token_signed_by_the_signer_is_not_valid_before_it_was_issued() {
+    let signer = std::sync::Arc::new(RecordingSigner::default());
+    let store = PostgresSessionStore::with_signer(lazy_pool(), signer.clone());
+
+    store.generate_access_token("u1", None, 900).unwrap();
+
+    let claims = signer.0.lock().unwrap()[0].clone();
+    assert_eq!(claims.nbf, Some(claims.iat));
+}

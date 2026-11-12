@@ -40,7 +40,7 @@ async fn client_address(
     next.run(request).await
 }
 
-/// Name the account the HS256 layer authenticated as the [`SessionSubject`] the MFA
+/// Name the account the session layer authenticated as the [`SessionSubject`] the MFA
 /// handlers act on. A request the layer did not authenticate carries none, and the
 /// handlers refuse it.
 ///
@@ -60,18 +60,38 @@ async fn session_subject(
 }
 
 impl Server {
-    /// `router` behind the sessions this server mints: the HS256 layer, revocation
-    /// included, naming the authenticated account as the [`SessionSubject`] its handlers
-    /// act on. `None` without that layer: a route that acts on the caller's own account is
-    /// not mounted at all rather than served to no one in particular. `[auth.local]`
-    /// refuses to boot without `[auth_hs256]`, so `None` is for an embedder that attached
-    /// such state by hand.
+    /// The sessions this server mints, for revoke-all to end: present only with
+    /// `[auth_issuer]`, whose refresh tokens live in the auth pool.
+    fn minted_sessions(&self) -> Option<Arc<dyn fraiseql_auth::SessionStore>> {
+        self.first_party.as_ref()?;
+        let pool = self.auth_pool.clone()?;
+        Some(Arc::new(fraiseql_auth::PostgresSessionStore::new(pool)))
+    }
+
+    /// `router` behind the sessions this server mints: the first-party issuer's OIDC layer
+    /// (or the HS256 layer of a deployment that still validates its own HS256 tokens),
+    /// revocation included, naming the authenticated account as the [`SessionSubject`] its
+    /// handlers act on. The OIDC layer here trusts the first-party issuer alone, never an
+    /// external identity provider beside it. `None` without either layer: a route that acts
+    /// on the caller's own account is not mounted at all rather than served to no one in
+    /// particular. `[auth.local]` refuses to boot without `[auth_issuer]`, so `None` is for
+    /// an embedder that attached such state by hand.
     ///
     /// [`SessionSubject`]: fraiseql_auth::SessionSubject
     ///
     /// `cookie` says whether the access cookie is a credential on these routes: only where
     /// every route refuses a body that is not `JSON`, which a form another site posts is.
     fn behind_session(&self, router: Router, cookie: AccessCookie) -> Option<Router> {
+        if let Some(ref issuer) = self.first_party {
+            let session = self
+                .oidc_auth_state(issuer.own_tokens())
+                .with_access_cookie(self.reads_access_cookie(cookie));
+            return Some(
+                router
+                    .route_layer(middleware::from_fn(session_subject))
+                    .route_layer(middleware::from_fn_with_state(session, oidc_auth_middleware)),
+            );
+        }
         let validator = self.hs256_auth.as_ref()?;
         let session = self
             .hs256_auth_state(Arc::clone(validator), self.hs256_realm())
@@ -85,6 +105,17 @@ impl Server {
 
     /// Mount all `#[cfg(feature = "auth")]`-gated authentication routes.
     pub(super) fn mount_auth_routes(&self, mut app: Router) -> Router {
+        // The first-party issuer publishes its discovery document and keys, so a service
+        // beside this server verifies its sessions as it would any OIDC provider's.
+        if let Some(ref issuer) = self.first_party {
+            app = app.merge(crate::first_party::routes(Arc::clone(issuer)));
+            info!(
+                "First-party issuer routes mounted: GET {}, GET {}",
+                crate::first_party::DISCOVERY_PATH,
+                crate::first_party::JWKS_PATH
+            );
+        }
+
         // PKCE OAuth2 auth routes — mounted only when both pkce and [auth] are configured.
         if let (Some(store), Some(client)) = (&self.pkce_store, &self.oidc_server_client) {
             let auth_state = Arc::new(AuthPkceState {
@@ -108,7 +139,7 @@ impl Server {
 
         // SAML SP-initiated SSO (#381) — mounted when [saml] is configured on an
         // auth-saml build. Construction (from_executor) already proved the pool,
-        // the HS256 signing pair and every IdP's metadata; this is pure routing.
+        // the first-party issuer and every IdP's metadata; this is pure routing.
         #[cfg(feature = "auth-saml")]
         if let Some(ref saml) = self.saml_state {
             app = app.merge(fraiseql_auth::saml::saml_routes(saml.clone()));
@@ -139,7 +170,7 @@ impl Server {
                     ttl_secs: sessions
                         .refreshable_access_ttl_secs()
                         .unwrap_or(fraiseql_core::schema::SessionConfig::DEFAULT_TTL_SECS)
-                        + HS256_LEEWAY_SECS,
+                        + crate::first_party::EXPIRY_GRACE_SECS,
                 }) as Arc<dyn fraiseql_auth::DenyAccessTokens>
             });
             if denial.is_none() {
@@ -203,7 +234,7 @@ impl Server {
             } else {
                 tracing::warn!(
                     "email verification not mounted: it acts on the signed-in account, and no \
-                     [auth_hs256] layer resolves one"
+                     [auth_issuer] or [auth_hs256] layer resolves one"
                 );
             }
         }
@@ -229,7 +260,7 @@ impl Server {
             } else {
                 tracing::warn!(
                     "TOTP MFA enroll/confirm/unenroll not mounted: they act on the signed-in \
-                     account, and no [auth_hs256] layer resolves one"
+                     account, and no [auth_issuer] or [auth_hs256] layer resolves one"
                 );
             }
             // Verify redeems the challenge a first factor earned; the challenge is issued
@@ -264,7 +295,7 @@ impl Server {
                 expose_claims: me_cfg.expose_claims.clone(),
             });
             // A read.
-            let auth_state = self.oidc_auth_state(Arc::clone(validator)).with_access_cookie(true);
+            let auth_state = self.oidc_session_state(Arc::clone(validator), AccessCookie::Accepted);
             let me_router = Router::new()
                 .route("/auth/me", get(auth_me))
                 .route_layer(middleware::from_fn_with_state(auth_state, oidc_auth_middleware))
@@ -285,10 +316,11 @@ impl Server {
             if let Some(ref validator) = self.oidc_validator {
                 let rev_state = Arc::new(crate::routes::RevocationRouteState {
                     revocation_manager: Arc::clone(rev_mgr),
+                    sessions:           self.minted_sessions(),
                 });
                 // Both handlers read a `JSON` body, so a form is refused with 415.
                 let auth_state =
-                    self.oidc_auth_state(Arc::clone(validator)).with_access_cookie(true);
+                    self.oidc_session_state(Arc::clone(validator), AccessCookie::Accepted);
                 let rev_router = Router::new()
                     .route("/auth/revoke", post(crate::routes::revoke_token))
                     .route("/auth/revoke-all", post(crate::routes::revoke_all_tokens))
@@ -310,10 +342,6 @@ impl Server {
         app
     }
 }
-
-/// The HS256 validator accepts a token this long past its `exp`, so a denial must outlive
-/// the token by as much.
-const HS256_LEEWAY_SECS: u64 = 60;
 
 /// Logout's access-token denial, through the configured token revocation (#1853).
 struct RevokeAccessTokens {

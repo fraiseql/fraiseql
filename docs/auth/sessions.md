@@ -11,25 +11,21 @@ ttl_secs          = 900      # each access token lives 15 minutes
 absolute_ttl_secs = 2592000  # a session can be refreshed for 30 days after sign-in
 ```
 
-Both keys are optional, and the compiler and the server's boot refuse values that could not
-work:
+`ttl_secs` is required: every sign-in FraiseQL serves itself signs its sessions with the
+[first-party issuer](first-party-issuer.md), which refuses to boot without it. The compiler
+and the server's boot refuse values that could not work:
 
 - `ttl_secs` must be at least 60.
-- `absolute_ttl_secs` must be longer than the access token's lifetime, which is `ttl_secs`, or
-  3600 when that is unset. Zero is refused for both.
+- `absolute_ttl_secs` must be longer than `ttl_secs`. Zero is refused for both.
 - Any other key is refused.
 
-## Without `[auth.session]`
-
-Nothing changes. Password, OTP and MFA sign-ins mint an access token that lives one hour; social
-and SAML sign-ins mint one that lives seven days. The session ends with its access token. No
-refresh or logout route is mounted.
+Without `absolute_ttl_secs`, the session ends with its access token, and no refresh or logout
+route is mounted.
 
 ## Access-token lifetime
 
 `ttl_secs` sets the lifetime of the access token from every sign-in path, and of every token a
-refresh mints. When only `absolute_ttl_secs` is set, every path mints one-hour access tokens,
-social and SAML included.
+refresh mints.
 
 The token validator accepts a token for **60 seconds past its `exp`**, to absorb clock drift
 between servers. An access token is therefore accepted for `ttl_secs + 60` seconds. That leeway

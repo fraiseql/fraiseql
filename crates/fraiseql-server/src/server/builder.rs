@@ -658,6 +658,9 @@ impl Server {
             if config.scim.as_ref().is_some_and(|scim| scim.enabled) {
                 surfaces.push("[scim]");
             }
+            if config.auth_issuer.is_some() {
+                surfaces.push("[auth_issuer]");
+            }
             crate::auth_database::build_auth_pool(
                 schema_auth.and_then(|auth| auth.database.as_ref()),
                 &surfaces,
@@ -679,10 +682,48 @@ impl Server {
             let validator = OidcValidator::new(auth_config.clone())
                 .await
                 .map_err(|e| ServerError::ConfigError(format!("Failed to initialize OIDC: {e}")))?;
-            Some(Arc::new(validator))
+            Some(validator)
         } else {
             None
         };
+
+        // `[auth_issuer]`: this server signs the sessions it mints with its own
+        // keys, and validates them like any issuer's, beside the external one if any.
+        #[cfg(feature = "auth")]
+        let first_party = match config.auth_issuer.as_ref() {
+            Some(issuer) => {
+                let schema_auth = executor.schema().auth.as_ref();
+                Some(Arc::new(crate::first_party::FirstPartyIssuer::new(
+                    issuer,
+                    schema_auth.and_then(|auth| auth.session.as_ref()),
+                    schema_auth
+                        .and_then(|auth| auth.local.as_ref())
+                        .is_some_and(|local| local.anonymous),
+                    auth_pool.as_ref(),
+                )?))
+            },
+            None => None,
+        };
+        #[cfg(not(feature = "auth"))]
+        if config.auth_issuer.is_some() {
+            return Err(ServerError::ConfigError(
+                "[auth_issuer] needs a build with the `auth` feature".to_string(),
+            ));
+        }
+        #[cfg(feature = "auth")]
+        let oidc_validator = match (oidc_validator, first_party.as_deref()) {
+            (validator, None) => validator,
+            (Some(validator), Some(issuer)) => {
+                Some(validator.and_issuer_keys(issuer.oidc_config(), issuer.keys()).map_err(
+                    |e| ServerError::ConfigError(format!("[auth_issuer] beside [auth]: {e}")),
+                )?)
+            },
+            (None, Some(issuer)) => Some(
+                OidcValidator::from_issuer_keys(issuer.oidc_config(), issuer.keys())
+                    .map_err(|e| ServerError::ConfigError(format!("[auth_issuer]: {e}")))?,
+            ),
+        };
+        let oidc_validator = oidc_validator.map(Arc::new);
 
         // Initialize HS256 validator if configured (mutually exclusive with OIDC).
         let hs256_auth = build_hs256_auth(&config)?;
@@ -751,7 +792,7 @@ impl Server {
 
         // Social-login state (#368): built here, where the pool is in scope.
         // The compiled `[auth.social]` block declares the providers; every
-        // configured-but-unusable shape (missing [auth_hs256], unset secret
+        // configured-but-unusable shape (missing [auth_issuer], unset secret
         // env, no pool, unreachable Google discovery) refuses to boot.
         // `[auth.session]`: how long every minted session lasts, and whether it can
         // be refreshed. The compiler runs the same check; this one covers a hand-written
@@ -775,7 +816,7 @@ impl Server {
                 Some(
                     Box::pin(Self::build_social_state(
                         social_cfg,
-                        &config,
+                        first_party.as_deref(),
                         auth_pool.clone(),
                         executor.schema().tenant_claim(),
                         session_lifetime,
@@ -798,6 +839,7 @@ impl Server {
                 Box::pin(crate::auth_local::build_local_auth_states(
                     local_cfg,
                     &config,
+                    first_party.as_deref(),
                     auth_pool.clone(),
                     executor.schema().tenant_claim(),
                     session_lifetime,
@@ -843,7 +885,7 @@ impl Server {
             #[cfg(not(feature = "auth-saml"))]
             let saml_mints = false;
             crate::auth_local::session_routes_store(
-                &config,
+                first_party.as_deref(),
                 auth_pool.as_ref(),
                 executor.schema().tenant_claim(),
                 session_lifetime,
@@ -875,7 +917,7 @@ impl Server {
 
         // SAML SP state (#381): built here, where the pool is in scope. The
         // `[saml]` section is validated by ServerConfig::validate (shape +
-        // [auth_hs256] requirement); this adds the runtime requirements — auth's
+        // [auth_issuer] requirement); this adds the runtime requirements — auth's
         // pool (sessions + account linking, in schema `auth`) and parseable IdP
         // metadata — failing loud on each.
         #[cfg(feature = "auth-saml")]
@@ -889,18 +931,16 @@ impl Server {
                             .to_string(),
                     )
                 })?;
-                let hs = config.auth_hs256.as_ref().ok_or_else(|| {
+                let issuer = first_party.as_deref().ok_or_else(|| {
                     // validate() enforces this; belt-and-braces for embedders that
                     // construct ServerConfig programmatically and skip nothing else.
-                    ServerError::ConfigError("[saml] requires [auth_hs256]".to_string())
+                    ServerError::ConfigError("[saml] requires [auth_issuer]".to_string())
                 })?;
-                let secret = hs.load_secret().map_err(ServerError::ConfigError)?;
-                // Mint sessions with the claims the configured HS256 validator
-                // demands — defaults would 401 on the first validated request.
+                // Mint sessions with the claims the issuer's validator demands — defaults
+                // would 401 on the first validated request.
                 let session_store = Arc::new(crate::auth_local::minting_session_store(
                     pool.clone(),
-                    hs,
-                    secret.into_bytes(),
+                    issuer,
                     executor.schema().tenant_claim(),
                     session_lifetime,
                 ));
@@ -1119,6 +1159,8 @@ impl Server {
             max_subscriptions_per_connection: None,
             oidc_validator,
             hs256_auth,
+            #[cfg(feature = "auth")]
+            first_party,
             rate_limiter,
             #[cfg(feature = "secrets")]
             secrets_manager: None,
@@ -1399,6 +1441,45 @@ impl Server {
         #[cfg(feature = "inbound")]
         self.spawn_inbound_dispatch_sweep(state);
         self.spawn_storage_quota_sweep(state);
+        #[cfg(feature = "auth")]
+        self.spawn_signing_key_tick();
+    }
+
+    /// Start the first-party issuer's tick (#1964) on the server's
+    /// [`JoinSet`](tokio::task::JoinSet): every [`TICK_INTERVAL`], rotate an active key past
+    /// its period, sweep keys past their publish window and re-read the ring, so this
+    /// replica stops signing with a key another one retired. The boot ran the first one.
+    /// A failed tick is logged and the next one retries; it never stops the server.
+    ///
+    /// [`TICK_INTERVAL`]: crate::first_party::TICK_INTERVAL
+    #[cfg(feature = "auth")]
+    fn spawn_signing_key_tick(&mut self) {
+        let Some(issuer) = self.first_party.clone() else {
+            return;
+        };
+        self.tasks.spawn(async move {
+            let mut tick = tokio::time::interval(crate::first_party::TICK_INTERVAL);
+            tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+            // The first tick completes at once; the boot already read the ring.
+            tick.tick().await;
+            loop {
+                tick.tick().await;
+                let outcome = match crate::first_party::unix_now() {
+                    Ok(now) => issuer.ring().tick(now).await.map_err(|e| e.to_string()),
+                    Err(e) => Err(e.to_string()),
+                };
+                if let Err(error) = outcome {
+                    tracing::error!(
+                        %error,
+                        "[auth_issuer] signing-key tick failed; the next tick retries"
+                    );
+                }
+            }
+        });
+        tracing::info!(
+            interval_secs = crate::first_party::TICK_INTERVAL.as_secs(),
+            "[auth_issuer] signing-key tick started"
+        );
     }
 
     /// Start the tenant storage-quota sweep (#633) on the server's
@@ -1622,7 +1703,7 @@ impl Server {
     ///
     /// Fail-loud on every configured-but-unusable shape, in config-first order
     /// so DB-less misconfigurations surface before the pool requirement:
-    /// missing `[auth_hs256]`, an unset provider `client_secret_env`, an
+    /// missing `[auth_issuer]`, an unset provider `client_secret_env`, an
     /// invalid provider endpoint (SSRF-guarded), an unreachable Google
     /// discovery document, and finally a missing database pool.
     ///
@@ -1633,17 +1714,17 @@ impl Server {
     #[cfg(feature = "auth")]
     async fn build_social_state(
         social: &fraiseql_core::schema::SocialAuthConfig,
-        config: &ServerConfig,
+        issuer: Option<&crate::first_party::FirstPartyIssuer>,
         db_pool: Option<sqlx::PgPool>,
         tenant_claim: &str,
         lifetime: fraiseql_auth::SessionLifetime,
     ) -> Result<Arc<fraiseql_auth::MultiProviderAuthState>> {
         use fraiseql_auth::provider::OAuthProvider;
 
-        let hs = config.auth_hs256.as_ref().ok_or_else(|| {
+        let issuer = issuer.ok_or_else(|| {
             ServerError::ConfigError(
-                "[auth.social] requires [auth_hs256]: the OAuth callback mints HS256-signed \
-                 sessions this server itself validates. Add [auth_hs256] to the server config."
+                "[auth.social] requires [auth_issuer]: the OAuth callback mints sessions this \
+                 server itself signs and validates. Add [auth_issuer] to the server config."
                     .to_string(),
             )
         })?;
@@ -1795,13 +1876,11 @@ impl Server {
             )
         })?;
 
-        let secret = hs.load_secret().map_err(ServerError::ConfigError)?;
-        // Mint sessions with the claims the configured HS256 validator demands
-        // — defaults would 401 on the first validated request.
+        // Mint sessions with the claims the issuer's validator demands — defaults would
+        // 401 on the first validated request.
         let session_store = Arc::new(crate::auth_local::minting_session_store(
             pool.clone(),
-            hs,
-            secret.into_bytes(),
+            issuer,
             tenant_claim,
             lifetime,
         ));

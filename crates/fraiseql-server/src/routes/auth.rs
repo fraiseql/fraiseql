@@ -297,6 +297,9 @@ pub struct RevokeTokenResponse {
 pub struct RevocationRouteState {
     /// Token revocation manager used to record and check revoked JTIs.
     pub revocation_manager: std::sync::Arc<crate::token_revocation::TokenRevocationManager>,
+    /// The sessions this server minted (`[auth_issuer]`): revoke-all ends them too, so
+    /// a refresh cannot mint past the epoch. `None` where this server mints none.
+    pub sessions:           Option<std::sync::Arc<dyn fraiseql_auth::SessionStore>>,
 }
 
 /// Revoke the caller's currently-authenticated session.
@@ -388,7 +391,7 @@ const REVOKE_ALL_ADMIN_SCOPE: &str = "admin";
 ///
 /// # Responses
 ///
-/// - `200` — tokens revoked.
+/// - `200` — tokens revoked, and the sessions this server minted ended.
 /// - `400` — `sub` is missing or empty.
 /// - `401` — no valid session (enforced by `oidc_auth_middleware`).
 /// - `403` — caller's `sub` does not match `body.sub` and caller lacks the admin scope.
@@ -409,6 +412,15 @@ pub async fn revoke_all_tokens(
             "Cross-user revoke-all rejected: caller is not admin"
         );
         return auth_error(StatusCode::FORBIDDEN, "Cannot revoke another user's sessions");
+    }
+
+    // Sessions first: a refresh landing between the two calls would otherwise mint a
+    // token after the epoch, which the epoch does not refuse.
+    if let Some(ref sessions) = state.sessions {
+        if let Err(e) = sessions.revoke_all_sessions(&body.sub).await {
+            tracing::error!(error = %e, sub = %body.sub, "Failed to end sessions for user");
+            return auth_error(StatusCode::INTERNAL_SERVER_ERROR, "Failed to revoke tokens");
+        }
     }
 
     match state.revocation_manager.revoke_all_for_user(&body.sub).await {
