@@ -14,12 +14,15 @@
 #![allow(clippy::unwrap_used, clippy::print_stderr)] // Reason: test code — panics/skips are fine
 #![allow(clippy::doc_markdown)] // Reason: technical terms (IdP, SCIM) throughout the docs
 
+mod common;
+
 use std::sync::Arc;
 
+use common::first_party::FirstPartyAuth;
 use fraiseql_core::{db::postgres::PostgresAdapter, schema::CompiledSchema};
 use fraiseql_server::{
     Server,
-    server_config::{ServerConfig, hs256::Hs256Config, scim::ScimServerConfig},
+    server_config::{ServerConfig, scim::ScimServerConfig},
 };
 use fraiseql_test_support::try_database_url;
 use serde_json::{Value, json};
@@ -29,10 +32,10 @@ use sqlx::PgPool;
 /// database's own URL here; `auth_database_e2e_pg` covers auth on a role of its own.
 const AUTH_URL_ENV: &str = "FRAISEQL_TEST_SCIM_PROVISIONING_AUTH_URL";
 
-const HS256_SECRET: &str = "p16-scim-hs256-secret-32-bytes!!";
-const SECRET_ENV: &str = "FRAISEQL_TEST_P16_SCIM_HS256_SECRET";
 const ADMIN_TOKEN: &str = "p16-scim-admin-token-at-least-32-chars";
 const PATCH_OP: &str = "urn:ietf:params:scim:api:messages:2.0:PatchOp";
+/// How this server signs the sessions it mints.
+const FIRST_PARTY: FirstPartyAuth = FirstPartyAuth::new("https://api.example.com", "fraiseql");
 
 fn with_database(url: &str, db: &str) -> String {
     let (base, _old) = url.rsplit_once('/').expect("database URL has a path component");
@@ -75,20 +78,15 @@ fn database_url_or_skip(test: &str) -> Option<String> {
 }
 
 fn scim_config() -> ServerConfig {
-    ServerConfig {
+    FIRST_PARTY.apply(ServerConfig {
         cors_enabled: false,
         admin_token: Some(ADMIN_TOKEN.to_string()),
         scim: Some(ScimServerConfig {
             enabled:  true,
             base_url: "/scim/v2".to_string(),
         }),
-        auth_hs256: Some(Hs256Config {
-            secret_env: SECRET_ENV.to_string(),
-            issuer:     Some("https://api.example.com".to_string()),
-            audience:   Some("fraiseql".to_string()),
-        }),
         ..ServerConfig::default()
-    }
+    })
 }
 
 fn empty_schema() -> CompiledSchema {
@@ -129,7 +127,7 @@ impl Rig {
 }
 
 async fn boot(url: &str, db: &str) -> Rig {
-    std::env::set_var(SECRET_ENV, HS256_SECRET);
+    FIRST_PARTY.set_env();
     let pool = scratch_pool(url, db).await;
     let scratch_url = with_database(url, db);
 
@@ -327,10 +325,7 @@ async fn provisioning_lifecycle_and_deactivation_over_http() {
     assert_eq!(resp.status(), 200);
 
     // A session exists, as it would after any login.
-    let sessions = fraiseql_auth::PostgresSessionStore::with_hs256_secret(
-        rig.pool.clone(),
-        HS256_SECRET.as_bytes().to_vec(),
-    );
+    let sessions = FIRST_PARTY.session_store(rig.pool.clone());
     let tokens = {
         use fraiseql_auth::SessionStore as _;
         sessions

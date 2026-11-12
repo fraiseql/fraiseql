@@ -32,15 +32,18 @@
 // substitutes — not a Rust format argument.
 #![allow(clippy::literal_string_with_formatting_args)]
 
+mod common;
+
 use std::{fmt::Write as _, sync::Arc};
 
+use common::first_party::FirstPartyAuth;
 use fraiseql_core::{
     db::postgres::PostgresAdapter,
     schema::{AuthClientConfig, CompiledSchema, LocalAuthConfig, SessionConfig, SessionTransport},
 };
 use fraiseql_server::{
     Server,
-    server_config::{AsyncOperationsConfig, ServerConfig, hs256::Hs256Config},
+    server_config::{AsyncOperationsConfig, ServerConfig},
     token_revocation::{
         InMemoryRevocationStore, RevocationError, RevocationStore, TokenRevocationManager,
     },
@@ -53,15 +56,15 @@ use sqlx::PgPool;
 /// The variable `[auth.database]` names in this suite (#1965). Auth runs on the scratch
 /// database's own URL here; `auth_database_e2e_pg` covers auth on a role of its own.
 const AUTH_URL_ENV: &str = "FRAISEQL_TEST_SESSION_REFRESH_AUTH_URL";
+/// How this server signs the sessions it mints.
+const FIRST_PARTY: FirstPartyAuth = FirstPartyAuth::new(ISSUER, AUDIENCE);
 
 fn auth_database() -> fraiseql_core::schema::AuthDatabaseConfig {
     fraiseql_core::schema::AuthDatabaseConfig::new(AUTH_URL_ENV)
 }
 
-const HS256_SECRET: &str = "session-refresh-hs256-secret-32b!";
-const HS256_SECRET_ENV: &str = "FRAISEQL_TEST_SESSION_REFRESH_HS256";
-const HS256_ISSUER: &str = "https://sp.example.com";
-const HS256_AUDIENCE: &str = "fraiseql-session-test";
+const ISSUER: &str = "https://sp.example.com";
+const AUDIENCE: &str = "fraiseql-session-test";
 const SMTP_PASSWORD_ENV: &str = "FRAISEQL_TEST_SESSION_REFRESH_SMTP_PASSWORD";
 
 /// The access-token lifetime most tests configure.
@@ -74,7 +77,7 @@ const LOGOUT: &str = "/auth/v1/session/logout";
 const PASSWORD: &str = "correct horse battery";
 
 fn set_test_env() {
-    std::env::set_var(HS256_SECRET_ENV, HS256_SECRET);
+    FIRST_PARTY.set_env();
     std::env::set_var(SMTP_PASSWORD_ENV, "unused");
 }
 
@@ -180,17 +183,12 @@ fn unreachable_mailbox()
 }
 
 fn server_config(scratch_url: &str) -> ServerConfig {
-    ServerConfig {
+    FIRST_PARTY.apply(ServerConfig {
         cors_enabled: false,
         database_url: scratch_url.to_string(),
-        auth_hs256: Some(Hs256Config {
-            secret_env: HS256_SECRET_ENV.to_string(),
-            issuer:     Some(HS256_ISSUER.to_string()),
-            audience:   Some(HS256_AUDIENCE.to_string()),
-        }),
         mailbox: unreachable_mailbox(),
         ..ServerConfig::default()
-    }
+    })
 }
 
 struct RunningServer {
@@ -326,7 +324,7 @@ fn claims(token: &str) -> Value {
         .decode(payload)
         .expect("payload decodes");
     let claims: Value = serde_json::from_slice(&bytes).expect("claims parse");
-    assert_eq!(claims["iss"].as_str(), Some(HS256_ISSUER), "{claims}");
+    assert_eq!(claims["iss"].as_str(), Some(ISSUER), "{claims}");
     claims
 }
 
@@ -928,8 +926,7 @@ async fn the_sweep_keeps_a_rotated_row_until_the_limit() {
         .bind(token_hash(token))
         .fetch_one(&pool)
     };
-    let sessions =
-        fraiseql_auth::PostgresSessionStore::with_hs256_secret(pool.clone(), HS256_SECRET.into());
+    let sessions = FIRST_PARTY.session_store(pool.clone());
 
     sessions.sweep_expired().await.expect("sweep");
     assert_eq!(rows(&first.refresh).await.unwrap(), 1, "a rotated row inside the limit stays");

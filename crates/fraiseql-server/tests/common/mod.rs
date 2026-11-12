@@ -1,6 +1,8 @@
 //! Common test utilities and helpers for integration testing
 
 pub mod database_fixture;
+#[allow(dead_code)] // Reason: each integration test binary uses only a subset of helpers
+pub mod first_party;
 pub mod graphql_executor;
 #[allow(dead_code)] // Reason: each integration test binary uses only a subset of helpers
 pub mod server_harness;

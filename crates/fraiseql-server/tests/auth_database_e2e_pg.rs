@@ -20,23 +20,21 @@
 #![allow(clippy::unwrap_used, clippy::panic, clippy::print_stderr)]
 // Reason: test code — panics and skip diagnostics are acceptable
 
+mod common;
+
 use std::{
     io::Write,
     sync::{Arc, Mutex},
 };
 
+use common::first_party::FirstPartyAuth;
 use fraiseql_core::{db::postgres::PostgresAdapter, schema::CompiledSchema};
-use fraiseql_server::{
-    Server,
-    server_config::{ServerConfig, hs256::Hs256Config},
-};
+use fraiseql_server::{Server, server_config::ServerConfig};
 use fraiseql_test_support::try_database_url;
 use sqlx::PgPool;
 
-const HS256_SECRET: &str = "u10-auth-database-hs256-secret-32";
-const HS256_SECRET_ENV: &str = "FRAISEQL_TEST_U10_HS256";
-const HS256_ISSUER: &str = "https://sp.example.com";
-const HS256_AUDIENCE: &str = "fraiseql-u10-test";
+const ISSUER: &str = "https://sp.example.com";
+const AUDIENCE: &str = "fraiseql-u10-test";
 
 /// The engine role every test boots the engine on: it can connect and create in its
 /// scratch database, and has no grant on schema `auth`.
@@ -46,9 +44,11 @@ const ENGINE_PASSWORD: &str = "fraiseql_u10_engine_password";
 /// The auth role's defaults when `AUTH_DATABASE_URL` does not supply them.
 const AUTH_ROLE: &str = "fraiseql_auth";
 const AUTH_PASSWORD: &str = "fraiseql_auth_test_password";
+/// How this server signs the sessions it mints.
+const FIRST_PARTY: FirstPartyAuth = FirstPartyAuth::new(ISSUER, AUDIENCE);
 
 fn set_test_env() {
-    std::env::set_var(HS256_SECRET_ENV, HS256_SECRET);
+    FIRST_PARTY.set_env();
 }
 
 fn database_url_or_skip(test: &str) -> Option<String> {
@@ -177,16 +177,11 @@ fn schema_without_surface(database: &serde_json::Value) -> CompiledSchema {
 }
 
 fn config(engine_url: &str) -> ServerConfig {
-    ServerConfig {
+    FIRST_PARTY.apply(ServerConfig {
         cors_enabled: false,
         database_url: engine_url.to_string(),
-        auth_hs256: Some(Hs256Config {
-            secret_env: HS256_SECRET_ENV.to_string(),
-            issuer:     Some(HS256_ISSUER.to_string()),
-            audience:   Some(HS256_AUDIENCE.to_string()),
-        }),
         ..ServerConfig::default()
-    }
+    })
 }
 
 /// Construct the server on the engine role. The error, if construction refuses.

@@ -33,37 +33,37 @@
 // the server substitutes — not Rust format arguments.
 #![allow(clippy::literal_string_with_formatting_args)]
 
+mod common;
+
 use std::sync::Arc;
 
+use common::first_party::FirstPartyAuth;
 #[cfg(feature = "inbound-email")]
 use fraiseql_auth::AccountStore as _;
 use fraiseql_core::{
     db::postgres::PostgresAdapter,
     schema::{AuthClientConfig, CompiledSchema, LocalAuthConfig},
 };
-use fraiseql_server::{
-    Server,
-    server_config::{ServerConfig, hs256::Hs256Config},
-};
+use fraiseql_server::{Server, server_config::ServerConfig};
 use fraiseql_test_support::try_database_url;
 use sqlx::PgPool;
 
 /// The variable `[auth.database]` names in this suite (#1965). Auth runs on the scratch
 /// database's own URL here; `auth_database_e2e_pg` covers auth on a role of its own.
 const AUTH_URL_ENV: &str = "FRAISEQL_TEST_LOCAL_AUTH_AUTH_URL";
+/// How this server signs the sessions it mints.
+const FIRST_PARTY: FirstPartyAuth = FirstPartyAuth::new(ISSUER, AUDIENCE);
 
 fn auth_database() -> fraiseql_core::schema::AuthDatabaseConfig {
     fraiseql_core::schema::AuthDatabaseConfig::new(AUTH_URL_ENV)
 }
 
-const HS256_SECRET: &str = "p26-local-hs256-secret-32-bytes!";
-const HS256_SECRET_ENV: &str = "FRAISEQL_TEST_P26_LOCAL_E2E_HS256";
-const HS256_ISSUER: &str = "https://sp.example.com";
-const HS256_AUDIENCE: &str = "fraiseql-local-test";
+const ISSUER: &str = "https://sp.example.com";
+const AUDIENCE: &str = "fraiseql-local-test";
 
 fn set_test_env() {
     // Fixed valid values, set unconditionally: every reader wants exactly these.
-    std::env::set_var(HS256_SECRET_ENV, HS256_SECRET);
+    FIRST_PARTY.set_env();
 }
 
 fn with_database(url: &str, db: &str) -> String {
@@ -159,19 +159,14 @@ fn unreachable_mailbox()
 }
 
 fn local_config(scratch_url: &str) -> ServerConfig {
-    ServerConfig {
+    FIRST_PARTY.apply(ServerConfig {
         // #874: production validate() refuses cors_enabled = true + empty origins.
         cors_enabled: false,
         database_url: scratch_url.to_string(),
-        auth_hs256: Some(Hs256Config {
-            secret_env: HS256_SECRET_ENV.to_string(),
-            issuer:     Some(HS256_ISSUER.to_string()),
-            audience:   Some(HS256_AUDIENCE.to_string()),
-        }),
         #[cfg(feature = "inbound-email")]
         mailbox: unreachable_mailbox(),
         ..ServerConfig::default()
-    }
+    })
 }
 
 struct RunningServer {
@@ -259,11 +254,11 @@ fn jwt_sub(token: &str) -> String {
         .decode(payload)
         .expect("payload decodes");
     let claims: serde_json::Value = serde_json::from_slice(&bytes).expect("claims parse");
-    assert_eq!(claims["iss"].as_str(), Some(HS256_ISSUER), "{claims}");
+    assert_eq!(claims["iss"].as_str(), Some(ISSUER), "{claims}");
     assert!(
         claims["aud"]
             .as_array()
-            .is_some_and(|a| a.iter().any(|v| v.as_str() == Some(HS256_AUDIENCE))),
+            .is_some_and(|a| a.iter().any(|v| v.as_str() == Some(AUDIENCE))),
         "{claims}"
     );
     claims["sub"].as_str().expect("sub claim").to_string()
@@ -288,15 +283,10 @@ async fn post_json(
 /// A session access token for `user_id`, signed as this server signs its own.
 fn session_for(user_id: &str) -> String {
     let now = chrono::Utc::now().timestamp();
-    jsonwebtoken::encode(
-        &jsonwebtoken::Header::new(jsonwebtoken::Algorithm::HS256),
-        &serde_json::json!({
-            "sub": user_id, "iss": HS256_ISSUER, "aud": [HS256_AUDIENCE],
-            "iat": now, "exp": now + 3600, "jti": format!("test-{user_id}-{now}"),
-        }),
-        &jsonwebtoken::EncodingKey::from_secret(HS256_SECRET.as_bytes()),
-    )
-    .expect("sign a session token")
+    FIRST_PARTY.sign(&serde_json::json!({
+        "sub": user_id, "iss": ISSUER, "aud": [AUDIENCE],
+        "iat": now, "exp": now + 3600, "jti": format!("test-{user_id}-{now}"),
+    }))
 }
 
 /// The challenge a sign-in of `user_id` earns, from where every sign-in path mints its
@@ -304,8 +294,7 @@ fn session_for(user_id: &str) -> String {
 async fn challenge_for(pool: &PgPool, user_id: &str) -> String {
     use fraiseql_auth::SessionStore as _;
 
-    let sessions =
-        fraiseql_auth::PostgresSessionStore::with_hs256_secret(pool.clone(), HS256_SECRET.into());
+    let sessions = FIRST_PARTY.session_store(pool.clone());
     match sessions.create_session(user_id, u64::MAX / 2).await {
         Err(fraiseql_auth::AuthError::SecondFactorRequired { challenge }) => {
             challenge.expose().to_string()
@@ -1788,13 +1777,10 @@ async fn a_session_replaces_a_confirmed_enrollment_only_with_a_current_code() {
     assert_eq!(status, reqwest::StatusCode::OK, "a current code replaces it: {body}");
 
     // A token this server did not sign is no session.
-    let forged = jsonwebtoken::encode(
-        &jsonwebtoken::Header::new(jsonwebtoken::Algorithm::HS256),
-        &serde_json::json!({ "sub": user, "iss": HS256_ISSUER, "aud": [HS256_AUDIENCE],
-                             "exp": chrono::Utc::now().timestamp() + 3600 }),
-        &jsonwebtoken::EncodingKey::from_secret(b"not-this-servers-secret-32-bytes"),
-    )
-    .unwrap();
+    let forged = FIRST_PARTY.sign_foreign(&serde_json::json!({
+        "sub": user, "iss": ISSUER, "aud": [AUDIENCE],
+        "exp": chrono::Utc::now().timestamp() + 3600,
+    }));
     let (status, _) = post_json_as(
         &server.base,
         "/auth/v1/mfa/unenroll",

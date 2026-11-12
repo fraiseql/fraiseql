@@ -17,14 +17,16 @@
 #![cfg(feature = "auth-saml")]
 #![allow(clippy::unwrap_used, clippy::panic, clippy::print_stderr)] // Reason: test code — panics and skip diagnostics are acceptable
 
+mod common;
+
 use std::sync::Arc;
 
+use common::first_party::FirstPartyAuth;
 use fraiseql_core::{db::postgres::PostgresAdapter, schema::CompiledSchema};
 use fraiseql_server::{
     Server,
     server_config::{
         ServerConfig,
-        hs256::Hs256Config,
         saml::{SamlIdpEntry, SamlServerConfig, SamlSpKeyConfig},
     },
 };
@@ -37,15 +39,14 @@ use sqlx::PgPool;
 const AUTH_URL_ENV: &str = "FRAISEQL_TEST_SAML_MOUNT_AUTH_URL";
 
 const IDP_ENTITY: &str = "https://idp.example.com";
-/// 32 bytes, base64-safe — the HS256 secret handed over via env.
-const HS256_SECRET: &str = "p26-saml-hs256-secret-32-bytes!!";
-const SECRET_ENV: &str = "FRAISEQL_TEST_P26_SAML_HS256_SECRET";
 /// Admin bearer token gating `/api/saml/idps` in the #947 store tests.
 const ADMIN_TOKEN: &str = "p16-saml-idp-admin-token-at-least-32-chars";
 const TENANT_A: &str = "11111111-1111-4111-8111-111111111111";
 const TENANT_B: &str = "22222222-2222-4222-8222-222222222222";
 /// Env var carrying the SP private key in the #948 signing test.
 const SP_KEY_ENV: &str = "FRAISEQL_TEST_P16_SAML_SP_KEY";
+/// How this server signs the sessions it mints.
+const FIRST_PARTY: FirstPartyAuth = FirstPartyAuth::new("https://sp.example.com", "fraiseql");
 
 fn with_database(url: &str, db: &str) -> String {
     let (base, _old) = url.rsplit_once('/').expect("database URL has a path component");
@@ -129,7 +130,7 @@ fn saml_config(metadata_xml: String) -> ServerConfig {
             trust_asserted_email: false,
         },
     );
-    ServerConfig {
+    FIRST_PARTY.apply(ServerConfig {
         // #874: production validate() refuses cors_enabled=true + empty origins
         cors_enabled: false,
         saml: Some(SamlServerConfig {
@@ -139,13 +140,8 @@ fn saml_config(metadata_xml: String) -> ServerConfig {
             certificate_expiry_warning_days: 30,
             sp: None,
         }),
-        auth_hs256: Some(Hs256Config {
-            secret_env: SECRET_ENV.to_string(),
-            issuer:     Some("https://sp.example.com".to_string()),
-            audience:   Some("fraiseql".to_string()),
-        }),
         ..ServerConfig::default()
-    }
+    })
 }
 
 fn empty_schema() -> CompiledSchema {
@@ -167,7 +163,7 @@ async fn login_redirects_to_the_idp_and_unknown_idp_is_refused() {
     // Env var must exist before construction loads the secret. A fixed valid
     // value, set unconditionally: safe under the parallel runner because every
     // reader wants exactly this value.
-    std::env::set_var(SECRET_ENV, HS256_SECRET);
+    FIRST_PARTY.set_env();
 
     let db = "fraiseql_p26_saml_login";
     let pool = scratch_pool(&url, db).await;
@@ -246,7 +242,7 @@ async fn login_redirects_to_the_idp_and_unknown_idp_is_refused() {
 /// A `[saml]` deployment with the per-tenant store on, no config-file `IdPs`, and an admin
 /// token — the multi-tenant shape #947 adds.
 fn store_config() -> ServerConfig {
-    ServerConfig {
+    FIRST_PARTY.apply(ServerConfig {
         cors_enabled: false,
         admin_token: Some(ADMIN_TOKEN.to_string()),
         saml: Some(SamlServerConfig {
@@ -256,13 +252,8 @@ fn store_config() -> ServerConfig {
             certificate_expiry_warning_days: 30,
             sp: None,
         }),
-        auth_hs256: Some(Hs256Config {
-            secret_env: SECRET_ENV.to_string(),
-            issuer:     Some("https://sp.example.com".to_string()),
-            audience:   Some("fraiseql".to_string()),
-        }),
         ..ServerConfig::default()
-    }
+    })
 }
 
 /// #947, the operator's path: manage `IdPs` over the admin API on a running server and watch
@@ -272,7 +263,7 @@ async fn stored_idps_are_managed_over_http_and_served_scoped_by_tenant() {
     let Some(url) = database_url_or_skip("stored_idps_are_managed_over_http") else {
         return;
     };
-    std::env::set_var(SECRET_ENV, HS256_SECRET);
+    FIRST_PARTY.set_env();
 
     let db = "fraiseql_p16_saml_idp_store";
     let pool = scratch_pool(&url, db).await;
@@ -410,7 +401,7 @@ async fn configured_but_broken_shapes_refuse_to_boot() {
     let Some(url) = database_url_or_skip("configured_but_broken_shapes") else {
         return;
     };
-    std::env::set_var(SECRET_ENV, HS256_SECRET);
+    FIRST_PARTY.set_env();
 
     let db = "fraiseql_p26_saml_refuse";
     let pool = scratch_pool(&url, db).await;
@@ -457,7 +448,7 @@ async fn a_config_file_idp_tenant_must_be_a_uuid_and_is_honoured() {
     let Some(url) = database_url_or_skip("config_file_idp_tenant") else {
         return;
     };
-    std::env::set_var(SECRET_ENV, HS256_SECRET);
+    FIRST_PARTY.set_env();
     let db = "fraiseql_saml_config_tenant";
     let pool = scratch_pool(&url, db).await;
     let scratch_url = with_database(&url, db);
@@ -530,7 +521,7 @@ async fn sp_key_pair_signs_requests_and_publishes_metadata() {
     let Some(url) = database_url_or_skip("sp_key_pair_signs_requests") else {
         return;
     };
-    std::env::set_var(SECRET_ENV, HS256_SECRET);
+    FIRST_PARTY.set_env();
 
     // A real SP key pair, handed over the way an operator would: key via env, cert inline.
     let (key_pem, cert_pem, cert_der) = sp_key_pair();
@@ -626,7 +617,7 @@ async fn an_unreadable_sp_key_refuses_to_boot() {
     let Some(url) = database_url_or_skip("an_unreadable_sp_key") else {
         return;
     };
-    std::env::set_var(SECRET_ENV, HS256_SECRET);
+    FIRST_PARTY.set_env();
 
     let db = "fraiseql_p16_saml_sp_refuse";
     let pool = scratch_pool(&url, db).await;
@@ -716,7 +707,7 @@ async fn an_unreadable_idp_store_refuses_to_serve() {
     let Some(url) = database_url_or_skip("an_unreadable_idp_store_refuses_to_serve") else {
         return;
     };
-    std::env::set_var(SECRET_ENV, HS256_SECRET);
+    FIRST_PARTY.set_env();
 
     let db = "fraiseql_saml_idp_store_unreadable";
     let pool = scratch_pool(&url, db).await;
@@ -787,7 +778,7 @@ async fn an_idp_stored_before_boot_serves_from_the_first_request() {
     let Some(url) = database_url_or_skip("an_idp_stored_before_boot_serves") else {
         return;
     };
-    std::env::set_var(SECRET_ENV, HS256_SECRET);
+    FIRST_PARTY.set_env();
 
     let db = "fraiseql_saml_idp_stored_before_boot";
     let pool = scratch_pool(&url, db).await;

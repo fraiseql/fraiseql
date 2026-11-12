@@ -36,6 +36,8 @@
 #![cfg(feature = "auth")]
 #![allow(clippy::unwrap_used, clippy::panic, clippy::print_stderr)] // Reason: test code — panics and skip diagnostics are acceptable
 
+mod common;
+
 use std::sync::{
     Arc,
     atomic::{AtomicUsize, Ordering},
@@ -47,25 +49,23 @@ use axum::{
     response::IntoResponse,
     routing::{get, post},
 };
+use common::first_party::FirstPartyAuth;
 use fraiseql_auth::AccountStore as _;
 use fraiseql_core::{db::postgres::PostgresAdapter, schema::CompiledSchema};
-use fraiseql_server::{
-    Server,
-    server_config::{ServerConfig, hs256::Hs256Config},
-};
+use fraiseql_server::{Server, server_config::ServerConfig};
 use fraiseql_test_support::try_database_url;
 use sqlx::PgPool;
 
 /// The variable `[auth.database]` names in this suite (#1965). Auth runs on the scratch
 /// database's own URL here; `auth_database_e2e_pg` covers auth on a role of its own.
 const AUTH_URL_ENV: &str = "FRAISEQL_TEST_SOCIAL_OAUTH_AUTH_URL";
+/// How this server signs the sessions it mints.
+const FIRST_PARTY: FirstPartyAuth = FirstPartyAuth::new(ISSUER, AUDIENCE);
 
 fn auth_database() -> fraiseql_core::schema::AuthDatabaseConfig {
     fraiseql_core::schema::AuthDatabaseConfig::new(AUTH_URL_ENV)
 }
 
-const HS256_SECRET: &str = "p26-social-hs256-secret-32bytes!";
-const HS256_SECRET_ENV: &str = "FRAISEQL_TEST_P26_SOCIAL_E2E_HS256";
 const GOOGLE_SECRET_ENV: &str = "FRAISEQL_TEST_P26_SOCIAL_E2E_GOOGLE";
 const GITHUB_SECRET_ENV: &str = "FRAISEQL_TEST_P26_SOCIAL_E2E_GITHUB";
 const APPLE_KEY_ENV: &str = "FRAISEQL_TEST_P26_SOCIAL_E2E_APPLE_P8";
@@ -105,7 +105,7 @@ const TEST_P8: &str = "-----BEGIN PRIVATE KEY-----\n\
 fn set_test_env() {
     std::env::set_var("FRAISEQL_ENV", "development");
     std::env::set_var("FRAISEQL_OIDC_ALLOW_INSECURE", "1");
-    std::env::set_var(HS256_SECRET_ENV, HS256_SECRET);
+    FIRST_PARTY.set_env();
     std::env::set_var(GOOGLE_SECRET_ENV, "google-client-secret");
     std::env::set_var(GITHUB_SECRET_ENV, "github-client-secret");
     std::env::set_var(APPLE_KEY_ENV, TEST_P8);
@@ -444,20 +444,15 @@ fn social_schema(stub_base: &str) -> CompiledSchema {
 /// claims assertion below catches a mint/validate mismatch: a session minted
 /// with claims the configured validator rejects is a login that "succeeds" and
 /// then 401s on every request.
-const HS256_ISSUER: &str = "https://sp.example.com";
-const HS256_AUDIENCE: &str = "fraiseql-api-test-audience";
+const ISSUER: &str = "https://sp.example.com";
+const AUDIENCE: &str = "fraiseql-api-test-audience";
 
 fn social_config(scratch_url: &str) -> ServerConfig {
-    ServerConfig {
+    FIRST_PARTY.apply(ServerConfig {
         cors_enabled: false,
         database_url: scratch_url.to_string(),
-        auth_hs256: Some(Hs256Config {
-            secret_env: HS256_SECRET_ENV.to_string(),
-            issuer:     Some(HS256_ISSUER.to_string()),
-            audience:   Some(HS256_AUDIENCE.to_string()),
-        }),
         ..ServerConfig::default()
-    }
+    })
 }
 
 /// Boot the server on an ephemeral port; returns (base URL, shutdown sender, join handle).
@@ -519,13 +514,13 @@ fn jwt_sub(token: &str) -> String {
     let claims = jwt_claims(token);
     assert_eq!(
         claims["iss"].as_str(),
-        Some(HS256_ISSUER),
+        Some(ISSUER),
         "minted session must carry the configured issuer: {claims}"
     );
     assert!(
         claims["aud"]
             .as_array()
-            .is_some_and(|a| a.iter().any(|v| v.as_str() == Some(HS256_AUDIENCE))),
+            .is_some_and(|a| a.iter().any(|v| v.as_str() == Some(AUDIENCE))),
         "minted session must carry the configured audience: {claims}"
     );
     claims["sub"].as_str().expect("sub claim").to_string()

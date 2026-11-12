@@ -20,12 +20,15 @@
 #![allow(clippy::unwrap_used, clippy::print_stderr, clippy::print_stdout)] // Reason: test code
 #![allow(clippy::doc_markdown)] // Reason: technical terms (IdP, SCIM) throughout the docs
 
+mod common;
+
 use std::sync::Arc;
 
+use common::first_party::FirstPartyAuth;
 use fraiseql_core::{db::postgres::PostgresAdapter, schema::CompiledSchema};
 use fraiseql_server::{
     Server,
-    server_config::{ServerConfig, hs256::Hs256Config, scim::ScimServerConfig},
+    server_config::{ServerConfig, scim::ScimServerConfig},
 };
 use fraiseql_test_support::try_database_url;
 use serde_json::{Value, json};
@@ -35,8 +38,6 @@ use sqlx::PgPool;
 /// database's own URL here; `auth_database_e2e_pg` covers auth on a role of its own.
 const AUTH_URL_ENV: &str = "FRAISEQL_TEST_SCIM_CONFORMANCE_AUTH_URL";
 
-const HS256_SECRET: &str = "p16-scim-conf-hs256-secret-32byt";
-const SECRET_ENV: &str = "FRAISEQL_TEST_P16_SCIM_CONF_SECRET";
 const ADMIN_TOKEN: &str = "p16-scim-conformance-admin-token";
 /// Interpreter with `scim2-tester` installed. The Dagger leg sets it; locally, `uv venv
 /// --python 3.11 .scim && uv pip install --python .scim/bin/python -r
@@ -45,6 +46,8 @@ const ADMIN_TOKEN: &str = "p16-scim-conformance-admin-token";
 /// releases that say nothing about FraiseQL.
 const TESTER_PYTHON_ENV: &str = "FRAISEQL_SCIM_TESTER_PYTHON";
 const DB: &str = "fraiseql_p16_scim_conformance";
+/// How this server signs the sessions it mints.
+const FIRST_PARTY: FirstPartyAuth = FirstPartyAuth::new("https://api.example.com", "fraiseql");
 
 #[tokio::test]
 async fn third_party_scim_client_finds_the_surface_conformant() {
@@ -57,7 +60,7 @@ async fn third_party_scim_client_finds_the_surface_conformant() {
         return;
     };
 
-    std::env::set_var(SECRET_ENV, HS256_SECRET);
+    FIRST_PARTY.set_env();
     let (base, _url) = url.rsplit_once('/').expect("database URL has a path component");
     let scratch_url = format!("{base}/{DB}");
 
@@ -74,7 +77,7 @@ async fn third_party_scim_client_finds_the_surface_conformant() {
     std::env::set_var(AUTH_URL_ENV, &scratch_url);
     let pool = PgPool::connect(&scratch_url).await.expect("connect to scratch database");
 
-    let config = ServerConfig {
+    let config = FIRST_PARTY.apply(ServerConfig {
         cors_enabled: false,
         admin_token: Some(ADMIN_TOKEN.to_string()),
         database_url: scratch_url.clone(),
@@ -82,13 +85,8 @@ async fn third_party_scim_client_finds_the_surface_conformant() {
             enabled:  true,
             base_url: "/scim/v2".to_string(),
         }),
-        auth_hs256: Some(Hs256Config {
-            secret_env: SECRET_ENV.to_string(),
-            issuer:     Some("https://api.example.com".to_string()),
-            audience:   Some("fraiseql".to_string()),
-        }),
         ..ServerConfig::default()
-    };
+    });
 
     let adapter = Arc::new(PostgresAdapter::new(&scratch_url).await.expect("PostgresAdapter::new"));
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.expect("bind ephemeral port");

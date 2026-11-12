@@ -17,10 +17,13 @@
 #![cfg(feature = "auth-saml")]
 #![allow(clippy::unwrap_used, clippy::panic, clippy::print_stderr)] // Reason: test code — panics and skip diagnostics are acceptable
 
+mod common;
+
 use std::{io::Read as _, sync::Arc};
 
 use base64::Engine as _;
 use chrono::{Duration, Utc};
+use common::first_party::FirstPartyAuth;
 use fraiseql_core::{
     db::postgres::PostgresAdapter,
     schema::{AuthClientConfig, CompiledSchema, SessionConfig},
@@ -29,7 +32,6 @@ use fraiseql_server::{
     Server,
     server_config::{
         ServerConfig,
-        hs256::Hs256Config,
         saml::{SamlIdpEntry, SamlServerConfig},
     },
 };
@@ -49,6 +51,8 @@ use sqlx::PgPool;
 /// The variable `[auth.database]` names in this suite (#1965). Auth runs on the scratch
 /// database's own URL here; `auth_database_e2e_pg` covers auth on a role of its own.
 const AUTH_URL_ENV: &str = "FRAISEQL_TEST_SAML_ACS_AUTH_URL";
+/// How this server signs the sessions it mints.
+const FIRST_PARTY: FirstPartyAuth = FirstPartyAuth::new(ISSUER, AUDIENCE);
 
 fn auth_database() -> fraiseql_core::schema::AuthDatabaseConfig {
     fraiseql_core::schema::AuthDatabaseConfig::new(AUTH_URL_ENV)
@@ -60,9 +64,6 @@ const SP_ACS: &str = "https://sp.example.com/auth/saml/acs";
 const ISSUER: &str = "https://sp.example.com";
 const AUDIENCE: &str = "fraiseql";
 const TENANT: &str = "33333333-3333-4333-8333-333333333333";
-/// 32 bytes, base64-safe — the HS256 secret handed over via env.
-const HS256_SECRET: &str = "saml-acs-hs256-secret-32-bytes!!";
-const SECRET_ENV: &str = "FRAISEQL_TEST_SAML_ACS_HS256_SECRET";
 
 fn with_database(url: &str, db: &str) -> String {
     let (base, _old) = url.rsplit_once('/').expect("database URL has a path component");
@@ -198,7 +199,7 @@ fn saml_config(idp: &SigningIdp, database_url: &str) -> ServerConfig {
             trust_asserted_email: false,
         },
     );
-    ServerConfig {
+    FIRST_PARTY.apply(ServerConfig {
         // #874: production validate() refuses cors_enabled=true + empty origins
         cors_enabled: false,
         database_url: database_url.to_string(),
@@ -209,13 +210,8 @@ fn saml_config(idp: &SigningIdp, database_url: &str) -> ServerConfig {
             certificate_expiry_warning_days: 30,
             sp: None,
         }),
-        auth_hs256: Some(Hs256Config {
-            secret_env: SECRET_ENV.to_string(),
-            issuer:     Some(ISSUER.to_string()),
-            audience:   Some(AUDIENCE.to_string()),
-        }),
         ..ServerConfig::default()
-    }
+    })
 }
 
 /// A schema with no types, and `[auth.session]` as given.
@@ -265,7 +261,7 @@ async fn boot(url: &str, db: &str, idp: &SigningIdp, schema: CompiledSchema) -> 
     // Env var must exist before construction loads the secret. A fixed valid
     // value, set unconditionally: safe under the parallel runner because every
     // reader wants exactly this value.
-    std::env::set_var(SECRET_ENV, HS256_SECRET);
+    FIRST_PARTY.set_env();
     let pool = scratch_pool(url, db).await;
     let scratch_url = with_database(url, db);
     let adapter = Arc::new(PostgresAdapter::new(&scratch_url).await.expect("PostgresAdapter::new"));
@@ -516,7 +512,7 @@ async fn a_saml_sign_in_runs_on_the_auth_role() {
     let Some(url) = database_url_or_skip("a_saml_sign_in_runs_on_the_auth_role") else {
         return;
     };
-    std::env::set_var(SECRET_ENV, HS256_SECRET);
+    FIRST_PARTY.set_env();
     let db = "fraiseql_saml_acs_two_roles";
     let pool = scratch_pool(&url, db).await;
     let (auth_role, auth_password) = auth_credentials();

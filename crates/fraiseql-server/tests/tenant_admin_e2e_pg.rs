@@ -16,14 +16,15 @@
 #![allow(clippy::unwrap_used, clippy::print_stderr)] // Reason: test code — panics/skips are fine
 #![allow(clippy::doc_markdown)] // Reason: technical terms (IdP, SCIM, RBAC) throughout
 
+mod common;
+
 use std::sync::Arc;
 
+use common::first_party::FirstPartyAuth;
 use fraiseql_core::{db::postgres::PostgresAdapter, schema::CompiledSchema};
 use fraiseql_server::{
     Server,
-    server_config::{
-        ServerConfig, hs256::Hs256Config, saml::SamlServerConfig, scim::ScimServerConfig,
-    },
+    server_config::{ServerConfig, saml::SamlServerConfig, scim::ScimServerConfig},
 };
 use fraiseql_test_support::try_database_url;
 use reqwest::{Method, StatusCode};
@@ -36,11 +37,11 @@ use sqlx::PgPool;
 const AUTH_URL_ENV: &str = "FRAISEQL_TEST_TENANT_ADMIN_AUTH_URL";
 
 const ADMIN_TOKEN: &str = "tenant-admin-e2e-platform-token-32-chars";
-const HS256_SECRET: &str = "tenant-admin-e2e-hs256-secret-32b";
-const SECRET_ENV: &str = "FRAISEQL_TEST_TENANT_ADMIN_HS256_SECRET";
 const TENANT_A: &str = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const TENANT_B: &str = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 const IDP_ENTITY: &str = "https://idp.example.com";
+/// How this server signs the sessions it mints.
+const FIRST_PARTY: FirstPartyAuth = FirstPartyAuth::new("https://sp.example.com", "fraiseql");
 
 fn with_database(url: &str, db: &str) -> String {
     let (base, _old) = url.rsplit_once('/').expect("database URL has a path component");
@@ -131,10 +132,10 @@ impl Rig {
             eprintln!("SKIP {test}: DATABASE_URL not set");
             return None;
         };
-        std::env::set_var(SECRET_ENV, HS256_SECRET);
+        FIRST_PARTY.set_env();
         let pool = scratch_pool(&url, db).await;
         let scratch_url = with_database(&url, db);
-        let config = ServerConfig {
+        let config = FIRST_PARTY.apply(ServerConfig {
             cors_enabled: false,
             admin_token: Some(ADMIN_TOKEN.to_string()),
             database_url: scratch_url.clone(),
@@ -149,13 +150,8 @@ impl Rig {
                 enabled:  true,
                 base_url: "/scim/v2".to_string(),
             }),
-            auth_hs256: Some(Hs256Config {
-                secret_env: SECRET_ENV.to_string(),
-                issuer:     Some("https://sp.example.com".to_string()),
-                audience:   Some("fraiseql".to_string()),
-            }),
             ..ServerConfig::default()
-        };
+        });
         let adapter = Arc::new(PostgresAdapter::new(&scratch_url).await.expect("adapter"));
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.expect("bind");
         let port = listener.local_addr().expect("local addr").port();
