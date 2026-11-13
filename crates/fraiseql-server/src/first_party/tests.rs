@@ -228,3 +228,69 @@ fn only_key_ring_builds_the_servers_key_ring() {
     builders.sort();
     assert_eq!(builders, vec![std::path::PathBuf::from("src/first_party/mod.rs")]);
 }
+
+fn auth_database(url_env: &str) -> fraiseql_core::schema::AuthDatabaseConfig {
+    fraiseql_core::schema::AuthDatabaseConfig {
+        url_env:              url_env.to_string(),
+        pool_min:             None,
+        pool_max:             None,
+        acquire_timeout_secs: None,
+    }
+}
+
+/// `signing_key_store`'s refusal, with the key-encryption key in `kek_env` set to `kek`.
+fn store_refusal(
+    database: Option<&fraiseql_core::schema::AuthDatabaseConfig>,
+    kek_env: &str,
+    kek: Option<&str>,
+) -> String {
+    temp_env::with_vars(
+        [
+            (kek_env, kek),
+            ("FRAISEQL_TEST_ROTATE_AUTH_URL", Some("postgres://u:pw@127.0.0.1:1/db")),
+        ],
+        || {
+            let config = crate::server_config::IssuerConfig {
+                key_encryption_key_env: kek_env.to_string(),
+                ..issuer_config()
+            };
+            match super::signing_key_store(&config, database) {
+                Ok(_) => "built".to_string(),
+                Err(e) => e.to_string(),
+            }
+        },
+    )
+}
+
+#[tokio::test]
+async fn the_rotation_store_needs_the_auth_database() {
+    let message = store_refusal(None, "FRAISEQL_TEST_ROTATE_KEK_A", Some(&"07".repeat(32)));
+    assert!(message.contains("[auth.database]"), "{message}");
+}
+
+#[tokio::test]
+async fn the_rotation_store_names_an_unset_key_encryption_key_variable() {
+    let database = auth_database("FRAISEQL_TEST_ROTATE_AUTH_URL");
+    let message = store_refusal(Some(&database), "FRAISEQL_TEST_ROTATE_KEK_B", None);
+    assert!(message.contains("FRAISEQL_TEST_ROTATE_KEK_B"), "{message}");
+}
+
+#[tokio::test]
+async fn the_rotation_store_never_quotes_a_key_encryption_key_it_refuses() {
+    let database = auth_database("FRAISEQL_TEST_ROTATE_AUTH_URL");
+    let message = store_refusal(
+        Some(&database),
+        "FRAISEQL_TEST_ROTATE_KEK_C",
+        Some("not-hex-capability-fixture-kek"),
+    );
+    assert!(message.contains("FRAISEQL_TEST_ROTATE_KEK_C"), "{message}");
+    assert!(!message.contains("capability-fixture-kek"), "{message}");
+}
+
+#[tokio::test]
+async fn the_rotation_store_is_built_from_the_auth_database_and_the_key() {
+    let database = auth_database("FRAISEQL_TEST_ROTATE_AUTH_URL");
+    let message =
+        store_refusal(Some(&database), "FRAISEQL_TEST_ROTATE_KEK_D", Some(&"07".repeat(32)));
+    assert_eq!(message, "built");
+}

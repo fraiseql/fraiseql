@@ -339,7 +339,7 @@ async fn rotate(pool: &PgPool) -> String {
         .expect("a 32-byte key-encryption key");
     let store = fraiseql_auth::PgSigningKeyStore::new(pool.clone(), Arc::new(wrap));
     let now = fraiseql_server::first_party::unix_now().expect("the clock");
-    store.rotate(now).await.expect("rotate")
+    store.rotate(now).await.expect("rotate").active
 }
 
 /// A token for `sub` signed with the ring's active key, as the server would sign it.

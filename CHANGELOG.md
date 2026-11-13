@@ -313,6 +313,16 @@ disagreed, and the promise was the part that was wrong.
 
 ### Added
 
+- **`fraiseql auth rotate-signing-key` rotates the first-party issuer's key by hand
+  (#1964).** It retires the active key and activates a new one, reading what the server
+  reads: `[auth_issuer]` from the server configuration file (`--config` or
+  `FRAISEQL_CONFIG`), `[auth.database]` from the project, and the database URL and the
+  key-encryption key from the variables those name. It prints both `kid`s, refuses a
+  key-encryption key that does not open the active key, and never creates the ring.
+  `PgSigningKeyStore::rotate` returns a `Rotation` naming both keys, and
+  `fraiseql_server::first_party::signing_key_store` builds the store as the server does.
+  Behind the CLI's `run-server` feature. See `docs/auth/first-party-issuer.md`.
+
 - **The first-party issuer publishes its keys (#1964).** `GET
   /.well-known/openid-configuration` and `GET /.well-known/jwks.json` serve its discovery
   document and the public halves of its active and still-valid retired keys, so a service

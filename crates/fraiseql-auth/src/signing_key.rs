@@ -65,6 +65,9 @@ pub const DEFAULT_KEK_ENV: &str = "FRAISEQL_AUTH_SIGNING_KEK";
 /// How old the active key may get before it is replaced: 30 days.
 pub const ROTATION_PERIOD_SECS: u64 = 30 * 24 * 60 * 60;
 
+/// PostgreSQL's `undefined_table`.
+const UNDEFINED_TABLE: &str = "42P01";
+
 /// The one lock every change to the ring takes, so two replicas rotating at once leave
 /// one active key between them. An arbitrary constant; it only has to be this one.
 const RING_LOCK: i64 = 0x6672_6169_7365_6b72; // "fraisekr"
@@ -327,7 +330,7 @@ impl PgSigningKeyStore {
     }
 
     /// Retire the active key at `now` and activate a new one, whatever their ages.
-    /// Returns the new key's `kid`.
+    /// Returns both keys' `kid`s.
     ///
     /// It first opens the active key with this store's [`KeyWrap`]: a store holding
     /// another key-encryption key would seal the new key under it, and no server could
@@ -337,7 +340,7 @@ impl PgSigningKeyStore {
     ///
     /// [`AuthError::ConfigError`] when the ring has no active key, the [`KeyWrap`]'s error
     /// when the active key does not open, and as [`Self::ensure_active`].
-    pub async fn rotate(&self, now: u64) -> Result<String> {
+    pub async fn rotate(&self, now: u64) -> Result<Rotation> {
         let mut tx = self.db.begin().await.map_err(|e| db_error("begin a key change", &e))?;
         lock_ring(&mut tx).await?;
         let active = self.active(&mut tx).await?.ok_or_else(|| AuthError::ConfigError {
@@ -348,7 +351,10 @@ impl PgSigningKeyStore {
         self.open_active(&active)?;
         let kid = self.replace_active(&mut tx, now).await?;
         tx.commit().await.map_err(|e| db_error("commit a key change", &e))?;
-        Ok(kid)
+        Ok(Rotation {
+            retired: active.kid,
+            active:  kid,
+        })
     }
 
     /// The active key's row, inside `tx`.
@@ -362,7 +368,14 @@ impl PgSigningKeyStore {
         )
         .fetch_optional(&mut **tx)
         .await
-        .map_err(|e| db_error("read the active signing key", &e))?;
+        .map_err(|e| match e.as_database_error().and_then(|db| db.code()) {
+            Some(code) if code == UNDEFINED_TABLE => AuthError::ConfigError {
+                message: "auth.signing_key does not exist: a server with [auth_issuer] \
+                          creates it when it boots"
+                    .to_string(),
+            },
+            _ => db_error("read the active signing key", &e),
+        })?;
         Ok(row.map(|row| ActiveRow {
             kid:        row.get("kid"),
             sealed:     row.get("private_key_enc"),
@@ -461,6 +474,15 @@ impl PgSigningKeyStore {
         .rows_affected();
         Ok(swept)
     }
+}
+
+/// What [`PgSigningKeyStore::rotate`] did.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Rotation {
+    /// The `kid` of the key it retired, which stays published for its window.
+    pub retired: String,
+    /// The `kid` of the key it activated.
+    pub active:  String,
 }
 
 /// The active key's row, as a change to the ring reads it.

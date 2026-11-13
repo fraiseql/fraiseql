@@ -339,6 +339,39 @@ async fn a_rotation_of_a_ring_with_no_active_key_is_refused() {
     assert!(keys(&pool).await.is_empty());
 }
 
+#[tokio::test]
+async fn a_rotation_names_the_key_it_retired_and_the_one_it_activated() {
+    let pool = pool_or_skip!();
+    let first = store(&pool).ensure_active(T0).await.unwrap().unwrap();
+
+    let rotation = store(&pool).rotate(T0 + 1).await.unwrap();
+    assert_eq!(rotation.retired, first);
+    assert_eq!(
+        keys(&pool).await,
+        {
+            let mut expected = vec![
+                (first, Some(i64::try_from(T0 + 1).unwrap())),
+                (rotation.active, None),
+            ];
+            expected.sort();
+            expected
+        },
+        "the named keys are the table's"
+    );
+}
+
+#[tokio::test]
+async fn a_rotation_where_the_table_does_not_exist_says_a_server_creates_it() {
+    let pool = pool_or_skip!();
+    sqlx::query("DROP TABLE auth.signing_key").execute(&pool).await.unwrap();
+
+    let refusal = store(&pool).rotate(T0).await.unwrap_err();
+    assert!(
+        matches!(&refusal, AuthError::ConfigError { message } if message.contains("[auth_issuer]")),
+        "{refusal:?}"
+    );
+}
+
 mod live {
     use std::time::Duration;
 
@@ -390,7 +423,7 @@ mod live {
     async fn a_key_another_replica_rotated_in_is_found_on_first_sight() {
         let pool = pool_or_skip!();
         let ring = live(&pool, AN_HOUR).await;
-        let rotated = store(&pool).rotate(T0 + 1).await.unwrap();
+        let rotated = store(&pool).rotate(T0 + 1).await.unwrap().active;
 
         let found = ring.published_key(&rotated, T0 + 1).await.unwrap();
         assert_eq!(found.and_then(|jwk| jwk["kid"].as_str().map(str::to_owned)), Some(rotated));
@@ -400,14 +433,14 @@ mod live {
     async fn unknown_kids_reread_the_table_at_most_once_per_cooldown() {
         let pool = pool_or_skip!();
         let ring = live(&pool, AN_HOUR).await;
-        let first = store(&pool).rotate(T0 + 1).await.unwrap();
+        let first = store(&pool).rotate(T0 + 1).await.unwrap().active;
         assert!(
             ring.published_key(&first, T0 + 1).await.unwrap().is_some(),
             "first miss re-reads"
         );
 
         // A burst of kids nobody published, then a real one: none of them re-reads.
-        let second = store(&pool).rotate(T0 + 2).await.unwrap();
+        let second = store(&pool).rotate(T0 + 2).await.unwrap().active;
         for random in ["kid-1", "kid-2", "kid-3"] {
             assert!(ring.published_key(random, T0 + 2).await.unwrap().is_none());
         }
@@ -421,9 +454,9 @@ mod live {
     async fn after_the_cooldown_an_unknown_kid_rereads_again() {
         let pool = pool_or_skip!();
         let ring = live(&pool, Duration::ZERO).await;
-        let first = store(&pool).rotate(T0 + 1).await.unwrap();
+        let first = store(&pool).rotate(T0 + 1).await.unwrap().active;
         assert!(ring.published_key(&first, T0 + 1).await.unwrap().is_some());
-        let second = store(&pool).rotate(T0 + 2).await.unwrap();
+        let second = store(&pool).rotate(T0 + 2).await.unwrap().active;
         assert!(ring.published_key(&second, T0 + 2).await.unwrap().is_some());
     }
 
@@ -431,9 +464,9 @@ mod live {
     async fn invalidating_rereads_on_the_next_lookup_whatever_the_cooldown() {
         let pool = pool_or_skip!();
         let ring = live(&pool, AN_HOUR).await;
-        let first = store(&pool).rotate(T0 + 1).await.unwrap();
+        let first = store(&pool).rotate(T0 + 1).await.unwrap().active;
         assert!(ring.published_key(&first, T0 + 1).await.unwrap().is_some());
-        let second = store(&pool).rotate(T0 + 2).await.unwrap();
+        let second = store(&pool).rotate(T0 + 2).await.unwrap().active;
 
         ring.invalidate();
         assert!(ring.published_key(&second, T0 + 2).await.unwrap().is_some());
@@ -451,7 +484,7 @@ mod live {
     async fn a_tick_picks_up_another_replicas_rotation_and_signs_with_it() {
         let pool = pool_or_skip!();
         let ring = live(&pool, AN_HOUR).await;
-        let rotated = store(&pool).rotate(T0 + 1).await.unwrap();
+        let rotated = store(&pool).rotate(T0 + 1).await.unwrap().active;
         assert_ne!(active_kid(&ring), rotated, "not seen before the tick");
 
         ring.tick(T0 + 1).await.unwrap();

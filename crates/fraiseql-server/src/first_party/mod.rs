@@ -52,6 +52,44 @@ pub const fn key_ring(
     )
 }
 
+/// The signing-key store `config` names, built as the server builds it.
+///
+/// It is on the auth pool `database` describes and seals under the key-encryption key in the
+/// variable `config` names: what `fraiseql auth rotate-signing-key` acts on.
+///
+/// # Errors
+///
+/// [`ServerError::ConfigError`] without `[auth.database]`, when its variable is unset or not
+/// a PostgreSQL URL, and when the key-encryption key cannot be read. No error quotes the URL
+/// or the key.
+pub fn signing_key_store(
+    config: &IssuerConfig,
+    database: Option<&fraiseql_core::schema::AuthDatabaseConfig>,
+) -> Result<PgSigningKeyStore, ServerError> {
+    let pool =
+        crate::auth_database::build_auth_pool(database, &["[auth_issuer]"])?.ok_or_else(|| {
+            ServerError::ConfigError(
+                "[auth_issuer] requires [auth.database]: its signing keys are rows in \
+                 auth.signing_key"
+                    .to_string(),
+            )
+        })?;
+    sealed_store(config, pool)
+}
+
+/// The store over `pool`, sealing under the key-encryption key `config` names.
+fn sealed_store(
+    config: &IssuerConfig,
+    pool: sqlx::PgPool,
+) -> Result<PgSigningKeyStore, ServerError> {
+    let kek =
+        fraiseql_auth::signing_key::key_encryption_key_from_env(&config.key_encryption_key_env)
+            .map_err(|e| ServerError::ConfigError(format!("[auth_issuer]: {e}")))?;
+    let wrap = SealedWithFieldEncryption::new(&kek)
+        .map_err(|e| ServerError::ConfigError(format!("[auth_issuer]: {e}")))?;
+    Ok(PgSigningKeyStore::new(pool, Arc::new(wrap)))
+}
+
 /// Unix seconds now.
 ///
 /// # Errors
@@ -129,17 +167,12 @@ impl FirstPartyIssuer {
                     .to_string(),
             )
         })?;
-        let kek =
-            fraiseql_auth::signing_key::key_encryption_key_from_env(&config.key_encryption_key_env)
-                .map_err(|e| ServerError::ConfigError(format!("[auth_issuer]: {e}")))?;
-        let wrap = SealedWithFieldEncryption::new(&kek)
-            .map_err(|e| ServerError::ConfigError(format!("[auth_issuer]: {e}")))?;
+        let store = sealed_store(config, pool.clone())?;
         let max_lifetime_secs = if mints_anonymous {
             ttl_secs.max(fraiseql_auth::anonymous::ANON_SESSION_TTL_SECS)
         } else {
             ttl_secs
         };
-        let store = PgSigningKeyStore::new(pool.clone(), Arc::new(wrap));
         let ring = Arc::new(key_ring(store, max_lifetime_secs, RELOAD_COOLDOWN));
         let own_tokens = OidcValidator::from_issuer_keys(
             issuer_oidc_config(config),

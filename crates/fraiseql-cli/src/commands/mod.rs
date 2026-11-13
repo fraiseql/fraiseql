@@ -2,6 +2,8 @@
 
 pub mod analyze;
 #[cfg(feature = "run-server")]
+pub mod auth;
+#[cfg(feature = "run-server")]
 pub mod capabilities;
 pub mod compile;
 pub mod cost;

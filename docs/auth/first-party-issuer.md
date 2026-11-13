@@ -48,6 +48,30 @@ session it signed can validate, plus two hours, so every session a replica signe
 validates until it expires. A replica that has not read its keys successfully for two hours refuses to sign:
 sign-ins fail, and the server logs why, until it reads them again.
 
+## Rotating by hand
+
+`fraiseql auth rotate-signing-key` retires the active key and activates a new one, whatever
+their ages. It reads what the server reads, and takes no URL or secret on its command line:
+
+```sh
+FRAISEQL_CONFIG=server.toml fraiseql auth rotate-signing-key fraiseql.toml
+```
+
+- `[auth_issuer]` from the server configuration file (`--config`, else `FRAISEQL_CONFIG`);
+- `[auth.database]` from the project, and the auth database URL from the variable its
+  `url_env` names;
+- the key-encryption key from the variable `key_encryption_key_env` names.
+
+It prints both keys' `kid`s. The retired key stays published until the sessions it signed
+have expired. Running servers sign with the new key after their next hourly re-read, or at
+once after `POST /admin/v1/auth/refresh-jwks` on each. The command refuses to rotate under a
+key-encryption key that does not open the active key, since no server could open a key it
+sealed, and never creates the table or the first key: a server with `[auth_issuer]` does
+when it boots. It needs the CLI built with `run-server`.
+
+Rotating does not withdraw the retired key: sessions it signed stay valid until they expire.
+An immediate withdrawal of a key is not offered.
+
 ## Publishing
 
 The server publishes its keys, so a service beside it verifies its sessions as it would any

@@ -170,7 +170,8 @@ pub use session_postgres::{PostgresSessionStore, Refresh, SessionLifetime};
 pub use session_routes::{DenyAccessTokens, SessionRouteState, session_routes};
 pub use session_subject::SessionSubject;
 pub use signing_key::{
-    AccessTokenSigner, KeyRing, KeyWrap, LiveKeyRing, PgSigningKeyStore, RingSigner, SigningKey,
+    AccessTokenSigner, KeyRing, KeyWrap, LiveKeyRing, PgSigningKeyStore, RingSigner, Rotation,
+    SigningKey,
 };
 /// The `sqlx` this crate's public API is built against (#1198).
 pub use sqlx;

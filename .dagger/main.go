@@ -1773,6 +1773,10 @@ func (m *FraiseqlCi) integrationPostgres(ctx context.Context, source *dagger.Dir
 		// the line above, which has built the server already.
 		"echo '### cargo test -p fraiseql-cli --test run_admin_provisioning_pg (development role provisioning)'",
 		"cargo test -p fraiseql-cli --features test-postgres,run-server,fraiseql-server/observers --test run_admin_provisioning_pg -- --test-threads=1",
+		// `fraiseql auth rotate-signing-key` retires the first-party issuer's active key in a
+		// database of its own per case; same features, so the binary is already built.
+		"echo '### cargo test -p fraiseql-cli --test auth_rotate_signing_key_pg (signing-key rotation)'",
+		"cargo test -p fraiseql-cli --features test-postgres,run-server,fraiseql-server/observers --test auth_rotate_signing_key_pg -- --test-threads=1",
 		// #1297: saga_store's Postgres orchestration proof, same shape — skip-clean
 		// on `try_database_url()`, compiled only by the DB-less `Test` leg.
 		"cargo test -p fraiseql-saga --lib saga_store::tests -- --test-threads=1",

@@ -447,6 +447,15 @@ pub async fn run() {
         Commands::Capabilities => commands::capabilities::run(cli.json, cli.quiet),
 
         #[cfg(feature = "run-server")]
+        Commands::Auth {
+            command: crate::cli::AuthCommands::RotateSigningKey { input, config },
+        } => {
+            // Box::pin: compiling the project and opening the auth pool would otherwise
+            // push `run`'s future past clippy's `large_futures` threshold, as `Run` does.
+            Box::pin(commands::auth::rotate_signing_key(input.as_deref(), config.as_deref())).await
+        },
+
+        #[cfg(feature = "run-server")]
         Commands::Run {
             input,
             database,

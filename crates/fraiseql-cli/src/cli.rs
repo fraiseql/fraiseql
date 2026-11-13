@@ -527,6 +527,13 @@ EXAMPLES:
     fraiseql capabilities --json")]
     Capabilities,
 
+    /// First-party auth operations on the server's database
+    #[cfg(feature = "run-server")]
+    Auth {
+        #[command(subcommand)]
+        command: AuthCommands,
+    },
+
     /// Compile schema and immediately start the GraphQL server
     ///
     /// Compiles the schema in-memory (no disk artifact) and starts the HTTP server.
@@ -1251,5 +1258,33 @@ pub(crate) enum MigrateCommands {
         /// Migration directory
         #[arg(long, value_name = "DIR")]
         dir: Option<String>,
+    },
+}
+
+/// `fraiseql auth` subcommands.
+#[cfg(feature = "run-server")]
+#[derive(Subcommand)]
+pub(crate) enum AuthCommands {
+    /// Retire the first-party issuer's active signing key and activate a new one
+    ///
+    /// Reads what the server reads: `[auth_issuer]` from the server configuration file
+    /// (--config, else FRAISEQL_CONFIG), `[auth.database]` from fraiseql.toml, the auth
+    /// database URL from the variable its `url_env` names, and the key-encryption key from
+    /// the variable `[auth_issuer]` names. The retired key stays published until the sessions
+    /// it signed have expired. Running servers sign with the new key after their next hourly
+    /// re-read, or at once after `POST /admin/v1/auth/refresh-jwks`. It never creates the
+    /// table or the first key: a server with `[auth_issuer]` does when it boots.
+    #[command(after_help = "\
+EXAMPLES:
+    FRAISEQL_CONFIG=server.toml fraiseql auth rotate-signing-key
+    fraiseql auth rotate-signing-key fraiseql.toml --config server.toml")]
+    RotateSigningKey {
+        /// Input file path (fraiseql.toml or schema.json); auto-detected if omitted
+        #[arg(value_name = "INPUT")]
+        input: Option<String>,
+
+        /// The server configuration file (default: the file FRAISEQL_CONFIG names)
+        #[arg(long, value_name = "PATH")]
+        config: Option<String>,
     },
 }
