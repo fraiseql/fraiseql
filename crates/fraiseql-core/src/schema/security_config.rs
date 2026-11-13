@@ -749,10 +749,15 @@ pub struct TokenRevocationSecurityConfig {
     ///
     /// `revoke-all` records a per-user epoch rather than deleting individual
     /// tokens, so the entry must outlive every token that could have been issued
-    /// before the revocation: set this **above your maximum access-token
-    /// lifetime**. Once it expires a pre-revocation token would resume working
-    /// (until its own `exp`). Default: 86400 (24h).
-    pub revoke_all_ttl_secs: u64,
+    /// before the revocation. Once it expires a pre-revocation token would resume
+    /// working (until its own `exp`).
+    ///
+    /// Unset, the server keeps it as long as a session it signs is accepted, and
+    /// at least 86400 (24h). Set, a server with `[auth_issuer]` refuses a value
+    /// shorter than that; for tokens from another issuer, set it above their
+    /// longest validity.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub revoke_all_ttl_secs: Option<u64>,
 }
 
 impl Default for TokenRevocationSecurityConfig {
@@ -763,7 +768,7 @@ impl Default for TokenRevocationSecurityConfig {
             require_jti:         true,
             fail_open:           false,
             redis_url:           None,
-            revoke_all_ttl_secs: 86_400,
+            revoke_all_ttl_secs: None,
         }
     }
 }

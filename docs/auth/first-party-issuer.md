@@ -100,3 +100,16 @@ without `[auth]` the cookie is not read at all.
 
 `POST /auth/revoke-all` ends every session this server minted for the user, so their refresh
 tokens no longer refresh, and then refuses every access token issued to them before the call.
+
+That refusal is kept for `[security.token_revocation] revoke_all_ttl_secs`, which has to cover
+every session this server signs:
+
+| `revoke_all_ttl_secs` | The refusal is kept for |
+|---|---|
+| unset | as long as a session this server signs is accepted, and at least 86400 seconds |
+| set, at least that long | the value set |
+| set, shorter | nothing: the server refuses to boot, and the error names the value to set |
+
+A session is accepted a little longer than `[auth.session] ttl_secs`, or than seven days when
+anonymous sign-in is on and `ttl_secs` is shorter. Tokens from another issuer are not counted:
+when `[auth]` names one, set `revoke_all_ttl_secs` above the longest its tokens are valid.

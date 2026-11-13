@@ -6,6 +6,7 @@ use fraiseql_guard::deployment::Deployment;
 use serde_json::json;
 
 use super::revocation_manager_from_schema_in;
+use crate::revoke_all_ttl::DEFAULT_SECS;
 
 /// Deployment modes, named so call sites read as the scenario they test.
 const PRODUCTION: Deployment = Deployment::Production;
@@ -34,7 +35,9 @@ fn schema_with_revocation(value: serde_json::Value) -> CompiledSchema {
 async fn unknown_backend_is_rejected_loudly() {
     let schema = schema_with_revocation(json!({ "enabled": true, "backend": "frobnicate" }));
     assert!(
-        revocation_manager_from_schema_in(&schema, PRODUCTION).await.is_err(),
+        revocation_manager_from_schema_in(&schema, PRODUCTION, DEFAULT_SECS)
+            .await
+            .is_err(),
         "an unrecognised revocation backend must be a startup error, not a silent in-memory fallback"
     );
 }
@@ -44,7 +47,7 @@ async fn postgres_backend_is_deferred_on_the_generic_path() {
     // postgres needs a database connection; the generic construction path defers it
     // (the PostgreSQL runtime builds it via build_postgres_revocation_manager).
     let schema = schema_with_revocation(json!({ "enabled": true, "backend": "postgres" }));
-    let mgr = revocation_manager_from_schema_in(&schema, PRODUCTION)
+    let mgr = revocation_manager_from_schema_in(&schema, PRODUCTION, DEFAULT_SECS)
         .await
         .expect("postgres defers (Ok(None)) on the generic path, it does not error");
     assert!(mgr.is_none(), "postgres backend is deferred to the PostgreSQL runtime path");
@@ -53,7 +56,7 @@ async fn postgres_backend_is_deferred_on_the_generic_path() {
 #[tokio::test]
 async fn memory_backend_builds_a_manager() {
     let schema = schema_with_revocation(json!({ "enabled": true, "backend": "memory" }));
-    let mgr = revocation_manager_from_schema_in(&schema, PRODUCTION)
+    let mgr = revocation_manager_from_schema_in(&schema, PRODUCTION, DEFAULT_SECS)
         .await
         .expect("memory backend builds");
     assert!(mgr.is_some());
@@ -63,7 +66,7 @@ async fn memory_backend_builds_a_manager() {
 async fn disabled_revocation_builds_nothing() {
     let schema = schema_with_revocation(json!({ "enabled": false, "backend": "postgres" }));
     assert!(
-        revocation_manager_from_schema_in(&schema, PRODUCTION)
+        revocation_manager_from_schema_in(&schema, PRODUCTION, DEFAULT_SECS)
             .await
             .expect("disabled revocation is not an error")
             .is_none()
@@ -77,7 +80,7 @@ async fn null_token_revocation_is_treated_as_absent() {
     // the parse turned null into a boot failure, caught by pipeline_e2e).
     let schema = schema_with_revocation(serde_json::Value::Null);
     assert!(
-        revocation_manager_from_schema_in(&schema, PRODUCTION)
+        revocation_manager_from_schema_in(&schema, PRODUCTION, DEFAULT_SECS)
             .await
             .expect("null token_revocation means 'not configured', not an error")
             .is_none()
@@ -88,7 +91,7 @@ async fn null_token_revocation_is_treated_as_absent() {
 async fn absent_token_revocation_key_builds_nothing() {
     let schema = CompiledSchema::default();
     assert!(
-        revocation_manager_from_schema_in(&schema, PRODUCTION)
+        revocation_manager_from_schema_in(&schema, PRODUCTION, DEFAULT_SECS)
             .await
             .expect("no security section is ok")
             .is_none()
@@ -157,7 +160,9 @@ async fn the_undocumented_env_backend_alias_is_rejected() {
     // environment-driven backend was in effect.
     let schema = schema_with_revocation(json!({ "enabled": true, "backend": "env" }));
     assert!(
-        revocation_manager_from_schema_in(&schema, PRODUCTION).await.is_err(),
+        revocation_manager_from_schema_in(&schema, PRODUCTION, DEFAULT_SECS)
+            .await
+            .is_err(),
         "backend = \"env\" is not a documented backend and must be rejected like any \
          other unknown value"
     );
@@ -174,7 +179,9 @@ async fn a_malformed_redis_url_refuses_to_boot_in_production() {
         "fail_open": false,
     }));
     assert!(
-        revocation_manager_from_schema_in(&schema, PRODUCTION).await.is_err(),
+        revocation_manager_from_schema_in(&schema, PRODUCTION, DEFAULT_SECS)
+            .await
+            .is_err(),
         "a malformed redis_url must refuse to boot, not warn and downgrade to \
          per-process revocation"
     );
@@ -191,7 +198,9 @@ async fn an_unreachable_redis_url_refuses_to_boot_in_production() {
         "fail_open": false,
     }));
     assert!(
-        revocation_manager_from_schema_in(&schema, PRODUCTION).await.is_err(),
+        revocation_manager_from_schema_in(&schema, PRODUCTION, DEFAULT_SECS)
+            .await
+            .is_err(),
         "a well-formed redis_url pointing at nothing must refuse to boot: the store \
          used to build without connecting, and revocations then lived only in this \
          process's memory"
@@ -206,7 +215,7 @@ async fn an_unreachable_redis_url_downgrades_with_a_warning_in_development() {
         "backend": "redis",
         "redis_url": "redis://127.0.0.1:6390",
     }));
-    let mgr = revocation_manager_from_schema_in(&schema, DEVELOPMENT)
+    let mgr = revocation_manager_from_schema_in(&schema, DEVELOPMENT, DEFAULT_SECS)
         .await
         .expect("development boots on the in-memory fallback with a warning");
     assert!(mgr.is_some(), "the development fallback still builds a manager");

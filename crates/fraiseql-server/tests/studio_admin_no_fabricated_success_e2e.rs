@@ -216,20 +216,17 @@ impl StudioServer {
             tokio::net::TcpListener::bind("127.0.0.1:0").await.expect("bind ephemeral port");
         let port = listener.local_addr().expect("local addr").port();
 
+        // The PostgreSQL runtime path installs this explicitly (boot does the same);
+        // it is `None` from `revocation_manager_from_schema` for the postgres backend.
+        let revocation = fraiseql_server::boot::postgres_revocation_manager(&config, &compiled)
+            .await
+            .expect("the postgres manager");
+
         let mut server =
             Box::pin(Server::new(config, compiled.clone(), adapter, Some(pool.clone())))
                 .await
                 .expect("Server::new");
-
-        // The PostgreSQL runtime path installs this explicitly (main.rs does the same);
-        // it is `None` from `revocation_manager_from_schema` for the postgres backend.
-        if let Some(manager) = fraiseql_server::token_revocation::build_postgres_revocation_manager(
-            &scratch_url,
-            &compiled,
-        )
-        .await
-        .expect("revocation manager")
-        {
+        if let Some(manager) = revocation {
             server = server.with_revocation_manager(manager);
         }
 

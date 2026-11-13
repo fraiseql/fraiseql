@@ -2253,3 +2253,65 @@ mod multi_root_mutation_error_tests {
         assert_eq!(errors[1]["path"][0], "b");
     }
 }
+
+/// The `TokenRevocationManager` the server builds keeps a `revoke-all` as long as
+/// [`crate::revoke_all_ttl::for_server`] resolves, not the schema's field.
+#[cfg(feature = "auth")]
+mod revoke_all_retention_tests {
+    use fraiseql_guard::deployment::Deployment;
+
+    use crate::{
+        ServerConfig,
+        revoke_all_ttl::tests::{DAY, issuer, schema},
+        server::Server,
+    };
+
+    fn with_issuer() -> ServerConfig {
+        ServerConfig {
+            auth_issuer: Some(issuer()),
+            ..ServerConfig::default()
+        }
+    }
+
+    #[tokio::test]
+    async fn unset_the_manager_keeps_it_as_long_as_a_session_this_server_signs_is_accepted() {
+        let subsystems = Server::schema_subsystems(
+            &schema(true, None, Some(2 * DAY), false),
+            &with_issuer(),
+            Deployment::Development,
+        )
+        .await
+        .expect("subsystems");
+        let manager = subsystems.revocation_manager.expect("a revocation manager");
+        assert_eq!(manager.revoke_all_ttl_secs(), 2 * DAY + 61);
+    }
+
+    #[tokio::test]
+    async fn set_the_manager_keeps_it_as_configured() {
+        let subsystems = Server::schema_subsystems(
+            &schema(true, Some(3 * DAY), Some(900), false),
+            &with_issuer(),
+            Deployment::Development,
+        )
+        .await
+        .expect("subsystems");
+        let manager = subsystems.revocation_manager.expect("a revocation manager");
+        assert_eq!(manager.revoke_all_ttl_secs(), 3 * DAY);
+    }
+
+    #[tokio::test]
+    async fn set_shorter_than_a_session_is_accepted_the_server_refuses_to_build() {
+        let refused = Server::schema_subsystems(
+            &schema(true, Some(900), Some(900), false),
+            &with_issuer(),
+            Deployment::Development,
+        )
+        .await;
+        assert!(
+            matches!(&refused, Err(crate::ServerError::ConfigError(message))
+                if message.contains("revoke_all_ttl_secs = 900")),
+            "{:?}",
+            refused.err()
+        );
+    }
+}

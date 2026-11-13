@@ -52,6 +52,47 @@ pub const fn key_ring(
     )
 }
 
+/// The longest a session this server signs may live: `[auth.session] ttl_secs`, or
+/// anonymous sign-up's fixed duration when `mints_anonymous` and it is longer.
+///
+/// # Errors
+///
+/// [`ServerError::ConfigError`] without `[auth.session] ttl_secs`.
+pub fn max_signed_secs(
+    session: Option<&fraiseql_core::schema::SessionConfig>,
+    mints_anonymous: bool,
+) -> Result<u64, ServerError> {
+    let ttl_secs = session.and_then(|session| session.ttl_secs).ok_or_else(|| {
+        ServerError::ConfigError(
+            "[auth_issuer] requires [auth.session] ttl_secs: it bounds how long a token the \
+             issuer signs can live, and so how long a retired signing key stays published"
+                .to_string(),
+        )
+    })?;
+    Ok(if mints_anonymous {
+        ttl_secs.max(fraiseql_auth::anonymous::ANON_SESSION_TTL_SECS)
+    } else {
+        ttl_secs
+    })
+}
+
+/// How many whole seconds a session this server signs is accepted for.
+///
+/// It counts the longest a session may live ([`max_signed_secs`]), then
+/// [`EXPIRY_GRACE_SECS`] past its `exp`, then the second it ends on.
+///
+/// # Errors
+///
+/// As [`max_signed_secs`].
+pub fn accepted_secs(schema: &fraiseql_core::schema::CompiledSchema) -> Result<u64, ServerError> {
+    let auth = schema.auth.as_ref();
+    let max = max_signed_secs(
+        auth.and_then(|auth| auth.session.as_ref()),
+        auth.and_then(|auth| auth.local.as_ref()).is_some_and(|local| local.anonymous),
+    )?;
+    Ok(max.saturating_add(EXPIRY_GRACE_SECS).saturating_add(1))
+}
+
 /// The signing-key store `config` names, built as the server builds it.
 ///
 /// It is on the auth pool `database` describes and seals under the key-encryption key in the
@@ -152,14 +193,7 @@ impl FirstPartyIssuer {
         mints_anonymous: bool,
         auth_pool: Option<&sqlx::PgPool>,
     ) -> Result<Self, ServerError> {
-        let ttl_secs = session.and_then(|session| session.ttl_secs).ok_or_else(|| {
-            ServerError::ConfigError(
-                "[auth_issuer] requires [auth.session] ttl_secs: it bounds how long a token \
-                 the issuer signs can live, and so how long a retired signing key stays \
-                 published"
-                    .to_string(),
-            )
-        })?;
+        let max_lifetime_secs = max_signed_secs(session, mints_anonymous)?;
         let pool = auth_pool.ok_or_else(|| {
             ServerError::ConfigError(
                 "[auth_issuer] requires [auth.database]: its signing keys are rows in \
@@ -168,11 +202,6 @@ impl FirstPartyIssuer {
             )
         })?;
         let store = sealed_store(config, pool.clone())?;
-        let max_lifetime_secs = if mints_anonymous {
-            ttl_secs.max(fraiseql_auth::anonymous::ANON_SESSION_TTL_SECS)
-        } else {
-            ttl_secs
-        };
         let ring = Arc::new(key_ring(store, max_lifetime_secs, RELOAD_COOLDOWN));
         let own_tokens = OidcValidator::from_issuer_keys(
             issuer_oidc_config(config),

@@ -417,8 +417,14 @@ impl Server {
         if service_account_authenticator.is_some() {
             info!("Service-account authentication enabled");
         }
-        let revocation_manager =
-            crate::token_revocation::revocation_manager_from_schema_in(schema, deployment).await?;
+        let revoke_all_ttl_secs =
+            crate::revoke_all_ttl::for_server(config.auth_issuer.as_ref(), schema)?;
+        let revocation_manager = crate::token_revocation::revocation_manager_from_schema_in(
+            schema,
+            deployment,
+            revoke_all_ttl_secs,
+        )
+        .await?;
         if revocation_manager.is_some() {
             info!("Token revocation enabled");
         }

@@ -540,6 +540,13 @@ impl TokenRevocationManager {
         self.store.revoke_all_for_user(sub, self.revoke_all_ttl_secs).await
     }
 
+    /// How long a `revoke-all` is kept, in seconds.
+    #[cfg(test)]
+    #[must_use]
+    pub(crate) const fn revoke_all_ttl_secs(&self) -> u64 {
+        self.revoke_all_ttl_secs
+    }
+
     /// Return the `revoke-all` epoch currently in effect for `sub`, if any.
     ///
     /// # Errors
@@ -641,10 +648,14 @@ pub(crate) fn redis_revocation_unavailable_check(
 /// Returns `ServerError::ConfigError` when the `token_revocation` JSON cannot be
 /// parsed, or when `backend` is an unrecognised value — previously an unknown
 /// backend silently fell back to in-memory, defeating the operator's intent (#357).
+///
+/// `revoke_all_ttl_secs` is how long the manager keeps a `revoke-all`: the value
+/// [`crate::revoke_all_ttl::for_server`] resolves, not the schema's field.
 pub async fn revocation_manager_from_schema(
     schema: &fraiseql_core::schema::CompiledSchema,
+    revoke_all_ttl_secs: u64,
 ) -> crate::Result<Option<Arc<TokenRevocationManager>>> {
-    revocation_manager_from_schema_in(schema, Deployment::current()).await
+    revocation_manager_from_schema_in(schema, Deployment::current(), revoke_all_ttl_secs).await
 }
 
 /// [`revocation_manager_from_schema`] with the deployment mode passed in.
@@ -658,6 +669,7 @@ pub async fn revocation_manager_from_schema(
 pub async fn revocation_manager_from_schema_in(
     schema: &fraiseql_core::schema::CompiledSchema,
     deployment: Deployment,
+    revoke_all_ttl_secs: u64,
 ) -> crate::Result<Option<Arc<TokenRevocationManager>>> {
     let Some(security) = schema.security.as_ref() else {
         return Ok(None);
@@ -718,7 +730,7 @@ pub async fn revocation_manager_from_schema_in(
         store,
         config.require_jti,
         config.fail_open,
-        config.revoke_all_ttl_secs,
+        revoke_all_ttl_secs,
     ))))
 }
 
@@ -735,9 +747,12 @@ pub async fn revocation_manager_from_schema_in(
 ///
 /// Returns an error message when the `token_revocation` config is invalid, the
 /// database cannot be reached, or the backing table cannot be created.
+///
+/// `revoke_all_ttl_secs` is as for [`revocation_manager_from_schema`].
 pub async fn build_postgres_revocation_manager(
     database_url: &str,
     schema: &fraiseql_core::schema::CompiledSchema,
+    revoke_all_ttl_secs: u64,
 ) -> std::result::Result<Option<Arc<TokenRevocationManager>>, String> {
     let Some(security) = schema.security.as_ref() else {
         return Ok(None);
@@ -765,7 +780,7 @@ pub async fn build_postgres_revocation_manager(
         Arc::new(store),
         config.require_jti,
         config.fail_open,
-        config.revoke_all_ttl_secs,
+        revoke_all_ttl_secs,
     ))))
 }
 

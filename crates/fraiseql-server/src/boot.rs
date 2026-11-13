@@ -67,10 +67,7 @@ pub async fn build_postgres_server(
     // Postgres-backed token revocation (#357): revocation_manager_from_schema defers
     // the "postgres" backend because it needs a database connection, so build it here
     // (where the database URL is available) and install it on the server below.
-    let pg_revocation_manager =
-        crate::token_revocation::build_postgres_revocation_manager(&config.database_url, &schema)
-            .await
-            .map_err(|e| anyhow::anyhow!("{e}"))?;
+    let pg_revocation_manager = postgres_revocation_manager(&config, &schema).await?;
 
     // Multi-tenant runtime provisioning (#330): the per-tenant executor factory is
     // built when `[tenancy.runtime] enabled = true`. Its adapter type MUST match the
@@ -234,6 +231,29 @@ pub fn refuse_functions_this_build_cannot_run(
         entry.meta.feature,
         entry.meta.remedy()
     )
+}
+
+/// The PostgreSQL-backed `TokenRevocationManager` [`build_postgres_server`] installs, or `None`
+/// when `[security.token_revocation]` does not ask for one.
+///
+/// It keeps a `revoke-all` as long as [`crate::revoke_all_ttl::for_server`] resolves.
+///
+/// # Errors
+///
+/// A retention the server refuses, or a store that cannot be set up.
+pub async fn postgres_revocation_manager(
+    config: &ServerConfig,
+    schema: &CompiledSchema,
+) -> anyhow::Result<Option<Arc<crate::token_revocation::TokenRevocationManager>>> {
+    let revoke_all_ttl_secs =
+        crate::revoke_all_ttl::for_server(config.auth_issuer.as_ref(), schema)?;
+    crate::token_revocation::build_postgres_revocation_manager(
+        &config.database_url,
+        schema,
+        revoke_all_ttl_secs,
+    )
+    .await
+    .map_err(|e| anyhow::anyhow!("{e}"))
 }
 
 /// Create a dedicated PostgreSQL pool for the observer runtime.

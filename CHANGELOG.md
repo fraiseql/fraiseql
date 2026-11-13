@@ -34,7 +34,10 @@ disagreed, and the promise was the part that was wrong.
   `absolute_ttl_secs` alone, must now set `ttl_secs`: the one-hour and seven-day defaults
   are gone. Sessions are `at+jwt` tokens naming the signing key's `kid`, carrying `nbf`, and
   the first-party issuer's leeway is fixed. Sessions signed before the upgrade are refused:
-  every user signs in again. See `docs/auth/first-party-issuer.md`.
+  every user signs in again. Unset, `[security.token_revocation] revoke_all_ttl_secs` keeps a
+  `revoke-all` for as long as a session the server signs is accepted, and at least 86400
+  seconds; set shorter than that, the server refuses to boot. See
+  `docs/auth/first-party-issuer.md`.
 
 - **`POST /auth/revoke-all` also ends the sessions this server minted for the user (#1964).**
   Their refresh tokens stop refreshing before the access tokens are refused; a failure to

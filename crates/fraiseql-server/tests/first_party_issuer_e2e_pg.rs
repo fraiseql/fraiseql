@@ -695,3 +695,54 @@ async fn beside_an_external_provider_its_cookie_counts_and_a_session_of_its_own_
 
     finish(&url, db, server).await;
 }
+
+/// Unset, `revoke_all_ttl_secs` follows the sessions this server signs: the manager the
+/// PostgreSQL path builds keeps a `revoke-all` that long, not the one-day default.
+#[tokio::test]
+async fn the_postgres_manager_keeps_a_revoke_all_as_long_as_a_session_is_accepted() {
+    const DAY: i64 = 86_400;
+    let Some(url) = database_url_or_skip(
+        "the_postgres_manager_keeps_a_revoke_all_as_long_as_a_session_is_accepted",
+    ) else {
+        return;
+    };
+    set_test_env();
+    let db = "fraiseql_first_party_revoke_all_ttl";
+    let pool = scratch_pool(&url, db).await;
+    let scratch_url = with_database(&url, db);
+
+    let mut schema = schema();
+    if let Some(session) = schema.auth.as_mut().and_then(|auth| auth.session.as_mut()) {
+        session.ttl_secs = Some(2 * DAY.unsigned_abs());
+    }
+    schema.security = Some(fraiseql_core::schema::SecurityConfig {
+        token_revocation: Some(
+            serde_json::from_value(json!({ "enabled": true, "backend": "postgres" }))
+                .expect("token_revocation"),
+        ),
+        ..fraiseql_core::schema::SecurityConfig::default()
+    });
+
+    let manager =
+        fraiseql_server::boot::postgres_revocation_manager(&server_config(&scratch_url), &schema)
+            .await
+            .expect("the server builds its manager")
+            .expect("a postgres manager");
+    manager.revoke_all_for_user("revoked-user").await.expect("revoke-all");
+
+    let held: i64 = sqlx::query_scalar(
+        "SELECT EXTRACT(EPOCH FROM expires_at - NOW())::BIGINT FROM fraiseql_revoked_users \
+         WHERE sub = 'revoked-user'",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("the revoke-all row");
+    let accepted = 2 * DAY + 61;
+    assert!(
+        (accepted - 5..=accepted).contains(&held),
+        "held {held}s; a session is accepted for {accepted}s"
+    );
+
+    pool.close().await;
+    drop_scratch(&url, db).await;
+}

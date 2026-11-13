@@ -42,6 +42,8 @@ pub mod api_key;
 pub mod service_account;
 // Token revocation
 pub mod token_revocation;
+// How long a `revoke-all` is kept, checked against the sessions this server signs
+pub mod revoke_all_ttl;
 
 // Original fraiseql-server modules
 // Admission: the steps every transport runs to identify a request, resolve its

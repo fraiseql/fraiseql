@@ -509,9 +509,9 @@ fn test_auth_client_secret_field_rejected() {
 // ---------------------------------------------------------------------------
 // token_revocation.revoke_all_ttl_secs — WIRE (#612 item 6)
 // ---------------------------------------------------------------------------
-// The server reads `security.token_revocation.revoke_all_ttl_secs` (default 86400)
-// and the docs instruct setting it, but the CLI struct lacked the field, so
-// `deny_unknown_fields` rejected it — the value could never reach the server.
+// The server reads `security.token_revocation.revoke_all_ttl_secs` (unset, it follows
+// the sessions the server signs) and the docs instruct setting it, but the CLI struct lacked the
+// field, so `deny_unknown_fields` rejected it — the value could never reach the server.
 
 // the field now parses (was rejected by deny_unknown_fields).
 #[test]
@@ -523,13 +523,45 @@ fn test_revoke_all_ttl_secs_parses() {
     ";
     let schema: TomlSchema = toml::from_str(toml).unwrap();
     let cfg = schema.security.token_revocation.unwrap();
-    assert_eq!(cfg.revoke_all_ttl_secs, 172_800);
+    assert_eq!(cfg.revoke_all_ttl_secs, Some(172_800));
 }
 
 #[test]
-fn test_revoke_all_ttl_secs_defaults_to_86400() {
+fn test_revoke_all_ttl_secs_is_unset_by_default() {
     use fraiseql_cli::config::toml_schema::TokenRevocationSecurityConfig;
-    assert_eq!(TokenRevocationSecurityConfig::default().revoke_all_ttl_secs, 86_400);
+    assert_eq!(TokenRevocationSecurityConfig::default().revoke_all_ttl_secs, None);
+}
+
+// Unset, it stays unset in the compiled schema: a value written there would read to the
+// server as one the operator chose, and the server would not follow its sessions.
+#[test]
+fn test_unset_revoke_all_ttl_secs_is_absent_from_the_compiled_schema() -> anyhow::Result<()> {
+    use std::fs;
+
+    use fraiseql_cli::schema::SchemaMerger;
+    use tempfile::TempDir;
+
+    let temp = TempDir::new()?;
+    let toml = r#"
+[schema]
+name = "test"
+version = "1.0.0"
+database_target = "postgresql"
+
+[security.token_revocation]
+enabled = true
+"#;
+    let toml_path = temp.path().join("fraiseql.toml");
+    fs::write(&toml_path, toml)?;
+
+    let schema = SchemaMerger::merge_toml_only(toml_path.to_str().unwrap())?;
+    let security = schema.security.expect("security section present in compiled schema");
+    assert!(
+        security["token_revocation"].get("revoke_all_ttl_secs").is_none(),
+        "{}",
+        security["token_revocation"]
+    );
+    Ok(())
 }
 
 // the value reaches the compiled schema (was absent — server used its 86400 default).
