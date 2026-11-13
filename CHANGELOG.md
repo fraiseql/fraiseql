@@ -318,7 +318,10 @@ disagreed, and the promise was the part that was wrong.
   document and the public halves of its active and still-valid retired keys, so a service
   beside the server verifies its sessions as any OIDC provider's. The keys live sealed in
   `auth.signing_key`; the server creates the first at boot, rotates it every 30 days and
-  re-reads the table hourly and on an unknown `kid`. `POST /admin/v1/auth/refresh-jwks`
+  re-reads the table hourly and on an unknown `kid`. A replica signs with the keys it last
+  read, for at most two hours after a successful read; a retired key stays published for as
+  long as a session it signed can validate, plus those two hours, so a session a replica
+  signed before it saw a rotation validates until it expires. `POST /admin/v1/auth/refresh-jwks`
   re-reads them at once. Beside an external `[auth]` provider, the routes acting on the
   caller's own account accept only the server's own sessions. `fraiseql_auth` exports
   `LiveKeyRing`, `RingSigner` and `AccessTokenSigner`, and
@@ -349,7 +352,9 @@ disagreed, and the promise was the part that was wrong.
   caller passes that window when it reads or sweeps the ring, so a change to how long
   sessions last also reaches keys already retired. A partial unique index keeps one active
   key, and every change takes one advisory lock. The private half is stored sealed through a
-  `KeyWrap` the caller supplies, bound to its own `kid`. Nothing mounts the ring yet.
+  `KeyWrap` the caller supplies, bound to its own `kid`. A rotation first opens the active
+  key, so a store holding another key-encryption key changes nothing; `rotate` refuses a
+  ring with no active key, whose first key only `ensure_active` creates.
 
 - **`fraiseql-test-support` gains an in-process ES256 OIDC issuer for tests (#1964).** The
   `test-issuer` feature adds `issuer::TestIssuer`. It generates P-256 keys at runtime, so no

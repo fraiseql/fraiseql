@@ -301,23 +301,25 @@ impl PgSigningKeyStore {
     /// `now`: create the first one, or rotate an old one. Returns the `kid` of a key it
     /// created, or `None` when the active key was kept.
     ///
+    /// An old key is replaced only when this store's [`KeyWrap`] opens it, as in
+    /// [`Self::rotate`].
+    ///
     /// # Errors
     ///
     /// [`AuthError::DatabaseError`] when the database fails, and the [`KeyWrap`]'s error
-    /// when sealing fails.
+    /// when the active key does not open or sealing fails.
     pub async fn ensure_active(&self, now: u64) -> Result<Option<String>> {
         let mut tx = self.db.begin().await.map_err(|e| db_error("begin a key change", &e))?;
         lock_ring(&mut tx).await?;
-        let created: Option<i64> =
-            sqlx::query_scalar("SELECT created_at FROM auth.signing_key WHERE retired_at IS NULL")
-                .fetch_optional(&mut *tx)
-                .await
-                .map_err(|e| db_error("read the active signing key", &e))?;
-        let due = created.is_none_or(|created| {
-            now.saturating_sub(created.cast_unsigned()) >= ROTATION_PERIOD_SECS
+        let active = self.active(&mut tx).await?;
+        let due = active.as_ref().is_none_or(|active| {
+            now.saturating_sub(active.created_at.cast_unsigned()) >= ROTATION_PERIOD_SECS
         });
         if !due {
             return Ok(None);
+        }
+        if let Some(active) = active {
+            self.open_active(&active)?;
         }
         let kid = self.replace_active(&mut tx, now).await?;
         tx.commit().await.map_err(|e| db_error("commit a key change", &e))?;
@@ -327,15 +329,52 @@ impl PgSigningKeyStore {
     /// Retire the active key at `now` and activate a new one, whatever their ages.
     /// Returns the new key's `kid`.
     ///
+    /// It first opens the active key with this store's [`KeyWrap`]: a store holding
+    /// another key-encryption key would seal the new key under it, and no server could
+    /// open it. The first key is created by [`Self::ensure_active`], never here.
+    ///
     /// # Errors
     ///
-    /// As [`Self::ensure_active`].
+    /// [`AuthError::ConfigError`] when the ring has no active key, the [`KeyWrap`]'s error
+    /// when the active key does not open, and as [`Self::ensure_active`].
     pub async fn rotate(&self, now: u64) -> Result<String> {
         let mut tx = self.db.begin().await.map_err(|e| db_error("begin a key change", &e))?;
         lock_ring(&mut tx).await?;
+        let active = self.active(&mut tx).await?.ok_or_else(|| AuthError::ConfigError {
+            message: "auth.signing_key has no active key to rotate: a server with \
+                      [auth_issuer] creates the first one when it boots"
+                .to_string(),
+        })?;
+        self.open_active(&active)?;
         let kid = self.replace_active(&mut tx, now).await?;
         tx.commit().await.map_err(|e| db_error("commit a key change", &e))?;
         Ok(kid)
+    }
+
+    /// The active key's row, inside `tx`.
+    async fn active(
+        &self,
+        tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    ) -> Result<Option<ActiveRow>> {
+        let row = sqlx::query(
+            "SELECT kid, private_key_enc, created_at FROM auth.signing_key \
+             WHERE retired_at IS NULL",
+        )
+        .fetch_optional(&mut **tx)
+        .await
+        .map_err(|e| db_error("read the active signing key", &e))?;
+        Ok(row.map(|row| ActiveRow {
+            kid:        row.get("kid"),
+            sealed:     row.get("private_key_enc"),
+            created_at: row.get("created_at"),
+        }))
+    }
+
+    /// Open `active`'s private half, refusing a [`KeyWrap`] that cannot: the wrap
+    /// authenticates what it opens, so another key-encryption key fails here.
+    fn open_active(&self, active: &ActiveRow) -> Result<()> {
+        drop(Zeroizing::new(self.wrap.open(&active.sealed, &aad(&active.kid))?));
+        Ok(())
     }
 
     /// Retire the active key (if any) and insert a new active one, inside `tx`.
@@ -422,6 +461,13 @@ impl PgSigningKeyStore {
         .rows_affected();
         Ok(swept)
     }
+}
+
+/// The active key's row, as a change to the ring reads it.
+struct ActiveRow {
+    kid:        String,
+    sealed:     Vec<u8>,
+    created_at: i64,
 }
 
 /// Take the ring's lock for the rest of `tx`.

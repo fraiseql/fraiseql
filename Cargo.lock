@@ -3704,6 +3704,7 @@ dependencies = [
  "totp-rs",
  "tower",
  "tracing",
+ "tracing-subscriber",
  "url",
  "urlencoding",
  "uuid",

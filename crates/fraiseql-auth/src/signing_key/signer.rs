@@ -54,6 +54,6 @@ impl AccessTokenSigner for RingSigner {
                 ),
             });
         }
-        self.ring.current()?.active().sign("at+jwt", claims)
+        self.ring.signing_ring(claims.iat)?.active().sign("at+jwt", claims)
     }
 }

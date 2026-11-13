@@ -27,6 +27,31 @@ const RELOAD_COOLDOWN: Duration = Duration::from_secs(30);
 /// How often the ring rotates, sweeps and re-reads on its own.
 pub const TICK_INTERVAL: Duration = Duration::from_hours(1);
 
+/// The oldest read of the ring a replica signs from: two ticks.
+///
+/// One failed tick does not stop sign-in. A retired key stays published this much longer,
+/// since a replica that has not re-read yet still signs with it.
+pub const STALE_MAX: Duration = Duration::from_hours(2);
+
+/// The ring this server signs with, over `store`.
+///
+/// Its tokens live at most `max_lifetime_secs`: they validate for that long plus
+/// [`EXPIRY_GRACE_SECS`], and it signs from reads at most [`STALE_MAX`] old. Every ring the
+/// server or its tests build comes from here, so the publish window has one definition.
+#[must_use]
+pub const fn key_ring(
+    store: PgSigningKeyStore,
+    max_lifetime_secs: u64,
+    reload_cooldown: Duration,
+) -> LiveKeyRing {
+    LiveKeyRing::new(
+        store,
+        max_lifetime_secs.saturating_add(EXPIRY_GRACE_SECS),
+        STALE_MAX.as_secs(),
+        reload_cooldown,
+    )
+}
+
 /// Unix seconds now.
 ///
 /// # Errors
@@ -115,12 +140,7 @@ impl FirstPartyIssuer {
             ttl_secs
         };
         let store = PgSigningKeyStore::new(pool.clone(), Arc::new(wrap));
-        let ring = LiveKeyRing::new(
-            store,
-            max_lifetime_secs.saturating_add(EXPIRY_GRACE_SECS),
-            RELOAD_COOLDOWN,
-        );
-        let ring = Arc::new(ring);
+        let ring = Arc::new(key_ring(store, max_lifetime_secs, RELOAD_COOLDOWN));
         let own_tokens = OidcValidator::from_issuer_keys(
             issuer_oidc_config(config),
             Arc::new(RingKeys::new(Arc::clone(&ring))),

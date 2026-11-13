@@ -42,6 +42,12 @@ old, removes retired keys whose tokens have all expired, and re-reads the table,
 another replica rotated in is picked up. A token naming a `kid` the server has not seen makes
 it re-read the table, at most once every 30 seconds.
 
+A replica signs with the keys it last read, so after another one rotates it may sign with the
+retired key until its own next read. A retired key therefore stays published for as long as a
+session it signed can validate, plus two hours, so every session a replica signed with it
+validates until it expires. A replica that has not read its keys successfully for two hours refuses to sign:
+sign-ins fail, and the server logs why, until it reads them again.
+
 ## Publishing
 
 The server publishes its keys, so a service beside it verifies its sessions as it would any

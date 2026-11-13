@@ -12,7 +12,7 @@ use std::{sync::Arc, time::Duration};
 
 use fraiseql_auth::{LiveKeyRing, PgSigningKeyStore, PostgresSessionStore, RingSigner};
 use fraiseql_server::{
-    first_party::{EXPIRY_GRACE_SECS, SealedWithFieldEncryption},
+    first_party::{SealedWithFieldEncryption, key_ring},
     server_config::{IssuerConfig, ServerConfig},
 };
 use sqlx::PgPool;
@@ -82,16 +82,9 @@ impl FirstPartyAuth {
         let wrap = SealedWithFieldEncryption::new(&KEK).expect("a 32-byte key-encryption key");
         let store = PgSigningKeyStore::new(pool.clone(), Arc::new(wrap));
         let now = fraiseql_server::first_party::unix_now().expect("the clock");
-        Arc::new(
-            LiveKeyRing::open(
-                store,
-                now,
-                MAX_SIGNED_LIFETIME_SECS + EXPIRY_GRACE_SECS,
-                Duration::from_secs(1),
-            )
-            .await
-            .expect("read the signing keys"),
-        )
+        let ring = key_ring(store, MAX_SIGNED_LIFETIME_SECS, Duration::from_secs(1));
+        ring.tick(now).await.expect("read the signing keys");
+        Arc::new(ring)
     }
 
     /// A session store over `pool` that signs as the server does.

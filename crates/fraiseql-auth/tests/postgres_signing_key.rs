@@ -299,6 +299,46 @@ async fn the_private_key_is_never_stored_in_the_clear() {
     assert!(jwk.get("d").is_none(), "the published column holds no private part");
 }
 
+/// Every key's `kid` and retirement, in a fixed order: what a refused change must leave.
+async fn keys(pool: &PgPool) -> Vec<(String, Option<i64>)> {
+    sqlx::query_as("SELECT kid, retired_at FROM auth.signing_key ORDER BY kid")
+        .fetch_all(pool)
+        .await
+        .unwrap()
+}
+
+#[tokio::test]
+async fn a_rotation_under_a_key_encryption_key_that_cannot_open_the_active_key_is_refused() {
+    let pool = pool_or_skip!();
+    store(&pool).ensure_active(T0).await.unwrap();
+    let before = keys(&pool).await;
+
+    let wrong = PgSigningKeyStore::new(pool.clone(), TestWrap::new(8));
+    assert!(wrong.rotate(T0 + 1).await.is_err(), "a key no server could open is not added");
+    assert_eq!(keys(&pool).await, before, "the active key is kept, nothing is added");
+}
+
+#[tokio::test]
+async fn a_due_rotation_under_the_wrong_key_encryption_key_is_refused_too() {
+    let pool = pool_or_skip!();
+    store(&pool).ensure_active(T0).await.unwrap();
+    let before = keys(&pool).await;
+
+    let wrong = PgSigningKeyStore::new(pool.clone(), TestWrap::new(8));
+    assert!(wrong.ensure_active(T0 + ROTATION_PERIOD_SECS).await.is_err());
+    assert_eq!(keys(&pool).await, before);
+}
+
+#[tokio::test]
+async fn a_rotation_of_a_ring_with_no_active_key_is_refused() {
+    let pool = pool_or_skip!();
+    assert!(
+        store(&pool).rotate(T0).await.is_err(),
+        "the first key is the server's to create"
+    );
+    assert!(keys(&pool).await.is_empty());
+}
+
 mod live {
     use std::time::Duration;
 
@@ -308,9 +348,11 @@ mod live {
     use super::*;
 
     const AN_HOUR: Duration = Duration::from_hours(1);
+    /// The oldest read a ring signs from in these tests.
+    const STALENESS: u64 = 600;
 
     async fn live(pool: &PgPool, cooldown: Duration) -> LiveKeyRing {
-        LiveKeyRing::open(store(pool), T0, WINDOW, cooldown).await.unwrap()
+        LiveKeyRing::open(store(pool), T0, WINDOW, STALENESS, cooldown).await.unwrap()
     }
 
     fn active_kid(ring: &LiveKeyRing) -> String {
@@ -321,7 +363,7 @@ mod live {
     async fn a_ring_not_read_yet_signs_nothing_and_reads_the_table_on_first_lookup() {
         let pool = pool_or_skip!();
         let kid = store(&pool).ensure_active(T0).await.unwrap().unwrap();
-        let ring = LiveKeyRing::new(store(&pool), WINDOW, AN_HOUR);
+        let ring = LiveKeyRing::new(store(&pool), WINDOW, STALENESS, AN_HOUR);
 
         assert!(ring.current().is_err(), "nothing to sign with before the first read");
         assert!(ring.published_key(&kid, T0).await.unwrap().is_some());
@@ -430,7 +472,7 @@ mod live {
             "the old key is still published"
         );
 
-        ring.tick(later + WINDOW).await.unwrap();
+        ring.tick(later + WINDOW + STALENESS).await.unwrap();
         assert!(ring.current().unwrap().published_key(&first).is_none(), "past its window");
         let rows: i64 = sqlx::query_scalar("SELECT count(*) FROM auth.signing_key")
             .fetch_one(&pool)
@@ -483,7 +525,150 @@ mod live {
 
         let pool = pool_or_skip!();
         store(&pool).ensure_active(T0).await.unwrap();
-        let ring = std::sync::Arc::new(LiveKeyRing::new(store(&pool), WINDOW, AN_HOUR));
+        let ring = std::sync::Arc::new(LiveKeyRing::new(store(&pool), WINDOW, STALENESS, AN_HOUR));
         assert!(RingSigner::new(ring, 900).sign_access_token(&claims(900)).is_err());
+    }
+
+    /// A retired key's publish window and sweep: the token's validity plus the oldest read
+    /// a replica signs from, from the moment it was retired.
+    #[tokio::test]
+    async fn a_retired_key_stays_published_for_token_validity_plus_the_staleness_bound() {
+        let pool = pool_or_skip!();
+        let ring = live(&pool, AN_HOUR).await;
+        let first = active_kid(&ring);
+        assert_eq!(ring.publish_window_secs(), WINDOW + STALENESS);
+        let retired = T0 + 1;
+        store(&pool).rotate(retired).await.unwrap();
+
+        ring.tick(retired + WINDOW + STALENESS - 1).await.unwrap();
+        assert!(
+            ring.current().unwrap().published_key(&first).is_some(),
+            "published, and not swept, one second before its window ends"
+        );
+        ring.tick(retired + WINDOW + STALENESS).await.unwrap();
+        assert!(ring.current().unwrap().published_key(&first).is_none(), "gone at its end");
+    }
+
+    /// The case the bound exists for: replica B signs with a key replica A retired, before
+    /// B's own tick. A's next reads still publish the key until B's token has expired.
+    #[tokio::test]
+    async fn a_token_a_late_replica_signed_with_a_retired_key_validates_until_it_expires() {
+        use fraiseql_auth::{AccessTokenSigner as _, RingSigner};
+
+        let pool = pool_or_skip!();
+        let a = live(&pool, AN_HOUR).await;
+        let b = std::sync::Arc::new(live(&pool, AN_HOUR).await);
+        store(&pool).rotate(T0 + 10).await.unwrap(); // A's tick rotates
+        a.reload(T0 + 10).await.unwrap();
+
+        let late = T0 + STALENESS; // B has not re-read since T0
+        let token = RingSigner::new(std::sync::Arc::clone(&b), 900)
+            .sign_access_token(&claims_at(late, 900))
+            .expect("a read STALENESS old still signs");
+        b.tick(late + 1).await.unwrap(); // B catches up
+
+        let last_valid = late + WINDOW; // every token here validates within WINDOW
+        for (name, ring) in [("A", &a), ("B", &*b)] {
+            ring.tick(last_valid).await.unwrap();
+            assert!(
+                verifies(&token, &ring.current().unwrap().jwks()),
+                "replica {name} still publishes the key B signed with at {last_valid}"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn the_signer_signs_from_a_read_exactly_as_old_as_the_staleness_bound() {
+        use fraiseql_auth::{AccessTokenSigner as _, RingSigner};
+
+        let pool = pool_or_skip!();
+        let signer = RingSigner::new(std::sync::Arc::new(live(&pool, AN_HOUR).await), 900);
+        assert!(signer.sign_access_token(&claims_at(T0 + STALENESS, 900)).is_ok());
+    }
+
+    #[tokio::test]
+    async fn the_signer_refuses_to_sign_from_a_read_older_than_the_staleness_bound() {
+        use fraiseql_auth::{AccessTokenSigner as _, RingSigner};
+
+        let pool = pool_or_skip!();
+        let signer = RingSigner::new(std::sync::Arc::new(live(&pool, AN_HOUR).await), 900);
+        assert!(
+            signer.sign_access_token(&claims_at(T0 + STALENESS + 1, 900)).is_err(),
+            "one second too old"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_failed_reread_leaves_the_read_as_old_as_the_last_one_that_succeeded() {
+        use fraiseql_auth::{AccessTokenSigner as _, RingSigner};
+
+        let pool = pool_or_skip!();
+        let ring = std::sync::Arc::new(live(&pool, AN_HOUR).await);
+        let signer = RingSigner::new(std::sync::Arc::clone(&ring), 900);
+        let stale = claims_at(T0 + STALENESS + 1, 900);
+
+        sqlx::query("ALTER TABLE auth.signing_key RENAME TO signing_key_away")
+            .execute(&pool)
+            .await
+            .unwrap();
+        assert!(ring.reload(T0 + 100).await.is_err(), "the table is gone");
+        sqlx::query("ALTER TABLE auth.signing_key_away RENAME TO signing_key")
+            .execute(&pool)
+            .await
+            .unwrap();
+        assert!(signer.sign_access_token(&stale).is_err(), "the failed read refreshed nothing");
+
+        ring.reload(T0 + 100).await.unwrap();
+        assert!(signer.sign_access_token(&stale).is_ok(), "a successful read does");
+    }
+
+    /// Counts the ERROR events a test emits.
+    struct Errors(std::sync::Arc<std::sync::atomic::AtomicUsize>);
+
+    impl<S: tracing::Subscriber> tracing_subscriber::Layer<S> for Errors {
+        fn on_event(
+            &self,
+            event: &tracing::Event<'_>,
+            _: tracing_subscriber::layer::Context<'_, S>,
+        ) {
+            if *event.metadata().level() == tracing::Level::ERROR {
+                self.0.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn a_refusal_to_sign_from_a_stale_read_is_logged_once_per_read() {
+        use fraiseql_auth::{AccessTokenSigner as _, RingSigner};
+        use tracing_subscriber::layer::SubscriberExt as _;
+
+        let pool = pool_or_skip!();
+        let ring = std::sync::Arc::new(live(&pool, AN_HOUR).await);
+        let signer = RingSigner::new(std::sync::Arc::clone(&ring), 900);
+        let errors = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let _guard = fraiseql_test_support::tracing_capture::set_default(
+            tracing_subscriber::registry().with(Errors(std::sync::Arc::clone(&errors))),
+        );
+        let logged = || errors.load(std::sync::atomic::Ordering::SeqCst);
+
+        for _ in 0..3 {
+            assert!(signer.sign_access_token(&claims_at(T0 + STALENESS + 1, 900)).is_err());
+        }
+        assert_eq!(logged(), 1, "three refusals from one read, one line");
+
+        ring.reload(T0 + 10).await.unwrap();
+        for _ in 0..2 {
+            assert!(signer.sign_access_token(&claims_at(T0 + 10 + STALENESS + 1, 900)).is_err());
+        }
+        assert_eq!(logged(), 2, "a new read that went stale logs again");
+    }
+
+    fn claims_at(iat: u64, ttl: u64) -> fraiseql_auth::Claims {
+        fraiseql_auth::Claims {
+            iat,
+            exp: iat + ttl,
+            nbf: Some(iat),
+            ..claims(ttl)
+        }
     }
 }

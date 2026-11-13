@@ -184,3 +184,47 @@ async fn the_jwk_set_is_unavailable_until_the_ring_is_first_read() {
     let response = get(router, super::JWKS_PATH).await;
     assert_eq!(response.status(), axum::http::StatusCode::SERVICE_UNAVAILABLE);
 }
+
+#[test]
+fn a_replica_signs_from_reads_at_most_two_ticks_old() {
+    assert_eq!(super::STALE_MAX, 2 * super::TICK_INTERVAL);
+}
+
+#[tokio::test]
+async fn the_issuers_ring_keeps_a_retired_key_published_while_a_late_replica_may_still_sign_with_it()
+ {
+    let issuer = unread_issuer("FRAISEQL_TEST_FIRST_PARTY_KEK_WINDOW");
+    let ring = issuer.ring();
+    assert_eq!(ring.max_staleness_secs(), super::STALE_MAX.as_secs());
+    assert_eq!(
+        ring.publish_window_secs(),
+        900 + super::EXPIRY_GRACE_SECS + super::STALE_MAX.as_secs(),
+        "a token's validity, plus the oldest read a replica signs from"
+    );
+}
+
+/// Every ring the server and its tests build goes through `key_ring`, so the publish
+/// window has one definition: no other file in this crate constructs a `LiveKeyRing`.
+#[test]
+fn only_key_ring_builds_the_servers_key_ring() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    // Built here, so this file does not match itself.
+    let calls = ["new", "open"].map(|constructor| format!("LiveKeyRing::{constructor}("));
+    let mut builders = Vec::new();
+    let mut pending = vec![root.join("src"), root.join("tests")];
+    while let Some(dir) = pending.pop() {
+        for entry in std::fs::read_dir(&dir).expect("a source directory") {
+            let path = entry.expect("an entry").path();
+            if path.is_dir() {
+                pending.push(path);
+            } else if path.extension().is_some_and(|ext| ext == "rs") {
+                let source = std::fs::read_to_string(&path).expect("a source file");
+                if calls.iter().any(|call| source.contains(call.as_str())) {
+                    builders.push(path.strip_prefix(root).expect("under the crate").to_owned());
+                }
+            }
+        }
+    }
+    builders.sort();
+    assert_eq!(builders, vec![std::path::PathBuf::from("src/first_party/mod.rs")]);
+}
