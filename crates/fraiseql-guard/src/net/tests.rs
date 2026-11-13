@@ -8,7 +8,7 @@
 use std::net::IpAddr;
 
 use super::{
-    BlockedReason, blocked_host_reason, is_blocked_ip,
+    BlockedReason, blocked_host_reason, is_blocked_ip, is_loopback_host,
     vectors::{MUST_ALLOW, MUST_ALLOW_HOSTS, MUST_BLOCK, MUST_BLOCK_HOSTS},
 };
 
@@ -83,4 +83,52 @@ fn the_two_corpora_do_not_overlap() {
         let ip: IpAddr = addr.parse().unwrap_or_else(|e| panic!("bad corpus entry {addr}: {e}"));
         assert!(!blocked.contains(&ip), "{addr} appears in both MUST_ALLOW and MUST_BLOCK");
     }
+}
+
+#[test]
+fn only_the_reserved_localhost_names_and_loopback_literals_are_the_local_machine() {
+    // RFC 6761 reserves `localhost` and every name under it, in the absolute form too:
+    // the `url` crate keeps a trailing dot in `host_str()`.
+    for host in [
+        "localhost",
+        "LOCALHOST",
+        "localhost.",
+        "api.localhost",
+        "Api.LocalHost.",
+        "127.0.0.1",
+        "127.0.0.1:9092",
+        "[::1]",
+        "::1",
+        "[::ffff:127.0.0.1]",
+    ] {
+        assert!(is_loopback_host(host), "{host} denotes the local machine");
+    }
+    // A name that merely begins with `localhost.` is in somebody's DNS zone.
+    for host in [
+        "localhost.example.com",
+        "LOCALHOST.EXAMPLE.COM",
+        "localhost.localdomain",
+        "localhost..",
+        "localhostage.com",
+        "notlocalhost",
+        "api.localhost.example.com",
+        "example.com",
+        "10.0.0.1",
+        "[::ffff:8.8.8.8]",
+    ] {
+        assert!(!is_loopback_host(host), "{host} is not known to be the local machine");
+    }
+}
+
+#[test]
+fn of_the_blocked_loopback_names_only_the_reserved_ones_count_as_the_local_machine() {
+    // The host guard refuses every `localhost.`-prefixed name, which is the safe side;
+    // `is_loopback_host` admits, so it must not inherit that wider match.
+    let admitted: Vec<&str> = MUST_BLOCK_HOSTS
+        .iter()
+        .map(|(host, _)| *host)
+        .filter(|host| blocked_host_reason(host) == Some(BlockedReason::LoopbackHostname))
+        .filter(|host| is_loopback_host(host))
+        .collect();
+    assert_eq!(admitted, ["localhost", "LOCALHOST", "api.localhost"]);
 }

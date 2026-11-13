@@ -539,6 +539,12 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **Only the reserved localhost names count as local.** `fraiseql_guard::net::is_loopback_host`
+  matches `localhost` and the names under it, with or without a trailing dot, and the
+  loopback addresses. It decides where `[auth_issuer] url` may use plain `http` and which
+  hosts the plaintext development opt-ins for Kafka, Kinesis and NATS reach without further
+  checks. Their refusal says to name the local machine `127.0.0.1`, `[::1]` or `localhost`.
+
 - **A type pg_tviews leaves out of its change report counts as changed (#1951).** From
   0.1.0-beta.36, `pg_tviews_flush_and_report()` leaves out the rows of a TVIEW the server's
   role may not `SELECT` and names its type only in a new `omitted_types` field. FraiseQL read

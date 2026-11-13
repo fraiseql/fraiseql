@@ -163,6 +163,25 @@ fn kafka_plaintext_optin_permits_loopback_brokers() {
 }
 
 #[test]
+fn kafka_plaintext_optin_refuses_a_name_that_only_begins_with_localhost() {
+    // `localhost.localdomain` is a common /etc/hosts alias, but a name under `localhost.`
+    // can be anybody's DNS zone, so the refusal says how to name the local machine.
+    with_kafka_optin(|| {
+        for endpoint in [
+            "kafka://localhost.example.com:9092",
+            "kafka://localhost:9092,localhost.localdomain:9093",
+        ] {
+            let err = guard_kafka_endpoint(endpoint).unwrap_err();
+            assert!(
+                err.contains("name a broker on this machine 127.0.0.1, [::1] or localhost"),
+                "{endpoint}: {err}"
+            );
+        }
+        assert!(guard_kafka_endpoint("kafka://localhost.:9092").is_ok());
+    });
+}
+
+#[test]
 fn kafka_plaintext_refuses_the_whole_list_when_any_broker_is_blocked() {
     // The property NATS has no equivalent for: it takes one URL, Kafka takes a
     // list. Guarding only the first entry would let a metadata address ride along

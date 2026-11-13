@@ -139,7 +139,8 @@ pub fn guard_kafka_endpoint(endpoint: &str) -> Result<KafkaEndpoint, String> {
                 return Err(format!(
                     "refusing kafka endpoint {endpoint:?}: bootstrap server {broker:?} \
                      is not permitted ({reason}). The plaintext opt-in reaches loopback \
-                     brokers only."
+                     brokers only: name a broker on this machine 127.0.0.1, [::1] or \
+                     localhost."
                 ));
             }
         }

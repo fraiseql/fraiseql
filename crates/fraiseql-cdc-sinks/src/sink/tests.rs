@@ -391,6 +391,16 @@ fn kinesis_plaintext_optin_is_screened_not_unrestricted() {
 }
 
 #[test]
+fn kinesis_plaintext_optin_refuses_a_name_that_only_begins_with_localhost() {
+    with_kinesis_url_optin("http://localhost.example.com:4566", || {
+        assert!(resolve_kinesis_endpoint_url().is_err());
+    });
+    with_kinesis_url_optin("http://localhost.:4566", || {
+        assert!(resolve_kinesis_endpoint_url().is_ok());
+    });
+}
+
+#[test]
 fn kinesis_refuses_every_blocked_corpus_entry_even_when_opted_in() {
     // The corpus test that would have caught #816, on this transport.
     use fraiseql_guard::net::vectors::{MUST_BLOCK, url_host};

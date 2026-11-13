@@ -464,7 +464,8 @@ pub fn resolve_kinesis_endpoint_url() -> crate::error::Result<Option<String>> {
                 return Err(CdcError::Config(format!(
                     "refusing {KINESIS_ENDPOINT_URL_ENV}={url:?}: host {host:?} is not \
                      permitted ({reason}). The plaintext opt-in reaches a dev endpoint, not \
-                     the instance-metadata service or an internal network."
+                     the instance-metadata service or an internal network; name an endpoint \
+                     on this machine 127.0.0.1, [::1] or localhost."
                 )));
             }
         }

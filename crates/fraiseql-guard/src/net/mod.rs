@@ -207,11 +207,16 @@ pub fn host_of_authority(entry: &str) -> &str {
 /// A development escape hatch that exists to reach a broker or database on
 /// `localhost` should use this rather than disabling the address guard wholesale
 /// — otherwise the escape hatch also unlocks the instance-metadata service.
+///
+/// A name counts only when RFC 6761 reserves it: `localhost` and the names under it,
+/// with or without the trailing dot of the absolute form. A name that merely begins
+/// with `localhost.` lives in somebody's DNS zone, so it is not the local machine here,
+/// although [`blocked_host_reason`] still refuses it.
 #[must_use]
 pub fn is_loopback_host(host: &str) -> bool {
     let host = host.strip_prefix('[').and_then(|h| h.strip_suffix(']')).unwrap_or(host);
     let lower = host.to_ascii_lowercase();
-    if lower == "localhost" || lower.ends_with(".localhost") || lower.starts_with("localhost.") {
+    if is_reserved_localhost_name(&lower) {
         return true;
     }
     let candidate = lower.split_once(':').map_or(lower.as_str(), |(head, _)| head);
@@ -223,6 +228,13 @@ pub fn is_loopback_host(host: &str) -> bool {
         },
         Err(_) => false,
     }
+}
+
+/// `localhost` or a name under it, in the relative or the absolute form. `name` is
+/// lower-case.
+fn is_reserved_localhost_name(name: &str) -> bool {
+    let name = name.strip_suffix('.').unwrap_or(name);
+    name == "localhost" || name.ends_with(".localhost")
 }
 
 /// Returns the reason a host string must not be contacted, or `None` if it is allowed.
@@ -238,6 +250,8 @@ pub fn blocked_host_reason(host: &str) -> Option<BlockedReason> {
     let host = host.strip_prefix('[').and_then(|h| h.strip_suffix(']')).unwrap_or(host);
     let lower = host.to_ascii_lowercase();
 
+    // Wider than `is_loopback_host` on purpose: refusing `localhost.localdomain` and
+    // every other `localhost.` name is the safe side, while admitting one is not.
     if lower == "localhost" || lower.ends_with(".localhost") || lower.starts_with("localhost.") {
         return Some(BlockedReason::LoopbackHostname);
     }

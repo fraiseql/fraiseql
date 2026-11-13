@@ -30,8 +30,8 @@ refuses to boot without:
 - the key-encryption key: 64 hex digits (32 random bytes) in the variable
   `key_encryption_key_env` names, for example `openssl rand -hex 32`.
 
-`url` must be `https`, or `http` on a loopback host for local development, with no query
-or fragment. `[auth_issuer]` and `[auth_hs256]` cannot be configured together.
+`url` must be `https`, or `http` on a loopback host for local development (`localhost`, a
+name under it, `127.0.0.1` or `[::1]`), with no query or fragment. `[auth_issuer]` and `[auth_hs256]` cannot be configured together.
 
 ## Keys
 

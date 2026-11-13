@@ -54,8 +54,12 @@ fn plain_http_is_accepted_only_on_a_loopback_address() {
     issuer("http://127.0.0.1:8080").validate().expect("IPv4 loopback");
     issuer("http://[::1]:8080").validate().expect("IPv6 loopback");
     issuer("http://localhost:8080").validate().expect("localhost");
+    issuer("http://localhost.:8080").validate().expect("localhost, absolute form");
+    issuer("http://auth.localhost:8080").validate().expect("a name under localhost");
     assert!(refusal(&issuer("http://api.example.com")).contains("url"));
     assert!(refusal(&issuer("http://10.0.0.7")).contains("url"));
+    assert!(refusal(&issuer("http://localhost.example.com")).contains("url"));
+    assert!(refusal(&issuer("http://localhost.localdomain:8080")).contains("url"));
 }
 
 #[test]

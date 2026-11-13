@@ -154,7 +154,10 @@ fn guard_nats_url(url: &str) -> Result<()> {
         return Ok(());
     }
     if let Some(reason) = fraiseql_guard::net::blocked_host_reason(host) {
-        return Err(CdcError::Config(format!("refusing NATS endpoint {url:?}: {reason}")));
+        return Err(CdcError::Config(format!(
+            "refusing NATS endpoint {url:?}: {reason}. The plaintext opt-in reaches a broker \
+             on this machine: name it 127.0.0.1, [::1] or localhost."
+        )));
     }
 
     Ok(())

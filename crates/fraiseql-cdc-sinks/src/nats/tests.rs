@@ -92,6 +92,22 @@ fn the_optin_does_not_reopen_ssrf_targets() {
 }
 
 #[test]
+fn the_optin_refuses_a_name_that_only_begins_with_localhost() {
+    temp_env::with_vars(
+        [
+            ("FRAISEQL_NATS_ALLOW_PLAINTEXT", Some("true")),
+            ("FRAISEQL_ENV", Some("development")),
+            ("FRAISEQL_PROFILE", None),
+            ("KUBERNETES_SERVICE_HOST", None),
+        ],
+        || {
+            assert!(guard_nats_url("nats://localhost.example.com:4222").is_err());
+            assert!(guard_nats_url("nats://localhost.:4222").is_ok());
+        },
+    );
+}
+
+#[test]
 fn the_optin_is_inert_in_production() {
     temp_env::with_vars(
         [
