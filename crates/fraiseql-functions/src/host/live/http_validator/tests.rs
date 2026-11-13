@@ -201,12 +201,19 @@ async fn refuses_every_blocked_corpus_entry() {
             "must refuse {addr} ({why})"
         );
     }
+    // A hostname is refused by the host rule, before any lookup, so the refusal names the
+    // URL's host. `is_err()` alone also passes on a DNS failure, or on a resolver that maps
+    // the name to a blocked address, and neither says anything about the rule.
     for (host, why) in MUST_BLOCK_HOSTS {
         let url = format!("http://{host}/");
-        assert!(
-            validate_outbound_url(&url, &config).await.is_err(),
-            "must refuse {host} ({why})"
+        let url_host =
+            reqwest::Url::parse(&url).ok().and_then(|u| u.host_str().map(str::to_string));
+        let outcome = validate_outbound_url(&url, &config).await;
+        let refused_on_the_host = matches!(
+            &outcome,
+            Err(FraiseQLError::Authorization { resource, .. }) if *resource == url_host
         );
+        assert!(refused_on_the_host, "must refuse {host} on a host rule ({why}): {outcome:?}");
     }
 }
 

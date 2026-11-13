@@ -252,7 +252,7 @@ pub fn blocked_host_reason(host: &str) -> Option<BlockedReason> {
 
     // Wider than `is_loopback_host` on purpose: refusing `localhost.localdomain` and
     // every other `localhost.` name is the safe side, while admitting one is not.
-    if lower == "localhost" || lower.ends_with(".localhost") || lower.starts_with("localhost.") {
+    if is_reserved_localhost_name(&lower) || lower.starts_with("localhost.") {
         return Some(BlockedReason::LoopbackHostname);
     }
     // Exact match or a true subdomain — `notmetadata.goog` is somebody else's domain.

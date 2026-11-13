@@ -107,6 +107,7 @@ pub const MUST_BLOCK_HOSTS: &[BlockedVector] = &[
     ("localhost", "bare loopback name"),
     ("LOCALHOST", "loopback names are case-insensitive"),
     ("api.localhost", "`.localhost` subdomain"),
+    ("api.localhost.", "`.localhost` subdomain, absolute form"),
     ("localhost.localdomain", "`localhost.` prefix alias common in /etc/hosts"),
     ("localhost.evil.com", "attacker-registered `localhost.` prefix"),
     ("metadata.google.internal", "GCP instance-metadata name"),

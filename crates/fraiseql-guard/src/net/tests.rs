@@ -130,5 +130,5 @@ fn of_the_blocked_loopback_names_only_the_reserved_ones_count_as_the_local_machi
         .filter(|host| blocked_host_reason(host) == Some(BlockedReason::LoopbackHostname))
         .filter(|host| is_loopback_host(host))
         .collect();
-    assert_eq!(admitted, ["localhost", "LOCALHOST", "api.localhost"]);
+    assert_eq!(admitted, ["localhost", "LOCALHOST", "api.localhost", "api.localhost."]);
 }

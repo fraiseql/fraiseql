@@ -539,6 +539,10 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **A trailing-dot subname of localhost is screened like the bare name.**
+  `fraiseql_guard::net::blocked_host_reason` refuses a name under `localhost` in its absolute
+  form, such as `api.localhost.`, before any lookup.
+
 - **Only the reserved localhost names count as local.** `fraiseql_guard::net::is_loopback_host`
   matches `localhost` and the names under it, with or without a trailing dot, and the
   loopback addresses. It decides where `[auth_issuer] url` may use plain `http` and which
