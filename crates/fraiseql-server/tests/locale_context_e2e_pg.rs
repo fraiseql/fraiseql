@@ -8,8 +8,8 @@
 //! selects `current_setting('fraiseql.locale', true)`.
 //!
 //! **Execution engine:** `PostgreSQL` · **Infrastructure:** `DATABASE_URL` ·
-//! **Parallelism:** creates and drops its own `v_locale_probe` view and sets a process-global
-//! env var for the HS256 secret → run `--test-threads=1`.
+//! **Parallelism:** creates and drops its own `v_locale_probe` view → run
+//! `--test-threads=1`.
 // REST writes, MCP and the identity enrichment are all driven here.
 #![cfg(all(feature = "rest", feature = "mcp", feature = "auth"))]
 #![allow(clippy::unwrap_used, clippy::panic, clippy::print_stderr)] // Reason: test code — panics and skip diagnostics are acceptable
@@ -27,19 +27,19 @@ use fraiseql_server::{
     Server,
     mcp::handler::FraiseQLMcpService,
     routes::graphql::AppState,
-    server_config::{AsyncOperationsConfig, Hs256Config, ServerConfig},
+    server_config::{AsyncOperationsConfig, ServerConfig},
 };
-use fraiseql_test_support::try_database_url;
+use fraiseql_test_support::{issuer::TestIssuer, try_database_url};
 use serde_json::{Value, json};
 use tempfile::TempDir;
+
+mod common;
+
+use crate::common::test_issuer::oidc_config;
 
 const VIEW: &str = "v_locale_probe";
 /// The actor table `[identity.enrichment]` reads each subject's stored locale from.
 const ACTOR_TABLE: &str = "tb_locale_actor";
-const SECRET: &str = "fraiseql-locale-secret-exactly-32";
-const SECRET_ENV: &str = "FRAISEQL_LOCALE_HS256_SECRET";
-const ISSUER: &str = "https://locale.fraiseql.test";
-const AUDIENCE: &str = "fraiseql-locale-api";
 
 const SCHEMA_JSON: &str = r#"{
   "types": [{
@@ -92,6 +92,14 @@ async fn compile(locale_toml: &str) -> anyhow::Result<CompiledSchema> {
 struct Running {
     base:      String,
     _shutdown: tokio::sync::oneshot::Sender<()>,
+    /// Must outlive the server: the validator fetches its key set on first use.
+    issuer:    TestIssuer,
+}
+
+impl Running {
+    fn token_for(&self, sub: &str) -> String {
+        self.issuer.mint(&self.issuer.claims().set("sub", sub))
+    }
 }
 
 /// How a test server authenticates.
@@ -99,9 +107,9 @@ struct Running {
 enum Auth {
     /// No auth configured: every request is anonymous.
     None,
-    /// HS256 tokens.
-    Hs256,
-    /// HS256 tokens, and `[identity.enrichment]` resolving `user_locale` from the actor table.
+    /// Bearer tokens from a test issuer.
+    Bearer,
+    /// Bearer tokens, and `[identity.enrichment]` resolving `user_locale` from the actor table.
     Enriched,
 }
 
@@ -134,15 +142,11 @@ async fn start_with(
     let url = try_database_url()?;
     let adapter = Arc::new(PostgresAdapter::new(&url).await.unwrap());
     seed(&adapter).await;
-    std::env::set_var(SECRET_ENV, SECRET);
+    let issuer = TestIssuer::start().await;
     let authenticated = auth != Auth::None;
     let mut config = ServerConfig {
         database_url: url,
-        auth_hs256: authenticated.then(|| Hs256Config {
-            secret_env: SECRET_ENV.to_string(),
-            issuer:     Some(ISSUER.to_string()),
-            audience:   Some(AUDIENCE.to_string()),
-        }),
+        auth: authenticated.then(|| oidc_config(&issuer, true)),
         cors_enabled: false,
         ..ServerConfig::default()
     };
@@ -176,23 +180,10 @@ async fn start_with(
     });
     tokio::time::sleep(std::time::Duration::from_millis(300)).await;
     Some(Running {
-        base:      format!("http://127.0.0.1:{port}"),
+        base: format!("http://127.0.0.1:{port}"),
         _shutdown: tx,
+        issuer,
     })
-}
-
-fn token_for(sub: &str) -> String {
-    use jsonwebtoken::{Algorithm, EncodingKey, Header, encode};
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
-        .as_secs();
-    encode(
-        &Header::new(Algorithm::HS256),
-        &json!({ "sub": sub, "iss": ISSUER, "aud": AUDIENCE, "iat": now, "exp": now + 3600 }),
-        &EncodingKey::from_secret(SECRET.as_bytes()),
-    )
-    .unwrap()
 }
 
 /// `fraiseql.locale` as a GraphQL read sees it, for a request with `headers` and `body`
@@ -209,7 +200,7 @@ async fn graphql_locale(
             "extensions": extensions,
         }));
     if let Some(sub) = subject {
-        request = request.header("authorization", format!("Bearer {}", token_for(sub)));
+        request = request.header("authorization", format!("Bearer {}", server.token_for(sub)));
     }
     for (name, value) in headers {
         request = request.header(*name, *value);
@@ -228,7 +219,7 @@ async fn graphql_locale(
 #[tokio::test]
 async fn the_request_locale_reaches_a_read_transaction() {
     let schema = compile(LOCALE_TOML).await.expect("a project with [locale] compiles");
-    let Some(server) = start(schema, Auth::Hs256).await else {
+    let Some(server) = start(schema, Auth::Bearer).await else {
         eprintln!("skipping #1512 locale context: DATABASE_URL not set");
         return;
     };
@@ -327,14 +318,10 @@ async fn an_enrichment_source_nothing_produces_refuses_to_boot() {
     };
     let toml = format!("{LOCALE_TOML}resolve = [{{ enrichment = \"favourite_locale\" }}]\n");
     let schema = compile(&toml).await.unwrap();
-    std::env::set_var(SECRET_ENV, SECRET);
+    let issuer = TestIssuer::start().await;
     let mut config = ServerConfig {
         database_url: url.clone(),
-        auth_hs256: Some(Hs256Config {
-            secret_env: SECRET_ENV.to_string(),
-            issuer:     Some(ISSUER.to_string()),
-            audience:   Some(AUDIENCE.to_string()),
-        }),
+        auth: Some(oidc_config(&issuer, true)),
         cors_enabled: false,
         ..ServerConfig::default()
     };
@@ -358,11 +345,7 @@ async fn an_enrichment_source_nothing_produces_refuses_to_boot() {
     let schema = compile(&toml).await.unwrap();
     let config = ServerConfig {
         database_url: url.clone(),
-        auth_hs256: Some(Hs256Config {
-            secret_env: SECRET_ENV.to_string(),
-            issuer:     Some(ISSUER.to_string()),
-            audience:   Some(AUDIENCE.to_string()),
-        }),
+        auth: Some(oidc_config(&issuer, true)),
         cors_enabled: false,
         ..ServerConfig::default()
     };
@@ -530,7 +513,7 @@ async fn a_streamed_continuation_batch_runs_in_the_request_locale() {
 #[tokio::test]
 async fn an_async_operation_executes_in_the_locale_it_was_submitted_in() {
     let schema = compile(LOCALE_TOML).await.unwrap();
-    let Some(server) = start_with(schema, Auth::Hs256, |config| {
+    let Some(server) = start_with(schema, Auth::Bearer, |config| {
         config.async_operations = Some(AsyncOperationsConfig {
             operations: vec!["localeProbes".to_string()],
             workers: 1,
@@ -543,7 +526,7 @@ async fn an_async_operation_executes_in_the_locale_it_was_submitted_in() {
         return;
     };
     let client = reqwest::Client::new();
-    let token = token_for("async-locale");
+    let token = server.token_for("async-locale");
     let submitted: Value = client
         .post(format!("{}/operations/v1/localeProbes", server.base))
         .bearer_auth(&token)
@@ -869,7 +852,7 @@ async fn a_write_never_carries_the_locale() {
 /// probe's answer depends on the locale, so a shared entry serves one locale the other's.
 #[tokio::test]
 async fn the_result_cache_keeps_each_locale_apart() {
-    for (auth, subject) in [(Auth::None, None), (Auth::Hs256, Some("cached"))] {
+    for (auth, subject) in [(Auth::None, None), (Auth::Bearer, Some("cached"))] {
         let mut schema = compile(LOCALE_TOML).await.unwrap();
         // The cache is opt-in per view.
         schema.queries[0].cache_ttl_seconds = Some(60);

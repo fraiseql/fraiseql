@@ -32,19 +32,15 @@ use fraiseql_core::{
     prelude::DatabaseAdapter as _,
     schema::{CompiledSchema, FieldType, QueryDefinition, TypeDefinition},
 };
-use fraiseql_server::server_config::{Hs256Config, ServerConfig};
-use fraiseql_test_support::try_database_url;
+use fraiseql_server::server_config::ServerConfig;
+use fraiseql_test_support::{issuer::TestIssuer, try_database_url};
 use serde_json::{Value, json};
 
 mod common;
 
-use crate::common::server_harness::TestServer;
+use crate::common::{server_harness::TestServer, test_issuer::oidc_config};
 
 const SCHEMA: &str = "p19_count";
-const SECRET_ENV: &str = "FRAISEQL_TEST_P19_COUNT_HS256_SECRET";
-const SECRET: &str = "p19-count-secret-0123456789-0123456789";
-const ISSUER: &str = "https://count.test.fraiseql";
-const AUDIENCE: &str = "count-test";
 
 const TENANT_A: &str = "11111111-1111-1111-1111-111111111111";
 const TENANT_B: &str = "22222222-2222-2222-2222-222222222222";
@@ -151,51 +147,32 @@ fn schema() -> CompiledSchema {
     schema
 }
 
-fn config() -> ServerConfig {
-    // The server reads the secret from the environment when it boots, so it must
-    // be set before `TestServer::start_with_config`. This binary owns the whole
-    // process and runs single-threaded, so there is no sibling to race.
-    std::env::set_var(SECRET_ENV, SECRET);
+fn config(issuer: &TestIssuer) -> ServerConfig {
     ServerConfig {
         cors_enabled: false,
         // Off by default for production safety; the count sibling has to be
         // visible to generated clients, which is what this asserts.
         introspection_enabled: true,
-        auth_hs256: Some(Hs256Config {
-            secret_env: SECRET_ENV.to_string(),
-            issuer:     Some(ISSUER.to_string()),
-            audience:   Some(AUDIENCE.to_string()),
-        }),
+        auth: Some(oidc_config(issuer, true)),
         ..ServerConfig::default()
     }
 }
 
-fn mint_token(tenant: Option<&str>, roles: &[&str]) -> String {
-    use jsonwebtoken::{Algorithm, EncodingKey, Header, encode};
-    let now = i64::try_from(
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .expect("system time")
-            .as_secs(),
-    )
-    .expect("epoch seconds fit i64");
-    let mut claims = json!({
-        "sub": "count-user",
-        "iss": ISSUER,
-        "aud": AUDIENCE,
-        "iat": now,
-        "exp": now + 3600,
-        "roles": roles,
-    });
-    if let Some(t) = tenant {
-        claims["org_id"] = json!(t);
+/// The test server and the issuer its tokens come from. The issuer must outlive
+/// the server: the validator fetches its key set on first use.
+struct Rig {
+    server: TestServer,
+    issuer: TestIssuer,
+}
+
+impl Rig {
+    fn mint_token(&self, tenant: Option<&str>, roles: &[&str]) -> String {
+        let mut claims = self.issuer.claims().set("sub", "count-user").set("roles", json!(roles));
+        if let Some(t) = tenant {
+            claims = claims.set("org_id", t);
+        }
+        self.issuer.mint(&claims)
     }
-    encode(
-        &Header::new(Algorithm::HS256),
-        &claims,
-        &EncodingKey::from_secret(SECRET.as_bytes()),
-    )
-    .expect("mint token")
 }
 
 async fn gql_raw(
@@ -221,11 +198,13 @@ async fn gql(server: &TestServer, query: &str, bearer: Option<&str>) -> Value {
         .unwrap_or_else(|e| panic!("expected a JSON body, got {status}: {body:?} ({e})"))
 }
 
-async fn boot() -> Option<TestServer> {
+async fn boot() -> Option<Rig> {
     let url = try_database_url()?;
     let adapter = Arc::new(PostgresAdapter::new(&url).await.expect("adapter"));
     seed(&adapter).await;
-    Some(Box::pin(TestServer::start_with_config(config(), schema(), adapter)).await)
+    let issuer = TestIssuer::start().await;
+    let server = Box::pin(TestServer::start_with_config(config(&issuer), schema(), adapter)).await;
+    Some(Rig { server, issuer })
 }
 
 // ── The count is the total, not the page ─────────────────────────────────────
@@ -239,10 +218,11 @@ async fn count_is_independent_of_limit_and_offset() {
     if database_url_or_skip("count_is_independent_of_limit_and_offset").is_none() {
         return;
     }
-    let server = Box::pin(boot()).await.unwrap();
-    let token = mint_token(None, &[]);
+    let rig = Box::pin(boot()).await.unwrap();
+    let server = &rig.server;
+    let token = rig.mint_token(None, &[]);
 
-    let body = gql(&server, "{ items(limit: 2, offset: 4) { id } itemsCount }", Some(&token)).await;
+    let body = gql(server, "{ items(limit: 2, offset: 4) { id } itemsCount }", Some(&token)).await;
 
     assert_eq!(
         body["data"]["items"].as_array().map(Vec::len),
@@ -264,11 +244,12 @@ async fn count_reflects_the_filter() {
     if database_url_or_skip("count_reflects_the_filter").is_none() {
         return;
     }
-    let server = Box::pin(boot()).await.unwrap();
-    let token = mint_token(None, &[]);
+    let rig = Box::pin(boot()).await.unwrap();
+    let server = &rig.server;
+    let token = rig.mint_token(None, &[]);
 
     let body =
-        gql(&server, r"{ itemsCount(where: { archived: { eq: false } }) }", Some(&token)).await;
+        gql(server, r"{ itemsCount(where: { archived: { eq: false } }) }", Some(&token)).await;
 
     assert_eq!(
         body["data"]["itemsCount"].as_i64(),
@@ -288,16 +269,17 @@ async fn count_is_tenant_scoped() {
     if database_url_or_skip("count_is_tenant_scoped").is_none() {
         return;
     }
-    let server = Box::pin(boot()).await.unwrap();
+    let rig = Box::pin(boot()).await.unwrap();
+    let server = &rig.server;
 
-    let a = gql(&server, "{ scopedItemsCount }", Some(&mint_token(Some(TENANT_A), &[]))).await;
+    let a = gql(server, "{ scopedItemsCount }", Some(&rig.mint_token(Some(TENANT_A), &[]))).await;
     assert_eq!(
         a["data"]["scopedItemsCount"].as_i64(),
         Some(5),
         "tenant A holds 5 of the 7 rows: {a}"
     );
 
-    let b = gql(&server, "{ scopedItemsCount }", Some(&mint_token(Some(TENANT_B), &[]))).await;
+    let b = gql(server, "{ scopedItemsCount }", Some(&rig.mint_token(Some(TENANT_B), &[]))).await;
     assert_eq!(
         b["data"]["scopedItemsCount"].as_i64(),
         Some(2),
@@ -313,9 +295,10 @@ async fn count_inherits_requires_role() {
     if database_url_or_skip("count_inherits_requires_role").is_none() {
         return;
     }
-    let server = Box::pin(boot()).await.unwrap();
+    let rig = Box::pin(boot()).await.unwrap();
+    let server = &rig.server;
 
-    let denied = gql(&server, "{ gatedItemsCount }", Some(&mint_token(None, &["viewer"]))).await;
+    let denied = gql(server, "{ gatedItemsCount }", Some(&rig.mint_token(None, &["viewer"]))).await;
     let msg = denied["errors"][0]["message"].as_str().unwrap_or_default();
     assert!(
         msg.contains("not found in schema"),
@@ -327,7 +310,8 @@ async fn count_inherits_requires_role() {
         "no count may be returned to an unauthorized caller: {denied}"
     );
 
-    let allowed = gql(&server, "{ gatedItemsCount }", Some(&mint_token(None, &["auditor"]))).await;
+    let allowed =
+        gql(server, "{ gatedItemsCount }", Some(&rig.mint_token(None, &["auditor"]))).await;
     assert_eq!(
         allowed["data"]["gatedItemsCount"].as_i64(),
         Some(7),
@@ -343,9 +327,10 @@ async fn count_refuses_anonymous_when_list_does() {
     if database_url_or_skip("count_refuses_anonymous_when_list_does").is_none() {
         return;
     }
-    let server = Box::pin(boot()).await.unwrap();
+    let rig = Box::pin(boot()).await.unwrap();
+    let server = &rig.server;
 
-    let (status, body) = gql_raw(&server, "{ scopedItemsCount }", None).await;
+    let (status, body) = gql_raw(server, "{ scopedItemsCount }", None).await;
     assert!(
         !status.is_success(),
         "an anonymous count over a tenant-scoped query must not succeed; got {status}: {body}"
@@ -366,13 +351,14 @@ async fn count_is_introspectable_as_non_null_int() {
     if database_url_or_skip("count_is_introspectable_as_non_null_int").is_none() {
         return;
     }
-    let server = Box::pin(boot()).await.unwrap();
-    let token = mint_token(None, &[]);
+    let rig = Box::pin(boot()).await.unwrap();
+    let server = &rig.server;
+    let token = rig.mint_token(None, &[]);
 
     // `__schema.queryType` is a shallow type reference (`{ name: "Query" }`); the
     // field list lives on the matching entry of `__schema.types`.
     let body = gql(
-        &server,
+        server,
         "{ __schema { types { name fields { name args { name } type { kind ofType { name } } } } } }",
         Some(&token),
     )

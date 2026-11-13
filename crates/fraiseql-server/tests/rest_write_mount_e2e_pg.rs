@@ -37,10 +37,6 @@
 #![cfg(feature = "rest")]
 #![allow(clippy::unwrap_used, clippy::panic, clippy::print_stderr)]
 // Reason: test code
-// Reason: `temp_env::async_with_vars` holds a non-Send guard across the await that
-// constructs the server. These tests run on a current-thread runtime, so `Send` is not
-// required — the same allow the wiremock and MinIO integration suites carry.
-#![allow(clippy::future_not_send)]
 
 use std::sync::Arc;
 
@@ -52,22 +48,16 @@ use fraiseql_core::{
         MutationOperation, QueryDefinition, RestConfig, TypeDefinition,
     },
 };
-use fraiseql_server::server_config::{Hs256Config, ServerConfig};
-use fraiseql_test_support::try_database_url;
+use fraiseql_server::server_config::ServerConfig;
+use fraiseql_test_support::{issuer::TestIssuer, try_database_url};
 use serde_json::{Value, json};
 
 mod common;
 
-use crate::common::server_harness::TestServer;
+use crate::common::{server_harness::TestServer, test_issuer::oidc_config};
 
 const SCHEMA: &str = "p13_mount";
 const BASE: &str = "/rest/v1";
-
-/// 32-byte HS256 secret — meets the minimum key-length requirement.
-const SECRET: &str = "fraiseql-p13-secret-exactly-32by";
-const SECRET_ENV: &str = "FRAISEQL_P13_MOUNT_HS256_SECRET";
-const ISSUER: &str = "https://p13.fraiseql.test";
-const AUDIENCE: &str = "fraiseql-p13-api";
 
 /// Rows seeded before each test, so a created row is distinguishable by count.
 const SEEDED: usize = 2;
@@ -238,41 +228,13 @@ fn schema() -> CompiledSchema {
     schema
 }
 
-fn auth_config() -> ServerConfig {
+fn auth_config(issuer: &TestIssuer) -> ServerConfig {
     ServerConfig {
-        auth_hs256: Some(Hs256Config {
-            secret_env: SECRET_ENV.to_string(),
-            issuer:     Some(ISSUER.to_string()),
-            audience:   Some(AUDIENCE.to_string()),
-        }),
+        auth: Some(oidc_config(issuer, true)),
         // #874: production validate() refuses cors_enabled=true + empty origins
         cors_enabled: false,
         ..ServerConfig::default()
     }
-}
-
-fn token() -> String {
-    use jsonwebtoken::{Algorithm, EncodingKey, Header, encode};
-
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .expect("system time before epoch")
-        .as_secs();
-
-    let claims = json!({
-        "sub": "p13-mount-user",
-        "iss": ISSUER,
-        "aud": AUDIENCE,
-        "iat": now,
-        "exp": now + 3600,
-    });
-
-    encode(
-        &Header::new(Algorithm::HS256),
-        &claims,
-        &EncodingKey::from_secret(SECRET.as_bytes()),
-    )
-    .expect("encode token")
 }
 
 // ---------------------------------------------------------------------------
@@ -283,9 +245,15 @@ struct Rig {
     server:  TestServer,
     adapter: Arc<PostgresAdapter>,
     client:  reqwest::Client,
+    /// Must outlive the server: the validator fetches its key set on first use.
+    issuer:  TestIssuer,
 }
 
 impl Rig {
+    fn token(&self) -> String {
+        self.issuer.mint(&self.issuer.claims().set("sub", "p13-mount-user"))
+    }
+
     async fn request(
         &self,
         method: reqwest::Method,
@@ -363,17 +331,11 @@ async fn rig_with_writes() -> Option<Rig> {
     let adapter = Arc::new(PostgresAdapter::new(&url).await.expect("connect"));
     seed(&adapter).await;
 
-    // The secret is read once, by `Hs256Config::load_secret` during `Server::new`, so
-    // the variable only needs to exist for the construction. Scoping it keeps the
-    // process environment clean for the rest of the binary — #907 is a live example of
-    // what a leaked `FRAISEQL_*` variable does to an unrelated suite.
-    let server = Box::pin(temp_env::async_with_vars(
-        [(SECRET_ENV, Some(SECRET))],
-        TestServer::start_with_rest_writes(
-            auth_config(),
-            schema(),
-            Arc::new(PostgresAdapter::new(&url).await.expect("connect")),
-        ),
+    let issuer = TestIssuer::start().await;
+    let server = Box::pin(TestServer::start_with_rest_writes(
+        auth_config(&issuer),
+        schema(),
+        Arc::new(PostgresAdapter::new(&url).await.expect("connect")),
     ))
     .await;
 
@@ -381,6 +343,7 @@ async fn rig_with_writes() -> Option<Rig> {
         server,
         adapter,
         client: client(),
+        issuer,
     })
 }
 
@@ -390,13 +353,11 @@ async fn rig_read_only() -> Option<Rig> {
     let adapter = Arc::new(PostgresAdapter::new(&url).await.expect("connect"));
     seed(&adapter).await;
 
-    let server = Box::pin(temp_env::async_with_vars(
-        [(SECRET_ENV, Some(SECRET))],
-        TestServer::start_with_config(
-            auth_config(),
-            schema(),
-            Arc::new(PostgresAdapter::new(&url).await.expect("connect")),
-        ),
+    let issuer = TestIssuer::start().await;
+    let server = Box::pin(TestServer::start_with_config(
+        auth_config(&issuer),
+        schema(),
+        Arc::new(PostgresAdapter::new(&url).await.expect("connect")),
     ))
     .await;
 
@@ -404,6 +365,7 @@ async fn rig_read_only() -> Option<Rig> {
         server,
         adapter,
         client: client(),
+        issuer,
     })
 }
 
@@ -431,7 +393,7 @@ async fn a_post_through_the_production_mount_creates_a_row() {
         .request(
             reqwest::Method::POST,
             &format!("{BASE}/items"),
-            Some(&token()),
+            Some(&rig.token()),
             Some(json!({"label": "created-by-rest"})),
         )
         .await;
@@ -470,7 +432,7 @@ async fn the_read_only_mount_still_refuses_writes() {
         .request(
             reqwest::Method::POST,
             &format!("{BASE}/items"),
-            Some(&token()),
+            Some(&rig.token()),
             Some(json!({"label": "must-not-be-created"})),
         )
         .await;
@@ -532,7 +494,7 @@ async fn an_anonymous_write_is_rejected_and_changes_nothing() {
         .request(
             reqwest::Method::POST,
             &format!("{BASE}/items"),
-            Some(&token()),
+            Some(&rig.token()),
             Some(json!({"label": "authenticated-write"})),
         )
         .await;
@@ -559,7 +521,7 @@ async fn a_delete_through_the_production_mount_removes_exactly_one_row() {
         .request(
             reqwest::Method::DELETE,
             &format!("{BASE}/items/{}", uuid_for(0)),
-            Some(&token()),
+            Some(&rig.token()),
             None,
         )
         .await;
@@ -578,7 +540,7 @@ async fn a_delete_through_the_production_mount_removes_exactly_one_row() {
 /// excluding the `/openapi.json` self-reference.
 async fn advertised_operations(rig: &Rig) -> Vec<(String, String)> {
     let (status, body) = rig
-        .request(reqwest::Method::GET, &format!("{BASE}/openapi.json"), Some(&token()), None)
+        .request(reqwest::Method::GET, &format!("{BASE}/openapi.json"), Some(&rig.token()), None)
         .await;
     assert_eq!(status, reqwest::StatusCode::OK, "openapi.json must be served; body: {body}");
 
@@ -633,7 +595,7 @@ async fn every_advertised_operation_is_answered_by_the_mounted_router() {
     let advertised = advertised_operations(&rig).await;
     assert!(!advertised.is_empty(), "the document must advertise something to be meaningful");
 
-    let auth = token();
+    let auth = rig.token();
     let mut unanswered = Vec::new();
     for (path, method) in &advertised {
         let verb = reqwest::Method::from_bytes(method.to_uppercase().as_bytes())
@@ -707,29 +669,30 @@ async fn an_authored_rest_path_serves_at_the_path_it_names() {
         .rest_path = Some("/api/v1/orders".to_string());
     overridden.build_indexes();
 
-    let server = Box::pin(temp_env::async_with_vars(
-        [(SECRET_ENV, Some(SECRET))],
-        TestServer::start_with_rest_writes(
-            auth_config(),
-            overridden,
-            Arc::new(PostgresAdapter::new(&url).await.expect("connect")),
-        ),
+    let issuer = TestIssuer::start().await;
+    let server = Box::pin(TestServer::start_with_rest_writes(
+        auth_config(&issuer),
+        overridden,
+        Arc::new(PostgresAdapter::new(&url).await.expect("connect")),
     ))
     .await;
     let rig = Rig {
         server,
         adapter,
         client: client(),
+        issuer,
     };
 
     let (status, body) = rig
-        .request(reqwest::Method::GET, &format!("{BASE}/api/v1/orders"), Some(&token()), None)
+        .request(reqwest::Method::GET, &format!("{BASE}/api/v1/orders"), Some(&rig.token()), None)
         .await;
     assert_eq!(status, reqwest::StatusCode::OK, "the overridden path must serve; body: {body}");
 
     // And the derived path it replaced must be gone — an override that merely *adds* a
     // route would leave the collision `detect_conflicts` sends operators here to resolve.
-    let derived = rig.probe_status(reqwest::Method::GET, &format!("{BASE}/items"), &token()).await;
+    let derived = rig
+        .probe_status(reqwest::Method::GET, &format!("{BASE}/items"), &rig.token())
+        .await;
     assert_eq!(
         derived,
         reqwest::StatusCode::METHOD_NOT_ALLOWED,
@@ -776,7 +739,7 @@ async fn a_lenient_handling_preference_ignores_an_unknown_query_parameter() {
 
     // Strict (the default) still refuses — otherwise the lenient case below would prove
     // nothing about the preference.
-    let (strict, body) = rig.request(reqwest::Method::GET, &uri, Some(&token()), None).await;
+    let (strict, body) = rig.request(reqwest::Method::GET, &uri, Some(&rig.token()), None).await;
     assert_eq!(
         strict,
         reqwest::StatusCode::BAD_REQUEST,
@@ -790,7 +753,7 @@ async fn a_lenient_handling_preference_ignores_an_unknown_query_parameter() {
     let response = rig
         .client
         .get(format!("{}{uri}", rig.server.url))
-        .bearer_auth(token())
+        .bearer_auth(rig.token())
         .header("prefer", "handling=lenient")
         .send()
         .await
@@ -827,7 +790,7 @@ async fn a_lenient_handling_preference_does_not_excuse_a_malformed_parameter() {
     let response = rig
         .client
         .get(format!("{}{BASE}/items?label[nonsense]=x", rig.server.url))
-        .bearer_auth(token())
+        .bearer_auth(rig.token())
         .header("prefer", "handling=lenient")
         .send()
         .await
@@ -862,7 +825,7 @@ async fn a_get_emits_an_etag_and_honours_if_none_match() {
     let response = rig
         .client
         .get(format!("{}{BASE}/items", rig.server.url))
-        .bearer_auth(token())
+        .bearer_auth(rig.token())
         .send()
         .await
         .expect("first request");
@@ -877,7 +840,7 @@ async fn a_get_emits_an_etag_and_honours_if_none_match() {
     let conditional = rig
         .client
         .get(format!("{}{BASE}/items", rig.server.url))
-        .bearer_auth(token())
+        .bearer_auth(rig.token())
         .header("if-none-match", &etag)
         .send()
         .await
@@ -911,7 +874,7 @@ async fn an_etag_changes_when_the_underlying_rows_change() {
     let etag_of = || async {
         rig.client
             .get(format!("{}{BASE}/items", rig.server.url))
-            .bearer_auth(token())
+            .bearer_auth(rig.token())
             .send()
             .await
             .expect("request")
@@ -927,7 +890,7 @@ async fn an_etag_changes_when_the_underlying_rows_change() {
         .request(
             reqwest::Method::POST,
             &format!("{BASE}/items"),
-            Some(&token()),
+            Some(&rig.token()),
             Some(json!({"label": "etag-buster"})),
         )
         .await;
@@ -948,7 +911,7 @@ async fn a_created_resource_reports_its_location() {
     let response = rig
         .client
         .post(format!("{}{BASE}/items", rig.server.url))
-        .bearer_auth(token())
+        .bearer_auth(rig.token())
         .json(&json!({"label": "located"}))
         .send()
         .await
@@ -968,7 +931,8 @@ async fn a_created_resource_reports_its_location() {
     );
 
     // And it must resolve — a Location naming a URL that 404s is worse than none.
-    let (status, body) = rig.request(reqwest::Method::GET, &location, Some(&token()), None).await;
+    let (status, body) =
+        rig.request(reqwest::Method::GET, &location, Some(&rig.token()), None).await;
     assert_eq!(
         status,
         reqwest::StatusCode::OK,
@@ -1014,7 +978,7 @@ async fn the_sse_stream_refuses_rather_than_pretending_to_deliver_events() {
     let response = rig
         .client
         .get(format!("{}{BASE}/items/stream", rig.server.url))
-        .bearer_auth(token())
+        .bearer_auth(rig.token())
         .header("accept", "text/event-stream")
         .send()
         .await

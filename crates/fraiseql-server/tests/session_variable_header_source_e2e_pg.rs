@@ -12,8 +12,7 @@
 //!
 //! **Execution engine:** `PostgreSQL` · **Infrastructure:** `DATABASE_URL` ·
 //! **Parallelism:** creates and drops its own `v_issue_header_var` view and
-//! `header_var_write` schema, and sets a process-global env var for the HS256 secret → run
-//! `--test-threads=1`.
+//! `header_var_write` schema → run `--test-threads=1`.
 #![cfg(all(feature = "rest", feature = "mcp", feature = "auth"))]
 #![allow(clippy::unwrap_used, clippy::panic, clippy::print_stderr)] // Reason: test code — panics and skip diagnostics are acceptable
 
@@ -33,21 +32,21 @@ use fraiseql_server::{
     Server,
     mcp::handler::FraiseQLMcpService,
     routes::graphql::AppState,
-    server_config::{AsyncOperationsConfig, Hs256Config, ServerConfig},
+    server_config::{AsyncOperationsConfig, ServerConfig},
 };
-use fraiseql_test_support::try_database_url;
+use fraiseql_test_support::{issuer::TestIssuer, try_database_url};
 use fraiseql_test_utils::schema_builder::{
     TestFieldBuilder, TestQueryBuilder, TestSchemaBuilder, TestTypeBuilder,
 };
 use serde_json::{Value, json};
 
+mod common;
+
+use crate::common::test_issuer::oidc_config;
+
 const VIEW: &str = "v_issue_header_var";
 /// The schema the write fixture lives in.
 const WRITE_SCHEMA: &str = "header_var_write";
-const SECRET: &str = "fraiseql-hdrvar-secret-exactly-32";
-const SECRET_ENV: &str = "FRAISEQL_HDRVAR_HS256_SECRET";
-const ISSUER: &str = "https://hdrvar.fraiseql.test";
-const AUDIENCE: &str = "fraiseql-hdrvar-api";
 
 /// `app.region` from the `x-region` header, `app.flavor` a literal, `app.subject` the `sub`
 /// claim.
@@ -206,32 +205,28 @@ async fn seen(url: &str, label: &str) -> Option<String> {
     rows[0]["region"].as_str().map(str::to_string)
 }
 
-fn token(extra: &Value) -> String {
-    use jsonwebtoken::{Algorithm, EncodingKey, Header, encode};
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
-        .as_secs();
-    let mut claims =
-        json!({ "sub": "probe", "iss": ISSUER, "aud": AUDIENCE, "iat": now, "exp": now + 3600 });
-    if let (Some(claims), Some(extra)) = (claims.as_object_mut(), extra.as_object()) {
-        claims.extend(extra.clone());
-    }
-    encode(
-        &Header::new(Algorithm::HS256),
-        &claims,
-        &EncodingKey::from_secret(SECRET.as_bytes()),
-    )
-    .unwrap()
-}
-
 /// A running server; dropping it shuts the server down.
 struct Running {
     base:      String,
     _shutdown: tokio::sync::oneshot::Sender<()>,
+    /// Must outlive the server: the validator fetches its key set on first use.
+    issuer:    TestIssuer,
 }
 
-/// A server against `url` with HS256 authentication, or none (every request is anonymous).
+impl Running {
+    /// A token for `probe`, with `extra` merged into its claims.
+    fn token(&self, extra: &Value) -> String {
+        let mut claims = self.issuer.claims().set("sub", "probe");
+        if let Some(extra) = extra.as_object() {
+            for (name, value) in extra {
+                claims = claims.set(name, value.clone());
+            }
+        }
+        self.issuer.mint(&claims)
+    }
+}
+
+/// A server against `url` trusting a test issuer, or none (every request is anonymous).
 async fn serve(url: &str, authenticated: bool) -> Running {
     serve_with(url, authenticated, |_| {}).await
 }
@@ -243,14 +238,10 @@ async fn serve_with(
 ) -> Running {
     let adapter = Arc::new(PostgresAdapter::new(url).await.unwrap());
     provision(&adapter).await;
-    std::env::set_var(SECRET_ENV, SECRET);
+    let issuer = TestIssuer::start().await;
     let mut config = ServerConfig {
         database_url: url.to_string(),
-        auth_hs256: authenticated.then(|| Hs256Config {
-            secret_env: SECRET_ENV.to_string(),
-            issuer:     Some(ISSUER.to_string()),
-            audience:   Some(AUDIENCE.to_string()),
-        }),
+        auth: authenticated.then(|| oidc_config(&issuer, true)),
         cors_enabled: false,
         ..ServerConfig::default()
     };
@@ -275,8 +266,9 @@ async fn serve_with(
     });
     tokio::time::sleep(std::time::Duration::from_millis(300)).await;
     Running {
-        base:      format!("http://127.0.0.1:{port}"),
+        base: format!("http://127.0.0.1:{port}"),
         _shutdown: tx,
+        issuer,
     }
 }
 
@@ -323,8 +315,9 @@ async fn a_header_session_variable_reads_the_request_header() {
         return;
     };
     let server = serve(&url, true).await;
-    let sent = graphql(&server, PROBE, Some(token(&json!({}))), &[("x-region", "eu")]).await;
-    let claimed = graphql(&server, PROBE, Some(token(&json!({ "x-region": "claim" }))), &[]).await;
+    let sent = graphql(&server, PROBE, Some(server.token(&json!({}))), &[("x-region", "eu")]).await;
+    let claimed =
+        graphql(&server, PROBE, Some(server.token(&json!({ "x-region": "claim" }))), &[]).await;
     drop(server);
 
     let server = serve(&url, false).await;
@@ -366,7 +359,8 @@ async fn a_relay_connection_sees_the_header_and_literal_variables() {
         return;
     };
     let server = serve(&url, true).await;
-    let signed = graphql(&server, PAGE, Some(token(&json!({}))), &[("x-region", "eu")]).await;
+    let signed =
+        graphql(&server, PAGE, Some(server.token(&json!({}))), &[("x-region", "eu")]).await;
     drop(server);
     let server = serve(&url, false).await;
     let anonymous = graphql(&server, PAGE, None, &[("x-region", "eu")]).await;
@@ -532,7 +526,7 @@ async fn an_async_operation_executes_with_the_header_it_was_submitted_with() {
     })
     .await;
     let client = reqwest::Client::new();
-    let token = token(&json!({ "sub": "async-region" }));
+    let token = server.token(&json!({ "sub": "async-region" }));
     let submitted = body(
         client
             .post(format!("{}/operations/v1/regionProbes", server.base))

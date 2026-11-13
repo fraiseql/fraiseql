@@ -2,8 +2,8 @@
 //! each of P19's six saga-recovery failure modes pinned by its own test.
 //!
 //! The HTTP tests drive the production mount (`Server::serve_on_listener` with
-//! a real pool, HS256 auth, and live workers); the claim/recovery semantics
-//! drive `AsyncOperationStore` directly — they are about what the store's
+//! a real pool, `[auth]` trusting the ES256 test issuer, and live workers); the claim/recovery
+//! semantics drive `AsyncOperationStore` directly — they are about what the store's
 //! conditional UPDATEs allow, and simulating a dead worker needs a hand on
 //! `heartbeat_at`. Multi-tenant execution routing rides the same
 //! `tenant_dispatch` seam as `/graphql` and MCP (#858's two-tenant e2e pins
@@ -20,6 +20,8 @@
 #![allow(clippy::unwrap_used, clippy::panic, clippy::print_stderr)] // Reason: test code — panics and skip diagnostics are acceptable
 #![allow(clippy::future_not_send, clippy::cast_precision_loss)] // Reason: test code — single-runtime futures; small backdate values
 
+mod common;
+
 use std::{sync::Arc, time::Duration};
 
 use fraiseql_core::{
@@ -33,18 +35,14 @@ use fraiseql_core::{
 use fraiseql_server::{
     Server,
     async_operations::AsyncOperationStore,
-    server_config::{AsyncOperationsConfig, Hs256Config, ServerConfig},
+    server_config::{AsyncOperationsConfig, ServerConfig},
 };
-use fraiseql_test_support::try_database_url;
+use fraiseql_test_support::{issuer::TestIssuer, try_database_url};
 use serde_json::{Value, json};
 use sqlx::{PgPool, Row, postgres::PgPoolOptions};
 use uuid::Uuid;
 
 const SCHEMA: &str = "p29_async";
-const SECRET_ENV: &str = "FRAISEQL_TEST_P29_ASYNC_HS256_SECRET";
-const SECRET: &str = "p29-async-secret-0123456789-0123456789";
-const ISSUER: &str = "https://async.test.fraiseql";
-const AUDIENCE: &str = "async-test";
 
 async fn exec(adapter: &PostgresAdapter, sql: &str) {
     let _: Vec<std::collections::HashMap<String, Value>> = adapter
@@ -135,13 +133,9 @@ fn schema() -> CompiledSchema {
     schema
 }
 
-fn config() -> ServerConfig {
+fn config(issuer: &TestIssuer) -> ServerConfig {
     ServerConfig {
-        auth_hs256: Some(Hs256Config {
-            secret_env: SECRET_ENV.to_string(),
-            issuer:     Some(ISSUER.to_string()),
-            audience:   Some(AUDIENCE.to_string()),
-        }),
+        auth: Some(common::test_issuer::oidc_config(issuer, true)),
         async_operations: Some(AsyncOperationsConfig {
             operations: vec!["createItem".to_string(), "failItem".to_string()],
             workers: 1,
@@ -153,32 +147,15 @@ fn config() -> ServerConfig {
     }
 }
 
-fn mint_token(sub: &str) -> String {
-    use jsonwebtoken::{Algorithm, EncodingKey, Header, encode};
-    let now = i64::try_from(
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .expect("system time")
-            .as_secs(),
-    )
-    .expect("epoch seconds fit i64");
-    let claims = json!({
-        "sub": sub, "iss": ISSUER, "aud": AUDIENCE, "iat": now, "exp": now + 3600,
-    });
-    encode(
-        &Header::new(Algorithm::HS256),
-        &claims,
-        &EncodingKey::from_secret(SECRET.as_bytes()),
-    )
-    .expect("mint token")
-}
-
 struct Rig {
     url:       String,
     pool:      PgPool,
     store:     AsyncOperationStore,
     client:    reqwest::Client,
     _shutdown: tokio::sync::oneshot::Sender<()>,
+    /// The issuer the server's `[auth]` trusts. It outlives the server: the validator
+    /// fetches its key set on first use.
+    issuer:    TestIssuer,
 }
 
 /// Boot the REAL server (auth layer, mounted routes, live workers) on an
@@ -196,15 +173,13 @@ async fn boot_over(schema: CompiledSchema) -> Option<Rig> {
 
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.expect("bind");
     let port = listener.local_addr().expect("addr").port();
-    let server = temp_env::async_with_vars(
-        [(SECRET_ENV, Some(SECRET))],
-        Box::pin(Server::new(
-            config(),
-            schema,
-            Arc::new(PostgresAdapter::new(&url).await.expect("server adapter")),
-            Some(pool.clone()),
-        )),
-    )
+    let issuer = TestIssuer::start().await;
+    let server = Box::pin(Server::new(
+        config(&issuer),
+        schema,
+        Arc::new(PostgresAdapter::new(&url).await.expect("server adapter")),
+        Some(pool.clone()),
+    ))
     .await
     .expect("Server::new");
 
@@ -226,15 +201,21 @@ async fn boot_over(schema: CompiledSchema) -> Option<Rig> {
     tokio::time::sleep(Duration::from_millis(80)).await;
 
     Some(Rig {
-        url:       format!("http://127.0.0.1:{port}"),
-        pool:      pool.clone(),
-        store:     AsyncOperationStore::new(pool),
-        client:    reqwest::Client::new(),
+        url: format!("http://127.0.0.1:{port}"),
+        pool: pool.clone(),
+        store: AsyncOperationStore::new(pool),
+        client: reqwest::Client::new(),
         _shutdown: tx,
+        issuer,
     })
 }
 
 impl Rig {
+    /// A bearer token for `sub`, from the issuer the server trusts.
+    fn mint_token(&self, sub: &str) -> String {
+        self.issuer.mint(&self.issuer.claims().set("sub", sub))
+    }
+
     async fn submit(
         &self,
         operation: &str,
@@ -318,7 +299,7 @@ async fn submit_executes_through_the_real_pipeline_and_succeeds() {
         eprintln!("SKIP submit_executes: no DATABASE_URL");
         return;
     };
-    let token = mint_token("async-user-1");
+    let token = rig.mint_token("async-user-1");
 
     let (code, body) = rig
         .submit(
@@ -359,7 +340,7 @@ async fn idempotent_submission_returns_the_same_op_id_once() {
         eprintln!("SKIP idempotent_submission: no DATABASE_URL");
         return;
     };
-    let token = mint_token("async-user-2");
+    let token = rig.mint_token("async-user-2");
     let q = "mutation Create($label: String) { createItem(label: $label) { id } }";
 
     let (c1, b1) = rig
@@ -393,7 +374,7 @@ async fn status_reads_the_stored_row() {
         eprintln!("SKIP status_reads_stored: no DATABASE_URL");
         return;
     };
-    let token = mint_token("async-user-3");
+    let token = rig.mint_token("async-user-3");
     let (_, body) = rig
         .submit(
             "createItem",
@@ -428,7 +409,7 @@ async fn failed_execution_records_the_error() {
         eprintln!("SKIP failed_execution: no DATABASE_URL");
         return;
     };
-    let token = mint_token("async-user-4");
+    let token = rig.mint_token("async-user-4");
     let (_, body) = rig
         .submit(
             "failItem",
@@ -475,7 +456,7 @@ async fn a_failed_operations_error_is_sanitised_as_graphql_sanitises_it() {
         eprintln!("SKIP sanitised_failure: no DATABASE_URL");
         return;
     };
-    let token = mint_token("async-user-5");
+    let token = rig.mint_token("async-user-5");
     let document = "mutation { failItem(label: \"boom\") { id } }";
 
     // Control: the same write through /graphql is sanitised.
@@ -622,8 +603,8 @@ async fn operations_are_scoped_to_their_submitter() {
         eprintln!("SKIP submitter_scoping: no DATABASE_URL");
         return;
     };
-    let owner = mint_token("owner-user");
-    let intruder = mint_token("intruder-user");
+    let owner = rig.mint_token("owner-user");
+    let intruder = rig.mint_token("intruder-user");
 
     let (_, body) = rig
         .submit(
@@ -659,8 +640,8 @@ async fn another_submitter_under_the_same_key_gets_its_own_operation() {
         eprintln!("SKIP key_owner: no DATABASE_URL");
         return;
     };
-    let owner = mint_token("key-owner");
-    let other = mint_token("key-other");
+    let owner = rig.mint_token("key-owner");
+    let other = rig.mint_token("key-other");
     let q = "mutation Create($label: String) { createItem(label: $label) { id } }";
 
     let (_, first) = rig
@@ -683,7 +664,7 @@ async fn submission_gates_refuse_loudly() {
         eprintln!("SKIP submission_gates: no DATABASE_URL");
         return;
     };
-    let token = mint_token("gate-user");
+    let token = rig.mint_token("gate-user");
 
     let resp = rig
         .client

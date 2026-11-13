@@ -42,8 +42,8 @@ use fraiseql_core::{
         CompiledSchema, FieldDenyPolicy, FieldType, InjectedParamSource, RestConfig, SecurityConfig,
     },
 };
-use fraiseql_server::server_config::{Hs256Config, ServerConfig};
-use fraiseql_test_support::try_database_url;
+use fraiseql_server::server_config::ServerConfig;
+use fraiseql_test_support::{issuer::TestIssuer, try_database_url};
 use fraiseql_test_utils::schema_builder::{
     TestFieldBuilder, TestQueryBuilder, TestSchemaBuilder, TestTypeBuilder,
 };
@@ -51,7 +51,7 @@ use serde_json::{Value, json};
 
 mod common;
 
-use crate::common::server_harness::TestServer;
+use crate::common::{server_harness::TestServer, test_issuer::oidc_config};
 
 /// The fixture table. Deliberately **not** a shared seeded fixture: several suites
 /// introspect `tf_sales` / `v_user`, and dropping one of those here would break them
@@ -59,12 +59,6 @@ use crate::common::server_harness::TestServer;
 const TABLE: &str = "tf_p03_orders";
 /// The view the compiled query reads.
 const VIEW: &str = "v_p03_order";
-
-/// 32-byte HS256 secret — meets the minimum key-length requirement.
-const SECRET: &str = "fraiseql-p03-secret-exactly-32by";
-const SECRET_ENV: &str = "FRAISEQL_P03_HS256_SECRET";
-const ISSUER: &str = "https://p03.fraiseql.test";
-const AUDIENCE: &str = "fraiseql-p03-api";
 
 const TENANT_A: &str = "tenant-a";
 const TENANT_B: &str = "tenant-b";
@@ -149,44 +143,43 @@ fn build_schema(require_auth: bool) -> CompiledSchema {
     schema
 }
 
-/// Server config with HS256 auth wired the way an operator would wire it.
-fn auth_config() -> ServerConfig {
+/// Server config with the issuer's `[auth]` section, wired the way an operator would
+/// wire it.
+fn auth_config(issuer: &TestIssuer) -> ServerConfig {
     ServerConfig {
-        auth_hs256: Some(Hs256Config {
-            secret_env: SECRET_ENV.to_string(),
-            issuer:     Some(ISSUER.to_string()),
-            audience:   Some(AUDIENCE.to_string()),
-        }),
+        auth: Some(oidc_config(issuer, true)),
         // #874: production validate() refuses cors_enabled=true + empty origins
         cors_enabled: false,
         ..ServerConfig::default()
     }
 }
 
-/// Mint an HS256 token carrying `org_id`, the claim the query injects from.
-fn token_for(tenant: &str) -> String {
-    use jsonwebtoken::{Algorithm, EncodingKey, Header, encode};
+/// A running server and the issuer its tokens come from. The issuer must outlive the
+/// server: the validator fetches its key set on first use.
+struct Rig {
+    server: TestServer,
+    issuer: TestIssuer,
+}
 
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .expect("system time before epoch")
-        .as_secs();
+impl std::ops::Deref for Rig {
+    type Target = TestServer;
 
-    let claims = json!({
-        "sub":    format!("user-of-{tenant}"),
-        "iss":    ISSUER,
-        "aud":    AUDIENCE,
-        "org_id": tenant,
-        "iat":    now,
-        "exp":    now + 3600,
-    });
+    fn deref(&self) -> &TestServer {
+        &self.server
+    }
+}
 
-    encode(
-        &Header::new(Algorithm::HS256),
-        &claims,
-        &EncodingKey::from_secret(SECRET.as_bytes()),
-    )
-    .expect("mint HS256 token")
+impl Rig {
+    /// A token carrying `org_id`, the claim the query injects from.
+    fn token_for(&self, tenant: &str) -> String {
+        self.issuer.mint(
+            &self
+                .issuer
+                .claims()
+                .set("sub", format!("user-of-{tenant}"))
+                .set("org_id", tenant),
+        )
+    }
 }
 
 /// Outcome of one REST GET: status, body envelope, and the `Prefer`-reported total.
@@ -271,24 +264,25 @@ async fn get_orders_query(
 
 /// Stand up the fixture and a running server. `None` when there is no database.
 ///
-/// `authenticated` selects whether the deployment configures HS256 at all. Both shapes
+/// `authenticated` selects whether the deployment configures `[auth]` at all. Both shapes
 /// matter and they fail closed for **different** reasons: with auth configured the
 /// middleware refuses an anonymous caller, and with no auth configured at all the
 /// request reaches the executor, where the inject guard must refuse it. A test that
 /// only ever runs the first shape would pass while the second stayed wide open — which
 /// is exactly the state `#739` shipped in.
-async fn start(authenticated: bool, require_auth: bool) -> Option<TestServer> {
+async fn start(authenticated: bool, require_auth: bool) -> Option<Rig> {
     start_with_schema(authenticated, build_schema(require_auth)).await
 }
 
 /// As [`start`], with a caller-supplied compiled schema.
-async fn start_with_schema(authenticated: bool, schema: CompiledSchema) -> Option<TestServer> {
+async fn start_with_schema(authenticated: bool, schema: CompiledSchema) -> Option<Rig> {
     let url = try_database_url()?;
     let adapter = PostgresAdapter::new(&url).await.expect("connect to the test database");
     seed(&adapter).await;
 
+    let issuer = TestIssuer::start().await;
     let config = if authenticated {
-        auth_config()
+        auth_config(&issuer)
     } else {
         // #874: cors_enabled=false — production validate() refuses the default.
         ServerConfig {
@@ -298,7 +292,8 @@ async fn start_with_schema(authenticated: bool, schema: CompiledSchema) -> Optio
     };
     // Boxed: `Server::new`'s future is ~18 KiB and `clippy::large_futures` (pedantic,
     // denied) rejects awaiting it inline at every call site.
-    Some(Box::pin(TestServer::start_with_config(config, schema, Arc::new(adapter))).await)
+    let server = Box::pin(TestServer::start_with_config(config, schema, Arc::new(adapter))).await;
+    Some(Rig { server, issuer })
 }
 
 // ---------------------------------------------------------------------------
@@ -312,29 +307,26 @@ async fn start_with_schema(authenticated: bool, schema: CompiledSchema) -> Optio
 /// `test_auth_enforcement_with_require_auth`.
 #[tokio::test]
 async fn unauthenticated_rest_read_is_refused_when_require_auth_is_set() {
-    Box::pin(temp_env::async_with_vars([(SECRET_ENV, Some(SECRET))], async {
-        let Some(server) = start(true, true).await else {
-            eprintln!("skipping: DATABASE_URL not set");
-            return;
-        };
+    let Some(server) = start(true, true).await else {
+        eprintln!("skipping: DATABASE_URL not set");
+        return;
+    };
 
-        let read = get_orders(&server.url, None, None).await;
+    let read = get_orders(&server.url, None, None).await;
 
-        assert_eq!(
-            read.status,
-            reqwest::StatusCode::UNAUTHORIZED,
-            "an anonymous REST GET must be refused when require_auth = true, got {} {}",
-            read.status,
-            read.body
-        );
-        assert_eq!(
-            read.rows().unwrap_or(0),
-            0,
-            "a refused request must carry no rows, got {}",
-            read.body
-        );
-    }))
-    .await;
+    assert_eq!(
+        read.status,
+        reqwest::StatusCode::UNAUTHORIZED,
+        "an anonymous REST GET must be refused when require_auth = true, got {} {}",
+        read.status,
+        read.body
+    );
+    assert_eq!(
+        read.rows().unwrap_or(0),
+        0,
+        "a refused request must carry no rows, got {}",
+        read.body
+    );
 }
 
 /// #812 + #739: an unauthenticated read of a tenant-scoped query must never return
@@ -346,28 +338,25 @@ async fn unauthenticated_rest_read_is_refused_when_require_auth_is_set() {
 /// way; `execute_query_direct` returned everything.
 #[tokio::test]
 async fn anonymous_read_of_a_tenant_scoped_query_never_returns_rows() {
-    Box::pin(temp_env::async_with_vars([(SECRET_ENV, Some(SECRET))], async {
-        let Some(server) = start(false, false).await else {
-            eprintln!("skipping: DATABASE_URL not set");
-            return;
-        };
+    let Some(server) = start(false, false).await else {
+        eprintln!("skipping: DATABASE_URL not set");
+        return;
+    };
 
-        let read = get_orders(&server.url, None, None).await;
+    let read = get_orders(&server.url, None, None).await;
 
-        assert!(
-            !read.status.is_success(),
-            "an anonymous read of an inject-scoped query must fail closed, got {} {}",
-            read.status,
-            read.body
-        );
-        assert_eq!(
-            read.rows().unwrap_or(0),
-            0,
-            "no rows may reach an anonymous caller of a tenant-scoped query, got {}",
-            read.body
-        );
-    }))
-    .await;
+    assert!(
+        !read.status.is_success(),
+        "an anonymous read of an inject-scoped query must fail closed, got {} {}",
+        read.status,
+        read.body
+    );
+    assert_eq!(
+        read.rows().unwrap_or(0),
+        0,
+        "no rows may reach an anonymous caller of a tenant-scoped query, got {}",
+        read.body
+    );
 }
 
 /// #739: an authenticated read must return only the caller's own tenant's rows.
@@ -376,48 +365,45 @@ async fn anonymous_read_of_a_tenant_scoped_query_never_returns_rows() {
 /// receives tenant B's rows too, because the resolved inject value was discarded.
 #[tokio::test]
 async fn authenticated_read_is_scoped_to_the_callers_tenant() {
-    Box::pin(temp_env::async_with_vars([(SECRET_ENV, Some(SECRET))], async {
-        let Some(server) = start(true, true).await else {
-            eprintln!("skipping: DATABASE_URL not set");
-            return;
-        };
+    let Some(server) = start(true, true).await else {
+        eprintln!("skipping: DATABASE_URL not set");
+        return;
+    };
 
-        for (tenant, expected) in [(TENANT_A, ROWS_A), (TENANT_B, ROWS_B)] {
-            let read = get_orders(&server.url, Some(&token_for(tenant)), None).await;
+    for (tenant, expected) in [(TENANT_A, ROWS_A), (TENANT_B, ROWS_B)] {
+        let read = get_orders(&server.url, Some(&server.token_for(tenant)), None).await;
 
-            assert_eq!(
-                read.status,
-                reqwest::StatusCode::OK,
-                "{tenant}: authenticated read should succeed, got {} {}",
-                read.status,
-                read.body
-            );
+        assert_eq!(
+            read.status,
+            reqwest::StatusCode::OK,
+            "{tenant}: authenticated read should succeed, got {} {}",
+            read.status,
+            read.body
+        );
 
-            assert_eq!(
-                read.rows(),
-                Some(expected),
-                "{tenant}: expected exactly its own {expected} rows of the {} seeded, got {}",
-                ROWS_A + ROWS_B,
-                read.body
-            );
+        assert_eq!(
+            read.rows(),
+            Some(expected),
+            "{tenant}: expected exactly its own {expected} rows of the {} seeded, got {}",
+            ROWS_A + ROWS_B,
+            read.body
+        );
 
-            // #886: assert the row *contents*, not just the count. Before the
-            // projection repair every row was `{}`, so a count-only assertion could
-            // not tell a correctly-filtered read from an empty one.
-            let tenants = read.column("tenant_id");
-            assert_eq!(
-                tenants.len(),
-                expected,
-                "{tenant}: every returned row must carry a tenant_id, got {}",
-                read.body
-            );
-            assert!(
-                tenants.iter().all(|t| t == tenant),
-                "{tenant}: every returned row must belong to the caller's tenant, got {tenants:?}"
-            );
-        }
-    }))
-    .await;
+        // #886: assert the row *contents*, not just the count. Before the
+        // projection repair every row was `{}`, so a count-only assertion could
+        // not tell a correctly-filtered read from an empty one.
+        let tenants = read.column("tenant_id");
+        assert_eq!(
+            tenants.len(),
+            expected,
+            "{tenant}: every returned row must carry a tenant_id, got {}",
+            read.body
+        );
+        assert!(
+            tenants.iter().all(|t| t == tenant),
+            "{tenant}: every returned row must belong to the caller's tenant, got {tenants:?}"
+        );
+    }
 }
 
 /// #739's smoking gun: `Prefer: count=exact` and the body must agree.
@@ -427,33 +413,31 @@ async fn authenticated_read_is_scoped_to_the_callers_tenant() {
 /// that contradicts its own metadata is the most legible possible proof of the bug.
 #[tokio::test]
 async fn count_exact_header_agrees_with_the_body_under_a_tenant_filter() {
-    Box::pin(temp_env::async_with_vars([(SECRET_ENV, Some(SECRET))], async {
-        let Some(server) = start(true, true).await else {
-            eprintln!("skipping: DATABASE_URL not set");
-            return;
-        };
+    let Some(server) = start(true, true).await else {
+        eprintln!("skipping: DATABASE_URL not set");
+        return;
+    };
 
-        let read = get_orders(&server.url, Some(&token_for(TENANT_A)), Some("count=exact")).await;
+    let read =
+        get_orders(&server.url, Some(&server.token_for(TENANT_A)), Some("count=exact")).await;
 
-        assert_eq!(read.status, reqwest::StatusCode::OK, "read should succeed: {}", read.body);
+    assert_eq!(read.status, reqwest::StatusCode::OK, "read should succeed: {}", read.body);
 
-        let total = read.total().expect("meta.total must be present under Prefer: count=exact");
-        let rows = read.rows().expect("data must be an array");
+    let total = read.total().expect("meta.total must be present under Prefer: count=exact");
+    let rows = read.rows().expect("data must be an array");
 
-        assert_eq!(
-            u64::try_from(rows).unwrap(),
-            total,
-            "body row count ({rows}) and Prefer: count=exact total ({total}) disagree — the \
+    assert_eq!(
+        u64::try_from(rows).unwrap(),
+        total,
+        "body row count ({rows}) and Prefer: count=exact total ({total}) disagree — the \
              count path enforces the tenant filter and the body path does not: {}",
-            read.body
-        );
-        assert_eq!(
-            total,
-            u64::try_from(ROWS_A).unwrap(),
-            "both must equal the caller's own row count"
-        );
-    }))
-    .await;
+        read.body
+    );
+    assert_eq!(
+        total,
+        u64::try_from(ROWS_A).unwrap(),
+        "both must equal the caller's own row count"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -503,37 +487,34 @@ fn build_schema_with_gated_field(on_deny: FieldDenyPolicy) -> CompiledSchema {
 /// through this projector.
 #[tokio::test]
 async fn a_rest_read_returns_the_fields_of_each_row() {
-    Box::pin(temp_env::async_with_vars([(SECRET_ENV, Some(SECRET))], async {
-        let Some(server) = start(true, true).await else {
-            eprintln!("skipping: DATABASE_URL not set");
-            return;
-        };
+    let Some(server) = start(true, true).await else {
+        eprintln!("skipping: DATABASE_URL not set");
+        return;
+    };
 
-        let read = get_orders(&server.url, Some(&token_for(TENANT_A)), None).await;
+    let read = get_orders(&server.url, Some(&server.token_for(TENANT_A)), None).await;
 
-        assert_eq!(read.status, reqwest::StatusCode::OK, "read should succeed: {}", read.body);
-        assert_eq!(read.rows(), Some(ROWS_A), "row count: {}", read.body);
+    assert_eq!(read.status, reqwest::StatusCode::OK, "read should succeed: {}", read.body);
+    assert_eq!(read.rows(), Some(ROWS_A), "row count: {}", read.body);
 
-        assert!(
-            !read.first_row_keys().is_empty(),
-            "every REST row came back as an empty object — the projection carried no \
+    assert!(
+        !read.first_row_keys().is_empty(),
+        "every REST row came back as an empty object — the projection carried no \
              fields at all: {}",
-            read.body
-        );
-        assert_eq!(
-            read.column("label").len(),
-            ROWS_A,
-            "every row must carry its `label`, got {}",
-            read.body
-        );
-        assert_eq!(
-            read.column("id").len(),
-            ROWS_A,
-            "every row must carry its `id`, got {}",
-            read.body
-        );
-    }))
-    .await;
+        read.body
+    );
+    assert_eq!(
+        read.column("label").len(),
+        ROWS_A,
+        "every row must carry its `label`, got {}",
+        read.body
+    );
+    assert_eq!(
+        read.column("id").len(),
+        ROWS_A,
+        "every row must carry its `id`, got {}",
+        read.body
+    );
 }
 
 /// #886: `?select=` must narrow the projection, not be ignored.
@@ -542,25 +523,22 @@ async fn a_rest_read_returns_the_fields_of_each_row() {
 /// `{}` either way — so no test could tell the parameter was doing nothing.
 #[tokio::test]
 async fn a_rest_read_honours_select() {
-    Box::pin(temp_env::async_with_vars([(SECRET_ENV, Some(SECRET))], async {
-        let Some(server) = start(true, true).await else {
-            eprintln!("skipping: DATABASE_URL not set");
-            return;
-        };
+    let Some(server) = start(true, true).await else {
+        eprintln!("skipping: DATABASE_URL not set");
+        return;
+    };
 
-        let read =
-            get_orders_query(&server.url, Some(&token_for(TENANT_A)), None, "?select=id,label")
-                .await;
+    let read =
+        get_orders_query(&server.url, Some(&server.token_for(TENANT_A)), None, "?select=id,label")
+            .await;
 
-        assert_eq!(read.status, reqwest::StatusCode::OK, "read should succeed: {}", read.body);
-        assert_eq!(
-            read.first_row_keys(),
-            vec!["id".to_string(), "label".to_string()],
-            "?select=id,label must project exactly those two keys, got {}",
-            read.body
-        );
-    }))
-    .await;
+    assert_eq!(read.status, reqwest::StatusCode::OK, "read should succeed: {}", read.body);
+    assert_eq!(
+        read.first_row_keys(),
+        vec!["id".to_string(), "label".to_string()],
+        "?select=id,label must project exactly those two keys, got {}",
+        read.body
+    );
 }
 
 /// #886's second half: the field-authorization gate must fire on the REST path.
@@ -575,37 +553,34 @@ async fn a_rest_read_honours_select() {
 /// `execute_query_direct` at all, only from the two GraphQL paths.
 #[tokio::test]
 async fn a_scope_gated_field_is_refused_over_rest() {
-    Box::pin(temp_env::async_with_vars([(SECRET_ENV, Some(SECRET))], async {
-        let Some(server) =
-            start_with_schema(true, build_schema_with_gated_field(FieldDenyPolicy::Reject)).await
-        else {
-            eprintln!("skipping: DATABASE_URL not set");
-            return;
-        };
+    let Some(server) =
+        start_with_schema(true, build_schema_with_gated_field(FieldDenyPolicy::Reject)).await
+    else {
+        eprintln!("skipping: DATABASE_URL not set");
+        return;
+    };
 
-        // The token carries no roles, so it grants no scope.
-        let read = get_orders_query(
-            &server.url,
-            Some(&token_for(TENANT_A)),
-            None,
-            &format!("?select=id,{GATED_FIELD}"),
-        )
-        .await;
-
-        assert!(
-            !read.status.is_success(),
-            "selecting a scope-gated field without the scope must be refused over REST, \
-             got {} {}",
-            read.status,
-            read.body
-        );
-        assert!(
-            read.column(GATED_FIELD).is_empty(),
-            "the gated field's value must never reach the client, got {}",
-            read.body
-        );
-    }))
+    // The token carries no roles, so it grants no scope.
+    let read = get_orders_query(
+        &server.url,
+        Some(&server.token_for(TENANT_A)),
+        None,
+        &format!("?select=id,{GATED_FIELD}"),
+    )
     .await;
+
+    assert!(
+        !read.status.is_success(),
+        "selecting a scope-gated field without the scope must be refused over REST, \
+             got {} {}",
+        read.status,
+        read.body
+    );
+    assert!(
+        read.column(GATED_FIELD).is_empty(),
+        "the gated field's value must never reach the client, got {}",
+        read.body
+    );
 }
 
 /// The `on_deny = Mask` half of the same gate: the key stays, the value is nulled.
@@ -614,44 +589,41 @@ async fn a_scope_gated_field_is_refused_over_rest() {
 /// the key in its requested position with a null value, as both GraphQL paths do.
 #[tokio::test]
 async fn a_masked_field_is_nulled_not_served_over_rest() {
-    Box::pin(temp_env::async_with_vars([(SECRET_ENV, Some(SECRET))], async {
-        let Some(server) =
-            start_with_schema(true, build_schema_with_gated_field(FieldDenyPolicy::Mask)).await
-        else {
-            eprintln!("skipping: DATABASE_URL not set");
-            return;
-        };
+    let Some(server) =
+        start_with_schema(true, build_schema_with_gated_field(FieldDenyPolicy::Mask)).await
+    else {
+        eprintln!("skipping: DATABASE_URL not set");
+        return;
+    };
 
-        let read = get_orders_query(
-            &server.url,
-            Some(&token_for(TENANT_A)),
-            None,
-            &format!("?select=id,{GATED_FIELD}"),
-        )
-        .await;
-
-        assert_eq!(read.status, reqwest::StatusCode::OK, "read should succeed: {}", read.body);
-
-        let values: Vec<&Value> = read
-            .body
-            .get("data")
-            .and_then(Value::as_array)
-            .map(|rows| rows.iter().filter_map(|r| r.get(GATED_FIELD)).collect())
-            .unwrap_or_default();
-
-        assert_eq!(
-            values.len(),
-            ROWS_A,
-            "a masked field must keep its key in every row, got {}",
-            read.body
-        );
-        assert!(
-            values.iter().all(|v| v.is_null()),
-            "a masked field must be nulled, not served: {}",
-            read.body
-        );
-    }))
+    let read = get_orders_query(
+        &server.url,
+        Some(&server.token_for(TENANT_A)),
+        None,
+        &format!("?select=id,{GATED_FIELD}"),
+    )
     .await;
+
+    assert_eq!(read.status, reqwest::StatusCode::OK, "read should succeed: {}", read.body);
+
+    let values: Vec<&Value> = read
+        .body
+        .get("data")
+        .and_then(Value::as_array)
+        .map(|rows| rows.iter().filter_map(|r| r.get(GATED_FIELD)).collect())
+        .unwrap_or_default();
+
+    assert_eq!(
+        values.len(),
+        ROWS_A,
+        "a masked field must keep its key in every row, got {}",
+        read.body
+    );
+    assert!(
+        values.iter().all(|v| v.is_null()),
+        "a masked field must be nulled, not served: {}",
+        read.body
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -701,31 +673,29 @@ fn ndjson_tenants(body: &str) -> Vec<String> {
 /// shared code path.
 #[tokio::test]
 async fn an_ndjson_export_is_scoped_to_the_callers_tenant() {
-    Box::pin(temp_env::async_with_vars([(SECRET_ENV, Some(SECRET))], async {
-        let Some(server) = start(true, true).await else {
-            eprintln!("skipping: DATABASE_URL not set");
-            return;
-        };
+    let Some(server) = start(true, true).await else {
+        eprintln!("skipping: DATABASE_URL not set");
+        return;
+    };
 
-        for (tenant, expected) in [(TENANT_A, ROWS_A), (TENANT_B, ROWS_B)] {
-            let (status, body) = export_orders_ndjson(&server.url, Some(&token_for(tenant))).await;
+    for (tenant, expected) in [(TENANT_A, ROWS_A), (TENANT_B, ROWS_B)] {
+        let (status, body) =
+            export_orders_ndjson(&server.url, Some(&server.token_for(tenant))).await;
 
-            assert_eq!(status, reqwest::StatusCode::OK, "{tenant}: export should succeed: {body}");
+        assert_eq!(status, reqwest::StatusCode::OK, "{tenant}: export should succeed: {body}");
 
-            let tenants = ndjson_tenants(&body);
-            assert_eq!(
-                tenants.len(),
-                expected,
-                "{tenant}: expected exactly its own {expected} rows of the {} seeded, got: {body}",
-                ROWS_A + ROWS_B
-            );
-            assert!(
-                tenants.iter().all(|t| t == tenant),
-                "{tenant}: every exported row must belong to the caller's tenant, got {tenants:?}"
-            );
-        }
-    }))
-    .await;
+        let tenants = ndjson_tenants(&body);
+        assert_eq!(
+            tenants.len(),
+            expected,
+            "{tenant}: expected exactly its own {expected} rows of the {} seeded, got: {body}",
+            ROWS_A + ROWS_B
+        );
+        assert!(
+            tenants.iter().all(|t| t == tenant),
+            "{tenant}: every exported row must belong to the caller's tenant, got {tenants:?}"
+        );
+    }
 }
 
 /// #958: an anonymous streaming export of a tenant-scoped query fails **closed, and
@@ -738,25 +708,22 @@ async fn an_ndjson_export_is_scoped_to_the_callers_tenant() {
 /// export.
 #[tokio::test]
 async fn an_anonymous_ndjson_export_of_a_tenant_scoped_query_is_refused_with_a_status() {
-    Box::pin(temp_env::async_with_vars([(SECRET_ENV, Some(SECRET))], async {
-        let Some(server) = start(false, false).await else {
-            eprintln!("skipping: DATABASE_URL not set");
-            return;
-        };
+    let Some(server) = start(false, false).await else {
+        eprintln!("skipping: DATABASE_URL not set");
+        return;
+    };
 
-        let (status, body) = export_orders_ndjson(&server.url, None).await;
+    let (status, body) = export_orders_ndjson(&server.url, None).await;
 
-        assert!(
-            !status.is_success(),
-            "an anonymous export of an inject-scoped query must be refused before the \
+    assert!(
+        !status.is_success(),
+        "an anonymous export of an inject-scoped query must be refused before the \
              stream opens, got {status} {body}"
-        );
-        assert!(
-            !body.contains("\"tenant_id\""),
-            "no row may reach an anonymous caller of a tenant-scoped query, got {body}"
-        );
-    }))
-    .await;
+    );
+    assert!(
+        !body.contains("\"tenant_id\""),
+        "no row may reach an anonymous caller of a tenant-scoped query, got {body}"
+    );
 }
 
 /// #958: the field-authorization gate fires on the streaming export too.
@@ -766,31 +733,28 @@ async fn an_anonymous_ndjson_export_of_a_tenant_scoped_query_is_refused_with_a_s
 /// test on one delivery cannot make about the other.
 #[tokio::test]
 async fn a_scope_gated_field_is_refused_on_the_streaming_export() {
-    Box::pin(temp_env::async_with_vars([(SECRET_ENV, Some(SECRET))], async {
-        let Some(server) =
-            start_with_schema(true, build_schema_with_gated_field(FieldDenyPolicy::Reject)).await
-        else {
-            eprintln!("skipping: DATABASE_URL not set");
-            return;
-        };
+    let Some(server) =
+        start_with_schema(true, build_schema_with_gated_field(FieldDenyPolicy::Reject)).await
+    else {
+        eprintln!("skipping: DATABASE_URL not set");
+        return;
+    };
 
-        let mut req = reqwest::Client::new()
-            .get(format!("{}/rest/v1/orders?select=id,{GATED_FIELD}", server.url))
-            .header("accept", "application/x-ndjson");
-        req = req.header("authorization", format!("Bearer {}", token_for(TENANT_A)));
-        let response = req.send().await.expect("REST NDJSON GET");
-        let status = response.status();
-        let body = response.text().await.expect("NDJSON body");
+    let mut req = reqwest::Client::new()
+        .get(format!("{}/rest/v1/orders?select=id,{GATED_FIELD}", server.url))
+        .header("accept", "application/x-ndjson");
+    req = req.header("authorization", format!("Bearer {}", server.token_for(TENANT_A)));
+    let response = req.send().await.expect("REST NDJSON GET");
+    let status = response.status();
+    let body = response.text().await.expect("NDJSON body");
 
-        assert!(
-            !status.is_success(),
-            "selecting a scope-gated field without the scope must be refused on the \
+    assert!(
+        !status.is_success(),
+        "selecting a scope-gated field without the scope must be refused on the \
              export too, got {status} {body}"
-        );
-        assert!(
-            !body.contains(GATED_FIELD),
-            "the gated field must never reach the client, got {body}"
-        );
-    }))
-    .await;
+    );
+    assert!(
+        !body.contains(GATED_FIELD),
+        "the gated field must never reach the client, got {body}"
+    );
 }

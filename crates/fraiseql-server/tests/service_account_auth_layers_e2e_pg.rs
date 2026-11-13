@@ -3,14 +3,15 @@
 //! A service account presents its secret on `x-api-key` and no `Authorization` bearer
 //! (ADR-0018). The auth layer is a `route_layer`, so it runs first:
 //!
-//! - under `[auth_hs256]` it 401'd that request before anything resolved the secret (#934). The fix
-//!   let it through but left the resolution to `/graphql` and `/ws`, so every other transport
-//!   behind the layer served the account as **anonymous**;
+//! - under a layer validating bearers it 401'd that request before anything resolved the secret
+//!   (#934). The fix let it through but left the resolution to `/graphql` and `/ws`, so every other
+//!   transport behind the layer served the account as **anonymous**;
 //! - under `[auth]` (OIDC) with `required = true` it still 401'd it (#1650).
 //!
 //! The layer now resolves the secret and inserts the principal. This suite pins it on
-//! both layers, through `Server::serve_on_listener` over a real socket: the mount the
-//! binary actually serves, not a hand-assembled router.
+//! the layer `[auth_issuer]` mounts for the sessions the server signs itself, and on
+//! `[auth]`, through `Server::serve_on_listener` over a real socket: the mount the binary
+//! actually serves, not a hand-assembled router.
 //!
 //! - `/graphql` admits the account. The query body deliberately need not resolve: a request that
 //!   gets past the layer answers with a GraphQL error, never 401.
@@ -28,33 +29,41 @@
 //! database-free `test` leg and runs in the Dagger `integration: server` suite.
 //!
 //! **Execution engine:** `PostgreSQL` · **Infrastructure:** `DATABASE_URL` ·
-//! **Parallelism:** binds an ephemeral port and sets a process-global env var for
-//! the secrets → run `--test-threads=1`.
+//! **Parallelism:** binds an ephemeral port, sets process-global env vars for the
+//! secrets, and owns the `p04_sa_issuer` scratch database → run `--test-threads=1`.
 #![allow(clippy::unwrap_used, clippy::panic, clippy::print_stderr)] // Reason: test code — panics and skip diagnostics are acceptable
+
+mod common;
 
 use std::sync::Arc;
 
+use common::first_party::FirstPartyAuth;
 use fraiseql_core::{db::postgres::PostgresAdapter, schema::CompiledSchema, security::OidcConfig};
 use fraiseql_server::{
     Server,
-    server_config::{AsyncOperationsConfig, Hs256Config, ServerConfig},
+    server_config::{AsyncOperationsConfig, ServerConfig},
 };
 use fraiseql_test_support::try_database_url;
 use serde_json::json;
+use sqlx::PgPool;
 
 /// Env var naming the service account's secret, and the secret itself.
 const SA_SECRET_ENV: &str = "FRAISEQL_TEST_P04_SA_SECRET";
 const SA_SECRET: &str = "p04-service-account-secret";
-/// Env var naming the HS256 signing key.
-const HS256_SECRET_ENV: &str = "FRAISEQL_TEST_P04_HS256_SECRET";
-const HS256_SECRET: &str = "p04-hs256-signing-key-at-least-32-bytes";
+/// How the `[auth_issuer]` run signs the sessions it mints.
+const FIRST_PARTY: FirstPartyAuth = FirstPartyAuth::new("https://sp.example.com", "fraiseql");
+/// The variable `[auth.database]` names in the `[auth_issuer]` run, and the scratch
+/// database it points at: the signing keys live there, not in the shared database.
+const AUTH_URL_ENV: &str = "FRAISEQL_TEST_P04_AUTH_URL";
+const AUTH_DB: &str = "p04_sa_issuer";
 /// Held across `Server::new`, so no two of the suite's servers run startup DDL at once.
 static BOOT: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 
 /// The auth layer a run boots with.
 #[derive(Clone, Copy, Debug)]
 enum Layer {
-    Hs256,
+    /// `[auth_issuer]`: the server validates the sessions it signs itself.
+    Issuer,
     /// `required = true`, with the JWKS URI pinned so boot performs no discovery. The
     /// address is unroutable: a request that reached token validation would fail there.
     Oidc,
@@ -62,8 +71,10 @@ enum Layer {
     None,
 }
 
-fn schema() -> CompiledSchema {
-    serde_json::from_value(json!({
+/// The compiled schema `layer` boots with: `[auth_issuer]` also needs `[auth.session]` and
+/// `[auth.database]`.
+fn schema(layer: Layer) -> CompiledSchema {
+    let mut document = json!({
         "fraiseql_version": fraiseql_core::schema::CURRENT_FRAISEQL_VERSION,
         "types": [],
         "queries": [],
@@ -78,48 +89,71 @@ fn schema() -> CompiledSchema {
                 }
             }
         },
-    }))
-    .expect("compiled schema")
+    });
+    if matches!(layer, Layer::Issuer) {
+        document["auth"] = json!({
+            "database": { "url_env": AUTH_URL_ENV },
+            "session": FIRST_PARTY.session_json(),
+        });
+    }
+    serde_json::from_value(document).expect("compiled schema")
+}
+
+/// `url` with its database replaced by `db`.
+fn with_database(url: &str, db: &str) -> String {
+    let (base, _old) = url.rsplit_once('/').expect("database URL has a path component");
+    format!("{base}/{db}")
+}
+
+/// Recreate the `[auth_issuer]` run's scratch auth database and point `[auth.database]`
+/// at it.
+async fn scratch_auth_database(admin_url: &str) {
+    let admin = PgPool::connect(admin_url).await.expect("connect to admin database");
+    sqlx::raw_sql(&format!("DROP DATABASE IF EXISTS {AUTH_DB} WITH (FORCE)"))
+        .execute(&admin)
+        .await
+        .expect("drop scratch database");
+    sqlx::raw_sql(&format!("CREATE DATABASE {AUTH_DB}"))
+        .execute(&admin)
+        .await
+        .expect("create scratch database");
+    admin.close().await;
+    std::env::set_var(AUTH_URL_ENV, with_database(admin_url, AUTH_DB));
 }
 
 /// Boot the real mount under `layer` and return its base URL plus a shutdown handle.
 async fn serve(url: &str, layer: Layer) -> (String, tokio::sync::oneshot::Sender<()>) {
-    let (auth, auth_hs256) = match layer {
-        Layer::Hs256 => (
-            None,
-            Some(Hs256Config {
-                secret_env: HS256_SECRET_ENV.to_string(),
-                issuer:     Some("fraiseql-test".to_string()),
-                audience:   Some("fraiseql-test-api".to_string()),
-            }),
-        ),
-        Layer::Oidc => (
-            Some(OidcConfig {
-                issuer: None,
-                audience: Some("fraiseql-test-api".to_string()),
-                jwks_uri: Some("https://192.0.2.1/.well-known/jwks.json".to_string()),
-                required: true,
-                ..OidcConfig::default()
-            }),
-            None,
-        ),
-        Layer::None => (None, None),
+    let auth = match layer {
+        Layer::Oidc => Some(OidcConfig {
+            issuer: None,
+            audience: Some("fraiseql-test-api".to_string()),
+            jwks_uri: Some("https://192.0.2.1/.well-known/jwks.json".to_string()),
+            required: true,
+            ..OidcConfig::default()
+        }),
+        Layer::Issuer | Layer::None => None,
     };
     let config = ServerConfig {
         // #874: production validate() refuses cors_enabled = true with no origins.
         cors_enabled: false,
         database_url: url.to_string(),
         auth,
-        auth_hs256,
         async_operations: Some(AsyncOperationsConfig {
             operations: vec!["reconcileLedger".to_string()],
             ..AsyncOperationsConfig::default()
         }),
-        // `/ws` is mounted behind OIDC when it requires auth, and open when it does not;
-        // under HS256 alone it is not mounted.
+        // `/ws` is mounted behind a validator when it requires auth, and open when it
+        // does not.
         subscriptions_enabled: true,
-        subscription_require_auth: Some(matches!(layer, Layer::Oidc)),
+        subscription_require_auth: Some(!matches!(layer, Layer::None)),
         ..ServerConfig::default()
+    };
+    let config = if matches!(layer, Layer::Issuer) {
+        FIRST_PARTY.set_env();
+        scratch_auth_database(url).await;
+        FIRST_PARTY.apply(config)
+    } else {
+        config
     };
     let adapter = Arc::new(PostgresAdapter::new(url).await.expect("PostgresAdapter::new"));
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.expect("bind");
@@ -129,7 +163,7 @@ async fn serve(url: &str, layer: Layer) -> (String, tokio::sync::oneshot::Sender
     let pool = sqlx::PgPool::connect(url).await.expect("PgPool::connect");
     // Its startup DDL is not yet serialised (#1677), so the suite's servers boot one at a time.
     let boot = BOOT.lock().await;
-    let server = Box::pin(Server::new(config, schema(), adapter, Some(pool)))
+    let server = Box::pin(Server::new(config, schema(layer), adapter, Some(pool)))
         .await
         .expect("Server::new with an auth layer and a declared service account");
     drop(boot);
@@ -210,10 +244,9 @@ async fn a_service_account_is_admitted_as_itself(layer: Layer) {
         eprintln!("skipping #1650 service-account e2e under {layer:?}: DATABASE_URL not set");
         return;
     };
-    // Fixed valid values, set unconditionally: safe under the runner because this
-    // suite is the only reader of these two names, and both are read at boot.
+    // A fixed valid value, set unconditionally: safe under the runner because this
+    // suite is the only reader of the name, and it is read at boot.
     std::env::set_var(SA_SECRET_ENV, SA_SECRET);
-    std::env::set_var(HS256_SECRET_ENV, HS256_SECRET);
 
     let (base, shutdown) = serve(&url, layer).await;
 
@@ -235,20 +268,18 @@ async fn a_service_account_is_admitted_as_itself(layer: Layer) {
     );
     assert!(body.contains("allowlist"), "{layer:?}: {body}");
 
-    // 3. `/ws`, where it is mounted, upgrades for the account and refuses a secret that matches
-    //    none, rather than serving it anonymously.
-    if !matches!(layer, Layer::Hs256) {
-        assert_eq!(
-            upgrade_status(&base, &[("x-api-key", SA_SECRET)]).await,
-            101,
-            "{layer:?}: the /ws upgrade must admit the service account"
-        );
-        assert_eq!(
-            upgrade_status(&base, &[("x-api-key", "wrong-secret")]).await,
-            401,
-            "{layer:?}: an unmatched secret must not upgrade"
-        );
-    }
+    // 3. `/ws` upgrades for the account and refuses a secret that matches none, rather than serving
+    //    it anonymously.
+    assert_eq!(
+        upgrade_status(&base, &[("x-api-key", SA_SECRET)]).await,
+        101,
+        "{layer:?}: the /ws upgrade must admit the service account"
+    );
+    assert_eq!(
+        upgrade_status(&base, &[("x-api-key", "wrong-secret")]).await,
+        401,
+        "{layer:?}: an unmatched secret must not upgrade"
+    );
 
     if matches!(layer, Layer::None) {
         // With no JWT authentication, a request without credentials is anonymous by
@@ -296,8 +327,8 @@ async fn a_service_account_is_admitted_as_itself(layer: Layer) {
 }
 
 #[tokio::test]
-async fn a_service_account_is_admitted_as_itself_under_hs256() {
-    a_service_account_is_admitted_as_itself(Layer::Hs256).await;
+async fn a_service_account_is_admitted_as_itself_under_the_first_party_issuer() {
+    a_service_account_is_admitted_as_itself(Layer::Issuer).await;
 }
 
 #[tokio::test]
@@ -322,5 +353,6 @@ async fn a_service_account_is_admitted_as_itself_without_jwt_auth() {
 /// field it does not send becoming required, or a field changing type.
 #[test]
 fn the_document_loads_without_a_database() {
-    schema();
+    schema(Layer::None);
+    schema(Layer::Issuer);
 }

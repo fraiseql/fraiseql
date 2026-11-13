@@ -27,10 +27,12 @@
 //! database-free `test` leg and runs in the Dagger `integration: server` suite.
 //!
 //! **Execution engine:** `PostgreSQL` · **Infrastructure:** `DATABASE_URL` ·
-//! **Parallelism:** creates and drops its own `tf_p36_*` fixtures and sets a
-//! process-global env var for the HS256 secret → run `--test-threads=1`.
+//! **Parallelism:** creates and drops its own `tf_p36_*` fixtures → run
+//! `--test-threads=1`.
 #![cfg(all(feature = "rest", feature = "mcp"))]
 #![allow(clippy::unwrap_used, clippy::panic, clippy::print_stderr)] // Reason: test code — panics and skip diagnostics are acceptable
+
+mod common;
 
 use std::sync::Arc;
 
@@ -39,16 +41,16 @@ use fraiseql_core::{
     prelude::DatabaseAdapter as _,
     runtime::Executor,
     schema::{CompiledSchema, FieldType, InjectedParamSource, McpConfig, RestConfig},
-    security::{AuthConfig, AuthMiddleware},
+    security::OidcValidator,
 };
 use fraiseql_server::{
     Server,
     identity::{EnrichmentQueryConfig, IdentityResolver},
     mcp::handler::{FraiseQLMcpService, McpTokenValidator},
     routes::graphql::AppState,
-    server_config::{AsyncOperationsConfig, Hs256Config, ServerConfig},
+    server_config::{AsyncOperationsConfig, ServerConfig},
 };
-use fraiseql_test_support::try_database_url;
+use fraiseql_test_support::{issuer::TestIssuer, try_database_url};
 use fraiseql_test_utils::schema_builder::{
     TestFieldBuilder, TestQueryBuilder, TestSchemaBuilder, TestTypeBuilder,
 };
@@ -61,12 +63,6 @@ const ORDER_TABLE: &str = "tf_p36_order";
 const ORDER_VIEW: &str = "v_p36_order";
 /// The view the *unenriched* query reads — same rows, no enriched predicate.
 const AUDIT_VIEW: &str = "v_p36_audit";
-
-/// 32-byte HS256 secret — meets the minimum key-length requirement.
-const SECRET: &str = "fraiseql-p36-secret-exactly-32by";
-const SECRET_ENV: &str = "FRAISEQL_P36_HS256_SECRET";
-const ISSUER: &str = "https://p36.fraiseql.test";
-const AUDIENCE: &str = "fraiseql-p36-api";
 
 /// The subject the actor table knows, and the org the *database* says it belongs to.
 const KNOWN_SUB: &str = "p36-known-subject";
@@ -161,18 +157,15 @@ fn build_schema() -> CompiledSchema {
     schema
 }
 
-/// HS256 auth plus `[identity.enrichment]`, wired the way an operator would.
+/// `[auth]` trusting `issuer`, plus `[identity.enrichment]`, wired the way an operator
+/// would.
 ///
 /// `identity` is populated through serde rather than a struct literal: the field's type
 /// lives behind a `pub(crate)` re-export, so an integration test cannot name it — but it
 /// can let inference do so.
-fn server_config() -> ServerConfig {
+fn server_config(issuer: &TestIssuer) -> ServerConfig {
     let mut config = ServerConfig {
-        auth_hs256: Some(Hs256Config {
-            secret_env: SECRET_ENV.to_string(),
-            issuer:     Some(ISSUER.to_string()),
-            audience:   Some(AUDIENCE.to_string()),
-        }),
+        auth: Some(common::test_issuer::oidc_config(issuer, true)),
         // #874: production validate() refuses cors_enabled = true with no origins.
         cors_enabled: false,
         // GHSA-h22c-5xf9-g5vw: the `@stream` cases below reach the SSE handler.
@@ -190,48 +183,31 @@ fn server_config() -> ServerConfig {
     config
 }
 
-/// Mint an HS256 token carrying **only** `sub` — no `org_id`.
+/// Mint a token carrying `sub` and no `org_id`.
 ///
 /// The absent `org_id` is load-bearing: the enriched predicate can only be satisfied
 /// from the actor table, so a row set scoped to `tenant-a` proves a database resolve
 /// happened rather than a claim being read.
-fn token_for(sub: &str) -> String {
-    token_with(sub, None)
+fn token_for(issuer: &TestIssuer, sub: &str) -> String {
+    issuer.mint(&issuer.claims().set("sub", sub))
 }
 
 /// Mint a token for `sub` bound to `tenant` under the default tenant claim. An
 /// authenticated request is served its token's tenant and a header may only agree with
 /// it, so a tenant-keyed request is made by a caller of that tenant.
-fn token_for_tenant(sub: &str, tenant: &str) -> String {
-    token_with(sub, Some(tenant))
+fn token_for_tenant(issuer: &TestIssuer, sub: &str, tenant: &str) -> String {
+    issuer.mint(&issuer.claims().set("sub", sub).set("tenant_id", tenant))
 }
 
-fn token_with(sub: &str, tenant: Option<&str>) -> String {
-    use jsonwebtoken::{Algorithm, EncodingKey, Header, encode};
-
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .expect("system time before epoch")
-        .as_secs();
-
-    encode(
-        &Header::new(Algorithm::HS256),
-        &{
-            let mut claims = json!({
-                "sub": sub,
-                "iss": ISSUER,
-                "aud": AUDIENCE,
-                "iat": now,
-                "exp": now + 3600,
-            });
-            if let Some(tenant) = tenant {
-                claims["tenant_id"] = json!(tenant);
-            }
-            claims
-        },
-        &EncodingKey::from_secret(SECRET.as_bytes()),
-    )
-    .expect("mint HS256 token")
+/// The MCP validator of a deployment whose `[auth]` trusts `issuer`: the same issuer and
+/// audience the HTTP cases' server trusts, so one token shape drives all three
+/// transports.
+async fn mcp_validator(issuer: &TestIssuer) -> McpTokenValidator {
+    McpTokenValidator::Oidc(Arc::new(
+        OidcValidator::new(common::test_issuer::oidc_config(issuer, true))
+            .await
+            .expect("the issuer's discovery document is accepted"),
+    ))
 }
 
 // ---------------------------------------------------------------------------
@@ -290,30 +266,32 @@ async fn graphql_post(base: &str, query: &str, token: &str) -> Answer {
     }
 }
 
+/// A served mount's base URL, its shutdown handle, and the issuer its `[auth]` trusts.
+/// The issuer outlives the server: the validator fetches its key set on first use.
+type Mount = (String, tokio::sync::oneshot::Sender<()>, TestIssuer);
+
 /// Stand the fixture and a real `Server::serve_on_listener` mount up.
-async fn start() -> Option<(String, tokio::sync::oneshot::Sender<()>)> {
+async fn start() -> Option<Mount> {
     start_with(build_schema()).await
 }
 
 /// [`start`], serving `schema`.
-async fn start_with(schema: CompiledSchema) -> Option<(String, tokio::sync::oneshot::Sender<()>)> {
-    Box::pin(start_over(schema, server_config())).await
+async fn start_with(schema: CompiledSchema) -> Option<Mount> {
+    Box::pin(start_over(schema, |_| {})).await
 }
 
-/// [`start_with`], under `config`.
+/// [`start_with`], under [`server_config`] adjusted by `adjust`.
 async fn start_over(
     schema: CompiledSchema,
-    config: ServerConfig,
-) -> Option<(String, tokio::sync::oneshot::Sender<()>)> {
+    adjust: impl FnOnce(&mut ServerConfig),
+) -> Option<Mount> {
     let url = try_database_url()?;
     let adapter = Arc::new(PostgresAdapter::new(&url).await.expect("connect to the test database"));
     seed(&adapter).await;
 
-    // Safe under the runner: this suite is the only reader of the name, and it is read
-    // at boot, before the server starts serving.
-    std::env::set_var(SECRET_ENV, SECRET);
-
-    let mut config = config;
+    let issuer = TestIssuer::start().await;
+    let mut config = server_config(&issuer);
+    adjust(&mut config);
     config.database_url = url;
 
     // The pool is what makes `[identity.enrichment]` live: `enrichment_pool` is this
@@ -326,7 +304,7 @@ async fn start_over(
     let port = listener.local_addr().expect("local addr").port();
     let server = Box::pin(Server::new(config, schema, adapter, Some(pool)))
         .await
-        .expect("Server::new with [auth_hs256] and [identity.enrichment]");
+        .expect("Server::new with [auth] and [identity.enrichment]");
 
     let (tx, rx) = tokio::sync::oneshot::channel::<()>();
     tokio::spawn(async move {
@@ -337,22 +315,24 @@ async fn start_over(
             .await
     });
     tokio::time::sleep(std::time::Duration::from_millis(300)).await;
-    Some((format!("http://127.0.0.1:{port}"), tx))
+    Some((format!("http://127.0.0.1:{port}"), tx, issuer))
 }
 
-/// Submit `{ audits { id } }` as an async operation, as the subject `token` names.
+/// Submit `{ audits { id } }` as an async operation, as `sub`.
 ///
 /// The submission snapshots the security context the background worker executes as, so it
 /// is admitted, and its subject resolved, now, at the door.
-async fn async_submit(token: &str) -> Option<(Answer, tokio::sync::oneshot::Sender<()>)> {
-    let mut config = server_config();
-    config.async_operations = Some(AsyncOperationsConfig {
-        operations: vec!["audits".to_string()],
-        workers: 1,
-        poll_interval_ms: 100,
-        ..AsyncOperationsConfig::default()
-    });
-    let (base, shutdown) = Box::pin(start_over(build_schema(), config)).await?;
+async fn async_submit(sub: &str) -> Option<(Answer, tokio::sync::oneshot::Sender<()>)> {
+    let (base, shutdown, issuer) = Box::pin(start_over(build_schema(), |config| {
+        config.async_operations = Some(AsyncOperationsConfig {
+            operations: vec!["audits".to_string()],
+            workers: 1,
+            poll_interval_ms: 100,
+            ..AsyncOperationsConfig::default()
+        });
+    }))
+    .await?;
+    let token = token_for(&issuer, sub);
     let response = reqwest::Client::new()
         .post(format!("{base}/operations/v1/audits"))
         .header("authorization", format!("Bearer {token}"))
@@ -371,7 +351,7 @@ async fn async_submit(token: &str) -> Option<(Answer, tokio::sync::oneshot::Send
 
 #[tokio::test]
 async fn async_operations_refuse_a_subject_the_actor_table_does_not_know() {
-    let Some((answer, shutdown)) = Box::pin(async_submit(&token_for(UNKNOWN_SUB))).await else {
+    let Some((answer, shutdown)) = Box::pin(async_submit(UNKNOWN_SUB)).await else {
         eprintln!("skipping #1336 enrichment parity: DATABASE_URL not set");
         return;
     };
@@ -381,7 +361,7 @@ async fn async_operations_refuse_a_subject_the_actor_table_does_not_know() {
 
 #[tokio::test]
 async fn async_operations_accept_a_subject_the_actor_table_knows() {
-    let Some((answer, shutdown)) = Box::pin(async_submit(&token_for(KNOWN_SUB))).await else {
+    let Some((answer, shutdown)) = Box::pin(async_submit(KNOWN_SUB)).await else {
         eprintln!("skipping #1336 enrichment parity: DATABASE_URL not set");
         return;
     };
@@ -399,12 +379,12 @@ async fn async_operations_accept_a_subject_the_actor_table_knows() {
 
 #[tokio::test]
 async fn graphql_refuses_a_subject_the_actor_table_does_not_know() {
-    let Some((base, shutdown)) = start().await else {
+    let Some((base, shutdown, issuer)) = start().await else {
         eprintln!("skipping #1336 enrichment parity: DATABASE_URL not set");
         return;
     };
 
-    let answer = graphql_post(&base, "{ audits { id } }", &token_for(UNKNOWN_SUB)).await;
+    let answer = graphql_post(&base, "{ audits { id } }", &token_for(&issuer, UNKNOWN_SUB)).await;
 
     assert_eq!(
         answer.status, 403,
@@ -420,12 +400,13 @@ async fn graphql_refuses_a_subject_the_actor_table_does_not_know() {
 
 #[tokio::test]
 async fn graphql_serves_the_resolved_subject_its_own_rows() {
-    let Some((base, shutdown)) = start().await else {
+    let Some((base, shutdown, issuer)) = start().await else {
         eprintln!("skipping #1336 enrichment parity: DATABASE_URL not set");
         return;
     };
 
-    let answer = graphql_post(&base, "{ orders { id tenant_id } }", &token_for(KNOWN_SUB)).await;
+    let answer =
+        graphql_post(&base, "{ orders { id tenant_id } }", &token_for(&issuer, KNOWN_SUB)).await;
 
     assert_eq!(
         answer.status, 200,
@@ -488,7 +469,7 @@ fn build_schema_without_consumer() -> CompiledSchema {
 /// `/graphql` refuses (the control above) wherever enrichment is the admission gate.
 #[tokio::test]
 async fn graphql_stream_refuses_a_subject_the_actor_table_does_not_know() {
-    let Some((base, shutdown)) = start_with(build_schema_without_consumer()).await else {
+    let Some((base, shutdown, issuer)) = start_with(build_schema_without_consumer()).await else {
         eprintln!("skipping GHSA-h22c stream parity: DATABASE_URL not set");
         return;
     };
@@ -496,7 +477,7 @@ async fn graphql_stream_refuses_a_subject_the_actor_table_does_not_know() {
     let (status, body) = graphql_stream(
         &base,
         "{ audits @stream(initialCount: 1) { id } }",
-        &token_for(UNKNOWN_SUB),
+        &token_for(&issuer, UNKNOWN_SUB),
     )
     .await;
 
@@ -513,7 +494,7 @@ async fn graphql_stream_refuses_a_subject_the_actor_table_does_not_know() {
 /// cannot select.
 #[tokio::test]
 async fn graphql_stream_serves_the_resolved_subject_its_own_rows() {
-    let Some((base, shutdown)) = start().await else {
+    let Some((base, shutdown, issuer)) = start().await else {
         eprintln!("skipping GHSA-h22c stream parity: DATABASE_URL not set");
         return;
     };
@@ -521,7 +502,7 @@ async fn graphql_stream_serves_the_resolved_subject_its_own_rows() {
     let (status, body) = graphql_stream(
         &base,
         "{ orders @stream(initialCount: 1) { id tenant_id } }",
-        &token_for(KNOWN_SUB),
+        &token_for(&issuer, KNOWN_SUB),
     )
     .await;
 
@@ -542,12 +523,12 @@ async fn graphql_stream_serves_the_resolved_subject_its_own_rows() {
 
 #[tokio::test]
 async fn rest_refuses_a_subject_the_actor_table_does_not_know() {
-    let Some((base, shutdown)) = start().await else {
+    let Some((base, shutdown, issuer)) = start().await else {
         eprintln!("skipping #1336 enrichment parity: DATABASE_URL not set");
         return;
     };
 
-    let answer = rest_get(&base, "audits", &token_for(UNKNOWN_SUB)).await;
+    let answer = rest_get(&base, "audits", &token_for(&issuer, UNKNOWN_SUB)).await;
 
     assert_eq!(
         answer.status, 403,
@@ -563,12 +544,12 @@ async fn rest_refuses_a_subject_the_actor_table_does_not_know() {
 
 #[tokio::test]
 async fn rest_admits_a_subject_the_actor_table_knows() {
-    let Some((base, shutdown)) = start().await else {
+    let Some((base, shutdown, issuer)) = start().await else {
         eprintln!("skipping #1336 enrichment parity: DATABASE_URL not set");
         return;
     };
 
-    let answer = rest_get(&base, "audits", &token_for(KNOWN_SUB)).await;
+    let answer = rest_get(&base, "audits", &token_for(&issuer, KNOWN_SUB)).await;
 
     assert_eq!(
         answer.status, 200,
@@ -583,12 +564,12 @@ async fn rest_admits_a_subject_the_actor_table_knows() {
 
 #[tokio::test]
 async fn rest_serves_the_resolved_subject_its_own_rows() {
-    let Some((base, shutdown)) = start().await else {
+    let Some((base, shutdown, issuer)) = start().await else {
         eprintln!("skipping #1336 enrichment parity: DATABASE_URL not set");
         return;
     };
 
-    let answer = rest_get(&base, "orders", &token_for(KNOWN_SUB)).await;
+    let answer = rest_get(&base, "orders", &token_for(&issuer, KNOWN_SUB)).await;
 
     assert_eq!(
         answer.status, 200,
@@ -625,10 +606,10 @@ fn enrichment_config() -> EnrichmentQueryConfig {
     .expect("[identity.enrichment] profile")
 }
 
-/// An MCP service over the same schema, actor table and HS256 secret as the HTTP
-/// cases — driven through `call_tool_authenticated`, the documented testable seam
-/// under `ServerHandler::call_tool`.
-async fn mcp_service() -> Option<FraiseQLMcpService> {
+/// An MCP service over the same schema, actor table and issuer as the HTTP cases —
+/// driven through `call_tool_authenticated`, the documented testable seam under
+/// `ServerHandler::call_tool` — and the issuer it trusts.
+async fn mcp_service() -> Option<(FraiseQLMcpService, TestIssuer)> {
     let url = try_database_url()?;
     let adapter = PostgresAdapter::new(&url).await.expect("connect to the test database");
     seed(&adapter).await;
@@ -641,32 +622,24 @@ async fn mcp_service() -> Option<FraiseQLMcpService> {
             "tenant_id",
         )));
 
-    Some(
-        FraiseQLMcpService::new(
-            state,
-            McpConfig {
-                enabled: true,
-                require_auth: true,
-                ..McpConfig::default()
-            },
-        )
-        .with_token_validator(Some(McpTokenValidator::Hs256(Arc::new(
-            AuthMiddleware::from_config(AuthConfig {
-                // The same issuer/audience the HTTP cases' `[auth_hs256]` block
-                // declares: one token shape for all three transports. Without these the
-                // validator rejects the token's `aud` outright and every MCP case
-                // "passes" its refusal assertion for the wrong reason — which is what
-                // the positive twin below exists to catch.
-                issuer: Some(ISSUER.to_string()),
-                audience: Some(AUDIENCE.to_string()),
-                ..AuthConfig::with_hs256(SECRET)
-            }),
-        )))),
+    // A validator trusting another issuer or audience would refuse every token, and
+    // every MCP refusal case would pass for the wrong reason — which is what the
+    // positive twin below exists to catch.
+    let issuer = TestIssuer::start().await;
+    let service = FraiseQLMcpService::new(
+        state,
+        McpConfig {
+            enabled: true,
+            require_auth: true,
+            ..McpConfig::default()
+        },
     )
+    .with_token_validator(Some(mcp_validator(&issuer).await));
+    Some((service, issuer))
 }
 
 async fn mcp_call(
-    service: &FraiseQLMcpService,
+    (service, issuer): &(FraiseQLMcpService, TestIssuer),
     tool: &str,
     sub: &str,
 ) -> rmcp::model::CallToolResult {
@@ -674,7 +647,7 @@ async fn mcp_call(
         .call_tool_authenticated(
             tool,
             None,
-            Some(token_for(sub)),
+            Some(token_for(issuer, sub)),
             format!("mcp-p36-{sub}"),
             &axum::http::HeaderMap::new(),
         )
@@ -683,12 +656,12 @@ async fn mcp_call(
 
 #[tokio::test]
 async fn mcp_refuses_a_subject_the_actor_table_does_not_know() {
-    let Some(service) = mcp_service().await else {
+    let Some(mcp) = mcp_service().await else {
         eprintln!("skipping #1336 enrichment parity: DATABASE_URL not set");
         return;
     };
 
-    let result = mcp_call(&service, "audits", UNKNOWN_SUB).await;
+    let result = mcp_call(&mcp, "audits", UNKNOWN_SUB).await;
 
     assert_eq!(
         result.is_error,
@@ -702,12 +675,12 @@ async fn mcp_refuses_a_subject_the_actor_table_does_not_know() {
 
 #[tokio::test]
 async fn mcp_admits_a_subject_the_actor_table_knows() {
-    let Some(service) = mcp_service().await else {
+    let Some(mcp) = mcp_service().await else {
         eprintln!("skipping #1336 enrichment parity: DATABASE_URL not set");
         return;
     };
 
-    let result = mcp_call(&service, "audits", KNOWN_SUB).await;
+    let result = mcp_call(&mcp, "audits", KNOWN_SUB).await;
 
     assert_ne!(
         result.is_error,
@@ -720,12 +693,12 @@ async fn mcp_admits_a_subject_the_actor_table_knows() {
 
 #[tokio::test]
 async fn mcp_serves_the_resolved_subject_its_own_rows() {
-    let Some(service) = mcp_service().await else {
+    let Some(mcp) = mcp_service().await else {
         eprintln!("skipping #1336 enrichment parity: DATABASE_URL not set");
         return;
     };
 
-    let result = mcp_call(&service, "orders", KNOWN_SUB).await;
+    let result = mcp_call(&mcp, "orders", KNOWN_SUB).await;
 
     assert_ne!(
         result.is_error,
@@ -797,9 +770,10 @@ async fn the_same_schema_boots_once_a_resolver_is_configured() {
         return;
     };
     let adapter = Arc::new(PostgresAdapter::new(&url).await.expect("connect"));
-    std::env::set_var(SECRET_ENV, SECRET);
+    // Boot validates `[auth]` by discovery, so the issuer it names must be serving.
+    let issuer = TestIssuer::start().await;
 
-    let mut config = server_config();
+    let mut config = server_config(&issuer);
     config.database_url = url.clone();
     let pool = sqlx::PgPool::connect(&url).await.expect("enrichment pool");
 
@@ -827,7 +801,7 @@ async fn the_same_schema_boots_once_a_resolver_is_configured() {
 /// The registry entry here is built with `Executor::new` deliberately: that is exactly
 /// what the tenant factory produces, `RuntimeConfig::default()` and all. A test that
 /// registered a fully-configured executor would prove nothing about the real path.
-async fn tenant_keyed_service() -> Option<FraiseQLMcpService> {
+async fn tenant_keyed_service() -> Option<(FraiseQLMcpService, TestIssuer)> {
     use fraiseql_server::routes::graphql::tenant_registry::TenantExecutorRegistry;
 
     let url = try_database_url()?;
@@ -849,34 +823,31 @@ async fn tenant_keyed_service() -> Option<FraiseQLMcpService> {
         )))
         .with_tenant_registry(registry);
 
-    Some(
-        FraiseQLMcpService::new(
-            state,
-            McpConfig {
-                enabled: true,
-                require_auth: true,
-                ..McpConfig::default()
-            },
-        )
-        .with_token_validator(Some(McpTokenValidator::Hs256(Arc::new(
-            AuthMiddleware::from_config(AuthConfig {
-                issuer: Some(ISSUER.to_string()),
-                audience: Some(AUDIENCE.to_string()),
-                ..AuthConfig::with_hs256(SECRET)
-            }),
-        )))),
+    let issuer = TestIssuer::start().await;
+    let service = FraiseQLMcpService::new(
+        state,
+        McpConfig {
+            enabled: true,
+            require_auth: true,
+            ..McpConfig::default()
+        },
     )
+    .with_token_validator(Some(mcp_validator(&issuer).await));
+    Some((service, issuer))
 }
 
 /// The registered tenant these two cases dispatch to.
 const TENANT_KEY: &str = "p36tenant";
 
-async fn tenant_keyed_call(service: &FraiseQLMcpService, sub: &str) -> rmcp::model::CallToolResult {
-    tenant_keyed_call_as(service, sub, TENANT_KEY).await
+async fn tenant_keyed_call(
+    mcp: &(FraiseQLMcpService, TestIssuer),
+    sub: &str,
+) -> rmcp::model::CallToolResult {
+    tenant_keyed_call_as(mcp, sub, TENANT_KEY).await
 }
 
 async fn tenant_keyed_call_as(
-    service: &FraiseQLMcpService,
+    (service, issuer): &(FraiseQLMcpService, TestIssuer),
     sub: &str,
     tenant: &str,
 ) -> rmcp::model::CallToolResult {
@@ -886,7 +857,7 @@ async fn tenant_keyed_call_as(
         .call_tool_authenticated(
             "audits",
             None,
-            Some(token_for_tenant(sub, tenant)),
+            Some(token_for_tenant(issuer, sub, tenant)),
             format!("mcp-p36-tenant-{sub}"),
             &headers,
         )
@@ -895,12 +866,12 @@ async fn tenant_keyed_call_as(
 
 #[tokio::test]
 async fn a_tenant_keyed_request_is_refused_when_its_subject_does_not_resolve() {
-    let Some(service) = tenant_keyed_service().await else {
+    let Some(mcp) = tenant_keyed_service().await else {
         eprintln!("skipping #1336 enrichment parity: DATABASE_URL not set");
         return;
     };
 
-    let result = tenant_keyed_call(&service, UNKNOWN_SUB).await;
+    let result = tenant_keyed_call(&mcp, UNKNOWN_SUB).await;
 
     assert_eq!(
         result.is_error,
@@ -916,12 +887,12 @@ async fn a_tenant_keyed_request_is_served_when_its_subject_resolves() {
     // The twin that makes the case above mean something: without it, a tenant key that
     // simply failed to dispatch — an unregistered key is an `Authorization` error —
     // would satisfy the refusal assertion while proving nothing about enrichment.
-    let Some(service) = tenant_keyed_service().await else {
+    let Some(mcp) = tenant_keyed_service().await else {
         eprintln!("skipping #1336 enrichment parity: DATABASE_URL not set");
         return;
     };
 
-    let result = tenant_keyed_call(&service, KNOWN_SUB).await;
+    let result = tenant_keyed_call(&mcp, KNOWN_SUB).await;
 
     assert_ne!(
         result.is_error,
@@ -940,12 +911,12 @@ async fn the_tenant_key_is_actually_honoured_by_these_cases() {
     // succeed. An *unregistered* key is refused rather than silently defaulted, so a
     // refusal here is proof the key reaches dispatch, which is what makes the pair
     // above a statement about tenant-keyed requests at all.
-    let Some(service) = tenant_keyed_service().await else {
+    let Some(mcp) = tenant_keyed_service().await else {
         eprintln!("skipping #1336 enrichment parity: DATABASE_URL not set");
         return;
     };
 
-    let result = tenant_keyed_call_as(&service, KNOWN_SUB, "p36neverregistered").await;
+    let result = tenant_keyed_call_as(&mcp, KNOWN_SUB, "p36neverregistered").await;
 
     assert_eq!(
         result.is_error,

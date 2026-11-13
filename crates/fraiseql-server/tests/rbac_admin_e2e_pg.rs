@@ -44,6 +44,8 @@ use fraiseql_server::api::rbac_management::db_backend::{RbacDbBackend, RbacDbErr
 use fraiseql_test_support::try_database_url;
 use sqlx::PgPool;
 
+mod common;
+
 // ---------------------------------------------------------------------------
 // Scratch-database plumbing
 // ---------------------------------------------------------------------------
@@ -349,6 +351,9 @@ struct RbacServer {
     shutdown:  Option<tokio::sync::oneshot::Sender<()>>,
     handle:    tokio::task::JoinHandle<Result<(), fraiseql_server::ServerError>>,
     client:    reqwest::Client,
+    /// The end users' issuer. Must outlive the server: the validator fetches its key set
+    /// on first use.
+    issuer:    fraiseql_test_support::issuer::TestIssuer,
 }
 
 /// 38 characters — comfortably over the configured admin-token minimum.
@@ -359,7 +364,7 @@ impl RbacServer {
         Self::boot(admin_url, db, false).await
     }
 
-    /// The same server, also authenticating end users (HS256) and serving one query
+    /// The same server, also authenticating end users (a test issuer) and serving one query
     /// gated on [`GATED_ROLE`] over a seeded view (#1632).
     async fn start_with_principals(admin_url: &str, db: &'static str) -> Self {
         Self::boot(admin_url, db, true).await
@@ -367,13 +372,12 @@ impl RbacServer {
 
     async fn boot(admin_url: &str, db: &'static str, principals: bool) -> Self {
         use fraiseql_core::db::postgres::PostgresAdapter;
-        use fraiseql_server::{
-            Server,
-            server_config::{Hs256Config, ServerConfig},
-        };
+        use fraiseql_server::{Server, server_config::ServerConfig};
+        use fraiseql_test_support::issuer::TestIssuer;
 
         let pool = scratch_pool(admin_url, db).await;
         let scratch_url = with_database(admin_url, db);
+        let issuer = TestIssuer::start().await;
 
         let mut config = ServerConfig {
             // #874: production validate() refuses cors_enabled=true + empty origins
@@ -385,14 +389,7 @@ impl RbacServer {
         };
         let schema = if principals {
             seed_documents(&pool).await;
-            // The server reads the secret from the environment when it boots. This binary
-            // runs single-threaded, so there is no sibling to race.
-            std::env::set_var(HS256_SECRET_ENV, HS256_SECRET);
-            config.auth_hs256 = Some(Hs256Config {
-                secret_env: HS256_SECRET_ENV.to_string(),
-                issuer:     Some(HS256_ISSUER.to_string()),
-                audience:   Some(HS256_AUDIENCE.to_string()),
-            });
+            config.auth = Some(common::test_issuer::oidc_config(&issuer, true));
             gated_schema()
         } else {
             empty_schema()
@@ -428,6 +425,7 @@ impl RbacServer {
             shutdown: Some(tx),
             handle,
             client: reqwest::Client::new(),
+            issuer,
         }
     }
 
@@ -877,10 +875,6 @@ async fn every_declared_audit_event_type_has_a_producer() {
 const GATED_ROLE: &str = "auditor";
 /// The end user every #1632 case authenticates as.
 const SUBJECT: &str = "u-1632";
-const HS256_SECRET_ENV: &str = "FRAISEQL_TEST_P05_RBAC_HS256_SECRET";
-const HS256_SECRET: &str = "p05-rbac-principal-secret-0123456789-0123";
-const HS256_ISSUER: &str = "https://rbac.test.fraiseql";
-const HS256_AUDIENCE: &str = "rbac-test";
 const TENANT_ONE: &str = "11111111-1111-1111-1111-111111111111";
 const TENANT_TWO: &str = "22222222-2222-2222-2222-222222222222";
 /// The one gated query: `{ docs { id } }`.
@@ -914,31 +908,20 @@ fn gated_schema() -> fraiseql_core::schema::CompiledSchema {
     schema
 }
 
-/// A token for [`SUBJECT`] with these claim roles, optionally in a tenant, optionally
-/// presented by a delegate (`act`).
-fn mint_principal(roles: &[&str], tenant: Option<&str>, delegated: bool) -> String {
-    use jsonwebtoken::{Algorithm, EncodingKey, Header, encode};
-    let now = chrono::Utc::now().timestamp();
-    let mut claims = serde_json::json!({
-        "sub": SUBJECT,
-        "iss": HS256_ISSUER,
-        "aud": HS256_AUDIENCE,
-        "iat": now,
-        "exp": now + 3600,
-        "roles": roles,
-    });
-    if let Some(tenant) = tenant {
-        claims["tenant_id"] = serde_json::json!(tenant);
+impl RbacServer {
+    /// A token for [`SUBJECT`] with these claim roles, optionally in a tenant, optionally
+    /// presented by a delegate (`act`).
+    fn mint_principal(&self, roles: &[&str], tenant: Option<&str>, delegated: bool) -> String {
+        let mut claims =
+            self.issuer.claims().set("sub", SUBJECT).set("roles", serde_json::json!(roles));
+        if let Some(tenant) = tenant {
+            claims = claims.set("tenant_id", tenant);
+        }
+        if delegated {
+            claims = claims.set("act", serde_json::json!({ "sub": "agent-1632" }));
+        }
+        self.issuer.mint(&claims)
     }
-    if delegated {
-        claims["act"] = serde_json::json!({ "sub": "agent-1632" });
-    }
-    encode(
-        &Header::new(Algorithm::HS256),
-        &claims,
-        &EncodingKey::from_secret(HS256_SECRET.as_bytes()),
-    )
-    .expect("mint token")
 }
 
 impl RbacServer {
@@ -977,7 +960,7 @@ async fn an_assigned_role_grants_without_a_new_token() {
         return;
     };
     let server = RbacServer::start_with_principals(&url, "fraiseql_p05_grant").await;
-    let token = mint_principal(&[], None, false);
+    let token = server.mint_principal(&[], None, false);
 
     let refused = server.gated_query_as(&token).await;
     assert!(refused.is_err(), "no role yet: the query must be refused");
@@ -1000,7 +983,7 @@ async fn a_revoked_role_stops_granting() {
         return;
     };
     let server = RbacServer::start_with_principals(&url, "fraiseql_p05_revoke").await;
-    let token = mint_principal(&[], None, false);
+    let token = server.mint_principal(&[], None, false);
     let role = create_role(&server, serde_json::json!({ "name": GATED_ROLE })).await;
     server.assign(&role, None).await;
     if let Err(body) = server.gated_query_as(&token).await {
@@ -1025,7 +1008,7 @@ async fn a_deleted_role_stops_granting() {
         return;
     };
     let server = RbacServer::start_with_principals(&url, "fraiseql_p05_delete").await;
-    let token = mint_principal(&[], None, false);
+    let token = server.mint_principal(&[], None, false);
     let role = create_role(&server, serde_json::json!({ "name": GATED_ROLE })).await;
     server.assign(&role, None).await;
     if let Err(body) = server.gated_query_as(&token).await {
@@ -1050,7 +1033,7 @@ async fn a_renamed_role_stops_granting_under_its_old_name() {
         return;
     };
     let server = RbacServer::start_with_principals(&url, "fraiseql_p05_rename").await;
-    let token = mint_principal(&[], None, false);
+    let token = server.mint_principal(&[], None, false);
     let role = create_role(&server, serde_json::json!({ "name": GATED_ROLE })).await;
     server.assign(&role, None).await;
     if let Err(body) = server.gated_query_as(&token).await {
@@ -1084,12 +1067,15 @@ async fn a_role_assigned_in_another_tenant_does_not_grant() {
     let role = create_role(&server, serde_json::json!({ "name": GATED_ROLE })).await;
     server.assign(&role, Some(TENANT_TWO)).await;
 
-    if let Err(body) = server.gated_query_as(&mint_principal(&[], Some(TENANT_TWO), false)).await {
+    if let Err(body) = server
+        .gated_query_as(&server.mint_principal(&[], Some(TENANT_TWO), false))
+        .await
+    {
         panic!("control: the assignment grants in its own tenant: {body}");
     }
     assert!(
         server
-            .gated_query_as(&mint_principal(&[], Some(TENANT_ONE), false))
+            .gated_query_as(&server.mint_principal(&[], Some(TENANT_ONE), false))
             .await
             .is_err(),
         "an assignment in another tenant must not grant"
@@ -1109,11 +1095,11 @@ async fn a_delegated_agent_does_not_gain_the_users_assigned_roles() {
     let role = create_role(&server, serde_json::json!({ "name": GATED_ROLE })).await;
     server.assign(&role, None).await;
 
-    if let Err(body) = server.gated_query_as(&mint_principal(&[], None, false)).await {
+    if let Err(body) = server.gated_query_as(&server.mint_principal(&[], None, false)).await {
         panic!("control: the assignment grants the user: {body}");
     }
     assert!(
-        server.gated_query_as(&mint_principal(&[], None, true)).await.is_err(),
+        server.gated_query_as(&server.mint_principal(&[], None, true)).await.is_err(),
         "a delegated agent must not gain the user's assigned roles"
     );
 
@@ -1127,7 +1113,9 @@ async fn claim_roles_still_grant() {
         return;
     };
     let server = RbacServer::start_with_principals(&url, "fraiseql_p05_claims").await;
-    if let Err(body) = server.gated_query_as(&mint_principal(&[GATED_ROLE], None, false)).await {
+    if let Err(body) =
+        server.gated_query_as(&server.mint_principal(&[GATED_ROLE], None, false)).await
+    {
         panic!("a claim role must grant: {body}");
     }
 

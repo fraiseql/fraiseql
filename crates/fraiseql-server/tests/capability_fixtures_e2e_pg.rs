@@ -166,8 +166,6 @@ const fn default_true() -> bool {
 enum Auth {
     /// Sent as written: an opaque token the server was configured with.
     Token(String),
-    /// An HS256 JWT minted when the stimulus is sent, so no signed token is committed.
-    Jwt { hs256: Hs256 },
     /// An RS256 JWT issued by the receiver (`iss` is `$RECEIVER_URL`) and signed with the key
     /// its key set publishes, as an OIDC provider issues one.
     Oidc { oidc: OidcClaims },
@@ -207,22 +205,8 @@ impl Issuer {
     }
 }
 
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct Hs256 {
-    /// The fixture `env` key holding the signing secret the server verifies with.
-    secret_env: String,
-    sub:        String,
-    iss:        String,
-    aud:        String,
-}
-
 impl Auth {
-    fn bearer(
-        &self,
-        env: &BTreeMap<String, String>,
-        receiver: &Receiver,
-    ) -> Result<String, String> {
+    fn bearer(&self, receiver: &Receiver) -> Result<String, String> {
         let now = || {
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
@@ -231,22 +215,6 @@ impl Auth {
         };
         match self {
             Self::Token(token) => Ok(token.clone()),
-            Self::Jwt { hs256 } => {
-                let secret = env.get(&hs256.secret_env).ok_or_else(|| {
-                    format!("auth.hs256: no `{}` in the fixture env", hs256.secret_env)
-                })?;
-                let now = now()?;
-                let claims = serde_json::json!({
-                    "sub": hs256.sub, "iss": hs256.iss, "aud": hs256.aud,
-                    "iat": now, "exp": now + 3600,
-                });
-                jsonwebtoken::encode(
-                    &jsonwebtoken::Header::default(),
-                    &claims,
-                    &jsonwebtoken::EncodingKey::from_secret(secret.as_bytes()),
-                )
-                .map_err(|e| format!("auth.hs256: {e}"))
-            },
             Self::Oidc { oidc } => {
                 let now = now()?;
                 let claims = serde_json::json!({
@@ -1060,12 +1028,7 @@ async fn serve(
     }
 }
 
-async fn send(
-    served: &Served,
-    database_url: &str,
-    env: &BTreeMap<String, String>,
-    stimulus: &Stimulus,
-) -> Result<(), String> {
+async fn send(served: &Served, database_url: &str, stimulus: &Stimulus) -> Result<(), String> {
     match stimulus {
         Stimulus::Http {
             method,
@@ -1080,7 +1043,7 @@ async fn send(
                 .request(method, format!("{}{path}", served.base))
                 .header("content-type", "application/json");
             if let Some(auth) = auth {
-                request = request.bearer_auth(auth.bearer(env, &served.receiver)?);
+                request = request.bearer_auth(auth.bearer(&served.receiver)?);
             }
             if let Some(signature) = sign {
                 request = request
@@ -1121,8 +1084,7 @@ async fn send(
             arguments,
             auth,
         } => {
-            let bearer =
-                auth.as_ref().map(|auth| auth.bearer(env, &served.receiver)).transpose()?;
+            let bearer = auth.as_ref().map(|auth| auth.bearer(&served.receiver)).transpose()?;
             let client = reqwest::Client::new();
             let url = format!("{}{path}", served.base);
             let post = |body: Value, session: Option<&str>| {
@@ -1250,12 +1212,7 @@ async fn send(
 }
 
 /// `Ok` when the effect holds now, `Err` with what was seen instead.
-async fn observe(
-    served: &Served,
-    database_url: &str,
-    env: &BTreeMap<String, String>,
-    effect: &Effect,
-) -> Result<(), String> {
+async fn observe(served: &Served, database_url: &str, effect: &Effect) -> Result<(), String> {
     match effect {
         Effect::Http {
             method,
@@ -1362,7 +1319,7 @@ async fn observe(
         },
         Effect::Refused { .. } => Err("a refusal is judged before the server serves".to_owned()),
         Effect::Flight { ticket, auth, rows } => {
-            let bearer = auth.bearer(env, &served.receiver)?;
+            let bearer = auth.bearer(&served.receiver)?;
             let got = flight_rows(&served.flight, &bearer, ticket).await?;
             if got == *rows {
                 Ok(())
@@ -1556,14 +1513,14 @@ async fn run_fixture_on(
         )
         .await?;
         for stimulus in &fixture.stimulus {
-            send(&served, &database_url, &fixture.env, stimulus).await?;
+            send(&served, &database_url, stimulus).await?;
         }
         let deadline = Instant::now() + Duration::from_secs(fixture.deadline_secs);
         loop {
             served
                 .still_running()
                 .map_err(|exited| format!("{exited}:\n{}", served.log_tail()))?;
-            match observe(&served, &database_url, &fixture.env, &fixture.effect).await {
+            match observe(&served, &database_url, &fixture.effect).await {
                 Ok(()) => break,
                 Err(seen) if Instant::now() > deadline => {
                     return Err(format!(

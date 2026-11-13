@@ -1,13 +1,11 @@
 //! #376: MCP-originated writes are attributable in the audit trail, end to end
-//! against PostgreSQL — and HS256 deployments can authenticate MCP calls at all.
+//! against PostgreSQL.
 //!
 //! Drives `FraiseQLMcpService::call_tool_authenticated` (the documented testable
-//! seam under `ServerHandler::call_tool`) with a locally-minted HS256 Bearer
-//! token — exercising the #376 auth-parity path (`McpTokenValidator::Hs256`;
-//! before it, MCP accepted only OIDC and an `[auth_hs256]` deployment could not
-//! authenticate MCP calls) — through the real executor into the change-log
-//! outbox, and asserts on the recorded row: `extra_metadata.transport = "mcp"`
-//! plus the #390 actor columns.
+//! seam under `ServerHandler::call_tool`) with a Bearer token minted by the ES256
+//! test issuer and validated by `McpTokenValidator::Oidc` — through the real
+//! executor into the change-log outbox, and asserts on the recorded row:
+//! `extra_metadata.transport = "mcp"` plus the #390 actor columns.
 //!
 //! Self-skips when no `DATABASE_URL` is set (no `#[ignore]`), so it is inert in
 //! the database-free `test` leg and runs in the Dagger `integration: server`
@@ -20,6 +18,8 @@
 #![cfg(feature = "mcp")]
 #![allow(clippy::unwrap_used, clippy::panic, clippy::print_stderr)] // Reason: test code — panics and skip diagnostics are acceptable
 
+mod common;
+
 use std::sync::Arc;
 
 use fraiseql_core::{
@@ -30,17 +30,16 @@ use fraiseql_core::{
         ArgumentDefinition, CompiledSchema, FieldDefinition, FieldType, McpConfig,
         MutationDefinition, MutationOperation, TypeDefinition,
     },
-    security::{AuthConfig, AuthMiddleware},
+    security::OidcValidator,
 };
 use fraiseql_server::{
     mcp::handler::{FraiseQLMcpService, McpTokenValidator},
     routes::graphql::AppState,
 };
-use fraiseql_test_support::try_database_url;
+use fraiseql_test_support::{issuer::TestIssuer, try_database_url};
 use serde_json::{Value, json};
 
 const SCHEMA: &str = "p29_mcp";
-const SECRET: &str = "p29-mcp-secret-0123456789-0123456789";
 const HUMAN_SUB: &str = "5a1e0000-0000-4000-8000-000000000376";
 
 async fn exec(adapter: &PostgresAdapter, sql: &str) {
@@ -124,36 +123,31 @@ fn mcp_config() -> McpConfig {
     }
 }
 
-fn hs256_validator() -> McpTokenValidator {
-    McpTokenValidator::Hs256(Arc::new(AuthMiddleware::from_config(AuthConfig::with_hs256(SECRET))))
+/// The MCP validator of a deployment that trusts `issuer`, its key set found by
+/// discovery as a deployment finds it.
+async fn validator(issuer: &TestIssuer) -> McpTokenValidator {
+    McpTokenValidator::Oidc(Arc::new(
+        OidcValidator::new(common::test_issuer::oidc_config(issuer, true))
+            .await
+            .expect("the issuer's discovery document is accepted"),
+    ))
 }
 
-fn mint_token(sub: &str) -> String {
-    use jsonwebtoken::{Algorithm, EncodingKey, Header, encode};
-    let now = i64::try_from(
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .expect("system time")
-            .as_secs(),
-    )
-    .expect("epoch seconds fit i64");
-    let claims = json!({ "sub": sub, "iat": now, "exp": now + 3600 });
-    encode(
-        &Header::new(Algorithm::HS256),
-        &claims,
-        &EncodingKey::from_secret(SECRET.as_bytes()),
-    )
-    .expect("mint token")
+fn mint_token(issuer: &TestIssuer, sub: &str) -> String {
+    issuer.mint(&issuer.claims().set("sub", sub))
 }
 
-async fn setup() -> Option<(PostgresAdapter, FraiseQLMcpService)> {
+/// The adapter, a service validating against the returned issuer, and that issuer,
+/// which must outlive the service: the validator fetches its key set on first use.
+async fn setup() -> Option<(PostgresAdapter, FraiseQLMcpService, TestIssuer)> {
     let url = try_database_url()?;
     let adapter = PostgresAdapter::new(&url).await.expect("connect");
     provision(&adapter).await;
+    let issuer = TestIssuer::start().await;
     let state = AppState::new(Arc::new(Executor::new(schema(), Arc::new(adapter.clone()))));
-    let service =
-        FraiseQLMcpService::new(state, mcp_config()).with_token_validator(Some(hs256_validator()));
-    Some((adapter, service))
+    let service = FraiseQLMcpService::new(state, mcp_config())
+        .with_token_validator(Some(validator(&issuer).await));
+    Some((adapter, service, issuer))
 }
 
 /// #967: per-thread continuity accumulates across calls, and a client-controlled
@@ -182,7 +176,7 @@ async fn session_continuity_accumulates_and_stays_scoped_to_the_principal() {
             .unwrap_or(serde_json::Value::Null)
     }
 
-    let Some((adapter, _)) = setup().await else {
+    let Some((adapter, _, issuer)) = setup().await else {
         eprintln!("SKIP session_continuity_accumulates_and_stays_scoped_to_the_principal");
         return;
     };
@@ -198,14 +192,14 @@ async fn session_continuity_accumulates_and_stays_scoped_to_the_principal() {
             ..mcp_config()
         },
     )
-    .with_token_validator(Some(hs256_validator()))
+    .with_token_validator(Some(validator(&issuer).await))
     .with_session_state(Some(Arc::clone(&store)));
 
     let mut headers = axum::http::HeaderMap::new();
     headers.insert("mcp-session-id", "shared-thread-id".parse().unwrap());
 
     // Alice calls twice on her thread.
-    let alice = mint_token(HUMAN_SUB);
+    let alice = mint_token(&issuer, HUMAN_SUB);
     let mut alice_last = serde_json::Value::Null;
     for n in 0..2 {
         let mut args = serde_json::Map::new();
@@ -230,7 +224,7 @@ async fn session_continuity_accumulates_and_stays_scoped_to_the_principal() {
     );
 
     // Bob calls once, sending the SAME session header.
-    let bob = mint_token("5a1e0000-0000-4000-8000-000000000967");
+    let bob = mint_token(&issuer, "5a1e0000-0000-4000-8000-000000000967");
     let mut bob_args = serde_json::Map::new();
     bob_args.insert("label".to_string(), json!("bob-0"));
     let result = service
@@ -285,7 +279,7 @@ async fn continuity_is_off_unless_the_operator_turns_it_on() {
         InMemorySessionStateStore, SessionState, SessionStateBackend,
     };
 
-    let Some((adapter, _)) = setup().await else {
+    let Some((adapter, _, issuer)) = setup().await else {
         eprintln!("SKIP continuity_is_off_unless_the_operator_turns_it_on");
         return;
     };
@@ -296,7 +290,7 @@ async fn continuity_is_off_unless_the_operator_turns_it_on() {
     ));
     // The store IS bound; only the flag is off.
     let service = FraiseQLMcpService::new(state, mcp_config())
-        .with_token_validator(Some(hs256_validator()))
+        .with_token_validator(Some(validator(&issuer).await))
         .with_session_state(Some(store));
 
     let mut headers = axum::http::HeaderMap::new();
@@ -308,7 +302,7 @@ async fn continuity_is_off_unless_the_operator_turns_it_on() {
         .call_tool_authenticated(
             "createItem",
             Some(&args),
-            Some(mint_token(HUMAN_SUB)),
+            Some(mint_token(&issuer, HUMAN_SUB)),
             "mcp-p29-sess-off".to_string(),
             &headers,
         )
@@ -321,12 +315,12 @@ async fn continuity_is_off_unless_the_operator_turns_it_on() {
     );
 }
 
-/// The headline: an HS256-authenticated MCP mutation succeeds (auth parity) and
+/// The headline: an authenticated MCP mutation succeeds and
 /// its change-log row is attributable — `extra_metadata.transport = "mcp"` plus
 /// the #390 actor stamp — while nothing else about the envelope is disturbed.
 #[tokio::test]
 async fn mcp_mutation_records_transport_and_actor() {
-    let Some((adapter, service)) = setup().await else {
+    let Some((adapter, service, issuer)) = setup().await else {
         eprintln!("SKIP mcp_mutation_records_transport_and_actor: no DATABASE_URL");
         return;
     };
@@ -337,7 +331,7 @@ async fn mcp_mutation_records_transport_and_actor() {
         .call_tool_authenticated(
             "createItem",
             Some(&args),
-            Some(mint_token(HUMAN_SUB)),
+            Some(mint_token(&issuer, HUMAN_SUB)),
             "mcp-p29-stamp".to_string(),
             &axum::http::HeaderMap::new(),
         )
@@ -345,7 +339,7 @@ async fn mcp_mutation_records_transport_and_actor() {
     assert_ne!(
         result.is_error,
         Some(true),
-        "HS256-authenticated MCP mutation must succeed: {:?}",
+        "authenticated MCP mutation must succeed: {:?}",
         result.content
     );
 
@@ -374,7 +368,7 @@ async fn mcp_mutation_records_transport_and_actor() {
 /// and writes nothing — proving the success above went through validation.
 #[tokio::test]
 async fn anonymous_call_is_refused_and_writes_nothing() {
-    let Some((adapter, service)) = setup().await else {
+    let Some((adapter, service, _issuer)) = setup().await else {
         eprintln!("SKIP anonymous_call_is_refused_and_writes_nothing: no DATABASE_URL");
         return;
     };
@@ -402,12 +396,12 @@ async fn anonymous_call_is_refused_and_writes_nothing() {
     assert_eq!(rows[0].get("n"), Some(&json!(0)), "a refused call reaches no audit row");
 }
 
-/// An invalid HS256 token is refused with the sanitized message every transport
+/// An invalid token is refused with the sanitized message every transport
 /// answers an invalid token with.
 #[tokio::test]
-async fn invalid_hs256_token_is_refused() {
-    let Some((adapter, service)) = setup().await else {
-        eprintln!("SKIP invalid_hs256_token_is_refused: no DATABASE_URL");
+async fn invalid_token_is_refused() {
+    let Some((adapter, service, _issuer)) = setup().await else {
+        eprintln!("SKIP invalid_token_is_refused: no DATABASE_URL");
         return;
     };
     drop(adapter);
@@ -432,4 +426,39 @@ async fn invalid_hs256_token_is_refused() {
         fraiseql_server::admission::TOKEN_INVALID,
         "sanitized refusal, not a validator internals dump"
     );
+}
+
+/// A well-formed token for the right issuer and audience, signed by a key the
+/// issuer never published, is refused and writes nothing: the success above
+/// rests on the signature, not on the token's shape.
+#[tokio::test]
+async fn token_signed_by_an_unpublished_key_is_refused_and_writes_nothing() {
+    let Some((adapter, service, issuer)) = setup().await else {
+        eprintln!(
+            "SKIP token_signed_by_an_unpublished_key_is_refused_and_writes_nothing: no DATABASE_URL"
+        );
+        return;
+    };
+
+    let mut args = serde_json::Map::new();
+    args.insert("label".to_string(), json!("via-foreign"));
+    let result = service
+        .call_tool_authenticated(
+            "createItem",
+            Some(&args),
+            Some(issuer.foreign_token(&issuer.claims().set("sub", HUMAN_SUB))),
+            "mcp-p29-foreign".to_string(),
+            &axum::http::HeaderMap::new(),
+        )
+        .await;
+    assert_eq!(result.is_error, Some(true), "a token the issuer never signed must be refused");
+
+    let rows = adapter
+        .execute_raw_query(
+            "SELECT count(*) AS n FROM core.tb_entity_change_log \
+             WHERE object_data->>'label' = 'via-foreign'",
+        )
+        .await
+        .unwrap();
+    assert_eq!(rows[0].get("n"), Some(&json!(0)), "a refused call reaches no audit row");
 }

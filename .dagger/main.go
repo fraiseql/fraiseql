@@ -537,6 +537,11 @@ func (m *FraiseqlCi) ShellGates(
 		// reachable from dev and failed on their first line (#1219).
 		"bash tools/check-compose-references.sh",
 		"bash tools/tests/compose_references_test.sh",
+		// First-party sessions are ES256 ([auth_issuer]) and validated by OidcValidator.
+		// The shared-secret path is being removed; a file outside the gate's lists that
+		// names it fails, and the PENDING list only shrinks.
+		"bash tools/check-no-first-party-hs256.sh",
+		"bash tools/tests/no_first_party_hs256_test.sh",
 		// Every apt install refreshes its index in the same exec: one layered on a
 		// separately cached `apt-get update` 404'd this very leg on every run once
 		// Ubuntu replaced a package the cached index still named (2026-10-10).
