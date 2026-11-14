@@ -578,50 +578,35 @@ mod revocation_tests {
     use fraiseql_core::{
         runtime::Executor,
         schema::{CompiledSchema, McpConfig},
-        security::{AuthConfig, AuthMiddleware},
     };
     use fraiseql_test_utils::failing_adapter::FailingAdapter;
 
     use crate::{
         mcp::handler::{FraiseQLMcpService, McpTokenValidator},
         routes::graphql::AppState,
+        testing::idp::TestIdp,
         token_revocation::{InMemoryRevocationStore, RevocationStore, TokenRevocationManager},
     };
 
-    const SECRET: &str = "fraiseql-mcp-revocation-secret-32";
     const REFUSAL: &str = crate::admission::TOKEN_REVOKED;
-
-    fn token(jti: &str) -> String {
-        let now = chrono::Utc::now().timestamp();
-        let claims =
-            serde_json::json!({ "sub": "alice", "jti": jti, "iat": now, "exp": now + 3600 });
-        jsonwebtoken::encode(
-            &jsonwebtoken::Header::new(jsonwebtoken::Algorithm::HS256),
-            &claims,
-            &jsonwebtoken::EncodingKey::from_secret(SECRET.as_bytes()),
-        )
-        .unwrap()
-    }
 
     /// The text of a tool call made with `jti`'s token, against a store that revoked
     /// `revoked`.
     async fn call(jti: &str, revoked: &str) -> String {
+        let idp = TestIdp::start().await;
         let store = Arc::new(InMemoryRevocationStore::new());
         store.revoke(revoked, 3600).await.unwrap();
         let manager = Arc::new(TokenRevocationManager::new(store, false, false, 3600));
         let executor =
             Arc::new(Executor::new(CompiledSchema::default(), Arc::new(FailingAdapter::new())));
         let state = AppState::new(executor).with_revocation_manager(manager);
-        let service = FraiseQLMcpService::new(state, McpConfig::default()).with_token_validator(
-            Some(McpTokenValidator::Hs256(Arc::new(AuthMiddleware::from_config(
-                AuthConfig::with_hs256(SECRET),
-            )))),
-        );
+        let service = FraiseQLMcpService::new(state, McpConfig::default())
+            .with_token_validator(Some(McpTokenValidator::Oidc(idp.validator(true))));
         let result = service
             .call_tool_authenticated(
                 "no_such_tool",
                 None,
-                Some(token(jti)),
+                Some(idp.token("alice", jti)),
                 "req-1".to_string(),
                 &http::HeaderMap::new(),
             )
@@ -979,7 +964,6 @@ mod credential_tests {
         db::types::JsonbValue,
         runtime::Executor,
         schema::{FieldType, McpConfig},
-        security::{AuthConfig, AuthMiddleware},
     };
     use fraiseql_test_utils::{
         failing_adapter::FailingAdapter,
@@ -995,7 +979,6 @@ mod credential_tests {
         testing::idp::TestIdp,
     };
 
-    const SECRET: &str = "fraiseql-mcp-credential-secret-32";
     const STATIC_KEY: &str = "mcp-static-key";
     const ACCOUNT_SECRET: &str = "mcp-account-secret";
 
@@ -1038,22 +1021,10 @@ mod credential_tests {
         service_with(McpTokenValidator::Oidc(idp.validator(true)))
     }
 
-    /// The service with HS256 bearer tokens, for the expiry case alone.
-    fn hs256_service() -> FraiseQLMcpService {
-        service_with(McpTokenValidator::Hs256(Arc::new(AuthMiddleware::from_config(
-            AuthConfig::with_hs256(SECRET),
-        ))))
-    }
-
-    fn token(exp_offset: i64) -> String {
+    /// A token from `idp` that expired an hour ago.
+    fn expired_token(idp: &TestIdp) -> String {
         let now = chrono::Utc::now().timestamp();
-        let claims = serde_json::json!({ "sub": "alice", "iat": now, "exp": now + exp_offset });
-        jsonwebtoken::encode(
-            &jsonwebtoken::Header::new(jsonwebtoken::Algorithm::HS256),
-            &claims,
-            &jsonwebtoken::EncodingKey::from_secret(SECRET.as_bytes()),
-        )
-        .unwrap()
+        idp.mint(&idp.claims("alice").set("iat", now - 7200).set("exp", now - 3600))
     }
 
     /// A `users` call to `service` with `token` as the bearer and `api_key` as `x-api-key`.
@@ -1069,11 +1040,6 @@ mod credential_tests {
         service
             .call_tool_authenticated("users", None, token, "req-1".to_string(), &headers)
             .await
-    }
-
-    /// A `users` call to the HS256 service.
-    async fn call(token: Option<String>, api_key: Option<&str>) -> CallToolResult {
-        call_on(hs256_service(), token, api_key).await
     }
 
     /// A `users` call to the service `idp` issues tokens for.
@@ -1125,8 +1091,12 @@ mod credential_tests {
 
     #[tokio::test]
     async fn an_expired_or_invalid_token_is_refused_in_the_shared_words() {
-        assert_eq!(text(&call(Some(token(-3600)), None).await), TOKEN_EXPIRED);
-        assert_eq!(text(&call(Some("not.a.token".to_string()), None).await), TOKEN_INVALID);
+        let idp = TestIdp::start().await;
+        assert_eq!(text(&call_as(&idp, Some(expired_token(&idp)), None).await), TOKEN_EXPIRED);
+        assert_eq!(
+            text(&call_as(&idp, Some("not.a.token".to_string()), None).await),
+            TOKEN_INVALID
+        );
     }
 
     /// Every principal an MCP call admits carries the transport it arrived on, which the

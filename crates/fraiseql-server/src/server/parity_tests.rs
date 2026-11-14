@@ -756,8 +756,8 @@ async fn hot_reload_runs_the_boot_safety_gates() {
 /// #874: `ServerConfig::validate()` must run on the library construction path,
 /// not only in `main.rs`. A downstream embedder following the documented
 /// `from_file` + `Server::new` flow used to skip every production safety gate —
-/// a `pool_timeout_secs = 0` (or a public playground, or `OIDC`+HS256 both
-/// configured) booted happily as a library while the binary refused it.
+/// a `pool_timeout_secs = 0` (or a public playground) booted happily as a library
+/// while the binary refused it.
 ///
 /// `pool_timeout_secs = 0` is the probe because it is environment-independent:
 /// the production-mode gates depend on `FRAISEQL_ENV`, which the parallel test
@@ -1150,19 +1150,7 @@ async fn server_new_is_silent_when_a_caller_can_authenticate() {
             ..federated_schema()
         }
     };
-    let layers: [(&str, ServerConfig, CompiledSchema); 4] = [
-        (
-            "hs256",
-            ServerConfig {
-                auth_hs256: Some(crate::server_config::hs256::Hs256Config {
-                    secret_env: SECRET_ENV.to_string(),
-                    issuer:     None,
-                    audience:   Some("fraiseql".to_string()),
-                }),
-                ..anonymous()
-            },
-            federated_schema(),
-        ),
+    let layers: [(&str, ServerConfig, CompiledSchema); 3] = [
         (
             "oidc",
             ServerConfig {

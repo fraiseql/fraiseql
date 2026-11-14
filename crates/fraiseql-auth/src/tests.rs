@@ -683,62 +683,6 @@ mod session_tests {
     }
 }
 
-/// Shape-level coverage of the raw `jwt::generate_*_token` helpers.
-///
-/// These were previously named `session_postgres_tests` /
-/// `test_generate_access_token_*`, which implied they covered
-/// [`crate::session_postgres::PostgresSessionStore::generate_access_token`]. They
-/// never called it — they call the JWT helpers directly with a caller-supplied
-/// key, and assert only that the output has three dot-separated parts and that
-/// two mints differ. Both assertions held throughout #753, when the store signed
-/// every token with a freshly generated key it then dropped, so the misleading
-/// names were a live source of false assurance.
-///
-/// Store-level behaviour (no key configured → refuse; configured key → verifiable
-/// signature) is covered in `session_postgres/tests.rs`.
-#[cfg(test)]
-mod jwt_token_shape_tests {
-    #[test]
-    fn hs256_helper_emits_distinct_three_part_tokens() {
-        let test_pool = std::sync::Arc::new(std::sync::Mutex::new(()));
-        let _ = test_pool;
-
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs();
-
-        let mut claims = crate::Claims {
-            sub:   "user123".to_string(),
-            iat:   now,
-            exp:   now + 3600,
-            nbf:   None,
-            iss:   "fraiseql".to_string(),
-            aud:   vec!["fraiseql-api".to_string()],
-            extra: std::collections::HashMap::new(),
-        };
-
-        claims
-            .extra
-            .insert("jti".to_string(), serde_json::json!(uuid::Uuid::new_v4().to_string()));
-
-        let secret = b"fraiseql_session_user123";
-        let token1 =
-            crate::jwt::generate_hs256_token(&claims, secret).expect("Failed to generate token");
-
-        claims
-            .extra
-            .insert("jti".to_string(), serde_json::json!(uuid::Uuid::new_v4().to_string()));
-
-        let token2 =
-            crate::jwt::generate_hs256_token(&claims, secret).expect("Failed to generate token");
-
-        assert_ne!(token1, token2);
-        assert_eq!(token1.matches('.').count(), 2);
-        assert_eq!(token2.matches('.').count(), 2);
-    }
-}
-
 #[cfg(test)]
 mod state_store_tests {
     use std::sync::Arc;
@@ -1067,8 +1011,6 @@ mod state_store_tests {
 mod jwt_tests {
     use std::collections::HashMap;
 
-    use jsonwebtoken::Algorithm;
-
     use super::super::{error::AuthError, jwt::*};
 
     fn create_test_claims() -> Claims {
@@ -1086,25 +1028,6 @@ mod jwt_tests {
             aud:   vec!["api".to_string()],
             extra: HashMap::new(),
         }
-    }
-
-    fn make_test_validator() -> JwtValidator {
-        JwtValidator::new("https://example.com", Algorithm::HS256)
-            .expect("Failed to create validator")
-            .with_audiences(&["api"])
-            .expect("Failed to set audiences")
-    }
-
-    #[test]
-    fn test_jwt_validator_creation() {
-        JwtValidator::new("https://example.com", Algorithm::HS256)
-            .unwrap_or_else(|e| panic!("expected Ok for valid issuer: {e}"));
-    }
-
-    #[test]
-    fn test_jwt_validator_invalid_issuer() {
-        let validator = JwtValidator::new("", Algorithm::HS256);
-        assert!(matches!(validator, Err(AuthError::ConfigError { .. })));
     }
 
     #[test]
@@ -1134,66 +1057,6 @@ mod jwt_tests {
     }
 
     #[test]
-    fn test_generate_and_validate_token() {
-        let secret = b"test_secret_key_at_least_32_bytes_long";
-        let validator = make_test_validator();
-
-        let claims = create_test_claims();
-        let token = generate_test_token(&claims, secret).expect("Failed to generate token");
-
-        let validated_claims =
-            validator.validate_hmac(&token, secret).expect("Failed to validate token");
-
-        assert_eq!(validated_claims.sub, claims.sub);
-        assert_eq!(validated_claims.iss, claims.iss);
-    }
-
-    #[test]
-    fn test_validate_without_audience_rejects_token() {
-        let secret = b"test_secret_key_at_least_32_bytes_long";
-        let validator = JwtValidator::new("https://example.com", Algorithm::HS256)
-            .expect("Failed to create validator");
-
-        let claims = create_test_claims();
-        let token = generate_test_token(&claims, secret).expect("Failed to generate token");
-
-        let result = validator.validate_hmac(&token, secret);
-        assert!(result.is_err(), "validator without configured audience must reject tokens");
-    }
-
-    #[test]
-    fn test_validate_expired_token() {
-        let secret = b"test_secret_key_at_least_32_bytes_long";
-        let validator = make_test_validator();
-
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs();
-
-        let mut claims = create_test_claims();
-        claims.exp = now - 100;
-
-        let token = generate_test_token(&claims, secret).expect("Failed to generate token");
-
-        let result = validator.validate_hmac(&token, secret);
-        assert!(matches!(result, Err(AuthError::TokenExpired)));
-    }
-
-    #[test]
-    fn test_validate_invalid_signature() {
-        let secret = b"test_secret_key_at_least_32_bytes_long";
-        let validator = make_test_validator();
-
-        let claims = create_test_claims();
-        let token = generate_test_token(&claims, secret).expect("Failed to generate token");
-
-        let wrong_secret = b"wrong_secret_key_at_least_32_bytes_";
-        let result = validator.validate_hmac(&token, wrong_secret);
-        assert!(matches!(result, Err(AuthError::InvalidSignature)));
-    }
-
-    #[test]
     fn test_get_custom_claim() {
         let mut claims = create_test_claims();
         claims.extra.insert("email".to_string(), serde_json::json!("user@example.com"));
@@ -1205,17 +1068,14 @@ mod jwt_tests {
     }
 
     #[test]
-    fn test_rejects_token_with_iat_too_far_in_future() {
-        let secret = b"test_secret_key_at_least_32_bytes_long";
-        let validator = make_test_validator();
+    fn temporal_check_rejects_claims_with_iat_too_far_in_future() {
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
             .as_secs();
         let mut claims = create_test_claims();
         claims.iat = now + MAX_CLOCK_SKEW_SECS + 60;
-        let token = generate_test_token(&claims, secret).expect("token generation must succeed");
-        let result = validator.validate_hmac(&token, secret);
+        let result = claims.validate_temporal_claims();
         assert!(
             matches!(result, Err(AuthError::TokenIssuedInFuture)),
             "expected TokenIssuedInFuture, got: {result:?}"
@@ -1223,25 +1083,20 @@ mod jwt_tests {
     }
 
     #[test]
-    fn test_accepts_token_with_iat_within_clock_skew() {
-        let secret = b"test_secret_key_at_least_32_bytes_long";
-        let validator = make_test_validator();
+    fn temporal_check_accepts_claims_with_iat_within_clock_skew() {
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
             .as_secs();
         let mut claims = create_test_claims();
         claims.iat = now + 60;
-        let token = generate_test_token(&claims, secret).expect("token generation must succeed");
-        validator
-            .validate_hmac(&token, secret)
+        claims
+            .validate_temporal_claims()
             .unwrap_or_else(|e| panic!("expected Ok for iat within clock skew: {e}"));
     }
 
     #[test]
-    fn test_rejects_token_with_iat_too_old() {
-        let secret = b"test_secret_key_at_least_32_bytes_long";
-        let validator = make_test_validator();
+    fn temporal_check_rejects_claims_with_iat_too_old() {
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
@@ -1249,8 +1104,7 @@ mod jwt_tests {
         let mut claims = create_test_claims();
         claims.iat = now - MAX_TOKEN_AGE_SECS - 60;
         claims.exp = now + 3600;
-        let token = generate_test_token(&claims, secret).expect("token generation must succeed");
-        let result = validator.validate_hmac(&token, secret);
+        let result = claims.validate_temporal_claims();
         assert!(
             matches!(result, Err(AuthError::TokenTooOld)),
             "expected TokenTooOld, got: {result:?}"
@@ -1258,9 +1112,7 @@ mod jwt_tests {
     }
 
     #[test]
-    fn test_accepts_token_at_iat_max_age_boundary() {
-        let secret = b"test_secret_key_at_least_32_bytes_long";
-        let validator = make_test_validator();
+    fn temporal_check_accepts_claims_at_iat_max_age_boundary() {
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
@@ -1268,24 +1120,20 @@ mod jwt_tests {
         let mut claims = create_test_claims();
         claims.iat = now - MAX_TOKEN_AGE_SECS;
         claims.exp = now + 3600;
-        let token = generate_test_token(&claims, secret).expect("token generation must succeed");
-        validator
-            .validate_hmac(&token, secret)
+        claims
+            .validate_temporal_claims()
             .unwrap_or_else(|e| panic!("expected Ok for iat exactly at max-age boundary: {e}"));
     }
 
     #[test]
-    fn test_rejects_token_with_nbf_in_future() {
-        let secret = b"test_secret_key_at_least_32_bytes_long";
-        let validator = make_test_validator();
+    fn temporal_check_rejects_claims_with_nbf_in_future() {
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
             .as_secs();
         let mut claims = create_test_claims();
         claims.nbf = Some(now + MAX_CLOCK_SKEW_SECS + 60);
-        let token = generate_test_token(&claims, secret).expect("token generation must succeed");
-        let result = validator.validate_hmac(&token, secret);
+        let result = claims.validate_temporal_claims();
         assert!(
             matches!(result, Err(AuthError::TokenNotYetValid)),
             "expected TokenNotYetValid, got: {result:?}"
@@ -1293,29 +1141,23 @@ mod jwt_tests {
     }
 
     #[test]
-    fn test_accepts_token_with_nbf_in_past() {
-        let secret = b"test_secret_key_at_least_32_bytes_long";
-        let validator = make_test_validator();
+    fn temporal_check_accepts_claims_with_nbf_in_past() {
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
             .as_secs();
         let mut claims = create_test_claims();
         claims.nbf = Some(now - 600);
-        let token = generate_test_token(&claims, secret).expect("token generation must succeed");
-        validator
-            .validate_hmac(&token, secret)
+        claims
+            .validate_temporal_claims()
             .unwrap_or_else(|e| panic!("expected Ok for nbf in past: {e}"));
     }
 
     #[test]
-    fn test_accepts_token_without_nbf() {
-        let secret = b"test_secret_key_at_least_32_bytes_long";
-        let validator = make_test_validator();
+    fn temporal_check_accepts_claims_without_nbf() {
         let claims = create_test_claims();
-        let token = generate_test_token(&claims, secret).expect("token generation must succeed");
-        validator
-            .validate_hmac(&token, secret)
+        claims
+            .validate_temporal_claims()
             .unwrap_or_else(|e| panic!("expected Ok for token without nbf: {e}"));
     }
 }

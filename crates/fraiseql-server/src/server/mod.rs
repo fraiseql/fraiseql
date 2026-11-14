@@ -6,7 +6,7 @@ use std::sync::Arc;
 use fraiseql_arrow::FraiseQLFlightService;
 use fraiseql_core::{
     runtime::{Executor, SubscriptionManager},
-    security::{AuthMiddleware, OidcValidator},
+    security::OidcValidator,
 };
 #[cfg(feature = "observers")]
 use {
@@ -127,12 +127,6 @@ pub struct Server {
     pub(super) subscription_drain: Arc<tokio::sync::watch::Sender<bool>>,
     pub(super) max_subscriptions_per_connection: Option<u32>,
     pub(super) oidc_validator: Option<Arc<OidcValidator>>,
-    /// Local HS256 JWT validator (alternative to `oidc_validator`).
-    ///
-    /// When set, the GraphQL endpoint is protected by shared-secret JWT
-    /// validation instead of OIDC. Intended for integration testing and
-    /// internal service-to-service auth.
-    pub(super) hs256_auth: Option<Arc<AuthMiddleware>>,
     /// The first-party issuer (`[auth_issuer]`, #1964): the ring every minted session
     /// is signed with. Its first read runs once the tables are provisioned, and it
     /// rotates, sweeps and re-reads on

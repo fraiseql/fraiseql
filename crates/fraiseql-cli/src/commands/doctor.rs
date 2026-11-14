@@ -392,19 +392,6 @@ fn probe_tcp(host: &str, port: u16) -> std::result::Result<(), ProbeError> {
     })))
 }
 
-/// Check whether `FRAISEQL_JWT_SECRET` is set.
-pub fn check_jwt_secret() -> DoctorCheck {
-    if std::env::var("FRAISEQL_JWT_SECRET").is_ok() {
-        DoctorCheck::pass("FRAISEQL_JWT_SECRET", "set")
-    } else {
-        DoctorCheck::warn(
-            "FRAISEQL_JWT_SECRET",
-            "not set (auth will reject all tokens)",
-            "Set FRAISEQL_JWT_SECRET in your environment or .env file",
-        )
-    }
-}
-
 /// Check Redis if `REDIS_URL` is set.
 pub fn check_redis_reachable() -> DoctorCheck {
     let Ok(url_str) = std::env::var("REDIS_URL") else {
@@ -656,7 +643,6 @@ pub fn run_checks(
     // Environment / connectivity checks
     checks.push(check_database_url_set(db_url_override));
     checks.push(check_db_reachable(db_url_override));
-    checks.push(check_jwt_secret());
     checks.push(check_redis_reachable());
 
     // TLS and coherence checks (only meaningful when config is present)

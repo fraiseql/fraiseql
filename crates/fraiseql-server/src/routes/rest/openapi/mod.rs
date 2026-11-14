@@ -36,7 +36,7 @@ use super::resource::{MountedRoutes, RestRouteTable};
 ///
 /// `auth_layer_attached` reports whether the deployment puts an authentication layer in
 /// front of the REST router — which the compiled schema alone cannot know, since it is a
-/// property of the *server* config (`[auth]` / `[auth_hs256]`), not of `[rest]`.
+/// property of the *server* config (`[auth]` / `[auth_issuer]`), not of `[rest]`.
 ///
 /// The document's security advertisement is derived from this **and** `require_auth`
 /// together, so it cannot disagree with what the server enforces in either direction.

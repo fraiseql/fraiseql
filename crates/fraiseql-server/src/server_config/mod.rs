@@ -15,7 +15,6 @@ mod cache;
 pub mod cdc_outbound;
 pub(crate) mod defaults;
 pub mod egress;
-pub mod hs256;
 mod methods;
 pub mod observers;
 mod postgres_pool;
@@ -103,7 +102,6 @@ use fraiseql_core::{
     db::postgres::{HnswIterativeScan, IvfflatIterativeScan},
     security::OidcConfig,
 };
-pub use hs256::Hs256Config;
 pub use observers::AdmissionConfig;
 #[cfg(feature = "observers")]
 pub use observers::{
@@ -478,8 +476,8 @@ pub struct ServerConfig {
     /// Require authentication for the `WebSocket` subscription endpoint (default: None).
     ///
     /// Controls the `/subscriptions` endpoint independently of introspection auth. The
-    /// endpoint is authenticated by the deployment's configured authentication (OIDC or
-    /// HS256) either way. When `Some(true)`, an upgrade that resolved no principal is
+    /// endpoint is authenticated by the deployment's configured authentication either
+    /// way. When `Some(true)`, an upgrade that resolved no principal is
     /// refused, and the endpoint is not mounted without configured authentication. When
     /// `Some(false)`, an upgrade without a principal is served where that authentication
     /// lets it through. When `None` (default), falls back to `introspection_require_auth`
@@ -687,31 +685,11 @@ pub struct ServerConfig {
     #[serde(default)]
     pub auth: Option<OidcConfig>,
 
-    /// HS256 symmetric-key authentication (optional).
-    ///
-    /// Alternative to `auth` (OIDC) for integration testing and internal
-    /// service-to-service scenarios. Mutually exclusive with `auth`.
-    ///
-    /// Validation is fully local — no discovery endpoint, no JWKS fetch.
-    /// Not recommended for public-facing production.
-    ///
-    /// # Example (TOML)
-    ///
-    /// ```toml
-    /// [auth_hs256]
-    /// secret_env = "FRAISEQL_HS256_SECRET"
-    /// issuer = "my-test-suite"
-    /// audience = "my-api"
-    /// ```
-    #[serde(default)]
-    pub auth_hs256: Option<Hs256Config>,
-
     /// This server as an OIDC issuer for the sessions it mints (#1964).
     ///
     /// Required by every surface that signs a session in: `[auth.local]`,
-    /// `[auth.social]`, `[saml]` and a refreshable `[auth.session]`. Refused alongside
-    /// `[auth_hs256]`. Its signing keys live in `auth.signing_key`, so it needs
-    /// `[auth.database]` too.
+    /// `[auth.social]`, `[saml]` and a refreshable `[auth.session]`. Its signing keys
+    /// live in `auth.signing_key`, so it needs `[auth.database]` too.
     ///
     /// # Example (TOML)
     ///
@@ -726,7 +704,7 @@ pub struct ServerConfig {
     /// SAML 2.0 SP-initiated SSO (#381, requires the `auth-saml` feature).
     ///
     /// Mounts `GET /auth/saml/login` and `POST /auth/saml/acs`. Requires
-    /// `[auth_hs256]` (assertions mint sessions the server itself validates)
+    /// `[auth_issuer]` (assertions mint sessions the server itself signs and validates)
     /// and a database pool (sessions and account linking are Postgres-backed).
     #[cfg(feature = "auth-saml")]
     #[serde(default)]
@@ -1162,7 +1140,7 @@ pub struct ServerConfig {
 
     /// Enriched-identity resolution (#539): `[identity.enrichment]` /
     /// `[identity.sender]`. Top-level (not under `[auth]`) so it applies under
-    /// any auth mode — HS256/OIDC parity by construction. Gated on `auth`
+    /// any auth mode: `[auth]` and `[auth_issuer]` alike. Gated on `auth`
     /// because enrichment requires an authenticated subject and the auth DB pool.
     #[cfg(feature = "auth")]
     #[serde(default)]
@@ -1561,10 +1539,9 @@ impl Default for ServerConfig {
             read_replica_health_probe_interval_ms: None, // 1000 ms when replicas are set
 
             auth: None, // No auth by default
-            auth_hs256: None,
             auth_issuer: None,
             #[cfg(feature = "auth-saml")]
-            saml: None, // No HS256 auth by default
+            saml: None, // SAML sign-in is opt-in
             scim: None,            // Provisioning is opt-in
             admin_sql: None,       // The SQL console is opt-in (#962)
             hmac_secret_env: None, // No HMAC secret → unsigned idempotency token

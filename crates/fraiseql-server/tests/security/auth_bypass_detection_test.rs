@@ -1,114 +1,109 @@
 //! JWT attack detection tests.
 //!
 //! Each test:
-//! 1. Mints a cryptographically signed JWT via `fraiseql_auth::jwt`.
-//! 2. Applies an attack vector (payload tampering, algorithm swap, expiry manipulation, malformed
-//!    structure, …).
-//! 3. Calls the real [`JwtValidator`] and asserts the exact [`AuthError`] variant returned —
-//!    **not** just that two strings differ.
+//! 1. Mints a signed JWT from the shared ES256 test issuer.
+//! 2. Applies an attack vector (payload tampering, an unpublished key, algorithm swap, expiry, a
+//!    foreign issuer, malformed structure, …).
+//! 3. Calls the real [`OidcValidator`], trusting that issuer, and asserts the exact
+//!    [`SecurityError`] variant returned — **not** just that two strings differ.
 //!
 //! **Execution engine:** none
-//! **Infrastructure:** none
+//! **Infrastructure:** an in-process issuer on loopback
 //! **Parallelism:** safe
 
-use std::collections::HashMap;
+use fraiseql_core::security::{OidcConfig, OidcValidator, SecurityError};
+use fraiseql_test_support::issuer::{Claims, TestIssuer};
 
-use fraiseql_auth::{
-    error::AuthError,
-    jwt::{Claims, JwtValidator, generate_hs256_token},
-};
-use jsonwebtoken::Algorithm;
+/// A validator that trusts `issuer`'s keys, for its issuer and audience.
+fn validator(issuer: &TestIssuer) -> OidcValidator {
+    let config = OidcConfig {
+        issuer: Some(issuer.issuer().to_string()),
+        audience: Some(issuer.audience().to_string()),
+        required: true,
+        allowed_algorithms: vec!["ES256".to_string()],
+        ..OidcConfig::default()
+    };
+    OidcValidator::with_jwks_uri(config, &issuer.jwks_uri()).expect("a loopback jwks_uri")
+}
 
-/// 32-byte test secret — meets HS256 minimum key-length requirements.
-const SECRET: &[u8] = b"fraiseql-test-secret-exactly-32b";
-const ISSUER: &str = "https://test.fraiseql.dev";
-
-/// Returns `(now, now + 3600)` as Unix timestamps.
-fn timestamps() -> (u64, u64) {
-    let now = std::time::SystemTime::now()
+fn now() -> i64 {
+    let secs = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .expect("system time before epoch")
         .as_secs();
-    (now, now + 3600)
+    i64::try_from(secs).expect("epoch seconds fit i64")
 }
 
-fn valid_claims() -> Claims {
-    let (iat, exp) = timestamps();
-    Claims {
-        sub: "user123".to_string(),
-        iat,
-        exp,
-        nbf: None,
-        iss: ISSUER.to_string(),
-        aud: vec!["test".to_string()],
-        extra: HashMap::new(),
-    }
+fn valid_claims(issuer: &TestIssuer) -> Claims {
+    issuer.claims().set("sub", "user123")
 }
 
-fn validator() -> JwtValidator {
-    JwtValidator::new(ISSUER, Algorithm::HS256)
-        .expect("validator creation failed")
-        .with_audiences(&["test"])
-        .expect("audience configuration failed")
+/// `issuer` and the validator that trusts it: the issuer must outlive every validation,
+/// because the validator reads its JWKS on first use.
+async fn rig() -> (TestIssuer, OidcValidator) {
+    let issuer = TestIssuer::start().await;
+    let validator = validator(&issuer);
+    (issuer, validator)
+}
+
+async fn refusal(validator: &OidcValidator, token: &str) -> SecurityError {
+    validator.validate_token(token).await.expect_err("the token must be refused")
 }
 
 // ============================================================================
 // Happy path
 // ============================================================================
 
-#[test]
-fn test_valid_token_accepted() {
-    let claims = valid_claims();
-    let token = generate_hs256_token(&claims, SECRET).expect("token generation failed");
-    let result = validator().validate_hmac(&token, SECRET);
-    assert!(result.is_ok(), "Valid token should be accepted; got: {result:?}");
-    let validated = result.expect("valid token should unwrap");
-    assert_eq!(validated.sub, "user123");
-    assert_eq!(validated.iss, ISSUER);
+#[tokio::test]
+async fn test_valid_token_accepted() {
+    let (issuer, validator) = rig().await;
+    let token = issuer.mint(&valid_claims(&issuer));
+
+    let user = validator.validate_token(&token).await.expect("a valid token is accepted");
+    assert_eq!(user.user_id.as_str(), "user123");
 }
 
 // ============================================================================
 // Payload tampering with original signature
 // ============================================================================
 
-/// A valid JWT signature covers header+payload.  If we swap the payload for a
-/// different one while keeping the original signature, `validate_hmac` must
-/// reject with `InvalidSignature`.
-#[test]
-fn test_tampered_payload_rejected() {
-    let claims = valid_claims();
-    let token = generate_hs256_token(&claims, SECRET).expect("token generation failed");
+/// A valid JWT signature covers header+payload. Swapping the payload for a different
+/// one while keeping the original signature must be refused.
+#[tokio::test]
+async fn test_tampered_payload_rejected() {
+    let (issuer, validator) = rig().await;
+    let token = issuer.mint(&valid_claims(&issuer));
 
     let mut parts: Vec<&str> = token.splitn(3, '.').collect();
-    // Replace payload with elevated-privilege claims (still valid base64-url)
+    // Replace the payload with elevated-privilege claims (still valid base64-url).
     let evil_payload = base64_url_no_pad(
-        br#"{"sub":"admin","exp":9999999999,"iss":"https://test.fraiseql.dev","iat":0,"aud":[]}"#,
+        format!(
+            r#"{{"sub":"admin","exp":9999999999,"iss":"{}","aud":"{}","iat":0}}"#,
+            issuer.issuer(),
+            issuer.audience()
+        )
+        .as_bytes(),
     );
     parts[1] = &evil_payload;
     let tampered = parts.join(".");
 
-    let err = validator()
-        .validate_hmac(&tampered, SECRET)
-        .expect_err("tampered payload must be rejected");
+    let err = refusal(&validator, &tampered).await;
     assert!(
-        matches!(err, AuthError::InvalidSignature | AuthError::InvalidToken { .. }),
-        "expected signature or token error; got: {err:?}"
+        matches!(err, SecurityError::InvalidToken),
+        "expected InvalidToken; got: {err:?}"
     );
 }
 
-/// Replacing just the signature with a different HMAC (wrong key) must be rejected.
-#[test]
-fn test_wrong_key_rejected() {
-    let claims = valid_claims();
-    let token = generate_hs256_token(&claims, SECRET).expect("token generation failed");
+/// A token naming the issuer's key but signed by one it does not publish is refused.
+#[tokio::test]
+async fn test_wrong_key_rejected() {
+    let (issuer, validator) = rig().await;
+    let token = issuer.foreign_token(&valid_claims(&issuer));
 
-    let wrong_secret = b"wrong-secret-key-exactly-32-byte";
-    let err = validator()
-        .validate_hmac(&token, wrong_secret)
-        .expect_err("token signed with different key must be rejected");
+    let err = refusal(&validator, &token).await;
     assert!(
-        matches!(err, AuthError::InvalidSignature | AuthError::InvalidToken { .. }),
-        "expected signature error; got: {err:?}"
+        matches!(err, SecurityError::InvalidToken),
+        "expected InvalidToken; got: {err:?}"
     );
 }
 
@@ -117,45 +112,44 @@ fn test_wrong_key_rejected() {
 // ============================================================================
 
 /// Replace the `alg` header with `"none"` to bypass signature verification.
-/// The validator only accepts HS256 — the `none` algorithm must be rejected.
-#[test]
-fn test_algorithm_none_rejected() {
-    // Build a "none"-algorithm token manually (header.payload.)
+#[tokio::test]
+async fn test_algorithm_none_rejected() {
+    let (issuer, validator) = rig().await;
     let header = base64_url_no_pad(br#"{"alg":"none","typ":"JWT"}"#);
-    let (iat, exp) = timestamps();
-    let payload_json =
-        format!(r#"{{"sub":"admin","exp":{exp},"iat":{iat},"iss":"{ISSUER}","aud":[]}}"#);
-    let payload = base64_url_no_pad(payload_json.as_bytes());
+    let now = now();
+    let payload = base64_url_no_pad(
+        format!(
+            r#"{{"sub":"admin","exp":{},"iat":{now},"iss":"{}","aud":"{}"}}"#,
+            now + 3600,
+            issuer.issuer(),
+            issuer.audience()
+        )
+        .as_bytes(),
+    );
     let unsigned_token = format!("{header}.{payload}.");
 
-    let err = validator()
-        .validate_hmac(&unsigned_token, SECRET)
-        .expect_err("alg:none token must be rejected");
+    let err = refusal(&validator, &unsigned_token).await;
     assert!(
-        matches!(err, AuthError::InvalidToken { .. } | AuthError::InvalidSignature),
-        "expected invalid token error; got: {err:?}"
+        matches!(err, SecurityError::InvalidToken | SecurityError::InvalidTokenAlgorithm { .. }),
+        "expected an invalid token or a refused algorithm; got: {err:?}"
     );
 }
 
-/// Swap `alg` from HS256 to RS256 in the header (the signature stays HS256).
-/// The decoder must reject it because the algorithm in the header does not
-/// match the validator's expected algorithm.
-#[test]
-fn test_algorithm_mismatch_rejected() {
-    let claims = valid_claims();
-    let token = generate_hs256_token(&claims, SECRET).expect("token generation failed");
+/// Swap `alg` from ES256 to RS256 in the header (the signature stays ES256). The
+/// validator allows ES256 alone, so the header is refused.
+#[tokio::test]
+async fn test_algorithm_mismatch_rejected() {
+    let (issuer, validator) = rig().await;
+    let token = issuer.mint(&valid_claims(&issuer));
 
-    // Replace first segment (header) with an RS256 header
     let rs256_header = base64_url_no_pad(br#"{"alg":"RS256","typ":"JWT"}"#);
     let rest = token.split_once('.').map(|x| x.1).expect("token has two dots");
     let modified = format!("{rs256_header}.{rest}");
 
-    let err = validator()
-        .validate_hmac(&modified, SECRET)
-        .expect_err("algorithm-mismatch token must be rejected");
+    let err = refusal(&validator, &modified).await;
     assert!(
-        matches!(err, AuthError::InvalidToken { .. } | AuthError::InvalidSignature),
-        "expected invalid token; got: {err:?}"
+        matches!(err, SecurityError::InvalidToken | SecurityError::InvalidTokenAlgorithm { .. }),
+        "expected an invalid token or a refused algorithm; got: {err:?}"
     );
 }
 
@@ -163,32 +157,33 @@ fn test_algorithm_mismatch_rejected() {
 // Expiration enforcement
 // ============================================================================
 
-/// A token with `exp` in the past must be rejected with `TokenExpired`.
-#[test]
-fn test_expired_token_rejected() {
-    let (iat, _) = timestamps();
-    let mut claims = valid_claims();
-    claims.iat = iat - 7200;
-    claims.exp = iat - 3600; // expired 1 h ago
+/// A token with `exp` in the past must be refused as expired.
+#[tokio::test]
+async fn test_expired_token_rejected() {
+    let (issuer, validator) = rig().await;
+    let now = now();
+    let claims = valid_claims(&issuer)
+        .set("iat", now - 7200)
+        .set("nbf", now - 7200)
+        .set("exp", now - 3600); // expired 1 h ago
+    let token = issuer.mint(&claims);
 
-    let token = generate_hs256_token(&claims, SECRET).expect("token generation failed");
-
-    let err = validator()
-        .validate_hmac(&token, SECRET)
-        .expect_err("expired token must be rejected");
-    assert!(matches!(err, AuthError::TokenExpired), "expected TokenExpired; got: {err:?}");
+    let err = refusal(&validator, &token).await;
+    assert!(
+        matches!(err, SecurityError::TokenExpired { .. }),
+        "expected TokenExpired; got: {err:?}"
+    );
 }
 
 /// A token expiring far in the future must still be accepted today.
-#[test]
-fn test_long_lived_valid_token_accepted() {
-    let (iat, _) = timestamps();
-    let mut claims = valid_claims();
-    claims.exp = iat + 365 * 24 * 3600; // 1 year
+#[tokio::test]
+async fn test_long_lived_valid_token_accepted() {
+    let (issuer, validator) = rig().await;
+    let claims = valid_claims(&issuer).set("exp", now() + 365 * 24 * 3600); // 1 year
+    let token = issuer.mint(&claims);
 
-    let token = generate_hs256_token(&claims, SECRET).expect("token generation failed");
     assert!(
-        validator().validate_hmac(&token, SECRET).is_ok(),
+        validator.validate_token(&token).await.is_ok(),
         "long-lived token should be accepted"
     );
 }
@@ -197,20 +192,16 @@ fn test_long_lived_valid_token_accepted() {
 // Issuer mismatch
 // ============================================================================
 
-/// A valid token issued by a different issuer must be rejected.
-#[test]
-fn test_wrong_issuer_rejected() {
-    let mut claims = valid_claims();
-    claims.iss = "https://evil.attacker.com".to_string();
+/// A token naming a different issuer must be refused.
+#[tokio::test]
+async fn test_wrong_issuer_rejected() {
+    let (issuer, validator) = rig().await;
+    let token = issuer.mint(&valid_claims(&issuer).set("iss", "https://evil.example.com"));
 
-    let token = generate_hs256_token(&claims, SECRET).expect("token generation failed");
-
-    let err = validator()
-        .validate_hmac(&token, SECRET)
-        .expect_err("wrong-issuer token must be rejected");
+    let err = refusal(&validator, &token).await;
     assert!(
-        matches!(err, AuthError::InvalidToken { .. }),
-        "expected InvalidToken for wrong issuer; got: {err:?}"
+        matches!(err, SecurityError::InvalidToken),
+        "expected InvalidToken; got: {err:?}"
     );
 }
 
@@ -218,85 +209,54 @@ fn test_wrong_issuer_rejected() {
 // Malformed token structure
 // ============================================================================
 
-/// A token with only one segment (no dots) must be rejected.
-#[test]
-fn test_missing_segments_rejected() {
-    let err = validator()
-        .validate_hmac("thisisnotajwt", SECRET)
-        .expect_err("one-segment token must be rejected");
+/// A token with only one segment (no dots) must be refused.
+#[tokio::test]
+async fn test_missing_segments_rejected() {
+    let (_issuer, validator) = rig().await;
+    let err = refusal(&validator, "thisisnotajwt").await;
     assert!(
-        matches!(err, AuthError::InvalidToken { .. }),
+        matches!(err, SecurityError::InvalidToken),
         "expected InvalidToken; got: {err:?}"
     );
 }
 
-/// An empty token must be rejected.
-#[test]
-fn test_empty_token_rejected() {
-    let err = validator().validate_hmac("", SECRET).expect_err("empty token must be rejected");
+/// An empty token must be refused.
+#[tokio::test]
+async fn test_empty_token_rejected() {
+    let (_issuer, validator) = rig().await;
+    let err = refusal(&validator, "").await;
     assert!(
-        matches!(err, AuthError::InvalidToken { .. }),
+        matches!(err, SecurityError::InvalidToken),
         "expected InvalidToken; got: {err:?}"
     );
 }
 
-/// A token with only two segments (missing signature) must be rejected.
-#[test]
-fn test_missing_signature_rejected() {
-    let claims = valid_claims();
-    let token = generate_hs256_token(&claims, SECRET).expect("token generation failed");
-    // Keep header.payload, drop signature
+/// A token with only two segments (missing signature) must be refused.
+#[tokio::test]
+async fn test_missing_signature_rejected() {
+    let (issuer, validator) = rig().await;
+    let token = issuer.mint(&valid_claims(&issuer));
+    // Keep header.payload, drop the signature.
     let no_sig: String = token.rsplitn(2, '.').last().unwrap_or("").to_string();
 
-    let err = validator()
-        .validate_hmac(&no_sig, SECRET)
-        .expect_err("two-segment token must be rejected");
+    let err = refusal(&validator, &no_sig).await;
     assert!(
-        matches!(err, AuthError::InvalidToken { .. } | AuthError::InvalidSignature),
-        "expected token error; got: {err:?}"
+        matches!(err, SecurityError::InvalidToken),
+        "expected InvalidToken; got: {err:?}"
     );
 }
 
-/// A token with extra segments (four dots) must be rejected.
-#[test]
-fn test_extra_segments_rejected() {
-    let claims = valid_claims();
-    let token = generate_hs256_token(&claims, SECRET).expect("token generation failed");
+/// A token with extra segments (four dots) must be refused.
+#[tokio::test]
+async fn test_extra_segments_rejected() {
+    let (issuer, validator) = rig().await;
+    let token = issuer.mint(&valid_claims(&issuer));
     let bloated = format!("{token}.extrapart");
 
-    let err = validator()
-        .validate_hmac(&bloated, SECRET)
-        .expect_err("four-segment token must be rejected");
+    let err = refusal(&validator, &bloated).await;
     assert!(
-        matches!(err, AuthError::InvalidToken { .. } | AuthError::InvalidSignature),
-        "expected token error; got: {err:?}"
-    );
-}
-
-// ============================================================================
-// Cross-user / cross-tenant token swap
-// ============================================================================
-
-/// Token minted for `tenant-A` must not validate when used with a different
-/// secret (simulating a different tenant's signing key).
-#[test]
-fn test_cross_tenant_token_rejected() {
-    let tenant_a_secret = b"tenant-a-signing-secret-32bytes!";
-    let tenant_b_secret = b"tenant-b-signing-secret-32bytes!";
-
-    let mut claims = valid_claims();
-    claims.sub = "user-in-tenant-a".to_string();
-
-    let token_a = generate_hs256_token(&claims, tenant_a_secret).expect("token A generation");
-
-    // Tenant B's validator uses a different secret
-    let err = JwtValidator::new(ISSUER, Algorithm::HS256)
-        .expect("validator")
-        .validate_hmac(&token_a, tenant_b_secret)
-        .expect_err("cross-tenant token must be rejected");
-    assert!(
-        matches!(err, AuthError::InvalidSignature | AuthError::InvalidToken { .. }),
-        "expected signature error; got: {err:?}"
+        matches!(err, SecurityError::InvalidToken),
+        "expected InvalidToken; got: {err:?}"
     );
 }
 

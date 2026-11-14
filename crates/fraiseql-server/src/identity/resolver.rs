@@ -84,7 +84,7 @@ pub struct EnrichmentQueryConfig {
 /// Top-level `[identity]` configuration: one shared query schema, two profiles.
 ///
 /// DESIGN §7. Lives on `ServerConfig` (the config the running server loads), so it
-/// applies under any auth mode — HS256/OIDC parity by construction.
+/// applies under any auth mode: `[auth]` and `[auth_issuer]` alike.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct IdentityConfig {

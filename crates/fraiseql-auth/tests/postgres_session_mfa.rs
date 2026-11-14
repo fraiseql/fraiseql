@@ -10,14 +10,15 @@
 
 #![allow(clippy::unwrap_used, clippy::panic, clippy::print_stderr)] // Reason: test code — panics and skip diagnostics are acceptable
 
+mod common;
+
+use common::minting_store;
 use fraiseql_auth::{
     AuthError, MfaStore as _, PgMfaStore, PostgresSessionStore, SessionStore as _, TokenPair,
     upgrade_anonymous_session,
 };
 use fraiseql_test_support::try_database_url;
 use sqlx::{PgPool, postgres::PgPoolOptions};
-
-const SECRET: &[u8] = b"session-mfa-test-secret-32-bytes!";
 
 async fn fresh() -> Option<PgPool> {
     let url = try_database_url()?;
@@ -108,7 +109,7 @@ async fn no_session_is_minted_for_an_enrolled_user_from_the_first_factor() {
     let pool = skip_if_no_db!();
     let user = "mfa-gate-enrolled";
     let secret = enroll(&pool, user).await;
-    let store = PostgresSessionStore::with_hs256_secret(pool.clone(), SECRET.to_vec());
+    let store = minting_store(pool.clone());
 
     let minted = store.create_session(user, in_an_hour()).await;
     assert_eq!(sessions_of(&pool, user).await, 0, "no session row was written");
@@ -120,7 +121,7 @@ async fn an_anonymous_session_is_not_upgraded_into_an_enrolled_account() {
     let pool = skip_if_no_db!();
     let user = "mfa-gate-upgraded";
     let secret = enroll(&pool, user).await;
-    let store = PostgresSessionStore::with_hs256_secret(pool.clone(), SECRET.to_vec());
+    let store = minting_store(pool.clone());
 
     let upgraded =
         upgrade_anonymous_session(&store, None, "anon_mfa-gate", user, in_an_hour()).await;
@@ -133,7 +134,7 @@ async fn an_anonymous_session_is_not_upgraded_into_an_enrolled_account() {
 #[tokio::test]
 async fn a_user_without_a_confirmed_enrollment_gets_a_session() {
     let pool = skip_if_no_db!();
-    let store = PostgresSessionStore::with_hs256_secret(pool.clone(), SECRET.to_vec());
+    let store = minting_store(pool.clone());
     store.create_session("mfa-gate-none", in_an_hour()).await.unwrap();
 
     let pending = "mfa-gate-pending";
@@ -180,7 +181,7 @@ async fn a_store_that_cannot_read_enrollments_refuses_the_session() {
         .connect(&try_database_url().unwrap())
         .await
         .unwrap();
-    let store = PostgresSessionStore::with_hs256_secret(restricted, SECRET.to_vec());
+    let store = minting_store(restricted);
 
     match store.create_session(user, in_an_hour()).await {
         Err(AuthError::DatabaseError { message }) => {
@@ -200,8 +201,7 @@ async fn a_redeemed_challenge_mints_the_session() {
     let pool = skip_if_no_db!();
     let user = "mfa-gate-passed";
     let secret = enroll(&pool, user).await;
-    let sessions =
-        std::sync::Arc::new(PostgresSessionStore::with_hs256_secret(pool.clone(), SECRET.to_vec()));
+    let sessions = std::sync::Arc::new(minting_store(pool.clone()));
     let challenge = match sessions.create_session(user, in_an_hour()).await {
         Err(AuthError::SecondFactorRequired { challenge }) => challenge,
         other => panic!("{other:?}"),

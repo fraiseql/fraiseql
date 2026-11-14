@@ -14,12 +14,12 @@
 //! `Bearer <secret>` in the value), NOT on `Authorization: Bearer`. The original ADR said
 //! `Authorization: Bearer`, but that header is consumed by the JWT auth middleware before
 //! any api-key seam runs, so a bearer secret would be 401'd as an invalid JWT whenever
-//! OIDC/HS256 is configured.
+//! JWT authentication is configured.
 //!
 //! # Where it is resolved (#1650)
 //!
-//! Once per request, by the auth layer every transport mounts (`admit`): the OIDC or
-//! HS256 middleware, or [`service_account_middleware`] on a deployment with no JWT
+//! Once per request, by the auth layer every transport mounts (`admit`): the OIDC
+//! middleware, or [`service_account_middleware`] on a deployment with no JWT
 //! authentication. The layer inserts a [`ServicePrincipal`], which
 //! [`OptionalSecurityContext`](crate::extractors::OptionalSecurityContext) serves to
 //! every handler. Resolving it in a handler left every other transport serving the

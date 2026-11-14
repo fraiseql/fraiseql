@@ -21,19 +21,15 @@ use fraiseql_core::{
     prelude::DatabaseAdapter as _,
     schema::{CompiledSchema, FieldType, QueryDefinition, TypeDefinition, ValidationConfig},
 };
-use fraiseql_server::server_config::{Hs256Config, ServerConfig};
-use fraiseql_test_support::try_database_url;
+use fraiseql_server::server_config::ServerConfig;
+use fraiseql_test_support::{issuer::TestIssuer, try_database_url};
 use serde_json::{Value, json};
 
 mod common;
 
-use crate::common::server_harness::TestServer;
+use crate::common::{server_harness::TestServer, test_issuer::oidc_config};
 
 const SCHEMA: &str = "p27_sse";
-const SECRET_ENV: &str = "FRAISEQL_TEST_P27_SSE_HS256_SECRET";
-const SECRET: &str = "p27-sse-secret-0123456789-0123456789";
-const ISSUER: &str = "https://sse.test.fraiseql";
-const AUDIENCE: &str = "sse-test";
 
 fn database_url_or_skip(test: &str) -> Option<String> {
     let url = try_database_url();
@@ -914,38 +910,38 @@ async fn stream_with_conflicting_pagination_variables_is_refused() {
 
 // ── Auth: inherited at entry, re-checked mid-stream (P18) ────────────────────
 
-fn hs256_config(batch_size: u32) -> ServerConfig {
-    std::env::set_var(SECRET_ENV, SECRET);
+/// A server that requires a bearer from `issuer` on `/graphql`. `issuer` must outlive
+/// the server: the validator reads its JWKS on first use.
+fn auth_config(issuer: &TestIssuer, batch_size: u32) -> ServerConfig {
     ServerConfig {
-        auth_hs256: Some(Hs256Config {
-            secret_env: SECRET_ENV.to_string(),
-            issuer:     Some(ISSUER.to_string()),
-            audience:   Some(AUDIENCE.to_string()),
-        }),
+        auth: Some(oidc_config(issuer, true)),
         ..sse_config(batch_size)
     }
-}
-
-fn mint_token(ttl_secs: i64) -> String {
-    mint_token_with_jti(ttl_secs, None)
 }
 
 /// The subject every token this suite mints carries.
 const SSE_SUBJECT: &str = "sse-user";
 
+fn mint_token(issuer: &TestIssuer, ttl_secs: i64) -> String {
+    mint_token_with_jti(issuer, ttl_secs, None)
+}
+
 /// [`mint_token_with_jti`] without a `jti`, and with its `iat` removed.
-fn mint_token_without_iat(ttl_secs: i64) -> String {
-    let mut claims = claims_with_jti(ttl_secs, None);
-    claims.as_object_mut().expect("claims are an object").remove("iat");
-    sign(&claims)
+fn mint_token_without_iat(issuer: &TestIssuer, ttl_secs: i64) -> String {
+    issuer.mint(&claims_with_jti(issuer, ttl_secs, None).without("iat"))
 }
 
-fn mint_token_with_jti(ttl_secs: i64, jti: Option<&str>) -> String {
-    sign(&claims_with_jti(ttl_secs, jti))
+fn mint_token_with_jti(issuer: &TestIssuer, ttl_secs: i64, jti: Option<&str>) -> String {
+    issuer.mint(&claims_with_jti(issuer, ttl_secs, jti))
 }
 
-/// The claims of a token this suite mints, issued now and living `ttl_secs`.
-fn claims_with_jti(ttl_secs: i64, jti: Option<&str>) -> serde_json::Value {
+/// The claims of a token this suite mints, issued now and living `ttl_secs`, carrying
+/// `jti` or no `jti` at all.
+fn claims_with_jti(
+    issuer: &TestIssuer,
+    ttl_secs: i64,
+    jti: Option<&str>,
+) -> fraiseql_test_support::issuer::Claims {
     let now = i64::try_from(
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -953,28 +949,15 @@ fn claims_with_jti(ttl_secs: i64, jti: Option<&str>) -> serde_json::Value {
             .as_secs(),
     )
     .expect("epoch seconds fit i64");
-    let mut claims = json!({
-        "sub": SSE_SUBJECT,
-        "iss": ISSUER,
-        "aud": AUDIENCE,
-        "iat": now,
-        "exp": now + ttl_secs,
-    });
-    if let Some(jti) = jti {
-        claims["jti"] = json!(jti);
+    let claims = issuer
+        .claims()
+        .set("sub", SSE_SUBJECT)
+        .set("iat", now)
+        .set("exp", now + ttl_secs);
+    match jti {
+        Some(jti) => claims.set("jti", jti),
+        None => claims.without("jti"),
     }
-    claims
-}
-
-/// `claims`, signed as the server this suite boots validates.
-fn sign(claims: &serde_json::Value) -> String {
-    use jsonwebtoken::{Algorithm, EncodingKey, Header, encode};
-    encode(
-        &Header::new(Algorithm::HS256),
-        claims,
-        &EncodingKey::from_secret(SECRET.as_bytes()),
-    )
-    .expect("mint token")
 }
 
 #[tokio::test]
@@ -982,7 +965,8 @@ async fn unauthenticated_sse_is_refused_before_any_event() {
     if database_url_or_skip("sse_unauthenticated").is_none() {
         return;
     }
-    let server = Box::pin(boot(hs256_config(10))).await.unwrap();
+    let issuer = TestIssuer::start().await;
+    let server = Box::pin(boot(auth_config(&issuer, 10))).await.unwrap();
 
     let resp = sse_post(&server, &json!({"query": "{ items { id } }"}), None).await;
     assert_eq!(
@@ -998,11 +982,12 @@ async fn expired_token_terminates_the_stream_mid_delivery() {
     if database_url_or_skip("sse_expiry_mid_stream").is_none() {
         return;
     }
-    let server = Box::pin(boot(hs256_config(1))).await.unwrap();
+    let issuer = TestIssuer::start().await;
+    let server = Box::pin(boot(auth_config(&issuer, 1))).await.unwrap();
 
     // Full delivery takes ~2 s (5 rows x 400 ms, one per batch); the token
     // expires after 1 s, so the per-batch expiry re-check MUST fire mid-stream.
-    let token = mint_token(1);
+    let token = mint_token(&issuer, 1);
     let query = "{ slowItems @stream(initialCount: 1) { id } }";
     let resp = sse_post(&server, &json!({"query": query}), Some(&token)).await;
     assert_eq!(resp.status(), 200, "the stream starts while the token is valid");
@@ -1045,8 +1030,9 @@ async fn revoked_token_terminates_the_stream_mid_delivery() {
     let Some(url) = database_url_or_skip("sse_revocation_mid_stream") else {
         return;
     };
-    let token = mint_token_with_jti(3600, Some(JTI));
-    assert_revocation_cuts_the_delivery(&url, &token, MidStream::RevokeJti).await;
+    let issuer = TestIssuer::start().await;
+    let token = mint_token_with_jti(&issuer, 3600, Some(JTI));
+    assert_revocation_cuts_the_delivery(&url, &issuer, &token, MidStream::RevokeJti).await;
 }
 
 /// A bearer with no `iat` cannot show it was issued after a `revoke-all`, so a
@@ -1056,8 +1042,9 @@ async fn a_revoke_all_cuts_the_stream_of_a_token_without_iat() {
     let Some(url) = database_url_or_skip("sse_revoke_all_without_iat") else {
         return;
     };
-    let token = mint_token_without_iat(3600);
-    assert_revocation_cuts_the_delivery(&url, &token, MidStream::RevokeAllForUser).await;
+    let issuer = TestIssuer::start().await;
+    let token = mint_token_without_iat(&issuer, 3600);
+    assert_revocation_cuts_the_delivery(&url, &issuer, &token, MidStream::RevokeAllForUser).await;
 }
 
 /// How [`assert_revocation_cuts_the_delivery`] revokes the token mid-delivery.
@@ -1071,7 +1058,12 @@ enum MidStream {
 
 /// Start a ~2 s `@stream` delivery for `token`, revoke it ~600 ms in, and assert the
 /// delivery stops early with a revocation error.
-async fn assert_revocation_cuts_the_delivery(url: &str, token: &str, how: MidStream) {
+async fn assert_revocation_cuts_the_delivery(
+    url: &str,
+    issuer: &TestIssuer,
+    token: &str,
+    how: MidStream,
+) {
     use fraiseql_server::token_revocation::{
         InMemoryRevocationStore, RevocationStore, TokenRevocationManager,
     };
@@ -1082,7 +1074,7 @@ async fn assert_revocation_cuts_the_delivery(url: &str, token: &str, how: MidStr
     let adapter = Arc::new(PostgresAdapter::new(url).await.expect("adapter"));
     seed(&adapter).await;
     let server = Box::pin(TestServer::start_with_revocation(
-        hs256_config(1),
+        auth_config(issuer, 1),
         schema(),
         adapter,
         Arc::clone(&revocation),

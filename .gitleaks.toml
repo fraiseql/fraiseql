@@ -115,8 +115,8 @@ id = "jwt"
 [[rules]]
 id = "generic-api-key"
 
-  # An environment variable NAME read as its own value: `secret_env =
-  # "FRAISEQL_HS256_SECRET"` names where the secret is read from, and is the
+  # An environment variable NAME read as its own value: `key_encryption_key_env =
+  # "FRAISEQL_AUTH_SIGNING_KEK"` names where the secret is read from, and is the
   # opposite of a hardcoded one. Pinned to the literal, so a value assigned to
   # one of these still fires.
   [[rules.allowlists]]

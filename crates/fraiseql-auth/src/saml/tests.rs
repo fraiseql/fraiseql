@@ -1241,6 +1241,19 @@ async fn sp_metadata_publishes_the_certificate_and_reflects_the_signing_posture(
     assert!(String::from_utf8_lossy(&body).contains("SPSSODescriptor"));
 }
 
+/// Signs ES256 with a key nobody publishes: this test is about the challenge, not the token.
+#[derive(Debug)]
+struct UnpublishedKeySigner;
+
+impl crate::AccessTokenSigner for UnpublishedKeySigner {
+    fn sign_access_token(&self, claims: &crate::Claims) -> crate::Result<String> {
+        let claims = serde_json::to_value(claims).map_err(|e| crate::AuthError::Internal {
+            message: e.to_string(),
+        })?;
+        Ok(fraiseql_test_support::issuer::sign_with_unpublished_key("saml-test", &claims))
+    }
+}
+
 /// An ACS for a user enrolled in `MFA` yields a challenge, not a session. Needs PostgreSQL:
 /// the second factor is required where every sign-in path mints its session.
 #[tokio::test]
@@ -1255,10 +1268,7 @@ async fn acs_for_an_mfa_user_yields_a_challenge() {
         return;
     };
     let pool = sqlx::PgPool::connect(&url).await.unwrap();
-    let sessions = PostgresSessionStore::with_hs256_secret(
-        pool.clone(),
-        b"saml-mfa-secret-32-bytes-long!!!".to_vec(),
-    );
+    let sessions = PostgresSessionStore::with_signer(pool.clone(), Arc::new(UnpublishedKeySigner));
     sessions.init().await.unwrap();
     let mfa = PgMfaStore::new(pool.clone());
     mfa.init().await.unwrap();

@@ -1092,64 +1092,22 @@ fn test_tenancy_absent_section_keeps_runtime_off() {
 }
 
 #[test]
-fn test_auth_hs256_defaults_to_none() {
-    let config = ServerConfig::default();
-    assert!(config.auth_hs256.is_none());
-}
-
-#[test]
-fn test_auth_hs256_parses_from_toml() {
+fn an_auth_hs256_section_is_refused_as_an_unknown_field() {
+    // The shared-secret path is gone: a config that still declares it must fail to load,
+    // not boot with no authentication at all.
     let toml_str = r#"
         [auth_hs256]
-        secret_env = "MY_TEST_HS256_SECRET"
-        issuer = "test-suite"
+        secret_env = "MY_TEST_SECRET"
         audience = "test-api"
     "#;
-    let config: ServerConfig = toml::from_str(toml_str).unwrap();
-    let hs = config.auth_hs256.expect("auth_hs256 section should be parsed");
-    assert_eq!(hs.secret_env, "MY_TEST_HS256_SECRET");
-    assert_eq!(hs.issuer.as_deref(), Some("test-suite"));
-    assert_eq!(hs.audience.as_deref(), Some("test-api"));
-}
+    let err = toml::from_str::<ServerConfig>(toml_str).unwrap_err().to_string();
+    assert!(err.contains("auth_hs256"), "the refusal names the section: {err}");
 
-#[test]
-fn test_auth_and_auth_hs256_are_mutually_exclusive() {
-    use fraiseql_core::security::OidcConfig;
-
-    let env_name = "FRAISEQL_TEST_HS256_MUTEX_EXCLUSIVE";
-    temp_env::with_vars([(env_name, Some("secret-value-at-least-a-bit-long"))], || {
-        let config = ServerConfig {
-            auth: Some(OidcConfig::auth0("tenant.auth0.com", "my-api")),
-            auth_hs256: Some(super::Hs256Config {
-                secret_env: env_name.to_string(),
-                issuer:     Some("test".to_string()),
-                audience:   None,
-            }),
-            ..ServerConfig::default()
-        };
-        let err = config.validate().unwrap_err();
-        assert!(
-            err.contains("mutually exclusive") || err.contains("Pick one"),
-            "unexpected error: {err}"
-        );
-    });
-}
-
-#[test]
-fn test_auth_hs256_fails_when_secret_env_unset() {
-    let env_name = "FRAISEQL_TEST_HS256_UNSET_XYZ";
-    temp_env::with_vars([(env_name, None::<&str>)], || {
-        let config = ServerConfig {
-            auth_hs256: Some(super::Hs256Config {
-                secret_env: env_name.to_string(),
-                issuer:     None,
-                audience:   None,
-            }),
-            ..ServerConfig::default()
-        };
-        let err = config.validate().unwrap_err();
-        assert!(err.contains("not set"), "expected 'not set' error, got: {err}");
-    });
+    let msg = super::methods::enrich_parse_error(&[], toml_str, err);
+    assert!(
+        msg.contains("`[auth_hs256]` is no longer supported") && msg.contains("`[auth_issuer]`"),
+        "the refusal points at what replaced it: {msg}"
+    );
 }
 
 // ── observers_tests ───────────────────────────────────────────────────────────

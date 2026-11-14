@@ -112,8 +112,8 @@ picked up by `jsonwebtoken` and `aws-sigv4`.
   its timing.
 
 The earlier text named `PostgresSessionStore::generate_access_token` as an attacker-triggerable
-signing path. No shipped path reached it: the server builds every session store with
-`with_hs256_secret`. The RS256 signing API (`with_rs256_key`, `generate_rs256_token`) had no
+signing path. No shipped path reached it: the server then built every session store with
+a shared secret, and now signs sessions with its own ES256 keys. The RS256 signing API (`with_rs256_key`, `generate_rs256_token`) had no
 production caller and was removed.
 
 **Kept true by a gate**: `tools/check-crypto-providers.sh` fails on any RSA private key

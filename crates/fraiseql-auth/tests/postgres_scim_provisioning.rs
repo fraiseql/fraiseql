@@ -14,8 +14,11 @@
 #![allow(clippy::unwrap_used, clippy::print_stderr)] // Reason: test code — panics/skips are fine
 #![allow(clippy::doc_markdown)] // Reason: technical terms (IdP, SCIM, NameID) throughout
 
+mod common;
+
 use std::sync::Arc;
 
+use common::minting_store;
 use fraiseql_auth::{
     AccountStore, AuthError, LocalPasswordAuthenticator, PostgresAccountStore,
     PostgresSessionStore, SessionStore,
@@ -29,7 +32,6 @@ use uuid::Uuid;
 const PASSWORD: &str = "correct horse battery staple";
 /// Fast Argon2 cost — correctness is parameter-independent.
 const FAST_M_COST: u32 = 8;
-const HS256_SECRET: &[u8] = b"scim-provisioning-test-secret-32b";
 
 struct Rig {
     scim:      PgScimStore,
@@ -47,7 +49,7 @@ async fn fresh() -> Option<Rig> {
     PostgresAccountStore::new(pool.clone()).init().await.unwrap();
     let scim = PgScimStore::new(pool.clone(), None);
     scim.init().await.unwrap();
-    let sessions = PostgresSessionStore::with_hs256_secret(pool.clone(), HS256_SECRET.to_vec());
+    let sessions = minting_store(pool.clone());
     sessions.init().await.unwrap();
     let passwords =
         LocalPasswordAuthenticator::with_params(pool.clone(), accounts.clone(), FAST_M_COST, 1, 1)

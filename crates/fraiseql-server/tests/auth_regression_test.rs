@@ -195,10 +195,8 @@ mod service_accounts {
     use std::collections::HashMap;
 
     use axum::body::to_bytes;
-    use fraiseql_core::security::{AuthConfig, AuthMiddleware};
     use fraiseql_server::{
         extractors::OptionalSecurityContext,
-        middleware::{Hs256AuthState, TenantClaim, hs256_auth_middleware},
         service_account::{ServiceAccountAuthenticator, ServiceAccountConfig},
     };
 
@@ -233,20 +231,6 @@ mod service_accounts {
                 required_oidc_state().with_service_accounts(accounts()),
                 oidc_auth_middleware,
             ))
-    }
-
-    fn hs256_router() -> Router {
-        let state = Hs256AuthState::new(
-            Arc::new(AuthMiddleware::from_config(AuthConfig::with_hs256(
-                "hs256-signing-key-of-at-least-32-bytes",
-            ))),
-            "fraiseql".to_string(),
-            TenantClaim(Arc::from("tenant_id")),
-        )
-        .with_service_accounts(accounts());
-        Router::new()
-            .route("/data", get(principal))
-            .route_layer(middleware::from_fn_with_state(state, hs256_auth_middleware))
     }
 
     async fn call(router: Router, headers: &[(&str, &str)]) -> (StatusCode, String) {
@@ -291,23 +275,5 @@ mod service_accounts {
     async fn an_unknown_service_account_key_is_refused_under_required_oidc() {
         let (status, _) = call(oidc_router(), &[("x-api-key", "not-the-secret")]).await;
         assert_eq!(status, StatusCode::UNAUTHORIZED);
-    }
-
-    /// Under `[auth_hs256]` the layer let the request through (#934), but the handler
-    /// behind it was served as anonymous: only `/graphql` and `/ws` resolved the secret.
-    #[tokio::test]
-    async fn a_service_account_key_is_served_as_itself_under_hs256() {
-        let (status, body) = call(hs256_router(), &[("x-api-key", SECRET)]).await;
-        assert_eq!(status, StatusCode::OK, "{body}");
-        assert_eq!(body, "service_account:reconciler");
-    }
-
-    #[tokio::test]
-    async fn a_bearer_plus_service_account_key_is_refused_as_ambiguous_under_hs256() {
-        let (status, body) =
-            call(hs256_router(), &[("authorization", "Bearer not-a-jwt"), ("x-api-key", SECRET)])
-                .await;
-        assert_eq!(status, StatusCode::UNAUTHORIZED);
-        assert!(body.contains("Ambiguous credentials"), "{body}");
     }
 }

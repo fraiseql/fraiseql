@@ -16,6 +16,51 @@ disagreed, and the promise was the part that was wrong.
 
 ## [Unreleased]
 
+### Breaking
+
+- **`[auth_hs256]` is removed (#1964).** Shared-secret token validation is gone. A
+  configuration with an `[auth_hs256]` section is refused at boot, and the error names the
+  replacements: `[auth_issuer]` signs and validates the sessions this server mints, and
+  `[auth]` validates the tokens another issuer signs. Every bearer token is now validated
+  against an issuer's published keys. Follow "Migrating from `[auth_hs256]`" in
+  `docs/auth/first-party-issuer.md`. In short:
+
+  - sessions the server's own sign-in issued: replace the section with `[auth_issuer]`
+    (`url`, `audience`, plus `[auth.session] ttl_secs`, `[auth.database]` and
+    `FRAISEQL_AUTH_SIGNING_KEK`); the server creates `auth.signing_key` and its first key
+    on first boot;
+  - tokens another service signed with the secret: that service signs with an asymmetric
+    key and publishes a JWKS, and `[auth]` trusts it; switch it and upgrade the server
+    together, since no release accepts both;
+  - at the upgrade, access tokens signed with the secret are refused and users sign in
+    again; refresh tokens from before 2.19.1 are refused;
+  - services that verified sessions with the secret fetch `/.well-known/jwks.json`
+    instead;
+  - the variable `secret_env` named, and `FRAISEQL_JWT_SECRET`, can be removed.
+
+- **`fraiseql-auth` no longer exports `JwtValidator`, `generate_hs256_token` or
+  `Algorithm`, nor re-exports `jsonwebtoken`; `PostgresSessionStore::with_hs256_secret` is
+  gone (#1964).** Validate bearer tokens with `fraiseql_core::security::OidcValidator`, and
+  build a session store that mints with `PostgresSessionStore::with_signer`.
+
+- **`fraiseql_core::security` no longer exports `AuthMiddleware`, `AuthConfig`,
+  `SigningKey` or `AuthRequest` (#1964).** `AuthenticatedUser` stays. `SecurityError` loses
+  `JwtSignatureInvalid`, `JwtIssuerMismatch` and `JwtAudienceMismatch`, which only that
+  middleware returned.
+
+- **`fraiseql_server::server_config::Hs256Config` is gone, with `ServerConfig::auth_hs256`
+  (#1964).**
+
+### Changed
+
+- `fraiseql doctor` no longer checks `FRAISEQL_JWT_SECRET`: nothing reads that variable.
+
+- `examples/authentication` validates tokens with `OidcValidator` against an ES256 issuer
+  it runs on loopback, instead of a shared secret.
+
+- The `jwt_parse` fuzz target moved to `fraiseql-core` as `oidc_token`, which fuzzes
+  `OidcValidator` (#1964).
+
 ## [2.19.1] - 2026-11-14
 
 ### Breaking

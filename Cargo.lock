@@ -3895,9 +3895,10 @@ name = "fraiseql-example-authentication"
 version = "0.0.0"
 dependencies = [
  "anyhow",
- "fraiseql-auth",
- "jsonwebtoken",
+ "fraiseql-core",
+ "fraiseql-test-support",
  "serde_json",
+ "tokio",
 ]
 
 [[package]]

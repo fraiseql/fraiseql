@@ -109,17 +109,12 @@ impl Server {
 
     /// The validator the rate limiter verifies a subject with, or `None`.
     ///
-    /// Mirrors [`Server::attach_auth`]'s precedence — OIDC first, then HS256 — so the
-    /// limiter and the transports never disagree about which credential is the real one.
+    /// The validator [`Server::attach_auth`] mounts, so the limiter and the transports
+    /// never disagree about which credential is the real one.
     /// A deployment with no authentication has no verified subject to key on, and its
     /// requests keep bucketing on the client address.
     fn rate_limit_subject(&self) -> Option<Arc<VerifiedSubject>> {
-        if let Some(ref validator) = self.oidc_validator {
-            return Some(Arc::new(VerifiedSubject::Oidc(Arc::clone(validator))));
-        }
-        if let Some(ref validator) = self.hs256_auth {
-            return Some(Arc::new(VerifiedSubject::Hs256(Arc::clone(validator))));
-        }
-        None
+        let validator = self.oidc_validator.as_ref()?;
+        Some(Arc::new(VerifiedSubject::Oidc(Arc::clone(validator))))
     }
 }

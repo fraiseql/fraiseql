@@ -603,8 +603,10 @@ name = "fraiseql-core-fuzz"
 version = "2.19.1"
 dependencies = [
  "fraiseql-core",
+ "fraiseql-jwks",
  "libfuzzer-sys",
  "serde_json",
+ "tokio",
 ]
 
 [[package]]

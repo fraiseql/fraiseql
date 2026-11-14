@@ -58,7 +58,7 @@ pub use audit::{
 pub use audit_export_syslog::SyslogAuditExporter;
 #[cfg(feature = "audit-webhook")]
 pub use audit_export_webhook::WebhookAuditExporter;
-pub use auth_middleware::{AuthConfig, AuthMiddleware, AuthRequest, AuthenticatedUser, SigningKey};
+pub use auth_middleware::AuthenticatedUser;
 pub use authorizer::{
     Authorizer, AuthzDecision, AuthzNesting, AuthzOperation, AuthzRequest, OperationKind,
 };

@@ -17,7 +17,6 @@ impl Server {
     pub(super) fn build_graphql_router(&self, state: &AppState) -> Router {
         // Build GraphQL route (possibly with auth + Content-Type enforcement).
         // Supports both GET and POST per GraphQL over HTTP spec.
-        // OIDC and HS256 are mutually exclusive (enforced by ServerConfig::validate).
         // Authentication is attached by the shared `attach_auth` helper rather than
         // inline here: `/graphql` and the REST transport had independent mount code, and
         // REST's omitted the layer entirely (#812). One helper, one posture decision.

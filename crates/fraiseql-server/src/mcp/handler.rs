@@ -10,7 +10,7 @@ use std::sync::{
 
 use fraiseql_core::{
     schema::CompiledSchema,
-    security::{AuthMiddleware, AuthRequest, AuthenticatedUser, OidcValidator, SecurityError},
+    security::{AuthenticatedUser, OidcValidator, SecurityError},
 };
 use rmcp::{
     ServerHandler,
@@ -55,25 +55,18 @@ pub fn mcp_tool_errors_total() -> u64 {
     MCP_TOOL_ERRORS_TOTAL.load(Ordering::Relaxed)
 }
 
-/// The token validator MCP authenticates Bearer credentials against — the same
-/// two auth modes `/graphql` accepts (#376 auth parity).
-///
-/// MCP used to accept only an [`OidcValidator`], so an HS256-only deployment
-/// (`[auth_hs256]`, the integration-testing / service-to-service mode) could
-/// never authenticate an MCP call and `require_auth = true` refused to mount
-/// the endpoint at all.
+/// The token validator MCP authenticates Bearer credentials against — the one
+/// `/graphql` uses (#376 auth parity).
 pub enum McpTokenValidator {
-    /// OIDC discovery + JWKS validation (`[auth]`), as on `/graphql`.
+    /// OIDC validation against an external provider (`[auth]`) or the server's own
+    /// issuer (`[auth_issuer]`), as on `/graphql`.
     Oidc(Arc<OidcValidator>),
-    /// Local HS256 shared-secret validation (`[auth_hs256]`), as on `/graphql`.
-    Hs256(Arc<AuthMiddleware>),
 }
 
 impl std::fmt::Debug for McpTokenValidator {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Oidc(_) => f.write_str("McpTokenValidator::Oidc"),
-            Self::Hs256(_) => f.write_str("McpTokenValidator::Hs256"),
         }
     }
 }
@@ -88,12 +81,6 @@ impl McpTokenValidator {
     async fn validate(&self, token: &str) -> Result<AuthenticatedUser, SecurityError> {
         match self {
             Self::Oidc(v) => v.validate_token(token).await,
-            Self::Hs256(m) => {
-                // AuthMiddleware validates a whole Authorization header, which
-                // is where this token came from.
-                let req = AuthRequest::new(Some(format!("Bearer {token}")));
-                m.validate_request(&req)
-            },
         }
     }
 }
@@ -159,8 +146,8 @@ impl FraiseQLMcpService {
         self
     }
 
-    /// Attach the token validator used to authenticate MCP tool calls — OIDC or
-    /// HS256, whichever `/graphql` uses (#376 auth parity).
+    /// Attach the token validator used to authenticate MCP tool calls — the one
+    /// `/graphql` uses (#376 auth parity).
     ///
     /// When present, a `Bearer` token carried by the HTTP transport is validated
     /// and turned into a [`SecurityContext`](fraiseql_core::security::SecurityContext) so RLS and

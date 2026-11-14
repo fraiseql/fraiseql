@@ -647,29 +647,6 @@ mod header_limits_tests {
     }
 }
 
-mod hs256_auth_tests {
-    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
-
-    use std::sync::Arc;
-
-    use fraiseql_core::security::{AuthConfig, AuthMiddleware};
-
-    use super::super::hs256_auth::{Hs256AuthState, hs256_auth_middleware as _};
-
-    #[test]
-    fn hs256_auth_state_is_cloneable() {
-        fn assert_clone<T: Clone>() {}
-        assert_clone::<Hs256AuthState>();
-
-        let mw = AuthMiddleware::from_config(AuthConfig::with_hs256("test-secret-123"));
-        let _state = Hs256AuthState::new(
-            Arc::new(mw),
-            "test".to_string(),
-            crate::middleware::TenantClaim(Arc::from("tenant_id")),
-        );
-    }
-}
-
 mod metrics_tests {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
     #![allow(clippy::cast_precision_loss)] // Reason: test fixture values are small; precision is irrelevant

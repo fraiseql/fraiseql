@@ -294,7 +294,7 @@ impl Server {
             .subscription_require_auth
             .unwrap_or(self.config.introspection_require_auth);
 
-        let authenticates = self.oidc_validator.is_some() || self.hs256_auth.is_some();
+        let authenticates = self.oidc_validator.is_some();
         if subscription_require_auth && !authenticates {
             warn!(
                 subscription_path = %self.config.subscription_path,

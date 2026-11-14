@@ -31,10 +31,14 @@ path = "fuzz_targets/complexity.rs"
 [dependencies]
 libfuzzer-sys = "0.4"
 serde_json = "1"
+tokio = { version = "1", features = ["rt", "time"] }
 
 [dependencies.fraiseql-core]
 default-features = false
 path = ".."
+
+[dependencies.fraiseql-jwks]
+path = "../../fraiseql-jwks"
 
 [package]
 edition = "2021"
@@ -47,6 +51,11 @@ cargo-fuzz = true
 
 [workspace]
 members = ["."]
+
+[[bin]]
+doc = false
+name = "oidc_token"
+path = "fuzz_targets/oidc_token.rs"
 
 [[bin]]
 doc = false

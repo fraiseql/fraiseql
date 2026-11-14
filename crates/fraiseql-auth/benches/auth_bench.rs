@@ -4,64 +4,14 @@
 //! Performance benchmarks for fraiseql-auth hot paths
 //!
 //! Measures latency for:
-//! - JWT token generation and HMAC validation
 //! - PKCE S256 challenge computation
 //! - Constant-time comparison (equal, unequal, padded)
 //! - Rate limiter check (allow and reject paths)
 
-use std::collections::HashMap;
-
 use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
 use fraiseql_auth::{
-    Claims, ConstantTimeOps, KeyedRateLimiter, jwt::generate_hs256_token, pkce::PkceStateStore,
-    rate_limiting::AuthRateLimitConfig,
+    ConstantTimeOps, KeyedRateLimiter, pkce::PkceStateStore, rate_limiting::AuthRateLimitConfig,
 };
-
-// ---------------------------------------------------------------------------
-// JWT benchmarks
-// ---------------------------------------------------------------------------
-
-fn jwt_benchmarks(c: &mut Criterion) {
-    let secret = b"bench_secret_key_at_least_32_bytes_long!";
-
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
-        .as_secs();
-
-    let claims = Claims {
-        sub:   "user-bench-42".to_string(),
-        iat:   now,
-        exp:   now + 3600,
-        nbf:   None,
-        iss:   "https://bench.fraiseql.dev".to_string(),
-        aud:   vec!["api".to_string()],
-        extra: HashMap::new(),
-    };
-
-    c.bench_function("jwt_generate_hs256", |b| {
-        b.iter(|| {
-            generate_hs256_token(black_box(&claims), black_box(secret)).unwrap();
-        });
-    });
-
-    // Pre-generate a token for validation benchmarks
-    let token = generate_hs256_token(&claims, secret).unwrap();
-
-    let validator = fraiseql_auth::JwtValidator::new(
-        "https://bench.fraiseql.dev",
-        jsonwebtoken::Algorithm::HS256,
-    )
-    .unwrap()
-    .with_audiences(&["api"])
-    .unwrap();
-
-    c.bench_function("jwt_validate_hmac", |b| {
-        b.iter(|| {
-            validator.validate_hmac(black_box(&token), black_box(secret)).unwrap();
-        });
-    });
-}
 
 // ---------------------------------------------------------------------------
 // PKCE benchmarks
@@ -171,11 +121,5 @@ fn rate_limiter_benchmarks(c: &mut Criterion) {
 // Criterion harness
 // ---------------------------------------------------------------------------
 
-criterion_group!(
-    benches,
-    jwt_benchmarks,
-    pkce_benchmarks,
-    constant_time_benchmarks,
-    rate_limiter_benchmarks
-);
+criterion_group!(benches, pkce_benchmarks, constant_time_benchmarks, rate_limiter_benchmarks);
 criterion_main!(benches);

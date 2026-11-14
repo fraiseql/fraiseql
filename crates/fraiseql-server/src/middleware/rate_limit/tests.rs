@@ -1386,15 +1386,13 @@ mod verified_per_user_tests {
         http::{Request, StatusCode},
         routing::get,
     };
-    use fraiseql_core::security::{AuthConfig, AuthMiddleware};
     use tower::ServiceExt;
 
     use super::super::{
         RateLimitConfig, dispatch::RateLimiter, identity::VerifiedSubject,
         middleware_fn::rate_limit_middleware,
     };
-
-    const SECRET: &str = "a-shared-secret-of-sufficient-length-for-hs256-signing";
+    use crate::testing::idp::TestIdp;
 
     /// A budget of one request, so the second from the same bucket is refused. Anything
     /// larger cannot tell "two buckets" from "one generous bucket".
@@ -1406,32 +1404,6 @@ mod verified_per_user_tests {
             burst_size: 1,
             ..RateLimitConfig::default()
         }))
-    }
-
-    /// An audience is configured, because the core validator refuses a token that
-    /// carries `aud` when none is expected (`JwtAudienceMismatch { expected: "(not
-    /// configured)" }`). A deployment that means to accept these tokens declares it.
-    fn hs256_subject() -> Arc<VerifiedSubject> {
-        Arc::new(VerifiedSubject::Hs256(Arc::new(AuthMiddleware::from_config(
-            AuthConfig::with_hs256(SECRET).with_audience("fraiseql"),
-        ))))
-    }
-
-    fn token_for(sub: &str, secret: &str) -> String {
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .expect("clock is after the epoch")
-            .as_secs();
-        let claims = fraiseql_auth::Claims {
-            sub:   sub.to_owned(),
-            iat:   now,
-            exp:   now + 3600,
-            nbf:   None,
-            iss:   "fraiseql".to_owned(),
-            aud:   vec!["fraiseql".to_owned()],
-            extra: std::collections::HashMap::new(),
-        };
-        fraiseql_auth::generate_hs256_token(&claims, secret.as_bytes()).expect("token")
     }
 
     pub(super) fn app(limiter: Arc<RateLimiter>, subject: Option<Arc<VerifiedSubject>>) -> Router {
@@ -1457,59 +1429,11 @@ mod verified_per_user_tests {
         app.clone().oneshot(request).await.expect("response").status()
     }
 
-    /// The gap #1171 names: many authenticated users behind one egress address are not
-    /// one client, and before this they shared one budget.
-    #[tokio::test]
-    async fn two_verified_users_behind_one_ip_do_not_share_a_bucket() {
-        let app = app(limiter(), Some(hs256_subject()));
-        let (alice, bob) = (token_for("alice", SECRET), token_for("bob", SECRET));
-
-        assert_eq!(send(&app, [203, 0, 113, 9], Some(&alice)).await, StatusCode::OK);
-        assert_eq!(
-            send(&app, [203, 0, 113, 9], Some(&bob)).await,
-            StatusCode::OK,
-            "bob's first request must not be refused by alice's spent budget — same IP, \
-             different verified subject"
-        );
-    }
-
-    /// …and each of them is still limited, so the allowance is a budget rather than an
-    /// exemption. Without this, a fix that simply skipped the limiter for authenticated
-    /// callers would pass the test above.
-    #[tokio::test]
-    async fn a_verified_user_is_still_limited() {
-        let app = app(limiter(), Some(hs256_subject()));
-        let alice = token_for("alice", SECRET);
-
-        assert_eq!(send(&app, [203, 0, 113, 9], Some(&alice)).await, StatusCode::OK);
-        assert_eq!(
-            send(&app, [203, 0, 113, 9], Some(&alice)).await,
-            StatusCode::TOO_MANY_REQUESTS,
-            "a verified subject gets its own bucket, not a bypass"
-        );
-    }
-
-    /// #1143's property, kept. A token signed with the wrong secret does not verify, so
-    /// it yields no subject and the request falls back to the address bucket — varying
-    /// `sub` on a forged token mints nothing.
-    #[tokio::test]
-    async fn a_forged_token_cannot_mint_a_bucket() {
-        let app = app(limiter(), Some(hs256_subject()));
-        let forged_one = token_for("attacker-1", "not-the-deployments-signing-secret-at-all");
-        let forged_two = token_for("attacker-2", "not-the-deployments-signing-secret-at-all");
-
-        assert_eq!(send(&app, [198, 51, 100, 7], Some(&forged_one)).await, StatusCode::OK);
-        assert_eq!(
-            send(&app, [198, 51, 100, 7], Some(&forged_two)).await,
-            StatusCode::TOO_MANY_REQUESTS,
-            "a second forged identity from the same address must hit the same IP bucket"
-        );
-    }
-
     /// An unauthenticated caller buckets on its address, exactly as before.
     #[tokio::test]
     async fn an_anonymous_caller_buckets_on_its_address() {
-        let app = app(limiter(), Some(hs256_subject()));
+        let idp = TestIdp::start().await;
+        let app = app(limiter(), Some(Arc::new(VerifiedSubject::Oidc(idp.validator(true)))));
 
         assert_eq!(send(&app, [198, 51, 100, 8], None).await, StatusCode::OK);
         assert_eq!(send(&app, [198, 51, 100, 8], None).await, StatusCode::TOO_MANY_REQUESTS);
@@ -1520,9 +1444,10 @@ mod verified_per_user_tests {
     /// buy a fresh bucket by the mere fact of being present.
     #[tokio::test]
     async fn without_a_validator_a_bearer_token_changes_nothing() {
+        let idp = TestIdp::start().await;
         let app = app(limiter(), None);
-        let alice = token_for("alice", SECRET);
-        let bob = token_for("bob", SECRET);
+        let alice = idp.token("alice", "jti-alice");
+        let bob = idp.token("bob", "jti-bob");
 
         assert_eq!(send(&app, [198, 51, 100, 9], Some(&alice)).await, StatusCode::OK);
         assert_eq!(
@@ -1533,8 +1458,7 @@ mod verified_per_user_tests {
     }
 }
 
-/// The same properties with the subject verified by the OIDC validator, against tokens
-/// from the shared test issuer.
+/// A verified subject: the OIDC validator, against tokens from the shared test issuer.
 mod verified_per_user_oidc_tests {
     use std::sync::Arc;
 

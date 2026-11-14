@@ -13,7 +13,7 @@
 //! ```text
 //! HTTP Request with Authorization header
 //!     ↓
-//! AuthMiddleware → AuthenticatedUser
+//! OidcValidator → AuthenticatedUser
 //!     ↓
 //! SecurityContext (created from AuthenticatedUser + request metadata)
 //!     ↓

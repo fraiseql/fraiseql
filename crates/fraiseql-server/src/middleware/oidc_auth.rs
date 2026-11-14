@@ -200,12 +200,9 @@ fn revocation_rejected_response(rejection: &TokenRejection) -> Response {
 /// [`SessionTokenClaims`]) on success, or a 401 response to short-circuit the request.
 /// With no revocation manager it is a pure claims-decode.
 ///
-/// **This is the single revocation seam for request-entry authentication.** Both auth
-/// layers call it: OIDC via [`oidc_auth_middleware`], HS256 via
-/// [`hs256_auth_middleware`](crate::middleware::hs256_auth::hs256_auth_middleware).
-/// They had independent code before #1112, and only one of them checked anything — so
-/// `[security.token_revocation]`, which is auth-mode independent, was silently inert
-/// under `[auth_hs256]` while Studio's "revoke all sessions" reported success.
+/// **This is the single revocation seam for request-entry authentication.**
+/// [`oidc_auth_middleware`] calls it for every bearer it validates, whether an external
+/// provider or the server's own issuer (`[auth_issuer]`) signed it.
 // Reason: the `Err` variant IS the protocol's rejection value — it is returned to
 // the client verbatim. Boxing it to shrink the `Result` would add an allocation
 // on every rejection and force each `?` site to unbox what it is about to return.
@@ -665,12 +662,7 @@ mod revocation_tests {
         if let Some(i) = iat {
             claims.insert("iat".to_owned(), i.into());
         }
-        jsonwebtoken::encode(
-            &jsonwebtoken::Header::new(jsonwebtoken::Algorithm::HS256),
-            &serde_json::Value::Object(claims),
-            &jsonwebtoken::EncodingKey::from_secret(b"test-secret"),
-        )
-        .unwrap()
+        token_with(&serde_json::Value::Object(claims))
     }
 
     /// Build a structurally-valid JWT carrying exactly `claims`, for claim shapes

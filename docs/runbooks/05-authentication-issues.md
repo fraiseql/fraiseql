@@ -154,13 +154,8 @@ jq '.security.authentication.claim_mappings' /etc/fraiseql/schema.compiled.json
 1. **Check JWT secret key**
 
    ```bash
-   # If using symmetric signing (HS256), verify secret matches
-   # The secret should be in Vault or environment
-
-   # Check if key is accessible
-   echo "JWT_SECRET length: ${#JWT_SECRET}"
-
-   # For asymmetric signing, verify certificate chain
+   # Tokens are verified against the issuer's published public keys; there is no
+   # shared secret to compare. Verify the certificate chain
    # Check certificate expiry (common cause of token failures)
    openssl x509 -in /etc/fraiseql/jwt_cert.pem -text -noout | grep -A2 "Validity"
 
@@ -227,15 +222,10 @@ jq '.security.authentication.claim_mappings' /etc/fraiseql/schema.compiled.json
    docker restart fraiseql-server
    ```
 
-2. **Switch to backup authentication method**
+2. **There is no backup authentication method**
 
-   ```bash
-   # If OIDC is down, can temporarily use different auth:
-   export AUTH_PROVIDER="jwt_local"  # Use pre-shared JWT secret
-   export JWT_SECRET="backup-secret-key"
-
-   docker restart fraiseql-server
-   ```
+   Every bearer token is verified against an issuer's published keys, so there is no
+   shared-secret fallback to switch to while a provider is down.
 
 ### For Missing Required Claims
 

@@ -2,9 +2,9 @@
 """check-public-api-reexports.py — fail when a published crate's public API names a
 third-party type the crate does not re-export.
 
-Background (issue #1198): `fraiseql_auth::JwtValidator::new(issuer, algorithm)` takes a
+Background (issue #1198): `fraiseql_auth::JwtValidator::new(issuer, algorithm)` took a
 `jsonwebtoken::Algorithm`, and `fraiseql-auth` re-exported neither the type nor the crate.
-The documented first line of the crate's own example therefore does not compile: a
+The documented first line of the crate's own example therefore did not compile: a
 downstream must add `jsonwebtoken` as a direct dependency AND guess the major version
 `fraiseql-auth` builds against. A mismatch there is a type error, not a version warning,
 and it appears the day this workspace bumps the dependency — in code the downstream did

@@ -33,6 +33,14 @@ const REMOVED_SECTIONS: &[(&str, &str)] = &[
     ),
 ];
 
+/// Sections that configured a capability the server no longer has, mapped to what
+/// replaced it. `deny_unknown_fields` refuses them; the note says where to go instead.
+const RETIRED_SECTIONS: &[(&str, &str)] = &[(
+    "auth_hs256",
+    "shared-secret token validation was removed. `[auth_issuer]` signs and validates the \
+     sessions this server mints; `[auth]` validates an external OIDC provider's tokens",
+)];
+
 /// Append a build-feature hint to a config parse error for every compiled-out
 /// section the raw TOML declares.
 ///
@@ -64,6 +72,11 @@ pub(super) fn enrich_parse_error(
                     "\nnote: there is no `[{key}]` table in a server config file; the keys \
                      are top-level. Use {replacement}."
                 );
+            }
+        }
+        for (key, replacement) in RETIRED_SECTIONS {
+            if table.contains_key(*key) {
+                let _ = write!(msg, "\nnote: `[{key}]` is no longer supported: {replacement}.");
             }
         }
     }
@@ -404,32 +417,8 @@ impl ServerConfig {
             auth.validate().map_err(|e| e.to_string())?;
         }
 
-        // OIDC and HS256 are mutually exclusive.
-        if self.auth.is_some() && self.auth_hs256.is_some() {
-            return Err("Both [auth] (OIDC) and [auth_hs256] are configured. Pick one — \
-                 HS256 is intended for integration testing and internal services; \
-                 OIDC is intended for public-facing production."
-                .to_string());
-        }
-
-        // The first-party issuer validates its own sessions through the OIDC layer, which
-        // every transport consults before HS256: beside [auth_hs256], each HS256 token
-        // would be refused rather than validated.
         if let Some(ref issuer) = self.auth_issuer {
-            if self.auth_hs256.is_some() {
-                return Err("Both [auth_issuer] and [auth_hs256] are configured. Pick one: \
-                     [auth_issuer] signs and validates the sessions this server mints."
-                    .to_string());
-            }
             issuer.validate()?;
-        }
-
-        // Validate HS256 config if present: the secret env var must be set.
-        if let Some(ref hs) = self.auth_hs256 {
-            if hs.secret_env.trim().is_empty() {
-                return Err("auth_hs256.secret_env must not be empty".to_string());
-            }
-            hs.load_secret()?;
         }
 
         // Validate TLS config if present and enabled

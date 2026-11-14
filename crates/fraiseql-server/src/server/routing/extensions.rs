@@ -253,17 +253,10 @@ impl Server {
         mcp_cfg: &fraiseql_core::schema::McpConfig,
     ) -> Router {
         if mcp_cfg.transport.serves_http() {
-            // The same two auth modes `/graphql` accepts (#376 auth parity):
-            // OIDC (`[auth]`) or local HS256 (`[auth_hs256]`). Before this, an
-            // HS256-only deployment could never authenticate an MCP call and
-            // `require_auth = true` refused to mount the endpoint entirely.
-            let validator = self
-                .oidc_validator
-                .clone()
-                .map(crate::mcp::handler::McpTokenValidator::Oidc)
-                .or_else(|| {
-                    self.hs256_auth.clone().map(crate::mcp::handler::McpTokenValidator::Hs256)
-                });
+            // The validator `/graphql` uses (#376 auth parity): an external provider's
+            // (`[auth]`) or the server's own issuer's (`[auth_issuer]`).
+            let validator =
+                self.oidc_validator.clone().map(crate::mcp::handler::McpTokenValidator::Oidc);
 
             // SECURITY: Check require_auth flag before mounting.
             let mount_mcp = if mcp_cfg.require_auth {
@@ -279,10 +272,9 @@ impl Server {
                 } else {
                     tracing::error!(
                         path = %mcp_cfg.path,
-                        "MCP HTTP endpoint NOT mounted — require_auth=true but neither an \
-                         OIDC validator ([auth]) nor an HS256 validator ([auth_hs256]) is \
-                         configured. Configure one, or set require_auth=false (development \
-                         only)."
+                        "MCP HTTP endpoint NOT mounted — require_auth=true but no token \
+                         validator is configured. Configure [auth] or [auth_issuer], or set \
+                         require_auth=false (development only)."
                     );
                     false
                 }
@@ -304,7 +296,6 @@ impl Server {
                 let session_state = state.clone();
                 let cfg = mcp_cfg.clone();
                 let oidc = self.oidc_validator.clone();
-                let hs256 = self.hs256_auth.clone();
                 // The `[session_state]` store, for per-thread continuity (#967).
                 // Handed over unconditionally; `[mcp] session_state` decides
                 // whether the service uses it, so the two switches stay separate:
@@ -315,9 +306,7 @@ impl Server {
                 let mcp_service = crate::mcp::http::streamable_http_service(
                     move || {
                         let validator =
-                            oidc.clone().map(crate::mcp::handler::McpTokenValidator::Oidc).or_else(
-                                || hs256.clone().map(crate::mcp::handler::McpTokenValidator::Hs256),
-                            );
+                            oidc.clone().map(crate::mcp::handler::McpTokenValidator::Oidc);
                         let service = crate::mcp::handler::FraiseQLMcpService::new(
                             session_state.clone(),
                             cfg.clone(),

@@ -2143,7 +2143,7 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		"cargo test -p fraiseql-server " + serverLegFeatures + " --test rest_tenant_isolation_e2e_pg -- --test-threads=1",
 		// #1799: a fact table's aggregate and window roots carried no tenant predicate in a
 		// schema that scopes its reads by inject_params, so one tenant's aggregate counted
-		// every tenant's rows. Boots the real mount with HS256 tokens for two tenants and
+		// every tenant's rows. Boots the real mount with tokens for two tenants and
 		// requires both roots to refuse rather than read across them, anonymous included,
 		// and a `row_scope = "relation"` fact table to see its own tenant's rows only.
 		"cargo test -p fraiseql-server " + serverLegFeatures + " --test fact_table_tenant_isolation_e2e_pg -- --test-threads=1",
@@ -2189,7 +2189,7 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		// changelog table → serial.
 		"cargo test -p fraiseql-server " + serverLegFeatures + " --test async_operations_e2e_pg -- --test-threads=1",
 		// #376: an MCP-originated write is tagged transport=mcp in the change-log and
-		// HS256 Bearer tokens authenticate MCP calls (auth parity with /graphql).
+		// Bearer tokens authenticate MCP calls (auth parity with /graphql).
 		// Recreates core.tb_entity_change_log → serial, changelog-owning binary.
 		"cargo test -p fraiseql-server " + serverLegFeatures + " --test mcp_transport_stamp_e2e_pg -- --test-threads=1",
 		// #1546: a tool whose operation returns a union, an interface or an auto_error_union
@@ -2370,18 +2370,18 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		// (admin REST management + live authenticator on one store).
 		"echo '### cargo test -p fraiseql-server --test api_key_postgres_e2e_pg (#627 postgres api keys)'",
 		"cargo test -p fraiseql-server " + serverLegFeatures + " --test api_key_postgres_e2e_pg -- --test-threads=1",
-		// #934 service accounts under [auth_hs256]: the bearer-less x-api-key request
+		// #934 service accounts behind the auth layer: the bearer-less x-api-key request
 		// must reach the handler's ADR-0018 seam, while a credential-less request, an
 		// invalid bearer and an unmatched secret all still 401 at the layer.
 		"echo '### cargo test -p fraiseql-server --test service_account_auth_layers_e2e_pg (#934, #1650)'",
 		"cargo test -p fraiseql-server " + serverLegFeatures + " --test service_account_auth_layers_e2e_pg -- --test-threads=1",
-		// #1112 token revocation under [auth_hs256]: only the OIDC layer ever consulted
-		// the revocation store, so a configured [security.token_revocation] was inert and
-		// Studio's "revoke all sessions" reported success over tokens that kept working.
-		// Both revocation shapes (single jti, revoke-all epoch) plus the accepting half
-		// and require_jti, through the real mount.
-		"echo '### cargo test -p fraiseql-server --test hs256_revocation_e2e_pg (#1112)'",
-		"cargo test -p fraiseql-server " + serverLegFeatures + " --test hs256_revocation_e2e_pg -- --test-threads=1",
+		// #1112 token revocation on every bearer the server authenticates: an auth layer
+		// that never consulted the store left a configured [security.token_revocation]
+		// inert, and Studio's "revoke all sessions" reported success over tokens that kept
+		// working. Both revocation shapes (single jti, revoke-all epoch) plus the accepting
+		// half and require_jti, through the real mount.
+		"echo '### cargo test -p fraiseql-server --test bearer_revocation_e2e_pg (#1112)'",
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test bearer_revocation_e2e_pg -- --test-threads=1",
 		// #368 P26 — social login through the shipped mount, against a stub IdP:
 		// Google OIDC full loop, the GitHub /user/emails second hop (email-keyed
 		// linking), the auth_start path bucket on /auth/v1/authorize (#788), and
@@ -2400,7 +2400,7 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		// #1853 — [auth.session]: access-token lifetime on every sign-in path, refresh
 		// rotation with its 10-second reuse window, the absolute limit, logout, the
 		// session routes' rate limits and the sweep. One test sleeps ~2 minutes past a
-		// real expiry to pin the HS256 validator's 60-second leeway.
+		// real expiry to pin that the first-party issuer's leeway is fixed.
 		"echo '### cargo test -p fraiseql-server --test session_refresh_e2e_pg (#1853 session lifetime)'",
 		"cargo test -p fraiseql-server " + serverLegFeatures + " --test session_refresh_e2e_pg -- --test-threads=1",
 		// #1965 — [auth.database]: auth on a role of its own (AUTH_DATABASE_URL), the engine

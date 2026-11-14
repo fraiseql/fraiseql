@@ -53,13 +53,9 @@ pub const DEFAULT_TENANT_CLAIM: &str = "tenant_id";
 /// PostgreSQL-backed session store
 pub struct PostgresSessionStore {
     db:             PgPool,
-    /// Shared HMAC secret access tokens are signed with (HS256). The same secret must
-    /// be given to the validating side (e.g. `Hs256AuthState`). `None` means signing is
-    /// not configured and [`SessionStore::create_session`] will fail rather than mint
-    /// an unverifiable token.
-    hs256_secret:   Option<Vec<u8>>,
     /// Signs access tokens with keys the validating side finds by `kid`: the
-    /// first-party issuer's ring. Takes precedence over `hs256_secret`.
+    /// first-party issuer's ring. `None` means signing is not configured and
+    /// [`SessionStore::create_session`] will fail rather than mint an unverifiable token.
     signer:         Option<std::sync::Arc<dyn crate::AccessTokenSigner>>,
     /// `iss` claim minted into access tokens. Must match what the validating
     /// side expects — see [`Self::with_token_claims`].
@@ -127,34 +123,16 @@ impl PostgresSessionStore {
     /// [`SessionStore::revoke_session`], [`SessionStore::revoke_all_sessions`]) works,
     /// but [`SessionStore::create_session`] will return
     /// [`AuthError::ConfigError`] because there is no key to sign the access token
-    /// with. Use [`Self::with_hs256_secret`] for a store that can issue sessions.
+    /// with. Use [`Self::with_signer`] for a store that can issue sessions.
     #[must_use]
     pub fn new(db: PgPool) -> Self {
         Self {
             db,
-            hs256_secret: None,
             signer: None,
             token_issuer: DEFAULT_TOKEN_ISSUER.to_string(),
             token_audience: DEFAULT_TOKEN_AUDIENCE.to_string(),
             tenant_claim: DEFAULT_TENANT_CLAIM.to_string(),
             lifetime: SessionLifetime::default(),
-        }
-    }
-
-    /// Create a new PostgreSQL session store with HS256 (HMAC) JWT signing.
-    ///
-    /// The secret is retained for the life of the store and **must** be the same
-    /// secret configured on the validating side, otherwise the issued tokens will
-    /// not verify.
-    ///
-    /// # Arguments
-    /// * `db` - PostgreSQL connection pool
-    /// * `secret` - Shared HMAC secret (use at least 32 bytes of entropy)
-    #[must_use]
-    pub fn with_hs256_secret(db: PgPool, secret: Vec<u8>) -> Self {
-        Self {
-            hs256_secret: Some(secret),
-            ..Self::new(db)
         }
     }
 
@@ -191,10 +169,10 @@ impl PostgresSessionStore {
     /// Set the `iss` / `aud` claims minted into access tokens.
     ///
     /// The defaults (`fraiseql` / `fraiseql-api`) only validate against a
-    /// validator configured with exactly those values. A deployment whose
-    /// `[auth_hs256]` declares its own issuer/audience **must** mint matching
-    /// claims, or every login "succeeds" and then 401s on the first validated
-    /// request — the mint/validate drift #368's server mount surfaced.
+    /// validator configured with exactly those values. A store minting for a
+    /// validator with its own issuer/audience **must** mint matching claims, or
+    /// every login "succeeds" and then 401s on the first validated request — the
+    /// mint/validate drift #368's server mount surfaced.
     #[must_use]
     pub fn with_token_claims(
         mut self,
@@ -238,6 +216,15 @@ impl PostgresSessionStore {
         tenant: Option<uuid::Uuid>,
         expires_in: u64,
     ) -> Result<(String, String)> {
+        let Some(signer) = &self.signer else {
+            return Err(AuthError::ConfigError {
+                message: "JWT signing is not configured for this PostgresSessionStore — \
+                          construct it with with_signer. Refusing to issue an access \
+                          token that no validator could verify."
+                    .to_string(),
+            });
+        };
+
         // SECURITY: Propagate clock errors; unwrap_or_default would produce iat=0.
         let now = unix_now()?;
 
@@ -247,7 +234,7 @@ impl PostgresSessionStore {
             sub: user_id.to_string(),
             iat: now,
             exp,
-            nbf: self.signer.as_ref().map(|_| now),
+            nbf: Some(now),
             iss: self.token_issuer.clone(),
             aud: vec![self.token_audience.clone()],
             extra: std::collections::HashMap::new(),
@@ -267,18 +254,7 @@ impl PostgresSessionStore {
             );
         }
 
-        if let Some(signer) = &self.signer {
-            return Ok((signer.sign_access_token(&claims)?, jti));
-        }
-        match &self.hs256_secret {
-            Some(secret) => Ok((crate::jwt::generate_hs256_token(&claims, secret)?, jti)),
-            None => Err(AuthError::ConfigError {
-                message: "JWT signing is not configured for this PostgresSessionStore — \
-                          construct it with with_signer. Refusing to issue an access \
-                          token that no validator could verify."
-                    .to_string(),
-            }),
-        }
+        Ok((signer.sign_access_token(&claims)?, jti))
     }
 }
 

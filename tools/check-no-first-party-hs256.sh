@@ -4,13 +4,14 @@
 #
 # The server signs the sessions it mints with ES256 keys of its own (`[auth_issuer]`) and
 # validates every bearer through `OidcValidator`. The shared-secret path (`[auth_hs256]`,
-# its middleware, `fraiseql_auth::JwtValidator` and the tokens tests mint for it) is being
+# its middleware, `fraiseql_auth::JwtValidator` and the tokens tests mint for it) was
 # removed. This gate keeps it from coming back, one file at a time:
 #
 #   EXEMPT   files that legitimately name HS256 for good: they sign tokens that are not
-#            first-party sign-in tokens, or they prove an HS256 token is refused.
-#   PENDING  files that still carry the path and are scheduled for removal. The list
-#            only shrinks: an entry that no longer matches must be deleted from it.
+#            first-party sign-in tokens, they prove an HS256 token is refused, or they
+#            refuse the retired `[auth_hs256]` section by name.
+#   PENDING  files that still carry the path and are scheduled for removal. It is
+#            empty, and only shrinks: an entry that no longer matches must be deleted.
 #
 # Every other `.rs` or `.toml` file under crates/ and examples/ must not match.
 # Comment lines do not count: prose that names the removed path is not the path.
@@ -28,57 +29,11 @@ crates/fraiseql-server/tests/flight_decimal_pg.rs
 crates/fraiseql-server/tests/flight_do_put_outbox_pg.rs
 crates/fraiseql-core/src/security/oidc/tests.rs
 crates/fraiseql-server/tests/first_party_issuer_e2e_pg.rs
+crates/fraiseql-server/src/server_config/methods.rs
+crates/fraiseql-server/src/server_config/tests.rs
 '
 
 PENDING='
-crates/fraiseql-auth/benches/auth_bench.rs
-crates/fraiseql-auth/fuzz/fuzz_targets/jwt_parse.rs
-crates/fraiseql-auth/src/jwt/mod.rs
-crates/fraiseql-auth/src/lib.rs
-crates/fraiseql-auth/src/saml/tests.rs
-crates/fraiseql-auth/src/security_tests.rs
-crates/fraiseql-auth/src/session_postgres.rs
-crates/fraiseql-auth/src/session_postgres/tests.rs
-crates/fraiseql-auth/src/tests.rs
-crates/fraiseql-auth/tests/postgres_scim_provisioning.rs
-crates/fraiseql-auth/tests/postgres_session_mfa.rs
-crates/fraiseql-auth/tests/postgres_session_tenant.rs
-crates/fraiseql-auth/tests/public_api_is_self_sufficient.rs
-crates/fraiseql-core/src/security/auth_middleware/middleware.rs
-crates/fraiseql-core/src/security/auth_middleware/mod.rs
-crates/fraiseql-core/src/security/auth_middleware/signing_key.rs
-crates/fraiseql-core/src/security/auth_middleware/tests.rs
-crates/fraiseql-core/src/security/mod.rs
-crates/fraiseql-server/src/mcp/handler.rs
-crates/fraiseql-server/src/mcp/tests.rs
-crates/fraiseql-server/src/middleware/hs256_auth.rs
-crates/fraiseql-server/src/middleware/mod.rs
-crates/fraiseql-server/src/middleware/oidc_auth.rs
-crates/fraiseql-server/src/middleware/rate_limit/identity.rs
-crates/fraiseql-server/src/middleware/rate_limit/tests.rs
-crates/fraiseql-server/src/middleware/tests.rs
-crates/fraiseql-server/src/server/builder.rs
-crates/fraiseql-server/src/server/capabilities/rest.rs
-crates/fraiseql-server/src/server/mod.rs
-crates/fraiseql-server/src/server/parity_tests.rs
-crates/fraiseql-server/src/server/routing/admin.rs
-crates/fraiseql-server/src/server/routing/auth.rs
-crates/fraiseql-server/src/server/routing/extensions.rs
-crates/fraiseql-server/src/server/routing/middleware.rs
-crates/fraiseql-server/src/server/routing/mod.rs
-crates/fraiseql-server/src/server_config/auth_issuer/tests.rs
-crates/fraiseql-server/src/server_config/hs256.rs
-crates/fraiseql-server/src/server_config/hs256/tests.rs
-crates/fraiseql-server/src/server_config/methods.rs
-crates/fraiseql-server/src/server_config/mod.rs
-crates/fraiseql-server/src/server_config/tests.rs
-crates/fraiseql-server/tests/auth_regression_test.rs
-crates/fraiseql-server/tests/config_coverage_manifest_test.rs
-crates/fraiseql-server/tests/config_struct_test.rs
-crates/fraiseql-server/tests/graphql_sse_e2e_pg.rs
-crates/fraiseql-server/tests/hs256_revocation_e2e_pg.rs
-crates/fraiseql-server/tests/security/auth_bypass_detection_test.rs
-examples/authentication/src/main.rs
 '
 
 # The self-test (tools/tests/no_first_party_hs256_test.sh) runs against fixture trees,

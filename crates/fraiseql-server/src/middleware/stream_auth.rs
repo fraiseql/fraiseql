@@ -28,8 +28,7 @@ use crate::{middleware::oidc_auth::SessionTokenClaims, token_revocation::TokenRe
 ///
 /// The claims extension being the marker is why an auth layer that authenticates a
 /// principal without inserting `SessionTokenClaims` silently disables the revocation
-/// half of this guard for every connection it admits — which is what `[auth_hs256]`
-/// did before #1112.
+/// half of this guard for every connection it admits (#1112).
 #[derive(Clone)]
 pub struct StreamAuthGuard {
     /// When the principal's token expires. `None` for anonymous connections.

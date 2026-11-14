@@ -315,9 +315,10 @@ This is useful for hiding administrative mutations from AI clients while still e
 
 ### Authentication
 
-MCP accepts the same two Bearer-token modes as `/graphql`: OIDC (`[auth]`) or
-local HS256 (`[auth_hs256]`). With `require_auth = true` (the default) and
-neither configured, the HTTP endpoint refuses to mount, loudly. A validated
+MCP accepts the same Bearer tokens as `/graphql`: an external OIDC provider's
+(`[auth]`) or the sessions the server's own issuer mints (`[auth_issuer]`). With
+`require_auth = true` (the default) and neither configured, the HTTP endpoint
+refuses to mount, loudly. A validated
 token becomes the same security context `/graphql` builds — the claim named by
 `[fraiseql.tenancy] tenant_claim` (default `tenant_id`) resolves the tenant, custom
 claims feed RLS session variables, and the #390

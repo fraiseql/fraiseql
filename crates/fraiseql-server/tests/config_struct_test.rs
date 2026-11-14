@@ -212,17 +212,11 @@ fn section_cases() -> Vec<(&'static str, &'static str, &'static str)> {
             "[auth]\nissuer = \"https://idp.test\"\n",
             "[auth]\nisseur = \"https://idp.test\"\n",
         ),
-        // ⚠ The mistyped key must be an **optional** one. Misspelling `secret_env`
-        // (required, no `serde(default)`) is refused as a *missing field* whether or not
-        // the struct denies unknown ones — so it would pass before the fix and prove
-        // nothing. `issuer` has a default, so only `deny_unknown_fields` can refuse it.
-        (
-            "auth_hs256",
-            "[auth_hs256]\nsecret_env = \"S\"\nissuer = \"i\"\n",
-            "[auth_hs256]\nsecret_env = \"S\"\nisseur = \"i\"\n",
-        ),
-        // `key_encryption_key_env` has a default, so only `deny_unknown_fields` refuses
-        // its misspelling (`url` and `audience` are required: see the note above).
+        // ⚠ The mistyped key must be an **optional** one. Misspelling a required key is
+        // refused as a *missing field* whether or not the struct denies unknown ones — so
+        // it would pass before the fix and prove nothing. `key_encryption_key_env` has a
+        // default, so only `deny_unknown_fields` refuses its misspelling (`url` and
+        // `audience` are required).
         (
             "auth_issuer",
             "[auth_issuer]\nurl = \"u\"\naudience = \"a\"\nkey_encryption_key_env = \"K\"\n",

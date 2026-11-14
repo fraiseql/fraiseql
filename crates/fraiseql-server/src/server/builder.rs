@@ -9,7 +9,7 @@ use fraiseql_core::{
     db::traits::{DatabaseAdapter, Writer},
     runtime::{Executor, SubscriptionManager},
     schema::CompiledSchema,
-    security::{AuthConfig, AuthMiddleware, OidcValidator},
+    security::OidcValidator,
 };
 use fraiseql_guard::deployment::Deployment;
 use tracing::info;
@@ -87,36 +87,6 @@ fn load_saml_sp_keys(
         previous_private_key,
         previous_certificate,
     })
-}
-
-/// Build an HS256 validator from the server config, if configured.
-pub(super) fn build_hs256_auth(config: &ServerConfig) -> Result<Option<Arc<AuthMiddleware>>> {
-    let Some(ref hs) = config.auth_hs256 else {
-        return Ok(None);
-    };
-    // Reject incompatible config shapes *before* loading the secret, so a
-    // dev environment with a real secret env-var but missing audience still
-    // surfaces the audience error rather than silently booting.  Closes the
-    // cross-service token-confusion gap for the HS256 path (#359).
-    hs.validate()
-        .map_err(|e| ServerError::ConfigError(format!("Failed to initialize HS256 auth: {e}")))?;
-    let secret = hs
-        .load_secret()
-        .map_err(|e| ServerError::ConfigError(format!("Failed to initialize HS256 auth: {e}")))?;
-    let mut auth_config = AuthConfig::with_hs256(&secret);
-    if let Some(ref iss) = hs.issuer {
-        auth_config = auth_config.with_issuer(iss);
-    }
-    if let Some(ref aud) = hs.audience {
-        auth_config = auth_config.with_audience(aud);
-    }
-    info!(
-        secret_env = %hs.secret_env,
-        issuer = ?hs.issuer,
-        audience = ?hs.audience,
-        "Initializing HS256 authentication (local validation, no network)"
-    );
-    Ok(Some(Arc::new(AuthMiddleware::from_config(auth_config))))
 }
 
 /// Every subsystem a constructor reads out of the compiled schema (and the
@@ -547,8 +517,8 @@ impl Server {
         // documented library embedding (`from_file` + `Server::new`) — faces the
         // same production safety gates. `main.rs` also validates (earlier, for a
         // friendlier error before any subsystem work); this is the backstop the
-        // library path used to lack, which let a public playground, a zero pool
-        // timeout, or OIDC+HS256 both configured boot without complaint.
+        // library path used to lack, which let a public playground or a zero pool
+        // timeout boot without complaint.
         config.validate().map_err(ServerError::ConfigError)?;
 
         let SchemaSubsystems {
@@ -730,9 +700,6 @@ impl Server {
             ),
         };
         let oidc_validator = oidc_validator.map(Arc::new);
-
-        // Initialize HS256 validator if configured (mutually exclusive with OIDC).
-        let hs256_auth = build_hs256_auth(&config)?;
 
         // Initialize observer runtime
         #[cfg(feature = "observers")]
@@ -1148,7 +1115,6 @@ impl Server {
             federation_enabled,
             config.service_sdl_requires_auth(),
             oidc_validator.is_some()
-                || hs256_auth.is_some()
                 || api_key_authenticator.is_some()
                 || service_account_authenticator.is_some(),
         );
@@ -1164,7 +1130,6 @@ impl Server {
             subscription_drain: Arc::new(tokio::sync::watch::channel(false).0),
             max_subscriptions_per_connection: None,
             oidc_validator,
-            hs256_auth,
             #[cfg(feature = "auth")]
             first_party,
             rate_limiter,
@@ -2118,14 +2083,11 @@ impl Server {
         // no headers, but the tenant registry, the suspended-tenant gate and the
         // error sanitizer must apply on both transports, not just the one whose
         // construction path happened to be wired to them.
-        // Same two auth modes as the HTTP mount (#376 parity) — inert on stdio
-        // itself (no per-request credentials there), but kept identical so the
-        // construction paths cannot drift (#858's lesson).
-        let validator = self
-            .oidc_validator
-            .clone()
-            .map(crate::mcp::handler::McpTokenValidator::Oidc)
-            .or_else(|| self.hs256_auth.clone().map(crate::mcp::handler::McpTokenValidator::Hs256));
+        // The same validator as the HTTP mount (#376 parity) — inert on stdio itself (no
+        // per-request credentials there), but kept identical so the construction paths
+        // cannot drift (#858's lesson).
+        let validator =
+            self.oidc_validator.clone().map(crate::mcp::handler::McpTokenValidator::Oidc);
         let service = crate::mcp::handler::FraiseQLMcpService::new(app_state, mcp_cfg)
             .with_token_validator(validator);
         // Same store as the HTTP transport (#967). stdio carries no

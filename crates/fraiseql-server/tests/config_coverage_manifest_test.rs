@@ -85,7 +85,6 @@ const MANIFEST: &[(&str, &str)] = &[
     ("design_api_require_auth", "design API auth gate"),
     // ── Auth backends ────────────────────────────────────────────────────────
     ("auth", "OIDC auth config (fraiseql-core OidcConfig, Option)"),
-    ("auth_hs256", "HS256 JWT auth config (Option)"),
     (
         "auth_issuer",
         "first-party issuer (#1964): the builder seals its key ring under the key-encryption \

@@ -27,7 +27,7 @@ impl Capability for Rest {
         // Whether an auth layer will actually be attached below. Passed into the router so
         // the served OpenAPI advertises the security the server enforces rather than a
         // static template (#810).
-        let authenticated = server.oidc_validator.is_some() || server.hs256_auth.is_some();
+        let authenticated = server.oidc_validator.is_some();
         let mount = crate::routes::rest::RestMountConfig {
             compression_enabled: server.config.compression_enabled,
             auth_layer_attached: authenticated,

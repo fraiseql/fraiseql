@@ -1,14 +1,10 @@
-//! Authentication types: `AuthenticatedUser`, `AuthRequest`.
+//! Authentication types: `AuthenticatedUser`, and the claim readers that build one.
 
 use std::{collections::HashMap, fmt};
 
 use chrono::{DateTime, Utc};
-use serde::Deserialize;
 
-use crate::{
-    security::errors::{Result, SecurityError},
-    types::UserId,
-};
+use crate::types::UserId;
 
 /// Authenticated user information extracted from JWT claims
 ///
@@ -41,9 +37,8 @@ pub struct AuthenticatedUser {
 
     /// Arbitrary extra claims from the JWT, forwarded by the OIDC validator.
     ///
-    /// Populated from the `#[serde(flatten)] extra` field on `JwtClaims` when
-    /// the OIDC validation path is used.  Empty when tokens are validated via
-    /// the legacy `AuthMiddleware` signing-key path or API-key authentication.
+    /// Populated by the OIDC validator from the token's unregistered claims. Empty
+    /// for API-key authentication.
     ///
     /// Used by `GET /auth/me` to surface a configurable subset of custom OIDC
     /// claims (e.g. `"email"`, `"tenant_id"`, namespaced claims) to the
@@ -80,114 +75,6 @@ impl AuthenticatedUser {
     pub fn ttl_secs(&self) -> i64 {
         (self.expires_at - Utc::now()).num_seconds()
     }
-}
-
-/// Request context for authentication validation
-///
-/// Contains information extracted from an HTTP request.
-///
-/// # Debug redaction
-///
-/// `Debug` is implemented manually so the raw `Authorization` header — which
-/// carries the bearer token — is never written to logs.  Calling `{:?}` on an
-/// `AuthRequest` yields `AuthRequest { authorization_header: Some("<redacted>") }`
-/// (or `None`) instead of the bearer credentials.  Tracing instrumentation that
-/// captures `?req` is therefore safe by construction.
-#[derive(Clone)]
-pub struct AuthRequest {
-    /// Raw Authorization header value (e.g., "Bearer eyJhbG...")
-    pub authorization_header: Option<String>,
-}
-
-impl fmt::Debug for AuthRequest {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // SECURITY: never write the raw Authorization header to Debug output —
-        // it carries the bearer token.  Surface only the presence/absence.
-        f.debug_struct("AuthRequest")
-            .field(
-                "authorization_header",
-                &self.authorization_header.as_ref().map(|_| "<redacted>"),
-            )
-            .finish()
-    }
-}
-
-impl AuthRequest {
-    /// Create a new auth request from an authorization header
-    #[must_use]
-    pub const fn new(authorization_header: Option<String>) -> Self {
-        Self {
-            authorization_header,
-        }
-    }
-
-    /// Extract the bearer token from the Authorization header.
-    ///
-    /// Expected format: `"Bearer <token>"`
-    ///
-    /// # Errors
-    ///
-    /// Returns [`SecurityError::AuthRequired`] if the Authorization header is
-    /// absent or carries no `Bearer` credential
-    /// ([`bearer_credential`](crate::security::bearer_credential)).
-    pub fn extract_bearer_token(&self) -> Result<String> {
-        let header = self.authorization_header.as_deref().ok_or(SecurityError::AuthRequired)?;
-        crate::security::bearer_credential(header)
-            .map(ToOwned::to_owned)
-            .ok_or(SecurityError::AuthRequired)
-    }
-}
-
-/// JWT claims structure for jsonwebtoken crate deserialization.
-///
-/// This struct is used internally for decoding and validating JWT tokens
-/// when signature verification is enabled.
-#[derive(Debug, Deserialize)]
-pub(super) struct JwtClaims {
-    /// Subject (user ID) - required
-    pub(super) sub: Option<String>,
-
-    /// Expiration timestamp (seconds since epoch) - required
-    pub(super) exp: Option<i64>,
-
-    /// Issued at timestamp (captured but not used directly)
-    #[serde(default)]
-    #[allow(dead_code)] // Reason: serde deserialization target, validated by jsonwebtoken
-    pub(super) iat: Option<i64>,
-
-    /// Not before timestamp (captured but not used directly)
-    #[serde(default)]
-    #[allow(dead_code)] // Reason: serde deserialization target, validated by jsonwebtoken
-    pub(super) nbf: Option<i64>,
-
-    /// Scope claim (space-separated string)
-    #[serde(default)]
-    pub(super) scope: Option<String>,
-
-    /// Scopes as array (alternative format used by some providers)
-    #[serde(default)]
-    pub(super) scp: Option<Vec<String>>,
-
-    /// Permissions (Auth0 RBAC style)
-    #[serde(default)]
-    pub(super) permissions: Option<Vec<String>>,
-
-    /// Audience claim (validated by jsonwebtoken, captured for logging)
-    #[serde(default)]
-    #[allow(dead_code)] // Reason: serde deserialization target, validated by jsonwebtoken
-    pub(super) aud: Option<serde_json::Value>,
-
-    /// Issuer claim (validated by jsonwebtoken, captured for logging)
-    #[serde(default)]
-    #[allow(dead_code)] // Reason: serde deserialization target, validated by jsonwebtoken
-    pub(super) iss: Option<String>,
-
-    /// Arbitrary extra claims not captured by named fields above.
-    ///
-    /// Passed through to `AuthenticatedUser.extra_claims` so that custom OIDC
-    /// claims are available to handlers such as `GET /auth/me`.
-    #[serde(flatten)]
-    pub(super) extra: HashMap<String, serde_json::Value>,
 }
 
 // ---------------------------------------------------------------------------

@@ -182,7 +182,6 @@ curl -s -H "X-Vault-Token: $VAULT_TOKEN" \
    # This bypasses Vault entirely — high security risk, temporary only.
    export FRAISEQL_SECRETS_BACKEND=env
    export DATABASE_PASSWORD="<backup-password>"
-   export JWT_SECRET="<backup-jwt-key>"
    docker restart fraiseql-server
    ```
 
@@ -264,7 +263,6 @@ curl -s -H "X-Vault-Token: $VAULT_TOKEN" \
    # supply the secrets directly.
    export FRAISEQL_SECRETS_BACKEND=env
    export DATABASE_PASSWORD="fallback-password"  # Must have backup
-   export JWT_SECRET="fallback-jwt-key"
    # Note: This bypasses secret management, high security risk!
    docker restart fraiseql-server
    ```

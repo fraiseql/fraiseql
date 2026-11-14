@@ -208,7 +208,7 @@ docker logs fraiseql-server | grep "429\|rate limit" | \
 
    Anonymous clients share the per-IP budget; authenticated clients get the per-user
    budget. "Authenticated" means the bearer token **verifies** against the deployment's
-   configured validator (`[auth]` or `[auth_hs256]`) — a request whose token is absent,
+   configured validator (`[auth]` or `[auth_issuer]`) — a request whose token is absent,
    expired or forged shares the per-IP budget, and a deployment with no authentication
    configured has no per-user budget at all (#1171):
 

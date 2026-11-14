@@ -42,7 +42,7 @@ This does not make the *campaign* a merge gate — see "It is an assurance signa
 not a merge gate". Whether a target compiles is deterministic; whether it finds a
 crash is not, and only the first is gated.
 
-### fraiseql-core (8 targets)
+### fraiseql-core (9 targets)
 
 | Target | What It Fuzzes | Correctness Checks |
 |--------|---------------|-------------------|
@@ -54,6 +54,7 @@ crash is not, and only the first is gated.
 | `schema_compile` | Schema compilation pipeline | Roundtrip, name validation |
 | `query_variables` | Query variable definitions | Name/type invariants |
 | `rate_limiter` | Rate-limiter key handling | Never panics |
+| `oidc_token` | Bearer-token validation through `OidcValidator` | Never panics |
 
 ### fraiseql-wire (3 targets)
 
@@ -78,7 +79,7 @@ crash is not, and only the first is gated.
 |-------|---------|
 | `fraiseql-federation` | `subgraph_response` **scheduled** |
 | `fraiseql-server` | `graphql_request` **scheduled**, `toml_config` **scheduled** |
-| `fraiseql-auth` | `jwt_parse`, `pkce_token_parse`, `state_token_decrypt` |
+| `fraiseql-auth` | `pkce_token_parse`, `state_token_decrypt` |
 | `fraiseql-secrets` | `encrypted_field_decode`, `vault_secret_name` |
 | `fraiseql-arrow` | `db_convert`, `flight_ticket` |
 

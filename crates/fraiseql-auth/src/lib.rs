@@ -110,12 +110,7 @@ pub use chrono;
 pub use constant_time::ConstantTimeOps;
 pub use error::{AuthError, Result};
 pub use handlers::{AuthCallbackQuery, AuthStartRequest, AuthState, auth_callback, auth_start};
-/// The `jsonwebtoken` this crate's public API is built against (#1198).
-pub use jsonwebtoken;
-/// `jsonwebtoken::Algorithm`, which `JwtValidator::new` takes — the crate's own
-/// documented first line needs it in scope (#1198).
-pub use jsonwebtoken::Algorithm;
-pub use jwt::{Claims, JwtValidator, generate_hs256_token};
+pub use jwt::Claims;
 pub use local_password::{
     EMAIL_VERIFICATION_SCHEMA_SQL, EMAIL_VERIFICATION_TOKEN_TTL_SECS, EmailVerified,
     LocalPasswordAuthenticator, PASSWORD_RESET_SCHEMA_SQL, PASSWORD_SCHEMA_SQL, PromotionDecision,

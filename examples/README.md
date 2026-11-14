@@ -37,7 +37,7 @@ gitignored.
 | [`complex-queries/`](complex-queries) | yes | nesting, variables, filtering, ordering, two root fields in one operation |
 | [`performance/`](performance) | yes | repeated timings, a phase trace that accounts for its own total, structured SQL logs |
 | [`subscriptions/`](subscriptions) | no | the subscription manager end to end in one process |
-| [`authentication/`](authentication) | no | mint a JWT, validate it, and five tokens that must be rejected |
+| [`authentication/`](authentication) | no | mint a token, validate it, and five tokens that must be rejected |
 
 ```bash
 cd examples/basic-query

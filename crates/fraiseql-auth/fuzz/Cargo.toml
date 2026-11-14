@@ -8,11 +8,6 @@ edition = "2021"
 cargo-fuzz = true
 
 [[bin]]
-name = "jwt_parse"
-path = "fuzz_targets/jwt_parse.rs"
-doc = false
-
-[[bin]]
 name = "pkce_token_parse"
 path = "fuzz_targets/pkce_token_parse.rs"
 doc = false
@@ -24,7 +19,6 @@ doc = false
 
 [dependencies]
 libfuzzer-sys = "0.4"
-jsonwebtoken = "10"
 
 [dependencies.fraiseql-auth]
 path = ".."

@@ -94,20 +94,6 @@ fn an_empty_key_encryption_key_env_is_refused() {
 }
 
 #[test]
-fn the_issuer_and_hs256_together_are_refused() {
-    let config: ServerConfig = toml::from_str(
-        "[auth_hs256]\nsecret_env = \"S\"\naudience = \"a\"\n\n\
-         [auth_issuer]\nurl = \"https://api.example.com\"\naudience = \"my-api\"\n",
-    )
-    .expect("parses");
-    let message = config.validate().expect_err("refused");
-    assert!(
-        message.contains("[auth_issuer]") && message.contains("[auth_hs256]"),
-        "{message}"
-    );
-}
-
-#[test]
 fn the_server_config_refuses_an_issuer_section_that_does_not_validate() {
     let config: ServerConfig =
         toml::from_str("[auth_issuer]\nurl = \"http://api.example.com\"\naudience = \"my-api\"\n")

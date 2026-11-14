@@ -19,7 +19,7 @@ use super::{
 };
 use crate::{
     auth::{anon_signup, mfa_confirm, mfa_enroll, mfa_unenroll, mfa_verify},
-    middleware::{AuthUser, hs256_auth_middleware},
+    middleware::AuthUser,
 };
 
 /// Resolve the client a per-address auth budget keys on: the address a trusted proxy
@@ -68,13 +68,12 @@ impl Server {
         Some(Arc::new(fraiseql_auth::PostgresSessionStore::new(pool)))
     }
 
-    /// `router` behind the sessions this server mints: the first-party issuer's OIDC layer
-    /// (or the HS256 layer of a deployment that still validates its own HS256 tokens),
+    /// `router` behind the sessions this server mints: the first-party issuer's OIDC layer,
     /// revocation included, naming the authenticated account as the [`SessionSubject`] its
     /// handlers act on. The OIDC layer here trusts the first-party issuer alone, never an
-    /// external identity provider beside it. `None` without either layer: a route that acts
-    /// on the caller's own account is not mounted at all rather than served to no one in
-    /// particular. `[auth.local]` refuses to boot without `[auth_issuer]`, so `None` is for
+    /// external identity provider beside it. `None` without `[auth_issuer]`: a route that
+    /// acts on the caller's own account is not mounted at all rather than served to no one
+    /// in particular. `[auth.local]` refuses to boot without `[auth_issuer]`, so `None` is for
     /// an embedder that attached such state by hand.
     ///
     /// [`SessionSubject`]: fraiseql_auth::SessionSubject
@@ -82,24 +81,14 @@ impl Server {
     /// `cookie` says whether the access cookie is a credential on these routes: only where
     /// every route refuses a body that is not `JSON`, which a form another site posts is.
     fn behind_session(&self, router: Router, cookie: AccessCookie) -> Option<Router> {
-        if let Some(ref issuer) = self.first_party {
-            let session = self
-                .oidc_auth_state(issuer.own_tokens())
-                .with_access_cookie(self.reads_access_cookie(cookie));
-            return Some(
-                router
-                    .route_layer(middleware::from_fn(session_subject))
-                    .route_layer(middleware::from_fn_with_state(session, oidc_auth_middleware)),
-            );
-        }
-        let validator = self.hs256_auth.as_ref()?;
+        let issuer = self.first_party.as_ref()?;
         let session = self
-            .hs256_auth_state(Arc::clone(validator), self.hs256_realm())
+            .oidc_auth_state(issuer.own_tokens())
             .with_access_cookie(self.reads_access_cookie(cookie));
         Some(
             router
                 .route_layer(middleware::from_fn(session_subject))
-                .route_layer(middleware::from_fn_with_state(session, hs256_auth_middleware)),
+                .route_layer(middleware::from_fn_with_state(session, oidc_auth_middleware)),
         )
     }
 
@@ -231,7 +220,7 @@ impl Server {
             } else {
                 tracing::warn!(
                     "email verification not mounted: it acts on the signed-in account, and no \
-                     [auth_issuer] or [auth_hs256] layer resolves one"
+                     [auth_issuer] layer resolves one"
                 );
             }
         }
@@ -257,7 +246,7 @@ impl Server {
             } else {
                 tracing::warn!(
                     "TOTP MFA enroll/confirm/unenroll not mounted: they act on the signed-in \
-                     account, and no [auth_issuer] or [auth_hs256] layer resolves one"
+                     account, and no [auth_issuer] layer resolves one"
                 );
             }
             // Verify redeems the challenge a first factor earned; the challenge is issued

@@ -44,10 +44,7 @@ use fraiseql_core::security::OidcValidator;
 use tracing::info;
 
 use super::{OidcAuthState, Server, oidc_auth_middleware};
-use crate::{
-    middleware::{Hs256AuthState, TenantClaim, hs256_auth_middleware},
-    routes::graphql::AppState,
-};
+use crate::{middleware::TenantClaim, routes::graphql::AppState};
 
 /// Whether a data-serving transport authenticates its callers.
 ///
@@ -59,9 +56,9 @@ use crate::{
 /// session-variable tenant stamping were skipped in silence.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum AuthPosture {
-    /// Callers are authenticated by whichever validator the deployment configured
-    /// (OIDC or HS256), exactly as `/graphql` authenticates them. When no validator is
-    /// configured this is a no-op layer and the transport serves anonymous callers —
+    /// Callers are authenticated by the deployment's validator (an external provider's,
+    /// or the server's own issuer's), exactly as `/graphql` authenticates them. When no validator
+    /// is configured this is a no-op layer and the transport serves anonymous callers —
     /// which is why every guard downstream must still fail closed on a `None` context
     /// rather than treat it as "no filter required".
     Authenticated,
@@ -85,8 +82,8 @@ pub(super) enum AccessCookie {
 }
 
 impl Server {
-    /// Whether the HS256 layer on a mount declaring `cookie` reads the access cookie:
-    /// only in cookie transport.
+    /// Whether a mount declaring `cookie` reads the access cookie this server's own
+    /// sign-in sets: only in cookie transport.
     #[cfg_attr(not(feature = "auth"), allow(clippy::unused_self))] // Reason: reads auth state
     pub(super) const fn reads_access_cookie(&self, cookie: AccessCookie) -> bool {
         #[cfg(feature = "auth")]
@@ -160,15 +157,6 @@ impl Server {
             return router.route_layer(from_fn_with_state(auth_state, oidc_auth_middleware));
         }
 
-        if let Some(ref validator) = self.hs256_auth {
-            info!(transport, "transport protected by HS256 authentication");
-            let auth_state = self
-                .hs256_auth_state(Arc::clone(validator), self.hs256_realm())
-                .with_service_accounts(self.service_account_authenticator.clone())
-                .with_access_cookie(self.reads_access_cookie(cookie));
-            return router.route_layer(from_fn_with_state(auth_state, hs256_auth_middleware));
-        }
-
         info!(
             transport,
             "no authentication configured — transport serves anonymous callers; row-scoping \
@@ -196,36 +184,6 @@ impl Server {
     /// the revocation check for that route.
     pub(super) fn oidc_auth_state(&self, validator: Arc<OidcValidator>) -> OidcAuthState {
         OidcAuthState::new(validator, TenantClaim::of(self.executor.schema()))
-            .with_revocation(self.revocation_manager.clone())
-    }
-
-    /// Build an [`Hs256AuthState`], attaching the configured token-revocation manager —
-    /// the HS256 twin of [`oidc_auth_state`](Self::oidc_auth_state).
-    ///
-    /// `[security.token_revocation]` is a compiled-schema setting independent of the auth
-    /// mode, but only the OIDC layer consulted it, so under `[auth_hs256]` a configured
-    /// store was inert: Studio's `POST /admin/v1/users/{id}/revoke` recorded the epoch,
-    /// answered `"All sessions revoked"`, and every one of that user's tokens kept working
-    /// (#1112). `[auth.social]` and `[auth.local]` then required `[auth_hs256]`, so that was
-    /// the auth mode of every social-login and local-password deployment.
-    ///
-    /// This helper exists for the same reason its OIDC twin does: a bare
-    /// The realm an HS256 challenge names: the configured issuer, else `fraiseql`.
-    pub(super) fn hs256_realm(&self) -> String {
-        self.config
-            .auth_hs256
-            .as_ref()
-            .and_then(|h| h.issuer.clone())
-            .unwrap_or_else(|| "fraiseql".to_string())
-    }
-
-    /// `Hs256AuthState::new` at a mount would silently skip revocation for that mount.
-    pub(super) fn hs256_auth_state(
-        &self,
-        validator: Arc<fraiseql_core::security::AuthMiddleware>,
-        realm: String,
-    ) -> Hs256AuthState {
-        Hs256AuthState::new(validator, realm, TenantClaim::of(self.executor.schema()))
             .with_revocation(self.revocation_manager.clone())
     }
 

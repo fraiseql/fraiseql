@@ -12,15 +12,16 @@
 
 #![allow(clippy::unwrap_used, clippy::print_stderr)] // Reason: test code — panics and skip diagnostics are acceptable
 
+mod common;
+
+use common::minting_store;
 use fraiseql_auth::{
-    AccountStore as _, JwtValidator, PostgresAccountStore, PostgresSessionStore, SessionStore as _,
+    AccountStore as _, PostgresAccountStore, PostgresSessionStore, SessionStore as _,
 };
 use fraiseql_test_support::try_database_url;
-use jsonwebtoken::Algorithm;
 use sqlx::{PgPool, Row as _, postgres::PgPoolOptions};
 use uuid::Uuid;
 
-const SECRET: &[u8] = b"session-tenant-test-secret-32byte";
 const TENANT: Uuid = Uuid::from_u128(0x7777_7777_7777_4777_8777_7777_7777_7777);
 
 async fn fresh() -> Option<(PgPool, PostgresAccountStore)> {
@@ -56,13 +57,16 @@ fn in_an_hour() -> u64 {
         + 3600
 }
 
-/// The claims of a minted access token, verified with the store's own secret.
+/// The custom claims of a minted access token. Read without verifying: the signature is
+/// the signer's, covered by `postgres_signing_key.rs`; what these tests assert is what the
+/// store put in the token.
 fn claims(token: &str) -> serde_json::Map<String, serde_json::Value> {
-    let validator = JwtValidator::new("fraiseql", Algorithm::HS256)
+    jsonwebtoken::dangerous::insecure_decode::<fraiseql_auth::Claims>(token)
         .unwrap()
-        .with_audiences(&["fraiseql-api"])
-        .unwrap();
-    validator.validate_hmac(token, SECRET).unwrap().extra.into_iter().collect()
+        .claims
+        .extra
+        .into_iter()
+        .collect()
 }
 
 #[tokio::test]
@@ -72,7 +76,7 @@ async fn a_tenant_accounts_session_carries_its_tenant() {
         .link_or_create_user(Some(TENANT), Some("t@example.com"), true, "saml:t", "n-1")
         .await
         .unwrap();
-    let store = PostgresSessionStore::with_hs256_secret(pool.clone(), SECRET.to_vec());
+    let store = minting_store(pool.clone());
     let tokens = store.create_session(&account.user_id, in_an_hour()).await.unwrap();
 
     let claims = claims(&tokens.access_token);
@@ -100,7 +104,7 @@ async fn a_platform_accounts_session_carries_no_tenant() {
         .link_or_create_user(None, Some("p@example.com"), true, "google", "g-1")
         .await
         .unwrap();
-    let store = PostgresSessionStore::with_hs256_secret(pool, SECRET.to_vec());
+    let store = minting_store(pool);
     let tokens = store.create_session(&account.user_id, in_an_hour()).await.unwrap();
     let claims = claims(&tokens.access_token);
     assert!(!claims.contains_key("tenant_id"), "{claims:?}");
@@ -115,8 +119,7 @@ async fn the_tenant_goes_under_the_configured_claim() {
         .link_or_create_user(Some(TENANT), Some("c@example.com"), true, "saml:t", "n-2")
         .await
         .unwrap();
-    let store =
-        PostgresSessionStore::with_hs256_secret(pool, SECRET.to_vec()).with_tenant_claim("org_id");
+    let store = minting_store(pool).with_tenant_claim("org_id");
     let tokens = store.create_session(&account.user_id, in_an_hour()).await.unwrap();
     let claims = claims(&tokens.access_token);
     assert_eq!(claims.get("org_id"), Some(&serde_json::json!(TENANT.as_simple().to_string())));
@@ -128,7 +131,7 @@ async fn the_tenant_goes_under_the_configured_claim() {
 #[tokio::test]
 async fn a_principal_with_no_account_row_carries_no_tenant() {
     let (pool, _accounts) = skip_if_no_db!();
-    let store = PostgresSessionStore::with_hs256_secret(pool, SECRET.to_vec());
+    let store = minting_store(pool);
     let tokens = store.create_session("anon_123", in_an_hour()).await.unwrap();
     assert!(!claims(&tokens.access_token).contains_key("tenant_id"));
 }

@@ -795,7 +795,6 @@ name = "fraiseql-auth-fuzz"
 version = "2.19.1"
 dependencies = [
  "fraiseql-auth",
- "jsonwebtoken",
  "libfuzzer-sys",
 ]
 

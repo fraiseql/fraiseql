@@ -1647,23 +1647,6 @@ mod doctor_tests {
     }
 
     #[test]
-    fn test_jwt_secret_set() {
-        temp_env::with_var("FRAISEQL_JWT_SECRET", Some("supersecret"), || {
-            let result = check_jwt_secret();
-            assert_eq!(result.status, CheckStatus::Pass);
-        });
-    }
-
-    #[test]
-    fn test_jwt_secret_missing() {
-        temp_env::with_var_unset("FRAISEQL_JWT_SECRET", || {
-            let result = check_jwt_secret();
-            assert_eq!(result.status, CheckStatus::Warn);
-            assert!(result.hint.is_some());
-        });
-    }
-
-    #[test]
     fn test_redis_not_set_is_pass() {
         temp_env::with_var_unset("REDIS_URL", || {
             let result = check_redis_reachable();

@@ -1005,7 +1005,7 @@ test-compose-references-gate:
 	@bash tools/tests/compose_references_test.sh
 
 # First-party sessions are signed by `[auth_issuer]` (ES256) and validated by OidcValidator;
-# the shared-secret path is being removed. This gate keeps it from coming back: a file
+# the shared-secret path was removed. This gate keeps it from coming back: a file
 # outside its EXEMPT and PENDING lists that names the path fails, and PENDING only shrinks.
 .PHONY: lint-no-first-party-hs256
 lint-no-first-party-hs256:

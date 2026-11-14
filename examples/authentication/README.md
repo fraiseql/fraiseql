@@ -2,8 +2,9 @@
 
 The server accepts a bearer token, validates it, and turns the claims into the
 identity that row-level security and field-level authorization see. This example
-does that half in isolation: no server, no database, no network — just
-`fraiseql-auth`'s validator against tokens the process signs itself.
+does that half in isolation: no server, no database — just the validator the server
+uses, `OidcValidator`, against tokens from an ES256 issuer the process runs on
+loopback.
 
 ## Run it
 
@@ -30,15 +31,11 @@ tokens be replayed against another, or lets an expired session keep working:
 The example exits non-zero if any of them is accepted, so it is a test as well as
 a demonstration.
 
-Note `.with_audiences(&[AUDIENCE])`. Pinning only the issuer accepts every token
-that issuer ever minted, including tokens addressed to a different service —
-`JwtValidator::new` requires `aud` to be *present*, but only `with_audiences`
-requires it to be *yours*.
+The validator is configured with both `issuer` and `audience`. Pinning only the
+issuer accepts every token that issuer ever minted, including tokens addressed to a
+different service.
 
-An HS256 shared secret is used here because it fits in one file. Production uses
-RS256 against the provider's JWKS, where the server holds only a public key; the
-validation posture is the same.
-
-This crate depends on `jsonwebtoken` for one import, `Algorithm`, because
-`fraiseql-auth` does not re-export it —
-[#1198](https://github.com/fraiseql/fraiseql/issues/1198).
+The issuer generates its key at startup and publishes the public half as a JWKS,
+which is what an OIDC provider does, and what the server's own issuer
+(`[auth_issuer]`) does for the sessions it mints. The validator holds only public
+keys.

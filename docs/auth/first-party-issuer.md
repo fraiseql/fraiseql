@@ -31,7 +31,7 @@ refuses to boot without:
   `key_encryption_key_env` names, for example `openssl rand -hex 32`.
 
 `url` must be `https`, or `http` on a loopback host for local development (`localhost`, a
-name under it, `127.0.0.1` or `[::1]`), with no query or fragment. `[auth_issuer]` and `[auth_hs256]` cannot be configured together.
+name under it, `127.0.0.1` or `[::1]`), with no query or fragment.
 
 ## Keys
 
@@ -113,3 +113,67 @@ every session this server signs:
 A session is accepted a little longer than `[auth.session] ttl_secs`, or than seven days when
 anonymous sign-in is on and `ttl_secs` is shorter. Tokens from another issuer are not counted:
 when `[auth]` names one, set `revoke_all_ttl_secs` above the longest its tokens are valid.
+
+## Migrating from `[auth_hs256]`
+
+`[auth_hs256]` validated bearer tokens signed with a shared secret. It is removed: a server
+whose configuration still has the section refuses to boot, and the error names the
+replacements. Every bearer token is now checked against an issuer's published public keys,
+so no service needs the secret any more. Which section replaces it depends on who signed
+the tokens.
+
+### The server's own sign-in signed them
+
+This is the case when `[auth.local]`, `[auth.social]` or `[saml]` issued the sessions (on a
+release before 2.19.1). Replace the section with `[auth_issuer]`:
+
+```toml
+# server.toml: delete [auth_hs256], add
+[auth_issuer]
+url      = "https://api.example.com"   # the `iss` sessions will carry: an https URL
+audience = "my-api"                     # keep [auth_hs256] audience
+```
+
+Then provide what `[auth_issuer]` requires (see the top of this page):
+
+1. `[auth.session] ttl_secs` and `[auth.database]` in `fraiseql.toml`.
+2. A key-encryption key in `FRAISEQL_AUTH_SIGNING_KEK`, for example from
+   `openssl rand -hex 32`. Store it like any other secret: without it, no server can open
+   its signing keys.
+3. On first boot, the server creates `auth.signing_key` through `[auth.database]` and
+   generates the first key in it. Nothing has to be created by hand.
+
+At the upgrade:
+
+- **Users sign in again.** Access tokens signed with the old secret are refused.
+- **Refresh tokens issued before the upgrade are refused.** Sessions are read from schema
+  `auth`, and nothing was migrated into it (2.19.1), so an old refresh token is unknown.
+- **Services that verified sessions with the shared secret** fetch the keys instead:
+  `GET /.well-known/jwks.json`, or discovery at
+  `<url>/.well-known/openid-configuration`. The tokens are ES256, so configure the
+  service to accept that algorithm.
+
+### Another service signed them
+
+When a service of yours minted tokens with the shared secret, it must sign them with an
+asymmetric key (ES256 or RS256, for example) and publish the public half as a JWKS. The
+server then trusts it as it would any OIDC provider:
+
+```toml
+# server.toml: delete [auth_hs256], add
+[auth]
+issuer             = "https://tokens.example.com"   # the `iss` the service's tokens carry
+audience           = "my-api"
+jwks_uri           = "https://tokens.example.com/.well-known/jwks.json"   # omit if it serves discovery
+allowed_algorithms = ["ES256"]                        # the default is ["RS256"]
+```
+
+No release accepts both kinds of token: `[auth_hs256]` could not be configured beside
+`[auth]`, and this release has no `[auth_hs256]`. Switch the service and upgrade the server
+at the same time. From then on, a client holding a token signed with the secret is refused
+and needs a new token from the service.
+
+### Environment
+
+Remove the variable `[auth_hs256] secret_env` named, from the environment and from your
+secret store: nothing reads it.

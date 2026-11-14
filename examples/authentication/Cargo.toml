@@ -4,7 +4,7 @@ version = "0.0.0"
 edition = "2021"
 publish = false
 license.workspace = true
-description = "Mint a JWT, validate it, and read the identity out of it"
+description = "Mint a token, validate it, and read the identity out of it"
 
 # Illustrative code, not part of the shipped engine: these crates deliberately do
 # not opt into `[lints] workspace = true`. They are workspace MEMBERS so that
@@ -18,6 +18,11 @@ path = "src/main.rs"
 
 [dependencies]
 anyhow = { workspace = true }
-fraiseql-auth = { workspace = true }
-jsonwebtoken = { workspace = true }
+fraiseql-core = { workspace = true }
+# The in-process ES256 issuer: a key generated at runtime and a JWKS served on
+# loopback, so the example signs real tokens without committing a private key.
+fraiseql-test-support = { path = "../../crates/fraiseql-test-support", features = [
+  "test-issuer",
+] }
 serde_json = { workspace = true }
+tokio = { workspace = true }

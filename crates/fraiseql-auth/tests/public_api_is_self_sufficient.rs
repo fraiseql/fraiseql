@@ -3,10 +3,10 @@
 //!
 //! This file imports no third-party crate. Every third-party type it names is reached
 //! through `fraiseql_auth::`, which is precisely what a downstream can do — and could
-//! not before: `JwtValidator::new(issuer, algorithm)` takes a `jsonwebtoken::Algorithm`
-//! that this crate re-exported nowhere, so the documented first line did not compile
-//! unless the caller added `jsonwebtoken` itself and guessed the major this workspace
-//! builds against. A mismatch there is a type error, in code the caller never wrote.
+//! not before: the crate's first documented constructor took a `jsonwebtoken` type that
+//! this crate re-exported nowhere, so it did not compile unless the caller added
+//! `jsonwebtoken` itself and guessed the major this workspace builds against. A mismatch
+//! there is a type error, in code the caller never wrote.
 //!
 //! `tools/check-public-api-reexports.py` is the ratchet for the other published crates;
 //! this is the one the issue names, so it is proved by compiling rather than by reading
@@ -16,17 +16,36 @@
 //! from nowhere. A compiling proof cannot be blind in that way, which is why the list
 //! below names every dependency the public API touches rather than a sample.
 
-/// The example from the crate's own documentation, with nothing else in scope.
+/// The session store over a pool named through this crate: the `sqlx::PgPool` the
+/// widest part of the public API takes. Compile-only, because a pool needs a runtime and a
+/// database; what it proves is that the signature is nameable.
+#[allow(dead_code)]
+fn a_session_store_is_built_over_the_reexported_pool(
+    pool: fraiseql_auth::sqlx::PgPool,
+) -> fraiseql_auth::PostgresSessionStore {
+    fraiseql_auth::PostgresSessionStore::new(pool)
+        .with_token_claims("https://issuer.example.com", "my-api")
+}
+
+/// A session's custom claims are `serde_json` values, built and read through this crate.
 #[test]
-fn the_documented_first_line_compiles() {
-    use fraiseql_auth::{Algorithm, JwtValidator};
+fn a_custom_claim_round_trips_through_the_reexported_json() {
+    let mut extra = std::collections::HashMap::new();
+    extra.insert("tenant".to_string(), fraiseql_auth::serde_json::json!("acme"));
+    let claims = fraiseql_auth::Claims {
+        sub: "user-1".to_string(),
+        iat: 0,
+        exp: 0,
+        nbf: None,
+        iss: "https://issuer.example.com".to_string(),
+        aud: vec!["my-api".to_string()],
+        extra,
+    };
 
-    let validator = JwtValidator::new("https://issuer.example.com", Algorithm::HS256)
-        .expect("HS256 validator for a well-formed issuer");
-
-    // Used rather than dropped, so this stays a test of a working validator and not
-    // merely of a constructor that returns something.
-    assert!(validator.validate_hmac("not-a-token", b"secret").is_err());
+    assert_eq!(
+        claims.get_custom("tenant").and_then(fraiseql_auth::serde_json::Value::as_str),
+        Some("acme")
+    );
 }
 
 /// Compile-only. Every third-party type `fraiseql-auth`'s public API names, reached
@@ -39,8 +58,6 @@ type EveryThirdPartyTypeInThePublicApi = (
     fraiseql_auth::axum::extract::State<()>,
     fraiseql_auth::axum::http::StatusCode,
     fraiseql_auth::chrono::DateTime<fraiseql_auth::chrono::Utc>,
-    fraiseql_auth::jsonwebtoken::Algorithm,
-    fraiseql_auth::jsonwebtoken::DecodingKey,
     fraiseql_auth::reqwest::Client,
     fraiseql_auth::serde_json::Value,
     fraiseql_auth::sqlx::PgPool,
