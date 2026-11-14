@@ -109,7 +109,6 @@ async fn serve(url: &str, require_jti: bool) -> Rig {
 /// server's own session minting (`fraiseql_auth::Claims`) carries `iat` always and
 /// `jti` only as a custom claim — the `revoke-all` epoch must work without one.
 fn mint_token(jti: Option<&str>, issued_secs_ago: i64) -> String {
-    use jsonwebtoken::{Algorithm, EncodingKey, Header, encode};
     let now = i64::try_from(
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -127,12 +126,42 @@ fn mint_token(jti: Option<&str>, issued_secs_ago: i64) -> String {
     if let Some(jti) = jti {
         claims["jti"] = json!(jti);
     }
+    sign(&claims)
+}
+
+/// Sign `claims` as an HS256 bearer this server accepts.
+fn sign(claims: &serde_json::Value) -> String {
+    use jsonwebtoken::{Algorithm, EncodingKey, Header, encode};
     encode(
         &Header::new(Algorithm::HS256),
-        &claims,
+        claims,
         &EncodingKey::from_secret(SECRET.as_bytes()),
     )
     .expect("mint token")
+}
+
+/// [`mint_token`]'s claims with `edit` applied, for claim shapes it cannot express.
+fn mint_edited(issued_secs_ago: i64, edit: impl FnOnce(&mut serde_json::Value)) -> String {
+    let token = mint_token(None, issued_secs_ago);
+    let mut claims = jsonwebtoken::dangerous::insecure_decode::<serde_json::Value>(&token)
+        .expect("a token mint_token signed decodes")
+        .claims;
+    edit(&mut claims);
+    sign(&claims)
+}
+
+/// The bearer authenticates before `revoke-all` and is refused after it.
+async fn assert_revoke_all_refuses(rig: &Rig, token: &str, what: &str) {
+    assert_ne!(post_status(&rig.base, token).await, 401, "{what}: must authenticate before");
+    rig.revocation
+        .revoke_all_for_user(SUBJECT)
+        .await
+        .expect("revoke-all must succeed");
+    assert_eq!(
+        post_status(&rig.base, token).await,
+        401,
+        "{what}: must be refused after revoke-all"
+    );
 }
 
 /// POST a trivial GraphQL document with `token` as the bearer; return the status.
@@ -189,6 +218,71 @@ async fn revoke_all_refuses_a_still_valid_hs256_bearer() {
         "after revoke-all the same bearer must be refused: Studio reports the sessions \
          revoked, so a token that keeps working is a fabricated success (#749's shape)"
     );
+}
+
+/// A bearer with no `iat` cannot show it was issued after a `revoke-all`, so the
+/// `revoke-all` refuses it like any older bearer.
+#[tokio::test]
+async fn revoke_all_refuses_an_hs256_bearer_without_iat() {
+    let Some(url) = url_or_skip("revoke_all_refuses_an_hs256_bearer_without_iat") else {
+        return;
+    };
+    let rig = serve(&url, false).await;
+    let token = mint_edited(60, |claims| {
+        claims.as_object_mut().expect("claims are an object").remove("iat");
+    });
+    assert_revoke_all_refuses(&rig, &token, "a bearer without iat").await;
+}
+
+/// A `jti` that is not a string must not hide the bearer's `iat` from the
+/// `revoke-all` check.
+#[tokio::test]
+async fn revoke_all_refuses_an_hs256_bearer_whose_jti_is_a_number() {
+    let Some(url) = url_or_skip("revoke_all_refuses_an_hs256_bearer_whose_jti_is_a_number") else {
+        return;
+    };
+    let rig = serve(&url, false).await;
+    let token = mint_edited(60, |claims| claims["jti"] = json!(42));
+    assert_revoke_all_refuses(&rig, &token, "a bearer whose jti is a number").await;
+}
+
+/// The accepting half: a bearer whose `jti` is a number, minted after the
+/// `revoke-all`, still authenticates, judged by its `iat`.
+#[tokio::test]
+async fn a_bearer_whose_jti_is_a_number_minted_after_a_revoke_all_authenticates() {
+    let Some(url) =
+        url_or_skip("a_bearer_whose_jti_is_a_number_minted_after_a_revoke_all_authenticates")
+    else {
+        return;
+    };
+    let rig = serve(&url, false).await;
+    rig.revocation
+        .revoke_all_for_user(SUBJECT)
+        .await
+        .expect("revoke-all must succeed");
+    // The epoch check is `iat <= epoch` at one-second resolution: mint in a later second.
+    tokio::time::sleep(std::time::Duration::from_millis(1100)).await;
+
+    let token = mint_edited(0, |claims| claims["jti"] = json!(42));
+    assert_ne!(
+        post_status(&rig.base, &token).await,
+        401,
+        "a bearer minted after the revoke-all must authenticate"
+    );
+}
+
+/// The validator refuses an `iat` that is not an integer before any revocation
+/// check runs, so such a bearer never reaches it.
+#[tokio::test]
+async fn an_hs256_bearer_whose_iat_is_not_an_integer_is_refused() {
+    let Some(url) = url_or_skip("an_hs256_bearer_whose_iat_is_not_an_integer_is_refused") else {
+        return;
+    };
+    let rig = serve(&url, false).await;
+    for iat in [json!(1000.5), json!("1000")] {
+        let token = mint_edited(60, |claims| claims["iat"] = iat.clone());
+        assert_eq!(post_status(&rig.base, &token).await, 401, "iat = {iat}");
+    }
 }
 
 /// Single-token revocation by `jti`, the `POST /auth/revoke` path.

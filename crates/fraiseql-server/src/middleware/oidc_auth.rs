@@ -167,16 +167,6 @@ pub struct SessionTokenClaims {
     pub iat: Option<i64>,
 }
 
-/// Minimal JWT payload deserializer used to extract the revocation-relevant claims
-/// (`jti` and `iat`) from an already-validated bearer token. The validator has performed
-/// the heavy integrity checks; this struct only pulls out the per-token identifier and
-/// issued-at time used by the revocation check.
-#[derive(serde::Deserialize)]
-struct RevocationClaims {
-    jti: Option<String>,
-    iat: Option<i64>,
-}
-
 /// Build the 401 response for a revoked / un-revocation-checkable token.
 fn revocation_rejected_response(rejection: &TokenRejection) -> Response {
     let (www_authenticate, body) = match rejection {
@@ -225,11 +215,17 @@ pub(crate) async fn check_revocation(
     user: &AuthenticatedUser,
     token: &str,
 ) -> Result<SessionTokenClaims, Response> {
-    let claims = jsonwebtoken::dangerous::insecure_decode::<RevocationClaims>(token)
-        .ok()
-        .map(|d| d.claims);
-    let jti = claims.as_ref().and_then(|c| c.jti.clone());
-    let iat = claims.as_ref().and_then(|c| c.iat);
+    // The validator has already checked the token; this only reads the two claims the
+    // revocation check needs. Each is read on its own: a claim of an unexpected type
+    // counts as absent and leaves the other one readable.
+    let claims = jsonwebtoken::dangerous::insecure_decode::<
+        serde_json::Map<String, serde_json::Value>,
+    >(token)
+    .ok()
+    .map(|d| d.claims);
+    let claim = |name: &str| claims.as_ref().and_then(|c| c.get(name));
+    let jti = claim("jti").and_then(serde_json::Value::as_str).map(str::to_owned);
+    let iat = claim("iat").and_then(serde_json::Value::as_i64);
 
     if let Some(revocation) = revocation {
         if let Err(rejection) =
@@ -653,6 +649,12 @@ mod revocation_tests {
         Arc::new(TokenRevocationManager::new(store, true, false, 3600))
     }
 
+    /// [`manager`] without `require_jti`: a token that loses its `jti` is then refused
+    /// only if the revocation check itself refuses it, never for lacking a `jti`.
+    fn jti_optional_manager(store: Arc<dyn RevocationStore>) -> Arc<TokenRevocationManager> {
+        Arc::new(TokenRevocationManager::new(store, false, false, 3600))
+    }
+
     /// Build a structurally-valid JWT. `insecure_decode` does not verify the signature, so
     /// any signing key produces a token the revocation decode can read.
     fn token(jti: Option<&str>, iat: Option<i64>) -> String {
@@ -669,6 +671,52 @@ mod revocation_tests {
             &jsonwebtoken::EncodingKey::from_secret(b"test-secret"),
         )
         .unwrap()
+    }
+
+    /// Build a structurally-valid JWT carrying exactly `claims`, for claim shapes
+    /// [`token`] cannot express (an `iat` or `jti` of another JSON type).
+    fn token_with(claims: &serde_json::Value) -> String {
+        fraiseql_test_support::issuer::sign_with_unpublished_key("revocation-test", claims)
+    }
+
+    /// An `iat` that is not an integer must not take the `jti` down with it: the
+    /// revoked `jti` is still refused, whatever type `iat` has.
+    #[tokio::test]
+    async fn a_revoked_jti_is_refused_whatever_type_iat_has() {
+        let store = Arc::new(InMemoryRevocationStore::new());
+        store.revoke("j1", 3600).await.unwrap();
+        let revocation = Some(jti_optional_manager(store));
+
+        for iat in [serde_json::json!(1000.5), serde_json::json!("1000")] {
+            let token = token_with(&serde_json::json!({ "jti": "j1", "iat": iat }));
+            let response = check_revocation(revocation.as_ref(), &user("alice"), &token)
+                .await
+                .expect_err("a revoked jti must be refused");
+            assert_eq!(response.status(), StatusCode::UNAUTHORIZED, "iat = {iat}");
+        }
+    }
+
+    /// A `jti` that is not a string must not take the `iat` down with it: under a
+    /// `revoke-all`, such a token is judged by its `iat`, refused when issued before
+    /// the epoch and accepted when issued after it.
+    #[tokio::test]
+    async fn a_token_whose_jti_is_not_a_string_is_judged_by_its_iat() {
+        let store = Arc::new(InMemoryRevocationStore::new());
+        store.revoke_all_for_user("alice", 3600).await.unwrap();
+        let revocation = Some(jti_optional_manager(store));
+        let now = Utc::now().timestamp();
+
+        let before = token_with(&serde_json::json!({ "jti": 42, "iat": now - 100 }));
+        let response = check_revocation(revocation.as_ref(), &user("alice"), &before)
+            .await
+            .expect_err("a token issued before the revoke-all must be refused");
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+
+        let after = token_with(&serde_json::json!({ "jti": 42, "iat": now + 100 }));
+        let claims = check_revocation(revocation.as_ref(), &user("alice"), &after)
+            .await
+            .expect("a token issued after the revoke-all must be accepted");
+        assert_eq!(claims.iat, Some(now + 100));
     }
 
     #[tokio::test]

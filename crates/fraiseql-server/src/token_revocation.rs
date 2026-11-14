@@ -459,16 +459,16 @@ impl TokenRevocationManager {
     ///
     /// `jti`/`iat` are the token's claims; `sub` is the subject. The single-JTI check
     /// uses `jti`; the epoch check rejects when the user has an active `revoke-all` epoch
-    /// and the token's `iat` is at or before it. A token with no `iat` cannot be
-    /// epoch-checked, so the epoch is skipped for it (it can still be revoked by `jti`).
+    /// and the token's `iat` is at or before it. A token with no `iat` cannot show it was
+    /// issued after the epoch, so while one is active it is rejected too.
     ///
     /// Returns `Ok(())` if the token is allowed, or an error reason if rejected.
     ///
     /// # Errors
     ///
     /// Returns `TokenRejection::MissingJti` if JTI is required but absent.
-    /// Returns `TokenRejection::Revoked` if the token's `jti` is revoked or its `iat`
-    /// predates the user's `revoke-all` epoch.
+    /// Returns `TokenRejection::Revoked` if the token's `jti` is revoked, or if the user
+    /// has an active `revoke-all` epoch and the token's `iat` is at or before it or absent.
     /// Returns `TokenRejection::StoreUnavailable` if the revocation store is unreachable and
     /// `fail_open` is false.
     pub async fn check_token(
@@ -502,7 +502,7 @@ impl TokenRevocationManager {
         // 2. Per-user `revoke-all` epoch (catches tokens never individually revoked).
         match self.store.user_revoked_after(sub).await {
             Ok(Some(epoch)) => {
-                if iat.is_some_and(|issued| issued <= epoch) {
+                if iat.is_none_or(|issued| issued <= epoch) {
                     return Err(TokenRejection::Revoked);
                 }
                 Ok(())

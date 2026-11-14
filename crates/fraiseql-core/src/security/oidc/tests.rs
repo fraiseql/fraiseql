@@ -706,6 +706,69 @@ async fn validate_token_rejects_wrong_audience() {
     assert!(result.is_err(), "wrong audience must be rejected");
 }
 
+/// The revocation check reads `iat` as an integer. The validator refuses any other
+/// type first, so a token the revocation check cannot read never gets that far.
+#[tokio::test]
+async fn validate_token_refuses_an_iat_that_is_not_an_integer() {
+    use jsonwebtoken::{Algorithm, EncodingKey, Header};
+    use serde_json::json;
+    use wiremock::{
+        Mock, MockServer, ResponseTemplate,
+        matchers::{method, path},
+    };
+
+    let mock = MockServer::start().await;
+    let port = mock.uri().rsplit(':').next().unwrap().to_string();
+    let issuer = format!("http://localhost:{port}");
+    let jwks_path = "/.well-known/jwks.json";
+    let jwks_body = json!({
+        "keys": [{
+            "kty": "RSA",
+            "kid": "test-key-c14",
+            "alg": "RS256",
+            "use": "sig",
+            "n":   TEST_RSA_N,
+            "e":   TEST_RSA_E,
+        }]
+    });
+    Mock::given(method("GET"))
+        .and(path(jwks_path))
+        .respond_with(ResponseTemplate::new(200).set_body_json(&jwks_body))
+        .expect(1..)
+        .mount(&mock)
+        .await;
+
+    let config = OidcConfig {
+        issuer: Some(issuer.clone()),
+        audience: Some("fraiseql-test-api".to_string()),
+        allowed_algorithms: vec!["RS256".to_string()],
+        ..Default::default()
+    };
+    let validator = OidcValidator::with_jwks_uri(config, &format!("{issuer}{jwks_path}"))
+        .expect("a loopback http jwks_uri is accepted");
+    let encoding_key = EncodingKey::from_rsa_pem(TEST_RSA_PRIVATE_KEY_PEM.as_bytes()).unwrap();
+    let mut header = Header::new(Algorithm::RS256);
+    header.kid = Some("test-key-c14".to_string());
+
+    let now = chrono::Utc::now().timestamp();
+    for (iat, accepted) in [
+        (json!(now), true),
+        (json!(1000.5), false),
+        (json!("1000"), false),
+    ] {
+        let claims = json!({
+            "sub": "user-42",
+            "iss": issuer,
+            "aud": "fraiseql-test-api",
+            "exp": now + 3600,
+            "iat": iat,
+        });
+        let token = jsonwebtoken::encode(&header, &claims, &encoding_key).unwrap();
+        let result = validator.validate_token(&token).await;
+        assert_eq!(result.is_ok(), accepted, "iat = {iat}: {result:?}");
+    }
+}
+
 /// Issuer-less end-to-end: a Hanko-shaped access token that carries **no `iss`
 /// claim** must validate when `issuer` is unset and the JWKS URI is pinned.
 /// Signature (against the pinned JWKS) and `audience` still gate the token.

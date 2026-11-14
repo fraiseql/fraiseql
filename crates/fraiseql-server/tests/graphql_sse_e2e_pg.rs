@@ -930,8 +930,22 @@ fn mint_token(ttl_secs: i64) -> String {
     mint_token_with_jti(ttl_secs, None)
 }
 
+/// The subject every token this suite mints carries.
+const SSE_SUBJECT: &str = "sse-user";
+
+/// [`mint_token_with_jti`] without a `jti`, and with its `iat` removed.
+fn mint_token_without_iat(ttl_secs: i64) -> String {
+    let mut claims = claims_with_jti(ttl_secs, None);
+    claims.as_object_mut().expect("claims are an object").remove("iat");
+    sign(&claims)
+}
+
 fn mint_token_with_jti(ttl_secs: i64, jti: Option<&str>) -> String {
-    use jsonwebtoken::{Algorithm, EncodingKey, Header, encode};
+    sign(&claims_with_jti(ttl_secs, jti))
+}
+
+/// The claims of a token this suite mints, issued now and living `ttl_secs`.
+fn claims_with_jti(ttl_secs: i64, jti: Option<&str>) -> serde_json::Value {
     let now = i64::try_from(
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -940,7 +954,7 @@ fn mint_token_with_jti(ttl_secs: i64, jti: Option<&str>) -> String {
     )
     .expect("epoch seconds fit i64");
     let mut claims = json!({
-        "sub": "sse-user",
+        "sub": SSE_SUBJECT,
         "iss": ISSUER,
         "aud": AUDIENCE,
         "iat": now,
@@ -949,9 +963,15 @@ fn mint_token_with_jti(ttl_secs: i64, jti: Option<&str>) -> String {
     if let Some(jti) = jti {
         claims["jti"] = json!(jti);
     }
+    claims
+}
+
+/// `claims`, signed as the server this suite boots validates.
+fn sign(claims: &serde_json::Value) -> String {
+    use jsonwebtoken::{Algorithm, EncodingKey, Header, encode};
     encode(
         &Header::new(Algorithm::HS256),
-        &claims,
+        claims,
         &EncodingKey::from_secret(SECRET.as_bytes()),
     )
     .expect("mint token")
@@ -1022,18 +1042,44 @@ const JTI: &str = "sse-stream-jti";
 /// the assertion on the reason string is what keeps that honest.
 #[tokio::test]
 async fn revoked_token_terminates_the_stream_mid_delivery() {
-    use fraiseql_server::token_revocation::{
-        InMemoryRevocationStore, RevocationStore, TokenRevocationManager,
-    };
-
     let Some(url) = database_url_or_skip("sse_revocation_mid_stream") else {
         return;
+    };
+    let token = mint_token_with_jti(3600, Some(JTI));
+    assert_revocation_cuts_the_delivery(&url, &token, MidStream::RevokeJti).await;
+}
+
+/// A bearer with no `iat` cannot show it was issued after a `revoke-all`, so a
+/// `revoke-all` landing mid-delivery cuts its stream like any older bearer's.
+#[tokio::test]
+async fn a_revoke_all_cuts_the_stream_of_a_token_without_iat() {
+    let Some(url) = database_url_or_skip("sse_revoke_all_without_iat") else {
+        return;
+    };
+    let token = mint_token_without_iat(3600);
+    assert_revocation_cuts_the_delivery(&url, &token, MidStream::RevokeAllForUser).await;
+}
+
+/// How [`assert_revocation_cuts_the_delivery`] revokes the token mid-delivery.
+#[derive(Clone, Copy)]
+enum MidStream {
+    /// Revoke [`JTI`] alone.
+    RevokeJti,
+    /// Record a `revoke-all` epoch for the token's subject.
+    RevokeAllForUser,
+}
+
+/// Start a ~2 s `@stream` delivery for `token`, revoke it ~600 ms in, and assert the
+/// delivery stops early with a revocation error.
+async fn assert_revocation_cuts_the_delivery(url: &str, token: &str, how: MidStream) {
+    use fraiseql_server::token_revocation::{
+        InMemoryRevocationStore, RevocationStore, TokenRevocationManager,
     };
 
     let store: Arc<dyn RevocationStore> = Arc::new(InMemoryRevocationStore::new());
     let revocation = Arc::new(TokenRevocationManager::new(store, false, false, 3600));
 
-    let adapter = Arc::new(PostgresAdapter::new(&url).await.expect("adapter"));
+    let adapter = Arc::new(PostgresAdapter::new(url).await.expect("adapter"));
     seed(&adapter).await;
     let server = Box::pin(TestServer::start_with_revocation(
         hs256_config(1),
@@ -1043,20 +1089,21 @@ async fn revoked_token_terminates_the_stream_mid_delivery() {
     ))
     .await;
 
-    let token = mint_token_with_jti(3600, Some(JTI));
-
     // Revoke ~600 ms in: the delivery is ~2 s (5 rows x 400 ms, one row per batch),
     // so this lands mid-stream.
     let revoker = Arc::clone(&revocation);
     tokio::spawn(async move {
         tokio::time::sleep(std::time::Duration::from_millis(600)).await;
-        revoker.revoke(JTI, 3600).await.expect("revoke mid-stream");
+        match how {
+            MidStream::RevokeJti => revoker.revoke(JTI, 3600).await,
+            MidStream::RevokeAllForUser => revoker.revoke_all_for_user(SSE_SUBJECT).await,
+        }
+        .expect("revoke mid-stream");
     });
 
     let query = "{ slowItems @stream(initialCount: 1) { id } }";
-    let resp = sse_post(&server, &json!({"query": query}), Some(&token)).await;
+    let resp = sse_post(&server, &json!({"query": query}), Some(token)).await;
     assert_eq!(resp.status(), 200, "the stream starts while the token is valid");
-
     let events = parse_sse(&resp.text().await.unwrap());
     let payloads = next_payloads(&events);
 
@@ -1078,9 +1125,14 @@ async fn revoked_token_terminates_the_stream_mid_delivery() {
     );
     assert_eq!(
         error_payload["errors"][0]["extensions"]["code"].as_str().unwrap_or(""),
-        "UNAUTHENTICATED"
+        "UNAUTHENTICATED",
+        "the termination is an authentication error: {error_payload}"
     );
-    assert_eq!(events.last().map(|e| e.name.as_str()), Some("complete"));
+    assert_eq!(
+        events.last().map(|e| e.name.as_str()),
+        Some("complete"),
+        "the stream still ends with a complete event"
+    );
 }
 
 // ── Middleware interactions ──────────────────────────────────────────────────

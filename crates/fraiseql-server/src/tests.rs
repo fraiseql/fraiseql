@@ -1532,6 +1532,34 @@ mod token_revocation_tests {
             .expect("bob's tokens are not affected by alice's revoke-all");
     }
 
+    /// A token with no `iat` cannot show it was issued after a `revoke-all`, so while
+    /// its user has an epoch it is refused. Without one it is still accepted.
+    #[tokio::test]
+    async fn a_token_without_iat_is_refused_while_its_user_has_a_revoke_all() {
+        let mgr = TokenRevocationManager::new(
+            std::sync::Arc::new(InMemoryRevocationStore::new())
+                as std::sync::Arc<dyn RevocationStore>,
+            true,
+            false,
+            3600,
+        );
+
+        mgr.check_token(Some("alice-no-iat"), "alice", None)
+            .await
+            .expect("with no revoke-all, a token without iat is accepted");
+
+        mgr.revoke_all_for_user("alice").await.unwrap();
+
+        assert_eq!(
+            mgr.check_token(Some("alice-no-iat"), "alice", None).await,
+            Err(TokenRejection::Revoked),
+            "a token without iat cannot prove it postdates the revoke-all"
+        );
+        mgr.check_token(Some("bob-no-iat"), "bob", None)
+            .await
+            .expect("another user's revoke-all leaves bob's token without iat accepted");
+    }
+
     #[tokio::test]
     async fn user_revoked_after_is_none_without_revoke_all() {
         let store = InMemoryRevocationStore::new();
