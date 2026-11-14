@@ -122,7 +122,8 @@ async fn an_anonymous_session_is_not_upgraded_into_an_enrolled_account() {
     let secret = enroll(&pool, user).await;
     let store = PostgresSessionStore::with_hs256_secret(pool.clone(), SECRET.to_vec());
 
-    let upgraded = upgrade_anonymous_session(&store, "anon_mfa-gate", user, in_an_hour()).await;
+    let upgraded =
+        upgrade_anonymous_session(&store, None, "anon_mfa-gate", user, in_an_hour()).await;
     assert_eq!(sessions_of(&pool, user).await, 0);
     redeem(&pool, upgraded, user, &secret).await;
 }

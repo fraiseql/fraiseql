@@ -102,6 +102,7 @@ impl Server {
                         session_store: std::sync::Arc::new(
                             fraiseql_auth::PostgresSessionStore::new(auth_pool.clone()),
                         ),
+                        denial:        self.access_denial(),
                         rbac:          rbac.clone(),
                         base_url:      scim_cfg.base_url.clone(),
                     };

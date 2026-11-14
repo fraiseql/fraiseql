@@ -30,6 +30,7 @@ mod router_construction {
         let state = ScimState {
             tokens: Arc::new(fraiseql_auth::scim::PgScimTokenStore::new(pool.clone())),
             session_store: Arc::new(fraiseql_auth::PostgresSessionStore::new(pool.clone())),
+            denial: None,
             rbac: Arc::new(crate::api::rbac_management::db_backend::RbacDbBackend::new(
                 pool.clone(),
             )),

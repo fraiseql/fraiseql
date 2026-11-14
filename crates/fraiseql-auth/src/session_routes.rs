@@ -35,7 +35,8 @@ use crate::{
     session_postgres::{PostgresSessionStore, Refresh},
 };
 
-/// Denies access tokens by `jti` before they expire, for logout.
+/// Denies access tokens before they expire: one session's by `jti` at logout, or every one
+/// a user holds when their credentials or their account change.
 // Reason: dyn-dispatch required for the server's revocation manager; remove when RTN + Send
 // is stable (RFC 3425)
 #[async_trait]
@@ -47,6 +48,16 @@ pub trait DenyAccessTokens: Send + Sync {
     /// A message when a token could not be denied: logout then answers 500, because a
     /// caller told it was logged out must have been.
     async fn deny(&self, jtis: &[String]) -> Result<(), String>;
+
+    /// Deny every access token `user_id` holds, issued up to now.
+    ///
+    /// A token issued in the same second as the denial is denied too, since tokens carry
+    /// their issue time in whole seconds: a sign-in in that second is refused once.
+    ///
+    /// # Errors
+    ///
+    /// A message when the denial could not be recorded.
+    async fn deny_all_for_user(&self, user_id: &str) -> Result<(), String>;
 }
 
 /// State for [`session_routes`].

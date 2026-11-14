@@ -73,6 +73,9 @@ pub struct ScimState {
     pub tokens:        Arc<PgScimTokenStore>,
     /// Session backend — deactivation revokes through it.
     pub session_store: Arc<dyn SessionStore>,
+    /// Denies a deactivated user's access tokens. `None` without
+    /// `[security.token_revocation]`: they live out their lifetime.
+    pub denial:        Option<Arc<dyn fraiseql_auth::DenyAccessTokens>>,
     /// RBAC backend that SCIM groups are mirrored onto.
     pub rbac:          Arc<RbacDbBackend>,
     /// Externally reachable base URL of the SCIM surface, used for `meta.location`.
@@ -517,9 +520,15 @@ async fn replace_user(
 
     match store.replace_user(&id, &write).await {
         Ok(user) => {
-            // A PUT that flips `active` to false is an offboarding just as much as a PATCH.
-            if existing.active && !user.active {
-                revoke_sessions(&state, &user.id).await;
+            // A PUT that leaves the user inactive is an offboarding just as much as a PATCH.
+            // Not only on the flip from active: a retry after a failed revocation finds the
+            // user already inactive, and must revoke again. So an IdP that re-sends its
+            // inactive users on every sync writes a session revocation and a fresh revoke-all
+            // each time, which is harmless: an inactive user cannot sign in.
+            if !user.active {
+                if let Err(response) = revoke_access(&state, &user.id).await {
+                    return response;
+                }
             }
             let groups = store.groups_of_user(&user.id).await.unwrap_or_default();
             scim_json(
@@ -574,8 +583,11 @@ async fn patch_user(
 
     match store.replace_user(&id, &write).await {
         Ok(user) => {
-            if existing.active && !user.active {
-                revoke_sessions(&state, &user.id).await;
+            // As for a PUT: whenever the user ends inactive, so a retry revokes again.
+            if !user.active {
+                if let Err(response) = revoke_access(&state, &user.id).await {
+                    return response;
+                }
             }
             let groups = store.groups_of_user(&user.id).await.unwrap_or_default();
             scim_json(
@@ -700,32 +712,60 @@ async fn delete_user(
     Path(id): Path<String>,
 ) -> Response {
     let store = store_for(&state, &principal);
+    // The user is looked up through the caller's tenant-scoped store first, so a credential
+    // can end the access of its own tenant's users only. Not found answers exactly what the
+    // delete itself answers for a missing user, so another tenant's id and an unknown one
+    // cannot be told apart.
+    match store.get_user(&id).await {
+        Ok(Some(_)) => {},
+        Ok(None) => return store_error(&fraiseql_auth::AuthError::TokenNotFound),
+        Err(e) => return store_error(&e),
+    }
+    // Before the delete, not after: a delete whose revocation failed answers 500, and the
+    // `IdP`'s retry must find the user still there to revoke again, not a 404.
+    if let Err(response) = revoke_access(&state, &id).await {
+        return response;
+    }
     match store.delete_user(&id).await {
-        Ok(()) => {
-            // A deleted user's live sessions would otherwise outlive the account itself.
-            revoke_sessions(&state, &id).await;
-            StatusCode::NO_CONTENT.into_response()
-        },
+        Ok(()) => StatusCode::NO_CONTENT.into_response(),
         Err(e) => store_error(&e),
     }
 }
 
-/// Revoke every session for `user_id`, logging rather than failing the provisioning call.
+/// End every session `user_id` holds and deny the access tokens already issued.
 ///
-/// The write already landed: reporting `500` would tell the `IdP` the deactivation failed and
-/// invite a retry loop, when in fact the account is deactivated and new sessions are already
-/// refused at creation. The revoke is what makes it immediate, so a failure is loud in the
-/// logs and the operator can force it, but it is not a reason to un-tell the `IdP`.
-async fn revoke_sessions(state: &ScimState, user_id: &str) {
+/// Either failing answers `500`, so the `IdP` retries the call, and the retry runs both
+/// again; both are idempotent. A failed session revocation is the worse one to hide: a live
+/// refresh token outlives every access token, and mints new ones.
+async fn revoke_access(state: &ScimState, user_id: &str) -> Result<(), Response> {
     if let Err(e) = state.session_store.revoke_all_sessions(user_id).await {
         tracing::error!(
             user_id = %user_id, error = %e,
-            "SCIM deactivation could not revoke existing sessions; the account is deactivated \
-             and new sessions are refused, but live refresh tokens may survive until expiry"
+            "SCIM deactivation could not revoke the user's sessions; answering 500 so the IdP \
+             retries"
         );
-    } else {
-        tracing::info!(user_id = %user_id, "SCIM deactivation revoked all sessions");
+        return Err(scim_error(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "The user's sessions could not be revoked",
+            None,
+        ));
     }
+    if let Some(denial) = state.denial.as_ref() {
+        if let Err(e) = denial.deny_all_for_user(user_id).await {
+            tracing::error!(
+                user_id = %user_id, error = %e,
+                "SCIM deactivation could not deny the user's access tokens; answering 500 so \
+                 the IdP retries"
+            );
+            return Err(scim_error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "The user's access tokens could not be revoked",
+                None,
+            ));
+        }
+    }
+    tracing::info!(user_id = %user_id, "SCIM deactivation revoked the user's sessions and tokens");
+    Ok(())
 }
 
 // ─── Groups ──────────────────────────────────────────────────────────────────

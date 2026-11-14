@@ -183,6 +183,11 @@ pub struct AppState {
     /// `501`, never a fabricated success.
     pub revocation_manager: Option<Arc<crate::token_revocation::TokenRevocationManager>>,
 
+    /// First-party sessions, which `POST /admin/v1/users/{id}/revoke` ends along with the
+    /// access tokens. `None` when this server mints no sessions.
+    #[cfg(feature = "auth")]
+    pub session_store: Option<Arc<dyn fraiseql_auth::SessionStore>>,
+
     /// When this state was constructed — i.e. when the server started.
     ///
     /// `GET /admin/v1/health/detailed` reported `uptime_secs` as *seconds since the
@@ -275,6 +280,8 @@ impl AppState {
             #[cfg(feature = "auth")]
             identity: crate::identity::RequestIdentity::default(),
             revocation_manager: None,
+            #[cfg(feature = "auth")]
+            session_store: None,
             started_at: std::time::Instant::now(),
             policy_reload: Arc::new(tokio::sync::watch::channel(0).0),
             idempotency_store: crate::routes::idempotency::create_store(
@@ -298,6 +305,14 @@ impl AppState {
         manager: Arc<crate::token_revocation::TokenRevocationManager>,
     ) -> Self {
         self.revocation_manager = Some(manager);
+        self
+    }
+
+    /// Attach the first-party sessions the admin revoke endpoint ends.
+    #[cfg(feature = "auth")]
+    #[must_use]
+    pub fn with_session_store(mut self, sessions: Arc<dyn fraiseql_auth::SessionStore>) -> Self {
+        self.session_store = Some(sessions);
         self
     }
 

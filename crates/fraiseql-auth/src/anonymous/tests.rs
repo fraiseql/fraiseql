@@ -102,12 +102,51 @@ async fn test_rate_limit_is_per_ip() {
 async fn test_upgrade_anonymous_session_calls_revoke_and_create() {
     let store = Arc::new(MockSessionStore);
     let now = unix_now().unwrap();
-    let result = upgrade_anonymous_session(&*store, "anon_abc123", "user_real", now + 3600).await;
+    let result =
+        upgrade_anonymous_session(&*store, None, "anon_abc123", "user_real", now + 3600).await;
     assert!(result.is_ok(), "upgrade should succeed: {result:?}");
     let tokens = result.unwrap();
     assert!(
         tokens.access_token.contains("user_real"),
         "access token should be for the real user"
+    );
+}
+
+/// Records every user whose access tokens it was asked to deny.
+#[derive(Default)]
+struct RecordingDenial {
+    users: std::sync::Mutex<Vec<String>>,
+}
+
+#[async_trait::async_trait]
+impl crate::DenyAccessTokens for RecordingDenial {
+    async fn deny(&self, _jtis: &[String]) -> std::result::Result<(), String> {
+        Ok(())
+    }
+
+    async fn deny_all_for_user(&self, user_id: &str) -> std::result::Result<(), String> {
+        self.users.lock().unwrap().push(user_id.to_string());
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn an_upgrade_denies_the_anonymous_identitys_access_tokens() {
+    let denial = RecordingDenial::default();
+    let now = unix_now().unwrap();
+    upgrade_anonymous_session(
+        &MockSessionStore,
+        Some(&denial),
+        "anon_abc123",
+        "user_real",
+        now + 3600,
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        denial.users.lock().unwrap().as_slice(),
+        ["anon_abc123"],
+        "the anonymous identity's access tokens must end with its sessions"
     );
 }
 

@@ -300,20 +300,33 @@ pub async fn anon_signup(
 
 /// Upgrade an anonymous session to a real identity.
 ///
-/// Revokes all sessions for the old `anon_` identity and creates a new session
-/// for `new_user_id`.  Returns the new token pair.
+/// Revokes all sessions for the old `anon_` identity, denies its access tokens through
+/// `denial` when one is given, and creates a new session for `new_user_id`. Returns the
+/// new token pair.
+///
+/// A denial that fails is logged, not returned: the upgrade goes on, and the anonymous
+/// identity's access tokens live out their lifetime.
 ///
 /// # Errors
 ///
 /// Returns an error if revocation or session creation fails.
 pub async fn upgrade_anonymous_session(
     session_store: &dyn SessionStore,
+    denial: Option<&dyn crate::DenyAccessTokens>,
     anon_user_id: &str,
     new_user_id: &str,
     expires_at: u64,
 ) -> Result<crate::session::TokenPair> {
     // Revoke all anonymous sessions first.
     session_store.revoke_all_sessions(anon_user_id).await?;
+    if let Some(denial) = denial {
+        if let Err(e) = denial.deny_all_for_user(anon_user_id).await {
+            tracing::error!(
+                "upgrade_anonymous_session: the access tokens of {anon_user_id} could not be \
+                 denied and stay valid until they expire: {e}"
+            );
+        }
+    }
     // Issue a new session under the real identity.
     session_store.create_session(new_user_id, expires_at).await
 }

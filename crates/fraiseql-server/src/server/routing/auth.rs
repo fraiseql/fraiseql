@@ -164,15 +164,7 @@ impl Server {
         // absolute_ttl_secs` opts in. Logout denies the session's access tokens only when
         // `[security.token_revocation]` is configured; otherwise they live out ttl_secs.
         if let Some(ref sessions) = self.session_routes_store {
-            let denial = self.revocation_manager.as_ref().map(|manager| {
-                Arc::new(RevokeAccessTokens {
-                    manager:  Arc::clone(manager),
-                    ttl_secs: sessions
-                        .refreshable_access_ttl_secs()
-                        .unwrap_or(fraiseql_core::schema::SessionConfig::DEFAULT_TTL_SECS)
-                        + crate::first_party::EXPIRY_GRACE_SECS,
-                }) as Arc<dyn fraiseql_auth::DenyAccessTokens>
-            });
+            let denial = self.access_denial();
             if denial.is_none() {
                 tracing::warn!(
                     "POST /auth/v1/session/logout ends refresh tokens only: without \
@@ -209,6 +201,11 @@ impl Server {
 
         // Local email+password (#367) — mounted when [auth.local] password = true.
         if let Some(ref pw) = self.local_password_state {
+            // Set here, not when the authenticator is built: the binary installs a
+            // `postgres` revocation store after the server is built.
+            if let Some(denial) = self.access_denial() {
+                pw.authenticator.set_access_denial(denial);
+            }
             app = app.merge(fraiseql_auth::local_password_routes(Arc::clone(pw)));
             info!(
                 "Local password routes mounted: POST /auth/v1/password/{{signup,login,reset}}, \
@@ -343,6 +340,26 @@ impl Server {
     }
 }
 
+impl Server {
+    /// The access-token denial shared by logout, a password reset and a `SCIM`
+    /// deactivation: `None` without `[security.token_revocation]`.
+    ///
+    /// Built when the routes are mounted, since the binary installs a `postgres`
+    /// revocation store only after the server is built.
+    pub(super) fn access_denial(&self) -> Option<Arc<dyn fraiseql_auth::DenyAccessTokens>> {
+        let manager = self.revocation_manager.as_ref()?;
+        Some(Arc::new(RevokeAccessTokens {
+            manager:  Arc::clone(manager),
+            ttl_secs: self
+                .session_routes_store
+                .as_ref()
+                .and_then(|sessions| sessions.refreshable_access_ttl_secs())
+                .unwrap_or(fraiseql_core::schema::SessionConfig::DEFAULT_TTL_SECS)
+                + crate::first_party::EXPIRY_GRACE_SECS,
+        }))
+    }
+}
+
 /// Logout's access-token denial, through the configured token revocation (#1853).
 struct RevokeAccessTokens {
     manager:  Arc<crate::token_revocation::TokenRevocationManager>,
@@ -358,6 +375,10 @@ impl fraiseql_auth::DenyAccessTokens for RevokeAccessTokens {
             self.manager.revoke(jti, self.ttl_secs).await.map_err(|e| e.to_string())?;
         }
         Ok(())
+    }
+
+    async fn deny_all_for_user(&self, user_id: &str) -> Result<(), String> {
+        self.manager.revoke_all_for_user(user_id).await.map_err(|e| e.to_string())
     }
 }
 

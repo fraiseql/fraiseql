@@ -156,6 +156,15 @@ impl LocalPasswordAuthenticator {
         self
     }
 
+    /// Deny the user's access tokens on every later successful reset.
+    ///
+    /// Set where the routes are mounted rather than at construction: the server installs
+    /// some revocation stores after the authenticator is built. Only the first call takes
+    /// effect.
+    pub fn set_access_denial(&self, denial: Arc<dyn crate::DenyAccessTokens>) {
+        let _ = self.access_denial.set(denial);
+    }
+
     /// Begin a password reset for `email`. Always returns `Ok(())` (non-enumerable).
     ///
     /// Resolves the local credential for `email`; if one exists, issues a single-use,
@@ -405,6 +414,17 @@ impl LocalPasswordAuthenticator {
                 "password_reset_confirm: no session store configured; outstanding sessions for \
                  {user_id} were not revoked"
             );
+        }
+        // The access tokens already issued end too. Logged rather than failed, like the
+        // session revocation above: the password is changed and the reset token spent, so
+        // an error here could not be retried.
+        if let Some(denial) = self.access_denial.get() {
+            if let Err(e) = denial.deny_all_for_user(&user_id).await {
+                tracing::error!(
+                    "password_reset_confirm: the access tokens of {user_id} could not be \
+                     denied and stay valid until they expire: {e}"
+                );
+            }
         }
 
         logger.log_success(

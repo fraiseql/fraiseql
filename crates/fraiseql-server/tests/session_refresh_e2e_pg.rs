@@ -823,6 +823,138 @@ async fn a_logout_that_cannot_deny_its_access_token_says_so() {
     finish(&url, db, server).await;
 }
 
+// ── Credential and account changes end the access tokens ──────────────────────
+
+/// An in-memory token revocation, installed after `Server::new` the way the binary
+/// installs its `postgres` backend.
+fn in_memory_revocation() -> Arc<TokenRevocationManager> {
+    Arc::new(TokenRevocationManager::new(
+        Arc::new(InMemoryRevocationStore::new()),
+        false,
+        false,
+        3600,
+    ))
+}
+
+/// Replace the reset token the server just issued with one whose secret this test knows.
+///
+/// The link goes to a mailbox nobody reads, and the store keeps only a hash of the
+/// verifier, so the test sets both halves itself, in the server's format.
+async fn plant_reset_token(pool: &PgPool) -> String {
+    use base64::Engine as _;
+    use sha2::Digest as _;
+    let selector = [7_u8; 16];
+    let verifier = [9_u8; 32];
+    let planted = sqlx::query(
+        "UPDATE auth.tb_password_reset_token SET selector = $1, verifier_hash = $2 \
+         WHERE used_at IS NULL",
+    )
+    .bind(base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(selector))
+    .bind(sha2::Sha256::digest(verifier).to_vec())
+    .execute(pool)
+    .await
+    .expect("plant the reset token")
+    .rows_affected();
+    assert_eq!(planted, 1, "the reset request must have issued one token");
+    format!(
+        "{}.{}",
+        base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(selector),
+        base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(verifier)
+    )
+}
+
+/// A password reset ends the access tokens the account already holds. The revocation is
+/// installed after `Server::new`, as the binary installs its `postgres` backend, so the
+/// reset must reach the store the server ends up with, not the one it was built with.
+#[tokio::test]
+async fn with_token_revocation_a_password_reset_ends_the_access_token() {
+    let db = "fraiseql_session_reset_revoked";
+    let Some((url, pool, server)) = start(
+        "a_password_reset_ends_the_access_token",
+        db,
+        refreshable(),
+        Some(in_memory_revocation()),
+    )
+    .await
+    else {
+        return;
+    };
+    let base = &server.base;
+
+    let session = signup(base, "reset-revoked@example.com").await;
+    assert_eq!(probe(base, &session.access).await, StatusCode::OK, "before the reset");
+
+    let (status, body) =
+        post_json(base, "/auth/v1/password/reset", json!({ "email": "reset-revoked@example.com" }))
+            .await;
+    assert_eq!(status, StatusCode::ACCEPTED, "{body}");
+    let token = plant_reset_token(&pool).await;
+    let (status, body) = post_json(
+        base,
+        "/auth/v1/password/reset/confirm",
+        json!({ "token": token, "new_password": "an entirely new passphrase" }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+
+    assert_eq!(
+        probe(base, &session.access).await,
+        StatusCode::UNAUTHORIZED,
+        "an access token issued before a password reset must not outlive it"
+    );
+
+    finish(&url, db, server).await;
+}
+
+const ADMIN_TOKEN: &str = "session-refresh-admin-token-at-least-32-chars";
+
+/// Studio's "revoke all of a user's sessions" ends the refresh tokens too: otherwise the
+/// next refresh mints an access token issued after the revocation, which it lets through.
+#[tokio::test]
+async fn the_studio_revoke_ends_the_users_refresh_tokens() {
+    let db = "fraiseql_session_studio_revoke";
+    let Some(url) = database_url_or_skip("the_studio_revoke_ends_the_refresh_tokens") else {
+        return;
+    };
+    set_test_env();
+    let pool = scratch_pool(&url, db).await;
+    let scratch_url = with_database(&url, db);
+    let config = ServerConfig {
+        admin_api_enabled: true,
+        admin_token: Some(ADMIN_TOKEN.to_string()),
+        ..server_config(&scratch_url)
+    };
+    let server = Box::pin(boot_with(
+        config,
+        refreshable(),
+        pool,
+        &scratch_url,
+        Some(in_memory_revocation()),
+    ))
+    .await;
+    let base = &server.base;
+
+    let session = signup(base, "studio-revoke@example.com").await;
+    let user = user_of(&session.access);
+    let resp = reqwest::Client::new()
+        .post(format!("{base}/admin/v1/users/{user}/revoke"))
+        .bearer_auth(ADMIN_TOKEN)
+        .send()
+        .await
+        .expect("request");
+    assert_eq!(resp.status(), StatusCode::OK, "{}", resp.text().await.unwrap_or_default());
+
+    let (status, body) = refresh(base, &session.refresh).await;
+    assert_eq!(
+        status,
+        StatusCode::UNAUTHORIZED,
+        "a session Studio revoked must not refresh: {body}"
+    );
+    assert_no_tokens("a refresh after a Studio revoke", &body);
+
+    finish(&url, db, server).await;
+}
+
 // ── Rate limits ──────────────────────────────────────────────────────────────
 
 /// The session routes spend the `auth_refresh` and `auth_logout` budgets per client.

@@ -157,6 +157,11 @@ pub struct LocalPasswordAuthenticator {
     /// Wired via [`with_session_store`](Self::with_session_store); `None` skips revocation
     /// (a warning is logged).
     session_store:       Option<Arc<dyn SessionStore>>,
+    /// Denies the user's access tokens on a successful
+    /// [`confirm_password_reset`](Self::confirm_password_reset). Set once, through
+    /// [`set_access_denial`](Self::set_access_denial), when the routes are mounted; unset,
+    /// the access tokens live out their lifetime.
+    access_denial:       std::sync::OnceLock<Arc<dyn crate::DenyAccessTokens>>,
     /// Delivers verification links for
     /// [`start_email_verification`](Self::start_email_verification). Wired via
     /// [`with_verification_email_sender`](Self::with_verification_email_sender); `None`
@@ -208,6 +213,7 @@ impl LocalPasswordAuthenticator {
             dummy_hash,
             email_sender: None,
             session_store: None,
+            access_denial: std::sync::OnceLock::new(),
             verification_sender: None,
         }
     }

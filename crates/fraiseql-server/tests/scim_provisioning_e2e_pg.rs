@@ -23,6 +23,9 @@ use fraiseql_core::{db::postgres::PostgresAdapter, schema::CompiledSchema};
 use fraiseql_server::{
     Server,
     server_config::{ServerConfig, scim::ScimServerConfig},
+    token_revocation::{
+        InMemoryRevocationStore, RevocationError, RevocationStore, TokenRevocationManager,
+    },
 };
 use fraiseql_test_support::try_database_url;
 use serde_json::{Value, json};
@@ -130,6 +133,12 @@ impl Rig {
 }
 
 async fn boot(url: &str, db: &str) -> Rig {
+    boot_with(url, db, None).await
+}
+
+/// [`boot`], with a token revocation installed after `Server::new`, the way the binary
+/// installs its `postgres` backend.
+async fn boot_with(url: &str, db: &str, revocation: Option<Arc<TokenRevocationManager>>) -> Rig {
     FIRST_PARTY.set_env();
     let pool = scratch_pool(url, db).await;
     let scratch_url = with_database(url, db);
@@ -141,9 +150,12 @@ async fn boot(url: &str, db: &str) -> Rig {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.expect("bind ephemeral port");
     let port = listener.local_addr().expect("local addr").port();
 
-    let server = Box::pin(Server::new(config, empty_schema(), adapter, Some(pool.clone())))
+    let mut server = Box::pin(Server::new(config, empty_schema(), adapter, Some(pool.clone())))
         .await
         .expect("[scim] with a pool and an admin token must boot");
+    if let Some(revocation) = revocation {
+        server = server.with_revocation_manager(revocation);
+    }
     let (stop, rx) = tokio::sync::oneshot::channel::<()>();
     let handle = tokio::spawn(async move {
         server
@@ -641,11 +653,59 @@ async fn a_tenant_credential_cannot_reach_another_tenants_users() {
         .unwrap();
     assert_eq!(resp.status(), 404, "another tenant's user must not be readable");
 
+    // The victim is signed in: a refused delete must not end their session either.
+    let sessions = FIRST_PARTY.session_store(&rig.pool).await;
+    let victim_session = {
+        use fraiseql_auth::SessionStore as _;
+        sessions
+            .create_session(&victim_id, fraiseql_auth::session::unix_now().unwrap() + 3600)
+            .await
+            .expect("an active account may hold a session")
+    };
     let resp = as_tenant(&acme, reqwest::Method::DELETE, &format!("/scim/v2/Users/{victim_id}"))
         .send()
         .await
         .unwrap();
     assert_eq!(resp.status(), 404, "another tenant's user must not be deletable");
+    // ...and the refusal is the one an id that exists nowhere gets, byte for byte.
+    let unknown = as_tenant(
+        &acme,
+        reqwest::Method::DELETE,
+        "/scim/v2/Users/00000000-0000-4000-8000-000000000000",
+    )
+    .send()
+    .await
+    .unwrap();
+    assert_eq!(unknown.status(), resp.status());
+    assert_eq!(
+        unknown.headers().get("content-type"),
+        resp.headers().get("content-type"),
+        "another tenant's id and an unknown id must answer alike"
+    );
+    let unknown = unknown.bytes().await.unwrap();
+    assert_eq!(
+        unknown,
+        resp.bytes().await.unwrap(),
+        "another tenant's id and an unknown id must answer alike"
+    );
+    // Both are the store's not-found, the reply a delete of an unknown id has always given.
+    assert_eq!(
+        serde_json::from_slice::<Value>(&unknown).unwrap(),
+        json!({
+            "schemas": ["urn:ietf:params:scim:api:messages:2.0:Error"],
+            "status": "404",
+            "detail": "Resource not found",
+        }),
+        "a delete of an unknown id keeps its reply"
+    );
+    {
+        use fraiseql_auth::SessionStore as _;
+        let hash = fraiseql_auth::session::hash_token(&victim_session.refresh_token);
+        assert!(
+            sessions.get_session(&hash).await.is_ok(),
+            "another tenant's credential must not end the user's session"
+        );
+    }
 
     let resp = as_tenant(&acme, reqwest::Method::POST, "/scim/v2/Groups")
         .json(&json!({
@@ -683,6 +743,275 @@ async fn a_tenant_credential_cannot_reach_another_tenants_users() {
         .await
         .unwrap();
     assert_eq!(resp.status(), 200);
+
+    rig.shutdown().await;
+    drop_scratch(&url, db).await;
+}
+
+// ── Deactivation ends the access tokens a user already holds ─────────────────────
+
+fn in_memory_revocation() -> Arc<TokenRevocationManager> {
+    Arc::new(TokenRevocationManager::new(
+        Arc::new(InMemoryRevocationStore::new()),
+        false,
+        false,
+        3600,
+    ))
+}
+
+/// A revocation store that reads but cannot write.
+struct UnwritableRevocations;
+
+// Reason: implements the dyn-dispatched `RevocationStore`, an `async_trait`
+#[async_trait::async_trait]
+impl RevocationStore for UnwritableRevocations {
+    async fn is_revoked(&self, _jti: &str) -> Result<bool, RevocationError> {
+        Ok(false)
+    }
+
+    async fn revoke(&self, _jti: &str, _ttl_secs: u64) -> Result<(), RevocationError> {
+        Err(RevocationError::Backend("the store refuses writes".to_string()))
+    }
+
+    async fn revoke_all_for_user(&self, _sub: &str, _ttl: u64) -> Result<(), RevocationError> {
+        Err(RevocationError::Backend("the store refuses writes".to_string()))
+    }
+
+    async fn user_revoked_after(&self, _sub: &str) -> Result<Option<i64>, RevocationError> {
+        Ok(None)
+    }
+}
+
+/// Provision an active user and sign them in the way this server's sign-in does: a
+/// session row and an access token signed with the server's own key.
+async fn provisioned_session(rig: &Rig, user_name: &str) -> (String, fraiseql_auth::TokenPair) {
+    let resp = rig
+        .scim(reqwest::Method::POST, "/scim/v2/Users")
+        .await
+        .json(&json!({ "userName": user_name, "active": true }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), 201, "create must answer 201");
+    let created: Value = resp.json().await.unwrap();
+    let user_id = created["id"].as_str().expect("id").to_string();
+    let sessions = FIRST_PARTY.session_store(&rig.pool).await;
+    let tokens = {
+        use fraiseql_auth::SessionStore as _;
+        sessions
+            .create_session(&user_id, fraiseql_auth::session::unix_now().unwrap() + 3600)
+            .await
+            .expect("an active account may hold a session")
+    };
+    (user_id, tokens)
+}
+
+/// What the server answers a holder of `access`.
+async fn probe(rig: &Rig, access: &str) -> reqwest::StatusCode {
+    rig.client
+        .post(format!("{}/graphql", rig.base))
+        .bearer_auth(access)
+        .json(&json!({ "query": "{ __typename }" }))
+        .send()
+        .await
+        .expect("request")
+        .status()
+}
+
+async fn deactivate_by_put(rig: &Rig, user_id: &str, user_name: &str) -> reqwest::Response {
+    rig.scim(reqwest::Method::PUT, &format!("/scim/v2/Users/{user_id}"))
+        .await
+        .json(&json!({ "userName": user_name, "active": false }))
+        .send()
+        .await
+        .unwrap()
+}
+
+async fn deactivate_by_patch(rig: &Rig, user_id: &str) -> reqwest::Response {
+    rig.scim(reqwest::Method::PATCH, &format!("/scim/v2/Users/{user_id}"))
+        .await
+        .json(&json!({
+            "schemas": [PATCH_OP],
+            "Operations": [{ "op": "replace", "path": "active", "value": false }],
+        }))
+        .send()
+        .await
+        .unwrap()
+}
+
+async fn delete_user(rig: &Rig, user_id: &str) -> reqwest::Response {
+    rig.scim(reqwest::Method::DELETE, &format!("/scim/v2/Users/{user_id}"))
+        .await
+        .send()
+        .await
+        .unwrap()
+}
+
+#[tokio::test]
+async fn a_put_deactivation_ends_the_users_access_tokens() {
+    let Some(url) = database_url_or_skip("a_put_deactivation_ends_access") else {
+        return;
+    };
+    let db = "fraiseql_p16_scim_put_access";
+    let rig = boot_with(&url, db, Some(in_memory_revocation())).await;
+    let (user_id, tokens) = provisioned_session(&rig, "put@example.com").await;
+    assert_eq!(probe(&rig, &tokens.access_token).await, 200, "before the deactivation");
+
+    let resp = deactivate_by_put(&rig, &user_id, "put@example.com").await;
+    assert_eq!(resp.status(), 200);
+    assert_eq!(
+        probe(&rig, &tokens.access_token).await,
+        401,
+        "a deactivated user's access token must stop working"
+    );
+
+    rig.shutdown().await;
+    drop_scratch(&url, db).await;
+}
+
+#[tokio::test]
+async fn a_patch_deactivation_ends_the_users_access_tokens() {
+    let Some(url) = database_url_or_skip("a_patch_deactivation_ends_access") else {
+        return;
+    };
+    let db = "fraiseql_p16_scim_patch_access";
+    let rig = boot_with(&url, db, Some(in_memory_revocation())).await;
+    let (user_id, tokens) = provisioned_session(&rig, "patch@example.com").await;
+    assert_eq!(probe(&rig, &tokens.access_token).await, 200, "before the deactivation");
+
+    let resp = deactivate_by_patch(&rig, &user_id).await;
+    assert_eq!(resp.status(), 200);
+    assert_eq!(
+        probe(&rig, &tokens.access_token).await,
+        401,
+        "a deactivated user's access token must stop working"
+    );
+
+    rig.shutdown().await;
+    drop_scratch(&url, db).await;
+}
+
+#[tokio::test]
+async fn a_delete_ends_the_users_access_tokens() {
+    let Some(url) = database_url_or_skip("a_delete_ends_access") else {
+        return;
+    };
+    let db = "fraiseql_p16_scim_delete_access";
+    let rig = boot_with(&url, db, Some(in_memory_revocation())).await;
+    let (user_id, tokens) = provisioned_session(&rig, "delete@example.com").await;
+    assert_eq!(probe(&rig, &tokens.access_token).await, 200, "before the delete");
+
+    let resp = delete_user(&rig, &user_id).await;
+    assert_eq!(resp.status(), 204);
+    assert_eq!(
+        probe(&rig, &tokens.access_token).await,
+        401,
+        "a deleted user's access token must stop working"
+    );
+
+    rig.shutdown().await;
+    drop_scratch(&url, db).await;
+}
+
+/// A delete whose access-token denial fails answers 500, so the `IdP` retries it: the
+/// account is gone, but its tokens are not, and a 204 would end the conversation.
+#[tokio::test]
+async fn a_delete_that_cannot_deny_the_access_tokens_answers_500() {
+    let Some(url) = database_url_or_skip("a_delete_that_cannot_deny") else {
+        return;
+    };
+    let db = "fraiseql_p16_scim_delete_unwritable";
+    let revocation =
+        Arc::new(TokenRevocationManager::new(Arc::new(UnwritableRevocations), false, false, 3600));
+    let rig = boot_with(&url, db, Some(revocation)).await;
+    let (user_id, _tokens) = provisioned_session(&rig, "unwritable@example.com").await;
+
+    let resp = delete_user(&rig, &user_id).await;
+    assert_eq!(resp.status(), 500, "a denial that failed must not answer 204");
+    // The user is still there, so the IdP's retry revokes again instead of meeting a 404.
+    let resp = rig
+        .scim(reqwest::Method::GET, &format!("/scim/v2/Users/{user_id}"))
+        .await
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), 200, "a delete that answered 500 must leave the user to retry on");
+
+    rig.shutdown().await;
+    drop_scratch(&url, db).await;
+}
+
+/// Make the database refuse to end a session, as a failing or read-only one would.
+async fn refuse_session_updates(pool: &PgPool) {
+    sqlx::raw_sql(
+        "CREATE FUNCTION refuse_session_update() RETURNS trigger LANGUAGE plpgsql AS \
+         $$ BEGIN RAISE EXCEPTION 'sessions are read-only'; END $$; \
+         CREATE TRIGGER refuse_session_update BEFORE UPDATE ON auth.sessions \
+         FOR EACH ROW EXECUTE FUNCTION refuse_session_update();",
+    )
+    .execute(pool)
+    .await
+    .expect("install the refusing trigger");
+}
+
+async fn allow_session_updates(pool: &PgPool) {
+    sqlx::raw_sql("DROP TRIGGER refuse_session_update ON auth.sessions")
+        .execute(pool)
+        .await
+        .expect("drop the refusing trigger");
+}
+
+async fn assert_session_ended(rig: &Rig, refresh_token: &str) {
+    use fraiseql_auth::SessionStore as _;
+    let sessions = fraiseql_auth::PostgresSessionStore::new(rig.pool.clone());
+    let hash = fraiseql_auth::session::hash_token(refresh_token);
+    assert!(sessions.get_session(&hash).await.is_err(), "the retry ended the session");
+}
+
+/// The PUT twin of the retry below: a PUT that left the user inactive but could not end
+/// the sessions, sent again, ends them although the user is already inactive.
+#[tokio::test]
+async fn a_put_retried_after_a_failed_revocation_ends_the_sessions() {
+    let Some(url) = database_url_or_skip("a_put_retried_after_a_failed_revocation") else {
+        return;
+    };
+    let db = "fraiseql_p16_scim_put_retry";
+    let rig = boot_with(&url, db, Some(in_memory_revocation())).await;
+    let (user_id, tokens) = provisioned_session(&rig, "put-retry@example.com").await;
+
+    refuse_session_updates(&rig.pool).await;
+    let resp = deactivate_by_put(&rig, &user_id, "put-retry@example.com").await;
+    assert_eq!(resp.status(), 500, "a session revocation that failed must not answer 200");
+
+    allow_session_updates(&rig.pool).await;
+    let resp = deactivate_by_put(&rig, &user_id, "put-retry@example.com").await;
+    assert_eq!(resp.status(), 200, "the retry succeeds");
+    assert_session_ended(&rig, &tokens.refresh_token).await;
+
+    rig.shutdown().await;
+    drop_scratch(&url, db).await;
+}
+
+/// A deactivation whose session revocation fails answers 500, so the `IdP` retries it: a
+/// live refresh token outlives every access token, and would mint new ones.
+#[tokio::test]
+async fn a_deactivation_that_cannot_end_the_sessions_answers_500() {
+    let Some(url) = database_url_or_skip("a_deactivation_that_cannot_end_sessions") else {
+        return;
+    };
+    let db = "fraiseql_p16_scim_sessions_unwritable";
+    let rig = boot_with(&url, db, Some(in_memory_revocation())).await;
+    let (user_id, tokens) = provisioned_session(&rig, "sessions@example.com").await;
+    refuse_session_updates(&rig.pool).await;
+    let resp = deactivate_by_patch(&rig, &user_id).await;
+    assert_eq!(resp.status(), 500, "a session revocation that failed must not answer 200");
+
+    // The IdP retries once the database recovers. The user is already inactive, and the
+    // retry must still end the session.
+    allow_session_updates(&rig.pool).await;
+    let resp = deactivate_by_patch(&rig, &user_id).await;
+    assert_eq!(resp.status(), 200, "the retry succeeds");
+    assert_session_ended(&rig, &tokens.refresh_token).await;
 
     rig.shutdown().await;
     drop_scratch(&url, db).await;

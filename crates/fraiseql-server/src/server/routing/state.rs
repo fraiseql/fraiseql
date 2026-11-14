@@ -136,6 +136,14 @@ impl Server {
         if let Some(ref rev_mgr) = self.revocation_manager {
             state = state.with_revocation_manager(rev_mgr.clone());
         }
+        // ...and the first-party sessions it ends with them, so a refresh cannot mint an
+        // access token issued after the revocation.
+        #[cfg(feature = "auth")]
+        if let Some(ref pool) = self.auth_pool {
+            state = state.with_session_store(std::sync::Arc::new(
+                fraiseql_auth::PostgresSessionStore::new(pool.clone()),
+            ));
+        }
 
         // Attach error sanitizer (always present; disabled by default)
         state = state.with_error_sanitizer(self.error_sanitizer.clone());

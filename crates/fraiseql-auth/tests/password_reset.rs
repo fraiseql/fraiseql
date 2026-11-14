@@ -27,8 +27,8 @@ use std::{
 
 use async_trait::async_trait;
 use fraiseql_auth::{
-    AccountStore, AuthError, LocalPasswordAuthenticator, PostgresAccountStore, ResetEmailSender,
-    SessionData, SessionStore, TokenPair,
+    AccountStore, AuthError, DenyAccessTokens, LocalPasswordAuthenticator, PostgresAccountStore,
+    ResetEmailSender, SessionData, SessionStore, TokenPair,
 };
 use fraiseql_test_support::try_database_url;
 use sqlx::{
@@ -87,6 +87,24 @@ impl SessionStore for RecordingSessions {
 
     async fn revoke_all_sessions(&self, user_id: &str) -> Result<(), AuthError> {
         self.revoked.lock().unwrap().push(user_id.to_string());
+        Ok(())
+    }
+}
+
+/// Records every user whose access tokens the reset flow asked to deny.
+#[derive(Default)]
+struct RecordingDenial {
+    users: Mutex<Vec<String>>,
+}
+
+#[async_trait]
+impl DenyAccessTokens for RecordingDenial {
+    async fn deny(&self, _jtis: &[String]) -> Result<(), String> {
+        unimplemented!("not exercised by the reset flow")
+    }
+
+    async fn deny_all_for_user(&self, user_id: &str) -> Result<(), String> {
+        self.users.lock().unwrap().push(user_id.to_string());
         Ok(())
     }
 }
@@ -266,6 +284,27 @@ async fn reset_changes_the_password_and_revokes_sessions() {
             .unwrap()
             .get("used_at");
     assert!(used.is_some(), "the redeemed token is marked used");
+}
+
+/// A reset ends the access tokens the user already holds, not only the refresh tokens: a
+/// reset is how an owner takes an account back, and a token kept by whoever held it
+/// before must not outlive it.
+#[tokio::test]
+async fn reset_denies_the_users_access_tokens() {
+    let h = skip_if_no_db!();
+    let denial = Arc::new(RecordingDenial::default());
+    h.auth.set_access_denial(denial.clone());
+    let user_id = h.auth.signup(EMAIL, PASSWORD).await.unwrap();
+
+    h.auth.start_password_reset(EMAIL).await.unwrap();
+    let (_, token) = captured_email(&h.sender).await;
+    h.auth.confirm_password_reset(&token, NEW_PASSWORD).await.unwrap();
+
+    assert_eq!(
+        denial.users.lock().unwrap().as_slice(),
+        [user_id],
+        "the user's access tokens are denied once"
+    );
 }
 
 // ── confirm: rejection paths ──────────────────────────────────────────────────────

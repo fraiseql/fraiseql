@@ -1,8 +1,8 @@
 //! Session revocation for the Studio dashboard.
 //!
-//! `POST /admin/v1/users/{id}/revoke` revokes every active session of a user
-//! through the server's token revocation store. It is protected by the admin
-//! bearer token middleware.
+//! `POST /admin/v1/users/{id}/revoke` ends every first-party session of a user and
+//! revokes the access tokens already issued, through the server's token revocation
+//! store. It is protected by the admin bearer token middleware.
 
 use axum::{
     Json,
@@ -30,7 +30,7 @@ use crate::routes::{graphql::app_state::AppState, studio::not_implemented};
 ///
 /// Returns `401` without valid admin credentials (enforced by middleware).
 /// Returns `501` when no revocation store is configured.
-/// Returns `500` when the revocation store rejects the write.
+/// Returns `500` when the session store or the revocation store rejects the write.
 pub async fn revoke_user_handler(
     Path(user_id): Path<String>,
     State(state): State<AppState>,
@@ -42,6 +42,25 @@ pub async fn revoke_user_handler(
              [security.token_revocation] in fraiseql.toml.",
         );
     };
+
+    // The sessions end first, then the access tokens. A refresh holds its session row
+    // `FOR UPDATE` while it mints, so once the sessions are ended every token a refresh
+    // minted is issued no later than the revocation below, which rejects it. In the other
+    // order, a refresh between the two would mint a token issued after the revocation.
+    #[cfg(feature = "auth")]
+    if let Some(sessions) = state.session_store.as_ref() {
+        if let Err(e) = sessions.revoke_all_sessions(&user_id).await {
+            tracing::error!(error = %e, user = %user_id, "revoking the user's sessions failed");
+            return (
+                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({
+                    "error":   "revocation_failed",
+                    "message": "The session store rejected the write; sessions are NOT revoked.",
+                })),
+            )
+                .into_response();
+        }
+    }
 
     match manager.revoke_all_for_user(&user_id).await {
         Ok(()) => Json(serde_json::json!({
