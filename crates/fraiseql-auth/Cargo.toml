@@ -78,7 +78,9 @@ required-features = ["auth-saml"]
 
 [dev-dependencies]
 criterion = { version = "0.5", features = ["html_reports"] }
-fraiseql-test-support = { path = "../fraiseql-test-support", features = ["test-issuer"] }
+fraiseql-test-support = { path = "../fraiseql-test-support", features = [
+  "test-issuer",
+] }
 proptest = { workspace = true }
 temp-env = { workspace = true }
 tokio-test = "0.4"
