@@ -68,6 +68,62 @@ pub struct TomlProjectConfig {
     /// [`Self::from_file`].
     #[serde(skip)]
     pub declared_security: std::collections::BTreeSet<String>,
+
+    /// `[mcp]`: the Model Context Protocol transport. This and the sections below are the
+    /// runtime sections a TOML schema takes (#1719), in the same types, lowered by the same
+    /// function (`TomlSchema::lower_runtime_sections`) and reconciled with a copy the
+    /// schema document carries. Each is optional, so a table an author wrote, even one that
+    /// only says `enabled = false`, is told from one left out.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mcp: Option<toml_schema::McpConfig>,
+
+    /// `[rest]`: the REST transport.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rest: Option<toml_schema::rest::RestTomlConfig>,
+
+    /// `[grpc]`: the gRPC transport.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub grpc: Option<fraiseql_core::schema::GrpcConfig>,
+
+    /// `[debug]`: database `EXPLAIN` and SQL exposure, for development.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub debug: Option<toml_schema::DebugConfig>,
+
+    /// `[validation]`: query depth and complexity limits.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub validation: Option<toml_schema::ValidationConfig>,
+
+    /// `[subscriptions]`: WebSocket subscription hooks and limits.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub subscriptions: Option<toml_schema::SubscriptionsConfig>,
+
+    /// `[federation]`: the subgraph's federation settings.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub federation: Option<toml_schema::FederationConfig>,
+
+    /// `[auth]`: the OAuth client and sign-in groups.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub auth: Option<toml_schema::OidcClientConfig>,
+
+    /// `[changelog]`: the change log's GraphQL exposure. Requires `[observers]`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub changelog: Option<fraiseql_core::schema::ChangelogConfig>,
+
+    /// `[hierarchies.<name>]`: the tables the ID-based ltree operators resolve against.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hierarchies: Option<std::collections::HashMap<String, toml_schema::HierarchyConfig>>,
+
+    /// `[query_defaults]`: project-wide defaults for list-query auto-params.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub query_defaults: Option<toml_schema::QueryDefaults>,
+
+    /// Whether the file this was loaded from writes `[fraiseql.naming] convention`.
+    ///
+    /// The convention has a default, so the parsed value cannot say whether the author
+    /// chose it. A convention the author wrote decides the schema's; one left unwritten
+    /// leaves the schema document's own in place. Set by [`Self::from_file`].
+    #[serde(skip)]
+    pub declares_naming_convention: bool,
 }
 
 /// Project metadata
@@ -215,6 +271,7 @@ impl TomlProjectConfig {
         // A file that is not TOML at all is reported by the typed parse below.
         let declared_security = if let Ok(table) = toml_content.parse::<toml::Table>() {
             refuse_unapplied_keys(&table)?;
+            refuse_misplaced_sections(&table)?;
             security_merge::declared_in_project_config(&table)
         } else {
             std::collections::BTreeSet::new()
@@ -223,8 +280,60 @@ impl TomlProjectConfig {
         let mut config: TomlProjectConfig = toml::from_str(&toml_content)
             .map_err(|e| anyhow::anyhow!("Failed to parse fraiseql.toml: {e}"))?;
         config.declared_security = declared_security;
+        config.declares_naming_convention = toml_content
+            .parse::<toml::Table>()
+            .ok()
+            .as_ref()
+            .and_then(|table| table.get("fraiseql"))
+            .and_then(|fraiseql| fraiseql.get("naming"))
+            .and_then(|naming| naming.get("convention"))
+            .is_some();
+
+        // The files `[auth.local]` names (mail templates) are read beside the config, as a
+        // TOML schema reads them.
+        let project = path.parent().unwrap_or(Path::new(""));
+        if let Some(local) = config.auth.as_mut().and_then(|auth| auth.local.as_mut()) {
+            toml_schema::security::embed_email_templates(local, project)?;
+        }
 
         Ok(config)
+    }
+
+    /// The runtime sections this config declares, as the TOML schema that declares the same
+    /// tables and nothing else, with the tables it declares.
+    ///
+    /// The project config holds no lowering of its own: it hands its sections to the one a
+    /// TOML schema uses, so a section compiles alike in both workflows.
+    #[must_use]
+    pub fn runtime_sections(&self) -> (TomlSchema, Vec<&'static str>) {
+        let mut schema = TomlSchema::default();
+        let mut declared = Vec::new();
+        macro_rules! section {
+            ($field:ident) => {
+                if let Some(value) = &self.$field {
+                    schema.$field = value.clone();
+                    declared.push(stringify!($field));
+                }
+            };
+            (optional $field:ident) => {
+                if let Some(value) = &self.$field {
+                    schema.$field = Some(value.clone());
+                    declared.push(stringify!($field));
+                }
+            };
+        }
+        section!(mcp);
+        section!(rest);
+        section!(grpc);
+        section!(debug);
+        section!(validation);
+        section!(subscriptions);
+        section!(federation);
+        section!(query_defaults);
+        section!(optional auth);
+        section!(optional changelog);
+        section!(optional hierarchies);
+        (schema, declared)
     }
 
     /// Validate configuration.
@@ -243,8 +352,99 @@ impl TomlProjectConfig {
         self.fraiseql.tenancy.validate()?;
         self.server.validate()?;
         self.database.validate()?;
+        // The runtime sections are checked as a TOML schema checks them.
+        self.runtime_sections().0.validate_self_contained()?;
         Ok(())
     }
+}
+
+/// What a top-level key of a TOML schema that does not belong in a project config is told.
+enum Misplaced {
+    /// It authors the schema, which beside a schema document the document does.
+    Authoring,
+    /// The project config spells it under this table.
+    SpelledAs(&'static str),
+    /// It is refused in a TOML schema too, with this pointer.
+    Elsewhere(&'static str),
+}
+
+/// The sections a TOML schema takes that a project config, read beside a schema document,
+/// does not: each is refused by name with where it belongs, where `deny_unknown_fields`
+/// would only say the key is unknown.
+const MISPLACED_SECTIONS: &[(&str, Misplaced)] = &[
+    ("schema", Misplaced::Authoring),
+    ("types", Misplaced::Authoring),
+    ("queries", Misplaced::Authoring),
+    ("mutations", Misplaced::Authoring),
+    ("includes", Misplaced::Authoring),
+    ("domain_discovery", Misplaced::Authoring),
+    ("crud", Misplaced::Authoring),
+    ("analytics", Misplaced::Authoring),
+    (
+        "observability",
+        Misplaced::Elsewhere(
+            "metrics and tracing are configured on the server, under `[metrics]` and \
+             `[tracing]` in the file FRAISEQL_CONFIG names",
+        ),
+    ),
+    ("security", Misplaced::SpelledAs("[fraiseql.security]")),
+    ("tenancy", Misplaced::SpelledAs("[fraiseql.tenancy]")),
+    ("session_variables", Misplaced::SpelledAs("[fraiseql.session_variables]")),
+    ("naming_convention", Misplaced::SpelledAs("[fraiseql.naming] convention")),
+];
+
+/// The `[security]` keys of a TOML schema that `[fraiseql.security]` also takes.
+const PROJECT_SECURITY_KEYS: &[&str] = &[
+    "audit_logging",
+    "error_sanitization",
+    "rate_limiting",
+    "state_encryption",
+    "role_definitions",
+    "default_role",
+    "multi_tenant",
+    "rls",
+    "service_accounts",
+];
+
+/// Refuse the first top-level key of [`MISPLACED_SECTIONS`] that `table` sets.
+fn refuse_misplaced_sections(table: &toml::Table) -> Result<()> {
+    for (name, misplaced) in MISPLACED_SECTIONS {
+        let Some(written) = table.get(*name) else {
+            continue;
+        };
+        let pointer = match misplaced {
+            Misplaced::Authoring => "it authors the schema, which the schema document does \
+                                     here. Declare it there, or author the schema in TOML and \
+                                     pass that file as the compile input (`fraiseql compile \
+                                     <schema>.toml`)"
+                .to_string(),
+            Misplaced::Elsewhere(pointer) => (*pointer).to_string(),
+            Misplaced::SpelledAs(spelling) => {
+                let mut pointer = format!("a project configuration spells it `{spelling}`");
+                // `[security]` and `[fraiseql.security]` do not take the same keys: say, for
+                // each key written, whether the project configuration has it.
+                if let (true, Some(keys)) = (*name == "security", written.as_table()) {
+                    for key in keys.keys() {
+                        if PROJECT_SECURITY_KEYS.contains(&key.as_str()) {
+                            pointer
+                                .push_str(&format!("; `{key}` is `[fraiseql.security]` `{key}`"));
+                        } else {
+                            pointer.push_str(&format!(
+                                "; `{key}` has no project-configuration spelling, and is set \
+                                 in a TOML schema"
+                            ));
+                        }
+                    }
+                }
+                pointer
+            },
+        };
+        anyhow::bail!(
+            "fraiseql.toml: `{name}` does not belong in a project configuration, the \
+             fraiseql.toml read beside a schema document: {pointer}."
+        );
+    }
+    Ok(())
 }
 
 /// Keys `fraiseql.toml` once accepted that `fraiseql run` never applied: the section, the

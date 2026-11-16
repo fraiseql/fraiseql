@@ -119,10 +119,10 @@ impl Entry {
 /// issue that blocks it. Shrink-only: [`every_declared_entry_point_drives_a_fixture`] fails on
 /// an entry the fixture would not be driven through anyway.
 ///
-/// MCP stdio refuses a schema without `[mcp]`, and a project that declares functions (an SDK
-/// `schema.json`) cannot also declare `[mcp]` beside it (#1719), so no application can serve
-/// its functions over stdio yet.
-const NOT_DRIVEN_YET: &[(&str, Entry, &str)] = &[("cron", Entry::McpStdio, "#1719")];
+/// The `cron` fixture declares `[mcp]` beside its SDK `schema.json` (#1719), and its function
+/// fires on the binary, a listener and `fraiseql run`. Served over MCP stdio it boots and
+/// answers, and the function does not fire within the fixture's deadline.
+const NOT_DRIVEN_YET: &[(&str, Entry, &str)] = &[("cron", Entry::McpStdio, "#2000")];
 
 /// Whether `fixture` is listed in [`NOT_DRIVEN_YET`] for `entry`.
 fn waiting(fixture: &str, entry: Entry) -> bool {

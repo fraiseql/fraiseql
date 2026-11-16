@@ -320,3 +320,81 @@ fn default_version() -> String {
 
 #[cfg(test)]
 mod tests;
+
+impl IntermediateSchema {
+    /// The copy of a runtime section this document carries under `key`, as JSON: one of
+    /// [`RUNTIME_SECTIONS`](crate::config::toml_schema::runtime_sections::RUNTIME_SECTIONS).
+    ///
+    /// # Errors
+    ///
+    /// When the section does not serialize, which no declared section does.
+    pub(crate) fn runtime_section(&self, key: &str) -> anyhow::Result<Option<serde_json::Value>> {
+        fn json<T: serde::Serialize>(
+            section: Option<&T>,
+        ) -> anyhow::Result<Option<serde_json::Value>> {
+            Ok(section.map(serde_json::to_value).transpose()?)
+        }
+        match key {
+            "federation_config" => Ok(self.federation_config.clone()),
+            "auth" => Ok(self.auth.clone()),
+            "subscriptions_config" => json(self.subscriptions_config.as_ref()),
+            "validation_config" => json(self.validation_config.as_ref()),
+            "debug_config" => json(self.debug_config.as_ref()),
+            "mcp_config" => json(self.mcp_config.as_ref()),
+            "rest_config" => json(self.rest_config.as_ref()),
+            "grpc_config" => json(self.grpc_config.as_ref()),
+            "changelog_config" => json(self.changelog_config.as_ref()),
+            "hierarchies_config" => json(self.hierarchies_config.as_ref()),
+            "query_defaults" => json(self.query_defaults.as_ref()),
+            _ => Ok(None),
+        }
+    }
+
+    /// Set the runtime section under `key` to `value`.
+    ///
+    /// # Errors
+    ///
+    /// When `value` does not have the section's shape.
+    pub(crate) fn set_runtime_section(
+        &mut self,
+        key: &str,
+        value: serde_json::Value,
+    ) -> anyhow::Result<()> {
+        use anyhow::Context as _;
+        let shape = || format!("`{key}` does not have its section's shape");
+        match key {
+            "federation_config" => self.federation_config = Some(value),
+            "auth" => self.auth = Some(value),
+            "subscriptions_config" => {
+                self.subscriptions_config =
+                    Some(serde_json::from_value(value).with_context(shape)?);
+            },
+            "validation_config" => {
+                self.validation_config = Some(serde_json::from_value(value).with_context(shape)?);
+            },
+            "debug_config" => {
+                self.debug_config = Some(serde_json::from_value(value).with_context(shape)?);
+            },
+            "mcp_config" => {
+                self.mcp_config = Some(serde_json::from_value(value).with_context(shape)?);
+            },
+            "rest_config" => {
+                self.rest_config = Some(serde_json::from_value(value).with_context(shape)?);
+            },
+            "grpc_config" => {
+                self.grpc_config = Some(serde_json::from_value(value).with_context(shape)?);
+            },
+            "changelog_config" => {
+                self.changelog_config = Some(serde_json::from_value(value).with_context(shape)?);
+            },
+            "hierarchies_config" => {
+                self.hierarchies_config = Some(serde_json::from_value(value).with_context(shape)?);
+            },
+            "query_defaults" => {
+                self.query_defaults = Some(serde_json::from_value(value).with_context(shape)?);
+            },
+            _ => anyhow::bail!("`{key}` is not a runtime section"),
+        }
+        Ok(())
+    }
+}

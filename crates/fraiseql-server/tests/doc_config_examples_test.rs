@@ -138,3 +138,92 @@ fn every_documented_toml_example_parses_as_the_file_it_names() {
     assert!(compiler >= 6, "expected at least 6 fraiseql.toml examples, found {compiler}");
     assert!(other >= 1, "expected at least 1 example of another TOML file, found {other}");
 }
+
+/// Top-level keys that author the schema: a block holding one is a TOML schema, the compile
+/// input, and is not expected to be a project config.
+const AUTHORING_KEYS: [&str; 8] = [
+    "schema",
+    "types",
+    "queries",
+    "mutations",
+    "includes",
+    "domain_discovery",
+    "crud",
+    "analytics",
+];
+
+/// `fraiseql.toml` examples that hold only settings and still parse as a TOML schema alone,
+/// by file and by the top-level key the project config does not take. A reader who authors
+/// with an SDK keeps a project config beside a `schema.json`, where that key is refused by
+/// name with its project spelling (#1719). Shrink-only: a new example must work in both
+/// files, or say which one it is by declaring a schema.
+const TOML_SCHEMA_ONLY: &[(&str, &str)] = &[
+    // `[security]` keys with no `[fraiseql.security]` spelling (pkce, api_keys, cost_budget).
+    ("docs/auth/auth0.md", "security"),
+    ("docs/auth/saml-sso.md", "security"),
+    ("docs/security/graphql-complexity-limits.md", "security"),
+    // Spelled `[fraiseql.tenancy]` and `[fraiseql.session_variables]` in a project config.
+    ("docs/auth/auth0.md", "tenancy"),
+    ("docs/features/session-variables.md", "session_variables"),
+    ("docs/modules/fact-table.md", "session_variables"),
+    // `[caching]` lowers onto operations, not a section; not yet taken beside a document.
+    ("docs/modules/cache.md", "caching"),
+];
+
+/// A settings-only `fraiseql.toml` example works beside a `schema.json` too.
+#[test]
+fn a_settings_only_fraiseql_toml_example_is_also_a_project_config() {
+    let root = repo_root();
+    let mut files = vec![root.join("README.md")];
+    markdown_files(&root.join("docs"), &mut files);
+    files.sort();
+
+    let mut schema_only: Vec<(String, String)> = Vec::new();
+    for path in &files {
+        let content = std::fs::read_to_string(path).unwrap();
+        let shown = path.strip_prefix(&root).unwrap().display().to_string();
+        for (_, block) in toml_blocks(&content) {
+            if !named_file(&block).is_some_and(|name| name.ends_with("fraiseql.toml")) {
+                continue;
+            }
+            let Ok(table) = block.parse::<toml::Table>() else {
+                continue;
+            };
+            let settings_only = !table.keys().any(|key| AUTHORING_KEYS.contains(&key.as_str()));
+            if !settings_only || toml::from_str::<TomlSchema>(&block).is_err() {
+                continue;
+            }
+            if toml::from_str::<TomlProjectConfig>(&block).is_ok() {
+                continue;
+            }
+            // The keys the project config does not take, each once per file.
+            let taken = toml::Table::try_from(TomlProjectConfig::default()).unwrap();
+            for key in table.keys() {
+                let probe = toml::Table::from_iter([(key.clone(), table[key].clone())]);
+                let refused = toml::from_str::<TomlProjectConfig>(&probe.to_string()).is_err();
+                if refused && !taken.contains_key(key) {
+                    let entry = (shown.clone(), key.clone());
+                    if !schema_only.contains(&entry) {
+                        schema_only.push(entry);
+                    }
+                }
+            }
+        }
+    }
+
+    let expected: Vec<(String, String)> = TOML_SCHEMA_ONLY
+        .iter()
+        .map(|(file, key)| ((*file).to_string(), (*key).to_string()))
+        .collect();
+    let new: Vec<_> = schema_only.iter().filter(|entry| !expected.contains(entry)).collect();
+    let gone: Vec<_> = expected.iter().filter(|entry| !schema_only.contains(entry)).collect();
+    assert!(
+        new.is_empty(),
+        "settings-only fraiseql.toml examples a project config refuses; make each work beside \
+         a schema.json, or list it in TOML_SCHEMA_ONLY:\n{new:#?}"
+    );
+    assert!(
+        gone.is_empty(),
+        "TOML_SCHEMA_ONLY entries that no longer apply; remove them:\n{gone:#?}"
+    );
+}

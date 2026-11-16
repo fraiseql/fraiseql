@@ -11,6 +11,7 @@ pub mod observability;
 pub mod observers;
 pub mod operations;
 pub mod rest;
+pub(crate) mod runtime_sections;
 pub mod security;
 pub mod server_settings;
 pub mod subscriptions;

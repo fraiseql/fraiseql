@@ -69,7 +69,41 @@ disagreed, and the promise was the part that was wrong.
   the entity keyed `snake_case` from the mutation's function, as a view's document is. A
   single-word field (`status`) is unaffected.
 
+- **A setting declared in two files must agree (#1719).** A runtime section of a TOML
+  schema (`[mcp]`, `[rest]`, `[grpc]`, `[debug]`, `[validation]`, `[subscriptions]`,
+  `[federation]`, `[auth]`, `[changelog]`, `[hierarchies]`, `[query_defaults]`) used to
+  overwrite the copy carried by the types document it is compiled with (`--types`). The two
+  are now compared: a copy that differs is refused, naming both sources and the first key
+  they differ on. Remove one of the two, or make them say the same thing. The same holds
+  for `[fraiseql.session_variables]` in a project `fraiseql.toml` and a `session_variables`
+  block in the `schema.json` beside it, where the project config used to replace the
+  document's block.
+
+- **A schema document's `naming_convention` stands unless the project config sets one
+  (#1719).** Beside a `schema.json`, the compiled convention was the project config's, its
+  `camelCase` default included, whatever the document said. `[fraiseql.naming] convention`
+  now decides only when the file writes it; otherwise the document's own value applies, and
+  `camelCase` when neither says. A document that writes `"naming_convention": "preserve"`
+  with no convention in `fraiseql.toml` now compiles as `preserve`.
+
+- **A `rest_config` or `grpc_config` in a schema document is held to the section's checks
+  (#1719).** A REST path that does not start with `/`, and an enabled gRPC transport with no
+  `descriptor_path` or a zero `stream_batch_size`, were refused in `fraiseql.toml` and
+  accepted in a `schema.json`. Both are refused in both.
+
 ### Added
+
+- **A `fraiseql.toml` beside a `schema.json` takes the runtime sections a TOML schema takes
+  (#1719).** `[mcp]`, `[rest]`, `[grpc]`, `[debug]`, `[validation]`, `[subscriptions]`,
+  `[federation]`, `[auth]`, `[changelog]`, `[hierarchies]` and `[query_defaults]` were
+  refused there as unknown fields, so an SDK author following the docs had to write the
+  section into the schema document. They compile to what the TOML workflow compiles them
+  to, and are reconciled with a copy the document carries. The sections that do not belong
+  in a project config are refused by name with where they go: the schema-authoring ones,
+  `[observability]`, and the top-level `[security]`, `[tenancy]`, `[session_variables]` and
+  `naming_convention`, which a project config spells under `[fraiseql.*]`. `[caching]` is
+  not taken yet. See "Runtime Sections in a Project `fraiseql.toml`" in
+  `docs/architecture/config-vs-settings.md`.
 
 - **`run_as.static_enriched` (#1989).** A function's, scheduled source's or saga step's
   `run_as` declares the enriched fields its identity presents, as a service account's

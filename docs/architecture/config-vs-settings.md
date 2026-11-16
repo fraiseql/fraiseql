@@ -65,6 +65,47 @@ The server reads the compiled `"security"` key as `fraiseql_core::schema::Securi
 encryption, rate limiting, API keys, service accounts, token revocation, tenancy and
 `RuntimeConfig`, among others.
 
+## Runtime Sections in a Project `fraiseql.toml`
+
+A project that authors its schema with an SDK keeps a `fraiseql.toml` beside the
+`schema.json` the SDK emits. That file takes the runtime sections a TOML schema takes, in
+the same spelling, and they compile to the same thing in both workflows:
+
+```toml
+# fraiseql.toml
+[project]
+name = "orders"
+
+[mcp]
+enabled = true
+
+[rest]
+enabled = true
+path = "/api"
+
+[validation]
+max_query_depth = 12
+```
+
+| Sections | Beside a `schema.json` |
+|---|---|
+| `[mcp]`, `[rest]`, `[grpc]`, `[debug]`, `[validation]`, `[subscriptions]`, `[federation]`, `[auth]`, `[changelog]`, `[hierarchies]`, `[query_defaults]`, `[observers]`, `[functions]`, `[locale]`, `[inject_defaults]` | Honoured. |
+| `[security]`, `[tenancy]`, `[session_variables]`, `naming_convention` | Refused by name: a project config spells them `[fraiseql.security]`, `[fraiseql.tenancy]`, `[fraiseql.session_variables]` and `[fraiseql.naming] convention`. `[security]` keys with no `[fraiseql.security]` spelling are named in the refusal. |
+| `[schema]`, `[types]`, `[queries]`, `[mutations]`, `[includes]`, `[domain_discovery]`, `[crud]`, `[analytics]` | Refused by name: they author the schema, which the schema document does here. |
+| `[observability]` | Refused by name, as in a TOML schema: metrics and tracing are server settings. |
+| `[caching]` | Not taken yet. |
+
+A schema document may carry its own copy of a section (`mcp_config`, `rest_config`, …).
+One source alone applies. Two that agree compile. Two that differ are refused, and the
+error names both sources and the first key they differ on: neither file overrides the
+other. A table that only says `enabled = false` is still a declaration, and disagrees with
+a copy that says `true`. The same holds between a TOML schema and the types document it is
+compiled with (`--types`), where a table left at its defaults counts as not declared.
+
+`[fraiseql.naming] convention` is the one setting that is not reconciled: an SDK writes its
+own convention into every document, so the project config decides when it writes the key,
+and the document's value stands when it does not.
+
 ## When to Use Which
 
 - **Adding a new server knob** (bind address, pool size, feature toggle) -> `*Config` in `server_config/`

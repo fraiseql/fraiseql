@@ -1,5 +1,5 @@
-# TOML-only: beside an SDK `schema.json`, `[mcp]` is refused (the gap #1701 tracks for
-# `[functions]`), so this fixture declares its schema here.
+# A TOML schema: this fixture authors its types here. The `cron` fixture declares `[mcp]`
+# beside an SDK `schema.json`.
 [schema]
 name = "capability-mcp"
 

@@ -196,6 +196,8 @@ pub async fn compile_to_schema(
         .extension()
         .and_then(|ext| ext.to_str())
         .is_some_and(|ext| ext.eq_ignore_ascii_case("toml"));
+    // Whether a JSON schema document writes its own `naming_convention`.
+    let mut document_declares_naming = false;
     let mut intermediate: IntermediateSchema = if is_toml {
         info!("Using TOML-based workflow");
         load_intermediate_schema(
@@ -226,6 +228,13 @@ pub async fn compile_to_schema(
         crate::schema::intermediate::reject_drifted_keys(&raw)
             .map_err(|e| anyhow::anyhow!("{e}"))?;
 
+        document_declares_naming = raw.get("naming_convention").is_some();
+        // A runtime section the document carries is held to the checks its TOML table is.
+        for (_, key) in crate::config::toml_schema::runtime_sections::RUNTIME_SECTIONS {
+            if let Some(copy) = raw.get(*key) {
+                crate::config::toml_schema::runtime_sections::check_document_copy(key, copy)?;
+            }
+        }
         let input_has_federation = ["federation", "federation_config"].iter().any(|key| {
             raw.get(*key)
                 .and_then(serde_json::Value::as_object)
@@ -264,6 +273,8 @@ pub async fn compile_to_schema(
     // The TomlSchema path carries its own naming_convention via the merger and is
     // left untouched (see the `if !is_toml` apply below).
     let mut naming_convention = NamingConvention::CamelCase;
+    // Whether the project config writes `[fraiseql.naming] convention` itself.
+    let mut project_declares_naming = false;
     // Transport security for the `--database` checks (#1429): `[database] ssl_mode` from
     // the config this compile loaded. Unset leaves the URL's own `?sslmode=` in charge.
     let mut database_tls = if is_toml && opts.database.is_some() {
@@ -283,11 +294,13 @@ pub async fn compile_to_schema(
             Ok(config) => {
                 info!("Validating security configuration...");
                 config.validate()?;
+                let (sections, declared) = config.runtime_sections();
 
                 auto_error_union = config.fraiseql.mutations.auto_error_union;
                 naming_acronyms.clone_from(&config.fraiseql.naming.acronyms);
                 operation_cost_weights.clone_from(&config.fraiseql.cost_weights);
                 naming_convention = config.fraiseql.naming.convention;
+                project_declares_naming = config.declares_naming_convention;
                 database_tls = config.database.postgres_tls()?;
 
                 info!("Applying security configuration to schema...");
@@ -316,7 +329,21 @@ pub async fn compile_to_schema(
                 if config.fraiseql.session_variables
                     != fraiseql_core::schema::SessionVariablesConfig::default()
                 {
-                    intermediate.session_variables = Some(config.fraiseql.session_variables);
+                    // A copy in the schema document must agree with it.
+                    crate::config::toml_schema::runtime_sections::reconcile_values(
+                        "fraiseql.session_variables",
+                        "session_variables",
+                        &serde_json::to_value(&config.fraiseql.session_variables)?,
+                        intermediate
+                            .session_variables
+                            .as_ref()
+                            .map(serde_json::to_value)
+                            .transpose()?
+                            .as_ref(),
+                        "schema.json",
+                    )?;
+                    intermediate.session_variables =
+                        Some(config.fraiseql.session_variables.clone());
                 }
 
                 // `[locale]` (#1512) is configuration, so it lives only in `fraiseql.toml`; a
@@ -345,6 +372,18 @@ pub async fn compile_to_schema(
                         intermediate.observers_config.take(),
                     )?;
 
+                // The runtime sections (`[mcp]`, `[rest]`, `[federation]`, `[auth]`, …): the
+                // tables a TOML schema takes, lowered by its own function and reconciled
+                // with a copy the schema document carries.
+                for section in
+                    sections.lower_runtime_sections(&|table| declared.contains(&table))?
+                {
+                    let document = intermediate.runtime_section(section.key)?;
+                    if let Some(value) = section.reconcile(document, "schema.json")? {
+                        intermediate.set_runtime_section(section.key, value)?;
+                    }
+                }
+
                 // `[inject_defaults]` lives in the config the SDK loaders read (#1384); a
                 // copy the SDK emitted into the schema must agree with it.
                 intermediate.inject_defaults =
@@ -370,12 +409,14 @@ pub async fn compile_to_schema(
     // when none are configured.
     fraiseql_core::utils::casing::set_runtime_acronyms(&naming_acronyms);
 
-    // Apply the naming convention to the legacy JSON (Workflow-B) path. The
-    // JSON schema never carries one, so without this it would fall to the enum
-    // default (Preserve); Workflow-B instead defaults to CamelCase (overridable
-    // via [fraiseql.naming].convention). The TomlSchema path already carries its
-    // own convention from the merger, so it is left untouched.
-    if !is_toml {
+    // Apply the naming convention to the legacy JSON (Workflow-B) path.
+    // `[fraiseql.naming] convention` decides it when the project config writes it: that is
+    // the documented knob, and an SDK writes its own constant into every document, so the
+    // two are not reconciled. Left unwritten, the document's own convention stands; a
+    // document that carries none would fall to the enum default (Preserve), and Workflow-B
+    // defaults to CamelCase instead. The TomlSchema path already carries its own convention
+    // from the merger, so it is left untouched.
+    if !is_toml && (project_declares_naming || !document_declares_naming) {
         intermediate.naming_convention = naming_convention;
     }
 

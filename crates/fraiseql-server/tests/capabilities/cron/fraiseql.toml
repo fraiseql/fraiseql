@@ -1,2 +1,6 @@
 [project]
 name = "capability-cron"
+
+# Served over MCP stdio too: `[mcp]` beside the SDK `schema.json` that declares the function.
+[mcp]
+enabled = true

@@ -25,6 +25,10 @@ Add an `[mcp]` section to your project configuration and recompile the schema:
 enabled = true
 ```
 
+The section is read in both workflows: in a TOML schema, and in the `fraiseql.toml` beside
+an SDK's `schema.json`. A `schema.json` that carries its own `mcp_config` must agree with
+`[mcp]`; the compile refuses a disagreement and names the key.
+
 Then recompile so the MCP configuration is embedded in the compiled schema:
 
 ```bash

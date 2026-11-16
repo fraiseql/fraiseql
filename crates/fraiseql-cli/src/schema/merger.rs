@@ -764,152 +764,31 @@ impl SchemaMerger {
             });
         }
 
-        // Embed federation configuration if enabled. Lower the TOML config into the
-        // compiled (`fraiseql_core`) shape explicitly so the merged JSON matches what
-        // the converter/runtime deserialize — a raw passthrough silently dropped
-        // `service_name`/`version` and the `per_database` → `per_entity` overrides.
-        if toml_schema.federation.enabled {
-            merged["federation_config"] =
-                serde_json::to_value(toml_schema.federation.to_compiled())
-                    .context("Failed to serialize federation config")?;
-        }
-
-        // Embed the `[auth]` OAuth-client groups. The PKCE group (#621) is
-        // all-four-or-none (enforced by `OidcClientConfig::validate` at load
-        // time), so if `client_id` is present the whole group is; it lowers into
-        // the compiled `auth.pkce` object, which carries the client identity and
-        // the provider `discovery_url` only — the runtime resolves the
-        // authorization/token endpoints at boot, and the secret is read from
-        // `client_secret_env`, never embedded. The social group (#368,
-        // `[auth.social.*]`) is already authored in the compiled type and is
-        // embedded verbatim under `auth.social`.
-        if let Some(auth) = &toml_schema.auth {
-            let mut auth_obj = serde_json::Map::new();
-            if let (Some(discovery_url), Some(client_id), Some(client_secret_env), Some(redirect)) = (
-                auth.discovery_url.as_ref(),
-                auth.client_id.as_ref(),
-                auth.client_secret_env.as_ref(),
-                auth.server_redirect_uri.as_ref(),
-            ) {
-                auth_obj.insert(
-                    "pkce".to_string(),
-                    json!({
-                        "discovery_url": discovery_url,
-                        "client_id": client_id,
-                        "client_secret_env": client_secret_env,
-                        "server_redirect_uri": redirect,
-                    }),
-                );
-            }
-            if let Some(social) = &auth.social {
-                auth_obj.insert(
-                    "social".to_string(),
-                    serde_json::to_value(social).context("Failed to serialize [auth.social]")?,
-                );
-            }
-            if let Some(local) = &auth.local {
-                auth_obj.insert(
-                    "local".to_string(),
-                    serde_json::to_value(local).context("Failed to serialize [auth.local]")?,
-                );
-            }
-            if let Some(session) = &auth.session {
-                auth_obj.insert(
-                    "session".to_string(),
-                    serde_json::to_value(session).context("Failed to serialize [auth.session]")?,
-                );
-            }
-            if let Some(database) = &auth.database {
-                auth_obj.insert(
-                    "database".to_string(),
-                    serde_json::to_value(database)
-                        .context("Failed to serialize [auth.database]")?,
-                );
-            }
-            if !auth_obj.is_empty() {
-                merged["auth"] = serde_json::Value::Object(auth_obj);
+        // The runtime sections (`[mcp]`, `[rest]`, `[federation]`, `[auth]`, …): lowered by
+        // the one function the project-config path also calls, and reconciled with a copy the
+        // types document carries, so neither file overrides the other in silence.
+        for section in toml_schema.lower_runtime_sections(&|table| toml_schema.declares(table))? {
+            // An SDK writes its federation block under `federation`; the seam binds both.
+            let held = if section.key == "federation_config" && merged.get("federation").is_some() {
+                "federation"
+            } else {
+                section.key
+            };
+            let document = merged.get(held).filter(|copy| !copy.is_null()).cloned();
+            if let Some(value) = section.reconcile(document, "the schema document")? {
+                merged[held] = value;
             }
         }
-
-        // Embed subscriptions configuration (hooks, limits)
-        let subs_json = serde_json::to_value(&toml_schema.subscriptions)
-            .context("Failed to serialize subscriptions config")?;
-        if subs_json != serde_json::json!({}) {
-            merged["subscriptions_config"] = subs_json;
-        }
-
-        // Embed validation config (depth/complexity limits)
-        let val_json = serde_json::to_value(&toml_schema.validation)
-            .context("Failed to serialize validation config")?;
-        if val_json != serde_json::json!({}) {
-            merged["validation_config"] = val_json;
-        }
-
-        // Embed debug config when enabled
-        if toml_schema.debug.enabled {
-            let debug_json = serde_json::to_value(&toml_schema.debug)
-                .context("Failed to serialize debug config")?;
-            merged["debug_config"] = debug_json;
-        }
-
-        // Embed MCP config when enabled
-        if toml_schema.mcp.enabled {
-            merged["mcp_config"] =
-                serde_json::to_value(&toml_schema.mcp).context("Failed to serialize MCP config")?;
-        }
-
-        // Embed REST config when enabled (with path validation)
-        if toml_schema.rest.enabled {
-            let path = &toml_schema.rest.path;
-            if !path.starts_with('/') {
-                anyhow::bail!("REST config: `path` must start with '/' (got {path:?})");
+        // A copy only the document carries is held to the same checks.
+        for (_, key) in crate::config::toml_schema::runtime_sections::RUNTIME_SECTIONS {
+            if let Some(copy) = merged.get(*key) {
+                crate::config::toml_schema::runtime_sections::check_document_copy(key, copy)?;
             }
-
-            let rest_config: fraiseql_core::schema::RestConfig = toml_schema.rest.clone().into();
-
-            merged["rest_config"] =
-                serde_json::to_value(&rest_config).context("Failed to serialize REST config")?;
-        }
-
-        // Embed gRPC config when enabled (#780).
-        //
-        // `descriptor_path` is validated here rather than at boot: `build_grpc_service` reads
-        // the FileDescriptorSet from that path, so an empty one guarantees a server that
-        // cannot mount the transport it was told to enable. Failing at compile time is the
-        // difference between a message naming the TOML key and a runtime read error.
-        if toml_schema.grpc.enabled {
-            if toml_schema.grpc.descriptor_path.trim().is_empty() {
-                anyhow::bail!(
-                    "[grpc] enabled = true requires `descriptor_path`, the path to the \
-                     FileDescriptorSet binary (.binpb) the transport serves. Generate one with \
-                     `protoc --descriptor_set_out`, or set `enabled = false`."
-                );
-            }
-            if toml_schema.grpc.stream_batch_size == 0 {
-                anyhow::bail!(
-                    "[grpc] stream_batch_size must be greater than 0 (got 0) — a zero batch \
-                     size would make every server-streaming response empty."
-                );
-            }
-            merged["grpc_config"] = serde_json::to_value(&toml_schema.grpc)
-                .context("Failed to serialize gRPC config")?;
         }
 
         // Embed naming convention
         merged["naming_convention"] = serde_json::to_value(toml_schema.naming_convention)
             .context("Failed to serialize naming_convention")?;
-
-        // Embed changelog GraphQL-exposure config (gating + injection happen in the converter)
-        if let Some(ref changelog) = toml_schema.changelog {
-            merged["changelog_config"] =
-                serde_json::to_value(changelog).context("Failed to serialize changelog config")?;
-        }
-
-        // Embed hierarchy definitions for ID-based ltree operators
-        if let Some(ref hierarchies) = toml_schema.hierarchies {
-            merged["hierarchies_config"] = serde_json::to_value(hierarchies)
-                .context("Failed to serialize hierarchies config")?;
-        }
 
         // Embed per-request session variables. Serialized from the same type the
         // runtime deserializes, so the mapping an RLS policy depends on cannot be
@@ -956,15 +835,18 @@ impl SchemaMerger {
         let mut schema = serde_json::from_value::<IntermediateSchema>(merged)
             .context("Failed to convert merged schema to IntermediateSchema")?;
 
-        // Inject TOML [query_defaults] into the schema so the converter can apply
-        // them as project-wide fallbacks for list-query auto-params.
-        schema.query_defaults = Some(IntermediateQueryDefaults {
-            where_clause:     toml_schema.query_defaults.where_clause,
-            order_by:         toml_schema.query_defaults.order_by,
-            limit:            toml_schema.query_defaults.limit,
-            offset:           toml_schema.query_defaults.offset,
-            pagination_order: toml_schema.query_defaults.pagination_order,
-        });
+        // `[query_defaults]` reaches the schema with the runtime sections above. Where neither
+        // file declares it, the converter still gets the defaults as project-wide fallbacks
+        // for list-query auto-params.
+        if schema.query_defaults.is_none() {
+            schema.query_defaults = Some(IntermediateQueryDefaults {
+                where_clause:     toml_schema.query_defaults.where_clause,
+                order_by:         toml_schema.query_defaults.order_by,
+                limit:            toml_schema.query_defaults.limit,
+                offset:           toml_schema.query_defaults.offset,
+                pagination_order: toml_schema.query_defaults.pagination_order,
+            });
+        }
 
         Ok(schema)
     }

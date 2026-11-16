@@ -51,9 +51,34 @@ const SCHEMA_UNREACHED: &[&str] = &[
 /// The project file's root: sections `Default` leaves out.
 const PROJECT_UNREACHED: &[&str] = &["[locale]", "[observers]", "[[observers.handlers]]"];
 
+/// The runtime sections the project file shares with `fraiseql compile`'s root (#1719).
+/// Each is optional there, so `Default` reaches none of them: their tables are taken from
+/// the compile root's own walk and from [`SCHEMA_UNREACHED`], and swept on the project root.
+const SHARED_SECTIONS: &[&str] = &[
+    "mcp",
+    "rest",
+    "grpc",
+    "debug",
+    "validation",
+    "subscriptions",
+    "federation",
+    "auth",
+    "changelog",
+    "hierarchies",
+    "query_defaults",
+];
+
+/// Whether the TOML header or table path `table` belongs to one of [`SHARED_SECTIONS`].
+fn is_shared(table: &str) -> bool {
+    let first = table.trim_matches(|c| c == '[' || c == ']').split('.').next().unwrap_or("");
+    SHARED_SECTIONS.contains(&first)
+}
+
 /// Tables `Default` reaches on each root, the root itself included.
 const SCHEMA_TABLES: usize = 29;
 const PROJECT_TABLES: usize = 20;
+/// Tables of the shared sections swept on the project root.
+const SHARED_TABLES: usize = 16;
 
 fn table_paths(prefix: &str, table: &toml::Table, out: &mut Vec<String>) {
     for (key, value) in table {
@@ -117,12 +142,33 @@ fn every_compile_toml_table_refuses_a_key_it_does_not_declare() {
 
 #[test]
 fn every_project_toml_table_refuses_a_key_it_does_not_declare() {
-    let (tables, failures) = sweep::<TomlProjectConfig>(PROJECT_UNREACHED);
+    // The shared sections' tables, as the compile root has them.
+    let mut shared = Vec::new();
+    table_paths("", &toml::Table::try_from(TomlSchema::default()).unwrap(), &mut shared);
+    let mut unreached: Vec<String> = PROJECT_UNREACHED.iter().map(ToString::to_string).collect();
+    unreached.extend(shared.iter().filter(|path| is_shared(path)).map(|path| format!("[{path}]")));
+    unreached.extend(
+        SCHEMA_UNREACHED
+            .iter()
+            .filter(|header| is_shared(header))
+            .map(ToString::to_string),
+    );
+    let swept = unreached.iter().filter(|header| is_shared(header)).count();
+    let unreached: Vec<&str> = unreached.iter().map(String::as_str).collect();
+
+    let (tables, failures) = sweep::<TomlProjectConfig>(&unreached);
     assert!(failures.is_empty(), "tables that accept a misspelt key: {failures:#?}");
     assert_eq!(
         tables, PROJECT_TABLES,
         "fewer tables means the walk measures less; more, re-count"
     );
+    assert_eq!(swept, SHARED_TABLES, "the shared sections' tables; re-count on a change");
+    for section in SHARED_SECTIONS {
+        assert!(
+            unreached.iter().any(|header| is_shared(header) && header.contains(section)),
+            "`{section}` contributes no table to the sweep"
+        );
+    }
 }
 
 /// The misspellings #1837 was filed for, through the loaders `fraiseql compile` and
