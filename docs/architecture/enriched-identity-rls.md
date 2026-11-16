@@ -73,17 +73,22 @@ map     = { sending_address = "sending_address" }
   fails loud at startup rather than being silently ignored.
 - **Trigger = `enabled = true` alone.** When enrichment is enabled, *every*
   authenticated request resolves and fail-closes, whether or not the current
-  operation reads an enriched field. An enabled profile whose schema declares no
-  `enrichment` consumer emits a loud startup warning; the zero-cost path belongs
+  operation reads an enriched field. An enabled profile whose schema reads no
+  enriched field emits a loud startup warning; the zero-cost path belongs
   to `enabled = false` / absent config only. What "every" covers is enumerated
   under [Which transports resolve](#which-transports-resolve) — for three releases
   that sentence was true of `/graphql` alone (#1336), which is why the list is now
   written down and gated rather than asserted.
-- **The converse is a boot refusal.** A compiled schema that declares an
-  `enrichment` consumer while `[identity.enrichment]` is disabled does not start.
-  Nothing would resolve an identity, so every read of an enriched field would fail
-  and every other request would be served without the fail-closed check the schema
-  implies.
+- **The converse is a boot refusal.** A compiled schema that reads the enriched
+  identity while `[identity.enrichment]` is disabled does not start. Every reader
+  counts: an `enrichment`-sourced session variable, or inject param on a query,
+  mutation, type or fact table, a `[locale]` source, and a subscription policy's
+  `identity_field`. Nothing would resolve an identity, so every read of an enriched
+  field would fail and every other request would be served without the fail-closed
+  check the schema implies. A service account's or `run_as`'s `static_enriched`
+  answers these reads *in lieu of* the resolver, not instead of one: a deployment
+  whose enriched fields come only from `static_enriched` still enables
+  `[identity.enrichment]`. A schema reload is checked as boot is.
 - The resolver runs on a **separate, unscoped** connection pool (the app role, no
   per-request GUCs), so identity is resolved *before* the identity that scopes
   the main query is applied — no chicken-and-egg.

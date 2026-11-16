@@ -2016,8 +2016,8 @@ fn refuse_unread_static_enriched<'a>(
 /// Refuse to boot when the compiled schema reads enriched identity but the deployment
 /// never configured a resolver (#1336).
 ///
-/// A schema declaring a `SessionVariableSource::Enrichment` mapping or an
-/// `InjectedParamSource::Enrichment` parameter is saying reads are scoped by a
+/// A schema that reads the enriched identity, through any reader
+/// [`CompiledSchema::enriched_fields_read`] lists, is saying reads are scoped by a
 /// DB-derived identity. Without `[identity.enrichment].enabled` nothing resolves one,
 /// and the outcome before this check was a 100% failure rate discovered in production:
 /// every request touching an enriched field answered "enrichment did not run", while
@@ -2031,35 +2031,53 @@ fn refuse_unread_static_enriched<'a>(
 ///
 /// # Errors
 ///
-/// Returns `ServerError::ConfigError` when the schema declares an enrichment consumer
-/// and `[identity.enrichment].enabled` is not set.
+/// Returns `ServerError::ConfigError` naming the fields read when the schema reads the
+/// enriched identity and `[identity.enrichment].enabled` is not set.
 #[cfg(feature = "auth")]
 pub fn enrichment_consumer_without_resolver_check(
     schema: &CompiledSchema,
     config: &crate::ServerConfig,
 ) -> crate::Result<()> {
-    if !schema.declares_enrichment_consumer() {
-        return Ok(());
-    }
     let enabled = config
         .identity
         .as_ref()
         .and_then(|identity| identity.enrichment.as_ref())
         .is_some_and(|enrichment| enrichment.enabled);
-    if enabled {
+    enrichment_readers_resolved_check(schema, enabled)
+}
+
+/// [`enrichment_consumer_without_resolver_check`]'s rule, given whether the deployment
+/// resolves the enriched identity: boot reads it from `[identity.enrichment].enabled`,
+/// a reload from the running server (#2005).
+///
+/// # Errors
+///
+/// Returns `ServerError::ConfigError` naming the fields read when the schema reads the
+/// enriched identity and `enabled` is false.
+#[cfg(feature = "auth")]
+pub fn enrichment_readers_resolved_check(
+    schema: &CompiledSchema,
+    enabled: bool,
+) -> crate::Result<()> {
+    if enabled || !schema.declares_enrichment_consumer() {
         return Ok(());
     }
-
-    Err(crate::ServerError::ConfigError(
-        "The compiled schema reads enriched identity (a session variable, inject param or \
-         [locale] resolve entry with an `enrichment` source), but `[identity.enrichment]` is \
-         not enabled. Nothing \
-         would resolve an identity, so every request reading an enriched field would fail \
-         and every other request would be served without the fail-closed check the schema \
-         implies. Enable `[identity.enrichment]` in fraiseql.toml, or remove the \
-         `enrichment` sources from the schema."
-            .to_string(),
-    ))
+    let read = schema
+        .enriched_fields_read()
+        .into_iter()
+        .map(|field| format!("`{field}`"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    Err(crate::ServerError::ConfigError(format!(
+        "The compiled schema reads the enriched fields {read} (through an `enrichment`-sourced \
+         session variable or inject param, a [locale] source, or a subscription policy), but \
+         `[identity.enrichment]` is not enabled. Nothing would resolve an identity, so every \
+         request reading an enriched field would fail and every other request would be served \
+         without the fail-closed check the schema implies. A service account's or `run_as`'s \
+         `static_enriched` answers these reads in lieu of the resolver, not instead of one. \
+         Enable `[identity.enrichment]` in fraiseql.toml, or remove the readers from the \
+         schema."
+    )))
 }
 
 #[cfg(test)]

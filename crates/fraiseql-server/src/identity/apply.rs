@@ -34,12 +34,29 @@ use crate::api::rbac_management::assigned_roles::AssignedRoles;
 #[derive(Clone, Default)]
 pub struct RequestIdentity {
     /// `[identity.enrichment]`'s resolver, when enrichment is enabled (#539).
-    resolver:       Option<Arc<IdentityResolver>>,
+    resolver:           Option<Arc<IdentityResolver>>,
     /// The roles assigned through the RBAC API and SCIM, when either can mount (#1632).
-    assigned_roles: Option<Arc<AssignedRoles>>,
+    assigned_roles:     Option<Arc<AssignedRoles>>,
+    /// `[identity.enrichment].enabled`, set whether or not an auth pool let the server
+    /// attach a resolver: the boot check's input, which a reload is checked against.
+    enrichment_enabled: bool,
 }
 
 impl RequestIdentity {
+    /// Record that `[identity.enrichment]` is enabled (#2005).
+    #[must_use]
+    pub const fn with_enrichment_enabled(mut self) -> Self {
+        self.enrichment_enabled = true;
+        self
+    }
+
+    /// Whether this deployment resolves the enriched identity: `[identity.enrichment]`
+    /// is enabled, or an embedder attached a resolver directly.
+    #[must_use]
+    pub const fn resolves_enrichment(&self) -> bool {
+        self.enrichment_enabled || self.resolver.is_some()
+    }
+
     /// Resolve enriched identity through `resolver`.
     #[must_use]
     pub fn with_resolver(mut self, resolver: Arc<IdentityResolver>) -> Self {

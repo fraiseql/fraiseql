@@ -687,8 +687,8 @@ mod enrichment_entry_point_tests {
         error::FraiseQLError,
         runtime::{Executor, executor::test_support::MockAdapter},
         schema::{
-            CompiledSchema, MutationDefinition, QueryDefinition, SessionVariableMapping,
-            SessionVariableSource, TypeDefinition,
+            CompiledSchema, InjectedParamSource, MutationDefinition, QueryDefinition,
+            SessionVariableMapping, SessionVariableSource, TypeDefinition,
         },
         security::{EnrichmentMark, SecurityContext},
     };
@@ -767,6 +767,63 @@ mod enrichment_entry_point_tests {
             .expect_err("an unresolved principal must not execute");
 
         assert!(is_refusal(&err), "expected an authorization refusal, got: {err}");
+    }
+
+    /// The document entry consults the predicate for every reader kind, so a schema whose
+    /// only reader is a type's inject param (read by `_entities`), a fact table's (read by
+    /// its aggregate roots) or a subscription policy refuses an unresolved principal
+    /// before dispatch, naming the cause.
+    #[tokio::test]
+    async fn the_graphql_document_entry_refuses_for_every_reader_kind() {
+        let reader_free = || {
+            let mut schema = schema();
+            schema.session_variables.variables.clear();
+            schema
+        };
+        let mut type_inject = reader_free();
+        type_inject.types[0]
+            .inject_params
+            .insert("tenant_id".to_string(), InjectedParamSource::Enrichment("tenant".to_string()));
+        let mut fact_inject = reader_free();
+        fact_inject.fact_tables.insert(
+            "tf_sales".to_string(),
+            serde_json::from_value(serde_json::json!({
+                "table_name": "tf_sales",
+                "measures": [{"name": "revenue", "sql_type": "Decimal", "nullable": false}],
+                "dimensions": {"name": "data", "paths": []},
+                "denormalized_filters": [{"name": "author_id", "sql_type": "Text", "indexed": true}],
+                "inject_params": {"author_id": {"source": "enrichment", "claim": "author_ref"}}
+            }))
+            .unwrap(),
+        );
+        let mut policy = reader_free();
+        policy.types[0].subscription_policy = Some(crate::schema::SubscriptionPolicy {
+            owner_path:     "$.owner_id".to_string(),
+            identity_field: "user_id".to_string(),
+            bypass_roles:   vec![],
+        });
+
+        let control = Executor::new(reader_free(), Arc::new(MockAdapter::new(vec![])))
+            .execute_with_security("{ orders { id } }", None, &unresolved())
+            .await;
+        assert!(
+            control.as_ref().err().is_none_or(|e| !is_refusal(e)),
+            "non-vacuity: the reader-free schema admits the principal; got: {control:?}"
+        );
+        for (kind, schema) in [
+            ("type inject", type_inject),
+            ("fact-table inject", fact_inject),
+            ("policy", policy),
+        ] {
+            let err = Executor::new(schema, Arc::new(MockAdapter::new(vec![])))
+                .execute_with_security("{ orders { id } }", None, &unresolved())
+                .await
+                .expect_err("an unresolved principal must not execute");
+            assert!(
+                is_refusal(&err) && err.to_string().contains("not resolved"),
+                "{kind}: expected the backstop's refusal, got: {err}"
+            );
+        }
     }
 
     #[tokio::test]

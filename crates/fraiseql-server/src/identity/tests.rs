@@ -2241,3 +2241,34 @@ async fn a_dropped_role_never_reaches_the_cache_key() {
         "a name the schema never reads must not split the subject's cache entries"
     );
 }
+
+/// The startup warning fires only for a schema that reads no enriched field. A
+/// subscription policy, a type's or a fact table's inject param is a reader, and the
+/// warning once called each a likely misconfiguration (#2005).
+#[test]
+fn the_unread_enrichment_warning_fires_only_when_nothing_reads_the_field() {
+    use fraiseql_core::schema::{CompiledSchema, SubscriptionPolicy, TypeDefinition};
+
+    assert!(super::unread_enrichment_warning(&CompiledSchema::new()).is_some());
+
+    let mut policy_only = CompiledSchema::new();
+    policy_only
+        .types
+        .push(TypeDefinition::new("Order", "v_order").with_subscription_policy(
+            SubscriptionPolicy {
+                owner_path:     "$.owner_id".to_string(),
+                identity_field: "user_id".to_string(),
+                bypass_roles:   vec![],
+            },
+        ));
+    assert_eq!(super::unread_enrichment_warning(&policy_only), None);
+
+    let mut type_inject_only = CompiledSchema::new();
+    let mut order = TypeDefinition::new("Order", "v_order");
+    order.inject_params.insert(
+        "tenant_id".to_string(),
+        fraiseql_core::schema::InjectedParamSource::Enrichment("tenant_ref".to_string()),
+    );
+    type_inject_only.types.push(order);
+    assert_eq!(super::unread_enrichment_warning(&type_inject_only), None);
+}

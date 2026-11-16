@@ -182,6 +182,7 @@ impl Server {
             self.config.identity.as_ref().and_then(|identity| identity.enrichment.as_ref())
         {
             if enrichment.enabled {
+                state = state.with_enrichment_enabled();
                 if let Some(pool) = self.enrichment_pool.as_ref() {
                     state = state.with_identity_resolver(std::sync::Arc::new(
                         crate::identity::IdentityResolver::postgres(
@@ -190,18 +191,12 @@ impl Server {
                             self.executor.schema().tenant_claim(),
                         ),
                     ));
-                    if crate::identity::schema_declares_enrichment_consumer(self.executor.schema())
-                    {
-                        info!(
+                    match crate::identity::unread_enrichment_warning(self.executor.schema()) {
+                        None => info!(
                             "Enriched-identity resolution enabled (#539): every authenticated \
                              request resolves and fail-closes"
-                        );
-                    } else {
-                        tracing::warn!(
-                            "[identity.enrichment] is enabled but no session variable or inject \
-                             param uses an `enrichment` source — every authenticated request will \
-                             resolve identity, yet nothing reads it (likely a misconfiguration)"
-                        );
+                        ),
+                        Some(warning) => tracing::warn!("{warning}"),
                     }
                 } else {
                     tracing::warn!(

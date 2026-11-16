@@ -8,6 +8,10 @@
 //! the service principal receives only rows it owns — never another owner's. A bad secret
 //! is refused at the upgrade (401), indistinguishable from an unknown account.
 //!
+//! The suite mounts `/ws` below the boot layer. A server booting this schema must also
+//! enable `[identity.enrichment]`: `static_enriched` answers the policy's read in lieu
+//! of the resolver, not instead of one, and boot refuses a reader with no resolver.
+//!
 //! (Writes-under-ceiling + audit-carries-name are asserted at the `SecurityContext` level
 //! in `fraiseql-core` `security::tests::service_account_tests` and the authenticator
 //! tests; the change-log write itself is a DB integration concern.)

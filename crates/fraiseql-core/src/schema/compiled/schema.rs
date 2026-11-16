@@ -418,6 +418,31 @@ pub struct DerivedState {
     /// the dispatch routes them by name, before any declared query is looked up. Built by
     /// `build_indexes()`.
     pub fact_roots: Vec<crate::schema::fact_table_surface::FactRoot>,
+
+    /// Whether the schema reads the enriched identity, filled by the first
+    /// [`declares_enrichment_consumer`](CompiledSchema::declares_enrichment_consumer).
+    pub enrichment_consumer: LazyFlag,
+}
+
+/// A `bool` computed on first read and kept: unfilled until then, never defaulted.
+///
+/// A clone starts unfilled, so a schema cloned and then changed answers for its own
+/// declarations rather than for the original's.
+#[derive(Debug, Default)]
+pub struct LazyFlag(std::sync::OnceLock<bool>);
+
+impl LazyFlag {
+    /// The kept value, computing it with `compute` on first read.
+    pub fn get(&self, compute: impl FnOnce() -> bool) -> bool {
+        *self.0.get_or_init(compute)
+    }
+}
+
+// Reason: a clone is a new schema value, which may be changed before it is read.
+impl Clone for LazyFlag {
+    fn clone(&self) -> Self {
+        Self::default()
+    }
 }
 
 // Reason: equality of a compiled schema is equality of its serialized form; this state is
