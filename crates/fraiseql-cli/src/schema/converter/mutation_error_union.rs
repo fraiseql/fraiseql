@@ -140,6 +140,7 @@ fn mutation_error_type() -> TypeDefinition {
         hierarchy: None,
         unique: false,
         localized: false,
+        scoped_like_parent: false,
     };
     TypeDefinition {
         name:                ERROR_TYPE.into(),

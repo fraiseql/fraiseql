@@ -85,6 +85,25 @@ It is projected from the `nearest` search's own distance expression, and is
 refused on a query that did not run that search. See
 [vector search](operations/vector-search.md).
 
+### Scoped embeddings (#1737)
+
+A field whose type is a **scoped type** (one whose own relation-reading query carries
+`inject_params`), in the document of a type the server reads directly, must declare
+`scoped_like_parent`:
+
+```json
+{ "name": "lines", "type": "[OrderLine]", "nullable": false,
+  "scoped_like_parent": true }
+```
+
+Without the key the schema is refused. With it, every relation-reading query that returns
+the holding type must carry each of the embedded type's `inject_params` columns from the
+same source. The key is refused on a field that embeds no scoped type, and on an input
+field. See [Embedding a scoped type](authoring.md#embedding-a-scoped-type). Python
+(`fraiseql.field(scoped_like_parent=True)`), TypeScript (`scopedLikeParent: true`) and a
+TOML schema (`scoped_like_parent = true`) author it; in the other SDKs it is a declared
+conformance gap.
+
 ### Binary vector fields (#959)
 
 A `"BitVector"` field carries the same `vector_config`, where `dimensions`

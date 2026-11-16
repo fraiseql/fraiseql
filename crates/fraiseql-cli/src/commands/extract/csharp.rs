@@ -155,6 +155,7 @@ pub(super) fn extract_csharp_record_fields(body: &str) -> Vec<IntermediateField>
             hierarchy: None,
             unique: None,
             localized: false,
+            scoped_like_parent: false,
         });
     }
     fields

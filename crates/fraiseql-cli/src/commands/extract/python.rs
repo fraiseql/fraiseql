@@ -68,6 +68,7 @@ impl SchemaExtractor for PythonExtractor {
                         hierarchy: None,
                         unique: None,
                         localized: false,
+                        scoped_like_parent: false,
                     });
                 }
             }

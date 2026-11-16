@@ -137,6 +137,35 @@
   "field_scope": {
     "User.salary": "read:User.salary"
   },
+  "field_scoped_like_parent": {
+    "fields": [
+      {
+        "name": "id",
+        "nullable": false,
+        "scoped_like_parent": false,
+        "type": "ID"
+      },
+      {
+        "name": "order",
+        "nullable": false,
+        "scoped_like_parent": true,
+        "type": {
+          "Object": "Order"
+        }
+      }
+    ],
+    "query": {
+      "inject_params": {
+        "tenant_id": {
+          "claim": "tenant_id",
+          "source": "jwt"
+        }
+      },
+      "return_type": "OrderShipment",
+      "returns_list": true
+    },
+    "sql_source": "v_order_shipment"
+  },
   "function_backed_query": {
     "function": {
       "trigger": "request:query"

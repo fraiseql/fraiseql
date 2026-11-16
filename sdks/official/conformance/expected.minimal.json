@@ -6,6 +6,7 @@
   "field_description": {},
   "field_localized": [],
   "field_scope": {},
+  "field_scoped_like_parent": {},
   "function_backed_query": {
     "function": {},
     "query": {}

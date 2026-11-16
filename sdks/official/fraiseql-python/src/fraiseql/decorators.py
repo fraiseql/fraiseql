@@ -651,6 +651,8 @@ class FieldConfig(Generic[T]):
         vector_config: pgvector configuration, on a vector-typed field
         vector_distance: on a ``float`` field, the vector field whose search distance
             it carries
+        scoped_like_parent: declares that the scoped type this field embeds is scoped
+            like the type that holds it
     """
 
     requires_scope: str | None = None
@@ -660,6 +662,7 @@ class FieldConfig(Generic[T]):
     computed: bool = False
     vector_config: VectorConfig | None = None
     vector_distance: str | None = None
+    scoped_like_parent: bool = False
     # Federation field-level directives
     external: bool = False
     requires: str | None = None
@@ -705,6 +708,7 @@ def field(  # noqa: PLR0913 — public API; all parameters are meaningful
     override_from: str | None = None,
     vector_config: VectorConfig | None = None,
     vector_distance: str | None = None,
+    scoped_like_parent: bool = False,
 ) -> FieldConfig[Any]:
     """Create a field configuration for use with Annotated type hints.
 
@@ -729,6 +733,10 @@ def field(  # noqa: PLR0913 — public API; all parameters are meaningful
         vector_distance: on a ``float`` field, the name of the vector field whose
             ``nearest`` search distance this field carries. Selecting it on a query
             that did not run that search is refused rather than answered with null.
+        scoped_like_parent: on a field that embeds a type whose own query is scoped by
+            ``inject``, declares that the type holding the field is scoped by the same
+            columns from the same sources. Without it such an embedding does not
+            compile; with it the compiler checks every query of the holding type.
 
     Returns:
         FieldConfig instance for use with Annotated[T, field(...)]
@@ -802,6 +810,7 @@ def field(  # noqa: PLR0913 — public API; all parameters are meaningful
         override_from=override_from,
         vector_config=vector_config,
         vector_distance=vector_distance,
+        scoped_like_parent=scoped_like_parent,
     )
 
 
@@ -1582,7 +1591,15 @@ def interface(cls: type[T]) -> type[T]:
 
 
 _OUTPUT_ONLY_FIELD_OPTIONS = frozenset(
-    {"requires_scope", "on_deny", "computed", "vector_config", "vector_distance", "federation"}
+    {
+        "requires_scope",
+        "on_deny",
+        "computed",
+        "vector_config",
+        "vector_distance",
+        "scoped_like_parent",
+        "federation",
+    }
 )
 
 

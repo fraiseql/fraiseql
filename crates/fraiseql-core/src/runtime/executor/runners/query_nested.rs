@@ -555,21 +555,13 @@ impl NestedRowGates {
     }
 }
 
-/// The SQL-backed read of `type_name` a nested level of it is gated as: its list query
-/// when it has one — the read REST embeds it through — otherwise any.
+/// The SQL-backed read of `type_name` a nested level of it is gated as: the schema's
+/// [`scoping_read`](CompiledSchema::scoping_read), which the load-time check reads too.
 pub(in super::super) fn own_read<'a>(
     schema: &'a CompiledSchema,
     type_name: &str,
 ) -> Option<&'a QueryDefinition> {
-    let reads = |q: &&QueryDefinition| {
-        q.return_type == type_name && q.reads_relation().is_some() && !q.returns_count
-    };
-    schema
-        .queries
-        .iter()
-        .filter(reads)
-        .find(|q| q.returns_list)
-        .or_else(|| schema.queries.iter().find(reads))
+    schema.scoping_read(type_name)
 }
 
 fn row_gate(
@@ -1719,3 +1711,7 @@ mod document_tests;
 #[cfg(test)]
 #[path = "query_nested_abstract_tests.rs"]
 mod abstract_tests;
+
+#[cfg(test)]
+#[path = "query_nested_scope_agreement_tests.rs"]
+mod scope_agreement_tests;

@@ -116,6 +116,18 @@ PAGINATION_QUERIES = ("pagedByColumn", "pagedSelfOrdered", "pagedDerived")
 LIST_TYPE = "ReadingSeries"
 LIST_QUERY = "readingSeriesByIds"
 
+# The `field_scoped_like_parent` construct owns `OrderShipment` and the query that reads it
+# (#1737). `Order` is scoped by `tenantOrders`, and a scoped type inside another type's
+# served document is refused by the compiler unless the embedding field declares
+# `scoped_like_parent` and every query of the holding type carries the same scope. So the
+# flag cannot be observed apart from the type: an SDK that cannot author it cannot author
+# the embedding at all, and one that drops it emits a corpus that does not compile. Owned,
+# for the reason `type_crud` gives: a gap declared inside `AUTHORED_TYPES` would fail
+# `types` and `queries` too. The scope is part of the observation because the compiler
+# accepted the declaration on its strength; a different column or claim is a different fact.
+SCOPED_EMBEDDING_TYPE = "OrderShipment"
+SCOPED_EMBEDDING_QUERY = "tenantOrderShipments"
+
 # The `function_definition` construct owns its one function (#1325). A function is not
 # a GraphQL surface at all — it is an out-of-band handler the server dispatches from the
 # compiled `functions` section, a *sibling* of the compiled schema rather than a field
@@ -183,6 +195,7 @@ CONSTRUCTS = (
     "field_scope",
     "field_deprecated",
     "field_localized",
+    "field_scoped_like_parent",
     "type_relay",
     "type_is_error",
     "type_relationships",
@@ -659,6 +672,31 @@ def project(compiled: dict[str, Any]) -> dict[str, Any]:
     observations["list_fields"] = (
         {"sql_source": types[LIST_TYPE].get("sql_source"), "fields": _fields(types[LIST_TYPE])}
         if LIST_TYPE in types
+        else {}
+    )
+
+    # #1737: the embedding compiled, which it does only declared and borne out; the flag on
+    # the compiled field is what the declaration left behind.
+    observations["field_scoped_like_parent"] = (
+        {
+            "sql_source": types[SCOPED_EMBEDDING_TYPE].get("sql_source"),
+            "fields": [
+                {
+                    "name": f.get("name"),
+                    "type": f.get("field_type"),
+                    "nullable": f.get("nullable"),
+                    "scoped_like_parent": bool(f.get("scoped_like_parent")),
+                }
+                for f in types[SCOPED_EMBEDDING_TYPE].get("fields", [])
+                if isinstance(f, dict)
+            ],
+            "query": {
+                "return_type": queries[SCOPED_EMBEDDING_QUERY].get("return_type"),
+                "returns_list": queries[SCOPED_EMBEDDING_QUERY].get("returns_list"),
+                "inject_params": queries[SCOPED_EMBEDDING_QUERY].get("inject_params"),
+            },
+        }
+        if SCOPED_EMBEDDING_TYPE in types and SCOPED_EMBEDDING_QUERY in queries
         else {}
     )
 

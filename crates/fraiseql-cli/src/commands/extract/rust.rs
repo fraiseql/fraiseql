@@ -59,6 +59,7 @@ impl SchemaExtractor for RustExtractor {
                         hierarchy: None,
                         unique: None,
                         localized: false,
+                        scoped_like_parent: false,
                     });
                 }
             }

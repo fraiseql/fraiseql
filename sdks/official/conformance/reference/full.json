@@ -217,6 +217,23 @@
           "nullable": false
         }
       ]
+    },
+    {
+      "name": "OrderShipment",
+      "sql_source": "v_order_shipment",
+      "fields": [
+        {
+          "name": "id",
+          "type": "ID",
+          "nullable": false
+        },
+        {
+          "name": "order",
+          "type": "Order",
+          "nullable": false,
+          "scoped_like_parent": true
+        }
+      ]
     }
   ],
   "enums": [
@@ -453,6 +470,17 @@
           "nullable": false
         }
       ]
+    },
+    {
+      "name": "tenantOrderShipments",
+      "return_type": "OrderShipment",
+      "returns_list": true,
+      "nullable": false,
+      "sql_source": "v_order_shipment",
+      "arguments": [],
+      "inject_params": {
+        "tenant_id": "jwt:tenant_id"
+      }
     }
   ],
   "mutations": [

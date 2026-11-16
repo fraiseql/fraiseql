@@ -157,16 +157,16 @@ impl RelationshipDefinition {
 pub struct FieldDefinition {
     /// GraphQL field type (ID, String, Int, Boolean, DateTime, etc.)
     #[serde(rename = "type")]
-    pub field_type:      String,
+    pub field_type:         String,
     /// Whether field can be null
     #[serde(default)]
-    pub nullable:        bool,
+    pub nullable:           bool,
     /// Field description
-    pub description:     Option<String>,
+    pub description:        Option<String>,
     /// Named hierarchy reference for ID-based ltree operators.
     /// References a key in `[hierarchies.<name>]` config.
     #[serde(default)]
-    pub hierarchy:       Option<String>,
+    pub hierarchy:          Option<String>,
     /// pgvector configuration for `Vector` and `BitVector` fields (#386, #959):
     /// dimensions (required — bits, for a `BitVector`), index type and distance
     /// metric. Authored as
@@ -175,12 +175,12 @@ pub struct FieldDefinition {
     /// binary one. Reuses the compiled-schema type directly so the authored and
     /// compiled shapes cannot drift.
     #[serde(default)]
-    pub vector:          Option<fraiseql_core::schema::VectorConfig>,
+    pub vector:             Option<fraiseql_core::schema::VectorConfig>,
     /// Names the vector field whose search distance this field carries (#959).
     /// Authored as `vector_distance = "embedding"` on a `Float` field; the value
     /// is the distance the `nearest` search ordered by.
     #[serde(default)]
-    pub vector_distance: Option<String>,
+    pub vector_distance:    Option<String>,
     /// Whether this field's column is unique over the type's relation.
     ///
     /// Authored as `unique = true`. Needed to declare a **to-one** relationship
@@ -195,7 +195,12 @@ pub struct FieldDefinition {
     /// compiler can confirm — the same standing as the ordering key in
     /// [`PaginationOrder::Column`](fraiseql_core::schema::PaginationOrder::Column).
     #[serde(default)]
-    pub unique:          bool,
+    pub unique:             bool,
+    /// Declares that the scoped type this field embeds is scoped like the document that
+    /// holds it (#1737). Authored as `scoped_like_parent = true`; see
+    /// [`FieldDefinition::scoped_like_parent`](fraiseql_core::schema::FieldDefinition::scoped_like_parent).
+    #[serde(default)]
+    pub scoped_like_parent: bool,
 }
 
 impl FieldDefinition {
@@ -232,6 +237,9 @@ impl FieldDefinition {
         }
         if self.unique {
             field["unique"] = serde_json::Value::Bool(true);
+        }
+        if self.scoped_like_parent {
+            field["scoped_like_parent"] = serde_json::Value::Bool(true);
         }
         field
     }

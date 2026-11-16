@@ -174,6 +174,14 @@ class ReadingSeries:
     grid: list[list[float | None]]
 
 
+# #1737: `Order` is scoped by `tenant_orders`, so a type that embeds it says it is scoped
+# alike, and its own query bears that out.
+@fraiseql.type(sql_source="v_order_shipment")
+class OrderShipment:
+    id: ID
+    order: Annotated[Order, fraiseql.field(scoped_like_parent=True)]
+
+
 @fraiseql.enum
 class OrderStatus(Enum):
     PENDING = "PENDING"
@@ -210,6 +218,11 @@ def users() -> list[User]:
 
 @fraiseql.query(sql_source="v_user")
 def user(id: ID) -> User | None:
+    pass
+
+
+@fraiseql.query(sql_source="v_order_shipment", inject={"tenant_id": "jwt:tenant_id"})
+def tenant_order_shipments() -> list[OrderShipment]:
     pass
 
 

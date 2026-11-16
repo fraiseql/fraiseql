@@ -39,22 +39,23 @@ pub(super) fn inject_relay_types(schema: &mut CompiledSchema) -> anyhow::Result<
     let has_node_interface = schema.interfaces.iter().any(|i| i.name == "Node");
     if !has_node_interface {
         let node_id_field = FieldDefinition {
-            name:            "id".into(),
-            field_type:      FieldType::Id,
-            nullable:        false,
-            description:     Some("Globally unique identifier (UUID).".to_string()),
-            default_value:   None,
-            vector_config:   None,
-            vector_distance: None,
-            alias:           None,
-            deprecation:     None,
-            requires_scope:  None,
-            on_deny:         FieldDenyPolicy::default(),
-            authorize:       false,
-            encryption:      None,
-            hierarchy:       None,
-            unique:          false,
-            localized:       false,
+            name:               "id".into(),
+            field_type:         FieldType::Id,
+            nullable:           false,
+            description:        Some("Globally unique identifier (UUID).".to_string()),
+            default_value:      None,
+            vector_config:      None,
+            vector_distance:    None,
+            alias:              None,
+            deprecation:        None,
+            requires_scope:     None,
+            on_deny:            FieldDenyPolicy::default(),
+            authorize:          false,
+            encryption:         None,
+            hierarchy:          None,
+            unique:             false,
+            localized:          false,
+            scoped_like_parent: false,
         };
         schema.interfaces.push(
             InterfaceDefinition::new("Node")
@@ -83,6 +84,7 @@ pub(super) fn inject_relay_types(schema: &mut CompiledSchema) -> anyhow::Result<
             hierarchy: None,
             unique: false,
             localized: false,
+            scoped_like_parent: false,
         };
         let page_info = TypeDefinition {
             name:                "PageInfo".into(),
@@ -154,6 +156,7 @@ pub(super) fn inject_relay_types(schema: &mut CompiledSchema) -> anyhow::Result<
         hierarchy: None,
         unique: false,
         localized: false,
+        scoped_like_parent: false,
     };
 
     let mut new_types: Vec<TypeDefinition> = Vec::new();

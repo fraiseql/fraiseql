@@ -219,6 +219,7 @@ A single field within a type or input type.
 | `directives` | `IntermediateAppliedDirective[]?` | no | Applied directives: `@deprecated`; on an object type's field also `@tenant_id`, and `@inaccessible` in a federated schema. Any other directive fails the compile |
 | `requires_scope` | `string?` | no | JWT scope required to access this field. **Exactly one** — there is no `requires_scopes`; a multi-scope declaration cannot be honoured and is refused by the SDKs |
 | `on_deny` | `string?` | no | `"reject"` (default) or `"mask"` when scope check fails |
+| `scoped_like_parent` | `bool` | no | Declares that the scoped type this field embeds is scoped like the type that holds it (#1737). Required on such a field, checked against every query of the holding type, refused where nothing scoped is embedded; see [Embedding a scoped type](../authoring.md#embedding-a-scoped-type) |
 
 There is **no** `computed` on a field: it is an authoring-time flag that an SDK's own
 CRUD generator consumes before export, and emitting it fails the compile. Deprecation is

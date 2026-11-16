@@ -353,6 +353,7 @@ class Employee:
 | `on_deny` | `"reject" \| "mask" \| None` | `"reject"` | Policy when scope is missing |
 | `deprecated` | `str \| None` | `None` | Deprecation reason |
 | `description` | `str \| None` | `None` | Field description for schema docs |
+| `scoped_like_parent` | `bool` | `False` | Declares that the scoped type this field embeds is scoped like the type that holds it (see [Embedding a scoped type](#embedding-a-scoped-type)) |
 
 ---
 
@@ -619,6 +620,60 @@ read it through. A native column and the document key of the same name must ther
 the same value (#1579): `compile --database` compares them over sampled rows and refuses a
 view where they differ. Build the key from the column
 (`jsonb_build_object('tenant_id', tenant_id, …)`) and they always agree.
+
+#### Embedding a scoped type
+
+A type whose own query carries `inject` is a **scoped type**. Embedded in another type's
+view, its rows are stored inside that type's documents and reach every reader of them, so
+the compiler refuses the schema, naming the field, the embedded type and the key:
+
+```python
+@fraiseql.type(sql_source="v_order")
+class Order:
+    id: ID
+    lines: list[OrderLine]  # refused: `orderLines` is scoped by `tenant_id`
+```
+
+There are two ways out. Read the rows through a query of their own and drop the field, or,
+when the type that holds the field is scoped by the same key, say so on the field:
+
+```python
+@fraiseql.type(sql_source="v_order")
+class Order:
+    id: ID
+    lines: Annotated[list[OrderLine], fraiseql.field(scoped_like_parent=True)]
+```
+
+```typescript
+{ name: "lines", type: "[OrderLine!]", nullable: false, scopedLikeParent: true }
+```
+
+```toml
+# fraiseql.toml
+[types.Order]
+sql_source = "v_order"
+fields.id = { type = "ID" }
+fields.lines = { type = "[OrderLine]", scoped_like_parent = true }
+```
+
+The declaration is checked, never inferred. It compiles only where **every** query that
+reads the holding type's view carries each `inject` column of the embedded type, from the
+same source (the same claim): one unscoped `order(id)` beside a scoped `orders` is refused,
+naming that query. A field under a type that has no view of its own (a value object) is in
+the document of whichever type embeds that object, and each of those must bear the
+declaration out. A type no query returns, served by a subscription or as a federation
+entity, is held to the `inject_params` it declares on itself. A declaration on a field that
+embeds no scoped type is refused too, so it cannot outlive the scope it was written for.
+
+What this does not change:
+
+- The rows are still filtered when they are read, on the key the embedded documents carry,
+  as described above. The declaration states that the schema is scoped consistently; it
+  does not check the data. Build the key into the embedded documents from the same column.
+- A mutation's result type is not a served document: its SQL function builds it for the
+  caller, and it may carry a scoped entity undeclared.
+- Only `inject` is visible to the compiler. A type scoped solely by a row-security policy
+  installed on the server is not covered by this check.
 
 > **RLS + views: make `sql_source` views `security_invoker`.** If you enforce
 > tenant isolation with PostgreSQL Row-Level Security, every `sql_source` view MUST

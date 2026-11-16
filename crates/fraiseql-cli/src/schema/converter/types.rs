@@ -365,6 +365,7 @@ impl SchemaConverter {
             hierarchy,
             unique,
             localized,
+            scoped_like_parent,
         } = field;
 
         if let Some(scope) = requires_scope {
@@ -376,7 +377,7 @@ impl SchemaConverter {
             );
         }
         // (attribute is set, attribute name), in declaration order so the message is stable.
-        let rejected: [(bool, &str); 7] = [
+        let rejected: [(bool, &str); 8] = [
             (function.is_some(), "function"),
             (on_deny.is_some(), "on_deny"),
             (vector_config.is_some(), "vector_config"),
@@ -384,6 +385,7 @@ impl SchemaConverter {
             (authorize == Some(true), "authorize"),
             (hierarchy.is_some(), "hierarchy"),
             (unique == Some(true), "unique"),
+            (scoped_like_parent, "scoped_like_parent"),
         ];
         if let Some((_, attribute)) = rejected.into_iter().find(|(set, _)| *set) {
             anyhow::bail!(
@@ -596,6 +598,7 @@ impl SchemaConverter {
             hierarchy: intermediate.hierarchy,
             unique: intermediate.unique.unwrap_or(false),
             localized: intermediate.localized,
+            scoped_like_parent: intermediate.scoped_like_parent,
         })
     }
 

@@ -394,6 +394,7 @@ pub enum FieldDenyPolicy {
 ///     hierarchy: None,
 ///     unique: false,
 ///     localized: false,
+///     scoped_like_parent: false,
 /// };
 /// ```
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -470,6 +471,7 @@ pub struct FieldDefinition {
     ///     hierarchy: None,
     ///     unique: false,
     ///     localized: false,
+    ///     scoped_like_parent: false,
     /// };
     /// ```
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -544,6 +546,16 @@ pub struct FieldDefinition {
     /// the loader refuse it on any other type and in a schema without `[locale]`.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub localized: bool,
+
+    /// The author's declaration that the scoped type this field embeds is scoped like the
+    /// document that holds it.
+    ///
+    /// A type whose own read carries `inject_params` is refused inside another type's served
+    /// document unless the embedding field declares this, and the declaration is accepted
+    /// only where the schema bears it out: see
+    /// [`embedded_scope_violations`](crate::schema::CompiledSchema::embedded_scope_violations).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub scoped_like_parent: bool,
 }
 
 /// Encryption configuration for a field in the compiled schema.
@@ -618,6 +630,7 @@ impl FieldDefinition {
             hierarchy: None,
             unique: false,
             localized: false,
+            scoped_like_parent: false,
         }
     }
 
@@ -641,6 +654,7 @@ impl FieldDefinition {
             hierarchy: None,
             unique: false,
             localized: false,
+            scoped_like_parent: false,
         }
     }
 
@@ -656,22 +670,23 @@ impl FieldDefinition {
     #[must_use]
     pub fn vector(name: impl Into<String>, config: VectorConfig) -> Self {
         Self {
-            name:            FieldName::new(name),
-            field_type:      FieldType::Vector,
-            nullable:        false,
-            description:     None,
-            default_value:   None,
-            vector_config:   Some(config),
-            vector_distance: None,
-            alias:           None,
-            deprecation:     None,
-            requires_scope:  None,
-            on_deny:         FieldDenyPolicy::default(),
-            authorize:       false,
-            encryption:      None,
-            hierarchy:       None,
-            unique:          false,
-            localized:       false,
+            name:               FieldName::new(name),
+            field_type:         FieldType::Vector,
+            nullable:           false,
+            description:        None,
+            default_value:      None,
+            vector_config:      Some(config),
+            vector_distance:    None,
+            alias:              None,
+            deprecation:        None,
+            requires_scope:     None,
+            on_deny:            FieldDenyPolicy::default(),
+            authorize:          false,
+            encryption:         None,
+            hierarchy:          None,
+            unique:             false,
+            localized:          false,
+            scoped_like_parent: false,
         }
     }
 
