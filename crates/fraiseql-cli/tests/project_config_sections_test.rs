@@ -199,8 +199,10 @@ const SECTIONS: &[Section] = &[
     },
 ];
 
-/// Sections the project config takes already, each with its own test file.
+/// Sections the project config takes, each with its own test file. `[caching]` is one of
+/// them (`project_config_caching_test.rs`): it lowers onto operations, not a section.
 const ALREADY_HONOURED: &[&str] = &[
+    "caching",
     "observers",
     "functions",
     "locale",
@@ -208,9 +210,6 @@ const ALREADY_HONOURED: &[&str] = &[
     "server",
     "database",
 ];
-
-/// Sections decided in their own change: `[caching]` lowers onto operations, not a section.
-const DEFERRED: &[&str] = &["caching"];
 
 /// Sections refused beside a schema document, each with what its refusal points to.
 const REFUSED: &[(&str, &str, &str)] = &[
@@ -525,7 +524,6 @@ fn every_section_of_the_toml_workflow_is_honoured_or_refused_by_name() {
         .iter()
         .map(|section| section.table)
         .chain(ALREADY_HONOURED.iter().copied())
-        .chain(DEFERRED.iter().copied())
         .chain(REFUSED.iter().map(|(name, ..)| *name))
         .collect();
 

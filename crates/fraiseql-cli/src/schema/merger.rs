@@ -209,6 +209,56 @@ fn apply_caching_rules(
     Ok(())
 }
 
+/// Lower `[[caching.rules]]` onto a schema an SDK authored: the queries and mutations of
+/// `schema`, by [`apply_caching_rules`], the lowering a TOML schema's own operations get.
+///
+/// Only what a rule reads and writes is handed over (a name, a `sql_source`, a TTL, the
+/// views a mutation invalidates) and only what it writes is taken back, so nothing else of
+/// an operation passes through JSON.
+///
+/// # Errors
+///
+/// What [`apply_caching_rules`] refuses: an unknown query or trigger mutation, a query with
+/// no `sql_source`, a TTL the schema document already declares.
+pub(crate) fn apply_caching_rules_to_schema(
+    caching: &crate::config::toml_schema::CachingConfig,
+    schema: &mut IntermediateSchema,
+) -> Result<()> {
+    let mut queries: Vec<Value> = schema
+        .queries
+        .iter()
+        .map(|query| {
+            json!({
+                "name": query.name,
+                "sql_source": query.sql_source,
+                "cache_ttl_seconds": query.cache_ttl_seconds,
+            })
+        })
+        .collect();
+    let mut mutations: Vec<Value> = schema
+        .mutations
+        .iter()
+        .map(|mutation| {
+            json!({ "name": mutation.name, "invalidates_views": mutation.invalidates_views })
+        })
+        .collect();
+
+    apply_caching_rules(caching, &mut queries, &mut mutations)?;
+
+    for (query, lowered) in schema.queries.iter_mut().zip(&queries) {
+        query.cache_ttl_seconds = lowered["cache_ttl_seconds"].as_u64();
+    }
+    for (mutation, lowered) in schema.mutations.iter_mut().zip(&mutations) {
+        mutation.invalidates_views = lowered["invalidates_views"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|view| view.as_str().map(str::to_owned))
+            .collect();
+    }
+    Ok(())
+}
+
 /// Serialize TOML-declared arguments through [`IntermediateArgument`].
 ///
 /// The round trip through the typed struct is the point: it is what makes the emitted wire

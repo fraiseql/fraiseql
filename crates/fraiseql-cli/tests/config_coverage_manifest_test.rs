@@ -355,6 +355,7 @@ const SHARED_SECTIONS: &[&str] = &[
     "changelog",
     "hierarchies",
     "query_defaults",
+    "caching",
 ];
 
 fn project_leaves() -> Vec<String> {

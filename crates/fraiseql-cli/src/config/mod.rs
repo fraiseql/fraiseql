@@ -117,6 +117,11 @@ pub struct TomlProjectConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub query_defaults: Option<toml_schema::QueryDefaults>,
 
+    /// `[caching]`: `[[caching.rules]]`, each lowered onto the query it names and the
+    /// mutations that invalidate it, as in a TOML schema.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub caching: Option<toml_schema::CachingConfig>,
+
     /// Whether the file this was loaded from writes `[fraiseql.naming] convention`.
     ///
     /// The convention has a default, so the parsed value cannot say whether the author
@@ -330,6 +335,7 @@ impl TomlProjectConfig {
         section!(subscriptions);
         section!(federation);
         section!(query_defaults);
+        section!(caching);
         section!(optional auth);
         section!(optional changelog);
         section!(optional hierarchies);

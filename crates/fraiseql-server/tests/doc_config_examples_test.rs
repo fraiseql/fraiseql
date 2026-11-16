@@ -166,8 +166,6 @@ const TOML_SCHEMA_ONLY: &[(&str, &str)] = &[
     ("docs/auth/auth0.md", "tenancy"),
     ("docs/features/session-variables.md", "session_variables"),
     ("docs/modules/fact-table.md", "session_variables"),
-    // `[caching]` lowers onto operations, not a section; not yet taken beside a document.
-    ("docs/modules/cache.md", "caching"),
 ];
 
 /// A settings-only `fraiseql.toml` example works beside a `schema.json` too.

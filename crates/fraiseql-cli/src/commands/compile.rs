@@ -384,6 +384,14 @@ pub async fn compile_to_schema(
                     }
                 }
 
+                // `[[caching.rules]]` lower onto the document's own queries and mutations.
+                if let Some(caching) = &config.caching {
+                    crate::schema::merger::apply_caching_rules_to_schema(
+                        caching,
+                        &mut intermediate,
+                    )?;
+                }
+
                 // `[inject_defaults]` lives in the config the SDK loaders read (#1384); a
                 // copy the SDK emitted into the schema must agree with it.
                 intermediate.inject_defaults =

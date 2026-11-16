@@ -95,7 +95,8 @@ manual read-time expiry check (a deliberate perf decision — see
 
 ### Declarative rules (`[[caching.rules]]`, #623)
 
-`fraiseql.toml` can author per-query caching without the SDK:
+`fraiseql.toml` can author per-query caching without the SDK, in a TOML schema and in the
+project config beside an SDK's `schema.json`:
 
 ```toml
 # fraiseql.toml

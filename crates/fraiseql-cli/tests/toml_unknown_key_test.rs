@@ -66,6 +66,7 @@ const SHARED_SECTIONS: &[&str] = &[
     "changelog",
     "hierarchies",
     "query_defaults",
+    "caching",
 ];
 
 /// Whether the TOML header or table path `table` belongs to one of [`SHARED_SECTIONS`].
@@ -78,7 +79,7 @@ fn is_shared(table: &str) -> bool {
 const SCHEMA_TABLES: usize = 29;
 const PROJECT_TABLES: usize = 20;
 /// Tables of the shared sections swept on the project root.
-const SHARED_TABLES: usize = 16;
+const SHARED_TABLES: usize = 18;
 
 fn table_paths(prefix: &str, table: &toml::Table, out: &mut Vec<String>) {
     for (key, value) in table {

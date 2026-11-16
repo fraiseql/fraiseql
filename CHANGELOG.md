@@ -101,9 +101,15 @@ disagreed, and the promise was the part that was wrong.
   to, and are reconciled with a copy the document carries. The sections that do not belong
   in a project config are refused by name with where they go: the schema-authoring ones,
   `[observability]`, and the top-level `[security]`, `[tenancy]`, `[session_variables]` and
-  `naming_convention`, which a project config spells under `[fraiseql.*]`. `[caching]` is
-  not taken yet. See "Runtime Sections in a Project `fraiseql.toml`" in
-  `docs/architecture/config-vs-settings.md`.
+  `naming_convention`, which a project config spells under `[fraiseql.*]`. See "Runtime
+  Sections in a Project `fraiseql.toml`" in `docs/architecture/config-vs-settings.md`.
+
+- **`[caching]` beside a `schema.json` (#1719).** `[[caching.rules]]` in a project
+  `fraiseql.toml` lowers onto the queries and mutations of the SDK's schema document as it
+  does in a TOML schema: the TTL onto the named query, the query's view into each trigger
+  mutation's `invalidates_views`. The same configurations are refused: an unknown query or
+  mutation, rules with `enabled = false`, a backend other than `memory`, and a rule for a
+  query whose TTL the document already declares.
 
 - **`run_as.static_enriched` (#1989).** A function's, scheduled source's or saga step's
   `run_as` declares the enriched fields its identity presents, as a service account's
