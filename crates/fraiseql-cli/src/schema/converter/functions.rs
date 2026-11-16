@@ -139,17 +139,20 @@ pub fn validate_against_schema(
     Ok(())
 }
 
-/// The `when` predicates name fields that exist on the triggering entity type.
+/// The `when` predicates name keys the triggering entity holds.
 ///
-/// A predicate is evaluated against the row image, which on this path is the GraphQL
-/// projection of the mutation's return type — so its `field` is a compiled field
-/// name. A predicate naming a field that does not exist never matches, and a
-/// function that never fires looks exactly like one whose condition was not met.
+/// A predicate is evaluated against the row image, which on this path is the entity the
+/// mutation's function returned, as it returned it: the dispatcher reads the predicate's
+/// `field` from it as written. That entity is keyed as a stored document is, so a field
+/// published as `reviewStatus` is held under `review_status`
+/// ([`FieldDefinition::stored_key`](fraiseql_core::schema::FieldDefinition::stored_key),
+/// the key the engine reads the field from). A predicate naming any other key never
+/// matches, and a function that never fires looks exactly like one whose condition was not
+/// met (#1664: the published name used to be the one accepted, and it is not a key).
 ///
 /// Scoped to `after:mutation` deliberately. `after:capture` images come from the
-/// change-log reader and are keyed by database column, a different name space the
-/// compiled type does not describe — a check written against the wrong one would
-/// refuse correct declarations.
+/// change-log reader and are keyed by database column, which the compiled type does not
+/// describe — a check written against the wrong one would refuse correct declarations.
 fn unknown_predicate_fields(
     definition: &fraiseql_functions::FunctionDefinition,
     entity_type: &str,
@@ -160,19 +163,39 @@ fn unknown_predicate_fields(
         // type is synthesized. Either way there is nothing to check fields against.
         return Vec::new();
     };
+    // Two fields may read one key: the predicate names the key, whichever field reads it.
+    let keys: Vec<String> = type_def
+        .fields
+        .iter()
+        .map(fraiseql_core::schema::FieldDefinition::stored_key)
+        .collect();
 
     definition
         .when
         .iter()
-        .filter(|predicate| !type_def.fields.iter().any(|f| f.name == predicate.field))
+        .filter(|predicate| !keys.contains(&predicate.field))
         .map(|predicate| {
+            // The published spelling of a field is the mistake worth answering by name.
+            let published = type_def
+                .fields
+                .iter()
+                .find(|f| f.name.as_str() == predicate.field)
+                .map(|f| {
+                    format!(
+                        " `{}` is the name the field is published under; the entity holds it \
+                         under `{}`.",
+                        predicate.field,
+                        f.stored_key()
+                    )
+                })
+                .unwrap_or_default();
             format!(
-                "  function `{}`: `when` predicate names field `{}`, which `{entity_type}` does \
-                 not have — the predicate can never match, so the function would never fire. \
-                 `{entity_type}` has: {}",
+                "  function `{}`: `when` predicate names field `{}`, which is not a key of the \
+                 `{entity_type}` its trigger fires on — the predicate can never match, so the \
+                 function would never fire.{published} `{entity_type}` holds: {}",
                 definition.name,
                 predicate.field,
-                name_list(type_def.fields.iter().map(|f| f.name.as_str())),
+                name_list(keys.iter().map(String::as_str)),
             )
         })
         .collect()

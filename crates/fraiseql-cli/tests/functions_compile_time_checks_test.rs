@@ -271,10 +271,10 @@ fn an_after_mutation_trigger_naming_a_returned_type_compiles() {
     })));
 }
 
-/// A `when` predicate naming a field the entity type does not have fails the compile.
+/// A `when` predicate naming a key the entity does not hold fails the compile.
 ///
-/// The predicate is evaluated against the row image — the GraphQL projection of the
-/// mutation's return type — so a misspelled field simply never matches, and a
+/// The predicate is evaluated against the row image — the entity the mutation's
+/// function returned — so a misspelled field simply never matches, and a
 /// function that never fires is indistinguishable from one whose condition held
 /// false. This is the shape #597 left open: the operator was validated, the field
 /// was not.
@@ -300,6 +300,116 @@ fn a_when_predicate_naming_a_real_field_compiles() {
         "runtime": "Deno",
         "when": [{"field": "status", "changed_to": "approved"}]
     })));
+}
+
+// ── The name space of a `when` field (#1664) ─────────────────────────────────
+
+/// A `Ticket` whose `reviewStatus` field is published camelCase, as an SDK emits it, a
+/// mutation that writes it, and `function`.
+fn ticket_schema_with_function(function: Value) -> Value {
+    let mut schema = schema_with_function(function);
+    schema["types"] = json!([{
+        "name": "Ticket",
+        "sql_source": "v_ticket",
+        "is_input": false,
+        "fields": [{"name": "id", "type": "ID", "nullable": false},
+                   {"name": "reviewStatus", "type": "String", "nullable": false}]
+    }]);
+    schema["mutations"][0]["name"] = json!("updateTicket");
+    schema["mutations"][0]["return_type"] = json!("Ticket");
+    schema["mutations"][0]["sql_source"] = json!("fn_update_ticket");
+    schema["mutations"][0]["invalidates_views"] = json!(["v_ticket"]);
+    schema
+}
+
+/// The function of the issue, firing on `field`.
+fn purge_on(field: &str) -> Value {
+    json!({
+        "name": "purge_on_approval",
+        "trigger": "after:mutation:Ticket:update",
+        "runtime": "Deno",
+        "when": [{"field": field, "changed_to": "approved"}]
+    })
+}
+
+/// A `when` field names a key of the entity the mutation's function returns, and that
+/// entity is keyed `snake_case`: `reviewStatus` is held under `review_status`.
+#[test]
+fn a_when_predicate_names_the_key_the_entity_holds() {
+    accepts(ticket_schema_with_function(purge_on("review_status")));
+}
+
+/// The published spelling is not a key of the entity. It compiled, and the function never
+/// fired; it is refused, and the refusal names the key to write.
+#[test]
+fn a_when_predicate_spelled_as_the_published_name_is_refused_naming_the_key() {
+    let message = refusal(ticket_schema_with_function(purge_on("reviewStatus")));
+
+    assert!(message.contains("purge_on_approval"), "names the function: {message}");
+    assert!(message.contains("`reviewStatus`"), "names what was written: {message}");
+    assert!(message.contains("`review_status`"), "and the key to write instead: {message}");
+}
+
+/// The keys a refusal lists are the ones a predicate may name: the entity's, not the
+/// published names.
+#[test]
+fn a_refusal_lists_the_keys_the_entity_holds() {
+    let message = refusal(ticket_schema_with_function(purge_on("review_statuss")));
+    let listed = message.split("holds:").nth(1).unwrap_or_else(|| panic!("{message}"));
+
+    assert!(listed.contains("review_status"), "{message}");
+    assert!(!listed.contains("reviewStatus"), "{message}");
+}
+
+/// Two fields may read one key (`fooBar` and `foo_bar` both read `foo_bar`). A predicate
+/// names the key, which holds one value whichever field reads it, so it is not ambiguous.
+#[test]
+fn a_when_predicate_on_a_key_two_fields_read_compiles() {
+    let mut schema = ticket_schema_with_function(purge_on("foo_bar"));
+    let fields = schema["types"][0]["fields"].as_array_mut().unwrap();
+    fields.push(json!({"name": "fooBar", "type": "String", "nullable": true}));
+    fields.push(json!({"name": "foo_bar", "type": "String", "nullable": true}));
+
+    accepts(schema);
+}
+
+/// The check and the dispatcher agree, which is the whole point: the predicate the compiler
+/// accepts holds on an entity keyed the way the engine reads one, and the engine does read
+/// that entity's field from that key.
+#[test]
+fn the_predicate_the_compiler_accepts_matches_the_entity_the_engine_reads() {
+    let intermediate: IntermediateSchema =
+        serde_json::from_value(ticket_schema_with_function(purge_on("review_status"))).unwrap();
+    let artifact = SchemaConverter::convert_artifact(intermediate, &ConvertOptions::default())
+        .expect("the predicate names the entity's key");
+    let functions = artifact.functions.expect("the function is compiled");
+    let predicate = &functions.definitions[0].when[0];
+    let field = artifact
+        .schema
+        .find_type("Ticket")
+        .unwrap()
+        .fields
+        .iter()
+        .find(|f| f.name.as_str() == "reviewStatus")
+        .unwrap();
+
+    // The entity a mutation's function returns, keyed as stored.
+    let entity = json!({ "id": "t1", field.stored_key(): "approved" });
+
+    // The dispatcher reads the predicate's field from that entity as written.
+    assert_eq!(predicate.field, field.stored_key());
+    assert!(predicate.matches(None, Some(&entity)), "the function fires on {entity}");
+    // And the engine serves the published field from the same key.
+    let selection = fraiseql_core::graphql::FieldSelection {
+        name:          "reviewStatus".to_string(),
+        alias:         None,
+        arguments:     vec![],
+        nested_fields: vec![],
+        directives:    vec![],
+    };
+    let served =
+        fraiseql_core::runtime::project_entity(&entity, "Ticket", &[selection], &artifact.schema);
+    assert_eq!(served["reviewStatus"], json!("approved"), "{served}");
 }
 
 // ── The module on disk ───────────────────────────────────────────────────────

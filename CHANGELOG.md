@@ -58,6 +58,17 @@ disagreed, and the promise was the part that was wrong.
 - **New public field `EnrichmentQueryConfig.roles` in `fraiseql-server` (#1858).** A
   struct literal that lists every field must add it (`roles: None`).
 
+- **A function's `when` field names the key the entity holds, not the published field name
+  (#1664).** `fraiseql compile` checked a `when` predicate of an `after:mutation` function
+  against the published field names (`reviewStatus`), while the dispatcher reads the
+  predicate's field from the entity the mutation's function returned, which is keyed
+  `snake_case` (`review_status`). So `review_status` was refused, and `reviewStatus`
+  compiled and never fired. The compiler now accepts the key the engine reads the field
+  from, and refuses the published spelling, naming the key to write. To migrate: write each
+  multi-word `when` field in `snake_case` (`{"field": "review_status", ...}`), and return
+  the entity keyed `snake_case` from the mutation's function, as a view's document is. A
+  single-word field (`status`) is unaffected.
+
 ### Added
 
 - **`run_as.static_enriched` (#1989).** A function's, scheduled source's or saga step's

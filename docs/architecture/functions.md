@@ -385,6 +385,12 @@ predicate produces no dispatch record at all (not a skipped/failed dispatch):
   (INSERT/UPDATE) or the pre-image (DELETE). A missing field never equals a value.
 - **`changed_to`** — `old.field != v && new.field == v`. UPDATE-only (`changed_to` on
   a non-`update` trigger is a **load error**). A DELETE never matches.
+- **`field`** is a key of the row image, written as the image holds it. On
+  `after:mutation` the image is the entity the mutation's function returned, keyed
+  `snake_case` as every stored entity is: a field published as `reviewStatus` is named
+  `review_status` here. `fraiseql compile` refuses a `field` that is not a key of the
+  triggering type, and names the key when the published spelling was written. On
+  `after:capture` the image is keyed by database column.
 - The list is a **conjunction** (all must hold); an empty/absent `when` always fires
   (back-compat). Exactly one operator per predicate; unknown keys are a load error.
   This is a dispatch filter, not a rules engine — anything richer stays guest code.

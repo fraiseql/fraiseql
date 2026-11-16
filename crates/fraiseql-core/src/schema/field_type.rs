@@ -826,6 +826,18 @@ impl FieldDefinition {
         self.name.as_str()
     }
 
+    /// The key a stored entity holds for this field.
+    ///
+    /// The entity a view or a function returns is keyed `snake_case`, whatever casing the
+    /// field is published under: `reviewStatus` is held under `review_status`. This is the
+    /// key the projectors read first (`runtime::projection::stored_key_candidates`, the one
+    /// definition of the rule), so anything that names a key of a stored entity (a function's
+    /// `when` predicate, checked at compile time) asks here and cannot disagree with them.
+    #[must_use]
+    pub fn stored_key(&self) -> String {
+        crate::runtime::stored_key_candidates(self.name.as_str()).0
+    }
+
     /// Check if this field has an alias.
     #[must_use]
     pub const fn has_alias(&self) -> bool {
